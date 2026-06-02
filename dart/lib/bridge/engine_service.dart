@@ -1156,6 +1156,10 @@ class EngineService {
         promotedBy: map['promoted_by'] as String? ?? '',
         promotedByID: map['promoted_by_id'] as String? ?? '',
         promotedDate: map['promoted_date'] as int? ?? 0,
+        isSelf: map['is_self'] as bool? ?? false,
+        isCreator: map['is_creator'] as bool? ?? false,
+        canEditAdmin: map['can_edit_admin'] as bool? ?? false,
+        canRestrict: map['can_restrict'] as bool? ?? false,
       );
     }).toList();
     return MembersByRoleResult(
@@ -1190,6 +1194,73 @@ class EngineService {
       nightColors: c.nightColors.toList(),
       hidden: c.hidden,
     )).toList();
+  }
+
+  /// Boost-level requirements for changing a peer's name color / background
+  /// emoji / emoji status, so the color box can pre-flight the change and prompt
+  /// to boost instead of hitting a server error (edit_peer_color_box.cpp:666).
+  /// Returns {bg_icon_level_min, emoji_status_level_min, channel_levels, group_levels}.
+  Future<Map<String, dynamic>> getColorLevelRequirements(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    final resp = await _callAsync('__engine', 'GetColorLevelRequirements', Uint8List.fromList(payload));
+    if (resp.isEmpty) return {};
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+  }
+
+  /// Whether [userId] is currently verified by the bot [botId] — the real
+  /// per-bot state (UserFull.bot_verification.bot_id), so the Verify Accounts
+  /// list shows the correct badge and Remove/Setup action (verify_peers_box.cpp:92).
+  Future<bool> getBotVerifyState(String accountId, String botId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'bot_id': botId,
+      'user_id': userId,
+    }));
+    final resp = await _callAsync('__engine', 'GetBotVerifyState', Uint8List.fromList(payload));
+    if (resp.isEmpty) return false;
+    final m = json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+    return m['verified'] == true;
+  }
+
+  // ── Star-ref (affiliate program) JOIN flow ──
+  // A broadcast channel can only JOIN other bots' affiliate programs to
+  // advertise them (info_bot_starref_join_widget.cpp); it cannot own one.
+
+  /// Suggested bot affiliate programs this channel can join. Returns
+  /// {count, bots:[{bot_id, bot_name, bot_username, commission_permille, duration_months}], next_offset}.
+  Future<Map<String, dynamic>> getSuggestedStarRefBots(String accountId, String chatId,
+      {String offset = '', int limit = 20}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'offset': offset,
+      'limit': limit,
+    }));
+    final resp = await _callAsync('__engine', 'GetSuggestedStarRefBots', Uint8List.fromList(payload));
+    if (resp.isEmpty) return {};
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+  }
+
+  /// Affiliate programs this channel has already connected to (with referral urls).
+  Future<List<Map<String, dynamic>>> getConnectedStarRefBots(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'chat_id': chatId}));
+    final resp = await _callAsync('__engine', 'GetConnectedStarRefBots', Uint8List.fromList(payload));
+    if (resp.isEmpty) return [];
+    final list = json.decode(utf8.decode(resp)) as List<dynamic>;
+    return list.map((e) => e as Map<String, dynamic>).toList();
+  }
+
+  /// Connects this channel to a bot's affiliate program, returning the new
+  /// connected entry (with its referral url).
+  Future<Map<String, dynamic>> connectStarRefBot(String accountId, String chatId, String botId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'bot_id': botId,
+    }));
+    final resp = await _callAsync('__engine', 'ConnectStarRefBot', Uint8List.fromList(payload));
+    if (resp.isEmpty) return {};
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
   }
 
   // ── Web page preview ──
@@ -3233,6 +3304,24 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
+  /// Users who joined via a specific invite link ([requested]=false) or the
+  /// pending join-requests for that link ([requested]=true), with display info —
+  /// for the single-link info box (edit_peer_invite_link.cpp:592). Returns
+  /// {count, importers:[{user_id, display_name, username, avatar_b64, date, about}]}.
+  Future<Map<String, dynamic>> getInviteImporters(String accountId, String chatId, String link,
+      {bool requested = false, int limit = 50}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'link': link,
+      'requested': requested,
+      'limit': limit,
+    }));
+    final resp = await _callAsync('__engine', 'GetInviteImportersList', Uint8List.fromList(payload));
+    if (resp.isEmpty) return {'count': 0, 'importers': []};
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+  }
+
   Future<void> deleteRevokedChatInviteLink(String accountId, String chatId, String link) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -3461,6 +3550,7 @@ class EngineService {
     String query = '',
     int maxId = 0,
     Map<String, bool>? filters,
+    List<String>? admins,
   }) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -3469,6 +3559,7 @@ class EngineService {
       'query': query,
       'max_id': maxId,
       if (filters != null) 'filters': filters,
+      if (admins != null && admins.isNotEmpty) 'admins': admins,
     }));
     final resp = await _callAsync('__engine', 'GetAdminLogEvents', Uint8List.fromList(payload));
     if (resp.isEmpty) return [];
@@ -3600,12 +3691,15 @@ class EngineService {
     await _callAsync('__engine', 'ToggleSignatures', Uint8List.fromList(utf8.encode(json.encode(data))));
   }
 
-  Future<void> setChatReactionsMode(String accountId, String chatId, String mode, {List<String> emojis = const []}) async {
+  Future<void> setChatReactionsMode(String accountId, String chatId, String mode,
+      {List<String> emojis = const [], int maxCount = 0, bool paidEnabled = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'mode': mode,
       'emojis': emojis,
+      'max_count': maxCount,
+      'paid_enabled': paidEnabled,
     }));
     await _callAsync('__engine', 'SetChatReactionsMode', Uint8List.fromList(payload));
   }
@@ -4134,6 +4228,36 @@ class EngineService {
       Debug.error('ENGINE', 'getStarsRevenueStats failed', e);
       return null;
     }
+  }
+
+  /// Stars transaction history for the channel's balance (the earn section's
+  /// transaction list). Returns {transactions:[{id, amount, date, refund, title,
+  /// description}], next_offset}.
+  Future<Map<String, dynamic>> getChannelStarsTransactions(String accountId, String chatId,
+      {String offset = '', int limit = 30}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'offset': offset,
+      'limit': limit,
+    }));
+    final resp = await _callAsync('__engine', 'GetChannelStarsTransactions', Uint8List.fromList(payload));
+    if (resp.isEmpty) return {'transactions': [], 'next_offset': ''};
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+  }
+
+  /// Returns a URL to withdraw the channel's available Stars balance, gated on
+  /// the 2FA [password] (Api::HandleWithdrawalButton).
+  Future<String> getStarsRevenueWithdrawalUrl(String accountId, String chatId, String password) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'password': password,
+    }));
+    final resp = await _callAsync('__engine', 'GetStarsRevenueWithdrawalUrl', Uint8List.fromList(payload));
+    if (resp.isEmpty) return '';
+    final m = json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+    return m['url'] as String? ?? '';
   }
 
   Future<String?> downloadSingleAvatar(String accountId, String chatId) async {

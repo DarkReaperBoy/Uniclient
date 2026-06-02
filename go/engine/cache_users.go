@@ -385,6 +385,11 @@ type MemberInfo struct {
 	PromotedBy   string `json:"promoted_by,omitempty"`
 	PromotedByID string `json:"promoted_by_id,omitempty"`
 	PromotedDate int64  `json:"promoted_date,omitempty"`
+	// Row-action gating flags (mirror AyuGram canAddOrEditAdmin/canRestrict/etc).
+	IsSelf       bool `json:"is_self,omitempty"`
+	IsCreator    bool `json:"is_creator,omitempty"`
+	CanEditAdmin bool `json:"can_edit_admin,omitempty"`
+	CanRestrict  bool `json:"can_restrict,omitempty"`
 }
 
 // GetChatMembers fetches members for a chat from the connected core.
@@ -501,6 +506,10 @@ func (e *Engine) GetChatMembersByRole(accountID, chatID, role, query string, lim
 			if ex.PromotedDate != 0 {
 				mi.PromotedDate = int64(ex.PromotedDate)
 			}
+			mi.IsSelf = ex.IsSelf
+			mi.IsCreator = ex.IsCreator
+			mi.CanEditAdmin = ex.CanEditAdmin
+			mi.CanRestrict = ex.CanRestrict
 		}
 		members = append(members, mi)
 	}

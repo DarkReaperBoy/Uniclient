@@ -13694,9 +13694,14 @@ type AdminLogEvent struct {
 	NewValue  string `json:"new_value,omitempty"`
 	MessageID int    `json:"message_id,omitempty"`
 	MsgText   string `json:"msg_text,omitempty"`
+	// ActionData carries structured extras the flat string fields can't express:
+	// for message events (pin/edit/delete/send) the media type + stripped thumb so
+	// the UI can render a real bubble preview instead of a blank line; for
+	// participant_edit_rank the rank-change family (prev/new rank + user name).
+	ActionData map[string]interface{} `json:"action_data,omitempty"`
 }
 
-func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string, maxID int64, filters map[string]bool) ([]AdminLogEvent, error) {
+func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string, maxID int64, filters map[string]bool, admins []string) ([]AdminLogEvent, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -13746,6 +13751,21 @@ func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string,
 		if v, ok := filters["sub_extend"]; ok { f.SubExtend = v }
 		req.SetEventsFilter(f)
 	}
+	// Per-admin filter (FilterBox "admins" selector): restrict the log to actions
+	// taken by the chosen admins. Empty → all admins (history_admin_log_inner.cpp:522).
+	if len(admins) > 0 {
+		inputs := make([]tg.InputUserClass, 0, len(admins))
+		for _, a := range admins {
+			uid, err := tgUserID(a)
+			if err != nil {
+				continue
+			}
+			inputs = append(inputs, &tg.InputUser{UserID: uid, AccessHash: t.getCachedUserHash(uid)})
+		}
+		if len(inputs) > 0 {
+			req.SetAdmins(inputs)
+		}
+	}
 	result, err := t.api.ChannelsGetAdminLog(t.ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("get admin log: %w", err)
@@ -13766,16 +13786,17 @@ func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string,
 		}
 		action, detail, oldVal, newVal, msgID, msgText := t.describeAdminLogAction(ev.Action, userMap)
 		events = append(events, AdminLogEvent{
-			ID:        ev.ID,
-			Date:      ev.Date,
-			UserID:    ev.UserID,
-			UserName:  userName,
-			Action:    action,
-			Detail:    detail,
-			OldValue:  oldVal,
-			NewValue:  newVal,
-			MessageID: msgID,
-			MsgText:   msgText,
+			ID:         ev.ID,
+			Date:       ev.Date,
+			UserID:     ev.UserID,
+			UserName:   userName,
+			Action:     action,
+			Detail:     detail,
+			OldValue:   oldVal,
+			NewValue:   newVal,
+			MessageID:  msgID,
+			MsgText:    msgText,
+			ActionData: t.adminLogActionData(ev.Action, userMap),
 		})
 	}
 	return events, nil
@@ -13920,9 +13941,68 @@ func (t *TelegramCore) describeAdminLogAction(action tg.ChannelAdminLogEventActi
 		return "join_by_request", "", "", "", 0, ""
 	case *tg.ChannelAdminLogEventActionParticipantVolume:
 		return "participant_volume", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionToggleAutotranslation:
+		// channelAdminLogEventActionToggleAutotranslation — channel-wide
+		// auto-translation toggle (history_admin_log_item.cpp:2155).
+		if a.NewValue {
+			return "toggle_autotranslation", "enabled", "", "", 0, ""
+		}
+		return "toggle_autotranslation", "disabled", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantEditRank:
+		// channelAdminLogEventActionParticipantEditRank — set/changed/removed
+		// custom title. The set/changed/removed family + the target user are
+		// carried in ActionData (see adminLogActionData) so the UI can localize.
+		return "participant_edit_rank", "", "", "", 0, ""
 	default:
 		return "unknown", fmt.Sprintf("%T", action), "", "", 0, ""
 	}
+}
+
+// adminLogActionData returns the structured extras for the handful of actions
+// whose flat string fields can't capture everything. For message events it
+// extracts the media kind + inline stripped thumbnail (no network round-trip)
+// so the UI renders a real preview instead of a blank service line (item: admin
+// log message bubbles, history_admin_log_item.cpp:1027). For rank edits it
+// carries the prev/new rank + user so the UI can show the set/changed/removed
+// family (history_admin_log_item.cpp:2167). Returns nil when there's nothing extra.
+func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionClass, users map[int64]*tg.User) map[string]interface{} {
+	msgMedia := func(m tg.MessageClass) map[string]interface{} {
+		msg, ok := m.(*tg.Message)
+		if !ok || msg.Media == nil {
+			return nil
+		}
+		mt, thumb := extractMessageMediaSummary(msg)
+		if mt == 0 {
+			return nil
+		}
+		d := map[string]interface{}{"media_type": mt}
+		if thumb != "" {
+			d["thumb_b64"] = thumb
+		}
+		return d
+	}
+	switch a := action.(type) {
+	case *tg.ChannelAdminLogEventActionUpdatePinned:
+		return msgMedia(a.Message)
+	case *tg.ChannelAdminLogEventActionDeleteMessage:
+		return msgMedia(a.Message)
+	case *tg.ChannelAdminLogEventActionSendMessage:
+		return msgMedia(a.Message)
+	case *tg.ChannelAdminLogEventActionEditMessage:
+		// Edits render the NEW message's media in the bubble.
+		return msgMedia(a.NewMessage)
+	case *tg.ChannelAdminLogEventActionParticipantEditRank:
+		name := ""
+		if u, ok := users[a.UserID]; ok {
+			name = userDisplayName(u)
+		}
+		return map[string]interface{}{
+			"rank_user": name,
+			"prev_rank": a.PrevRank,
+			"new_rank":  a.NewRank,
+		}
+	}
+	return nil
 }
 
 func extractMessageText(msg tg.MessageClass) string {
@@ -16091,9 +16171,27 @@ type ChatPermissionFlags struct {
 	AmCreator             bool   `json:"am_creator"`
 	HasAdminRights        bool   `json:"has_admin_rights"`
 	AdminCanChangeInfo    bool   `json:"admin_can_change_info"`
+	// Member-management capabilities, for gating the member-list Add buttons
+	// (canAddNewItem → canAddMembers/canAddAdmins/canBanMembers).
+	CanAddAdmins          bool   `json:"can_add_admins"`
+	CanBanUsers           bool   `json:"can_ban_users"`
+	CanInviteUsers        bool   `json:"can_invite_users"`
 	CanSetStickers        bool   `json:"can_set_stickers"`
 	AutoTranslateMinLevel int    `json:"auto_translate_min_level"`
 	MigratedFromChatID    string `json:"migrated_from_chat_id"`
+	// Direct-messages (monoforum) state for the broadcast "Direct Messages" box:
+	// whether the feature is currently enabled and the current per-message price.
+	DirectMessagesEnabled bool  `json:"direct_messages_enabled"`
+	DirectMessagesStars   int64 `json:"direct_messages_stars"`
+	// Star-ref JOIN gating for the channel "Affiliate Program" row: the appConfig
+	// switch (Join::Allowed) plus whether the editor can post (canPostMessages).
+	StarRefJoinAllowed bool `json:"starref_join_allowed"`
+	AdminCanPost       bool `json:"admin_can_post"`
+	// Reactions box extras (EditAllowedReactionsBox): the per-message max-count
+	// slider bounds + current value, and whether paid reactions are enabled.
+	ReactionsUniqMax     int  `json:"reactions_uniq_max"`
+	ReactionsMaxCount    int  `json:"reactions_max_count"`
+	PaidReactionsEnabled bool `json:"paid_reactions_enabled"`
 }
 
 type DefaultBannedRights struct {
@@ -16349,6 +16447,13 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 		flags.NoTranslations = fc.TranslationsDisabled
 		flags.PendingRequestsCount = fc.RequestsPending
 		flags.CanSetStickers = fc.CanSetStickers
+		if stars, ok := fc.GetSendPaidMessagesStars(); ok {
+			flags.DirectMessagesStars = stars
+		}
+		if rl, ok := fc.GetReactionsLimit(); ok {
+			flags.ReactionsMaxCount = rl
+		}
+		flags.PaidReactionsEnabled = fc.PaidReactionsAvailable
 		if lc, ok := fc.GetLinkedChatID(); ok && lc != 0 {
 			flags.LinkedChatID = fmt.Sprintf("-100%d", lc)
 		}
@@ -16357,6 +16462,8 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 		}
 	}
 	flags.AutoTranslateMinLevel = t.appConfigIntNoLock("channel_autotranslation_level_min", 3)
+	flags.StarRefJoinAllowed = t.appConfigBoolNoLock("starref_connect_allowed", false)
+	flags.ReactionsUniqMax = t.appConfigIntNoLock("reactions_uniq_max", 11)
 	for _, c := range result.Chats {
 		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {
 			flags.JoinToSend = cc.JoinToSend
@@ -16370,9 +16477,19 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 			flags.IsBroadcast = cc.Broadcast
 			flags.IsGigagroup = cc.Gigagroup
 			flags.AmCreator = cc.Creator
+			flags.DirectMessagesEnabled = cc.BroadcastMessagesAllowed
 			if ar, ok := cc.GetAdminRights(); ok {
 				flags.HasAdminRights = true
 				flags.AdminCanChangeInfo = ar.ChangeInfo
+				flags.AdminCanPost = ar.PostMessages
+				flags.CanAddAdmins = ar.AddAdmins
+				flags.CanBanUsers = ar.BanUsers
+				flags.CanInviteUsers = ar.InviteUsers
+			}
+			if cc.Creator {
+				flags.CanAddAdmins = true
+				flags.CanBanUsers = true
+				flags.CanInviteUsers = true
 			}
 			if lvl, ok := cc.GetLevel(); ok {
 				flags.BoostLevel = lvl
@@ -16486,6 +16603,185 @@ func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, 
 	return out, nil
 }
 
+// GetBotVerifyState reports whether userID is currently verified BY botID,
+// reading the target's UserFull.bot_verification.bot_id — the real per-bot state
+// AyuGram derives from peer->botVerifyDetails() (verify_peers_box.cpp:92), rather
+// than the global blue check. Lets the Verify Accounts list start each contact in
+// the correct state and offer Remove (not re-Setup) for already-verified users.
+func (t *TelegramCore) GetBotVerifyState(botID, userID string) (bool, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return false, ErrAuth
+	}
+	uid, err := tgUserID(userID)
+	if err != nil {
+		return false, err
+	}
+	bid, err := tgUserID(botID)
+	if err != nil {
+		return false, err
+	}
+	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: uid, AccessHash: t.getCachedUserHash(uid)})
+	if err != nil {
+		return false, err
+	}
+	if bv, ok := result.FullUser.GetBotVerification(); ok {
+		return bv.BotID == bid, nil
+	}
+	return false, nil
+}
+
+// ── Star-ref (affiliate program) JOIN flow ──
+// For a broadcast channel the only star-ref entry is JOINING other bots'
+// affiliate programs to advertise them (info_bot_starref_join_widget.cpp). A
+// channel cannot OWN a program — that setup flow is bot-only.
+
+func connectedStarRefBotsToMaps(users map[int64]*tg.User, bots []tg.ConnectedBotStarRef) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(bots))
+	for _, b := range bots {
+		name, uname := "", ""
+		if u, ok := users[b.BotID]; ok {
+			name = userDisplayName(u)
+			uname = u.Username
+		}
+		out = append(out, map[string]interface{}{
+			"bot_id":              strconv.FormatInt(b.BotID, 10),
+			"bot_name":            name,
+			"bot_username":        uname,
+			"url":                 b.URL,
+			"commission_permille": b.CommissionPermille,
+			"duration_months":     b.DurationMonths,
+			"date":                b.Date,
+			"revoked":             b.Revoked,
+			"participants":        b.Participants,
+			"revenue":             b.Revenue,
+		})
+	}
+	return out
+}
+
+func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int) (map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	req := &tg.PaymentsGetSuggestedStarRefBotsRequest{Peer: inputPeer, Offset: offset, Limit: limit}
+	req.OrderByRevenue = true
+	res, err := t.api.PaymentsGetSuggestedStarRefBots(t.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	users := map[int64]*tg.User{}
+	for _, u := range res.Users {
+		if uu, ok := u.(*tg.User); ok {
+			users[uu.ID] = uu
+		}
+	}
+	bots := make([]map[string]interface{}, 0, len(res.SuggestedBots))
+	for _, p := range res.SuggestedBots {
+		name, uname := "", ""
+		if u, ok := users[p.BotID]; ok {
+			name = userDisplayName(u)
+			uname = u.Username
+		}
+		bots = append(bots, map[string]interface{}{
+			"bot_id":              strconv.FormatInt(p.BotID, 10),
+			"bot_name":            name,
+			"bot_username":        uname,
+			"commission_permille": p.CommissionPermille,
+			"duration_months":     p.DurationMonths,
+		})
+	}
+	return map[string]interface{}{
+		"count":       res.Count,
+		"bots":        bots,
+		"next_offset": res.NextOffset,
+	}, nil
+}
+
+func (t *TelegramCore) GetConnectedStarRefBots(chatID string) ([]map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, err
+	}
+	res, err := t.api.PaymentsGetConnectedStarRefBots(t.ctx, &tg.PaymentsGetConnectedStarRefBotsRequest{Peer: inputPeer})
+	if err != nil {
+		return nil, err
+	}
+	users := map[int64]*tg.User{}
+	for _, u := range res.Users {
+		if uu, ok := u.(*tg.User); ok {
+			users[uu.ID] = uu
+		}
+	}
+	return connectedStarRefBotsToMaps(users, res.ConnectedBots), nil
+}
+
+func (t *TelegramCore) ConnectStarRefBot(chatID, botID string) (map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, err
+	}
+	bid, err := tgUserID(botID)
+	if err != nil {
+		return nil, err
+	}
+	res, err := t.api.PaymentsConnectStarRefBot(t.ctx, &tg.PaymentsConnectStarRefBotRequest{
+		Peer: inputPeer,
+		Bot:  &tg.InputUser{UserID: bid, AccessHash: t.getCachedUserHash(bid)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	users := map[int64]*tg.User{}
+	for _, u := range res.Users {
+		if uu, ok := u.(*tg.User); ok {
+			users[uu.ID] = uu
+		}
+	}
+	list := connectedStarRefBotsToMaps(users, res.ConnectedBots)
+	for _, m := range list {
+		if m["bot_id"] == botID {
+			return m, nil
+		}
+	}
+	if len(list) > 0 {
+		return list[0], nil
+	}
+	return map[string]interface{}{}, nil
+}
+
 // GetParticipants returns participants of a channel or supergroup with filtering.
 func (t *TelegramCore) GetParticipants(chatID string, limit int) ([]User, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -16529,6 +16825,13 @@ type ParticipantExtra struct {
 	CustomRank   string
 	PromotedBy   int64
 	PromotedDate int
+	// Permission/identity flags so the UI can gate row actions exactly like
+	// AyuGram (edit_participants_box.cpp:1962): can't act on the creator, on
+	// yourself, or on an admin you didn't promote / can't edit.
+	IsSelf       bool
+	IsCreator    bool
+	CanEditAdmin bool
+	CanRestrict  bool
 }
 
 func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, offset int) ([]User, map[int64]ParticipantExtra, error) {
@@ -16646,19 +16949,43 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 	}
 	t.cacheEntities(cp.Users, cp.Chats)
 
+	// Self's rights in this channel, so per-row gating matches AyuGram's
+	// canAddOrEditAdmin / canRestrictParticipant / canRemoveParticipant.
+	selfCreator, selfAddAdmins, selfBanUsers := false, false, false
+	for _, c := range cp.Chats {
+		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {
+			selfCreator = cc.Creator
+			if ar, ok := cc.GetAdminRights(); ok {
+				selfAddAdmins = ar.AddAdmins
+				selfBanUsers = ar.BanUsers
+			}
+			break
+		}
+	}
+
 	extras := make(map[int64]ParticipantExtra, len(cp.Participants))
 	roles := make(map[int64]string, len(cp.Participants))
 	for _, p := range cp.Participants {
 		switch pt := p.(type) {
 		case *tg.ChannelParticipantCreator:
 			roles[pt.UserID] = "creator"
-			extras[pt.UserID] = ParticipantExtra{CustomRank: pt.Rank}
+			extras[pt.UserID] = ParticipantExtra{
+				CustomRank: pt.Rank,
+				IsSelf:     pt.UserID == t.selfID,
+				IsCreator:  true,
+			}
 		case *tg.ChannelParticipantAdmin:
 			roles[pt.UserID] = "admin"
+			isSelf := pt.UserID == t.selfID
 			extras[pt.UserID] = ParticipantExtra{
 				CustomRank:   pt.Rank,
 				PromotedBy:   pt.PromotedBy,
 				PromotedDate: pt.Date,
+				IsSelf:       isSelf,
+				// CanEdit is the server's "you may edit this admin" flag (set
+				// when you're the creator or you promoted them).
+				CanEditAdmin: !isSelf && pt.CanEdit,
+				CanRestrict:  !isSelf && pt.CanEdit && (selfCreator || selfBanUsers),
 			}
 		case *tg.ChannelParticipantBanned:
 			if peer, ok := pt.Peer.(*tg.PeerUser); ok {
@@ -16666,8 +16993,31 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 				if pt.BannedRights.ViewMessages {
 					roles[peer.UserID] = "banned"
 				}
-				extras[peer.UserID] = ParticipantExtra{PromotedBy: pt.KickedBy, PromotedDate: pt.Date}
+				extras[peer.UserID] = ParticipantExtra{
+					PromotedBy:   pt.KickedBy,
+					PromotedDate: pt.Date,
+					IsSelf:       peer.UserID == t.selfID,
+					CanRestrict:  selfCreator || selfBanUsers,
+				}
 			}
+		}
+	}
+
+	// Regular members carry no special participant type, so fill their gating
+	// flags from self's rights (promote if AddAdmins, restrict if BanUsers).
+	for _, u := range cp.Users {
+		uu, ok := u.(*tg.User)
+		if !ok {
+			continue
+		}
+		if _, has := extras[uu.ID]; has {
+			continue
+		}
+		isSelf := uu.ID == t.selfID
+		extras[uu.ID] = ParticipantExtra{
+			IsSelf:       isSelf,
+			CanEditAdmin: !isSelf && (selfCreator || selfAddAdmins),
+			CanRestrict:  !isSelf && (selfCreator || selfBanUsers),
 		}
 	}
 
@@ -16974,22 +17324,46 @@ func (t *TelegramCore) SetChatReactions(chatID string, reactions []tg.ReactionCl
 	}); return err
 }
 
-// SetChatReactionsMode sets chat reactions to "all", "none", or specific emoji list.
-func (t *TelegramCore) SetChatReactionsMode(chatID string, mode string, emojis []string) error {
+// SetChatReactionsMode sets chat reactions to "all", "none", or specific emoji
+// list, plus the per-message max-count limit and (broadcast only) paid-reactions
+// toggle that EditAllowedReactionsBox exposes (edit_peer_reactions.cpp:949,1011).
+func (t *TelegramCore) SetChatReactionsMode(chatID string, mode string, emojis []string, maxCount int, paidEnabled bool) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	var availReactions tg.ChatReactionsClass
 	switch mode {
 	case "all":
-		return t.SetChatReactions(chatID, nil)
+		availReactions = &tg.ChatReactionsAll{}
 	case "none":
-		return t.SetChatReactions(chatID, []tg.ReactionClass{})
+		availReactions = &tg.ChatReactionsNone{}
 	case "some":
-		var reactions []tg.ReactionClass
+		reactions := make([]tg.ReactionClass, 0, len(emojis))
 		for _, e := range emojis {
 			reactions = append(reactions, &tg.ReactionEmoji{Emoticon: e})
 		}
-		return t.SetChatReactions(chatID, reactions)
+		if len(reactions) == 0 {
+			availReactions = &tg.ChatReactionsNone{}
+		} else {
+			availReactions = &tg.ChatReactionsSome{Reactions: reactions}
+		}
 	default:
 		return fmt.Errorf("unknown reaction mode: %s", mode)
 	}
+	req := &tg.MessagesSetChatAvailableReactionsRequest{
+		Peer:               inputPeer,
+		AvailableReactions: availReactions,
+	}
+	if maxCount > 0 {
+		req.SetReactionsLimit(maxCount)
+	}
+	if paidEnabled {
+		req.SetPaidEnabled(true)
+	}
+	_, err = t.api.MessagesSetChatAvailableReactions(t.ctx, req)
+	return err
 }
 
 // EditChannelTitle changes the title of a channel or supergroup.
@@ -20117,6 +20491,62 @@ func (t *TelegramCore) GetInviteImporters(chatID, link string, limit int) (int, 
 	return result.Count, nil
 }
 
+// GetInviteImportersList returns the users who joined via a specific invite link
+// (requested=false) or the pending join-requests for that link (requested=true),
+// with their display info — for the single-link info box's joined-members list
+// and Requests-to-join block (edit_peer_invite_link.cpp:592).
+func (t *TelegramCore) GetInviteImportersList(chatID, link string, requested bool, limit int) (map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	if limit <= 0 {
+		limit = 50
+	}
+	req := &tg.MessagesGetChatInviteImportersRequest{
+		Peer:       inputPeer,
+		Link:       link,
+		Limit:      limit,
+		OffsetUser: &tg.InputUserEmpty{},
+	}
+	if requested {
+		req.Requested = true
+	}
+	res, err := t.api.MessagesGetChatInviteImporters(t.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	t.cacheEntities(res.Users, nil)
+	byID := map[int64]*tg.User{}
+	for _, u := range res.Users {
+		if uu, ok := u.(*tg.User); ok {
+			byID[uu.ID] = uu
+		}
+	}
+	importers := make([]map[string]interface{}, 0, len(res.Importers))
+	for _, imp := range res.Importers {
+		m := map[string]interface{}{
+			"user_id": strconv.FormatInt(imp.UserID, 10),
+			"date":    imp.Date,
+		}
+		if uu := byID[imp.UserID]; uu != nil {
+			cu := t.convertUser(uu)
+			m["display_name"] = cu.DisplayName
+			m["username"] = cu.Username
+			m["avatar_b64"] = cu.AvatarB64
+		}
+		if requested && imp.About != "" {
+			m["about"] = imp.About
+		}
+		importers = append(importers, m)
+	}
+	return map[string]interface{}{
+		"count":     res.Count,
+		"importers": importers,
+	}, nil
+}
+
 // DeleteChatInvite revokes and deletes an exported chat invite link.
 func (t *TelegramCore) DeleteChatInvite(chatID, link string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
@@ -20292,6 +20722,9 @@ type StarsRevenueResult struct {
 	OverallRevenue    int64   `json:"overall_revenue"`
 	WithdrawalEnabled bool    `json:"withdrawal_enabled"`
 	UsdRate           float64 `json:"usd_rate"`
+	// Revenue + top-hours graphs (the earn section's charts) — previously
+	// dropped (info_channel_earn_list.cpp:611).
+	Charts []map[string]interface{} `json:"charts,omitempty"`
 }
 
 func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, error) {
@@ -20303,13 +20736,110 @@ func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, 
 		Peer: inputPeer,
 	})
 	if err != nil { return StarsRevenueResult{}, err }
+	charts := []map[string]interface{}{}
+	if c := statsGraphToMap("Revenue", result.RevenueGraph, "StackBar"); c != nil {
+		charts = append(charts, c)
+	}
+	if c := statsGraphToMap("Top Hours", result.TopHoursGraph, "Linear"); c != nil {
+		charts = append(charts, c)
+	}
 	return StarsRevenueResult{
 		CurrentBalance:    result.Status.CurrentBalance.GetAmount(),
 		AvailableBalance:  result.Status.AvailableBalance.GetAmount(),
 		OverallRevenue:    result.Status.OverallRevenue.GetAmount(),
 		WithdrawalEnabled: result.Status.WithdrawalEnabled,
 		UsdRate:           result.UsdRate,
+		Charts:            charts,
 	}, nil
+}
+
+// GetStarsTransactions returns the Stars transaction history for the channel's
+// balance — the earn section's transaction list (info_channel_earn_list.cpp:1288).
+func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int) (map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 30
+	}
+	res, err := t.api.PaymentsGetStarsTransactions(t.ctx, &tg.PaymentsGetStarsTransactionsRequest{
+		Peer:   inputPeer,
+		Offset: offset,
+		Limit:  limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	txns := make([]map[string]interface{}, 0, len(res.History))
+	for _, tx := range res.History {
+		m := map[string]interface{}{
+			"id":          tx.ID,
+			"amount":      tx.Amount.GetAmount(),
+			"date":        tx.Date,
+			"refund":      tx.Refund,
+			"title":       tx.Title,
+			"description": tx.Description,
+		}
+		txns = append(txns, m)
+	}
+	return map[string]interface{}{
+		"transactions": txns,
+		"next_offset":  res.NextOffset,
+	}, nil
+}
+
+// GetStarsRevenueWithdrawalUrl returns a URL to withdraw the channel's available
+// Stars balance, gated on the user's 2FA password (Api::HandleWithdrawalButton →
+// info_channel_earn_list.cpp:917).
+func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string) (string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return "", ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return "", err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return "", err
+	}
+	stats, err := t.api.PaymentsGetStarsRevenueStats(t.ctx, &tg.PaymentsGetStarsRevenueStatsRequest{Peer: inputPeer})
+	if err != nil {
+		return "", fmt.Errorf("get revenue stats: %w", err)
+	}
+	amount := stats.Status.AvailableBalance.GetAmount()
+	if amount <= 0 {
+		return "", fmt.Errorf("no balance available to withdraw")
+	}
+	pw, err := t.api.AccountGetPassword(t.ctx)
+	if err != nil {
+		return "", fmt.Errorf("get password params: %w", err)
+	}
+	srpCheck, err := auth.PasswordHash([]byte(password), pw.SRPID, pw.SRPB, pw.SecureRandom, pw.CurrentAlgo)
+	if err != nil {
+		return "", fmt.Errorf("SRP computation failed: %w", err)
+	}
+	res, err := t.api.PaymentsGetStarsRevenueWithdrawalURL(t.ctx, &tg.PaymentsGetStarsRevenueWithdrawalURLRequest{
+		Peer:     inputPeer,
+		Amount:   amount,
+		Password: srpCheck,
+	})
+	if err != nil {
+		return "", err
+	}
+	return res.URL, nil
 }
 
 func (t *TelegramCore) GetPremiumStatus() (premiumPossible bool, premiumCanBuy bool, err error) {
@@ -23605,6 +24135,11 @@ type PeerColorEntry struct {
 	DayColors   []int `json:"day_colors"`
 	NightColors []int `json:"night_colors"`
 	Hidden      bool  `json:"hidden"`
+	// Minimum boost level required to use this color, per peer kind. AyuGram's
+	// Apply() gates a non-self color change on CheckBoostLevel against these
+	// (edit_peer_color_box.cpp:666 → peerColors->requiredLevelFor).
+	ChannelMinLevel int `json:"channel_min_level"`
+	GroupMinLevel   int `json:"group_min_level"`
 }
 
 type CloudThemeInfo struct {
@@ -23915,8 +24450,10 @@ func (t *TelegramCore) GetPeerColorPalette() ([]PeerColorEntry, error) {
 	entries := make([]PeerColorEntry, 0, len(colors.Colors))
 	for _, opt := range colors.Colors {
 		entry := PeerColorEntry{
-			ColorID: opt.ColorID,
-			Hidden:  opt.Hidden,
+			ColorID:         opt.ColorID,
+			Hidden:          opt.Hidden,
+			ChannelMinLevel: opt.ChannelMinLevel,
+			GroupMinLevel:   opt.GroupMinLevel,
 		}
 		if cs, ok := opt.GetColors(); ok {
 			if set, ok := cs.(*tg.HelpPeerColorSet); ok {
@@ -23931,6 +24468,36 @@ func (t *TelegramCore) GetPeerColorPalette() ([]PeerColorEntry, error) {
 		entries = append(entries, entry)
 	}
 	return entries, nil
+}
+
+// GetColorLevelRequirements returns the boost-level requirements for changing a
+// peer's name color / background emoji / emoji status, so the UI can pre-flight
+// the change and prompt to boost instead of hitting a server error — mirroring
+// AyuGram's Apply()→CheckBoostLevel for non-self peers (edit_peer_color_box.cpp:666).
+// The caller already knows the peer kind, so both per-color level maps are
+// returned (channel_levels / group_levels) and the UI picks the right one.
+func (t *TelegramCore) GetColorLevelRequirements() (map[string]interface{}, error) {
+	palette, err := t.GetPeerColorPalette()
+	if err != nil {
+		return nil, err
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	channelLevels := map[string]int{}
+	groupLevels := map[string]int{}
+	for _, c := range palette {
+		channelLevels[strconv.Itoa(c.ColorID)] = c.ChannelMinLevel
+		groupLevels[strconv.Itoa(c.ColorID)] = c.GroupMinLevel
+	}
+	return map[string]interface{}{
+		"bg_icon_level_min":      t.appConfigIntNoLock("channel_bg_icon_level_min", 5),
+		"emoji_status_level_min": t.appConfigIntNoLock("channel_emoji_status_level_min", 8),
+		"channel_levels":         channelLevels,
+		"group_levels":           groupLevels,
+	}, nil
 }
 
 // HelpGetPeerProfileColors returns available profile accent colors.
@@ -26906,6 +27473,9 @@ func inviteLinkFromExported(inv *tg.ChatInviteExported) map[string]interface{} {
 		"revoked":       inv.Revoked,
 		"need_approval": inv.RequestNeeded,
 	}
+	if sp, ok := inv.GetSubscriptionPricing(); ok {
+		m["subscription_credits"] = sp.Amount
+	}
 	return m
 }
 
@@ -26928,10 +27498,20 @@ func (t *TelegramCore) GetExportedChatInvites(chatID string, revoked bool, admin
 	}
 	result, err := t.api.MessagesGetExportedChatInvites(t.ctx, req)
 	if err != nil { return nil, err }
+	// Map admin users so the UI can suppress Edit/Revoke for bot-created links
+	// (edit_peer_invite_link.cpp:484 hides them when admin->isBot()).
+	botByID := map[int64]bool{}
+	for _, u := range result.Users {
+		if uu, ok := u.(*tg.User); ok {
+			botByID[uu.ID] = uu.Bot
+		}
+	}
 	var links []map[string]interface{}
 	for _, inv := range result.Invites {
 		if exported, ok := inv.(*tg.ChatInviteExported); ok {
-			links = append(links, inviteLinkFromExported(exported))
+			m := inviteLinkFromExported(exported)
+			m["admin_is_bot"] = botByID[exported.AdminID]
+			links = append(links, m)
 		}
 	}
 	return links, nil

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -17,6 +18,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../theme/telegram_palette.dart';
 import 'choose_datetime_box.dart';
+import 'create_giveaway_box.dart' show showCreateGiveawayBox;
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
 import 'info_panel.dart';
 import 'telegram_toast.dart';
@@ -72,6 +74,16 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   bool _origNoForwards = false;
   bool _origJoinToSend = false;
   bool _origJoinRequest = false;
+  // Direct-messages (monoforum) current state, for the "Direct Messages" box.
+  bool _directMessagesEnabled = false;
+  int _directMessagesStars = 0;
+  // Star-ref JOIN gating for the channel "Affiliate Program" row.
+  bool _starRefJoinAllowed = false;
+  bool _adminCanPost = false;
+  // Reactions box extras (broadcast EditAllowedReactionsBox).
+  int _reactionsUniqMax = 11;
+  int _reactionsMaxCount = 0;
+  bool _paidReactionsEnabled = false;
 
   // Channel sub-type & admin capability flags (from GetChatPermissionFlags),
   // mirroring AyuGram ChannelData::* used by edit_peer_info_box fillManageSection.
@@ -115,6 +127,16 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   bool get _canEditStickers => _isChannelOrSuper && _canSetStickers;
   // canDelete() = amCreator(); box: canDeleteChannel = isChannel && canDelete().
   bool get _canDeleteChannel => _isChannelOrSuper && _amCreator;
+  // canEditColorIndex = isChannel && canEditEmoji(); canEditEmoji() =
+  // amCreator() || (adminRights & ChangeInfo) (data_channel.cpp:777). Hidden for
+  // legacy basic groups, bots, and members without ChangeInfo.
+  bool get _canEditColorIndex => _isChannelOrSuper && (_amCreator || _adminCanChangeInfo);
+  // hasStarRef = Join::Allowed(peer) && isChannel && canPostMessages():
+  // Join::Allowed for a channel = starref_connect_allowed && isBroadcast &&
+  // canPostMessages (info_bot_starref_join_widget.cpp:1083). A channel's only
+  // star-ref entry is JOINING other bots' programs, never owning one.
+  bool get _canJoinStarRef =>
+      _isChannel && _starRefJoinAllowed && (_amCreator || _adminCanPost);
 
   static const int _antispamMinMembers = 100;
 
@@ -239,6 +261,13 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           _adminCanChangeInfo = flags['admin_can_change_info'] == true;
           _canSetStickers = flags['can_set_stickers'] == true;
           _migratedFromChatId = (flags['migrated_from_chat_id'] as String?) ?? '';
+          _directMessagesEnabled = flags['direct_messages_enabled'] == true;
+          _directMessagesStars = (flags['direct_messages_stars'] as num?)?.toInt() ?? 0;
+          _starRefJoinAllowed = flags['starref_join_allowed'] == true;
+          _adminCanPost = flags['admin_can_post'] == true;
+          _reactionsUniqMax = (flags['reactions_uniq_max'] as num?)?.toInt() ?? 11;
+          _reactionsMaxCount = (flags['reactions_max_count'] as num?)?.toInt() ?? 0;
+          _paidReactionsEnabled = flags['paid_reactions_enabled'] == true;
         });
       }
     } catch (_) {
@@ -598,14 +627,15 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           subTextColor: subTextColor,
           onTap: () => _showLinkedChatDialog(),
         ),
-        _EditRow(
-          icon: Icons.palette_outlined,
-          label: 'Color & Emoji',
-          value: '',
-          textColor: textColor,
-          subTextColor: subTextColor,
-          onTap: () => _showColorPickerDialog(textColor, subTextColor, accentColor),
-        ),
+        if (_canEditColorIndex)
+          _EditRow(
+            icon: Icons.palette_outlined,
+            label: 'Color & Emoji',
+            value: '',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => _showColorPickerDialog(textColor, subTextColor, accentColor),
+          ),
         if (!_isChannel) ...[
           if (showHistoryVis)
             _EditRow(
@@ -703,7 +733,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                 onTap: () => _toggleSignProfiles(),
               ),
           ],
-          if (chat.type == ChatType.channel)
+          // canEditDirectMessages = isChannel && isBroadcast && canEditInformation
+          // (edit_peer_info_box.cpp:1473). Hidden for admins without ChangeInfo.
+          if (_canEditInformation)
             _EditRow(
               icon: Icons.monetization_on_outlined,
               label: 'Direct Messages',
@@ -914,7 +946,13 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     }
   }
 
-  Future<void> _showBoostRequiredDialog(int currentLevel, int requiredLevel) async {
+  Future<void> _showBoostRequiredDialog(
+    int currentLevel,
+    int requiredLevel, {
+    String title = 'Enable Auto-Translation',
+    IconData icon = Icons.translate,
+    String description = '',
+  }) async {
     final engine = context.read<EngineService>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
@@ -943,9 +981,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         backgroundColor: bgColor,
         title: Column(
           children: [
-            Icon(Icons.translate, size: 48, color: accentColor),
+            Icon(icon, size: 48, color: accentColor),
             const SizedBox(height: 12),
-            Text('Enable Auto-Translation',
+            Text(title,
               textAlign: TextAlign.center,
               style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
           ],
@@ -989,8 +1027,10 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Your channel needs to reach Level $requiredLevel to enable auto-translation.\n\n'
-              'Ask your subscribers to boost your channel.',
+              description.isNotEmpty
+                  ? description
+                  : 'Your channel needs to reach Level $requiredLevel to enable auto-translation.\n\n'
+                      'Ask your subscribers to boost your channel.',
               textAlign: TextAlign.center,
               style: TextStyle(color: subTextColor, fontSize: 14),
             ),
@@ -1105,8 +1145,17 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
 
     String mode = 'all';
     final selectedEmojis = <String>{};
+    // Broadcast-only extras mirroring EditAllowedReactionsBox: a per-message
+    // max-count slider (1..reactions_uniq_max) and a paid-reactions toggle. For
+    // megagroups AyuGram omits these (they live under `if (!isGroup)`).
+    final showBroadcastExtras = _isChannel;
+    final maxLimit = _reactionsUniqMax < 1 ? 11 : _reactionsUniqMax;
+    int maxCount = _reactionsMaxCount > 0
+        ? _reactionsMaxCount.clamp(1, maxLimit)
+        : (maxLimit ~/ 2).clamp(1, maxLimit);
+    bool paidEnabled = _paidReactionsEnabled;
 
-    final result = await showDialog<(String, List<String>)>(
+    final result = await showDialog<(String, List<String>, int, bool)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
@@ -1114,61 +1163,103 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           title: Text('Reactions', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
           content: SizedBox(
             width: 340,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final opt in [('all', 'All Reactions'), ('some', 'Some Reactions'), ('none', 'No Reactions')])
-                  RadioListTile<String>(
-                    value: opt.$1,
-                    groupValue: mode,
-                    title: Text(opt.$2, style: TextStyle(color: textColor, fontSize: 14)),
-                    activeColor: accentColor,
-                    onChanged: (v) => setDialogState(() => mode = v!),
-                    dense: true,
-                  ),
-                if (mode == 'some' && availableReactions.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Select allowed reactions:',
-                    style: TextStyle(color: subTextColor, fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 200),
-                    child: SingleChildScrollView(
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: availableReactions.map((emoji) {
-                          final isSelected = selectedEmojis.contains(emoji);
-                          return GestureDetector(
-                            onTap: () => setDialogState(() {
-                              if (isSelected) {
-                                selectedEmojis.remove(emoji);
-                              } else {
-                                selectedEmojis.add(emoji);
-                              }
-                            }),
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: isSelected ? accentColor.withValues(alpha: 0.2) : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isSelected ? accentColor : (isDark ? Colors.white24 : Colors.black12),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final opt in [('all', 'All Reactions'), ('some', 'Some Reactions'), ('none', 'No Reactions')])
+                    RadioListTile<String>(
+                      value: opt.$1,
+                      groupValue: mode,
+                      title: Text(opt.$2, style: TextStyle(color: textColor, fontSize: 14)),
+                      activeColor: accentColor,
+                      onChanged: (v) => setDialogState(() => mode = v!),
+                      dense: true,
+                    ),
+                  if (mode == 'some' && availableReactions.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Select allowed reactions:',
+                      style: TextStyle(color: subTextColor, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: SingleChildScrollView(
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: availableReactions.map((emoji) {
+                            final isSelected = selectedEmojis.contains(emoji);
+                            return GestureDetector(
+                              onTap: () => setDialogState(() {
+                                if (isSelected) {
+                                  selectedEmojis.remove(emoji);
+                                } else {
+                                  selectedEmojis.add(emoji);
+                                }
+                              }),
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isSelected ? accentColor.withValues(alpha: 0.2) : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected ? accentColor : (isDark ? Colors.white24 : Colors.black12),
+                                  ),
                                 ),
+                                alignment: Alignment.center,
+                                child: Text(emoji, style: const TextStyle(fontSize: 20)),
                               ),
-                              alignment: Alignment.center,
-                              child: Text(emoji, style: const TextStyle(fontSize: 20)),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
+                  // Max-count slider + paid toggle (broadcast, reactions enabled).
+                  if (showBroadcastExtras && mode != 'none') ...[
+                    const SizedBox(height: 8),
+                    const Divider(),
+                    Text('Maximum Reactions',
+                        style: TextStyle(color: subTextColor, fontSize: 13)),
+                    Row(
+                      children: [
+                        Text('1', style: TextStyle(color: subTextColor, fontSize: 12)),
+                        Expanded(
+                          child: Slider(
+                            value: maxCount.toDouble(),
+                            min: 1,
+                            max: maxLimit.toDouble(),
+                            divisions: (maxLimit - 1) < 1 ? 1 : (maxLimit - 1),
+                            label: '$maxCount',
+                            activeColor: accentColor,
+                            onChanged: (v) => setDialogState(() => maxCount = v.round()),
+                          ),
+                        ),
+                        Text('$maxLimit', style: TextStyle(color: subTextColor, fontSize: 12)),
+                      ],
+                    ),
+                    Text(
+                      'Limit the number of different reactions that can be added to each message.',
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
+                    const SizedBox(height: 4),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('Paid Reactions',
+                          style: TextStyle(color: textColor, fontSize: 14)),
+                      subtitle: Text('Allow subscribers to send paid Star reactions.',
+                          style: TextStyle(color: subTextColor, fontSize: 12)),
+                      value: paidEnabled,
+                      activeColor: accentColor,
+                      onChanged: (v) => setDialogState(() => paidEnabled = v),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -1179,7 +1270,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                   showTelegramToast(ctx, 'Select at least one reaction');
                   return;
                 }
-                Navigator.pop(ctx, (mode, selectedEmojis.toList()));
+                Navigator.pop(ctx, (mode, selectedEmojis.toList(), maxCount, paidEnabled));
               },
               child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
             ),
@@ -1194,8 +1285,16 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         widget.chat.chatId,
         result.$1,
         emojis: result.$2,
+        maxCount: showBroadcastExtras ? result.$3 : 0,
+        paidEnabled: showBroadcastExtras ? result.$4 : false,
       );
-      if (mounted) showTelegramToast(context, 'Reactions updated');
+      if (mounted) {
+        setState(() {
+          _reactionsMaxCount = result.$3;
+          _paidReactionsEnabled = result.$4;
+        });
+        showTelegramToast(context, 'Reactions updated');
+      }
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed: $e');
     }
@@ -1384,6 +1483,47 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     );
     if (result == null || !mounted) return;
     final (colorId, statusId, bgEmojiId) = result;
+
+    final colorChanged = colorId != currentColorId;
+    final bgChanged = bgEmojiId != currentBgEmojiId;
+    final statusChanged = statusId != currentStatusId;
+    // Nothing changed → close without a server round-trip (AyuGram's close()).
+    if (!colorChanged && !bgChanged && !statusChanged) return;
+
+    // Pre-flight boost-level check for non-self peers: prompt to boost instead of
+    // letting updateChannelColor fail server-side (edit_peer_color_box.cpp:666).
+    try {
+      final req = await engine.getColorLevelRequirements(widget.chat.accountId);
+      if (!mounted) return;
+      if (req.isNotEmpty) {
+        final levels = (req[_isMegagroupFlag ? 'group_levels' : 'channel_levels']
+            as Map<String, dynamic>?) ?? const {};
+        final bgIconMin = (req['bg_icon_level_min'] as num?)?.toInt() ?? 0;
+        final statusMin = (req['emoji_status_level_min'] as num?)?.toInt() ?? 0;
+        final colorRequired = colorId >= 0 ? ((levels['$colorId'] as num?)?.toInt() ?? 0) : 0;
+        final iconRequired = bgEmojiId != 0 ? bgIconMin : 0;
+        final statusRequired = (statusChanged && statusId != 0) ? statusMin : 0;
+        final required = [colorRequired, iconRequired, statusRequired]
+            .reduce((a, b) => a > b ? a : b);
+        if (_boostLevel < required) {
+          _showBoostRequiredDialog(
+            _boostLevel,
+            required,
+            title: 'Boost to Change Appearance',
+            icon: Icons.palette_outlined,
+            description:
+                'Your ${_isChannel ? "channel" : "group"} needs to reach Level $required '
+                'to use this color & emoji.\n\n'
+                'Ask ${_isChannel ? "subscribers" : "members"} to boost.',
+          );
+          return;
+        }
+      }
+    } catch (_) {
+      // Couldn't determine requirements — fall through and let the save attempt
+      // surface any server-side error as before.
+    }
+
     try {
       if (colorId >= 0) {
         await engine.updateChannelColor(widget.chat.accountId, widget.chat.chatId, colorId,
@@ -1399,54 +1539,86 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     final engine = context.read<EngineService>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    int starsPrice = widget.chat.starsToSend;
-    final priceCtrl = TextEditingController(text: starsPrice > 0 ? '$starsPrice' : '');
+    final priceCtrl = TextEditingController(
+      text: _directMessagesStars > 0 ? '$_directMessagesStars' : '',
+    );
 
-    final result = await showDialog<int>(
+    // AyuGram's EditDirectMessagesPriceBox: an "Allow direct messages" toggle
+    // that, when off, sends a disabled value (no broadcast_messages_allowed flag);
+    // when on, the per-message Stars price (0 = free but still enabled)
+    // (edit_privacy_box.cpp:1314).
+    final result = await showDialog<(bool, int)>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text('Direct Messages', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Set a price in Telegram Stars for users to send direct messages to this channel.',
-              style: TextStyle(color: subTextColor, fontSize: 13),
+      builder: (ctx) {
+        bool allow = _directMessagesEnabled;
+        return StatefulBuilder(
+          builder: (ctx, setLocalState) => AlertDialog(
+            backgroundColor: bgColor,
+            title: Text('Direct Messages', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Allow direct messages',
+                      style: TextStyle(color: textColor, fontSize: 14)),
+                  value: allow,
+                  activeColor: accentColor,
+                  onChanged: (v) => setLocalState(() => allow = v),
+                ),
+                if (allow) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Set a price in Telegram Stars for users to send direct messages to this channel.',
+                    style: TextStyle(color: subTextColor, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: priceCtrl,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(color: textColor, fontSize: 14),
+                    decoration: InputDecoration(
+                      labelText: 'Stars per message (0 = free)',
+                      hintText: '0',
+                      hintStyle: TextStyle(color: subTextColor),
+                      border: const UnderlineInputBorder(),
+                    ),
+                  ),
+                ] else
+                  Text(
+                    'Subscribers will not be able to send direct messages to this channel.',
+                    style: TextStyle(color: subTextColor, fontSize: 13),
+                  ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: priceCtrl,
-              keyboardType: TextInputType.number,
-              style: TextStyle(color: textColor, fontSize: 14),
-              decoration: InputDecoration(
-                labelText: 'Stars per message (0 = free)',
-                hintText: '0',
-                hintStyle: TextStyle(color: subTextColor),
-                border: const UnderlineInputBorder(),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: subTextColor))),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, (allow, int.tryParse(priceCtrl.text) ?? 0)),
+                child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: subTextColor))),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, int.tryParse(priceCtrl.text) ?? 0),
-            child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
     if (result == null || !mounted) return;
+    final (allow, price) = result;
     try {
       await engine.updatePaidMessagesPrice(
         widget.chat.accountId,
         widget.chat.chatId,
-        result,
-        broadcastEnabled: result >= 0,
+        allow ? price : 0,
+        broadcastEnabled: allow,
       );
-      if (mounted) showTelegramToast(context, 'Direct messages price updated');
+      if (mounted) {
+        setState(() {
+          _directMessagesEnabled = allow;
+          _directMessagesStars = allow ? price : 0;
+        });
+        showTelegramToast(context, allow ? 'Direct messages updated' : 'Direct messages disabled');
+      }
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed: $e');
     }
@@ -1843,9 +2015,27 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
       context: context,
       builder: (ctx) {
         var filtered = List<ContactInfo>.from(contacts);
-        final toggledIds = <String>{};
+        // Real per-bot verify state, lazily fetched per visible row and cached
+        // from UserFull.bot_verification.bot_id (verify_peers_box.cpp:92). A
+        // userId absent from the map is still loading.
+        final verifyCache = <String, bool>{};
+        final pending = <String>{};
         return StatefulBuilder(
-          builder: (ctx, setDialogState) => AlertDialog(
+          builder: (ctx, setDialogState) {
+            void ensureState(String userId) {
+              if (verifyCache.containsKey(userId) || pending.contains(userId)) return;
+              pending.add(userId);
+              engine
+                  .getBotVerifyState(widget.chat.accountId, widget.chat.chatId, userId)
+                  .then((v) {
+                pending.remove(userId);
+                if (ctx.mounted) setDialogState(() => verifyCache[userId] = v);
+              }).catchError((_) {
+                pending.remove(userId);
+                if (ctx.mounted) setDialogState(() => verifyCache[userId] = false);
+              });
+            }
+            return AlertDialog(
             backgroundColor: bgColor,
             title: Text('Verify Accounts', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
             content: SizedBox(
@@ -1887,21 +2077,27 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                             itemCount: filtered.length,
                             itemBuilder: (ctx, i) {
                               final c = filtered[i];
-                              // AyuGram derives the per-bot state from
-                              // peer->botVerifyDetails() with details->botId == bot
-                              // (verify_peers_box.cpp:94-95), NOT the global blue-check
-                              // (c.isVerified). That bot-verify detail isn't carried on
-                              // the contacts list, so we start from "not verified by this
-                              // bot" and track this session's grant/revoke toggles —
-                              // Telegram-verified users no longer appear pre-verified.
-                              final effectiveVerified = toggledIds.contains(c.userId);
+                              // Kick off the real per-bot state fetch for this
+                              // (visible) row; reflect it once known.
+                              ensureState(c.userId);
+                              final known = verifyCache.containsKey(c.userId);
+                              final verified = verifyCache[c.userId] ?? false;
                               return ListTile(
                                 dense: true,
-                                leading: Icon(
-                                  effectiveVerified ? Icons.verified : Icons.person_outline,
-                                  color: effectiveVerified ? accentColor : subTextColor,
-                                  size: 20,
-                                ),
+                                leading: !known
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: Padding(
+                                          padding: EdgeInsets.all(2),
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      )
+                                    : Icon(
+                                        verified ? Icons.verified : Icons.person_outline,
+                                        color: verified ? accentColor : subTextColor,
+                                        size: 20,
+                                      ),
                                 title: Text(
                                   c.displayName.isNotEmpty ? c.displayName : c.username.isNotEmpty ? '@${c.username}' : c.userId,
                                   style: TextStyle(color: textColor, fontSize: 14),
@@ -1909,31 +2105,29 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                                 subtitle: c.username.isNotEmpty
                                     ? Text('@${c.username}', style: TextStyle(color: subTextColor, fontSize: 12))
                                     : null,
-                                onTap: () async {
-                                  try {
-                                    await engine.callGeneric(
-                                      widget.chat.accountId,
-                                      'BotsSetCustomVerification',
-                                      {
-                                        'bot_id': widget.chat.chatId,
-                                        'peer_id': c.userId,
-                                        'enabled': !effectiveVerified,
-                                      },
-                                    );
-                                    if (ctx.mounted) {
-                                      setDialogState(() {
-                                        if (toggledIds.contains(c.userId)) {
-                                          toggledIds.remove(c.userId);
-                                        } else {
-                                          toggledIds.add(c.userId);
+                                // Disabled until the real state is known, so the
+                                // tap sends the correct Setup vs Remove action.
+                                onTap: !known
+                                    ? null
+                                    : () async {
+                                        try {
+                                          await engine.callGeneric(
+                                            widget.chat.accountId,
+                                            'BotsSetCustomVerification',
+                                            {
+                                              'bot_id': widget.chat.chatId,
+                                              'peer_id': c.userId,
+                                              'enabled': !verified,
+                                            },
+                                          );
+                                          if (ctx.mounted) {
+                                            setDialogState(() => verifyCache[c.userId] = !verified);
+                                            showTelegramToast(ctx, verified ? 'Verification removed' : 'Verification added');
+                                          }
+                                        } catch (e) {
+                                          if (ctx.mounted) showTelegramToast(ctx, 'Failed: $e');
                                         }
-                                      });
-                                      showTelegramToast(ctx, effectiveVerified ? 'Verification removed' : 'Verification added');
-                                    }
-                                  } catch (e) {
-                                    if (ctx.mounted) showTelegramToast(ctx, 'Failed: $e');
-                                  }
-                                },
+                                      },
                               );
                             },
                           ),
@@ -1947,7 +2141,8 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                 child: Text('Close', style: TextStyle(color: subTextColor)),
               ),
             ],
-          ),
+          );
+          },
         );
       },
     );
@@ -1998,14 +2193,23 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           subTextColor: subTextColor,
           onTap: () => _showInviteLink(),
         ),
-        if (_isChannel)
+        // A channel's Affiliate Program row opens the JOIN flow (advertising
+        // other bots' programs), gated on Join::Allowed. The create-your-own
+        // SETUP flow is bot-only and would error server-side for a channel.
+        if (_canJoinStarRef)
           _EditRow(
             icon: Icons.handshake_outlined,
             label: 'Affiliate Program',
             value: '',
             textColor: textColor,
             subTextColor: subTextColor,
-            onTap: () => _showAffiliateProgramDialog(textColor, subTextColor),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => _StarRefJoinScreen(
+                accountId: widget.chat.accountId,
+                chatId: widget.chat.chatId,
+                title: widget.chat.title,
+              ),
+            )),
           ),
         _EditRow(
           icon: Icons.admin_panel_settings_outlined,
@@ -2496,6 +2700,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         accountId: widget.chat.accountId,
         chatId: widget.chat.chatId,
         isChannel: _isChannel,
+        isPublic: _hasPublicUsername,
       ),
     );
   }
@@ -4909,6 +5114,9 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
   final _scrollCtrl = ScrollController();
   Map<String, bool>? _activeFilters;
   Map<String, bool>? _activeChecks;
+  // Per-admin filter (FilterBox "admins" selector). null = all admins.
+  List<MemberInfo> _adminList = [];
+  Set<String>? _selectedAdminIds;
 
   double _dateBadgeOpacity = 0.0;
   Timer? _dateHideTimer;
@@ -4949,6 +5157,7 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
         query: _searchQuery,
         maxId: maxId,
         filters: _activeFilters,
+        admins: _selectedAdminIds?.toList(),
       );
       if (!mounted) return;
       setState(() {
@@ -5053,15 +5262,32 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
     });
   }
 
-  void _showFilterDialog() {
+  Future<void> _showFilterDialog() async {
+    // Lazily load the admin list once so the FilterBox can offer a per-admin
+    // selector (history_admin_log_inner.cpp:522).
+    if (_adminList.isEmpty) {
+      try {
+        final res = await context.read<EngineService>().getChatMembersByRole(
+          widget.accountId,
+          widget.chatId,
+          role: 'admins',
+          limit: 200,
+        );
+        _adminList = res.members;
+      } catch (_) {}
+    }
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (ctx) => _AdminLogFilterDialog(
         isChannel: widget.isChannel,
         initialChecks: _activeChecks,
-        onApply: (filters, checks) {
+        admins: _adminList,
+        initialSelectedAdminIds: _selectedAdminIds,
+        onApply: (filters, checks, selectedAdminIds) {
           _activeFilters = filters;
           _activeChecks = checks;
+          _selectedAdminIds = selectedAdminIds;
           _loadEvents();
         },
       ),
@@ -5393,7 +5619,21 @@ class _AdminLogEventTile extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (event.msgText.isNotEmpty && event.action != 'edit_message')
+                // Media preview surrogate for the real message bubble: a
+                // thumbnail + media-type label + caption, so photo/video/file/
+                // sticker entries no longer render blank
+                // (history_admin_log_item.cpp:1027).
+                if (_mediaType != 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: _buildMessagePreview(
+                      accentColor,
+                      // Edits show the caption diff in the old/new blocks below,
+                      // so the preview omits the caption to avoid duplication.
+                      showCaption: event.action != 'edit_message',
+                    ),
+                  ),
+                if (_mediaType == 0 && event.msgText.isNotEmpty && event.action != 'edit_message')
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Container(
@@ -5448,6 +5688,104 @@ class _AdminLogEventTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  int get _mediaType => (event.actionData['media_type'] as num?)?.toInt() ?? 0;
+  String get _thumbB64 => event.actionData['thumb_b64'] as String? ?? '';
+
+  static String _mediaLabel(int t) {
+    switch (t) {
+      case 1: return 'Photo';
+      case 2: return 'Video';
+      case 4: return 'Voice message';
+      case 5: return 'Video message';
+      case 6: return 'Sticker';
+      case 7: return 'GIF';
+      case 9: return 'File';
+      case 10: return 'Audio';
+      default: return 'Media';
+    }
+  }
+
+  static IconData _mediaIcon(int t) {
+    switch (t) {
+      case 1: return Icons.photo_outlined;
+      case 2: return Icons.videocam_outlined;
+      case 4: return Icons.mic_none;
+      case 5: return Icons.videocam_outlined;
+      case 6: return Icons.emoji_emotions_outlined;
+      case 7: return Icons.gif_box_outlined;
+      case 9: return Icons.insert_drive_file_outlined;
+      case 10: return Icons.audiotrack;
+      default: return Icons.attachment;
+    }
+  }
+
+  // Surrogate for AyuGram's real message bubble: a stripped-thumb image (no
+  // network round-trip), a media-type label, and the caption.
+  Widget _buildMessagePreview(Color accentColor, {bool showCaption = true}) {
+    final caption = showCaption ? event.msgText : '';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: accentColor, width: 2)),
+        color: isDark ? const Color(0x20FFFFFF) : const Color(0x10000000),
+        borderRadius: const BorderRadius.only(
+          topRight: Radius.circular(6),
+          bottomRight: Radius.circular(6),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _thumbB64.isNotEmpty
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.memory(
+                    base64Decode(_thumbB64),
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, __, ___) =>
+                        Icon(_mediaIcon(_mediaType), size: 22, color: subTextColor),
+                  ),
+                )
+              : Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Icon(_mediaIcon(_mediaType), size: 20, color: accentColor),
+                ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _mediaLabel(_mediaType),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accentColor),
+                ),
+                if (caption.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      caption,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, color: textColor),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -5592,8 +5930,20 @@ class _AdminLogEventTile extends StatelessWidget {
         return 'changed group location to ${event.detail}';
       case 'toggle_autotranslation':
         return '${event.detail == "enabled" ? "enabled" : "disabled"} auto-translation';
-      case 'participant_edit_rank':
-        return 'changed custom title${event.detail.isNotEmpty ? ": ${event.detail}" : ""}';
+      case 'participant_edit_rank': {
+        // set / changed / removed-rank family (history_admin_log_item.cpp:2167).
+        final prev = event.actionData['prev_rank'] as String? ?? '';
+        final next = event.actionData['new_rank'] as String? ?? '';
+        final target = event.actionData['rank_user'] as String? ?? '';
+        final who = target.isNotEmpty ? ' for $target' : '';
+        if (next.isEmpty) {
+          return 'removed custom title$who${prev.isNotEmpty ? ' "$prev"' : ''}';
+        }
+        if (prev.isEmpty) {
+          return 'set custom title$who to "$next"';
+        }
+        return 'changed custom title$who to "$next"';
+      }
       case 'change_pay_messages':
       case 'change_stars_price':
         return 'changed paid messages settings${event.detail.isNotEmpty ? " (${event.detail})" : ""}';
@@ -5618,11 +5968,19 @@ class _AdminLogEventTile extends StatelessWidget {
 class _AdminLogFilterDialog extends StatefulWidget {
   final bool isChannel;
   final Map<String, bool>? initialChecks;
-  final void Function(Map<String, bool>? filters, Map<String, bool> checks) onApply;
+  final List<MemberInfo> admins;
+  final Set<String>? initialSelectedAdminIds;
+  final void Function(
+    Map<String, bool>? filters,
+    Map<String, bool> checks,
+    Set<String>? selectedAdminIds,
+  ) onApply;
 
   const _AdminLogFilterDialog({
     required this.isChannel,
     this.initialChecks,
+    this.admins = const [],
+    this.initialSelectedAdminIds,
     required this.onApply,
   });
 
@@ -5632,6 +5990,9 @@ class _AdminLogFilterDialog extends StatefulWidget {
 
 class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
   final Map<String, bool> _checks = {};
+  // Per-admin selection. null entry / all-selected == "All admins".
+  final Set<String> _selectedAdminIds = {};
+  bool _adminsExpanded = false;
 
   static const _labelToFilterKeys = {
     'Admin rights': ['promote', 'demote'],
@@ -5694,6 +6055,35 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
         _checks[s] = true;
       }
     }
+    // Seed admin selection: a non-null previous selection restores those ids;
+    // otherwise "All admins" (every admin selected).
+    if (widget.initialSelectedAdminIds != null) {
+      _selectedAdminIds.addAll(widget.initialSelectedAdminIds!);
+    } else {
+      _selectedAdminIds.addAll(widget.admins.map((a) => a.userId));
+    }
+  }
+
+  bool get _allAdminsSelected =>
+      widget.admins.isNotEmpty &&
+      _selectedAdminIds.length == widget.admins.length;
+
+  // Returns null when all admins are selected (== no admin filter).
+  Set<String>? _buildAdminFilter() {
+    if (widget.admins.isEmpty || _allAdminsSelected) return null;
+    return Set<String>.from(_selectedAdminIds);
+  }
+
+  void _toggleAllAdmins() {
+    setState(() {
+      if (_allAdminsSelected) {
+        _selectedAdminIds.clear();
+      } else {
+        _selectedAdminIds
+          ..clear()
+          ..addAll(widget.admins.map((a) => a.userId));
+      }
+    });
   }
 
   @override
@@ -5728,7 +6118,11 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
                   ),
                   TextButton(
                     onPressed: () {
-                      widget.onApply(_buildFilters(), Map<String, bool>.from(_checks));
+                      widget.onApply(
+                        _buildFilters(),
+                        Map<String, bool>.from(_checks),
+                        _buildAdminFilter(),
+                      );
                       Navigator.pop(context);
                     },
                     child: Text('Apply', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
@@ -5752,6 +6146,10 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
                   _buildSection('Settings', _settingsSection, headerColor, accentColor, textColor),
                   Divider(height: 1, color: dividerColor),
                   _buildSection('Messages', _messageSection, headerColor, accentColor, textColor),
+                  if (widget.admins.isNotEmpty) ...[
+                    Divider(height: 1, color: dividerColor),
+                    _buildAdminsSection(headerColor, accentColor, textColor, isDark),
+                  ],
                   const SizedBox(height: 8),
                 ],
               ),
@@ -5759,6 +6157,104 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAdminsSection(
+    Color headerColor,
+    Color accentColor,
+    Color textColor,
+    bool isDark,
+  ) {
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
+          child: Text(
+            'Admins',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: headerColor),
+          ),
+        ),
+        // "All admins" master row + expand toggle.
+        InkWell(
+          onTap: _toggleAllAdmins,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Checkbox(
+                    value: _allAdminsSelected,
+                    tristate: true,
+                    onChanged: (_) => _toggleAllAdmins(),
+                    activeColor: accentColor,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('All admins', style: TextStyle(fontSize: 14, color: textColor)),
+                ),
+                GestureDetector(
+                  onTap: () => setState(() => _adminsExpanded = !_adminsExpanded),
+                  child: Icon(
+                    _adminsExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 22,
+                    color: subTextColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_adminsExpanded)
+          for (final admin in widget.admins)
+            InkWell(
+              onTap: () => setState(() {
+                if (_selectedAdminIds.contains(admin.userId)) {
+                  _selectedAdminIds.remove(admin.userId);
+                } else {
+                  _selectedAdminIds.add(admin.userId);
+                }
+              }),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Checkbox(
+                        value: _selectedAdminIds.contains(admin.userId),
+                        onChanged: (v) => setState(() {
+                          if (v == true) {
+                            _selectedAdminIds.add(admin.userId);
+                          } else {
+                            _selectedAdminIds.remove(admin.userId);
+                          }
+                        }),
+                        activeColor: accentColor,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _AdminAvatar(member: admin, accentColor: accentColor),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        admin.label,
+                        style: TextStyle(fontSize: 14, color: textColor),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+      ],
     );
   }
 
@@ -5808,6 +6304,29 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
   }
 }
 
+// Small avatar used in the admin-log filter's per-admin selector.
+class _AdminAvatar extends StatelessWidget {
+  final MemberInfo member;
+  final Color accentColor;
+  const _AdminAvatar({required this.member, required this.accentColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAvatar = member.avatarB64.isNotEmpty;
+    return CircleAvatar(
+      radius: 14,
+      backgroundColor: accentColor,
+      backgroundImage: hasAvatar ? MemoryImage(base64Decode(member.avatarB64)) : null,
+      child: hasAvatar
+          ? null
+          : Text(
+              member.label.isNotEmpty ? member.label[0].toUpperCase() : '?',
+              style: const TextStyle(fontSize: 12, color: Colors.white),
+            ),
+    );
+  }
+}
+
 // ── Invite Links Box (§26.6) ──
 
 class _InviteLinkData {
@@ -5824,6 +6343,7 @@ class _InviteLinkData {
   final bool revoked;
   final bool needApproval;
   final int subscriptionCredits;
+  final bool adminIsBot;
 
   _InviteLinkData({
     required this.link,
@@ -5839,6 +6359,7 @@ class _InviteLinkData {
     this.revoked = false,
     this.needApproval = false,
     this.subscriptionCredits = 0,
+    this.adminIsBot = false,
   });
 
   factory _InviteLinkData.fromMap(Map<String, dynamic> m) {
@@ -5856,6 +6377,7 @@ class _InviteLinkData {
       revoked: m['revoked'] as bool? ?? false,
       needApproval: m['need_approval'] as bool? ?? false,
       subscriptionCredits: (m['subscription_credits'] as num?)?.toInt() ?? 0,
+      adminIsBot: m['admin_is_bot'] as bool? ?? false,
     );
   }
 
@@ -5980,8 +6502,9 @@ class _InviteLinksBox extends StatefulWidget {
   final String accountId;
   final String chatId;
   final bool isChannel;
+  final bool isPublic;
   final String adminId;
-  const _InviteLinksBox({required this.accountId, required this.chatId, required this.isChannel, this.adminId = ''});
+  const _InviteLinksBox({required this.accountId, required this.chatId, required this.isChannel, this.isPublic = false, this.adminId = ''});
 
   @override
   State<_InviteLinksBox> createState() => _InviteLinksBoxState();
@@ -6032,6 +6555,8 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
       builder: (ctx) => _CreateEditLinkForm(
         accountId: widget.accountId,
         chatId: widget.chatId,
+        isChannel: widget.isChannel,
+        isPublic: widget.isPublic,
       ),
     );
     if (result != null) _loadAll();
@@ -6094,6 +6619,8 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
       builder: (ctx) => _CreateEditLinkForm(
         accountId: widget.accountId,
         chatId: widget.chatId,
+        isChannel: widget.isChannel,
+        isPublic: widget.isPublic,
         existingLink: link,
       ),
     );
@@ -6101,14 +6628,23 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
   }
 
   void _showLinkInfo(_InviteLinkData link) {
+    String adminName = '';
+    for (final a in _adminsWithInvites) {
+      if ((a['admin_id'] as String? ?? '') == link.adminId) {
+        adminName = (a['admin_name'] as String? ?? '').trim();
+        break;
+      }
+    }
     showDialog(
       context: context,
       builder: (ctx) => _LinkInfoBox(
         accountId: widget.accountId,
         chatId: widget.chatId,
         link: link,
-        onRevoke: () { Navigator.pop(ctx); _revokeLink(link); },
-        onEdit: () { Navigator.pop(ctx); _editLink(link); },
+        adminName: adminName,
+        // Edit/Revoke are suppressed for bot-created links (admin->isBot()).
+        onRevoke: link.adminIsBot ? null : () { Navigator.pop(ctx); _revokeLink(link); },
+        onEdit: link.adminIsBot ? null : () { Navigator.pop(ctx); _editLink(link); },
         onDelete: link.revoked ? () { Navigator.pop(ctx); _deleteLink(link); } : null,
       ),
     );
@@ -6133,7 +6669,8 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
           Icon(Icons.qr_code, size: 20, color: palette.windowFg), const SizedBox(width: 12),
           const Text('QR Code'),
         ])),
-        if (!link.revoked) ...[
+        // Edit/Revoke are hidden for bot-created links (edit_peer_invite_link.cpp:484).
+        if (!link.revoked && !link.adminIsBot) ...[
           PopupMenuItem(value: 'edit', child: Row(children: [
             Icon(Icons.edit, size: 20, color: palette.windowFg), const SizedBox(width: 12),
             const Text('Edit Link'),
@@ -6503,10 +7040,11 @@ class _InviteLinkQrDialog extends StatelessWidget {
 
 // ── Single Link Info Box (§26.6.4) ──
 
-class _LinkInfoBox extends StatelessWidget {
+class _LinkInfoBox extends StatefulWidget {
   final String accountId;
   final String chatId;
   final _InviteLinkData link;
+  final String adminName;
   final VoidCallback? onRevoke;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
@@ -6515,14 +7053,85 @@ class _LinkInfoBox extends StatelessWidget {
     required this.accountId,
     required this.chatId,
     required this.link,
+    this.adminName = '',
     this.onRevoke,
     this.onEdit,
     this.onDelete,
   });
 
   @override
+  State<_LinkInfoBox> createState() => _LinkInfoBoxState();
+}
+
+class _LinkInfoBoxState extends State<_LinkInfoBox> {
+  // Per-link joined members and pending join-requests (edit_peer_invite_link.cpp:592).
+  List<Map<String, dynamic>> _joined = [];
+  List<Map<String, dynamic>> _requests = [];
+  bool _loadingJoined = true;
+  bool _loadingRequests = false;
+  final Set<String> _processing = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final engine = context.read<EngineService>();
+    try {
+      final res = await engine.getInviteImporters(widget.accountId, widget.chatId, widget.link.link);
+      if (mounted) {
+        setState(() {
+          _joined = (res['importers'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          _loadingJoined = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingJoined = false);
+    }
+    // The "Requests to join" block only exists for links that need approval.
+    if (widget.link.needApproval) {
+      if (mounted) setState(() => _loadingRequests = true);
+      try {
+        final res = await engine.getInviteImporters(widget.accountId, widget.chatId, widget.link.link,
+            requested: true);
+        if (mounted) {
+          setState(() {
+            _requests = (res['importers'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+            _loadingRequests = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _loadingRequests = false);
+      }
+    }
+  }
+
+  Future<void> _process(String userId, bool approved) async {
+    if (userId.isEmpty || _processing.contains(userId)) return;
+    setState(() => _processing.add(userId));
+    final engine = context.read<EngineService>();
+    try {
+      await engine.processJoinRequest(widget.accountId, widget.chatId, userId, approved);
+      if (mounted) {
+        setState(() {
+          _requests.removeWhere((r) => r['user_id'] == userId);
+          _processing.remove(userId);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _processing.remove(userId));
+        showTelegramToast(context, 'Failed: $e');
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
+    final link = widget.link;
     final textColor = palette.windowFg;
     final subColor = palette.windowSubTextFg;
     final colorState = _linkColorState(link);
@@ -6532,9 +7141,9 @@ class _LinkInfoBox extends StatelessWidget {
       backgroundColor: palette.boxBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 364),
+        constraints: const BoxConstraints(maxWidth: 364, maxHeight: 560),
         child: Padding(
-          padding: const EdgeInsets.all(22),
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -6547,86 +7156,184 @@ class _LinkInfoBox extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: GestureDetector(
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: link.link));
-                    showTelegramToast(context, 'Link copied');
-                  },
-                  child: Text(
-                    link.link.replaceFirst('https://', ''),
-                    style: TextStyle(fontSize: 14, color: palette.windowBgActive),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: GestureDetector(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: link.link));
+                            showTelegramToast(context, 'Link copied');
+                          },
+                          child: Text(
+                            link.link.replaceFirst('https://', ''),
+                            style: TextStyle(fontSize: 14, color: palette.windowBgActive),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (!link.revoked && link.progress < 1.0) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(text: link.link));
+                                  showTelegramToast(context, 'Link copied');
+                                },
+                                icon: const Icon(Icons.copy, size: 18),
+                                label: const Text('Copy'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+                                    Share.share(link.link);
+                                  } else {
+                                    Clipboard.setData(ClipboardData(text: link.link));
+                                    showTelegramToast(context, 'Link copied to clipboard');
+                                  }
+                                },
+                                icon: const Icon(Icons.share, size: 18),
+                                label: const Text('Share'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      Divider(color: subColor.withValues(alpha: 0.2)),
+                      const SizedBox(height: 4),
+                      if (widget.adminName.isNotEmpty)
+                        _infoRow('Created by', widget.adminName, textColor, subColor),
+                      _infoRow('Joined', '${link.usage}', textColor, subColor),
+                      if (link.usageLimit > 0)
+                        _infoRow('Remaining', '${link.usageLimit - link.usage}', textColor, subColor),
+                      if (link.expireDate > 0)
+                        _infoRow('Expires', _formatExpiry(link.expireDate), textColor, subColor),
+                      if (link.requested > 0)
+                        _infoRow('Pending', '${link.requested}', textColor, subColor),
+                      const SizedBox(height: 8),
+                      if (!link.revoked) ...[
+                        if (widget.onEdit != null)
+                          TextButton.icon(onPressed: widget.onEdit, icon: const Icon(Icons.edit, size: 18), label: const Text('Edit Link')),
+                        if (widget.onRevoke != null)
+                          TextButton.icon(
+                            onPressed: widget.onRevoke,
+                            icon: Icon(Icons.link_off, size: 18, color: Theme.of(context).colorScheme.error),
+                            label: Text('Revoke Link', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                          ),
+                      ],
+                      if (link.revoked && widget.onDelete != null)
+                        TextButton.icon(
+                          onPressed: widget.onDelete,
+                          icon: Icon(Icons.delete, size: 18, color: Theme.of(context).colorScheme.error),
+                          label: Text('Delete Link', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                        ),
+                      // Requests to join (per-link, approval-required links only).
+                      if (link.needApproval) ...[
+                        const SizedBox(height: 4),
+                        _sectionLabel('Requests to Join', palette.windowBgActive),
+                        if (_loadingRequests)
+                          const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))),
+                          )
+                        else if (_requests.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text('No pending requests', style: TextStyle(fontSize: 13, color: subColor)),
+                          )
+                        else
+                          for (final r in _requests)
+                            _importerRow(r, palette, textColor, subColor, isRequest: true),
+                      ],
+                      // Members who joined via this link.
+                      const SizedBox(height: 4),
+                      _sectionLabel('Joined via this link', palette.windowBgActive),
+                      if (_loadingJoined)
+                        const Padding(
+                          padding: EdgeInsets.all(8),
+                          child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))),
+                        )
+                      else if (_joined.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text('No members joined yet', style: TextStyle(fontSize: 13, color: subColor)),
+                        )
+                      else
+                        for (final m in _joined)
+                          _importerRow(m, palette, textColor, subColor, isRequest: false),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              if (!link.revoked && link.progress < 1.0) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: link.link));
-                          showTelegramToast(context, 'Link copied');
-                        },
-                        icon: const Icon(Icons.copy, size: 18),
-                        label: const Text('Copy'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-                            Share.share(link.link);
-                          } else {
-                            Clipboard.setData(ClipboardData(text: link.link));
-                            showTelegramToast(context, 'Link copied to clipboard');
-                          }
-                        },
-                        icon: const Icon(Icons.share, size: 18),
-                        label: const Text('Share'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-              ],
-              Divider(color: subColor.withValues(alpha: 0.2)),
-              const SizedBox(height: 4),
-              _infoRow('Joined', '${link.usage}', textColor, subColor),
-              if (link.usageLimit > 0)
-                _infoRow('Remaining', '${link.usageLimit - link.usage}', textColor, subColor),
-              if (link.expireDate > 0)
-                _infoRow('Expires', _formatExpiry(link.expireDate), textColor, subColor),
-              if (link.requested > 0)
-                _infoRow('Pending', '${link.requested}', textColor, subColor),
-              const SizedBox(height: 8),
-              if (!link.revoked) ...[
-                if (onEdit != null)
-                  TextButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit, size: 18), label: const Text('Edit Link')),
-                if (onRevoke != null)
-                  TextButton.icon(
-                    onPressed: onRevoke,
-                    icon: Icon(Icons.link_off, size: 18, color: Theme.of(context).colorScheme.error),
-                    label: Text('Revoke Link', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                  ),
-              ],
-              if (link.revoked && onDelete != null)
-                TextButton.icon(
-                  onPressed: onDelete,
-                  icon: Icon(Icons.delete, size: 18, color: Theme.of(context).colorScheme.error),
-                  label: Text('Delete Link', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text, Color accent) => Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 2),
+        child: Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent)),
+      );
+
+  Widget _importerRow(Map<String, dynamic> m, TelegramPalette palette, Color textColor, Color subColor,
+      {required bool isRequest}) {
+    final userId = m['user_id'] as String? ?? '';
+    final name = (m['display_name'] as String?)?.trim();
+    final username = m['username'] as String? ?? '';
+    final avatarB64 = m['avatar_b64'] as String? ?? '';
+    final display = (name != null && name.isNotEmpty) ? name : (username.isNotEmpty ? '@$username' : userId);
+    final processing = _processing.contains(userId);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 15,
+            backgroundColor: palette.windowBgActive,
+            backgroundImage: avatarB64.isNotEmpty ? MemoryImage(base64Decode(avatarB64)) : null,
+            child: avatarB64.isEmpty
+                ? Text(display.isNotEmpty ? display[0].toUpperCase() : '?',
+                    style: const TextStyle(color: Colors.white, fontSize: 12))
+                : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(display,
+                style: TextStyle(color: textColor, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+          if (isRequest) ...[
+            if (processing)
+              const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            else ...[
+              TextButton(
+                onPressed: () => _process(userId, true),
+                style: TextButton.styleFrom(foregroundColor: palette.windowBgActive, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                child: const Text('Add'),
+              ),
+              TextButton(
+                onPressed: () => _process(userId, false),
+                style: TextButton.styleFrom(foregroundColor: subColor, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                child: const Text('Dismiss'),
+              ),
+            ],
+          ],
+        ],
       ),
     );
   }
@@ -6660,8 +7367,16 @@ class _LinkInfoBox extends StatelessWidget {
 class _CreateEditLinkForm extends StatefulWidget {
   final String accountId;
   final String chatId;
+  final bool isChannel;
+  final bool isPublic;
   final _InviteLinkData? existingLink;
-  const _CreateEditLinkForm({required this.accountId, required this.chatId, this.existingLink});
+  const _CreateEditLinkForm({
+    required this.accountId,
+    required this.chatId,
+    this.isChannel = false,
+    this.isPublic = false,
+    this.existingLink,
+  });
 
   @override
   State<_CreateEditLinkForm> createState() => _CreateEditLinkFormState();
@@ -6878,8 +7593,11 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
                   IconButton(icon: Icon(Icons.close, size: 20, color: subColor), onPressed: () => Navigator.pop(context)),
                 ],
               ),
-              // Request Approval toggle (first per AyuGram order)
-              if (!_subscriptionLocked) ...[
+              // Request Approval toggle (first per AyuGram order). Hidden for
+              // public channels and subscription links: AyuGram sets
+              // requestApproval = (isPublic || subscriptionLocked) ? nullptr
+              // (edit_invite_link.cpp:112).
+              if (!_subscriptionLocked && !widget.isPublic) ...[
               const SizedBox(height: 16),
               SwitchListTile(
                 title: Text('Approve New Members', style: TextStyle(fontSize: 14, color: textColor)),
@@ -6890,7 +7608,10 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
                 contentPadding: EdgeInsets.zero,
               ),
               ],
-              // Subscription toggle (SwitchListTile, not Checkbox)
+              // Subscription toggle — channels only (fillSubscription is null for
+              // groups, edit_peer_invite_link.cpp:1623) and only for private
+              // channels (gated on !isPublic, edit_invite_link.cpp:136).
+              if (widget.isChannel && !widget.isPublic) ...[
               const SizedBox(height: 4),
               SwitchListTile(
                 title: Text('Subscription', style: TextStyle(fontSize: 14, color: textColor)),
@@ -6927,6 +7648,7 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
                     ),
                   ),
                 ),
+              ],
               ],
               // Label field (after toggles, before expire/usage)
               const SizedBox(height: 16),
@@ -7067,6 +7789,9 @@ class _MemberListScreen extends StatefulWidget {
 class _MemberListScreenState extends State<_MemberListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
+  // Roles chosen per peer: a broadcast channel has no restrict-without-kick
+  // path, so no "Restricted" tab (edit_participants_box.cpp:1086).
+  late final List<_MemberTab> _visibleTabs;
   final _searchCtrl = TextEditingController();
   Timer? _searchDebounce;
   String _searchQuery = '';
@@ -7076,16 +7801,29 @@ class _MemberListScreenState extends State<_MemberListScreen>
   final Map<_MemberTab, bool> _hasMore = {};
   final Map<_MemberTab, int> _offsets = {};
 
+  // Member-management capabilities for gating each Add button (canAddNewItem).
+  bool _canAddAdmins = false;
+  bool _canBanUsers = false;
+  bool _canInviteUsers = false;
+
   static const _firstPageCount = 16;
   static const _pageSize = 200;
 
   @override
   void initState() {
     super.initState();
+    _visibleTabs = [
+      _MemberTab.members,
+      _MemberTab.admins,
+      if (!widget.isChannel) _MemberTab.restricted,
+      _MemberTab.kicked,
+      _MemberTab.requests,
+    ];
+    final initialIdx = _visibleTabs.indexOf(widget.initialTab);
     _tabCtrl = TabController(
-      length: _MemberTab.values.length,
+      length: _visibleTabs.length,
       vsync: this,
-      initialIndex: widget.initialTab.index,
+      initialIndex: initialIdx < 0 ? 0 : initialIdx,
     );
     _tabCtrl.addListener(_onTabChanged);
     for (final tab in _MemberTab.values) {
@@ -7094,7 +7832,40 @@ class _MemberListScreenState extends State<_MemberListScreen>
       _hasMore[tab] = true;
       _offsets[tab] = 0;
     }
-    _loadPage(_tabCtrl.index == 0 ? _MemberTab.values[0] : widget.initialTab);
+    _loadCapabilities();
+    _loadPage(_visibleTabs[_tabCtrl.index]);
+  }
+
+  Future<void> _loadCapabilities() async {
+    try {
+      final flags = await context.read<EngineService>().getChatPermissionFlags(
+        widget.accountId,
+        widget.chatId,
+      );
+      if (mounted) {
+        setState(() {
+          _canAddAdmins = flags['can_add_admins'] == true;
+          _canBanUsers = flags['can_ban_users'] == true;
+          _canInviteUsers = flags['can_invite_users'] == true;
+        });
+      }
+    } catch (_) {}
+  }
+
+  bool _canAddForTab(_MemberTab tab) {
+    switch (tab) {
+      case _MemberTab.members:
+        // "Add Members" — only for groups (you don't add subscribers to a
+        // broadcast channel from here) and only with invite rights.
+        return !widget.isChannel && _canInviteUsers;
+      case _MemberTab.admins:
+        return _canAddAdmins;
+      case _MemberTab.restricted:
+      case _MemberTab.kicked:
+        return _canBanUsers;
+      default:
+        return false;
+    }
   }
 
   @override
@@ -7107,7 +7878,7 @@ class _MemberListScreenState extends State<_MemberListScreen>
 
   void _onTabChanged() {
     if (_tabCtrl.indexIsChanging) return;
-    final tab = _MemberTab.values[_tabCtrl.index];
+    final tab = _visibleTabs[_tabCtrl.index];
     if (_members[tab]!.isEmpty && _hasMore[tab]!) {
       _loadPage(tab);
     }
@@ -7122,8 +7893,23 @@ class _MemberListScreenState extends State<_MemberListScreen>
         _offsets[tab] = 0;
         _hasMore[tab] = true;
       }
-      _loadPage(_MemberTab.values[_tabCtrl.index]);
+      _loadPage(_visibleTabs[_tabCtrl.index]);
     });
+  }
+
+  String _tabLabel(_MemberTab tab) {
+    switch (tab) {
+      case _MemberTab.members:
+        return widget.isChannel ? 'Subscribers' : 'Members';
+      case _MemberTab.admins:
+        return 'Admins';
+      case _MemberTab.restricted:
+        return 'Restricted';
+      case _MemberTab.kicked:
+        return 'Removed';
+      case _MemberTab.requests:
+        return 'Requests';
+    }
   }
 
   String _roleForTab(_MemberTab tab) {
@@ -7227,13 +8013,7 @@ class _MemberListScreenState extends State<_MemberListScreen>
                 isScrollable: true,
                 labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 unselectedLabelStyle: const TextStyle(fontSize: 13),
-                tabs: [
-                  Tab(text: widget.isChannel ? 'Subscribers' : 'Members'),
-                  const Tab(text: 'Admins'),
-                  const Tab(text: 'Restricted'),
-                  const Tab(text: 'Removed'),
-                  const Tab(text: 'Requests'),
-                ],
+                tabs: _visibleTabs.map((t) => Tab(text: _tabLabel(t))).toList(),
               ),
               Divider(height: 1, color: dividerColor),
             ],
@@ -7242,13 +8022,14 @@ class _MemberListScreenState extends State<_MemberListScreen>
       ),
       body: TabBarView(
         controller: _tabCtrl,
-        children: _MemberTab.values.map((tab) {
+        children: _visibleTabs.map((tab) {
           return _MemberTabBody(
             members: _members[tab]!,
             loading: _loading[tab]!,
             hasMore: _hasMore[tab]!,
             tab: tab,
             isChannel: widget.isChannel,
+            canAdd: _canAddForTab(tab),
             accountId: widget.accountId,
             chatId: widget.chatId,
             isForum: widget.isForum,
@@ -7276,6 +8057,7 @@ class _MemberTabBody extends StatelessWidget {
   final bool hasMore;
   final _MemberTab tab;
   final bool isChannel;
+  final bool canAdd;
   final String accountId;
   final String chatId;
   final VoidCallback onLoadMore;
@@ -7292,6 +8074,7 @@ class _MemberTabBody extends StatelessWidget {
     required this.hasMore,
     required this.tab,
     required this.isChannel,
+    this.canAdd = false,
     required this.accountId,
     required this.chatId,
     required this.onLoadMore,
@@ -7303,10 +8086,14 @@ class _MemberTabBody extends StatelessWidget {
     this.isForum = false,
   });
 
+  // The Add button only appears on admins/restricted/kicked tabs AND only when
+  // the editor has the matching right (canAddNewItem → canAddAdmins/canBanMembers).
   bool get _showAddButton =>
-      tab == _MemberTab.kicked ||
-      tab == _MemberTab.restricted ||
-      tab == _MemberTab.admins;
+      canAdd &&
+      (tab == _MemberTab.members ||
+          tab == _MemberTab.kicked ||
+          tab == _MemberTab.restricted ||
+          tab == _MemberTab.admins);
 
   String get _addButtonLabel => switch (tab) {
     _MemberTab.kicked => 'Add to Banned',
@@ -7420,87 +8207,294 @@ class _MemberTabBody extends StatelessWidget {
     );
   }
 
-  void _showAddMemberDialog(BuildContext ctx) {
-    final isDarkLocal = isDark;
-    final bgColor = isDarkLocal ? const Color(0xFF1E2C3A) : Colors.white;
-    final textColorLocal = isDarkLocal ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subColorLocal = isDarkLocal ? const Color(0xFF708499) : const Color(0xFF999999);
-    final searchCtrl = TextEditingController();
-    final action = tab == _MemberTab.kicked ? 'ban' : tab == _MemberTab.admins ? 'promote' : 'restrict';
-    final title = tab == _MemberTab.kicked ? 'Ban User' : tab == _MemberTab.admins ? 'Add Admin' : 'Add Exception';
-
-    showDialog(
+  void _showAddMemberDialog(BuildContext ctx) async {
+    final engine = ctx.read<EngineService>();
+    final title = switch (tab) {
+      _MemberTab.kicked => 'Ban User',
+      _MemberTab.admins => 'Add Admin',
+      _MemberTab.restricted => 'Add Exception',
+      _ => 'Add Members',
+    };
+    // Add Member is a multi-select contact picker (ContactsBoxController);
+    // Add Admin/Exception/Banned is a single-select searchable participant/
+    // contact picker (AddSpecialBoxController). Both replace the old free-text
+    // username/ID box (add_participants_box.cpp:768 / 1234).
+    final isMembersTab = tab == _MemberTab.members;
+    final selected = await showDialog<List<String>>(
       context: ctx,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text(
-          title,
-          style: TextStyle(color: textColorLocal, fontSize: 17, fontWeight: FontWeight.w600),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+      builder: (_) => _MemberPickerDialog(
+        accountId: accountId,
+        chatId: chatId,
+        title: title,
+        multiSelect: isMembersTab,
+        includeMembers: !isMembersTab,
+        isDark: isDark,
+        accentColor: accentColor,
+      ),
+    );
+    if (selected == null || selected.isEmpty) return;
+    try {
+      if (isMembersTab) {
+        await engine.addMembers(accountId, chatId, selected);
+      } else {
+        for (final userId in selected) {
+          if (tab == _MemberTab.kicked) {
+            await engine.banMember(accountId, chatId, userId);
+          } else if (tab == _MemberTab.admins) {
+            await engine.promoteAdmin(accountId, chatId, userId);
+          } else {
+            await engine.restrictMember(accountId, chatId, userId);
+          }
+        }
+      }
+      onRefresh();
+      if (ctx.mounted) showTelegramToast(ctx, 'Done');
+    } catch (e) {
+      if (ctx.mounted) showTelegramToast(ctx, 'Failed: $e');
+    }
+  }
+}
+
+// Searchable participant/contact picker that replaces the old free-text
+// username/ID box. multiSelect=true → ContactsBoxController (Add Members);
+// multiSelect=false → AddSpecialBoxController (Add Admin/Exception/Banned).
+class _PickerEntry {
+  final String id;
+  final String name;
+  final String username;
+  final String avatarB64;
+  _PickerEntry(this.id, this.name, this.username, this.avatarB64);
+}
+
+class _MemberPickerDialog extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final String title;
+  final bool multiSelect;
+  final bool includeMembers;
+  final bool isDark;
+  final Color accentColor;
+  const _MemberPickerDialog({
+    required this.accountId,
+    required this.chatId,
+    required this.title,
+    required this.multiSelect,
+    required this.includeMembers,
+    required this.isDark,
+    required this.accentColor,
+  });
+
+  @override
+  State<_MemberPickerDialog> createState() => _MemberPickerDialogState();
+}
+
+class _MemberPickerDialogState extends State<_MemberPickerDialog> {
+  final _searchCtrl = TextEditingController();
+  List<_PickerEntry> _all = [];
+  List<_PickerEntry> _filtered = [];
+  final Set<String> _selected = {};
+  bool _loading = true;
+  bool _resolving = false;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final engine = context.read<EngineService>();
+    final byId = <String, _PickerEntry>{};
+    try {
+      final contacts = await engine.getContacts(widget.accountId);
+      for (final c in contacts) {
+        byId[c.userId] = _PickerEntry(c.userId, c.displayName, c.username, c.avatarB64);
+      }
+    } catch (_) {}
+    // For special-member adds, also seed with the chat's existing participants
+    // (AddSpecialBoxController searches participants → members → contacts → global).
+    if (widget.includeMembers) {
+      try {
+        final res = await engine.getChatMembersByRole(widget.accountId, widget.chatId,
+            role: 'members', limit: 100);
+        for (final m in res.members) {
+          byId[m.userId] = _PickerEntry(m.userId, m.displayName, m.username, m.avatarB64);
+        }
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _all = byId.values.toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _filtered = _all;
+      _loading = false;
+    });
+  }
+
+  void _onSearch(String q) {
+    final ql = q.trim().toLowerCase();
+    setState(() {
+      _query = q.trim();
+      _filtered = ql.isEmpty
+          ? _all
+          : _all
+              .where((e) =>
+                  e.name.toLowerCase().contains(ql) || e.username.toLowerCase().contains(ql))
+              .toList();
+    });
+  }
+
+  // Resolves a username not in the local list and adds it (global search step).
+  Future<void> _resolveGlobal() async {
+    final q = _query.startsWith('@') ? _query.substring(1) : _query;
+    if (q.isEmpty || _resolving) return;
+    setState(() => _resolving = true);
+    final engine = context.read<EngineService>();
+    try {
+      final id = await engine.resolveUsername(widget.accountId, q);
+      if (id != null && id.isNotEmpty) {
+        String name = q;
+        try {
+          final p = await engine.getUserProfile(widget.accountId, id);
+          if (p != null && p.displayName.isNotEmpty) name = p.displayName;
+        } catch (_) {}
+        final entry = _PickerEntry(id, name, q, '');
+        if (mounted) {
+          setState(() {
+            if (!_all.any((e) => e.id == id)) _all = [entry, ..._all];
+            _filtered = [entry];
+            _resolving = false;
+          });
+        }
+        return;
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() => _resolving = false);
+      showTelegramToast(context, 'User not found');
+    }
+  }
+
+  void _toggle(String id) {
+    if (widget.multiSelect) {
+      setState(() {
+        if (_selected.contains(id)) {
+          _selected.remove(id);
+        } else {
+          _selected.add(id);
+        }
+      });
+    } else {
+      Navigator.pop(context, [id]);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final bg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    return AlertDialog(
+      backgroundColor: bg,
+      title: Text(widget.title, style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+      content: SizedBox(
+        width: 340,
+        height: 420,
+        child: Column(
           children: [
             TextField(
-              controller: searchCtrl,
+              controller: _searchCtrl,
               autofocus: true,
-              style: TextStyle(color: textColorLocal, fontSize: 14),
+              style: TextStyle(color: textColor, fontSize: 14),
               decoration: InputDecoration(
-                hintText: 'Enter username or user ID',
-                hintStyle: TextStyle(color: subColorLocal),
-                prefixIcon: Icon(Icons.search, color: subColorLocal),
-                border: const UnderlineInputBorder(),
+                hintText: 'Search',
+                hintStyle: TextStyle(color: subColor),
+                prefixIcon: Icon(Icons.search, color: subColor),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
+              onChanged: _onSearch,
+              onSubmitted: (_) {
+                if (_filtered.isEmpty) _resolveGlobal();
+              },
             ),
             const SizedBox(height: 8),
-            Text(
-              'Enter the username or user ID of the person to $action.',
-              style: TextStyle(color: subColorLocal, fontSize: 12),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filtered.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('No matches', style: TextStyle(color: subColor)),
+                              if (_query.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                _resolving
+                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : TextButton(
+                                        onPressed: _resolveGlobal,
+                                        child: Text('Search globally for "$_query"',
+                                            style: TextStyle(color: widget.accentColor)),
+                                      ),
+                              ],
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: _filtered.length,
+                          itemBuilder: (ctx, i) {
+                            final e = _filtered[i];
+                            final sel = _selected.contains(e.id);
+                            return ListTile(
+                              dense: true,
+                              onTap: () => _toggle(e.id),
+                              leading: CircleAvatar(
+                                radius: 18,
+                                backgroundColor: widget.accentColor,
+                                backgroundImage: e.avatarB64.isNotEmpty ? MemoryImage(base64Decode(e.avatarB64)) : null,
+                                child: e.avatarB64.isEmpty
+                                    ? Text(e.name.isNotEmpty ? e.name[0].toUpperCase() : '?',
+                                        style: const TextStyle(color: Colors.white, fontSize: 14))
+                                    : null,
+                              ),
+                              title: Text(
+                                e.name.isNotEmpty ? e.name : (e.username.isNotEmpty ? '@${e.username}' : e.id),
+                                style: TextStyle(color: textColor, fontSize: 14),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: e.username.isNotEmpty
+                                  ? Text('@${e.username}', style: TextStyle(color: subColor, fontSize: 12))
+                                  : null,
+                              trailing: widget.multiSelect
+                                  ? Icon(sel ? Icons.check_circle : Icons.radio_button_unchecked,
+                                      color: sel ? widget.accentColor : subColor)
+                                  : null,
+                            );
+                          },
+                        ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: Text('Cancel', style: TextStyle(color: subColorLocal)),
-          ),
-          TextButton(
-            onPressed: () async {
-              final input = searchCtrl.text.trim();
-              if (input.isEmpty) return;
-              Navigator.pop(dialogCtx);
-              final engine = ctx.read<EngineService>();
-              try {
-                String userId;
-                final isNumeric = RegExp(r'^\d+$').hasMatch(input);
-                if (isNumeric) {
-                  userId = input;
-                } else {
-                  final stripped = input.startsWith('@') ? input.substring(1) : input;
-                  if (ctx.mounted) showTelegramToast(ctx, 'Resolving user...');
-                  final resolved = await engine.resolveUsername(accountId, stripped);
-                  if (resolved == null || resolved.isEmpty) {
-                    if (ctx.mounted) showTelegramToast(ctx, 'User not found: $input');
-                    return;
-                  }
-                  userId = resolved;
-                }
-                if (tab == _MemberTab.kicked) {
-                  await engine.banMember(accountId, chatId, userId);
-                } else if (tab == _MemberTab.admins) {
-                  await engine.promoteAdmin(accountId, chatId, userId);
-                } else {
-                  await engine.restrictMember(accountId, chatId, userId);
-                }
-                onRefresh();
-                if (ctx.mounted) showTelegramToast(ctx, 'User ${action}ed successfully');
-              } catch (e) {
-                if (ctx.mounted) showTelegramToast(ctx, 'Failed to $action user: $e');
-              }
-            },
-            child: Text('Confirm', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
-          ),
-        ],
       ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: subColor))),
+        if (widget.multiSelect)
+          TextButton(
+            onPressed: _selected.isEmpty ? null : () => Navigator.pop(context, _selected.toList()),
+            child: Text('Add${_selected.isNotEmpty ? ' (${_selected.length})' : ''}',
+                style: TextStyle(color: widget.accentColor, fontWeight: FontWeight.w600)),
+          ),
+      ],
     );
   }
 }
@@ -7625,20 +8619,39 @@ class _MemberRow extends StatelessWidget {
 
     items.add(const PopupMenuItem(value: 'view', child: Text('View Profile')));
 
+    // Per-row gating mirrors AyuGram: can't act on the creator, on yourself, or
+    // on an admin you didn't promote (edit_participants_box.cpp:1962).
+    final isAdminTarget = member.role == 'admin' || member.role == 'creator';
+
     if (tab == _MemberTab.admins || tab == _MemberTab.members) {
-      items.add(const PopupMenuItem(value: 'promote', child: Text('Promote to Admin')));
-      items.add(const PopupMenuItem(value: 'restrict', child: Text('Restrict User')));
-      items.add(PopupMenuItem(
-        value: 'remove',
-        child: Text('Remove from Group', style: TextStyle(color: Colors.red.shade400)),
-      ));
+      // "Edit admin rights" for an existing admin, "Promote" for a non-admin.
+      if (member.canEditAdmin && !member.isCreator) {
+        items.add(PopupMenuItem(
+          value: 'promote',
+          child: Text(isAdminTarget ? 'Edit Admin Rights' : 'Promote to Admin'),
+        ));
+      }
+      // Restrict-without-kick only exists for groups, never a broadcast channel.
+      if (!isChannel && member.canRestrict && !member.isCreator && !member.isSelf) {
+        items.add(const PopupMenuItem(value: 'restrict', child: Text('Restrict User')));
+      }
+      if (member.canRestrict && !member.isCreator && !member.isSelf) {
+        items.add(PopupMenuItem(
+          value: 'remove',
+          // Broadcast: lng_profile_kick ("Remove"); group: "Remove from Group".
+          child: Text(isChannel ? 'Remove' : 'Remove from Group', style: TextStyle(color: Colors.red.shade400)),
+        ));
+      }
     }
-    if (tab == _MemberTab.restricted) {
+    if (tab == _MemberTab.restricted && member.canRestrict) {
       items.add(const PopupMenuItem(value: 'restrict', child: Text('Edit Restrictions')));
       items.add(const PopupMenuItem(value: 'unban', child: Text('Remove Restrictions')));
     }
-    if (tab == _MemberTab.kicked) {
-      items.add(const PopupMenuItem(value: 'unban', child: Text('Unban')));
+    if (tab == _MemberTab.kicked && member.canRestrict) {
+      // AyuGram offers "Add to group" (unkick + re-add) AND "Delete" (remove from
+      // the removed list) — not just Unban (edit_participants_box.cpp:1946).
+      items.add(const PopupMenuItem(value: 'add_to_group', child: Text('Add to Group')));
+      items.add(const PopupMenuItem(value: 'delete', child: Text('Delete')));
     }
 
     if (member.promotedBy.isNotEmpty && member.promotedDate > 0) {
@@ -7696,8 +8709,26 @@ class _MemberRow extends StatelessWidget {
         case 'unban':
           _doUnban(context, engine);
           break;
+        case 'add_to_group':
+          _doAddToGroup(context, engine);
+          break;
+        case 'delete':
+          // Remove from the removed list (unban, no re-add).
+          _doUnban(context, engine);
+          break;
       }
     });
+  }
+
+  void _doAddToGroup(BuildContext context, EngineService engine) async {
+    try {
+      await engine.unbanChatMember(accountId, chatId, member.userId);
+      await engine.addMembers(accountId, chatId, [member.userId]);
+      onRefresh();
+      if (context.mounted) showTelegramToast(context, 'Added to group');
+    } catch (e) {
+      if (context.mounted) showTelegramToast(context, 'Failed: $e');
+    }
   }
 
   void _confirmRemove(BuildContext context, EngineService engine) {
@@ -7930,6 +8961,69 @@ class _StatisticsScreenState extends State<_StatisticsScreen> {
     return parts.map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
   }
 
+  // Megagroup member breakdown section (AddMembersList) — Top Senders /
+  // Administrators / Inviters (info_statistics_inner_widget.cpp:743). Rows open
+  // the member's profile.
+  List<Widget> _buildTopList(
+    String title,
+    List list,
+    Color cardColor,
+    Color textColor,
+    Color subTextColor,
+    Color accentColor,
+    String Function(Map) subtitle,
+  ) {
+    return [
+      const SizedBox(height: 12),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+        child: Text(title, style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
+      ),
+      ...list.whereType<Map>().map((e) {
+        final name = (e['name'] as String?)?.trim();
+        final userId = e['user_id'] as String? ?? '';
+        final display = (name != null && name.isNotEmpty) ? name : userId;
+        return InkWell(
+          onTap: userId.isEmpty
+              ? null
+              : () {
+                  if (InfoPanel.pushUserProfileRequest != null) {
+                    InfoPanel.pushUserProfileRequest!(
+                        MemberInfo(userId: userId, displayName: display));
+                  }
+                },
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: accentColor,
+                  child: Text(display.isNotEmpty ? display[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(display,
+                          style: TextStyle(color: textColor, fontSize: 14),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(subtitle(e), style: TextStyle(color: subTextColor, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    ];
+  }
+
   static String _fmtNum(num v) {
     if (v == v.roundToDouble()) {
       final s = v.round().toString();
@@ -8004,18 +9098,22 @@ class _StatisticsScreenState extends State<_StatisticsScreen> {
       final chartWidgets = <Widget>[];
       for (final ch in charts) {
         if (ch is! Map) continue;
-        final dataStr = ch['data'];
-        if (dataStr is! String || dataStr.isEmpty) continue; // skip async-only graphs
-        final parsed = _StatChart.parse(ch['title'] as String? ?? '', dataStr);
-        if (parsed != null) {
-          chartWidgets.add(Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: parsed.build(cardColor, textColor, subTextColor),
-          ));
-        }
+        // Render every graph (inline OR async); _StatChartWidget loads async
+        // graphs on demand via their async_token instead of skipping them.
+        chartWidgets.add(_StatChartWidget(
+          accountId: widget.accountId,
+          chart: ch,
+          cardColor: cardColor,
+          textColor: textColor,
+          subTextColor: subTextColor,
+        ));
       }
 
       final recentPosts = (data['recent_posts'] as List?) ?? const [];
+      // Megagroup-only member breakdowns (Top Senders / Admins / Inviters).
+      final topPosters = (data['top_posters'] as List?) ?? const [];
+      final topAdmins = (data['top_admins'] as List?) ?? const [];
+      final topInviters = (data['top_inviters'] as List?) ?? const [];
 
       body = ListView(
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -8049,13 +9147,40 @@ class _StatisticsScreenState extends State<_StatisticsScreen> {
             ),
             ...recentPosts.whereType<Map>().map((p) => _RecentPostRow(
                   post: p,
+                  accountId: widget.accountId,
+                  chatId: widget.chatId,
                   cardColor: cardColor,
                   textColor: textColor,
                   subTextColor: subTextColor,
                   accentColor: accentColor,
                 )),
           ],
-          if (overview.isEmpty && chartWidgets.isEmpty && recentPosts.isEmpty)
+          if (topPosters.isNotEmpty)
+            ..._buildTopList('Top Members', topPosters, cardColor, textColor, subTextColor, accentColor,
+                (e) {
+              final msgs = (e['messages'] as num?)?.toInt() ?? 0;
+              return '$msgs ${msgs == 1 ? 'message' : 'messages'}';
+            }),
+          if (topAdmins.isNotEmpty)
+            ..._buildTopList('Top Admins', topAdmins, cardColor, textColor, subTextColor, accentColor,
+                (e) {
+              final parts = <String>[];
+              final del = (e['deleted'] as num?)?.toInt() ?? 0;
+              final ban = (e['banned'] as num?)?.toInt() ?? 0;
+              final kick = (e['kicked'] as num?)?.toInt() ?? 0;
+              if (del > 0) parts.add('$del deletions');
+              if (ban > 0) parts.add('$ban bans');
+              if (kick > 0) parts.add('$kick kicks');
+              return parts.isEmpty ? 'admin' : parts.join(' · ');
+            }),
+          if (topInviters.isNotEmpty)
+            ..._buildTopList('Top Inviters', topInviters, cardColor, textColor, subTextColor, accentColor,
+                (e) {
+              final inv = (e['invitations'] as num?)?.toInt() ?? 0;
+              return '$inv ${inv == 1 ? 'invitation' : 'invitations'}';
+            }),
+          if (overview.isEmpty && chartWidgets.isEmpty && recentPosts.isEmpty &&
+              topPosters.isEmpty && topAdmins.isEmpty && topInviters.isEmpty)
             Padding(
               padding: const EdgeInsets.all(32),
               child: Center(
@@ -8146,6 +9271,8 @@ class _StatCard extends StatelessWidget {
 
 class _RecentPostRow extends StatelessWidget {
   final Map post;
+  final String accountId;
+  final String chatId;
   final Color cardColor;
   final Color textColor;
   final Color subTextColor;
@@ -8153,41 +9280,151 @@ class _RecentPostRow extends StatelessWidget {
 
   const _RecentPostRow({
     required this.post,
+    required this.accountId,
+    required this.chatId,
     required this.cardColor,
     required this.textColor,
     required this.subTextColor,
     required this.accentColor,
   });
 
+  static String _mediaLabel(int t) {
+    switch (t) {
+      case 1: return 'Photo';
+      case 2: return 'Video';
+      case 4: return 'Voice message';
+      case 5: return 'Video message';
+      case 6: return 'Sticker';
+      case 7: return 'GIF';
+      case 9: return 'File';
+      case 10: return 'Audio';
+      default: return 'Post';
+    }
+  }
+
+  void _openMessageStats(BuildContext context, int msgId) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _MessageStatsScreen(accountId: accountId, chatId: chatId, msgId: msgId),
+    ));
+  }
+
+  void _showMenu(BuildContext context, Offset pos, int msgId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx, pos.dy),
+      color: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+      items: const [
+        PopupMenuItem(value: 'stats', child: Text('Message Statistics')),
+        PopupMenuItem(value: 'show', child: Text('Show in Chat')),
+      ],
+    ).then((v) {
+      if (v == 'stats' && msgId > 0) {
+        _openMessageStats(context, msgId);
+      } else if (v == 'show') {
+        context.read<ChatState>().openChatById(chatId);
+        Navigator.of(context).popUntil((r) => r.isFirst);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final views = post['views'] as int? ?? 0;
     final forwards = post['forwards'] as int? ?? 0;
     final reactions = post['reactions'] as int? ?? 0;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text('${_StatisticsScreenState._fmtNum(views)} views',
-                style: TextStyle(color: textColor, fontSize: 14)),
+    final msgId = post['msg_id'] as int? ?? 0;
+    final text = (post['text'] as String?)?.trim() ?? '';
+    final mediaType = post['media_type'] as int? ?? 0;
+    final thumbB64 = post['thumb_b64'] as String? ?? '';
+    final date = post['date'] as int? ?? 0;
+    final preview = text.isNotEmpty ? text : _mediaLabel(mediaType);
+
+    return GestureDetector(
+      onSecondaryTapDown: (d) => _showMenu(context, d.globalPosition, msgId),
+      onLongPressStart: (d) => _showMenu(context, d.globalPosition, msgId),
+      child: InkWell(
+        onTap: msgId > 0 ? () => _openMessageStats(context, msgId) : null,
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+          child: Row(
+            children: [
+              // Message preview (thumbnail or media icon).
+              if (thumbB64.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.memory(base64Decode(thumbB64),
+                      width: 40, height: 40, fit: BoxFit.cover, gaplessPlayback: true,
+                      errorBuilder: (_, __, ___) => _mediaIconBox(mediaType)),
+                )
+              else if (mediaType != 0)
+                _mediaIconBox(mediaType),
+              if (thumbB64.isNotEmpty || mediaType != 0) const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(preview,
+                        style: TextStyle(color: textColor, fontSize: 14),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text('${_StatisticsScreenState._fmtNum(views)} views',
+                            style: TextStyle(color: subTextColor, fontSize: 12)),
+                        const SizedBox(width: 10),
+                        Icon(Icons.share_outlined, size: 13, color: subTextColor),
+                        const SizedBox(width: 2),
+                        Text(_StatisticsScreenState._fmtNum(forwards),
+                            style: TextStyle(color: subTextColor, fontSize: 12)),
+                        const SizedBox(width: 10),
+                        Icon(Icons.favorite_border, size: 13, color: subTextColor),
+                        const SizedBox(width: 2),
+                        Text(_StatisticsScreenState._fmtNum(reactions),
+                            style: TextStyle(color: subTextColor, fontSize: 12)),
+                        if (date > 0) ...[
+                          const Spacer(),
+                          Text(_StatisticsScreenState._fmtDate(date),
+                              style: TextStyle(color: subTextColor, fontSize: 11)),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          Icon(Icons.share_outlined, size: 14, color: subTextColor),
-          const SizedBox(width: 3),
-          Text(_StatisticsScreenState._fmtNum(forwards),
-              style: TextStyle(color: subTextColor, fontSize: 13)),
-          const SizedBox(width: 12),
-          Icon(Icons.favorite_border, size: 14, color: subTextColor),
-          const SizedBox(width: 3),
-          Text(_StatisticsScreenState._fmtNum(reactions),
-              style: TextStyle(color: subTextColor, fontSize: 13)),
-        ],
+        ),
       ),
     );
   }
+
+  Widget _mediaIconBox(int mediaType) {
+    IconData icon;
+    switch (mediaType) {
+      case 1: icon = Icons.photo_outlined; break;
+      case 2:
+      case 5: icon = Icons.videocam_outlined; break;
+      case 6: icon = Icons.emoji_emotions_outlined; break;
+      case 7: icon = Icons.gif_box_outlined; break;
+      case 9: icon = Icons.insert_drive_file_outlined; break;
+      case 4: icon = Icons.mic_none; break;
+      case 10: icon = Icons.audiotrack; break;
+      default: icon = Icons.article_outlined;
+    }
+    return Container(
+      width: 40, height: 40,
+      decoration: BoxDecoration(color: accentColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
+      child: Icon(icon, size: 20, color: accentColor),
+    );
+  }
 }
+
+// How a statistics graph is drawn — mirrors AyuGram's ChartViewType
+// (Linear/DoubleLinear → line, StackLinear → stacked area, Bar/StackBar → bars).
+enum _ChartKind { line, bar, stackedBar, stackedArea }
 
 /// A parsed Telegram statistics graph (columns of values, named/colored series).
 class _StatChart {
@@ -8195,8 +9432,9 @@ class _StatChart {
   final List<List<double>> series; // each entry: a y-series of values
   final List<String> names;
   final List<Color> colors;
+  final _ChartKind kind;
 
-  _StatChart(this.title, this.series, this.names, this.colors);
+  _StatChart(this.title, this.series, this.names, this.colors, this.kind);
 
   static Color _hex(String? s) {
     if (s == null || s.isEmpty) return const Color(0xFF50A2E9);
@@ -8206,7 +9444,26 @@ class _StatChart {
     return v == null ? const Color(0xFF50A2E9) : Color(v);
   }
 
-  static _StatChart? parse(String title, String jsonStr) {
+  static _ChartKind _kindFor(String type, Map types) {
+    switch (type) {
+      case 'Bar':
+        return _ChartKind.bar;
+      case 'StackBar':
+        return _ChartKind.stackedBar;
+      case 'StackLinear':
+        return _ChartKind.stackedArea;
+      case 'Linear':
+      case 'DoubleLinear':
+        return _ChartKind.line;
+      default:
+        // Fall back to the per-column hint when the chart type is unknown.
+        if (types.values.contains('bar')) return _ChartKind.stackedBar;
+        if (types.values.contains('area')) return _ChartKind.stackedArea;
+        return _ChartKind.line;
+    }
+  }
+
+  static _StatChart? parse(String title, String jsonStr, {String type = 'Linear'}) {
     try {
       final obj = json.decode(jsonStr);
       if (obj is! Map) return null;
@@ -8233,7 +9490,7 @@ class _StatChart {
         seriesColors.add(_hex(colors[id] as String?));
       }
       if (series.isEmpty) return null;
-      return _StatChart(title, series, seriesNames, seriesColors);
+      return _StatChart(title, series, seriesNames, seriesColors, _kindFor(type, types));
     } catch (_) {
       return null;
     }
@@ -8252,7 +9509,7 @@ class _StatChart {
           SizedBox(
             height: 150,
             width: double.infinity,
-            child: CustomPaint(painter: _StatGraphPainter(series, colors)),
+            child: CustomPaint(painter: _StatGraphPainter(series, colors, kind)),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -8274,26 +9531,100 @@ class _StatChart {
   }
 }
 
+// Loads + renders a single statistics graph. Inline-data graphs render
+// immediately; async graphs (StatsGraphAsync) are fetched on demand via
+// loadStatsGraph(async_token) — AyuGram's requestZoom(token, 0)
+// (info_statistics_inner_widget.cpp:154). Previously async graphs rendered blank.
+class _StatChartWidget extends StatefulWidget {
+  final String accountId;
+  final Map chart;
+  final Color cardColor;
+  final Color textColor;
+  final Color subTextColor;
+  const _StatChartWidget({
+    required this.accountId,
+    required this.chart,
+    required this.cardColor,
+    required this.textColor,
+    required this.subTextColor,
+  });
+
+  @override
+  State<_StatChartWidget> createState() => _StatChartWidgetState();
+}
+
+class _StatChartWidgetState extends State<_StatChartWidget> {
+  _StatChart? _parsed;
+  bool _loading = true;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    final title = widget.chart['title'] as String? ?? '';
+    final type = widget.chart['type'] as String? ?? 'Linear';
+    var dataStr = widget.chart['data'];
+    if (dataStr is! String || dataStr.isEmpty) {
+      final token = widget.chart['async_token'] as String?;
+      if (token != null && token.isNotEmpty) {
+        try {
+          final loaded = await context.read<EngineService>().loadStatsGraph(widget.accountId, token);
+          dataStr = loaded['data'];
+        } catch (_) {}
+      }
+    }
+    _StatChart? parsed;
+    if (dataStr is String && dataStr.isNotEmpty) {
+      parsed = _StatChart.parse(title, dataStr, type: type);
+    }
+    if (mounted) {
+      setState(() {
+        _parsed = parsed;
+        _loading = false;
+        _failed = parsed == null;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        height: 120,
+        decoration: BoxDecoration(color: widget.cardColor, borderRadius: BorderRadius.circular(10)),
+        child: const Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+      );
+    }
+    if (_failed || _parsed == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: _parsed!.build(widget.cardColor, widget.textColor, widget.subTextColor),
+    );
+  }
+}
+
 class _StatGraphPainter extends CustomPainter {
   final List<List<double>> series;
   final List<Color> colors;
+  final _ChartKind kind;
 
-  _StatGraphPainter(this.series, this.colors);
+  _StatGraphPainter(this.series, this.colors, [this.kind = _ChartKind.line]);
+
+  Color _colorAt(int i) => i < colors.length ? colors[i] : const Color(0xFF50A2E9);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (series.isEmpty) return;
-    double minY = double.infinity, maxY = -double.infinity;
     var maxLen = 0;
     for (final s in series) {
-      maxLen = s.length > maxLen ? s.length : maxLen;
-      for (final v in s) {
-        if (v < minY) minY = v;
-        if (v > maxY) maxY = v;
-      }
+      if (s.length > maxLen) maxLen = s.length;
     }
-    if (maxLen < 2 || !minY.isFinite || !maxY.isFinite) return;
-    if (maxY == minY) maxY = minY + 1;
+    if (maxLen < 1) return;
 
     // Horizontal guide lines.
     final guide = Paint()
@@ -8304,11 +9635,35 @@ class _StatGraphPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), guide);
     }
 
+    switch (kind) {
+      case _ChartKind.bar:
+      case _ChartKind.stackedBar:
+        _paintBars(canvas, size, maxLen);
+        break;
+      case _ChartKind.stackedArea:
+        _paintStackedArea(canvas, size, maxLen);
+        break;
+      case _ChartKind.line:
+        _paintLines(canvas, size);
+        break;
+    }
+  }
+
+  void _paintLines(Canvas canvas, Size size) {
+    double minY = double.infinity, maxY = -double.infinity;
+    for (final s in series) {
+      for (final v in s) {
+        if (v < minY) minY = v;
+        if (v > maxY) maxY = v;
+      }
+    }
+    if (!minY.isFinite || !maxY.isFinite) return;
+    if (maxY == minY) maxY = minY + 1;
     for (var si = 0; si < series.length; si++) {
       final s = series[si];
       if (s.length < 2) continue;
       final paint = Paint()
-        ..color = (si < colors.length ? colors[si] : const Color(0xFF50A2E9))
+        ..color = _colorAt(si)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
         ..strokeJoin = StrokeJoin.round
@@ -8327,8 +9682,181 @@ class _StatGraphPainter extends CustomPainter {
     }
   }
 
+  // Stacked vertical bars: each x sums its series into stacked segments.
+  void _paintBars(Canvas canvas, Size size, int maxLen) {
+    double maxSum = 0;
+    for (var i = 0; i < maxLen; i++) {
+      double sum = 0;
+      for (final s in series) {
+        if (i < s.length) sum += s[i];
+      }
+      if (sum > maxSum) maxSum = sum;
+    }
+    if (maxSum <= 0) maxSum = 1;
+    final slot = size.width / maxLen;
+    final barW = slot * 0.8;
+    for (var i = 0; i < maxLen; i++) {
+      var yTop = size.height;
+      final x = i * slot + (slot - barW) / 2;
+      for (var si = 0; si < series.length; si++) {
+        final s = series[si];
+        if (i >= s.length) continue;
+        final h = s[i] / maxSum * size.height;
+        if (h <= 0) continue;
+        canvas.drawRect(
+          Rect.fromLTWH(x, yTop - h, barW, h),
+          Paint()..color = _colorAt(si),
+        );
+        yTop -= h;
+      }
+    }
+  }
+
+  // Stacked filled areas (percentage-style stacking).
+  void _paintStackedArea(Canvas canvas, Size size, int maxLen) {
+    if (maxLen < 2) return;
+    double maxSum = 0;
+    for (var i = 0; i < maxLen; i++) {
+      double sum = 0;
+      for (final s in series) {
+        if (i < s.length) sum += s[i];
+      }
+      if (sum > maxSum) maxSum = sum;
+    }
+    if (maxSum <= 0) maxSum = 1;
+    final cumulative = List<double>.filled(maxLen, 0);
+    for (var si = 0; si < series.length; si++) {
+      final s = series[si];
+      final path = Path();
+      // top edge (cumulative + current), left→right
+      for (var i = 0; i < maxLen; i++) {
+        final v = i < s.length ? s[i] : 0;
+        final x = size.width * i / (maxLen - 1);
+        final y = size.height - (cumulative[i] + v) / maxSum * size.height;
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      // bottom edge (cumulative), right→left
+      for (var i = maxLen - 1; i >= 0; i--) {
+        final x = size.width * i / (maxLen - 1);
+        final y = size.height - cumulative[i] / maxSum * size.height;
+        path.lineTo(x, y);
+      }
+      path.close();
+      canvas.drawPath(path, Paint()..color = _colorAt(si).withValues(alpha: 0.75));
+      for (var i = 0; i < maxLen; i++) {
+        cumulative[i] += i < s.length ? s[i] : 0;
+      }
+    }
+  }
+
   @override
-  bool shouldRepaint(_StatGraphPainter old) => old.series != series;
+  bool shouldRepaint(_StatGraphPainter old) => old.series != series || old.kind != kind;
+}
+
+// Per-message statistics (AyuGram messageStatistic) — opened by tapping a
+// recent post. Shows the message's interaction graphs + public-shares count.
+class _MessageStatsScreen extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final int msgId;
+  const _MessageStatsScreen({required this.accountId, required this.chatId, required this.msgId});
+
+  @override
+  State<_MessageStatsScreen> createState() => _MessageStatsScreenState();
+}
+
+class _MessageStatsScreenState extends State<_MessageStatsScreen> {
+  Map<String, dynamic>? _data;
+  Object? _error;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final d = await context.read<EngineService>().getMessageStats(widget.accountId, widget.chatId, widget.msgId);
+      if (mounted) setState(() { _data = d; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e; _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0);
+    final cardColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+
+    Widget body;
+    if (_loading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (_error != null) {
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('Failed to load message statistics:\n$_error',
+              style: TextStyle(color: subTextColor, fontSize: 14), textAlign: TextAlign.center),
+        ),
+      );
+    } else {
+      final data = _data ?? {};
+      final charts = (data['charts'] as List?) ?? const [];
+      final forwards = data['public_forwards_count'] as int? ?? 0;
+      body = ListView(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        children: [
+          if (forwards > 0)
+            Container(
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Public Shares', style: TextStyle(color: subTextColor, fontSize: 13)),
+                  Text('$forwards', style: TextStyle(color: textColor, fontSize: 15, fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          for (final ch in charts.whereType<Map>())
+            _StatChartWidget(
+              accountId: widget.accountId,
+              chart: ch,
+              cardColor: cardColor,
+              textColor: textColor,
+              subTextColor: subTextColor,
+            ),
+          if (charts.isEmpty && forwards == 0)
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(child: Text('No statistics for this message.',
+                  style: TextStyle(color: subTextColor, fontSize: 14))),
+            ),
+        ],
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: cardColor,
+        foregroundColor: textColor,
+        elevation: 1,
+        title: const Text('Message Statistics', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+      ),
+      body: body,
+    );
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -8356,11 +9884,20 @@ class _BoostsScreenState extends State<_BoostsScreen> {
   Object? _error;
   bool _loadingStatus = true;
 
+  // Two slices — boosts vs gifts (firstSliceBoosts / firstSliceGifts) — switched
+  // by a tab, mirroring info_boosts_inner_widget.cpp:455.
+  bool _showGifts = false;
   final List<Map<String, dynamic>> _boosters = [];
+  final List<Map<String, dynamic>> _gifts = [];
   String _offset = '';
+  String _giftsOffset = '';
   int _total = 0;
+  int _giftsTotal = 0;
   bool _loadingMore = false;
+  bool _loadingGifts = false;
   bool _hasMore = true;
+  bool _giftsHasMore = true;
+  bool _giftsLoadedOnce = false;
 
   @override
   void initState() {
@@ -8399,6 +9936,40 @@ class _BoostsScreenState extends State<_BoostsScreen> {
     } catch (_) {
       if (mounted) setState(() { _loadingMore = false; _hasMore = false; });
     }
+  }
+
+  Future<void> _loadMoreGifts() async {
+    if (_loadingGifts || !_giftsHasMore) return;
+    setState(() { _loadingGifts = true; _giftsLoadedOnce = true; });
+    final engine = context.read<EngineService>();
+    try {
+      final res = await engine.getBoostsList(widget.accountId, widget.chatId, isGifts: true, offset: _giftsOffset);
+      final list = (res['boosters'] as List?) ?? const [];
+      final next = res['next_offset'] as String? ?? '';
+      if (mounted) {
+        setState(() {
+          _giftsTotal = res['count'] as int? ?? _giftsTotal;
+          _gifts.addAll(list.whereType<Map>().map((e) => e.cast<String, dynamic>()));
+          _giftsOffset = next;
+          _giftsHasMore = next.isNotEmpty && list.isNotEmpty;
+          _loadingGifts = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() { _loadingGifts = false; _giftsHasMore = false; });
+    }
+  }
+
+  void _openGiveaway() {
+    final prepaid = _status?['prepaid_giveaways'];
+    final prepaidList = prepaid is List ? prepaid.cast<Map<String, dynamic>>() : <Map<String, dynamic>>[];
+    showCreateGiveawayBox(
+      context,
+      accountId: widget.accountId,
+      chatId: widget.chatId,
+      theme: Theme.of(context),
+      prepaidGiveaways: prepaidList,
+    );
   }
 
   static String _fmtDate(int epochSec) {
@@ -8458,7 +10029,11 @@ class _BoostsScreenState extends State<_BoostsScreen> {
               : NotificationListener<ScrollNotification>(
                   onNotification: (n) {
                     if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
-                      _loadMoreBoosters();
+                      if (_showGifts) {
+                        _loadMoreGifts();
+                      } else {
+                        _loadMoreBoosters();
+                      }
                     }
                     return false;
                   },
@@ -8503,35 +10078,204 @@ class _BoostsScreenState extends State<_BoostsScreen> {
                             style: TextStyle(color: subTextColor, fontSize: 13),
                           ),
                         ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                        child: Text(
-                          _total > 0 ? 'Boosters · $_total' : 'Boosters',
-                          style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      if (_boosters.isEmpty && !_loadingMore)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          child: Text('No boosters yet.',
-                              style: TextStyle(color: subTextColor, fontSize: 14)),
-                        ),
-                      ..._boosters.map((b) => _BoosterRow(
-                            booster: b,
-                            cardColor: cardColor,
-                            textColor: textColor,
-                            subTextColor: subTextColor,
-                            accentColor: accentColor,
-                            dateText: _fmtDate(b['expires'] as int? ?? 0),
-                          )),
-                      if (_loadingMore)
-                        const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
+                      // Invite/share-link block (FillShareLink) — copy/share the
+                      // boost link (info_boosts_inner_widget.cpp:341).
+                      if ((data['boost_url'] as String? ?? '').isNotEmpty)
+                        _buildShareLink(data['boost_url'] as String, cardColor, textColor, subTextColor, accentColor),
+                      // Prepaid giveaway rows.
+                      ..._buildPrepaidGiveaways(data, cardColor, textColor, subTextColor, accentColor),
+                      // Boosts / Gifts tab switcher.
+                      _buildSliceTabs(cardColor, textColor, subTextColor, accentColor),
+                      // Active slice list.
+                      if (_showGifts) ...[
+                        if (_gifts.isEmpty && !_loadingGifts && _giftsLoadedOnce)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: Text('No gifted boosts yet.', style: TextStyle(color: subTextColor, fontSize: 14)),
+                          ),
+                        ..._gifts.map((b) => _BoosterRow(
+                              booster: b,
+                              cardColor: cardColor,
+                              textColor: textColor,
+                              subTextColor: subTextColor,
+                              accentColor: accentColor,
+                              dateText: _fmtDate(b['expires'] as int? ?? 0),
+                            )),
+                        if (_loadingGifts)
+                          const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
+                      ] else ...[
+                        if (_boosters.isEmpty && !_loadingMore)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: Text('No boosters yet.', style: TextStyle(color: subTextColor, fontSize: 14)),
+                          ),
+                        ..._boosters.map((b) => _BoosterRow(
+                              booster: b,
+                              cardColor: cardColor,
+                              textColor: textColor,
+                              subTextColor: subTextColor,
+                              accentColor: accentColor,
+                              dateText: _fmtDate(b['expires'] as int? ?? 0),
+                            )),
+                        if (_loadingMore)
+                          const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
+                      ],
+                      // Create-giveaway / "Get Boosts via Gifts" button
+                      // (FillGetBoostsButton → CreateGiveawayBox).
+                      _buildGiveawayButton(accentColor),
                     ],
                   ),
                 ),
+    );
+  }
+
+  Widget _buildShareLink(String url, Color cardColor, Color textColor, Color subTextColor, Color accentColor) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 14, 12, 2),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Share this link to boost', style: TextStyle(color: subTextColor, fontSize: 13)),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: url));
+              showTelegramToast(context, 'Link copied');
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+              ),
+              child: Text(url.replaceFirst('https://', ''),
+                  style: TextStyle(color: accentColor, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: url));
+                    showTelegramToast(context, 'Link copied');
+                  },
+                  icon: const Icon(Icons.copy, size: 18),
+                  label: const Text('Copy'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Share.share(url),
+                  icon: const Icon(Icons.share, size: 18),
+                  label: const Text('Share'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildPrepaidGiveaways(
+      Map data, Color cardColor, Color textColor, Color subTextColor, Color accentColor) {
+    final prepaid = (data['prepaid_giveaways'] as List?) ?? const [];
+    if (prepaid.isEmpty) return const [];
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+        child: Text('Prepaid Giveaways',
+            style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
+      ),
+      ...prepaid.whereType<Map>().map((g) {
+        final quantity = (g['quantity'] as num?)?.toInt() ?? 0;
+        final months = (g['months'] as num?)?.toInt() ?? 0;
+        return InkWell(
+          onTap: _openGiveaway,
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+            child: Row(
+              children: [
+                CircleAvatar(radius: 18, backgroundColor: accentColor, child: const Icon(Icons.card_giftcard, color: Colors.white, size: 18)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('$quantity Telegram Premium', style: TextStyle(color: textColor, fontSize: 14)),
+                      Text('$months ${months == 1 ? 'month' : 'months'}', style: TextStyle(color: subTextColor, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: subTextColor),
+              ],
+            ),
+          ),
+        );
+      }),
+    ];
+  }
+
+  Widget _buildSliceTabs(Color cardColor, Color textColor, Color subTextColor, Color accentColor) {
+    Widget tab(String label, bool selected, VoidCallback onTap) => Expanded(
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                children: [
+                  Text(label,
+                      style: TextStyle(
+                          color: selected ? accentColor : subTextColor,
+                          fontSize: 14,
+                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+                  const SizedBox(height: 6),
+                  Container(height: 2, color: selected ? accentColor : Colors.transparent),
+                ],
+              ),
+            ),
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Row(
+        children: [
+          tab(_total > 0 ? 'Boosts · $_total' : 'Boosts', !_showGifts, () => setState(() => _showGifts = false)),
+          tab(_giftsTotal > 0 ? 'Gifts · $_giftsTotal' : 'Gifts', _showGifts, () {
+            setState(() => _showGifts = true);
+            if (!_giftsLoadedOnce) _loadMoreGifts();
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGiveawayButton(Color accentColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: _openGiveaway,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: accentColor,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+          icon: const Icon(Icons.card_giftcard, size: 20),
+          label: const Text('Get Boosts via Gifts'),
+        ),
+      ),
     );
   }
 }
@@ -8637,6 +10381,13 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
   Map<String, dynamic>? _stats;
   Object? _error;
   bool _loading = true;
+  bool _withdrawing = false;
+
+  final List<Map<String, dynamic>> _transactions = [];
+  String _txOffset = '';
+  bool _txHasMore = true;
+  bool _loadingTx = false;
+  bool _txLoadedOnce = false;
 
   @override
   void initState() {
@@ -8649,9 +10400,104 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     try {
       final s = await engine.getStarsRevenueStats(widget.accountId, widget.chatId);
       if (mounted) setState(() { _stats = s; _loading = false; });
+      _loadMoreTransactions();
     } catch (e) {
       if (mounted) setState(() { _error = e; _loading = false; });
     }
+  }
+
+  Future<void> _loadMoreTransactions() async {
+    if (_loadingTx || !_txHasMore) return;
+    setState(() { _loadingTx = true; _txLoadedOnce = true; });
+    final engine = context.read<EngineService>();
+    try {
+      final res = await engine.getChannelStarsTransactions(widget.accountId, widget.chatId, offset: _txOffset);
+      final list = (res['transactions'] as List?) ?? const [];
+      final next = res['next_offset'] as String? ?? '';
+      if (mounted) {
+        setState(() {
+          _transactions.addAll(list.whereType<Map>().map((e) => e.cast<String, dynamic>()));
+          _txOffset = next;
+          _txHasMore = next.isNotEmpty && list.isNotEmpty;
+          _loadingTx = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() { _loadingTx = false; _txHasMore = false; });
+    }
+  }
+
+  // Withdraw flow: collect the 2FA password, fetch the withdrawal URL, open it.
+  Future<void> _withdraw() async {
+    if (_withdrawing) return;
+    final password = await _promptPassword();
+    if (password == null || password.isEmpty || !mounted) return;
+    setState(() => _withdrawing = true);
+    final engine = context.read<EngineService>();
+    try {
+      final url = await engine.getStarsRevenueWithdrawalUrl(widget.accountId, widget.chatId, password);
+      if (!mounted) return;
+      setState(() => _withdrawing = false);
+      if (url.isEmpty) {
+        showTelegramToast(context, 'Withdrawal unavailable');
+        return;
+      }
+      final uri = Uri.tryParse(url);
+      if (uri != null) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        await Clipboard.setData(ClipboardData(text: url));
+        if (mounted) showTelegramToast(context, 'Withdrawal link copied');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _withdrawing = false);
+        showTelegramToast(context, 'Withdrawal failed: $e');
+      }
+    }
+  }
+
+  Future<String?> _promptPassword() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Confirm Withdrawal', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Enter your 2FA password to withdraw your Stars balance.',
+                style: TextStyle(color: subTextColor, fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              obscureText: true,
+              autofocus: true,
+              style: TextStyle(color: textColor, fontSize: 14),
+              decoration: InputDecoration(
+                labelText: 'Password',
+                border: const UnderlineInputBorder(),
+              ),
+              onSubmitted: (v) => Navigator.pop(ctx, v),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: subTextColor))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: Text('Withdraw', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
   }
 
   // usd_rate is the value of 1000 Stars in USD (matches _showRevenueStats).
@@ -8659,6 +10505,54 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     if (usdRate <= 0) return '';
     final usd = stars * usdRate / 1000;
     return '≈ \$${usd.toStringAsFixed(2)}';
+  }
+
+  static String _txDate(int epochSec) {
+    if (epochSec <= 0) return '';
+    final d = DateTime.fromMillisecondsSinceEpoch(epochSec * 1000);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${months[d.month - 1]}, ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildTransactionRow(
+      Map<String, dynamic> tx, Color cardColor, Color textColor, Color subTextColor, Color starColor) {
+    final amount = (tx['amount'] as num?)?.toInt() ?? 0;
+    final refund = tx['refund'] == true;
+    final title = (tx['title'] as String?)?.trim() ?? '';
+    final desc = (tx['description'] as String?)?.trim() ?? '';
+    final date = tx['date'] as int? ?? 0;
+    final incoming = amount >= 0;
+    final label = title.isNotEmpty ? title : (desc.isNotEmpty ? desc : (incoming ? 'Proceeds' : 'Withdrawal'));
+    final amountColor = refund
+        ? subTextColor
+        : (incoming ? const Color(0xFF4FAD2D) : const Color(0xFFE53935));
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(refund ? '$label (refund)' : label,
+                    style: TextStyle(color: textColor, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (date > 0) ...[
+                  const SizedBox(height: 2),
+                  Text(_txDate(date), style: TextStyle(color: subTextColor, fontSize: 12)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(Icons.star, size: 15, color: starColor),
+          const SizedBox(width: 3),
+          Text('${incoming ? '+' : ''}$amount',
+              style: TextStyle(color: amountColor, fontSize: 15, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
   }
 
   @override
@@ -8747,18 +10641,24 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
               ],
             ),
           ),
-          if (withdrawalEnabled)
+          // Withdraw button (Api::HandleWithdrawalButton → AddWithdrawalWidget).
+          if (withdrawalEnabled && available > 0)
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle_outline, size: 16, color: accentColor),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Withdrawal is available for this balance.',
-                        style: TextStyle(fontSize: 12, color: subTextColor)),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _withdrawing ? null : _withdraw,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                ],
+                  icon: _withdrawing
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.account_balance_wallet_outlined, size: 20),
+                  label: Text(_withdrawing ? 'Processing…' : 'Withdraw'),
+                ),
               ),
             ),
           Padding(
@@ -8770,6 +10670,49 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
               style: TextStyle(fontSize: 12, color: subTextColor, height: 1.4),
             ),
           ),
+          // Revenue + top-hours graphs (info_channel_earn_list.cpp:611).
+          ...(() {
+            final charts = (data['charts'] as List?) ?? const [];
+            if (charts.isEmpty) return <Widget>[];
+            return [
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                child: Text('Revenue',
+                    style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+              ...charts.whereType<Map>().map((ch) => _StatChartWidget(
+                    accountId: widget.accountId,
+                    chart: ch,
+                    cardColor: cardColor,
+                    textColor: textColor,
+                    subTextColor: subTextColor,
+                  )),
+            ];
+          })(),
+          // Transaction history (info_channel_earn_list.cpp:1288).
+          if (_transactions.isNotEmpty || _loadingTx) ...[
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              child: Text('Transactions',
+                  style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+            ..._transactions.map((tx) => _buildTransactionRow(tx, cardColor, textColor, subTextColor, starColor)),
+            if (_txHasMore)
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Center(
+                  child: _loadingTx
+                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                      : TextButton(onPressed: _loadMoreTransactions, child: Text('Show more', style: TextStyle(color: accentColor))),
+                ),
+              ),
+          ] else if (_txLoadedOnce)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Text('No transactions yet.', style: TextStyle(color: subTextColor, fontSize: 13)),
+            ),
         ],
       );
     }
@@ -8790,6 +10733,382 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
         ),
       ),
       body: body,
+    );
+  }
+}
+
+// ── Star-ref (affiliate program) JOIN flow ──
+// A broadcast channel joins other bots' affiliate programs to advertise them and
+// earn star commissions (info_bot_starref_join_widget.cpp). It cannot own a
+// program — that setup flow is bot-only.
+class _StarRefJoinScreen extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final String title;
+  const _StarRefJoinScreen({required this.accountId, required this.chatId, required this.title});
+
+  @override
+  State<_StarRefJoinScreen> createState() => _StarRefJoinScreenState();
+}
+
+class _StarRefJoinScreenState extends State<_StarRefJoinScreen> {
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _connected = [];
+  List<Map<String, dynamic>> _suggested = [];
+  String _nextOffset = '';
+  bool _loadingMore = false;
+  final Set<String> _connecting = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final engine = context.read<EngineService>();
+    try {
+      final connected = await engine.getConnectedStarRefBots(widget.accountId, widget.chatId);
+      final suggested = await engine.getSuggestedStarRefBots(widget.accountId, widget.chatId);
+      if (!mounted) return;
+      setState(() {
+        _connected = connected;
+        _suggested = (suggested['bots'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _nextOffset = suggested['next_offset'] as String? ?? '';
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || _nextOffset.isEmpty) return;
+    setState(() => _loadingMore = true);
+    final engine = context.read<EngineService>();
+    try {
+      final more = await engine.getSuggestedStarRefBots(widget.accountId, widget.chatId, offset: _nextOffset);
+      if (!mounted) return;
+      setState(() {
+        _suggested.addAll((more['bots'] as List?)?.cast<Map<String, dynamic>>() ?? []);
+        _nextOffset = more['next_offset'] as String? ?? '';
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  Future<void> _connect(Map<String, dynamic> bot) async {
+    final botId = bot['bot_id'] as String? ?? '';
+    if (botId.isEmpty || _connecting.contains(botId)) return;
+    setState(() => _connecting.add(botId));
+    final engine = context.read<EngineService>();
+    try {
+      final result = await engine.connectStarRefBot(widget.accountId, widget.chatId, botId);
+      if (!mounted) return;
+      setState(() {
+        _connecting.remove(botId);
+        if (result.isNotEmpty) {
+          _connected.insert(0, result);
+          _suggested.removeWhere((b) => b['bot_id'] == botId);
+        }
+      });
+      final url = result['url'] as String? ?? '';
+      if (url.isNotEmpty) {
+        await Clipboard.setData(ClipboardData(text: url));
+        if (mounted) showTelegramToast(context, 'Joined — referral link copied');
+      } else if (mounted) {
+        showTelegramToast(context, 'Joined affiliate program');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _connecting.remove(botId));
+        showTelegramToast(context, 'Failed: $e');
+      }
+    }
+  }
+
+  String _commission(Map<String, dynamic> b) {
+    final permille = (b['commission_permille'] as num?)?.toInt() ?? 0;
+    return '${(permille / 10).toStringAsFixed(permille % 10 == 0 ? 0 : 1)}%';
+  }
+
+  String _duration(Map<String, dynamic> b) {
+    final m = (b['duration_months'] as num?)?.toInt() ?? 0;
+    if (m == 0) return 'Lifetime';
+    if (m % 12 == 0) return '${m ~/ 12}y';
+    return '${m}mo';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0E1621) : const Color(0xFFE6EBF0);
+    final cardColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final accentColor = palette.windowBgActive;
+
+    Widget body;
+    if (_loading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (_error != null) {
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text(_error!, style: TextStyle(color: palette.attentionButtonFg)),
+        ),
+      );
+    } else {
+      body = ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Text(
+              'Earn Telegram Stars by advertising other bots in your channel. '
+              'Join a program below to get your referral link.',
+              style: TextStyle(color: subTextColor, fontSize: 13),
+            ),
+          ),
+          if (_connected.isNotEmpty) ...[
+            _sectionHeader('My Programs', accentColor),
+            for (final b in _connected)
+              _ConnectedStarRefRow(
+                bot: b,
+                cardColor: cardColor,
+                textColor: textColor,
+                subTextColor: subTextColor,
+                accentColor: accentColor,
+                commission: _commission(b),
+                duration: _duration(b),
+              ),
+          ],
+          if (_suggested.isNotEmpty) ...[
+            _sectionHeader('Existing Programs', accentColor),
+            for (final b in _suggested)
+              _SuggestedStarRefRow(
+                bot: b,
+                cardColor: cardColor,
+                textColor: textColor,
+                subTextColor: subTextColor,
+                accentColor: accentColor,
+                commission: _commission(b),
+                duration: _duration(b),
+                connecting: _connecting.contains(b['bot_id']),
+                onConnect: () => _connect(b),
+              ),
+            if (_nextOffset.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Center(
+                  child: _loadingMore
+                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                      : TextButton(onPressed: _loadMore, child: Text('Show more', style: TextStyle(color: accentColor))),
+                ),
+              ),
+          ],
+          if (_connected.isEmpty && _suggested.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Text('No affiliate programs available.',
+                    style: TextStyle(color: subTextColor, fontSize: 14)),
+              ),
+            ),
+        ],
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: cardColor,
+        foregroundColor: textColor,
+        elevation: 1,
+        title: const Text('Affiliate Program', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+      ),
+      body: body,
+    );
+  }
+
+  Widget _sectionHeader(String title, Color accentColor) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Text(title.toUpperCase(),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accentColor)),
+      );
+}
+
+class _ConnectedStarRefRow extends StatelessWidget {
+  final Map<String, dynamic> bot;
+  final Color cardColor, textColor, subTextColor, accentColor;
+  final String commission, duration;
+  const _ConnectedStarRefRow({
+    required this.bot,
+    required this.cardColor,
+    required this.textColor,
+    required this.subTextColor,
+    required this.accentColor,
+    required this.commission,
+    required this.duration,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (bot['bot_name'] as String?)?.trim();
+    final username = bot['bot_username'] as String? ?? '';
+    final url = bot['url'] as String? ?? '';
+    final revoked = bot['revoked'] == true;
+    final display = (name != null && name.isNotEmpty) ? name : (username.isNotEmpty ? '@$username' : 'Bot');
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 3, 12, 3),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: accentColor,
+                child: Text(display.isNotEmpty ? display[0].toUpperCase() : '?',
+                    style: const TextStyle(color: Colors.white, fontSize: 15)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(display,
+                        style: TextStyle(color: textColor, fontSize: 15, fontWeight: FontWeight.w600),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text('$commission · $duration${revoked ? ' · ended' : ''}',
+                        style: TextStyle(color: subTextColor, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (url.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: url));
+                showTelegramToast(context, 'Referral link copied');
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(url,
+                          style: TextStyle(color: accentColor, fontSize: 13),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(Icons.copy, size: 18, color: accentColor),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: url));
+                        showTelegramToast(context, 'Referral link copied');
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.share, size: 18, color: accentColor),
+                      onPressed: () => Share.share(url),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SuggestedStarRefRow extends StatelessWidget {
+  final Map<String, dynamic> bot;
+  final Color cardColor, textColor, subTextColor, accentColor;
+  final String commission, duration;
+  final bool connecting;
+  final VoidCallback onConnect;
+  const _SuggestedStarRefRow({
+    required this.bot,
+    required this.cardColor,
+    required this.textColor,
+    required this.subTextColor,
+    required this.accentColor,
+    required this.commission,
+    required this.duration,
+    required this.connecting,
+    required this.onConnect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (bot['bot_name'] as String?)?.trim();
+    final username = bot['bot_username'] as String? ?? '';
+    final display = (name != null && name.isNotEmpty) ? name : (username.isNotEmpty ? '@$username' : 'Bot');
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 3, 12, 3),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: accentColor,
+            child: Text(display.isNotEmpty ? display[0].toUpperCase() : '?',
+                style: const TextStyle(color: Colors.white, fontSize: 15)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(display,
+                    style: TextStyle(color: textColor, fontSize: 15, fontWeight: FontWeight.w600),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text('$commission commission · $duration',
+                    style: TextStyle(color: subTextColor, fontSize: 12)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          connecting
+              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+              : TextButton(
+                  onPressed: onConnect,
+                  style: TextButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  ),
+                  child: const Text('Join'),
+                ),
+        ],
+      ),
     );
   }
 }

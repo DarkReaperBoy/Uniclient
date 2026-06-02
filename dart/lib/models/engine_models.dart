@@ -1922,6 +1922,12 @@ class MemberInfo {
   final String promotedBy;
   final String promotedByID;
   final int promotedDate;
+  // Row-action gating flags (mirror AyuGram canAddOrEditAdmin/canRestrict/etc):
+  // the UI uses these to decide which Promote/Restrict/Remove actions to offer.
+  final bool isSelf;
+  final bool isCreator;
+  final bool canEditAdmin;
+  final bool canRestrict;
 
   const MemberInfo({
     required this.userId,
@@ -1939,6 +1945,10 @@ class MemberInfo {
     this.promotedBy = '',
     this.promotedByID = '',
     this.promotedDate = 0,
+    this.isSelf = false,
+    this.isCreator = false,
+    this.canEditAdmin = false,
+    this.canRestrict = false,
   });
 
   bool get hasStories => storyCount > 0;

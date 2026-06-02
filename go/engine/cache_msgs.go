@@ -2043,6 +2043,36 @@ func (e *Engine) GetStarsRevenueStats(accountID, chatID string) (cores.StarsReve
 	return getter.GetStarsRevenueStats(chatID)
 }
 
+func (e *Engine) GetChannelStarsTransactions(accountID, chatID, offset string, limit int) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetStarsTransactions(chatID, offset string, limit int) (map[string]interface{}, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support stars transactions")
+	}
+	return g.GetStarsTransactions(chatID, offset, limit)
+}
+
+func (e *Engine) GetStarsRevenueWithdrawalUrl(accountID, chatID, password string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetStarsRevenueWithdrawalUrl(chatID, password string) (string, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return "", fmt.Errorf("platform does not support stars withdrawal")
+	}
+	return g.GetStarsRevenueWithdrawalUrl(chatID, password)
+}
+
 type InlineBotResultSender interface {
 	SendInlineBotResult(chatID string, queryID int64, resultID string) (int, error)
 }

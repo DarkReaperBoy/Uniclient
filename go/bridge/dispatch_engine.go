@@ -2128,11 +2128,12 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			Query     string          `json:"query"`
 			MaxID     int64           `json:"max_id"`
 			Filters   map[string]bool `json:"filters"`
+			Admins    []string        `json:"admins"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		events, err := e.GetAdminLogEvents(params.AccountID, params.ChatID, params.Limit, params.Query, params.MaxID, params.Filters)
+		events, err := e.GetAdminLogEvents(params.AccountID, params.ChatID, params.Limit, params.Query, params.MaxID, params.Filters, params.Admins)
 		if err != nil {
 			return nil, err
 		}
@@ -2331,17 +2332,109 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(info)
 
-	case "SetChatReactionsMode":
+	case "GetColorLevelRequirements":
 		var params struct {
-			AccountID string   `json:"account_id"`
-			ChatID    string   `json:"chat_id"`
-			Mode      string   `json:"mode"`
-			Emojis    []string `json:"emojis"`
+			AccountID string `json:"account_id"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return nil, e.SetChatReactionsMode(params.AccountID, params.ChatID, params.Mode, params.Emojis)
+		info, err := e.GetColorLevelRequirements(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(info)
+
+	case "GetBotVerifyState":
+		var params struct {
+			AccountID string `json:"account_id"`
+			BotID     string `json:"bot_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		verified, err := e.GetBotVerifyState(params.AccountID, params.BotID, params.UserID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"verified": verified})
+
+	case "GetInviteImportersList":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Link      string `json:"link"`
+			Requested bool   `json:"requested"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		info, err := e.GetInviteImportersList(params.AccountID, params.ChatID, params.Link, params.Requested, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(info)
+
+	case "GetSuggestedStarRefBots":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Offset    string `json:"offset"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		info, err := e.GetSuggestedStarRefBots(params.AccountID, params.ChatID, params.Offset, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(info)
+
+	case "GetConnectedStarRefBots":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		info, err := e.GetConnectedStarRefBots(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(info)
+
+	case "ConnectStarRefBot":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			BotID     string `json:"bot_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		info, err := e.ConnectStarRefBot(params.AccountID, params.ChatID, params.BotID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(info)
+
+	case "SetChatReactionsMode":
+		var params struct {
+			AccountID   string   `json:"account_id"`
+			ChatID      string   `json:"chat_id"`
+			Mode        string   `json:"mode"`
+			Emojis      []string `json:"emojis"`
+			MaxCount    int      `json:"max_count"`
+			PaidEnabled bool     `json:"paid_enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetChatReactionsMode(params.AccountID, params.ChatID, params.Mode, params.Emojis, params.MaxCount, params.PaidEnabled)
 
 	case "UpdateChannelColor":
 		var params struct {
@@ -6470,6 +6563,37 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return json.Marshal(result)
+
+	case "GetChannelStarsTransactions":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Offset    string `json:"offset"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetChannelStarsTransactions(params.AccountID, params.ChatID, params.Offset, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "GetStarsRevenueWithdrawalUrl":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Password  string `json:"password"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		url, err := e.GetStarsRevenueWithdrawalUrl(params.AccountID, params.ChatID, params.Password)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"url": url})
 
 	case "MarkAllChatsRead":
 		var params struct {

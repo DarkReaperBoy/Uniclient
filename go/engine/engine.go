@@ -1730,6 +1730,96 @@ func (e *Engine) GetBotManageInfo(accountID, chatID string) (map[string]interfac
 	return g.GetBotManageInfo(chatID)
 }
 
+func (e *Engine) GetColorLevelRequirements(accountID string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetColorLevelRequirements() (map[string]interface{}, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support color level requirements")
+	}
+	return g.GetColorLevelRequirements()
+}
+
+func (e *Engine) GetBotVerifyState(accountID, botID, userID string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetBotVerifyState(botID, userID string) (bool, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return false, fmt.Errorf("platform does not support bot verify state")
+	}
+	return g.GetBotVerifyState(botID, userID)
+}
+
+func (e *Engine) GetInviteImportersList(accountID, chatID, link string, requested bool, limit int) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetInviteImportersList(chatID, link string, requested bool, limit int) (map[string]interface{}, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support invite importers")
+	}
+	return g.GetInviteImportersList(chatID, link, requested, limit)
+}
+
+func (e *Engine) GetSuggestedStarRefBots(accountID, chatID, offset string, limit int) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetSuggestedStarRefBots(chatID, offset string, limit int) (map[string]interface{}, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support star-ref join")
+	}
+	return g.GetSuggestedStarRefBots(chatID, offset, limit)
+}
+
+func (e *Engine) GetConnectedStarRefBots(accountID, chatID string) ([]map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetConnectedStarRefBots(chatID string) ([]map[string]interface{}, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support star-ref join")
+	}
+	return g.GetConnectedStarRefBots(chatID)
+}
+
+func (e *Engine) ConnectStarRefBot(accountID, chatID, botID string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		ConnectStarRefBot(chatID, botID string) (map[string]interface{}, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support star-ref join")
+	}
+	return g.ConnectStarRefBot(chatID, botID)
+}
+
 type DefaultBannedRights struct {
 	SendPlain         bool `json:"send_plain"`
 	SendPhotos        bool `json:"send_photos"`
@@ -1785,19 +1875,19 @@ func (e *Engine) GetDefaultBannedRights(accountID, chatID string) (*DefaultBanne
 	}, nil
 }
 
-func (e *Engine) GetAdminLogEvents(accountID, chatID string, limit int, query string, maxID int64, filters map[string]bool) ([]cores.AdminLogEvent, error) {
+func (e *Engine) GetAdminLogEvents(accountID, chatID string, limit int, query string, maxID int64, filters map[string]bool, admins []string) ([]cores.AdminLogEvent, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type provider interface {
-		GetAdminLogEvents(chatID string, limit int, query string, maxID int64, filters map[string]bool) ([]cores.AdminLogEvent, error)
+		GetAdminLogEvents(chatID string, limit int, query string, maxID int64, filters map[string]bool, admins []string) ([]cores.AdminLogEvent, error)
 	}
 	p, ok := acc.Core.(provider)
 	if !ok {
 		return nil, fmt.Errorf("platform does not support admin log")
 	}
-	return p.GetAdminLogEvents(chatID, limit, query, maxID, filters)
+	return p.GetAdminLogEvents(chatID, limit, query, maxID, filters, admins)
 }
 
 func (e *Engine) SetDefaultBannedRights(accountID, chatID string, rights *DefaultBannedRights) error {
@@ -1944,16 +2034,16 @@ func (e *Engine) TogglePeerTranslations(accountID, chatID string, disabled bool)
 	return fmt.Errorf("platform does not support peer translations toggle")
 }
 
-func (e *Engine) SetChatReactionsMode(accountID, chatID, mode string, emojis []string) error {
+func (e *Engine) SetChatReactionsMode(accountID, chatID, mode string, emojis []string, maxCount int, paidEnabled bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type reactor interface {
-		SetChatReactionsMode(chatID string, mode string, emojis []string) error
+		SetChatReactionsMode(chatID string, mode string, emojis []string, maxCount int, paidEnabled bool) error
 	}
 	if r, ok := acc.Core.(reactor); ok {
-		return r.SetChatReactionsMode(chatID, mode, emojis)
+		return r.SetChatReactionsMode(chatID, mode, emojis, maxCount, paidEnabled)
 	}
 	return fmt.Errorf("platform does not support reactions mode")
 }
