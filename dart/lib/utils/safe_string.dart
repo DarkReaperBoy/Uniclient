@@ -55,6 +55,33 @@ String safeInitial(String s) {
   return String.fromCharCode(code).toUpperCase();
 }
 
+/// Whether Zalgo-stripping is active. Mirrors AyuGram's global
+/// `AyuSettings::getInstance().filterZalgo()` singleton — set once from the
+/// persisted setting at startup (and on change) by AppState. AyuGram reads the
+/// setting at name/text display time and shows a restart prompt on toggle, so
+/// filtering newly-built strings (and everything after a restart) matches.
+bool gFilterZalgo = false;
+
+/// Matches a run of 3+ combining marks (`\p{Mn}{3,}`) or a bidi-control
+/// character — the exact "Zalgo" pattern AyuGram strips
+/// (telegram_helpers.cpp:75 kZalgoPattern).
+final RegExp _zalgoRegExp = RegExp(
+  r'\p{Mn}{3,}|[\u202A-\u202E\u2066-\u2069\u200E\u200F\u061C]',
+  unicode: true,
+);
+
+/// Port of AyuGram's `filterZalgo` (telegram_helpers.cpp:1260): replaces each
+/// Zalgo/bidi character with U+2060 (word joiner, zero-width) so the surrounding
+/// base characters render cleanly while string length/positions are preserved.
+/// No-op (returns the input untouched, zero regex cost) unless [gFilterZalgo].
+String filterZalgo(String text) {
+  if (!gFilterZalgo || text.isEmpty) return text;
+  return text.replaceAllMapped(
+    _zalgoRegExp,
+    (m) => '\u2060' * m.group(0)!.length,
+  );
+}
+
 /// Truncate a string to [maxLen] code units without splitting a surrogate pair.
 /// Appends '...' if truncated.
 String safeTruncate(String s, int maxLen) {

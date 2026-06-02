@@ -13,7 +13,11 @@ import '../utils/debug.dart';
 
 // Re-export for local use — actual implementation in utils/safe_string.dart.
 import '../utils/safe_string.dart';
-String _safeStr(String s) => safeStr(s);
+// Every engine-sourced display string flows through here, so this is the single
+// choke point where AyuGram's "Filter Zalgo" strip is applied — mirroring the
+// per-name/per-text filtering at data_user.cpp:365 / history_item.cpp:4157.
+// filterZalgo is a no-op (zero cost) unless the setting is enabled (gFilterZalgo).
+String _safeStr(String s) => filterZalgo(safeStr(s));
 
 /// High-level wrapper around the FFI bridge for engine operations.
 ///

@@ -2,7 +2,7 @@
 const kAppVersion = '0.1.0';
 const kAppStage = 'alpha';
 const kAppStageNum = '';
-const kBuildDate = '2026-06-02';
+const kBuildDate = '2026-06-03';
 
 String get appVersionString {
   if (kAppStage.isEmpty) return kAppVersion;

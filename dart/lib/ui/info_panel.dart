@@ -4905,12 +4905,15 @@ class _ChannelActionsSection extends StatelessWidget {
               isChannel: true,
             ),
           ),
-        _ActionRow(
-          icon: Icons.people_outline,
-          label: 'Similar Channels',
-          theme: theme,
-          onTap: () => _showSimilarChannels(context),
-        ),
+        // AyuGram "Hide Similar Channels Tab" suppresses this row entirely
+        // (info_profile_inner_widget.cpp:367 hideSimilarChannels()).
+        if (!context.watch<AppState>().hideSimilarChannels)
+          _ActionRow(
+            icon: Icons.people_outline,
+            label: 'Similar Channels',
+            theme: theme,
+            onTap: () => _showSimilarChannels(context),
+          ),
         _ActionRow(
           icon: Icons.file_upload_outlined,
           label: 'Export Chat History',
@@ -8036,6 +8039,11 @@ class _SimilarChannelsSheetState extends State<_SimilarChannelsSheet> {
   List<SimilarChannelInfo>? _channels;
   bool _loading = true;
   String? _error;
+  // AyuGram "Collapse Similar Channels": the recommendation list starts collapsed
+  // to a preview count (kCollapsedChannelsCount, dialogs_suggestions.cpp:84) and
+  // expands on demand; when the setting is off it shows everything immediately.
+  static const int _kCollapsedCount = 5;
+  bool _expanded = false;
 
   @override
   void initState() {
@@ -8106,10 +8114,34 @@ class _SimilarChannelsSheetState extends State<_SimilarChannelsSheet> {
         ),
       );
     }
+    final collapse = context.watch<AppState>().collapseSimilarChannels;
+    final collapsed =
+        collapse && !_expanded && channels.length > _kCollapsedCount;
+    final visibleCount = collapsed ? _kCollapsedCount : channels.length;
     return ListView.builder(
       controller: sc,
-      itemCount: channels.length,
+      itemCount: visibleCount + (collapsed ? 1 : 0),
       itemBuilder: (ctx, i) {
+        if (collapsed && i == visibleCount) {
+          final remaining = channels.length - _kCollapsedCount;
+          return InkWell(
+            onTap: () => setState(() => _expanded = true),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Icon(Icons.expand_more, size: 20, color: t.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Show $remaining more',
+                    style: t.textTheme.bodyMedium
+                        ?.copyWith(color: t.colorScheme.primary, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         final ch = channels[i];
         return _SimilarChannelRow(channel: ch, theme: t, onTap: () {
           Navigator.pop(context);

@@ -837,7 +837,8 @@ class _ChatListPanelState extends State<ChatListPanel>
               ),
           ],
           // Spec §32.1: Stories bar above chat list (only when not searching/collapsed).
-          if (!widget.collapsed && !_searching)
+          // AyuGram "Disable Stories" hides the bar entirely (dialogs_widget.cpp:1003).
+          if (!widget.collapsed && !_searching && !appState.disableStories)
             _StoriesBar(
               key: _storiesBarKey,
               chats: accountChats,

@@ -12,8 +12,10 @@ import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import 'confirm_box.dart';
 import 'telegram_tooltip.dart';
 
 class StickerPackViewer extends StatefulWidget {
@@ -207,8 +209,21 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
       );
       return;
     }
-    widget.engine.sendSticker(chat.accountId, chat.chatId, sticker.fileId);
-    Navigator.pop(context);
+    void doSend() {
+      widget.engine.sendSticker(chat.accountId, chat.chatId, sticker.fileId);
+      Navigator.pop(context);
+    }
+    // AyuGram "For Stickers" confirmation (stickers_list_widget.cpp:2302).
+    if (context.read<AppState>().stickerConfirmation) {
+      showConfirmBox(
+        context,
+        text: 'Do you want to send this sticker?',
+        confirmText: 'Send',
+        onConfirm: doSend,
+      );
+    } else {
+      doSend();
+    }
   }
 
   void _showOverflowMenu(BuildContext context) {

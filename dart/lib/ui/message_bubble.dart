@@ -37,6 +37,7 @@ import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import '../theme/wallpaper.dart';
 import 'chat_view.dart' show ChatThemeOverride, ChatView;
+import 'confirm_box.dart' show showConfirmBox;
 import 'input_dialogs.dart' show showCreatePollBox, CreatePollResult;
 import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
@@ -7386,7 +7387,11 @@ class _RichMessageTextState extends State<_RichMessageText> {
             decoration: TextDecoration.underline,
             decorationColor: isDark ? const Color(0x6665BDF3) : const Color(0x66168ACD),
           ),
-          recognizer: _reuseRecognizer(() => _openUrl(entity.url)),
+          // Hidden URL (display text ≠ target): AyuGram routes these through
+          // HiddenUrlClickHandler, which shows an "Open this link?" confirmation
+          // for non-Telegram hosts unless "Disable Open Link Warning" is set
+          // (click_handler_types.cpp:260). Plain `url` entities stay direct.
+          recognizer: _reuseRecognizer(() => _openHiddenUrl(context, entity.url)),
         );
       case 'mention':
       case 'mention_name':
@@ -7479,6 +7484,47 @@ class _RichMessageTextState extends State<_RichMessageText> {
       url = 'https://$url';
     }
     launcher.launchUrl(Uri.parse(url));
+  }
+
+  // Telegram-owned domains never require a confirmation prompt — the exact host
+  // allow-list from UrlRequiresConfirmation (click_handler_types.cpp:203-217).
+  static final RegExp _noConfirmHostRe = RegExp(
+    r'(^|\.)(telegram\.(org|me|dog)|t\.me|te\.?legra\.ph|graph\.org|fragment\.com|telesco\.pe)$',
+    caseSensitive: false,
+  );
+
+  static bool _urlRequiresConfirmation(Uri? uri) {
+    if (uri == null) return false;
+    final host = uri.host.toLowerCase();
+    if (host.isEmpty) return false;
+    return !_noConfirmHostRe.hasMatch(host);
+  }
+
+  // Port of HiddenUrlClickHandler::Open (click_handler_types.cpp:240-292): for a
+  // hidden URL (display text ≠ target), pop an "Open this link?" confirmation for
+  // non-Telegram hosts unless "Disable Open Link Warning" is set; else open it.
+  void _openHiddenUrl(BuildContext context, String url) {
+    var full = url;
+    if (!full.startsWith('http://') && !full.startsWith('https://') &&
+        !full.startsWith('mailto:') && !full.startsWith('tel:')) {
+      full = 'https://$full';
+    }
+    final uri = Uri.tryParse(full);
+    bool disabled = false;
+    try {
+      disabled = context.read<AppState>().disableOpenLinkWarning;
+    } catch (_) {}
+    if (!disabled && _urlRequiresConfirmation(uri)) {
+      showConfirmBox(
+        context,
+        title: 'Open this link?',
+        text: uri?.toString() ?? full,
+        confirmText: 'Open',
+        onConfirm: () => launcher.launchUrl(Uri.parse(full)),
+      );
+    } else {
+      launcher.launchUrl(Uri.parse(full));
+    }
   }
 }
 

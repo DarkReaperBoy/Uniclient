@@ -753,8 +753,12 @@ class _UniClientAppState extends State<UniClientApp>
       corner: _mapNotifCorner(a.notifCorner),
       maxNotificationCount: a.notifCount,
       displayIndex: a.notifDisplayIndex,
-      // reactionsShowPreview / forceCustomNotifications / disableNotificationsDelay
-      // / hideReplyButton have no AppState control yet — keep their defaults.
+      // AyuGram "Disable Notify Delay" → bypass the online-aware cloud/default
+      // notification delay (notifications_manager.cpp:396, consumed by
+      // NotificationSystem._countTiming).
+      disableNotificationsDelay: a.disableNotifyDelay,
+      // reactionsShowPreview / forceCustomNotifications / hideReplyButton have no
+      // AppState control yet — keep their defaults.
     );
   }
 

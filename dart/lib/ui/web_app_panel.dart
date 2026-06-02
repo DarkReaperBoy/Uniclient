@@ -15,6 +15,17 @@ import 'emoji_status_widget.dart';
 
 const _kPanelWidth = 384.0;
 const _kPanelHeight = 694.0;
+// AyuGram "Bigger Window" → increased panel dimensions when the matching toggle
+// is on (botWebViewPanelWidthIncreased / HeightIncreased, ayu_styles.style:25-26;
+// applied in attach_bot_webview.cpp:420-424).
+const _kPanelWidthIncreased = 512.0;
+const _kPanelHeightIncreased = 782.0;
+// AyuGram "Spoof Webview as Android" reports "android" as the platform
+// (bot_attach_web_view.cpp:779). We additionally present a mobile user-agent so
+// navigator.userAgent-based detection also sees Android.
+const _kAndroidUserAgent =
+    'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 const _kHeaderHeight = 56.0;
 const _kBottomBarHeight = 50.0;
 const _kMainButtonHeight = 40.0;
@@ -196,6 +207,23 @@ class _WebAppPanelState extends State<WebAppPanel>
     _lastPalette = palette;
   }
 
+  bool _spoofWebviewAsAndroid() {
+    try {
+      return context.read<AppState>().spoofWebviewAsAndroid;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // AyuGram sends platform "android" instead of "tdesktop" in the requestWebView
+  // call (bot_attach_web_view.cpp:779), which the server bakes into the mini-app
+  // URL fragment as tgWebAppPlatform. Our backend always requests "tdesktop", so
+  // rewrite the platform param client-side to match the spoof.
+  String _spoofPlatformInUrl(String url, bool spoof) {
+    if (!spoof) return url;
+    return url.replaceAll('tgWebAppPlatform=tdesktop', 'tgWebAppPlatform=android');
+  }
+
   void _initWebView() {
     if (widget.data.url.isEmpty) {
       _loadingState = WebAppLoadingState.error;
@@ -203,9 +231,14 @@ class _WebAppPanelState extends State<WebAppPanel>
     }
 
     try {
+      final spoof = _spoofWebviewAsAndroid();
       final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(Colors.transparent)
+        ..setBackgroundColor(Colors.transparent);
+      if (spoof) {
+        controller.setUserAgent(_kAndroidUserAgent);
+      }
+      controller
         ..addJavaScriptChannel(
           'TelegramWebviewProxy',
           onMessageReceived: _onJsMessage,
@@ -227,7 +260,7 @@ class _WebAppPanelState extends State<WebAppPanel>
             }
           },
         ))
-        ..loadRequest(Uri.parse(widget.data.url));
+        ..loadRequest(Uri.parse(_spoofPlatformInUrl(widget.data.url, spoof)));
 
       _webController = controller;
       _webViewAvailable = true;
@@ -1519,8 +1552,15 @@ class _WebAppPanelState extends State<WebAppPanel>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenSize = MediaQuery.of(context).size;
 
-    final panelWidth = _kPanelWidth.clamp(0.0, screenSize.width - 32);
-    final panelHeight = _kPanelHeight.clamp(0.0, screenSize.height - 32);
+    // AyuGram "Increase Content Width/Height" (Bigger Window) bumps the base
+    // panel size to the increased constants (attach_bot_webview.cpp:420-424).
+    final appState = context.watch<AppState>();
+    final baseWidth =
+        appState.increaseWebviewWidth ? _kPanelWidthIncreased : _kPanelWidth;
+    final baseHeight =
+        appState.increaseWebviewHeight ? _kPanelHeightIncreased : _kPanelHeight;
+    final panelWidth = baseWidth.clamp(0.0, screenSize.width - 32);
+    final panelHeight = baseHeight.clamp(0.0, screenSize.height - 32);
 
     final headerBg = _headerColor ?? palette.windowBg;
     final contentBg = _bgColor ?? palette.windowBg;

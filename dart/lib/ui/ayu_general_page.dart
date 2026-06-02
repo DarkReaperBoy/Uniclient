@@ -105,14 +105,11 @@ class AyuGeneralPage extends StatelessWidget {
       label: 'Filter Zalgo',
       value: appState.filterZalgo,
       onChanged: (v) {
-        showConfirmBox(
-          context,
-          title: 'Restart Required',
-          text: 'Filter Zalgo will be applied after restarting.',
-          confirmText: 'Apply',
-          cancelText: 'Cancel',
-          onConfirm: () => appState.setFilterZalgo(v),
-        );
+        // AyuGram applies the setting immediately on toggle, then shows the
+        // standard restart prompt (settings_general.cpp:218-228 → ShowRestartPrompt)
+        // — identical to "Disable Stories".
+        appState.setFilterZalgo(v);
+        _showRestartPrompt(context);
       },
       showBetaBadge: true,
     );

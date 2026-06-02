@@ -25,6 +25,7 @@ import 'admin_tools.dart' show showEditAdminBox, showEditRestrictedBox, showAdmi
 import 'gesture_utils.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../utils/ayu_translator.dart';
 import '../utils/spell_service.dart';
 import '../state/audio_service.dart';
 import '../state/ayu_forward.dart';
@@ -250,26 +251,46 @@ class _WebPreviewDraft {
 
 final Map<String, WebPagePreview> _sessionPreviewCache = {};
 
-String _betterLinkPreviewUrl(String url) {
+// Port of AyuGram's getBetterLinkPreview (telegram_helpers.cpp:1533-1562): when
+// "Improve Link Previews" is on, rewrite a handful of hosts to embed-friendly
+// mirrors before requesting the preview. No-op (returns the URL untouched) when
+// [improve] is false — which is the whole point of the setting.
+// AyuGram send-confirmations (settings_general.cpp "Confirmations" section):
+// pop a confirm box before sending when the matching toggle is on
+// (stickers_list_widget.cpp:2302 / gifs_list_widget.cpp:550 /
+// history_view_voice_record_bar.cpp:3058). Confirm button is "Send".
+void _confirmMediaSend(
+  BuildContext context, {
+  required bool confirm,
+  required String text,
+  required VoidCallback onSend,
+}) {
+  if (confirm) {
+    showConfirmBox(context, text: text, confirmText: 'Send', onConfirm: onSend);
+  } else {
+    onSend();
+  }
+}
+
+String _betterLinkPreviewUrl(String url, bool improve) {
+  if (!improve) return url;
   final uri = Uri.tryParse(url);
-  if (uri == null) return url;
+  if (uri == null || uri.host.isEmpty) return url;
   final host = uri.host.toLowerCase();
-  final rewrites = <String, String>{
-    'x.com': 'fixupx.com',
-    'www.x.com': 'fixupx.com',
-    'twitter.com': 'fxtwitter.com',
-    'www.twitter.com': 'fxtwitter.com',
-    'tiktok.com': 'tnktok.com',
-    'www.tiktok.com': 'tnktok.com',
-    'vm.tiktok.com': 'vm.tnktok.com',
-    'instagram.com': 'ddinstagram.com',
-    'www.instagram.com': 'ddinstagram.com',
-    'reddit.com': 'rxddit.com',
-    'www.reddit.com': 'rxddit.com',
-    'old.reddit.com': 'old.rxddit.com',
-  };
-  final newHost = rewrites[host];
-  if (newHost == null) return url;
+  String? newHost;
+  if (host == 'twitter.com' || host == 'x.com') {
+    newHost = 'fixupx.com';
+  } else if (host == 'tiktok.com' || host.endsWith('.tiktok.com')) {
+    newHost = host.replaceAll('tiktok.com', 'kktiktok.com');
+  } else if (host == 'reddit.com' || host == 'www.reddit.com') {
+    newHost = 'vxreddit.com';
+  } else if (host == 'instagram.com' || host == 'www.instagram.com') {
+    newHost = 'kkclip.com';
+  } else if (host == 'pixiv.net' || host == 'www.pixiv.net') {
+    newHost = 'phixiv.net';
+  } else {
+    return url;
+  }
   return uri.replace(host: newHost).toString();
 }
 
@@ -719,7 +740,7 @@ class _ChatViewState extends State<ChatView>
         _lastPreviewUrl = savedDraft.lastUrl;
         _webPreview = savedDraft.removed ? null : savedDraft.preview;
         _webPreviewLoading = false;
-        _previewUrlRewritten = savedDraft.lastUrl.isNotEmpty && _betterLinkPreviewUrl(savedDraft.lastUrl) != savedDraft.lastUrl;
+        _previewUrlRewritten = savedDraft.lastUrl.isNotEmpty && _betterLinkPreviewUrl(savedDraft.lastUrl, context.read<AppState>().improveLinkPreviews) != savedDraft.lastUrl;
         _previewCache.clear();
         _previewCache.addAll(savedDraft.cache);
         _nullResolvedUrls.clear();
@@ -1093,7 +1114,15 @@ class _ChatViewState extends State<ChatView>
       final msgs = chatState.messages;
       for (final m in msgs) {
         if (m.contentText.isNotEmpty && !_translations.containsKey(m.msgId)) {
-          engine.translateText(chat.accountId, chat.chatId, m.msgId, _translateTargetLang).then((translated) {
+          translateWithProvider(
+            engine,
+            provider: context.read<AppState>().translationProvider,
+            accountId: chat.accountId,
+            chatId: chat.chatId,
+            msgId: m.msgId,
+            toLang: _translateTargetLang,
+            sourceText: m.contentText,
+          ).then((translated) {
             if (mounted && translated != null) {
               setState(() => _translations[m.msgId] = translated);
             }
@@ -2090,11 +2119,14 @@ class _ChatViewState extends State<ChatView>
     final chat = chatState.activeChat;
     if (chat == null) return;
     final langCode = ui.PlatformDispatcher.instance.locale.languageCode;
-    final result = await engine.translateText(
-      msg.accountId,
-      chat.chatId,
-      msg.msgId,
-      langCode,
+    final result = await translateWithProvider(
+      engine,
+      provider: context.read<AppState>().translationProvider,
+      accountId: msg.accountId,
+      chatId: chat.chatId,
+      msgId: msg.msgId,
+      toLang: langCode,
+      sourceText: selectedText.isNotEmpty ? selectedText : msg.contentText,
     );
     if (!mounted) return;
     if (result == null || result.isEmpty) {
@@ -2129,11 +2161,14 @@ class _ChatViewState extends State<ChatView>
     final chat = chatState.activeChat;
     if (chat == null) return;
     final langCode = ui.PlatformDispatcher.instance.locale.languageCode;
-    final result = await engine.translateText(
-      msg.accountId,
-      chat.chatId,
-      msg.msgId,
-      langCode,
+    final result = await translateWithProvider(
+      engine,
+      provider: context.read<AppState>().translationProvider,
+      accountId: msg.accountId,
+      chatId: chat.chatId,
+      msgId: msg.msgId,
+      toLang: langCode,
+      sourceText: msg.contentText,
     );
     if (!mounted) return;
     if (result == null || result.isEmpty) {
@@ -3379,7 +3414,7 @@ class _ChatViewState extends State<ChatView>
         if (!cached.isPending) {
           _previewCache[link] = cached;
           if (link == _lastPreviewUrl) return;
-          final rewritten = _betterLinkPreviewUrl(link);
+          final rewritten = _betterLinkPreviewUrl(link, context.read<AppState>().improveLinkPreviews);
           setState(() {
             _webPreview = cached;
             _webPreviewLoading = false;
@@ -3420,7 +3455,7 @@ class _ChatViewState extends State<ChatView>
     if (!mounted) return;
     final accountId = chatState.activeChat?.accountId ?? '';
     if (accountId.isEmpty) return;
-    final rewrittenUrl = _betterLinkPreviewUrl(originalUrl);
+    final rewrittenUrl = _betterLinkPreviewUrl(originalUrl, context.read<AppState>().improveLinkPreviews);
     final isRewritten = rewrittenUrl != originalUrl;
     setState(() {
       _webPreviewLoading = true;
@@ -3468,7 +3503,7 @@ class _ChatViewState extends State<ChatView>
       if (_lastPreviewUrl != url) return;
       final accountId = chatState.activeChat?.accountId ?? '';
       if (accountId.isEmpty) return;
-      final rewrittenUrl = _betterLinkPreviewUrl(url);
+      final rewrittenUrl = _betterLinkPreviewUrl(url, context.read<AppState>().improveLinkPreviews);
       final engine = context.read<EngineService>();
       engine.getWebPagePreview(accountId, rewrittenUrl).then((preview) {
         if (!mounted || _lastPreviewUrl != url) return;
@@ -3500,7 +3535,7 @@ class _ChatViewState extends State<ChatView>
     final cached = _previewCache[url] ?? _sessionPreviewCache[url];
     if (cached != null && !cached.isPending) {
       _previewCache[url] = cached;
-      final rewritten = _betterLinkPreviewUrl(url);
+      final rewritten = _betterLinkPreviewUrl(url, context.read<AppState>().improveLinkPreviews);
       setState(() {
         _webPreview = cached;
         _webPreviewLoading = false;
@@ -5816,14 +5851,26 @@ class _ChatViewState extends State<ChatView>
             final chat = context.read<ChatState>().activeChat;
             if (chat == null) return;
             final engine = context.read<EngineService>();
-            engine.sendSticker(chat.accountId, chat.chatId, stickerId, silent: mode == StickerSendMode.silent);
+            _confirmMediaSend(
+              context,
+              confirm: context.read<AppState>().stickerConfirmation,
+              text: 'Do you want to send this sticker?',
+              onSend: () => engine.sendSticker(chat.accountId, chat.chatId,
+                  stickerId, silent: mode == StickerSendMode.silent),
+            );
             setState(() => _emojiPanelVisible = false);
           },
           onGifSend: (gifFileId, {StickerSendMode mode = StickerSendMode.normal}) {
             final chat = context.read<ChatState>().activeChat;
             if (chat == null) return;
             final engine = context.read<EngineService>();
-            engine.sendSticker(chat.accountId, chat.chatId, gifFileId, silent: mode == StickerSendMode.silent);
+            _confirmMediaSend(
+              context,
+              confirm: context.read<AppState>().gifConfirmation,
+              text: 'Do you want to send this GIF?',
+              onSend: () => engine.sendSticker(chat.accountId, chat.chatId,
+                  gifFileId, silent: mode == StickerSendMode.silent),
+            );
             setState(() => _emojiPanelVisible = false);
           },
           onInlineResultSend: (queryId, resultId) {
@@ -14432,11 +14479,23 @@ class _ComposeAreaState extends State<_ComposeArea>
       recorder.dispose();
       final sendPath = stoppedPath ?? filePath;
       if (!File(sendPath).existsSync()) return;
-      if (wasVideoRound) {
-        engine.sendVideoNote(chat.accountId, chat.chatId, sendPath, duration: duration.inSeconds);
-      } else {
-        engine.sendVoice(chat.accountId, chat.chatId, sendPath, duration: duration.inSeconds);
+      void doSend() {
+        if (wasVideoRound) {
+          engine.sendVideoNote(chat.accountId, chat.chatId, sendPath, duration: duration.inSeconds);
+        } else {
+          engine.sendVoice(chat.accountId, chat.chatId, sendPath, duration: duration.inSeconds);
+        }
       }
+      if (!mounted) {
+        doSend();
+        return;
+      }
+      _confirmMediaSend(
+        context,
+        confirm: context.read<AppState>().voiceConfirmation,
+        text: 'Do you want to send this voice message?',
+        onSend: doSend,
+      );
     }).catchError((_) {
       recorder.dispose();
     });
@@ -22076,10 +22135,12 @@ class _TranslateBoxState extends State<_TranslateBox> {
     });
 
     try {
-      final result = await widget.engine.translateFreeText(
-        widget.accountId,
-        widget.originalText,
-        _targetLang,
+      final result = await translateWithProvider(
+        widget.engine,
+        provider: context.read<AppState>().translationProvider,
+        accountId: widget.accountId,
+        toLang: _targetLang,
+        sourceText: widget.originalText,
       );
       if (!mounted) return;
       setState(() {

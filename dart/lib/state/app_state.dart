@@ -18,6 +18,7 @@ import '../ui/emoji_panel.dart'
     show resetEmojiPrefsForAccountSwitch, initEmojiSuggestionVariants;
 import '../ui/media_viewer.dart';
 import '../utils/debug.dart';
+import '../utils/safe_string.dart' show gFilterZalgo;
 
 /// §51.1: Ghost Mode per-account settings object.
 /// Key "0" is the global profile; other keys are bare user IDs (uint64 as string).
@@ -2094,6 +2095,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setFilterZalgo(bool v) {
     if (_filterZalgo == v) return;
     _filterZalgo = v;
+    gFilterZalgo = v; // mirror to the global the display choke point reads
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -4278,6 +4280,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _hideSimilarChannels = data['hideSimilarChannels'] as bool? ?? false;
       _disableNotifyDelay = data['disableNotifyDelay'] as bool? ?? false;
       _filterZalgo = data['filterZalgo'] as bool? ?? false;
+      gFilterZalgo = _filterZalgo; // seed the global at startup
+
       _improveLinkPreviews = data['improveLinkPreviews'] as bool? ?? false;
       // showPeerId → [0,2] (ayu_settings.cpp:505 validateEnum).
       _showPeerId = ((data['showPeerId'] as int?) ?? 2).clamp(0, 2);
