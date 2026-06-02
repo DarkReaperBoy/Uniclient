@@ -73,7 +73,11 @@ class AyuSectionBuilder {
     required int current,
     required int Function(int) indexToValue,
     required String Function(int) formatLabel,
-    required ValueChanged<int> onChanged,
+    // Nullable to mirror AyuGram's `.onChanged = nullptr`: when null the slider
+    // only live-updates its own value label during a drag (local setState) and
+    // never fires a per-frame persist callback. Persistence belongs in
+    // onFinalChanged, which fires once on release (ayu_builder.cpp:223-244).
+    ValueChanged<int>? onChanged,
     ValueChanged<int>? onFinalChanged,
     bool showTitle = true,
   }) {
@@ -426,7 +430,7 @@ class _AyuSlider extends StatefulWidget {
   final int current;
   final int Function(int) indexToValue;
   final String Function(int) formatLabel;
-  final ValueChanged<int> onChanged;
+  final ValueChanged<int>? onChanged;
   final ValueChanged<int>? onFinalChanged;
   final bool isDark;
   final bool showTitle;
@@ -437,7 +441,7 @@ class _AyuSlider extends StatefulWidget {
     required this.current,
     required this.indexToValue,
     required this.formatLabel,
-    required this.onChanged,
+    this.onChanged,
     this.onFinalChanged,
     required this.isDark,
     this.showTitle = true,
@@ -513,8 +517,12 @@ class _AyuSliderState extends State<_AyuSlider> {
               divisions: widget.steps - 1,
               onChanged: (d) {
                 final idx = d.round();
+                // Live value-label update is local (setState on _currentIndex)
+                // and always runs; the persist callback fires per-frame only
+                // when a caller supplies one. A null onChanged means label-only
+                // live update — AyuGram's `.onChanged = nullptr`.
                 setState(() => _currentIndex = idx);
-                widget.onChanged(widget.indexToValue(idx));
+                widget.onChanged?.call(widget.indexToValue(idx));
               },
               onChangeEnd: widget.onFinalChanged == null
                   ? null

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
@@ -10,13 +11,45 @@ import 'ayu_section_builder.dart';
 import 'ayu_toggle.dart';
 import 'confirm_box.dart';
 
-class AyuChatsPage extends StatelessWidget {
+class AyuChatsPage extends StatefulWidget {
   const AyuChatsPage({super.key});
+
+  @override
+  State<AyuChatsPage> createState() => _AyuChatsPageState();
+}
+
+class _AyuChatsPageState extends State<AyuChatsPage> {
+  // Live bubble-radius preview channel — the Dart analogue of AyuGram's shared
+  // `previewState->widget`. The bubble-radius slider pokes this ValueNotifier on
+  // every drag frame so ONLY the message preview (a ValueListenableBuilder)
+  // re-renders live; the value is persisted to AppState — and the whole watched
+  // page rebuilt — exactly once, on release. This delivers the live feedback the
+  // preview-next-to-slider exists for WITHOUT the per-frame full-page rebuild a
+  // notifyListeners()-on-drag would cause (settings_chats.cpp:255-259).
+  final ValueNotifier<int> _previewBubbleRadius = ValueNotifier<int>(0);
+  bool _previewBubbleRadiusSeeded = false;
+
+  @override
+  void dispose() {
+    _previewBubbleRadius.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Seed the live preview from the persisted radius on first build (mirrors
+    // AyuGram seeding the preview from messageBubbleRadius() at construction).
+    // Safe to assign during this first build: the preview's ValueListenableBuilder
+    // is not mounted yet, so there is no listener to notify. Afterwards the value
+    // changes only via the slider (live during drag, persisted on release), so we
+    // never mutate it during a later build.
+    if (!_previewBubbleRadiusSeeded) {
+      _previewBubbleRadius.value = appState.bubbleRadius;
+      _previewBubbleRadiusSeeded = true;
+    }
 
     final b = AyuSectionBuilder(
         isDark: isDark, useMaterial: appState.materialSwitches);
@@ -58,6 +91,13 @@ class AyuChatsPage extends StatelessWidget {
           onChanged: (v) => appState.setShowPrivateChatReactions(!v),
         ),
       ],
+      // ANY-semantics: the master shows ON when ANY child is checked (any
+      // reaction type hidden) and clicking it un-hides all — matching AyuGram's
+      // `.toggledWhenAll = false` (settings_chats.cpp:67, count != 0 in
+      // settings_ayu_utils.cpp:216-222). Omitting this defaults to ALL-semantics:
+      // the master would read OFF unless every type is hidden, and clicking it
+      // would *hide all* — wrong displayed state plus an inverted click result.
+      toggledWhenAll: false,
     );
     b.addSectionDivider();
     b.addSlider(
@@ -66,7 +106,13 @@ class AyuChatsPage extends StatelessWidget {
       current: appState.recentStickersCount,
       indexToValue: (i) => i,
       formatLabel: (v) => '$v',
-      onChanged: (v) => appState.setRecentStickersCount(v),
+      // Label-only live update during drag; persist once on release. Matches
+      // AyuGram's `.onChanged = nullptr` + persist-in-`.onFinalChanged`
+      // (settings_chats.cpp:82-87). Persisting per drag frame here would call
+      // setRecentStickersCount → notifyListeners → rebuild this whole watched
+      // page every frame — the exact anti-pattern the bubble/wide sliders avoid.
+      onChanged: null,
+      onFinalChanged: (v) => appState.setRecentStickersCount(v),
     );
 
     b.addSectionDivider();
@@ -114,7 +160,7 @@ class AyuChatsPage extends StatelessWidget {
     }));
     b.addWidget(const SizedBox(height: 4));
     b.addWidget(_MessagePreviewStandalone(
-      bubbleRadius: appState.bubbleRadius,
+      bubbleRadiusListenable: _previewBubbleRadius,
       showTail: !appState.removeTail,
       simpleQuotesAndReplies: appState.simpleQuotesAndReplies,
       semiTransparentDeleted: appState.semiTransparentDeleted,
@@ -178,6 +224,10 @@ class AyuChatsPage extends StatelessWidget {
     b.addWidget(_BubbleRadiusSlider(
       value: appState.bubbleRadius,
       onChanged: (v) => appState.setBubbleRadius(v),
+      // Live preview: pokes the shared notifier every drag frame so only the
+      // message preview re-renders (AyuGram: previewState->widget->setBubbleRadius
+      // each frame, settings_chats.cpp:255-259). Persist stays in onChangeEnd.
+      onLivePreview: (v) => _previewBubbleRadius.value = v,
       isDark: isDark,
     ));
 
@@ -212,65 +262,81 @@ class AyuChatsPage extends StatelessWidget {
     b.addSectionDivider();
 
     // Message Field Elements (§54.9)
+    // Every row carries the leading icon of the compose-bar button it controls,
+    // matching AyuGram (.icon = messageFieldAttach/Commands/TTL/Emoji/Voice,
+    // settingsButtonIconGift, messageFieldCocoonAi — settings_chats.cpp:386-428).
+    // An icon also switches the row to the wider icon layout (ayu_builder.cpp:75),
+    // which _AyuSettingToggle applies automatically when `icon` is non-null.
     b.addSubsectionTitle('Message Field Elements');
     b.addSettingToggle(
       label: 'Attach',
       subtitle: 'Show paperclip button in compose area',
       value: appState.showAttachButton,
       onChanged: (v) => appState.setShowAttachButton(v),
+      icon: Icons.attach_file,
     );
     b.addSettingToggle(
       label: 'Commands',
       subtitle: 'Show bot commands (/) button',
       value: appState.showCommandsButton,
       onChanged: (v) => appState.setShowCommandsButton(v),
+      icon: Icons.code,
     );
     b.addSettingToggle(
       label: 'TTL',
       subtitle: 'Show auto-delete timer button',
       value: appState.showAutoDeleteButton,
       onChanged: (v) => appState.setShowAutoDeleteButton(v),
+      icon: Icons.timer_outlined,
     );
     b.addSettingToggle(
       label: 'Emoji',
       subtitle: 'Show emoji button in compose area',
       value: appState.showEmojiButton,
       onChanged: (v) => appState.setShowEmojiButton(v),
+      icon: Icons.emoji_emotions_outlined,
     );
     b.addSettingToggle(
       label: 'Voice',
       subtitle: 'Show microphone/voice button',
       value: appState.showMicrophoneButton,
       onChanged: (v) => appState.setShowMicrophoneButton(v),
+      icon: Icons.mic_none,
     );
     b.addSettingToggle(
       label: 'Gift',
       subtitle: 'Show gift button in DMs',
       value: appState.showGiftButton,
       onChanged: (v) => appState.setShowGiftButton(v),
+      icon: Icons.card_giftcard,
     );
     b.addSettingToggle(
       label: 'AI Editor',
       subtitle: 'Show AI editor button in compose area',
       value: appState.showAiEditorButton,
       onChanged: (v) => appState.setShowAiEditorButton(v),
+      icon: Icons.auto_awesome,
     );
 
     b.addSectionDivider();
 
-    // Message Field Popups (§54.9)
+    // Message Field Popups (§54.9) — AyuGram reuses the attach/emoji field icons
+    // here (.icon = messageFieldAttachIcon / messageFieldEmojiIcon,
+    // settings_chats.cpp:437-450).
     b.addSubsectionTitle('Message Field Popups');
     b.addSettingToggle(
       label: 'Attach popup',
       subtitle: 'Show file/poll picker when pressing attach',
       value: appState.showAttachPopup,
       onChanged: (v) => appState.setShowAttachPopup(v),
+      icon: Icons.attach_file,
     );
     b.addSettingToggle(
       label: 'Emoji popup',
       subtitle: 'Show emoji/sticker panel when pressing emoji',
       value: appState.showEmojiPopup,
       onChanged: (v) => appState.setShowEmojiPopup(v),
+      icon: Icons.emoji_emotions_outlined,
     );
 
     b.addSkip(24);
@@ -443,11 +509,15 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
 class _BubbleRadiusSlider extends StatefulWidget {
   final int value;
   final ValueChanged<int> onChanged;
+  // Live preview callback fired on every drag frame (AyuGram slider .onChanged).
+  // Persist (this.onChanged) still fires only on release, in onChangeEnd.
+  final ValueChanged<int>? onLivePreview;
   final bool isDark;
 
   const _BubbleRadiusSlider({
     required this.value,
     required this.onChanged,
+    this.onLivePreview,
     required this.isDark,
   });
 
@@ -515,15 +585,21 @@ class _BubbleRadiusSliderState extends State<_BubbleRadiusSlider> {
               min: 0,
               max: 16,
               divisions: 16,
-              // Live preview only — never persists per-frame (mirrors
-              // _WideMultiplierSlider). Persisting here would fire
-              // setBubbleRadius → notifyListeners → full page rebuild on
-              // every drag frame. Persist solely in onChangeEnd.
+              // Drag never persists per-frame (that would fire setBubbleRadius →
+              // notifyListeners → full page rebuild every frame). Instead it pokes
+              // the preview-only live channel so just the message preview updates
+              // (AyuGram previewState->widget->setBubbleRadius every frame). The
+              // actual setting persists solely in onChangeEnd.
               onChanged: (v) {
-                setState(() => _localValue = v.round());
+                final idx = v.round();
+                setState(() => _localValue = idx);
+                widget.onLivePreview?.call(idx);
               },
               onChangeEnd: (v) {
                 final newVal = v.round();
+                // Keep the preview exactly at the released value (covers a
+                // track-tap that produced no intermediate onChanged frame).
+                widget.onLivePreview?.call(newVal);
                 if (newVal == _committedValue) return;
                 _committedValue = newVal;
                 widget.onChanged(newVal);
@@ -705,7 +781,9 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
 }
 
 class _MessagePreviewStandalone extends StatelessWidget {
-  final int bubbleRadius;
+  // Live preview radius (see _AyuChatsPageState._previewBubbleRadius). Listened
+  // to so a bubble-radius drag re-renders only this widget, not the whole page.
+  final ValueListenable<int> bubbleRadiusListenable;
   final bool showTail;
   final bool simpleQuotesAndReplies;
   final bool semiTransparentDeleted;
@@ -717,7 +795,7 @@ class _MessagePreviewStandalone extends StatelessWidget {
   final bool isDark;
 
   const _MessagePreviewStandalone({
-    required this.bubbleRadius,
+    required this.bubbleRadiusListenable,
     required this.showTail,
     required this.simpleQuotesAndReplies,
     required this.semiTransparentDeleted,
@@ -731,6 +809,16 @@ class _MessagePreviewStandalone extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Listen to the live preview radius so dragging the bubble-radius slider
+    // re-renders ONLY this preview, not the whole watched settings page. Mirrors
+    // AyuGram MessagePreview::setBubbleRadius → refresh() (message_preview.cpp:194-200).
+    return ValueListenableBuilder<int>(
+      valueListenable: bubbleRadiusListenable,
+      builder: (context, bubbleRadius, _) => _buildBubble(context, bubbleRadius),
+    );
+  }
+
+  Widget _buildBubble(BuildContext context, int bubbleRadius) {
     final p = context.palette;
     final radiusLarge = bubbleRadius.toDouble();
     // Telegram bubble corner math (ui/chat message_bubble): the tail-side corner
