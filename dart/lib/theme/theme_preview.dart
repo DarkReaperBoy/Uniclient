@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'telegram_palette.dart';
+import 'wallpaper.dart';
 
 class ThemePreviewImage extends StatefulWidget {
   final TelegramPalette palette;
@@ -24,11 +25,13 @@ class ThemePreviewImage extends StatefulWidget {
 
 class _ThemePreviewImageState extends State<ThemePreviewImage> {
   ui.Image? _photoImage;
+  ui.Image? _wallpaperImage;
 
   @override
   void initState() {
     super.initState();
     _loadThemeImage();
+    _generateWallpaper();
   }
 
   Future<void> _loadThemeImage() async {
@@ -44,6 +47,32 @@ class _ThemePreviewImageState extends State<ThemePreviewImage> {
     }
   }
 
+  // The default chat wallpaper (AyuGram paints it over the history region when
+  // the theme has no embedded background — window_theme_preview.cpp:462-485).
+  // Its colors are fixed (palette-independent), so it is generated once.
+  void _generateWallpaper() {
+    const size = 256;
+    final bytes = defaultWallpaperGradientPixels(size: size);
+    ui.decodeImageFromPixels(bytes, size, size, ui.PixelFormat.rgba8888,
+        (image) {
+      if (!mounted) {
+        image.dispose();
+        return;
+      }
+      setState(() {
+        _wallpaperImage?.dispose();
+        _wallpaperImage = image;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _photoImage?.dispose();
+    _wallpaperImage?.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
@@ -51,6 +80,7 @@ class _ThemePreviewImageState extends State<ThemePreviewImage> {
       painter: _ThemePreviewPainter(
         palette: widget.palette,
         photoImage: _photoImage,
+        wallpaperImage: _wallpaperImage,
       ),
     );
   }
@@ -59,8 +89,13 @@ class _ThemePreviewImageState extends State<ThemePreviewImage> {
 class _ThemePreviewPainter extends CustomPainter {
   final TelegramPalette palette;
   final ui.Image? photoImage;
+  final ui.Image? wallpaperImage;
 
-  _ThemePreviewPainter({required this.palette, this.photoImage});
+  _ThemePreviewPainter({
+    required this.palette,
+    this.photoImage,
+    this.wallpaperImage,
+  });
 
   static const double _canvasWidth = 903;
   static const double _canvasHeight = 584;
@@ -337,10 +372,28 @@ class _ThemePreviewPainter extends CustomPainter {
     // Clip to the history region so the oldest (topmost) bubble is cut cleanly at
     // the top-bar edge instead of overlapping the top bar (matches AyuGram, where
     // the first photo message is scrolled partly under the header).
+    final historyRect =
+        Rect.fromLTWH(left, _topBarHeight, chatWidth, areaBottom - _topBarHeight);
     canvas.save();
-    canvas.clipRect(
-      Rect.fromLTWH(left, _topBarHeight, chatWidth, areaBottom - _topBarHeight),
-    );
+    canvas.clipRect(historyRect);
+
+    // Chat background wallpaper. AyuGram's paintHistoryBackground() paints the
+    // default wallpaper (the DefaultWallPaper gradient) over the history region,
+    // on top of the base windowBg fill, before drawing any bubbles
+    // (window_theme_preview.cpp:444-485). The image is built from the fixed
+    // kDefaultWallpaperColors; until it decodes, fall back to the gradient's
+    // average tone so the chat area never shows a flat windowBg.
+    final wp = wallpaperImage;
+    if (wp != null) {
+      canvas.drawImageRect(
+        wp,
+        Rect.fromLTWH(0, 0, wp.width.toDouble(), wp.height.toDouble()),
+        historyRect,
+        Paint()..filterQuality = FilterQuality.high,
+      );
+    } else {
+      canvas.drawRect(historyRect, Paint()..color = const Color(0xFFA9C595));
+    }
 
     var historyBottom = areaBottom - 8.0;
 
@@ -590,9 +643,12 @@ class _ThemePreviewPainter extends CustomPainter {
       4, 6, 14, 12, 2, 12, 12, 11, 3, 0, 7, 5, 7, 4, 7, 5, 2, 4, 0, 9,
       5, 7, 6, 2, 2, 0, 0
     ];
+    // waveActive indexes the 67-element wavedata array (the DATA index up to
+    // which the message has been "played"), NOT the downsampled bar index.
     const waveActive = 33;
     const barWidth = 2.0;
-    const barSpacing = 2.0;
+    // msgWaveformSkip = 1px (chat.style:558) → 3px pitch with the 2px bar.
+    const barSpacing = 1.0;
     const maxBarHeight = 16.0;
     const minBarHeight = 2.0;
     const normValue = 31;
@@ -607,7 +663,11 @@ class _ThemePreviewPainter extends CustomPainter {
       final value = wavedata[math.min(dataIdx, wavedata.length - 1)];
       final barH = minBarHeight + (value / normValue) * (maxBarHeight - minBarHeight);
       final barX = waveLeft + i * (barWidth + barSpacing);
-      final barColor = i < waveActive
+      // AyuGram colors a bar "played" by the DATA index it samples, not the bar
+      // index (window_theme_preview.cpp:960 `if (i >= bubble.waveactive)`, where
+      // `i` iterates the 67 samples). Comparing the bar index `i` against 33
+      // would paint ~94% of the ~35 bars active; comparing dataIdx gives ~half.
+      final barColor = dataIdx < waveActive
           ? palette.msgWaveformOutActive
           : palette.msgWaveformOutInactive;
       canvas.drawRRect(
@@ -1004,5 +1064,7 @@ class _ThemePreviewPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ThemePreviewPainter old) =>
-      !identical(old.palette, palette) || !identical(old.photoImage, photoImage);
+      !identical(old.palette, palette) ||
+      !identical(old.photoImage, photoImage) ||
+      !identical(old.wallpaperImage, wallpaperImage);
 }

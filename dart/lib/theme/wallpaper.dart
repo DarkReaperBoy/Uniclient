@@ -507,6 +507,25 @@ Uint8List _generateGradientBytes(List<Color> colors, int rotation, int size) {
   return _ditherPixels(raw, size, size, _gradientSeed(colors, rotation));
 }
 
+/// The fixed 4-color default Telegram chat wallpaper, from AyuGram
+/// `WallPaper::ConstructDefault` (data/data_wall_paper.cpp:710-715). These are
+/// palette-independent — the default chat background looks the same under any
+/// theme palette that does not embed its own background image.
+const List<Color> kDefaultWallpaperColors = [
+  Color(0xFFDBDDBB),
+  Color(0xFF6BA587),
+  Color(0xFFD5D88D),
+  Color(0xFF88B884),
+];
+
+/// Static dithered RGBA8888 pixel buffer (`size`×`size`) for the default chat
+/// wallpaper gradient — for callers that paint the wallpaper themselves into a
+/// `Canvas` (e.g. the theme preview's history background) rather than mounting a
+/// [ChatWallpaper] widget. Reuses the same complex-gradient + dither pipeline the
+/// live renderer uses for [kDefaultWallpaperColors].
+Uint8List defaultWallpaperGradientPixels({int size = 256}) =>
+    _generateGradientBytes(kDefaultWallpaperColors, 0, size);
+
 bool _sameColors(List<Color> a, List<Color> b) {
   if (a.length != b.length) return false;
   for (int i = 0; i < a.length; i++) {

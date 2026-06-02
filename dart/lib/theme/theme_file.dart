@@ -72,7 +72,7 @@ PaletteParseResult? parsePaletteText(
   TelegramPalette fallback = TelegramPalette.dayBlue,
 }) {
   final fallbackMap = paletteToMap(fallback);
-  final parsed = <String, dynamic>{};
+  final paletteKeys = fallbackMap.keys.toSet();
   CloudThemeMeta? cloudMeta;
 
   bool inServiceBlock = false;
@@ -81,6 +81,18 @@ PaletteParseResult? parsePaletteText(
 
   text = _stripBlockComments(text);
 
+  // ── Pass 1: tokenize into ordered (name, value) pairs ──
+  // Mirrors AyuGram's `readNameAndValue` (window_theme.cpp:122-164). AyuGram
+  // HARD-REJECTS the entire theme on ANY structural syntax error: `readNameAndValue`
+  // returns false → `ReadPaletteValues` aborts the whole parse (1525-1528) →
+  // `LoadTheme` declines and the previous theme stays (user sees "Theme Error").
+  // The rejecting conditions are: an empty name (:129-132), a missing `:`
+  // separator (:137-140), an empty value token (:148-151), and a missing
+  // trailing `;` (:158-161). We reproduce each by returning null — the caller
+  // then keeps the previous theme instead of loading a partial palette.
+  // (Bad hex DIGITS and unresolved references are NOT structural errors: AyuGram
+  // skips those in `setColorSchemeValue` and keeps loading — handled in pass 2.)
+  final entries = <MapEntry<String, String>>[];
   for (final rawLine in text.split('\n')) {
     final line = rawLine.trim();
 
@@ -109,48 +121,79 @@ PaletteParseResult? parsePaletteText(
       continue;
     }
 
+    // Whitespace-only lines and full-line `//` comments are eaten by
+    // base::parse::stripComments / skipWhitespaces — not an error, just skipped.
     if (line.isEmpty || line.startsWith('//')) continue;
 
-    final colonIdx = line.indexOf(':');
-    if (colonIdx < 1) continue;
+    // Trailing line comments (`name: value; // note`) are removed by
+    // stripComments before parsing in AyuGram. We strip from the first `//`
+    // (color/reference tokens never contain `//`).
+    var content = line;
+    final lineCommentIdx = content.indexOf('//');
+    if (lineCommentIdx >= 0) content = content.substring(0, lineCommentIdx).trimRight();
+    if (content.isEmpty) continue;
 
-    final name = line.substring(0, colonIdx).trim();
-    var value = line.substring(colonIdx + 1).trim();
+    final colonIdx = content.indexOf(':');
+    if (colonIdx < 0) return null; // missing `:` → hard reject (:137-140)
+    final name = content.substring(0, colonIdx).trim();
+    if (name.isEmpty) return null; // empty name → hard reject (:129-132)
 
-    final commentIdx = value.indexOf('//');
-    if (commentIdx >= 0) value = value.substring(0, commentIdx).trim();
+    var value = content.substring(colonIdx + 1).trim();
+    if (!value.endsWith(';')) return null; // missing `;` → hard reject (:158-161)
+    value = value.substring(0, value.length - 1).trim();
+    if (value.isEmpty) return null; // empty value token → hard reject (:148-151)
 
-    if (value.endsWith(';')) value = value.substring(0, value.length - 1).trim();
-    if (value.isEmpty) continue;
+    entries.add(MapEntry(name, value));
+  }
 
-    if (value.startsWith('#')) {
+  // ── Pass 2: resolve values STRICTLY IN-ORDER, single pass ──
+  // Mirrors `loadColorScheme` + `setColorSchemeValue` + `palette::setColor`
+  // (window_theme.cpp:170-232, style_core_palette.cpp:104-136). For `name: ref`,
+  // `setColor(name, from)` copies `from`'s value ONLY if `from` was already
+  // explicitly Loaded EARLIER in this file (style_core_palette.cpp:130-131);
+  // a forward reference, or a reference to a palette key the theme never sets,
+  // returns ValueNotFound → skipped (window_theme.cpp:206-208), leaving `name`
+  // to take ITS OWN default at finalize(). Names that are not palette keys are
+  // recorded in `unsupported` so later lines can reference them, and a value is
+  // resolved through that map first (window_theme.cpp:222-230). This replaces the
+  // previous order-independent fixpoint + `fallbackMap[ref]` substitution, which
+  // resolved forward refs and wrongly gave `name` the *referenced* key's default.
+  final resolved = <String, Color>{}; // palette key -> explicit color (Loaded)
+  final loaded = <String>{}; // palette keys that are Loaded
+  final unsupported = <String, String>{}; // non-palette name -> resolved value
+  final referenceChain = <String, String>{};
+
+  for (final entry in entries) {
+    final name = entry.key;
+    // window_theme.cpp:225 — resolve the value through previously-seen
+    // unsupported (custom intermediate) keys before interpreting it.
+    final value = unsupported[entry.value] ?? entry.value;
+    final isPaletteKey = paletteKeys.contains(name);
+
+    if (_isHexShaped(value)) {
       final color = _parseHexColor(value);
-      if (color != null) parsed[name] = color;
+      if (color == null) {
+        // Right shape, bad hex digit → setColorSchemeValue logs and returns Ok
+        // (window_theme.cpp:187-189): skip, the color keeps its own default.
+        continue;
+      }
+      if (isPaletteKey) {
+        resolved[name] = color;
+        loaded.add(name);
+      } else {
+        unsupported[name] = value; // KeyNotFound → record (window_theme.cpp:228-229)
+      }
     } else {
-      parsed[name] = value;
-    }
-  }
-
-  final resolved = <String, Color>{};
-  final references = <String, String>{};
-  for (final entry in parsed.entries) {
-    if (entry.value is Color) {
-      resolved[entry.key] = entry.value;
-    } else if (entry.value is String) {
-      references[entry.key] = entry.value;
-    }
-  }
-  bool changed = true;
-  while (changed) {
-    changed = false;
-    for (final entry in references.entries) {
-      if (resolved.containsKey(entry.key)) continue;
-      if (resolved.containsKey(entry.value)) {
-        resolved[entry.key] = resolved[entry.value]!;
-        changed = true;
-      } else if (fallbackMap.containsKey(entry.value)) {
-        resolved[entry.key] = fallbackMap[entry.value]!;
-        changed = true;
+      // Reference to another key.
+      if (isPaletteKey) {
+        referenceChain[name] = value;
+        if (paletteKeys.contains(value) && loaded.contains(value)) {
+          resolved[name] = resolved[value]!;
+          loaded.add(name);
+        }
+        // else ValueNotFound → skip; `name` keeps its own default.
+      } else {
+        unsupported[name] = value; // KeyNotFound → record
       }
     }
   }
@@ -161,10 +204,16 @@ PaletteParseResult? parsePaletteText(
   return PaletteParseResult(
     palette: palette,
     cloudMeta: cloudMeta,
-    referenceChain: references,
-    explicitTokens: parsed.keys.toSet(),
+    referenceChain: referenceChain,
+    explicitTokens: {...resolved.keys, ...referenceChain.keys},
   );
 }
+
+/// Whether `v` has the shape of a hex color literal (`#rrggbb` / `#rrggbbaa`) —
+/// the gate AyuGram uses before parsing hex (`data[0]=='#' && (size==7||size==9)`,
+/// window_theme.cpp:178). Anything else is treated as a reference to another key.
+bool _isHexShaped(String v) =>
+    v.startsWith('#') && (v.length == 7 || v.length == 9);
 
 Uint8List exportThemeFile(ThemeFileData data) {
   final archive = Archive();
