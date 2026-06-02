@@ -149,6 +149,10 @@ class _UniClientAppState extends State<UniClientApp>
   VoidCallback? _passcodeLockSyncListener;
   VoidCallback? _notifSettingsSyncListener;
   VoidCallback? _audioSettingsSyncListener;
+  // §37.6.3: pulls the server notification-delay config (notify cloud/default
+  // delays + online cloud timeout) into the notification system once an account
+  // connects — AyuGram reads these from session().serverConfig().
+  StreamSubscription<ConnStateEvent>? _notifServerConfigSub;
   String _lastAppIcon = '';
   AppState? _appStateRef;
   ChatState? _chatStateRef;
@@ -682,6 +686,35 @@ class _UniClientAppState extends State<UniClientApp>
     appState.onAccountRemoved = (accountId) {
       _notifSystem.clearForAccount(accountId);
     };
+
+    // §37.6.3: when an account finishes connecting, pull its server-provided
+    // notification timing (help.getConfig: notify cloud/default delays + online
+    // cloud timeout) into the notification system so countTiming uses the live
+    // server values instead of the hardcoded defaults — AyuGram reads these from
+    // thread->session().serverConfig() (notifications_manager.cpp:385-392).
+    final engine = context.read<EngineService>();
+    _notifServerConfigSub = engine.onConnState.listen((event) async {
+      if (ConnState.fromString(event.state) != ConnState.connected) return;
+      if (event.accountId.isEmpty) return;
+      try {
+        final cfg = await engine.callGeneric(
+            event.accountId, 'GetNotifyConfig', const <String, dynamic>{});
+        if (cfg == null) return;
+        final cloudMs = cfg['cloud_delay_ms'] as int?;
+        final defaultMs = cfg['default_delay_ms'] as int?;
+        final onlineMs = cfg['online_cloud_timeout_ms'] as int?;
+        _notifSystem.setServerConfig(
+          cloudDelayMs: cloudMs,
+          defaultDelayMs: defaultMs,
+          // serverConfig().onlineCloudTimeout is milliseconds in AyuGram, but the
+          // notification System stores it as seconds (countTiming adds it to
+          // second-scale values), so convert ms → s here.
+          onlineCloudTimeoutSec: onlineMs != null ? onlineMs ~/ 1000 : null,
+        );
+      } catch (_) {
+        // Transient (account disconnected mid-fetch / no network): keep defaults.
+      }
+    });
 
     // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
     // programmatic UI interaction (smoke testing on Wayland). Desktop-only.
@@ -2260,6 +2293,7 @@ class _UniClientAppState extends State<UniClientApp>
   @override
   void dispose() {
     _notifSystem.dispose();
+    _notifServerConfigSub?.cancel();
     _debugCmdTimer?.cancel();
     _waitForTextTimer?.cancel();
     if (_unreadListener != null && _chatStateRef != null) {

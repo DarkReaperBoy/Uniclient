@@ -1026,6 +1026,37 @@ func (e *Engine) GetLinkedChatId(accountID, chatID string) (string, error) {
 	return d.LinkedChatId, nil
 }
 
+// GetNotifyConfig returns the server notification-delay config for an account
+// (notify cloud/default delays + online cloud timeout, all in milliseconds).
+// The notification System uses these for online-aware delivery delay — AyuGram
+// reads them from thread->session().serverConfig() (notifications_manager.cpp:385-392).
+// Non-Telegram cores have no such server config, so the Telegram MTProto defaults
+// are returned (matching the notification System's own fallback defaults).
+func (e *Engine) GetNotifyConfig(accountID string) (map[string]int, error) {
+	defaults := map[string]int{
+		"cloud_delay_ms":          30000,
+		"default_delay_ms":        1500,
+		"online_cloud_timeout_ms": 300000,
+	}
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	tc, ok := acc.Core.(*cores.TelegramCore)
+	if !ok {
+		return defaults, nil
+	}
+	cloud, def, online, err := tc.GetNotifyDelayConfig()
+	if err != nil {
+		return nil, err
+	}
+	return map[string]int{
+		"cloud_delay_ms":          cloud,
+		"default_delay_ms":        def,
+		"online_cloud_timeout_ms": online,
+	}, nil
+}
+
 // AddContact adds a contact via the core and returns the new user ID (if available).
 func (e *Engine) AddContact(accountID, phone, firstName, lastName, note string) (string, error) {
 	acc, ok := e.getAccount(accountID)

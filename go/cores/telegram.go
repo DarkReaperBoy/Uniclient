@@ -19321,6 +19321,18 @@ func (t *TelegramCore) GetConfig() (int, error) {
 	return len(result.DCOptions), nil
 }
 
+// GetNotifyDelayConfig returns the server-provided notification timing values
+// from help.getConfig: notify_cloud_delay_ms, notify_default_delay_ms and
+// online_cloud_timeout_ms. These drive Window::Notifications::System::countTiming
+// in AyuGram (notifications_manager.cpp:385-392). All three are milliseconds.
+func (t *TelegramCore) GetNotifyDelayConfig() (cloudDelayMs, defaultDelayMs, onlineCloudTimeoutMs int, err error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 0, 0, 0, ErrAuth }
+	result, err := t.api.HelpGetConfig(t.ctx)
+	if err != nil { return 0, 0, 0, err }
+	return result.NotifyCloudDelayMs, result.NotifyDefaultDelayMs, result.OnlineCloudTimeoutMs, nil
+}
+
 // GetAppConfig returns the application configuration from Telegram servers.
 func (t *TelegramCore) GetAppConfig() (bool, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

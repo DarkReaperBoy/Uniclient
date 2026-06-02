@@ -571,12 +571,21 @@ class NotificationSystem {
 
     if (!effectiveData.hideMarkAsRead) {
       final hideMessageText = !effectiveSettings.previewText || _passcodeLocked;
+      // AyuGram: hideMarkAsRead = hideMessageText || (type != Message) || !item
+      //   || ((item->out() || peer->isSelf()) && item->isFromScheduled()).
+      // isReaction/isPollVote ARE the (type != Message) cases. The
+      // channel/slowmode/stars conditions belong ONLY to hideReplyButton
+      // (handled by shouldHideReplyButton) — they must NOT suppress mark-as-read,
+      // which AyuGram still shows for channel/slowmode/stars chats (with preview
+      // on). messageId.isEmpty mirrors !item; the scheduled clause hides
+      // mark-as-read on one's own fired reminders.
+      // (notifications_manager.cpp:1093-1096)
       final shouldHide = hideMessageText ||
-          effectiveData.isChannel ||
-          effectiveData.slowmodeActive ||
-          effectiveData.requiresStars ||
           effectiveData.isReaction ||
-          effectiveData.isPollVote;
+          effectiveData.isPollVote ||
+          effectiveData.messageId.isEmpty ||
+          ((effectiveData.isOutgoing || effectiveData.isSelf) &&
+              effectiveData.isScheduled);
       if (shouldHide) {
         effectiveData = effectiveData.copyWith(hideMarkAsRead: true);
       }

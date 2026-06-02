@@ -443,6 +443,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte(id), nil
 
+	case "GetNotifyConfig":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		cfg, err := e.GetNotifyConfig(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(cfg)
+
 	case "AddContact":
 		var req pb.EngineAddContactRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
