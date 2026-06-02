@@ -22,6 +22,7 @@ import 'call_screen.dart';
 import 'chat_switch_overlay.dart';
 import 'info_panel.dart';
 import 'keyboard_shortcuts.dart';
+import 'music_player_bar.dart';
 import '../theme/theme.dart';
 
 /// Layout modes matching Telegram Desktop's responsive breakpoints.
@@ -334,6 +335,17 @@ class _UniClientShellState extends State<UniClientShell>
       case LayoutMode.threeColumn:
         layout = _buildThreeColumn(context, bodyWidth, showFilters, chatState);
     }
+
+    // Now-playing media player bar (AyuGram Media::Player::Widget) — sits at the
+    // top of the content area whenever a voice/music track is loaded. The bar
+    // collapses itself to zero height when nothing is playing, so wrapping
+    // unconditionally is safe. Call / export top bars stack above it.
+    layout = Column(
+      children: [
+        const MusicPlayerBar(),
+        Expanded(child: layout),
+      ],
+    );
 
     final groupCall = chatState.activeGroupCall;
     final personalCall = chatState.activePersonalCall;

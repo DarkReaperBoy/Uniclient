@@ -367,6 +367,8 @@ class _UniClientAppState extends State<UniClientApp>
       );
       audioService.setRepeatMode(
           AudioRepeatMode.values[appState.playerRepeatMode.clamp(0, 2)]);
+      audioService.setOrderMode(
+          AudioOrderMode.values[appState.playerOrderMode.clamp(0, 2)]);
       audioService.setAutoplayNextDisabled(appState.disableAutoplayNext);
     }
     applyAudioSettings();

@@ -544,6 +544,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   double _voicePlaybackSpeed = 1.0; // voice & video messages
   double _audioPlaybackSpeed = 1.0; // music tracks
   int _playerRepeatMode = 0; // 0=none, 1=one, 2=all
+  int _playerOrderMode = 0; // 0=default, 1=reverse, 2=shuffle
   bool _disableAutoplayNext = false;
 
   // §54.14: AyuGram General settings.
@@ -992,6 +993,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   double get voicePlaybackSpeed => _voicePlaybackSpeed;
   double get audioPlaybackSpeed => _audioPlaybackSpeed;
   int get playerRepeatMode => _playerRepeatMode;
+  int get playerOrderMode => _playerOrderMode;
   bool get disableAutoplayNext => _disableAutoplayNext;
 
   // §54.14: AyuGram General settings getters.
@@ -1771,6 +1773,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _voicePlaybackSpeed = 1.0;
     _audioPlaybackSpeed = 1.0;
     _playerRepeatMode = 0;
+    _playerOrderMode = 0;
     _disableAutoplayNext = false;
     _translationProvider = 0;
     _disableStories = false;
@@ -1950,6 +1953,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final mode = v.clamp(0, 2);
     if (_playerRepeatMode == mode) return;
     _playerRepeatMode = mode;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setPlayerOrderMode(int v) {
+    final mode = v.clamp(0, 2);
+    if (_playerOrderMode == mode) return;
+    _playerOrderMode = mode;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -4245,6 +4256,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _audioPlaybackSpeed =
           ((data['audioPlaybackSpeed'] as num?)?.toDouble() ?? 1.0).clamp(0.5, 2.5).toDouble();
       _playerRepeatMode = (data['playerRepeatMode'] as int? ?? 0).clamp(0, 2);
+      _playerOrderMode = (data['playerOrderMode'] as int? ?? 0).clamp(0, 2);
       _disableAutoplayNext = data['disableAutoplayNext'] as bool? ?? false;
       // §54.14: AyuGram General settings.
       final rawTp = data['translationProvider'];
@@ -4535,6 +4547,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'voicePlaybackSpeed': _voicePlaybackSpeed,
         'audioPlaybackSpeed': _audioPlaybackSpeed,
         'playerRepeatMode': _playerRepeatMode,
+        'playerOrderMode': _playerOrderMode,
         'disableAutoplayNext': _disableAutoplayNext,
         'translationProvider': const ['telegram', 'google', 'yandex', 'native'][_translationProvider.clamp(0, 3)],
         'disableStories': _disableStories,

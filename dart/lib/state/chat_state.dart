@@ -2953,7 +2953,9 @@ class ChatState extends ChangeNotifier {
   // bundles together). AyuGram's slice is a flat_set<MsgId> in ascending order,
   // so delta +1 (next) advances to a newer message and -1 (previous) to an
   // older one. Our _messages list is newest-first, so a newer message sits at a
-  // lower index.
+  // lower index. The order/repeat-all/shuffle rules live in [AudioService]
+  // (which owns those settings) — we just supply the ordered playlist and play
+  // whatever track it picks.
 
   /// Register the shared [AudioService] so a track queued for download-then-play
   /// (see [moveAudioInPlaylist]) can start once its file arrives. Called once
@@ -2976,12 +2978,14 @@ class ChatState extends ChangeNotifier {
     return items;
   }
 
-  /// Step [delta] within the current track's playlist and play the neighbour,
-  /// mirroring AyuGram moveInPlaylist (delta +1 = next/newer, -1 = previous/
-  /// older). Leaves playback stopped when there is no neighbour (matches
-  /// moveInPlaylist returning false → StoppedAtEnd stays finished). If the
-  /// neighbour isn't cached yet it is downloaded first, then played on arrival
-  /// (AyuGram streams it; we play once the file is local).
+  /// Step [delta] within the current track's playlist and play the neighbour
+  /// (delta +1 = next, -1 = previous). The actual target is chosen by
+  /// [AudioService.nextInPlaylist], which applies the order (default/reverse/
+  /// shuffle) and repeat-all (modulo wrap) rules. Leaves playback stopped when
+  /// it returns null (no neighbour — matches AyuGram moveInPlaylist returning
+  /// false → StoppedAtEnd stays finished). If the chosen neighbour isn't cached
+  /// yet it is downloaded first, then played on arrival (AyuGram streams it; we
+  /// play once the file is local).
   void moveAudioInPlaylist(AudioService audio, int delta) {
     if (_disposed) return;
     _audioServiceRef = audio;
@@ -2989,11 +2993,16 @@ class ChatState extends ChangeNotifier {
     final curMsgId = audio.currentMsgId;
     if (chatId.isEmpty || curMsgId.isEmpty) return;
     final playlist = _audioPlaylist(chatId, audio.currentIsSong);
-    final curIdx = playlist.indexWhere((m) => m.msgId == curMsgId);
-    if (curIdx < 0) return; // current track not in the loaded playlist
-    // Newest-first list: next (delta +1, newer) is a lower index.
-    final targetIdx = curIdx - delta;
-    if (targetIdx < 0 || targetIdx >= playlist.length) return; // no neighbour
+    if (playlist.isEmpty) return;
+    final targetMsgId = audio.nextInPlaylist(
+      playlist: [for (final m in playlist) m.msgId],
+      currentMsgId: curMsgId,
+      delta: delta,
+      isSong: audio.currentIsSong,
+    );
+    if (targetMsgId == null) return; // no neighbour → playback stays stopped
+    final targetIdx = playlist.indexWhere((m) => m.msgId == targetMsgId);
+    if (targetIdx < 0) return; // not in the loaded playlist (shouldn't happen)
     _playAudioMessage(audio, playlist[targetIdx], fromMsgId: curMsgId);
   }
 

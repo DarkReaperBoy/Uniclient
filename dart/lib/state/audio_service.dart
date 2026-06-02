@@ -1,13 +1,23 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 
 import '../bridge/engine_service.dart';
 
-/// Playlist repeat mode for the media player (mirrors AyuGram RepeatMode).
+/// Playlist repeat mode for the media player (mirrors AyuGram RepeatMode:
+/// None / One / All — media_player_button.h).
 enum AudioRepeatMode { none, one, all }
+
+/// Playlist order mode for the media player (mirrors AyuGram OrderMode:
+/// Default / Reverse / Shuffle — media_player_button.h). Like AyuGram, order
+/// and repeat-all apply ONLY to music tracks (Type::Song); voice/round-video
+/// messages always walk the playlist in default order with no repeat-all
+/// (Instance::order/repeat return Default/None for Type::Voice,
+/// media_player_instance.cpp:1198-1215).
+enum AudioOrderMode { defaultOrder, reverse, shuffle }
 
 class AudioService extends ChangeNotifier {
   final EngineService _engine;
@@ -50,7 +60,23 @@ class AudioService extends ChangeNotifier {
   double _voicePlaybackSpeed = 1.0; // voice & video messages
   double _audioPlaybackSpeed = 1.0; // music tracks
   AudioRepeatMode _repeatMode = AudioRepeatMode.none;
+  AudioOrderMode _orderMode = AudioOrderMode.defaultOrder;
   bool _autoplayNextDisabled = false;
+
+  // ── Shuffle bookkeeping (mirrors AyuGram Instance::ShuffleData,
+  // media_player_instance.cpp:93-109). The shuffle order is not pre-committed:
+  // each forward move picks a random not-yet-played track, recording it in
+  // _shufflePlayed so "previous" walks the real listen history, and (with
+  // repeat-all) exhausted tracks are recycled back into the non-played pool
+  // keeping the last [_kRememberShuffledOrderItems] so they don't replay
+  // immediately. Validated against the playlist signature [_shuffleSig]. ──
+  static const _kRememberShuffledOrderItems = 16; // instance.cpp:53
+  final math.Random _shuffleRng = math.Random();
+  String _shuffleSig = '';
+  List<String> _shufflePlaylist = const [];
+  List<String> _shufflePlayed = <String>[];
+  List<String> _shuffleNonPlayed = <String>[];
+  int _shuffleIndex = 0; // index in _shufflePlayed of the current track
 
   DateTime? _listenStartTime;
   int _accumulatedMs = 0;
@@ -93,6 +119,7 @@ class AudioService extends ChangeNotifier {
   double get voicePlaybackSpeed => _voicePlaybackSpeed;
   double get audioPlaybackSpeed => _audioPlaybackSpeed;
   AudioRepeatMode get repeatMode => _repeatMode;
+  AudioOrderMode get orderMode => _orderMode;
   bool get autoplayNextDisabled => _autoplayNextDisabled;
 
   /// Playback speed for the current track — music (songs) use
@@ -165,6 +192,11 @@ class AudioService extends ChangeNotifier {
 
   void togglePlayback() {
     if (_player == null) return;
+    // A manual play/pause cancels any pending call-end auto-resume — AyuGram
+    // clears data->resumeOnCallEnd on every play()/playPause()
+    // (media_player_instance.cpp:809 & :1085). Without this, pausing a track
+    // by hand during a call still auto-resumes it when the call ends.
+    _resumeAfterCall = false;
     if (_playing) {
       _player!.pause();
     } else {
@@ -197,10 +229,189 @@ class AudioService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Set the playlist order mode. Leaving Shuffle discards the shuffle history
+  /// so re-entering it starts fresh, mirroring AyuGram's orderChanges handler
+  /// (`mode == Shuffle ? validateShuffleData : shuffleData = nullptr`,
+  /// media_player_instance.cpp:177-185).
+  void setOrderMode(AudioOrderMode mode) {
+    if (_orderMode == mode) return;
+    _orderMode = mode;
+    if (mode != AudioOrderMode.shuffle) _resetShuffle();
+    notifyListeners();
+  }
+
   void setAutoplayNextDisabled(bool value) {
     if (_autoplayNextDisabled == value) return;
     _autoplayNextDisabled = value;
     notifyListeners();
+  }
+
+  // ── Playlist advance (order + repeat-all + shuffle) ──────────────────────
+  // ChatState owns the message list, so it supplies the ordered playlist of
+  // msgIds (newest-first, as `_audioPlaylist` returns) and the current track;
+  // this method applies the order/repeat/shuffle rules and returns the msgId to
+  // play next, or null when playback should stop (no neighbour). Mirrors
+  // AyuGram Instance::moveInPlaylist (media_player_instance.cpp:531-632).
+
+  /// Pick the next track to play. [delta] is +1 for next / -1 for previous.
+  /// Returns the chosen msgId, or null if there is no neighbour (stop).
+  String? nextInPlaylist({
+    required List<String> playlist,
+    required String currentMsgId,
+    required int delta,
+    required bool isSong,
+  }) {
+    if (playlist.isEmpty || currentMsgId.isEmpty) return null;
+    final curIdx = playlist.indexOf(currentMsgId);
+    if (curIdx < 0) return null; // current track not in the loaded playlist
+
+    // Order & repeat-all are music-only (AyuGram order()/repeat() return
+    // Default/None for Type::Voice).
+    final order = isSong ? _orderMode : AudioOrderMode.defaultOrder;
+    final repeatAll = isSong && _repeatMode == AudioRepeatMode.all;
+
+    if (order == AudioOrderMode.shuffle) {
+      return _shuffleNext(playlist, currentMsgId, delta, repeatAll);
+    }
+    _resetShuffle(); // not shuffling — keep no stale history
+
+    // Default: next (+1) advances to a newer message; our playlist is
+    // newest-first so newer = lower index. Reverse flips the direction
+    // (AyuGram: newIndex = index + (reverse ? -delta : delta), :609-610).
+    final step = (order == AudioOrderMode.reverse) ? delta : -delta;
+    var targetIdx = curIdx + step;
+    if (targetIdx < 0 || targetIdx >= playlist.length) {
+      if (!repeatAll) return null; // no neighbour → stop (StoppedAtEnd stays)
+      // Modulo wrap-around — loops the playlist back at the ends (:617-618).
+      targetIdx = (targetIdx % playlist.length + playlist.length) %
+          playlist.length;
+    }
+    return playlist[targetIdx];
+  }
+
+  void _resetShuffle() {
+    _shuffleSig = '';
+    _shufflePlaylist = const [];
+    _shufflePlayed = <String>[];
+    _shuffleNonPlayed = <String>[];
+    _shuffleIndex = 0;
+  }
+
+  /// Validate the shuffle bookkeeping against the current [playlist]/[current],
+  /// rebuilding it when the playlist changed or the user jumped to a track that
+  /// isn't where the shuffle cursor expects it (AyuGram validateShuffleData,
+  /// media_player_instance.cpp:926-976).
+  void _validateShuffle(List<String> playlist, String current) {
+    final sig = playlist.join(',');
+    if (sig != _shuffleSig) {
+      _shuffleSig = sig;
+      _shufflePlaylist = List<String>.from(playlist);
+      _shufflePlayed = <String>[];
+      _shuffleNonPlayed = List<String>.from(playlist);
+      _shuffleIndex = 0;
+      return;
+    }
+    // Same playlist. If `current` is neither the recorded track at the cursor
+    // nor a just-picked pending track, the user started something else — start
+    // the shuffle history over from this track.
+    final atCursor = _shuffleIndex >= 0 &&
+        _shuffleIndex < _shufflePlayed.length &&
+        _shufflePlayed[_shuffleIndex] == current;
+    final pendingPick = _shuffleIndex == _shufflePlayed.length;
+    if (!atCursor && !pendingPick) {
+      _shufflePlayed = <String>[];
+      _shuffleNonPlayed = List<String>.from(playlist);
+      _shuffleIndex = 0;
+    }
+  }
+
+  /// Shuffle branch of the playlist advance — a faithful port of the
+  /// OrderMode::Shuffle path in AyuGram moveInPlaylist (instance.cpp:565-607).
+  String? _shuffleNext(
+      List<String> playlist, String current, int delta, bool repeatAll) {
+    _validateShuffle(playlist, current);
+    final played = _shufflePlayed;
+    final nonPlayed = _shuffleNonPlayed;
+
+    // Record the current track at the end of the played list if not yet there.
+    if (_shuffleIndex == played.length) {
+      played.add(current);
+      nonPlayed.remove(current);
+    }
+    if (repeatAll) {
+      _ensureShuffleMove(delta);
+    }
+    // If we've run out of fresh tracks but the current one is the last played,
+    // recycle it so previous→next stays consistent (instance.cpp:586-590).
+    if (nonPlayed.isEmpty &&
+        played.isNotEmpty &&
+        _shuffleIndex + 1 == played.length) {
+      nonPlayed.add(played.removeLast());
+    }
+    // Keep the cursor inside [0, played.length] — defensive against the
+    // recycling above shrinking `played`.
+    if (_shuffleIndex > played.length) _shuffleIndex = played.length;
+    if (_shuffleIndex < 0) _shuffleIndex = 0;
+    final shuffleCompleted = nonPlayed.isEmpty ||
+        (nonPlayed.length == 1 && nonPlayed.first == current);
+
+    if (delta < 0) {
+      if (_shuffleIndex > 0 && _shuffleIndex - 1 < played.length) {
+        _shuffleIndex--;
+        return played[_shuffleIndex];
+      }
+      return null;
+    } else if (_shuffleIndex + 1 < played.length) {
+      _shuffleIndex++;
+      return played[_shuffleIndex];
+    }
+    if (shuffleCompleted) return null;
+    if (_shuffleIndex < played.length) _shuffleIndex++;
+    if (nonPlayed.isEmpty) return null;
+    final index = _shuffleRng.nextInt(nonPlayed.length);
+    return nonPlayed[index]; // recorded into `played` on the next move
+  }
+
+  /// For repeat-all shuffle, free up already-played tracks back into the
+  /// non-played pool so the shuffle can continue indefinitely while still
+  /// remembering the most recent [_kRememberShuffledOrderItems]. Faithful port
+  /// of AyuGram ensureShuffleMove (media_player_instance.cpp:660-700).
+  void _ensureShuffleMove(int delta) {
+    final played = _shufflePlayed;
+    final nonPlayed = _shuffleNonPlayed;
+    final playlistLen = _shufflePlaylist.length;
+    if (delta < 0) {
+      if (_shuffleIndex > 0) return;
+      if (nonPlayed.length < 2) {
+        final freeUp = math.max(
+            played.length ~/ 2, playlistLen - _kRememberShuffledOrderItems);
+        if (freeUp > 0 && freeUp <= played.length) {
+          final from = played.length - freeUp;
+          nonPlayed.addAll(played.sublist(from));
+          played.removeRange(from, played.length);
+        }
+      }
+      if (nonPlayed.isEmpty) return;
+      final index = _shuffleRng.nextInt(nonPlayed.length);
+      played.insert(0, nonPlayed[index]);
+      nonPlayed.removeAt(index);
+      _shuffleIndex++;
+      if (nonPlayed.isEmpty && played.length > 1) {
+        nonPlayed.add(played.removeLast());
+      }
+      return;
+    } else if (_shuffleIndex + 1 < played.length) {
+      return;
+    } else if (nonPlayed.length < 2) {
+      final freeUp = math.max(
+          played.length ~/ 2, playlistLen - _kRememberShuffledOrderItems);
+      if (freeUp > 0 && freeUp <= played.length) {
+        nonPlayed.addAll(played.sublist(0, freeUp));
+        played.removeRange(0, freeUp);
+        _shuffleIndex -= freeUp;
+        if (_shuffleIndex < 0) _shuffleIndex = 0;
+      }
+    }
   }
 
   // ── Notification-sound ducking (AyuGram mixer()->suppressAll(lengthMs) +
