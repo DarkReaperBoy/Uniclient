@@ -13,8 +13,10 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
+import '../l10n/lang_pack.dart';
 import '../l10n/strings.dart';
 import '../utils/debug.dart';
+import '../utils/webauthn.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
@@ -281,17 +283,17 @@ class _AuthScreenState extends State<AuthScreen>
     };
   }
 
-  String _nextButtonText(AuthStateData? data) {
-    if (data == null) return 'Next';
+  String _nextButtonText(AuthStateData? data, LangPack lang) {
+    if (data == null) return lang.tr('lng_intro_next');
     if (data.state == 'otp' && data.codeByFragmentUrl.isNotEmpty) {
       return 'Open Fragment'; // lng_intro_fragment_button
     }
     return switch (data.state) {
-      'signup' => TrStrings.lngIntroFinish(),
+      'signup' => lang.tr('lng_intro_finish'),
       // PasswordCheckWidget overrides next-button text to lng_intro_submit
       // = "Submit" for the password step (intro_password_check.cpp:405-407).
       '2fa' => TrStrings.lngIntroSubmit(),
-      _ => 'Next',
+      _ => lang.tr('lng_intro_next'),
     };
   }
 
@@ -304,6 +306,9 @@ class _AuthScreenState extends State<AuthScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final authState = context.watch<AuthState>();
+    // Watch the lang pack so picking a language re-renders the whole intro in
+    // that language, matching AyuGram rebuilding from the cloud pack.
+    final lang = context.watch<LangPack>();
     final data = authState.currentAuth;
     final currentStep = data?.state ?? '';
 
@@ -411,7 +416,7 @@ class _AuthScreenState extends State<AuthScreen>
                           ],
                         );
                       },
-                      child: _buildStepContent(data, authState, theme),
+                      child: _buildStepContent(data, authState, theme, lang),
                     ),
                   ),
                 ),
@@ -422,7 +427,7 @@ class _AuthScreenState extends State<AuthScreen>
       ),
       bottomNavigationBar: _AuthBottomBar(
         showNext: _showNext(data),
-        nextText: _nextButtonText(data),
+        nextText: _nextButtonText(data, lang),
         submitting: authState.submitting,
         canGoBack: _canGoBack(data),
         showResetAccount: _showResetAccount(data),
@@ -544,14 +549,16 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  String _title(AuthStateData? data) {
+  String _title(AuthStateData? data, LangPack lang) {
     if (data == null) return 'Authenticating...';
     return switch (data.state) {
       'choose' => 'Choose Login Method',
-      'input' => data.fieldType == 'phone' ? 'Enter Phone Number' : 'Enter ${data.fieldType}',
+      'input' => data.fieldType == 'phone'
+          ? lang.tr('lng_phone_title')
+          : 'Enter ${data.fieldType}',
       'otp' => 'Enter Verification Code',
       '2fa' => 'Enter Your Password',
-      'qr' => 'Scan QR Code',
+      'qr' => lang.tr('lng_intro_qr_title'),
       'email' => 'Choose a login email',
       'signup' => 'Your Name',
       'ready' => 'Authenticated!',
@@ -561,7 +568,7 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Widget _buildStepContent(
-      AuthStateData? data, AuthState authState, ThemeData theme) {
+      AuthStateData? data, AuthState authState, ThemeData theme, LangPack lang) {
     final state = data?.state ?? '';
     if (state == '2fa') {
       return _build2FA(data!, authState, theme);
@@ -586,7 +593,7 @@ class _AuthScreenState extends State<AuthScreen>
           const SizedBox(height: 16),
         ],
         Text(
-          _title(data),
+          _title(data, lang),
           style: theme.textTheme.headlineMedium,
           textAlign: TextAlign.center,
         ),
@@ -625,7 +632,7 @@ class _AuthScreenState extends State<AuthScreen>
         if (data?.state == 'choose' && data!.options.isNotEmpty)
           ..._buildChoices(data.options, authState, theme),
         if (data?.state == 'qr')
-          _buildQR(data, authState, theme),
+          _buildQR(data, authState, theme, lang),
         if (data?.state == 'input' || data?.state == 'otp')
           _buildInput(data!, authState, theme),
       ],
@@ -1088,7 +1095,8 @@ class _AuthScreenState extends State<AuthScreen>
     ];
   }
 
-  Widget _buildQR(AuthStateData? data, AuthState authState, ThemeData theme) {
+  Widget _buildQR(
+      AuthStateData? data, AuthState authState, ThemeData theme, LangPack lang) {
     final hasQr = data != null && data.qrData.isNotEmpty;
     final payload = hasQr
         ? 'tg://login?token=${base64Url.encode(data.qrData)}'
@@ -1174,26 +1182,54 @@ class _AuthScreenState extends State<AuthScreen>
           ),
         ),
         const SizedBox(height: 16),
-        _buildInstruction(1, 'Open Telegram on your phone', theme),
+        _buildInstruction(1, lang.tr('lng_intro_qr_step1'), theme),
         const SizedBox(height: 8),
-        _buildInstruction(
-            2, 'Go to Settings → Devices → Link Desktop Device', theme),
+        _buildInstruction(2, lang.tr('lng_intro_qr_step2'), theme),
         const SizedBox(height: 8),
-        _buildInstruction(
-            3, 'Point your phone at this screen to confirm login', theme),
+        _buildInstruction(3, lang.tr('lng_intro_qr_step3'), theme),
         const SizedBox(height: 20),
         TextButton(
           onPressed: () => authState.switchToMethod('phone'),
           child: Text(
-            'Log in by phone number',
+            lang.tr('lng_intro_qr_phone'),
             style: TextStyle(
               fontSize: 14,
               color: context.palette.windowBgActive,
             ),
           ),
         ),
+        // AyuGram QrWidget::setupPasskeyLink (intro_qr.cpp:364): the QR step
+        // offers a "Log in using passkey" link, but ONLY when the server
+        // advertises passkeys AND the platform has WebAuthn. There is no
+        // pure-Dart/no-CGo authenticator binding, so WebAuthn.isSupported() is
+        // false here — exactly as Telegram Desktop's own Linux build
+        // (webauthn_linux.cpp:13), which hides this link too. On a platform that
+        // gains authenticator support the link appears and runs the passkey
+        // login flow (auth.initPasskeyLogin → WebAuthn → auth.finishPasskeyLogin,
+        // wired in the engine as Auth{Init,Finish}PasskeyLogin).
+        if (WebAuthn.isSupported())
+          TextButton(
+            onPressed: () => _loginWithPasskey(authState),
+            child: Text(
+              lang.tr('lng_intro_qr_passkey'),
+              style: TextStyle(
+                fontSize: 14,
+                color: context.palette.windowBgActive,
+              ),
+            ),
+          ),
       ],
     );
+  }
+
+  /// AyuGram QrWidget::setupPasskeyLink click handler (intro_qr.cpp:386):
+  /// InitPasskeyLogin → Platform::WebAuthn::Login → FinishPasskeyLogin. The
+  /// WebAuthn assertion needs an OS authenticator, which has no no-CGo binding,
+  /// so this is only reachable on platforms where WebAuthn.isSupported() is true
+  /// (never on this build — the link is gated out, matching AyuGram's Linux
+  /// build where Platform::WebAuthn::Login is a no-op, webauthn_linux.cpp:23).
+  void _loginWithPasskey(AuthState authState) {
+    if (!WebAuthn.isSupported()) return;
   }
 
   Widget _buildInstruction(int number, String text, ThemeData theme) {
@@ -1653,13 +1689,20 @@ class _CoverGradient extends StatelessWidget {
 /// Spec §11.5 — Per-digit OTP code input cells.
 /// Cell 40x50px, 4px border, 10px gap, 20px digit font.
 /// Auto-submits when all cells filled. Shake on error.
+/// AyuGram `Intro::details::CodeWidget::CallStatus` — the auto-call lifecycle
+/// shown under the code field while the code is delivered by SMS/call
+/// (intro_code.cpp:117 `updateCallText`). Telegram counts down to placing the
+/// call itself (Waiting), requests it (Calling), then confirms it dialed
+/// (Called). There is no manual resend button — the call fires automatically.
+enum _CallStatus { waiting, calling, called }
+
 class _OtpCodeInput extends StatefulWidget {
   final int digitCount;
   final bool hasError;
   final ValueChanged<String> onComplete;
   final int timeoutSecs;
   final VoidCallback? onDidntGetCode;
-  final VoidCallback? onResendCode;
+  final Future<void> Function()? onResendCode;
   final bool codeByTelegram;
 
   const _OtpCodeInput({
@@ -1697,7 +1740,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
   late FocusNode _focusNode;
   Timer? _callTimer;
   int _callSecondsLeft = 0;
-  bool _calling = false;
+  _CallStatus _callStatus = _CallStatus.waiting;
   bool _submitted = false;
   TextInputConnection? _inputConnection;
 
@@ -1802,24 +1845,32 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
 
   void _startCallTimer() {
     _callTimer?.cancel();
+    _callStatus = _CallStatus.waiting;
     _callTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
-      var reachedZero = false;
-      setState(() {
-        _callSecondsLeft--;
-        if (_callSecondsLeft <= 0) {
-          t.cancel();
-          _calling = true;
-          reachedZero = true;
-        }
-      });
-      if (reachedZero) {
-        // AyuGram auto-requests the call the instant the countdown reaches
-        // zero (CodeWidget::sendCall -> MTPauth_ResendCode,
-        // intro_code.cpp:302-338) rather than waiting for a manual tap.
-        widget.onResendCode?.call();
+      setState(() => _callSecondsLeft--);
+      if (_callSecondsLeft <= 0) {
+        t.cancel();
+        _placeCall();
       }
     });
+  }
+
+  /// AyuGram `CodeWidget::sendCall` (intro_code.cpp:302): when the Waiting
+  /// countdown reaches zero, Telegram places the call automatically — switch to
+  /// Calling ("Requesting a call…"), fire the resend request, then on its
+  /// response switch to Called ("Telegram dialed your number"). No manual
+  /// resend button is ever shown.
+  Future<void> _placeCall() async {
+    if (!mounted) return;
+    setState(() => _callStatus = _CallStatus.calling);
+    try {
+      await widget.onResendCode?.call();
+    } catch (_) {
+      // Surfaced via the auth state's error path; keep the Calling→Called UI.
+    }
+    if (!mounted) return;
+    setState(() => _callStatus = _CallStatus.called);
   }
 
   @override
@@ -2037,6 +2088,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final lang = context.watch<LangPack>();
     // AyuGram fills each code-digit cell with windowBgOver — a theme palette
     // color, not a hardcoded constant (intro_code_input.cpp:131 st::windowBgOver),
     // so the cells follow custom themes.
@@ -2146,27 +2198,34 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
         ),
         if (widget.timeoutSecs > 0 && !widget.codeByTelegram) ...[
           const SizedBox(height: 16),
-          _calling
-              ? TextButton(
-                  onPressed: widget.onResendCode ?? widget.onDidntGetCode,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    'Resend code',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                )
-              : _callSecondsLeft > 0
-                  ? Text(
-                      'Resend code in ${_callSecondsLeft ~/ 60}:${(_callSecondsLeft % 60).toString().padLeft(2, '0')}',
-                      style: theme.textTheme.bodySmall,
-                    )
-                  : const SizedBox.shrink(),
+          // AyuGram CodeWidget::updateCallText (intro_code.cpp:117): the call
+          // status line — a countdown to when Telegram auto-calls the phone
+          // (lng_code_call), then "Requesting a call…" (lng_code_calling) once
+          // the call is placed, then "Telegram dialed your number"
+          // (lng_code_called). There is deliberately no manual resend button.
+          switch (_callStatus) {
+            _CallStatus.waiting => _callSecondsLeft > 0
+                ? Text(
+                    lang.trf('lng_code_call', {
+                      'minutes': '${_callSecondsLeft ~/ 60}',
+                      'seconds':
+                          (_callSecondsLeft % 60).toString().padLeft(2, '0'),
+                    }),
+                    style: theme.textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  )
+                : const SizedBox.shrink(),
+            _CallStatus.calling => Text(
+                lang.tr('lng_code_calling'),
+                style: theme.textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+            _CallStatus.called => Text(
+                lang.tr('lng_code_called'),
+                style: theme.textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+          },
         ],
         const SizedBox(height: 12),
         if (widget.codeByTelegram)
@@ -2452,6 +2511,15 @@ class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
                       try {
                         context.read<EngineService>().updateConfig(language: val);
                       } catch (_) {}
+                      // Re-render the intro in the chosen language: fetch the
+                      // cloud pack via the in-progress account's connection
+                      // (served pre-auth), mirroring AyuGram rebuilding the
+                      // intro from the lang pack on language change.
+                      final accountId =
+                          context.read<AuthState>().currentAuth?.accountId;
+                      context
+                          .read<LangPack>()
+                          .setLanguage(val, accountId: accountId);
                       setState(() => _selected = val);
                       Navigator.of(ctx).pop();
                     },

@@ -24768,6 +24768,45 @@ func (t *TelegramCore) LangpackGetStrings(request *tg.LangpackGetStringsRequest)
 	return t.api.LangpackGetStrings(t.ctx, request)
 }
 
+// LangpackGetStringsMap fetches the given tdesktop lang-pack keys for langCode
+// and returns them as a key→value map. langpack.getStrings is an unauthorized
+// MTProto method, so this works DURING the login flow too: when the session is
+// not yet authed it falls back to the live preAuthAPI client. Used by the
+// intro/login screen so picking a language re-renders it in that language,
+// matching AyuGram building the intro from the cloud pack (intro_phone.cpp:92).
+// Pluralized strings collapse to their "other" form; deleted keys are omitted
+// so callers fall back to their bundled English baseline.
+func (t *TelegramCore) LangpackGetStringsMap(langCode string, keys []string) (map[string]string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	api := t.api
+	if api == nil {
+		api = t.preAuthAPI
+	}
+	if api == nil {
+		return nil, ErrAuth
+	}
+	strs, err := api.LangpackGetStrings(t.ctx, &tg.LangpackGetStringsRequest{
+		LangPack: "tdesktop",
+		LangCode: langCode,
+		Keys:     keys,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(strs))
+	for _, s := range strs {
+		switch v := s.(type) {
+		case *tg.LangPackString:
+			out[v.Key] = v.Value
+		case *tg.LangPackStringPluralized:
+			if v.OtherValue != "" {
+				out[v.Key] = v.OtherValue
+			}
+		}
+	}
+	return out, nil
+}
+
 // SetInterfaceLanguage switches the client's interface language by fetching the langpack.
 func (t *TelegramCore) SetInterfaceLanguage(langCode string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()

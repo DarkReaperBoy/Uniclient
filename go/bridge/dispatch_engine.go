@@ -5023,6 +5023,22 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(langs)
 
+	case "GetLangStrings":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			LangCode  string   `json:"lang_code"`
+			Keys      []string `json:"keys"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		strs, err := e.GetLangStrings(params.AccountID, params.LangCode, params.Keys)
+		if err != nil {
+			// Graceful: the UI falls back to its embedded English baseline.
+			return json.Marshal(map[string]string{})
+		}
+		return json.Marshal(strs)
+
 	case "SetLanguage":
 		var params struct {
 			AccountID string `json:"account_id"`

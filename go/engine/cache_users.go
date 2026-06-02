@@ -2335,6 +2335,24 @@ func (e *Engine) SetLanguage(accountID, langCode string) error {
 	return nil
 }
 
+// GetLangStrings fetches specific cloud lang-pack strings (key→value) for a
+// language. Used by the intro/login screen localization — works pre-auth via
+// the core's preAuthAPI. Missing/deleted keys are omitted so the UI can fall
+// back to its embedded English baseline.
+func (e *Engine) GetLangStrings(accountID, langCode string, keys []string) (map[string]string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found")
+	}
+	type langStringsGetter interface {
+		LangpackGetStringsMap(langCode string, keys []string) (map[string]string, error)
+	}
+	if g, ok := acc.Core.(langStringsGetter); ok {
+		return g.LangpackGetStringsMap(langCode, keys)
+	}
+	return nil, fmt.Errorf("not supported")
+}
+
 func (e *Engine) SaveLanguagePrefs(accountID string, data json.RawMessage) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

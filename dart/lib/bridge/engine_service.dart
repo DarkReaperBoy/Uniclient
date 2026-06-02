@@ -5937,6 +5937,31 @@ class EngineService {
     }
   }
 
+  /// Fetch specific cloud lang-pack strings (key→value) for [langCode]. Backs
+  /// the intro/login screen localization (LangPack); the engine serves these
+  /// pre-auth via the in-progress account's preAuthAPI. Returns an empty map on
+  /// any failure so the UI falls back to its embedded English baseline.
+  Future<Map<String, String>> getLangStrings(
+      String accountId, String langCode, List<String> keys) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'lang_code': langCode,
+      'keys': keys,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetLangStrings', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return {};
+      final decoded = json.decode(utf8.decode(respBytes));
+      if (decoded is Map) {
+        return decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
+      }
+      return {};
+    } catch (e) {
+      Debug.error('ENGINE', 'getLangStrings failed', e);
+      return {};
+    }
+  }
+
   Future<void> saveLanguagePrefs(String accountId, Map<String, dynamic> prefs) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

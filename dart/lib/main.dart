@@ -15,6 +15,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'bridge/engine_service.dart';
+import 'l10n/lang_pack.dart';
 import 'models/engine_models.dart';
 import 'state/app_state.dart';
 import 'state/chat_state.dart';
@@ -110,6 +111,9 @@ void main() {
         ChangeNotifierProvider.value(value: appState),
         ChangeNotifierProvider(create: (_) => ChatState(engineService, appState)),
         ChangeNotifierProvider(create: (_) => AuthState(engineService)),
+        ChangeNotifierProvider(
+            create: (_) =>
+                LangPack(engineService)..setLanguage(appState.selectedLanguageCode)),
         ChangeNotifierProvider.value(value: audioService),
       ],
       child: const UniClientApp(),
