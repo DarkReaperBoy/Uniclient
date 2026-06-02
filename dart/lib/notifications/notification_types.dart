@@ -105,6 +105,26 @@ class NotificationData {
   // Whether a reacted-to poll is a quiz (AyuGram poll->quiz()), selecting the
   // quiz vs poll reaction notification string. (notifications_manager.cpp:1205)
   final bool isQuiz;
+  // Document/audio filename. AyuGram's MediaFile::notificationText() prefers
+  // `_document->filename()` over the generic "File"/"Audio file" type string
+  // when a file (case 8) or audio file (case 3) has a name — the filename check
+  // precedes the isAudioFile()/lng_in_dlg_file fallbacks
+  // (data_media_types.cpp:1287-1294). Empty for media with no filename.
+  final String mediaFileName;
+  // Venue / place title. AyuGram's MediaLocation::notificationText() appends it
+  // as the caption ("Location, {title}") via
+  // WithCaptionNotificationText(typeString(), { .text = _title })
+  // (data_media_types.cpp:1701-1703). Empty for a plain geo point.
+  final String venueTitle;
+  // Service message (joined / pinned / etc.). notificationHeader() returns an
+  // empty subtitle for service items (history_item.cpp:2768-2769).
+  final bool isService;
+  // Broadcast-channel post that hides its author (channel has no signature
+  // profiles, so the post is attributed to the channel itself). The sender line
+  // is then suppressed because the channel name is already the title — mirrors
+  // AyuGram's isPostHidingAuthor() gate in notificationHeader()
+  // (history_item.cpp:2772, :3952-3959). Never set for megagroups (not posts).
+  final bool isPostHidingAuthor;
 
   const NotificationData({
     required this.accountId,
@@ -166,6 +186,10 @@ class NotificationData {
     this.isReplies = false,
     this.canSendText = true,
     this.isQuiz = false,
+    this.mediaFileName = '',
+    this.venueTitle = '',
+    this.isService = false,
+    this.isPostHidingAuthor = false,
   });
 
   NotificationData copyWith({
@@ -228,6 +252,10 @@ class NotificationData {
     bool? isReplies,
     bool? canSendText,
     bool? isQuiz,
+    String? mediaFileName,
+    String? venueTitle,
+    bool? isService,
+    bool? isPostHidingAuthor,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -289,6 +317,10 @@ class NotificationData {
       isReplies: isReplies ?? this.isReplies,
       canSendText: canSendText ?? this.canSendText,
       isQuiz: isQuiz ?? this.isQuiz,
+      mediaFileName: mediaFileName ?? this.mediaFileName,
+      venueTitle: venueTitle ?? this.venueTitle,
+      isService: isService ?? this.isService,
+      isPostHidingAuthor: isPostHidingAuthor ?? this.isPostHidingAuthor,
     );
   }
 }
@@ -396,15 +428,23 @@ String _composeSubtitle(NotificationData data, NotificationSettings settings) {
     return '';
   }
 
-  // notificationHeader(): "You" whenever a scheduled message I sent fires in a
-  // non-self chat — regardless of chat type, 1-on-1 INCLUDED
-  // (history_item.cpp:2770-2771).
+  // --- notificationHeader() (history_item.cpp:2767-2774) ---
+
+  // Service messages (joined / pinned / changed photo / etc.) have no header —
+  // isService() short-circuits to an empty string (history_item.cpp:2768-2769).
+  if (data.isService) return '';
+
+  // "You" whenever a scheduled message I sent fires in a non-self chat —
+  // regardless of chat type, 1-on-1 INCLUDED (history_item.cpp:2770-2771).
   if (data.isOutgoing && data.isScheduled && !data.isSelf) {
     return TrStrings.lngNotifYou();
   }
 
-  // Group/channel: the sender's name (history_item.cpp:2772-2773).
-  if (data.isGroup || data.isChannel) {
+  // Group/channel (non-user peer): the sender's name — but a broadcast-channel
+  // post that hides its author yields an EMPTY header, since the channel name is
+  // already the title. Mirrors `!_history->peer->isUser() && !isPostHidingAuthor()`
+  // (history_item.cpp:2772-2773).
+  if ((data.isGroup || data.isChannel) && !data.isPostHidingAuthor) {
     return data.senderName;
   }
 
@@ -465,7 +505,17 @@ String _messageTextForType(NotificationData data) {
     case 2: // video
       return _withCaption(TrStrings.lngNotifVideo(), data);
     case 3: // audio
-      return _withCaption(TrStrings.lngNotifAudioFile(), data);
+      // MediaFile::notificationText(): the document filename takes priority over
+      // the generic "Audio file" string — the `!filename().isEmpty()` branch
+      // precedes the `isAudioFile()` → lng_in_dlg_audio_file fallback
+      // (data_media_types.cpp:1287-1290). Caption (originalText) is still
+      // appended via WithCaptionNotificationText.
+      return _withCaption(
+        data.mediaFileName.isNotEmpty
+            ? data.mediaFileName
+            : TrStrings.lngNotifAudioFile(),
+        data,
+      );
     case 4: // voice
       return _withCaption(TrStrings.lngNotifVoiceMessage(), data);
     case 5: // videonote
@@ -478,17 +528,38 @@ String _messageTextForType(NotificationData data) {
     case 7: // gif
       return _withCaption(TrStrings.lngNotifGif(), data);
     case 8: // file
-      return _withCaption(TrStrings.lngNotifFile(), data);
+      // MediaFile::notificationText(): a document with a filename shows the
+      // filename ("report.pdf") instead of the generic "File"; only a nameless
+      // document falls back to lng_in_dlg_file (data_media_types.cpp:1287-1294).
+      return _withCaption(
+        data.mediaFileName.isNotEmpty
+            ? data.mediaFileName
+            : TrStrings.lngNotifFile(),
+        data,
+      );
     case 9: // poll
       return data.pollQuestion.isNotEmpty
           ? '\u{1F4CA} ${data.pollQuestion}'
           : TrStrings.lngNotifPoll();
     case 10: // location
-      return data.isLiveLocation ? TrStrings.lngNotifLiveLocation() : TrStrings.lngNotifLocation();
+      // MediaLocation::notificationText() = WithCaptionNotificationText(
+      //   typeString(), { .text = _title }) — the venue title is appended as the
+      // caption ("Location, {venue}"). typeString() is "Live Location" for a
+      // live period, else "Location" (data_media_types.cpp:1686-1690,1701-1703).
+      // The title carries no entities, so no spoiler masking; a plain geo point
+      // has an empty title and shows only the type string.
+      final locationType = data.isLiveLocation
+          ? TrStrings.lngNotifLiveLocation()
+          : TrStrings.lngNotifLocation();
+      return data.venueTitle.isNotEmpty
+          ? '$locationType, ${data.venueTitle}'
+          : locationType;
     case 11: // contact
-      return data.contactName.isNotEmpty
-          ? '${TrStrings.lngNotifContact()}: ${data.contactName}'
-          : TrStrings.lngNotifContact();
+      // MediaContact::notificationText() returns ONLY lng_in_dlg_contact
+      // ("Contact") — the contact's name is never appended to the plain message
+      // body (it only appears in the *reaction* string lng_reaction_contact)
+      // (data_media_types.cpp:1591-1593).
+      return TrStrings.lngNotifContact();
     case 12: // invoice
       return data.invoiceTitle.isNotEmpty ? data.invoiceTitle : TrStrings.lngNotifInvoice();
     default:

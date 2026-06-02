@@ -2622,6 +2622,20 @@ class ChatState extends ChangeNotifier {
         isOutgoing: msg.isOutgoing,
         isChannel: chat?.type == ChatType.channel,
         isGroup: chat?.type == ChatType.group || chat?.type == ChatType.topic,
+        // Service message (joined/pinned/photo changed/etc.) → empty subtitle,
+        // matching notificationHeader()'s isService() short-circuit
+        // (history_item.cpp:2768-2769).
+        isService: msg.isService,
+        // isPostHidingAuthor(): a broadcast-channel post hides its author when
+        // there is no distinct user sender — `from_id` is absent, so the post is
+        // attributed to the channel itself (no signature profiles). The notif
+        // subtitle is then suppressed (the channel name is already the title).
+        // With signature profiles the sender IS a user (senderId set), so the
+        // author name is shown. Megagroups (ChatType.group) are not posts, so
+        // this never fires for them. Mirrors AyuGram isPostHidingAuthor()
+        // (history_item.cpp:3952-3959).
+        isPostHidingAuthor:
+            chat?.type == ChatType.channel && msg.senderId.isEmpty,
         isSilent: msg.isSilent,
         timestamp: msg.timestamp,
         messageType: msg.mediaType,
@@ -2655,6 +2669,10 @@ class ChatState extends ChangeNotifier {
                 const {1, 2, 3, 4, 7, 8}.contains(msg.mediaType))
             ? msg.contentText
             : '',
+        // Document/audio filename — MediaFile::notificationText() shows it in
+        // place of the generic "File"/"Audio file" type string for a named file
+        // (case 8) or audio file (case 3) (data_media_types.cpp:1287-1294).
+        mediaFileName: msg.mediaFileName,
         pollQuestion: msg.pollQuestion,
         // Quiz vs regular poll — selects lng_reaction_quiz over lng_reaction_poll
         // for a reaction to a quiz (AyuGram poll->quiz(), notifications_manager.cpp:1205).
@@ -2665,6 +2683,10 @@ class ChatState extends ChangeNotifier {
             ? '${msg.contactFirstName} ${msg.contactLastName}'.trim()
             : '',
         isLiveLocation: msg.geoLive,
+        // Venue/place title — MediaLocation::notificationText() appends it as the
+        // caption ("Location, {title}"); empty for a plain geo point
+        // (data_media_types.cpp:1701-1703).
+        venueTitle: msg.venueTitle,
         groupedId: msg.groupedId,
         slowmodeActive: (chat?.slowmodeNextSendDate ?? 0) > 0 &&
             chat!.slowmodeNextSendDate > DateTime.now().millisecondsSinceEpoch ~/ 1000,
