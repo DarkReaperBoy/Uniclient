@@ -1708,6 +1708,9 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
           final volKey = 'volume_$peerType';
           if (localConfig.containsKey(volKey)) {
             _volume = (localConfig[volKey] as num?)?.toInt() ?? 100;
+            // Mirror into AppState so ringtoneVolume()'s per-type tier is
+            // available at notification time even before this screen is opened.
+            appState.setNotifTypeVolumeFromEngine(accountId, peerType, _volume);
           }
         });
       }
@@ -1782,7 +1785,6 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
 
   void _persistVolume(int volume) {
     final appState = context.read<AppState>();
-    final engine = context.read<EngineService>();
     final accountId = appState.activeAccountId;
     final peerType = switch (widget.type) {
       _NotifType.privateChats => 'private',
@@ -1791,11 +1793,11 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       _ => '',
     };
     if (peerType.isNotEmpty) {
-      engine.saveLocalNotifyConfig(accountId, {
-        'type': 'per_type_volume_$peerType',
-        'peer_type': peerType,
-        'volume': volume,
-      });
+      // Route through AppState so the per-type ringtone volume is mirrored
+      // locally (tier-2 of ringtoneVolume()) AND pushed to the engine's local
+      // notify config — AyuGram stores ringtone volumes in local session
+      // settings (main_session_settings.cpp:982).
+      appState.setNotifTypeVolume(accountId, peerType, volume);
     }
   }
 

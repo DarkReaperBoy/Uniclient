@@ -203,6 +203,36 @@ class AudioService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Notification-sound ducking (AyuGram mixer()->suppressAll(lengthMs) +
+  // scheduleFaderCallback(), notifications_manager.cpp:776-777). When a
+  // notification alert sound plays, all other app audio is suppressed for the
+  // sound's length so the beep doesn't overlap a playing voice/music track at
+  // full volume, then volume is restored. The notification player calls this
+  // via NotificationSoundPlayer.onDuck. ──
+  Timer? _duckTimer;
+  bool _ducking = false;
+
+  /// Suppress in-app media playback for [length] while a notification sound
+  /// plays, then restore full volume. No-op when nothing is playing (there is
+  /// nothing to suppress). Overlapping calls extend the suppression window.
+  Future<void> duckFor(Duration length) async {
+    final p = _player;
+    if (p == null || !_playing) return;
+    if (!_ducking) {
+      _ducking = true;
+      try {
+        await p.setVolume(0);
+      } catch (_) {}
+    }
+    _duckTimer?.cancel();
+    _duckTimer = Timer(length, () async {
+      _ducking = false;
+      try {
+        await _player?.setVolume(100);
+      } catch (_) {}
+    });
+  }
+
   /// Subscribe to 1:1 and group call state so playback auto-pauses for the
   /// duration of a call and resumes when it ends — mirrors AyuGram combining
   /// currentCallValue() || currentGroupCallValue() (media_player_instance.cpp:188-200).
@@ -522,6 +552,7 @@ class AudioService extends ChangeNotifier {
     _positionNotifyTimer?.cancel();
     _positionSaveTimer?.cancel();
     _pauseTimer?.cancel();
+    _duckTimer?.cancel();
     _savePositionIfNeeded();
     _accumulateListenTime();
     _reportListenIfNeeded();

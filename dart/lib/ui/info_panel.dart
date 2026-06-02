@@ -1084,6 +1084,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
           const TelegramMenuItem(value: 'unmute', icon: Icon(Icons.notifications), label: 'Unmute')
         else ...[
           const TelegramMenuItem(value: 'sound_select', icon: Icon(Icons.music_note_outlined), label: 'Notification sound'),
+          const TelegramMenuItem(value: 'volume_set', icon: Icon(Icons.volume_up_outlined), label: 'Notification volume'),
           const TelegramMenuItem(value: 'sound_toggle', icon: Icon(Icons.volume_off_outlined), label: 'Sound off'),
           const TelegramMenuItem(value: 'mute_1h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 1 hour'),
           const TelegramMenuItem(value: 'mute_4h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 4 hours'),
@@ -1103,6 +1104,10 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       }
       if (value == 'sound_select') {
         _showSoundSelectDialog(context);
+        return;
+      }
+      if (value == 'volume_set') {
+        _showVolumeDialog(context);
         return;
       }
       if (value == 'sound_toggle') {
@@ -1143,17 +1148,40 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
 
   void _showSoundSelectDialog(BuildContext context) {
     final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
     showDialog<Map<String, dynamic>?>(
       context: context,
       builder: (ctx) => _RingtonePickerDialog(accountId: accountId, engine: engine),
     ).then((selected) {
       if (selected == null) return;
-      final documentId = selected['document_id'] as int? ?? 0;
+      // Default carries 'document_id' (0); None carries -2; a custom saved
+      // ringtone carries 'id' + 'file_path'. Capture the file path now so the
+      // notification can play it later without re-fetching ringtones.
+      final documentId =
+          (selected['document_id'] ?? selected['id']) as int? ?? 0;
+      final path = selected['file_path'] as String? ?? '';
+      // AppState is the local source of truth applied at notification time
+      // (AyuGram resolves the per-thread sound override from local settings).
+      appState.setChatSound(accountId, chatId, documentId, path);
       engine.saveLocalNotifyConfig(accountId, {
+        'type': 'chat_sound_$chatId',
         'chat_id': chatId,
         'sound_document_id': documentId,
         'sound_name': selected['name'] as String? ?? 'Default',
       });
+    });
+  }
+
+  void _showVolumeDialog(BuildContext context) {
+    final appState = context.read<AppState>();
+    final initial = appState.chatRingtoneVolume(accountId, chatId);
+    showDialog<int>(
+      context: context,
+      builder: (ctx) => _ChatVolumeDialog(initial: initial),
+    ).then((volume) {
+      if (volume == null) return;
+      // 0 clears the per-chat override → falls back to per-type / global volume.
+      appState.setChatRingtoneVolume(accountId, chatId, volume);
     });
   }
 
@@ -1497,32 +1525,93 @@ class _RingtonePickerDialogState extends State<_RingtonePickerDialog> {
         height: 400,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : _ringtones.isEmpty
-                ? const Center(child: Text('No saved ringtones'))
-                : ListView.builder(
-                    itemCount: _ringtones.length + 1,
-                    itemBuilder: (ctx, i) {
-                      if (i == 0) {
-                        return ListTile(
-                          leading: const Icon(Icons.notifications_active),
-                          title: const Text('Default'),
-                          onTap: () => Navigator.pop(context, <String, dynamic>{'document_id': 0, 'name': 'Default'}),
-                        );
-                      }
-                      final tone = _ringtones[i - 1];
-                      final name = tone['name'] as String? ?? 'Ringtone';
-                      return ListTile(
-                        leading: const Icon(Icons.music_note),
-                        title: Text(name),
-                        onTap: () => Navigator.pop(context, tone),
-                      );
-                    },
-                  ),
+            : ListView.builder(
+                // Default + None are always offered; saved ringtones follow.
+                itemCount: _ringtones.length + 2,
+                itemBuilder: (ctx, i) {
+                  if (i == 0) {
+                    return ListTile(
+                      leading: const Icon(Icons.notifications_active),
+                      title: const Text('Default'),
+                      onTap: () => Navigator.pop(context, <String, dynamic>{'document_id': 0, 'name': 'Default'}),
+                    );
+                  }
+                  if (i == 1) {
+                    return ListTile(
+                      leading: const Icon(Icons.notifications_off),
+                      title: const Text('None'),
+                      onTap: () => Navigator.pop(context, <String, dynamic>{'document_id': -2, 'name': 'None'}),
+                    );
+                  }
+                  final tone = _ringtones[i - 2];
+                  final name = tone['name'] as String? ?? 'Ringtone';
+                  return ListTile(
+                    leading: const Icon(Icons.music_note),
+                    title: Text(name),
+                    onTap: () => Navigator.pop(context, tone),
+                  );
+                },
+              ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
+// Per-chat notification ringtone volume slider (AyuGram ringtoneVolume override,
+// notifications_manager.cpp:763-772). 0 = no override → global/per-type volume.
+class _ChatVolumeDialog extends StatefulWidget {
+  final int initial;
+  const _ChatVolumeDialog({required this.initial});
+
+  @override
+  State<_ChatVolumeDialog> createState() => _ChatVolumeDialogState();
+}
+
+class _ChatVolumeDialogState extends State<_ChatVolumeDialog> {
+  late double _volume;
+
+  @override
+  void initState() {
+    super.initState();
+    _volume = widget.initial.toDouble().clamp(0, 100);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = _volume.round();
+    return AlertDialog(
+      title: const Text('Notification volume'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            v == 0 ? 'Default (use global volume)' : '$v%',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          Slider(
+            value: _volume,
+            min: 0,
+            max: 100,
+            divisions: 100,
+            label: v == 0 ? 'Default' : '$v%',
+            onChanged: (val) => setState(() => _volume = val),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, v),
+          child: const Text('Save'),
         ),
       ],
     );

@@ -10,6 +10,12 @@ class NotificationSoundPlayer {
   Player? _player;
   String? _defaultSoundPath;
 
+  // Called right as the alert sound starts, with the sound's length, so the
+  // host can suppress other in-app audio for that duration — mirrors AyuGram
+  // mixer()->suppressAll(track->getLengthMs()) (notifications_manager.cpp:776).
+  // Wired to AudioService.duckFor in main.dart.
+  Future<void> Function(Duration length)? onDuck;
+
   void init() {
     _player = Player();
     _ensureDefaultSound();
@@ -66,6 +72,20 @@ class NotificationSoundPlayer {
     await player.setVolume(vol);
     await player.open(Media(soundPath));
     await player.play();
+
+    // Suppress other in-app audio (voice/music) for the sound's length so the
+    // alert doesn't overlap playing media at full volume — AyuGram
+    // suppressAll(track->getLengthMs()) (notifications_manager.cpp:776). The
+    // duration is parsed asynchronously, so fall back to a short window that
+    // comfortably covers a notification beep when it isn't known yet.
+    final duck = onDuck;
+    if (duck != null) {
+      var length = player.state.duration;
+      if (length < const Duration(milliseconds: 200)) {
+        length = const Duration(milliseconds: 1800);
+      }
+      await duck(length);
+    }
     Debug.log('NOTIF', 'Sound played: vol=${vol.toInt()}%');
   }
 

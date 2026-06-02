@@ -435,6 +435,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _notifFlashBounce = true;
   bool _notifAllowSound = true;
   int _notifVolume = 100;
+  // Per-chat & per-notify-type ringtone VOLUME overrides (0 = no override).
+  // Mirrors AyuGram's local SessionSettings._ringtoneVolumes map keyed by thread
+  // (main_session_settings.cpp:950-984): the notification sound resolves
+  // per-chat → per-default-type → global, a 2-tier hierarchy applied in
+  // ringtoneVolume() below. Both are persisted locally in window prefs (the
+  // per-type tier is also pushed to the engine for parity with the settings UI).
+  final Map<String, int> _ringtoneVolumes = {}; // key "accountId:chatId"
+  final Map<String, int> _notifTypeVolumes = {}; // key "accountId:type" (private/group/channel)
+  // Per-chat custom notification SOUND override (AyuGram notifySettings().sound(thread),
+  // notifications_manager.cpp:763,1006-1028). Set via the per-chat ringtone picker.
+  // _chatSoundDocId: -2 = "None"/silent, >0 = custom ringtone (file path captured in
+  // _chatSoundPath at pick time). Default (0/-1) = no override. Persisted locally.
+  final Map<String, int> _chatSoundDocId = {}; // key "accountId:chatId" → sound document id
+  final Map<String, String> _chatSoundPath = {}; // key "accountId:chatId" → local ringtone file path
   bool _notifPreviewName = true;
   bool _notifPreviewText = true;
   bool _notifPrivateChats = true;
@@ -2957,6 +2971,165 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get notifVolume => _notifVolume;
   set notifVolume(int v) { if (_notifVolume != v) { _notifVolume = v; _engine.callGeneric('__engine', 'SetNotificationVolume', {'volume': v}).catchError((_) {}); _saveWindowPrefs(); notifyListeners(); } }
   void setNotifVolumeFromEngine(int v) { if (_notifVolume != v) { _notifVolume = v; notifyListeners(); } }
+
+  // ── Per-chat / per-type ringtone volume (AyuGram ringtoneVolume, 2-tier) ──
+  // Maps a notify-type ('private'/'group'/'channel') from the chat's notify
+  // category. Topics inherit their parent group's type.
+  static String notifTypeKey(int chatTypeInt) {
+    // engine ChatType ints: 1=dm/private, 2=group, 3=channel, 4=topic.
+    switch (chatTypeInt) {
+      case 3:
+        return 'channel';
+      case 2:
+      case 4:
+        return 'group';
+      default:
+        return 'private';
+    }
+  }
+
+  /// Resolves the ringtone volume OVERRIDE for a chat (AyuGram
+  /// notifications_manager.cpp:763-772): per-chat volume first, then the
+  /// per-default-notify-type volume; returns 0 when neither is set so the sound
+  /// player falls back to the global notification volume.
+  int ringtoneVolume(String accountId, String chatId, int chatTypeInt) {
+    final perChat = _ringtoneVolumes['$accountId:$chatId'] ?? 0;
+    if (perChat > 0) return perChat;
+    return _notifTypeVolumes['$accountId:${notifTypeKey(chatTypeInt)}'] ?? 0;
+  }
+
+  int chatRingtoneVolume(String accountId, String chatId) =>
+      _ringtoneVolumes['$accountId:$chatId'] ?? 0;
+
+  /// Sets (or clears, when [volume] <= 0) a per-chat ringtone volume override.
+  void setChatRingtoneVolume(String accountId, String chatId, int volume) {
+    final key = '$accountId:$chatId';
+    final v = volume.clamp(0, 100);
+    final cur = _ringtoneVolumes[key] ?? 0;
+    if (cur == v) return;
+    if (v > 0) {
+      _ringtoneVolumes[key] = v;
+    } else {
+      _ringtoneVolumes.remove(key);
+    }
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  int notifTypeVolume(String accountId, String type) =>
+      _notifTypeVolumes['$accountId:$type'] ?? 0;
+
+  /// Seeds the local per-type ringtone-volume mirror from the engine's stored
+  /// value (called when the notifications settings screen loads). Persists but
+  /// does NOT notify (the value is read at notification time, not bound to a
+  /// rebuild) and never re-pushes to the engine.
+  void setNotifTypeVolumeFromEngine(String accountId, String type, int volume) {
+    final key = '$accountId:$type';
+    final v = volume.clamp(0, 100);
+    final cur = _notifTypeVolumes[key] ?? 0;
+    if (cur == v) return;
+    if (v > 0) {
+      _notifTypeVolumes[key] = v;
+    } else {
+      _notifTypeVolumes.remove(key);
+    }
+    _saveWindowPrefs();
+  }
+
+  /// Sets a per-notify-type default ringtone volume. Persisted locally AND
+  /// pushed to the engine's local notify config (parity with the per-type
+  /// notifications settings screen).
+  void setNotifTypeVolume(String accountId, String type, int volume) {
+    final key = '$accountId:$type';
+    final v = volume.clamp(0, 100);
+    final cur = _notifTypeVolumes[key] ?? 0;
+    if (cur != v) {
+      if (v > 0) {
+        _notifTypeVolumes[key] = v;
+      } else {
+        _notifTypeVolumes.remove(key);
+      }
+      _saveWindowPrefs();
+      notifyListeners();
+    }
+    _engine.saveLocalNotifyConfig(accountId, {
+      'type': 'per_type_volume_$type',
+      'peer_type': type,
+      'volume': v,
+    }).catchError((_) {});
+  }
+
+  // ── Per-chat notification sound (AyuGram per-thread sound override) ──
+  /// True when the chat is set to "None" (silent) — gates the alert sound
+  /// (NotificationSoundPlayer skips when soundNone) mirroring sound(thread).none.
+  bool chatSoundIsNone(String accountId, String chatId) =>
+      (_chatSoundDocId['$accountId:$chatId'] ?? 0) == -2;
+
+  /// Local file path of the chat's custom ringtone, or '' for default/none.
+  String chatSoundPath(String accountId, String chatId) =>
+      _chatSoundPath['$accountId:$chatId'] ?? '';
+
+  /// Current per-chat sound document id (0 = default, -2 = none, >0 = ringtone).
+  int chatSoundDocId(String accountId, String chatId) =>
+      _chatSoundDocId['$accountId:$chatId'] ?? 0;
+
+  /// Sets a chat's notification sound. [docId] 0/-1 clears the override
+  /// (default), -2 = None (silent), >0 = a saved ringtone whose local [path]
+  /// is captured for playback. Persisted locally (AyuGram stores the per-thread
+  /// sound override in local notify settings).
+  void setChatSound(String accountId, String chatId, int docId, String path) {
+    final key = '$accountId:$chatId';
+    final hadId = _chatSoundDocId.containsKey(key);
+    final hadPath = _chatSoundPath.containsKey(key);
+    if (docId == 0 || docId == -1) {
+      _chatSoundDocId.remove(key);
+      _chatSoundPath.remove(key);
+      if (hadId || hadPath) {
+        _saveWindowPrefs();
+        notifyListeners();
+      }
+      return;
+    }
+    _chatSoundDocId[key] = docId;
+    if (docId > 0 && path.isNotEmpty) {
+      _chatSoundPath[key] = path;
+    } else {
+      _chatSoundPath.remove(key); // None (-2) carries no file
+    }
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  static Map<String, int> _decodeVolumeMap(dynamic raw) {
+    if (raw is! Map) return const {};
+    final out = <String, int>{};
+    raw.forEach((k, v) {
+      final iv = (v is num) ? v.toInt() : int.tryParse('$v') ?? 0;
+      if (iv > 0) out['$k'] = iv.clamp(1, 100);
+    });
+    return out;
+  }
+
+  static Map<String, int> _decodeIntMap(dynamic raw) {
+    if (raw is! Map) return const {};
+    final out = <String, int>{};
+    raw.forEach((k, v) {
+      final iv = (v is num) ? v.toInt() : int.tryParse('$v');
+      if (iv != null && iv != 0) out['$k'] = iv;
+    });
+    return out;
+  }
+
+  static Map<String, String> _decodeStringMap(dynamic raw) {
+    if (raw is! Map) return const {};
+    final out = <String, String>{};
+    raw.forEach((k, v) {
+      final s = '$v';
+      if (s.isNotEmpty) out['$k'] = s;
+    });
+    return out;
+  }
+
   bool get notifPreviewName => _notifPreviewName;
   set notifPreviewName(bool v) { if (_notifPreviewName != v) { _notifPreviewName = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get notifPreviewText => _notifPreviewText;
@@ -3888,6 +4061,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _notifFlashBounce = data['notifFlashBounce'] as bool? ?? true;
       _notifAllowSound = data['notifAllowSound'] as bool? ?? true;
       _notifVolume = data['notifVolume'] as int? ?? 100;
+      _ringtoneVolumes
+        ..clear()
+        ..addAll(_decodeVolumeMap(data['ringtoneVolumes']));
+      _notifTypeVolumes
+        ..clear()
+        ..addAll(_decodeVolumeMap(data['notifTypeVolumes']));
+      _chatSoundDocId
+        ..clear()
+        ..addAll(_decodeIntMap(data['chatSoundDocId']));
+      _chatSoundPath
+        ..clear()
+        ..addAll(_decodeStringMap(data['chatSoundPath']));
       _notifPreviewName = data['notifPreviewName'] as bool? ?? true;
       _notifPreviewText = data['notifPreviewText'] as bool? ?? true;
       _notifPrivateChats = data['notifPrivateChats'] as bool? ?? true;
@@ -4193,6 +4378,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'notifFlashBounce': _notifFlashBounce,
         'notifAllowSound': _notifAllowSound,
         'notifVolume': _notifVolume,
+        'ringtoneVolumes': _ringtoneVolumes,
+        'notifTypeVolumes': _notifTypeVolumes,
+        'chatSoundDocId': _chatSoundDocId,
+        'chatSoundPath': _chatSoundPath,
         'notifPreviewName': _notifPreviewName,
         'notifPreviewText': _notifPreviewText,
         'notifPrivateChats': _notifPrivateChats,

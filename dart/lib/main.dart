@@ -552,6 +552,9 @@ class _UniClientAppState extends State<UniClientApp>
     // the user's preview/per-type/corner/volume/count choices actually take
     // effect, then keep them in sync as settings change.
     _notifSystem.init(_buildNotifSettings(appState));
+    // Duck in-app media (voice/music) while a notification sound plays, mirroring
+    // AyuGram mixer()->suppressAll(track lengthMs) (notifications_manager.cpp:776).
+    _notifSystem.soundPlayer.onDuck = audioService.duckFor;
     _notifSettingsSyncListener = () => _syncNotifSettings(appState);
     appState.addListener(_notifSettingsSyncListener!);
     _notifSystem.onFlashBounce = () => _tray.flashWindow();

@@ -28167,12 +28167,59 @@ func (t *TelegramCore) GetSavedRingtones() ([]map[string]interface{}, error) {
 				break
 			}
 		}
-		tones = append(tones, map[string]interface{}{
+		tone := map[string]interface{}{
 			"id":   d.ID,
 			"name": name,
-		})
+		}
+		// Download the ringtone to a local cache file so the client can play it
+		// as a per-chat notification sound (AyuGram caches saved ringtones; the
+		// notification sound player needs a real file path). Ringtones are tiny
+		// (Telegram caps them at ~5s / a few hundred KB), so a small download is
+		// cheap and the result is cached on disk between calls.
+		if path := t.cachedRingtonePath(d); path != "" {
+			tone["file_path"] = path
+		}
+		tones = append(tones, tone)
 	}
 	return tones, nil
+}
+
+// cachedRingtonePath returns a local file path for a saved-ringtone document,
+// downloading it to the OS temp dir on first use (skipped if already cached).
+// Returns "" on any failure so callers fall back to the default sound — the
+// same graceful degradation AyuGram's lookupSound() applies for an unavailable
+// ringtone. Caller holds t.mu.RLock.
+func (t *TelegramCore) cachedRingtonePath(d *tg.Document) string {
+	ext := ".ogg"
+	switch d.MimeType {
+	case "audio/mpeg", "audio/mp3":
+		ext = ".mp3"
+	case "audio/ogg", "audio/opus":
+		ext = ".ogg"
+	case "audio/wav", "audio/x-wav":
+		ext = ".wav"
+	case "audio/mp4", "audio/aac", "audio/x-m4a":
+		ext = ".m4a"
+	}
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("uniclient_ringtone_%d%s", d.ID, ext))
+	if fi, err := os.Stat(path); err == nil && fi.Size() > 0 {
+		return path
+	}
+	loc := &tg.InputDocumentFileLocation{
+		ID:            d.ID,
+		AccessHash:    d.AccessHash,
+		FileReference: d.FileReference,
+	}
+	// 4 MB cap comfortably exceeds Telegram's ringtone size limit without
+	// risking a truncated (corrupt) file.
+	data, err := t.downloadSmallFile(loc, 4*1024*1024)
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return ""
+	}
+	return path
 }
 
 // UploadRingtone uploads a custom notification ringtone and saves it.
