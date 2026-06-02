@@ -50,7 +50,10 @@ fi
 # ─── Configuration ───────────────────────────────────────────────
 BACKOFF_BASE=30
 BACKOFF_MAX=300
-MAX_IMPL_ATTEMPTS=3
+MAX_IMPL_ATTEMPTS=3   # consecutive NO-PROGRESS verify cycles before a stuck chapter's
+                      # remaining items are deferred to the next audit. A cycle that
+                      # passes ≥1 item counts as progress and resets this streak, so a
+                      # large chapter is never skipped just for taking several cycles.
 MAX_AUDIT_CYCLES=5
 CONVERGE_THRESHOLD=2
 CIRCUIT_BREAKER_THRESHOLD=3
@@ -1420,8 +1423,8 @@ while true; do
     IMPL_FILE="$ITER_LOG_DIR/iter_$(printf '%04d' $IMPL_ITERATION)_impl.log"
 
     if ! $RETRY_VERIFY_ONLY && [[ $ITEM_ATTEMPTS -ge $MAX_IMPL_ATTEMPTS ]]; then
-      set_current_stage "MODE 1 / SKIP FAILED CHAPTER" "chapter: $SECTION_NAME" "failed $MAX_IMPL_ATTEMPTS attempts; removing checklist items"
-      log "Chapter failed $MAX_IMPL_ATTEMPTS times. Removing it to avoid an infinite loop."
+      set_current_stage "MODE 1 / SKIP STUCK CHAPTER" "chapter: $SECTION_NAME" "no progress for $MAX_IMPL_ATTEMPTS cycles; deferring remaining items to next audit"
+      log "Chapter made no progress for $MAX_IMPL_ATTEMPTS consecutive cycles (stuck). Removing its remaining items to avoid an infinite loop; the next audit cycle re-detects any that are real."
       if skip_current_items "$SECTION_NAME" "$CURRENT_ITEMS"; then
         SKIP_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
         if [[ "$SKIP_HASH" != "$LAST_COMMIT_HASH" ]]; then
@@ -1503,12 +1506,17 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       TOTAL_COMMITS=$((TOTAL_COMMITS + NEW_COMMITS))
       LAST_COMMIT_HASH="$VERIFY_HASH"
       if [[ -f "$FEEDBACK_FILE" ]]; then
-        ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1))
-        set_current_stage "MODE 1 / PARTIAL VERIFY" "chapter: $SECTION_NAME" "some items passed; attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
+        # Progress WAS made: the passed items were deleted from the checklist, so
+        # reset the no-progress streak. The skip-after-MAX valve exists to bail on
+        # a chapter that is truly STUCK (no item passes), NOT to punish a large
+        # chapter for needing several cycles to grind through all its items. The
+        # remaining (failed) items are retried next cycle with this round's feedback.
+        ITEM_ATTEMPTS=0
+        set_current_stage "MODE 1 / PARTIAL VERIFY" "chapter: $SECTION_NAME" "some items passed (progress → stuck-streak reset); remainder retried next cycle"
         log ""
         log "  ╔════════════════════════════════════════════╗"
-        log "  ║  ⚠️  PARTIALLY VERIFIED                    ║"
-        log "  ║  $NEW_COMMITS commit(s) | Attempt $ITEM_ATTEMPTS / $MAX_IMPL_ATTEMPTS  ║"
+        log "  ║  ⚠️  PARTIALLY VERIFIED — progress made    ║"
+        log "  ║  $NEW_COMMITS commit(s) | remainder retries next cycle  ║"
         log "  ╚════════════════════════════════════════════╝"
         log "  Feedback: $(head -2 "$FEEDBACK_FILE" 2>/dev/null || echo 'none')"
       else
