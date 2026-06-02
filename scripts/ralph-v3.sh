@@ -59,6 +59,10 @@ CONVERGE_THRESHOLD=2
 CIRCUIT_BREAKER_THRESHOLD=3
 CIRCUIT_BREAKER_COOLDOWN=300
 SKIP_UNCHANGED="${RALPH_SKIP_UNCHANGED:-0}"
+# One-shot: run exactly ONE cycle (one MODE 1 implement→verify, or one MODE 2 audit
+# phase), then write a durable halt latch and exit. EVERY later run stops while the
+# latch exists — with or without RALPH_ONCE set; delete the latch to resume.
+RALPH_ONCE="${RALPH_ONCE:-0}"
 # Single model for ALL sessions (implement, verify, audit, cleanup). Override
 # with RALPH_MODEL=...  The [1m] suffix selects the 1M-context Opus variant.
 RALPH_MODEL="${RALPH_MODEL:-claude-opus-4-8[1m]}"
@@ -78,6 +82,7 @@ PROGRESS_FILE="/tmp/ralph_audit_progress.json"
 STAGE_FILE="/tmp/ralph_current_stage.txt"
 INTERRUPT_FILE="/tmp/ralph_interrupted_${RUN_ID}"
 AUDIT_DATA="$PROJECT_ROOT/audit"
+HALT_FILE="$AUDIT_DATA/halt"   # durable one-shot / stop latch (gitignored under audit/)
 # Durable resume state (gitignored under audit/): survives Ctrl+C so a re-run
 # continues exactly where it left off instead of restarting the session.
 STATE_FILE="$AUDIT_DATA/state.json"
@@ -1306,6 +1311,7 @@ AUDIT_CYCLE=0
 TOTAL_COMMITS=0
 CONSECUTIVE_FAILURES=0
 ITEM_ATTEMPTS=0
+ONE_SHOT_DONE=false   # flips true when a full cycle completes; gates the RALPH_ONCE halt
 CONVERGE_COUNT=0
 DIVERGE_AYUGRAM_COUNT=0
 DIVERGE_CLEANUP_COUNT=0
@@ -1336,6 +1342,23 @@ log ""
 set_current_stage "STARTING" "main loop" "checking checklist/gui.md"
 
 while true; do
+
+  # ─── One-shot / halt latch ──────────────────────────────────
+  # The durable latch (audit/halt) is what makes "one cycle then stop, even if I
+  # run it again" work: it is honored by EVERY run until deleted. RALPH_ONCE=1 arms
+  # a single cycle and writes the latch as soon as that cycle completes.
+  if [[ -f "$HALT_FILE" ]]; then
+    set_current_stage "STOPPED / HALTED" "halt latch present" "delete $HALT_FILE to resume"
+    log "🛑 Halt latch present ($HALT_FILE). Not starting a cycle — delete it to resume."
+    break
+  fi
+  if [[ "$RALPH_ONCE" == "1" ]] && $ONE_SHOT_DONE; then
+    : > "$HALT_FILE"
+    set_current_stage "STOPPED / ONE-SHOT COMPLETE" "one cycle finished" "halt latch written to $HALT_FILE"
+    log "🛑 RALPH_ONCE: one cycle complete — halt latch written."
+    log "   Every future run will stop until you delete it:  rm $HALT_FILE"
+    break
+  fi
 
   # ─── Check for checklist items ──────────────────────────────
   REMAINING=0
@@ -1545,6 +1568,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     fi
 
     pkill -x uniclient 2>/dev/null || true
+    ONE_SHOT_DONE=true   # one MODE 1 implement→verify cycle completed (any outcome)
 
   else
     # ═══════════════════════════════════════════════════════════
@@ -1841,6 +1865,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     log "  │ 🔢 Findings: $FINDINGS items"
     log "  │ 📦 Files: $SUCCESSFUL_CHUNKS ok, $FAILED_CHUNKS failed"
     log "  └──────────────────────────────────────────────────"
+    ONE_SHOT_DONE=true   # one MODE 2 audit phase completed (checklist generated)
 
     if [[ $FAILED_CHUNKS -gt 0 && "$FINDINGS" -eq 0 ]]; then
       CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
