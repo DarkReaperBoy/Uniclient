@@ -2586,8 +2586,6 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
 
   static const _slowmodeValues = [0, 5, 10, 30, 60, 300, 900, 3600];
   static const _slowmodeLabels = ['Off', '5s', '10s', '30s', '1m', '5m', '15m', '1h'];
-  static const _boostsValues = [0, 1, 2, 3, 4, 5];
-  static const _boostsLabels = ['Off', '1', '2', '3', '4', '5'];
   static const _kDefaultChargeStars = 10;
 
   late final _PermFlag _sendPlain;
@@ -2675,7 +2673,11 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
       }
       rights['slowmode_seconds'] = _slowmodeValues[_slowmodeIndex];
       await engine.setDefaultBannedRights(widget.accountId, widget.chatId, rights);
-      await engine.setBoostsUnrestrict(widget.accountId, widget.chatId, _boostsUnrestrict);
+      // AyuGram only persists a non-zero boosts threshold when send-restrictions
+      // or slow mode are actually active; otherwise it writes 0 so a stale
+      // threshold can't apply with nothing to bypass (edit_peer_permissions_box.cpp:1259-1263).
+      await engine.setBoostsUnrestrict(
+        widget.accountId, widget.chatId, _boostsSectionVisible ? _boostsUnrestrict : 0);
       if (widget.paidMessagesPossible) {
         await engine.updatePaidMessagesPrice(
           widget.accountId, widget.chatId, _chargeStars,
@@ -2706,6 +2708,16 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
   }
 
   int get _mediaAllowedCount => _mediaFlags.where((f) => !f.banned).length;
+
+  // kSendRestrictions (edit_peer_permissions_box.cpp:1211-1223): the text/media/
+  // embed/poll send flags. _otherFlags (invite/topics/pin/rank/change_info) are
+  // NOT send restrictions. Boosts-to-unrestrict only applies when sending is
+  // actually restricted (or slow mode is on).
+  bool get _hasSendRestrictions =>
+      _sendPlain.banned || _mediaFlags.any((f) => f.banned);
+
+  bool get _boostsSectionVisible =>
+      _hasSendRestrictions || _slowmodeValues[_slowmodeIndex] > 0;
 
   @override
   Widget build(BuildContext context) {
@@ -2766,20 +2778,14 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
                         style: TextStyle(fontSize: 12, color: subTextColor),
                       ),
                     ),
-                    Divider(height: 1, color: dividerColor),
-                    const SizedBox(height: 12),
-                    _buildSectionHeader('Boosts to Unrestrict', headerColor),
-                    const SizedBox(height: 4),
-                    _buildBoostsSlider(accentColor, textColor, subTextColor),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
-                      child: Text(
-                        _boostsUnrestrict == 0
-                            ? 'No boosts required to bypass restrictions.'
-                            : 'Users with $_boostsUnrestrict or more boosts can bypass restrictions.',
-                        style: TextStyle(fontSize: 12, color: subTextColor),
-                      ),
-                    ),
+                    // Boosts-to-unrestrict is only shown when there are send
+                    // restrictions or slow mode (AddBoostsUnrestrictWrapped gated
+                    // on hasSendRestrictions; edit_peer_permissions_box.cpp:1226-1229).
+                    if (_boostsSectionVisible) ...[
+                      Divider(height: 1, color: dividerColor),
+                      const SizedBox(height: 12),
+                      _buildBoostsSection(accentColor, textColor, subTextColor),
+                    ],
                     if (widget.paidMessagesPossible) ...[
                       Divider(height: 1, color: dividerColor),
                       const SizedBox(height: 12),
@@ -3042,7 +3048,61 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
     );
   }
 
+  Widget _buildBoostsSection(Color accentColor, Color textColor, Color subTextColor) {
+    final enabled = _boostsUnrestrict > 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // The "off" state is a separate toggle in AyuGram
+        // (lng_rights_boosts_no_restrict); the slider only appears when it is on
+        // (edit_peer_permissions_box.cpp:961-995).
+        InkWell(
+          onTap: () => setState(() => _boostsUnrestrict = enabled ? 0 : 1),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Do not restrict boosters',
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                SizedBox(
+                  height: 24,
+                  child: Switch(
+                    value: enabled,
+                    onChanged: (val) => setState(() => _boostsUnrestrict = val ? 1 : 0),
+                    activeColor: accentColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (enabled) ...[
+          const SizedBox(height: 4),
+          _buildBoostsSlider(accentColor, textColor, subTextColor),
+        ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
+          child: Text(
+            // lng_rights_boosts_about_on / lng_rights_boosts_about.
+            enabled
+                ? 'Choose how many boosts a user must give to the group to bypass restrictions on sending messages.'
+                : 'Turn this on to always allow users who boosted your group to send messages and media.',
+            style: TextStyle(fontSize: 12, color: subTextColor),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildBoostsSlider(Color accentColor, Color textColor, Color subTextColor) {
+    // 5 positions, values 1..5 (BoostsUnrestrictByIndex(i) = i + 1,
+    // kBoostsUnrestrictValues = 5; edit_peer_permissions_box.cpp:54,207).
+    final idx = _boostsUnrestrict.clamp(1, 5) - 1;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22),
       child: Column(
@@ -3056,11 +3116,11 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
               trackHeight: 3,
             ),
             child: Slider(
-              value: _boostsUnrestrict.toDouble(),
+              value: idx.toDouble(),
               min: 0,
-              max: 5,
-              divisions: 5,
-              onChanged: (v) => setState(() => _boostsUnrestrict = v.round()),
+              max: 4,
+              divisions: 4,
+              onChanged: (v) => setState(() => _boostsUnrestrict = v.round() + 1),
             ),
           ),
           Padding(
@@ -3068,13 +3128,13 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                for (int i = 0; i < _boostsLabels.length; i++)
+                for (int i = 0; i < 5; i++)
                   Text(
-                    _boostsLabels[i],
+                    '${i + 1}',
                     style: TextStyle(
                       fontSize: 10,
-                      color: i == _boostsUnrestrict ? textColor : subTextColor,
-                      fontWeight: i == _boostsUnrestrict ? FontWeight.w600 : FontWeight.normal,
+                      color: i == idx ? textColor : subTextColor,
+                      fontWeight: i == idx ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
               ],
@@ -3335,6 +3395,7 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
   String? _error;
   _BanDuration _duration = _BanDuration.forever;
   DateTime? _customDate;
+  bool _pickingDate = false;
 
   late AnimationController _expandCtrl;
   late Animation<double> _expandAnim;
@@ -3394,6 +3455,7 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
     try {
       final engine = context.read<EngineService>();
       Map<String, dynamic> rights;
+      int bannedUntil = 0;
       if (widget.member.role == 'restricted' || widget.member.role == 'banned') {
         try {
           final info = await engine.getParticipantInfo(
@@ -3407,6 +3469,7 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
           } else {
             rights = await engine.getDefaultBannedRights(widget.accountId, widget.chatId);
           }
+          bannedUntil = (info['banned_until'] as num?)?.toInt() ?? 0;
         } catch (_) {
           rights = await engine.getDefaultBannedRights(widget.accountId, widget.chatId);
         }
@@ -3417,6 +3480,16 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
       setState(() {
         for (final f in _allFlags) {
           f.banned = rights[f.key] == true;
+        }
+        // Seed the "Banned until" selector from the member's existing expiry
+        // (AyuGram: _until = prepareRights.until; createUntilVariants adds the
+        // current expiry as a radio). 0 / INT_MAX (2147483647) = forever.
+        if (bannedUntil > 0 && bannedUntil != 2147483647) {
+          _customDate = DateTime.fromMillisecondsSinceEpoch(bannedUntil * 1000);
+          _duration = _BanDuration.custom;
+        } else {
+          _duration = _BanDuration.forever;
+          _customDate = null;
         }
         _loading = false;
       });
@@ -3483,31 +3556,69 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
 
   int get _mediaAllowedCount => _mediaFlags.where((f) => !f.banned).length;
 
+  // Selecting a duration. "Custom" opens the picker WITHOUT committing the
+  // radio first — it commits only on a successful pick and reverts on cancel,
+  // so a dismissed picker can't silently collapse the ban to "forever".
+  void _selectDuration(_BanDuration value) {
+    if (value == _BanDuration.custom) {
+      _pickCustomDate();
+    } else {
+      setState(() => _duration = value);
+    }
+  }
+
   Future<void> _pickCustomDate() async {
-    final now = DateTime.now();
-    final maxDate = now.add(const Duration(days: _kMaxRestrictDelayDays));
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _customDate ?? now.add(const Duration(days: 1)),
-      firstDate: now,
-      lastDate: maxDate,
-    );
-    if (picked != null && mounted) {
+    if (_pickingDate) return;
+    _pickingDate = true;
+    // Remember the current selection so we can revert if the picker is
+    // cancelled — AyuGram resets the radio group back to _until when
+    // ChooseDateTimeBox is dismissed (edit_participant_box.cpp:1019-1022).
+    final previousDuration = _duration;
+    final previousCustom = _customDate;
+    try {
+      final now = DateTime.now();
+      final maxDate = now.add(const Duration(days: _kMaxRestrictDelayDays));
+      var initial = _customDate ?? now.add(const Duration(days: 1));
+      if (initial.isBefore(now)) initial = now.add(const Duration(days: 1));
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: initial,
+        firstDate: now,
+        lastDate: maxDate,
+      );
+      if (picked == null) {
+        if (mounted) {
+          setState(() {
+            _duration = previousDuration;
+            _customDate = previousCustom;
+          });
+        }
+        return;
+      }
+      if (!mounted) return;
       final time = await showTimePicker(
         context: context,
-        initialTime: TimeOfDay.fromDateTime(_customDate ?? now),
+        initialTime: TimeOfDay.fromDateTime(_customDate ?? now.add(const Duration(days: 1))),
       );
-      if (mounted) {
+      if (!mounted) return;
+      if (time == null) {
         setState(() {
-          _customDate = DateTime(
-            picked.year,
-            picked.month,
-            picked.day,
-            time?.hour ?? 0,
-            time?.minute ?? 0,
-          );
+          _duration = previousDuration;
+          _customDate = previousCustom;
         });
+        return;
       }
+      var chosen = DateTime(picked.year, picked.month, picked.day, time.hour, time.minute);
+      // ChooseDateTimeBox enforces min = now (edit_participant_box.cpp:996).
+      if (!chosen.isAfter(now)) {
+        chosen = now.add(const Duration(minutes: 1));
+      }
+      setState(() {
+        _customDate = chosen;
+        _duration = _BanDuration.custom;
+      });
+    } finally {
+      _pickingDate = false;
     }
   }
 
@@ -3847,12 +3958,7 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
 
   Widget _buildDurationRadio(_BanDuration value, String label, Color accentColor, Color textColor) {
     return InkWell(
-      onTap: () {
-        setState(() => _duration = value);
-        if (value == _BanDuration.custom) {
-          _pickCustomDate();
-        }
-      },
+      onTap: () => _selectDuration(value),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
         child: Row(
@@ -3863,12 +3969,7 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
               child: Radio<_BanDuration>(
                 value: value,
                 groupValue: _duration,
-                onChanged: (v) {
-                  setState(() => _duration = v!);
-                  if (v == _BanDuration.custom) {
-                    _pickCustomDate();
-                  }
-                },
+                onChanged: (v) => _selectDuration(v!),
                 activeColor: accentColor,
               ),
             ),

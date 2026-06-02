@@ -19884,6 +19884,10 @@ func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) 
 			cu := t.convertUser(user)
 			if bp, ok := result.Participant.(*tg.ChannelParticipantBanned); ok {
 				br := bp.BannedRights
+				// Ban expiry (0 / INT_MAX = forever). AyuGram seeds the
+				// "Banned until" selector from ChannelParticipantBanned.
+				// BannedRights.UntilDate (edit_participant_box.cpp:796).
+				cu.BannedUntil = br.UntilDate
 				cu.BannedRights = map[string]bool{
 					"send_plain":     br.SendPlain,
 					"send_photos":    br.SendPhotos,

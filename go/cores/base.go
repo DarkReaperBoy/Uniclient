@@ -172,6 +172,7 @@ type User struct {
 	Note                   string `json:"note,omitempty"`
 	BusinessHours          string `json:"business_hours,omitempty"`
 	BannedRights           map[string]bool `json:"banned_rights,omitempty"`
+	BannedUntil            int             `json:"banned_until,omitempty"`
 	StarsPerMessage        int64           `json:"stars_per_message,omitempty"`
 	NeedContactsException  bool            `json:"need_contacts_exception,omitempty"`
 }
