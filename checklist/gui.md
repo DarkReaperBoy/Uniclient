@@ -72,28 +72,14 @@ Overall a faithful port: constants (`kMinimalDelay`/`kMinimalForwardDelay`/`kMin
 all mirror the C++. Callbacks (`onFlashBounce`, `onQueryMuteState`, `onManagerChanged`,
 `onQuerySessionOnline`, `onQueryLastSetOnlineMs`, `onRefreshChatData`, `onNewMessage`) are all wired in
 `main.dart:557-681`. Sound is gated on `settings.allowSound` and per-chat volume override matches AyuGram.
-Two real deviations:
 
-- [ ] [MAJOR] `hideMarkAsRead` is computed with the wrong condition set: it folds in `isChannel` /
-  `slowmodeActive` / `requiresStars`, which C++ assigns ONLY to `hideReplyButton` — so the "Mark as read"
-  notification action is incorrectly suppressed for channel/broadcast, slowmode, and stars-required chats
-  (where AyuGram still shows it, with preview on). It also OMITS C++'s `((item->out() || peer->isSelf()) &&
-  item->isFromScheduled())` and `!item` (empty messageId) conditions, so mark-as-read is wrongly shown on
-  one's own scheduled reminders. The reply button is handled correctly/separately by
-  `shouldHideReplyButton` (notification_types.dart:744-763), so these channel/slowmode/stars conditions
-  are redundant-and-wrong on the mark-as-read flag. Action is consumed at
-  notification_manager_native.dart:623 (`if (!data.hideMarkAsRead)` → `mail-mark-read`). —
-  `notification_system.dart:572-583` ← `AyuGram/window/notifications_manager.cpp:1093-1103`
-
-- [ ] [MAJOR] Server notification-delay config never flows from the backend. `setServerConfig(...)`
-  (sets `_cloudDelay`/`_defaultDelay`/`_onlineCloudTimeoutSec`) has ZERO callers anywhere in the codebase,
-  so `_countTiming` always runs on the hardcoded defaults (30s / 1500ms / 300s) instead of the live
-  values AyuGram reads from `thread->session().serverConfig()` (`config.notifyCloudDelay`,
-  `config.notifyDefaultDelay`, `config.onlineCloudTimeout`). Defaults happen to match Telegram's standard
-  MTProto config, so impact is limited to cases where the server overrides them, but the data genuinely
-  does not flow from the engine — the method is dead. —
-  `notification_system.dart:213-221` (uncalled; consumed at 439/444/446) ←
-  `AyuGram/window/notifications_manager.cpp:385-392`
+Both prior deviations are fixed and verified (commit 5b9209db, Stage-2 PASS): (1) `hideMarkAsRead`
+now matches `notifications_manager.cpp:1093-1096` — drops the channel/slowmode/stars conditions (those
+belong only to `shouldHideReplyButton`, which retains them), uses `isReaction||isPollVote` (= `type !=
+Message`), and adds the `messageId.isEmpty` (`!item`) + `((out||isSelf) && isScheduled)` clauses. (2)
+`setServerConfig` is now wired: a conn-state subscription (`main.dart:706`) pulls `GetNotifyConfig`
+(Go core `GetNotifyDelayConfig` → engine → bridge) on account-connect and feeds the live notify
+cloud/default delays + online cloud timeout (ms→s) into `_countTiming`. No open items.
 
 # notification_types — notification title/subtitle/body text composition
 
