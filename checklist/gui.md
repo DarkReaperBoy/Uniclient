@@ -194,28 +194,6 @@ wire). `PaletteProvider` is a correct `InheritedWidget` (identity-based
   be visibly broken in a dark theme), so not flagged. Remaining diffs (`dialogsDateFgOver`,
   `filterInputInactiveBg`) are sub-1%/channel rounding — cosmetic.
 
-# theme — global Material ThemeData factory (`AppTheme.fromPalette`)
-
-`theme.dart` builds the app-wide Material `ThemeData` from a `TelegramPalette` and is
-live: `main.dart:2385-2386` feeds it to `MaterialApp.theme`/`darkTheme`. No stubs,
-placeholders, dead callbacks, TODOs, or fake data — it is correctly wired and reads real
-palette values. All findings below are dimensional/color-wiring deviations from AyuGram's
-`.style` defaults. They are graded MAJOR (not CRITICAL): the widgets fully function, the
-values are just wrong. Each is cross-confirmed against the app's OWN correct custom
-widgets (e.g. `telegram_tooltip.dart`), which proves `theme.dart` is the inconsistent one.
-
-## Findings
-
-- [ ] [MAJOR] Material tooltip corner radius is `6` but AyuGram draws the tooltip with `st::roundRadiusSmall` = **3px** (100% too large). The app's own Telegram-style tooltip widget already uses the correct `3.0` (`telegram_tooltip.dart:11`), so the Material fallback here is inconsistent with the rest of the app. Also the tooltip `fontSize` is `12` but AyuGram `defaultTooltip.textStyle` = `defaultTextStyle` = `font(fsize)` = **13px** (`telegram_tooltip.dart:156` correctly uses 13). — `theme.dart:63`, `theme.dart:66` ← `AyuGram/lib_ui/ui/widgets/tooltip.cpp:172` (`st::roundRadiusSmall`), `AyuGram/lib_ui/ui/basic.style:104` (`roundRadiusSmall: 3px`), `AyuGram/lib_ui/ui/widgets/widgets.style:1291` (`textStyle: defaultTextStyle`), `AyuGram/lib_ui/ui/basic.style:51` (`fsize: 13px`)
-
-- [ ] [MAJOR] Scrollbar `thickness` is `6` but AyuGram's scrollbar thumb width = `width − 2·deltax` = **4px** (50% too thick). For `defaultSolidScroll` that is `14 − 2·5 = 4`; for `defaultScrollArea` it is `10 − 2·3 = 4`. The thumb rect is computed at `scroll_area.cpp:166` (`width() - 2 * _st->deltax`). This `scrollbarTheme` is live — `Scrollbar()` is used in hamburger_drawer, peer_short_info, privacy_settings, notifications_settings. — `theme.dart:58` ← `AyuGram/lib_ui/ui/widgets/widgets.style:841` (`width: 14px`) + `:840` (`deltax: 5px`), `AyuGram/lib_ui/ui/widgets/scroll_area.cpp:166`
-
-- [ ] [MAJOR] Scrollbar corner `radius` is `4` but AyuGram `defaultScrollArea.round` = **2px** (100% too large). The thumb is rounded with `_st->round` at `scroll_area.cpp:292-300`. — `theme.dart:57` ← `AyuGram/lib_ui/ui/widgets/widgets.style:822` (`round: 2px`), `AyuGram/lib_ui/ui/widgets/scroll_area.cpp:292`
-
-- [ ] [MAJOR] Input-field borders are wired to the WRONG palette tokens. The resting border uses `p.windowBgRipple` (a hover/ripple *background* color) and the focused border uses `p.windowBgActive` (generic accent bg). AyuGram `defaultInputField` uses `borderFg: inputBorderFg` (`#e0e0e0`) for the resting border and `borderFgActive: activeLineFg` (`#37a1de`) for the focused border. The palette already exposes the correct `inputBorderFg` (`telegram_palette.dart:307`) and `activeLineFg` (`telegram_palette.dart:35`) — they are ignored, so the resting input border renders with a near-invisible ripple-bg color instead of the intended `#e0e0e0` line. — `theme.dart:46`, `theme.dart:50` ← `AyuGram/lib_ui/ui/widgets/widgets.style:1058` (`borderFg: inputBorderFg`) + `:1059` (`borderFgActive: activeLineFg`), `AyuGram/lib_ui/ui/colors.palette:75` (`inputBorderFg: #e0e0e0`) + `:39` (`activeLineFg: #37a1de`)
-
-- [ ] [MAJOR] Default input border radius is `14` but AyuGram `defaultInputField.borderRadius` = **0px** (a flat field with a 1px bottom border + 28px-top floating label, not a rounded outlined box). `14px` is an unsourced value — AyuGram's only standard radii are `roundRadiusSmall` 3px / `roundRadiusLarge` 6px; nothing in `widgets.style` uses 14. This global default is inherited by ~38 bare `TextField`/`TextFormField` sites that don't override `decoration`. (The border *widths* are correct: `width: 2` for focus matches `borderActive: 2px`, default 1px matches `border: 1px`.) — `theme.dart:45`, `theme.dart:49` ← `AyuGram/lib_ui/ui/widgets/widgets.style:1064` (`borderRadius: 0px`) + `:1062` (`border: 1px`) + `:1063` (`borderActive: 2px`)
-
 # theme_file — Telegram Desktop theme (.tdesktop-theme) parse / export / cache
 
 Pure-logic file (no widgets). Implements `colors.tdesktop-theme`/`colors.tdesktop-palette`
