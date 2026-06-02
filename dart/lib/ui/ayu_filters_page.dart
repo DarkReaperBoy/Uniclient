@@ -1262,7 +1262,7 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
         child: Row(children: [
           CircleAvatar(
             radius: 23,
-            backgroundColor: context.palette.peerUserpicBg(_colorRemap[widget.id.abs() % 7]),
+            backgroundColor: context.palette.peerUserpicBg(_kUserpicColorRemap[widget.id.abs() % 7]),
             backgroundImage: _avatarExists
                 ? FileImage(File(_avatarPath!))
                 : null,
@@ -1299,8 +1299,6 @@ class _ShadowBanRowState extends State<_ShadowBanRow> {
         offset.dx + box.size.width, offset.dy,
         offset.dx + box.size.width, offset.dy + box.size.height);
   }
-
-  static const _colorRemap = [0, 2, 4, 1, 6, 3, 5];
 }
 
 class _RegexEditBox extends StatefulWidget {
@@ -1585,8 +1583,16 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
 
   Future<void> _prefillFromClipboard() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text != null && data!.text!.startsWith('http')) {
-      _urlController.text = data.text!;
+    final clipboardText = data?.text?.trim() ?? '';
+    // Mirror AyuGram's clipboardHasUrl (import_filters_box.cpp:48-50): when the
+    // clipboard holds a URL, auto-select the URL radio and prefill the field with
+    // the trimmed text so the "copy share link → Import" flow fetches in one click.
+    if (clipboardText.startsWith('http')) {
+      if (!mounted) return;
+      setState(() {
+        _useUrl = true;
+        _urlController.text = clipboardText;
+      });
     }
   }
 
