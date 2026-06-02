@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -4048,6 +4049,10 @@ class _EditAdminBoxState extends State<_EditAdminBox>
     with SingleTickerProviderStateMixin {
   bool _addAsAdmin = true;
   bool _saving = false;
+  // EditAdminBox::canTransferOwnership / hasRank inputs (edit_participant_box.cpp).
+  bool _amCreator = false; // editor is the chat creator (am_creator flag)
+  bool _isBroadcast = false; // peer is a broadcast channel (is_broadcast flag)
+  late final bool _isSelfTarget; // edit target is the current user (isSelf)
   late final TextEditingController _rankCtrl;
 
   late AnimationController _collapseCtrl;
@@ -4065,16 +4070,39 @@ class _EditAdminBoxState extends State<_EditAdminBox>
         if (widget.isChannel) ..._section4,
       ];
 
-  bool get _allOwnerRightsSelected {
+  // AyuGram AdminRightsForOwnershipTransfer (edit_peer_permissions_box.cpp:1465)
+  // takes every admin right EXCEPT Anonymous, so the transfer button toggles on
+  // when all of those are selected — a group owner does NOT have to enable
+  // "Remain anonymous" first.
+  bool get _allOwnerTransferRightsSelected {
     for (final f in _allFlags) {
+      if (f.key == 'anonymous') continue;
       if (!f.enabled) return false;
     }
     return true;
   }
 
+  // AyuGram EditAdminBox::canTransferOwnership (edit_participant_box.cpp:654):
+  // false for inaccessible/bot/self targets; otherwise the editor must be the
+  // chat creator (amCreator). This gates the EXISTENCE of the transfer button.
+  bool get _canTransferOwnership {
+    if (widget.member.userId.isEmpty || widget.member.isBot || _isSelfTarget) {
+      return false;
+    }
+    return _amCreator;
+  }
+
+  // AyuGram hasRank = canSave() && (chat || channel->isMegagroup())
+  // (edit_participant_box.cpp:477): the custom-title (rank) field is only shown
+  // for groups/megagroups, never for broadcast channels.
+  bool get _hasRank => !_isBroadcast;
+
   @override
   void initState() {
     super.initState();
+    _isBroadcast = widget.isChannel;
+    _isSelfTarget = context.read<AppState>().selfUserIdFor(widget.accountId) ==
+        widget.member.userId;
     _rankCtrl = TextEditingController(text: widget.member.customRank);
     _collapseCtrl = AnimationController(
       vsync: this,
@@ -4131,10 +4159,29 @@ class _EditAdminBoxState extends State<_EditAdminBox>
       _section4 = [];
     }
 
+    _loadChatFlags();
     if (widget.member.role == 'admin') {
       _addAsAdmin = true;
       _loadExistingRights();
     }
+  }
+
+  // Loads am_creator / is_broadcast for the chat so the transfer-ownership
+  // button and the custom-title field are gated exactly as AyuGram gates them
+  // (canTransferOwnership / hasRank). Runs for every target, not just admins.
+  Future<void> _loadChatFlags() async {
+    try {
+      final engine = context.read<EngineService>();
+      final flags = await engine.getChatPermissionFlags(
+        widget.accountId,
+        widget.chatId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _amCreator = flags['am_creator'] == true;
+        _isBroadcast = flags['is_broadcast'] == true;
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadExistingRights() async {
@@ -4192,7 +4239,9 @@ class _EditAdminBoxState extends State<_EditAdminBox>
           widget.chatId,
           widget.member.userId,
           rights,
-          _rankCtrl.text.trim(),
+          // hasRank false (broadcast channel) ⇒ no custom title, like AyuGram's
+          // _finishSave passing std::nullopt for the rank.
+          _hasRank ? _rankCtrl.text.trim() : '',
         );
       }
       if (mounted) Navigator.pop(context, true);
@@ -4237,13 +4286,83 @@ class _EditAdminBoxState extends State<_EditAdminBox>
     );
   }
 
-  void _confirmTransferOwnership() {
+  // AyuGram ChannelOwnershipTransfer::start (channel_ownership_transfer.cpp:48)
+  // first probes the server with an empty password and routes PASSWORD_MISSING /
+  // *_TOO_FRESH through PrePasswordErrorBox (passcode_box.cpp:1466) BEFORE asking
+  // for the real password. We do the pre-flight 2FA-state check here (the
+  // PASSWORD_MISSING case) and only then show the password box.
+  Future<void> _confirmTransferOwnership() async {
+    final engine = context.read<EngineService>();
+    final pwState = await engine.getCloudPasswordState(widget.accountId);
+    if (!mounted) return;
+    final hasPassword = pwState?['hasPassword'] == true;
+    if (!hasPassword) {
+      _showTransferSecurityCheck();
+      return;
+    }
+    _showTransferPasswordDialog();
+  }
+
+  // PrePasswordErrorBox / TransferPasswordError NoPassword case
+  // (passcode_box.cpp:65-99,1466): the editor has no 2FA password, so ownership
+  // cannot be transferred until Two-Step Verification is enabled.
+  void _showTransferSecurityCheck() {
     final palette = PaletteProvider.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
-    final label = widget.isChannel ? 'Channel' : 'Group';
+    final about = _isBroadcast
+        ? 'You can transfer this channel to ${widget.member.label} only if you have:'
+        : 'You can transfer this group to ${widget.member.label} only if you have:';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text(
+          'Security check',
+          style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(about, style: TextStyle(color: subTextColor, fontSize: 14)),
+            const SizedBox(height: 12),
+            Text(
+              '• Enabled Two-Step Verification more than 7 days ago.',
+              style: TextStyle(color: subTextColor, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '• Logged in on this device more than 24 hours ago.',
+              style: TextStyle(color: subTextColor, fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Enable it in Settings → Privacy and Security → Two-Step Verification, '
+              'then come back later.',
+              style: TextStyle(color: subTextColor, fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('OK', style: TextStyle(color: palette.windowActiveTextFg)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTransferPasswordDialog() {
+    final palette = PaletteProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final label = _isBroadcast ? 'channel' : 'group';
     final passwordCtrl = TextEditingController();
     bool obscure = true;
 
@@ -4252,20 +4371,29 @@ class _EditAdminBoxState extends State<_EditAdminBox>
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: bgColor,
+          // lng_rights_transfer_password_title.
           title: Text(
-            'Transfer $label Ownership',
+            'Two-step verification',
             style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // lng_rights_transfer_about.
               Text(
-                'Are you sure you want to transfer ownership of this $label to ${widget.member.label}? '
-                'Please enter your 2FA password to confirm.',
+                'This will transfer the full owner rights for this $label to '
+                '${widget.member.label}. The new owner will be free to remove any '
+                'of your admin privileges or even ban you.',
                 style: TextStyle(color: subTextColor, fontSize: 14),
               ),
               const SizedBox(height: 16),
+              // lng_rights_transfer_password_description.
+              Text(
+                'Please enter your password to complete the transfer.',
+                style: TextStyle(color: subTextColor, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
               TextField(
                 controller: passwordCtrl,
                 obscureText: obscure,
@@ -4303,19 +4431,59 @@ class _EditAdminBoxState extends State<_EditAdminBox>
                     password,
                   );
                   if (mounted) {
-                    showTelegramToast(context, 'Ownership transferred successfully');
+                    // lng_rights_transfer_done_group / _channel.
+                    showTelegramToast(
+                      context,
+                      _isBroadcast
+                          ? '${widget.member.label} is now the owner of the channel.'
+                          : '${widget.member.label} is now the owner of the group.',
+                    );
                     Navigator.of(context).pop(true);
                   }
                 } catch (e) {
-                  if (mounted) showTelegramToast(context, 'Transfer failed: $e');
+                  if (mounted) {
+                    showTelegramToast(context, _transferErrorMessage(e.toString()));
+                  }
                 }
               },
-              child: const Text('Transfer'),
+              // lng_rights_transfer_sure.
+              child: const Text('Change owner'),
             ),
           ],
         ),
       ),
     );
+  }
+
+  // Maps MessagesEditChatCreator errors to AyuGram's specific messages
+  // (channel_ownership_transfer.cpp:119-141 + passcode_box.cpp:65-99) instead of
+  // the previous generic "Transfer failed: $e" toast.
+  String _transferErrorMessage(String error) {
+    if (error.contains('PASSWORD_MISSING')) {
+      return 'Please enable Two-Step Verification to transfer ownership.';
+    } else if (error.contains('PASSWORD_TOO_FRESH')) {
+      return 'You enabled Two-Step Verification too recently. Please come back later.';
+    } else if (error.contains('SESSION_TOO_FRESH')) {
+      return 'You logged in on this device too recently. Please come back later.';
+    } else if (error.contains('PASSWORD_HASH_INVALID') || error.contains('SRP')) {
+      return 'Incorrect password. Please try again.';
+    } else if (error.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')) {
+      return 'Sorry, the target user has too many public groups or channels already. '
+          'Please ask them to make one of their existing groups or channels private first.';
+    } else if (error.contains('CHANNELS_ADMIN_LOCATED_TOO_MUCH')) {
+      return 'Sorry, the target user has too many location-based groups already.';
+    } else if (error.contains('ADMINS_TOO_MUCH')) {
+      return _isBroadcast
+          ? "Sorry, you've reached the maximum number of admins for this channel."
+          : "Sorry, you've reached the maximum number of admins for this group.";
+    } else if (error.contains('CHANNEL_INVALID') ||
+        error.contains('CHAT_CREATOR_REQUIRED') ||
+        error.contains('PARTICIPANT_MISSING')) {
+      return _isBroadcast
+          ? 'Sorry, this channel is not accessible.'
+          : 'Sorry, this group is not accessible.';
+    }
+    return 'Transfer failed: $error';
   }
 
   @override
@@ -4385,11 +4553,14 @@ class _EditAdminBoxState extends State<_EditAdminBox>
                           Divider(height: 1, indent: 22, endIndent: 22, color: dividerColor),
                           _buildRightsSection('Meta', _section4, accentColor, textColor),
                         ],
-                        Divider(height: 1, color: dividerColor),
-                        const SizedBox(height: 8),
-                        _buildRankField(textColor, subTextColor),
-                        const SizedBox(height: 8),
-                        if (_allOwnerRightsSelected) ...[
+                        if (_hasRank) ...[
+                          Divider(height: 1, color: dividerColor),
+                          const SizedBox(height: 8),
+                          _buildRankField(textColor, subTextColor),
+                          const SizedBox(height: 8),
+                        ],
+                        if (_canTransferOwnership &&
+                            _allOwnerTransferRightsSelected) ...[
                           Divider(height: 1, color: dividerColor),
                           _buildTransferButton(accentColor, textColor),
                         ],
