@@ -20842,6 +20842,142 @@ func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string) (st
 	return res.URL, nil
 }
 
+// GetBroadcastRevenueStats returns the channel's TON (currency) ad-revenue stats:
+// balances (current/available/overall, in nanotons), the top-hours + revenue
+// charts, usd_rate (USD per TON) and withdrawal_enabled.
+//
+// The current Telegram layer unifies currency (TON) and Stars (credits) revenue
+// under payments.getStarsRevenueStats, distinguished by the `ton` flag — there is
+// no separate stats.getBroadcastRevenueStats anymore. This matches AyuGram's
+// EarnStatistics::request (api_statistics.cpp:699), which sets
+// MTPpayments_getStarsRevenueStats::Flag::f_ton. When `ton` is set the balances
+// come back as starsTonAmount (Amount = nanotons; 1 TON = 1e9 nanotons).
+// (info_channel_earn_list.cpp:611 — currency overview/balance/charts.)
+func (t *TelegramCore) GetBroadcastRevenueStats(chatID string) (StarsRevenueResult, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return StarsRevenueResult{}, ErrAuth }
+	peer, _ := t.resolvePeer(chatID)
+	inputPeer, _ := t.toInputPeer(peer)
+	result, err := t.api.PaymentsGetStarsRevenueStats(t.ctx, &tg.PaymentsGetStarsRevenueStatsRequest{
+		Ton:  true,
+		Peer: inputPeer,
+	})
+	if err != nil { return StarsRevenueResult{}, err }
+	charts := []map[string]interface{}{}
+	// AyuGram currency charts: top-hours = Bar, revenue = StackBar
+	// (info_channel_earn_list.cpp:626,645).
+	if c := statsGraphToMap("Top Hours", result.TopHoursGraph, "Bar"); c != nil {
+		charts = append(charts, c)
+	}
+	if c := statsGraphToMap("Revenue", result.RevenueGraph, "StackBar"); c != nil {
+		charts = append(charts, c)
+	}
+	return StarsRevenueResult{
+		CurrentBalance:    result.Status.CurrentBalance.GetAmount(),
+		AvailableBalance:  result.Status.AvailableBalance.GetAmount(),
+		OverallRevenue:    result.Status.OverallRevenue.GetAmount(),
+		WithdrawalEnabled: result.Status.WithdrawalEnabled,
+		UsdRate:           result.UsdRate,
+		Charts:            charts,
+	}, nil
+}
+
+// GetBroadcastRevenueTransactions returns the channel's TON (currency) revenue
+// transaction history — payments.getStarsTransactions with the `ton` flag
+// (AyuGram EarnStatistics::requestHistory, api_statistics.cpp:757). Amounts are
+// in nanotons (signed: positive = proceeds in, negative = withdrawal out).
+func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, limit int) (map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 30
+	}
+	res, err := t.api.PaymentsGetStarsTransactions(t.ctx, &tg.PaymentsGetStarsTransactionsRequest{
+		Ton:    true,
+		Peer:   inputPeer,
+		Offset: offset,
+		Limit:  limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	txns := make([]map[string]interface{}, 0, len(res.History))
+	for _, tx := range res.History {
+		m := map[string]interface{}{
+			"id":          tx.ID,
+			"amount":      tx.Amount.GetAmount(), // nanotons (signed)
+			"date":        tx.Date,
+			"refund":      tx.Refund,
+			"pending":     tx.Pending,
+			"failed":      tx.Failed,
+			"title":       tx.Title,
+			"description": tx.Description,
+		}
+		txns = append(txns, m)
+	}
+	return map[string]interface{}{
+		"transactions": txns,
+		"next_offset":  res.NextOffset,
+	}, nil
+}
+
+// GetBroadcastRevenueWithdrawalUrl returns a URL to withdraw the channel's
+// available TON (currency) ad-revenue balance, gated on the user's 2FA password.
+// Uses the unified payments.getStarsRevenueWithdrawalUrl with the `ton` flag and
+// amount=0 (Api::HandleWithdrawalButton → api_earn.cpp:103, currencyReceiver path:
+// flags=f_ton, amount=0).
+func (t *TelegramCore) GetBroadcastRevenueWithdrawalUrl(chatID, password string) (string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return "", ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return "", err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return "", err
+	}
+	stats, err := t.api.PaymentsGetStarsRevenueStats(t.ctx, &tg.PaymentsGetStarsRevenueStatsRequest{Ton: true, Peer: inputPeer})
+	if err != nil {
+		return "", fmt.Errorf("get revenue stats: %w", err)
+	}
+	if stats.Status.AvailableBalance.GetAmount() <= 0 {
+		return "", fmt.Errorf("no balance available to withdraw")
+	}
+	pw, err := t.api.AccountGetPassword(t.ctx)
+	if err != nil {
+		return "", fmt.Errorf("get password params: %w", err)
+	}
+	srpCheck, err := auth.PasswordHash([]byte(password), pw.SRPID, pw.SRPB, pw.SecureRandom, pw.CurrentAlgo)
+	if err != nil {
+		return "", fmt.Errorf("SRP computation failed: %w", err)
+	}
+	res, err := t.api.PaymentsGetStarsRevenueWithdrawalURL(t.ctx, &tg.PaymentsGetStarsRevenueWithdrawalURLRequest{
+		Ton:      true,
+		Peer:     inputPeer,
+		Amount:   0, // currency: f_amount not set (api_earn.cpp:110-112)
+		Password: srpCheck,
+	})
+	if err != nil {
+		return "", err
+	}
+	return res.URL, nil
+}
+
 func (t *TelegramCore) GetPremiumStatus() (premiumPossible bool, premiumCanBuy bool, err error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return false, false, ErrAuth }

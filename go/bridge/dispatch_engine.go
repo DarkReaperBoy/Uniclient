@@ -6595,6 +6595,51 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]string{"url": url})
 
+	case "GetBroadcastRevenueStats":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetBroadcastRevenueStats(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "GetBroadcastRevenueTransactions":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Offset    string `json:"offset"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetBroadcastRevenueTransactions(params.AccountID, params.ChatID, params.Offset, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "GetBroadcastRevenueWithdrawalUrl":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Password  string `json:"password"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		url, err := e.GetBroadcastRevenueWithdrawalUrl(params.AccountID, params.ChatID, params.Password)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"url": url})
+
 	case "MarkAllChatsRead":
 		var params struct {
 			AccountID string `json:"account_id"`

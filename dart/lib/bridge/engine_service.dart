@@ -4260,6 +4260,56 @@ class EngineService {
     return m['url'] as String? ?? '';
   }
 
+  /// Channel TON (currency) ad-revenue stats — the currency side of the earn
+  /// section, separate from the Stars/credits revenue above. Returns
+  /// {current_balance, available_balance, overall_revenue} in nanotons
+  /// (1 TON = 1e9 nanotons), plus {withdrawal_enabled, usd_rate (USD per TON),
+  /// charts}. info_channel_earn_list.cpp:611.
+  Future<Map<String, dynamic>?> getBroadcastRevenueStats(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetBroadcastRevenueStats', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getBroadcastRevenueStats failed', e);
+      return null;
+    }
+  }
+
+  /// TON (currency) revenue transaction history. Returns {transactions:[{id,
+  /// amount (signed nanotons), date, refund, pending, failed, title,
+  /// description}], next_offset}.
+  Future<Map<String, dynamic>> getBroadcastRevenueTransactions(String accountId, String chatId,
+      {String offset = '', int limit = 30}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'offset': offset,
+      'limit': limit,
+    }));
+    final resp = await _callAsync('__engine', 'GetBroadcastRevenueTransactions', Uint8List.fromList(payload));
+    if (resp.isEmpty) return {'transactions': [], 'next_offset': ''};
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+  }
+
+  /// Returns a URL to withdraw the channel's available TON (currency) ad-revenue
+  /// balance, gated on the 2FA [password] (Api::HandleWithdrawalButton, ton path).
+  Future<String> getBroadcastRevenueWithdrawalUrl(String accountId, String chatId, String password) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'password': password,
+    }));
+    final resp = await _callAsync('__engine', 'GetBroadcastRevenueWithdrawalUrl', Uint8List.fromList(payload));
+    if (resp.isEmpty) return '';
+    final m = json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+    return m['url'] as String? ?? '';
+  }
+
   Future<String?> downloadSingleAvatar(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

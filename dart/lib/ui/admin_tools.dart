@@ -10389,6 +10389,16 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
   bool _loadingTx = false;
   bool _txLoadedOnce = false;
 
+  // TON (currency) ad-revenue — the currency side of AyuGram's earn section,
+  // shown before the Stars/credits side (info_channel_earn_list.cpp:611).
+  Map<String, dynamic>? _tonStats;
+  bool _tonWithdrawing = false;
+  final List<Map<String, dynamic>> _tonTransactions = [];
+  String _tonTxOffset = '';
+  bool _tonTxHasMore = true;
+  bool _loadingTonTx = false;
+  bool _tonTxLoadedOnce = false;
+
   @override
   void initState() {
     super.initState();
@@ -10397,6 +10407,16 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
 
   Future<void> _load() async {
     final engine = context.read<EngineService>();
+    // Fetch the TON (currency) revenue first — it's shown above the Stars
+    // section. A megagroup without broadcast rights returns BROADCAST_REQUIRED;
+    // treat any failure/empty as "no currency revenue" and just hide the section.
+    try {
+      final ton = await engine.getBroadcastRevenueStats(widget.accountId, widget.chatId);
+      if (mounted && ton != null) {
+        setState(() => _tonStats = ton);
+        if (_tonHasAny(ton)) _loadMoreTonTransactions();
+      }
+    } catch (_) {}
     try {
       final s = await engine.getStarsRevenueStats(widget.accountId, widget.chatId);
       if (mounted) setState(() { _stats = s; _loading = false; });
@@ -10404,6 +10424,85 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     } catch (e) {
       if (mounted) setState(() { _error = e; _loading = false; });
     }
+  }
+
+  static bool _tonHasAny(Map<String, dynamic> ton) {
+    final available = ton['available_balance'] as int? ?? 0;
+    final current = ton['current_balance'] as int? ?? 0;
+    final overall = ton['overall_revenue'] as int? ?? 0;
+    final charts = (ton['charts'] as List?) ?? const [];
+    return available != 0 || current != 0 || overall != 0 || charts.isNotEmpty;
+  }
+
+  Future<void> _loadMoreTonTransactions() async {
+    if (_loadingTonTx || !_tonTxHasMore) return;
+    setState(() { _loadingTonTx = true; _tonTxLoadedOnce = true; });
+    final engine = context.read<EngineService>();
+    try {
+      final res = await engine.getBroadcastRevenueTransactions(widget.accountId, widget.chatId, offset: _tonTxOffset);
+      final list = (res['transactions'] as List?) ?? const [];
+      final next = res['next_offset'] as String? ?? '';
+      if (mounted) {
+        setState(() {
+          _tonTransactions.addAll(list.whereType<Map>().map((e) => e.cast<String, dynamic>()));
+          _tonTxOffset = next;
+          _tonTxHasMore = next.isNotEmpty && list.isNotEmpty;
+          _loadingTonTx = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() { _loadingTonTx = false; _tonTxHasMore = false; });
+    }
+  }
+
+  // TON withdraw flow: collect the 2FA password, fetch the withdrawal URL, open
+  // it (Api::HandleWithdrawalButton, currency/ton path).
+  Future<void> _withdrawTon() async {
+    if (_tonWithdrawing) return;
+    final password = await _promptPassword(isTon: true);
+    if (password == null || password.isEmpty || !mounted) return;
+    setState(() => _tonWithdrawing = true);
+    final engine = context.read<EngineService>();
+    try {
+      final url = await engine.getBroadcastRevenueWithdrawalUrl(widget.accountId, widget.chatId, password);
+      if (!mounted) return;
+      setState(() => _tonWithdrawing = false);
+      if (url.isEmpty) {
+        showTelegramToast(context, 'Withdrawal unavailable');
+        return;
+      }
+      final uri = Uri.tryParse(url);
+      if (uri != null) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        await Clipboard.setData(ClipboardData(text: url));
+        if (mounted) showTelegramToast(context, 'Withdrawal link copied');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _tonWithdrawing = false);
+        showTelegramToast(context, 'Withdrawal failed: $e');
+      }
+    }
+  }
+
+  // nanotons → "X.YY" (integer whole part + 2 decimal digits, no rounding),
+  // matching AyuGram MajorPart/MinorPart for currency (earn_format.cpp).
+  static String _fmtTon(int nanotons) {
+    final neg = nanotons < 0;
+    final abs = nanotons.abs();
+    final whole = abs ~/ 1000000000;
+    final frac2 = (abs % 1000000000) ~/ 10000000;
+    final s = '$whole.${frac2.toString().padLeft(2, '0')}';
+    return neg ? '-$s' : s;
+  }
+
+  // For TON, usd_rate is the value of 1 TON in USD (AyuGram ToUsd: value*rate,
+  // value = nanotons/1e9), unlike Stars where it's per-1000.
+  static String _fmtUsdTon(int nanotons, double usdRate) {
+    if (usdRate <= 0) return '';
+    final usd = (nanotons / 1e9) * usdRate;
+    return '≈ \$${usd.toStringAsFixed(2)}';
   }
 
   Future<void> _loadMoreTransactions() async {
@@ -10457,7 +10556,7 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     }
   }
 
-  Future<String?> _promptPassword() {
+  Future<String?> _promptPassword({bool isTon = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
@@ -10473,7 +10572,9 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Enter your 2FA password to withdraw your Stars balance.',
+            Text(isTon
+                ? 'Enter your 2FA password to withdraw your TON balance.'
+                : 'Enter your 2FA password to withdraw your Stars balance.',
                 style: TextStyle(color: subTextColor, fontSize: 13)),
             const SizedBox(height: 12),
             TextField(
@@ -10555,6 +10656,72 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     );
   }
 
+  // TON (currency) revenue transaction row — amount is signed nanotons, rendered
+  // as ±X.YY TON with the diamond glyph (info_channel_earn_list.cpp history list).
+  Widget _buildTonTransactionRow(
+      Map<String, dynamic> tx, Color cardColor, Color textColor, Color subTextColor, double usdRate) {
+    const tonColor = Color(0xFF0098EA);
+    final amount = (tx['amount'] as num?)?.toInt() ?? 0;
+    final refund = tx['refund'] == true;
+    final pending = tx['pending'] == true;
+    final failed = tx['failed'] == true;
+    final title = (tx['title'] as String?)?.trim() ?? '';
+    final desc = (tx['description'] as String?)?.trim() ?? '';
+    final date = tx['date'] as int? ?? 0;
+    final incoming = amount >= 0;
+    final label = title.isNotEmpty ? title : (desc.isNotEmpty ? desc : (incoming ? 'Proceeds' : 'Withdrawal'));
+    final amountColor = (refund || pending)
+        ? subTextColor
+        : failed
+            ? const Color(0xFFE53935)
+            : (incoming ? const Color(0xFF4FAD2D) : const Color(0xFFE53935));
+    final sub = failed
+        ? 'Failed'
+        : pending
+            ? 'Pending'
+            : _txDate(date);
+    final usd = _fmtUsdTon(amount, usdRate);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(refund ? '$label (refund)' : label,
+                    style: TextStyle(color: textColor, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (sub.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(sub, style: TextStyle(color: subTextColor, fontSize: 12)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.diamond, size: 14, color: tonColor),
+                  const SizedBox(width: 3),
+                  Text('${incoming ? '+' : ''}${_fmtTon(amount)}',
+                      style: TextStyle(color: amountColor, fontSize: 15, fontWeight: FontWeight.w700)),
+                ],
+              ),
+              if (usd.isNotEmpty)
+                Text(usd, style: TextStyle(color: subTextColor.withValues(alpha: 0.7), fontSize: 11)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -10605,6 +10772,162 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
       );
     }
 
+    // ── TON (currency) ad-revenue ── shown BEFORE the Stars section, matching
+    // AyuGram (currency THEN credits — info_channel_earn_list.cpp:611,930).
+    const tonColor = Color(0xFF0098EA);
+    final tonData = _tonStats ?? const {};
+    final tonAvailable = tonData['available_balance'] as int? ?? 0; // nanotons
+    final tonCurrent = tonData['current_balance'] as int? ?? 0;
+    final tonOverall = tonData['overall_revenue'] as int? ?? 0;
+    final tonWithdrawalEnabled = tonData['withdrawal_enabled'] as bool? ?? false;
+    final tonUsdRate = (tonData['usd_rate'] as num?)?.toDouble() ?? 0.0;
+    final tonCharts = (tonData['charts'] as List?) ?? const [];
+    final hasTon = _tonStats != null &&
+        (tonAvailable != 0 ||
+            tonCurrent != 0 ||
+            tonOverall != 0 ||
+            tonCharts.isNotEmpty ||
+            _tonTransactions.isNotEmpty);
+
+    Widget tonBalanceTile(String label, int nanotons, {bool emphasize = false}) {
+      final usd = _fmtUsdTon(nanotons, tonUsdRate);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(fontSize: 13, color: subTextColor)),
+                  if (usd.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(usd, style: TextStyle(fontSize: 12, color: subTextColor.withValues(alpha: 0.7))),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(Icons.diamond, size: 18, color: tonColor),
+            const SizedBox(width: 4),
+            Text(
+              _fmtTon(nanotons),
+              style: TextStyle(
+                fontSize: emphasize ? 20 : 16,
+                fontWeight: FontWeight.w700,
+                color: emphasize ? accentColor : textColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    List<Widget> tonSection() {
+      if (!hasTon) return const [];
+      return [
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.diamond, size: 16, color: tonColor),
+                    const SizedBox(width: 6),
+                    Text('TON Balance',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+                  ],
+                ),
+              ),
+              tonBalanceTile('Available to withdraw', tonAvailable, emphasize: true),
+              Divider(height: 1, color: bgColor),
+              tonBalanceTile('Current balance', tonCurrent),
+              Divider(height: 1, color: bgColor),
+              tonBalanceTile('Total lifetime revenue', tonOverall),
+              const SizedBox(height: 6),
+            ],
+          ),
+        ),
+        // TON withdraw button (Api::HandleWithdrawalButton, currency/ton path).
+        if (tonWithdrawalEnabled && tonAvailable > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _tonWithdrawing ? null : _withdrawTon,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                icon: _tonWithdrawing
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.account_balance_wallet_outlined, size: 20),
+                label: Text(_tonWithdrawing ? 'Processing…' : 'Withdraw TON'),
+              ),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: Text(
+            'You earn Toncoin from ads displayed in this channel. Once your balance '
+            'reaches the minimum, you can withdraw it to your TON wallet.',
+            style: TextStyle(fontSize: 12, color: subTextColor, height: 1.4),
+          ),
+        ),
+        // TON revenue + top-hours charts (info_channel_earn_list.cpp:621-648).
+        ...(() {
+          if (tonCharts.isEmpty) return <Widget>[];
+          return [
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              child: Text('TON Revenue',
+                  style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+            ...tonCharts.whereType<Map>().map((ch) => _StatChartWidget(
+                  accountId: widget.accountId,
+                  chart: ch,
+                  cardColor: cardColor,
+                  textColor: textColor,
+                  subTextColor: subTextColor,
+                )),
+          ];
+        })(),
+        // TON transaction history (info_channel_earn_list.cpp:1288 currency tab).
+        if (_tonTransactions.isNotEmpty || _loadingTonTx) ...[
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            child: Text('TON Transactions',
+                style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+          ..._tonTransactions.map((tx) => _buildTonTransactionRow(tx, cardColor, textColor, subTextColor, tonUsdRate)),
+          if (_tonTxHasMore)
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Center(
+                child: _loadingTonTx
+                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                    : TextButton(onPressed: _loadMoreTonTransactions, child: Text('Show more', style: TextStyle(color: accentColor))),
+              ),
+            ),
+        ],
+        // Separator before the Stars (credits) section.
+        const SizedBox(height: 18),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Divider(height: 1, color: subTextColor.withValues(alpha: 0.2)),
+        ),
+        const SizedBox(height: 6),
+      ];
+    }
+
     Widget body;
     if (_loading) {
       body = const Center(child: CircularProgressIndicator());
@@ -10620,6 +10943,8 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
       body = ListView(
         padding: const EdgeInsets.symmetric(vertical: 12),
         children: [
+          // Currency (TON) section first, then the Stars (credits) section.
+          ...tonSection(),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),

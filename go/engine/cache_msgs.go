@@ -2073,6 +2073,53 @@ func (e *Engine) GetStarsRevenueWithdrawalUrl(accountID, chatID, password string
 	return g.GetStarsRevenueWithdrawalUrl(chatID, password)
 }
 
+// GetBroadcastRevenueStats returns the channel's TON (currency) ad-revenue stats
+// (separate from the Stars/credits revenue above). info_channel_earn_list.cpp:611.
+func (e *Engine) GetBroadcastRevenueStats(accountID, chatID string) (cores.StarsRevenueResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return cores.StarsRevenueResult{}, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetBroadcastRevenueStats(chatID string) (cores.StarsRevenueResult, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return cores.StarsRevenueResult{}, fmt.Errorf("platform does not support broadcast revenue stats")
+	}
+	return g.GetBroadcastRevenueStats(chatID)
+}
+
+func (e *Engine) GetBroadcastRevenueTransactions(accountID, chatID, offset string, limit int) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetBroadcastRevenueTransactions(chatID, offset string, limit int) (map[string]interface{}, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support broadcast revenue transactions")
+	}
+	return g.GetBroadcastRevenueTransactions(chatID, offset, limit)
+}
+
+func (e *Engine) GetBroadcastRevenueWithdrawalUrl(accountID, chatID, password string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetBroadcastRevenueWithdrawalUrl(chatID, password string) (string, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return "", fmt.Errorf("platform does not support broadcast revenue withdrawal")
+	}
+	return g.GetBroadcastRevenueWithdrawalUrl(chatID, password)
+}
+
 type InlineBotResultSender interface {
 	SendInlineBotResult(chatID string, queryID int64, resultID string) (int, error)
 }
