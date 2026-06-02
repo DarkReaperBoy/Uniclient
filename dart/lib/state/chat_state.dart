@@ -524,6 +524,9 @@ class ChatState extends ChangeNotifier {
     if (_isScheduledView) {
       _loadScheduledMessages();
     } else {
+      // The scheduled view set _hasMoreMessages=false; reset it so upward
+      // pagination works again in the normal view (like returnToLatest).
+      _hasMoreMessages = true;
       _loadMessages();
     }
     notifyListeners();
@@ -572,6 +575,9 @@ class ChatState extends ChangeNotifier {
     _editHistorySenderName = '';
     _messages = [];
     _isFirstLoad = true;
+    // The edit-history view set _hasMoreMessages=false; reset it so upward
+    // pagination works again in the normal view (like returnToLatest).
+    _hasMoreMessages = true;
     _loadMessages();
     notifyListeners();
   }
@@ -594,6 +600,9 @@ class ChatState extends ChangeNotifier {
     _deletedMsgSearch = '';
     _messages = [];
     _isFirstLoad = true;
+    // The deleted-messages view set _hasMoreMessages=false; reset it so upward
+    // pagination works again in the normal view (like returnToLatest).
+    _hasMoreMessages = true;
     _loadMessages();
     notifyListeners();
   }
@@ -1069,49 +1078,12 @@ class ChatState extends ChangeNotifier {
     _chatHistoryIndex = newIdx;
     final chat = history[newIdx];
     if (chat.chatId == _activeChat?.chatId) return false;
-    _activeChat = chat;
-    _openedUnreadCount = chat.unreadCount;
-    _messages = [];
-    _pinnedMessages = [];
-    _hasMoreMessages = true;
-    _isFirstLoad = true;
-    _jumpedUntil = null;
-    _hasMoreMessagesDown = false;
-    _groupOnlineCount = 0;
-    _activeGroupCall = null;
-    _connectedBot = null;
-    _connectedBotPaused = false;
-    _scheduledCount = 0;
-    _isScheduledView = false;
-    _isEditHistoryView = false;
-    _editHistoryMsgId = '';
-    _editHistorySenderName = '';
-    _isDeletedMessagesView = false;
-    _deletedMsgSearch = '';
-    _linkedChatId = '';
-    _botStartToken = '';
-    _peerBarSettings = const {};
-    _engine.setActiveChat(chat.accountId, chat.chatId);
-    _loadMessages();
-    _loadPinnedMessages(chat.accountId, chat.chatId);
-    _loadScheduledCount(chat.accountId, chat.chatId);
-    final cacheKey = '${chat.accountId}:${chat.chatId}';
-    if (!_avatarCache.containsKey(cacheKey)) {
-      if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
-        _loadMemberAvatars(chat.accountId, chat.chatId);
-        _loadOnlineCount(chat.accountId, chat.chatId);
-        _loadGroupCall(chat.accountId, chat.chatId);
-      }
-    } else {
-      _senderAvatars
-        ..clear()
-        ..addAll(_avatarCache[cacheKey]!);
-    }
-    if (chat.type == ChatType.dm) {
-      _loadConnectedBot(chat.accountId, chat.chatId);
-    }
-    _loadPeerBarSettings(chat.accountId, chat.chatId);
-    notifyListeners();
+    // Full activation, identical to a normal open — but WITHOUT pushing onto the
+    // history stack (we're moving the cursor within it, not adding an entry).
+    // Routing through _activateChat fixes the prior partial copy that skipped
+    // notification dismissal, polling, channel/keyboard resets and saved-
+    // sublists/forum routing.
+    _activateChat(chat);
     return true;
   }
 
@@ -1120,6 +1092,27 @@ class ChatState extends ChangeNotifier {
   }
 
   void openChat(ChatInfo chat) {
+    // Push onto the back/forward history stack and reset the cursor to the top.
+    // History *navigation* (navigateChatHistory) reuses the same activation via
+    // _activateChat but must NOT mutate the stack, so the stack ops live here.
+    _chatOpenHistory.remove(chat.chatId);
+    _chatOpenHistory.insert(0, chat.chatId);
+    if (_chatOpenHistory.length > _maxChatOpenHistory) {
+      _chatOpenHistory.removeRange(_maxChatOpenHistory, _chatOpenHistory.length);
+    }
+    _chatHistoryIndex = 0;
+    _activateChat(chat);
+  }
+
+  /// Full chat activation shared by [openChat] and [navigateChatHistory]:
+  /// forum/saved-sublists routing, active-chat swap, on-screen-notification
+  /// dismissal, section-state reset, message/pinned/scheduled loads, avatar/
+  /// online/group-call fetches, and polling start. Does NOT touch the back/
+  /// forward history stack — callers own that. Mirrors AyuGram routing both a
+  /// normal open AND a history move through the identical showThread activation
+  /// path (window_session_controller.cpp:2291), so notifications clear and
+  /// section state resets the same way every time.
+  void _activateChat(ChatInfo chat) {
     if (chat.isForum && _forumParentChat?.chatId != chat.chatId) {
       _checkAndOpenForum(chat);
     }
@@ -1128,12 +1121,6 @@ class ChatState extends ChangeNotifier {
     } else if (_isViewingSavedSublists) {
       closeSavedSublists();
     }
-    _chatOpenHistory.remove(chat.chatId);
-    _chatOpenHistory.insert(0, chat.chatId);
-    if (_chatOpenHistory.length > _maxChatOpenHistory) {
-      _chatOpenHistory.removeRange(_maxChatOpenHistory, _chatOpenHistory.length);
-    }
-    _chatHistoryIndex = 0;
     SpoilerRevealManager.instance.hideAll();
     _activeChat = chat;
     // Opening a chat dismisses all of its on-screen notifications (every
@@ -2190,12 +2177,22 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
-  void addChatToFolder(String accountId, String chatId, String folderId) {
+  Future<void> addChatToFolder(String accountId, String chatId, String folderId) async {
     _engine.addChatToFolder(accountId, chatId, folderId);
+    // Reload so FolderInfo.chatIds (and chatsForFolder) reflect the addition
+    // immediately, like editFolder / removeChatFromAllFolders. The engine call
+    // is a synchronous round-trip (_callRaw), so the reload sees fresh data.
+    await loadFoldersForAccount(accountId);
   }
 
-  void removeSavedReactionTag(String accountId, {String emoji = '', int customId = 0}) {
+  Future<void> removeSavedReactionTag(String accountId, {String emoji = '', int customId = 0}) async {
     _engine.removeSavedReactionTag(accountId, emoji: emoji, customId: customId);
+    // Reload so the removed tag disappears from the tag filter bar immediately,
+    // like the sibling renameSavedReactionTag. loadSavedReactionTags resolves
+    // the account from _savedSublistsAccountId (set in the Saved Messages view
+    // where reaction tags live); the engine call is a synchronous _callRaw
+    // round-trip, so the reload sees fresh data.
+    await loadSavedReactionTags();
   }
 
   List<ChatInfo> getTopPeers(String accountId, {int limit = 20}) {
@@ -2572,7 +2569,14 @@ class ChatState extends ChangeNotifier {
     if (_disposed) return;
     final isActiveChat = _activeChat?.accountId == event.accountId &&
         _activeChat?.chatId == event.chatId;
-    if (isActiveChat && !_isScheduledView && !_isEditHistoryView) {
+    // Never inject a live incoming message into a read-only special view. The
+    // deleted-messages / scheduled / edit-history views are sourced solely from
+    // local storage, like AyuGram's separate read-only history sections
+    // (AyuMessages::getDeletedMessages). _handleMsgEdited guards the same set.
+    if (isActiveChat &&
+        !_isScheduledView &&
+        !_isEditHistoryView &&
+        !_isDeletedMessagesView) {
       final exists = _messages.any((m) =>
         m.msgId == event.message.msgId ||
         (event.message.localId.isNotEmpty && m.localId == event.message.localId));

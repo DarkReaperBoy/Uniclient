@@ -21,20 +21,6 @@ class AuthState extends ChangeNotifier {
   Timer? _autoPollTimer;
   bool _autoInputBusy = false;
 
-  // Timestamp of the last SRP_ID_INVALID, used to detect a storm of repeats
-  // within the timeout window. Reset to null whenever the auth flow tears down
-  // or leaves the 2FA step, so the storm window is scoped to a single
-  // password-entry attempt — mirroring AyuGram's per-PasswordCheckWidget
-  // `_lastSrpIdInvalidTime = 0` (intro_password_check.h:71), which re-inits on
-  // every `goReplace<PasswordCheckWidget>`.
-  DateTime? _lastSrpIdInvalidTime;
-  static const _kSrpIdInvalidTimeout = Duration(seconds: 60);
-
-  // Last-entered 2FA password, retained so a transparent SRP_ID_INVALID retry
-  // can re-submit it without prompting the user again. Cleared on success,
-  // cancel, and clear().
-  String? _last2faPassword;
-
   Timer? _qrExpiryTimer;
 
   /// File path for CLI automation input.
@@ -100,12 +86,6 @@ class AuthState extends ChangeNotifier {
     final auth = _currentAuth;
     if (auth == null) return;
 
-    // Retain the 2FA password so a transparent SRP_ID_INVALID retry can
-    // re-submit it without bouncing the user back to a blank prompt.
-    if (auth.state == '2fa') {
-      _last2faPassword = input;
-    }
-
     Debug.log('AUTH', 'submitInput(${input.length > 20 ? '${input.substring(0, 20)}...' : input}) for ${auth.accountId}');
     _submitting = true;
     _error = null;
@@ -118,64 +98,16 @@ class AuthState extends ChangeNotifier {
 
       if (result?.state == 'error') {
         final rawError = result!.error.isNotEmpty ? result.error : result.message;
-        if (rawError == 'SRP_ID_INVALID') {
-          final now = DateTime.now();
-          if (_lastSrpIdInvalidTime != null &&
-              now.difference(_lastSrpIdInvalidTime!) < _kSrpIdInvalidTimeout) {
-            // Storm — repeated SRP_ID_INVALID within the timeout. Surface a
-            // server error instead of retrying forever. Mirrors
-            // handleSrpIdInvalid → showError(ServerError)
-            // (intro_password_check.cpp:171-173).
-            _error = 'Server error. Please try again later.';
-            Debug.log('AUTH', 'SRP_ID_INVALID storm detected — aborting');
-          } else {
-            // First occurrence — TRANSPARENT retry: re-fetch fresh SRP params
-            // and auto-resubmit the SAME password the user already entered. No
-            // error is shown and the user is NOT bounced back to a blank prompt.
-            // Mirrors handleSrpIdInvalid → requestPasswordData → passwordChecked
-            // (intro_password_check.cpp:174-176), which re-runs the SRP check
-            // automatically without any UI feedback.
-            _lastSrpIdInvalidTime = now;
-            final retryPassword = _last2faPassword;
-            AuthStateData? freshAuth;
-            try {
-              freshAuth = await _engine.startAuth(auth.accountId);
-            } catch (e) {
-              Debug.log('AUTH', 'SRP_ID_INVALID — fresh-params fetch failed: $e');
-            }
-            if (freshAuth != null) {
-              _currentAuth = freshAuth;
-            }
-            if (retryPassword != null &&
-                retryPassword.isNotEmpty &&
-                _currentAuth?.state == '2fa') {
-              Debug.log('AUTH',
-                  'SRP_ID_INVALID — re-fetched params, auto-resubmitting password');
-              // Transparent re-submit. submitInput resets _submitting/_error and
-              // calls notifyListeners itself, so return here to avoid clobbering
-              // its result with the stale error state below.
-              await submitInput(retryPassword);
-              return;
-            }
-            // No retained password (or unexpected state) — leave the freshly
-            // fetched 2fa state in place WITHOUT an error so the user can simply
-            // re-enter. Still no forced error message.
-            Debug.log('AUTH', 'SRP_ID_INVALID — awaiting 2FA re-entry');
-          }
-        } else {
-          _error = rawError;
-        }
-      }
-
-      // Drop the retained 2FA password and reset the SRP-storm window once the
-      // step was accepted (auth moved past the 2fa prompt without an error).
-      // Mirrors AyuGram recreating a fresh PasswordCheckWidget — whose
-      // `_lastSrpIdInvalidTime` re-initializes to 0 — on each entry to the
-      // password step (intro_password_check.h:71, goReplace at
-      // intro_code.cpp:364 / intro_qr.cpp:504).
-      if (result != null && result.state != 'error' && result.state != '2fa') {
-        _last2faPassword = null;
-        _lastSrpIdInvalidTime = null;
+        // Surface the final error. SRP_ID_INVALID is retried transparently by
+        // the core ONCE (it re-fetches account.GetPassword and re-checks the SRP
+        // hash — telegram.go:1059-1071); if it still surfaces here that retry has
+        // already failed, so we must NOT re-run a Dart-side retry. A startAuth
+        // here would rebuild the flow with an empty `collected` map (losing the
+        // entered phone+OTP) and drop the user at the method picker. See
+        // _finalizeAuthError for the SRP mapping. Mirrors AyuGram
+        // handleSrpIdInvalid → showError(ServerError) on the repeat hit
+        // (intro_password_check.cpp:171-173).
+        _error = _finalizeAuthError(rawError);
       }
 
       Debug.log('AUTH', 'submitInput → state=${result?.state} label=${result?.label}');
@@ -195,7 +127,6 @@ class AuthState extends ChangeNotifier {
     _currentAuth = null;
     _submitting = false;
     _error = null;
-    _lastSrpIdInvalidTime = null;
     _stopAutoPoll();
     notifyListeners();
     await startAuth(accountId);
@@ -213,8 +144,6 @@ class AuthState extends ChangeNotifier {
     _currentAuth = null;
     _submitting = false;
     _error = null;
-    _last2faPassword = null;
-    _lastSrpIdInvalidTime = null;
     _stopAutoPoll();
     _qrExpiryTimer?.cancel();
     _qrExpiryTimer = null;
@@ -226,8 +155,6 @@ class AuthState extends ChangeNotifier {
     _currentAuth = null;
     _submitting = false;
     _error = null;
-    _last2faPassword = null;
-    _lastSrpIdInvalidTime = null;
     _stopAutoPoll();
     _qrExpiryTimer?.cancel();
     _qrExpiryTimer = null;
@@ -245,7 +172,7 @@ class AuthState extends ChangeNotifier {
     // only when the incoming event itself is an error (intro_password_check.cpp
     // hides the error on each step and shows it on failure).
     if (event.state == 'error') {
-      if (event.error.isNotEmpty) _error = event.error;
+      if (event.error.isNotEmpty) _error = _finalizeAuthError(event.error);
     } else {
       _error = null;
     }
@@ -300,7 +227,15 @@ class AuthState extends ChangeNotifier {
     if (auth == null || auth.state != 'qr') return;
     Debug.log('AUTH', 'QR code expired, requesting refresh');
     try {
-      final result = await _engine.startAuth(auth.accountId);
+      // Re-export the login token IN PLACE via the QR-refresh engine path
+      // (SubmitAuthInput → advanceAuth case AuthStateQR → RefreshQRToken,
+      // auth.go:417-443), which returns a fresh `qr` (or `ready` if the code was
+      // just scanned). Do NOT call startAuth here — that rebuilds the core with
+      // an empty flow and emits the `choose` method picker, bouncing the user
+      // off the QR screen on every expiry. The input is ignored by the QR case.
+      // Mirrors AyuGram QrWidget::refreshCode staying on the QR step and
+      // rescheduling its refresh timer (intro_qr.cpp:417,441).
+      final result = await _engine.submitAuthInput(auth.accountId, '');
       if (result != null && result.state == 'qr') {
         _currentAuth = result;
         _updateQrExpiryTimer();
@@ -309,6 +244,25 @@ class AuthState extends ChangeNotifier {
     } catch (e) {
       Debug.log('AUTH', 'QR refresh failed: $e');
     }
+  }
+
+  /// Map a raw engine auth error string to the final, user-facing message.
+  ///
+  /// SRP_ID_INVALID is special: the core already performs a transparent retry
+  /// ONCE on this error (re-fetching `account.GetPassword` and re-checking the
+  /// SRP hash — telegram.go:1059-1071), so by the time it surfaces to Dart that
+  /// retry has *already* failed. We surface a final error instead of implying
+  /// (via "retrying…") that anything is still in progress, and we do NOT run a
+  /// Dart-side retry. The engine wraps the error string
+  /// (`"auth: user auth: …: SRP_ID_INVALID"`), so match by substring — the same
+  /// convention used by auth_screen.dart's `_mapAuthError`. Mirrors AyuGram's
+  /// handleSrpIdInvalid → showError(ServerError) on the repeat hit
+  /// (intro_password_check.cpp:171-173).
+  String _finalizeAuthError(String raw) {
+    if (raw.contains('SRP_ID_INVALID')) {
+      return 'Session expired. Please try again.';
+    }
+    return raw;
   }
 
   // ── CLI automation polling ──
