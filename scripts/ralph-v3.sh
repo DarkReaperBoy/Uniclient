@@ -961,11 +961,16 @@ launch_app() {
 # STAGE 1: IMPLEMENTATION PROMPT
 # ═════════════════════════════════════════════════════════════════
 build_impl_prompt() {
-  local extra="${1:-}"
+  local chapter="$1" items="$2" extra="${3:-}"
   cat <<PROMPT_END
 You are running in unattended automation mode (ralph loop). No human is watching.
-This is STAGE 1 (IMPLEMENTATION). Implement ALL items in the first section that
-has unchecked items. A separate verification session tests your work afterwards.
+This is STAGE 1 (IMPLEMENTATION). Implement EVERY item in ONE chapter — one
+top-level "# " heading together with all of its "## " sub-sections. A separate
+verification session tests your work afterwards.
+
+TARGET CHAPTER — implement ALL of these items, and NOTHING outside this list:
+$chapter
+$items
 
 REFERENCE SOURCE CODE: The AyuGram Desktop (Telegram Desktop fork) source is at:
   $AYUGRAM_UI/
@@ -982,15 +987,17 @@ Look for .style files (pixel constants), .cpp files (behavior), and .h files (st
 
 MANDATORY FIRST STEPS:
 1. Read CLAUDE.md (every rule is binding)
-2. Read checklist/gui.md — find the FIRST section (## heading) that contains "- [ ]" items
-3. Read ALL "- [ ]" items in that section
+2. Read checklist/gui.md for surrounding context. The TARGET CHAPTER above is
+   authoritative: it is the first "# " chapter that still has unchecked items, and
+   its items span every "## " sub-section in that chapter. Implement exactly the
+   items listed above — do NOT pick a different chapter, do NOT add unlisted items.
 
 THEN:
-4. Find and read the corresponding AyuGram source files for the UI area being fixed
+3. Find and read the corresponding AyuGram source files for the UI area being fixed
    (search $AYUGRAM_UI/ for relevant .style, .cpp, .h files)
-5. Read existing Dart source files BEFORE writing code
-6. Implement ALL items matching the AyuGram reference — no stubs, no placeholders
-7. Build and basic sanity check:
+4. Read existing Dart source files BEFORE writing code
+5. Implement ALL items matching the AyuGram reference — no stubs, no placeholders
+6. Build and basic sanity check:
    a. ONLY rebuild Go if you changed files under go/: scripts/build_go.sh linux
       (Skip if you only changed dart/ files — saves 30-60 seconds)
    b. scripts/build_flutter.sh linux debug
@@ -998,11 +1005,12 @@ THEN:
    d. Wait 3s, screenshot: scripts/flutter_inspect.sh screenshot /tmp/ss.png
    e. Verify no crash, features roughly visible
    f. Kill: pkill uniclient
-8. Commit: git add <files> && git commit -m "[unverified] <section name>: N items"
-9. Do NOT push. Do NOT delete checklist items.
+7. Commit: git add <files> && git commit -m "[unverified] <chapter name>: N items"
+8. Do NOT push. Do NOT delete checklist items.
 
 RULES:
-- ONE SECTION per session. All items in it, one commit, then exit.
+- ONE CHAPTER per session. EVERY item in it (across all its "## " sub-sections),
+  one commit, then exit. Do not stop after one sub-section.
 - TELEGRAM ONLY for testing.
 - Do NOT refactor unrelated code or fix unrelated bugs.
 - The AyuGram source is GROUND TRUTH — match it exactly.
@@ -1016,16 +1024,17 @@ PROMPT_END
 # STAGE 2: VERIFICATION PROMPT
 # ═════════════════════════════════════════════════════════════════
 build_verify_prompt() {
-  local item="$1"
+  local chapter_name="$1" item="$2"
   local diff_stat commit_msg
   diff_stat="$(git -C "$PROJECT_ROOT" diff HEAD~1 --stat 2>/dev/null || echo '(no diff)')"
   commit_msg="$(git -C "$PROJECT_ROOT" log -1 --format='%s' 2>/dev/null || echo '(no commit)')"
 
   cat <<PROMPT_END
 You are running in unattended automation mode (ralph loop). No human is watching.
-This is STAGE 2 (VERIFICATION). Test whether the section implementation works.
+This is STAGE 2 (VERIFICATION). Test whether the chapter implementation works.
 
-SECTION BEING VERIFIED (all items below):
+CHAPTER BEING VERIFIED: $chapter_name
+ALL ITEMS IN THIS CHAPTER (verify every one — they span all its "## " sub-sections):
 $item
 
 COMMIT: $commit_msg
@@ -1064,14 +1073,14 @@ SEVERITY GUIDE (proportional — Weber's Law):
 
 IF ALL ITEMS PASS:
   a. Delete ALL verified items from checklist/gui.md (remove their "- [ ]" lines)
-  b. git add checklist/gui.md && git commit -m "Verify & close: <section name>" -- checklist/gui.md
+  b. git add checklist/gui.md && git commit -m "Verify & close: $chapter_name" -- checklist/gui.md
   c. git push origin main
   d. Exit.
 
 IF SOME ITEMS FAIL:
   a. Delete ONLY the items that PASSED from checklist/gui.md
   b. Write failure details for failed items to /tmp/ralph_feedback.txt
-  c. git add checklist/gui.md && git commit -m "Verify & close: <section> (partial)" -- checklist/gui.md
+  c. git add checklist/gui.md && git commit -m "Verify & close: $chapter_name (partial)" -- checklist/gui.md
   d. git push origin main
   e. Exit.
 
@@ -1160,9 +1169,10 @@ CHECK ALL OF THESE — not just visuals:
 - Redundant network calls (fetching data already in cache, no deduplication)
 - Missing Isolate.run for expensive operations (large list transforms, image processing)
 
-OUTPUT FORMAT — EVERY item cites BOTH files:
+OUTPUT FORMAT — EVERY item cites BOTH files (use a single "# " for the chapter
+heading; reserve "## " for any sub-sections within this file):
 
-## $dart_basename — [short description]
+# $dart_basename — [short description]
 
 - [ ] [CRITICAL] description — \`$(basename "$dart_file"):lineN\` ← \`AyuGram/path/to/source.style:lineN\`
 - [ ] [MAJOR] description — \`$(basename "$dart_file"):lineN\` ← \`AyuGram/path/to/file.cpp:lineN\`
@@ -1238,9 +1248,9 @@ HUNT FOR THESE — be ruthless:
 - Missing RepaintBoundary on animated widgets
 - Redundant API calls (no caching/dedup)
 
-OUTPUT FORMAT:
+OUTPUT FORMAT (use a single "# " for the chapter heading):
 
-## $dart_basename — cleanup
+# $dart_basename — cleanup
 
 - [ ] [CRITICAL] empty onTap callback at line N — button does nothing — \`$(basename "$dart_file"):N\`
 - [ ] [CRITICAL] hardcoded "User" string at line N — should come from engine — \`$(basename "$dart_file"):N\`
@@ -1338,24 +1348,30 @@ while true; do
     # MODE 1: IMPLEMENT + VERIFY
     # ═══════════════════════════════════════════════════════════
     IMPL_ITERATION=$((IMPL_ITERATION + 1))
-    set_current_stage "MODE 1 / SELECT SECTION" "implementation iteration $IMPL_ITERATION" "$REMAINING unchecked checklist items"
+    set_current_stage "MODE 1 / SELECT CHAPTER" "implementation iteration $IMPL_ITERATION" "$REMAINING unchecked checklist items"
     echo ""
     log "╔══════════════════════════════════════════════════════════════╗"
     log "║  🔨 IMPLEMENT #$IMPL_ITERATION                                      "
     log "║  📋 $REMAINING items remaining | ✅ $TOTAL_COMMITS verified commits  "
     log "╚══════════════════════════════════════════════════════════════╝"
 
-    # Extract the first section (## heading) that contains unchecked items
+    # Extract the first CHAPTER (top-level "# " heading) that has unchecked items,
+    # and ALL of its items — including those under any "## " sub-sections inside
+    # the chapter. A "# " heading starts a chapter and ends the previous one;
+    # "## " headings are sub-sections, never chapter boundaries. Item-less leading
+    # chapters (the "# GUI Audit ..." file title, a stray "## " phase label) are
+    # skipped automatically: we only stop on a "# " heading once items have already
+    # been collected, so empty chapters just re-target to the next "# ".
     CURRENT_SECTION=""
     CURRENT_ITEMS=""
     SECTION_NAME=""
     while IFS= read -r line; do
-      if [[ "$line" =~ ^##\  ]]; then
+      if [[ "$line" =~ ^#\  ]]; then          # "# " chapter heading (NOT "## ")
         if [[ -n "$CURRENT_ITEMS" ]]; then
           break
         fi
         CURRENT_SECTION="$line"
-        SECTION_NAME="${line#\#\# }"
+        SECTION_NAME="${line#\# }"
       elif [[ "$line" =~ ^-\ \[\ \] ]] && [[ -n "$CURRENT_SECTION" ]]; then
         CURRENT_ITEMS+="$line"$'\n'
       fi
@@ -1365,20 +1381,21 @@ while true; do
     ITEM_COUNT="${ITEM_COUNT//[^0-9]/}"
     [[ -z "$ITEM_COUNT" ]] && ITEM_COUNT=0
     log ""
-    log "  📂 Section: $SECTION_NAME"
-    log "  📝 Items: $ITEM_COUNT"
+    log "  📂 Chapter: $SECTION_NAME"
+    log "  📝 Items: $ITEM_COUNT (whole chapter, incl. any ## sub-sections)"
     echo "$CURRENT_ITEMS" | head -5 | while IFS= read -r item_line; do
       log "     $item_line"
     done
     [[ $ITEM_COUNT -gt 5 ]] && log "     ... and $((ITEM_COUNT - 5)) more"
     log ""
 
-    # Guard: if no section found (items exist but no ## headers), treat as audit needed
+    # Guard: if no chapter found (items exist but no "# " headers), wrap them in a
+    # chapter instead of deleting them.
     if [[ -z "$CURRENT_SECTION" || $ITEM_COUNT -eq 0 ]]; then
-      log "  ⚠️  gui.md has unchecked items outside a ## section. Adding a wrapper section instead of deleting them."
+      log "  ⚠️  gui.md has unchecked items outside a '# ' chapter. Adding a wrapper chapter instead of deleting them."
       tmp_gui=$(mktemp)
       awk '
-        /^- \[ \]/ && !inserted { print "## Unsectioned Items"; inserted=1 }
+        /^- \[ \]/ && !inserted { print "# Unsectioned Items"; inserted=1 }
         { print }
       ' "$PROJECT_ROOT/checklist/gui.md" > "$tmp_gui"
       mv "$tmp_gui" "$PROJECT_ROOT/checklist/gui.md"
@@ -1403,8 +1420,8 @@ while true; do
     IMPL_FILE="$ITER_LOG_DIR/iter_$(printf '%04d' $IMPL_ITERATION)_impl.log"
 
     if ! $RETRY_VERIFY_ONLY && [[ $ITEM_ATTEMPTS -ge $MAX_IMPL_ATTEMPTS ]]; then
-      set_current_stage "MODE 1 / SKIP FAILED SECTION" "section: $SECTION_NAME" "failed $MAX_IMPL_ATTEMPTS attempts; removing checklist items"
-      log "Section failed $MAX_IMPL_ATTEMPTS times. Removing it to avoid an infinite loop."
+      set_current_stage "MODE 1 / SKIP FAILED CHAPTER" "chapter: $SECTION_NAME" "failed $MAX_IMPL_ATTEMPTS attempts; removing checklist items"
+      log "Chapter failed $MAX_IMPL_ATTEMPTS times. Removing it to avoid an infinite loop."
       if skip_current_items "$SECTION_NAME" "$CURRENT_ITEMS"; then
         SKIP_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
         if [[ "$SKIP_HASH" != "$LAST_COMMIT_HASH" ]]; then
@@ -1433,9 +1450,9 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       fi
 
       IMPL_EXIT=0
-      set_current_stage "MODE 1 / STAGE 1: IMPLEMENT" "section: $SECTION_NAME" "$ITEM_COUNT item(s); attempt $((ITEM_ATTEMPTS + 1))/$MAX_IMPL_ATTEMPTS"
+      set_current_stage "MODE 1 / STAGE 1: IMPLEMENT" "chapter: $SECTION_NAME" "$ITEM_COUNT item(s); attempt $((ITEM_ATTEMPTS + 1))/$MAX_IMPL_ATTEMPTS"
       resume_guard implement "$SECTION_NAME"
-      invoke_claude "$(build_impl_prompt "$IMPL_EXTRA")" "$IMPL_FILE" "IMPLEMENT" "$RALPH_MODEL" "max" "implement" || IMPL_EXIT=$?
+      invoke_claude "$(build_impl_prompt "$CURRENT_SECTION" "$CURRENT_ITEMS" "$IMPL_EXTRA")" "$IMPL_FILE" "IMPLEMENT" "$RALPH_MODEL" "max" "implement" || IMPL_EXIT=$?
 
       if [[ $IMPL_EXIT -ne 0 ]]; then
         CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
@@ -1466,9 +1483,9 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
     rm -f "$FEEDBACK_FILE"
 
     VERIFY_EXIT=0
-    set_current_stage "MODE 1 / STAGE 2: VERIFY" "section: $SECTION_NAME" "$ITEM_COUNT item(s); implementation commit ${IMPL_HASH:0:12}"
+    set_current_stage "MODE 1 / STAGE 2: VERIFY" "chapter: $SECTION_NAME" "$ITEM_COUNT item(s); implementation commit ${IMPL_HASH:0:12}"
     resume_guard verify "$SECTION_NAME"
-    invoke_claude "$(build_verify_prompt "$CURRENT_ITEMS")" "$VERIFY_FILE" "VERIFY" "$RALPH_MODEL" "max" "verify" || VERIFY_EXIT=$?
+    invoke_claude "$(build_verify_prompt "$SECTION_NAME" "$CURRENT_ITEMS")" "$VERIFY_FILE" "VERIFY" "$RALPH_MODEL" "max" "verify" || VERIFY_EXIT=$?
 
     if [[ $VERIFY_EXIT -ne 0 ]]; then
       CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
@@ -1487,7 +1504,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       LAST_COMMIT_HASH="$VERIFY_HASH"
       if [[ -f "$FEEDBACK_FILE" ]]; then
         ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1))
-        set_current_stage "MODE 1 / PARTIAL VERIFY" "section: $SECTION_NAME" "some items passed; attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
+        set_current_stage "MODE 1 / PARTIAL VERIFY" "chapter: $SECTION_NAME" "some items passed; attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
         log ""
         log "  ╔════════════════════════════════════════════╗"
         log "  ║  ⚠️  PARTIALLY VERIFIED                    ║"
@@ -1496,7 +1513,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
         log "  Feedback: $(head -2 "$FEEDBACK_FILE" 2>/dev/null || echo 'none')"
       else
         ITEM_ATTEMPTS=0
-        set_current_stage "MODE 1 / VERIFIED" "section: $SECTION_NAME" "all items passed; $NEW_COMMITS commit(s)"
+        set_current_stage "MODE 1 / VERIFIED" "chapter: $SECTION_NAME" "all items passed; $NEW_COMMITS commit(s)"
         log ""
         log "  ╔════════════════════════════════════════════╗"
         log "  ║  ✅ VERIFIED & PUSHED                      ║"
@@ -1505,7 +1522,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       fi
     elif [[ -f "$FEEDBACK_FILE" ]]; then
       ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1))
-      set_current_stage "MODE 1 / VERIFY FAILED" "section: $SECTION_NAME" "attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS; feedback saved"
+      set_current_stage "MODE 1 / VERIFY FAILED" "chapter: $SECTION_NAME" "attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS; feedback saved"
       log ""
       log "  ╔════════════════════════════════════════════╗"
       log "  ║  ❌ VERIFICATION FAILED                    ║"
@@ -1514,7 +1531,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       log "  Feedback: $(head -2 "$FEEDBACK_FILE" 2>/dev/null || echo 'none')"
     else
       ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1))
-      set_current_stage "MODE 1 / VERIFY UNKNOWN" "section: $SECTION_NAME" "no checklist commit and no feedback; attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
+      set_current_stage "MODE 1 / VERIFY UNKNOWN" "chapter: $SECTION_NAME" "no checklist commit and no feedback; attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
       log ""
       log "  ⚠️  No push, no feedback. Attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
     fi
@@ -1789,7 +1806,13 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
         if ! grep -q '^- \[ \]' "$f"; then
           continue
         fi
-        cat "$f"
+        # Normalize each chunk's FIRST heading to a single "# " so every component
+        # becomes exactly ONE chapter, regardless of whether the auditor emitted
+        # "#" or "##" (and so the zero-cost static_scan/palette_diff chunks become
+        # their own chapters too). Sub-section headings inside the chunk
+        # (## Findings, ## _EditAdminBox, …) are left untouched. This is what makes
+        # "one chapter per implement→verify cycle" reliable.
+        awk '!seen && /^#+[[:space:]]/ { sub(/^#+[[:space:]]+/, "# "); seen=1 } { print }' "$f"
         echo ""
       done
     } > "$PROJECT_ROOT/checklist/gui.md"
