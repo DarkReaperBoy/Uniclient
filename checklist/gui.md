@@ -62,14 +62,6 @@ and `Settings::getSoundPath` (`core_settings.cpp`).
 
 ## Findings
 
-- [ ] [CRITICAL] Per-chat ringtone **volume** override is dead code — the producer hardcodes `perChatVolume: 0`, so the `perChatVolume > 0` branch is never taken and every notification plays at the GLOBAL volume. AyuGram sources this from `ringtoneVolume(peer, topicRootId, monoforumPeerId)` with a fallback to the default-notify-type ringtone volume, only then falling back to the global volume — a 2-tier per-chat hierarchy that is entirely absent here. — `notification_sound.dart:62` + `dart/lib/state/chat_state.dart:2709` ← `AyuGram/.../window/notifications_manager.cpp:763-775`
-
-- [ ] [CRITICAL] Per-chat **custom ringtone sound** + **"None" (silent)** are dead code — `soundDocumentPath` is never assigned a non-empty value anywhere (the only writer, `notification_system.dart:618`, copies it from itself / from `ringtonePath`, which also derives from the always-empty `soundDocumentPath`), and `soundNone` is never set `true`. So the custom-sound branch (`soundDocumentPath.isNotEmpty`) and the silence gate (`soundNone`) never fire — only the bundled default plays. AyuGram resolves the per-chat sound document id via `notifySettings().sound(thread).id` → `lookupSound(owner, id)` and silences via `sound(thread).none`. — `notification_sound.dart:43,49-51` + `dart/lib/state/chat_state.dart:2613-2710` ← `AyuGram/.../window/notifications_manager.cpp:122-137,763-774,1006-1028`
-
-  Root cause is documented (`chat_state.dart:2703-2708`): the Go bridge does not expose per-peer notify settings yet (`AccountGetNotifySettings` skipped). The fallback is graceful (default sound at global volume), but the three per-chat sound features `notification_sound.dart` implements are non-functional end-to-end until the bridge exposes that data.
-
-- [ ] [MAJOR] No audio ducking/suppression of other playback while the notification sound plays. AyuGram follows `playOnce(...)` with `mixer()->suppressAll(track->getLengthMs())` and `scheduleFaderCallback()` to duck all other app audio (playing video/voice/music) for the sound's length. The Dart player just calls `setVolume`→`open`→`play` with no coordination against the app's other media_kit players, so a notification beep overlaps any playing media at full volume. — `notification_sound.dart:66-69` ← `AyuGram/.../window/notifications_manager.cpp:775-777`
-
 # notification_system — Notification scheduling/dedup/grouping `System` port
 
 Dart `NotificationSystem` ports AyuGram's `Window::Notifications::System` (`window/notifications_manager.cpp`).
