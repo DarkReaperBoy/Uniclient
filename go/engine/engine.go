@@ -276,6 +276,13 @@ type proxyConfigurable interface {
 // Application::setCurrentProxy (core/application.cpp:836), which installs the
 // proxy into MTProto and reconnects sessions.
 func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass, secret string, ipv6, forCalls, rotationEnabled bool, rotationTimeout int) {
+	// Normalize the proxy type to the lowercase tokens the dialer expects
+	// ("socks5"/"http"/"mtproto"). Dart sends the uppercase display label
+	// ("SOCKS5"/"HTTP"/"MTPROTO"), but ProxyConfig.active()/resolver()/dialFunc()
+	// (cores/proxy.go) compare case-sensitively against lowercase. Without this
+	// active() returns false for every real proxy, no resolver is installed, and
+	// every connection silently dials direct.
+	proxyType = strings.ToLower(strings.TrimSpace(proxyType))
 	e.proxyMu.Lock()
 	e.proxyMode = mode
 	e.proxyHost = host
@@ -504,7 +511,10 @@ func (e *Engine) CheckProxy(host string, port int, proxyType, user, pass, secret
 	var conn net.Conn
 	var err error
 
-	switch proxyType {
+	// Lowercase to match the protocol cases below — Dart may pass an uppercase
+	// display label, which would otherwise fall through to the default (a bare
+	// TCP dial that wrongly reports any reachable host as a working proxy).
+	switch strings.ToLower(strings.TrimSpace(proxyType)) {
 	case "socks5":
 		dialer, dErr := proxy.SOCKS5("tcp", addr, nil, proxy.Direct)
 		if dErr != nil {

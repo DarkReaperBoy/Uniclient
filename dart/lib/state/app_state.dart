@@ -2697,7 +2697,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       'mode': _proxyMode,
       'ipv6': _proxyIpv6,
       'use_for_calls': _proxyForCalls,
-      'proxy_type': _selectedProxyType,
+      // Use the active proxy's own lowercase type.name so the type always
+      // matches the host/port/secret being sent from the same object. The
+      // separate _selectedProxyType holds the uppercase display label
+      // ("SOCKS5") for the settings status text only — sending it here was a
+      // no-op (and could go stale/empty relative to activeProxy), because the
+      // Go dialer's ProxyConfig.active() compares against lowercase tokens.
+      'proxy_type': activeProxy['type'] ?? _selectedProxyType.toLowerCase(),
       'host': activeProxy['host'] ?? '',
       'port': activeProxy['port'] ?? 0,
       'username': activeProxy['username'] ?? '',
