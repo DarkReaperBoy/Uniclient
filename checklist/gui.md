@@ -335,11 +335,19 @@ Audited against AyuGram's regex-filters feature: `ayu/ui/settings/settings_filte
 `info/info_wrap_widget.cpp`. Backend wiring is solid — every toggle/menu/row callback calls the
 real `AyuFilterEngine`/`AppState` (rebuildCache + notifyListeners), the import/export engine posts
 to dpaste and round-trips the v2 backup JSON, and `context.select` rebuilds the list correctly
-(all mutators reassign new list instances). Two genuine deviations found.
+(all mutators reassign new list instances). Both prior MAJOR deviations are now fixed.
 
-- [ ] [MAJOR] `_ShadowBanRow` fallback-avatar color uses the wrong palette-remap table `[0, 2, 4, 1, 6, 3, 5]` (index 1 = `2`) instead of AyuGram's `ColorIndexToPaletteIndex` map `[0, 7, 4, 1, 6, 3, 5]`. AyuGram paints the unknown-peer userpic via `EmptyUserpic::UserpicColor(realId % 7)` which indexes through this map. For any shadow-banned peer with `id % 7 == 1` and no downloaded avatar, the Dart shows `historyPeer3UserpicBg` instead of the correct `historyPeer8UserpicBg`. This is a single-character typo: the sibling `_PerDialogFilterRow` in this same file uses the correct `_kUserpicColorRemap` (`ayu_filters_page.dart:533`), and all 20 other `_colorRemap` definitions across the codebase use `[0, 7, 4, 1, 6, 3, 5]`. — `ayu_filters_page.dart:1303` (used at `ayu_filters_page.dart:1265`) ← `AyuGram/Telegram/SourceFiles/ui/chat/chat_style.cpp:1205` (and `ui/empty_userpic.cpp:293`, `ayu/ui/settings/filters/per_dialog_filter.cpp:53-54`)
-
-- [ ] [MAJOR] Import box does not auto-select "URL" mode when the clipboard holds a URL. AyuGram initializes the radio group to `clipboardHasUrl` (`intoURL = RadioenumGroup<bool>(clipboardHasUrl)`) and shows the prefilled URL field, so the "copy share link → Import → click Import" flow fetches from the link. The Dart hardcodes `_useUrl = false` and only prefills `_urlController` (which is hidden while `_useUrl` is false, making the prefill dead code). With a URL on the clipboard, clicking Import takes the Clipboard branch, `jsonDecode`s the URL string, throws `FormatException`, and shows "Failed to import filters" — the primary link-import path is broken until the user manually toggles the URL radio. The Dart already detects the clipboard URL (`startsWith('http')`) but forgets to flip `_useUrl`. — `ayu_filters_page.dart:1573` (and dead prefill at `ayu_filters_page.dart:1581-1591`) ← `AyuGram/Telegram/SourceFiles/ayu/ui/boxes/import_filters_box.cpp:48-50` (and `:78-80`,`:86-91`)
+**Verified correct (both prior MAJOR deviations fixed; confirmed in desktop 1024×768 + mobile 400×720):**
+The `_ShadowBanRow` fallback avatar now uses the shared `_kUserpicColorRemap` (`[0,7,4,1,6,3,5]`,
+`ayu_filters_page.dart:533`) — identical to its sibling `_PerDialogFilterRow` and matching AyuGram's
+`ColorIndexToPaletteIndex` (`chat_style.cpp:1205`); the buggy `[0,2,4,1,6,3,5]` table is removed. A
+pixel-sample of an `id%7==1` peer's empty userpic (Config Sharing, id 6630, rendered via the known-correct
+chat-list map) reads `historyPeer8UserpicBg` = `RGB(254,187,91)` = `0xFEBB5B`, not the old
+`historyPeer3UserpicBg` (`0xE5CA77`), and the shadow-ban row now computes through the identical map.
+The import box auto-selects URL mode when the clipboard holds a URL (`_prefillFromClipboard` trims the
+text and flips `_useUrl=true` via setState, mirroring `RadioenumGroup<bool>(clipboardHasUrl)`): with a URL
+on the clipboard the URL radio is pre-selected and the field pre-filled in one click; with non-URL text it
+correctly defaults to Clipboard mode (URL field hidden). No crashes in the app log.
 
 # ayu_general_page — AyuGram "General" settings page
 
