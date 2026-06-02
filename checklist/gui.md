@@ -169,8 +169,6 @@ wire). `PaletteProvider` is a correct `InheritedWidget` (identity-based
 
 ## Findings
 
-- [ ] [MAJOR] `colorize()` exclusion set is a **superset** of AyuGram's `kColorizeIgnoredKeys`: it passes through ~40 colors that are hex-defined in the colorizer base file and are NOT in AyuGram's ignore list, so a custom accent that AyuGram recolors leaves them frozen. Concrete: `photoEditorItemBaseHandleFg` (#3ccaef, hue 192°, sat 0.75) sits within the 15° hue threshold of the day accent (#40a7e3, hue 202°) → AyuGram's colorizer shifts its hue, the Dart does not. Same for the dark `callBgOpaque`/`groupCallBg`/`groupCallMembersBg` (hues 210–215°, also inside the threshold, lower visual impact). — `telegram_palette.dart:1938` (also `:1856`,`:1857`,`:1879`,`:1881`) ← `AyuGram/Telegram/SourceFiles/window/themes/window_themes_embedded.cpp:33-102` (ignoreKeys list excludes these) + `AyuGram/Telegram/lib_ui/ui/style/style_palette_colorizer.cpp:84-107` (colorize applies to every non-ignored base-file key)
-
 ## Verified faithful (no action needed — recorded for the audit trail)
 
 - **Colorize transform** (`telegram_palette.dart:1345-1373`) is a line-accurate port of
