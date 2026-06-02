@@ -104,8 +104,6 @@ Audited `dart/lib/state/app_state.dart` (4448 lines) against AyuGram `ayu/ayu_se
 
 ---
 
-- [ ] [CRITICAL] **Proxy settings are collected, persisted, and pushed to the engine — but never applied to any connection, so the entire Settings→Proxy feature is a non-functional placeholder.** `_syncProxyToEngine()` builds a full payload and calls `SetProxy` per account, looking correctly wired. But the Go engine's `SetProxy` only writes in-memory fields (`e.proxyMode/proxyHost/...`) that have **zero readers**, and the core's proxy `DialFunc` is never populated in production (only in a test). So configuring a proxy does nothing — and a proxy-dependent user on a censored network can never connect. AyuGram actually dials through the proxy via `Application::setCurrentProxy` wired into MTProto. (The engine.go comment "reconfigures active connections" is false.) Root cause is engine/bridge-side; the Dart push itself is fine. — `app_state.dart:2666-2691` (`_syncProxyToEngine` → `SetProxy`) ← `go/engine/engine.go:269-286` (write-only stub) + `go/bridge/bridge.go:181` & `go/cores/telegram.go:228,274` (DialFunc never set outside tests) vs AyuGram `core/application.cpp:836` / `core/core_settings_proxy.h:73-74`.
-
 # audio_service — media-player service (port of AyuGram Media::Player::Instance)
 
 `audio_service.dart` is a **ChangeNotifier** wrapping a `media_kit` `Player`, porting
