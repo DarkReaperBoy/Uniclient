@@ -96,19 +96,6 @@ truncation, and the reaction/poll-vote `reactedToType` switch all match the C++ 
 spoiler-entity masking is applied upstream (`chat_state.dart:_applySpoilerEntities`) so the
 reaction/text bodies are correctly masked.
 
-The findings below are all cases where real backend data **exists in the message model but is
-not plumbed into the notification**, or where the subtitle/body deviates from AyuGram's logic.
-
-- [ ] [MAJOR] File/document notifications show a generic "File" instead of the document filename. AyuGram's `MediaFile::notificationText()` returns `_document->filename()` for any non-video/voice/animation document that has a filename (only falling back to `lng_in_dlg_file` = "File" when the name is empty). The Dart `case 8` always returns `lngNotifFile()` ("File"). The data is available (`engine_models.dart:508 mediaFileName`) but is never passed to `NotificationData` (no filename field; `chat_state.dart:2613` construction omits it). — `notification_types.dart:470-471` ← `data/data_media_types.cpp:1287-1294`
-
-- [ ] [MAJOR] Audio-file notifications show generic "Audio file" instead of the filename. Same root cause: AyuGram's `MediaFile::notificationText()` checks `!filename().isEmpty()` (line 1287) **before** the `isAudioFile()` → `lng_in_dlg_audio_file` fallback (line 1289), so a music file shows its filename. The Dart `case 3` always returns `lngNotifAudioFile()`. `mediaFileName`/`audioTitle` (`engine_models.dart:508,576`) exist but aren't plumbed. — `notification_types.dart:457-458` ← `data/data_media_types.cpp:1287-1290`
-
-- [ ] [MAJOR] Location notifications drop the venue title/address that AyuGram appends. `MediaLocation::notificationText()` does `WithCaptionNotificationText(typeString(), { .text = _title })` — i.e. "Location, {venue title}" for a venue/place. The Dart `case 10` returns only `lngNotifLocation()`/`lngNotifLiveLocation()` with no title. `venueTitle`/`venueAddress` (`engine_models.dart:597-598`) exist but are not plumbed into `NotificationData` (construction at `chat_state.dart:2662` sets only `isLiveLocation`). — `notification_types.dart:476-477` ← `data/data_media_types.cpp:1701-1703`
-
-- [ ] [MAJOR] Contact notifications append ": {name}" which AyuGram does not show. `MediaContact::notificationText()` returns only `tr::lng_in_dlg_contact` = "Contact" (no name; the name only appears in the *reaction* string `lng_reaction_contact`). The Dart `case 11` renders "Contact: {contactName}", deviating from the authority for the plain message body. — `notification_types.dart:478-481` ← `data/data_media_types.cpp:1591-1593`
-
-- [ ] [MAJOR] Group/channel subtitle omits AyuGram's `!isPostHidingAuthor()` guard. `notificationHeader()` returns the sender name only when `!_history->peer->isUser() && !isPostHidingAuthor()` — so an author-hiding channel post yields an **empty** subtitle (the channel name is already the title). The Dart `_composeSubtitle` returns `data.senderName` for any `isGroup || isChannel` with no post-hiding-author check, so a channel post whose `senderName` is populated (e.g. the channel/signature) renders a redundant or unwanted second line. (Also missing the `isService()` → "" branch.) — `notification_types.dart:397-399` ← `history/history_item.cpp:2767-2774`
-
 # app_state — top-level app settings/state (mirrors AyuGram `ayu_settings.*` + Telegram `core_settings*` + passcode/auto-lock)
 
 Audited `dart/lib/state/app_state.dart` (4448 lines) against AyuGram `ayu/ayu_settings.h`/`.cpp`, `core/core_settings_proxy.h`, `ui/power_saving.h`, `main/main_domain.cpp`.
