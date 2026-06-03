@@ -8,6 +8,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import '../utils/country_data.dart';
 import 'confirm_box.dart';
 import 'choose_datetime_box.dart';
 import 'telegram_toast.dart';
@@ -75,6 +76,8 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   List<Map<String, dynamic>> _creditsOptions = [];
   int _selectedCreditsOptionIndex = 0;
   int _selectedCreditsWinnerIndex = 0;
+  // Whether extended (hidden) star tiers have been revealed via "Show more".
+  bool _creditsExtended = false;
 
   _MemberFilter _memberFilter = _MemberFilter.all;
   bool _showWinners = false;
@@ -86,8 +89,18 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   final List<String> _additionalChannelIds = [];
   final List<String> _additionalChannelNames = [];
 
-  final int _boostsPerPremium = 4;
+  // "Award Specific Users" mode: explicitly chosen recipients to gift Premium.
+  // Non-empty ⇒ isSpecificUsers() ⇒ the Award flow replaces the random giveaway.
+  final List<String> _awardUserIds = [];
+  final List<String> _awardUserNames = [];
+  int _awardMonths = 0;
+
+  int _boostsPerPremium = 4;
+  int _countriesMax = 10;
+  int _addPeersMax = 10;
   int _giveawayPeriodMax = 604800;
+
+  bool get _isSpecificUsers => _awardUserIds.isNotEmpty;
 
   @override
   void initState() {
@@ -110,13 +123,13 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       final results = await Future.wait([
         engine.getGiftCodeOptions(widget.accountId, widget.chatId),
         engine.getStarsGiveawayOptions(widget.accountId),
-        engine.getGiveawayPeriodMax(widget.accountId),
+        engine.getGiveawayConfig(widget.accountId),
       ]);
       if (!mounted) return;
 
       final opts = results[0] as List<Map<String, dynamic>>;
       final creditsOpts = results[1] as List<Map<String, dynamic>>;
-      final periodMax = results[2] as int;
+      final config = results[2] as Map<String, int>;
 
       int defaultCreditsIdx = 0;
       for (int i = 0; i < creditsOpts.length; i++) {
@@ -131,7 +144,10 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         _uniqueUsers = opts.map((o) => o['users'] as int).toSet().toList()..sort();
         _creditsOptions = creditsOpts;
         _selectedCreditsOptionIndex = defaultCreditsIdx;
-        _giveawayPeriodMax = periodMax;
+        _boostsPerPremium = config['boosts_per_premium'] ?? 4;
+        _countriesMax = config['countries_max'] ?? 10;
+        _addPeersMax = config['add_peers_max'] ?? 10;
+        _giveawayPeriodMax = config['period_max'] ?? 604800;
         _loading = false;
       });
     } catch (e) {
@@ -304,14 +320,21 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   }
 
   void _addChannel() async {
-    final chatState = context.read<ChatState>();
-    final appState = context.read<AppState>();
-    final accountId = appState.activeAccountId;
-    if (accountId.isEmpty) return;
+    // Enforce the app-config maximum (AyuGram giveawayAddPeersMax, fallback 10).
+    if (_additionalChannelIds.length >= _addPeersMax) {
+      showTelegramToast(context, 'You can select up to $_addPeersMax groups and channels.');
+      return;
+    }
 
+    final chatState = context.read<ChatState>();
+    final accountId = widget.accountId;
+
+    // Source collects only broadcast channels (!channel->isMegagroup()); the
+    // local cache's ChatType.channel is exactly the broadcast set. Megagroups
+    // (ChatType.group) are excluded.
     final chats = chatState.chatsForAccount(accountId);
     final channels = chats.where((c) =>
-      (c.type == ChatType.channel || c.type == ChatType.group) &&
+      c.type == ChatType.channel &&
       !_additionalChannelIds.contains(c.chatId) &&
       c.chatId != widget.chatId
     ).toList();
@@ -329,11 +352,136 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         palette: p,
       ),
     );
-    if (selected != null && mounted) {
-      final chat = channels.firstWhere((c) => c.chatId == selected, orElse: () => channels.first);
+    if (selected == null || !mounted) return;
+
+    final chat = channels.firstWhere((c) => c.chatId == selected, orElse: () => channels.first);
+
+    void add() {
+      if (!mounted) return;
       setState(() {
         _additionalChannelIds.add(selected);
         _additionalChannelNames.add(chat.title);
+      });
+    }
+
+    // A channel without a public username is private — confirm before adding,
+    // since users can't join it without an invite link (lng_giveaway_channels_confirm).
+    if (chat.username.isEmpty) {
+      showConfirmBox(
+        context,
+        title: 'Channel is Private',
+        text: "Are you sure you want to add a private channel? "
+            "Users won't be able to join it without an invite link.",
+        confirmText: 'Add',
+        onConfirm: add,
+      );
+    } else {
+      add();
+    }
+  }
+
+  /// Opens the member peer-picker for the "Award Specific Users" mode. Mirrors
+  /// AyuGram's AwardMembersListController flow: selecting members enters the
+  /// Award flow; "Choose randomly" clears the selection back to a random
+  /// giveaway. Cancelling leaves the current state untouched.
+  void _openAwardPicker() async {
+    if (_type != _GiveawayType.random) {
+      setState(() => _type = _GiveawayType.random);
+    }
+    final p = context.palette;
+    final result = await showTelegramBox<List<MemberInfo>>(
+      context: context,
+      builder: (ctx) => _AwardMembersBox(
+        accountId: widget.accountId,
+        chatId: widget.chatId,
+        palette: p,
+        maxUsers: _addPeersMax,
+        initialSelectedIds: List.from(_awardUserIds),
+      ),
+    );
+    if (result == null || !mounted) return; // cancelled
+
+    setState(() {
+      _awardUserIds
+        ..clear()
+        ..addAll(result.map((m) => m.userId));
+      _awardUserNames
+        ..clear()
+        ..addAll(result.map((m) => m.label));
+      if (_awardUserIds.isNotEmpty) {
+        final durOpts = _perUserDurationOptions();
+        if (!durOpts.any((o) => o['months'] == _awardMonths)) {
+          _awardMonths = durOpts.isNotEmpty ? durOpts.first['months'] as int : 0;
+        }
+      }
+    });
+  }
+
+  /// Per-user duration options derived from the gift-code options, keyed by
+  /// month length. Price per user is amount/users (linear in users — AyuGram
+  /// scales the one-person cost by usersCount in optionsForGiveaway). Used by
+  /// the Award flow where the winner count is the number of chosen recipients.
+  List<Map<String, dynamic>> _perUserDurationOptions() {
+    final byMonths = <int, Map<String, dynamic>>{};
+    for (final o in _options) {
+      final months = (o['months'] as int?) ?? 0;
+      final users = (o['users'] as int?) ?? 1;
+      if (users <= 0 || months <= 0) continue;
+      final amount = (o['amount'] as num?)?.toInt() ?? 0;
+      final perUser = amount ~/ users;
+      // Prefer the users==1 option for exact per-user pricing.
+      if (!byMonths.containsKey(months) || users == 1) {
+        byMonths[months] = {
+          'months': months,
+          'currency': (o['currency'] as String?) ?? 'USD',
+          'per_user_amount': perUser,
+        };
+      }
+    }
+    final list = byMonths.values.toList()
+      ..sort((a, b) => (a['months'] as int).compareTo(b['months'] as int));
+    return list;
+  }
+
+  Future<void> _launchAward() async {
+    if (_launching || _awardUserIds.isEmpty) return;
+    final durOpts = _perUserDurationOptions();
+    if (durOpts.isEmpty) return;
+    final selected = durOpts.firstWhere(
+      (o) => o['months'] == _awardMonths,
+      orElse: () => durOpts.first,
+    );
+    final n = _awardUserIds.length;
+    final perUser = selected['per_user_amount'] as int;
+
+    setState(() => _launching = true);
+    final engine = Provider.of<AppState>(context, listen: false).engine;
+
+    try {
+      final result = await engine.awardPremiumGiveaway(
+        widget.accountId,
+        widget.chatId,
+        {
+          'user_ids': _awardUserIds,
+          'months': selected['months'],
+          'currency': selected['currency'] ?? 'USD',
+          'amount': perUser * n,
+          'random_id': Random().nextInt(1 << 31),
+        },
+      );
+      if (!mounted) return;
+      final url = result['url'] as String?;
+      Navigator.of(context).pop();
+      if (url != null && url.isNotEmpty) {
+        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        showTelegramToast(context, 'Premium gifted!');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _launching = false;
+        _error = e.toString();
       });
     }
   }
@@ -352,6 +500,7 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       builder: (ctx) => _CountryPickerBox(
         selectedCodes: List.from(_selectedCountries),
         palette: p,
+        maxCountries: _countriesMax,
       ),
     );
     if (result != null && mounted) {
@@ -469,6 +618,25 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   }
 
   Widget _buildContent(TelegramPalette p, bool isDark, Color primary, Color subColor) {
+    // Award Specific Users mode: the random-giveaway sections (winners slider,
+    // channels, countries, schedule, prizes) collapse — only the type selector,
+    // the gift-duration options and the Award button remain, matching the
+    // source's isSpecificUsers() layout.
+    if (_isSpecificUsers && _type == _GiveawayType.random) {
+      return ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        children: [
+          _buildTypeSelector(isDark, primary, subColor),
+          const SizedBox(height: 16),
+          ..._buildAwardSection(p, isDark, primary, subColor),
+          const SizedBox(height: 16),
+          _buildActionButton(p, primary),
+          const SizedBox(height: 8),
+        ],
+      );
+    }
+
     return ListView(
       shrinkWrap: true,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -494,6 +662,129 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     );
   }
 
+  /// The Award flow body: gift-duration cards priced per chosen recipient.
+  List<Widget> _buildAwardSection(TelegramPalette p, bool isDark, Color primary, Color subColor) {
+    final n = _awardUserIds.length;
+    final durOpts = _perUserDurationOptions();
+    if (durOpts.isEmpty) {
+      return [
+        Text(
+          'No premium gift options available for this channel.',
+          style: TextStyle(fontSize: 13, color: subColor),
+        ),
+      ];
+    }
+    final selectedMonths = durOpts.any((o) => o['months'] == _awardMonths)
+        ? _awardMonths
+        : durOpts.first['months'] as int;
+    final selected = durOpts.firstWhere(
+      (o) => o['months'] == selectedMonths,
+      orElse: () => durOpts.first,
+    );
+    final currency = selected['currency'] as String? ?? 'USD';
+    final total = (selected['per_user_amount'] as int) * n;
+
+    return [
+      Text(
+        'Premium Subscription Gifts',
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: primary),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        'Gift Telegram Premium subscriptions to the chosen recipients.',
+        style: TextStyle(fontSize: 12, color: subColor),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        'Duration for $n recipient${n == 1 ? '' : 's'}',
+        style: TextStyle(fontSize: 12, color: subColor),
+      ),
+      const SizedBox(height: 8),
+      ...durOpts.map((o) {
+        final months = o['months'] as int;
+        final perUser = o['per_user_amount'] as int;
+        final cur = o['currency'] as String? ?? 'USD';
+        final isSelected = months == selectedMonths;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: InkWell(
+            onTap: () => setState(() => _awardMonths = months),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected ? primary.withValues(alpha: 0.08) : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isSelected ? primary : (isDark ? const Color(0xFF3A4A5A) : const Color(0xFFD0D5DB)),
+                  width: isSelected ? 2.0 : 1.0,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '$months',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: primary),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$months month${months == 1 ? '' : 's'}',
+                          style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          '${_formatAmount(perUser, cur)} per user',
+                          style: TextStyle(fontSize: 11, color: subColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    _formatAmount(perUser * n, cur),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: primary),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }),
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2B3945) : const Color(0xFFF0F2F5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Total', style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87)),
+            Text(
+              _formatAmount(total, currency),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: primary),
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
   Widget _buildTypeSelector(bool isDark, Color primary, Color subColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -504,11 +795,15 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         const SizedBox(height: 8),
         _TypeRadioTile(
           title: 'Premium Subscriptions',
-          subtitle: 'Create new premium giveaway',
+          subtitle: _isSpecificUsers
+              ? (_awardUserIds.length == 1
+                  ? _awardUserNames.first
+                  : '${_awardUserIds.length} recipients')
+              : 'winners are chosen randomly',
           icon: Icons.people_outline,
           selected: _type == _GiveawayType.random,
           theme: widget.theme,
-          onTap: () => setState(() => _type = _GiveawayType.random),
+          onTap: _openAwardPicker,
         ),
         const SizedBox(height: 4),
         _TypeRadioTile(
@@ -757,6 +1052,7 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         ),
       const SizedBox(height: 8),
       ..._buildCreditsOptionCards(isDark, primary, subColor),
+      if (!_creditsExtended && _hasHiddenExtendedCredits()) _buildShowMoreButton(primary),
       const SizedBox(height: 12),
 
       Container(
@@ -779,10 +1075,44 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     ];
   }
 
+  /// True when there are extended star tiers not yet visible (hidden behind
+  /// "Show more"). Mirrors the source which gates `option.isExtended` rows.
+  bool _hasHiddenExtendedCredits() {
+    return _creditsOptions.asMap().entries.any((e) =>
+        e.value['extended'] == true &&
+        e.value['is_default'] != true &&
+        e.key != _selectedCreditsOptionIndex);
+  }
+
+  Widget _buildShowMoreButton(Color primary) {
+    return InkWell(
+      onTap: () => setState(() => _creditsExtended = true),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.keyboard_arrow_down, size: 18, color: primary),
+            const SizedBox(width: 8),
+            Text(
+              'Show more',
+              style: TextStyle(fontSize: 13, color: primary, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<Widget> _buildCreditsOptionCards(bool isDark, Color primary, Color subColor) {
     return _creditsOptions.asMap().entries.where((entry) {
       final opt = entry.value;
-      return !(opt['extended'] == true) || opt['is_default'] == true || entry.key == _selectedCreditsOptionIndex;
+      // Extended tiers stay hidden until "Show more" is tapped (or if this tier
+      // is the default / currently-selected one).
+      return !(opt['extended'] == true) ||
+          opt['is_default'] == true ||
+          _creditsExtended ||
+          entry.key == _selectedCreditsOptionIndex;
     }).map((entry) {
       final i = entry.key;
       final opt = entry.value;
@@ -974,6 +1304,29 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   List<Widget> _buildChannelsSection(TelegramPalette p, bool isDark, Color primary, Color subColor) {
     if (_type == _GiveawayType.prepaid) return [];
 
+    // The boosted channel itself is always listed first (source's
+    // SelectedChannelsListController::prepare appends the host as row 0), with a
+    // "this channel will receive N boosts" status (setTopStatus).
+    final chatState = context.read<ChatState>();
+    ChatInfo? host;
+    for (final c in chatState.chatsForAccount(widget.accountId)) {
+      if (c.chatId == widget.chatId) {
+        host = c;
+        break;
+      }
+    }
+    final hostTitle = (host != null && host.title.isNotEmpty) ? host.title : 'This channel';
+    final isGroup = host?.type == ChatType.group;
+    final int hostBoosts;
+    if (_type == _GiveawayType.credits && _creditsOptions.isNotEmpty) {
+      hostBoosts = (_creditsOptions[_selectedCreditsOptionIndex]['yearly_boosts'] as num?)?.toInt() ?? 0;
+    } else {
+      hostBoosts = _currentBoosts;
+    }
+    final hostStatus = isGroup
+        ? 'this group will receive $hostBoosts boost${hostBoosts == 1 ? '' : 's'}'
+        : 'this channel will receive $hostBoosts boost${hostBoosts == 1 ? '' : 's'}';
+
     return [
       Text('Channels', style: TextStyle(
         fontSize: 13, fontWeight: FontWeight.w600, color: primary,
@@ -984,6 +1337,39 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         style: TextStyle(fontSize: 12, color: subColor),
       ),
       const SizedBox(height: 8),
+      // Host channel row (non-removable).
+      Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF2B3945) : const Color(0xFFF0F2F5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(isGroup ? Icons.group : Icons.campaign, size: 18, color: primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hostTitle,
+                      style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(hostStatus, style: TextStyle(fontSize: 11, color: primary)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       ..._additionalChannelNames.asMap().entries.map((entry) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 4),
@@ -1204,8 +1590,12 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   }
 
   Widget _buildActionButton(TelegramPalette p, Color primary) {
+    final isSpecific = _isSpecificUsers && _type == _GiveawayType.random;
+
     final int boostCount;
-    if (_type == _GiveawayType.prepaid) {
+    if (isSpecific) {
+      boostCount = _boostsPerPremium * _awardUserIds.length;
+    } else if (_type == _GiveawayType.prepaid) {
       boostCount = widget.prepaidGiveaways.isNotEmpty
           ? (widget.prepaidGiveaways[_selectedPrepaidIndex]['boosts'] as int? ??
               ((widget.prepaidGiveaways[_selectedPrepaidIndex]['quantity'] as int? ?? 0) * _boostsPerPremium))
@@ -1217,13 +1607,19 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     }
 
     final VoidCallback onTap;
-    if (_type == _GiveawayType.prepaid) {
+    if (isSpecific) {
+      onTap = _launchAward;
+    } else if (_type == _GiveawayType.prepaid) {
       onTap = _launchPrepaid;
     } else if (_type == _GiveawayType.credits) {
       onTap = _launchCreditsGiveaway;
     } else {
       onTap = _launchRandomGiveaway;
     }
+
+    // "Gift Premium" (lng_giveaway_award) when awarding specific users, else the
+    // standard "Start Giveaway" (lng_giveaway_start).
+    final buttonLabel = isSpecific ? 'Gift Premium' : 'Start Giveaway';
 
     return SizedBox(
       width: double.infinity,
@@ -1241,7 +1637,7 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Start Giveaway', style: TextStyle(
+                  Text(buttonLabel, style: const TextStyle(
                     fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white,
                   )),
                   if (boostCount > 0) ...[
@@ -1574,15 +1970,254 @@ class _ChannelPickerBox extends StatelessWidget {
   }
 }
 
+// ─── Award Members Box ──────────────────────────────────────────────────────
+//
+// Member peer-picker for the "Award Specific Users" giveaway mode (mirrors
+// AyuGram's AwardMembersListController). Returns: null when cancelled (no
+// change), an empty list for "Choose randomly" (clears the award selection), or
+// the chosen members to gift Premium to.
+
+class _AwardMembersBox extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final TelegramPalette palette;
+  final int maxUsers;
+  final List<String> initialSelectedIds;
+
+  const _AwardMembersBox({
+    required this.accountId,
+    required this.chatId,
+    required this.palette,
+    required this.maxUsers,
+    required this.initialSelectedIds,
+  });
+
+  @override
+  State<_AwardMembersBox> createState() => _AwardMembersBoxState();
+}
+
+class _AwardMembersBoxState extends State<_AwardMembersBox> {
+  bool _loading = true;
+  String? _error;
+  List<MemberInfo> _members = [];
+  late final Set<String> _selectedIds;
+  String _query = '';
+  final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIds = Set.from(widget.initialSelectedIds);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final engine = Provider.of<AppState>(context, listen: false).engine;
+      final members = await engine.getChatMembers(
+        widget.accountId,
+        widget.chatId,
+        limit: 200,
+      );
+      if (!mounted) return;
+      setState(() {
+        // Source's createRow drops bots and self.
+        _members = members.where((m) => !m.isBot && !m.isSelf).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _toggle(MemberInfo m) {
+    if (_selectedIds.contains(m.userId)) {
+      setState(() => _selectedIds.remove(m.userId));
+      return;
+    }
+    // Enforce the app-config maximum (giveawayAddPeersMax, fallback 10).
+    if (_selectedIds.length >= widget.maxUsers) {
+      showTelegramToast(context, 'You can select up to ${widget.maxUsers} subscribers.');
+      return;
+    }
+    setState(() => _selectedIds.add(m.userId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.palette;
+    final textFg = p.boxTextFg;
+    final subColor = p.windowSubTextFg;
+
+    final q = _query.toLowerCase();
+    final filtered = _members.where((m) =>
+      q.isEmpty ||
+      m.label.toLowerCase().contains(q) ||
+      m.username.toLowerCase().contains(q)
+    ).toList();
+
+    Widget list;
+    if (_loading) {
+      list = const Padding(
+        padding: EdgeInsets.all(32),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else if (_error != null) {
+      list = Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+        child: Text(
+          'Failed to load members.\n$_error',
+          style: TextStyle(fontSize: 12, color: subColor),
+          textAlign: TextAlign.center,
+          maxLines: 4,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    } else if (filtered.isEmpty) {
+      list = Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          'No members found.',
+          style: TextStyle(fontSize: 13, color: subColor),
+        ),
+      );
+    } else {
+      list = SizedBox(
+        height: min(filtered.length * 52.0, 320),
+        child: ListView.builder(
+          itemCount: filtered.length,
+          itemBuilder: (ctx, i) {
+            final m = filtered[i];
+            final sel = _selectedIds.contains(m.userId);
+            return InkWell(
+              onTap: () => _toggle(m),
+              hoverColor: p.windowBgOver,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      sel ? Icons.check_box : Icons.check_box_outline_blank,
+                      size: 20,
+                      color: sel ? p.windowBgActive : subColor,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            m.label,
+                            style: TextStyle(fontSize: 14, color: textFg),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (m.username.isNotEmpty)
+                            Text(
+                              '@${m.username}',
+                              style: TextStyle(fontSize: 12, color: subColor),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    return TelegramBox(
+      title: 'Award Specific Users',
+      showClose: true,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // "Choose randomly" — clears the award selection back to a random giveaway.
+          InkWell(
+            onTap: () => Navigator.of(context).pop(<MemberInfo>[]),
+            hoverColor: p.windowBgOver,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 10, 24, 10),
+              child: Row(
+                children: [
+                  Icon(Icons.shuffle, size: 20, color: p.windowActiveTextFg),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Choose randomly',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: p.windowActiveTextFg,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _query = v),
+              style: TextStyle(fontSize: 14, color: textFg),
+              decoration: InputDecoration(
+                hintText: 'Search members',
+                hintStyle: TextStyle(fontSize: 14, color: subColor),
+                prefixIcon: Icon(Icons.search, size: 20, color: subColor),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: p.windowBgRipple),
+                ),
+              ),
+            ),
+          ),
+          list,
+        ],
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'Save',
+          onPressed: () {
+            final selected = _members.where((m) => _selectedIds.contains(m.userId)).toList();
+            Navigator.of(context).pop(selected);
+          },
+        ),
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(null),
+        ),
+      ],
+    );
+  }
+}
+
 // ─── Country Picker Box ────────────────────────────────────────────────────
 
 class _CountryPickerBox extends StatefulWidget {
   final List<String> selectedCodes;
   final TelegramPalette palette;
+  final int maxCountries;
 
   const _CountryPickerBox({
     required this.selectedCodes,
     required this.palette,
+    required this.maxCountries,
   });
 
   @override
@@ -1594,26 +2229,13 @@ class _CountryPickerBoxState extends State<_CountryPickerBox> {
   String _query = '';
   final _searchController = TextEditingController();
 
-  static const _countries = <String, String>{
-    'AF': 'Afghanistan', 'AL': 'Albania', 'DZ': 'Algeria', 'AR': 'Argentina',
-    'AM': 'Armenia', 'AU': 'Australia', 'AT': 'Austria', 'AZ': 'Azerbaijan',
-    'BD': 'Bangladesh', 'BY': 'Belarus', 'BE': 'Belgium', 'BR': 'Brazil',
-    'BG': 'Bulgaria', 'CA': 'Canada', 'CL': 'Chile', 'CN': 'China',
-    'CO': 'Colombia', 'HR': 'Croatia', 'CZ': 'Czech Republic', 'DK': 'Denmark',
-    'EG': 'Egypt', 'EE': 'Estonia', 'FI': 'Finland', 'FR': 'France',
-    'GE': 'Georgia', 'DE': 'Germany', 'GR': 'Greece', 'HU': 'Hungary',
-    'IN': 'India', 'ID': 'Indonesia', 'IR': 'Iran', 'IQ': 'Iraq',
-    'IE': 'Ireland', 'IL': 'Israel', 'IT': 'Italy', 'JP': 'Japan',
-    'KZ': 'Kazakhstan', 'KR': 'South Korea', 'KW': 'Kuwait', 'LV': 'Latvia',
-    'LT': 'Lithuania', 'MY': 'Malaysia', 'MX': 'Mexico', 'MD': 'Moldova',
-    'NL': 'Netherlands', 'NZ': 'New Zealand', 'NG': 'Nigeria', 'NO': 'Norway',
-    'PK': 'Pakistan', 'PE': 'Peru', 'PH': 'Philippines', 'PL': 'Poland',
-    'PT': 'Portugal', 'QA': 'Qatar', 'RO': 'Romania', 'RU': 'Russia',
-    'SA': 'Saudi Arabia', 'RS': 'Serbia', 'SG': 'Singapore', 'SK': 'Slovakia',
-    'ZA': 'South Africa', 'ES': 'Spain', 'SE': 'Sweden', 'CH': 'Switzerland',
-    'TW': 'Taiwan', 'TH': 'Thailand', 'TR': 'Turkey', 'UA': 'Ukraine',
-    'AE': 'United Arab Emirates', 'GB': 'United Kingdom', 'US': 'United States',
-    'UZ': 'Uzbekistan', 'VN': 'Vietnam',
+  // Full ISO country database (mirrors AyuGram's Countries::Instance().list()),
+  // sorted by name — replaces the previous hardcoded 73-country subset. Flags
+  // come from CountryInfo.flag rather than a duplicated local helper.
+  static final List<CountryInfo> _allCountries = [...countries]
+    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  static final Map<String, CountryInfo> _byIso = {
+    for (final c in countries) c.iso: c,
   };
 
   @override
@@ -1628,10 +2250,18 @@ class _CountryPickerBoxState extends State<_CountryPickerBox> {
     super.dispose();
   }
 
-  static String _countryFlag(String code) {
-    return String.fromCharCodes(
-      code.toUpperCase().codeUnits.map((c) => c - 0x41 + 0x1F1E6),
-    );
+  void _toggle(CountryInfo c) {
+    if (_selected.contains(c.iso)) {
+      setState(() => _selected.remove(c.iso));
+      return;
+    }
+    // Enforce the app-config maximum (giveawayCountriesMax, fallback 10) — the
+    // source wraps the add path in CreateErrorCallback(giveawayCountriesMax()).
+    if (_selected.length >= widget.maxCountries) {
+      showTelegramToast(context, 'You can select up to ${widget.maxCountries} countries.');
+      return;
+    }
+    setState(() => _selected.add(c.iso));
   }
 
   @override
@@ -1640,10 +2270,11 @@ class _CountryPickerBoxState extends State<_CountryPickerBox> {
     final textFg = p.boxTextFg;
     final subColor = p.windowSubTextFg;
 
-    final filtered = _countries.entries.where((e) =>
-      _query.isEmpty ||
-      e.value.toLowerCase().contains(_query.toLowerCase()) ||
-      e.key.toLowerCase().contains(_query.toLowerCase())
+    final q = _query.toLowerCase();
+    final filtered = _allCountries.where((c) =>
+      q.isEmpty ||
+      c.name.toLowerCase().contains(q) ||
+      c.iso.toLowerCase().contains(q)
     ).toList();
 
     return TelegramBox(
@@ -1679,6 +2310,7 @@ class _CountryPickerBoxState extends State<_CountryPickerBox> {
                 spacing: 6,
                 runSpacing: 4,
                 children: _selected.map((code) {
+                  final info = _byIso[code];
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -1689,7 +2321,7 @@ class _CountryPickerBoxState extends State<_CountryPickerBox> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '${_countryFlag(code)} ${_countries[code] ?? code}',
+                          '${info?.flag ?? ''} ${info?.name ?? code}',
                           style: const TextStyle(fontSize: 12, color: Colors.white),
                         ),
                         const SizedBox(width: 4),
@@ -1708,18 +2340,10 @@ class _CountryPickerBoxState extends State<_CountryPickerBox> {
             child: ListView.builder(
               itemCount: filtered.length,
               itemBuilder: (ctx, i) {
-                final entry = filtered[i];
-                final isSelected = _selected.contains(entry.key);
+                final c = filtered[i];
+                final isSelected = _selected.contains(c.iso);
                 return InkWell(
-                  onTap: () {
-                    setState(() {
-                      if (isSelected) {
-                        _selected.remove(entry.key);
-                      } else {
-                        _selected.add(entry.key);
-                      }
-                    });
-                  },
+                  onTap: () => _toggle(c),
                   hoverColor: p.windowBgOver,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
@@ -1731,12 +2355,11 @@ class _CountryPickerBoxState extends State<_CountryPickerBox> {
                           color: isSelected ? p.windowBgActive : subColor,
                         ),
                         const SizedBox(width: 12),
-                        Text(_countryFlag(entry.key),
-                            style: const TextStyle(fontSize: 20)),
+                        Text(c.flag, style: const TextStyle(fontSize: 20)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            entry.value,
+                            c.name,
                             style: TextStyle(fontSize: 14, color: textFg),
                             overflow: TextOverflow.ellipsis,
                           ),

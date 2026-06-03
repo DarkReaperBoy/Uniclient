@@ -7162,6 +7162,47 @@ class EngineService {
     }
   }
 
+  /// Returns the giveaway app-config limits (boosts_per_premium, countries_max,
+  /// add_peers_max, period_max). Mirrors AyuGram's PremiumGiftCodeOptions
+  /// giveaway* accessors which read the same appConfig object. Falls back to the
+  /// C++ default constants on any failure.
+  Future<Map<String, int>> getGiveawayConfig(String accountId) async {
+    const fallback = {
+      'boosts_per_premium': 4,
+      'countries_max': 10,
+      'add_peers_max': 10,
+      'period_max': 604800,
+    };
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final resp = await _callAsync('__engine', 'GetGiveawayConfig', Uint8List.fromList(payload));
+      if (resp.isEmpty) return Map<String, int>.from(fallback);
+      final decoded = json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+      return {
+        'boosts_per_premium': (decoded['boosts_per_premium'] as num?)?.toInt() ?? 4,
+        'countries_max': (decoded['countries_max'] as num?)?.toInt() ?? 10,
+        'add_peers_max': (decoded['add_peers_max'] as num?)?.toInt() ?? 10,
+        'period_max': (decoded['period_max'] as num?)?.toInt() ?? 604800,
+      };
+    } catch (e) {
+      return Map<String, int>.from(fallback);
+    }
+  }
+
+  /// Gifts Premium subscriptions to specific chosen users (giveaway "Award
+  /// Specific Users" mode). Returns the payment form (with `url` when a web
+  /// checkout is required), same shape as [launchRandomGiveaway].
+  Future<Map<String, dynamic>> awardPremiumGiveaway(String accountId, String chatId, Map<String, dynamic> params) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'params': params,
+    }));
+    final resp = await _callAsync('__engine', 'AwardPremiumGiveaway', Uint8List.fromList(payload));
+    if (resp.isEmpty) return {};
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+  }
+
   // ── Notification Settings ──
 
   Future<bool> getContactSignUpNotification(String accountId) async {

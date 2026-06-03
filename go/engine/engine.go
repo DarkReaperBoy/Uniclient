@@ -2271,6 +2271,40 @@ func (e *Engine) GetGiveawayPeriodMax(accountID string) (int, error) {
 	return 604800, nil
 }
 
+func (e *Engine) GetGiveawayConfig(accountID string) (map[string]int, error) {
+	fallback := map[string]int{
+		"boosts_per_premium": 4,
+		"countries_max":      10,
+		"add_peers_max":      10,
+		"period_max":         604800,
+	}
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fallback, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type giveawayConfigGetter interface {
+		GetGiveawayConfig() (map[string]int, error)
+	}
+	if g, ok := acc.Core.(giveawayConfigGetter); ok {
+		return g.GetGiveawayConfig()
+	}
+	return fallback, nil
+}
+
+func (e *Engine) AwardPremiumGiveaway(accountID, chatID string, params map[string]interface{}) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type premiumAwarder interface {
+		AwardPremiumGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error)
+	}
+	if a, ok := acc.Core.(premiumAwarder); ok {
+		return a.AwardPremiumGiveaway(chatID, params)
+	}
+	return nil, fmt.Errorf("platform does not support premium giveaways")
+}
+
 func (e *Engine) GetFullChat(accountID, chatID string) (*cores.Dialog, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

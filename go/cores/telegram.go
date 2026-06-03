@@ -18110,6 +18110,123 @@ func (t *TelegramCore) GetGiveawayPeriodMax() (int, error) {
 	return 604800, nil
 }
 
+// GetGiveawayConfig returns the giveaway-related app-config limits in a single
+// call. Mirrors AyuGram's PremiumGiftCodeOptions::giveaway{BoostsPerPremium,
+// CountriesMax,AddPeersMax,PeriodMax}() which all read the same appConfig object
+// (api/api_premium.cpp:689-715). Fallbacks match the C++ constants.
+func (t *TelegramCore) GetGiveawayConfig() (map[string]int, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	cfg := map[string]int{
+		"boosts_per_premium": 4,
+		"countries_max":      10,
+		"add_peers_max":      10,
+		"period_max":         604800,
+	}
+	if !t.authed || t.api == nil { return cfg, ErrAuth }
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err != nil { return cfg, nil }
+	appCfg, ok := result.(*tg.HelpAppConfig)
+	if !ok { return cfg, nil }
+	if jv := appCfg.Config; jv != nil {
+		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
+			for _, kv := range obj.Value {
+				n, isNum := kv.Value.(*tg.JSONNumber)
+				if !isNum { continue }
+				switch kv.Key {
+				case "giveaway_boosts_per_premium":
+					cfg["boosts_per_premium"] = int(n.Value)
+				case "giveaway_countries_max":
+					cfg["countries_max"] = int(n.Value)
+				case "giveaway_add_peers_max":
+					cfg["add_peers_max"] = int(n.Value)
+				case "giveaway_period_max":
+					cfg["period_max"] = int(n.Value)
+				}
+			}
+		}
+	}
+	return cfg, nil
+}
+
+// AwardPremiumGiveaway gifts Premium subscriptions to specific chosen users —
+// the giveaway "Award Specific Users" mode. Mirrors AyuGram's
+// InvoicePremiumGiftCodeUsers path (create_giveaway_box.cpp:1431): the invoice
+// carries an InputStorePaymentPremiumGiftCode purpose with the explicit user
+// list and the boosted channel, instead of InputStorePaymentPremiumGiveaway.
+// Returns a payment-form URL (same shape as LaunchRandomGiveaway).
+func (t *TelegramCore) AwardPremiumGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
+	inputPeer, err := t.toInputPeer(peer); if err != nil { return nil, err }
+
+	months, _ := params["months"].(float64)
+	currency, _ := params["currency"].(string)
+	amount, _ := params["amount"].(float64)
+	storeProduct, _ := params["store_product"].(string)
+	storeQuantity, _ := params["store_quantity"].(float64)
+
+	var users []tg.InputUserClass
+	if uids, ok := params["user_ids"].([]interface{}); ok {
+		for _, u := range uids {
+			s, ok := u.(string)
+			if !ok { continue }
+			id, perr := strconv.ParseInt(s, 10, 64)
+			if perr != nil { continue }
+			users = append(users, &tg.InputUser{UserID: id, AccessHash: t.getCachedUserHash(id)})
+		}
+	}
+	if len(users) == 0 {
+		return nil, fmt.Errorf("no users selected")
+	}
+
+	purpose := &tg.InputStorePaymentPremiumGiftCode{
+		Users:    users,
+		Currency: currency,
+		Amount:   int64(amount),
+	}
+	purpose.SetBoostPeer(inputPeer)
+
+	option := tg.PremiumGiftCodeOption{
+		Users:    len(users),
+		Months:   int(months),
+		Currency: currency,
+		Amount:   int64(amount),
+	}
+	if storeProduct != "" {
+		option.SetStoreProduct(storeProduct)
+	}
+	if storeQuantity > 0 {
+		option.SetStoreQuantity(int(storeQuantity))
+	}
+
+	invoice := &tg.InputInvoicePremiumGiftCode{
+		Purpose: purpose,
+		Option:  option,
+	}
+
+	rawForm, err := t.api.PaymentsGetPaymentForm(t.ctx, &tg.PaymentsGetPaymentFormRequest{
+		Invoice: invoice,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get payment form: %w", err)
+	}
+	form, ok := rawForm.(*tg.PaymentsPaymentForm)
+	if !ok {
+		return nil, fmt.Errorf("unexpected payment form type: %T", rawForm)
+	}
+
+	result := map[string]interface{}{
+		"form_id": form.FormID,
+		"bot_id":  form.BotID,
+		"title":   form.Title,
+	}
+	if form.URL != "" {
+		result["url"] = form.URL
+	}
+	return result, nil
+}
+
 func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }

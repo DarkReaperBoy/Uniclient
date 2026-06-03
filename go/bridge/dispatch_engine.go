@@ -2604,6 +2604,32 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]interface{}{"period_max": result})
 
+	case "GetGiveawayConfig":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		// GetGiveawayConfig always returns a non-nil fallback map even on error.
+		result, _ := e.GetGiveawayConfig(params.AccountID)
+		return json.Marshal(result)
+
+	case "AwardPremiumGiveaway":
+		var params struct {
+			AccountID string                 `json:"account_id"`
+			ChatID    string                 `json:"chat_id"`
+			Params    map[string]interface{} `json:"params"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.AwardPremiumGiveaway(params.AccountID, params.ChatID, params.Params)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
 	case "UpdatePaidMessagesPrice":
 		var params struct {
 			AccountID        string `json:"account_id"`
