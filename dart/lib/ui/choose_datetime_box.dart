@@ -17,6 +17,9 @@ const int kScheduledUntilOnlineTimestamp = 0x7FFFFFFE;
 const double _cellW = 48;
 const double _cellH = 40;
 const double _cellInner = 34;
+// AyuGram innerSkip = (cellSize - cellInner) / 2 (calendar_box.cpp:793-794)
+const double _cellInnerSkipLeft = (_cellW - _cellInner) / 2;
+const double _cellInnerSkipTop = (_cellH - _cellInner) / 2;
 const double _daysRowH = 40;
 const double _calPadH = 14;
 const double _scheduleHeight = 95;
@@ -135,6 +138,14 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
   bool _selectionMode = false;
   DateTime? _selectionStart;
   DateTime? _selectionEnd;
+  // Fixed anchor of the active range (calendar_box.cpp startSelection),
+  // separate from start/end so drag & shift+click extend from the origin.
+  DateTime? _selectionAnchor;
+  // AyuGram _twoPressSelectionStarted: a completed selection is restarted by
+  // the next plain tap instead of being extended (calendar_box.cpp:996).
+  bool _twoPressSelectionStarted = false;
+  bool _selectionDragActive = false;
+  final GlobalKey _gridKey = GlobalKey();
 
   final Map<DateTime, _DynamicImageState> _dynamicImages = {};
   final List<String> _loadedMonthKeys = [];
@@ -316,17 +327,59 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
     return dayOnly.isBefore(minOnly) || dayOnly.isAfter(maxOnly);
   }
 
-  void _selectDay(DateTime date) {
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  // Non-selection mode: a plain tap on an enabled day picks it.
+  void _pickDate(DateTime date) {
     if (_isDayDisabled(date)) return;
-    if (_selectionMode) {
-      if (_selectionStart != null) {
-        _updateSelection(date);
-      } else {
-        _startSelection(date);
-      }
-      return;
-    }
     Navigator.of(context).pop(date);
+  }
+
+  // Maps a global pointer position onto a calendar day (col 0-6, week row),
+  // mirroring CalendarBox::Inner mouse handling which works in cell units.
+  DateTime? _dateAtGlobal(Offset globalPos) {
+    final ctx = _gridKey.currentContext;
+    if (ctx == null || !_scrollController.hasClients) return null;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    final local = box.globalToLocal(globalPos);
+    final col = (local.dx / _cellW).floor().clamp(0, 6);
+    final contentY = _scrollController.offset + local.dy;
+    final weekIndex = (contentY / _cellH).floor().clamp(0, _totalWeeks - 1);
+    return _dateForGridIndex(weekIndex, col);
+  }
+
+  // CalendarBox::Inner::mousePressEvent (calendar_box.cpp:990-1006): start a
+  // fresh selection, OR extend the existing one when Shift is held or the
+  // current selection is still a single collapsed day from the previous press.
+  void _onSelectionPointerDown(Offset globalPos) {
+    final date = _dateAtGlobal(globalPos);
+    if (date == null || _isDayDisabled(date)) return;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    final hasSelection = _selectionStart != null && _selectionEnd != null;
+    final collapsed = hasSelection && _isSameDay(_selectionStart!, _selectionEnd!);
+    if (hasSelection && (shift || (_twoPressSelectionStarted && collapsed))) {
+      _updateSelection(date);
+      _twoPressSelectionStarted = false;
+    } else {
+      _startSelection(date);
+      _twoPressSelectionStarted = true;
+    }
+    _selectionDragActive = true;
+  }
+
+  // CalendarBox::Inner::mouseMoveEvent (calendar_box.cpp:914-927): drag extends
+  // the range while the button is held.
+  void _onSelectionPointerMove(Offset globalPos) {
+    if (!_selectionDragActive) return;
+    final date = _dateAtGlobal(globalPos);
+    if (date == null) return;
+    _updateSelection(date);
+  }
+
+  void _onSelectionPointerUp() {
+    _selectionDragActive = false;
   }
 
   void _toggleSelectionMode() {
@@ -335,12 +388,16 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
       if (!_selectionMode) {
         _selectionStart = null;
         _selectionEnd = null;
+        _selectionAnchor = null;
+        _twoPressSelectionStarted = false;
+        _selectionDragActive = false;
       }
     });
   }
 
   void _startSelection(DateTime date) {
     setState(() {
+      _selectionAnchor = date;
       _selectionStart = date;
       _selectionEnd = date;
     });
@@ -348,8 +405,8 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
   }
 
   void _updateSelection(DateTime date) {
-    if (_selectionStart == null) return;
-    final anchor = _selectionStart!;
+    final anchor = _selectionAnchor ?? _selectionStart;
+    if (anchor == null) return;
     DateTime min, max;
     if (date.isBefore(anchor)) {
       min = date;
@@ -444,6 +501,9 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentFg =
         context.palette.dialogsBgActive;
+    // Range selection pill (calendar_box.cpp:802 activeButtonBg / activeButtonFg).
+    final rangeBg = context.palette.activeButtonBg;
+    final rangeFg = context.palette.activeButtonFg;
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final disabledFg = subtextFg.withValues(alpha: 0.4);
     final weekDays = _localizedWeekDays();
@@ -509,7 +569,9 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
         mainAxisSize: MainAxisSize.min,
         children: [
           _NavArrow(
-            icon: Icons.chevron_left,
+            // AyuGram calendarPrevious = "calendar_down-flip_vertical" (up)
+            // for the vertically-scrolling calendar (boxes.style:419).
+            icon: Icons.keyboard_arrow_up,
             enabled: _canGoPrev(),
             color: textFg,
             disabledColor: subtextFg,
@@ -522,7 +584,9 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
             onPointerUp: _cancelJump,
           ),
           _NavArrow(
-            icon: Icons.chevron_right,
+            // AyuGram calendarNext = "calendar_down" (down chevron)
+            // (boxes.style:428).
+            icon: Icons.keyboard_arrow_down,
             enabled: _canGoNext(),
             color: textFg,
             disabledColor: subtextFg,
@@ -593,15 +657,27 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
                     ),
                 ],
               ),
-              // Vertically scrollable all-months grid
-              SizedBox(
-                height: _scrollViewportHeight,
-                child: ListView.builder(
-                  controller: _scrollController,
-                  itemCount: _totalWeeks,
-                  itemExtent: _cellH,
-                  itemBuilder: (ctx, weekIndex) => _buildWeekRow(
-                    weekIndex, textFg, subtextFg, accentFg, hoverBg, disabledFg,
+              // Vertically scrollable all-months grid. The Listener captures
+              // mouse-drag selection (mouse is not a scroll-drag device on
+              // desktop, so wheel scrolling via the controller still works).
+              Listener(
+                onPointerDown:
+                    _selectionMode ? (e) => _onSelectionPointerDown(e.position) : null,
+                onPointerMove:
+                    _selectionMode ? (e) => _onSelectionPointerMove(e.position) : null,
+                onPointerUp:
+                    _selectionMode ? (_) => _onSelectionPointerUp() : null,
+                child: SizedBox(
+                  key: _gridKey,
+                  height: _scrollViewportHeight,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    itemCount: _totalWeeks,
+                    itemExtent: _cellH,
+                    itemBuilder: (ctx, weekIndex) => _buildWeekRow(
+                      weekIndex, textFg, subtextFg, accentFg, rangeBg, rangeFg,
+                      hoverBg, disabledFg,
+                    ),
                   ),
                 ),
               ),
@@ -619,10 +695,25 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
     Color textFg,
     Color subtextFg,
     Color accentFg,
+    Color rangeBg,
+    Color rangeFg,
     Color hoverBg,
     Color disabledFg,
   ) {
-    return Row(
+    // Find the contiguous in-range span within this row so it can be painted
+    // as one continuous rounded pill (calendar_box.cpp:800-820) rather than
+    // a string of separate circles.
+    int? firstSel, lastSel;
+    if (_selectionMode) {
+      for (var c = 0; c < 7; c++) {
+        if (_isInSelectionRange(_dateForGridIndex(weekIndex, c))) {
+          firstSel ??= c;
+          lastSel = c;
+        }
+      }
+    }
+
+    final row = Row(
       children: List.generate(7, (dayInWeek) {
         final date = _dateForGridIndex(weekIndex, dayInWeek);
         final isCurrentMonth = date.year == _visibleYear && date.month == _visibleMonth;
@@ -635,7 +726,9 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
         final dateKey = DateTime(date.year, date.month, date.day);
         final dynImage = _dynamicImages[dateKey];
 
-        final effectiveTextColor = isCurrentMonth ? textFg : disabledFg.withValues(alpha: 0.5);
+        // AyuGram paints grayed-out (adjacent-month) days in full-opacity
+        // windowSubTextFg (boxes.style:480 dayTextGrayedOutColor).
+        final effectiveTextColor = isCurrentMonth ? textFg : subtextFg;
 
         return _DayCell(
           day: date.day,
@@ -643,15 +736,39 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
           isFocused: false,
           isDisabled: isDisabled,
           isInRange: isInRange,
+          selectionMode: _selectionMode,
           dynamicImageBytes: dynImage?.imageBytes,
           dynamicImageOpacity: dynImage?.fadeController?.value ?? (dynImage?.imageBytes != null ? 1.0 : 0.0),
           textColor: effectiveTextColor,
           accentColor: accentFg,
+          rangeTextColor: rangeFg,
           hoverColor: hoverBg,
           disabledColor: disabledFg,
-          onTap: isDisabled ? null : () => _selectDay(date),
+          onTap: (isDisabled || _selectionMode) ? null : () => _pickDate(date),
         );
       }),
+    );
+
+    if (firstSel == null) return row;
+
+    final count = lastSel! - firstSel + 1;
+    return Stack(
+      children: [
+        // Continuous range pill spanning the selected columns of this row.
+        Positioned(
+          left: firstSel * _cellW + _cellInnerSkipLeft - 1,
+          top: _cellInnerSkipTop - 1,
+          child: Container(
+            width: (count - 1) * _cellW + 2 + _cellInner,
+            height: _cellInner + 2,
+            decoration: BoxDecoration(
+              color: rangeBg,
+              borderRadius: BorderRadius.circular(_cellInner / 2 + 1),
+            ),
+          ),
+        ),
+        row,
+      ],
     );
   }
 }
@@ -846,7 +963,8 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final dimFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final bandColor = context.palette.windowBgActive;
+    // Selection band lines use activeLineFg (calendar_box.cpp:174), not windowBgActive.
+    final bandColor = context.palette.activeLineFg;
     final years = _years;
 
     return TelegramBox(
@@ -1069,10 +1187,12 @@ class _DayCell extends StatefulWidget {
   final bool isFocused;
   final bool isDisabled;
   final bool isInRange;
+  final bool selectionMode;
   final Uint8List? dynamicImageBytes;
   final double dynamicImageOpacity;
   final Color textColor;
   final Color accentColor;
+  final Color rangeTextColor;
   final Color hoverColor;
   final Color disabledColor;
   final VoidCallback? onTap;
@@ -1083,10 +1203,12 @@ class _DayCell extends StatefulWidget {
     required this.isFocused,
     required this.isDisabled,
     this.isInRange = false,
+    this.selectionMode = false,
     this.dynamicImageBytes,
     this.dynamicImageOpacity = 0.0,
     required this.textColor,
     required this.accentColor,
+    this.rangeTextColor = Colors.white,
     required this.hoverColor,
     required this.disabledColor,
     this.onTap,
@@ -1104,11 +1226,19 @@ class _DayCellState extends State<_DayCell> {
     BoxDecoration? decoration;
     Color fg;
 
-    if (widget.isSelected || widget.isInRange) {
+    // Hover/ripple are suppressed in selection mode, matching AyuGram
+    // (highlightedIndex is impossible and ripples are skipped — calendar_box.cpp:783,884).
+    final showHover = _hovering && !widget.isDisabled && !widget.selectionMode;
+
+    if (widget.isSelected) {
+      // Single highlighted day → filled circle (dialogsBgActive).
       decoration =
           BoxDecoration(shape: BoxShape.circle, color: widget.accentColor);
       fg = Colors.white;
-    } else if (_hovering && !widget.isDisabled) {
+    } else if (widget.isInRange) {
+      // In-range day → text only; the continuous pill is painted behind by the row.
+      fg = widget.rangeTextColor;
+    } else if (showHover) {
       decoration =
           BoxDecoration(shape: BoxShape.circle, color: widget.hoverColor);
       fg = widget.textColor;
@@ -1360,6 +1490,14 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     ));
   }
 
+  // AyuGram's shared submit lambda applies the Ctrl→silent flag on every
+  // submit path — the Schedule button, the box's default confirm, and Enter
+  // inside the time field (history_view_schedule_box.cpp:97,
+  // choose_date_time.cpp:220-229).
+  void _submitWithCtrl() {
+    _submit(silent: HardwareKeyboard.instance.isControlPressed);
+  }
+
   void _sendWhenOnline() {
     Navigator.of(context).pop(ChooseDateTimeResult(
       dateTime: DateTime.fromMillisecondsSinceEpoch(
@@ -1453,14 +1591,15 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleFg =
         isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
+    // Repeat label + dropdown/lock icons use the link color windowActiveTextFg
+    // (scheduleRepeatDropdownLock/Arrow, boxes.style:919/923 + choose_date_time.cpp:313),
+    // NOT windowBgActive.
     final accentFg =
-        context.palette.windowBgActive;
-    final fieldBg =
-        isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0);
+        context.palette.windowActiveTextFg;
+    // Date field is an underline-only InputField (scheduleDateField, no fill);
+    // the bottom line uses the field border color.
     final fieldBorder =
         isDark ? const Color(0xFF2B3845) : const Color(0xFFDADADA);
-    final fieldBorderActive =
-        context.palette.windowBgActive;
     const errorBorder = Color(0xFFE53935);
     final separatorFg =
         isDark ? const Color(0xFF8B95A5) : const Color(0xFF999999);
@@ -1509,7 +1648,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
               ),
             )
           : null,
-      onConfirm: () => _submit(),
+      onConfirm: _submitWithCtrl,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1544,11 +1683,14 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
                             child: Container(
                               width: _scheduleDateWidth,
                               height: 30,
+                              // scheduleDateField: underline-only InputField
+                              // (borderRadius 0 ⇒ bottom line, no fill) —
+                              // input_field.cpp:2397, boxes.style:893.
                               decoration: BoxDecoration(
-                                color: fieldBg,
-                                border:
-                                    Border.all(color: fieldBorder, width: 1),
-                                borderRadius: BorderRadius.circular(2),
+                                border: Border(
+                                  bottom:
+                                      BorderSide(color: fieldBorder, width: 1),
+                                ),
                               ),
                               alignment: Alignment.center,
                               child: Text(
@@ -1580,21 +1722,24 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
                       child: AnimatedBuilder(
                         animation: _errorBorderController,
                         builder: (context, child) {
-                          final borderColor = _timeError
-                              ? Color.lerp(fieldBorderActive, errorBorder, _errorBorderController.value)!
-                              : fieldBorder;
+                          // scheduleTimeField is borderless (border:0,
+                          // borderActive:0, no fill — boxes.style:899), so the
+                          // validation error flashes the digits red instead of
+                          // a (non-existent) border.
+                          final t =
+                              _timeError ? _errorBorderController.value : 0.0;
+                          final textCol = Color.lerp(titleFg, errorBorder, t)!;
+                          final sepCol =
+                              Color.lerp(separatorFg, errorBorder, t)!;
                           return _TimeInputField(
                             hourController: _hourController,
                             minuteController: _minuteController,
                             hourFocus: _hourFocus,
                             minuteFocus: _minuteFocus,
                             width: _scheduleTimeWidth,
-                            fieldBg: fieldBg,
-                            fieldBorder: borderColor,
-                            fieldBorderActive: borderColor,
-                            textColor: titleFg,
-                            separatorColor: separatorFg,
-                            onSubmit: () => _submit(),
+                            textColor: textCol,
+                            separatorColor: sepCol,
+                            onSubmit: _submitWithCtrl,
                           );
                         },
                       ),
@@ -1635,10 +1780,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
         ),
         TelegramBoxButton(
           text: widget.submitTextOverride ?? 'Schedule',
-          onPressed: () {
-            final isCtrlHeld = HardwareKeyboard.instance.isControlPressed;
-            _submit(silent: isCtrlHeld);
-          },
+          onPressed: _submitWithCtrl,
         ),
       ],
     );
@@ -1877,7 +2019,8 @@ class _TimePickerBoxWidgetState extends State<_TimePickerBoxWidget>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final dimFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final bandColor = context.palette.windowBgActive;
+    // Selection band lines use activeLineFg (time_picker_box.cpp:109), not windowBgActive.
+    final bandColor = context.palette.activeLineFg;
     final centerY = (_drumHeight - _drumItemHeight) / 2;
     final labelStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.w500);
     final drumWidth = _cachedDrumWidth;
@@ -1977,9 +2120,6 @@ class _TimeInputField extends StatelessWidget {
   final FocusNode hourFocus;
   final FocusNode minuteFocus;
   final double width;
-  final Color fieldBg;
-  final Color fieldBorder;
-  final Color fieldBorderActive;
   final Color textColor;
   final Color separatorColor;
   final VoidCallback onSubmit;
@@ -1990,9 +2130,6 @@ class _TimeInputField extends StatelessWidget {
     required this.hourFocus,
     required this.minuteFocus,
     required this.width,
-    required this.fieldBg,
-    required this.fieldBorder,
-    required this.fieldBorderActive,
     required this.textColor,
     required this.separatorColor,
     required this.onSubmit,
@@ -2040,14 +2177,11 @@ class _TimeInputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // scheduleTimeField: borderless, no fill (border:0, borderActive:0 —
+    // boxes.style:899).
+    return SizedBox(
       width: width,
       height: 30,
-      decoration: BoxDecoration(
-        color: fieldBg,
-        border: Border.all(color: fieldBorder, width: 1),
-        borderRadius: BorderRadius.circular(2),
-      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
