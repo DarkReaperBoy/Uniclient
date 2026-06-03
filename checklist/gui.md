@@ -378,10 +378,6 @@ Faithful `StatelessWidget` port of `Ui::BoxContentDivider`. Verified against the
 - Top/bottom toggle (`box_content_divider.dart:48-50`) = `RectPart::Top | RectPart::Bottom` (`box_content_divider.h:29`) ✓
 - `const` constructor present, no state, no lists/images/animations/async, no engine wiring required (static visual separator) → no placeholder/stub/mock-data/backend concerns.
 
-One visual rendering divergence from the authoritative paint logic:
-
-- [ ] [MAJOR] Top/bottom edge shadows are drawn as **1px solid `BorderSide(shadowFg)` hairlines** instead of AyuGram's **5px-tall gradient mask icons**. AyuGram's `paintTop`/`paintBottom` fill a rect of `_st.top.height()`/`_st.bottom.height()` — the `box_divider_top.png`/`box_divider_bottom.png` masks are 1×5px, i.e. **5px tall at @1x** — with a soft gradient (mask alpha profile `15→8→3→0→0`: top icon peaks ≈6% black at the very top edge and fades over ~3px; bottom icon peaks ≈1% at the bottom edge), each tinted with `boxDividerFg` (`= windowShadowFg`). The Dart instead paints a crisp 1px line at a fixed `shadowFg` (`0x18000000` ≈ 9.4% black) on both edges, so (a) the soft multi-pixel inset gradient is replaced by a hard hairline, and (b) the top-vs-bottom shadow asymmetry (top noticeably darker than bottom in AyuGram) is lost — both edges render identically. Low visual impact (the dominant 8px gray band is exact and the shadow is faint either way), and the code comment documents it as an intentional approximation, but it is a concrete divergence from the authoritative `box_divider_*` gradient icons. — `box_content_divider.dart:48-50` ← `AyuGram/Telegram/lib_ui/ui/widgets/box_content_divider.cpp:41-57` (icons `boxDividerTop`/`boxDividerBottom` defined `widgets.style:684-685`; PNG masks `lib_ui/icons/box_divider_top.png` = 1×5px)
-
 # call_panel — Telegram 1-on-1 voice/video call panel
 
 Audited `dart/lib/ui/call_panel.dart` (2733 lines) against AyuGram `calls/` source.
