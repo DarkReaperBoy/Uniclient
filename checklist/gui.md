@@ -1,595 +1,1495 @@
-# GUI Audit — Cycle 1 Phase Ayugram (2026-06-02 00:21)
+# GUI Audit — Cycle 2 Phase Ayugram (2026-06-04 03:56)
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_manager_default — Default in-app notification popup controller
+# notification_manager_default — custom in-app notification popup controller (AyuGram `Default::Manager` port)
 
-This file ports AyuGram's `Window::Notifications::Default::Manager` (the controller that
-queues notifications, fills visible slots, drives auto-hide/hover-hide, and handles the
-clear-from-X operations). The actual popup widgets live in `lib/ui/notification_popup.dart`,
-wired via the `onShow/onDismiss/onStartHiding*/onUpdateDisplay/onHideAll*` callbacks.
+This file is a controller-only port of AyuGram's `Window::Notifications::Default::Manager`
+(`notifications_manager_default.cpp:90-494`). The view classes (`internal::Widget`,
+`Notification`, `HideAllButton`) are intentionally split into `ui/notification_popup.dart`,
+which wires every callback (`onShow`, `onDismiss`, `onStartHiding`, `onStartHidingFast`,
+`onUpdateDisplay`, `onHideAllChanged`, the three HideAll signals, `isStickyCheck`) and feeds
+`onUserInput` from an app-wide pointer Listener (`main.dart:2479-2481`).
 
-Coverage is otherwise faithful: timing constants match AyuGram exactly
-(`_dismissDuration 3000` = `notifyWaitLongHide`, hideAll fallback `150` = `notifyFastAnim`,
-`_inputCheckInterval 300` = `_inputCheckTimer.callOnce(300)`), `maxNotificationCount.clamp(1,5)`
-matches `std::clamp(..., 1, kMaxNotificationsCount=5)`, queue is FIFO, newest-kept/oldest-evicted
-on count reduction matches `settingsChanged(MaxCount)`, and demo-master-opacity is correctly
-delegated to the view (`AppState.notifDemoShown → demoDimmed`). The issues below are real
-behavioral deviations.
+The faithful parts verified against the C++: queue→promote (`showNextFromQueue`), the
+queue-first scope-clear ordering (`_clearScoped` ↔ `doClearFrom*`), the fast (150ms /
+`notifyFastAnim`) vs slow (4000ms / `notifySlowHide`) vs long-wait (3000ms /
+`notifyWaitLongHide`) timing channels, `hideAll` ↔ `doClearAll`, `clearAllFast` ↔
+`doClearAllFast`, `updateAll` ↔ `doUpdateAll`, `_maxVisible.clamp(1,5)` ↔
+`kMaxNotificationsCount=5`, and the newest-survive / oldest-evict selection on over-limit.
+No placeholders, stubs, mock data, TODOs, or unwired engine paths were found — this is a real
+implementation. Two behavioral deviations remain, both in `updateSettings`
+(AyuGram's `settingsChanged`).
 
-# notification_manager_native — Linux DBus / freedesktop notifications
+- [ ] [MAJOR] `updateSettings` evicts over-limit notifications with an instant `dismiss()`
+  (→ `onDismiss`, the abrupt full-opacity teardown) instead of AyuGram's `unlinkHistory()` →
+  `hideFast()` 150ms fade. The selection (evict oldest) is correct, but the animation channel
+  is wrong — AyuGram fades the excess out; this snaps it away. This also contradicts the file's
+  own `_clearScoped` design (`:250-261`), which deliberately routes through `onStartHidingFast`
+  precisely to avoid "the abrupt full-opacity teardown the old dismiss()->onDismiss path
+  produced." — `notification_manager_default.dart:367-370` (immediate path `:145-146`) ←
+  `notifications_manager_default.cpp:148-156` (MaxCount→`unlinkHistory`) + `:1202`,`:570`
+  (`unlinkHistory`→`hideFast`)
 
-Audited `dart/lib/notifications/notification_manager_native.dart` against AyuGram's
-`platform/linux/notifications_manager_linux.cpp`, `window/notifications_utilities.cpp`,
-and `ui/empty_userpic.cpp`.
+- [ ] [MAJOR] On a notifications-corner change, `updateSettings` updates `_corner` but never
+  repositions notifications already on screen. The manager exposes no corner/reposition signal,
+  and the view only recomputes positions on show/dismiss/reply (`notification_popup.dart`
+  `_recalcPositions` at `:212,:318,:329,:447`), never on a settings change
+  (`onHideAllChanged`→`_updateHideAllVisibility` does not recalc). AyuGram's
+  `settingsChanged(Corner)` immediately repositions every live notification AND the HideAll
+  button via `updatePosition`. Net effect: change the corner while a popup is showing and it
+  stays stuck in the old corner until the next show/dismiss (new popups do pick up the new
+  corner). — `notification_manager_default.dart:354-357` ←
+  `notifications_manager_default.cpp:139-148`
 
-**Overall: this file is a faithful, fully-wired implementation — NOT a stub.** Verified
-correct: the `Notify` call signature + image-data hint struct (width/height/rowstride/
-has_alpha=true/bits=8/channels=4/RGBA8888 bytes) matches `notifications_manager_linux.cpp:696-709`;
-body markup (`<b>{subtitle}</b>\n{message}` with HTML escaping vs plain
-`lng_dialogs_text_with_from`) matches `:776-792`; actions (default/mail-mark-read/inline-reply
-gated on `actions`/`inline-reply` caps + hideMarkAsRead/hideReplyButton) match `:613-630`;
-the `GetImageKey` spec-version mapping matches `:124-132`; NotificationClosed reason==2 handling
-matches `:490-519`; ActionInvoked→onAction and NotificationReplied→onReply are wired to real
-engine calls (`main.dart:621-634`: open→_onNotifTap, markRead→markChatRead, reply→sendMessage);
-sound caching + `handlesSound`/DND contract match `VolumeSupported()`/`invokeIfNotInhibited`.
-The 8 userpic gradient pairs (`:308-317`) and the `[0,7,4,1,6,3,5]` palette map (`:322`) are
-byte-exact with `lib_ui/ui/colors.palette` + `chat_style.cpp:1205`.
+## Notes (informational — minor, not blocking)
 
+- `onTap` / `NotificationTapCallback` (`:7-8`, `:47`) is declared but never assigned or called.
+  Taps are handled entirely in `ui/notification_popup.dart` (`widget.onTap` +
+  `manager.clearForChat`). Vestigial field — not a broken feature.
+- `updateAvatar(notifId, newPath)` (`:312`) is dead; only the peer-keyed
+  `updateAvatarForPeer` (`:319`) is wired to download-finished events
+  (`main.dart:672`→`notification_system.dart:209-210`). Avatars do update after download.
+- Redundant auto-hide: the manager arms a 3000ms `_dismissTimer` (`:134-140`) while the view
+  independently arms a 3000ms `_waitBeforeHide` timer (`notification_popup.dart:284`); both
+  converge on `_startSlowHide`. Idempotent (first to fire wins via `if (popup.hiding) return`),
+  so correct but doubled per notification.
 
-# notification_sound — NotificationSoundPlayer (media_kit) vs AyuGram Track/System sound playback
+# notification_manager_native — Linux native (D-Bus org.freedesktop.Notifications) + Flatpak portal notification manager
 
-Scope: `dart/lib/notifications/notification_sound.dart` — plays the notification
-alert sound. Compared against AyuGram `Window::Notifications::System` sound path
-(`notifications_manager.cpp`), `Media::Audio::Track` gain (`media_audio_track.cpp`),
-and `Settings::getSoundPath` (`core_settings.cpp`).
-
-**What is CORRECT (verified, no action needed):**
-- Default sound extraction of bundled `assets/sounds/msg_incoming.mp3` (asset
-  exists, declared in `pubspec.yaml:60`) mirrors `getSoundPath("msg_incoming")`
-  → `:/sounds/msg_incoming.mp3` (`core_settings.cpp:1245-1251`) and
-  `ensureSoundCreated()` (`notifications_manager.cpp:1030-1038`).
-- `allowSound` gate (`notification_sound.dart:42`) matches `settings.soundNotify()`
-  (`notifications_manager.cpp:761`).
-- Volume formula `perChatVolume > 0 ? perChatVolume : settings.volume`
-  (`notification_sound.dart:62`) is the correct analogue of AyuGram's
-  `AL_GAIN = (volumeOverride > 0) ? volumeOverride : notificationsVolume()/100`
-  (`media_audio_track.cpp:155-160`). The 0–100 scale is correct for media_kit
-  (`setVolume` defaults to `100.0` = full; confirmed in `media_kit/player.dart:232`).
-- Plays once (no loop), matching `playOnce` (`notifications_manager.cpp:775`).
-- Properly wired into dispatch with native-sound dedup (`handlesSound`) and a
-  per-thread alert throttle (`notification_system.dart:610-627`).
-
-## Findings
-
-# notification_system — Notification scheduling/dedup/grouping `System` port
-
-Dart `NotificationSystem` ports AyuGram's `Window::Notifications::System` (`window/notifications_manager.cpp`).
-Overall a faithful port: constants (`kMinimalDelay`/`kMinimalForwardDelay`/`kMinimalAlertDelay`/
-`kWaitingForAllGroupedDelay`/`kReactionNotificationEach` — manager.cpp:64-68) match; the mute-unknown
-`_settingWaiters` parking + `checkDelayed` re-evaluation, per-thread dedup `_whenMaps`, online-aware
-`countTiming`, forward/album grouping, and per-scope clears (`clearForChat`/`clearForAccount`/`clearAll`)
-all mirror the C++. Callbacks (`onFlashBounce`, `onQueryMuteState`, `onManagerChanged`,
-`onQuerySessionOnline`, `onQueryLastSetOnlineMs`, `onRefreshChatData`, `onNewMessage`) are all wired in
-`main.dart:557-681`. Sound is gated on `settings.allowSound` and per-chat volume override matches AyuGram.
-
-Both prior deviations are fixed and verified (commit 5b9209db, Stage-2 PASS): (1) `hideMarkAsRead`
-now matches `notifications_manager.cpp:1093-1096` — drops the channel/slowmode/stars conditions (those
-belong only to `shouldHideReplyButton`, which retains them), uses `isReaction||isPollVote` (= `type !=
-Message`), and adds the `messageId.isEmpty` (`!item`) + `((out||isSelf) && isScheduled)` clauses. (2)
-`setServerConfig` is now wired: a conn-state subscription (`main.dart:706`) pulls `GetNotifyConfig`
-(Go core `GetNotifyDelayConfig` → engine → bridge) on account-connect and feeds the live notify
-cloud/default delays + online cloud timeout (ms→s) into `_countTiming`. No open items.
-
-# notification_types — notification title/subtitle/body text composition
-
-This file mirrors AyuGram's notification text pipeline (`NativeManager::doShowNotification`,
-`HistoryItem::notificationText/notificationHeader`, `Media*::notificationText`,
-`SpoilerLoginCode`, `TextWithPermanentSpoiler`, `TextWithForwardedChar`,
-`WrapFromScheduled`, `addTargetAccountName`). It is a pure logic file — **no placeholders,
-stubs, empty callbacks, mock data, or fake feedback**. Verified faithful: all lang strings
-(`strings.dart:46-103`) match AyuGram's `lang.strings`; the special glyphs match exactly
-(➡️ U+27A1 U+FE0F, ▚ U+259A, 📅 U+1F4C5, ➜ U+279C); the body ternary order
-(pollVote→reaction→hidePreview→fwd>1→album→fwdChar), the reply-button gating
-(`shouldHideReplyButton`), the login-code regex + entity-intersect guard, the 255-code-unit
-truncation, and the reaction/poll-vote `reactedToType` switch all match the C++ 1:1. The
-spoiler-entity masking is applied upstream (`chat_state.dart:_applySpoilerEntities`) so the
-reaction/text bodies are correctly masked.
-
-# app_state — top-level app settings/state (mirrors AyuGram `ayu_settings.*` + Telegram `core_settings*` + passcode/auto-lock)
-
-Audited `dart/lib/state/app_state.dart` (4448 lines) against AyuGram `ayu/ayu_settings.h`/`.cpp`, `core/core_settings_proxy.h`, `ui/power_saving.h`, `main/main_domain.cpp`.
-
-**What's faithful (verified, no issue):** every AyuGram default value matches (bubbleRadius 16, recentStickersCount 100, avatarCorners 23, deletedMark 🧹, channelBottomButton=DiscussWithFallback, showPeerId=BotApi, all context-menu visibility defaults, all drawer/message-field toggle defaults, disableAds true, etc.); the `ghostModeActive` boolean formula matches `ayu_settings.cpp:62-66` exactly; `shouldSendWithoutSound` matches `ayu_settings.cpp:112-122`; the MessageShotSettings embedded/cloud-theme logic matches `ayu_settings.cpp:263-320`; the ghost-lock "deny if it would lock all" rule matches `settings_ayu_utils.cpp:386-396`; the power-saving bitfield order + `On(flag)=ForceAll()||(Current()&flag)` matches `power_saving.h:13-40`; proxy rotation default 10 / timeouts {5,10,15,30,60} matches `core_settings_proxy.h:18-25`; translationProvider serialized as string + Native→Telegram gating matches the enum + `ayu_settings.cpp:1008-1019`. No stubs / TODO / placeholder / mock data in the file.
-
----
-
-# audio_service — media-player service (port of AyuGram Media::Player::Instance)
-
-`audio_service.dart` is a **ChangeNotifier** wrapping a `media_kit` `Player`, porting
-AyuGram's `media_player_instance.cpp` (+ `media_player_listen_tracker.cpp`). It plays voice
-messages and music inline, auto-pauses for calls, reports music-listen time, and saves the
-last playback position. Verdict: **high-quality, faithful port — NO placeholders/stubs, and
-the core path is genuinely wired** (`playVoice` is called from message bubbles / info-panel /
-chat_state; `onNextTrack`/`onPreviousTrack` → `ChatState.moveAudioInPlaylist`; engine methods
-`reportMusicListen`/`refreshDocumentFileRef`/`onCallState`/`onGroupCallState` are real). Every
-inline-comment line reference was verified accurate against AyuGram. The findings below are
-behavioral / feature-completeness gaps vs the ported class, not broken wiring.
-
-Verified-correct (no action): play/pause/seek/stop, call pause→resume (`pauseOnCall`/
-`resumeOnCall`, cpp:1089-1110), listen reporting (3s min / 60s pause-timeout / songs-only /
-FILE_REFERENCE_ refresh-and-resend, matches listen_tracker.cpp:19/54/29/82-93), position
-saving (20-min music threshold, read-then-clear seek, cpp:55-56/125-143/884-886), playback-speed
-mapping (`_isSong` ⇒ audio vs voice speed, matches `LookupPlaybackSpeed` cpp:65-74), call-state
-heuristic (engine only emits ringing/connecting/active/ended — all handled correctly).
-
-# auth_state — Authentication flow controller (ChangeNotifier)
-
-`auth_state.dart` is the Dart-side controller that drives the intro/auth state
-machine (mirroring AyuGram's `Intro::details::Step` subclasses). It wires to the
-Go engine via `EngineService.startAuth / submitAuthInput / cancelAuth` and the
-`onAuthState` event stream.
-
-Root cause shared by both findings below: **`_engine.startAuth()` is NOT a
-refresh — it resets the whole flow.** Go `StartAuth` unconditionally builds a
-fresh core, a fresh `initialAuthState`, and an EMPTY `collected` map, overwriting
-`authFlows[accountID]` and emitting that initial state as an event
-(`go/engine/auth.go:73-104`). For Telegram the initial state is `"choose"`
-(method picker), never `"2fa"` or `"qr"` (`go/engine/auth.go:275`). The auth
-controller calls `startAuth` as a "refresh" in the SRP-retry and QR-expiry paths,
-which destroys the in-progress flow instead of refreshing it.
-
-# chat_state — ChatState (chat list, active chat, messages, folders, forum topics, saved sublists)
-
-Audited `dart/lib/state/chat_state.dart` (3155 lines) against AyuGram Desktop C++.
-This is a state/controller class (ChangeNotifier), not a widget — no visual/dimension
-findings apply. Every method is wired to the engine (no stubs, no placeholders, no
-fake data). All numeric constants verified correct against AyuGram:
-`_kPerPage=100`/`_kFirstPerPage=20`/`_kLoadedSublistsMinCount=20` (data_saved_messages.cpp:32-34),
-`kShowTopicNamesCount`→`.take(8)` (data_forum.cpp:44), forum `>=20`/`>=500` page sizes
-(data_forum.cpp:40-42), message `30`/`50` per page (history_widget.cpp:216-217),
-`_maxChatOpenHistory=50` (window_session_controller.cpp:138), typing 6s
-(history_view_send_action.cpp:31), login-code peer ids 333000/777000/489000
-(data_peer.h:211,283-284 / data_peer.cpp:1593). The findings below are behavior/state bugs.
-
-# telegram_palette — Telegram Desktop color palette + accent colorizer port
-
-Audited `dart/lib/theme/telegram_palette.dart` (5476 lines) against AyuGram's
-palette/colorizer sources:
-- `lib_ui/ui/style/style_palette_colorizer.cpp` / `.h` (the colorize algorithm)
-- `SourceFiles/window/themes/window_themes_embedded.cpp` (ColorizerFrom: ignoreKeys,
-  keepContrast, lightness clamp, accent presets)
-- `lib_ui/ui/colors.palette` + `Resources/{day-blue,night,night-green}.tdesktop-theme`
-  + `Resources/{day,night}-custom-base.tdesktop-theme` (color values)
-
-This is a pure data + algorithm file: no widgets, no callbacks, no engine/bridge
-calls. The "placeholder/stub/backend-wiring" categories do not apply (nothing to
-wire). `PaletteProvider` is a correct `InheritedWidget` (identity-based
-`updateShouldNotify`). No empty callbacks, mock data, TODO/FIXME, or fake feedback.
+Audited against `platform/linux/notifications_manager_linux.cpp`, `window/notifications_utilities.cpp`, `ui/empty_userpic.cpp`, `ui/chat/chat_style.cpp`, `data/data_peer.cpp`. The file is a careful, largely faithful port: avatar resize+circle (`GenerateUserpicImage`/`Images::Circle`), color→palette map (`[0,7,4,1,6,3,5]`, `kSimpleColorIndexCount=7`), body markup (`<b>%1</b>\n%2` / `lng_dialogs_text_with_from`), sound-file caching + DND, `handlesSound` dispatch contract, action ordering (default / mail-mark-read / inline-reply), all clear paths (item/topic/sublist/history→`clearForChat`/session→`clearForAccount`/all), the five D-Bus signal subscriptions, the Flatpak portal `AddNotification` branch, the `image-data`/`image_data`/`icon_data` spec-version key, and the `!hasImage ? appIcon : ""` fallback all match. One real defect found.
 
 ## Findings
 
-## Verified faithful (no action needed — recorded for the audit trail)
+- [ ] [CRITICAL] Placeholder (avatar-less) userpic initials are rendered with `img.arial24`, whose embedded BMFont contains only **92 glyphs — ASCII U+0020–U+007E plus U+2116 (№)**. `_getInitials` (a faithful port of `EmptyUserpic::fillString`) correctly extracts initials for Cyrillic, Greek, Armenian, Hebrew, Arabic, Thai, Kana, CJK, Hangul **and even Latin-1-accented letters**, but `img.drawString` silently skips every code point not in the font, so any peer whose name begins with a non-ASCII letter renders as a bare colored gradient circle with **no letter at all**. This hits the bulk of Telegram/AyuGram's real user base (Russian/Persian/Arabic/CJK names, plus "Émile"/"Müller"/"Øystein"-style accented Latin names). AyuGram draws the initials with `st::historyPeerUserpicFont` (a full-Unicode Qt font via `p.setFont(font); p.drawText(...)`), so the letter always appears. Net effect: the colored-initials placeholder shown in every native + portal notification is missing its text element for most non-English users. — `notification_manager_native.dart:495-505` ← `AyuGram/Telegram/SourceFiles/ui/empty_userpic.cpp:305-334`
 
-- **Colorize transform** (`telegram_palette.dart:1345-1373`) is a line-accurate port of
-  `style_palette_colorizer.cpp:24-58`: hue shift `(h+Δ)%360`, the two-branch
-  saturation formula and two-branch value formula (255-scale → 1.0-scale), and the
-  `hueThreshold` gate all match. Achromatic (sat<0.01) and transparent skips are
-  equivalent to Qt's `hue=-1` behavior.
-- **Lightness clamp** (`:1331-1342`) matches `ColorizerFrom` (`window_themes_embedded.cpp:169-182`):
-  light themes clamp HSL-L to [0,160/255], dark to [64/255,1.0]; recompute only when clamped.
-- **`_cppLightness`** (`:1224-1229`) = `value - value*saturation/511` on 0-255 scale, matching
-  `style_palette_colorizer.cpp:119-121`; contrast threshold 64 matches `kEnoughLightnessForContrast`.
-- **`_enforceContrast`** (`:2506-3008`) reproduces the Night/NightGreen `keepContrast` map exactly
-  (activeButtonFg, profileVerifiedCheckFg, overviewCheckFgActive + the 8 historyFile* in/out icon/radial
-  keys), with `includeFileIcons` correctly gating Night (`windowBg==#17212b`) vs NightGreen — matching
-  `window_themes_embedded.cpp:140-167`. Only runs for dark themes (light keepContrast is empty).
-- **Accent presets** `dayAccents`/`nightAccents`/`nightGreenAccents` (`:1288-1299`) exactly match
-  `DefaultAccentColors` (`window_themes_embedded.cpp:291-342`).
-- **Palette values**: `classicDay` matches `colors.palette` defaults (0 mismatches across all resolved
-  keys); `dayBlue` matches `day-blue.tdesktop-theme` (0 mismatches across 206 direct-hex keys);
-  `night`/`nightGreen` match their theme files except `emojiPanHeaderBg` and `menuBgOver`, which the
-  Dart stores dark while both AyuGram night source files store white (#fffffff2 / #ffffff) — almost
-  certainly an opacity/fallback rendering nuance rather than a Dart bug (opaque-white menu hover would
-  be visibly broken in a dark theme), so not flagged. Remaining diffs (`dialogsDateFgOver`,
-  `filterInputInactiveBg`) are sub-1%/channel rounding — cosmetic.
+# notification_sound — in-app notification ringtone player (volume resolution + audio ducking)
 
-# theme_file — Telegram Desktop theme (.tdesktop-theme) parse / export / cache
+Scope: `NotificationSoundPlayer` plays the alert sound for a notification (custom
+per-chat ringtone or bundled `msg_incoming.mp3`), applies the resolved ringtone
+volume, and asks the host to duck other in-app audio for the sound's length —
+mirroring AyuGram `System::showNext()` sound block (`notifications_manager.cpp:761-779`).
 
-Pure-logic file (no widgets). Implements `colors.tdesktop-theme`/`colors.tdesktop-palette`
-parsing, ZIP theme export, cloud-theme service-block read/write, hex color parsing,
-background-image validation, and the local theme cache. It is actively used by
-`state/app_state.dart` (theme load + cache) and `ui/theme_editor.dart` (import/export),
-so it is not dead code.
+Verified CORRECT (no finding — recorded so the next pass doesn't re-chase them):
+- Player is real and fully wired: constructed `notification_system.dart:93`, `init()`
+  `:182`, `play()` `:624`, `dispose()` `:841`; `onDuck` bound to `AudioService.duckFor`
+  in `main.dart:577`. No stubs, no placeholders, no empty callbacks.
+- 3-tier volume chain matches AyuGram exactly: per-chat → per-notify-type is resolved
+  upstream in `app_state.ringtoneVolume()` (`app_state.dart:3099-3104`) and passed as
+  `perChatVolume`; the global fallback lives here (`notification_sound.dart:68`). Equals
+  AyuGram `ringtoneVolume(peer)→ringtoneVolume(DefaultNotifyType)→notificationsVolume()`
+  (`notifications_manager.cpp:763-772`, `media_audio_track.cpp:158-160`).
+- `allowSound` / `soundNone` gates and custom-ringtone-vs-default selection match
+  `settings.soundNotify()` + `sound(thread).none/.id` (`notifications_manager.cpp:761`,
+  `:987-1004`). The legacy/hidden global `_soundOverrides` path (`core_settings.cpp:1245`,
+  only reachable via migration + settings-code easter-egg) is reasonably omitted.
 
-Verified MATCHING the AyuGram C++ authority (no issue): size limits
-(`window_theme.cpp:55-56`, `window_theme.h:41-42`), background priority order +
-tiled flag (`window_theme.cpp:262-276`), two-stage background validation — pixel-area
-cap then full decode (`window_theme.cpp:327-343`), uncompressed-size zip-bomb pre-check
-(`base/zlib_help.h:258-263`), hex format `#rrggbb`/`#rrggbbaa` with alpha-last and a=255
-default (`window_theme_editor.cpp:66-92`), and cloud-meta prefix format + positional-read
-compatibility (`window_theme_editor.cpp:346-381`). The local cache's CRC32/structure
-checksums (`theme_file.dart:1685-1709`) intentionally differ from `style::palette::Checksum()`
-— the cache is JSON, local-only, never shared with AyuGram, so it only needs self-consistency.
-That is correct, not a finding.
+- [ ] [MAJOR] Audio-duck duration never reflects the real sound length, so the suppression window is a fixed 1800 ms guess instead of AyuGram's exact track length — `player.state.duration` is read synchronously immediately after `player.open()`/`player.play()`, before media_kit/libmpv has demuxed the file and reported `duration`, so it is ~`Duration.zero` and the `< 200ms` branch always substitutes the hardcoded 1800 ms (the file's own comment admits "parsed asynchronously"). The real length therefore never flows to `onDuck`. For a custom ringtone longer than 1.8 s this under-suppresses: in-app music returns to full volume while the ringtone is still audible; AyuGram suppresses for precisely `track->getLengthMs()`. — `notification_sound.dart:83-87` ← `AyuGram/window/notifications_manager.cpp:776`
 
-The two items below are real behavioral divergences from the C++ parser. Both only
-manifest on hand-written / non-standard palette files (editor-exported themes are
-complete and dependency-ordered, so they parse identically) — but per the audit rubric
-the C++ source is the sole authority for behavior, and these produce observably different
-results (wrong colors / accept-vs-reject) for those inputs.
+- [ ] [MAJOR] First-launch native default-sound race: the bundled `msg_incoming.mp3` is extracted asynchronously but `init()` fires `_ensureDefaultSound()` without `await` (`notification_sound.dart:21`), and `defaultSoundPath` is consumed synchronously by the native manager right after init (`notification_system.dart:184,278`). On the very first launch (temp file not yet written) the first `await rootBundle.load` suspends, so the getter returns `null`→`''`; nothing re-syncs `_syncNativeSoundPath()` after the extraction completes (only callers are `init()` and `_selectManager()`), so native OS notifications get no `sound-file` hint for that whole session and fall back to the system default beep instead of Telegram's sound. AyuGram resolves the path synchronously via `getSoundPath("msg_incoming")` with no async gap (`ensureSoundCreated()` fills the track inline). — `notification_sound.dart:19-23,31-42` ← `AyuGram/window/notifications_manager.cpp:1030-1037` (`core_settings.cpp:1245`)
 
-# theme_preview — Theme palette preview painter (mock Telegram window: dialogs list + chat)
+# notification_system — scheduling/dedup/grouping/alert orchestration (ports AyuGram `Window::Notifications::System`)
 
-Renders a static preview of a color theme by drawing a fake Telegram window. This is a
-direct replication of AyuGram's `Window::Theme::Generator` (`window_theme_preview.cpp`).
-NOTE: the hardcoded data (names, previews, wavedata, times, peer indices, colorized spans,
-bubble order/attachment) is CORRECT — it mirrors AyuGram's hardcoded `generateData()`
-1:1, so it is NOT a placeholder finding. Dimensions, the peer-color map
-`[0,7,4,1,6,3,5]` (= `ColorIndexToPaletteIndex`), the colorized-preview link color
-(`dialogsTextFgService`), online-status color (resolves to `windowActiveTextFg`), and the
-three separator shadows all match the source. Only two real deviations were found.
+Overall the port is faithful: `_countTiming` (online-aware cloud/default delay), `_passesDedup`
+(per-thread reaction/poll 1-hour window), the single pending forward/album group buffer with
+flush-on-different-group, the muteStateUnknown deferral + `checkDelayed` resolution, passcode-lock
+forcing hide-details, and per-chat/account/all clears all match the C++ closely. The findings below
+are real behavioral divergences and one dead subsystem — no fake UI or mock data.
 
-# wallpaper — chat background renderer (solid / gradient / pattern / image)
+- [ ] [MAJOR] `onNewMessage` returns early when `desktopNotify` is off, suppressing sound AND flash. In AyuGram the alert (`_whenAlerts`) is registered with **no** `desktopNotify` gate — only the toast is gated — so with desktop popups disabled but "Play sound"/"Flash taskbar" enabled AyuGram still plays the sound / flashes, while this code is fully silent. `desktopNotify`/`allowSound`/`flashBounce` are independent settings (notification_types.dart:726-729). — `notification_system.dart:283` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:454` (alert un-gated; toast-only gate at :464; showNext fires alerts before the `!desktopNotify()` early-return at :782-789)
 
-`wallpaper.dart` is a faithful, well-documented port of AyuGram's `image_prepare.cpp`
-gradient+dither generation and `chat_theme.cpp` pattern tiling. It is fully wired:
-`ChatWallpaper` is rendered in `chat_view.dart:20636` from `WallpaperProvider.of`
-(fed by `main.dart:2362` ← `app_state.dart` persisted settings), and set by the user
-via `chat_settings_screen.dart` / `message_bubble.dart`. No placeholders, no stubs,
-no empty callbacks, no hardcoded/fake data. `computeAverageColor` runs only once per
-wallpaper change (memoized in `main.dart:2329-2360` via `identical` check), so it is
-not a per-frame cost.
+- [ ] [MAJOR] `_DndChecker` is dead code: it opens a session DBus connection and runs a 30-second periodic poll of `org.freedesktop.Notifications` `Inhibited`, but its `isActive` getter is never read anywhere — `_dispatch` reads `nativeManager.inhibited` instead (notification_system.dart:607). AyuGram has no System-level DND poller; the native manager checks `_interface.get_inhibited()` inline via `invokeIfNotInhibited` around play-sound/flash. The checker is a wasted recurring timer + bus connection. — `notification_system.dart:51` (class), `:94`/`:183` (instantiated + `init()` starts the timer) ← `AyuGram/Telegram/SourceFiles/platform/linux/notifications_manager_linux.cpp:873-874` (`invokeIfNotInhibited` is the only DND mechanism)
 
-Verified-correct ports (no action): `effectiveGradientRotation` (wallpaper.dart:52)
-← `gradientRotation()` data_wall_paper.cpp:260-262; `_snapRotation` (wallpaper.dart:177)
-← withUrlParams data_wall_paper.cpp:418; linear-gradient direction table
-(wallpaper.dart:391-408) ← image_prepare.cpp:934-941; complex gradient swirl/4th-power
-blend (wallpaper.dart:349-378) ← image_prepare.cpp:255-289; dither tiers
-(wallpaper.dart:446-453) ← image_prepare.cpp:887-895; pattern softLight/dstIn + black-fill
-(wallpaper.dart:901-932) ← chat_theme.cpp:1117-1128; invert color-matrix
-(wallpaper.dart:885-890) ← InvertPatternImage chat_theme.cpp:1156-1171; IsPatternInverted
-(wallpaper.dart:978-989) ← chat_theme.cpp:925-929; ThemeAdjustedColor (wallpaper.dart:1029)
-← chat_theme.cpp:932-938; preprocess crop/scale (wallpaper.dart:1054-1073) ←
-PreprocessBackgroundImage chat_theme.cpp:949-964; pattern tiling odd-cols/xshift
-(wallpaper.dart:958-976) ← CacheBackgroundByRequest chat_theme.cpp:172-184.
+- [ ] [MAJOR] Grouped-forward notification dispatches the FIRST buffered item; AyuGram shows the LAST. In `_flushGroupedBuffer` the album branch correctly uses `group.last` (notification_system.dart:539) but the forward branch uses `group.first`, so a tapped "Forwarded N messages" notification opens at the earliest forward instead of the latest (and carries the wrong timestamp/message id). In AyuGram `groupedItem` is advanced to each later item (`groupedItem = nextItem`) and that last item is the one shown. — `notification_system.dart:547` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:901` (advance to last; shown via `_lastHistoryItemId = groupedItem->fullId()` at :916/:937)
 
-# admin_tools — Group/Channel/Bot admin tools (edit peer, permissions, admin rights, invite links, members, admin log, statistics/boosts/earn)
+- [ ] [MAJOR] No `clearFromItem` — a deleted/unsent message's notification is never dismissed. `NotificationManager` declares `clearForItem` and both real managers implement it (notification_manager_native.dart:1370, notification_manager_default.dart:275), but `NotificationSystem` exposes no method that calls it and nothing in the app invokes it, so it is dead. AyuGram's `System::clearFromItem` is called from `History::destroyMessage` on every message removal. — `notification_system.dart:765` (clear-methods region; method absent — cf. dead interface `notification_manager.dart:12`) ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:627-631` (caller `history/history.cpp:630`)
 
-Stage-2 verification (commits d1af1a17 + 10b7d3d4, verified 2026-06-02): all 38 items verified fixed against AyuGram C++ ground truth and closed. Item 29 (TON/currency ad-revenue in `_MonetizationScreen`) was added via the unified `payments.getStarsRevenueStats`/`getStarsTransactions`/`getStarsRevenueWithdrawalUrl` with the `ton` flag — the current Telegram layer has no `stats.getBroadcastRevenue*` (confirmed absent from AyuGram api.tl; matches EarnStatistics f_ton at api_statistics.cpp:699,757 and api_earn.cpp:103-112). Verified end-to-end: live API `GetBroadcastRevenueStats` returns OK (Ton flag accepted), the screen renders a TON section (overview/charts/transactions/withdraw, gated on hasTon, shown above the Stars section) in desktop+mobile with no exceptions, Stars section unchanged.
+- [ ] [MAJOR] `updateSettings` omits AyuGram's `settingsChanged` coupling: it never calls `clearAll()` when desktop notifications are turned off (existing on-screen popups linger) and never calls `updateAll()` on a view-param (preview name/text) change (on-screen notifications aren't refreshed). AyuGram's `System` ctor subscribes to `settingsChanged()` and maps `DesktopEnabled→clearAll()` / `ViewParams→updateAll()`. — `notification_system.dart:189-198` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:206-216` (`DesktopEnabled` → `clearAll()` :208-209, `ViewParams` → `updateAll()` :210-211)
 
-# advanced_settings_screen — Advanced settings page (§14.7): update, data/storage, auto-download, window title/close, system integration, performance, spellchecker, screen reader, export, proxies, power saving, experimental flags
+# notification_types — notification content composition (title/subtitle/body/entities)
 
-This file was audited in full against AyuGram `settings/sections/settings_advanced.cpp` and the
-boxes it opens (`auto_download_box.cpp`, `local_storage_box.cpp`, `connection_box.cpp`,
-`dictionaries_manager.cpp`, `download_path_box.cpp`, `settings_power_saving.cpp`,
-`settings_experimental.cpp`). The implementation is unusually faithful. Verified as correct
-(NOT findings):
+This file is a faithful, heavily-annotated 1:1 port of AyuGram's notification text
+composition. Verified matching: `_composeTitle` ↔ `NativeManager::doShowNotification`
+title block (notifications_manager.cpp:1566-1585), `_composeSubtitle` ↔
+`notificationHeader()` (history_item.cpp:2767-2776), `_composeBody` ordering
+(notifications_manager.cpp:1596-1616), media-type strings (data_media_types.cpp
+MediaPhoto/MediaFile/MediaContact/MediaLocation/MediaInvoice), `WithCaptionNotificationText`
+"Type, caption" format (data_media_types.cpp:103-124), `TextWithForwardedChar` ➡️
+(notifications_manager.cpp:81-86), `TextWithPermanentSpoiler` ▚=0x259A
+(notifications_manager.cpp:88-100), `SpoilerLoginCode` regex + intersection guard
+(history_item.cpp:105-124), 255-cap truncation (history_item.cpp:4325-4329),
+reaction/poll-vote strings (notifications_manager.cpp:1140-1245), and account-name
+suffix ` ➜ ` with displayName fallback (notifications_manager.cpp:1264-1278 +
+chat_state.dart:2791-2796). The two findings below are real gaps.
 
-- Section build order matches `kMeta` exactly (update-top when !autoUpdate → data/storage →
-  auto-download → window title → window close → system integration → performance → spellchecker →
-  screen reader → update-bottom → export). `advanced_settings_screen.dart:99-111` ← `settings_advanced.cpp:1241-1261`
-- Power-saving flags: all 11 flags, correct group order, battery-gated auto toggle, force-disable
-  overlay. `advanced_settings_screen.dart:2695-2722` ← `ui/power_saving.h:13-25` + `settings_power_saving.cpp:142-189`
-- Experimental flags: all 29 ids in exact registration order. `advanced_settings_screen.dart:4716-4746` ← `settings_experimental.cpp:284-314`
-- Auto-download size-limit curve reproduces `SizeLimitByIndex` exactly (100-step piecewise).
-  `advanced_settings_screen.dart:1642-1652` ← `export/view/export_view_settings.cpp:89-113`
-- Local-storage ladders: 18/18 size steps, 16 time steps, 100 MB floor + both clamp directions.
-  `advanced_settings_screen.dart:1880-1956` ← `local_storage_box.cpp:32-58,496-533`
-- Proxy link parse + MTProto secret validation faithfully reproduce `proceedUrl` /
-  `MtprotoPasswordStatus`. `advanced_settings_screen.dart:3866-3975` ← `connection_box.cpp:305-366` + `mtproto_proxy_data.cpp:16-159`
-- "Use proxy for calls" correctly omitted (`supportsCalls()==false`). `advanced_settings_screen.dart:2912-2915` ← `mtproto_proxy_data.cpp:161-163`
-- All engine calls exist and do real work — `CheckProxy` is a real DC-connect ping
-  (`engine/engine.go:443`), `GetCacheSizesByTag`/`ClearCacheByTag` (`engine/media.go:274,385`),
-  `SetExperimentalFlag` (`engine/engine.go:416`), and AppState forwards `SetProxy` /
-  `SetAutoDownload` / `SetLocalStorageLimits` to every account (`app_state.dart:2666-2701,2716`).
-  No stubs, no placeholders, no fake data, no empty callbacks.
+- [ ] [MAJOR] Game messages drop their title — `_messageTextForType` switch has no case for a game, so a game notification never renders "🎮 {gameTitle}" and falls through to `default` (masks `data.text`, which is empty for a game → blank/generic body). The `gameTitle` field is declared (`:53`) and populated from the engine (`chat_state.dart:2716`, `gameTitle: msg.gameTitle`) but is never read anywhere in composition — it is a dead field. AyuGram emits the controller emoji 🎮 (0xD83C 0xDFAE) + title. Add `case 13:` (or a game branch) returning `'🎮 ${data.gameTitle}'`. — `notification_types.dart:501-568` ← `AyuGram/Telegram/SourceFiles/data/data_media_types.cpp:2069-2081`
 
-# auth_screen — Telegram intro/login flow (choose · QR · phone · email · OTP · 2FA · signup)
+- [ ] [MAJOR] Reaction/poll-vote notifications are NOT suppressed when name-preview is hidden. AyuGram's native manager early-returns and shows NO notification at all when a reaction arrives while names are hidden (`if (reactionFrom && options.hideNameAndPhoto) return;`). The Dart pipeline never replicates this: `notification_system.dart` only gates reactions on `reactionsNotify` and forces them silent (`:312-314`), then `composeNotificationContent` dutifully builds a body. Consequence: with previewName off + previewText on, the reaction notification leaks the message text ("reacted 👍 to «<text>»" via `_composeReactionText` default case, `:704-706`); under passcode lock (previewName+previewText both off → `notification_system.dart:563-568`) it still surfaces "reacted 👍 to your message" with title "UniClient" — AyuGram would show nothing. `_composeSubtitle`'s `if (!settings.previewName) return ''` (`:421`) is correct *given* upstream suppression, so the fix belongs in the dispatch: drop reaction/poll-vote items when `!previewName` (or passcode-locked) before dispatching. — `notification_system.dart:560-594` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:1563-1565`
 
-Overall this file is a high-fidelity port. Every interactive element is wired to the
-real engine via `AuthState` (`submitInput`, `switchToMethod`, `cancelAuth`,
-`updateConfig`, `uploadProfilePhoto`) — no empty callbacks, no mock data, no
-"coming soon" stubs. Dimensions/colors track the `.style` values closely
-(cover 208px, code cell 40×50/4px border/10px gap, QR 180/12/44, 2FA tops
-74/151/220, next-slide 200). The findings below are behavioral-fidelity gaps vs
-AyuGram, not broken wiring.
+# app_state — top-level AppState + AyuGram settings mirror (Ghost Mode, Message Shot, window/notification/call/proxy prefs)
 
-# ayu_appearance_page — AyuGram Appearance settings (App Icon, Avatar Corners, MD3/backgrounds/mono-font, Chat Folders, Tray & Drawer elements)
+`app_state.dart` is a state container mirroring AyuGram's `ayu/ayu_settings.{h,cpp}`, Telegram-core `core_settings*.h`, and `main_domain.cpp`. Defaults, validate()/clamp ranges, ghost-mode resolution, lock toggles, message-shot theme logic, proxy-rotation timeouts and the 100/200 account limits were all checked 1:1 and **match** AyuGram. The issues below are broken/dead engine wiring — settings that look functional but never reach the backend.
 
-Compared against `ayu/ui/settings/settings_appearance.cpp`, `ayu/ui/components/icon_picker.cpp`,
-`ayu/ui/components/avatar_corners_preview.cpp`, `ayu/ui/ayu_userpic.cpp`, `ayu/ui/boxes/font_selector.cpp`.
+- [ ] [CRITICAL] Call-device setters invoke a non-existent engine handler `SetCallDevice` (real handler is `SetCallAudioDevice`), so they always error and are swallowed by `.catchError((_) {})`. The "separate call output / microphone device" sub-feature is therefore **non-functional**: `setCallUseSameDevices`/`setCallSpecificOutputDevice`/`setCallSpecificInputDevice` are the ONLY engine push for that path (settings_screen.dart `_toggleSameDevice`:2406 and pickers 2569/2579 have no direct engine call), so toggling "use the same device" / picking separate devices never reaches the core. The output/input/camera setters' dead calls are merely redundant (call_screen.dart 2333/2760 & settings_screen.dart 2505/2516/2602 also call the correct `engine.setCallAudioDevice`). Fix: route through the existing `engine.setCallAudioDevice(accountId, type, device)` wrapper instead of `callGeneric(...,'SetCallDevice',...)`. — `app_state.dart:1190,1200,1210,1229,1232,1242,1252` ← `go/bridge/dispatch_engine.go:6208` (`case "SetCallAudioDevice"`; `SetCallDevice` hits the unknown-method default at `dispatch_engine.go:6954`) / correct wrapper at `dart/lib/bridge/engine_service.dart:2426`
 
-**Verified correct (no findings):** all toggles wired to `AppState` setters 1:1 with AyuGram getters/setters;
-App-Icon picker has all 12 assets present + registered in pubspec (not a placeholder), 4 columns / 64px icon /
-68px-12r selection highlight match `kColumns=4` + `iconPickerIconSize=64` + `iconPickerSelectedRounding=12`;
-avatar radius formula `corners/23 * size/2` matches `ComputeRadius`; `kMaxAvatarCorners=23`, slider steps `23+1`,
-`photoSize=46`, `dialogsRowHeight=62` all match; restart prompt and live icon-apply (MethodChannel) are real, not stubs.
+- [ ] [CRITICAL] `hideNotificationBadge` is a dead toggle — it is persisted and has a settings switch (`ayu_appearance_page.dart:38`) but is **never consumed**: the OS taskbar/tray badge pipeline (`main.dart:534-544`) gates only on `includeMutedChats`/`countUnreadMessages` and pushes the raw `badgeUnreadCount`, never zeroing it when this flag is set; the value is read nowhere except its own toggle and is never sent over a MethodChannel. The setter also omits AyuGram's icon/tray refresh. Result: turning on "hide notification badge" leaves the unread badge visible on the tray/taskbar. (Contrast `hideNotificationCounters`, which IS wired — `filter_column.dart:734/749/770`, `chat_list_panel.dart:872`.) — `app_state.dart:1145` (setter only `notifyListeners()`+save) / `app_state.dart:805` (getter) ← `ayu/ayu_settings.cpp:939-946` (setter calls `refreshApplicationIcon()` + `tray().updateIconCounters()` + `notifyUnreadBadgeChanged()`) + consumption `platform/win/main_window_win.cpp:641-642` & `platform/win/tray_win.cpp:146` (force badge count to 0 when set)
 
-# ayu_chats_page — AyuGram "Chats" settings section (Settings::AyuChats)
+- [ ] [MAJOR] `notifVolume` setter calls the non-existent engine handler `SetNotificationVolume` on every change — a guaranteed-failing FFI round-trip swallowed by `.catchError((_) {})`. The file's own comment at `app_state.dart:2805-2809` states "The engine has no SetNotificationVolume method", confirming this is dead wiring. Functional impact is low (the volume itself is applied Dart-side in `notification_sound.dart`), so this is a redundant erroring call rather than a broken feature, but it contradicts the documented design and should be removed. — `app_state.dart:3076` ← `go/bridge/dispatch_engine.go:6954` (no `SetNotificationVolume` handler → "unknown engine method") / `app_state.dart:2805-2809` (in-file comment confirming the handler does not exist)
 
-Audited `dart/lib/ui/ayu_chats_page.dart` against `ayu/ui/settings/settings_chats.cpp`
-(+ `message_preview.cpp`, `ayu_builder.cpp`, `settings_ayu_utils.cpp`, `ayu_icons.style`).
+# audio_service — media player playback engine (port of Media::Player::Instance)
 
-Structure maps 1:1: Stickers&Emoji, Recent stickers slider, Groups/Channels, Marks +
-message preview, bubble radius + wide multiplier, context-menu elements, message-field
-elements, message-field popups. All toggles/choose-buttons/edit-mark box are wired to real
-`AppState` setters — no empty callbacks, no TODOs, no fake snackbars, no stubs. The message
-preview is a faithful hand-drawn approximation (the C++ renders a real `HistoryView::Element`,
-impossible in pure Flutter) wired to the live settings.
+`audio_service.dart` is a faithful port of AyuGram's `media/player/media_player_instance.cpp`.
+Verified correct and fully wired: shuffle/order/repeat-all advance math (`nextInPlaylist`,
+`_shuffleNext`, `_ensureShuffleMove` ↔ `moveInPlaylist`/`ensureShuffleMove`), pause-on-call
+(`_subscribeToCallState`/`_pauseForCall`/`_resumeAfterCallEnd` ↔ pauseOnCall/resumeOnCall),
+notification ducking (`duckFor` ↔ mixer suppressAll, wired in `main.dart:577`), save/restore
+position (music 20-min threshold, read-and-clear on play), playback-speed selection
+(`_currentSpeed` ↔ LookupPlaybackSpeed), and music-listen reporting (3s min / 60s pause-timeout
+match `kReportDurationSecondsMin`/the listen-tracker pause timer; `reportMusicListen` +
+`refreshDocumentFileRef` resolve to real engine→Go `MessagesReportMusicListen`). Playlist
+navigation callbacks and settings sync are wired in `main.dart:374-389` and
+`chat_state.dart:3040`. No stubs, placeholders, or fake data. Two behavioral deviations remain:
 
-**Verified correct (all 4 prior MAJOR deviations fixed; confirmed in desktop 1024×768 + mobile 400×720):**
-Hide Reactions master uses ANY-semantics (`toggledWhenAll: false`) — shows ON at 1/3 and clicking it
-un-hides all (→0/3 OFF); Recent Stickers slider persists only on release (`onChanged: null` +
-`onFinalChanged`, so `setRecentStickersCount`→`notifyListeners` never fires per drag frame);
-bubble-radius preview updates live every drag frame via a `ValueNotifier` the slider pokes in
-`onChanged` (mid-drag screenshots showed corners rounding at intermediate values 4→14 before release),
-persisting + restart-prompt in `onChangeEnd`; all 7 message-field elements + 2 popups carry leading
-icons with the wide icon-row layout.
+- [ ] [MAJOR] repeat-one is honored for voice / round-video messages, but C++ forces `RepeatMode::None` for `Type::Voice` so only songs repeat — on completion the Dart checks the global `_repeatMode` with no `_isSong` gate, so with repeat-one set (a global music setting that persists, synced unconditionally in `main.dart:382`) a finished voice/round message re-seeks to 0 and replays forever instead of advancing to the next message. The neighbouring repeat-ALL path is correctly gated (`repeatAll = isSong && _repeatMode == AudioRepeatMode.all`, `audio_service.dart:276`), making this gap inconsistent. Fix: gate with `_isSong && _repeatMode == AudioRepeatMode.one`. — `audio_service.dart:578` ← `media_player_instance.cpp:1198` (repeat() returns None for non-Song) + `media_player_instance.cpp:1300`
+- [ ] [MAJOR] playing a voice / round-video message never marks it as listened/read. C++ `Instance::play` calls `document->owner().markMediaRead(document)` for voice/video messages on play, clearing the unread-voice state and sending the listened receipt; the Dart `playVoice` (and every caller — `message_bubble.dart:4350/4366/4774`, `info_panel.dart`, `chat_state.dart:3092`) never calls the existing `readMessageContents` engine method, so playing an unread voice message leaves it perpetually unread for both the sender and the local badge. — `audio_service.dart:506` ← `media_player_instance.cpp:829`
 
-# ayu_filters_page — Regex Filters settings (shared/shadow-ban/per-dialog + import/export)
+# ayu_forward — AyuForward intelligent-forward engine (no-forwards bypass / resend-as-own)
 
-Audited against AyuGram's regex-filters feature: `ayu/ui/settings/settings_filters.cpp`,
-`ayu/ui/settings/filters/settings_filters_list.cpp`, `edit_filter.cpp`, `per_dialog_filter.cpp`,
-`ayu/features/filters/filters_utils.cpp`, `ayu/ui/boxes/import_filters_box.cpp`,
-`info/info_wrap_widget.cpp`. Backend wiring is solid — every toggle/menu/row callback calls the
-real `AyuFilterEngine`/`AppState` (rebuildCache + notifyListeners), the import/export engine posts
-to dpaste and round-trips the v2 backup JSON, and `context.select` rebuilds the list correctly
-(all mutators reassign new list instances). Both prior MAJOR deviations are now fixed.
+Overall this is a faithful, heavily-documented port. Verified correct against C++ ground truth:
+chunking predicate `isMessageRestricted` == `isAyuForwardNeeded(item)` (`ayu_forward.dart:141-147` ↔ `ayu_forward.cpp:226-231`),
+full-resend gate `isFullAyuForwardNeeded` (`ayu_forward.dart:170-172` ↔ `ayu_forward.cpp:233-235`),
+caller gate `needsIntelligentForward` (`ayu_forward.dart:337-352` ↔ `apiwrap.cpp:3487-3501` + `window_peer_menu.cpp:3248`),
+chunk builder (`ayu_forward.dart:197-215` ↔ `ayu_forward.cpp:261-285`),
+status/detail text (`ayu_forward.dart:55-76` ↔ `ayu_forward.cpp:54-97`),
+`isForwarding` (`ayu_forward.dart:104-114` ↔ `ayu_forward.cpp:33-44`, the `<`→`<=` off-by-one is correctly compensated by the per-chunk index representation),
+cancel (`ayu_forward.dart:78-82` ↔ `ayu_forward.cpp:46-52`, wired to the bar at `chat_view.dart:10965`).
+Engine methods are real protobuf→Go calls (`engine_service.dart:3994-4048` → `engine/pending.go:465,492,875`); backend emits `sender_no_forwards`/`no_forwards` (`dispatch_engine.go:7260,7189`); field mappings match (`item->isAyuNoForwards()` is message-level per `history_item.cpp:2003`). The two issues below are behavioral-state deviations, not broken wiring.
 
-**Verified correct (both prior MAJOR deviations fixed; confirmed in desktop 1024×768 + mobile 400×720):**
-The `_ShadowBanRow` fallback avatar now uses the shared `_kUserpicColorRemap` (`[0,7,4,1,6,3,5]`,
-`ayu_filters_page.dart:533`) — identical to its sibling `_PerDialogFilterRow` and matching AyuGram's
-`ColorIndexToPaletteIndex` (`chat_style.cpp:1205`); the buggy `[0,2,4,1,6,3,5]` table is removed. A
-pixel-sample of an `id%7==1` peer's empty userpic (Config Sharing, id 6630, rendered via the known-correct
-chat-list map) reads `historyPeer8UserpicBg` = `RGB(254,187,91)` = `0xFEBB5B`, not the old
-`historyPeer3UserpicBg` (`0xE5CA77`), and the shadow-ban row now computes through the identical map.
-The import box auto-selects URL mode when the clipboard holds a URL (`_prefillFromClipboard` trims the
-text and flips `_useUrl=true` via setState, mirroring `RadioenumGroup<bool>(clipboardHasUrl)`): with a URL
-on the clipboard the URL radio is pre-selected and the field pre-filled in one click; with non-URL text it
-correctly defaults to Clipboard mode (URL field hidden). No crashes in the app log.
+- [ ] [MAJOR] Resend-as-own progress oscillates phase `downloading`↔`sending` once per album group instead of a single download phase followed by continuous send progress. Each `engine.resendAsOwn`/`resendAlbumAsOwn` downloads+reuploads atomically, so the Dart loop sets `downloading` before every group and `sending` after it — the status text flips "Loading media" → momentary "Forwarding N/N" → "Loading media" → … throughout the whole operation, showing "Loading media" during the actual work and only flashing the count between groups. AyuGram downloads the ENTIRE chunk's media up front in one `Downloading` phase (`loadDocuments`), then runs the send loop once, showing "Loading media" exactly once followed by a live, continuous "Forwarding 1/N…N/N". — `ayu_forward.dart:300-327` ← `AyuGram/ayu/features/forward/ayu_forward.cpp:356-441`
 
-# ayu_toggle — AyuGram defaultToggle switch (ToggleView port)
+- [ ] [MAJOR] Non-restricted (plain) forwards display the AyuForward progress bar. `startNativeForward` registers a `ForwardProgress` in `_activeForwards` (phase=sending, chunks=1) for the ordinary native path, so `isForwarding(toChatId)` returns true and the compose area in the destination chat is replaced by the cancelable "Forwarding N/N" bar (`chat_view.dart:5784-5786`). AyuGram has NO native-progress concept: a non-restricted forward falls through both early-return branches of `ApiWrap::forwardMessages` to the normal Telegram batch path, which never constructs a `ForwardState` — so `AyuForward::isForwarding(peer)` stays false and no AyuForward bar is shown (it appears only for `intelligentForward`/full-resend, which are the only places a `ForwardState` is created). These two helpers have no counterpart in `ayu_forward.cpp`. — `ayu_forward.dart:126-139` ← `AyuGram/apiwrap.cpp:3494-3503` (normal path creates no `ForwardState`; cf. the only `ForwardState` creations at `ayu_forward.cpp:287,330,332`)
 
-Audited `dart/lib/ui/ayu_toggle.dart` against `lib_ui/ui/widgets/checkbox.cpp`
-(`ToggleView`), `widgets.style` (`defaultToggle`), `basic.style`
-(`universalDuration`), and `animation_value.{h,cpp}` (transitions).
+# chat_state — chat list + active chat + messages controller (ChangeNotifier)
 
-Verified MATCHING (no action needed): all dimensions — border 2px, material
-diameter 14px / non-material 16px, width 14px, material shift -2px /
-non-material shift 1px, animPadding 2px, durations 150ms / 120ms
-(`widgets.style:871-890`, `basic.style:131`); `getSize` formula
-(`checkbox.cpp:101`); track rect + thumb rect geometry (`checkbox.cpp:114-119`);
-material animPadding shrink `animPadding*(1-t)` (`checkbox.cpp:124-125`,
-`animation_value.h:102-104`); colors — track & thumb border lerp
-checkboxFg→windowBgActive, thumb fill constant windowBg (`checkbox.cpp:120-136`,
-`widgets.style:875-878`); **forward / toggle-ON easing** `1-(1-dt)³`
-(`checkbox.cpp:57-62`, `animation_value.cpp:94-104`). `onChanged` is a correct
-generic callback (not a stub). No placeholders, TODOs, or fake data.
+Audited `dart/lib/state/chat_state.dart` (3249 lines) against AyuGram Desktop C++.
+This is the controller/state layer, so the audit focused on backend wiring and
+behavioral accuracy (not visual dimensions).
+
+Verified correct (no findings): all numeric constants match AyuGram exactly —
+message page sizes 30/50 (`history_widget.cpp:216-217`), saved-sublist
+20/100/min-20/recent-5 (`data_saved_messages.cpp:30-35`), forum
+20/500/recent-8 (`data_forum.cpp:40-44`), chat-history-stack 50
+(`window_session_controller.cpp:138`). Recent-topic/recent-sublist ordering
+(by last-message date desc, no pinned-first) matches `Forum::reorderLastTopics`
+/ `SavedMessages::reorderLastSublists`. Saved-sublist pagination offset unit is
+correct (`last_msg_time` is ms from Go `telegram.go:30250`, divided by 1000 for
+offset_date). Message regex/shadowban filtering is correctly delegated to the
+view layer (`chat_view.dart:3216`), not a wiring gap. No stubs, placeholders,
+TODOs, mock data, or dead callbacks found — engine wiring is real throughout.
+
+- [ ] [MAJOR] `jumpToMessage` loads a one-sided window (target + only OLDER messages) instead of a window CENTERED on the target. AyuGram's `firstLoadMessages` jumps with `offset = -loadCount/2; offsetId = _showAtMsgId;` — the MTProto idiom that fetches ~half newer + half older around the target, so the message lands mid-viewport with context on both sides. The Dart calls `getMessages(..., beforeMs: timestampMs + 1)` with no `afterMs`, so 100% of the newer-context half is absent on the initial jump; the user cannot see any message that came AFTER the jumped-to message until scrolling (`loadMoreMessagesDown`). The engine already supports `afterMs` (`engine_service.dart:3023`), so this is a deliberate one-sided load. Affects every jump caller: pinned-message nav (`chat_list_panel.dart:1720`), search results (`chat_list_panel.dart:978`), reply-jumps (`chat_view.dart:1191,1204,1216`), and call-message jumps (`calls_screen.dart:2130,2181`). — `chat_state.dart:1739` ← `AyuGram/Telegram/SourceFiles/history/history_widget.cpp:4421`
+
+# telegram_palette — Telegram Desktop color palette + accent colorizer (Dart port)
+
+Scope: `telegram_palette.dart` is a data+algorithm file (no widgets/wiring). It ports
+Telegram/AyuGram's `colors.palette` master + the 4 embedded theme palettes
+(classic/day/tinted/night), plus the accent `colorize()` engine
+(`style_palette_colorizer.cpp`), the `ignoreKeys`/`keepContrast` maps and the
+contrast-enforcement pass (`ColorizerFrom` in `window_themes_embedded.cpp`).
+
+What is CORRECT (verified, not findings — listed so the deviations below are in context):
+- `colorize()` HSV piecewise sat/val formulas, hue wrap, HSL-lightness clamp match
+  `style_palette_colorizer.cpp:24-58` + `window_themes_embedded.cpp:115-184`.
+- `hueThreshold=15`, the full `ignoreKeys` set (peer colors, msgFile*, settingsIconBg*,
+  premium*, boxTextFgGood/Error, callIconFg) passed raw, and all 11 `keepContrast`
+  pairs (`_enforceContrast`/`fix`) map correctly incl. the `includeFileIcons` Night gate.
+- `classicDay` is a byte-exact match to the resolved `colors.palette` default (0 deviations).
+- Accent presets (`dayAccents`/`nightAccents`/`nightGreenAccents`) match `DefaultAccentColors`.
+
+Root cause of the findings: `dayBlue`/`night`/`nightGreen` were baked from the exported
+theme files, but for `key: #literal | fallback;` keys (`colors.palette`) that are ABSENT
+from those exports — meaning at runtime `palette::compute()`
+(`style_core_palette.cpp:158-180`) makes them INHERIT the theme-overridden `fallback` —
+the Dart instead hardcoded the `colors.palette` literal default (a light-theme value) or
+a wrong proxy. So in the dark/day themes these keys show the wrong color.
+
+- [ ] [MAJOR] Dark-theme chat-list **mention icon** hardcoded to the light-theme accent `#40A7E3` instead of inheriting the per-theme accent `dialogsVerifiedIconBg`. In `nightGreen` the theme accent is teal `#53edde` (Dart palette even stores it correctly at line 4932) yet the mention badge renders blue — a clearly wrong hue. `colors.palette:690` defines `dialogsMentionIconFg: #40a7e3 | dialogsVerifiedIconBg;` and the key is absent from `night`/`night-green.tdesktop-theme` (⇒ inherits the accent). Should be `#6AB3F3` (night) / `#53EDDE` (nightGreen). — `telegram_palette.dart:4030` & `telegram_palette.dart:5209` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:690`
+
+- [ ] [MAJOR] Dark-theme chat-list **reaction icon** and **poll icon** keep the light-theme literals (`dialogsReactionIconFg #E05356`, `dialogsPollIconFg #997BE1`) instead of the theme-overridden fallbacks. Per `colors.palette:691` `dialogsReactionIconFg: #e05356 | attentionButtonFg;` → night `#ec3942` / nightGreen `#f57474`; `colors.palette:692` `dialogsPollIconFg: #997be1 | historyPeer5NameFg;` → night `#b48bf2` / nightGreen `#b383f3`. Both keys are absent from the dark theme exports (⇒ inherit). — `telegram_palette.dart:4031-4032` & `telegram_palette.dart:5210-5211` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:691-692`
+
+- [ ] [MAJOR] Dark-theme `dialogsArchiveFg`/`dialogsArchiveFgOver` set to `windowSubTextFg` (`#708499` night, `#82868A` nightGreen — identical to the palette's own `windowSubTextFg` at lines 3662/4879) instead of the C++ fallback `dialogsNameFg`/`dialogsNameFgOver`. `colors.palette:197` `dialogsArchiveFg: #525252 | dialogsNameFg;` and `colors.palette:215` `dialogsArchiveFgOver: #525252 | dialogsNameFgOver;`; both absent from the dark exports, so runtime inherits `dialogsNameFg=#f5f5f5` (the archive label renders as a normal chat name). Dart's muted gray-blue is neither the literal nor the fallback. — `telegram_palette.dart:3721`,`4018` & `telegram_palette.dart:4934`,`5197` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:197`,`215`
+
+- [ ] [MAJOR] `dayBlue` (the selectable "Day" theme) bakes several `|`-fallback keys with the *classic* literal instead of the value they inherit once `day-blue.tdesktop-theme` overrides the fallback key — so "Day" wrongly equals "Classic" for these. Examples: `emojiSubIconFgActive` Dart `#666666` vs inherited `windowBoldFg=#222222` (≈27% off); `callBarBgMuted` Dart `#8F8F8F` vs `dialogsUnreadBgMuted=#bbbbbb` (≈17%); `callArrowFg` Dart `#2DAD2D` vs `boxTextFgGood=#4ab44a`; `callArrowMissedFg`/`historyCallArrowMissedInFg` Dart `#DD5B4A` vs `boxTextFgError=#d84d4d`; `mainMenuCloudBg` Dart `#2785BF` vs `activeButtonBgRipple=#2095d0`. — `telegram_palette.dart:3412`,`3559`,`3369`,`3370`,`3431`,`3512` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:249`,`602`,`163`,`164`,`276`,`499`
+
+- [ ] [MAJOR] Same fallback-inheritance bug for the dark themes' `spellUnderline`: Dart keeps the literal translucent red `#FF000088`, but `colors.palette:614` `spellUnderline: #ff000088 | attentionButtonFg;` makes it inherit the (opaque) theme red — night `#ec3942`, nightGreen `#f57474`, dayBlue `#d14e4e` — losing both the hue shift and the intended alpha behavior. — `telegram_palette.dart:4228` (night), `telegram_palette.dart:5407` (nightGreen), `telegram_palette.dart:3600` (dayBlue) ← `AyuGram/Telegram/lib_ui/ui/colors.palette:614`
+
+# theme — Material ThemeData bridge from TelegramPalette (input/scrollbar/tooltip/text defaults)
+
+Scope: `theme.dart` maps `TelegramPalette` → Flutter `ThemeData`. It has no 1:1
+AyuGram C++ analogue (Qt uses per-widget `.style` structs, not a global theme),
+so the audit verifies that each dimensional/color value matches the corresponding
+AyuGram `.style`/`.cpp` source. Most values are accurate; one structural deviation
+in the global input-field default.
+
+VERIFIED CORRECT (no action):
+- Scrollbar thumb width 4px, radius 2px, color `scrollBarBg` — matches
+  `widgets.style:822-826` (defaultScrollArea round 2px / width 10 / deltax 3 → thumb 4)
+  and `scroll_area.cpp:166` (`width() - 2*deltax`).
+- Tooltip bg/fg/border/padding/radius/font/wait — `tooltipBg`/`tooltipFg`/`tooltipBorderFg`,
+  pad (5,2,5,2), radius 3 (`roundRadiusSmall`, basic.style:104), font 13 (`fsize`,
+  basic.style:51), wait 1000ms — all match `widgets.style:1288-1293`, `tooltip.cpp:172,573`.
+- Input field resting/focused border colors + widths (`inputBorderFg` 1px / `activeLineFg` 2px)
+  match `widgets.style:1058-1063`.
+- `dark`/`light` getters are exercised by test/ (not dead code).
 
 ## Findings
 
-# box_content_divider — AyuGram `Ui::BoxContentDivider` port (8px gray band + edge shadows)
+- [ ] [MAJOR] Global input default uses `OutlineInputBorder` (a full 4-sided rectangle) for both resting and focused borders, but AyuGram's `defaultInputField` has `borderRadius: 0px` (widgets.style:1064), which routes to `InputField::paintFlatSurrounding` — it draws ONLY a bottom underline: a 1px resting line `fillRect(0, height()-border, width(), border, borderFg)` plus an animated 2px active line at the bottom edge. The full-box `paintRoundSurrounding` is used solely when `borderRadius > 0`. Result: every unstyled `TextField` renders as a boxed field instead of AyuGram's flat underline field. Should be `UnderlineInputBorder`. — `theme.dart:47-54` ← `AyuGram/lib_ui/ui/widgets/fields/input_field.cpp:2388-2398` (+ `widgets.style:1064`)
 
-Faithful `StatelessWidget` port of `Ui::BoxContentDivider`. Verified against the authority:
-- Band height **8px** (`box_content_divider.dart:29`) = `boxDividerHeight: 8px` (`widgets.style:686`) ✓
-- Full-bleed width (`box_content_divider.dart:44`) = `RpWidget` full width ✓
-- Fill color **`boxDividerBg`** (`box_content_divider.dart:46`) = `defaultDividerBar.bg: boxDividerBg` → `windowBgOver` `#f1f1f1` (`widgets.style:688`, `colors.palette:146`); Dart palette maps `boxDividerBg = 0xFFF1F1F1` ✓
-- Top/bottom toggle (`box_content_divider.dart:48-50`) = `RectPart::Top | RectPart::Bottom` (`box_content_divider.h:29`) ✓
-- `const` constructor present, no state, no lists/images/animations/async, no engine wiring required (static visual separator) → no placeholder/stub/mock-data/backend concerns.
+- [ ] [MAJOR] Input `contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)` contradicts AyuGram `defaultInputField.textMargins: margins(0px, 28px, 0px, 4px)` — AyuGram has zero horizontal inset (text flush to the field's left/right edges) and asymmetric vertical (28px top reserving room for the floating placeholder, 4px bottom). The 16px horizontal inset is a side-effect of the boxed-border choice above; with the correct flat underline it should be 0. — `theme.dart:55` ← `AyuGram/lib_ui/ui/widgets/widgets.style:1045`
 
-# call_panel — Telegram 1-on-1 voice/video call panel
+# theme_file — Telegram `.tdesktop-theme`/`.tdesktop-palette` parser, exporter & disk cache
 
-Audited `dart/lib/ui/call_panel.dart` (2733 lines) against AyuGram `calls/` source.
+Audited `theme_file.dart` (1865 lines) against AyuGram's `window_theme.cpp`,
+`window_theme_editor.cpp`, `style_core_palette.cpp`, `parse_helper.cpp`,
+`zlib_help.h`, and `colors.palette`.
 
-**Wiring verdict: clean.** Every control is wired to a real FFI engine call (`setCallMuted`, `toggleCamera`, `toggleScreenSharing`, `setCallAudioDevice`, `getAudioDevices`, `getCallSoundPeak`, `createConferenceCall`, `joinGroupCall`, `inviteToConferenceCall`, `endCall`, `acceptCall`, `declineCall`, `startCall`, `sendCallRating` — all in `engine_service.dart` routing to `_callAsync('__engine', ...)`). No empty callbacks, no mock data, no "coming soon", no TODO/stub. Signal-bar dimensions match `callPanelSignalBars` exactly (width=2, radius=1, skip=2, min=4, max=10, inactiveOpacity=0.5). Device chevrons on both mute and camera buttons match AyuGram's `_cameraDeviceToggle`/`_audioDeviceToggle` corner buttons. Findings below are behavioral/visual deviations, not broken wiring.
+Overall the file is a careful, near-1:1 replication: all 580 real Telegram
+palette keys are present in `paletteToMap` (zero missing); the size limits
+(5 MB file / 25 M-pixel bg / 1 MB scheme / 4 MB bg-bytes) match
+`kThemeFileSizeLimit`/`kBackgroundSizeLimit`/`kThemeSchemeSizeLimit`/`kThemeBackgroundSizeLimit`;
+the in-order reference resolution (`unsupported` map, `KeyNotFound`/`ValueNotFound`
+semantics, last-value-wins on duplicate), the cloud-meta read/write
+(`WriteCloudToText`/`ReadCloudFromText`, uint64 unsigned formatting), the
+background priority order (background.jpg > .png > tiled.jpg > .png), the
+anti-zip-bomb uncompressed-size check, and the CRC32 cache scheme
+(`palette::Checksum()` + `base::crc32(content)`, validate both) are all faithful.
+The public API is wired (`parseThemeFile`/`exportThemeFile`→`theme_editor.dart`,
+cache fns→`app_state.dart`). No stubs/TODOs/placeholders/fake data.
 
-# call_screen — group-call panel, minimised call bar & screen-share chooser
+The findings below are genuine behavioral deviations from the AyuGram source.
 
-All 16 original findings (13 in `call_screen.dart` + 3 shell.dart caller-side) VERIFIED FIXED & closed — Stage 2, commit `98aba51e`. Go+Flutter rebuilt clean, app launched, no crashes; each fix cross-checked against AyuGram source and (where reachable) confirmed visually: manager Leave→`leaveGroupCall`; real join-as peer identities via `phone.getGroupCallJoinAs`; mic input picker + live level meter; `MuteButtonState.connecting`; live server-pushed self/force/raised-hand mute via `onGroupCallState`; `scheduleStartSubscribed` seeded from server; ephemeral `sendGroupCallMessage`; per-user mute-for-me + view-profile/send-message; PTT config (toggle+shortcut+delay); state-coloured minimised-bar blobs; flat `#419fd9`/`#8f8f8f` personal-call bar; screen-share "Share audio" checkbox threaded through; group hangup→`leaveGroupCall`/`endGroupCall` with callId+isCanManage; group bar `onTap` reopens panel + full state wiring.
+- [ ] [CRITICAL] Palette fallback-chain cascade (`finalize()`→`compute()`) is not implemented — when a loaded theme sets only base colors, the 236 reference-colors that should inherit from them keep stale defaults instead. AyuGram calls `out->palette.finalize(paletteColorizer)` after `loadColorScheme`, and `compute(index, fallbackIndex, value)` copies each unset color from its fallback when that fallback is `Loaded` (set by the theme or an earlier cascade step). e.g. `colors.palette:53` defines `menuBg: windowBg;` and `:345` `msgInBg: windowBg;`, so a theme that sets only `windowBg: #000000;` makes the menu/message-bubble black in AyuGram. The Dart parser only resolves references *physically present in the theme file*, then `merged = fallbackMap..addAll(resolved)` fills every other key with the `dayBlue` default (flat `m['x'] ?? fb.x` in `paletteFromMap`) — so `menuBg`/`msgInBg`/etc. stay white. Up to 236/580 colors can be wrong for a partial palette, and user-imported `.tdesktop-palette` files reach this path (`theme_editor.dart:423`). — `theme_file.dart:201` (+ `paletteFromMap` `theme_file.dart:1128`) ← `AyuGram/Telegram/SourceFiles/window/themes/window_theme.cpp:368` + `AyuGram/Telegram/lib_ui/ui/style/style_core_palette.cpp:158` + `AyuGram/Telegram/lib_ui/ui/colors.palette:53`
 
-## Findings — call_screen.dart
+- [ ] [MAJOR] Parser is line-based (`text.split('\n')`, one `name: value;` assumed per physical line) whereas AyuGram's `ReadPaletteValues` runs a whitespace-delimited *streaming* loop over `readNameAndValue`, which is newline-agnostic. Consequence: a declaration split across lines such as `windowBg:\n#ffffff;` makes the Dart's first line `windowBg:` fail the trailing-`;` check and **hard-reject the entire theme** (`return null`, line 142) — AyuGram parses it fine. Likewise multiple `name: value;` pairs on one physical line (`windowBg: #fff; windowFg: #000;`) collapse into one malformed entry and silently drop those colors. Real AyuGram exports are one-per-line so typical themes load, but any spec-valid theme using cross-line/multi-pair layout breaks. — `theme_file.dart:96` (+ hard-reject `theme_file.dart:142`) ← `AyuGram/Telegram/SourceFiles/window/themes/window_theme.cpp:1521` + `window_theme.cpp:122`
 
-## Notes — verified correct (not flagged)
+- [ ] [MAJOR] Background validation is stricter than AyuGram and rejects the whole theme for inputs AyuGram accepts. `_isValidBackgroundImage` gates on JPEG/PNG magic bytes (`bytes[0]==0xFF&&…` / 8-byte PNG signature) and returns false for anything else, after which `_parseZipTheme` aborts the entire theme (`return null`, line 460). AyuGram reads the background by filename only and decodes it format-agnostically via `QImageReader::size()` + `Images::Read(...)`, accepting any Qt-decodable image (e.g. a WebP/BMP stored as `background.png`). So a theme AyuGram renders is fully rejected here. (Narrow in practice — Telegram only ever writes jpg/png backgrounds — but a genuine deviation: the Dart is the stricter of the two.) — `theme_file.dart:320` (+ reject `theme_file.dart:460`) ← `AyuGram/Telegram/SourceFiles/window/themes/window_theme.cpp:329` + `window_theme.cpp:336`
 
-- Volume mapping is correct: AyuGram `kDefaultVolume=10000` (=100%), `kMaxVolume=20000` (=200%); Dart's `volume/100` display + slider `max:20000`/`divisions:200` match exactly. — `call_screen.dart:491,528,544-545` ← `calls/group/calls_group_common.h` + `calls_volume_item.cpp`
-- Speaking-blob radii match spec: `_minRadius=27`/`_maxRadius=29` ← `groupCallRowBlobMinRadius:27px`/`groupCallRowBlobMaxRadius:29px`; `_userpicMinScale=0.8` matches AyuGram.
-- Screen/window enumeration is a real implementation (portal → wmctrl/xdotool/kdotool/hyprctl/swaymsg/gdbus + grim/import/gnome-screenshot/spectacle thumbnails), not hardcoded; chosen `sourceId` is passed to `engine.toggleScreenSharing`. Default-to-first-screen matches AyuGram.
-- Force-muted→Raise-Hand tap logic, scheduled start-now ≤10s confirmation, leave-vs-end-for-all dialog, scheduled-overlay countdown/"Late by" flip, signal bars (4 bars), recording snackbars (fired only after awaiting real engine calls), and Invite Members (`getContacts`+`inviteToConferenceCall`) are all correctly wired.
-- Idiom-only diffs not flagged: Windows/Screens two-tab chooser vs AyuGram's single combined grid; sender name shown on all chat bubbles vs admin-only; three separate row icons vs one animated icon; muted-gray `#7F8A96` vs `#8f8f8f`.
+# theme_name_generator — Telegram Desktop theme-name generator (redmean nearest-color + random adjective/subjective)
 
-# calls_screen — Calls box, history list, conference-create box, call settings
+Port is near-perfect: the redmean distance formula (incl. `>>8` truncations, `4*g*g`, `512+rMean`, `767-rMean`), `rMean` (`(r+c.r)>>1` ≡ C++ `(r1+r2)/2`), the 50/50 adjective-prefix/subjective-suffix branch, and all three data tables were verified 1:1 — 99 colors (hex→RGB all correct), 107 adjectives, 81 subjectives, with matching order including the non-alphabetical quirks ("Flash","Fire"; "Shine","Shadow","Shimmer"). Wiring is correct: `generateThemeName(widget.palette.windowActiveTextFg)` (theme_editor.dart:1317) matches AyuGram's `GenerateName(collected.accent)` where `collected.accent = st::windowActiveTextFg->c` (window_theme_editor_box.cpp:773,790). One genuine algorithmic divergence:
 
-Overall the file is genuinely wired: every action calls a real `EngineService` FFI method
-(`getCallHistory`, `getGroupCall`, `joinGroupCall`, `startCall`, `createConferenceCall`,
-`inviteToConferenceCall`, `clearCallHistory`, `getContacts`, `getConfcallSizeLimit`,
-`getAudioDevices`, `setCallAudioDevice`, `accountUpdateDeviceLocked`, `deleteMessage`). No
-placeholders, empty callbacks, TODO/HACK markers, mock data, or "coming soon" feedback exist.
-Pagination (20/100), grouping (peer+date+type), context menu (Delete / Show in Chat), and the
-call-settings sections (Output/Input/Call Devices/Camera/Other) all match AyuGram. The findings
-below are behavioral/architectural deviations, not broken wiring.
+- [ ] [MAJOR] Nearest-color tie-breaking diverges from source. AyuGram stores the palette in a `base::flat_map<uint32, const char*>` keyed by packed-RGB color, so it iterates in ascending color-key order and `ranges::min_element` returns the LOWEST-key entry among equidistant colors. The Dart `_colors` list preserves C++ *declaration* order and the scan keeps the first minimum in declaration order (`if (dist < bestDist)`), so an exact distance tie resolves to the first-*declared* entry instead of the lowest-key entry — producing a different color name for equidistant accents. The `>>8` truncation in the redmean metric collapses nearby distances, making such ties realistically reachable. Fix: iterate the palette in ascending packed-RGB-key order (or sort `_colors` by `(r<<16)|(g<<8)|b`) before the min search so the tie-break matches `flat_map`. — `theme_name_generator.dart:15-27` (declaration-order scan with `dist < bestDist` tie-break) ← `window/themes/window_themes_generate_name.cpp:16` (`base::flat_map<uint32, const char*>` key-sorted container) + `:345` (`ranges::min_element(kColors, pred)`)
 
-# chat_export — Telegram Data Export panel (full / per-chat / per-topic) + progress, calendar/time/format pickers, export-ready suggestion box
+# theme_preview — Telegram Desktop theme-preview image (dialogs + chat mock)
 
-Audited `dart/lib/ui/chat_export.dart` (3281 lines) against AyuGram `export/view/*` and `export/export_settings.*`.
-Core flow is genuinely wired: `startExport`/`cancelExport`/`skipExportFile`/`save`+`loadExportSettings` all hit real Go handlers (`dispatch_engine.go:5761-5816`), and `onExportProgress`/`Error`/`Complete` parse real event fields (`engine_models.dart:2741-2830`). Defaults (types, media=Photo only, 8MB size, 100-step slider), panel size 364×480, calendar sizes (320 / cell 38 / inner 32 / pad 14), stop-confirm / takeout / disk-error / delay text all match AyuGram. Issues below are functional only (cosmetic label-wording diffs skipped per rules).
+`theme_preview.dart` is a faithful `CustomPainter` port of AyuGram's `Window::Theme::Generator` (`window_theme_preview.cpp`), which renders a static 903×584 preview of the dialogs list + chat view for a given palette. It is a *static* renderer (the C++ original is also a one-shot `QImage Generator::generate()`), so there is **no backend wiring to check** — the hardcoded rows/bubbles/waveform are correct because they mirror AyuGram's `generateData()` 1:1. Verified faithful: canvas 903×584 (`media_view.style:423`), dialogs width 312 (`media_view.style:445`), row height 62 / photoSize 46 / nameLeft 68 / nameTop 10 / textTop 34 (`dialogs.style:89-101`), top-bar 54 / compose 46, dialog-list `startY=54` (= 7+40+7), the 8 rows' names/peerIndex/unread/muted/pinned/status/group flags, colorized-preview link color = `dialogsTextFgService` (`dialogs.style:170`), avatar gradient + `colorIndexToPalette = [0,7,4,1,6,3,5]` (= `chat_style.cpp:1205` `map[]`), waveform data (67 samples, waveactive 33), default wallpaper colors `[DBDDBB,6BA587,D5D88D,88B884]` (`data_wall_paper.cpp:710-715`), themeimage.jpg (654×395, identical bytes), audio file layout, bubble radius 16. No placeholders, stubs, TODOs, fake feedback, empty callbacks, or unbounded lists. `shouldRepaint` is identity-gated (no per-frame rebuilds); widget is wired into `theme_editor.dart:811`.
 
-All three findings VERIFIED FIXED & closed — Stage 2: the "Data export ready" box is now wired (engine arms a per-account timer from a persisted `export_suggest.json` on ConnectAccount = `suggestExportIfNeeded`, emits `export_suggest`, and main.dart shows `showExportSuggestBox` — confirmed end-to-end in desktop+mobile); `SuggestStartExport` / `ClearExportSuggestion` engine methods + bridge dispatch cases added (return OK, no "unknown engine method"; clear removes the persisted file); and `_privateGroupsOnlyMy`/`_privateChannelsOnlyMy` default to true so only-my-messages is CHECKED by default for private groups/channels, matching `DefaultFullChats()`=PersonalChats|BotChats.
+Two genuine deviations from the AyuGram source:
 
-# chat_list_panel — left panel (search, folder tabs, top peers, stories, recent contacts, search tabs/filters, archived row, forum topics, reaction tags, saved sublists)
+- [ ] [MAJOR] Chat-background doodle **pattern is not rendered** — the history area shows a plain gradient only. AyuGram's preview reads `:/gui/art/background.tgv` (the Telegram doodle SVG) and overlays it on the 4-colour gradient via `PreparePatternImage(..., patternOpacity())` at intensity 50 (`chat_theme.cpp:1135` → `GenerateBackgroundImage`). The Dart only generates `defaultWallpaperGradientPixels()` (gradient, no pattern) and the `background.tgv` asset is not even bundled in `dart/`. (Secondary, same site: the 256×256 gradient is stretched to fill the non-square history rect, whereas AyuGram cover-fits via `ComputeChatBackgroundRects` — minor for an abstract gradient.) — `theme_preview.dart:53-67` & `theme_preview.dart:386-396` ← `AyuGram/window/themes/window_theme_preview.cpp:468-480`
 
-The implementation is dimensionally and behaviorally very faithful to AyuGram: stories (35/77px, photo 21/42px, shift 16px, lineTwice 3/4px, lineReadTwice 0/2px), topPeers (photo 46px), recentPeersItem (height 56px, photo 42px, name (64,9), status (64,30)) all match `dialogs.style` exactly; reorder threshold (30), drag-to-filter X/Y (30/75), forward-hover freeze (2s), peer color remap `{0,7,4,1,6,3,5}` (`id % 7`), and story-ring units (5760/160) all match the C++ source. Findings below are the genuine deviations, concentrated in the search-scope UI and two behavioral defaults.
+- [ ] [MAJOR] Top-bar "online" status uses the **wrong palette key** — `palette.contactsStatusFgOnline` instead of the active history status colour. AyuGram paints it with `historyStatusFgActive` (active=true via `generateData`), which is bound to `windowActiveTextFg` (`chat.style:460`). These differ for any theme where the two slots diverge (e.g. the bundled night theme: `windowActiveTextFg=0xFF6AB3F3` vs `contactsStatusFgOnline=0xFF559BE0`; the macOS theme: `0xFF4BE1C3` vs `0xFF55E1D3`) and arbitrarily for custom/cloud themes — which is exactly what this preview exists to render accurately. — `theme_preview.dart:349` ← `AyuGram/window/themes/window_theme_preview.cpp:550` (+ `AyuGram/ui/chat/chat.style:460`)
 
-Stage-2 verification (verified 2026-06-03, commit ea42fb9c): all 7 items verified FIXED against AyuGram C++ ground truth and closed. Go+Flutter rebuilt clean, app launched, no crashes in any of the 7 code paths. Confirmed in desktop 1024×768 + mobile 400×720:
-- Public Posts tab gated on hashtag/cashtag query (`_isHashOrCashtagQuery`, port of `IsHashOrCashtagSearchQuery`): plain "hello" → only My Messages; "#bitcoin" → My Messages + Public Posts. Matches `dialogs_inner_widget.cpp:4618` (`publicIcon` null unless `HashOrCashtag != None`) + `chat_search_in.cpp:321` (`showMenu` skips null-icon tabs).
-- This Peer tab gated on `activeChat != null` (`showThisPeer`): no active chat → tab hidden (desktop & mobile list-search); channel/group active → tab shown. Matches `peerIcon` nullability (`:4612`).
-- This Peer label resolved by peer type (`_thisPeerTabLabel`): broadcast channel → "This Channel", group/topic → "This Group", else "This Chat" — matches `TabLabel`/`ChatSearchPeerTabType` (`chat_search_in.cpp:70`). Verified live: channel scope showed "This Channel", group scope showed "This Group".
-- Fabricated All/Private/Groups/Channels filter removed; replaced by the real "Search from [user]" sender row (`_SearchFromRow`, AyuGram `_from` section / `lng_dlg_search_from`), shown only under a This-Group scope. Member picker is live (taps `GetChatMembers` → real members). New engine `SearchMessagesFrom` (sender_id WHERE clause) wired.
-- Stories bar defaults to collapsed Small state (`_expanded = false`; `_collapsedHeight = 35` = `dialogsStoriesSmall.height`, `_expandedHeight = 77` = `dialogsStoriesFull.height`, `_smallPhoto = 21`, `_smallShift = 16`), matching `_storiesExplicitExpand` default false (`dialogs_widget.cpp:1487`). Code-verified — test account has no active stories so the bar paints `SizedBox.shrink`; the default-flip + exact constants match ground truth.
-- Search message-result rows open any peer: tap synthesizes a `ChatInfo` from the result when the peer isn't in the local list (no more `chat == null` no-op), so global/Public-Posts results are openable. Verified: tapping a result opens the chat + jumps to the message.
-- All avatar `Image.file`/`Image.memory` calls now bounded with `cacheWidth`/`cacheHeight` = 2× display size (TopPeers 46→92, RecentContacts 42→84, small story 21→42, members 40→80, search-from 28→56, forum row 46→92) — display sizes match `dialogs.style`; no full-resolution decode. Real photo avatars render crisply (verified in member picker + mobile results, e.g. "SlipNet Tester Bot" logo).
+## Checked and intentionally NOT flagged (cosmetic / within tolerance)
 
-# chat_list_row — chat list row (avatar, preview, badges, swipe, stories, forum row)
+- Bubble **tails** rendered as 4px rounded corners instead of `Corner::Tail` shapes, and attached/`Small` corners 4px vs AyuGram's 6px (`bubbleRadiusSmall: roundRadiusLarge=6`, `basic.style:103`). Cosmetic at preview scale, and AyuGram itself ships a `removeMessageTail()` option (`message_bubble.cpp:50-55`) that converts tails to rounded corners — so a tailless appearance is a supported AyuGram rendering. — `theme_preview.dart:507-514`
+- Filter "Search" placeholder uses `windowSubTextFg` vs AyuGram's `placeholderFg` (`dialogs.style:321`) — both muted greys, divergence < 3% in bundled themes. — `theme_preview.dart:144`
+- `msgWaveformMin` 2 vs 3, `msgWaveformMax` 16 vs 17 (`chat.style:559-560`); reply-bar opacity 1.0/0.1 vs `kDefaultOutline1Opacity 0.9` / `kDefaultBgOpacity 0.12`; service-bubble vPad 5 vs 3/4; left separator at x=311 vs 312 — all ≤2px / negligible.
+- Waveform downsampling is point-sampled rather than AyuGram's max-over-range (`window_theme_preview.cpp:951-977`); active/inactive split matches (compares data index to waveactive, per the in-code comment). Visually equivalent.
 
-Overall a very faithful port. Verified-matching against AyuGram: row 62px / avatar 46px /
-contentLeft 68px / forum 80px / topics 21px+8px (`dialogs.style:89-113`); story photo 42/21px
-and line widths 2/1/1.5/0px (`dialogs.style:716-738`); story gradient #0dcc39→#0992ef topRight→
-bottomLeft (`outline_segments.cpp:98-112`, `colors.palette:582,584`); swipe 50px/1.5/0.2/8px and
-lottie 0.32/0.24 (`swipe_handler.cpp:28,63-64`, `dialogs_inner_widget.cpp:5789-5790`); quick-action
-colors/labels/lottie names + resolve logic (`dialogs_quick_action.cpp:120-227`); chat-type icons
-(`dialogs_layout.cpp:1024-1058`); all callbacks wired, all swipe lottie assets present. The items
-below are the genuine deviations.
+# theme_tokens — AyuGram `.style` value mapping (TgTokens design tokens)
 
-Stage-2 verification (verified 2026-06-03, commit a1833fff): all 5 MAJOR items verified FIXED against AyuGram C++ ground truth and closed. Flutter rebuilt clean (dart-only change), app launched, no crashes/ErrorWidget in any code path. Confirmed in desktop 1024×768 + mobile 400×720:
-- Date format ports `FormatDialogsDate` (`format_values.cpp:526-542`): no literal "Yesterday", the 20-hour rule (`secondsApart < 20*3600` → time even across midnight), short weekday within 7 days, and `formatCompactDate` (locale numeric short-date WITH year) for older. Live: "13:58"/"12:43" (time), "Tue" (weekday), "3.5.2026"/"30.4.2026" (numeric date+year) — both modes. Unit-tested all four branches incl. the 20h-cross-midnight case (temp test passed then deleted).
-- Trailing badges laid out poll → mention/reaction → unread (left→right `Row`), so the unread counter hugs the right edge — matches `PaintBadges` right-to-left painting (`dialogs_layout.cpp:198-287`). Live: unread badges (647/37/41996/37718…) hug the right edge across dozens of chats, both modes.
-- Mention/reaction now mutually exclusive (mention wins, `if … else if`), poll in its own block — never both mention+reaction; applied to BOTH the main row (`:346-360`) and the forum row (`:2353-2371`). Matches `dialogs_layout.cpp:248-272`. (Test account has no chat with mention+reaction; the logic is provably exclusive.)
-- Stories ring builds mixed per-segment arcs: `readCount` thin gray (1.0/0.0px) + `unreadCount` thick gradient (2.0/1.5px) using the new `ChatInfo.storiesUnreadCount`; all line widths verified against `dialogs.style:716-738` (lineTwice 4/3, lineReadTwice 2/0). Faithful port of `dialogs_row.cpp:447-470` + `PaintOutlineSegments`. (Test account/contacts have no active stories — code-verified against ground truth, same as the panel stories bar.)
-- Failed send-state now maps `MsgStatus.failed` → clock glyph (`Icons.access_time`), same as sending; no distinct error icon — matches `dialogs_layout.cpp:782-798`. Live: send-state slot renders sent/read check marks correctly (no failed message in test data; failed→clock verified in code).
+Scope: `theme_tokens.dart` is a pure design-token reference — `TgTokens` mirrors
+AyuGram Desktop `.style` literals into Dart constants. No widgets, callbacks,
+engine calls, or state — so the audit is value-fidelity vs the AyuGram source.
 
-# chat_settings_screen — Chat Settings (themes, accent, peer color, background, quick action, stickers, messages, sensitive content, archive)
+Verification result: ~70 numeric/size/duration/margin tokens were cross-checked
+against the actual AyuGram `.style` files and **all but one match exactly**, with
+line-accurate source citations already present in the file's comments
+(e.g. `widgets.style:1070`, `info.style:527`, `settings.style:205` all verified
+correct). Two real issues remain.
 
-Compared against AyuGram `settings/sections/settings_chat.cpp` (`BuildChatSectionContent` and its `Setup*` helpers). Backend wiring is generally solid: sensitive content, name color, default reaction, sticker install/uninstall/reorder/search, cloud-theme install/delete, archive settings, and wallpapers are all wired to the engine. The findings below are the real deviations.
+- [ ] [MAJOR] `unresolvedTokens` falsely marks ≥8 tokens as unresolvable when they are present in the very `.style` files this file already reads from. The §56.13 comment attributes the "~25 unresolved" set to "theme_editor.style, intro.style, platform-specific" (line 164), but `themeEditorMargin`/`themeEditorDescriptionSkip`/`themeEditorNameFont` are in `window.style`, and `passcodeHeaderFont`/`passcodeHeaderHeight`/`passcodePadding`/`localStorageRowHeight`/`localStorageRowPadding` are in `boxes.style`. Proof of impact: `passcodeHeaderHeight`(80) and `passcodeHeaderFont`(19px) are already consumed as hardcoded literals in `main.dart:3082-3092` with a `boxes.style:290-291` citation — i.e. they were resolved and used, yet are still listed here as "unresolved". Net effect: real values are missing from the token table and get hardcoded inline at call sites, defeating the token file's purpose. — `theme_tokens.dart:168` ← `AyuGram/Telegram/SourceFiles/boxes/boxes.style:290`
+- [ ] [MAJOR] `defaultMultiSelectRadius = 8` does not match AyuGram's value. The multi-select tag (selected-contact pill) is painted with `radius = min(AyuUserpic::ComputeRadius(height), height/2)` (`multi_select.cpp:184-186`). With the item `height: 32px` (`widgets.style:1082` `defaultMultiSelectItem`) and the default `avatarCorners = 23 == kMaxAvatarCorners`, `ComputeRadius(32)` returns `32/2 = 16` (`ayu_userpic.cpp:33-37`) — a full pill. The token's `8` is a 50% deviation that would render a rounded-rect instead of a pill. (Currently dead — defined but unreferenced anywhere in `lib/`, so no runtime impact today, but the stored value is wrong for any future consumer.) — `theme_tokens.dart:132` ← `AyuGram/Telegram/SourceFiles/ui/widgets/multi_select.cpp:184`
 
-Stage-2 verification (verified 2026-06-03, commit 36e2fcd4): all 5 items (2 CRITICAL, 3 MAJOR) verified FIXED against AyuGram C++ ground truth. Flutter rebuilt clean (dart-only change), app launched, no crashes. Confirmed in desktop 1024×768 + mobile 400×720 on a KDE box (kdeglobals `[Colors:Selection] BackgroundNormal=137,180,250`):
-- System accent is no longer faked. `_systemAccentColor()` reads the REAL OS accent per-platform — Linux: kdeglobals `AccentColor` → `[Colors:Selection] BackgroundNormal` → GNOME `gsettings`, else null; macOS: `AppleHighlightColor`/`AppleAccentColor`; Windows: `COLOR_HIGHLIGHT`/DWM — returning null where the OS genuinely can't report one. No hardcoded `#40a7e3`; `_readSystemAccent()` is gone. Live: checking "Use system accent" applied the real KDE Selection color (pixel-sampled `#87b2f9` ≈ `#89b4fa` = 137,180,250) and selected the CUSTOM swatch — NOT the cyan preset[0] `#45bce7`≈`#40a7e3` that the old faked path would have produced. Matches `Window::Theme::SystemAccentColor()`.
-- The checkbox is gated, not unconditional: `if (_isSystemAccentSupported() && _activeCloudThemeId == 0)` mirrors `IsSystemAccentColorSupported() && (type != Type(-1))`. Live: shown on this supported platform with a built-in theme (desktop AND mobile), and it DISAPPEARED the moment a cloud theme ("YSGS…") was selected — exact `refreshSystemAccentVisibility` toggle behavior (`settings_chat.cpp:2506-2510`).
-- Picking a manual swatch now un-checks system accent: `onColorSelected` clears `appState.useSystemAccent` before `updateAccentColor`. Live: tapping the green preset both applied green everywhere and unchecked the box. Matches `setSystemAccentColorEnabled(false)` + `setChecked(false)` (`:2661-2665`).
-- Section order corrected to peer-color → auto-night → font → Cloud Themes (Your Color, Auto-Night Mode, Font Family, then Cloud Themes), matching `BuildThemeSettingsSection` before `BuildCloudThemesSection` (`:1308-1309`). Live-confirmed in both modes.
-- "Suggest Animated Emoji" now `if (isPremium && suggestEmoji)` with a REAL callback (`onSuggestAnimatedEmojiChanged` → `chatSuggestAnimatedEmoji`) on a clean nested checkbox — no lock icon, no dead `(_) {}`. Matches `rpl::combine(AmPremiumValue, suggestEmoji, _1 && _2)` (`:1507-1517`). Live (premium via localPremium): row visible+indented, toggled on/off correctly, and disappeared entirely when "Suggest Emoji" was turned off.
+## Notes (not flagged — adaptation / out of CRITICAL-MAJOR scope)
 
-# chat_switch_overlay — Ctrl+Tab quick chat switcher (alt-tab style grid)
+- `defaultRoundShadowBlur = 8` / `defaultRoundShadowOffset = Offset(0, 2)` (lines 133-134) are Flutter `BoxShadow` approximations of AyuGram's icon-based 9-slice glow `roundShadowRadius8px` (`widgets.style:931-944`), which is symmetric (`extend: margins(10px,10px,10px,10px)`) with no blur/offset concept. The downward `(0,2)` offset is invented (the source glow is centered), but this is a deliberate cross-framework adaptation, both tokens are unused in `lib/`, and the deviation is cosmetic — not reported as a finding.
+- Everything else verified exact: basic.style primitives (fsize, fonts, radial, durations), layers.style box chrome (incl. `defaultBox.buttonPadding/buttonHeight/margin`), info.style topbar + info widths, dialogs.style row/stories geometry, chat_helpers.style, settings.style, and all §56.11 derived values.
 
-Audited against AyuGram `window/window_chat_switch_process.{cpp,h}`, `window/window.style`, `window/window_session_controller.cpp`, `core/shortcuts.cpp`.
+# wallpaper — chat-background rendering (solid/gradient/pattern/image), gradient math, dithering
 
-Backend wiring is genuine — no placeholders/stubs. `chats` ← `ChatState.collectChatOpenHistory()`, `onChosen` → `openChat`, `onRemove` → `removeChatFromOpenHistory`, avatars use real `Image.memory/file` + `SavedMessagesUserpic` + topic icons wired to the engine. Dimensions all match the `.style` (cell 72×104, userpic 56/40/24, top 8, nameSkip 6, selectLine 3, margins 16, padding 12, radius `boxRadius=6`, accent `defaultRoundCheckbox.bgActive=windowBgActive`, name font 11px). Self-chat label is correct ("Saved Messages" set by backend telegram.go:12463). Navigation/wrap math (`_moveNext/Prev/Down/Up`), hover-to-select, click-to-confirm, modifier-release-to-confirm, `<2` early dismiss, and selection clamping all match. The two issues below were behavioral/visual divergences — both now FIXED.
+Overall this is a faithful, well-wired port. Verified 1:1 against AyuGram:
+`ColorsFromString`/`ColorFromString`/`StringFromColors` (data_wall_paper.cpp:96-173),
+`withUrlParams`/`collectShareParams`/`gradientRotation` (data_wall_paper.cpp:260-421),
+`ConstructDefault` default colors (data_wall_paper.cpp:707-718), the complex gradient
+(`GenerateSmallComplexGradient`, image_prepare.cpp:172-291), linear 8-direction gradient
+(`GenerateLinearGradient`, image_prepare.cpp:916-966), dither tiers + shift math
+(`DitherImage`/`DitherGeneric`, image_prepare.cpp:880-897/100-170), complex-gradient
+rotation accumulator (`ComputeRealRotation`/`ComputeRealProgress`/`kAddRotationDoubled`,
+chat_theme.cpp:40-57/646), pattern tiling + odd-column centering (chat_theme.cpp:172-185),
+`IsPatternInverted` threshold + `InvertPatternImage` alpha→white matrix (chat_theme.cpp:925-930/1156-1171),
+`ThemeAdjustedColor` (chat_theme.cpp:932-939), and `PreprocessBackgroundImage` crop/scale
+(chat_theme.cpp:941-966). Rotation trigger is correctly gated on outgoing-message reveal
+(chat_view.dart:909 ← history_widget.cpp:4095/7717). Wallpaper data flows from the real
+engine document download (message_bubble.dart:9419 `downloadWallpaperDocument`). No
+placeholders, stubs, empty callbacks, mock data, or broken wiring found.
 
-Stage-2 verification (verified 2026-06-03, commit 1eaa256a): both MAJOR items verified FIXED against AyuGram C++ ground truth. Flutter rebuilt clean (dart-only change), app launched, live-tested with a real Telegram account (308 chats), no Flutter crashes (only unrelated engine PEER_ID_INVALID data errors). Desktop 1024×768 confirmed; window could not be shrunk to 400×720 this run (the Wayland/GTK compositor ignores post-map `gtk_window_resize` and blocks external resize), but neither fix has any width dependency — the overlay's `LayoutBuilder` per-row/rows math is a 1:1 port of AyuGram's `layout()`, and the no-dim change is purely structural.
-- Forward Ctrl+Tab now pre-selects index 1 (the previously-used chat), not index 0. The overlay opens with `_selected = widget.initialIndex` (=0, the current chat from `shell.dart` `history[0]`) and runs the initiating Tab/Backtab itself on the first build via `_pendingInitialStep`: forward → `(_selected+1)%visible` = 1, reverse → `(_selected-1+visible)%visible` = last shown. Live: forward Ctrl+Tab put the accent border on cell 2 ("TestChannel") with the current chat ("Test Channel Flow") at cell 0 left UNselected; Ctrl+Shift+Tab put it on the LAST shown cell. Matches `window_chat_switch_process.cpp:331` (`_selected = 0`) + `:253-266` (Tab/Backtab) + `window_session_controller.cpp:1927` (`process(request)` on open).
-- No whole-window dim. The full-screen `Container(color: overlayColor)` is gone; the overlay is now a transparent `GestureDetector(behavior: HitTestBehavior.opaque, onTap: onCancel)` wrapping a centered panel (`boxBg` + drop shadow). Live: the chat list and open chat behind the panel stayed at full brightness while the switcher was open, and tap-outside still closed it. Matches `setupWidget` (`:298-316`, no bg paint) + `paintRequest` (`:403-411`, only `_outer` shadow + `_bg`).
+Remaining issues:
 
-# choose_datetime_box — Calendar / ChooseDateTime / TimePicker boxes
+- [ ] [MAJOR] Gradient pixel buffer is generated **synchronously on the UI thread**: `_generate` runs the heavy `_generateGradientBytes` loop (256×256 complex gradient with per-pixel sqrt/sin/cos × N colors, or 512×512 linear, **plus** a full per-pixel dither pass) inline before the async `decodeImageFromPixels`. This fires on every wallpaper change AND on every send-triggered complex-gradient rotation, so it janks exactly during the "background shifts when you send" animation. AyuGram runs the entire `CacheBackground` (gradient + dither) on a background thread via `crl::async` and marshals the result back with `crl::on_main`. Should use `Isolate.run`/`compute`. — `wallpaper.dart:764-765` (also `wallpaper.dart:983`) ← `AyuGramDesktop/Telegram/SourceFiles/ui/chat/chat_theme.cpp:704-716` (`cacheBackgroundAsync` → `crl::async`)
 
-Audited against AyuGram `ui/boxes/calendar_box.cpp`, `ui/boxes/choose_date_time.cpp`,
-`ui/boxes/time_picker_box.cpp`, and the schedule wrapper `history/view/history_view_schedule_box.cpp`.
+- [ ] [MAJOR] Background image is decoded and held at full resolution with no `cacheWidth`/`cacheHeight`/`ResizeImage`. Stored wallpapers are capped at 2960px (`encodeWallpaperJpeg`), so a full-screen image displayed at ~400–1280px decodes/retains ~8× the needed pixels; the blurred branch then GPU-blurs that full-res image (`ImageFilter.blur` sigma 24) every composite instead of AyuGram's cached, downscaled (≤900px) pre-blur. AyuGram scales the prepared image down to the actual fill area before painting (and `PrepareBlurredBackground` downsizes to 900px before blurring). — `wallpaper.dart:324-341` ← `AyuGramDesktop/Telegram/SourceFiles/ui/chat/chat_theme.cpp:233-237` (scale to display rect) + `chat_theme.cpp:1173-1184` (`PrepareBlurredBackground`)
 
-**Overall: high-quality, fully-wired implementation — NO stubs/placeholders found.**
-Verified correct: all schedule dimensions (`scheduleHeight 95`, `scheduleDateWidth 136`,
-`scheduleTimeWidth 72`, `scheduleAtSkip 24`, `scheduleDateTop 38`, `scheduleAtTop 42`),
-calendar cell sizes (`48x40`, inner `34`, daysHeight `40`, pad `14`), `kMinimalSchedule 10`,
-`kJumpDelay 700`, tooltip delay `350`, `kScheduledUntilOnlineTimestamp 0x7FFFFFFE`, all 8
-repeat-period values, all 16 TTL picker values, fade `200ms`, drum `looped=false`, title
-strings exact (`lng_schedule_title`="Send this message on...", `lng_remind_title`="Remind me
-on...", `lng_scheduled_send_until_online`="Send when online"). Premium toast → real
-`engine.openPremiumSubscription(ref:'schedule_repeat')`; repeat menu, send-when-online, and
-calendar are all wired. Findings below were visual/behavioral deviations only — all 8 now FIXED & verified.
+- [ ] [MAJOR] Collectible-gift pattern wallpapers are not supported: `_PatternWallpaperPainter._tilePattern` draws only the plain repeated pattern tiles, and `WallpaperData` carries no gift-symbol data, so the rotated custom-emoji "gift symbol" overlay (and the center-tile-skipped-for-the-gift layout) that AyuGram paints over gift-based pattern backgrounds is entirely absent. — `wallpaper.dart:1184-1202` (and `WallpaperData`, `wallpaper.dart:16-35`, has no `giftSymbols` field) ← `AyuGramDesktop/Telegram/SourceFiles/ui/chat/chat_theme.cpp:162-202` (gift-symbol tiling/paint in `CacheBackgroundByRequest`)
 
-Stage-2 verification (verified 2026-06-03, commit c06e8188): all 8 MAJOR items verified FIXED against AyuGram C++ ground truth. Flutter rebuilt clean (dart-only change), app launched, live-tested with a real Telegram account at BOTH desktop 1024×768 and mobile 400×720 — schedule box, calendar, and month/year drum picker all opened & rendered with no Flutter crashes (only unrelated engine PEER_ID_INVALID + benign TRAY plugin messages). Colors pixel-sampled against palette tokens (theme applies a consistent transform; relative ordering preserved & cross-checked).
+# admin_tools — Telegram admin/management UI (edit peer, permissions, restrict/promote, admin log, invite links, members, statistics, boosts, monetization, star-ref)
 
-- Schedule date field is underline-only, time field is borderless — neither filled. Live (desktop+mobile): "June 3" shows only a bottom underline (no box, no `fieldBg`), "16:45" has no border/box/fill at all. Matches `scheduleDateField`(defaultInputField ⇒ bottom-line) + `scheduleTimeField`(`border:0; borderActive:0`) + input_field.cpp:2397 (`if(_st.border) fillRect bottom line`; fill only `if textBg.alpha>0`). — `choose_datetime_box.dart:1690` (date Border.bottom) / `:2185` (time SizedBox)
+Audited `dart/lib/ui/admin_tools.dart` (11,535 lines, 12 components) against AyuGram Desktop C++ ground truth. Findings grouped by component; CRITICAL before MAJOR within each.
 
-- Repeat label + dropdown/lock icons now use `windowActiveTextFg` (link color), NOT `windowBgActive`. Pixel-verified: repeat label rendered (28,102,223) ← windowActiveTextFg(0xFF168ACD); box buttons rendered (73,139,247) ← windowBgActive(0xFF40A7E3, confirm_box.dart:234) — visibly distinct (lower R = the darker link blue). Matches scheduleRepeatDropdownLock/Arrow=windowActiveTextFg + choose_date_time.cpp:313 (label via tr::link). — `choose_datetime_box.dart:1597` (accentFg) used at `:1763`/`:1767`/`:1769`
+## _EditPeerInfoBox — edit channel/group/bot dialog (settings section)
 
-- Calendar nav arrows are vertical up/down chevrons. Live (desktop+mobile): top-right shows ∧ (up=prev) / ∨ (down=next) for the vertically-scrolling calendar. Matches calendarPrevious "calendar_down-flip_vertical"(up) + calendarNext "calendar_down"(down). — `choose_datetime_box.dart:572` (keyboard_arrow_up) / `:587` (keyboard_arrow_down)
+- [ ] [CRITICAL] `_toggleTopics()` calls `engine.toggleForum(enabled)` directly without showing `ToggleTopicsBox`, so the user can't choose Tabs vs List layout and `forumTabs` is never sent — `admin_tools.dart:944` ← `AyuGram/boxes/peers/toggle_topics_box.cpp:141`
+- [ ] [CRITICAL] `_onSave()` only persists noForwards/joinToSend/joinRequest/title/description/photo; history-visibility, autotranslate, signatures, signatureProfiles, forum-tabs are applied immediately in their own dialogs instead of being queued into the single Save pipeline AyuGram uses — `admin_tools.dart:2624` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2234`
+- [ ] [CRITICAL] Channel/Group Type row is shown for all users; AyuGram gates `fillPrivacyTypeButton` on `channel->amCreator()`, not merely `canEditInformation` — `admin_tools.dart:615` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1432`
+- [ ] [CRITICAL] History-visibility row has no location-channel guard; AyuGram's `refreshHistoryVisibility` hides the row when the channel `hasLocation` — `admin_tools.dart:605` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:864`
+- [ ] [CRITICAL] `isPrivate` is derived from the `-100` chatId prefix heuristic instead of the real `has_username` flag from `getChatPermissionFlags`; AyuGram uses `channel->hasUsername()` — `admin_tools.dart:604` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:991`
+- [ ] [MAJOR] History-visibility dialog is a flat 2-button AlertDialog; AyuGram's `EditPeerHistoryVisibilityBox` uses radio buttons + a discard-changes confirmation on cancel — `admin_tools.dart:885` ← `AyuGram/boxes/peers/edit_peer_history_visibility_box.cpp:20`
+- [ ] [MAJOR] `_setHistoryVisibility` fires `togglePreHistoryHidden` immediately on dismiss; AyuGram defers it to the Save pipeline (`validateHistoryVisibility`→`saveHistoryVisibility`) — `admin_tools.dart:926` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2564`
+- [ ] [MAJOR] `_toggleAutoTranslate` fires `toggleChannelAutoTranslation` immediately; AyuGram defers via `_autotranslateSavedValue`→`saveAutotranslate` — `admin_tools.dart:1086` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2684`
+- [ ] [MAJOR] `_toggleSignMessages`/`_toggleSignProfiles` fire `toggleSignatures` immediately; AyuGram stores `_signaturesSavedValue`/`_signatureProfilesSavedValue` and saves them together via `saveSignatures()` — `admin_tools.dart:1104` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2707`
+- [ ] [MAJOR] Sign-Messages row lacks the contextual subtitle/description that switches between "sign messages about" and "sign profiles about" — `admin_tools.dart:724` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1320`
+- [ ] [MAJOR] Discussion-link row shows a static `'Linked'/'Add'`; AyuGram reactively shows the linked channel's actual name (or restore-link text) — `admin_tools.dart:636` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1068`
+- [ ] [MAJOR] Discussion-link dialog calls `setDiscussionGroup` immediately; AyuGram saves via `_discussionLinkSavedValue`→`saveDiscussionLink()` and pre-toggles the linked group's pre-history if hidden — `admin_tools.dart:835` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2373`
+- [ ] [MAJOR] Topics row locked-state shows a toast on tap instead of AyuGram's `setToggleLocked` greyed-toggle visual — `admin_tools.dart:667` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1157`
+- [ ] [MAJOR] Reactions dialog hardcodes `mode='all'` on open and never pre-populates `selectedEmojis` from the peer's current allowed-reactions `some` list — `admin_tools.dart:1163` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1512`
+- [ ] [MAJOR] Forums/Topics row is shown for any non-channel peer without an `_amCreator`/`isMegagroup` gate; AyuGram's `canEditForum` requires megagroup + creator (or chat creator for legacy) — `admin_tools.dart:660` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1443`
 
-- Adjacent-month grayed days painted at full-opacity `windowSubTextFg`. Pixel-verified (desktop+mobile): adjacent-month FUTURE days (July 5..11, 1..4) = (153,153,153) = full windowSubTextFg; in-month days = (0,0,0); disabled PAST days correctly fainter (~214 = subtextFg@0.4). Matches dayTextGrayedOutColor=windowSubTextFg + calendar_box.cpp:896. — `choose_datetime_box.dart:730` (effectiveTextColor = subtextFg)
+## _EditPeerInfoBox — bot rows & channel manage section
 
-- Range selection draws one continuous rounded pill per row (`activeButtonBg`, rounded ends), not separate circles. Code 1:1 with calendar_box.cpp:802-820: pill x=`firstSel*cellW+innerSkipLeft-1`, w=`(count-1)*cellW+2+cellInner`, h=`cellInner+2`, radius=`cellInner/2+1` (st::lineWidth=1); in-range text=activeButtonFg. Latent (no caller enables selection) → verified by code inspection. — `choose_datetime_box.dart:505` (rangeBg) / `:757-766` (pill)
+- [ ] [CRITICAL] Bot "Affiliate Program" opens a custom AlertDialog instead of navigating to the full `Info::BotStarRef::Setup::Make(user)` setup page (commission slider, duration) — `admin_tools.dart:1692` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1985`
+- [ ] [CRITICAL] Bot "Currency/Balance" row opens `_showRevenueStats` AlertDialog instead of navigating to `Info::ChannelEarn::Make(peer)` — `admin_tools.dart:1672` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1866`
+- [ ] [CRITICAL] Bot "Credits/Stars" row opens `_showRevenueStats` AlertDialog instead of navigating to `Info::BotEarn::Make(peer)` — `admin_tools.dart:1681` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1925`
+- [ ] [CRITICAL] Currency AND credits balance visibility both gate on `getStarsRevenueStats`; AyuGram uses `payments.GetStarsRevenueStats` for currency but `payments.GetStarsStatus` (CreditsStatus) for credits — so the credits row shows/hides off the wrong data — `admin_tools.dart:181` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1933`
+- [ ] [CRITICAL] Anti-spam toggle lives inside the Edit-Peer-Info box; AyuGram renders it as the "above" widget of the Admins participant-list box, not in `edit_peer_info_box.cpp` at all — `admin_tools.dart:346` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1352`
+- [ ] [CRITICAL] `_onSave` calls `editChatDescription` unconditionally; AyuGram's `saveDescription` skips the RPC when the text is unchanged, avoiding `CHAT_ABOUT_NOT_MODIFIED` — `admin_tools.dart:2639` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2508`
+- [ ] [MAJOR] "Affiliate Program" row placed 4th (before Admins); AyuGram orders it last, after Recent Actions — `admin_tools.dart:2227` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1663`
+- [ ] [MAJOR] "Pending Requests" placed after "Removed Users"; AyuGram places it between Members and Removed Users — `admin_tools.dart:2290` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1635`
+- [ ] [MAJOR] Statistics/Boosts/Monetization rows are in the edit box; AyuGram's `fillManageSection` has none of these — they are Info-panel section pages — `admin_tools.dart:2324` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1391`
+- [ ] [MAJOR] `_antispamMinMembers` hardcoded to 100; AyuGram reads `telegram_antispam_group_size_min` from server appConfig — `admin_tools.dart:142` ← `AyuGram/menu/menu_antispam_validator.cpp:37`
 
-- Selection mode now supports mouse-drag, Shift+click extension, and two-press restart of a fresh range. Code 1:1 with calendar_box.cpp:914 (mouseMove→updateSelection while pressed) + 990-1006 (extend if selectedMin set AND (Shift OR twoPressStarted&&collapsed), else startSelection). `_onSelectionPointerDown/Move/Up` wired via Listener; `_selectionAnchor` fixes the drag origin. Latent (no caller enables selection) → verified by code inspection. — `choose_datetime_box.dart:356-396` / `:664-668`
+## _EditPeerPermissionsBox — default permissions
 
-- Ctrl→silent now applies on every submit path via shared `_submitWithCtrl` (= `_submit(silent: HardwareKeyboard.isControlPressed)`): box onConfirm, time-field Enter onSubmit, and Schedule button onPressed. Previously only the button checked Ctrl; time-field Enter called bare `_submit()`. Matches history_view_schedule_box.cpp:97 (shared submit lambda checks IsCtrlPressed) + choose_date_time.cpp:216-221 (time submitRequests → same `save`). — `choose_datetime_box.dart:1497` (_submitWithCtrl) wired at `:1651`/`:1742`/`:1783`
+- [ ] [CRITICAL] Section order wrong: Dart renders Slowmode→Boosts→Charge-Stars; AyuGram renders Charge-Stars→Boosts→Slowmode — `admin_tools.dart:3001` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:1182`
+- [ ] [CRITICAL] Charge-stars uses a plain integer TextField instead of the non-linear `SetupChargeSlider` (1–100 step 1, 100–1000 step 10, 1000+ step 100) — `admin_tools.dart:3434` ← `AyuGram/boxes/edit_privacy_box.cpp:1219`
+- [ ] [CRITICAL] Missing the channel "Removed users" (kicked) button; `AddBannedButtons` adds both an Exceptions button and a Removed-users button, Dart renders only "Add Exception" — `admin_tools.dart:3472` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:1092`
+- [ ] [MAJOR] No public-channel/discussion-link locked-flag enforcement; AyuGram disables `ChangeInfo|PinMessages` with a tooltip for public channels / linked discussions. `showEditPeerPermissionsBox` takes no isPublic/hasDiscussionLink param and never locks those flags — `admin_tools.dart:2750` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:1132`
+- [ ] [MAJOR] `_hasSendRestrictions` reads only the initial flag state; AyuGram recomputes it reactively (`rpl::combine(changes, slowmodeSeconds)`) so the boosts section toggles as flags/slowmode change — `admin_tools.dart:2950` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:1231`
+- [ ] [MAJOR] Charge-stars validation accepts `>= 0` (allows 0 while enabled); AyuGram's slider minimum is 1 when the toggle is on (`allowZero=false`) — `admin_tools.dart:3449` ← `AyuGram/boxes/edit_privacy_box.cpp:1220`
 
-- Drum-picker selection band lines (month/year + TTL time picker) use `activeLineFg`, NOT `windowBgActive`. Pixel-verified (month/year picker): band line = (63,131,242) ← activeLineFg(0xFF37A1DE), distinct from windowBgActive buttons (73,139,247); R-ordering 28<63<73 matches token sources 22<55<64 under the theme transform. Both bands code-identical (`context.palette.activeLineFg`). Matches calendar_box.cpp:174 + time_picker_box.cpp:109. — `choose_datetime_box.dart:967` (month/year band) & `:2023` (time-picker band)
+## _EditRestrictedBox — restrict a member
 
-# confirm_box — Box/dialog infra, delete/moderate, single-choice, auto-delete, permissions, screen-share, report flow
+- [ ] [CRITICAL] Missing the "Promote to admin" and "Remove from group" action buttons that AyuGram's `EditRestrictedBox::prepare()` adds at the bottom (promote when `canAddAdmins`, remove with kick confirmation) — `admin_tools.dart:3863` ← `AyuGram/boxes/peers/edit_participant_box.cpp:844`
+- [ ] [CRITICAL] Default-rights gating not implemented: flags banned by the chat's `defaultRestrictions` must render locked/disabled ("Forbidden for all members"); Dart only seeds initial state and never locks them, so users appear able to grant permissions they cannot — `admin_tools.dart:3718` ← `AyuGram/boxes/peers/edit_participant_box.cpp:746`
+- [ ] [CRITICAL] Missing the "Restricted/Banned by [user] on [date]" attribution footer AyuGram shows when `_since` is set — `admin_tools.dart:3692` ← `AyuGram/boxes/peers/edit_participant_box.cpp:816`
+- [ ] [MAJOR] `_toggleFlag` dependency chain is one-directional (bans `embed_links` when `send_plain` banned, and reverse); AyuGram's full `ApplyDependencies` also propagates media-flag bans up to `send_plain` via the `ViewMessages` chain and cascades unbans down — `admin_tools.dart:3781` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:264`
+- [ ] [MAJOR] Existing non-standard `until` collapses to `_BanDuration.custom`; AyuGram's `createUntilVariants` inserts the exact prior expiry as a selectable radio option so it isn't lost — `admin_tools.dart:3725` ← `AyuGram/boxes/peers/edit_participant_box.cpp:1029`
+- [ ] [MAJOR] Custom expiry uses two separate date+time pickers instead of AyuGram's unified `ChooseDateTimeBox`, allowing mismatched cancels and not clamping the minimum to now atomically — `admin_tools.dart:3821` ← `AyuGram/boxes/peers/edit_participant_box.cpp:980`
 
-Box chrome constants (`kBoxWidth=320`, `kBoxWideWidth=364`, `kBoxRadius=6`, `kBoxPadding=24/14/24/8`,
-title 48px/16px-semibold @ (24,13), button 34px/14px-semibold, skips 10/20, maxListHeight 492) all match
-`AyuGram/Telegram/lib_ui/ui/layers/layers.style:38-122` exactly. `showConfirmBox` (Enter-confirms,
-inform-mode hides cancel, boxClosing→cancel, strictCancel) faithfully mirrors `ConfirmBox`. Stage-2 verification (verified 2026-06-03, commit 3738fe62): all 8 items (1 CRITICAL + 7 MAJOR) verified FIXED against AyuGram C++ ground truth. Go+Flutter rebuilt clean; app launched & live-tested with a real Telegram account at desktop 1024×768 — box infra rendered with no Flutter crashes (the leave-chat dialog for a channel showed the peer-name header + "leave channel" body; the report option picker rendered the "What is wrong with this group?" reason list). The deeper dialog states gated on chat-type/server-state (DM delete header, in-call screen-share, admin-channel moderate panel, combined options+comment report box) were authoritatively verified at the code-vs-source level — the correct check for these code-correctness fixes. (1) CRITICAL — moderate Ban User / Report Spam / Delete All are now consumed in `chat_view` `_showDeleteMessageConfirm` + `_deleteSelected` → `banMember` / `reportParticipantSpam` / `deleteAllFromParticipant`, with full Go plumbing (`Engine.DeleteAllFromParticipant`→`channels.deleteParticipantHistory`, `ReportParticipantSpam`→`channels.reportSpam`, bridge dispatch at dispatch_engine.go:910/921); the bulk path is gated to a single common incoming sender in an admin group/channel (matches AyuGram's single-participant constructor). (2) `_revokeLabel` switch now covers `clearHistory`/`leaveChat` (gated on `canRevoke`), and revoke is threaded through `DeleteChatHistoryWithRevoke` end-to-end (matches `canRevokeFullHistory`). (3) Auto-delete box is now `_TTLSlider` (draggable `CustomPainter` port of `CreateSliderForTTL`) + a full-width `DividerLabel` about-text + Save/Cancel, replacing the radio list. (4) Month period corrected `2592000`→`31*86400 = 2678400` (matches `indexToPeriod`). (5) Screen-share chooser de-duplicated — `call_screen.dart` now imports the single confirm_box `showScreenShareChooser`; zero duplicate `ScreenShareSource`/`_tryPortalScreenCast`/`_ScreenShareChooser` definitions remain. (6) Grid `crossAxisCount: 3` (=`kColumns`) and the SHARE AUDIO checkbox gated on `_audioSupported` via `_loopbackAudioSupported()` (≈ `chooseSourceWithAudioSupported`/`LoopbackAudioCaptureSupported`). (7) `leaveChat` DM header shows `lngProfileDeleteConversation()` ("Delete chat"); non-DM shows the peer name (visually confirmed for a channel) — matches `maybeUser ? lng_profile_delete_conversation : peer-name`. (8) The combined options+comment report box now renders `_ReportDetailsLottie` above the field (= `AddReportDetailsIconButton` `blocked_peers_empty`), shared with the standalone `_ReportDetailsBox` path.
+## _EditAdminBox — edit admin rights / transfer ownership
 
-Stage-2 verification (verified 2026-06-03, commit 329d3812): the peer-level report routing item is FIXED & verified live (real Telegram account, desktop 1024×768 + mobile 400×720). Whole-peer report (chat info → "Report", empty msgIds) now routes through `_showPeerReportFlow` → `engine.reportPeer` → Go `account.reportPeer` (engine log shows `→ __engine.ReportPeer`, NOT ReportMessage — the empty-id `messages.report` that produced `MESSAGE_ID_REQUIRED` is gone). Feedback fixed: failure toast "Report failed. Please try again." captured on screen; success text "Thank you! Your report will be reviewed by our team." matches `lng_report_thanks` exactly. Static reason picker renders 7 reasons (Spam/Fake Account/Violence/Child Abuse/Pornography/Copyright/Other) with correct titles — "Report Group" verified on a resolved group (`lng_report_group_title`); titles match `report_box_graphics.cpp:45-60`. Optional comment box renders (report Lottie + "Please enter any additional details…" + "Add Comment (Optional)" + 0/512). `account.reportPeer` is a live layer-224 method (gotd v0.143.0) and round-trips to the server. No crashes (0 segfaults/exceptions; the `reportPeer failed`→toast path handles errors gracefully).
+- [ ] [CRITICAL] `_addAsAdmin` checkbox rendered for every member; AyuGram shows it only when adding a non-existing bot to a non-broadcast chat (`_addingBot && !existing && !isBroadcast`) — `admin_tools.dart:4762` ← `AyuGram/boxes/peers/edit_participant_box.cpp:361`
+- [ ] [CRITICAL] `!_addAsAdmin` save path calls `engine.demoteAdmin`; AyuGram calls `AddBotToGroup(user, peer, token)` (a bot-add, not a demotion) — `admin_tools.dart:4475` ← `AyuGram/boxes/peers/edit_participant_box.cpp:605`
+- [ ] [CRITICAL] `ChatAdminRight::Other` bit is never OR'd into the rights bitmask on save; AyuGram always forces `value() | ChatAdminRight::Other` before the save callback — `admin_tools.dart:4478` ← `AyuGram/boxes/peers/edit_participant_box.cpp:590`
+- [ ] [CRITICAL] Transfer-ownership skips the mandatory pre-flight `messages_EditChatCreator(inputCheckPasswordEmpty)` probe AyuGram uses to route to the password-error box or the confirmation dialog before asking for a password — `admin_tools.dart:4539` ← `AyuGram/boxes/peers/channel_ownership_transfer.cpp:48`
+- [ ] [CRITICAL] Transfer shows no confirmation dialog before the password prompt; AyuGram shows `MakeConfirmBox` (`lng_rights_transfer_about/_sure`) after the pre-flight, then `requestPassword()` — `admin_tools.dart:4604` ← `AyuGram/boxes/peers/channel_ownership_transfer.cpp:60`
+- [ ] [CRITICAL] Dismiss button shown for any `role=='admin'` without excluding the chat creator; AyuGram guards with `!isTargetCreator` — `admin_tools.dart:4813` ← `AyuGram/boxes/peers/edit_participant_box.cpp:554`
+- [ ] [MAJOR] `_showTransferSecurityCheck` handles only the `NoPassword` case; AyuGram's `TransferPasswordError` renders distinct content/buttons for the `Later` (`PASSWORD_TOO_FRESH`/`SESSION_TOO_FRESH`) case — `admin_tools.dart:4554` ← `AyuGram/boxes/passcode_box.cpp:82`
+- [ ] [MAJOR] `SESSION_TOO_FRESH`/`PASSWORD_TOO_FRESH` caught only post-submit (shown as a toast) instead of in a pre-flight probe routing to the proper error box — `admin_tools.dart:4709` ← `AyuGram/boxes/peers/channel_ownership_transfer.cpp:55`
 
-Stage-2 verification (verified 2026-06-03, commit c93f0bcf): the peer-report fidelity item is FIXED & verified. The legacy `account.reportPeer` + static 7-reason picker path is GONE — `_showPeerReportFlow`/`_PeerReportReasonBox`/`ReportPeerKind` are removed (zero leftover refs in `confirm_box.dart`; `info_panel.dart` `_GroupActionsSection`/`_ChannelActionsSection` callers drop the `peerKind` arg). Whole-peer report (chat info → "Report", empty msgIds) now runs AyuGram's `ShowReportMessageBox` flow via `messages.report`. Live-verified (real Telegram account, desktop 1024×768, third-party 24k-member group): tapping "Report" fires engine `→ __engine.ReportMessage` (NOT ReportPeer); the server-driven dynamic picker rendered "What is wrong with this group?" with 11 server options (I don't like it / Child abuse / Violence / Illegal goods and services / Illegal adult content / Personal data / Scam or fraud / Copyright / Spam / Other / It's not illegal, but must be taken down) — NOT the old static 7-reason list; drill-down works (Spam → 3 server sub-options + a "Back" left-button, matching `addLeftButton(lng_create_group_back)` shown when optionId≠null); a terminal leaf returned the comment box (`add_comment`) with the report Lottie + "Please enter any additional details relevant to your report." (`lng_report_details_message_about`) + "Add Comment (Optional)" (`lng_report_details_optional`) + 0/512 (`kReportReasonLengthMax`). The `MESSAGE_ID_REQUIRED` → chooser branch is code-verified faithful to `report_messages_box.cpp:84-100`: Go `ReportMessage` surfaces the `MESSAGE_ID_REQUIRED` rpc error as `ReportResult{Type:"message_id_required"}` (telegram.go:15736) via `tgerr.As`; bridge passes `ResultType: result.Type` through with no whitelist; Dart `showDynamicReportFlow` uses a mutable `ids` list and, on `message_id_required`, opens `_ReportMessageChooserBox` (multi-select of recent messages via `fetchLiveMessages(limit:60)`, drops service/local-only msgs, REPORT disabled until ≥1 selected) then sets `ids = chosen; continue` to re-issue `messages.report` preserving `currentOption` — exactly AyuGram's `copy.ids = std::move(ids); repeatRequest(...)`. Strings match `lang.strings` exactly: `lng_report_select_messages`="Select messages", `lng_report_please_select_messages`="Please select messages to report.". Confirmed against ground truth that AyuGram's `account.report*` is photo-only (`SendPhotoReport`→`account.reportProfilePhoto`); messages/peers use `messages.report` (`api_report.cpp`), so dropping `reportPeer` is correct. No real report was filed (cancelled at the comment box, per the no-third-party-report caution); the `MESSAGE_ID_REQUIRED` chooser was not surfaced live because the available test peers returned the options/comment flow rather than requiring message ids — chooser is code-verified, not live. Mobile note: the IPC resize MethodChannel is not honored by this WM (window stayed 1024×768), but the report flow is a centered fixed-width modal (`showTelegramBox`, `kBoxWideWidth=364`) that is unaffected by the oneColumn/twoColumn breakpoint and renders identically in both modes. No crashes (0 segfaults/exceptions; the `PEER_ID_INVALID` log lines are from an unrelated forum-topic `GetMessages`/`GetPinnedMessages` load, gracefully caught).
+## _AdminLogScreen — recent actions log
 
-# contacts_screen — Contacts box, contact row, edit-contact dialog, share-contact box
+Note: the systemic issue is that AyuGram renders every admin-log entry as a full message bubble with the actual changed content / old-vs-new diff and clickable links (`GenerateItems`), whereas the Dart `_AdminLogEventTile` reduces each event to a single generic one-line string. Each event type below is a concrete instance.
 
-Scope verified: `_ContactsBox` (list + search + sort toggle), `_ContactRow` (avatar/story-ring/status/context-menu), `_EditContactBox`, `_ShareContactBox`.
+- [ ] [CRITICAL] `change_about` shows a one-liner; AyuGram emits a body message with the new description plus an "Original" block of the old text — `admin_tools.dart:5874` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:925`
+- [ ] [CRITICAL] `change_username`/`change_usernames` shows a one-liner; AyuGram shows the new link plus a "Previous link" original block (and reorder/activate/deactivate variants) — `admin_tools.dart:5876` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:950`
+- [ ] [CRITICAL] `pin_message`/`unpin_message` shows a one-liner; AyuGram renders the full pinned message as a second bubble — `admin_tools.dart:5884` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1027`
+- [ ] [CRITICAL] `delete_message` shows "deleted a message"; AyuGram renders the full deleted message body — `admin_tools.dart:5891` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1112`
+- [ ] [CRITICAL] `participant_ban` collapses ban/unban/restrict/kick into "changed restrictions for…" with no per-flag diff; AyuGram lists every changed flag via `GenerateParticipantChangeText` — `admin_tools.dart:5898` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1157`
+- [ ] [CRITICAL] `participant_admin` collapses promote/demote into "changed admin rights for…" with no diff; AyuGram lists added/removed rights via `GenerateAdminChangeText` — `admin_tools.dart:5900` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1165`
+- [ ] [CRITICAL] `stop_poll` shows "stopped a poll"; AyuGram renders the poll message bubble — `admin_tools.dart:5908` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1290`
+- [ ] [CRITICAL] `send_message` shows "sent a message"; AyuGram renders the full sent message body — `admin_tools.dart:5936` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1674`
+- [ ] [CRITICAL] `change_default_rights` shows "changed default permissions" with no diff; AyuGram enumerates every changed default flag via `GenerateDefaultBannedRightsChangeText` — `admin_tools.dart:5906` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1281`
+- [ ] [CRITICAL] `invite_edit` shows "edited an invite link"; AyuGram produces a label/expiry/usage/approval diff via `GenerateInviteLinkChangeText` — `admin_tools.dart:5931` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1561`
+- [ ] [CRITICAL] `join_by_invite` shows "joined via invite link"; AyuGram shows the actual (clickable) link and distinguishes filter vs regular link — `admin_tools.dart:5925` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1517`
+- [ ] [CRITICAL] `join_by_request` shows "was accepted…"; AyuGram shows who approved and which invite link (two clickable links) — `admin_tools.dart:5968` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1631`
+- [ ] [CRITICAL] `participant_mute`/`participant_unmute` show generic text with no participant identity; AyuGram shows the participant name as a clickable link — `admin_tools.dart:5918` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1442`
+- [ ] [CRITICAL] `participant_volume` shows generic text with no name/value; AyuGram shows the participant (linked) and exact volume % — `admin_tools.dart:5970` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1568`
+- [ ] [CRITICAL] `change_ttl` passes raw `event.detail`; AyuGram differentiates set/removed/changed and formats the human-readable duration — `admin_tools.dart:5932` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1594`
+- [ ] [CRITICAL] `change_reactions` shows "changed available reactions" with no list; AyuGram shows the reaction emoji list (disabled/all/specific) — `admin_tools.dart:5951` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1692`
+- [ ] [CRITICAL] `edit_topic` shows "edited a topic"; AyuGram emits 1–3 messages for title/closed/hidden changes — `admin_tools.dart:5943` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1842`
+- [ ] [CRITICAL] `change_emoji_status` shows "changed emoji status"; AyuGram produces set/removed/changed plus until-date variants — `admin_tools.dart:5962` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:2039`
+- [ ] [CRITICAL] `change_peer_color`/`change_profile_color` show generic one-liners; AyuGram emits separate color-index (#N) and background-emoji messages — `admin_tools.dart:5954` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:2002`
+- [ ] [CRITICAL] `participant_invite` flat "invited…"; AyuGram varies text by prior participant state and includes cleared-restriction diffs via `GenerateParticipantChangeText` — `admin_tools.dart:5897` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1152`
+- [ ] [CRITICAL] `invite_delete`/`invite_revoke` show generic text; AyuGram includes the actual invite link as a clickable link — `admin_tools.dart:5927` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1537`
+- [ ] [CRITICAL] `change_about`/`change_username`/`change_title` never distinguish "removed" vs "changed" (empty newValue); AyuGram uses separate removed/changed phrases — `admin_tools.dart:5873` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:899`
+- [ ] [CRITICAL] `change_photo` never distinguishes "removed photo" (`photoEmpty`) from "changed photo" — `admin_tools.dart:5879` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:980`
+- [ ] [CRITICAL] `change_stickerset` never distinguishes "removed sticker set" (`inputStickerSetEmpty`) from "changed sticker set" — `admin_tools.dart:5902` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1180`
+- [ ] [CRITICAL] `change_linked_chat` shows "changed the linked chat"; AyuGram distinguishes removed vs changed and includes the linked chat name as a clickable link — `admin_tools.dart:5910` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1308`
+- [ ] [CRITICAL] `toggle_slowmode` passes raw `event.detail`; AyuGram distinguishes "removed slow mode" (0) vs changed and formats minutes/seconds — `admin_tools.dart:5912` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1376`
+- [ ] [MAJOR] No tap-through to the referenced message/user from any event tile; AyuGram renders events as full bubbles with `ClickHandler` links on usernames, invites and messages — `admin_tools.dart:5615` ← `AyuGram/history/admin_log/history_admin_log_inner.cpp:710`
+- [ ] [MAJOR] `change_usernames` maps to a single string; AyuGram handles reorder / activate-deactivate / generic sub-cases — `admin_tools.dart:5953` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1731`
+- [ ] [MAJOR] `participant_edit_rank` renders the target user as plain text; AyuGram adds a clickable link via `addServiceMessageWithLink` for the non-self case — `admin_tools.dart:5979` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:2167`
+- [ ] [MAJOR] `call_setting` passes raw `event.detail`; AyuGram generates distinct allowed/disallowed-unmute strings for group vs channel from `join_muted` — `admin_tools.dart:5922` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1480`
+- [ ] [MAJOR] `sub_extend` shows "extended subscription" with no name/date; AyuGram shows the participant (linked) and expiry date — `admin_tools.dart:5966` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:2130`
+- [ ] [MAJOR] Empty state doesn't distinguish has-search (query-specific text) from has-filter; AyuGram uses separate strings — `admin_tools.dart:5456` ← `AyuGram/history/admin_log/history_admin_log_inner.cpp:608`
 
-**What is correct (no findings):** every callback is wired to the engine — `getContacts`, `resolveUsername`, `searchGlobalChats`, `addContact`/`addContactByUser`, `deleteContact`, `blockUser`, `suggestContactPhoto`, `suggestBirthday`, `setPersonalContactPhoto`, `clearPersonalContactPhoto`, `sendContact`, `sendMessage`, `fetchPeerStories`. No stubs, empty callbacks, TODOs, or hardcoded/fake data. Dimensions match AyuGram exactly: peer-list item 56px / photo 42px@(16,7) / name@(74,9) / status@(74,30) (`boxes.style:178-192`); story-variant 52px / photo@(18,5) / name@(70,7) / status@(70,27) (`boxes.style:986-1003`); edit-cover 108px / avatar 72px@(19,18) / name@(109,33) / status@(109,57) (`info.style:535-596`); name-field margin (19,0,19,10) (`boxes.style:819`); sort button 48×54, ripple 42px@(1,6) (`boxes.style:162-170`); sort-by-online throttle 3000ms (`peer_list_controllers.cpp:62`); share grid 108px / radius 28·24 / skip 6 / activate 150ms (`boxes.style:228-248`); note limit 128 (`data_premium_limits.cpp:204`); suggest-birthday/photo/reset visibility conditions match (`edit_contact_box.cpp:590,619,712`).
+## _InviteLinksBox — invite-link management
 
-Stage-2 verification (verified 2026-06-03, commit ea7f1d58): all 4 MAJOR items verified FIXED against AyuGram C++ ground truth and closed. Flutter rebuilt clean (dart-only UI + Go bridge `noteEntities`/photo/birthday plumbing), app launched & live-tested with a real Telegram account at BOTH desktop 1024×768 and mobile 400×720; no crashes/exceptions (only unrelated GetFolders-auth, tray-plugin, and Scrollbar warnings). (1) Share box → centered `Dialog` + `ConstrainedBox(maxWidth/minWidth: _boxWideWidth=364)` with the 4-column recipient grid + search + comment + Send (no longer a full-screen Material route); renders as a compact centered box in both modes, consistent with `_ContactsBox`/`_EditContactBox`, and the select→comment→Send flow works (`contacts_screen.dart:2589`). (2) "Suggest Birthday" → themed drum picker (`showBirthdayPicker`/`BirthdayDrumPickerDialog`, day/month/year `ListWheelScrollView`), titled "{name}'s Date of Birth" with a "Suggest" confirm button (= `EditBirthdayBox` via `internal:edit_birthday:suggest`); the Material `showDatePicker` is gone — confirmed rendering in both modes. (3) "Suggest photo"/"Set personal photo" → source menu (Upload Photo / From Clipboard / Set Emoji) that routes each source through the ellipse-crop `PhotoCropEditor` (+ `aboutText` confirmation) before `suggestContactPhoto`/`setPersonalContactPhoto` (= `showPhotoMenu` + `PrepareProfilePhoto`); menu opens in both modes (`contacts_screen.dart:1666`). (4) Notes field → `RichTextEditingController` (`compose_entities.dart`) with an emoji-toggle button opening the tabbed `EmojiTabbedPanel`, markdown shortcuts (Ctrl+B/I/U + Ctrl+Shift+X/M/P) + typed-markdown parse (`getTextWithAppliedMarkdown`), custom-emoji insertion, sent as TextWithEntities via the new `noteEntities` engine arg (= `setupNotesField`/`AddEmojiToggleToField`); emoji button + tabbed panel confirmed opening in BOTH modes (the Ctrl-modifier markdown shortcut isn't harness-injectable, but the key handler mirrors the chat compose field 1:1). (`contacts_screen.dart:2116`)
+- [ ] [CRITICAL] `_LinkColorState` has no `subscription` variant; AyuGram gives subscription links a distinct `Color::Subscription` (msgFile2Bg + SVG icon), so they're miscolored — `admin_tools.dart:6485` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:40`
+- [ ] [CRITICAL] `_InviteLinkData.progress` requires `startDate > 0`, returning -1 (permanent) for links that have only `expireDate`; AyuGram falls back to `startDate = startDate ? startDate : date` so the arc still draws — `admin_tools.dart:6439` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:130`
+- [ ] [CRITICAL] Editing a link with a non-preset usage limit (e.g. 25) silently loses it; AyuGram dynamically inserts the existing `usageLimit` into the preset list — `admin_tools.dart:6506` ← `AyuGram/ui/boxes/edit_invite_link.cpp:255`
+- [ ] [CRITICAL] Editing a link with a non-standard expiry can silently drop to "Never" on a failed fuzzy 10% match; AyuGram uses an absolute `(now - preset >= expireValue)` comparison — `admin_tools.dart:6493` ← `AyuGram/ui/boxes/edit_invite_link.cpp:245`
+- [ ] [CRITICAL] `_LinkInfoBox` loads all importers in one `getInviteImporters` call with no pagination; AyuGram paginates (kFirstPage=20 then kPerPage=100 with `_lastUser` cursor) so >20 importers are truncated and never load more — `admin_tools.dart:7139` ← `AyuGram/boxes/peers/edit_peer_invite_link.cpp:898`
+- [ ] [CRITICAL] Requests-to-join block shown only when `link.needApproval`; AyuGram shows the requesters sub-list whenever `data.requested > 0` regardless of the flag — `admin_tools.dart:7150` ← `AyuGram/boxes/peers/edit_peer_invite_link.cpp:879`
+- [ ] [CRITICAL] Missing the "Reactivate" button for expired non-revoked non-bot links (`AddReactivateLinkButton`) — `admin_tools.dart:7284` ← `AyuGram/boxes/peers/edit_peer_invite_link.cpp:573`
+- [ ] [CRITICAL] Missing the conditional expiry/usage status labels under the link (red "expired", grey "Expires at…"/"already used", plain divider) — `admin_tools.dart:7196` ← `AyuGram/boxes/peers/edit_peer_invite_link.cpp:531`
+- [ ] [CRITICAL] `_loadAll` has no real-time update subscription; AyuGram's `LinksController` subscribes to `inviteLinks().updates()` for create/revoke/delete events — `admin_tools.dart:6575` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:450`
+- [ ] [CRITICAL] No link-list pagination; AyuGram's `loadMoreRows` uses `_offsetDate`/`_offsetLink` cursors, so many-link chats are truncated — `admin_tools.dart:6575` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:495`
+- [ ] [MAJOR] Permanent-link block has no "Revoke" context-menu item (guarded by `!admin->isBot()` in AyuGram) — `admin_tools.dart:6871` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:1308`
+- [ ] [MAJOR] `_InviteLinkData.statusText` omits the "can join: N" line for unused links with a usage cap (`usage==0 && usageLimit>0`) — `admin_tools.dart:6462` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:169`
+- [ ] [MAJOR] For <24h expiry the row shows a relative "Nh left" countdown; AyuGram shows the absolute local time-of-day — `admin_tools.dart:6471` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:208`
+- [ ] [MAJOR] Row subtitle never shows the `requested: N` count that AyuGram appends/substitutes in `ComputeStatus` — `admin_tools.dart:6460` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:189`
+- [ ] [MAJOR] `_LinkArcPainter` inner solid-fill radius `r*0.55` is arbitrary; AyuGram uses `inner = size - 2*st::inviteLinkIconSkip` — `admin_tools.dart:6537` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:742`
+- [ ] [MAJOR] The whole link list is pre-materialized into `_lvKids` then handed to `ListView.builder`, defeating lazy building; AyuGram uses virtual peer-list rows — `admin_tools.dart:6806` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:450`
 
-# create_giveaway_box — Boosts via Gifts / Create Giveaway box
+## _MemberListScreen — members / admins / restricted / removed
 
-Audited `dart/lib/ui/create_giveaway_box.dart` against AyuGram's
-`info/channel_statistics/boosts/create_giveaway_box.cpp` and its helpers
-(`giveaway/giveaway_list_controllers.cpp`, `giveaway/select_countries_box.cpp`,
-`api/api_premium.cpp`). Engine wiring is real (`getGiftCodeOptions`,
-`getStarsGiveawayOptions`, `getGiveawayPeriodMax`, `launch{Random,Credits,Prepaid}Giveaway`
-all hit `dart/lib/bridge/engine_service.dart` → Go). Findings below are missing
-capabilities / data-fidelity gaps vs the source.
+- [ ] [CRITICAL] `_MemberRow` has no `onTap`; clicking a member does nothing. AyuGram's `rowClicked` opens the short-info box (or directly the admin/restricted editor). Only right-click/long-press is wired — `admin_tools.dart:8950` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1753`
+- [ ] [CRITICAL] Kicked-tab "Add to Group" is shown for all channels including broadcast; AyuGram gates it behind `isMegagroup() && canAddMembers()` — `admin_tools.dart:8718` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1946`
+- [ ] [CRITICAL] Kicked-tab "Delete" aliases to `_doUnban` (identical to "Remove Restrictions") and never removes the row; AyuGram's Delete removes the row then `unblock()`s without re-adding — `admin_tools.dart:8783` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1955`
+- [ ] [MAJOR] Restrict-without-kick context item uses `!isChannel` but doesn't exclude gigagroups; AyuGram requires `isMegagroup() && !isGigagroup()` — `admin_tools.dart:8703` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1975`
+- [ ] [MAJOR] Member picker does client-side filtering of a pre-loaded contacts+members snapshot; AyuGram's `AddSpecialBoxSearchController` does debounced server-side participant search per keystroke (then contacts, then global) — `admin_tools.dart:8403` ← `AyuGram/boxes/peers/add_participants_box.cpp:1725`
+- [ ] [MAJOR] Promote in the Add-Admin flow calls `promoteAdmin` directly, bypassing AyuGram's `showAdmin`/`checkInfoLoaded` pre-flight (already-kicked/restricted confirmation) — `admin_tools.dart:8301` ← `AyuGram/boxes/peers/add_participants_box.cpp:1412`
+- [ ] [MAJOR] Restrict in the Add-Exception flow calls `restrictMember` directly, bypassing AyuGram's `showRestricted`/`checkInfoLoaded` checks — `admin_tools.dart:8303` ← `AyuGram/boxes/peers/add_participants_box.cpp:1542`
+- [ ] [MAJOR] Members tab shows "Add Member" for broadcast channels with no chat-size-max check / `MaxInviteBox` fallback that AyuGram enforces — `admin_tools.dart:8913` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1091`
+- [ ] [MAJOR] `_statusText()` returns a static "offline" fallback and never uses the model's `lastSeenKind`/`lastSeenTs`; AyuGram shows the real last-seen string (`Data::OnlineText`) — `admin_tools.dart:8617` ← `AyuGram/boxes/peers/edit_participants_box.cpp:2421`
+- [ ] [MAJOR] No online-status re-sort; AyuGram's `ParticipantsOnlineSorter` continuously re-sorts members by online status (1s debounce) — `admin_tools.dart:7988` ← `AyuGram/boxes/peers/edit_participants_box.cpp:912`
 
-Stage-2 verification (verified 2026-06-03, commit cffdbc9e): all 7 items (2 CRITICAL + 5 MAJOR) verified FIXED against AyuGram C++ ground truth and closed. Go (`GetGiveawayConfig`, `AwardPremiumGiveaway` core+engine+bridge) and Flutter both rebuilt clean; the box was driven live with a real Telegram account on an owned channel (`-1003960052498`) — `GetGiftCodeOptions`/`GetStarsGiveawayOptions`/`GetGiveawayConfig` all returned OK, no crashes/exceptions in the log. The box is a fixed-width 380px centered modal (`showTelegramBox` = plain `Center`ed `showGeneralDialog`, no MediaQuery/LayoutBuilder/oneColumn branching anywhere in `_CreateGiveawayBox` or its sub-dialogs), so it renders identically at desktop and mobile widths; kwin-Wayland refused all programmatic/kdotool window resizes (window pinned 1024x768), so mobile parity is established by construction (380<400) rather than a second screenshot. (1) **Award Specific Users** — tapping the Premium-Subscriptions row now opens the `_AwardMembersBox` peer-picker (`GetChatMembers` fires; bots/self filtered) titled "Award Specific Users" (=`lng_giveaway_award_option`) with a "Choose randomly" escape; selecting a recipient flips into Award mode — the random sections (winners slider, channels, countries, schedule) collapse, the body becomes "Gift Telegram Premium subscriptions to the chosen recipients" with per-recipient duration cards + Total, and the button retitles to "Gift Premium" (=`lng_giveaway_award`); `awardPremiumGiveaway` is wired Dart->Go as `InputStorePaymentPremiumGiftCode` with the user list + boostPeer. "Choose randomly" correctly reverts to the random layout. (2) **Country picker** now lists the full ISO DB (`utils/country_data.dart` `countries`, ~198) sorted by name with `CountryInfo.flag` emojis — Andorra, Antigua and Barbuda, etc. are present (impossible in the old 73-subset); the hardcoded `_countries` map and duplicate `_countryFlag` are gone. (3) **Stars "Show more"** — switching to Telegram Stars shows visible tiers (500/1000/5000/50000) plus a "Show more" button; tapping it reveals the `isExtended` tiers (1500/2500/10000/25000/100000/150000, each with its boost badge) and the button disappears. (4) **boostsPerPremium** — read from the new `GetGiveawayConfig` engine method (parses `giveaway_boosts_per_premium`, returned OK 83B); "1 winners · 4 boosts", the host-channel status, and the Start-button badge all render the config value rather than a hardcoded 4. (5) **Host-channel row** — the Channels section lists the boosted channel itself as row 0 ("Test Channel Flow") with status "this channel will receive 4 boosts" (=`SelectedChannelsListController::prepare` + `setTopStatus`). (6) **Add-Channel picker** — shows broadcast channels only (megagroups/`ChatType.group` excluded, host excluded), and tapping a username-less channel (TestChannel) triggers the "Channel is Private" confirm (=`lng_giveaway_channels_confirm`) before adding; `giveawayAddPeersMax` enforced in code. (7) **Country max** — selecting an 11th country pops the toast "You can select up to 10 countries." and refuses the addition (=`giveawayCountriesMax`, fallback 10). (`create_giveaway_box.dart`)
+## _StatisticsScreen / _MessageStatsScreen — channel & message statistics
 
-# ayu_filter — AyuGram regex-filter engine (filtering, blocked/shadowban hiding, import/export)
+- [ ] [CRITICAL] Channel overview iterates JSON keys into N generic cards instead of AyuGram's fixed 2×2 grid (memberCount / enabledNotifications% / meanViewCount / meanStoryViewCount); `meanStoryViewCount` is absent — `admin_tools.dart:9141` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:425`
+- [ ] [CRITICAL] Missing the second overview block (Channel Story Stats: meanShare / meanStoryShare / meanReaction / meanStoryReaction counts) — `admin_tools.dart:9140` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:724`
+- [ ] [CRITICAL] `_humanize()` title-cases raw JSON keys instead of using the localized stat labels (`lng_stats_overview_*`) — `admin_tools.dart:9031` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:483`
+- [ ] [CRITICAL] Growth badge shows only `+X.Y%`; AyuGram shows `+N (X%)` with the absolute diff (`FormatCountToShort`) and the U+2212 minus glyph for negatives — `admin_tools.dart:9335` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:344`
+- [ ] [CRITICAL] `_MessageStatsScreen` shows only a scalar `public_forwards_count`; AyuGram shows the full paginated public-forwards list (`PublicForwardsController`) plus a private-forwards count card — `admin_tools.dart:9892` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:770`
+- [ ] [CRITICAL] Per-message overview cards (views / publicForwards / reactions / privateForwards) are absent; only an optional "Public Shares" row is shown — `admin_tools.dart:9890` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:515`
+- [ ] [CRITICAL] Recent-posts list renders ALL posts at once; AyuGram shows the first 10 with a "Show more" loading 30 at a time — `admin_tools.dart:9219` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:868`
+- [ ] [CRITICAL] Charts have no interactivity: `_StatGraphPainter` lacks hover tooltip, footer range-selector, click-to-zoom (`zoomRequests`/`setZoomedChartData`) and line-toggle filter (`ChartLinesFilterWidget`) — `admin_tools.dart:9689` ← `AyuGram/statistics/chart_widget.cpp:1153`
+- [ ] [CRITICAL] Charts have no x-axis date labels; AyuGram renders an adaptive bottom date caption row (`PaintBottomLine`) — `admin_tools.dart:9699` ← `AyuGram/statistics/chart_widget.cpp:100`
+- [ ] [MAJOR] Y-axis is 5 static rules; AyuGram uses `ChartRulersView` with animated ruler transitions and per-line value labels — `admin_tools.dart:9708` ← `AyuGram/statistics/view/chart_rulers_view.cpp:1`
+- [ ] [MAJOR] `_StatGraphPainter.shouldRepaint` compares list identity (recreated each build) forcing a repaint every frame, and the `CustomPaint` has no `RepaintBoundary` — `admin_tools.dart:9835` ← `AyuGram/statistics/chart_widget.cpp:1153`
+- [ ] [MAJOR] `_StatChart.build` recomputes all geometry synchronously in `build()` with no caching / `RepaintBoundary` — `admin_tools.dart:9575` ← `AyuGram/statistics/chart_widget.cpp:1153`
+- [ ] [MAJOR] Overview numbers use `_fmtNum` (full integer); AyuGram uses `Lang::FormatCountToShort` (1.2K / 3.4M) — `admin_tools.dart:9099` ← `AyuGram/statistics/chart_rulers_data.cpp:29`
+- [ ] [MAJOR] `_RecentPostRow` shows "N views" as plain text; AyuGram right-aligns views on the name line and shares(+icon)/reactions(+icon) at the status-line right edge — `admin_tools.dart:9449` ← `AyuGram/info/statistics/info_statistics_recent_message.cpp:256`
+- [ ] [MAJOR] Recent-post thumbnail uses a pre-encoded `thumb_b64` field; AyuGram live-downloads the real photo/document thumbnail (`_photoMedia`/`_documentMedia`, lazy, spoiler-aware) — `admin_tools.dart:9431` ← `AyuGram/info/statistics/info_statistics_recent_message.cpp:97`
+- [ ] [MAJOR] Recent-post date uses day-mon-year only; AyuGram renders `FormatDateTime(ItemDateTime(item))` with the time component — `admin_tools.dart:9107` ← `AyuGram/info/statistics/info_statistics_recent_message.cpp:82`
+- [ ] [MAJOR] Supergroup overview relies on arbitrary JSON key order; AyuGram uses a fixed 2×2 layout (memberCount/messageCount/viewerCount/senderCount) with localized labels — `admin_tools.dart:9141` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:498`
+
+## _BoostsScreen — channel boosts
+
+- [ ] [CRITICAL] Overview is one big card (level + progress bar) instead of AyuGram's 4-cell grid (level / premium-audience / boost-count / boosts-to-next) each with sub-labels — `admin_tools.dart:10073` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:65`
+- [ ] [CRITICAL] The `FillBoostLimit` animated bubble+limit-row bar (before the overview) is absent; only a plain `LinearProgressIndicator` is shown — `admin_tools.dart:10125` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:311`
+- [ ] [CRITICAL] `_BoosterRow` has no `onTap`; AyuGram opens peer info / `GiftCodePendingBox` / `ResolveGiftCode` / `BoostCreditsBox` / a toast depending on the booster type — `admin_tools.dart:10402` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:402`
+- [ ] [CRITICAL] Booster avatar shows only a letter initial; AyuGram uses the real userpic (or a type-colored `EmptyUserpic` with the unclaimed/unknown icon overlay) — `admin_tools.dart:10408` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:492`
+- [ ] [CRITICAL] Both tabs always render; AyuGram hides the tab switcher when only one of boosts/gifts has data (`hasOneTab`) — `admin_tools.dart:10315` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:431`
+- [ ] [CRITICAL] Tab counts use the raw paginated `count`; AyuGram uses `multipliedTotal` (weighted) so badges can be wrong — `admin_tools.dart:10339` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:436`
+- [ ] [CRITICAL] Premium audience shown as a plain `Text` percentage; AyuGram renders it as the top-right grid cell with value=`premiumMemberCount`, a `%` sub-label, and group-vs-channel label variants — `admin_tools.dart:10154` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:124`
+- [ ] [CRITICAL] `_buildGiveawayButton` always rendered; AyuGram guards it behind `giveawayGiftsPurchaseAvailable()` and returns early if false — `admin_tools.dart:10349` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:232`
+- [ ] [CRITICAL] Prepaid-giveaway rows don't distinguish PrepaidCredits vs Prepaid, lack the boost-count badge, and tap `_openGiveaway()` generically without passing the specific giveaway; AyuGram uses `GiveawayTypeRow` passing the `g` struct — `admin_tools.dart:10284` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:341`
+- [ ] [MAJOR] Booster status text always formats the epoch as "Expires X" for all types; AyuGram varies by type (real/credits use `expiresAt`; unclaimed/pending use months + date) — `admin_tools.dart:10421` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:539`
+- [ ] [MAJOR] Special-booster names hardcoded 'Unclaimed'/'Giveaway'/'Unknown'; AyuGram uses localized strings (and a credits-amount string for credits rows) — `admin_tools.dart:10393` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:557`
+- [ ] [MAJOR] Right-side "Giveaway"/"Gift" badge is plain inline text; AyuGram paints a styled pill badge (icon + color) as a proper right action — `admin_tools.dart:10426` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:588`
+- [ ] [MAJOR] Share section uses freeform text + `Share.share(url)`; AyuGram uses an `AddHeader(lng_boosts_link_title)` section + the dedicated `ShareInviteLinkBox` flow — `admin_tools.dart:10218` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:172`
+- [ ] [MAJOR] Both booster lists are materialized into `_lvKids` then fed to `ListView.builder` rather than the incremental `PeerListContent` pattern — `admin_tools.dart:10177` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:1437`
+
+## _MonetizationScreen — TON & Stars revenue
+
+- [ ] [CRITICAL] Withdraw uses a plain AlertDialog password prompt; AyuGram does `cloudPassword().reload()`→`state()`→`PasscodeBox::CloudFields` so the SRP `InputCheckPasswordSRP` check runs — the raw password is sent to the engine without it — `admin_tools.dart:10548` ← `AyuGram/api/api_earn.cpp:61`
+- [ ] [CRITICAL] Stars withdrawal is missing the minimum-amount input field (`AddInputFieldForCredits`, capped at `starsWithdrawMax`) and the `stars_revenue_withdrawal_min` enforcement; Dart only does a full-balance withdraw — `admin_tools.dart:11057` ← `AyuGram/settings/settings_credits_graphics.cpp:3322`
+- [ ] [CRITICAL] Stars balance omits `nextWithdrawalAt` lock + live countdown that AyuGram shows on the withdraw button (updates every 250ms) — `admin_tools.dart:10827` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:940`
+- [ ] [CRITICAL] Missing the "Buy Ads" second button (`buyAdsUrl`) AyuGram renders alongside withdraw when present — `admin_tools.dart:11057` ← `AyuGram/settings/settings_credits_graphics.cpp:3346`
+- [ ] [CRITICAL] TON `withdrawal_enabled` read from the per-peer stats payload; AyuGram reads the global appConfig `channel_revenue_withdrawal_enabled` via `WithdrawalEnabled(session)` — `admin_tools.dart:10870` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:82`
+- [ ] [MAJOR] TON `topHoursGraph` bar chart ("Top hours") is absent; only the generic `charts` list is rendered — `admin_tools.dart:10972` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:621`
+- [ ] [MAJOR] TON and Stars rendered as separate stacked cards; AyuGram lays available/current/overall for both currencies side-by-side in the same rows with column gating — `admin_tools.dart:10913` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:682`
+- [ ] [MAJOR] `_fmtTon` keeps only 2 fractional digits (`%1e9 ~/ 1e7`); AyuGram's `MajorPart`/`MinorPart` keep the full 9-digit minor part with trailing-zero chopping — `admin_tools.dart:10579` ← `AyuGram/info/channel_statistics/earn/earn_format.cpp:24`
+- [ ] [MAJOR] Transaction rows are static, non-tappable; AyuGram makes each a `SettingsButton` opening a details box (recipient/address/success link + `AddChannelEarnTable`) — `admin_tools.dart:10706` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:1143`
+- [ ] [MAJOR] Transaction history omits the Full/In/Out filter tabs AyuGram provides via `AddCreditsHistoryList` / `requestHistory` — `admin_tools.dart:11106` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:979`
+- [ ] [MAJOR] "Restrict sponsored messages" toggle (with boost-level badge + `RestrictSponsored`) is absent for non-megagroup channels — `admin_tools.dart:11153` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:1391`
+- [ ] [MAJOR] No empty-state; AyuGram shows `Dialogs::SearchEmpty` (lottie) when both currency & credits earn are empty — `admin_tools.dart:11020` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:357`
+
+## _StarRefJoinScreen — affiliate programs (join)
+
+- [ ] [CRITICAL] `_duration()` emits raw `'3mo'`/`'1y'`; `FormatProgramDuration` uses localized `lng_months`/`lng_years` ("3 months"/"1 year") — `admin_tools.dart:11266` ← `AyuGram/info/bot/starref/info_bot_starref_common.cpp:226`
+- [ ] [CRITICAL] `_commission()` uses `toStringAsFixed` (can yield "5.0%"); `FormatCommission` is `number(commission/10.) + '%'` which drops trailing zeros — `admin_tools.dart:11259` ← `AyuGram/info/bot/starref/info_bot_starref_common.cpp:222`
+- [ ] [CRITICAL] Suggested-list sort picker (Profitability / Revenue / Date) is absent — no enum, no UI, no `order_by_revenue`/`order_by_date` flag to `getSuggestedStarRefBots` — `admin_tools.dart:11194` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:385`
+- [ ] [CRITICAL] Tapping a connected row does nothing; AyuGram opens `StarRefLinkBox` (link, users count, recipient, copy + ToS) — `_ConnectedStarRefRow` has no tap handler — `admin_tools.dart:11395` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:519`
+- [ ] [CRITICAL] Tapping a suggested row connects immediately with no confirmation; AyuGram opens `JoinStarRefBox` (userpic transfer, commission/duration, recipient chooser, ToS) — `admin_tools.dart:11228` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:545`
+- [ ] [CRITICAL] Connected rows have no context menu (Open bot / Copy link / Leave-revoke via `EditConnectedStarRefBot f_revoked`); the revoke flow is entirely missing — `admin_tools.dart:11395` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:591`
+- [ ] [CRITICAL] Bot avatars use a letter-only `CircleAvatar`; AyuGram uses the real peer userpic with an overlaid chain-link Lottie badge for connected bots — `admin_tools.dart:11404` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:199`
+- [ ] [CRITICAL] Commission shown as plain `Text`; AyuGram paints a custom rounded-rect badge (`st::starrefCommissionFont`) in `paintStatusText` — `admin_tools.dart:11514` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:170`
+- [ ] [CRITICAL] No revoke action, so the revoke→move-back-to-suggested transition never occurs — `admin_tools.dart:11374` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:622`
+- [ ] [CRITICAL] The three info blocks (Reliable / Transparent / Simple, with title/about/icon) shown above the lists are absent — `admin_tools.dart:11291` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:715`
+- [ ] [MAJOR] Connected list loaded in one non-paginated call; AyuGram paginates with `_offsetDate`/`_offsetThing` (kPerPage=50) — `admin_tools.dart:11193` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:354`
+- [ ] [MAJOR] `_connect()` auto-copies the URL + toast; AyuGram instead opens `StarRefLinkBox` and closes the join box — no clipboard write on connect — `admin_tools.dart:11243` ← `AyuGram/info/bot/starref/info_bot_starref_common.cpp:666`
+- [ ] [MAJOR] Revoked connected rows show ' · ended'; AyuGram removes revoked rows from the Joined list entirely (and re-adds to suggested) — `admin_tools.dart:11393` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:622`
+- [ ] [MAJOR] `getSuggestedStarRefBots` never passes the sort-order flag, so even with a picker the API always defaults to profitability — `admin_tools.dart:11216` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:385`
+
+# advanced_settings_screen — Advanced settings page (§14.7): update, data/storage, auto-download, window title/close, system integration, performance, spellchecker, screen reader, export + Proxies/LocalStorage/PowerSaving/AutoDownload/Experimental dialogs
+
+Overall this is a high-fidelity port. Section order, the auto-download size-limit curve (`SizeLimitByIndex`), local-storage limit ladders + 100 MB floor + 6 cache tags, the experimental-flag list (all 29 in exact order), proxy link parsing / MTProto secret validation / public-link generation / rotation timeouts, and the engine wiring (`GetCacheSizesByTag`, `ClearCacheByTag`, `CheckProxy`, `SetExperimentalFlag`, `SetLocalStorageLimits`, `recentDownloads`) were all verified against AyuGram and the Go engine and match. The findings below are the genuine behavioral deviations.
+
+- [ ] [MAJOR] Power Saving box clobbers and persists the user's per-feature flags when the OS power-saver is detected. `_applyAutoFlags()` overwrites `_flags = kPowerSavingAll` and calls `appState.setPowerSaving(kPowerSavingAll, true)`, which persists via `_saveWindowPrefs()`. It runs on box-open whenever `_autoEnabled && detected` (`_checkPowerSaverMode`, line 2666-2668). The engine already receives the auto state separately as `force_all`, so this write is both redundant AND destructive: the user's stored per-feature choices are permanently replaced by all-disabled, with no revert path when the OS power-saver later turns off. AyuGram applies the battery override **live** (`PowerSaving::kAll & ~PowerSaving::Current()`, settings_power_saving.cpp:61) and explicitly does NOT write the flags while battery-saving is active (`if (ignore || !batterySaving.value_or(false)) { Set(...) }`, settings_power_saving.cpp:121-123) — the forced state is never persisted. — `advanced_settings_screen.dart:2671-2675` ← `AyuGram/settings/settings_power_saving.cpp:116-127`
+
+- [ ] [MAJOR] "Add proxy" dialog defaults to the wrong proxy type. AyuGram's `ProxyBox::setupControls` initializes a brand-new proxy (`data.type == Type::None`) to `Type::Mtproto`, and `setupTypes()` lists the radios in the order MTPROTO, SOCKS5, HTTP. The Dart `_EditProxyDialog` defaults a new proxy to `_ProxyType.socks5` (`_type = e?.type ?? _ProxyType.socks5`) and renders the radios SOCKS5, HTTP, MTPROTO — so opening "Add proxy" pre-selects SOCKS5 and shows the user/password fields instead of AyuGram's MTPROTO + secret field. — `advanced_settings_screen.dart:4088` (and radio order 4178-4183) ← `AyuGram/boxes/connection_box.cpp:1582-1584` (and 1468-1472)
+
+- [ ] [MAJOR] Spellchecker section uses the wrong platform predicate for "system spellchecker", inverting Windows visibility. The Dart hardcodes `final isSystem = Platform.isLinux || Platform.isMacOS;` so on Windows `isSystem == false` → it renders the "Auto-download dictionaries" toggle and "Manage Dictionaries" button (gated on `!isSystem`, lines 1233-1252) and labels the toggle "Enable spellchecker". AyuGram gates the same controls on `IsSystemSpellchecker()` (settings_advanced.cpp:882, 912-943), which returns `IsWindows8OrGreater()` → **true** on Windows (spellcheck_win.cpp:335-339), so AyuGram hides those controls and shows "Use system spellchecker" there. The Dart's predicate therefore diverges from AyuGram on Windows. (Note: the divergence is partly motivated by the Dart using its own cross-platform `UniSpellCheckService`/Hunspell rather than native Windows spellcheck; but as written it does not match AyuGram's `IsSystemSpellchecker()` semantics.) — `advanced_settings_screen.dart:1221` ← `AyuGram/settings/sections/settings_advanced.cpp:882` + `AyuGram/Telegram/lib_spellcheck/spellcheck/platform/win/spellcheck_win.cpp:335-339`
+
+# auth_screen — Telegram intro/auth flow (phone, code, 2FA, email, signup, QR)
+
+Backend wiring is solid: `submitInput`, `switchToMethod` (`auth_state.dart:85,122`),
+`uploadProfilePhoto` (`engine_service.dart:5144`), `LangPack.setLanguage/tr/trf`
+(`lang_pack.dart:63,66,77`) all resolve to real implementations. No stub callbacks,
+no dead buttons, no mock data. The QR passkey link is correctly gated out for the
+no-CGo build (documented). Findings below are AyuGram behavioral/copy deviations.
+
+- [ ] [MAJOR] Signup name-field order is keyed to text **direction (RTL)** instead of the locale's **name ordering**. AyuGram inverts the first/last fields when `langFirstNameGoesSecond()` is true — a per-language flag derived from the `lng_full_name` format (true for ja/ko/zh/hu, which are LTR; false for ar/fa, which are RTL). The Dart uses `Directionality.of(context) == TextDirection.rtl`, which is the opposite population: it wrongly inverts Arabic/Persian and fails to invert East-Asian/Hungarian. — `auth_screen.dart:862` (also field mapping `:925,:937`) ← `AyuGram/intro/intro_signup.cpp:37` + `AyuGram/lang/lang_keys.cpp:59`
+
+- [ ] [MAJOR] Code/OTP step title is a static "Enter Verification Code" and never shows the phone number. AyuGram titles the code step with the formatted destination phone (`Ui::FormatPhone(getData()->phone)`), switching to the Fragment title only for Fragment delivery. The number only appears in the Dart as a small "Code sent to …" subtitle (`:1276`), so the prominent title diverges from AyuGram. — `auth_screen.dart:561` ← `AyuGram/intro/intro_code.cpp:52-57`
+
+- [ ] [MAJOR] "Didn't get the code?" link uses the wrong label and conveys the wrong action. AyuGram's link is `lng_code_no_telegram` = **"Send code via SMS"** (`intro_code.cpp:35`), and clicking it resends via SMS (flips `codeByTelegram=false`). The wiring is correct (`onDidntGetCode` → `_noTelegramCode`), but the label "Didn't get the code?" misstates what the button does and is hardcoded English. — `auth_screen.dart:2238` ← `AyuGram/intro/intro_code.cpp:35,73` (lang.strings:417)
+
+## Hardcoded English copy bypasses the watched LangPack (these steps won't localize)
+
+`build()` calls `context.watch<LangPack>()` (`:313`) precisely so a language change
+re-renders the intro in the chosen language ("matching AyuGram rebuilding from the
+cloud pack"). Phone/QR/choose steps honor this via `lang.tr(...)`, but the steps below
+emit literal English, so a user who picks e.g. Persian still sees English here — and
+several strings also differ in wording from AyuGram's ground-truth values.
+
+- [ ] [MAJOR] 2FA/password step title + description are hardcoded English and ignore the lang pack. AyuGram uses `tr::lng_signin_title` = "Cloud password check" and `tr::lng_signin_desc` = "Please enter your cloud password."; the Dart hardcodes "Enter Your Password" and a longer custom sentence. — `auth_screen.dart:562,710,722` ← `AyuGram/intro/intro_password_check.cpp:55-56,350-358` (lang.strings:427-428)
+
+- [ ] [MAJOR] Signup step title + description are hardcoded English and ignore the lang pack; text also differs. AyuGram: `tr::lng_signup_title` = "Your Info", `tr::lng_signup_desc` = "Please enter your name and\nupload a photo." Dart: "Your Name" / "Enter your name and add a\nprofile photo". — `auth_screen.dart:565,887,895` ← `AyuGram/intro/intro_signup.cpp:53-54` (lang.strings:451-452)
+
+- [ ] [MAJOR] Email-setup step title + about are hardcoded English and ignore the lang pack. AyuGram builds them from `tr::lng_intro_email_setup_title` and `tr::lng_settings_cloud_login_email_about`; the Dart inlines the English literals (the comment even names the keys but never calls `lang.tr`). — `auth_screen.dart:564,966,975-976` ← `AyuGram/intro/intro_email.cpp:43-56` (lang.strings:401)
+
+- [ ] [MAJOR] Fragment-delivery instruction is hardcoded English and **drops the phone number**. AyuGram's `lng_intro_fragment_about` interpolates the formatted phone (`lt_phone_number`) into the description; the Dart shows a fixed sentence with no number and no localization. — `auth_screen.dart:1270` ← `AyuGram/intro/intro_code.cpp:96-100`
+
+# ayu_appearance_page — AyuGram Appearance settings (app icon, avatar corners, mono font, folder/tray/drawer elements)
+
+Audited `dart/lib/ui/ayu_appearance_page.dart` against AyuGram's `settings_appearance.cpp`
+and the components it builds (`icon_picker.cpp`, `avatar_corners_preview.cpp`,
+`font_selector.cpp`). Section structure, ordering, the app-icon picker, the avatar-corners
+slider/preview, the mono-font selector, and the tray/drawer toggle lists all match and are
+wired to real `AppState` setters that are consumed by real rendering code. The restart-prompt
+dialogs match `ShowRestartPrompt`. Three toggles, however, are non-functional: they flip and
+persist but no code anywhere consumes them, while AyuGram's equivalents drive real behavior.
+
+## Non-functional toggles (set & persisted, but zero consumers)
+
+- [ ] [CRITICAL] "Disable custom backgrounds" toggle does nothing — `appState.disableCustomBackgrounds` is written/persisted but never read by any rendering code (only refs in `app_state.dart` + this file; confirmed across `dart/ go/ linux/ windows/ macos/` — all other hits are build artifacts). In AyuGram this setting strips a chat's custom wallpaper so the global wallpaper shows (`disableCustomBackgrounds && resolved.paper && resolved.paper->media → resolved.paper = nullopt`). The Dart per-chat wallpaper path (`chat_view.dart:6075-6076` `_buildChatThemeWrapper`, which wraps the chat in `WallpaperProvider` from the per-chat theme) applies the custom background unconditionally and never checks this flag. — `ayu_appearance_page.dart:72-77` ← `AyuGram/window/section_widget.cpp:544-550`
+
+- [ ] [CRITICAL] "Single corner radius" toggle does nothing — `appState.singleCornerRadius` is written/persisted but never read by any rendering code (only refs in `app_state.dart` + this file). In AyuGram this controls `AyuUserpic::ShouldOverrideShape` so forum/rounded/monoforum avatars adopt the avatar-corners shape instead of their default rounded-rect (`ayu_userpic.cpp:28`, `empty_userpic.cpp:360,386`, `dialogs_row.cpp:474`). The Dart avatar renderer (`chat_list_row.dart:1108-1109`) applies `avatarCorners` to every avatar unconditionally with no forum distinction and no reference to this flag, so the user's choice has no effect. The UI even shows the description "Forums will have the same avatar shape as chats." for a control that is inert. — `ayu_appearance_page.dart:377-383` ← `AyuGram/ayu/ui/ayu_userpic.cpp:28`
+
+- [ ] [CRITICAL] "Hide notification badge" toggle does nothing — `appState.hideNotificationBadge` (shown on Windows/macOS only, matching AyuGram's `#if Q_OS_WIN || Q_OS_MAC`) is written/persisted but never read. In AyuGram it suppresses the tray-icon badge (`tray_win.cpp:146 if (settings.hideNotificationBadge())`) and forces the taskbar/dock unread counter to 0 (`main_window_win.cpp:641-642`, `tray_mac.mm:209-210`). The Dart badge path (`main.dart:543-544`/`549-550` → `system_tray.dart:267 updateBadge` → native `setUnreadBadge`) renders the unread badge with no reference to this flag, so on Win/Mac the badge always shows regardless of the toggle. — `ayu_appearance_page.dart:36-40` ← `AyuGram/platform/win/main_window_win.cpp:641`
+
+## Verified correct (no action needed)
+
+- App-icon picker: 12 icons match AyuGram's list 1:1 (`icon_picker.cpp:24-37`); all 12 assets exist
+  under `assets/icons/ayu/` and are registered in `pubspec.yaml`; `kColumns=4`, 64px icon, 68px
+  selected box (64+2·2), 12px rounding all match `ayu_styles.style`; 200ms easeOutCubic cross-fade
+  matches `icon_picker.cpp:158-167`; click wires to `setAppIcon` + native `updateAppIcon` channel
+  (`linux/my_application.cc`) mirroring `applyIcon()`.
+- Avatar corners: `kMax=23` matches `kMaxAvatarCorners`; 24 slider steps match `.steps = kMax+1`;
+  `radius = photoSize/2 · corners/23` matches `ComputeRadiusF`; SQUARE/CIRCLE/number badge matches
+  `mapRadius`; preview downloads the real @AyuGramReleases userpic via the engine with an
+  EmptyUserpic fallback (whose shape correctly follows `paintCircle → AyuUserpic::PaintShape`);
+  62px row height / 46px photo / 22px indent match `defaultDialogRow`; tap opens the channel
+  (resolves on-demand if needed) matching `mouseReleaseEvent`. `avatarCorners` is consumed across
+  5 UI files.
+- Mono-font selector: enumerates real system fonts (fc-list/osascript/PowerShell/mobile dirs),
+  prefix-word filtering matches `Rows::filter`, arrow/page keyboard nav present, Save/Reset wire to
+  `setMonoFont('')`/value with restart prompt matching the OK/Reset buttons; `monoFont` is applied
+  as the code/pre `fontFamily` in `message_bubble.dart:7354,7373`.
+- All other toggles are wired to real consumers: `materialSwitches` (ayu_toggle + pages),
+  `hidePremiumStatuses` (4 files), `hideNotificationCounters`/`hideAllChatsFolder` (filter_column,
+  chat_list_panel), tray toggles (`main.dart`), all 12 drawer toggles (`hamburger_drawer.dart`,
+  order/labels/icons match `BuildDrawerElements`).
+- Restart dialogs match `ShowRestartPrompt` (Restart Now → relaunch, Restart Later → dismiss).
+
+# ayu_chats_page — AyuGram Chats settings page (settings_chats.cpp port)
+
+Overall this is a faithful, fully-wired port. All 9 AyuGram build sections are
+present in the correct order, and all 31 settings call real `AppState` setters
+(no stubs, no empty callbacks, no fake/unwired controls). The bubble-radius live
+preview, restart prompt, collapsible "Hide Reactions" ANY-semantics, semi-
+transparent opacity (0.7), and the demo message-preview content all match the
+AyuGram ground truth. The findings below are the genuine deviations.
+
+- [ ] [MAJOR] Bubble-radius preview tail corner hardcoded to `4.0` and non-scaling, but AyuGram derives it as `MapBubbleRadius(sliderValue, bubbleRadiusSmall)` where `bubbleRadiusSmall = roundRadiusLarge = 6px` — so at the default radius (16) the tail corner should be **6px**, and it must shrink with the slider (≈3px at 8, ≈2px at 4), not stay pinned at 4px — `ayu_chats_page.dart:831-833` (`const double bubbleRadiusSmall = 4.0; radiusSmall = showTail ? bubbleRadiusSmall.clamp(0.0, radiusLarge) : radiusLarge`) ← `AyuGram/ui/chat/chat_style_radius.cpp:39-82` (`MapBubbleRadius` + `BubbleRadiusSmall()`), `AyuGram/ui/chat/chat.style:434` (`bubbleRadiusSmall: roundRadiusLarge`) + `AyuGram/lib_ui/ui/basic.style:103` (`roundRadiusLarge: 6px`), applied via `AyuGram/Telegram/SourceFiles/ayu/ui/components/message_preview.cpp:169` (`SetBubbleRadiusOverride`)
+
+- [ ] [MAJOR] Edit-mark dialog "Save" button runs non-empty validation (`_submit`), so an empty mark can never be saved; AyuGram's Save button calls `save()` **directly** (no validation) and only the Enter key calls `submit()` which validates — i.e. AyuGram lets the user clear a mark via the Save button, the Dart blocks it — `ayu_chats_page.dart:773-776` (`onPressed: _submit`) + `ayu_chats_page.dart:718-725` (`_submit` rejects empty) ← `AyuGram/Telegram/SourceFiles/ayu/ui/boxes/edit_mark_box.cpp:50-54` (Save → `save()` directly) vs `edit_mark_box.cpp:61-67,73-80` (only `submits()`/Enter → `submit()` validates)
+
+- [ ] [MAJOR] Invented per-toggle subtitles render a second line on ~15 toggles, but AyuGram's `AddSettingToggle`/`ayu.addSettingToggle` take only title+getter+setter(+icon) with no `about`/subtitle, so every one of these rows is single-line in AyuGram — fabricated copy + a row-height layout deviation across the whole page (e.g. `subtitle: 'Filter picker to only show packs you've added'`, `'Enable quick admin action shortcuts'`, `'Hide the circular forward button on messages'`, plus all 7 field-element and 2 field-popup rows) — `ayu_chats_page.dart:63,130,136,197,203,209,273,280,287,294,301,308,315,329,336` (subtitles, rendered at `ayu_section_builder.dart:403-406`) ← `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:40-45,114-125,381-429,437-450` (toggles with no subtitle) + `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_ayu_utils.cpp:641-665` (`AddSettingToggle` has no about parameter)
+
+# ayu_filters_page — AyuGram Regex Filters settings page (toggles, shared/shadow-ban/per-dialog lists, regex edit box, import/export)
+
+Overall the port is faithful and fully wired: every toggle calls `filterEngine.rebuildCache()` + `notifyListeners()` + persist (the equivalent of AyuGram's `FiltersCacheController::rebuildCache()` + `fireUpdate()`), add/edit/delete/toggle filter, exclusions, shadow-ban add/remove, clear-all, select-chat, and import/export (clipboard + URL/dpaste) all reach the real engine. No placeholders, stubs, empty callbacks, mock data, or "coming soon" feedback found. The findings below are behavioral deviations in the per-dialog exclude flow, where AyuGram exposes the actions as always-present top-bar icons but the Dart port renders them inline and gates them on list contents.
+
+- [ ] [MAJOR] Per-dialog "Exclude a shared filter" affordance disappears when the dialog has no per-dialog filters/exclusions yet. `_buildFilterListItems` early-returns with just the `_emptyState('No filters.')` before ever adding `_AddExclusionButton`, and there is no top-bar exclude action in `_AyuFiltersListScreen.actions`. AyuGram instead renders a dedicated top-bar Exclude icon (`st::filtersExcludeIcon`) that is **always** present in per-dialog (`showExclude == true`) mode, with no check on whether filters exist. Result: pick a fresh group/channel via the top-menu "Select Chat" (which exists specifically to set up filters/exclusions for that chat) and you can add a per-dialog regex filter but cannot exclude any of your shared filters from it — the entire exclude capability is unreachable for that dialog. — `ayu_filters_page.dart:780-782` (early return skips the exclude button) + `ayu_filters_page.dart:832-840` (inline `_AddExclusionButton`) ← `AyuGram/info/info_wrap_widget.cpp:503-513` (top-bar Exclude icon, unconditionally shown in per-dialog mode)
+
+- [ ] [MAJOR] The per-dialog Exclude action is placed as an inline list row at the bottom of the filter list, not as a top-bar icon button. AyuGram's per-dialog view carries **two** top-bar icon buttons — Add (`st::filtersAddIcon`) and Exclude (`st::filtersExcludeIcon`); the Dart `_AyuFiltersListScreen` app bar only ever adds a single Add icon (`actions:` builds Add for shadow-ban/shared/per-dialog and nothing else), moving Exclude into the scrollable body. Beyond the empty-state regression above, this is a structural mismatch with the reference top bar. — `ayu_filters_page.dart:717-730` (app-bar `actions` only build an Add icon) ← `AyuGram/info/info_wrap_widget.cpp:469-513` (Add icon at :470, Exclude icon at :503-506)
+
+- [ ] [MAJOR] The "pick a shared filter to exclude" sub-screen (per-dialog, `showExclude == false`) has no top-bar Add button. The app-bar condition `mode != _FiltersListMode.perDialog || showExclude` evaluates false for this screen, so no action button is built. AyuGram adds the Add (`+`) icon to the top bar unconditionally for every `AyuFiltersList` screen — including the pick-exclude screen — wiring it to `RegexEditBox(nullptr, nullptr, controller->dialogId)`. The reference therefore lets the user add a new per-dialog filter from the pick-exclude screen; the Dart port drops that affordance. — `ayu_filters_page.dart:699-700` (pick-exclude branch) + `ayu_filters_page.dart:724-729` (Add gated out when `mode == perDialog && !showExclude`) ← `AyuGram/info/info_wrap_widget.cpp:470,495-500` (Add icon added unconditionally, opens `RegexEditBox`)
+
+# ayu_general_page — AyuGram General settings page (Translate / QoL / Webview / Confirmations)
+
+Audited `dart/lib/ui/ayu_general_page.dart` against `ayu/ui/settings/settings_general.cpp`
+(`BuildQoLToggles` / `BuildTranslator` / `BuildShowPeerId`) and its helpers in
+`settings_ayu_utils.cpp`.
+
+This is an almost 1:1 port. Section order, dividers, subsection titles, collapsible
+`toggledWhenAll` flags, restart-prompt-on-toggle for Disable Stories & Filter Zalgo,
+the beta badges, and Show Peer ID options all match the C++. Every control is wired to
+a real `AppState` setter that persists via `_saveWindowPrefs()`, and every setting is
+actually consumed downstream (disableStories→chat_list_panel, similarChannels→info_panel,
+improveLinkPreviews/showMessageSeconds/confirmations/translationProvider→chat_view,
+showPeerId→info_panel, spoof/increaseWebview→web_app_panel, disableNotifyDelay→main.dart,
+filterZalgo→safe_string global). No stubs, no empty callbacks, no mock data.
+
+One real behavioral deviation found:
+
+- [ ] [MAJOR] Native translation provider option shown unconditionally instead of gating on availability. The choose-button adds the native entry whenever the platform is desktop (`if (nativeProviderName != null) 3: nativeProviderName` — non-null on macOS/Windows/Linux), so on Linux without `crow`/`org.kde.CrowTranslate` installed the "Linux" provider still appears in the dialog. AyuGram only pushes the Native option when `Platform::IsTranslateProviderAvailable()` is true (Linux: `!Command().isEmpty()`, i.e. one of `crow`/`org.kde.CrowTranslate` is on PATH). AppState already exposes the correct check (`nativeTranslateAvailable`, app_state.dart:2063 — same two executables) and even uses it to clamp the *setter* (app_state.dart:2099), but the UI list ignores it. Net effect: a "Linux" option AyuGram would hide is offered, and selecting it silently reverts to Telegram via the setter gate. Fix: also require `appState.nativeTranslateAvailable` in the `if`. — `ayu_general_page.dart:41` (gate at `ayu_general_page.dart:27-33`) ← `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_general.cpp:46-60` (and `AyuGram/Telegram/SourceFiles/platform/linux/translate_provider_linux.cpp:86-88`)
+
+# ayu_section_builder — AyuGram settings section builder (toggles, sliders, choose buttons, collapsible toggles, dividers)
+
+Most of this file is a faithful 1:1 port: dimensions, padding, the slider's
+`setPseudoDiscrete` index math, the collapsible master-toggle/lock logic, the
+checked/total count display, the beta-badge positioning, and the divider/skip
+metrics all match the AyuGram source after verification against
+`ayu_builder.cpp`, `settings_ayu_utils.cpp`, `settings_common.cpp`,
+`continuous_sliders.h`, and the relevant `.style` files. The empty
+`onChanged: (_) {}` at line 880 is intentional (the toggle is `IgnorePointer`-
+wrapped and taps are handled by the parent `GestureDetector`), not a stub. The
+findings below are the real deviations.
+
+- [ ] [MAJOR] Choose-button dialog shows the WRONG title: `_AyuChooseButton` reuses the button `label` as the choice-box title (`title: label`), and the builder's `addChooseButton` exposes no separate box-title parameter. AyuGram passes a distinct `boxTitle` — its context-menu choose buttons all share the generic box title `ayu_SettingsContextMenuTitle` ("Context menu") while each button's `title` is specific ("Reactions Panel", "Views Panel", …). In the Dart app these are wired exactly this way (`ayu_chats_page.dart:247-253` over `_contextMenuItems` labels "Reactions Panel"/"Views Panel"/…), so tapping "Reactions Panel" opens a dialog titled "Reactions Panel" instead of "Context menu". — `ayu_section_builder.dart:648` (and missing param at `ayu_section_builder.dart:99-114`) ← `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_ayu_utils.cpp:528`
+- [ ] [MAJOR] `_SingleChoiceBox` renders the selection marker on the RIGHT of each option (Row = `Expanded(Text)` then the circle) and draws it as a hollow thick ring (6px border) instead of a radio dot. AyuGram's `SingleChoiceBox` builds each option with `Ui::Radiobutton`, which renders the radio marker on the LEFT with the text to its right and shows a filled inner dot when selected. — `ayu_section_builder.dart:689-707` ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:34`
+- [ ] [MAJOR] `_SingleChoiceBox`'s bottom action button is labelled "Cancel"; AyuGram's `SingleChoiceBox` uses `tr::lng_box_ok()` ("OK"). Since selection auto-applies on tap in both, "Cancel" is the wrong (and misleading) action label versus the ground-truth source. — `ayu_section_builder.dart:717` ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:22`
+
+# birthday_picker — Telegram day/month/year drum picker dialog (ports AyuGram `EditBirthdayBox`)
+
+Backend wiring is **correct**: the dialog returns a `(day, month, year)` record and both
+callers consume it through the engine — `my_profile_page.dart:267,277` →
+`engine.updateBirthday(...)` and `contacts_screen.dart:1751` → `engine.suggestBirthday(...)`.
+No stubs, empty callbacks, TODOs, or fake data. The findings below are behavioral/visual
+deviations from the C++ source.
+
+- [ ] [MAJOR] Future birthdays are not blocked — the month wheel always shows 12 months and the day wheel always shows the full month length, even when the currently-selected year is the current year. AyuGram caps the month count to the current month, and the day count to the current day, whenever `year == maxYear` (resp. `&& month == max.month()`), so a user can never pick a birthday in the future. The Dart picker lets you select e.g. Dec 31 of the current year. — `birthday_picker.dart:144` (`itemCount: 12` always) & `birthday_picker.dart:72-78` (`_daysInMonth` never clamps to today) ← `AyuGram/SourceFiles/ui/boxes/edit_birthday_box.cpp:108` (`monthsCount = (year == maxYear) ? max.month() : 12`) & `edit_birthday_box.cpp:146-147` (`daysCount = (year == maxYear && month == max.month()) ? max.day() : ...`)
+
+- [ ] [MAJOR] Feb 29 is unavailable when the year is left unset — for the "—" (year not set) option the Dart `_daysInMonth` substitutes the current calendar year for the leap-year test, so February shows only 28 days in non-leap years (e.g. 2026), preventing a leap-day birthday from being entered without a year. AyuGram's day-count formula treats an unset year (`year == 0`) as leap via the `!year` short-circuit, always yielding 29 days for February when no year is chosen. — `birthday_picker.dart:73-75` (`year = yearIndex < _yearCount-1 ? _minYear+yearIndex : _maxYear;` then `year % 4 == 0 ...`) ← `AyuGram/SourceFiles/ui/boxes/edit_birthday_box.cpp:148-152` (`(month == 2) ? ((!year || (!(year % 4) && ((year % 100) || !(year % 400)))) ? 29 : 28)`)
+
+- [ ] [MAJOR] Selection-frame indicator lines are missing — AyuGram paints two horizontal `st::activeLineFg` lines bracketing the centered item (at `height/2 ± itemHeight/2`), the signature "selected row" frame of the drum picker. The Dart dialog renders only the bare wheels with no such overlay, so the selected row has no framing rule. — `birthday_picker.dart:130-160` (plain `SizedBox` → `Row` of wheels, no Stack/overlay lines) ← `AyuGram/SourceFiles/ui/boxes/edit_birthday_box.cpp:181-187` (`p.fillRect(lineRect.translated(0, itemHeight/2), st::activeLineFg); p.fillRect(lineRect.translated(0, -itemHeight/2), st::activeLineFg);`)
+
+- [ ] [MAJOR] Item rendering diverges from the drum-picker paint model — AyuGram draws every item with a single uniform font (`st::boxTextFont`) and a single color (`st::defaultFlatLabel.textFg`), differentiating the center only by a continuous opacity fade (`setOpacity(revProgress)`) plus a vertical squish (`yScale` 0.2→1.0). The Dart version applies no opacity gradient (off-center items stay fully opaque) and instead hard-codes a two-tier treatment: selected = 16px / w600 / `textColor`, others = 14px / w400 / `subtextColor`. This is a different visual treatment (discrete bold/size/color step vs. smooth fade). — `birthday_picker.dart:222-226` (`fontSize: isSelected ? 16 : 14, fontWeight: isSelected ? w600 : w400, color: isSelected ? textColor : subtextColor`) ← `AyuGram/SourceFiles/ui/widgets/vertical_drum_picker.cpp:40-47` (uniform `font`, `yScale` + `setOpacity(revProgress)`) & `edit_birthday_box.cpp:38` (`font = st::boxTextFont` for all items)
+
+# call_panel — 1:1 voice/video call panel (incoming/active/busy/ended states, encryption fingerprint, signal bars, self-view bubble, conference invite, rating dialog)
+
+Audited `dart/lib/ui/call_panel.dart` against AyuGram `calls/calls_panel.cpp`, `calls_emoji_fingerprint.cpp`, `calls_signal_bars.cpp`, `calls_video_bubble.cpp`, `calls_panel_background.cpp`, `calls.style`, and `ui/boxes/rate_call_box.cpp`.
+
+**What matches well (no action):** signal-bar geometry is exact — 2px width / 1px radius / 2px skip / 4px min / 10px max / 0.5 inactive-opacity (`call_panel.dart:2245-2289` ← `calls.style:452-460`). Self-view bubble 160×110 and outgoing-preview min/max 360×120 / 1620×540 match the style names exactly (`call_panel.dart:2314-2315,2486-2487` ← `calls.style:70-73`). Corner-snap drag, mirroring, and bottom-right default corner match VideoBubble (`call_panel.dart:2326,2393` ← `calls_video_bubble.cpp:106,177`). Controls auto-hide 5000ms/2000ms matches `kHideControlsTimeout`/`kHideControlsQuickTimeout` (`call_panel.dart:158-159` ← `calls_panel.cpp:78-79`). Fingerprint carousel constants (4 emoji, 10-item carousel, 50ms stagger, 100ms/item) match (`call_panel.dart:2062-2066` ← `calls_emoji_fingerprint.cpp:29-32`). Rating dialog (5 stars, comment only when rating<5, 200-char max, Send appears after first star) matches RateCallBox (`call_panel.dart:2670-2835` ← `rate_call_box.cpp:20-143`). All button taps route to real `EngineService` FFI methods — no empty callbacks, no TODOs, no mock data inside this file.
+
+- [ ] [CRITICAL] The production DM call buttons show the panel as a permanent cosmetic shell — they never start a real call and never wire the panel to the engine. `showCallPanel` accepts optional `callId`/`infoStream`, but the three DM call entry points invoke it with neither and with `state: connecting`, and they never call `engine.startCall`. Result: `effectiveCallId` resolves to `''` so onAccept/onDecline/onHangup are all no-ops (the guard `if (effectiveCallId.isNotEmpty)` is always false), and `infoStream == null` so `_currentInfo` never updates — the panel is frozen on "connecting…" forever and no call is ever placed. AyuGram's call button always goes through `Instance::startOutgoingCall`, which creates a real `Call` and binds the panel to its live state. — `call_panel.dart:2521-2543` (showCallPanel), `call_panel.dart:2534` (effectiveCallId fallback), `call_panel.dart:2573` (null infoStream → no updates), `call_panel.dart:2620-2627` (onHangup no-op when empty) + callers `dart/lib/ui/chat_view.dart:6869,6893,7300` ← `AyuGram/calls/calls_instance.cpp:199` (startOutgoingCall)
+
+- [ ] [MAJOR] Outgoing self-preview during call setup is grossly oversized and replaces the callee identity. The Dart interpolation anchors at `_hMin=400` and ramps toward the **max** size (1620×540), so at the panel's clamped height (520–540px) it computes ≈1440–1620px wide — it renders as a `Positioned.fill` fullscreen self-camera and hides the callee userpic (`if (!hasPreview) _buildUserpic`). AyuGram interpolates from `callOutgoingPreviewMin` (360×120) toward `callOutgoingPreview` (540×180) anchored at `callHeightMin=520`, clamps to inner width, and keeps the callee userpic + name + status, placing the preview as a small in-body block **below** them. The Dart preview is ~3× too wide and drops the callee photo. — `call_panel.dart:2486-2495` (interp endpoints/`_hMin`), `call_panel.dart:921,924-930,935` (fullscreen fill + userpic hidden) ← `AyuGram/calls/calls_panel.cpp:1198-1209,1228-1231,1264-1271` and `AyuGram/calls/calls.style:70-73`
+
+- [ ] [MAJOR] Panel background uses the wrong source and shape and omits the pattern. The Dart builds a top→bottom **linear** gradient from colors sampled out of the avatar bitmap (or a hue hashed from `callerId` when there's no avatar). AyuGram paints a **radial** gradient centered on the userpic, sourced from the peer's server-assigned color profile (`peerColors().colorProfileFor(peer)` / collectible emoji-status edge+center colors), plus a profile background-emoji **pattern** drawn around the userpic. So the backend peer-color data is ignored, the gradient geometry is wrong (linear vs radial-on-photo), and the emoji pattern is entirely missing. — `call_panel.dart:1444-1451` (LinearGradient), `call_panel.dart:632-651,692-697` (avatar pixel sampling / hashed fallback) ← `AyuGram/calls/calls_panel_background.cpp:142-147` (QRadialGradient), `:175-184` (peer color profile), `:150-173` (emoji pattern)
+
+- [ ] [MAJOR] The conference-invite contact picker shows initials-only placeholders instead of the real avatars it already has. `ContactInfo` carries `avatarB64` (populated by the engine and decoded into a real photo elsewhere, e.g. the create-group picker), but `_InviteContactRow` renders a `CircleAvatar` containing only `displayName[0]` and never decodes `avatarB64`. AyuGram's invite rows are `PeerListRow`s that paint the real userpic. — `call_panel.dart:1959-1971` (initial-only CircleAvatar, avatarB64 unused) ← `AyuGram/calls/group/calls_group_invite_controller.cpp:83,201` (ConfInviteRow : PeerListRow userpic); cross-ref `dart/lib/ui/create_group_wizard.dart:1716` proves the same field is decodable
+
+- [ ] [MAJOR] Sound-peak ripple drives a full-panel rebuild 10× per second. During incoming/ringing, `_pollSoundPeak` runs every 100ms and calls `setState` on the whole `_CallPanelState`, rebuilding the entire userpic/name/status/buttons tree just to repaint the answer-button ripple (and the 2000ms `_rippleController` keeps an AnimatedBuilder ticking on top). AyuGram samples at the same `kSoundSampleMs=100` cadence but scopes the update to the answer button's outer ripple only (`_updateOuterRippleTimer`), not the panel. Should be scoped via a `ValueNotifier` like the duration line already is. — `call_panel.dart:277,290-302` (Timer.periodic + whole-panel setState) ← `AyuGram/calls/calls_call.h:100` (kSoundSampleMs) and `AyuGram/calls/calls_panel.cpp:1417` (scoped outer-ripple timer)
+
+- [ ] [MAJOR] Fingerprint and signal bars are rendered as two separate rounded pills with a 6px gap; AyuGram draws them as one continuous badge. The Dart `_buildFingerprintBadge` is a `Row` of the `_EncryptionFingerprint` pill + `SizedBox(width:6)` + a second signal-bars `Container`, each with its own background. AyuGram's `CreateFingerprintAndSignalBars` produces a single rounded badge — emoji on the left with a big-radius left edge, signal bars on the right with a big-radius right edge — joined into one shape. — `call_panel.dart:1080-1099` ← `AyuGram/calls/calls_emoji_fingerprint.cpp:224-309`
+
+# call_screen — Telegram group-call (voice chat) panel, big mute button, speaker blobs, call settings, minimised call top bar
+
+Scope of this file: the **group-call** panel (`GroupCallPanel` / `showGroupCallPanel`), the big mute button, speaker/blob animations, the "…" menu, the call-settings sheet, and the minimised active-call top bar (`MinimisedCallBar`). The full 1:1 call panel (emoji fingerprint, accept/decline, big avatar) lives elsewhere and is out of scope here.
+
+Verified facts used below: AyuGram narrow control layout `calls_group_panel.cpp:2566-2653`; mute-button text `calls_group_panel.cpp:893-938` + `lang.strings:5925-5929`; incoming group-call messages `calls_group_messages.cpp:219-385`; recording flow `calls_group_menu.cpp:546-582` + `calls_group_recording_box.cpp:289-346`; settings controls `calls_group_settings.cpp:298-385`; member context menu `calls_group_members.cpp:1325-1551`.
+
+- [ ] [CRITICAL] Incoming group-call messages from other participants are NEVER displayed — the chat panel is a write-only echo box. `callMessages` is a local list that is only appended on *your own* send (`call_screen.dart:2046`), and there is no engine event stream for incoming messages (`engine_service.dart` exposes only `sendGroupCallMessage`; no `onGroupCallMessage`). AyuGram ingests `updateGroupCallMessage` / `updateGroupCallEncryptedMessage` from all senders and renders them. A group chat where you only see your own messages is non-functional. — `call_screen.dart:1791` (`final callMessages = <CachedMessage>[];` — only fed by local sends at `2046-2055`) ← `AyuGram/calls/group/calls_group_messages.cpp:219`
+
+- [ ] [CRITICAL] Group-call / RTMP video is never rendered — the wide-mode video area is a permanent "No video" placeholder. `videoViewport` is an injection point that NO caller of `showGroupCallPanel` ever fills (verified across `calls_screen.dart`, `shell.dart`, `chat_view.dart`, `main.dart`), and no incoming video-tile/texture widget exists anywhere in `dart/lib/` for calls. So `_buildWideMode` always falls through to the "No video" box, including for RTMP livestreams whose entire purpose is to show the stream. AyuGram renders a live tile viewport. (Additionally, for non-RTMP the panel is pinned to 380px via `showDialog` `call_screen.dart:1856`, so wide mode is unreachable regardless.) — `call_screen.dart:907-930` ← `AyuGram/calls/group/calls_group_viewport.cpp:1`
+
+- [ ] [MAJOR] Bottom control bar — wrong button SET, ORDER, and mute position. Dart row is `[Chat, Screen, Video, Hangup(red), BigMute]` (`call_screen.dart:848-882`). AyuGram narrow layout is `[Video, Settings(gear), Mute(dead-center), Chat, Hangup]`: the mute button is centered (`muteButtonLeft = (width - muteSize)/2`, `calls_group_panel.cpp:2628`), a **Settings gear button is a primary control** (`calls_group_panel.cpp:2641-2646`), and **screen-share is explicitly hidden in narrow mode** (`toggle(_screenShare, false)`, `calls_group_panel.cpp:2630`) — it lives only in the "…" menu. The Dart omits the Settings button, wrongly adds Screen, and places the iconic mute button at the far right instead of center. — `call_screen.dart:848-882` ← `AyuGram/calls/group/calls_group_panel.cpp:2602-2653`
+
+- [ ] [MAJOR] Big mute button labels are wrong for three of five states. Dart shows imperative actions; AyuGram shows the state. Unmuted: Dart `'Mute'` vs AyuGram `"You are Live"`; ForceMuted: Dart `'Raise Hand'` vs AyuGram `"Muted by admin"`; RaisedHand: Dart `'Raise Hand'` vs AyuGram `"You asked to speak"`. (Connecting `"Connecting..."` and Muted `"Unmute"` do match.) — `call_screen.dart:1518-1533` ← `AyuGram/calls/group/calls_group_panel.cpp:893-909` (`lang.strings:5925-5929`)
+
+- [ ] [MAJOR] ForceMuted and RaisedHand are collapsed into one indistinguishable state. `_muteState` maps both `isForceMuted` and `isRaisedHand` to `MuteButtonState.forceMuted` (`call_screen.dart:333-337`), so both render the same purple color, the same `back_hand_outlined` icon, and the same `'Raise Hand'` label. AyuGram uses distinct types (`Type::ForceMuted` "Muted by admin" vs `Type::RaisedHand` "You asked to speak") so the user can tell whether their hand is already up. — `call_screen.dart:333-337,1518-1550` ← `AyuGram/calls/group/calls_group_panel.cpp:903-932`
+
+- [ ] [MAJOR] Group-call recording uses the wrong mechanism and skips the options dialog. The "…" menu calls `engine.startCallRecording(accountId, callId, filePath)` with a local temp `.wav` path; the Go core writes a local Opus file (`telegram.go:10426` `os.Create(filePath)` + `"OPUS"` header). AyuGram group recording is **server-side** via `phone.toggleGroupCallRecord` (delivered to Saved Messages) and presents a two-stage dialog: choose audio-only vs "Also record video" + landscape/portrait orientation, then a recording title. The Dart hardcodes local audio capture with no audio/video, orientation, or title choice. — `call_screen.dart:2108-2134` ← `AyuGram/calls/group/calls_group_menu.cpp:546-582` + `AyuGram/calls/group/ui/calls_group_recording_box.cpp:289-346`
+
+- [ ] [MAJOR] Call-settings sheet is missing the two manager toggles AyuGram shows. No "Allow new members to speak" (mute-new-joined) toggle and no "Enable messages" toggle exist anywhere in the Dart settings sheet or "…" menu, so an admin cannot mute new joiners or toggle call messages. The Dart sheet only has Noise Suppression / Microphone / level meter / Output / Push-to-talk. — `call_screen.dart:2545-2590` ← `AyuGram/calls/group/calls_group_settings.cpp:298-310`
+
+- [ ] [MAJOR] "…" overflow menu is missing the manager "Edit title" action (rename the voice chat / livestream), which AyuGram places in this menu for `canManage`. The Dart menu is `[Join As, Start/Stop Recording, Share Screen, Invite Members, Settings, Leave]` with no rename entry. — `call_screen.dart:2090-2169` ← `AyuGram/calls/group/calls_group_menu.cpp:525-544`
+
+- [ ] [MAJOR] Participant context menu omits several AyuGram entries. Missing: "Pin camera"/"Pin screen" (when 2+ video feeds shown), conference "Stop ringing"/"Cancel invite" (`Calling`/`Invited` states), and — for your own row when force-muted with hand up — "Remove hand" (the Dart self menu only shows a Volume entry). — `call_screen.dart:512-548` ← `AyuGram/calls/group/calls_group_members.cpp:1432-1544`
+
+# calls_screen — Calls box (history list, active group calls, create/conference call, clear-history, mic level meter)
+
+Backend wiring is solid: every engine method used (`getCallHistory`, `clearCallHistory`,
+`getChatList`, `joinGroupCall`, `getGroupCall`, `getConfcallSizeLimit`, `getContacts`,
+`startCall`, `createConferenceCall`, `inviteToConferenceCall`, `deleteMessage`) is a real
+`_callAsync('__engine', …)` bridge call — no stubs, no empty callbacks, no mock data, no
+"coming soon" feedback. The mic level meter does genuine PCM capture (parec/pw-record/ffmpeg)
+rather than a fake animation. Findings below are deviations from the AyuGram C++ ground truth.
+
+- [ ] [MAJOR] Active-group-call row status appends "· N participants", but AyuGram's `GroupCallRow` sets the status to **only** the lowercased peer-type string ("public channel" / "private group" / …) with no participant count — `calls_screen.dart:622-625` ← `AyuGram/Telegram/SourceFiles/calls/calls_box_controller.cpp:104-116`
+
+- [ ] [MAJOR] Mic LevelMeter bars are horizontally **centered** (`startX = (size.width - totalWidth) / 2`), but AyuGram's `LevelMeter::paintEvent` draws every bar starting from `x = 0` (left-aligned, `QRect(0,0,…)` translated by `(lineWidth+lineSpacing)*i`) — at typical settings widths this shifts the whole meter — `calls_screen.dart:2576-2582` ← `AyuGram/Telegram/SourceFiles/ui/widgets/level_meter.cpp:34-42`
+
+- [ ] [MAJOR] Mic LevelMeter colors are hardcoded (`accentColor` for active, literal `0xFF3B4654`/`0xFFD8D8D8` for inactive) instead of the spec'd theme tokens `mediaPlayerActiveFg` / `mediaPlayerInactiveFg` — `calls_screen.dart:2540-2544` ← `AyuGram/Telegram/lib_ui/ui/widgets/widgets.style:1474-1475` (`defaultLevelMeter`)
+
+- [ ] [MAJOR] Conference-invite contact row renders an extra 22px radio/check circle on **every** selectable row (`radio_button_unchecked` → `check_circle`), but AyuGram's `ConfInviteRow` exposes only 2 elements (video + audio) and indicates selection solely by the icon switching to the active accent color — no separate check element for selectable rows — `calls_screen.dart:1952-1966` ← `AyuGram/Telegram/SourceFiles/calls/group/calls_group_invite_controller.cpp:220-222,282-319`
+
+- [ ] [MAJOR] Conference-invite row places video (camera) icon to the **left** of audio (phone); AyuGram positions video as element 1 at the right edge and audio (element 2) to its left, i.e. order is reversed — `calls_screen.dart:1921-1950` ← `AyuGram/Telegram/SourceFiles/calls/group/calls_group_invite_controller.cpp:224-240`
+
+- [ ] [MAJOR] "Create Call" button label does not match AyuGram's `lng_confcall_create_call` = **"Start New Call"** (the description text also differs from `lng_confcall_create_call_description` = "You can add up to {count} participants to a call.") — `calls_screen.dart:944,963` ← `AyuGram/Telegram/SourceFiles/calls/calls_box_controller.cpp:778,783`
+
+- [ ] [MAJOR] New-Call box action button shows "Start Call" (selection) / "Create Call" (none), but AyuGram uses `lng_group_call_confcall_add` = **"Call"** when contacts are selected and `lng_create_group_create` = **"Create"** when none are — `calls_screen.dart:1221` ← `AyuGram/Telegram/SourceFiles/calls/group/calls_group_invite_controller.cpp:1200-1205`
+
+# chat_export — Telegram data-export UI (top bar, settings panel, calendar/time/format pickers, suggest box)
+
+Feature is genuinely wired to a real Go takeout backend (`engine/export.go`: InitTakeout → dialogs/profile/contacts/sessions/messages → JSON, progress/error/complete events). No placeholders or empty callbacks. Defaults (types, fullChats "only-my", Photo-only media, 8 MB size, HTML format) and almost all paddings/dimensions match AyuGram's `export.style` 1:1. The deviations below are in panel titles, per-chat layout, and the progress widget.
+
+- [ ] [MAJOR] Per-chat / per-topic panel title is invented text instead of AyuGram's keys — Dart returns `'Export Chat History'` / `'Export Topic History'`, but AyuGram sets the single-peer/topic panel title to `lng_export_header_chats` / `lng_export_header_topic` ("Chat export settings" / "Topic export settings") — the very same strings the Dart itself uses for the full-export *section header* (`chat_export.dart:1428` → 'Chat export settings'). The title and that section header must be identical text; they are not. — `chat_export.dart:159-162` ← `AyuGram/Telegram/SourceFiles/export/view/export_view_panel_controller.cpp:175-179`
+
+- [ ] [MAJOR] Full-export panel title wrong — Dart returns `'Export Your Data'`, but AyuGram titles the full-export panel with `lng_export_title` ("Export Telegram Data"). — `chat_export.dart:158` ← `AyuGram/Telegram/SourceFiles/export/view/export_view_panel_controller.cpp:178-179`
+
+- [ ] [MAJOR] Per-chat mode renders an extra "Media export settings" header that AyuGram omits — in single-peer mode AyuGram's `setupMediaOptions` calls `addMediaOptions(container)` directly with **no** `addHeader(...)` (the header is only added inside the SlideWrap for the full-export path). The Dart per-chat layout inserts `_buildSectionHeader('Media export settings', …)` as its first row. — `chat_export.dart:1918` ← `AyuGram/Telegram/SourceFiles/export/view/export_view_settings.cpp:218-223`
+
+- [ ] [MAJOR] Per-chat panel height is 540 px instead of the fixed 480 px — AyuGram uses a single `st::exportPanelSize` = 364×480 for every mode (`setInnerSize(st::exportPanelSize)`), including single-peer; the Dart hardcodes `_isPerChat ? 540.0 : _exportPanelHeight`, ~12.5 % taller than the source. (Same 540 also at `chat_export.dart:279` and `:2543`.) — `chat_export.dart:1292` ← `AyuGram/Telegram/SourceFiles/export/view/export.style:13` (+ `export_view_panel_controller.cpp:180`)
+
+- [ ] [MAJOR] Progress view drops AyuGram's per-file byte-download row and its fixed multi-row layout — AyuGram's `ProgressWidget` shows a fixed set of rows (2 for single-peer, 3 for full) that update *in place*: an overall "main" step row, the current-entity row, **and** a separate per-file byte row built via `pushBytes(...)` → `Ui::FormatDownloadText(bytesLoaded, bytesCount)` (e.g. "1.2 MB / 5.0 MB"). The Dart instead renders a flat list of predicted step rows (`_exportSteps`) shown one-at-a-time with fade in/out and exposes no per-file byte-download progress row at all. — `chat_export.dart:2266-2398` ← `AyuGram/Telegram/SourceFiles/export/view/export_view_content.cpp:59-71` (+ `export_view_progress.cpp:310-353`)
+
+- [ ] [MAJOR] Critical-error screen adds Close + "Try Again" buttons that don't exist in AyuGram — AyuGram's `showCriticalError` shows only the error `FlatLabel` (top-padded panelHeight/4) with no buttons and `setHideOnDeactivate(false)`; there is no in-panel retry-to-settings path. The Dart error placeholder adds a `'Close'` button and a `'Try Again'` button (`_retryExport` → back to settings phase). — `chat_export.dart:2563-2589` ← `AyuGram/Telegram/SourceFiles/export/view/export_view_panel_controller.cpp:264-279`
+
+# chat_list_panel — left panel (search, folder tabs, stories, top peers, chat list, forum/saved sublists)
+
+Audited dart/lib/ui/chat_list_panel.dart (6984 lines) against AyuGram Desktop C++.
+No placeholders/stubs/fake-data/empty-callbacks found — search, context menus, drag,
+forum, saved-sublists and search-tabs are all wired to ChatState/EngineService/AppState.
+Most dimensions are faithful ports (verified below). The findings are real behavioral /
+dimensional / performance deviations from the C++ ground truth.
+
+Verified MATCHING (no action — recorded so they aren't re-flagged): stories small/full
+geometry 35/77 height, 21/42 photo, 16 shift, lines 3px/4px/2px→1.5/2.0/1.0, readOpacity
+0.6 (`dialogs.style:716-744,827`); stories overscroll expand/collapse at 0.72/0.68 ratios
+is wired in `_onChatListScroll` (`chat_list_panel.dart:271-285`); top-peers avatar 46 /
+item 66 / strip 77 / expand toggle (`dialogs.style:746-748`, `top_peers_strip.cpp:90-120`);
+reorder/drag thresholds 30/30/75 (`dialogs_inner_widget.cpp:106-108`); forum topic row
+54px / pad 8,7,10,7 / icon 20 / nameLeft 39 / textTop 29 (`dialogs.style:666-673`); recent
+contacts row 56 / photo 42 / name(64,9) / status(64,30) (`dialogs.style:759-764`); search
+tabs 33h / barTop30 / barStroke6 / barRadius2 / 150ms (`dialogs.style:799-817`);
+searchIn height 38 / photo 28 (`dialogs.style:518-519`); IsHashOrCashtag &
+searchFromPeer group-gating (`chat_search_in.cpp:237`, `dialogs_widget.cpp:4459`).
+
+- [ ] [MAJOR] Top-peers ("Frequent contacts") rows draw no online badge — AyuGram paints a green online dot on the userpic of online frequent contacts (`dialogsOnlineBadgeFg`, size/stroke from style); the Flutter item is avatar + first-name only, even though online state is available (it is shown in `_RecentContactsList` via `isChatOnline`). Data not flowing to the strip. — `chat_list_panel.dart:2922` ← `AyuGram/dialogs/ui/top_peers_strip.cpp:833`
+- [ ] [MAJOR] Top-peers rows draw no unread counter badge — AyuGram renders an unread/muted count badge on the userpic via `PaintUnreadBadge` when `entry.badge || entry.unread`; the Flutter strip shows no unread indicator on frequent contacts at all. Unread state not surfaced. — `chat_list_panel.dart:2922` ← `AyuGram/dialogs/ui/top_peers_strip.cpp:854`
+- [ ] [MAJOR] Drag-a-chat-into-a-folder works only for pinned chats — AyuGram starts a drag-to-filter on ANY dialog with a real history (threshold Y = 75px for pinned, 30px for non-pinned). The Flutter pointer handler bails unless there are ≥2 pinned chats (`if (_buildPinnedCount < 2) return;`) and only hit-tests `_pinnedRowKeys`, so non-pinned chats (the common case) can never be dragged onto a `FilterColumn` folder tab. — `chat_list_panel.dart:1249` ← `AyuGram/dialogs/dialogs_inner_widget.cpp:1766`
+- [ ] [MAJOR] Stories expanded per-item width is 72px but AyuGram computes `singleFull = full.photoLeft*2 + full.photo = 10*2 + 42 = 62px` (skip-between only added to fill width). The hardcoded `_fullItemWidth = 72.0` is ~16% wider, over-spacing the expanded story avatars. — `chat_list_panel.dart:3056` ← `AyuGram/dialogs/ui/dialogs_stories_list.cpp:148`
+- [ ] [MAJOR] Top-peers strip refetches via synchronous FFI inside `build()` — `chatState.getTopPeers(...)` (a blocking engine/FFI call that can throw on FLOOD_WAIT) runs on every rebuild while the search-empty strip is mounted; any ChatState `notifyListeners` (typing/online/new-msg) rebuilds the parent and re-invokes it. AyuGram constructs the strip once from a reactive `rpl::producer<TopPeersList>` and only repaints on stream updates — no polling on the UI thread. — `chat_list_panel.dart:2836` ← `AyuGram/dialogs/ui/top_peers_strip.cpp:57`
+
+# chat_list_row — chat-list row, swipe quick-actions, stories ring, special userpics, forum row
+
+Audited `dart/lib/ui/chat_list_row.dart` against AyuGram Desktop (`dialogs.style`,
+`dialogs_layout.cpp`, `dialogs_row.cpp`, `dialogs_quick_action.cpp`,
+`dialogs_topics_view.cpp`, `ui/controls/swipe_handler.cpp`, `ui/text/format_values.cpp`).
+
+Overall this file is a faithful, fully-wired port. Verified matching against the C++ authority:
+dimensions (62px row, 46px photo, 68px nameLeft, 10px nameTop, 80px forum row, 19px/5px/12px-bold
+unread badge, 13px fonts), badge paint order (unread → mention/reaction → poll, right-to-left),
+send-state icon placement + state mapping, `ChatTypeIcon` selection (bot/channel/forum/group, no
+icon for DMs), stories-ring read/unread line widths (2.0/1.0) and live-stream red ring, swipe
+constants (50px threshold, 1.5 max ratio, 0.2 slow, 150ms commit, haptic at ratio≥1), quick-action
+label/bg-color/Lottie-name resolution (all 10 swipe Lottie assets present + registered in pubspec),
+and the draft-vs-unread gating (`unreadCount == 0` correctly mirrors AyuGram's
+`(!item || !badgesState.unread)` guard). Rows are instantiated with real engine state in
+`chat_list_panel.dart` (`recentTopicsFor`, `typingUserFor`, `openTopic`, `_performSwipeAction`).
+No stubs, empty callbacks, mock data, or unwired elements found.
+
+Two forum-topics behavioral deviations:
+
+- [ ] [MAJOR] Forum topic-jump bubble targets the *first unread* topic instead of the *front* (latest-activity) topic. `_findUnreadFrontTopic` returns the first topic in `recentTopics` whose `unreadCount > 0`, so it can show a jump bubble for a non-front topic when the front topic is already read. AyuGram rotates the topic matching `frontRootId` (the latest message's topic) to the front and sets `_jumpToTopic = false` unless *that* front topic is unread — i.e. it shows the bubble only for the latest-active topic, and shows nothing when that topic is read. Dart therefore renders a jump bubble in cases AyuGram renders none. — `chat_list_row.dart:2404,2422-2427` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_topics_view.cpp:101-112`
+
+- [ ] [MAJOR] Forum row omits the empty/loading topics state. When `recentTopics` is empty, `_TopicsPreview.build` returns `SizedBox.shrink()`, leaving the 21px topics area blank. AyuGram's `TopicsView::paint` draws localized text in this case — `lng_contacts_loading` ("Loading…") while topics are still loading, or `lng_filters_no_chats` once loaded with none — so the row never shows an empty gap. — `chat_list_row.dart:2447-2449` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_topics_view.cpp:211-220`
+
+# chat_settings_screen — Telegram Desktop "Chat Settings" page (themes, accent, peer color, fonts, cloud themes, wallpaper, quick action, stickers/emoji, messages, sensitive content, archive)
+
+Backend wiring is solid across the file — every engine call is real (`getSelfColorAndChannel`, `getContentSettings`/`setContentSettings`, `getCloudThemes`, `getWallpapers`, `downloadWallpaperDocument`, `getPeerColors`, `updateNameColor`, `installCloudTheme`/`deleteCloudTheme`, `getInstalledStickerPacks`/`getInstalledEmojiSets`, `install`/`uninstall`/`reorder`/`searchStickerSets`, `getAvailableReactions`/`setDefaultReaction`, `getArchiveSettings`/`setArchiveSettings`). No empty callbacks, no "coming soon" stubs, no fake/mock data. The cloud-theme context menu (Share→addtheme link, Edit when owner+active, Delete with confirm) matches AyuGram 1:1. Section ordering matches `BuildChatSectionContent`. Findings below are content/label/visual deviations from the C++ authority.
+
+- [ ] [MAJOR] Theme card labels wrong vs the embedded scheme names — Dart shows "Day Blue"/"Night"/"Night Green" but AyuGram displays "Day"/"Tinted"/"Night" (the `Night` type is named *Tinted*, `NightGreen` is named *Night*). User sees the wrong theme names and "Night" appears to duplicate. — `chat_settings_screen.dart:937,945,953` ← `window/themes/window_themes_embedded.cpp:262,273,284`
+- [ ] [MAJOR] Night / Night-Green preview-card bubble colors don't match the embedded scheme — Dart hardcodes received `#24292E` / sent `#265E8C` (Night) and `#33393F` / `#2A2F33` (Night Green), but `ColorsFromScheme` uses `scheme.sent`/`scheme.received` = `#5ca7d4`/`#6b808d` (Night) and `#6b808d`/`#6b808d` (Night Green). The two day cards copy the scheme correctly; the night cards are clearly off. — `chat_settings_screen.dart:947-948,955-956` ← `window/themes/window_themes_embedded.cpp:269-270,280-281`
+- [ ] [MAJOR] Missing "Themes" subsection title above the theme cards — AyuGram opens `SetupThemeOptions` with `AddSubsectionTitle(container, tr::lng_settings_themes())` ("Themes"); the Dart renders the theme-card row with no header. — `chat_settings_screen.dart:383` ← `settings/sections/settings_chat.cpp:2688-2690`
+- [ ] [MAJOR] Missing "Theme settings" subsection title above the Your-Color row — AyuGram `SetupThemeSettings` adds `AddSubsectionTitle(container, tr::lng_settings_theme_settings())` ("Theme settings") before the peer-color button; the Dart shows only a divider then `_YourColorRow`. — `chat_settings_screen.dart:485` ← `settings/sections/settings_chat.cpp:2809-2811`
+- [ ] [MAJOR] Missing "Chat wallpaper" subsection title in the chat-background section — AyuGram `SetupChatBackground` adds `AddSubsectionTitle(container, tr::lng_settings_section_background())` ("Chat wallpaper"); the Dart `_ChatBackgroundSection` starts directly with the thumbnail row. — `chat_settings_screen.dart:2929` ← `settings/sections/settings_chat.cpp:2013-2015`
+- [ ] [MAJOR] Messages section header is "Send by" instead of "Messages", and an extra "Double-click action" header is invented — AyuGram titles the whole block once with `tr::lng_settings_messages()` ("Messages") and adds no sub-header between the send radios and the quick-action radios. — `chat_settings_screen.dart:4363,4391` ← `settings/sections/settings_chat.cpp:1595-1597,1651-1665`
+- [ ] [MAJOR] Send-by radio labels are truncated — Dart shows "Enter" / "Ctrl+Enter" (or "Cmd+Enter") but AyuGram uses `tr::lng_settings_send_enter` = "Send with Enter" and `tr::lng_settings_send_ctrlenter`/`_cmdenter` = "Send with Ctrl+Enter"/"Send with Cmd+Enter". — `chat_settings_screen.dart:4374,4382` ← `settings/sections/settings_chat.cpp:1633,1642-1644`
+- [ ] [MAJOR] Corner-button checkbox labels reworded — Dart "Show reply button in corner" / "Show reaction button in corner" vs AyuGram `lng_settings_chat_corner_reply` = "Reply button on messages" and `lng_settings_chat_corner_reaction` = "Reaction button on messages". — `chat_settings_screen.dart:4427,4433` ← `settings/sections/settings_chat.cpp:1779,1798`
+- [ ] [MAJOR] Sensitive-content toggle labeled "Disable filtering" instead of "Show 18+ Content" — AyuGram's `SetupSensitiveContent` button title is `tr::lng_settings_sensitive_disable_filtering()` whose value is "Show 18+ Content" (toggle ON = show sensitive). The Dart uses the old "Disable filtering" wording. — `chat_settings_screen.dart:5120` ← `settings/sections/settings_privacy_security.cpp:283-286` (lang `lng_settings_sensitive_disable_filtering` = "Show 18+ Content")
+- [ ] [MAJOR] Quick-action "Disabled" option mislabeled and wrong icon — AyuGram's last option uses `lng_settings_quick_dialog_action_disabled` = "Change folder" (swipe changes folder), but the Dart labels it "Disabled" with a block icon, misrepresenting the action. — `chat_settings_screen.dart:3344` ← `settings/sections/settings_chat.cpp:2324-2325` (lang `lng_settings_quick_dialog_action_disabled` = "Change folder")
+- [ ] [MAJOR] Quick-action section omits the explanatory divider text and uses short preview captions — AyuGram appends `AddDividerText(container, tr::lng_settings_quick_dialog_action_about())` ("Choose the action you want to perform when you middle-click or swipe left…") and the preview caption is "Swipe left and Middle-click"/"Swipe left"; the Dart shows no about text and captions "Both"/"Swipe". — `chat_settings_screen.dart:3563` ← `settings/sections/settings_chat.cpp:2244-2247,2336-2338`
+- [ ] [MAJOR] Cloud-themes title and link text wrong — Dart "Cloud Themes" / "Show All" vs AyuGram `lng_settings_bg_cloud_themes` = "Custom themes" and `lng_settings_bg_show_all` = "Show all themes". — `chat_settings_screen.dart:2545,2557` ← `settings/sections/settings_chat.cpp:2720-2722,2731`
+- [ ] [MAJOR] Sticker/emoji nav-button labels reworded — Dart "My Stickers" / "Emoji Sets" vs AyuGram `lng_stickers_you_have` = "Manage sticker sets" and `lng_emoji_manage_sets` = "Choose emoji set". — `chat_settings_screen.dart:3858,3864` ← `settings/sections/settings_chat.cpp:1555,1572`
+
+# chat_switch_overlay — Ctrl+Tab alt-tab-style chat switcher overlay
+
+Overall a faithful, fully-wired port of AyuGram's `ChatSwitchProcess`. Data
+source is real (`chatState.collectChatOpenHistory()` ↔
+`recentPeers().collectChatOpenHistory()`), navigation key arithmetic matches
+`process()` exactly (Tab/Backtab/Left/Right/Up/Down/Q, Escape, Enter,
+modifier-release confirm), layout math (canPerRow/canRows/shownRows) is a
+line-for-line port of `layout()`, and every dimension matches `window.style`
+(cell 72×104, userpic 56, top 8, name skip 6, select line 3, margin 16, padding
+12, radius 6, font 11px, anim 150ms = `slideWrapDuration`). No placeholders or
+stubs. Two behavioral deviations found:
+
+- [ ] [MAJOR] Pressing `Q` to remove the currently-viewed chat does not clear it from the chat view — AyuGram's `Key_Q` calls `CloseInWindows(thread)`, which runs `clearSectionStack()` on any window whose active chat is the removed thread (closing the open conversation); the Dart remove path only drops the id from `_chatOpenHistory` and from the overlay's `_list`, leaving the removed chat still open in the background — `chat_switch_overlay.dart:226-239` (`_removeSelected` → `widget.onRemove`, wired in `shell.dart:515-517` to `removeChatFromOpenHistory`, which only does `_chatOpenHistory.remove(chatId)`) ← `AyuGram/Telegram/SourceFiles/window/window_chat_switch_process.cpp:275-282` (Key_Q → `CloseInWindows`) + `window_chat_switch_process.cpp:61-82` (`CloseInWindows` clears the section stack for the active thread)
+
+- [ ] [MAJOR] Clicking inside the panel's 12px padding ring closes the overlay, whereas AyuGram absorbs all mouse presses on the panel — `_view` installs an event handler that `accept()`s every `MouseButtonPress` so only clicks on the surrounding `_widget` (outside the panel) fire `_closeRequests`. In the Dart version the outer `GestureDetector(onTap: widget.onCancel)` covers the whole window and the panel `Container` has no gesture absorber, so a tap landing on the 12px padding (cells tile edge-to-edge with no inter-cell gaps, so the padding is the only non-cell region) bubbles up and cancels the switcher — a click that should be a no-op closes it — `chat_switch_overlay.dart:356-372` (outer `onTap: widget.onCancel` + panel `Container` with no click-absorbing child) ← `AyuGram/Telegram/SourceFiles/window/window_chat_switch_process.cpp:413-417` (`_view->events()` accepts `MouseButtonPress`) vs `:307-313` (only `_widget` press fires `_closeRequests`)
+
+# choose_datetime_box — CalendarBox + ChooseDateTimeBox + ScheduleBox + TimePickerBox + MonthYearPicker
+
+Overall the file is a faithful, well-wired port: no stubs, no empty callbacks, no
+mock data, no TODOs. Title strings, `kScheduledUntilOnlineTimestamp` (0x7FFFFFFE),
+jump delay (700ms), tooltip delay (350ms), wheel steps (hour 1 / minute 10), drum
+heights (200px = 5×40), and the all-weeks scrollable grid all match AyuGram. The
+premium-toast link, send-when-online, repeat menu, and calendar date-pick are all
+wired to the engine / navigator. Findings below are real but secondary.
+
+- [ ] [MAJOR] "Select days" must be a bottom-LEFT button (`addLeftButton`), with "Close" on the right; the Dart builds both as ordinary right-side buttons (neither sets `isLeft: true`), so they render side-by-side on the right — `choose_datetime_box.dart:550-553` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:1431-1444`
+
+- [ ] [MAJOR] Schedule submit button is missing the send-options context menu. AyuGram wires `SetupMenuAndShortcuts` onto the submit button, giving a right-click/secondary menu with "Send silently" + message-effect options; only the Ctrl→silent keyboard path is ported, so silent scheduled send is **unreachable on touch/mobile** and effects can never be chosen — `choose_datetime_box.dart:1781-1784` ← `AyuGram/Telegram/SourceFiles/history/view/history_view_schedule_box.cpp:183-187`
+
+- [ ] [MAJOR] Repeat label is rendered as one flat accent-colored, non-bold string. AyuGram renders `"Repeat:"` in the default label color, then a separate bold link (`tr::bold(text)`) in the link color carrying the dropdown/lock icon — i.e. two-tone with a bold value, not all-accent — `choose_datetime_box.dart:1761-1769` ← `AyuGram/Telegram/SourceFiles/ui/boxes/choose_date_time.cpp:300-318`
+
+- [ ] [MAJOR] Dynamic-image fade-in never animates: the `AnimationController` is created and `forward()`-ed but no listener is attached, so `dynamicImageOpacity` (read from `fadeController.value`) is captured once at ≈0.0 by the single `setState`. With opacity 0 the thumbnail is skipped entirely (`opacity > 0` gate at :1277), so each circular day-image stays hidden until an unrelated parent rebuild — no smooth fade. AyuGram drives this per-frame via `Ui::Animations::Basic`. (Latent: no in-app `showCalendarBox` caller currently passes `dynamicImageForDate`.) — `choose_datetime_box.dart:264-268` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:674-694`
+
+- [ ] [MAJOR] Dynamic day-image decodes at full resolution: `Image.memory` is given display `width/height: 34` but no `cacheWidth`/`cacheHeight`, so the source bytes are decoded at native size then downscaled. AyuGram requests the bitmap pre-sized via `state.image->image(_st.cellInner)` (34px). (Latent: same unused `dynamicImageForDate` path.) — `choose_datetime_box.dart:1283-1288` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:841`
+
+# color_picker_box — HSV/HSL colour editor (AyuGram `ColorEditor`)
+
+Faithful, fully-functional port of `ui/widgets/color_editor.{h,cpp}`. The colour
+math is provably identical (the two-layer Flutter gradients reduce to AyuGram's
+4-corner bilinear interpolation for both RGBA and HSL), every numeric/hex field
+and every slider is wired to real state, the lightness-limit clamping mirrors
+`applyLimits`, and all three Dart callers (theme editor → RGBA+opacity, chat
+accent → HSL+limits, brush picker → HSL) match their AyuGram counterparts. No
+stubs, placeholders, mock data, or dead callbacks. The remaining issues are
+layout-fidelity (spacing) deviations from the `resizeEvent` geometry.
+
+- [ ] [MAJOR] HSL mode renders the right-hand column 10px (~14%) too narrow: the swatch + all 6 numeric fields + hex field are pinned to `_kMinFieldWidth` (60px) in both modes, but AyuGram widens them to `colorSampleSize.width + colorEditSkip` (60+10 = 70px) in HSL mode (the space freed by the absent hue slider). The Dart leaves that freed width as empty gap instead. — `color_picker_box.dart:552-553` ← `AyuGram/Telegram/SourceFiles/ui/widgets/color_editor.cpp:1053-1054`
+
+- [ ] [MAJOR] The picker + sliders + fields cluster is left-aligned (the wrapping `Row` defaults to `mainAxisSize.max` / `MainAxisAlignment.start`) instead of horizontally centered within the 390px editor area. AyuGram centers it via `left = (width() - fullwidth) / 2`, giving symmetric margins; the Dart dumps all slack on the right (≈64px of empty space in HSL mode, ≈19px in RGBA). — `color_picker_box.dart:457` ← `AyuGram/Telegram/SourceFiles/ui/widgets/color_editor.cpp:1026`
+
+- [ ] [MAJOR] Vertical hue slider sits ~8px too far from the picker square: the Dart inserts a full `_kEditSkip` (10px) spacer before a `_VerticalHueSlider` that *already* carries an internal `_kSliderSkip` (8px) left margin, so the slider bar lands 18px from the square. AyuGram offsets the slider by `colorEditSkip - colorSliderSkip` so its bar is exactly `colorEditSkip` (10px) from the picker edge. — `color_picker_box.dart:498` ← `AyuGram/Telegram/SourceFiles/ui/widgets/color_editor.cpp:1030`
+
+# compose_entities — rich-text compose controller (markdown, entities, custom emoji, dates)
+
+`compose_entities.dart` is a faithful port of AyuGram's `Ui::InputField` send-time markdown
+pipeline: markdown delimiters are applied at extraction time (`getTextWithAppliedMarkdown`),
+not live-on-type — which **matches** AyuGram (`commitMarkdownReplacement` is dead/commented at
+`input_field.cpp:4416`; markdown is committed only at send via
+`history_widget.cpp:4853 → input_field.cpp:3775`). Delimiter set (bold `**`, italic `__`,
+strike `~~`, spoiler `||`, code `` ` ``) matches `input_field.cpp:1313-1319`. Findings below are
+concrete deviations verified against AyuGram C++ + the Go entity contract.
+
+- [ ] [CRITICAL] Inserted formatted-date is **not wired to the backend** — `insertDateTimestamp` builds a `FormatType.date` entity that `toJson` serializes as `type:'custom_date'` + `timestamp` (`compose_entities.dart:32,38,314-319`), but Go `TextEntity` has no `timestamp` field and no `custom_date` case, so the send path drops it (`go/cores/base.go:256-263`, `go/cores/telegram.go:1776 default: continue`). AyuGram serializes its custom-date as a real `messageEntityFormattedDate` server entity (date + relative/short/long flags) — `compose_entities.dart:314-319` ← `AyuGram/Telegram/SourceFiles/api/api_text_entities.cpp:391`. gotd supports `messageEntityFormattedDate#904ac7c7`, so this is sendable, yet only the plain date *text* reaches the wire; the clickable/relative-date entity is silently lost. (Also: `toggleFormat(FormatType.date)` from the keyboard shortcut at `keyboard_shortcuts.dart:1444` adds a `date` entity with **no** timestamp at `compose_entities.dart:182` — doubly inert.)
+
+- [ ] [MAJOR] Triple-backtick code blocks collapse to **inline code**, never `pre`. ` ``` ` is parsed as `FormatType.code` (the `isBlock` flag only widens the close search, the entity type stays `code`) and `toJson` emits `'code'` with no language (`compose_entities.dart:389,438,465` + `:27`). Go maps `code` w/o language → inline `MessageEntityCode` (`go/cores/telegram.go:1763-1764`). AyuGram parses ` ``` ` as `kTagPre` → `MessageEntityPre` (block code, with language) — `compose_entities.dart:389` ← `AyuGram/Telegram/lib_ui/ui/widgets/fields/input_field.cpp:1318` (and Pre+language at `text_entity.cpp:2179`). `FormatType` has no `pre` member at all (`compose_entities.dart:7`), so multi-line code blocks lose block rendering, copy button, and language label.
+
+- [ ] [MAJOR] `getTextWithAppliedMarkdown` **mutates live state** and ignores the `trim()` shift, unlike AyuGram's pure `const` extractor. The custom-emoji expansion loop writes `e.length`/`e.offset` back onto the real `entities` list (`compose_entities.dart:372,378`), and `src = text.trim()` (`:363`) shifts positions without re-basing existing entity offsets. A second call (e.g. save-retry after the network error caught at `contacts_screen.dart:1586`, or leading-whitespace + toolbar formatting) operates on corrupted offsets. AyuGram's `getTextWithAppliedMarkdown()` is `const` and builds a fresh `result`, never touching field state — `compose_entities.dart:362-380` ← `AyuGram/Telegram/lib_ui/ui/widgets/fields/input_field.cpp:3775`.
+
+- [ ] [MAJOR] Custom-emoji `alt_text` does not round-trip → re-saving loaded rich content **deletes** the emoji. `toJson` never serializes `altText` (`compose_entities.dart:34-39`), yet `setTextWithEntities` reads `item['alt_text']` (`:533`) — a field the Go `TextEntity` never sends (`go/cores/base.go:256-263`). So a loaded custom-emoji entity has `altText == null`; `getTextWithAppliedMarkdown` then replaces its placeholder char with `altText ?? ''` (`:371`), zeroing the entity length so it is filtered out (`:464`). Editing+saving a contact note containing a custom emoji silently drops it. AyuGram stores the emoji's real text in the field, so extraction preserves it with no separate alt field — `compose_entities.dart:371,533` ← `AyuGram/Telegram/lib_ui/ui/widgets/fields/input_field.cpp:886-894`.
+
+- [ ] [MAJOR] Blockquote is rendered in the compose field as plain text with only `height: 1.4` — no left bar, padding, or quote background (`compose_entities.dart:655-656`). AyuGram renders an in-field blockquote as a styled block (left margin, header, vertical skips, quote background via `QuoteStyle`/`SetBlockMargins`) — `compose_entities.dart:655-656` ← `AyuGram/Telegram/lib_ui/ui/widgets/fields/input_field.cpp:933-959`. The `blockquote` entity is still produced correctly on send; only the in-field preview deviates.
+
+# confirm_box — box infrastructure, delete/leave, moderate, single-choice, auto-delete TTL, screen-share, report flow
+
+Backend wiring is solid: every box reaches the engine (`searchMessagesFromCount`,
+`setHistoryTTL`, `reportMessage`, `reportReaction`, `banMember`,
+`fetchLiveMessages`, `toggleScreenSharing`), every result is consumed by real
+callers, and there are no empty callbacks, TODO stubs, mock data, or "coming
+soon" placeholders. Dimensions match AyuGram (boxWidth 320, boxTitleHeight 48,
+boxMediumSkip 20, boxLittleSkip 10, boxOptionListSkip 20, normalBoxLottieSize
+120, defaultSliderForTTL point/chosen/skip/stroke = 6/12/8/2). All findings below
+are behavioral/content deviations.
+
+- [ ] [MAJOR] Revoke checkbox default is wrong for clearHistory/leaveChat: `_revokeDefault = !appState.deleteOnlyForYouRemembered` is applied to **all** modes, and `deleteOnlyForYouRemembered` defaults to false, so a fresh user clearing/leaving a DM gets "Also delete for {peer}" **checked by default** — a destructive default. AyuGram creates the revoke checkbox with a hardcoded `false` for the full-history-wipe path and reads the remembered setting **only** in the per-message branch. — `confirm_box.dart:597-606` (and 602-603) ← `AyuGram/Telegram/SourceFiles/boxes/delete_messages_box.cpp:168-172` (vs per-message `:247-253`)
+
+- [ ] [MAJOR] "Remember this choice" sub-checkbox is rendered for clearHistory and leaveChat modes (anytime `_revokeLabel != null`), but AyuGram only creates `_revokeRemember` inside the single-/bulk-message `checkFromSinglePeer()` branch — full-history wipes and `DeleteChatBox` never show a remember toggle. — `confirm_box.dart:912-927` ← `AyuGram/Telegram/SourceFiles/boxes/delete_messages_box.cpp:254-267`
+
+- [ ] [MAJOR] Moderate panel renders "Ban User" and "Delete All from {name}" unconditionally whenever `showModeratePanel` is set (no `canBan`/`canDeleteAll` gating), so a Ban/Delete-All control can appear for a sender the user can't action (another admin, or missing the specific right) and the action silently no-ops. AyuGram creates `_banUser` only if `item->suggestBanReport()` and `_deleteAll` only if `item->suggestDeleteAllReport()`; only Report Spam is unconditional. — `confirm_box.dart:892-911` ← `AyuGram/Telegram/SourceFiles/boxes/delete_messages_box.cpp:193-216`
+
+- [ ] [MAJOR] Delete/clear/leave confirmation bodies are reworded and drop AyuGram's destructive-action warning. AyuGram's strings end with "\n\nThis action cannot be undone." for `lng_sure_delete_history` (DM clear/leave), `lng_sure_delete_group_history`, `lng_sure_delete_channel_history` (bold), `lng_sure_delete_and_exit` (group leave), and `lng_sure_delete_saved_messages`; the Dart `_bodyText` omits the warning entirely and uses "delete all message history in" instead of "delete all messages in". — `confirm_box.dart:629-690` (e.g. 653-673) ← `AyuGram/Telegram/Resources/langs/lang.strings:2280-2288` (`delete_messages_box.cpp:126-160`)
+
+- [ ] [MAJOR] SingleChoiceBox omits the "OK" button AyuGram adds (`box->addButton(tr::lng_box_ok(), …)`). The Dart passes `buttons: const []`, so the box has no explicit confirm/dismiss button — the only way out is selecting a row or a barrier tap. — `confirm_box.dart:1097` ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:22`
+
+- [ ] [MAJOR] Screen-share source previews are one-shot static screenshots (`grim`/`import` captured once in `_captureThumb`, and never refreshed; Wayland **window** sources get no image at all — only screens are captured), whereas AyuGram renders a live 1 fps `Webrtc::VideoTrack` preview per source via `Source::setupPreview`. The chooser's core "see what you're sharing" affordance is degraded/stale. — `confirm_box.dart:1968-1993` ← `AyuGram/Telegram/SourceFiles/calls/group/ui/desktop_capture_choose_source.cpp:237-246` (and 133-235)
+
+- [ ] [MAJOR] Report option-picker button set diverges from AyuGram. AyuGram always shows a right-side action — "Report" when a comment field is present, otherwise "Close" — plus a left "Back" button when drilled into a sub-option (`!optionId.isNull()`). The Dart shows only "Back" when drilled in without a comment (no right-side Close), and adds an extra "CANCEL" at a top-level comment screen where AyuGram shows "Report" alone. — `confirm_box.dart:2780-2797` ← `AyuGram/Telegram/SourceFiles/boxes/report_messages_box.cpp:185-195`
+
+# contacts_screen — Contacts box, Edit Contact box, Share Contact box
+
+Audited against AyuGram/Telegram Desktop ground truth: `peer_list_controllers.cpp`
+(ContactsBoxController + PrepareContactsBox), `peers/edit_contact_box.cpp`,
+`share_box.cpp`, `boxes.style`, `data/data_peer_values.cpp`, `lib_ui/ui/colors.palette`.
+
+The file is well-wired overall: every action routes to a real engine call
+(getContacts, resolveUsername, searchGlobalChats, getContactFullInfo, addContact,
+deleteContact, blockUser, suggest/set/clearPersonalContactPhoto, suggestBirthday,
+sendContact, sendMessage, fetchPeerStories). No empty callbacks, no TODO/mock/stub
+data, no "coming soon" placeholders. Cover dims (108px, avatar 72@(19,18),
+name@(109,33), status@(109,57)), settings-row order/conditions, notes max-length 128,
+and the sort-toggle icon mapping all match AyuGram. Findings below are behavioral /
+visual / perf deviations.
+
+## MAJOR
+
+- [ ] [MAJOR] Online status text uses GREEN `#4fae4e`, but AyuGram colors online/active row status with `windowActiveTextFg = #168acd` (blue) via `statusFgActive: contactsStatusFgOnline` — `contacts_screen.dart:916` (`_statusOnlineColor`, used in `_statusColor` `contacts_screen.dart:960`) ← `AyuGramDesktop/Telegram/lib_ui/ui/colors.palette:158` (`contactsStatusFgOnline: windowActiveTextFg`) + `colors.palette:20` (`windowActiveTextFg: #168acd; // online blue`) / `boxes.style:191`.
+
+- [ ] [MAJOR] Draws a green "online" dot overlay on the contact-row avatar. AyuGram's contacts rows draw NO online dot — `ContactsMutualRow` only overrides `rightActionPaint` (right-edge mutual icon) and the base `PeerListRow::paintUserpicOverlay` is empty; online state is conveyed only by the blue status text + Online sort order — `contacts_screen.dart:1156` (the `if (contact.isOnline)` Positioned dot, lines 1156-1172) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/peer_list_controllers.cpp:69` (ContactsMutualRow, no userpic overlay) / `boxes/peer_list_box.h:104` (empty `paintUserpicOverlay`).
+
+- [ ] [MAJOR] Mutual-contact indicator is rendered as an inline `Icons.swap_horiz` badge after the name. AyuGram renders mutual contacts with a dedicated right-edge action icon (`st::ayuContactsMutualIcon`) via `rightActionPaint`, not an inline name badge — `contacts_screen.dart:1200` (`if (contact.isMutualContact)` WidgetSpan, lines 1200-1212) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/peer_list_controllers.cpp:93` (`rightActionPaint` … `st::ayuContactsMutualIcon`, lines 93-106).
+
+- [ ] [MAJOR] "Last seen" for the `exact` kind skips the sub-12h relative buckets. The Dart jumps straight to "today/yesterday at HH:MM"; AyuGram shows "last seen just now" (<1m), "last seen N minutes ago" (<60m), and "last seen N hours ago" (<12h) before falling back to today/yesterday/date — `contacts_screen.dart:933` (`case 'exact'`, lines 933-952) ← `AyuGramDesktop/Telegram/SourceFiles/data/data_peer_values.cpp:460` (`OnlineText` relative buckets, lines 460-467).
+
+- [ ] [MAJOR] Non-story contact rows use base `peerListBoxItem` dimensions (height 56, avatar@(16,7), name@(74,9), status@(74,30)) instead of the `contactsWithStories` style AyuGram applies to EVERY contact row (height 52, photo@(18,5), name@(70,7), status@(70,27)) via `setStyleOverrides(&st::contactsWithStories)`. Since most contacts have no stories, most rows render at the wrong height/offsets — `contacts_screen.dart:893` (`_rowHeight`/`_avatarLeft`/`_nameLeft`/`_nameTop`/`_statusTop` non-story consts, lines 893-905; selected at 1107-1111) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/boxes.style:989` (`contactsWithStories` height 52 / positions, lines 986-1002) + `peer_list_controllers.cpp:157` (applied to all rows).
+
+- [ ] [MAJOR] Share-Contact comment field is a plain `TextField` and is sent as plain text. AyuGram's ShareBox comment is a rich `Ui::InputField` with full markdown formatting, an emoji panel, and custom-emoji suggestions, submitted via `getTextWithAppliedMarkdown()` so entities are preserved (the Notes field in this very file IS rich — inconsistent) — `contacts_screen.dart:2700` (plain comment TextField, lines 2700-2714; sent plain at `sendMessage` line 2566) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/share_box.cpp:260` (`InitMessageFieldHandlers` + emoji suggestions :357-361 + `getTextWithAppliedMarkdown` :686).
+
+- [ ] [MAJOR] Share-grid avatars decode at full resolution: `Image.file` without `cacheWidth`/`cacheHeight` for a ~48–56px circle, in a `GridView` that can hold the entire chat list. AyuGram paints a pre-rendered, display-sized round userpic (`checkbox.paint`). The contact-row and edit-cover images in this same file already pass `cacheWidth`/`cacheHeight`, so this is an oversight — `contacts_screen.dart:2844` (`Image.file` in `_buildAvatar`, lines 2844-2850) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/share_box.cpp:1193` (`chat->checkbox.paint` pre-sized userpic).
+
+# create_giveaway_box — Telegram boost-giveaway creation box (Premium / Stars / Prepaid + Award Specific Users)
+
+Backend wiring verified end-to-end: every engine call (`getGiftCodeOptions`,
+`getStarsGiveawayOptions`, `getGiveawayConfig`, `launchRandomGiveaway`,
+`launchCreditsGiveaway`, `launchPrepaidGiveaway`, `awardPremiumGiveaway`,
+`getChatMembers`) is a real `_callAsync('__engine', …)` bridge call backed by a
+real `tg.Payments*` API in `go/cores/telegram.go`. No empty callbacks, no TODO,
+no mock data, no "coming soon" — the feature is genuinely implemented. The
+findings below are behavioral/data-source deviations from the AyuGram source.
+
+- [ ] [MAJOR] End-date picker is **date-only**, not date+time. AyuGram opens `Ui::ChooseDateTimeBox` so the user sets the exact end **date AND time** (default = ThreeDaysAfterToday rounded to 5 min); the Dart opens `showCalendarBox` (calendar-only) and renders the value as `d/m/y` with no time, so the giveaway end **time** cannot be chosen and is silently lost. Should call `showChooseDateTimeBox` (which exists in the same file). — `create_giveaway_box.dart:1567` & display `create_giveaway_box.dart:1586` ← `info/channel_statistics/boosts/create_giveaway_box.cpp:1272-1289`
+
+- [ ] [MAJOR] End-date **minimum is wrong**. AyuGram sets `.min = QDateTime::currentSecsSinceEpoch` (i.e. *now*); the Dart forces `minDate = DateTime.now().add(Duration(days: 3))`, blocking the user from picking any end date inside the next 3 days that the source permits. — `create_giveaway_box.dart:1565` ← `info/channel_statistics/boosts/create_giveaway_box.cpp:1281`
+
+- [ ] [MAJOR] "Add Channel" picker reads the **local chat cache** instead of the dedicated `stories.getChatsToSend` API. AyuGram's `MyChannelsListController::prepare()` calls `MTPstories_GetChatsToSend()` to fetch only boost-eligible peers (channels the user can include) and accepts **megagroups** (`!peer->isChannel()` is the only skip → both broadcasts and supergroups pass; lang text is "Choose the groups **and** channels"). The Dart filters `chatState.chatsForAccount(...)` by `c.type == ChatType.channel` (broadcast-only), so it (a) lists channels the user merely subscribes to but doesn't administer — which the server will reject at launch — and (b) entirely excludes eligible megagroups. A Dart wrapper for the backend `StoriesGetChatsToSend` (already present at `go/cores/telegram.go:27466`) is never wired up. — `create_giveaway_box.dart:335-340` ← `info/channel_statistics/boosts/giveaway/giveaway_list_controllers.cpp:250-293` & `create_giveaway_box.cpp:919-923`
+
+- [ ] [MAJOR] "Award Specific Users" member picker loads **only the first 200 members** with client-side filtering and **no pagination / no server-side search**. AyuGram's `AwardMembersListController` extends `ParticipantsBoxController`, which paginates the full participant list and supports server search, so all members are reachable. In the Dart, `getChatMembers(..., limit: 200)` is fetched once; in any channel with >200 members the rest are unselectable and unsearchable. — `create_giveaway_box.dart:2028-2039` ← `info/channel_statistics/boosts/giveaway/giveaway_list_controllers.cpp:104-147`
+
+- [ ] [MAJOR] Channel-picker rows drop the **subscriber/member count** status. AyuGram's `MyChannelsListController::createRow` sets a custom status line with the live member count (`lng_chat_status_subscribers` / `lng_chat_status_members`, `channel->membersCount()`). The Dart `_ChannelPickerBox` row shows only an icon + title, discarding the count the source displays to help the user choose. — `create_giveaway_box.dart:1954-1968` ← `info/channel_statistics/boosts/giveaway/giveaway_list_controllers.cpp:299-308`
+
+- [ ] [MAJOR] Section **order/grouping diverges** from the source layout. AyuGram orders the random-giveaway body as: winners-slider → Channels → Users(countries) → **Duration gift-options** → Additional prize → Date → Show winners (the duration list `listOptionsRandom` is added at `create_giveaway_box.cpp:1041`, *after* Channels @862 and Users @942). The Dart renders Duration cards **inside `_buildRandomSection`, immediately after the slider and before Channels/Users**, then collapses Additional-prize + Date + Show-winners into a single "Settings" block in the reversed order (Show winners → Additional prize → Date). The duration step appears before, not after, the channel/eligibility steps. — `create_giveaway_box.dart:644-663` ← `info/channel_statistics/boosts/create_giveaway_box.cpp:1041-1044, 1100-1338`
+
+# ayu_filter — AyuGram regex-filter engine (matching, type resolution, import/export)
 
 Audited `dart/lib/data/ayu_filter.dart` against AyuGram's `ayu/features/filters/`
-(`filters_controller.cpp`, `filters_cache_controller.cpp`, `filters_utils.cpp`) plus
-the context-menu / data-session call sites. The regex compile pipeline, `extractMatchBlob`,
-`typeOfMessage` mapping, cache structure, and the per-message regex/exclusion matching are
-faithful and genuinely wired into rendering (`chat_view.dart:3155`) and notifications
-(`chat_state.dart:2589`). The issues below are unwired engine hooks and one export-format
-break.
+(`filters_controller.cpp`, `filters_cache_controller.cpp`, `filters_utils.cpp`) and
+`ayu/data/entities.h`. The match/block/shared-vs-per-dialog/exclusion engine, the blob
+construction (`extractAllText`), `compileFilterPattern`, `publishFilters`, and the
+peer-resolution wiring (done in `ayu_filters_page.dart`) all faithfully mirror AyuGram.
+No stubs, empty callbacks, TODOs, or mock data. The findings below are message-type
+resolution and import-preview deviations.
 
-Stage-2 verification (verified 2026-06-03, commit eb286b7e): all 4 items (1 CRITICAL + 3 MAJOR) verified FIXED against AyuGram C++ ground truth and closed. Flutter rebuilt clean; the app launched with a real Telegram account (no crashes and no filter-code errors in the log — only environmental auth/`PEER_ID_INVALID`/missing-tray warnings), and the chat-list context menu was driven live and renders correctly at BOTH desktop (1024x768) and mobile (400x720). The three logic fixes were additionally proven by a focused unit test (11 cases, all green; deleted after passing). (1) **Show/Hide filtered messages** — the peer context-menu entry is now wired in `chat_list_panel.dart` (`filteredMessagesShown(chat.chatId)` gates the item; label Hide-when-shown / Show-when-hidden; `visibility_off`/`visibility` icons; `case 'toggle_filtered'` calls `toggleFilteredMessagesShown`), matching `context_menu.cpp:258-271` exactly. The engine methods are unit-proven: `filteredMessagesShown` returns null until a chat has a filtered message, then false→true across a toggle, revealing/hiding the message. The toggle only renders once a chat actually has hidden messages (correct AyuGram behavior); the offline cache had no loadable incoming messages to stage one live, so the entry's presence is established by the passing unit test + exact code match rather than a screenshot. (2) **Edited messages re-filtered** — `_handleMsgEdited` now calls `invalidateMessage(chatId, msgId, groupedId:)` gated on `filtersEnabled` (`chat_state.dart:2810`), matching `data_session.cpp:2750` + `filters_controller.cpp:206` + `filters_cache_controller.cpp:216-225`; the unit test confirms an edit-into-match hides and an edit-out reveals only after invalidation (recompute propagates via `chat_view._filterMessages`). (3) **Shared-filter export** — `RegexFilter.toJson` emits `'dialogId': isShared ? null : dialogId` (`ayu_filter.dart:60`), matching `filters_utils.cpp:475-479`'s explicit-null write; the unit test confirms shared→`"dialogId":null` (key present), per-dialog→its id, and a clean shared round-trip. (4) **`_filterBlocked` gating** — early-returns when `senderId==null || senderId==chatId`, gating BOTH the direct AND the forwarded-original-sender branch behind sender!=peer (`ayu_filter.dart:883`), matching `filters_controller.cpp:30-37`; the unit test confirms DM/channel posts forwarded from a blocked/shadowbanned user stay visible, while group messages (sender!=peer) from a shadowbanned sender are still hidden. (`ayu_filter.dart`, `chat_state.dart`, `chat_list_panel.dart`)
+## Message type resolution (`<type>N</type>` blob tag)
 
-# emoji_data — emoji keyword data + suggestion/completion engine
+- [ ] [MAJOR] Animated/TGS stickers are typed `15` (TYPE_ANIMATED_STICKER), but AyuGram returns `15` **only for dice** and types every sticker as `13` (TYPE_STICKER). In `typeOfMessage` the `if (document->isAnimation()) return 15;` inside the `sticker()` branch is unreachable — the identical `isAnimation()` test six lines above already returned `8` (TYPE_GIF) — so the sole path to `15` is `dynamic_cast<Data::MediaDice*>`. The Dart returns `15` for mime `application/x-tgsticker`, so a filter on `<type>13</type>` misses TGS stickers and `<type>15</type>` wrongly catches them; conversely the Dart never produces `15` for dice (the Go engine doesn't model `MediaDice`). The `video/webm` arm of the same check is also dead — the Go engine rewrites webm-sticker mime to `video/webm+sticker` (telegram.go:11699), so `mediaMimeType == 'video/webm'` is never true. — `ayu_filter.dart:343-348` ← `ayu/features/filters/filters_utils.cpp:550-552,584-592`
 
-Port of AyuGram's emoji keyword system: the legacy built-in `Completer`
-(`lib_ui/emoji_suggestions/emoji_suggestions.cpp`) + server lang-pack
-`EmojiKeywords` (`SourceFiles/chat_helpers/emoji_keywords.cpp`).
+- [ ] [MAJOR] `_mediaTypeNames` keys 13–18 are unreachable, so several message kinds are never typed for filtering. The Go engine's `media_type` enum caps at `12` (`MediaInvoice`, go/engine/db.go:372-384) and has no story/giveaway/paid-media/emoji classification, yet the map assumes engine values 13–19. As a result **emoji-only** messages (map 13→19) fall through to `0` (TYPE_TEXT) instead of `19` (TYPE_EMOJIS) — AyuGram derives this from `item->isOnlyEmojiAndSpaces()` and the Dart has `contentText` available but never checks it; **stories** (14→23), **story-mentions** (15→24), **giveaways** (16→26), and **paid media** (18→29) are likewise never produced. A filter on any of those `<type>` tags silently never matches. (Map keys 17→28 giveaway-results and 19→30 gift-stars survive only because the service-action path also emits them; the five above have no fallback.) — `ayu_filter.dart:333-338` ← `ayu/features/filters/filters_utils.cpp:541-570,599-601`
 
-**Wiring is real and complete — NOT a placeholder.** Server keywords are
-fetched (chat_view.dart `_fetchEmojiKeywordsForLangs` → `getEmojiKeywordsLanguages`
-→ diff/full → `loadServerKeywords`/`loadServerKeywordsDiff`), cache + state are
-persisted (main.dart `init`/`saveCallback`/`loadState`), skin-tone variants are
-wired (emoji_panel.dart `skinToneResolver`), recents via `recordRecent`, and
-`searchEmoji` is consumed by chat_view, input_dialogs, message_bubble,
-my_profile_page. `MustAddPostfix`/`_applyPostfix` (0xFE0F), `SkipExactKeyword`,
-`NormalizeQuery`/`NormalizeKey`, the whole `Completer` matcher, `PrioritizeRecent`
-and `ApplyVariants` all track the C++ faithfully. The findings below are
-behavioral/ordering deviations, not stubs.
+- [ ] [MAJOR] Channel premium gifts are typed `18` (TYPE_GIFT_PREMIUM) instead of `25` (TYPE_GIFT_PREMIUM_CHANNEL). The Dart distinguishes them via `_extractExtra(...)['channel'] == true`, but the Go engine never sets a `channel` flag for `MessageActionGiftCode` (serviceActionTag → `"gift_premium"`, telegram.go:12221-12222, no extra), so the branch always returns `18`. The sibling `case 'gift_premium_channel'` is also dead — the engine never emits that tag. AyuGram returns `25` whenever `gift->type == Premium && gift->channel`. — `ayu_filter.dart:397-401` ← `ayu/features/filters/filters_utils.cpp:618-624`
 
-Stage-2 verification (verified 2026-06-04, commit 5095f337): all 4 MAJOR items verified FIXED against AyuGram C++ ground truth and closed. Flutter rebuilt clean; the app launched and the inline emoji autocomplete was driven live in a real chat compose field at BOTH desktop (1024x768) and mobile (400x720) — `:mail` surfaces 📧 (the `e-mail`→[e,mail] interior word) and `:potable` surfaces both 🚰 and 🚱 (`non-potable_water`→[non,potable,water] interior word); no crashes or emoji errors in the log (only environmental tray/`PEER_ID_INVALID` warnings). The four logic fixes were additionally proven by a focused unit test (10 cases, all green; deleted after passing). (1) **Word-splitting** — `_splitReplacementWords` (`emoji_data.dart:2784`) now splits on every non-letter/number char, keeping `-`/`+` only before a digit, mirroring codegen `ReplacementWords` (`replaces.cpp:40-63`): `blond-haired_man`→[blond,haired,man], `e-mail`→[e,mail], `fleur-de-lis`→[de,fleur,lis], `non-potable_water`→[non,potable,water]; test confirms `:mail`→📧, `:potable`→🚱, `:de`/`:lis`→⚜️, `:haired` non-empty (blond-haired 👱 family). (2) **Recent from all sources** — `recordRecent` is now wired into emoji-panel picks (`emoji_panel.dart` `_onEmojiTap`+`addRecentEmoji`), reactions (`message_bubble.dart` `_onReactionTap`), and sent text via `recordRecentFromText` (`chat_view.dart` `_sendMessage`), all feeding the single list `_prioritizeRecent` reads — matching AyuGram's global `recentEmoji()` (`emoji_keywords.cpp:650-654`); test confirms a recorded recent floats to the front and `recordRecentFromText` extracts emoji from message text. (3) **Source precedence** — `search()` (`emoji_data.dart:3188`) drops the global exact/prefix buckets, appending each lang-pack's result then the legacy fallback STRICTLY AFTER (`query()`+`AppendLegacySuggestions`, `emoji_keywords.cpp:615-641`); test confirms a server-pack PREFIX (`category`→🗂️) precedes a legacy EXACT (`cat`→🐱). (4) **Single-char fast path** — single-char queries force `wordsUsed=1` (`emoji_data.dart:3296`), mirroring `processInitialList` (`emoji_suggestions.cpp:267-276`); test confirms `:a` keeps ⏰ (multi-word, first-word match) ahead of 🍎 (single-word), which would invert without the fix. (`emoji_data.dart`, `chat_view.dart`, `emoji_panel.dart`, `message_bubble.dart`)
+## Import preview (`previewImport` vs `prepareChanges`)
+
+- [ ] [MAJOR] `previewImport` reports every same-id imported filter as an update, even when it is byte-identical to the existing one. AyuGram's `prepareChanges` only pushes to `filtersOverrides` when `existing != regex` (a full-field compare via `RegexFilter::operator==`, entities.h:85-92); an identical filter is a no-op. So re-importing one's own unchanged backup yields HasChanges=false / "no changes" in AyuGram, but in this app `updatedCount > 0`, the confirmation dialog shows "N filters updated", and `applyImport` runs N no-op `updateFilter` calls (each triggering `rebuildCache()` + `notifyListeners()`). The Dart's own `RegexFilter.operator==` only compares `id`, so even an equality guard here would be insufficient — all of text/enabled/reversed/caseInsensitive/dialogId must be compared. — `ayu_filter.dart:600-608` ← `ayu/features/filters/filters_utils.cpp:743-755`
+
+- [ ] [MAJOR] `previewImport` keeps `removeFiltersById` / `removeExclusions` entries that don't exist locally, whereas AyuGram drops them. `prepareChanges` only retains a removal id if `std::ranges::any_of(existingFilters, …)` (and likewise for exclusions), so a removal-backup referencing unknown ids produces HasChanges=false. The Dart maps the arrays verbatim with no existence check, so `filterIdsToRemove`/`exclusionsToRemove` can be non-empty (→ `hasChanges` true, wrong counts in the confirm dialog, no-op deletes applied) for ids the user never had. — `ayu_filter.dart:584-589` ← `ayu/features/filters/filters_utils.cpp:786-830`
+
+# create_group_wizard — Create Group/Channel wizard, SetupChannelBox, EditPeerTypeBox, PublicLinksLimitBox
+
+Audited `dart/lib/ui/create_group_wizard.dart` (3538 lines) against AyuGram's
+`boxes/add_contact_box.cpp` (`GroupInfoBox`, `SetupChannelBox`),
+`boxes/peers/add_participants_box.cpp` (`AddParticipantsBoxController`),
+`boxes/peers/edit_peer_type_box.{h,cpp}` (`EditPeerTypeBox`),
+`boxes/peers/edit_peer_permissions_box.cpp`, `boxes/peers/edit_peer_usernames_list.cpp`,
+`boxes/premium_limits_box.cpp` (`PublicLinksLimitBox`), and `menu/menu_ttl.cpp`.
+
+The file is genuinely well-wired — every visible control calls a real engine method, there
+are no stubs/placeholders/TODOs/"coming soon" snackbars, and many constants match AyuGram
+exactly (see Verified section). The findings below are behavioral deviations, not broken wiring.
+
+- [ ] [MAJOR] Auto-delete (TTL) picker is shown during creation for **megagroup and forum**, but AyuGram only attaches the TTL menu for the legacy `Type::Group`. The Dart gates the title-bar timer button on `widget.type != _WizardType.channel` (group + megagroup + forum), whereas AyuGram builds the TTL top-button strictly inside `if (_type == Type::Group)`. For megagroup/forum there is no creation-time TTL UI in the reference. — `create_group_wizard.dart:1080` ← `AyuGram/boxes/add_contact_box.cpp:628`
+
+- [ ] [MAJOR] Member-picker title shows the count `${_selectedMembers.length} / 200000` for **all** member-picker steps, including the broadcast-channel "Add Subscribers" step. AyuGram's `updateTitle()` sets the additional/count title to an **empty string** for broadcast channels (`_peer->isChannel() && !_peer->isMegagroup()`) and only shows the `%1 / %2` count for groups/megagroups. The Dart also **hardcodes `200000`** instead of using `session().serverConfig().megagroupSizeMax`. — `create_group_wizard.dart:1101-1103` ← `AyuGram/boxes/peers/add_participants_box.cpp:882-889`
+
+- [ ] [MAJOR] `_EditPeerTypeBox` adds a "Create Topics" permission toggle for forums (wired to `setDefaultBannedRights`), but AyuGram's `EditPeerTypeBox` has no such control — `EditPeerTypeData` carries only `privacy`, `username`, `usernamesOrder`, `hasDiscussionLink`, `noForwards`, `joinToWrite`, `requestToJoin`, and the Save callback bundles exactly those. The forum/topics restriction is edited elsewhere (permissions box), not in the type box. — `create_group_wizard.dart:3042-3056` ← `AyuGram/boxes/peers/edit_peer_type_box.h:36-44`
+
+- [ ] [MAJOR] Upload-progress ring on the userpic button is dead/non-functional: `_uploadProgress` is initialized to `-1` and is **never reassigned** anywhere in the file, so the `_ProgressRingPainter` + `_BottomClipper` overlay (which only renders when `uploadProgress >= 0`) can never appear, and the `_progressAnim.repeat()` path is unreachable. The photo upload itself (`editChannelPhoto`) works, but the progress UI that AyuGram's `UserpicButton` (Role::ChoosePhoto) provides is stubbed-out infrastructure. — `create_group_wizard.dart:305` (also `:1140`, `:1980`) ← `AyuGram/boxes/add_contact_box.cpp:563-569`
+
+## Verified correct (no action needed)
+
+- TTL option values (1 day … 1 year) match `menu/menu_ttl.cpp:168-184` exactly — `create_group_wizard.dart:102-120`.
+- Slowmode values `[0,5,10,30,60,300,900,3600]` match `SlowmodeDelayByIndex` — `create_group_wizard.dart:2674` ← `edit_peer_permissions_box.cpp:191-205`.
+- Username min/max length (5/32) and 200 ms debounce match `kMinUsernameLength`/`kMaxUsernameLength`/`kUsernameCheckTimeout` — `create_group_wizard.dart:613,622,646` ← `edit_peer_common.h:15-17`.
+- Title max 128 / description max 255 match `kMaxGroupChannelTitle`/`kMaxChannelDescription`; description hidden for groups matches `if (_type != Type::Group)` — `create_group_wizard.dart:38-39,1187` ← `add_contact_box.cpp:577,587,594`.
+- Creation defaults to **Public** (`SetupChannelBox` `Privacy::Public`); edit defaults to public-if-has-username (`EditPeerTypeBox`) — `create_group_wizard.dart:129,2734` ← `add_contact_box.cpp:978`, `edit_peer_type_box.cpp:356-360`.
+- "Invite via Link" button opens `EditPeerTypeBox` and its label ("Invite via Link") matches `lng_profile_add_via_link` — `create_group_wizard.dart:1445-1453` ← `add_participants_box.cpp:935-937`.
+- `USERS_TOO_FEW` → privacy-settings message matches `lng_cant_invite_privacy` — `create_group_wizard.dart:245-251` ← `add_contact_box.cpp:768-770`.
+- Permission-toggle visibility (joinToWrite gated on public-or-discussion-link, requestToJoin nested under joinToWrite, always-shown noForwards) matches the reference — `create_group_wizard.dart:3003-3041` ← `edit_peer_type_box.cpp:215-299`.
+- Secondary-username reorder (drag handle) + inactive strikethrough, and batch save on "Save", match the reference. Flows (group: info→members→create; channel/megagroup/forum: info→create→setup→members) match.
+
+# custom_emoji_cache — custom-emoji thumb/path/file cache (memory + disk, refcounted, batched engine fetch)
+
+Scope note: this file is the Dart analog of AyuGram's `Data::CustomEmojiManager`
+(`data/stickers/data_custom_emoji.cpp/.h`). Backend wiring is solid — `request`/
+`requestFile` batch into real FFI calls `engine.getCustomEmojiThumbs` /
+`engine.getCustomEmojiFiles` (`custom_emoji_cache.dart:428,473` → `engine_service.dart:1593,1616`
+→ `_callAsync('__engine', 'GetCustomEmojiThumbs'/'GetCustomEmojiFiles')`). Batch cap
+`kMaxPerRequest=100` matches AyuGram `kMaxPerRequest=100`. Refcount-by-(docId,sizeTag),
+disk read/write, isolate base64 decode (`compute`), and listener notification are all
+real (no stubs, no placeholders, no fake data, no empty callbacks). Cached `_thumbs`,
+`_paths`, `_files` are each consumed for rendering (`message_bubble.dart:6265,6640`,
+`chat_view.dart:13073,13137`). One dimensional defect found.
+
+- [ ] [MAJOR] `EmojiSizeConstants.frameSizes` deviates from AyuGram `FrameSizeFromTag` for 3 of 4 tags. AyuGram computes EVERY tag's frame as `AdjustCustomEmojiSize(EmojiSizeFromTag/factor)*factor` = `round(size×1.12)` (uniform ×1.12 for all tags), giving `{normal:20, large:27, isolated:43, setIcon:24}` at DPR=1/Scale=100%. Dart has `{normal:22, large:27, isolated:38, setIcon:21}` — only `large` is correct. `normal` used a wrong base (`round(20×1.12)=22` per its own comment, but the base is `st::emojiSize=18`, so it should be `round(18×1.12)=20`); `isolated` and `setIcon` use the raw un-adjusted `EmojiSizeFromTag` value (38 and 21) and never apply the ×1.12 frame factor (should be 43 and 24). The enum comments at `:35-40` document these wrong values as if they matched AyuGram. The wrong constants are consumed as real image decode dimensions (`cacheWidth`/`cacheHeight`): `normal` at `message_bubble.dart:6388` and `setIcon` at `emoji_status_widget.dart:186`, so inline custom emoji and emoji-status icons decode at the wrong resolution vs AyuGram. — `custom_emoji_cache.dart:43-48` (and enum comments `custom_emoji_cache.dart:35-40`) ← `AyuGramDesktop/Telegram/SourceFiles/data/stickers/data_custom_emoji.cpp:1011-1015` (FrameSizeFromTag) + `data_custom_emoji.cpp:83-95` (EmojiSizeFromTag) + `AyuGramDesktop/Telegram/lib_ui/ui/text/text_custom_emoji.cpp:44-46` (AdjustCustomEmojiSize = round(×1.12)) + `AyuGramDesktop/Telegram/lib_ui/ui/basic.style:57` (emojiSize:18) + `AyuGramDesktop/Telegram/SourceFiles/ui/chat/chat.style:773-774` (largeEmojiSize:36, largeEmojiOutline:1)
+
+# edit_forum_topic_box — Create/Edit forum topic dialog (title + color + topic-icon/custom-emoji selector)
+
+Audited against AyuGram `boxes/peers/edit_forum_topic_box.cpp` + `chat_helpers/emoji_list_widget.cpp` + `dialogs/dialogs.style`.
+
+Verified correct (no findings needed):
+- Box dimensions: `_boxWidth=320` ← `layers.style:117 boxWidth:320px`; `_boxMaxHeight=408` ← `dialogs.style:679 editTopicMaxHeight:408px`; icon `_iconButtonSize=26` ← `dialogs.style:66 largeForumTopicIcon.size:26px`.
+- Title field left inset = 70px (icon at x24 + 8+26+8 pad + 4 gap) ← `dialogs.style:677 editTopicTitleMargin margins(70,2,22,18)` + `:678 editTopicIconPosition point(24,19)`.
+- Search bar padding `fromLTRB(1,10,2,6)` ← `chat_helpers.style:884 reactPanelEmojiPan.searchMargin margins(1,10,2,6)`.
+- Title/buttons/general-topic logic, icon color-cycle on button tap, fly animation, premium gating + premium toast (`ref:'forum_topic_icon'` ← `emoji_list_widget.cpp:2409`), and result wiring to `engine.createForumTopic` (caller `chat_list_panel.dart:5420`) all match.
+
+## Findings
+
+- [ ] [MAJOR] Emoji search matches against the emoji **glyph** substring instead of keywords, so it is non-functional for normal text input. The Dart filters with `icon.emoji.toLowerCase().contains(_searchQuery)` / `s.emoji.toLowerCase().contains(_searchQuery)`, but `emoji` holds the alt-emoji glyph (e.g. "😀"), not a name — so typing "cat"/"smile" always yields "No emoji found". AyuGram's `EmojiListWidget` runs a keyword search via `SearchEmoji(_searchQuery, …)` plus a cloud lookup (`MTPmessages_SearchEmojiStickerSets`) for emoji outside installed sets — neither is done here. A keyword/suggestion engine already exists in this repo (emoji_data) but is unused. — `edit_forum_topic_box.dart:857` (also `:862`, `:986`, `:1024`; query set at `:173`) ← `AyuGram/chat_helpers/emoji_list_widget.cpp:680` (and `:785` `collectPlainSearchResults`, cloud at `:865`)
+
+- [ ] [MAJOR] Topic-icons grid renders 6 extra color-swatch cells that do not exist in AyuGram. The Dart adds `_buildDefaultResetCell` **plus** one `_buildGridCell` per `_topicColorIds` entry (6 colors), each directly setting a color via `_selectColorFromGrid`. AyuGram's TopicIcon recent list is `[kDefaultIconId] + forumIcons().list()` — a single default colored-letter cell followed by the free emoji icons, with **no** color grid; color is changed only by clicking the top icon button (random `ChooseNextColorId`). The 6 swatch cells + direct-pick behavior are an invented addition to the selector layout. — `edit_forum_topic_box.dart:999` (cells built by `_buildGridCell` at `:1184` → `_selectColorFromGrid` at `:267`) ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:285` (`recent` lambda inserts only `kDefaultIconId`, lines 285-289)
+
+# emoji_panel — Tabbed emoji/sticker/GIF selector (AyuGram TabbedSelector + EmojiListWidget + StickersListWidget + GifsListWidget)
+
+Audited `dart/lib/ui/emoji_panel.dart` (4134 lines) against AyuGram Desktop `chat_helpers/` sources. The port is genuinely functional — every button is wired to the engine (no empty `onTap: () {}`, no "coming soon" snackbars, no TODO/FIXME stubs, no mock data). Panel dimensions match the style file exactly (`emojiPanWidth 345`, `emojiPanMinHeight 278`, `emojiPanMaxHeight 640`, `emojiPanRadius 8`, `emojiPanMargins 10`, `emojiColorsPadding 8`, `emojiColorsSep 1`, `stickersEmojiPickerItemSize 30`, `gifsPadding 9/5/3/9`), tab order `[Emoji, Stickers, GIFs]` matches, hide timers `300ms`/`3000ms` match, recent-emoji limit `54` matches. The findings below are real behavioral/data gaps vs AyuGram.
+
+- [ ] [MAJOR] Two emoji cells contain corrupted **U+FFFD replacement characters** instead of real emoji — they render as broken "tofu" glyphs in the grid. Nature row has `'🐡', '���', '🐟'` (the corrupted entry between blowfish and fish should be `🐠` tropical fish); Objects row has `'🩸', '����', '🦠'` (between blood-drop and microbe, should be `🧬` DNA). AyuGram never ships corrupt glyphs — its emoji come from a clean generated database with proper Section assignment. — `emoji_panel.dart:717` and `emoji_panel.dart:801` ← `AyuGram/Telegram/codegen/codegen/emoji/generator.cpp:613` (Section::Nature / Section::Objects clean emoji data)
+
+- [ ] [MAJOR] **Skin-tone picker is double-delayed (~1000 ms) and never opens immediately.** `_EmojiCell` wires the picker to `PlatformGestureDetector.onLongPress`, which already fires only after a 500 ms long-press (`gesture_utils.dart:14`), and `_handleLongPress` then arms *another* 500 ms `_skinToneTimer` before showing the popup — ~1 s total. AyuGram opens the color picker **immediately** on press when the emoji has no previously-chosen variant (`if (!hasChosenEmojiVariant(emoji)) showPicker();`) and arms only a *single* 500 ms `kColorPickerDelay` timer when a variant was already chosen. — `emoji_panel.dart:1547` (and trigger at `emoji_panel.dart:1570`) ← `AyuGram/Telegram/SourceFiles/chat_helpers/emoji_list_widget.cpp:2296`
+
+- [ ] [MAJOR] **"Choose color for all emoji" (apply-to-all skin tone) button is missing.** AyuGram draws a color button on the People/Smileys section header (`hasColorButton`/`colorButtonRect`) that opens the picker in "all" mode with the `lng_emoji_color_all` ("Choose color for all emoji") label and calls `settings.saveAllEmojiVariants(emoji)` to recolor every emoji at once. The Flutter port only supports per-emoji tone selection (`_onSkinToneSelected` writes a single `_skinTonePrefs[key]`) and has no apply-to-all control anywhere — neither the People header nor the category bar exposes one. — `emoji_panel.dart:946` (per-emoji only) / `emoji_panel.dart:2798` (`_EmojiCategoryBar` has no color button) ← `AyuGram/Telegram/SourceFiles/chat_helpers/emoji_list_widget.cpp:2536` (and `:2505`)
+
+- [ ] [MAJOR] **GIF category bar uses a hardcoded 18-emoji list instead of the server-driven `gif_search_emojies`.** `_kGifCategoryEmojis` is a made-up constant list (`😂😍😘❤️🥳😡👍🤔👏🙄😎💃🐶🐱🎮🏆🎄⚽`) rendered as raw text. AyuGram builds the GIF-search category row from the Telegram app-config key `gif_search_emojies` (with a fixed 10-emoji fallback `👍😘😍😡🥳😂😮🙄😎👎`) and renders each as the **animated sticker** mapped via `emojiStickersPack().stickerForEmoji(emoji)`. The config model (`engine_models.dart`) has a `gifSearchUsername` field but no `gif_search_emojies`, so this list can never reflect the server. — `emoji_panel.dart:2875` ← `AyuGram/Telegram/SourceFiles/chat_helpers/stickers_list_footer.cpp:98` (`GifSearchEmojiFallback` + `GifSectionsValue`)
+
+- [ ] [MAJOR] **Sticker footer is missing the settings/manage-sets icon and the Faved (starred) section + icon.** AyuGram's `fillIcons()` emits, left→right: a settings gear (far left, opens the sticker-set management box), a **Faved** set icon (star), a **Recent** icon, then one thumbnail per installed pack — and Faved stickers are their own first grid section. Flutter's `_StickerPackFooter` builds only `[Recent clock] + [pack thumbnails]`, with no settings gear and no Faved icon, and `_loadData()` fetches only installed/recent/featured packs (never faved stickers), so there is no way to view starred stickers as a section. — `emoji_panel.dart:2705` (footer items) / `emoji_panel.dart:1707` (load list omits faved) ← `AyuGram/Telegram/SourceFiles/chat_helpers/stickers_list_widget.cpp:2927` (`fillIcons`) + `AyuGram/Telegram/SourceFiles/chat_helpers/stickers_list_footer.cpp:301` (settings icon)
+
+- [ ] [MAJOR] **GIF context menu is missing "Send GIF with caption".** AyuGram's saved-GIF menu (`fillContextMenu` → `AddGifAction`) includes `lng_send_gif_with_caption` ("Send GIF with caption") alongside send-without-sound / schedule / add-or-delete. Flutter's `_onSavedGifContextMenu` only offers Send Without Sound, Schedule, and Delete GIF. — `emoji_panel.dart:3074` ← `AyuGram/Telegram/SourceFiles/chat_helpers/gifs_list_widget.cpp:422`
+
+# emoji_status_widget — custom emoji status icon shown next to names (regular + collectible)
+
+Renders a peer's emoji status (custom emoji) next to their name in profile, chat
+view, chat list, and web-app panel. Handles regular statuses and "collectible"
+(unique-gift) statuses. Compared against AyuGram's emoji-status rendering path:
+`Info::Profile::Badge` (info_profile_badge.cpp), the collectible custom-emoji
+wrapper (`Ui::Premium::CollectibleEmoji` in premium_stars_colored.cpp), and the
+custom-emoji manager (data_custom_emoji.cpp).
+
+## Collectible status rendering (centerColor / edgeColor)
+
+- [ ] [CRITICAL] Collectible status recolors the **emoji glyph itself** with a `RadialGradient` via `ShaderMask` + `BlendMode.srcATop`, flattening the multicolor emoji into a solid gradient blob. AyuGram paints the emoji **unmodified** in its original colors (`_inner->paint(p, context)`) — the centerColor/edgeColor never touch the glyph. — `emoji_status_widget.dart:216-224` ← `ui/effects/premium_stars_colored.cpp:209-218`
+- [ ] [CRITICAL] The animated **colored mini-stars sparkle field** — the actual purpose of centerColor/edgeColor on a collectible status — is entirely missing. AyuGram renders 16 animated stars (`:/gui/icons/settings/starmini.svg`) that travel/fade, masks them with a radial gradient (centerColor→edgeColor) using `CompositionMode_SourceIn`, and draws that sparkle frame behind the emoji. The Dart has no star field and no animation for collectibles. — `emoji_status_widget.dart:216-224` ← `ui/effects/premium_stars_colored.cpp:100-207`
+
+## Emoji format support
+
+- [ ] [CRITICAL] WEBM (`video/webm`) animated emoji statuses are never rendered. `build()` only handles `file.isTgs` (Lottie) and `file.isWebp`; a webm status falls through to `_buildThumbOrFallback`, showing a frozen low-res thumbnail instead of the animated emoji. The model exposes `isWebm` and the sibling widget `forum_topic_icon.dart` already plays webm via a `_webmPlayer`, so this is a missing-format gap, not a backend limitation. — `emoji_status_widget.dart:187-214` ← `dart/lib/ui/forum_topic_icon.dart:556` (in-repo webm reference) / `data/stickers/data_custom_emoji.cpp:572-585` (AyuGram handles all formats uniformly)
+
+## Animation loop limit
+
+- [ ] [MAJOR] The Lottie animation loops **forever** (`status == completed → forward(from: 0)`), with no loop cap and no per-context control. AyuGram caps emoji-status animation at `kPlayStatusLimit = 12` loops via `Ui::Text::LimitedLoopsEmoji` in dialog-list, message, and menu contexts (where this widget is used — chat_list_row, chat_view), then freezes. Infinite looping is both a behavioral deviation and a continuous-repaint performance cost in lists. — `emoji_status_widget.dart:161-166` ← `history/view/history_view_message.cpp:1918-1922` (+ `kPlayStatusLimit` at `history_view_message.cpp:73`)
+
+## Power-saving behavior
+
+- [ ] [MAJOR] Power-saving (`kPowerSavingEmojiStatus`) drops to `_buildThumbOrFallback` for **every** format, replacing the real emoji with a low-res thumbnail (or even the premium-star fallback if no thumb), including for **static** WebP statuses that have nothing to animate. AyuGram's `kEmojiStatus` power-saving only sets `paused` — it still paints the actual emoji frame, just frozen. The Dart over-applies power-saving and degrades visible quality. — `emoji_status_widget.dart:187,212-214` ← `info/profile/info_profile_badge.cpp:154-162`
+
+## Fallback color
+
+- [ ] [MAJOR] Premium fallback icon color is hardcoded to `const Color(0xFF6C3BEB)` (a fixed purple) and uses the Material `Icons.workspace_premium`. AyuGram's premium/status star uses `premiumFg: profileVerifiedCheckBg`, which resolves to `windowBgActive` (the theme accent) — a theme-derived, blue-by-default color. The hardcoded purple is the wrong hue and ignores theming/light-dark. — `emoji_status_widget.dart:248-252` ← `info/info.style:608,614` / `lib_ui/ui/colors.palette:483`
+
+## Performance
+
+- [ ] [MAJOR] No `RepaintBoundary` around the perpetually-animating Lottie content; the widget returns a bare `SizedBox(child: content)`. Every animation frame can dirty the ancestor (each chat-list row / message header containing a status), causing wasteful repaints across the list. AyuGram isolates each badge in its own `RpWidget` (`_view`) that repaints independently of the surrounding name/row. — `emoji_status_widget.dart:226` ← `info/profile/info_profile_badge.cpp:90,148-149`
+
+# filter_column — vertical folder sidebar (FiltersMenu / SideBarButton)
+
+Implements Telegram Desktop's `Window::FiltersMenu` (72px vertical folder rail) plus the
+`Ui::SideBarButton` widget, lock icon and filter-icon computation. Backend wiring is solid:
+reorder → `reorderDialogFilters`, delete → `deleteFolder`, leave-chatlist →
+`GetLeaveChatlistSuggestions`/`LeaveChatlistFolder`, settings → `getSuggestedFolders` are all
+real bridge calls (no stubs). The emoji→icon map (`_emojiToIcon`) faithfully reproduces all 30
+active entries of AyuGram's `kIcons`, and the lock-icon geometry / button style constants
+(72px width, 62/54px heights, textTop 40, badge 17px @ (3,7), etc.) match `window.style` and
+`widgets.style`. The deviations below are behavioral/data, not placeholders.
+
+- [ ] [MAJOR] Folder & "All Chats" unread badge shows the SUM of unread **messages**
+  (`chatsForFolder(...).fold(sum + c.unreadCount)`, where `unreadCount` = per-chat message
+  count from `unread_count`), but AyuGram's badge shows the number of unread **chats**:
+  `count = (state.chats + state.marks) - (includeMuted ? 0 : chatsMuted + marksMuted)`. A folder
+  with 3 chats × 10 unread renders "30" instead of "3", and manually marked-unread chats
+  (`state.marks`) are never counted. — `filter_column.dart:770` (and `:749`, via
+  `chat_state.dart:805`/`:763`) ← `AyuGram/window/window_filters_menu.cpp:343`
+
+- [ ] [MAJOR] Button height is hard-fixed at `minHeight` (62px): `_SideBarButtonLayout.getSize`
+  returns `Size(maxWidth, minHeight)` regardless of label height, while the label is allowed up
+  to 3 lines (`maxLines: 3` at `:1054`/`:1065`, positioned at `textTop=40`). 2–3 line folder
+  names therefore paint past the 62px box (overflow/clip into the next tab). AyuGram's
+  `resizeGetHeight` grows the button: `minHeight + max(0, min(text.countHeight, font.height*3) -
+  font.height)`. — `filter_column.dart:1177` ← `AyuGram/lib_ui/ui/widgets/side_bar_button.cpp:109`
+
+- [ ] [MAJOR] Layout structure: "All Chats" (`:741`) and the bottom "Edit/Setup" button
+  (`:833`) are placed OUTSIDE the scrollable `Expanded`/`SingleChildScrollView` (`:755`), pinned
+  above and below the folder list. In AyuGram both the folder `_list` and the `_setup` button are
+  added to `_container`, which is the owned widget of `_scroll`, so "All", the folders, and "Edit"
+  all scroll together as one column (only the hamburger `_menu` is fixed). "All" is also part of
+  the reorderable `_list` (draggable for premium users); here it can never scroll or reorder. —
+  `filter_column.dart:833` ← `AyuGram/window/window_filters_menu.cpp:267`
+
+- [ ] [MAJOR] Drag-reorder has no premium-lock guard: `_onPointerDown`/`_computeDropIndex` pick up
+  any tab via raw hit-test and `_onPointerUp` persists the result through
+  `reorderFolders → reorderDialogFilters`, so a non-premium user with more folders than the limit
+  can drag locked folders (index ≥ `premiumFrom`, rendered at 0.6 opacity, `:775`/`:816`) and
+  reorder across the locked boundary. AyuGram pins that region via
+  `_reorder->addPinnedInterval(premiumFrom, max(1, list.size() - maxLimit))` so locked folders
+  cannot be moved. — `filter_column.dart:208` ← `AyuGram/window/window_filters_menu.cpp:228`
+
+# folders_settings_screen — Telegram Folders settings + Edit-Filter box
+
+Dart file implements the Folders settings section (AyuGram `settings/sections/settings_folders.cpp`) plus the Edit/Create folder box, include/exclude chat pickers, tag colors and shareable invite links (`boxes/filters/edit_filter_box.cpp`, `edit_filter_chats_list.cpp`, `edit_filter_chats_preview.cpp`, `edit_filter_links.cpp`). All engine methods exist; the issues below are wiring/data-loss, missing features and label/behavioral deviations.
+
+## Critical
+
+- [ ] [CRITICAL] Creating a new folder silently drops ALL exclusion rules. The create branch passes no `excludeMuted/excludeRead/excludeArchived/excludeChatIds`, and `createFolder` (chat_state + engine) has no such params — so excluded chats and "Muted/Read/Archived" exclude-types chosen in the dialog are lost on creation (only re-saving via edit persists them). AyuGram's `collect()` returns the full filter incl. `never()`/exclude flags and saves it verbatim. — `folders_settings_screen.dart:313` (+ `bridge/engine_service.dart:891-900`) ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:821-847`
+
+- [ ] [CRITICAL] "New Chats"/"Existing Chats" include toggles are a misplaced + non-wired feature. These are Telegram **Business exceptions** (`NewChats`/`ExistingChats` flags), not folder include-types — AyuGram's folder editor only offers `kTypes = Contacts|NonContacts|Groups|Channels|Bots`. The Dart shows them in the include picker for chatlist folders and stores them in `FolderInfo` (`:1745-1746`), but `createFolder`/`editFolder` never pass `newChats`/`existingChats`, so the toggles do nothing end-to-end. — `folders_settings_screen.dart:3852-3854` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:573-577` (and `data/data_chat_filters.h:56-57`)
+
+## Major
+
+- [ ] [MAJOR] Public helper `showEditFolderBox` drops tag color and folder icon on save: its `editFolder` call omits `colorIndex` and `emoticon` (unlike the in-screen `_showEditFilterBox` at `:303-304`), so edits made through this entry point lose the chosen color/icon. — `folders_settings_screen.dart:80-92` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:840-846`
+
+- [ ] [MAJOR] "Show Folder Tags" toggle + its about text are hidden for non-premium Telegram users (gated on `effectivePremium`). AyuGram builds this button for every `premiumPossible()` session, showing it **locked** with the premium upsell on tap; the `_TagsToggle` lock branch is dead code (always called `isPremium: true`). — `folders_settings_screen.dart:460-461` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_folders.cpp:1016-1051`
+
+- [ ] [MAJOR] Shareable-links section is hidden unless editing (`if (widget.isEditMode)`). AyuGram adds the "Share Folder" subtitle + "Create Link" button unconditionally, supporting link creation during new-folder creation (it saves-then-exports). — `folders_settings_screen.dart:2023` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:849-876`
+
+- [ ] [MAJOR] Invite-link context menu is missing Share, "Get QR Code" and "Name Link" actions — only Copy/Delete exist. AyuGram's link row menu has Copy, Share, Get QR Code, Name Link (rename), Delete. — `folders_settings_screen.dart:1571-1574` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_links.cpp:611-630`
+
+- [ ] [MAJOR] Renaming an invite link ("Name Link") is entirely absent: `editFolderInviteLink` only sends `peerIds` (no title), and no rename UI exists. AyuGram offers `lng_filters_link_name_it` to set a custom link title. — `folders_settings_screen.dart:2659-2661` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_links.cpp:623-626`
+
+- [ ] [MAJOR] Link-eligibility check is wrong/incomplete: `_hasExclusions` only inspects exclude flags + `existingFolder.excludeChatIds` (stale — not the live `_excludedChatIds`), missing include-type flags entirely. AyuGram's `GoodForExportFilterLink` blocks sharing when `never()` is non-empty OR ANY `RulesMask` type flag (incl. Contacts/Groups/etc.) is set, with toast `lng_filters_link_cant`. A folder including "Groups" can wrongly create a link here. — `folders_settings_screen.dart:1473-1481` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_links.cpp:997-1006`
+
+- [ ] [MAJOR] Folder-row status text is wrong: hardcoded `"$count chats"` + `" · shareable"`. AyuGram uses `lng_filters_no_chats` ("No chats") for 0, pluralized `lng_filters_chats_count` ("1 chat"/"N chats"), and appends `" · shareable folder"` — so 0→"0 chats" and 1→"1 chats" and the suffix omits "folder". — `folders_settings_screen.dart:695-697` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_folders.cpp:160-173`
+
+- [ ] [MAJOR] Chatlist-folder removal issues a redundant double server request: `_ChatlistFolderRemovalDialog._onLeave` calls `leaveChatlistFolder` (→ `chatlists.leaveChatlist`, which removes the folder + leaves peers) and then adds the folder to `_pendingRemovals`, so dispose's `_saveChanges` also calls `deleteFolder` (→ `messages.updateDialogFilter` empty) on the already-removed id. AyuGram sends only the LeaveChatlist request. — `folders_settings_screen.dart:4496-4504` (+ `:160-166`) ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_folders.cpp:663-689`
+
+- [ ] [MAJOR] "Disable Animations" link-button visibility is wrong: shown whenever the name is non-empty. AyuGram shows it only when the title contains custom-emoji entities (`setVisible(!value.entities.isEmpty())`) — for plain text there is nothing to animate. — `folders_settings_screen.dart:1900-1906` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:560-563`
+
+- [ ] [MAJOR] View-section labels are wrong: subtitle "View" and radios "Side panel"/"Top bar". AyuGram: `lng_filters_view_subtitle` = "Tabs view", `lng_filters_vertical` = "Tabs on the left", `lng_filters_horizontal` = "Tabs at the top". — `folders_settings_screen.dart:1129,1138,1146` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_folders.cpp:1123-1146`
+
+- [ ] [MAJOR] Folder icons are rendered as color emoji in the icon picker (`_IconCell`) and the in-field toggle (`_FilterIconToggle`), whereas AyuGram paints monochrome filter **vector icons** (`icons.normal->paintInCenter`); this also disagrees with the Material vector icons shown in the folder rows (`folderIconForInfo`), so the picked glyph ≠ the displayed glyph. — `folders_settings_screen.dart:3111,3126,3429,3449` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:240-244`
+
+- [ ] [MAJOR] Name-field emoji button is a hardcoded 30-emoji grid (`_commonEmoji`) inserting only plain unicode. AyuGram attaches a full `TabbedPanel` emoji selector (all emoji + animated custom-emoji, premium-gated). — `folders_settings_screen.dart:3151-3158` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:495-534`
+
+- [ ] [MAJOR] Several section/button labels deviate from source strings: section title "Folders" vs `lng_filters_subtitle` "My folders"; exclude button "Remove Chats" vs `lng_filters_remove_chats` "Add Chats to Exclude"; "Tag Color" vs `lng_filters_tag_color_subtitle` "Folder color in chat list"; link buttons "Create Link"/"Add Link" vs "Create an Invite Link"/`lng_group_invite_add` "Create a New Link". — `folders_settings_screen.dart:389,3611,2129,2476` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_folders.cpp:977` / `boxes/filters/edit_filter_box.cpp:620,662,868,874`
+
+# forum_topic_icon — forum topic icons (gradient bubble + letter, General "#" icon, custom-emoji icon)
+
+Compared against AyuGram's `data/data_forum_topic.cpp`, the topic-icon SVGs in
+`Resources/art/topic_icons/`, `info/profile/info_profile_cover.cpp`, and
+`boxes/peers/edit_forum_topic_box.cpp`.
+
+The file is genuinely wired — real engine calls (`getCustomEmojiFiles` /
+`getCustomEmojiThumbs` are real protobuf bridge calls), real TGS/webm/webp
+decode+playback, correct gradient colors (all 6 palettes + gray verified 1:1
+against the SVGs), correct size/font/textTop table (matches `dialogs.style:55-74`
+exactly), and the General-icon fill-rule is correct (subpath windings are
+opposite, so Dart's default `nonZero` cuts the hole like AyuGram's `evenodd`).
+No stubs, placeholders, mock data, or dead callbacks — hence no CRITICAL items.
+The findings below are behavioral/visual deviations.
+
+- [ ] [MAJOR] Animated custom-emoji topic icon loops **forever**; AyuGram plays it a limited number of loops (`kUserpicLoopsCount = 1`) via `Ui::Text::LimitedLoopsEmoji`, then freezes on the first frame. Lottie uses `_lottieController!.repeat()` and webm uses `setPlaylistMode(PlaylistMode.loop)`, so every topic row in the chat list with an animated custom icon animates continuously (wasted CPU + wrong UX). — `forum_topic_icon.dart:606` & `forum_topic_icon.dart:587` ← `AyuGram/data/data_forum_topic.cpp:46` (`kUserpicLoopsCount = 1`) + `AyuGram/data/data_forum_topic.cpp:809` (`std::make_unique<Ui::Text::LimitedLoopsEmoji>(...)`) + `AyuGram/lib_ui/ui/text/text_custom_emoji.cpp:129` (freeze after `_played == _limit`)
+
+- [ ] [MAJOR] `GeneralIconContext.profile` uses the wrong dark-theme color. Dart returns `0xFF7F91A4` (that is `dialogsTextFg` dark), but both consumers of this context — the profile cover (`info_panel.dart`) and the edit-topic icon preview (`edit_forum_topic_box.dart`) — correspond to AyuGram code that colorizes the general icon with `st::windowSubTextFg`, which is `#708499` in the dark palette (light `#999999` matches). So the General "#" icon renders ~12%-per-channel too light/blue in dark mode on the profile header and topic-edit screen. — `forum_topic_icon.dart:386` ← `AyuGram/info/profile/info_profile_cover.cpp:51` (`TopicIconView` default ctor → `st::windowSubTextFg`) + `AyuGram/boxes/peers/edit_forum_topic_box.cpp:228` (`GeneralIconPreview` → `st::windowSubTextFg->c`); dark `windowSubTextFg = #708499`
+
+- [ ] [MAJOR] Monochrome ("text-color") custom-emoji topic icons are never tinted. AyuGram passes a `textColor` to the icon's `paint()` and, when the emoji `emojiUsesTextColor()`, recolors every frame to the row/name color (`dialogsNameFg*` in the list, `windowFg`/textColor in the cover). The Dart widget renders the raw Lottie/webm/webp bytes with no color, and the engine model `CustomEmojiFileData` carries no `usesTextColor`/monochrome flag, so tinting is impossible — monochrome topic icons appear in their raw (usually black) form instead of the themed color. — `forum_topic_icon.dart:611-666` (build renders raw, no color) + `engine_models.dart:3204` (model has only `mimeType`+`fileData`) ← `AyuGram/info/profile/info_profile_cover.cpp:79` (`_playerUsesTextColor ? textColor : transparent`) + `AyuGram/data/data_forum_topic.cpp:652` (`_icon->paint({.textColor = ...})`)
+
+- [ ] [MAJOR] `extractTopicLetter` does not skip emoji before picking the letter, unlike AyuGram which calls `Ui::Emoji::Find` first and only then tests `isLetterOrNumber`. The Dart regex `[\p{L}\p{N}]` matches the digit inside keycap emoji (0️⃣–9️⃣), so a topic titled e.g. "1️⃣ Daily" renders the keycap emoji as the bubble "letter" instead of skipping it and using `D`. Edge-case but a genuine behavioral divergence from the source. — `forum_topic_icon.dart:145` ← `AyuGram/data/data_forum_topic.cpp:106` (`if (Ui::Emoji::Find(ch, end, &length)) { ch += length; continue; }` before the letter/number test)
+
+- [ ] [MAJOR] Single bubble geometry + stroke width hardcoded for all 7 palettes. Dart uses one `_bubblePathD` (blue/gray geometry, starts `M42,4.47368421`) and `strokeWidth = 2.94736842 * s` for every color, but in AyuGram only `blue.svg`/`gray.svg` use that path + `2.94736842`; `yellow`/`violet`/`green`/`rose`/`red` use a different bubble path (starts `M42,4.42105263`) with `stroke-width="2.84210526"`. Result: those 5 palettes get a ~3.7% thicker stroke on the wrong base path (net on-screen deviation is small, but it is wrong vs source for the majority of palettes). — `forum_topic_icon.dart:154` (`_bubblePathD`) & `forum_topic_icon.dart:311` (`strokeWidth = 2.94736842 * s`) ← `AyuGram/Telegram/Resources/art/topic_icons/yellow.svg:15` (`stroke-width="2.84210526"`, path `M42,4.42105263…`) vs `AyuGram/Telegram/Resources/art/topic_icons/blue.svg:15` (`stroke-width="2.94736842"`)
+
+# gesture_utils — platform-aware long-press duration + tap/long-press/right-click gesture wrapper
+
+This is a small, genuinely functional gesture utility (no placeholders, no stubs, no
+empty callbacks — all callbacks are passed through from the parent). It needs no backend
+wiring (pure gesture layer). The **desktop** long-press value (500ms) matches AyuGram's
+`QApplication::startDragTime()` (Qt default, never overridden in the AyuGram source) exactly,
+and `onSecondaryTapUp` → context-menu mapping is consistent with AyuGram triggering context
+menus on right-click (`contextMenuEvent`) and on touch long-press
+(`mouseActionFinish(_touchPos, Qt::RightButton)` → `showContextMenu`).
+
+Only one citable deviation against the AyuGram reference:
+
+- [ ] [MAJOR] Mobile long-press duration is hardcoded to 300ms, ~40% shorter than the only touch long-press/select value AyuGram uses. AyuGram uses `QApplication::startDragTime()` (Qt default = 500ms, never overridden anywhere in the source) uniformly for every touch-select / long-press / preview timer; there is no 300ms value in the reference. A 300ms hold is short enough to fire accidental long-press selection during a scroll/drag on touch devices. Desktop branch (500ms) is correct; only the mobile branch deviates. — `gesture_utils.dart:10` ← `AyuGram/Telegram/SourceFiles/history/history_inner_widget.cpp:1822` (`_touchSelectTimer.callOnce(QApplication::startDragTime())`; same pattern at `history/view/history_view_list_widget.cpp:3295`, `dialogs/dialogs_inner_widget.cpp:3576`, `media/view/media_view_overlay_widget.cpp:7742`)
+
+# ghost_settings_page — AyuGram Ghost/Spy/Other settings (§51) collapsible-toggle fidelity
+
+Backend wiring is faithful: the derived `ghostModeActive` formula (`ghost_settings_page`
+reads `GhostModeAccountSettings.ghostModeActive`, `app_state.dart:75-80` ← `ayu_settings.cpp:62-66`),
+the master-toggle flip (`app_state.dart:919-937` ← `ayu_settings.cpp:137-152`), the lock-all
+denial (`app_state.dart:962-971` ← `settings_ayu_utils.cpp:386-396`), the markRead/schedule
+mutual exclusion (`ghost_settings_page.dart:198-217` ← `settings_ayu.cpp:458-499`), the global-vs-
+per-account scope migration (`ghost_settings_page.dart:25-36` ← `settings_ayu.cpp:312-338`), the
+per-account engine push (`app_state.dart:1873-1914`), and every default value all match. The
+issues below are the collapsible "Ghost Mode" disclosure, which uses a different interaction model.
+
+- [ ] [MAJOR] "Ghost Mode" sub-toggle group visibility is gated on the **derived** `ghostModeActive` (`AnimatedSize` → `gs.ghostModeActive ? Column(...) : SizedBox.shrink()`), but AyuGram puts the 5 checkboxes in a `SlideWrap` whose expand/collapse is an **independent disclosure** toggled by tapping the header body (`raw->hide(...)` then `button->clicks → wrap->toggle()`), separate from the master switch (`toggleButton->clicks → flip all`). Consequence: in the Dart, unchecking any single sub-toggle makes the derived state `false`, which collapses the whole group and flips the master off, so a partial ghost config (e.g. ghost everything *except* online) can never be viewed or edited — turning the master back on resets all unlocked toggles. — `ghost_settings_page.dart:124-194` ← `settings_ayu_utils.cpp:302-320` / `settings_ayu_utils.cpp:453-464`
+- [ ] [MAJOR] The "Ghost Mode" header row is missing the expand/collapse **rotating arrow** affordance and the bold **"X/5" checked-count badge** that AyuGram renders beside the title in the collapsible header. The Dart row is a plain `_ToggleRow` with only a label + switch, so there is no count indicator and no expand affordance (the only way to reveal the sub-toggles is to turn the master fully on). — `ghost_settings_page.dart:104-119` ← `settings_ayu_utils.cpp:228-243` (bold "  X/Y" count label) / `settings_ayu_utils.cpp:245-299` (rotating `permissionsExpandIcon` arrow)
+- [ ] [MAJOR] The shift/long-press lock hint divider is rendered as an always-visible top-level row **before** the checkboxes, but AyuGram adds this description **inside** the collapsible `SlideWrap`, **after** the checkboxes (so it only shows while the section is expanded). In the Dart, when Ghost Mode is off the hint "Shift-click or long-press a toggle to lock it per-account." is shown even though no lockable toggles are visible. — `ghost_settings_page.dart:120-123` ← `settings_ayu_utils.cpp:438-441`
+
+# emoji_data — Telegram emoji keyword/suggestion engine port (emoji_keywords.cpp + emoji_suggestions.cpp)
+
+Scope: `dart/lib/data/emoji_data.dart` ports `Ui::Emoji::Completer`
+(`emoji_suggestions.cpp`) + `ChatHelpers::EmojiKeywords`
+(`emoji_keywords.cpp`). This is a **faithful, complete port** — no stubs, no
+placeholders, no fake data, no empty callbacks. Backend wiring is real and
+verified end-to-end:
+
+- Server lang packs fetched via the Go bridge (`GetEmojiKeywords` /
+  `GetEmojiKeywordsDifference` / `GetEmojiKeywordsLanguages`,
+  `engine_service.dart:1444-1494`) and fed in through `chat_view.dart:3935-3987`
+  → `loadServerKeywords`/`loadServerKeywordsDiff`.
+- Recents/variants persisted via `init(saveCallback)` + `saveState`/`loadState`
+  (`main.dart:329-347`); recents recorded on send (`chat_view.dart:4366`) and on
+  suggestion accept; skin-tone resolver wired from the emoji panel
+  (`emoji_panel.dart:59`).
+- Algorithm parity verified for `NormalizeQuery`, `ReplacementWords`,
+  `matchQueryTailStartingFrom`, `findEqualCharsCount`, `LangPack::query`
+  (lower_bound + take_while), `SkipExactKeyword`, `MustAddPostfix`,
+  `PrioritizeRecent` (leapfrog), `ApplyVariants`, diff add/delete, and the
+  `maxQueryLength = max(legacyLimit, modernLimit)` cutoff
+  (`emoji_suggestions_widget.cpp:959`). All match.
+
+Two behavioral deviations from the C++ authority remain (both make the Dart
+*stricter to intent* than the shipped C++, so they read as improvements — but
+they are reproducible divergences in suggestion output, flagged per the
+"C++ is the only authority" rule):
+
+- [ ] [MAJOR] Exact-match suggestions are floated to the top, but the C++ authority's exact-match boost is dead code and never reorders — so legacy/built-in suggestion ORDER diverges. Dart computes `isExact = (rawKw == q)` and `_legacyRankKey` makes `exact` the most-dominant bucket (`exact << 3`), pushing an exact built-in keyword (e.g. `:key:` → 🔑) ahead of equal-rank prefix matches (e.g. `keyboard` → ⌨️). In C++, `Completer::prepareResult`'s 4th `stable_partition` calls `isExactMatch(replacement)`, which is size-gated: it requires `replacement.size() == _initialQuery.size() + 1`, comparing the colon-wrapped baked replacement (`":key:"`, the `^:[\+\-a-z0-9_]+:$` codegen form) against the colon-stripped query (`"key"`, stripped at `emoji_suggestions_widget.cpp:326`). `keyword_len+2 == keyword_len+1` is never true, so the exact partition is a no-op and C++ keeps declaration order for same-rank results. — `emoji_data.dart:3307` (`rawKw == q`) + `emoji_data.dart:2894`/`2898` (`exact` bucket) ← `AyuGram/lib_ui/emoji_suggestions/emoji_suggestions.cpp:322` (`isExactMatch` size gate) + `:391-393` (the no-op partition)
+
+- [ ] [MAJOR] Uppercase shortcodes (e.g. `:TM`) return built-in suggestions in Dart but NOTHING from the legacy path in C++ — different result set. Dart lowercases the query first (`q = query.toLowerCase()`) and the legacy search runs on that lowercased `q`, so `:TM` → `q="tm"` → 🅣🅜 ™️ is suggested. C++ passes the RAW (un-lowercased) query to the legacy completer (`AppendLegacySuggestions(result, query)` uses the original arg, not `normalized`), and `Completer::NormalizeQuery` keeps only chars where `IsLetterOrNumber` is true — and `IsLetterOrNumber` accepts only lowercase `'a'..'z'`. An all-uppercase query therefore normalizes to empty and `resolve()` returns `{}` (server packs key on `tm` shortcodes, not on the built-in `tm`→™️ entry, so the user sees an empty box). — `emoji_data.dart:3195` (`toLowerCase`) + `emoji_data.dart:2760` (lowercase-only `isLetter`, fed already-lowercased `q`) ← `AyuGram/SourceFiles/chat_helpers/emoji_keywords.cpp:639` (raw query to legacy) + `AyuGram/lib_ui/emoji_suggestions/emoji_suggestions.cpp:101-103` (`IsLetterOrNumber` is lowercase-only) + `:225-227` (empty normalized query → no results)
+
+Non-blocking (not flagged): the legacy search iterates every entry in
+`_legacyCandidates` per keystroke (`emoji_data.dart:3285`) instead of using a
+first-char index like C++ `GetReplacements(first)`
+(`generator.cpp:1129`); work is bounded (~1.5k short entries, candidates
+pre-built once via `late final`) so impact is negligible. The cache-load
+(`init`) and server-fetch (chat open) ordering isn't enforced as C++ enforces
+it (constructor `readLocalCache` → `refresh`, `emoji_keywords.cpp:369-371`), but
+in practice startup cache I/O always completes before the post-auth chat-open
+fetch, so a stale-overwrite race is not reachable.
+
+# hamburger_drawer — MainMenu drawer (cover, account switcher, menu items, footer)
+
+Audited against AyuGram `window/window_main_menu.cpp`, `window/window_main_menu_helpers.cpp`,
+`settings/sections/settings_information.cpp` and `window/window.style`.
+The file is well-wired overall — no empty callbacks, no "coming soon" stubs, no mock data;
+account/chat data flows from real state. Findings below are deviations from the AyuGram source.
+
+- [ ] [MAJOR] Menu item ORDER for LRead/SRead is wrong: AyuGram adds "Mark All Read (Silent)" (LRead) and "Mark Stories as Viewed" (SRead) immediately AFTER Saved Messages and BEFORE Settings/Night Mode/Ghost. The Dart places them AFTER Settings → Night Mode → Ghost Mode, near the bottom of the list. — `hamburger_drawer.dart:410-459` ← `AyuGram/SourceFiles/window/window_main_menu.cpp:767-843`
+
+- [ ] [MAJOR] Archive row is placed at the WRONG position. AyuGram calls `setupArchive()` BEFORE `setupMenu()` and both append to the same `_menu` VerticalLayout, so the Archive button (with a PlainShadow divider directly below it) renders at the TOP of the menu, above "My Profile". The Dart appends the Archive row at the very BOTTOM of `_lvKids`, after Streamer Mode and just before the footer, with no divider. — `hamburger_drawer.dart:477-502` ← `AyuGram/SourceFiles/window/window_main_menu.cpp:358-359` and `:550-564`
+
+- [ ] [MAJOR] PlainShadow divider after the My Profile/Bots block is rendered unconditionally. AyuGram gates it: `if (settings.showMyProfileInDrawer() || settings.showBotsInDrawer())` add PlainShadow. The Dart adds the divider as a plain (un-`if`'d) entry in `_lvKids`, so when BOTH "My Profile" and "Bots" rows are hidden, a stray separator line appears at the top of the menu. — `hamburger_drawer.dart:228-234` ← `AyuGram/SourceFiles/window/window_main_menu.cpp:720-723`
+
+- [ ] [MAJOR] Cover status line (the line under the name at `mainMenuCoverStatusTop` 103px) shows the wrong content and opens the wrong destination. AyuGram's `_setEmojiStatus` displays the localized link text "AyuGram Preferences" (`tr::ayu_AyuPreferences()`) and its click handler opens the AyuGram settings page (`controller->showSettings(Settings::AyuMain::Id())`). The Dart instead renders `@username` / phone / platform-label as an underlined link that opens the generic `SettingsScreen`. — `hamburger_drawer.dart:1066-1105` (built at `:960`) ← `AyuGram/SourceFiles/window/window_main_menu.cpp:111-116`, `:314`, `:667-671`
+
+- [ ] [MAJOR] "Add Test Account" / "Test Server" does not actually create a test-server account. The drawer's right-click context menu (`production` vs `test`) and the test-mode dialog only change the dialog TITLE; the platform tap calls `appState.addAccount(p.$1)` with no test flag, and `addAccount(String platform)` in `app_state.dart:3809` has no testMode parameter at all — so picking a platform under "Add Test Account" creates a normal production account. AyuGram's Test Server action calls `add(Environment::Test)`, connecting to the actual test datacenter. — `hamburger_drawer.dart:754-790` (drop at `:783`), context menu `:1290-1295` ← `AyuGram/SourceFiles/settings/sections/settings_information.cpp:1043-1048`
+
+- [ ] [MAJOR] "My Groups" / "My Channels" popup lists ALL groups/channels the user is in, not only the ones the user created/owns. AyuGram's `AddMyChannelsBox` filters with `amCreator()` (groups: `(c && c->amCreator()) || (g && g->amCreator())`; broadcasts: `channel->amCreator()`) — i.e. only chats the user is the creator of. The Dart `_showMyGroupsPopup` filters only by `c.type == group/channel` over `chatsForAccount`, with no ownership/creator check. — `hamburger_drawer.dart:731-752` (filter at `:736-738`) ← `AyuGram/SourceFiles/window/window_main_menu_helpers.cpp:206-232`
+
+# info_panel — Telegram Desktop Info section (profile cover, details, shared media, members, statistics, boosts)
+
+`dart/lib/ui/info_panel.dart` (~10,750 lines) reimplements AyuGram's `info/` subsystem: the flexible profile cover/top bar, chat/user/channel/topic info pages, details block (bio/username/phone/business-hours/personal-channel), mute & notification settings, shared media (photos/videos/files/audio/voice/links/gifs/music/stories/gifts), member list with admin management, similar channels, channel/group statistics, boosts, per-message statistics and add-member.
+
+Overall the engine wiring is genuine — almost every interactive element reaches a real `engine.*`/`chatState.*` method, dimensions in the cover delegate match `info.style` precisely (236/56px extents, 113/134/24px positions, 80px photo, 52px action buttons, 23px icons, 82px media grid), and there are no "coming soon" snackbars. The findings below are the real gaps: missing tap wiring on media cells, a member sub-page that never loads its data, permission gating that ignores backend flags, and a set of missing/relocated features and behavioral deviations versus the AyuGram ground truth.
+
+## Profile cover, top bar & mute/notification dialogs
+
+- [ ] [MAJOR] Action-button row overflow threshold differs: AyuGram hard-caps the top-bar action row at 3 buttons and appends "More" beyond that; the Dart `_actionButtons()` only overflows when `buttons.length > 4` (slices at index 3), so it can show 4 distinct buttons with no "More" (~33% deviation in max visible buttons) — `info_panel.dart:959` ← `AyuGram/info/profile/info_profile_top_bar.cpp:715`
+- [ ] [MAJOR] Mute action-button left-click does the wrong thing: AyuGram opens the full mute menu on a left click when the peer is not muted (and only unmutes directly when already muted); the Dart button's left tap calls `onMuteToggle` which immediately mutes-forever, and the duration menu is only reachable via right-click — `info_panel.dart:1064` ← `AyuGram/info/profile/info_profile_top_bar.cpp:846`
+- [ ] [MAJOR] Two AyuGram top-bar action buttons are missing entirely: "Report" (un-joined non-admin channels/groups) and "Leave"/Delete-and-leave (joined non-topic chats/channels). `_actionButtons()` only emits Join/Message/Mute/Call/Discuss/Manage/Gift — `info_panel.dart:921` ← `AyuGram/info/profile/info_profile_top_bar.cpp:986`
+- [ ] [MAJOR] Mute context-menu contents deviate from AyuGram's `FillMuteMenu`: Dart adds a standalone "Notification volume" entry (AyuGram exposes volume only via the slider inside the ringtones box, not in the mute menu) and hardcodes six fixed durations (1h/4h/8h/18h/3d/1w) instead of AyuGram's dynamic last-used `mutePeriods()` list — `info_panel.dart:1094` ← `AyuGram/menu/menu_mute.cpp:313`
+- [ ] [MAJOR] Ringtone picker dialog omits the per-chat volume slider AyuGram's RingtonesBox embeds (`AddRingtonesVolumeSlider`); Dart split volume into a separate menu item + `_ChatVolumeDialog`, leaving the sound list with no volume control — `info_panel.dart:1529` ← `AyuGram/boxes/ringtones_box.cpp:352`
+- [ ] [MAJOR] Avatar/userpic context menu is missing AyuGram entries: AyuGram offers "Open Photo" plus conditional "Report", "Set Photo For…" / "Suggest Photo…"; Dart's `_showAvatarContextMenu` only offers "Open Photo" — `info_panel.dart:1334` ← `AyuGram/info/profile/info_profile_top_bar.cpp:1234`
+
+## ChatInfo & UserProfile pages
+
+- [ ] [CRITICAL] `_UserProfilePage` (pushed member sub-page) never calls `getUserProfile`, so it shows no bio/about, phone, birthday, working hours, business location, personal channel or notes — it renders only username/ID/role from `MemberInfo`. AyuGram's user `setupInfo` renders all of these, the engine supplies them, and the sibling `_ChatDetails` already fetches them (line 2564) — `info_panel.dart:3073-3296` ← `AyuGram/info/profile/info_profile_actions.cpp:1709-1799`
+- [ ] [CRITICAL] `_UserProfilePage` omits the user Actions block entirely (Share Contact, Edit/Add Contact, Delete Contact, Block User, and for bots Add-to-Group / commands / Report). AyuGram's `fillUserActions` always builds these for a user profile — `info_panel.dart:3235-3290` ← `AyuGram/info/profile/info_profile_actions.cpp:3015-3032`
+- [ ] [MAJOR] "Common groups" is a standalone tappable row inside the details column loaded once via a `Future` with no live updates; AyuGram renders it as a shared-media-style button created in `setupSharedMedia` (`AddCommonGroupsButton`), grouped with Photos/Video/Files and reactive via `CommonGroupsCountValue` — `info_panel.dart:3269-3276` (and `:4444`) ← `AyuGram/info/media/info_media_buttons.cpp:211-227`
+- [ ] [MAJOR] Section ordering deviates from AyuGram: AyuGram's `setupContent` is SavedMusic → Details → SharedMedia → Channel-Members/Manage → Actions → group Members (members come AFTER actions); the Dart body orders Details → Notification toggle → SharedMedia → Members → Group/Channel actions, placing the member list before the actions block — `info_panel.dart:2733-2815` ← `AyuGram/info/profile/info_profile_inner_widget.cpp:196-256`
+
+## Details block (business hours, personal channel)
+
+- [ ] [MAJOR] Business hours are not shifted to the viewer's local timezone: AyuGram converts owner intervals via `ShiftedIntervals(hours.intervals, timezoneDelta)` and displays that by default; the Dart widget evaluates raw owner-timezone intervals against local `DateTime.now()`, producing wrong open/closed status & times across timezones — `info_panel.dart:4153` ← `AyuGram/info/profile/info_profile_actions.cpp:477`
+- [ ] [MAJOR] Missing the "My time / Local time" timezone toggle AyuGram renders to switch between owner-local and viewer-local hours; `_BusinessHoursWidget` has no such control — `info_panel.dart:4228` ← `AyuGram/info/profile/info_profile_actions.cpp:611`
+- [ ] [MAJOR] Business-hours expanded day list uses a fixed Monday→Sunday order; AyuGram shows today's status at top and the following days via `(day + i) % 7` for i=1..6 — `info_panel.dart:4252` ← `AyuGram/info/profile/info_profile_actions.cpp:690`
+- [ ] [MAJOR] No "Open 24 hours" handling: AyuGram returns `lng_info_hours_open_full` for a fully-open day (`IsFullOpen`); Dart prints the literal interval "00:00 – 24:00" — `info_panel.dart:4194` ← `AyuGram/info/profile/info_profile_actions.cpp:346`
+- [ ] [MAJOR] No next-day wrapping for intervals crossing midnight: AyuGram's `FormatDayTime` appends `lng_info_hours_next_day` past `kDay`, but Dart's `_formatMinute` does `(m ~/ 60) % 24`, silently collapsing past-midnight end times — `info_panel.dart:4188` ← `AyuGram/info/profile/info_profile_actions.cpp:314`
+- [ ] [MAJOR] Personal-channel row omits the subscriber count AyuGram appends to the label (`· N subscribers` via `channelLabelFactory`/`membersCount()`); Dart shows only the bare channel name under a static "Personal Channel" label — `info_panel.dart:4019` ← `AyuGram/info/profile/info_profile_actions.cpp:2026`
+
+## Group / channel action sections
+
+- [ ] [MAJOR] Report row is shown unconditionally for groups; AyuGram hides Report when the self user is the chat creator/owner (`!chat || chat->amCreator()`) — `info_panel.dart:4616` ← `AyuGram/window/window_peer_menu.cpp:985`
+- [ ] [MAJOR] Report row is shown unconditionally for channels; AyuGram only adds it `if (!channel->amCreator())` — `info_panel.dart:4942` ← `AyuGram/info/profile/info_profile_actions.cpp:3042`
+- [ ] [MAJOR] Statistics row gated by an invented heuristic (`_isSelfAdmin && memberCount >= 500`) for groups; AyuGram gates statistics on the server `CanGetStatistics`/`can_view_stats` flag with no member threshold — `info_panel.dart:4539` ← `AyuGram/data/data_channel.cpp:1323`
+- [ ] [MAJOR] Statistics row gated by invented `_isSelfAdmin && memberCount >= 50` heuristic for channels; same `CanGetStatistics` flag should be used instead of a member threshold — `info_panel.dart:4885` ← `AyuGram/data/data_channel.cpp:1323`
+
+## Shared-media cells & list items
+
+- [ ] [CRITICAL] Photo/video grid cells have no tap handler at all — tapping a photo or video in shared media does nothing (no media-viewer open, no download). `_GridCell` has no internal gesture and is placed bare in both the inline section and the full sub-page. AyuGram's `Photo::getState` returns an open-viewer link and `Video::getState` returns open/download links — `info_panel.dart:7007` (used bare at `:3538` and `:6211`) ← `AyuGram/overview/overview_layout.cpp:479`
+- [ ] [CRITICAL] `_GifCell` only renders a static `Image.memory` thumbnail; it never plays the animated GIF and has no tap handler, despite being the "animated gif cell". AyuGram's `Gif` uses a `Media::Clip` player (`iconAnimated()` true) and `Gif::getState` returns open/download/cancel links — `info_panel.dart:7233` (used bare at `:3645`, `:6365`) ← `AyuGram/overview/overview_layout.cpp:2406`
+- [ ] [MAJOR] No download-progress indicator on any media row/cell: while downloading, file/audio/voice/round rows and photo/video/gif cells show only a static icon/placeholder. AyuGram draws a live `_radial` ring with `dataProgress()` for every media item — `info_panel.dart:6469` (and `:6583`, `:7150`) ← `AyuGram/overview/overview_layout.cpp:899`
+- [ ] [MAJOR] `_FileListItem` shows no thumbnail and no document-type generic icon — it always renders just the extension text in a colored box. AyuGram's `Document` loads and draws the real file thumbnail (`withThumb()` → `loadThumbnail`) or a typed generic icon — `info_panel.dart:6481` ← `AyuGram/overview/overview_layout.cpp:1167`
+- [ ] [MAJOR] `_PollListItem` shows a hardcoded literal `'Poll'` subtitle with no vote counts, options or closed/anonymous state — poll result data is not surfaced at all — `info_panel.dart:6970` ← `AyuGram/history/view/media/history_view_poll.cpp:1` (polls render full results in-message; never a static "Poll" string)
+- [ ] [MAJOR] Tiny media cells decode at full source resolution — no `cacheWidth`/`cacheHeight` on `Image.memory`/`Image.file`. `_GridCell` `Image.file(localPath)` in particular can decode a full-size downloaded photo into an ~82px cell; AyuGram scales the pixmap to the exact cell size before painting (`->pix(inner.size())`) — `info_panel.dart:7167` (and `:7296`, `:6884`) ← `AyuGram/overview/overview_layout.cpp:871`
+
+## Members list & admin management
+
+- [ ] [CRITICAL] Member context-menu actions are gated only on the `member.role` string and ignore the per-permission flags the engine supplies (`canEditAdmin`, `canRestrict`, `isCreator`, `isSelf`), so a non-admin viewer sees Promote/Restrict/Remove/Ban on every member and they even appear on self. AyuGram gates each action independently via `canAddOrEditAdmin`, `canRestrictParticipant`, `canRemoveParticipant` — `info_panel.dart:7932-7954` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1962-1998` (flags at `dart/lib/models/engine_models.dart:1933-1936`)
+- [ ] [MAJOR] Custom rank never displayed: the admin pill always shows literal "owner"/"admin"; AyuGram uses the member's custom rank text (`_type.rank`) as the pill when set, falling back to the owner/admin badge — `info_panel.dart:7816-7818` ← `AyuGram/info/profile/info_profile_members_controllers.cpp:44-55` (rank at `dart/lib/models/engine_models.dart:1927`)
+- [ ] [MAJOR] Admin action is split into separate "Promote" + "Demote" items; AyuGram shows ONE action (`lng_context_promote_admin` for non-admins / `lng_context_edit_permissions` for existing admins) both opening the EditAdmin box — there is no standalone "Demote" or "Edit permissions" context item — `info_panel.dart:7946-7949` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1962-1973`
+- [ ] [MAJOR] "Restrict" offered for every non-owner; AyuGram only shows it when `canRestrictWithoutKick` (chat creator, or megagroup and not gigagroup) — `info_panel.dart:7950-7951` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1975-1986`
+- [ ] [MAJOR] Search and Add-member header buttons are always rendered; AyuGram only shows search when member count ≥ 8 (`kEnableSearchMembersAfterCount`) and add-member only when permission-gated (`CanAddMemberValue`) — `info_panel.dart:7644-7667` ← `AyuGram/info/profile/info_profile_members.cpp:40` (and `:210-225`)
+
+## Boosts & statistics
+
+- [ ] [MAJOR] Boosts overview is missing the "Premium audience"/"Premium members" metric (with percentage): the Go backend returns `premium_audience` but Dart never reads it, instead showing a "Boosts via gifts" row that AyuGram does not display as an overview cell — `info_panel.dart:8478-8548` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:135-140`
+- [ ] [MAJOR] Prepaid giveaways are not rendered as a dedicated, directly-clickable on-page section (header "Prepaid Giveaways", per-row boost badge + months/credits, tap opens that giveaway). The Dart page only forwards `prepaid_giveaways` into the box opened by "Get More Boosts" — `info_panel.dart:8554-8642` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:341-397`
+
+## Message statistics & public forwards
+
+- [ ] [MAJOR] Public-forward row subtitle is incomplete: it shows only `"<views> views"` and is missing the members/subscribers count and the `lng_stories_no_views` ("No views") fallback. AyuGram builds the status as `"<subscribers/members>, <views> views"`; the Go backend also never returns the member count (`PublicForwardMessage` emits only name/peer_id/msg_id/views/date) — `info_panel.dart:10360-10412` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:421-434`
+
+# music_player_bar — now-playing media-player bar (port of AyuGram `Media::Player::Widget`)
+
+Overall this file is well-wired: every `onTap` calls a real `AudioService`/`AppState`
+method, the repeat/order/speed/autoplay settings flow UI → `AppState` →
+`main.dart:377-390` listener → `AudioService` → playback (verified in
+`audio_service.dart` `nextInPlaylist`/`setRate`/completion handler). No stubs,
+no mock data, no TODO/`coming soon`. The findings below are missing controls and
+behavioral/visual deviations from the AyuGram source.
+
+- [ ] [CRITICAL] Volume control is entirely absent — AyuGram's player bar has a `_volumeToggle` mute button (icon reflects 0 / <0.66 / full volume) plus a hover/wheel-driven volume dropdown slider; the Dart controls list (prev, play, next, title, time, repeat, order, speed, more, close) has no volume toggle and no volume widget exists anywhere in the player UI — `music_player_bar.dart:80-136` ← `AyuGram/media/player/media_player_widget.cpp:57` + `AyuGram/media/player/media_player.style:241-250`
+
+- [ ] [MAJOR] Speed control offers only a discrete 4-value popup `[0.5, 1.0, 1.5, 2.0]`, but AyuGram's speed dropdown is a continuous slider over `kSpeedMin..kSpeedMax = 0.5..2.5` (sticky points 0.8/1.0/1.2/1.5/1.7/2.0/2.2) plus preset speed icons — the Dart caps at 2.0× (cannot reach 2.2/2.5×, a 20% short top end) and drops the slider/presets — `music_player_bar.dart:213-219` ← `AyuGram/media/media_common.h:41-42` + `AyuGram/media/player/media_player_dropdown.cpp:39-47` + `AyuGram/media/player/media_player.style:178-215`
+
+- [ ] [MAJOR] Order button is a 3-way tap-cycle (Default→Reverse→Shuffle→Default); AyuGram's order button opens a dropdown menu with two toggle actions ("Reverse", "Shuffle") where clicking an active mode returns to Default — different interaction model and menu contents — `music_player_bar.dart:180-198` ← `AyuGram/media/player/media_player_dropdown.cpp:646-693`
+
+- [ ] [MAJOR] Seek bar draws a static 2px line; AyuGram's `mediaPlayerPlayback` `FilledSlider` line is 4px at rest (`lineWidth`) and animates up to 8px (`fullWidth`) on hover over 150ms — the Dart line is half the resting thickness and has no hover-grow animation — `music_player_bar.dart:412-431` ← `AyuGram/media/player/media_player.style:288-295` + `AyuGram/ui/widgets/continuous_sliders.cpp:228`
+
+- [ ] [MAJOR] Title/name tap always calls `jumpToMessage`; AyuGram only "shows the item" (jumps) when `_type == Voice` or the song is from another session — for a current-session song, clicking the name toggles the playlist dropdown instead and the cursor stays default (not pointer) — `music_player_bar.dart:105-112` ← `AyuGram/media/player/media_player_widget.cpp:477-514` (note: the playlist dropdown panel itself is a separate unported component)
+
+- [ ] [MAJOR] Responsive breakpoint uses `maxWidth >= 600` to gate time text + inline repeat/order (else overflow menu); AyuGram's `mediaPlayerWideWidth` is 460px and the narrow mechanism differs — when narrow AyuGram hides the entire right-controls group (time/volume/repeat/order/speed) and reveals it on hover, rather than moving repeat/order into an overflow menu — so at 460–599px the two diverge on which controls are visible — `music_player_bar.dart:76` ← `AyuGram/media/player/media_player.style:88` + `AyuGram/media/player/media_player_widget.cpp:365,403-407`
+
+# my_profile_page — Edit Profile / My Account settings page (§14.5)
+
+Implements the self-profile settings page: photo, bio, name/phone/username rows,
+birthday, personal channel, name color box, and the multi-account list. Maps to
+AyuGram `settings/sections/settings_information.cpp` (`Information` section),
+`boxes/peers/edit_peer_color_box.cpp`, and `ui/controls/userpic_button.cpp`.
+
+Overall the page is well wired to the engine (bio save/load, name, birthday,
+personal channel, color save, photo upload/remove, accounts, add account all hit
+real bridge calls). The issues below are data-flow gaps, a degraded sub-feature,
+and layout/menu deviations — no empty-callback stubs or mock data were found.
+
+- [ ] [MAJOR] Name-color box never loads the current background emoji, profile color, or profile background emoji — only the name `colorId` is fetched, so re-opening the box always shows "Off" for the background emoji and resets the Profile tab to the name color regardless of the user's real settings. `getSelfColorAndChannel` returns only `color_id`/`channel_name`, and `_selectedEmojiId`/`_profileColorId`/`_profileEmojiId` are initialized to defaults (0 / name color) and never populated from the server. AyuGram seeds the box from four distinct current values: `peer->colorIndex()`, `peer->colorProfileIndex()`, `peer->backgroundEmojiId()`, and `peer->profileBackgroundEmojiId()`. — `my_profile_page.dart:1867-1873` (+ `dart/lib/bridge/engine_service.dart:4609-4612`) ← `AyuGram/boxes/peers/edit_peer_color_box.cpp:501-506`
+
+- [ ] [MAJOR] Birthday section is ordered before Personal Channel + Your Color, but AyuGram lays out Personal Channel and the color button first, then Birthday. The Dart build list emits `_BirthdayRow` (line 461) ahead of `_PersonalChannelRow` (line 544) and `_YourColorRow` (line 551), whereas AyuGram calls `SetupPersonalChannel` (channel + `AddPeerColorButton`) before `SetupBirthday`. — `my_profile_page.dart:461` ← `AyuGram/settings/sections/settings_information.cpp:1288-1289`
+
+- [ ] [MAJOR] Custom-emoji suggestions in the bio field are misleading: the autocomplete popup renders custom-emoji thumbnails from installed packs, but selecting one inserts the plain fallback Unicode emoji (`insertText` returns `customEmoji?.emoji`), not the animated custom emoji — the underlying widget is a plain `TextField` that cannot hold custom-emoji entities. AyuGram's bio is a `Ui::InputField` wired through `Ui::Emoji::SuggestionsController::Init`, which inserts real custom-emoji entities (DocumentId-backed). — `my_profile_page.dart:727` (+ `my_profile_page.dart:979`) ← `AyuGram/settings/sections/settings_information.cpp:744-747`
+
+- [ ] [MAJOR] Avatar/upload menu is missing the "Set Public Photo" privacy action. For the self user, AyuGram's ChoosePhoto sub-button menu adds `lng_edit_privacy_profile_photo_public_set`, which opens the profile-photo `EditPrivacyBox` wired to `Api::UserPrivacy::Key::ProfilePhoto`. The Dart menu only offers View / Upload / From Clipboard / Set Emoji / Remove and has no public-photo privacy entry. — `my_profile_page.dart:1226-1267` ← `AyuGram/ui/controls/userpic_button.cpp:448-467`
+
+# strings — Centralised translatable string table (mirror of Telegram/AyuGram lang pack)
+
+`TrStrings` is a static table of hardcoded English strings mirroring AyuGram/Telegram
+Desktop's `lang.strings` keys (`tr::lng_*`) and AyuGram-specific `ayu_*` keys. Audit
+verified every string value against `AyuGram/Telegram/Resources/langs/lang.strings`
+and the cited `.cpp` sources. ~70 strings checked; the overwhelming majority are
+byte-for-byte exact matches (intro, passcode, theme-revert plural `#one/#other`,
+all reaction notifications `lng_reaction_*`, poll votes `lng_poll_vote*`, paid-post
+warnings `lng_suggest_warn_*`, TTL box `lng_manage_messages_ttl_*`, sessions
+`lng_settings_reset_*` / `lng_self_destruct_sessions_*`, AyuForward `ayu_AyuForwardStatus*`).
+One material deviation found.
+
+- [ ] [MAJOR] `lngFileTooLarge` is a fabricated string — the text "The file exceeds the size limit." / "$count files exceed the size limit." exists nowhere in AyuGram's lang pack (only unrelated `ayu_AttachmentsFolderMaxSizeDescription` uses "exceeds"). AyuGram's real over-sized-file flow is `FileSizeLimitBox` (a `SimpleLimitBox`), titled `lng_file_size_limit_title` = "File Too Large" with body `lng_file_size_limit1` = "The document can't be sent, because it is larger than {size}." where `{size}` is the actual backend-provided limit (bold, e.g. "2 GB"), plus a Premium upsell `lng_file_size_limit2` = "You can double this limit to {size} per document by subscribing to **Telegram Premium**." The Dart string drops the backend `{size}` value and the Premium upsell entirely, and is rendered as a generic `SnackBar` (`chat_view.dart:4906`) instead of the box — so the user never sees what the limit actually is. — `strings.dart:41-42` ← `AyuGram/Telegram/SourceFiles/boxes/premium_limits_box.cpp:1036` (`lng_file_size_limit1`, title `:1055`, premium `:1042`; lang.strings:270-271, title :267) / box triggered from `storage/localimageloader.cpp:1066`
+
+## Verified-correct (no action — recorded for completeness)
+
+- `lngDialogsTextWithFrom` correctly composes `lng_dialogs_text_from_wrapped` ("{from}:") + `lng_dialogs_text_with_from` ("{from_part} {message}") into "$from: $message" — lang.strings:4779-4780.
+- `lngNotifGif` = 'GIF' matches AyuGram's hardcoded literal `u"GIF"_q` — `data_media_types.cpp:1229/1279` (not a lang key).
+- `lngNotifInvoice` fallback 'Invoice' only fires when `invoiceTitle` is empty; AyuGram's `MediaInvoice::notificationText()` returns `_invoice.title` (`data_media_types.cpp:2193`) — the Dart uses the title when present and only falls back, which is a harmless default.
+- `lngThemeReverting`/`lngForwardMessages` inline `count == 1` pluralization correctly reproduces the `#one`/`#other` forms (lang.strings:1086-1087, 5309-5310) for English. (Note: only English plural categories are handled — acceptable given the file's documented English-only, no-server-lang-pack design; revisit when i18n lands.)
+
+## Cosmetic-only deviations (skipped per severity rules — listed for the i18n pass)
+
+- `lngThemeKeepChanges` 'Keep Changes' vs lang.strings:1088 "Keep changes" (case).
+- `lngEnableAutoDelete` 'Enable auto-delete' / `lngEditAutoDeleteSettings` 'Edit auto-delete settings' vs lang.strings:5559/5558 "Enable Auto-Delete" / "Edit Auto-Delete Settings" (case).
+- `lngNotifLiveLocation` 'Live location' vs lang.strings + `data_media_types.cpp:1688` `lng_live_location` = "Live Location" (case).
+- `lngSigninCantEmailForgot` "...access to your email..." vs lang.strings:440 "...access to the email..." (one word).
 
 # main — app bootstrap, theme-revert overlay (§25.9.3), passcode lock screen
 
-Audited `dart/lib/main.dart` against AyuGram's `window_theme_warning.cpp` (theme
-revert box) and `window_lock_widgets.cpp` (passcode lock screen). The bulk of the
-file is app bootstrap, engine/tray/notification wiring, and a `kDebugMode`-only
-debug-command poller + gesture/key dispatch (test harness — no AyuGram analogue,
-not auditable). The two user-facing UI components that DO map to AyuGram are
-faithfully built dimensionally:
+Scope: `dart/lib/main.dart` = `main()` bootstrap, `UniClientApp` (engine init,
+tray, notifications, theme cross-fade, palette cache, debug-command poller,
+`build()`/MaterialApp), `_ThemeRevertOverlay`, `_PasscodeLockScreen`,
+`_LinkButton`. Verified against `window/themes/window_theme_warning.cpp`,
+`window/window_lock_widgets.cpp`, `boxes/boxes.style`, `layers.style`.
 
-- Theme-revert box: width 364 (`_boxWidth`) = `boxWideWidth:364px`; height 150 =
-  `themeWarningHeight:150px`; body text top 60 = `themeWarningTextTop:60px`; title
-  16px/w600 at (24,13) = `boxTitleFont:font(16px semibold)` + `boxTitlePosition:(24,13)`;
-  total 15999ms = `kWaitBeforeRevertMs`; 100ms timer. ✓
-- Passcode lock: field width 225 + height 61 = `introPhone` (width:225px / heightMin:61px);
-  contentPadding (1,27,1,6) = `passcodeInput.textMargins:(1,27,1,6)`; header 19px in
-  80px band = `passcodeHeaderFont:19px` / `passcodeHeaderHeight:80px`; submit 225×42
-  radius 6 = `passcodeSubmit{width:225}` over `introNextButton{height:42,radius:6}`;
-  submitSkip 40 = `passcodeSubmitSkip:40px`; system-unlock 32×36 = `passcodeSystemUnlock{32,36}`;
-  forgot-passcode→resetWithForgottenPasscode wiring correct. ✓ Engine wiring
-  (checkPasscode / passcodeCanTry / getPasscodeConfig / system unlock) all real. ✓
+Verified-correct (no finding): theme-warning box 364×150 / text-top 60 / title
+(24,13) (`boxes.style:347-349`, `layers.style:81`); 15.999s truncating countdown
+(`window_theme_warning.cpp:24,95-96`); warning button placement right:10/bottom:10/gap:6
+(`defaultBox.buttonPadding (6,10,10,10)`); passcode input 225×61 / submit 42 /
+header band 80 / submitSkip 40 / system-unlock btn 32×36 (`boxes.style:290-323`,
+`intro.style:87-122`); submit/empty/flood/wrong + cold-start vs started
+system-unlock gating (`window_lock_widgets.cpp:111-128,163-199,259-291`); forgot-passcode
+logout = reset-all-accounts (`window_controller.cpp:548-557`). No stubs / empty
+callbacks / TODO / mock data found. `updateNonIdle()` is throttled 1/s — pointer
+handlers do not cause rebuild storms.
 
-Findings below are behavioral / missing-element deviations (skipping pure
-color/1px-font/positioning cosmetics).
+- [ ] [MAJOR] Passcode lock hardcodes text/subtext colors from a brightness check instead of reading the palette, so they don't follow custom/colorized themes — and the dark subtext value is wrong even for the two built-in dark themes. `subtextColor = isDark ? 0xFF6C7883 : …` drives the field placeholder (`main.dart:3123`) and the cold-start system-unlock info label (`main.dart:3223`), but AyuGram's `passcodeSystemUnlockLater`/input `placeholderFg` = `windowSubTextFg`, which is `0xFF708499` for `night` (`telegram_palette.dart:3662`) and `0xFF82868A` for `nightGreen` (`telegram_palette.dart:4879`) — neither equals `0xFF6C7883`. Should be `palette.windowSubTextFg`. — `main.dart:3046` ← `AyuGram/boxes/boxes.style:319-322` (passcodeSystemUnlockLater `textFg: windowSubTextFg`)
+- [ ] [MAJOR] Same hardcoding for the header + input text color: `textColor = isDark ? 0xFFF5F5F5 : 0xFF000000` (`main.dart:3045`, used at header `main.dart:3092` and input style `main.dart:3132`). AyuGram paints the header with `st::windowFg` and the input `textFg: windowFg`, so a custom palette or accent-colorized theme (build() supports `customPalette` + `colorize()`) renders the lock-screen text in the wrong color. Should be `palette.windowFg`. — `main.dart:3045` ← `AyuGram/window/window_lock_widgets.cpp:249` (`p.setPen(st::windowFg)`)
+- [ ] [MAJOR] Theme-revert overlay "Revert" button text color is the neutral `p.boxTextFg`, but AyuGram styles BOTH the Revert and Keep buttons with `st::defaultBoxButton`, whose text color is `lightButtonFg` (accent). Only the "Keep" button is given the accent color here; Revert renders grey instead of the accent blue. — `main.dart:2765` ← `AyuGram/window/themes/window_theme_warning.cpp:33` (`_revert(this, …, st::defaultBoxButton)`) + `AyuGram/lib_ui/ui/layers/layers.style:44` (`defaultBoxButton: RoundButton(defaultLightButton)` → `textFg: lightButtonFg`)
+- [ ] [MAJOR] Lock-screen logout-confirm "Cancel" button uses a hardcoded English literal `'Cancel'` instead of the centralized `TrStrings.lngCancel()` that every other string in the file routes through; AyuGram's confirm box uses `tr::lng_cancel()`. (Visual output is identical today because `TrStrings` is still all-English literals, so this is a latent i18n / convention break rather than a current visible bug.) — `main.dart:3269` ← `AyuGram/window/window_controller.cpp:563-567` (`Ui::MakeConfirmBox` default cancel `tr::lng_cancel()`)
 
-Stage-2 verification (verified 2026-06-04, commit 03ac1491): all items in this chapter verified and closed. Flutter rebuilt clean; the app launched, was logged in, and rendered the chat list (folder rail, search, archived row, badges/pins, empty-pane placeholder) at desktop 1024×768 with no crashes or Dart stack traces in the log — the only log "errors" are the newly-added `Debug.log` lines now surfacing previously-swallowed engine exceptions (the fix working) plus a pre-existing `setMonochrome` tray-plugin gap unrelated to this chapter.
-
-**Behavioral items — verified against AyuGram ground truth.** (1) **Theme-revert truncation** — `_ThemeRevertOverlay` computes displayed seconds by integer truncation `_remainingMs ~/ 1000` in both the 100ms timer (`main.dart:2633`) and `_buildBox` (`main.dart:2714`); init `_totalMs = 15999` → first shows **15** and reverts when `seconds <= 0`, i.e. msPassed ≥ 15000 = 15.0s. Exact match to `window_theme_warning.cpp:31` (`_secondsLeft(kWaitBeforeRevertMs/1000)`), `:96` (`setSecondsLeft((kWaitBeforeRevertMs-msPassed)/1000)`), `:100` (`if (secondsLeft<=0) Revert()`). (2) **Passcode "system unlock later" info label** — the cold-start path (new `AppState.domainStarted == false`) now renders a centred info label (`main.dart:3215-3225`) with platform hint text via `_systemUnlockInfoText()` (Windows→winhello / biometrics→touchid / companion→applewatch / else→systempwd), gated `!domainStarted && _showSystemUnlockButton`, mutually exclusive with the active IconButton gated `domainStarted && _showSystemUnlockButton` (`main.dart:3176`), positioned below the logout link. Matches `window_lock_widgets.cpp:123-128` (started? `setupSystemUnlock` : `setupSystemUnlockInfo`) and `:132-161`. (3) **Empty-passcode field-shake** — `_submit()` on empty input calls `_shakeField()` only (shake animation + refocus, no error text); the fabricated `lngPasscodeEmpty` string is gone. Matches `window_lock_widgets.cpp:260-263` (`_passcode->showError()` only).
-
-**static_scan sweep — re-ran the exact ralph-v3 detection on the post-fix tree and inspected every residual hit.** Empty callbacks 7→0, fake features 5→0, debugPrint stubs 10→0 (100% resolved). Genuine empty `try/catch` blocks 323→5 codebase-wide; the 5 residual are in `clipboard_image.dart`/`compose_entities.dart`, outside this chapter's swept file set. Non-lazy ListViews: every real one converted to `.builder`/`.separated`; the 10 residual grep hits are name-collision false positives (`_MediaListView(`, `_ForumTopicListView(`, `_buildIncludeListView(` — the real list at `chat_view.dart` is already `ListView.separated`). The remaining heuristic flags were each inspected and are false positives or out of scope: the 46 `catch.*{}` hits are `.catchError((_) {})` fire-and-forget Future callbacks (not catch blocks); the 49 setState-after-await flags are already `if (mounted)`-guarded (the awk cannot see same-line guards), or have the `setState` before any `await` (cross-method state leak in the heuristic), or are pre-existing modal `onTap` callbacks — 10 genuine `if (!mounted) return` guards were added where they were actually missing; the 37 context.read-in-build flags are reads inside event callbacks / one-shot `EngineService`/`AppState` service reads (the correct idiom), plus one `Debug.log` string match; the 4 resource- + 2 timer-leak count-gaps are loop-cancel under-counts (`for (final sub in _subs) sub.cancel()` at `chat_state.dart:3213`, `media_viewer.dart:6499`) and re-assigned timer fields cancelled once in teardown (`custom_emoji_cache`, `emoji_panel`). The 5/9 real resource leaks and 2/3 real timer leaks (the zero-removal ones: `ayu_chats_page`, `ayu_filters_page`, `chat_list_row`, `compose_entities`, `stats_chart` 0→5, `reactions_detail`) are fixed. (`main.dart` + 68 swept files)
