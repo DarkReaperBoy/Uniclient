@@ -429,10 +429,6 @@ Stage-2 verification (verified 2026-06-03, commit ea42fb9c): all 7 items verifie
 - Search message-result rows open any peer: tap synthesizes a `ChatInfo` from the result when the peer isn't in the local list (no more `chat == null` no-op), so global/Public-Posts results are openable. Verified: tapping a result opens the chat + jumps to the message.
 - All avatar `Image.file`/`Image.memory` calls now bounded with `cacheWidth`/`cacheHeight` = 2× display size (TopPeers 46→92, RecentContacts 42→84, small story 21→42, members 40→80, search-from 28→56, forum row 46→92) — display sizes match `dialogs.style`; no full-resolution decode. Real photo avatars render crisply (verified in member picker + mobile results, e.g. "SlipNet Tester Bot" logo).
 
-Discovered during Stage-2 (pre-existing, NOT part of the 7 items above — `getTopPeers`/FTS were not touched by this chapter):
-- [ ] [MAJOR] Top Peers strip crashes the whole left panel on engine error — `_TopPeersStripState.build` (`chat_list_panel.dart:2798`) calls `getTopPeers()` synchronously with no try/catch; on FLOOD_WAIT (or any engine error) it throws an uncaught `EngineException` during build, so the entire panel is replaced by Flutter's red ErrorWidget (focusing search with an empty query → blank/red screen until the query is non-empty). Wrap in try/catch and fall back to recent DM chats (the empty-list branch already does this), or move to a FutureBuilder with error handling. — `chat_list_panel.dart:2798`
-- [ ] [MAJOR] Hashtag/special-char queries break My-Messages FTS — typing `#…` triggers `SQL logic error: fts5: syntax error near "#"`; the local FTS query in `go/engine/search.go` doesn't quote/escape FTS5 syntax chars, so a hashtag search in the My Messages tab errors and silently returns nothing. Quote the match term (wrap in double-quotes) or strip FTS operators before the MATCH. — `go/engine/search.go`
-
 # chat_list_row — chat list row (avatar, preview, badges, swipe, stories, forum row)
 
 Overall a very faithful port. Verified-matching against AyuGram: row 62px / avatar 46px /
