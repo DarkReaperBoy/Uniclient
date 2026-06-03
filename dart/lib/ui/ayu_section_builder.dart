@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/telegram_palette.dart';
@@ -468,72 +470,122 @@ class _AyuSliderState extends State<_AyuSlider> {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = context.palette.windowBgActive;
+    final p = context.palette;
+    // Slider track/thumb FILL is windowBgActive (#40a7e3, the bright blue) — that
+    // is the correct token for the slider itself and is left unchanged. Only the
+    // value LABEL uses a different (active-text) blue, handled below.
+    final accentColor = p.windowBgActive;
     final displayValue = widget.indexToValue(_currentIndex);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // AyuGram SliderArgs.showTitle=false skips the title button and the
-          // value label width hint (ayu_builder.cpp:193-207); we drop the whole
-          // label+value row.
-          if (widget.showTitle)
-            Row(
-              children: [
-                Expanded(
-                  child: Text(widget.label,
-                      style: TextStyle(
-                          fontSize: 14,
-                          color:
-                              widget.isDark ? Colors.white : Colors.black87)),
-                ),
-                Text(widget.formatLabel(displayValue),
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: context.palette.windowBgActive)),
-              ],
-            ),
-          SliderTheme(
-            data: SliderThemeData(
-              activeTrackColor: accentColor,
-              inactiveTrackColor:
-                  widget.isDark ? const Color(0xFF2B3C4C) : const Color(0xFFD5D5D5),
-              thumbColor: accentColor,
-              overlayColor: const Color(0x2940A7E3),
-              trackHeight: 3,
-              thumbShape:
-                  const RoundSliderThumbShape(enabledThumbRadius: 7.5),
-            ),
-            child: Slider(
-              value: _currentIndex.toDouble(),
-              min: 0,
-              // AyuGram setPseudoDiscrete: sectionsCount = valuesCount - 1, so
-              // valid indices are 0..steps-1 (continuous_sliders.h:186). Callers
-              // pass steps = valuesCount, so subtract 1 here. Flutter renders
-              // `divisions: N` + `max: N` as N+1 stops, hence steps-1 for both.
-              max: (widget.steps - 1).toDouble(),
-              divisions: widget.steps - 1,
-              onChanged: (d) {
-                final idx = d.round();
-                // Live value-label update is local (setState on _currentIndex)
-                // and always runs; the persist callback fires per-frame only
-                // when a caller supplies one. A null onChanged means label-only
-                // live update — AyuGram's `.onChanged = nullptr`.
-                setState(() => _currentIndex = idx);
-                widget.onChanged?.call(widget.indexToValue(idx));
+    final valueText = widget.formatLabel(displayValue);
+
+    // settingsScaleLabel = FlatLabel(defaultFlatLabel){ textFg: windowActiveTextFg }
+    // (settings.style:70-72). windowActiveTextFg is #168acd (the online/active-text
+    // blue) — NOT windowBgActive #40a7e3 (the bright fill blue). This is the exact
+    // wrong-blue this file's header (addSectionTitle) warns against.
+    final labelStyle = TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+      color: p.windowActiveTextFg,
+    );
+
+    // MakeSliderWithLabel (settings_common.cpp:580-615): a single row with the
+    // slider on the LEFT (width = outer − labelArea) and the value label flush
+    // RIGHT, vertically centred. The label is ALWAYS created; `showTitle` only
+    // governs the separate title button above and the min-label-width reserve
+    // (ayu_builder.cpp:193-207). minLabelWidth = font->width("8%%%") when a title
+    // is shown (keeps the track width steady as the value text grows), else 0.
+    final minLabelWidth =
+        widget.showTitle ? _measureWidth('8%%%', labelStyle, context) : 0.0;
+    final labelAreaWidth =
+        math.max(_measureWidth(valueText, labelStyle, context), minLabelWidth);
+
+    final slider = SliderTheme(
+      data: SliderThemeData(
+        activeTrackColor: accentColor,
+        inactiveTrackColor:
+            widget.isDark ? const Color(0xFF2B3C4C) : const Color(0xFFD5D5D5),
+        thumbColor: accentColor,
+        overlayColor: const Color(0x2940A7E3),
+        trackHeight: 3,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+      ),
+      child: Slider(
+        value: _currentIndex.toDouble(),
+        min: 0,
+        // AyuGram setPseudoDiscrete: sectionsCount = valuesCount - 1, so valid
+        // indices are 0..steps-1 (continuous_sliders.h:186). Callers pass
+        // steps = valuesCount, so subtract 1 here. Flutter renders `divisions: N`
+        // + `max: N` as N+1 stops, hence steps-1 for both.
+        max: (widget.steps - 1).toDouble(),
+        divisions: widget.steps - 1,
+        onChanged: (d) {
+          final idx = d.round();
+          // Live value-label update is local (setState on _currentIndex) and
+          // always runs; the persist callback fires per-frame only when a caller
+          // supplies one. A null onChanged means label-only live update —
+          // AyuGram's `.onChanged = nullptr`.
+          setState(() => _currentIndex = idx);
+          widget.onChanged?.call(widget.indexToValue(idx));
+        },
+        onChangeEnd: widget.onFinalChanged == null
+            ? null
+            : (d) {
+                widget.onFinalChanged!(widget.indexToValue(d.round()));
               },
-              onChangeEnd: widget.onFinalChanged == null
-                  ? null
-                  : (d) {
-                      widget.onFinalChanged!(widget.indexToValue(d.round()));
-                    },
-            ),
-          ),
-        ],
       ),
     );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // The title is a SEPARATE full-width button ABOVE the slider, shown only
+        // when showTitle — settingsButtonNoIcon, padding margins(22,10,22,8),
+        // transparent to mouse (ayu_builder.cpp:193-199, settings.style:25-27).
+        if (widget.showTitle)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
+            child: Text(widget.label,
+                style: TextStyle(
+                    fontSize: 14,
+                    color: widget.isDark ? Colors.white : Colors.black87)),
+          ),
+        // recentStickersLimitPadding = margins(22,4,22,8) (ayu_styles.style:21).
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
+          child: Row(
+            children: [
+              // slider->resizeToWidth(outer − right): the track fills the row
+              // minus the reserved label area.
+              Expanded(child: slider),
+              // label->moveToRight(0, ...): flush right within its reserved area,
+              // vertically centred against the slider row.
+              SizedBox(
+                width: labelAreaWidth,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(valueText, style: labelStyle, maxLines: 1),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Mirrors AyuGram's `font->width(text)` / `label->sizeValue().width()` so the
+  // reserved label area is max(value width, minLabelWidth) — identical to
+  // MakeSliderWithLabel's `std::max(size.width(), minLabelWidth)`.
+  double _measureWidth(String text, TextStyle style, BuildContext context) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final width = tp.width;
+    tp.dispose();
+    return width;
   }
 }
 
@@ -556,7 +608,10 @@ class _AyuChooseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = context.palette.windowBgActive;
+    // AddButtonWithLabel's right label uses defaultSettingsRightLabel, whose
+    // textFg is windowActiveTextFg (#168acd, the online/active-text blue) — NOT
+    // windowBgActive #40a7e3 (the bright fill blue) (widgets.style:1514-1515,1526).
+    final rightLabelColor = context.palette.windowActiveTextFg;
     final currentLabel = items[value] ?? '';
     return InkWell(
       onTap: () => _showChoiceDialog(context),
@@ -579,7 +634,7 @@ class _AyuChooseButton extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Text(currentLabel,
-                style: TextStyle(fontSize: 13, color: accentColor)),
+                style: TextStyle(fontSize: 13, color: rightLabelColor)),
           ],
         ),
       ),
