@@ -30,6 +30,19 @@ const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 class ChatSwitchOverlay extends StatefulWidget {
   final List<ChatInfo> chats;
   final int initialIndex;
+
+  /// Whether the switcher was opened by the reverse gesture (Ctrl+Shift+Tab).
+  /// AyuGram always opens with `_selected = 0` (the current chat, rotated to
+  /// front) and then immediately runs the *initiating* Tab/Backtab through
+  /// `process(request)` (window_session_controller.cpp:1927), advancing the
+  /// selection by one before the first paint: forward (Tab) → index 1 (the
+  /// previously-used chat), reverse (Backtab) → the last shown chat
+  /// (window_chat_switch_process.cpp:253-266). We replicate that initiating
+  /// step on the first layout pass so a single tap-and-release of Ctrl+Tab
+  /// lands on the previous chat (classic alt-tab) instead of re-selecting the
+  /// current one.
+  final bool reverse;
+
   final void Function(ChatInfo chat) onChosen;
   final void Function(ChatInfo chat) onRemove;
   final VoidCallback onCancel;
@@ -38,6 +51,7 @@ class ChatSwitchOverlay extends StatefulWidget {
     super.key,
     required this.chats,
     this.initialIndex = 0,
+    this.reverse = false,
     required this.onChosen,
     required this.onRemove,
     required this.onCancel,
@@ -52,6 +66,13 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
   late List<ChatInfo> _list;
   int _shownPerRow = 1;
   int _shownRows = 1;
+
+  /// AyuGram opens with `_selected = 0` and immediately runs the initiating
+  /// Tab/Backtab through `process()` before the first paint, advancing the
+  /// selection by one. We apply that single step on the first layout pass
+  /// (when the real shown-cell count is known) — see [ChatSwitchOverlay.reverse].
+  bool _pendingInitialStep = true;
+
   final Map<String, Uint8List> _avatarCache = {};
   /// Cached ChatState ref captured when the listener is added, so dispose() can
   /// remove the listener from the exact same object without a context provider
@@ -238,7 +259,6 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final p = context.palette;
-    final overlayColor = p.layerBg;
     final boxBg = p.boxBg;
     final accentColor = p.windowBgActive;
     final nameColor = p.boxTextFg;
@@ -278,6 +298,27 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
         if (perRow < 1) perRow = 1;
 
         final visible = (perRow * rows).clamp(1, count);
+
+        // Run AyuGram's initiating Tab (forward) / Backtab (reverse) the moment
+        // the switcher opens — the keypress that opened it was consumed by the
+        // global shortcut handler, so the overlay must advance the selection off
+        // the current chat (index 0) itself. Done here on the first build, when
+        // the real shown-cell count (`visible`) is finally known, so there is no
+        // extra frame and no flash of the current chat being pre-selected.
+        // forward → index 1 (previously-used chat); reverse → last shown chat;
+        // a single shown cell stays at 0 (matches window_chat_switch_process.cpp
+        // :253-266 with `_shownCount == 1`).
+        if (_pendingInitialStep) {
+          _pendingInitialStep = false;
+          if (visible > 1) {
+            _selected = widget.reverse
+                ? (_selected - 1 + visible) % visible
+                : (_selected + 1) % visible;
+          } else {
+            _selected = 0;
+          }
+        }
+
         final innerW = perRow * _cellWidth;
 
         if (_shownPerRow != perRow || _shownRows != rows) {
@@ -305,66 +346,71 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
         }
 
         return GestureDetector(
+          // AyuGram draws NO whole-window dim: setupWidget only shows the widget
+          // and installs a mouse-press-to-close handler with no background paint
+          // (window_chat_switch_process.cpp:298-316), and setupView's paint
+          // handler draws only the panel rect — `_outer` drop shadow + `_bg`
+          // rounded box (:403-411). The rest of the UI stays at full brightness
+          // with the panel floating above it. HitTestBehavior.opaque preserves
+          // tap-anywhere-to-close without painting a dimming layer.
+          behavior: HitTestBehavior.opaque,
           onTap: widget.onCancel,
-          child: Container(
-            color: overlayColor,
-            child: Center(
-              child: Container(
-                width: innerW + _panelPadding * 2,
-                decoration: BoxDecoration(
-                  color: boxBg,
-                  borderRadius: BorderRadius.circular(_panelRadius),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(_panelPadding),
-                child: Wrap(
-                  children: List.generate(visible.clamp(0, _list.length), (i) {
-                    final chat = _list[i];
-                    final selected = i == effectiveSelected;
+          child: Center(
+            child: Container(
+              width: innerW + _panelPadding * 2,
+              decoration: BoxDecoration(
+                color: boxBg,
+                borderRadius: BorderRadius.circular(_panelRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(_panelPadding),
+              child: Wrap(
+                children: List.generate(visible.clamp(0, _list.length), (i) {
+                  final chat = _list[i];
+                  final selected = i == effectiveSelected;
 
-                    Uint8List? decodedParentAvatar;
-                    if (chat.type == ChatType.topic && chat.parentId.isNotEmpty) {
-                      final chatState = context.read<ChatState>();
-                      final parentChat = chatState.chats.cast<ChatInfo?>().firstWhere(
-                        (c) => c!.chatId == chat.parentId && c.accountId == chat.accountId,
-                        orElse: () => null,
-                      );
-                      if (parentChat != null &&
-                          parentChat.avatarPath.isNotEmpty &&
-                          !parentChat.avatarPath.startsWith('/')) {
-                        decodedParentAvatar = _decodeAvatar(parentChat.avatarPath);
-                      }
-                    }
-
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() => _selected = i);
-                        _confirm();
-                      },
-                      child: MouseRegion(
-                        onEnter: (_) => setState(() => _selected = i),
-                        child: _ChatSwitchCell(
-                          chat: chat,
-                          selected: selected,
-                          accentColor: accentColor,
-                          nameColor: nameColor,
-                          isDark: isDark,
-                          decodedAvatar: chat.avatarPath.isNotEmpty &&
-                                  !chat.avatarPath.startsWith('/')
-                              ? _decodeAvatar(chat.avatarPath)
-                              : null,
-                          decodedParentAvatar: decodedParentAvatar,
-                        ),
-                      ),
+                  Uint8List? decodedParentAvatar;
+                  if (chat.type == ChatType.topic && chat.parentId.isNotEmpty) {
+                    final chatState = context.read<ChatState>();
+                    final parentChat = chatState.chats.cast<ChatInfo?>().firstWhere(
+                      (c) => c!.chatId == chat.parentId && c.accountId == chat.accountId,
+                      orElse: () => null,
                     );
-                  }),
-                ),
+                    if (parentChat != null &&
+                        parentChat.avatarPath.isNotEmpty &&
+                        !parentChat.avatarPath.startsWith('/')) {
+                      decodedParentAvatar = _decodeAvatar(parentChat.avatarPath);
+                    }
+                  }
+
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _selected = i);
+                      _confirm();
+                    },
+                    child: MouseRegion(
+                      onEnter: (_) => setState(() => _selected = i),
+                      child: _ChatSwitchCell(
+                        chat: chat,
+                        selected: selected,
+                        accentColor: accentColor,
+                        nameColor: nameColor,
+                        isDark: isDark,
+                        decodedAvatar: chat.avatarPath.isNotEmpty &&
+                                !chat.avatarPath.startsWith('/')
+                            ? _decodeAvatar(chat.avatarPath)
+                            : null,
+                        decodedParentAvatar: decodedParentAvatar,
+                      ),
+                    ),
+                  );
+                }),
               ),
             ),
           ),

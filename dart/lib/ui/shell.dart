@@ -501,8 +501,12 @@ class _UniClientShellState extends State<UniClientShell>
           layout,
           Positioned.fill(
             child: ChatSwitchOverlay(
+              // history[0] is the current chat (openChat inserts it at index 0).
+              // The overlay opens with it selected and then runs the initiating
+              // Tab/Backtab itself, so a single Ctrl+Tab tap-and-release lands on
+              // the previously-used chat — matching AyuGram's classic alt-tab.
               chats: history,
-              initialIndex: _chatSwitchReverse ? history.length - 1 : 0,
+              reverse: _chatSwitchReverse,
               onChosen: (chat) {
                 ShortcutSystem.instance.resume();
                 setState(() => _chatSwitchActive = false);
