@@ -390,9 +390,6 @@ All 16 original findings (13 in `call_screen.dart` + 3 shell.dart caller-side) V
 
 ## Findings — call_screen.dart
 
-- [ ] [MINOR] Group-call panel narrow-mode bottom-controls row overflows ~8–13px on the right: 5 buttons (Chat/Screen/Video/hangup/mute) × 68px + 48px horizontal padding = 388px > 380px narrow panel width, so Flutter paints the RenderFlex overflow stripe over the mute button (also obscures the transient "Connecting…" label). PRE-EXISTING — this chapter did not touch `_buildBottomControls`; surfaced during call_screen Stage-2 verification. — `call_screen.dart:828-872` (`_buildBottomControls` `Row(mainAxisAlignment: spaceEvenly)`)
-
-
 ## Notes — verified correct (not flagged)
 
 - Volume mapping is correct: AyuGram `kDefaultVolume=10000` (=100%), `kMaxVolume=20000` (=200%); Dart's `volume/100` display + slider `max:20000`/`divisions:200` match exactly. — `call_screen.dart:491,528,544-545` ← `calls/group/calls_group_common.h` + `calls_volume_item.cpp`
