@@ -2890,6 +2890,7 @@ type tgCall struct {
 	cancel     context.CancelFunc
 	done       chan struct{} // closed when call ends, signals all goroutines to exit
 	p2pAllowed bool // from PhoneCall response — controls ICE transport policy
+	conferenceSupported bool // from PhoneCall response — server allows upgrading this 1:1 call to a conference
 
 	// Audio receive callback (set via SetOnAudioFrame)
 	onAudioFrame func(frame []byte)
@@ -3121,6 +3122,7 @@ func (t *TelegramCore) applyRemoteMediaState(call *tgCall, ms tgMediaState) {
 		"remote_screencast_state": ms.ScreencastState,
 		"remote_video_rotation":  strconv.Itoa(ms.VideoRotation),
 		"remote_low_battery":     strconv.FormatBool(ms.LowBattery),
+		"conference_supported":   strconv.FormatBool(call.conferenceSupported),
 	}
 	t.fireUpdate(Update{
 		Type:     UpdateCallState,
@@ -5736,6 +5738,7 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 	t.mu.Lock()
 	call.connections = pcResult.Connections
 	call.p2pAllowed = pcResult.P2PAllowed
+	call.conferenceSupported = pcResult.ConferenceSupported
 	proto := pcResult.Protocol
 	call.protocol = &proto
 	t.mu.Unlock()
@@ -6229,6 +6232,7 @@ func (t *TelegramCore) handleIncomingCallConfirmed(pc *tg.PhoneCall) error {
 	call.state = CallStateConnecting
 	call.connections = pc.Connections
 	call.p2pAllowed = pc.P2PAllowed
+	call.conferenceSupported = pc.ConferenceSupported
 	proto := pc.Protocol
 	call.protocol = &proto
 	t.mu.Unlock()

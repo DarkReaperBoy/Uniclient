@@ -1202,13 +1202,20 @@ class _UniClientAppState extends State<UniClientApp>
                     )).toList()
                 : <ConferenceInviteParticipant>[];
             final confCount = (cmd['conferenceParticipantCount'] as num?)?.toInt() ?? confParticipants.length;
+            final cmdConfSupported = cmd['conferenceSupported'] == true;
+            final cmdRemoteMuted = cmd['isRemoteMuted'] == true;
+            final cmdRemoteLowBattery = cmd['isRemoteLowBattery'] == true;
 
             final infoController = StreamController<CallPanelInfo>.broadcast();
             final engine = context.read<EngineService>();
+            // Conference support is reported once by the server (call meta); keep it sticky.
+            var confSupported = cmdConfSupported;
             StreamSubscription<CallStateEvent>? callSub;
             callSub = engine.onCallState.listen((event) {
               if (callId.isNotEmpty && event.call.id != callId) return;
               final newState = _parseCallPanelState(event.call.state);
+              final meta = event.call.meta;
+              if (meta['conference_supported'] == 'true') confSupported = true;
               infoController.add(CallPanelInfo(
                 callerId: callerIdStr,
                 callerName: callerNameStr,
@@ -1221,6 +1228,9 @@ class _UniClientAppState extends State<UniClientApp>
                 isConferenceInvite: isConfInvite,
                 conferenceParticipants: confParticipants,
                 conferenceParticipantCount: confCount,
+                conferenceSupported: confSupported,
+                isRemoteMuted: cmdRemoteMuted || meta['remote_muted'] == 'true',
+                isRemoteLowBattery: cmdRemoteLowBattery || meta['remote_low_battery'] == 'true',
               ));
               if (newState == CallPanelState.ended ||
                   newState == CallPanelState.failed ||
@@ -1242,6 +1252,9 @@ class _UniClientAppState extends State<UniClientApp>
               isConferenceInvite: isConfInvite,
               conferenceParticipants: confParticipants,
               conferenceParticipantCount: confCount,
+              conferenceSupported: cmdConfSupported,
+              isRemoteMuted: cmdRemoteMuted,
+              isRemoteLowBattery: cmdRemoteLowBattery,
             ), callId: callId.isEmpty ? null : callId,
                infoStream: infoController.stream);
           }

@@ -75,6 +75,7 @@ class CallPanelInfo {
   final bool isConferenceInvite;
   final List<ConferenceInviteParticipant> conferenceParticipants;
   final int conferenceParticipantCount;
+  final bool conferenceSupported;
 
   const CallPanelInfo({
     required this.callerId,
@@ -96,6 +97,7 @@ class CallPanelInfo {
     this.isConferenceInvite = false,
     this.conferenceParticipants = const [],
     this.conferenceParticipantCount = 0,
+    this.conferenceSupported = false,
   });
 }
 
@@ -385,6 +387,11 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     if (widget.info.state != CallPanelState.active) return;
     final engine = context.read<EngineService>();
     final accountId = context.read<AppState>().activeAccountId;
+    // Snapshot the current 1:1 call media state so it can be migrated into the
+    // conference (AyuGram `migrateConferenceInfo`: muted/video/screen carried over).
+    final migrateMuted = _isMuted;
+    final migrateCameraOn = _isCameraOn;
+    final migrateScreenSharing = widget.info.isScreenSharing;
 
     final action = await showTelegramBox<String>(
       context: context,
@@ -454,6 +461,14 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         await engine.endCall(accountId, widget.info.callId);
       }
 
+      // Carry the original call's mute / camera / screen-share state into the conference.
+      await _migrateCallStateToConference(
+        engine, accountId, result.callId,
+        muted: migrateMuted,
+        cameraOn: migrateCameraOn,
+        screenSharing: migrateScreenSharing,
+      );
+
       await engine.inviteToConferenceCall(accountId, result.callId, selectedIds.toList());
 
       if (mounted) {
@@ -482,6 +497,14 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         await engine.endCall(accountId, widget.info.callId);
       }
 
+      // Carry the original call's mute / camera / screen-share state into the conference.
+      await _migrateCallStateToConference(
+        engine, accountId, result.callId,
+        muted: migrateMuted,
+        cameraOn: migrateCameraOn,
+        screenSharing: migrateScreenSharing,
+      );
+
       if (!mounted) return;
       showConfirmBox(
         context,
@@ -492,6 +515,28 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           Clipboard.setData(ClipboardData(text: result.inviteLink));
         },
       );
+    }
+  }
+
+  // Migrate the original 1:1 call's media state into the freshly-joined conference,
+  // mirroring AyuGram's `migrateConferenceInfo` (.muted = muted(),
+  // .videoCapture = isSharingVideo() ? ... : nullptr, .videoCaptureScreenId = ...).
+  // Applied after the old call ends so the camera / screen-capture device is free.
+  Future<void> _migrateCallStateToConference(
+    EngineService engine,
+    String accountId,
+    String confCallId, {
+    required bool muted,
+    required bool cameraOn,
+    required bool screenSharing,
+  }) async {
+    if (confCallId.isEmpty) return;
+    await engine.setCallMuted(accountId, confCallId, muted);
+    if (cameraOn) {
+      await engine.toggleCamera(accountId, confCallId, true);
+    }
+    if (screenSharing) {
+      await engine.toggleScreenSharing(accountId, confCallId, true);
     }
   }
 
@@ -920,18 +965,28 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     );
   }
 
+  // AyuGram formats remote-status strings with `_user->shortName()` (the first
+  // name), not the full display name. Approximate shortName by the first
+  // whitespace-separated token of the caller's name.
+  String get _callerShortName {
+    final full = widget.info.callerName.trim();
+    if (full.isEmpty) return full;
+    final idx = full.indexOf(' ');
+    return idx > 0 ? full.substring(0, idx) : full;
+  }
+
   Widget _buildRemotePills() {
     final pills = <Widget>[];
     if (widget.info.isRemoteMuted) {
       pills.add(_RemoteStatusPill(
         icon: Icons.mic_off,
-        text: '${widget.info.callerName} muted their microphone',
+        text: "$_callerShortName's microphone is off",
       ));
     }
     if (widget.info.isRemoteLowBattery) {
       pills.add(_RemoteStatusPill(
         icon: Icons.battery_alert,
-        text: '${widget.info.callerName} has low battery',
+        text: "$_callerShortName's battery level is low",
       ));
     }
     if (pills.isEmpty) return const SizedBox.shrink();
@@ -978,38 +1033,74 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           showDeviceChevron: true,
           onDeviceChevronTap: _showAudioDeviceMenu,
         ),
-        _CallControlButton(
-          icon: Icons.person_add_outlined,
-          label: 'Add People',
-          onTap: _onAddPeopleTap,
-        ),
+        // AyuGram only shows "Add People" once the server reports the call can be
+        // upgraded to a conference (`toggleButton(_addPeople, ... && _conferenceSupported)`).
+        if (widget.info.conferenceSupported)
+          _CallControlButton(
+            icon: Icons.person_add_outlined,
+            label: 'Add People',
+            onTap: _onAddPeopleTap,
+          ),
       ],
     );
   }
 
+  // Mid-panel status line below the caller name (just the call duration).
+  // AyuGram keeps the encryption fingerprint + signal bars OUT of this line —
+  // they live in a badge pinned to the top-center of the panel (callFingerprintTop).
   Widget _buildStatusRow() {
+    return ValueListenableBuilder<int>(
+      valueListenable: _durationNotifier,
+      builder: (context, seconds, _) => Text(
+        _formatDuration(seconds),
+        style: const TextStyle(
+          color: Color(0xAAFFFFFF),
+          fontSize: 15,
+        ),
+      ),
+    );
+  }
+
+  // Encryption fingerprint (emoji) + signal-bars badge, pinned to the top-center
+  // of the panel (AyuGram `calls_panel.cpp` updateFingerprintGeometry:
+  // top = callFingerprintTop (8px), horizontally centered). Returns an empty box
+  // when no fingerprint/signal is available yet (e.g. before key exchange).
+  Widget _buildFingerprintBadge() {
+    final hasFingerprint = widget.info.fingerprintEmoji.length == 4;
+    final hasSignal = widget.info.signalQuality >= 0;
+    if (!hasFingerprint && !hasSignal) return const SizedBox.shrink();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ValueListenableBuilder<int>(
-          valueListenable: _durationNotifier,
-          builder: (context, seconds, _) => Text(
-            _formatDuration(seconds),
-            style: const TextStyle(
-              color: Color(0xAAFFFFFF),
-              fontSize: 15,
-            ),
+        if (hasFingerprint)
+          _EncryptionFingerprint(
+            emoji: widget.info.fingerprintEmoji,
+            callerName: widget.info.callerName,
           ),
-        ),
-        if (widget.info.fingerprintEmoji.length == 4) ...[
-          const SizedBox(width: 8),
-          _EncryptionFingerprint(emoji: widget.info.fingerprintEmoji, callerName: widget.info.callerName),
-        ],
-        if (widget.info.signalQuality >= 0) ...[
-          const SizedBox(width: 8),
-          _SignalBars(quality: widget.info.signalQuality),
-        ],
+        if (hasFingerprint && hasSignal) const SizedBox(width: 6),
+        if (hasSignal)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: _SignalBars(quality: widget.info.signalQuality),
+          ),
       ],
+    );
+  }
+
+  // Pinned top-center fingerprint badge for use inside the active-state Stacks.
+  Widget _buildPinnedFingerprint() {
+    return Positioned(
+      top: 8, // st::callFingerprintTop
+      left: 0,
+      right: 0,
+      child: FadeTransition(
+        opacity: _controlsFadeController,
+        child: Center(child: _buildFingerprintBadge()),
+      ),
     );
   }
 
@@ -1102,6 +1193,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
                 ),
               ),
             ),
+            _buildPinnedFingerprint(),
             if (widget.selfVideoWidget != null)
               _SelfViewBubble(
                 videoWidget: widget.selfVideoWidget!,
@@ -1158,6 +1250,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
                 const SizedBox(height: 48),
               ],
             ),
+            _buildPinnedFingerprint(),
             if (widget.selfVideoWidget != null)
               _SelfViewBubble(
                 videoWidget: widget.selfVideoWidget!,
@@ -2099,9 +2192,11 @@ class _EncryptionFingerprintState extends State<_EncryptionFingerprint>
   @override
   Widget build(BuildContext context) {
     return TelegramTooltip(
+      // AyuGram `lng_call_fingerprint_tooltip`: actionable verification instruction,
+      // formatted with the user's name — not a generic "is encrypted" assertion.
       message: widget.callerName.isNotEmpty
-          ? 'This call with ${widget.callerName} is end-to-end encrypted'
-          : 'This call is end-to-end encrypted',
+          ? "If the emoji on ${widget.callerName}'s screen are the same, this call is 100% secure"
+          : 'If the emoji on both screens are the same, this call is 100% secure',
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
