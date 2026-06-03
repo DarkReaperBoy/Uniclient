@@ -826,8 +826,18 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   }
 
   Widget _buildBottomControls({bool wide = false}) {
+    // Narrow mode is a fixed 380px panel. The 5 buttons (68px each) plus 6 even
+    // gaps must span the full width with NO horizontal inset — matching AyuGram's
+    // narrow 5-button layout (calls_group_panel.cpp updateButtonsGeometry, the
+    // `five` branch: fullWidth = groupCallWidth = 380px,
+    // buttonSkip = (380 - 5*68) / 6 ≈ 6.67px), which spaceEvenly reproduces as its
+    // 6 equal gaps. A 24px side inset would make 5*68 + 48 = 388px > 380px and
+    // paint the RenderFlex overflow stripe over the mute button (hiding the
+    // transient "Connecting…" label). Wide mode lives in the wider video column,
+    // so it keeps the 24px inset.
+    final hPad = wide ? 24.0 : 0.0;
     return Container(
-      padding: EdgeInsets.fromLTRB(24, 16, 24, wide ? 108 : 113),
+      padding: EdgeInsets.fromLTRB(hPad, 16, hPad, wide ? 108 : 113),
       decoration: const BoxDecoration(
         border: Border(
           top: BorderSide(color: Color(0x20FFFFFF), width: 1),
