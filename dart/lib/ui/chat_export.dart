@@ -309,8 +309,8 @@ class _FloatingExportPanelState extends State<_FloatingExportPanel>
   }
 }
 
-void showExportSuggestBox(BuildContext context, {String? accountId}) {
-  showDialog(
+Future<void> showExportSuggestBox(BuildContext context, {String? accountId}) {
+  return showDialog<void>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => _ExportSuggestBox(accountId: accountId),
@@ -368,9 +368,14 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   bool _publicGroups = false;
   bool _publicChannels = false;
 
-  // "Only my messages" sub-options
-  bool _privateGroupsOnlyMy = false;
-  bool _privateChannelsOnlyMy = false;
+  // "Only my messages" sub-options. AyuGram's DefaultFullChats() is only
+  // PersonalChats | BotChats, and each checkbox's initial state is
+  // `(fullChats & types) != types` — so for private groups/channels (not in
+  // fullChats) "Only my messages" is CHECKED by default. Defaulting these to
+  // false would export every member's messages on a fresh export.
+  // (export_settings.h:115-118, export_view_settings.cpp:751)
+  bool _privateGroupsOnlyMy = true;
+  bool _privateChannelsOnlyMy = true;
   bool _publicGroupsOnlyMy = true; // forced on
   bool _publicChannelsOnlyMy = true; // forced on
 
@@ -1132,9 +1137,10 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     _cleanupExportSubscriptions();
     final engine = context.read<EngineService>();
     final accountId = widget.target.accountId ?? '';
-    engine.saveExportSettings(accountId, {
-      'suggestAvailableAt': availableAt.millisecondsSinceEpoch,
-    }).catchError((_) {});
+    // Persist the available-at time and (re)arm the suggestion timer engine-side
+    // (Session::suggestStartExport). The engine stores this in its own file, so
+    // we must NOT also write it through saveExportSettings — that would clobber
+    // the whole export-settings map with a single key.
     engine.callGeneric(accountId, 'SuggestStartExport', {
       'availableAt': availableAt.millisecondsSinceEpoch,
     }).catchError((_) {});
@@ -3176,13 +3182,13 @@ class _ExportSuggestBoxState extends State<_ExportSuggestBox> {
   void initState() {
     super.initState();
     try {
+      // Showing the box consumes the suggestion: cancel the engine-side timer and
+      // clear the persisted available-at so it isn't re-suggested (mirrors
+      // ClearSuggestStart, which SuggestStart calls before showing the box).
       final engine = context.read<EngineService>();
       engine.callGeneric(
         widget.accountId ?? '', 'ClearExportSuggestion', {},
       ).catchError((_) {});
-      engine.saveExportSettings(widget.accountId ?? '', {
-        'suggestAvailableAt': 0,
-      }).catchError((_) {});
     } catch (_) {}
   }
 

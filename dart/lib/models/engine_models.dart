@@ -2873,6 +2873,24 @@ class ExportCompleteEvent {
   );
 }
 
+/// Emitted when a previously-delayed takeout export becomes available and the
+/// user should be re-prompted with the "Data export ready" box (AyuGram
+/// Export::View::SuggestStart, scheduled by Session::suggestStartExport).
+class ExportSuggestEvent {
+  final String accountId;
+  final int availableAtMs;
+
+  const ExportSuggestEvent({
+    this.accountId = '',
+    this.availableAtMs = 0,
+  });
+
+  factory ExportSuggestEvent.fromJson(Map<String, dynamic> j, {String accountId = ''}) => ExportSuggestEvent(
+    accountId: accountId,
+    availableAtMs: j['available_at_ms'] as int? ?? 0,
+  );
+}
+
 class NotifySettingsEvent {
   final String accountId;
   final String peerType;

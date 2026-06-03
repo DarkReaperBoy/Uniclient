@@ -57,6 +57,7 @@ class EngineService {
   final _exportProgressController = StreamController<ExportProgressEvent>.broadcast();
   final _exportErrorController = StreamController<ExportErrorEvent>.broadcast();
   final _exportCompleteController = StreamController<ExportCompleteEvent>.broadcast();
+  final _exportSuggestController = StreamController<ExportSuggestEvent>.broadcast();
   final _notifySettingsController = StreamController<NotifySettingsEvent>.broadcast();
   StreamSubscription<Uint8List>? _bridgeEventSub;
 
@@ -81,6 +82,7 @@ class EngineService {
   Stream<ExportProgressEvent> get onExportProgress => _exportProgressController.stream;
   Stream<ExportErrorEvent> get onExportError => _exportErrorController.stream;
   Stream<ExportCompleteEvent> get onExportComplete => _exportCompleteController.stream;
+  Stream<ExportSuggestEvent> get onExportSuggest => _exportSuggestController.stream;
   Stream<NotifySettingsEvent> get onNotifySettings => _notifySettingsController.stream;
 
   bool get isInitialized => _initialized;
@@ -6270,6 +6272,7 @@ class EngineService {
     _exportProgressController.close();
     _exportErrorController.close();
     _exportCompleteController.close();
+    _exportSuggestController.close();
     _msgReactionsUpdatedController.close();
     _notifySettingsController.close();
   }
@@ -6513,6 +6516,12 @@ class EngineService {
       case 'export_complete':
         if (data is Map<String, dynamic>) {
           _exportCompleteController.add(ExportCompleteEvent.fromJson(data,
+            accountId: event['account_id'] as String? ?? ''));
+        }
+
+      case 'export_suggest':
+        if (data is Map<String, dynamic>) {
+          _exportSuggestController.add(ExportSuggestEvent.fromJson(data,
             accountId: event['account_id'] as String? ?? ''));
         }
 

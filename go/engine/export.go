@@ -70,6 +70,13 @@ type ExportCompleteEvent struct {
 	TotalSize  int64  `json:"total_size_bytes"`
 }
 
+// ExportSuggestEvent is emitted when a previously-delayed takeout export becomes
+// available and the user should be re-prompted to start it (AyuGram's "Data
+// export ready" box, Export::View::SuggestStart).
+type ExportSuggestEvent struct {
+	AvailableAtMS int64 `json:"available_at_ms"`
+}
+
 type exportState struct {
 	mu           sync.Mutex
 	cancel       context.CancelFunc
@@ -176,6 +183,160 @@ func (e *Engine) LoadExportSettings(accountID string) (json.RawMessage, error) {
 		return nil, err
 	}
 	return json.RawMessage(data), nil
+}
+
+// --- Export-ready suggestion (AyuGram Session::suggestStartExport / clearExportSuggestion) ---
+//
+// When a takeout init is delayed (TAKEOUT_INIT_DELAY) Telegram returns the time
+// at which the export becomes available. AyuGram persists this in the export
+// settings (settings.availableAt) and, on every startup, re-arms a timer
+// (Session::suggestStartExport → base::call_delayed) that — once the time
+// elapses and no export is running — re-prompts the user with the "Data export
+// ready" box (Export::View::SuggestStart). We mirror that: SuggestStartExport
+// persists availableAt and (re)arms a timer; when it fires we emit
+// EventExportSuggest so Dart shows the box. ClearExportSuggestion (=
+// ClearSuggestStart) cancels the timer and clears the persisted value.
+
+// exportSuggestPath returns the per-account file persisting the export-ready
+// availableAt timestamp. It is kept separate from export_settings.json so the
+// periodic settings autosave (which writes the whole settings map) can't clobber it.
+func (e *Engine) exportSuggestPath(accountID string) (string, bool) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", false
+	}
+	return filepath.Join(e.configDir, "accounts", acc.ID, "export_suggest.json"), true
+}
+
+func (e *Engine) writeExportSuggestAt(accountID string, availableAtMS int64) {
+	path, ok := e.exportSuggestPath(accountID)
+	if !ok {
+		return
+	}
+	if availableAtMS <= 0 {
+		os.Remove(path)
+		return
+	}
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	b, err := json.Marshal(map[string]int64{"available_at_ms": availableAtMS})
+	if err != nil {
+		return
+	}
+	os.WriteFile(path, b, 0o644)
+}
+
+func (e *Engine) readExportSuggestAt(accountID string) int64 {
+	path, ok := e.exportSuggestPath(accountID)
+	if !ok {
+		return 0
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	var m map[string]int64
+	if json.Unmarshal(data, &m) != nil {
+		return 0
+	}
+	return m["available_at_ms"]
+}
+
+// SuggestStartExport persists availableAt and (re)arms the suggestion timer.
+// Mirrors Session::suggestStartExport(TimeId availableAt).
+func (e *Engine) SuggestStartExport(accountID string, availableAtMS int64) error {
+	e.writeExportSuggestAt(accountID, availableAtMS)
+	e.scheduleExportSuggest(accountID, availableAtMS)
+	return nil
+}
+
+// ClearExportSuggestion cancels any pending suggestion timer and clears the
+// persisted availableAt. Mirrors Export::View::ClearSuggestStart /
+// Session::clearExportSuggestion.
+func (e *Engine) ClearExportSuggestion(accountID string) error {
+	e.cancelExportSuggest(accountID)
+	e.writeExportSuggestAt(accountID, 0)
+	return nil
+}
+
+// suggestExportIfNeeded re-arms the suggestion timer from persisted state when an
+// account connects. Mirrors Domain::suggestExportIfNeeded().
+func (e *Engine) suggestExportIfNeeded(accountID string) {
+	if availableAt := e.readExportSuggestAt(accountID); availableAt > 0 {
+		e.scheduleExportSuggest(accountID, availableAt)
+	}
+}
+
+// scheduleExportSuggest is the timer body of Session::suggestStartExport(): while
+// the available time is still in the future it re-arms after min(left+5s, 1h) and
+// re-checks; once elapsed it emits the suggestion (or, if an export is already
+// running, just clears it — matching the inProgress() → ClearSuggestStart branch).
+func (e *Engine) scheduleExportSuggest(accountID string, availableAtMS int64) {
+	e.cancelExportSuggest(accountID)
+
+	e.mu.RLock()
+	down := e.shuttingDown
+	e.mu.RUnlock()
+	if down || availableAtMS <= 0 {
+		return
+	}
+
+	leftMS := availableAtMS - time.Now().UnixMilli()
+	if leftMS > 0 {
+		waitMS := leftMS + 5000
+		if waitMS > 3600*1000 {
+			waitMS = 3600 * 1000
+		}
+		timer := time.AfterFunc(time.Duration(waitMS)*time.Millisecond, func() {
+			e.scheduleExportSuggest(accountID, availableAtMS)
+		})
+		e.exportSuggestMu.Lock()
+		if e.exportSuggestTimers == nil {
+			e.exportSuggestTimers = make(map[string]*time.Timer)
+		}
+		e.exportSuggestTimers[accountID] = timer
+		e.exportSuggestMu.Unlock()
+		return
+	}
+
+	if e.isExportRunning(accountID) {
+		e.writeExportSuggestAt(accountID, 0)
+		return
+	}
+	e.emitEvent(EventExportSuggest, accountID, ExportSuggestEvent{AvailableAtMS: availableAtMS})
+}
+
+func (e *Engine) cancelExportSuggest(accountID string) {
+	e.exportSuggestMu.Lock()
+	if t, ok := e.exportSuggestTimers[accountID]; ok {
+		t.Stop()
+		delete(e.exportSuggestTimers, accountID)
+	}
+	e.exportSuggestMu.Unlock()
+}
+
+// cancelAllExportSuggests stops every pending suggestion timer (used on shutdown).
+func (e *Engine) cancelAllExportSuggests() {
+	e.exportSuggestMu.Lock()
+	for id, t := range e.exportSuggestTimers {
+		t.Stop()
+		delete(e.exportSuggestTimers, id)
+	}
+	e.exportSuggestMu.Unlock()
+}
+
+// isExportRunning reports whether a takeout export is currently in progress for
+// the account (AyuGram Core::App().exportManager().inProgress()).
+func (e *Engine) isExportRunning(accountID string) bool {
+	e.exportMu.RLock()
+	state, ok := e.exports[accountID]
+	e.exportMu.RUnlock()
+	if !ok {
+		return false
+	}
+	state.mu.Lock()
+	running := state.running
+	state.mu.Unlock()
+	return running
 }
 
 func (e *Engine) runExport(ctx context.Context, acc *Account, state *exportState, settings ExportSettings) {

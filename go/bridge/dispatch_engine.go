@@ -5937,6 +5937,31 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return data, nil
 
+	case "SuggestStartExport":
+		var params struct {
+			AccountID   string `json:"account_id"`
+			AvailableAt int64  `json:"availableAt"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SuggestStartExport(params.AccountID, params.AvailableAt); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
+	case "ClearExportSuggestion":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.ClearExportSuggestion(params.AccountID); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
 	case "MarkChatUnread":
 		var params struct {
 			AccountID string `json:"account_id"`

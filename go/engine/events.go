@@ -32,6 +32,7 @@ const (
 	EventExportProgress  = "export_progress"
 	EventExportError     = "export_error"
 	EventExportComplete  = "export_complete"
+	EventExportSuggest   = "export_suggest"
 	EventNotifySettings  = "notify_settings"
 )
 

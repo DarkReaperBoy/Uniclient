@@ -102,6 +102,10 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	e.setConnState(accountID, ConnConnected)
 	e.emitConnState(accountID, ConnConnected, "")
 
+	// Re-arm a pending "data export ready" suggestion from persisted state, if a
+	// previous takeout was delayed (AyuGram Domain::suggestExportIfNeeded()).
+	e.suggestExportIfNeeded(accountID)
+
 	// Preload persisted peer access hashes into the core's in-memory cache
 	// so API calls succeed before GetDialogs repopulates them.
 	type peerHashPreloader interface {

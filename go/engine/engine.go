@@ -89,6 +89,12 @@ type Engine struct {
 	exportMu sync.RWMutex
 	exports  map[string]*exportState
 
+	// Export-ready suggestion scheduling (AyuGram Session::suggestStartExport):
+	// per-account timer that fires when a delayed takeout becomes available,
+	// emitting EventExportSuggest so Dart shows the "Data export ready" box.
+	exportSuggestMu     sync.Mutex
+	exportSuggestTimers map[string]*time.Timer
+
 	// Proxy settings: controlled from Dart via SetProxy.
 	proxyMu       sync.RWMutex
 	proxyMode     int    // 0=disabled, 1=system, 2=custom
@@ -761,6 +767,9 @@ func (e *Engine) Shutdown() error {
 	e.mu.Lock()
 	e.shuttingDown = true
 	e.mu.Unlock()
+
+	// Stop any pending export-ready suggestion timers.
+	e.cancelAllExportSuggests()
 
 	// Cancel all account goroutines.
 	e.accountsMu.RLock()

@@ -157,6 +157,10 @@ class _UniClientAppState extends State<UniClientApp>
   // delays + online cloud timeout) into the notification system once an account
   // connects — AyuGram reads these from session().serverConfig().
   StreamSubscription<ConnStateEvent>? _notifServerConfigSub;
+  // Shows the "Data export ready" box when a previously-delayed takeout becomes
+  // available (AyuGram Export::View::SuggestStart, scheduled engine-side).
+  StreamSubscription<ExportSuggestEvent>? _exportSuggestSub;
+  bool _exportSuggestBoxOpen = false;
   String _lastAppIcon = '';
   AppState? _appStateRef;
   ChatState? _chatStateRef;
@@ -720,6 +724,18 @@ class _UniClientAppState extends State<UniClientApp>
       } catch (_) {
         // Transient (account disconnected mid-fetch / no network): keep defaults.
       }
+    });
+
+    // "Data export ready" suggestion — when a delayed takeout becomes available,
+    // the engine re-arms a timer (Session::suggestStartExport) and emits this
+    // event so we re-prompt the user with the SuggestStart box, exactly once.
+    _exportSuggestSub = engine.onExportSuggest.listen((event) {
+      if (_exportSuggestBoxOpen) return;
+      final navCtx = _navigatorKey.currentContext;
+      if (navCtx == null) return;
+      _exportSuggestBoxOpen = true;
+      showExportSuggestBox(navCtx, accountId: event.accountId)
+          .whenComplete(() => _exportSuggestBoxOpen = false);
     });
 
     // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
@@ -2317,6 +2333,7 @@ class _UniClientAppState extends State<UniClientApp>
   void dispose() {
     _notifSystem.dispose();
     _notifServerConfigSub?.cancel();
+    _exportSuggestSub?.cancel();
     _debugCmdTimer?.cancel();
     _waitForTextTimer?.cancel();
     if (_unreadListener != null && _chatStateRef != null) {
