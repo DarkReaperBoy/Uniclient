@@ -703,6 +703,22 @@ class EngineService {
     return list.map((e) => SearchResult.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// FTS message search restricted to a specific sender within [chatId] — the
+  /// "Search from [user]" filter (AyuGram ChatSearchIn `_from` section).
+  Future<List<SearchResult>> searchMessagesFrom(String accountId, String chatId, String query, String senderId, {int limit = 50}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'query': query,
+      'sender_id': senderId,
+      'limit': limit,
+    }));
+    final respBytes = await _callAsync('__engine', 'SearchMessagesFrom', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return [];
+    final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+    return list.map((e) => SearchResult.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   void readMessageContents(String accountId, String chatId, String msgId) {
     final req = epb.EngineReadMessageContentsRequest()
       ..accountId = accountId

@@ -2235,6 +2235,12 @@ class ChatState extends ChangeNotifier {
     return _engine.searchMessages(query, accountId: accountId, chatId: chatId, topicId: topicId);
   }
 
+  /// Message search restricted to a specific sender within a chat — the
+  /// "Search from [user]" filter (AyuGram ChatSearchIn `_from` section).
+  Future<List<SearchResult>> searchMessagesFrom(String accountId, String chatId, String query, String senderId, {int limit = 50}) {
+    return _engine.searchMessagesFrom(accountId, chatId, query, senderId, limit: limit);
+  }
+
   Future<List<ChatInfo>> searchChats(String query) {
     return _engine.searchChats(query);
   }

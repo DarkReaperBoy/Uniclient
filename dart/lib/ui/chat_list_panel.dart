@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -129,9 +130,44 @@ class ChatListPanel extends StatefulWidget {
 /// Search-mode tab enum matching Telegram Desktop `ChatSearchTab`.
 enum _SearchTab { myMessages, publicPosts, thisPeer, thisTopic }
 
-/// Sub-filter for "My Messages" tab (spec §2.2: ChatSearchIn popup menu).
-/// Filters search results by chat type under the My Messages tab.
-enum _MyMsgSubFilter { all, private_, groups, channels }
+/// Port of AyuGram `Dialogs::IsHashOrCashtagSearchQuery`
+/// (dialogs/ui/chat_search_in.cpp:237). Returns true when the trimmed query is a
+/// single `#hashtag` (no internal whitespace) or `$CASHTAG` (uppercase A-Z only)
+/// token. The "Public Posts" search tab only exists for such queries
+/// (publicIcon is non-null only when this is true — dialogs_inner_widget.cpp:4618).
+bool _isHashOrCashtagQuery(String query) {
+  final trimmed = query.trim();
+  if (trimmed.isEmpty) return false;
+  final first = trimmed[0];
+  if (first == '#') {
+    // No whitespace allowed inside a hashtag.
+    return !trimmed.contains(RegExp(r'\s'));
+  } else if (first == r'$') {
+    // Cashtag: every char after '$' must be uppercase A-Z.
+    for (var i = 1; i < trimmed.length; i++) {
+      final c = trimmed.codeUnitAt(i);
+      if (c < 0x41 || c > 0x5A) return false; // 'A'..'Z'
+    }
+    return true;
+  }
+  return false;
+}
+
+/// Resolves the "This Peer" tab label by peer type, matching AyuGram's
+/// `TabLabel`/`ChatSearchPeerTabType` switch (chat_search_in.cpp:70 &
+/// dialogs_inner_widget.cpp:4621): broadcast channel → "This Channel",
+/// group/megagroup → "This Group", everything else → "This Chat".
+String _thisPeerTabLabel(ChatInfo? chat) {
+  switch (chat?.type) {
+    case ChatType.channel:
+      return 'This Channel';
+    case ChatType.group:
+    case ChatType.topic:
+      return 'This Group';
+    default:
+      return 'This Chat';
+  }
+}
 
 class _ChatListPanelState extends State<ChatListPanel>
     with TickerProviderStateMixin {
@@ -150,7 +186,10 @@ class _ChatListPanelState extends State<ChatListPanel>
   List<ChatInfo>? _lastDisplayChats;
   List<ChatInfo> _cachedSorted = [];
   _SearchTab _activeSearchTab = _SearchTab.myMessages;
-  _MyMsgSubFilter _myMsgSubFilter = _MyMsgSubFilter.all;
+  // "Search from [user]" sender filter (AyuGram ChatSearchIn `_from` section).
+  // Non-null only while a member has been chosen to scope a This-Peer (group)
+  // search by sender; cleared when leaving the tab or cancelling search.
+  MemberInfo? _searchFromUser;
   late final AnimationController _archiveAnimCtrl;
   late final Animation<double> _archiveAnim;
 
@@ -543,18 +582,19 @@ class _ChatListPanelState extends State<ChatListPanel>
       });
       return;
     }
+    // The Public Posts tab only exists while the query is a hashtag/cashtag
+    // (dialogs_inner_widget.cpp:4618). If the user edits the query so it no
+    // longer qualifies, fall back to My Messages so we never search a hidden tab.
+    if (_activeSearchTab == _SearchTab.publicPosts &&
+        !_isHashOrCashtagQuery(query)) {
+      _activeSearchTab = _SearchTab.myMessages;
+    }
     final chatState = context.read<ChatState>();
     final appState = context.read<AppState>();
-    final chatId = _searchChatIdForTab(_activeSearchTab, chatState);
-    final topicId = _searchTopicIdForTab(_activeSearchTab, chatState);
     final chatResults = await chatState.searchChats(query);
     if (!mounted) return;
-    final List<SearchResult> rawMsgs;
-    if (_activeSearchTab == _SearchTab.publicPosts) {
-      rawMsgs = await chatState.searchGlobalPostMessages(appState.activeAccountId, query);
-    } else {
-      rawMsgs = await chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId, topicId: topicId);
-    }
+    final rawMsgs =
+        await _fetchMessageResults(chatState, appState.activeAccountId, query);
     if (!mounted) return;
     setState(() {
       _searchResults = _filterByTab(chatResults, chatState);
@@ -576,20 +616,11 @@ class _ChatListPanelState extends State<ChatListPanel>
     return '';
   }
 
-  /// Filter search results based on the active search tab.
+  /// Filter the chat-name results based on the active search tab.
   List<ChatInfo> _filterByTab(List<ChatInfo> results, ChatState chatState) {
     switch (_activeSearchTab) {
       case _SearchTab.myMessages:
-        switch (_myMsgSubFilter) {
-          case _MyMsgSubFilter.all:
-            return results;
-          case _MyMsgSubFilter.private_:
-            return results.where((c) => c.type == ChatType.dm).toList();
-          case _MyMsgSubFilter.groups:
-            return results.where((c) => c.type == ChatType.group || c.type == ChatType.topic).toList();
-          case _MyMsgSubFilter.channels:
-            return results.where((c) => c.type == ChatType.channel).toList();
-        }
+        return results;
       case _SearchTab.publicPosts:
         return [];
       case _SearchTab.thisPeer:
@@ -613,49 +644,75 @@ class _ChatListPanelState extends State<ChatListPanel>
     }
   }
 
-  Future<void> _onSubFilterChanged(_MyMsgSubFilter filter) async {
-    setState(() {
-      _myMsgSubFilter = filter;
-    });
+  /// Runs the message-results query for the active tab, honouring the
+  /// "Search from [user]" sender filter when a member is selected on a
+  /// This-Peer (group) search (AyuGram ChatSearchIn `_from` section). Public
+  /// Posts uses the global-post search; everything else the local FTS search.
+  Future<List<SearchResult>> _fetchMessageResults(
+      ChatState chatState, String accountId, String query) async {
+    if (_activeSearchTab == _SearchTab.publicPosts) {
+      return chatState.searchGlobalPostMessages(accountId, query);
+    }
+    final chatId = _searchChatIdForTab(_activeSearchTab, chatState);
+    final topicId = _searchTopicIdForTab(_activeSearchTab, chatState);
+    final from = _searchFromUser;
+    if (_activeSearchTab == _SearchTab.thisPeer &&
+        from != null &&
+        chatId.isNotEmpty) {
+      return chatState.searchMessagesFrom(accountId, chatId, query, from.userId);
+    }
+    return chatState.searchMessages(query,
+        accountId: accountId, chatId: chatId, topicId: topicId);
+  }
+
+  /// Re-runs the active search after the "Search from [user]" selection changed
+  /// (a member was chosen or cleared).
+  Future<void> _onSearchFromChanged(MemberInfo? from) async {
+    setState(() => _searchFromUser = from);
     final query = _searchController.text;
-    if (query.isNotEmpty) {
-      final chatState = context.read<ChatState>();
-      final appState = context.read<AppState>();
-      final chatId = _searchChatIdForTab(_activeSearchTab, chatState);
-      final chatResults = await chatState.searchChats(query);
-      if (!mounted) return;
-      final List<SearchResult> rawMsgs;
-      if (_activeSearchTab == _SearchTab.publicPosts) {
-        rawMsgs = await chatState.searchGlobalPostMessages(appState.activeAccountId, query);
-      } else {
-        rawMsgs = await chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
-      }
-      if (!mounted) return;
-      setState(() {
-        _searchResults = _filterByTab(chatResults, chatState);
-        _messageSearchResults = rawMsgs;
-      });
+    if (query.isEmpty) return;
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+    final chatResults = await chatState.searchChats(query);
+    if (!mounted) return;
+    final rawMsgs =
+        await _fetchMessageResults(chatState, appState.activeAccountId, query);
+    if (!mounted) return;
+    setState(() {
+      _searchResults = _filterByTab(chatResults, chatState);
+      _messageSearchResults = rawMsgs;
+    });
+  }
+
+  /// Opens the group-member picker for the "Search from" filter; applies the
+  /// chosen member as the sender scope (AyuGram `showSearchFrom` → SearchFromBox).
+  Future<void> _chooseSearchFromUser(ChatInfo group) async {
+    final engine = context.read<EngineService>();
+    final picked = await showSearchFromMemberPicker(
+      context: context,
+      engine: engine,
+      group: group,
+    );
+    if (picked != null && mounted) {
+      await _onSearchFromChanged(picked);
     }
   }
 
   Future<void> _onSearchTabChanged(_SearchTab tab) async {
     setState(() {
       _activeSearchTab = tab;
-      _myMsgSubFilter = _MyMsgSubFilter.all;
+      // Leaving/entering a tab drops any sender filter — it only applies to a
+      // This-Peer group scope (AyuGram clears fromPeer on scope change).
+      _searchFromUser = null;
     });
     final query = _searchController.text;
     if (query.isNotEmpty) {
       final chatState = context.read<ChatState>();
       final appState = context.read<AppState>();
-      final chatId = _searchChatIdForTab(tab, chatState);
       final chatResults = await chatState.searchChats(query);
       if (!mounted) return;
-      final List<SearchResult> rawMsgs;
-      if (tab == _SearchTab.publicPosts) {
-        rawMsgs = await chatState.searchGlobalPostMessages(appState.activeAccountId, query);
-      } else {
-        rawMsgs = await chatState.searchMessages(query, accountId: appState.activeAccountId, chatId: chatId);
-      }
+      final rawMsgs = await _fetchMessageResults(
+          chatState, appState.activeAccountId, query);
       if (!mounted) return;
       setState(() {
         _searchResults = _filterByTab(chatResults, chatState);
@@ -672,7 +729,7 @@ class _ChatListPanelState extends State<ChatListPanel>
       _searchResults = null;
       _messageSearchResults = [];
       _activeSearchTab = _SearchTab.myMessages;
-      _myMsgSubFilter = _MyMsgSubFilter.all;
+      _searchFromUser = null;
     });
   }
 
@@ -683,7 +740,7 @@ class _ChatListPanelState extends State<ChatListPanel>
   Future<void> _resetToAllMessages() async {
     setState(() {
       _activeSearchTab = _SearchTab.myMessages;
-      _myMsgSubFilter = _MyMsgSubFilter.all;
+      _searchFromUser = null;
     });
     final query = _searchController.text;
     if (query.isNotEmpty) {
@@ -818,16 +875,26 @@ class _ChatListPanelState extends State<ChatListPanel>
               _SearchTabsStrip(
                 activeTab: _activeSearchTab,
                 onTabChanged: _onSearchTabChanged,
+                // Public Posts only for hashtag/cashtag queries; This Peer only
+                // when a peer scope exists; This Topic only inside a forum topic.
+                showPublicPosts: _isHashOrCashtagQuery(_searchController.text),
+                showThisPeer: chatState.activeChat != null,
+                thisPeerLabel: _thisPeerTabLabel(chatState.activeChat),
                 showThisTopic: chatState.isViewingForum && chatState.activeTopicId != null,
               ),
-            // Sub-filter row under My Messages (spec §2.2: ChatSearchIn popup).
+            // "Search from [user]" sender filter (AyuGram ChatSearchIn `_from`
+            // section). Only meaningful for a This-Peer search scoped to a
+            // group/megagroup — searchFromPeer() requires isChat()||isMegagroup()
+            // (dialogs_widget.cpp:4459).
             if (_searching &&
                 _searchController.text.isNotEmpty &&
-                _activeSearchTab == _SearchTab.myMessages)
-              _SearchSubFilterRow(
-                activeFilter: _myMsgSubFilter,
-                onFilterChanged: _onSubFilterChanged,
-                searchInChat: chatState.activeChat,
+                _activeSearchTab == _SearchTab.thisPeer &&
+                chatState.activeChat?.type == ChatType.group)
+              _SearchFromRow(
+                fromUser: _searchFromUser,
+                onChoose: () =>
+                    _chooseSearchFromUser(chatState.activeChat!),
+                onClear: () => _onSearchFromChanged(null),
               ),
             // Top Peers strip (spec §2: shown when search focused, no query).
             if (_searching && _searchController.text.isEmpty)
@@ -889,13 +956,25 @@ class _ChatListPanelState extends State<ChatListPanel>
                               return _SearchMessageRow(
                                 result: result,
                                 onTap: () {
+                                  // AyuGram search-result rows carry their own
+                                  // resolved History and open any peer regardless
+                                  // of dialog-list membership (dialogs_inner_widget
+                                  // .cpp:2840). If the peer isn't in the local chat
+                                  // list (Public Posts / global results), synthesize
+                                  // a ChatInfo from the result so it still opens —
+                                  // the engine resolves the peer by id+account.
                                   final allChats = chatState.chatsForAccount(result.accountId);
-                                  final chat = allChats.where((c) => c.chatId == result.chatId).firstOrNull;
-                                  if (chat != null) {
-                                    chatState.openChat(chat);
-                                    if (result.timestamp > 0) {
-                                      chatState.jumpToMessage(result.timestamp * 1000, highlightMsgId: result.msgId);
-                                    }
+                                  final chat = allChats
+                                          .where((c) => c.chatId == result.chatId)
+                                          .firstOrNull ??
+                                      ChatInfo(
+                                        accountId: result.accountId,
+                                        chatId: result.chatId,
+                                        title: result.chatTitle,
+                                      );
+                                  chatState.openChat(chat);
+                                  if (result.timestamp > 0) {
+                                    chatState.jumpToMessage(result.timestamp * 1000, highlightMsgId: result.msgId);
                                   }
                                 },
                               );
@@ -2808,6 +2887,10 @@ class _TopPeersStripState extends State<_TopPeersStrip> {
                                   File(chat.avatarPath),
                                   width: _TopPeersStrip._avatarSize,
                                   height: _TopPeersStrip._avatarSize,
+                                  // Decode at display size (AyuGram caches userpics
+                                  // at the exact paint size — dialogs.style:761).
+                                  cacheWidth: (_TopPeersStrip._avatarSize * 2).toInt(),
+                                  cacheHeight: (_TopPeersStrip._avatarSize * 2).toInt(),
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) =>
                                       _fallbackAvatar(color, initials),
@@ -2937,7 +3020,10 @@ class _StoriesBarState extends State<_StoriesBar>
 
   static const _readOpacity = 0.6;
 
-  bool _expanded = true;
+  // AyuGram's stories strip starts in the collapsed Small state (35px small-thumb
+  // strip); it only expands on deliberate pull-down/overscroll
+  // (_storiesExplicitExpand defaults false — dialogs_widget.cpp:1487).
+  bool _expanded = false;
   bool get isExpanded => _expanded;
   void setExpanded(bool v) => _setExpanded(v);
   late AnimationController _expandController;
@@ -3055,6 +3141,8 @@ class _StoriesBarState extends State<_StoriesBar>
                 File(avatarPath),
                 width: _smallPhoto,
                 height: _smallPhoto,
+                cacheWidth: (_smallPhoto * 2).toInt(),
+                cacheHeight: (_smallPhoto * 2).toInt(),
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => _ownAvatarFallback(),
               ),
@@ -3290,6 +3378,8 @@ class _StoryAvatar extends StatelessWidget {
                         File(chat.avatarPath),
                         width: size,
                         height: size,
+                        cacheWidth: (size * 2).toInt(),
+                        cacheHeight: (size * 2).toInt(),
                         fit: BoxFit.cover,
                         opacity: opacity < 1.0 ? AlwaysStoppedAnimation(opacity) : null,
                         errorBuilder: (_, __, ___) =>
@@ -3638,6 +3728,8 @@ class _RecentContactRowState extends State<_RecentContactRow> {
                                 File(widget.chat.avatarPath),
                                 width: _RecentContactsList._avatarSize,
                                 height: _RecentContactsList._avatarSize,
+                                cacheWidth: (_RecentContactsList._avatarSize * 2).toInt(),
+                                cacheHeight: (_RecentContactsList._avatarSize * 2).toInt(),
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) =>
                                     _fallbackAvatar(),
@@ -3734,17 +3826,30 @@ class _SearchTabsStrip extends StatefulWidget {
   final _SearchTab activeTab;
   final ValueChanged<_SearchTab> onTabChanged;
   final bool showThisTopic;
+  final bool showThisPeer;
+  final bool showPublicPosts;
+  final String thisPeerLabel;
 
   const _SearchTabsStrip({
     required this.activeTab,
     required this.onTabChanged,
     this.showThisTopic = false,
+    this.showThisPeer = false,
+    this.showPublicPosts = false,
+    this.thisPeerLabel = 'This Chat',
   });
 
+  // Tabs are gated exactly like AyuGram's per-tab icon nullability: a tab is
+  // only offered when its icon is non-null, and `apply()`/`showMenu()` skip
+  // null-icon tabs (chat_search_in.cpp:321). "Public Posts" needs a hashtag/
+  // cashtag query; "This Peer" needs an active peer/sublist scope; "This Topic"
+  // needs an open forum topic. "My Messages" is always present.
   List<({_SearchTab tab, String label})> get tabs => [
     (tab: _SearchTab.myMessages, label: 'My Messages'),
-    (tab: _SearchTab.publicPosts, label: 'Public Posts'),
-    (tab: _SearchTab.thisPeer, label: 'This Peer'),
+    if (showPublicPosts)
+      (tab: _SearchTab.publicPosts, label: 'Public Posts'),
+    if (showThisPeer)
+      (tab: _SearchTab.thisPeer, label: thisPeerLabel),
     if (showThisTopic)
       (tab: _SearchTab.thisTopic, label: 'This Topic'),
   ];
@@ -3957,186 +4062,306 @@ class _SearchTabItem extends StatelessWidget {
   }
 }
 
-/// Sub-filter row for "My Messages" tab (spec §2.2: ChatSearchIn popup).
-/// 38px-tall row with current filter label and dropdown arrow.
-/// Tapping opens a popup menu with Private/Groups/Channels options.
-class _SearchSubFilterRow extends StatelessWidget {
-  final _MyMsgSubFilter activeFilter;
-  final ValueChanged<_MyMsgSubFilter> onFilterChanged;
-  final ChatInfo? searchInChat;
+/// "Search from [user]" sender-filter row — the AyuGram `ChatSearchIn` `_from`
+/// section (dialogs/ui/chat_search_in.cpp:288, `lng_dlg_search_from`). Shown
+/// beneath a This-Peer search whose scope is a group/megagroup. With no member
+/// chosen it is the choose-from-user affordance (tap → member picker); once a
+/// member is selected it shows their avatar + "Search from [name]" with a clear
+/// (X) button (cancelFromRequests) and re-opens the picker on body tap
+/// (changeFromRequests). 38px tall = `dialogsSearchInHeight`.
+class _SearchFromRow extends StatelessWidget {
+  final MemberInfo? fromUser;
+  final VoidCallback onChoose;
+  final VoidCallback onClear;
 
-  const _SearchSubFilterRow({
-    required this.activeFilter,
-    required this.onFilterChanged,
-    this.searchInChat,
+  const _SearchFromRow({
+    required this.fromUser,
+    required this.onChoose,
+    required this.onClear,
   });
-
-  static const _filters = [
-    (filter: _MyMsgSubFilter.all, label: 'All Messages', icon: Icons.forum_outlined),
-    (filter: _MyMsgSubFilter.private_, label: 'Private', icon: Icons.person_outline),
-    (filter: _MyMsgSubFilter.groups, label: 'Groups', icon: Icons.group_outlined),
-    (filter: _MyMsgSubFilter.channels, label: 'Channels', icon: Icons.campaign_outlined),
-  ];
-
-  String get _activeLabel =>
-      _filters.firstWhere((f) => f.filter == activeFilter).label;
-
-  IconData get _activeIcon =>
-      _filters.firstWhere((f) => f.filter == activeFilter).icon;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final labelColor = palette.windowSubTextFg;
-    final arrowColor = palette.windowSubTextFg;
-    final dividerBg = palette.windowBgOver;
-    final hoverBg = palette.dialogsBgOver;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Divider bar (spec §2.2: searchedBarHeight = 28px, normalFont, label left padding 14px).
-        Container(
-          height: 28,
-          width: double.infinity,
-          color: dividerBg,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.only(left: 14),
-          child: Text(
-            'Search in',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-              color: arrowColor,
+    final from = fromUser;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onChoose,
+        hoverColor: palette.dialogsBgOver,
+        child: Container(
+          height: 38,
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: palette.dialogsBgOver, width: 1),
             ),
           ),
-        ),
-        // Filter row (spec §2.2: dialogsSearchInHeight = 38px).
-        Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: () => _showFilterMenu(context),
-            hoverColor: hoverBg,
-            child: SizedBox(
-              height: 38,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 5),
-                      child: _buildSearchInAvatar(palette),
-                    ),
-                    const SizedBox(width: 8),
-                    // Filter label (spec: name top 9px from row top).
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 9),
-                        child: Text(
-                          _activeLabel,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: labelColor,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    // Dropdown arrow (spec: dropdown arrow top 15px).
-                    Padding(
-                      padding: const EdgeInsets.only(top: 15, right: 14),
-                      child: Icon(
-                        Icons.arrow_drop_down,
-                        size: 20,
-                        color: arrowColor,
-                      ),
-                    ),
-                  ],
+          padding: const EdgeInsets.only(left: 10),
+          child: Row(
+            children: [
+              _buildLeading(palette, from),
+              const SizedBox(width: 8),
+              Expanded(child: _buildLabel(palette, from)),
+              if (from != null)
+                IconButton(
+                  icon: Icon(Icons.close, size: 18, color: palette.windowSubTextFg),
+                  onPressed: onClear,
+                  tooltip: 'Clear',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(right: 14),
+                  child: Icon(Icons.chevron_right, size: 20, color: palette.windowSubTextFg),
                 ),
-              ),
-            ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildSearchInAvatar(TelegramPalette palette) {
-    final chat = searchInChat;
-    if (chat != null && chat.avatarPath.isNotEmpty) {
-      return ClipOval(
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: Image.file(
-            File(chat.avatarPath),
+  Widget _buildLeading(TelegramPalette palette, MemberInfo? from) {
+    if (from != null && from.avatarB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(from.avatarB64);
+        return ClipOval(
+          child: Image.memory(
+            bytes,
             width: 28,
             height: 28,
+            cacheWidth: 56,
+            cacheHeight: 56,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildFallbackIcon(palette),
+            errorBuilder: (_, __, ___) => _fallback(palette, from),
           ),
-        ),
-      );
+        );
+      } catch (_) {
+        return _fallback(palette, from);
+      }
     }
-    if (chat != null && chat.title.isNotEmpty) {
-      final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
-      final colors = [
-        palette.historyPeer1UserpicBg,
-        palette.historyPeer2UserpicBg,
-        palette.historyPeer3UserpicBg,
-        palette.historyPeer4UserpicBg,
-      ];
-      final color = colors[numId.abs() % colors.length];
-      final initial = chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '';
+    return _fallback(palette, from);
+  }
+
+  Widget _fallback(TelegramPalette palette, MemberInfo? from) {
+    if (from == null) {
       return Container(
         width: 28,
         height: 28,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-        alignment: Alignment.center,
-        child: Text(
-          initial,
-          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-        ),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: palette.windowBgActive),
+        child: Icon(Icons.person_search, size: 16, color: palette.windowFgActive),
       );
     }
-    return _buildFallbackIcon(palette);
-  }
-
-  Widget _buildFallbackIcon(TelegramPalette palette) {
+    final name = from.displayName.isNotEmpty ? from.displayName : from.username;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final numId = int.tryParse(from.userId) ?? from.userId.hashCode.abs();
+    final color = palette.peerUserpicBg(numId.abs() % 7);
     return Container(
       width: 28,
       height: 28,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: palette.windowBgActive,
-      ),
-      child: Icon(_activeIcon, size: 16, color: palette.windowFgActive),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      alignment: Alignment.center,
+      child: Text(initial,
+          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
     );
   }
 
-  void _showFilterMenu(BuildContext context) {
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final buttonPos = button.localToGlobal(Offset(0, button.size.height));
-
-    showTelegramMenu<_MyMsgSubFilter>(
-      context: context,
-      position: buttonPos,
-      items: [
-        for (final entry in _filters)
-          TelegramMenuItem<_MyMsgSubFilter>(
-            value: entry.filter,
-            icon: Icon(entry.icon),
-            label: entry.label,
+  Widget _buildLabel(TelegramPalette palette, MemberInfo? from) {
+    final subColor = palette.windowSubTextFg;
+    if (from == null) {
+      return Text(
+        'Search from a member',
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: subColor),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+    final name = from.displayName.isNotEmpty ? from.displayName : from.username;
+    // "Search from {user}" — the user name in semibold (lng_dlg_search_from).
+    return RichText(
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      text: TextSpan(
+        style: TextStyle(fontSize: 13, color: subColor),
+        children: [
+          const TextSpan(text: 'Search from '),
+          TextSpan(
+            text: name,
+            style: TextStyle(fontWeight: FontWeight.w600, color: palette.windowBoldFg),
           ),
-      ],
-    ).then((value) {
-      if (value != null) {
-        onFilterChanged(value);
+        ],
+      ),
+    );
+  }
+}
+
+/// Opens the group-member picker for the "Search from" sender filter — the Dart
+/// analogue of AyuGram's `SearchFromBox` (dialogs_widget.cpp:3887). Returns the
+/// chosen member, or null if dismissed.
+Future<MemberInfo?> showSearchFromMemberPicker({
+  required BuildContext context,
+  required EngineService engine,
+  required ChatInfo group,
+}) {
+  return showDialog<MemberInfo>(
+    context: context,
+    builder: (_) => _SearchFromMemberPicker(engine: engine, group: group),
+  );
+}
+
+class _SearchFromMemberPicker extends StatefulWidget {
+  final EngineService engine;
+  final ChatInfo group;
+
+  const _SearchFromMemberPicker({required this.engine, required this.group});
+
+  @override
+  State<_SearchFromMemberPicker> createState() => _SearchFromMemberPickerState();
+}
+
+class _SearchFromMemberPickerState extends State<_SearchFromMemberPicker> {
+  List<MemberInfo>? _members;
+  String _filter = '';
+  bool _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final members = await widget.engine.getChatMembers(
+          widget.group.accountId, widget.group.chatId, limit: 200);
+      if (!mounted) return;
+      setState(() => _members = members);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final all = _members;
+    final q = _filter.trim().toLowerCase();
+    final filtered = (all ?? []).where((m) {
+      if (q.isEmpty) return true;
+      return m.displayName.toLowerCase().contains(q) ||
+          m.username.toLowerCase().contains(q);
+    }).toList();
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360, maxHeight: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Search from',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: palette.windowBoldFg,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                autofocus: true,
+                onChanged: (v) => setState(() => _filter = v),
+                decoration: const InputDecoration(
+                  hintText: 'Search members',
+                  prefixIcon: Icon(Icons.search, size: 18),
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _error
+                  ? const Center(child: Text('Could not load members'))
+                  : all == null
+                      ? const Center(child: CircularProgressIndicator())
+                      : filtered.isEmpty
+                          ? const Center(child: Text('No members'))
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (context, i) {
+                                final m = filtered[i];
+                                final name = m.displayName.isNotEmpty
+                                    ? m.displayName
+                                    : m.username;
+                                return ListTile(
+                                  leading: _memberAvatar(palette, m),
+                                  title: Text(name,
+                                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  subtitle: m.username.isNotEmpty
+                                      ? Text('@${m.username}',
+                                          maxLines: 1, overflow: TextOverflow.ellipsis)
+                                      : null,
+                                  onTap: () => Navigator.of(context).pop(m),
+                                );
+                              },
+                            ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _memberAvatar(TelegramPalette palette, MemberInfo m) {
+    if (m.avatarB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(m.avatarB64);
+        return ClipOval(
+          child: Image.memory(
+            bytes,
+            width: 40,
+            height: 40,
+            cacheWidth: 80,
+            cacheHeight: 80,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _memberFallback(palette, m),
+          ),
+        );
+      } catch (_) {
+        return _memberFallback(palette, m);
       }
-    });
+    }
+    return _memberFallback(palette, m);
+  }
+
+  Widget _memberFallback(TelegramPalette palette, MemberInfo m) {
+    final name = m.displayName.isNotEmpty ? m.displayName : m.username;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final numId = int.tryParse(m.userId) ?? m.userId.hashCode.abs();
+    final color = palette.peerUserpicBg(numId.abs() % 7);
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      alignment: Alignment.center,
+      child: Text(initial,
+          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
+    );
   }
 }
 
@@ -4348,6 +4573,8 @@ class _ArchivedChatsRowState extends State<_ArchivedChatsRow> {
           File(chat.avatarPath),
           width: size,
           height: size,
+          cacheWidth: (size * 2).toInt(),
+          cacheHeight: (size * 2).toInt(),
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _miniAvatarFallback(color, initials, size),
         ),
@@ -6544,7 +6771,8 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
         child: SizedBox(
           width: 46,
           height: 46,
-          child: Image.file(file, width: 46, height: 46, fit: BoxFit.cover,
+          child: Image.file(file, width: 46, height: 46,
+            cacheWidth: 92, cacheHeight: 92, fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _initialsAvatar(sub),
           ),
         ),

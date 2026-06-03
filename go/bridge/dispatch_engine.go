@@ -1151,7 +1151,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		results, err := e.SearchMessages(req.Query, req.AccountId, int(req.Limit), req.ChatId, req.TopicId)
+		results, err := e.SearchMessages(req.Query, req.AccountId, int(req.Limit), req.ChatId, req.TopicId, "")
 		if err != nil {
 			return nil, err
 		}
@@ -6089,6 +6089,25 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		results, err := e.SearchGlobalPostMessages(params.AccountID, params.Query, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(results)
+
+	case "SearchMessagesFrom":
+		// "Search from [user]" sender filter — restricts the local FTS search to
+		// messages from a specific sender within a chat (AyuGram ChatSearchIn `_from`).
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Query     string `json:"query"`
+			SenderID  string `json:"sender_id"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		results, err := e.SearchMessages(params.Query, params.AccountID, params.Limit, params.ChatID, "", params.SenderID)
 		if err != nil {
 			return nil, err
 		}

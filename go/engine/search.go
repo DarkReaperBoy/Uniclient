@@ -22,7 +22,9 @@ type SearchResult struct {
 // If accountID is non-empty, restricts to that account.
 // If chatID is non-empty, restricts to that chat.
 // If topicID is non-empty, restricts to that forum topic.
-func (e *Engine) SearchMessages(query string, accountID string, limit int, chatID string, topicID string) ([]SearchResult, error) {
+// If senderID is non-empty, restricts to messages from that sender
+// (the "Search from [user]" filter — AyuGram ChatSearchIn `_from`).
+func (e *Engine) SearchMessages(query string, accountID string, limit int, chatID string, topicID string, senderID string) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -52,6 +54,10 @@ func (e *Engine) SearchMessages(query string, accountID string, limit int, chatI
 	if topicID != "" {
 		where += ` AND m.topic_id = ?`
 		args = append(args, topicID)
+	}
+	if senderID != "" {
+		where += ` AND m.sender_id = ?`
+		args = append(args, senderID)
 	}
 
 	where += ` ORDER BY m.timestamp DESC LIMIT ?`

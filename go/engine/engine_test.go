@@ -465,7 +465,7 @@ func TestMessageCacheAndFTS(t *testing.T) {
 	}
 
 	// FTS5 search.
-	results, err := eng.SearchMessages("hello", "", 50, "")
+	results, err := eng.SearchMessages("hello", "", 50, "", "", "")
 	if err != nil {
 		t.Fatalf("SearchMessages: %v", err)
 	}
