@@ -2022,6 +2022,27 @@ class EngineService {
     }
   }
 
+  /// Reports a whole peer (chat-info "Report") via account.reportPeer with a
+  /// fixed [reason] key. Used when there are no specific message ids, since the
+  /// per-message report rejects an empty id list with MESSAGE_ID_REQUIRED.
+  /// Returns true on success, false on failure (so the UI can surface an error).
+  Future<bool> reportPeer(String accountId, String chatId, String reason, {String message = ''}) async {
+    final req = epb.EngineReportPeerRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..reason = reason
+      ..message = message;
+    try {
+      final respBytes = await _callAsync('__engine', 'ReportPeer', req.writeToBuffer());
+      if (respBytes.isEmpty) return false;
+      final resp = epb.EngineReportPeerResponse.fromBuffer(respBytes);
+      return resp.ok;
+    } catch (e) {
+      Debug.error('ENGINE', 'reportPeer failed', e);
+      return false;
+    }
+  }
+
   // ── Report reaction ──
 
   Future<bool> reportReaction(String accountId, String chatId, int messageId, String participantId) async {

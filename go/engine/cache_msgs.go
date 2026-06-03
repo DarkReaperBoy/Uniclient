@@ -2289,6 +2289,28 @@ func (e *Engine) ReportMessage(accountID, chatID string, msgIDs []int, option []
 	return reporter.ReportMessage(chatID, msgIDs, option, message)
 }
 
+// PeerReporter reports a whole peer (no specific messages) with a fixed reason.
+type PeerReporter interface {
+	ReportPeer(chatID, reason, message string) (bool, error)
+}
+
+// ReportPeer routes a whole-peer report (chat-info "Report") to the platform's
+// dedicated peer-report endpoint, used when there are no specific message ids.
+func (e *Engine) ReportPeer(accountID, chatID, reason, message string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return false, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return false, fmt.Errorf("account not connected: %s", accountID)
+	}
+	reporter, ok := acc.Core.(PeerReporter)
+	if !ok {
+		return false, fmt.Errorf("platform does not support peer reporting")
+	}
+	return reporter.ReportPeer(chatID, reason, message)
+}
+
 type ReactionReporter interface {
 	ReportReaction(chatID string, msgID int, participantID string) error
 }

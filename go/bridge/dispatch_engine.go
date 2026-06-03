@@ -3436,6 +3436,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "ReportPeer":
+		var req pb.EngineReportPeerRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		ok, err := e.ReportPeer(req.AccountId, req.ChatId, req.Reason, req.Message)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineReportPeerResponse{Ok: ok})
+
 	case "ReportReaction":
 		var req pb.EngineReportReactionRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

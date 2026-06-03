@@ -4644,6 +4644,13 @@ class _GroupActionsSection extends StatelessWidget {
       accountId: chat.accountId,
       chatId: chat.chatId,
       msgIds: const [],
+      peerKind: chat.isBot
+          ? ReportPeerKind.bot
+          : chat.type == ChatType.channel
+              ? ReportPeerKind.channel
+              : chat.type == ChatType.group
+                  ? ReportPeerKind.group
+                  : ReportPeerKind.user,
     );
   }
 
@@ -4969,6 +4976,13 @@ class _ChannelActionsSection extends StatelessWidget {
       accountId: chat.accountId,
       chatId: chat.chatId,
       msgIds: const [],
+      peerKind: chat.isBot
+          ? ReportPeerKind.bot
+          : chat.type == ChatType.channel
+              ? ReportPeerKind.channel
+              : chat.type == ChatType.group
+                  ? ReportPeerKind.group
+                  : ReportPeerKind.user,
     );
   }
 

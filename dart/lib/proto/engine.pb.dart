@@ -14912,6 +14912,148 @@ class ReportOption extends $pb.GeneratedMessage {
   void clearOption() => clearField(2);
 }
 
+class EngineReportPeerRequest extends $pb.GeneratedMessage {
+  factory EngineReportPeerRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? reason,
+    $core.String? message,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    if (reason != null) {
+      $result.reason = reason;
+    }
+    if (message != null) {
+      $result.message = message;
+    }
+    return $result;
+  }
+  EngineReportPeerRequest._() : super();
+  factory EngineReportPeerRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineReportPeerRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineReportPeerRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'reason')
+    ..aOS(4, _omitFieldNames ? '' : 'message')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineReportPeerRequest clone() => EngineReportPeerRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineReportPeerRequest copyWith(void Function(EngineReportPeerRequest) updates) => super.copyWith((message) => updates(message as EngineReportPeerRequest)) as EngineReportPeerRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineReportPeerRequest create() => EngineReportPeerRequest._();
+  EngineReportPeerRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineReportPeerRequest> createRepeated() => $pb.PbList<EngineReportPeerRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineReportPeerRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineReportPeerRequest>(create);
+  static EngineReportPeerRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get reason => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set reason($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasReason() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearReason() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get message => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set message($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasMessage() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearMessage() => clearField(4);
+}
+
+class EngineReportPeerResponse extends $pb.GeneratedMessage {
+  factory EngineReportPeerResponse({
+    $core.bool? ok,
+  }) {
+    final $result = create();
+    if (ok != null) {
+      $result.ok = ok;
+    }
+    return $result;
+  }
+  EngineReportPeerResponse._() : super();
+  factory EngineReportPeerResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineReportPeerResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineReportPeerResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'ok')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineReportPeerResponse clone() => EngineReportPeerResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineReportPeerResponse copyWith(void Function(EngineReportPeerResponse) updates) => super.copyWith((message) => updates(message as EngineReportPeerResponse)) as EngineReportPeerResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineReportPeerResponse create() => EngineReportPeerResponse._();
+  EngineReportPeerResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineReportPeerResponse> createRepeated() => $pb.PbList<EngineReportPeerResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineReportPeerResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineReportPeerResponse>(create);
+  static EngineReportPeerResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get ok => $_getBF(0);
+  @$pb.TagNumber(1)
+  set ok($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasOk() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearOk() => clearField(1);
+}
+
 class EngineReportReactionRequest extends $pb.GeneratedMessage {
   factory EngineReportReactionRequest({
     $core.String? accountId,

@@ -2156,13 +2156,33 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
 
 const String _kReportBack = '__back__';
 
+// Peer kind drives the static reason-picker title and (potentially) the reason
+// set for a whole-peer report. ← Ui::ReportSource (report_box_graphics.h).
+enum ReportPeerKind { channel, group, bot, user }
+
 Future<bool> showDynamicReportFlow(
   BuildContext context, {
   required EngineService engine,
   required String accountId,
   required String chatId,
   required List<int> msgIds,
+  ReportPeerKind peerKind = ReportPeerKind.user,
 }) async {
+  // A whole-peer report (chat-info "Report") carries no message ids. The modern
+  // messages.report flow rejects an empty id list with MESSAGE_ID_REQUIRED
+  // (observed live), so route it to account.reportPeer via a static reason
+  // picker instead of the per-message dynamic flow.
+  // ← report_messages_box.cpp:84 (MESSAGE_ID_REQUIRED) / api_report.cpp:26.
+  if (msgIds.isEmpty) {
+    return _showPeerReportFlow(
+      context,
+      engine: engine,
+      accountId: accountId,
+      chatId: chatId,
+      peerKind: peerKind,
+    );
+  }
+
   final optionStack = <List<int>>[];
   List<int> currentOption = [];
 
@@ -2218,12 +2238,14 @@ Future<bool> showDynamicReportFlow(
         if (context.mounted) {
           showTelegramToast(
             context,
-            finalResult?.resultType == 'reported'
-                ? 'Report submitted'
-                : 'Report sent',
+            finalResult == null
+                ? 'Report failed. Please try again.'
+                : (finalResult.resultType == 'reported'
+                    ? 'Report submitted'
+                    : 'Report sent'),
           );
         }
-        return true;
+        return finalResult != null;
       }
 
       optionStack.add(currentOption);
@@ -2247,15 +2269,137 @@ Future<bool> showDynamicReportFlow(
       if (context.mounted) {
         showTelegramToast(
           context,
-          finalResult?.resultType == 'reported'
-              ? 'Report submitted'
-              : 'Report sent',
+          finalResult == null
+              ? 'Report failed. Please try again.'
+              : (finalResult.resultType == 'reported'
+                  ? 'Report submitted'
+                  : 'Report sent'),
         );
       }
-      return true;
+      return finalResult != null;
     }
 
     return false;
+  }
+}
+
+// Whole-peer report path: a static reason picker (account.reportPeer's fixed
+// ReportReason set) followed by an optional moderation comment, then a single
+// account.reportPeer submit. Mirrors AyuGram's static ReportPhoto flow
+// (report_messages_box.cpp:48-58 → ReportReasonBox → ReportDetailsBox).
+Future<bool> _showPeerReportFlow(
+  BuildContext context, {
+  required EngineService engine,
+  required String accountId,
+  required String chatId,
+  required ReportPeerKind peerKind,
+}) async {
+  final reason = await showTelegramBox<String>(
+    context: context,
+    builder: (ctx) => _PeerReportReasonBox(peerKind: peerKind),
+  );
+  if (reason == null || !context.mounted) return false;
+
+  // Optional moderation comment, like ReportPhoto → ReportDetailsBox.
+  final comment = await showReportDetailsBox(context, optional: true);
+  if (comment == null || !context.mounted) return false;
+
+  final ok = await engine.reportPeer(
+    accountId,
+    chatId,
+    reason,
+    message: comment,
+  );
+  if (context.mounted) {
+    showTelegramToast(
+      context,
+      ok
+          // lng_report_thanks
+          ? 'Thank you! Your report will be reviewed by our team.'
+          : 'Report failed. Please try again.',
+    );
+  }
+  return ok;
+}
+
+// Static reason picker for a whole-peer report. Reasons match AyuGram's
+// ReportReasonBox for a peer source (Spam, Fake, Violence, ChildAbuse,
+// Pornography, Copyright, Other); IllegalDrugs/PersonalDetails are message- and
+// story-only and so are omitted. ← report_box_graphics.cpp:84-118.
+class _PeerReportReasonBox extends StatelessWidget {
+  final ReportPeerKind peerKind;
+  const _PeerReportReasonBox({required this.peerKind});
+
+  String get _title => switch (peerKind) {
+    ReportPeerKind.channel => 'Report channel', // lng_report_title
+    ReportPeerKind.group => 'Report Group', // lng_report_group_title
+    ReportPeerKind.bot => 'Report bot', // lng_report_bot_title
+    ReportPeerKind.user => 'Report', // lng_profile_report
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final textFg = p.boxTextFg;
+    final hoverBg = p.windowBgOver;
+
+    const reasons = <(String, String)>[
+      ('spam', 'Spam'),
+      ('fake', 'Fake Account'),
+      ('violence', 'Violence'),
+      ('child_abuse', 'Child Abuse'),
+      ('pornography', 'Pornography'),
+      ('copyright', 'Copyright'),
+      ('other', 'Other'),
+    ];
+
+    return TelegramBox(
+      title: _title,
+      showClose: true,
+      content: Padding(
+        padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final (key, label) in reasons)
+              InkWell(
+                onTap: () => Navigator.of(context).pop(key),
+                hoverColor: hoverBg,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: textFg,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 20,
+                        color: textFg.withValues(alpha: 0.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'CANCEL',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      scrollableContent: true,
+    );
   }
 }
 

@@ -15741,6 +15741,45 @@ func (t *TelegramCore) ReportMessage(chatID string, msgIDs []int, option []byte,
 	return &ReportResult{Type: "reported"}, nil
 }
 
+// ReportPeer reports a whole peer (no specific message ids) via account.reportPeer.
+// The chat-info "Report" action targets the peer itself, but the modern
+// messages.report flow rejects an empty message-id list with MESSAGE_ID_REQUIRED,
+// so a whole-peer report must use the dedicated account.reportPeer endpoint with
+// a fixed ReportReason. ← Api::ReasonToTL / account.reportPeer (api_report.cpp:26).
+func (t *TelegramCore) ReportPeer(chatID, reason, message string) (bool, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
+	var tlReason tg.ReportReasonClass
+	switch reason {
+	case "spam":
+		tlReason = &tg.InputReportReasonSpam{}
+	case "fake":
+		tlReason = &tg.InputReportReasonFake{}
+	case "violence":
+		tlReason = &tg.InputReportReasonViolence{}
+	case "child_abuse":
+		tlReason = &tg.InputReportReasonChildAbuse{}
+	case "pornography":
+		tlReason = &tg.InputReportReasonPornography{}
+	case "copyright":
+		tlReason = &tg.InputReportReasonCopyright{}
+	case "illegal_drugs":
+		tlReason = &tg.InputReportReasonIllegalDrugs{}
+	case "personal_details":
+		tlReason = &tg.InputReportReasonPersonalDetails{}
+	default:
+		tlReason = &tg.InputReportReasonOther{}
+	}
+	return t.api.AccountReportPeer(t.ctx, &tg.AccountReportPeerRequest{
+		Peer:    inputPeer,
+		Reason:  tlReason,
+		Message: message,
+	})
+}
+
 func (t *TelegramCore) ReportReaction(chatID string, msgID int, participantID string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }

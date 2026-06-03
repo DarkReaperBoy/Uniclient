@@ -1306,6 +1306,22 @@ message ReportOption {
   bytes  option = 2;
 }
 
+// Whole-peer report (chat-info "Report"): account.reportPeer with a fixed
+// reason. Used when there are no specific message ids, since messages.report
+// rejects an empty id list with MESSAGE_ID_REQUIRED.
+message EngineReportPeerRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  // Reason key: spam | fake | violence | child_abuse | pornography |
+  // copyright | illegal_drugs | personal_details | other
+  string reason     = 3;
+  string message    = 4; // optional comment
+}
+
+message EngineReportPeerResponse {
+  bool ok = 1;
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Report Reaction
 // ═══════════════════════════════════════════════════════════════════════
