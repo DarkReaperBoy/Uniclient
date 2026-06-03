@@ -3,6 +3,8 @@ package engine
 import (
 	"database/sql"
 	"fmt"
+	"strings"
+	"unicode"
 
 	"uniclient/cores"
 )
@@ -32,7 +34,12 @@ func (e *Engine) SearchMessages(query string, accountID string, limit int, chatI
 		return nil, nil
 	}
 
-	ftsQuery := query + "*"
+	ftsQuery := buildFTSMatch(query)
+	if ftsQuery == "" {
+		// The query had no tokenizable characters (e.g. just "#"): there is
+		// nothing for FTS5 to match, so return no results instead of erroring.
+		return nil, nil
+	}
 
 	selectCols := `SELECT m.account_id, m.chat_id, m.msg_id, m.sender_name, m.content_text, m.timestamp,
 		        c.title
@@ -81,6 +88,44 @@ func (e *Engine) SearchMessages(query string, accountID string, limit int, chatI
 		results = append(results, r)
 	}
 	return results, rows.Err()
+}
+
+// buildFTSMatch turns a raw user search string into a safe FTS5 MATCH
+// expression. Each whitespace-separated token is wrapped in double quotes (with
+// embedded quotes doubled per FTS5's escaping rules) so that FTS5 syntax
+// characters in user input — '#', ':', '^', '(', ')', '*', '"', '-', etc. — are
+// treated as literal text rather than query operators. Without this a query
+// like "#bitcoin" produced `SQL logic error: fts5: syntax error near "#"`.
+// The final token keeps a trailing '*' for search-as-you-type prefix matching,
+// preserving the previous `query + "*"` behavior. Tokens that contain no
+// letters or digits tokenize to nothing under the unicode61 tokenizer and are
+// dropped to avoid empty-phrase syntax errors; if every token drops out the
+// result is "" and the caller treats it as "no results".
+func buildFTSMatch(query string) string {
+	tokens := strings.Fields(query)
+	parts := make([]string, 0, len(tokens))
+	for _, t := range tokens {
+		if !hasTokenRune(t) {
+			continue
+		}
+		parts = append(parts, `"`+strings.ReplaceAll(t, `"`, `""`)+`"`)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	parts[len(parts)-1] += "*"
+	return strings.Join(parts, " ")
+}
+
+// hasTokenRune reports whether s contains at least one rune that the unicode61
+// tokenizer treats as a token character (a Unicode letter or digit).
+func hasTokenRune(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // CountMessagesFrom counts messages from a specific sender in a chat (local cache).

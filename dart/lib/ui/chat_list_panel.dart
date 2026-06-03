@@ -2795,7 +2795,18 @@ class _TopPeersStripState extends State<_TopPeersStrip> {
     final chatState = context.read<ChatState>();
     final appState = context.read<AppState>();
 
-    var topPeers = chatState.getTopPeers(appState.activeAccountId, limit: 20);
+    // getTopPeers() hits the engine synchronously via FFI and throws an
+    // EngineException on FLOOD_WAIT (or any engine error). Without this guard
+    // the throw escapes build() and Flutter replaces the entire left panel with
+    // its red ErrorWidget (e.g. focusing search with an empty query goes blank).
+    // Swallow it and fall through to the recent-DM fallback below — build() is a
+    // hot path, so we deliberately don't log here.
+    List<ChatInfo> topPeers;
+    try {
+      topPeers = chatState.getTopPeers(appState.activeAccountId, limit: 20);
+    } catch (_) {
+      topPeers = const [];
+    }
     if (topPeers.isEmpty) {
       final dmChats = widget.chats
           .where((c) => c.type == ChatType.dm && !c.isArchived)
