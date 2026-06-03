@@ -1126,7 +1126,7 @@ func (e *Engine) AddContact(accountID, phone, firstName, lastName, note string) 
 	return "", acc.Core.AddContact(phone, firstName, lastName)
 }
 
-func (e *Engine) AddContactByUser(accountID, userID, firstName, lastName, note string, sharePhone bool) (string, error) {
+func (e *Engine) AddContactByUser(accountID, userID, firstName, lastName, note, noteEntitiesJSON string, sharePhone bool) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return "", fmt.Errorf("account not found: %s", accountID)
@@ -1135,10 +1135,10 @@ func (e *Engine) AddContactByUser(accountID, userID, firstName, lastName, note s
 		return "", fmt.Errorf("account not connected: %s", accountID)
 	}
 	type userContactAdder interface {
-		AddContactByUserID(userID, firstName, lastName, note string, sharePhone bool) error
+		AddContactByUserID(userID, firstName, lastName, note, noteEntitiesJSON string, sharePhone bool) error
 	}
 	if ua, ok := acc.Core.(userContactAdder); ok {
-		return "", ua.AddContactByUserID(userID, firstName, lastName, note, sharePhone)
+		return "", ua.AddContactByUserID(userID, firstName, lastName, note, noteEntitiesJSON, sharePhone)
 	}
 	return "", fmt.Errorf("core does not support adding contacts by user ID")
 }
@@ -1181,6 +1181,7 @@ func (e *Engine) GetContactFullInfo(accountID, userID string) (map[string]interf
 		"last_seen_kind":     u.LastSeenKind,
 		"avatar_b64":         u.AvatarB64,
 		"note":               u.Note,
+		"note_entities":      u.NoteEntities,
 		"need_contacts_exception": u.NeedContactsException,
 	}, nil
 }

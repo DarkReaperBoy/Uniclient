@@ -528,9 +528,9 @@ class EngineService {
     return utf8.decode(respBytes);
   }
 
-  Future<String> addContact(String accountId, String phone, String firstName, String lastName, {String note = '', String userId = '', bool sharePhone = false}) async {
+  Future<String> addContact(String accountId, String phone, String firstName, String lastName, {String note = '', String noteEntities = '', String userId = '', bool sharePhone = false}) async {
     if (userId.isNotEmpty) {
-      return addContactByUser(accountId, userId, firstName, lastName, note: note, sharePhone: sharePhone);
+      return addContactByUser(accountId, userId, firstName, lastName, note: note, noteEntities: noteEntities, sharePhone: sharePhone);
     }
     final req = epb.EngineAddContactRequest()
       ..accountId = accountId
@@ -545,13 +545,14 @@ class EngineService {
     return utf8.decode(respBytes);
   }
 
-  Future<String> addContactByUser(String accountId, String userId, String firstName, String lastName, {String note = '', bool sharePhone = false}) async {
+  Future<String> addContactByUser(String accountId, String userId, String firstName, String lastName, {String note = '', String noteEntities = '', bool sharePhone = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'user_id': userId,
       'first_name': firstName,
       'last_name': lastName,
       'note': note,
+      'note_entities': noteEntities,
       'share_phone': sharePhone,
     }));
     final respBytes = await _callAsync('__engine', 'AddContactByUser', Uint8List.fromList(payload));

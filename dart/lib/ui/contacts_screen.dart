@@ -14,9 +14,14 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
+import 'birthday_picker.dart';
+import 'clipboard_image.dart';
+import 'compose_entities.dart';
 import 'confirm_box.dart';
+import 'emoji_panel.dart';
 import 'input_dialogs.dart';
 import 'media_viewer.dart';
+import 'photo_crop_editor.dart';
 import 'telegram_toast.dart';
 
 const double _boxWideWidth = 364;
@@ -1458,7 +1463,7 @@ class _EditContactBox extends StatefulWidget {
 class _EditContactBoxState extends State<_EditContactBox> {
   late final TextEditingController _firstNameCtrl;
   late final TextEditingController _lastNameCtrl;
-  late final TextEditingController _notesCtrl;
+  late final RichTextEditingController _notesCtrl;
   late final FocusNode _firstNameFocus;
   late final FocusNode _lastNameFocus;
   late final FocusNode _notesFocus;
@@ -1470,6 +1475,8 @@ class _EditContactBoxState extends State<_EditContactBox> {
   bool _sharePhone = true;
   bool _showSharePhone = false;
   Uint8List? _avatarBytes;
+  final GlobalKey _suggestPhotoKey = GlobalKey();
+  final GlobalKey _setPhotoKey = GlobalKey();
 
   String get _liveName {
     final first = _firstNameCtrl.text.trim();
@@ -1484,7 +1491,9 @@ class _EditContactBoxState extends State<_EditContactBox> {
     final parts = _splitName(widget.contact.displayName);
     _firstNameCtrl = TextEditingController(text: parts.$1);
     _lastNameCtrl = TextEditingController(text: parts.$2);
-    _notesCtrl = TextEditingController(text: widget.contact.note);
+    _notesCtrl = RichTextEditingController()
+      ..accountId = widget.appState.activeAccountId ?? ''
+      ..setTextWithEntities(widget.contact.note, '');
     _hasPersonalPhoto = widget.contact.hasPersonalPhoto;
     _hasBirthday = widget.contact.hasBirthday;
     final b64 = widget.contact.avatarB64;
@@ -1507,8 +1516,11 @@ class _EditContactBoxState extends State<_EditContactBox> {
       final info = await widget.engine.getContactFullInfo(account.id, widget.contact.userId);
       if (!mounted) return;
       final note = info['note'] as String? ?? '';
-      if (note.isNotEmpty && _notesCtrl.text.isEmpty) {
-        _notesCtrl.text = note;
+      final noteEntities = info['note_entities'] as String? ?? '';
+      // Replace the cached plain-text note with the server's rich note
+      // (text + entities) as long as the user hasn't started editing.
+      if (_notesCtrl.text.trim() == widget.contact.note.trim()) {
+        _notesCtrl.setTextWithEntities(note, noteEntities);
       }
       setState(() {
         _hasPersonalPhoto = info['has_personal_photo'] as bool? ?? false;
@@ -1560,8 +1572,11 @@ class _EditContactBoxState extends State<_EditContactBox> {
       final phone = widget.contact.phone.isNotEmpty
           ? widget.contact.phone
           : '+0';
-      final note = _notesCtrl.text.trim();
-      await widget.engine.addContact(account.id, phone, firstName, lastName, note: note, userId: widget.contact.userId, sharePhone: _sharePhone && _showSharePhone);
+      // Send the note as TextWithEntities: getTextWithAppliedMarkdown converts
+      // typed markdown (**bold**, ||spoiler||, …) + interactive formatting +
+      // custom-emoji placeholders into (clean text, entities JSON).
+      final noteResult = _notesCtrl.getTextWithAppliedMarkdown();
+      await widget.engine.addContact(account.id, phone, firstName, lastName, note: noteResult.text, noteEntities: noteResult.entitiesJson, userId: widget.contact.userId, sharePhone: _sharePhone && _showSharePhone);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -1573,57 +1588,167 @@ class _EditContactBoxState extends State<_EditContactBox> {
     }
   }
 
-  Future<void> _suggestPhoto() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.image);
-    if (result == null || result.files.isEmpty) return;
-    final path = result.files.single.path;
-    if (path == null) return;
+  // AyuGram's showPhotoMenu (edit_contact_box.cpp:798) offers a source chooser
+  // (Photo from file / Photo from clipboard / emoji-avatar builder), runs the
+  // chosen image through the ellipse-crop profile-photo editor with a
+  // "Suggest/Set photo for {user}?" confirmation, THEN uploads. `suggest`
+  // selects suggestContactPhoto vs setPersonalContactPhoto.
+  String _photoAboutText(bool suggest) {
+    final name = widget.contact.displayName.trim();
+    final who = name.isNotEmpty ? name : 'this contact';
+    // lng_profile_suggest_sure / lng_profile_set_personal_sure
+    return suggest
+        ? 'You can suggest $who to set this photo for their Telegram profile.'
+        : 'Only you will see this photo and it will replace any photo $who sets for themselves.';
+  }
+
+  Future<void> _applyContactPhoto(String path, bool suggest) async {
     final account = widget.appState.activeAccount;
     if (account == null) return;
     try {
-      await widget.engine.suggestContactPhoto(account.id, widget.contact.userId, path);
-      if (mounted) showTelegramToast(context, 'Photo suggestion sent');
+      if (suggest) {
+        await widget.engine.suggestContactPhoto(account.id, widget.contact.userId, path);
+        if (mounted) showTelegramToast(context, 'Photo suggestion sent');
+      } else {
+        await widget.engine.setPersonalContactPhoto(account.id, widget.contact.userId, path);
+        if (mounted) {
+          setState(() => _hasPersonalPhoto = true);
+          showTelegramToast(context, 'Personal photo set');
+        }
+      }
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
     }
   }
 
-  Future<void> _suggestBirthday() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: DateTime(1900),
-      lastDate: now,
-      helpText: 'Suggest Birthday',
+  Future<void> _editAndApplyPhoto(File file, bool suggest) async {
+    if (!mounted) return;
+    await PhotoCropEditor.open(
+      context,
+      imageFile: file,
+      shape: PhotoCropShape.ellipse,
+      purpose: suggest ? PhotoEditorPurpose.suggest : PhotoEditorPurpose.setPhoto,
+      aboutText: _photoAboutText(suggest),
+      onDone: (croppedFile) => _applyContactPhoto(croppedFile.path, suggest),
     );
-    if (picked == null || !mounted) return;
+  }
+
+  Future<void> _choosePhotoFile(bool suggest) async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.image);
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.single.path;
+    if (path == null || !mounted) return;
+    await _editAndApplyPhoto(File(path), suggest);
+  }
+
+  Future<void> _choosePhotoFromClipboard(bool suggest) async {
+    final bytes = await getClipboardImage();
+    if (bytes == null) {
+      if (mounted) showTelegramToast(context, 'No image in clipboard');
+      return;
+    }
+    final tmp = File('${Directory.systemTemp.path}/uniclient_contact_paste.png');
+    await tmp.writeAsBytes(bytes);
+    if (!mounted) return;
+    await _editAndApplyPhoto(tmp, suggest);
+    try { tmp.deleteSync(); } catch (_) {}
+  }
+
+  Future<void> _choosePhotoFromEmoji(bool suggest) async {
+    if (!mounted) return;
+    await EmojiAvatarBuilder.open(
+      context,
+      shape: PhotoCropShape.ellipse,
+      onDone: (renderedFile) => _applyContactPhoto(renderedFile.path, suggest),
+    );
+  }
+
+  void _showPhotoMenu({required bool suggest, required GlobalKey anchorKey}) {
+    final anchorCtx = anchorKey.currentContext;
+    final box = anchorCtx?.findRenderObject() as RenderBox?;
+    final overlay = Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
+    if (box == null || overlay == null) return;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(Offset.zero, ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+    showMenu<String>(
+      context: context,
+      position: position,
+      items: const [
+        PopupMenuItem<String>(
+          value: 'file',
+          child: Row(children: [
+            Icon(Icons.photo_library_outlined, size: 20),
+            SizedBox(width: 12),
+            Text('Upload Photo'),
+          ]),
+        ),
+        PopupMenuItem<String>(
+          value: 'clipboard',
+          child: Row(children: [
+            Icon(Icons.content_paste, size: 20),
+            SizedBox(width: 12),
+            Text('From Clipboard'),
+          ]),
+        ),
+        PopupMenuItem<String>(
+          value: 'emoji',
+          child: Row(children: [
+            Icon(Icons.emoji_emotions_outlined, size: 20),
+            SizedBox(width: 12),
+            Text('Set Emoji'),
+          ]),
+        ),
+      ],
+    ).then((value) {
+      if (!mounted || value == null) return;
+      switch (value) {
+        case 'file':
+          _choosePhotoFile(suggest);
+          break;
+        case 'clipboard':
+          _choosePhotoFromClipboard(suggest);
+          break;
+        case 'emoji':
+          _choosePhotoFromEmoji(suggest);
+          break;
+      }
+    });
+  }
+
+  Future<void> _suggestBirthday() async {
+    // AyuGram routes "Suggest Date of Birth" to the themed EditBirthdayBox
+    // (day/month/year drum scroller) via internal:edit_birthday:suggest:<id>,
+    // titled "{user}'s Date of Birth" with a "Suggest" confirm button
+    // (edit_contact_box.cpp:582, lang lng_suggest_birthday_box_*).
+    final now = DateTime.now();
+    final name = widget.contact.displayName.trim();
+    final result = await showBirthdayPicker(
+      context,
+      initialDay: now.day,
+      initialMonth: now.month,
+      initialYear: 0,
+      hasExisting: false,
+      title: name.isNotEmpty ? "$name's Date of Birth" : 'Date of Birth',
+      saveLabel: 'Suggest',
+    );
+    if (result == null || !mounted) return;
+    if (result.day == 0 && result.month == 0) return;
     final account = widget.appState.activeAccount;
     if (account == null) return;
     try {
       await widget.engine.suggestBirthday(
         account.id,
         widget.contact.userId,
-        picked.day,
-        picked.month,
-        picked.year,
+        result.day,
+        result.month,
+        result.year,
       );
       if (mounted) showTelegramToast(context, 'Birthday suggestion sent');
-    } catch (e) {
-      if (mounted) showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
-    }
-  }
-
-  Future<void> _setPersonalPhoto() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.image);
-    if (result == null || result.files.isEmpty) return;
-    final path = result.files.single.path;
-    if (path == null) return;
-    final account = widget.appState.activeAccount;
-    if (account == null) return;
-    try {
-      await widget.engine.setPersonalContactPhoto(account.id, widget.contact.userId, path);
-      if (mounted) showTelegramToast(context, 'Personal photo set');
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
     }
@@ -1797,26 +1922,30 @@ class _EditContactBoxState extends State<_EditContactBox> {
                 onSubmitted: (_) => _save(),
               ),
             ),
-            // Notes field
+            // Notes field — rich text (markdown bold/italic/underline/strike/
+            // spoiler + tabbed emoji panel + custom emoji), sent as
+            // TextWithEntities. Mirrors AyuGram setupNotesField
+            // (edit_contact_box.cpp:437): notesFieldWithEmoji + AddEmojiToggleToField.
             Padding(
-              padding: const EdgeInsets.fromLTRB(19, 0, 19, 10),
-              child: TextField(
+              padding: const EdgeInsets.fromLTRB(19, 0, 19, 2),
+              child: _NotesField(
+                appState: widget.appState,
+                engine: widget.engine,
                 controller: _notesCtrl,
                 focusNode: _notesFocus,
-                maxLines: 3,
-                minLines: 1,
                 maxLength: _notesMaxLength,
-                style: TextStyle(fontSize: 15, color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000)),
-                decoration: InputDecoration(
-                  labelText: 'Notes',
-                  labelStyle: TextStyle(fontSize: 14, color: subtextColor),
-                  floatingLabelStyle: TextStyle(fontSize: 12, color: focusBorderColor),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderColor)),
-                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: focusBorderColor, width: 2)),
-                  counterStyle: TextStyle(fontSize: 11, color: subtextColor),
-                ),
+                textColor: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000),
+                subtextColor: subtextColor,
+                borderColor: borderColor,
+                focusBorderColor: focusBorderColor,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(19, 0, 19, 8),
+              child: Text(
+                // lng_contact_add_notes_about
+                'Notes are only visible to you.',
+                style: TextStyle(fontSize: 12, color: subtextColor),
               ),
             ),
             if (_showSharePhone)
@@ -1858,20 +1987,22 @@ class _EditContactBoxState extends State<_EditContactBox> {
                 ),
               if (widget.contact.starsPerMessage == 0)
                 _SettingsButtonRow(
+                  key: _suggestPhotoKey,
                   icon: Icons.card_giftcard,
                   label: 'Suggest photo',
                   iconColor: buttonColor,
                   textColor: textColor,
                   hoverBg: settingsBtnBg,
-                  onTap: _suggestPhoto,
+                  onTap: () => _showPhotoMenu(suggest: true, anchorKey: _suggestPhotoKey),
                 ),
               _SettingsButtonRow(
+                key: _setPhotoKey,
                 icon: Icons.add_a_photo_outlined,
                 label: 'Set personal photo',
                 iconColor: buttonColor,
                 textColor: textColor,
                 hoverBg: settingsBtnBg,
-                onTap: _setPersonalPhoto,
+                onTap: () => _showPhotoMenu(suggest: false, anchorKey: _setPhotoKey),
               ),
               if (_hasPersonalPhoto)
                 _SettingsButtonRow(
@@ -1977,6 +2108,240 @@ class _EditContactBoxState extends State<_EditContactBox> {
   }
 }
 
+/// Rich notes field for the Edit-Contact box. Ports AyuGram's `setupNotesField`
+/// (`edit_contact_box.cpp:437`): a multi-line input with markdown formatting
+/// (bold/italic/underline/strike/spoiler via Ctrl shortcuts + typed syntax),
+/// a tabbed emoji panel attached via the emoji toggle (AddEmojiToggleToField),
+/// and custom-emoji insertion. The note is sent as TextWithEntities.
+class _NotesField extends StatefulWidget {
+  final AppState appState;
+  final EngineService engine;
+  final RichTextEditingController controller;
+  final FocusNode focusNode;
+  final int maxLength;
+  final Color textColor;
+  final Color subtextColor;
+  final Color borderColor;
+  final Color focusBorderColor;
+
+  const _NotesField({
+    required this.appState,
+    required this.engine,
+    required this.controller,
+    required this.focusNode,
+    required this.maxLength,
+    required this.textColor,
+    required this.subtextColor,
+    required this.borderColor,
+    required this.focusBorderColor,
+  });
+
+  @override
+  State<_NotesField> createState() => _NotesFieldState();
+}
+
+class _NotesFieldState extends State<_NotesField> {
+  // EmojiTabbedPanel renders a fixed-width Material (345) inside a 10px margin.
+  static const double _panelTotalWidth = 365.0;
+
+  final GlobalKey _fieldKey = GlobalKey();
+  OverlayEntry? _emojiOverlay;
+  bool _emojiOpen = false;
+
+  @override
+  void dispose() {
+    _removeEmojiOverlay();
+    super.dispose();
+  }
+
+  void _removeEmojiOverlay() {
+    _emojiOverlay?.remove();
+    _emojiOverlay = null;
+  }
+
+  void _closeEmojiPanel() {
+    if (_emojiOverlay == null) return;
+    _removeEmojiOverlay();
+    if (mounted) setState(() => _emojiOpen = false);
+  }
+
+  void _toggleEmojiPanel() {
+    if (_emojiOpen) {
+      _closeEmojiPanel();
+      widget.focusNode.requestFocus();
+    } else {
+      _openEmojiPanel();
+    }
+  }
+
+  void _openEmojiPanel() {
+    final fieldBox = _fieldKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlayState = Overlay.of(context);
+    final overlayBox = overlayState.context.findRenderObject() as RenderBox?;
+    if (fieldBox == null || overlayBox == null) return;
+
+    final winW = overlayBox.size.width;
+    final winH = overlayBox.size.height;
+    final fieldTopLeft = fieldBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final fieldRight = fieldTopLeft.dx + fieldBox.size.width;
+    final fieldTop = fieldTopLeft.dy;
+    final fieldBottom = fieldTop + fieldBox.size.height;
+
+    // Mirror EmojiTabbedPanel's own height (0.75 * window, clamped) + margins.
+    final panelTotalH = ((0.75 * winH).clamp(278.0, 640.0)) + 20.0;
+
+    double left = fieldRight - _panelTotalWidth;
+    final maxLeft = (winW - _panelTotalWidth - 8).clamp(8.0, winW);
+    if (left < 8) left = 8;
+    if (left > maxLeft) left = maxLeft;
+
+    double top;
+    if (fieldTop - panelTotalH - 4 >= 8) {
+      top = fieldTop - panelTotalH - 4; // open above the field (preferred)
+    } else if (fieldBottom + 4 + panelTotalH <= winH - 8) {
+      top = fieldBottom + 4; // not enough room above → open below
+    } else {
+      top = ((winH - panelTotalH) / 2).clamp(8.0, winH); // fallback: center
+    }
+    final maxTop = (winH - panelTotalH - 8).clamp(8.0, winH);
+    if (top > maxTop) top = maxTop;
+    if (top < 8) top = 8;
+
+    final appState = widget.appState;
+    final engine = widget.engine;
+    _emojiOverlay = OverlayEntry(
+      builder: (ctx) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _closeEmojiPanel,
+              ),
+            ),
+            Positioned(
+              left: left,
+              top: top,
+              child: MultiProvider(
+                providers: [
+                  ChangeNotifierProvider<AppState>.value(value: appState),
+                  Provider<EngineService>.value(value: engine),
+                ],
+                child: EmojiTabbedPanel(
+                  visible: true,
+                  emojiOnly: true,
+                  suppressStickerSets: true,
+                  onHide: _closeEmojiPanel,
+                  onEmojiSelected: _insertEmoji,
+                  onCustomEmojiSelected: _insertCustomEmoji,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    overlayState.insert(_emojiOverlay!);
+    setState(() => _emojiOpen = true);
+  }
+
+  void _insertEmoji(String emoji) {
+    final ctrl = widget.controller;
+    final sel = ctrl.selection;
+    final text = ctrl.text;
+    final start = sel.isValid ? sel.start : text.length;
+    final end = sel.isValid ? sel.end : text.length;
+    final newText = text.replaceRange(start, end, emoji);
+    if (newText.length <= widget.maxLength) {
+      ctrl.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: start + emoji.length),
+      );
+    }
+    addRecentEmoji(emoji);
+    widget.focusNode.requestFocus();
+  }
+
+  void _insertCustomEmoji(int documentId, String altText) {
+    widget.controller.insertCustomEmoji(documentId, altText);
+    widget.focusNode.requestFocus();
+  }
+
+  // Markdown formatting shortcuts (matches the compose field, chat_view.dart):
+  // Ctrl+B/I/U, Ctrl+Shift+X/M/P (strike/code/spoiler), Ctrl+Shift+N clears.
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final ctrl = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    if (!ctrl) return KeyEventResult.ignored;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    final richCtrl = widget.controller;
+
+    if (shift && event.logicalKey == LogicalKeyboardKey.keyN) {
+      richCtrl.clearFormatting();
+      return KeyEventResult.handled;
+    }
+    FormatType? fmt;
+    if (!shift) {
+      fmt = switch (event.logicalKey) {
+        LogicalKeyboardKey.keyB => FormatType.bold,
+        LogicalKeyboardKey.keyI => FormatType.italic,
+        LogicalKeyboardKey.keyU => FormatType.underline,
+        _ => null,
+      };
+    } else {
+      fmt = switch (event.logicalKey) {
+        LogicalKeyboardKey.keyX => FormatType.strike,
+        LogicalKeyboardKey.keyM => FormatType.code,
+        LogicalKeyboardKey.keyP => FormatType.spoiler,
+        _ => null,
+      };
+    }
+    if (fmt != null) {
+      richCtrl.toggleFormat(fmt);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: _handleKey,
+      child: TextField(
+        key: _fieldKey,
+        controller: widget.controller,
+        focusNode: widget.focusNode,
+        maxLines: 3,
+        minLines: 1,
+        maxLength: widget.maxLength,
+        style: TextStyle(fontSize: 15, color: widget.textColor),
+        decoration: InputDecoration(
+          labelText: 'Notes',
+          labelStyle: TextStyle(fontSize: 14, color: widget.subtextColor),
+          floatingLabelStyle: TextStyle(fontSize: 12, color: widget.focusBorderColor),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: widget.borderColor)),
+          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: widget.focusBorderColor, width: 2)),
+          counterStyle: TextStyle(fontSize: 11, color: widget.subtextColor),
+          suffixIcon: IconButton(
+            icon: Icon(
+              _emojiOpen ? Icons.keyboard : Icons.emoji_emotions_outlined,
+              size: 20,
+              color: _emojiOpen ? widget.focusBorderColor : widget.subtextColor,
+            ),
+            splashRadius: 16,
+            onPressed: _toggleEmojiPanel,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SettingsButtonRow extends StatefulWidget {
   final IconData icon;
   final String label;
@@ -1986,6 +2351,7 @@ class _SettingsButtonRow extends StatefulWidget {
   final VoidCallback onTap;
 
   const _SettingsButtonRow({
+    super.key,
     required this.icon,
     required this.label,
     required this.iconColor,
@@ -2046,20 +2412,17 @@ Future<void> showShareContactBox(
   final chatState = context.read<ChatState>();
   final engine = context.read<EngineService>();
 
-  return Navigator.of(context, rootNavigator: true).push(
-    PageRouteBuilder(
-      opaque: false,
-      barrierDismissible: true,
-      barrierColor: Colors.black54,
-      pageBuilder: (ctx, _, __) => _ShareContactBox(
-        appState: appState,
-        chatState: chatState,
-        engine: engine,
-        contactPhone: contactPhone,
-        contactFirstName: contactFirstName,
-        contactLastName: contactLastName,
-        contactUserId: contactUserId,
-      ),
+  return showDialog<void>(
+    context: context,
+    barrierColor: Colors.black54,
+    builder: (ctx) => _ShareContactBox(
+      appState: appState,
+      chatState: chatState,
+      engine: engine,
+      contactPhone: contactPhone,
+      contactFirstName: contactFirstName,
+      contactLastName: contactLastName,
+      contactUserId: contactUserId,
     ),
   );
 }
@@ -2223,10 +2586,19 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
     final filtered = _filteredChats;
     final contactName = '${widget.contactFirstName} ${widget.contactLastName}'.trim();
 
-    return Material(
-      color: boxBg,
-      child: SafeArea(
+    return Dialog(
+      backgroundColor: boxBg,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: _boxWideWidth,
+          minWidth: _boxWideWidth,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
               height: 54,
@@ -2284,9 +2656,10 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
               ),
             ),
             const SizedBox(height: 12),
-            Expanded(
+            Flexible(
               child: GridView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
+                shrinkWrap: true,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: _columnCount,
                   mainAxisExtent: _rowHeight,

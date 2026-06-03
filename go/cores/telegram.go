@@ -18317,6 +18317,11 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 			}
 			if noteVal, ok := result.FullUser.GetNote(); ok {
 				cu.Note = noteVal.Text
+				if ents := convertTgEntities(noteVal.Entities); len(ents) > 0 {
+					if b, err := json.Marshal(ents); err == nil {
+						cu.NoteEntities = string(b)
+					}
+				}
 			}
 			if bwh, ok := result.FullUser.GetBusinessWorkHours(); ok {
 				type interval struct {
@@ -28407,8 +28412,55 @@ func (t *TelegramCore) AddContactWithNote(phone, firstName, lastName, note strin
 	return err
 }
 
+// parseNoteEntities converts a JSON array of TextEntity (the Dart RichText
+// compose-entities format) into Telegram message entities, so a contact note's
+// markdown/custom-emoji formatting survives as TextWithEntities.Entities.
+func parseNoteEntities(entitiesJSON string) []tg.MessageEntityClass {
+	if entitiesJSON == "" {
+		return nil
+	}
+	var ents []TextEntity
+	if err := json.Unmarshal([]byte(entitiesJSON), &ents); err != nil {
+		return nil
+	}
+	var out []tg.MessageEntityClass
+	for _, e := range ents {
+		var ent tg.MessageEntityClass
+		switch e.Type {
+		case "bold":
+			ent = &tg.MessageEntityBold{Offset: e.Offset, Length: e.Length}
+		case "italic":
+			ent = &tg.MessageEntityItalic{Offset: e.Offset, Length: e.Length}
+		case "underline":
+			ent = &tg.MessageEntityUnderline{Offset: e.Offset, Length: e.Length}
+		case "strike":
+			ent = &tg.MessageEntityStrike{Offset: e.Offset, Length: e.Length}
+		case "code":
+			if e.Language != "" {
+				ent = &tg.MessageEntityPre{Offset: e.Offset, Length: e.Length, Language: e.Language}
+			} else {
+				ent = &tg.MessageEntityCode{Offset: e.Offset, Length: e.Length}
+			}
+		case "pre":
+			ent = &tg.MessageEntityPre{Offset: e.Offset, Length: e.Length, Language: e.Language}
+		case "spoiler":
+			ent = &tg.MessageEntitySpoiler{Offset: e.Offset, Length: e.Length}
+		case "text_url":
+			ent = &tg.MessageEntityTextURL{Offset: e.Offset, Length: e.Length, URL: e.URL}
+		case "blockquote":
+			ent = &tg.MessageEntityBlockquote{Offset: e.Offset, Length: e.Length}
+		case "custom_emoji":
+			ent = &tg.MessageEntityCustomEmoji{Offset: e.Offset, Length: e.Length, DocumentID: e.DocumentID}
+		default:
+			continue
+		}
+		out = append(out, ent)
+	}
+	return out
+}
+
 // AddContactByUserID adds a contact using their user ID instead of phone number.
-func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note string, sharePhone bool) error {
+func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note, noteEntitiesJSON string, sharePhone bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -28426,7 +28478,11 @@ func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note stri
 		AddPhonePrivacyException: sharePhone,
 	}
 	if note != "" {
-		req.SetNote(tg.TextWithEntities{Text: note})
+		twe := tg.TextWithEntities{Text: note}
+		if ents := parseNoteEntities(noteEntitiesJSON); len(ents) > 0 {
+			twe.Entities = ents
+		}
+		req.SetNote(twe)
 	}
 	_, err = t.api.ContactsAddContact(t.ctx, req)
 	return err

@@ -170,6 +170,7 @@ type User struct {
 	UserpicPhotoId         string `json:"userpic_photo_id,omitempty"`
 	VideoStartPosition     int    `json:"video_start_position,omitempty"`
 	Note                   string `json:"note,omitempty"`
+	NoteEntities           string `json:"note_entities,omitempty"`
 	BusinessHours          string `json:"business_hours,omitempty"`
 	BannedRights           map[string]bool `json:"banned_rights,omitempty"`
 	BannedUntil            int             `json:"banned_until,omitempty"`

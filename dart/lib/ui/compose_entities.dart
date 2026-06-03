@@ -482,6 +482,58 @@ class RichTextEditingController extends TextEditingController {
     return (text: cleanText, entitiesJson: json);
   }
 
+  static FormatType? _parseFormatType(String? type) {
+    switch (type) {
+      case 'bold': return FormatType.bold;
+      case 'italic': return FormatType.italic;
+      case 'underline': return FormatType.underline;
+      case 'strike': return FormatType.strike;
+      case 'code':
+      case 'pre': return FormatType.code;
+      case 'spoiler': return FormatType.spoiler;
+      case 'blockquote': return FormatType.blockquote;
+      case 'text_url': return FormatType.link;
+      case 'custom_emoji': return FormatType.customEmoji;
+      case 'custom_date': return FormatType.date;
+      default: return null;
+    }
+  }
+
+  /// Loads [newText] together with formatting [entitiesJson] (same shape as
+  /// [ComposeEntity.toJson] / the Go `TextEntity`), so a previously-saved
+  /// rich note round-trips its bold/italic/spoiler/custom-emoji formatting
+  /// into the editor.
+  void setTextWithEntities(String newText, String entitiesJson) {
+    entities.clear();
+    if (entitiesJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(entitiesJson);
+        if (decoded is List) {
+          for (final item in decoded) {
+            if (item is! Map) continue;
+            final type = _parseFormatType(item['type'] as String?);
+            if (type == null) continue;
+            final offset = (item['offset'] as num?)?.toInt() ?? 0;
+            final length = (item['length'] as num?)?.toInt() ?? 0;
+            if (length <= 0 || offset < 0) continue;
+            entities.add(ComposeEntity(
+              offset: offset,
+              length: length,
+              type: type,
+              url: item['url'] as String?,
+              language: item['language'] as String?,
+              documentId: (item['document_id'] as num?)?.toInt(),
+              altText: item['alt_text'] as String?,
+              timestamp: (item['timestamp'] as num?)?.toInt(),
+            ));
+          }
+        }
+      } catch (_) {}
+    }
+    _prevText = newText;
+    super.text = newText;
+  }
+
   @override
   void clear() {
     entities.clear();
