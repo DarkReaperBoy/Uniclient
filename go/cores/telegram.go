@@ -21527,6 +21527,19 @@ func (t *TelegramCore) DeleteChatHistory(chatID string) error {
 	return err
 }
 
+// DeleteChatHistoryWithRevoke deletes the entire message history in a chat,
+// optionally revoking (deleting for everyone) when the peer supports it.
+// Mirrors AyuGram's clearHistory(peer, revoke) / deleteConversation(peer, revoke).
+func (t *TelegramCore) DeleteChatHistoryWithRevoke(chatID string, revoke bool) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	_, err = t.api.MessagesDeleteHistory(t.ctx, &tg.MessagesDeleteHistoryRequest{
+		Peer: inputPeer, MaxID: 0, Revoke: revoke,
+	})
+	return err
+}
+
 // ImportChatInvite joins a chat using an invite link.
 func (t *TelegramCore) ImportChatInvite(hash string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -28131,6 +28144,63 @@ func (t *TelegramCore) BanMember(chatID string, userID string) error {
 		Channel:      &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 		Participant:  &tg.InputPeerUser{UserID: uid, AccessHash: uhash},
 		BannedRights: tg.ChatBannedRights{ViewMessages: true, UntilDate: 0},
+	})
+	return err
+}
+
+// DeleteParticipantHistory deletes all messages sent by a participant in a
+// channel/supergroup. Mirrors AyuGram's api().deleteAllFromParticipant
+// (channels.deleteParticipantHistory).
+func (t *TelegramCore) DeleteParticipantHistory(chatID string, userID string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return err
+	}
+	ch, ok := peer.(*tg.PeerChannel)
+	if !ok {
+		return fmt.Errorf("telegram: delete participant history only works on channels/supergroups: %w", ErrNotSupported)
+	}
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	uid, err := tgUserID(userID)
+	if err != nil { return err }
+	uhash := t.getCachedUserHash(uid)
+	_, err = t.api.ChannelsDeleteParticipantHistory(t.ctx, &tg.ChannelsDeleteParticipantHistoryRequest{
+		Channel:     &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Participant: &tg.InputPeerUser{UserID: uid, AccessHash: uhash},
+	})
+	return err
+}
+
+// ReportChannelSpam reports a participant's messages as spam in a
+// channel/supergroup. Mirrors AyuGram's Api::ReportSpam(participant, ids)
+// (channels.reportSpam).
+func (t *TelegramCore) ReportChannelSpam(chatID string, userID string, msgIDs []int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return err
+	}
+	ch, ok := peer.(*tg.PeerChannel)
+	if !ok {
+		return fmt.Errorf("telegram: report channel spam only works on channels/supergroups: %w", ErrNotSupported)
+	}
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	uid, err := tgUserID(userID)
+	if err != nil { return err }
+	uhash := t.getCachedUserHash(uid)
+	_, err = t.api.ChannelsReportSpam(t.ctx, &tg.ChannelsReportSpamRequest{
+		Channel:     &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Participant: &tg.InputPeerUser{UserID: uid, AccessHash: uhash},
+		ID:          msgIDs,
 	})
 	return err
 }

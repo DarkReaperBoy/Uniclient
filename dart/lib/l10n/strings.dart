@@ -124,6 +124,7 @@ class TrStrings {
   static String lngSuggestWarnDeleteAnyway() => 'Delete Anyway';
 
   // Delete chat box (moderate_messages_box.cpp:1020-1066)
+  static String lngProfileDeleteConversation() => 'Delete chat';
   static String lngProfileBlockBot() => 'Stop and block bot';
   static String lngFiltersCheckboxRemoveBot() => 'Remove bot from all folders';
   static String lngFiltersCheckboxRemoveChannel() =>
@@ -134,6 +135,22 @@ class TrStrings {
   // Common dialog buttons (edit_mark_box.cpp:44-58, layers.style)
   static String lngSettingsSave() => 'Save';
   static String lngAyuBoxActionReset() => 'Reset';
+
+  // Auto-delete timer box (auto_delete_settings.cpp, lang.strings:2162-2175)
+  static String lngManageMessagesTtlTitle() => 'Auto-delete messages';
+  static String lngManageMessagesTtlDisable() => 'Disable';
+  static String lngManageMessagesTtlAfter1() => '1 day';
+  static String lngManageMessagesTtlAfter2() => '1 week';
+  static String lngManageMessagesTtlAfter3() => '1 month';
+  static String lngTtlEditAbout(String user) =>
+      'Automatically delete new messages for you and $user after a certain period of time.';
+  static String lngTtlEditAboutGroup() =>
+      'Automatically delete new messages sent in this chat after a certain period of time.';
+  static String lngTtlEditAboutChannel() =>
+      'Automatically delete new messages sent in this channel after a certain period of time.';
+  static String lngTtlEditAbout2(String link) =>
+      'You can also set a default $link for all your chats in Settings.';
+  static String lngTtlEditAbout2Link() => 'self-destruct timer';
 
   // Localized default "edited" mark (lang.strings:2838 "lng_edited" = "edited").
   // AyuGram seeds the edited-mark default and the EditMarkBox with

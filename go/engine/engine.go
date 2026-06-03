@@ -927,17 +927,25 @@ func (e *Engine) SetForumViewAsMessages(accountID, chatID string, asMessages boo
 
 // ClearHistory deletes the message history for a chat on the server and locally,
 // but keeps the chat visible in the chat list.
-func (e *Engine) ClearHistory(accountID, chatID string) error {
+func (e *Engine) ClearHistory(accountID, chatID string, revoke bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not found or not connected", accountID)
 	}
 
-	// Platform-specific history deletion.
+	// Platform-specific history deletion. Prefer the revoke-aware variant so
+	// "Also delete for everyone" actually deletes server-side for both sides.
+	type historyDeleterRevoke interface {
+		DeleteChatHistoryWithRevoke(chatID string, revoke bool) error
+	}
 	type historyDeleter interface {
 		DeleteChatHistory(chatID string) error
 	}
-	if hd, ok := acc.Core.(historyDeleter); ok {
+	if hd, ok := acc.Core.(historyDeleterRevoke); ok {
+		if err := hd.DeleteChatHistoryWithRevoke(chatID, revoke); err != nil {
+			return err
+		}
+	} else if hd, ok := acc.Core.(historyDeleter); ok {
 		if err := hd.DeleteChatHistory(chatID); err != nil {
 			return err
 		}
@@ -959,17 +967,23 @@ func (e *Engine) ClearHistory(accountID, chatID string) error {
 // DeleteChat deletes a chat entirely — clears history and removes the chat.
 // For groups/channels this is equivalent to leave + delete. For DMs it clears
 // history and removes the chat from the list.
-func (e *Engine) DeleteChat(accountID, chatID string) error {
+func (e *Engine) DeleteChat(accountID, chatID string, revoke bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not found or not connected", accountID)
 	}
 
-	// Clear server-side history first.
+	// Clear server-side history first. Prefer the revoke-aware variant so a
+	// "delete for everyone" conversation removal wipes both sides.
+	type historyDeleterRevoke interface {
+		DeleteChatHistoryWithRevoke(chatID string, revoke bool) error
+	}
 	type historyDeleter interface {
 		DeleteChatHistory(chatID string) error
 	}
-	if hd, ok := acc.Core.(historyDeleter); ok {
+	if hd, ok := acc.Core.(historyDeleterRevoke); ok {
+		_ = hd.DeleteChatHistoryWithRevoke(chatID, revoke) // best-effort
+	} else if hd, ok := acc.Core.(historyDeleter); ok {
 		_ = hd.DeleteChatHistory(chatID) // best-effort
 	}
 

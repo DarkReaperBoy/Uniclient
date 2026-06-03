@@ -780,6 +780,40 @@ func (e *Engine) RemoveMember(accountID, chatID, userID string) error {
 	return acc.Core.RemoveMember(chatID, userID)
 }
 
+// DeleteAllFromParticipant deletes every message a participant sent in a
+// channel/supergroup. Used by the delete-messages moderate panel's
+// "Delete All from X" checkbox. Mirrors AyuGram's deleteAllFromParticipant.
+func (e *Engine) DeleteAllFromParticipant(accountID, chatID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type deleter interface {
+		DeleteParticipantHistory(chatID, userID string) error
+	}
+	if d, ok := acc.Core.(deleter); ok {
+		return d.DeleteParticipantHistory(chatID, userID)
+	}
+	return fmt.Errorf("platform does not support DeleteAllFromParticipant")
+}
+
+// ReportParticipantSpam reports a participant's messages as spam in a
+// channel/supergroup. Used by the moderate panel's "Report Spam" checkbox.
+// Mirrors AyuGram's Api::ReportSpam(participant, ids).
+func (e *Engine) ReportParticipantSpam(accountID, chatID, userID string, msgIDs []int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type reporter interface {
+		ReportChannelSpam(chatID, userID string, msgIDs []int) error
+	}
+	if r, ok := acc.Core.(reporter); ok {
+		return r.ReportChannelSpam(chatID, userID, msgIDs)
+	}
+	return fmt.Errorf("platform does not support ReportParticipantSpam")
+}
+
 func (e *Engine) DemoteAdmin(accountID, chatID, userID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

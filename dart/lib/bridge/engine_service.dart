@@ -3242,18 +3242,47 @@ class EngineService {
     await _callAsync('__engine', 'SetForumViewAsMessages', Uint8List.fromList(payload));
   }
 
-  Future<void> clearHistory(String accountId, String chatId) async {
-    final req = epb.EngineClearHistoryRequest()
-      ..accountId = accountId
-      ..chatId = chatId;
-    await _callAsync('__engine', 'ClearHistory', req.writeToBuffer());
+  Future<void> clearHistory(String accountId, String chatId, {bool revoke = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'revoke': revoke,
+    }));
+    await _callAsync('__engine', 'ClearHistory', Uint8List.fromList(payload));
   }
 
-  Future<void> deleteChat(String accountId, String chatId) async {
-    final req = epb.EngineDeleteChatRequest()
-      ..accountId = accountId
-      ..chatId = chatId;
-    await _callAsync('__engine', 'DeleteChat', req.writeToBuffer());
+  Future<void> deleteChat(String accountId, String chatId, {bool revoke = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'revoke': revoke,
+    }));
+    await _callAsync('__engine', 'DeleteChat', Uint8List.fromList(payload));
+  }
+
+  /// Deletes every message a participant sent in a channel/supergroup —
+  /// the moderate panel's "Delete All from X" action
+  /// (channels.deleteParticipantHistory).
+  Future<void> deleteAllFromParticipant(String accountId, String chatId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'user_id': userId,
+    }));
+    await _callAsync('__engine', 'DeleteAllFromParticipant', Uint8List.fromList(payload));
+  }
+
+  /// Reports a participant's messages as spam in a channel/supergroup —
+  /// the moderate panel's "Report Spam" action (channels.reportSpam).
+  Future<void> reportParticipantSpam(
+      String accountId, String chatId, String userId, List<int> msgIds) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'user_id': userId,
+      'msg_ids': msgIds,
+    }));
+    await _callAsync('__engine', 'ReportParticipantSpam', Uint8List.fromList(payload));
   }
 
   Future<epb.EngineChatInfo> createChannel(String accountId, String name, String description) async {

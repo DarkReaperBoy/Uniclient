@@ -718,14 +718,24 @@ class _DeleteContentState extends State<_DeleteContent> {
     if (!widget.canRevoke) return null;
     if (widget.isScheduled || widget.isSavedMusic) return null;
     if (_revokeJustClearForChannel) return null;
-    if (widget.mode == DeleteBoxMode.singleMessage ||
-        widget.mode == DeleteBoxMode.bulkMessages) {
-      if (widget.chatType == ChatType.dm) {
-        return 'Also delete for ${widget.peerName}';
-      }
-      return 'Also delete for everyone';
+    // AyuGram shows the revoke checkbox for per-message deletes (revokeText) AND
+    // for full-history wipes — clearHistory / deleteConversation — whenever
+    // canRevokeFullHistory() (delete_messages_box.cpp:166-181 &
+    // moderate_messages_box.cpp:998-1018). The label is per-user for a DM,
+    // "for everyone" otherwise.
+    switch (widget.mode) {
+      case DeleteBoxMode.singleMessage:
+      case DeleteBoxMode.bulkMessages:
+      case DeleteBoxMode.clearHistory:
+      case DeleteBoxMode.leaveChat:
+        if (widget.chatType == ChatType.dm) {
+          return 'Also delete for ${widget.peerName}';
+        }
+        return 'Also delete for everyone';
+      case DeleteBoxMode.deleteTopic:
+      case DeleteBoxMode.dateRange:
+        return null;
     }
-    return null;
   }
 
   void _confirm() {
@@ -851,7 +861,13 @@ class _DeleteContentState extends State<_DeleteContent> {
                   const SizedBox(width: 12),
                   Flexible(
                     child: Text(
-                      widget.peerName,
+                      // AyuGram DeleteChatBox title (moderate_messages_box.cpp:970-979):
+                      // a user/DM shows the action "Delete chat", groups/channels
+                      // show the peer name (Saved Messages is handled by the
+                      // isSavedMessages branch that hides this userpic block).
+                      widget.chatType == ChatType.dm
+                          ? TrStrings.lngProfileDeleteConversation()
+                          : widget.peerName,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -1139,31 +1155,292 @@ class _RadioRow extends StatelessWidget {
 
 // ─── Auto-Delete Timer Box ──────────────────────────────────────────────────
 
+// AyuGram indexToPeriod (auto_delete_settings.cpp:221-231): disable / 1 day /
+// 1 week / 1 month, where "1 month" is 31 days (NOT 30) → 2678400s.
+const List<int> _kTtlPeriods = [0, 86400, 7 * 86400, 31 * 86400];
+
+// SliderForTTL geometry (chat.style:800-811 defaultSliderForTTL).
+const double _kTtlPointSize = 6;
+const double _kTtlChosenSize = 12;
+const double _kTtlSkip = 8;
+const double _kTtlStroke = 2;
+const double _kTtlFontSize = 13;
+const double _kTtlLabelHeight = 17;
+
 Future<void> showAutoDeleteTimerBox(
   BuildContext context, {
   required EngineService engine,
   required String accountId,
   required String chatId,
   int currentTTL = 0,
-}) async {
-  const options = [
-    'Off',
-    '1 day',
-    '1 week',
-    '1 month',
-  ];
-  const values = [0, 86400, 604800, 2592000];
-
-  final currentIndex = values.indexOf(currentTTL).clamp(0, values.length - 1);
-  final selected = await showSingleChoiceBox(
-    context,
-    title: currentTTL > 0 ? 'Edit Auto-Delete Timer' : 'Auto-Delete Messages',
-    options: options,
-    initialSelection: currentIndex,
+  ChatType chatType = ChatType.dm,
+  String peerName = '',
+}) {
+  return showTelegramBox<void>(
+    context: context,
+    builder: (ctx) => _AutoDeleteContent(
+      engine: engine,
+      accountId: accountId,
+      chatId: chatId,
+      currentTTL: currentTTL,
+      chatType: chatType,
+      peerName: peerName,
+    ),
   );
-  if (selected != null && selected >= 0 && selected < values.length) {
-    engine.setHistoryTTL(accountId, chatId, values[selected]);
+}
+
+class _AutoDeleteContent extends StatefulWidget {
+  final EngineService engine;
+  final String accountId;
+  final String chatId;
+  final int currentTTL;
+  final ChatType chatType;
+  final String peerName;
+
+  const _AutoDeleteContent({
+    required this.engine,
+    required this.accountId,
+    required this.chatId,
+    required this.currentTTL,
+    required this.chatType,
+    required this.peerName,
+  });
+
+  @override
+  State<_AutoDeleteContent> createState() => _AutoDeleteContentState();
+}
+
+class _AutoDeleteContentState extends State<_AutoDeleteContent> {
+  late int _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = _periodToIndex(widget.currentTTL);
   }
+
+  // AyuGram periodToIndex (auto_delete_settings.cpp:210-220).
+  int _periodToIndex(int period) {
+    if (period == 0) return 0;
+    if (period < 2 * 86400) return 1;
+    if (period < 8 * 86400) return 2;
+    return 3;
+  }
+
+  String get _aboutText {
+    final about1 = switch (widget.chatType) {
+      ChatType.dm => TrStrings.lngTtlEditAbout(widget.peerName),
+      ChatType.channel => TrStrings.lngTtlEditAboutChannel(),
+      _ => TrStrings.lngTtlEditAboutGroup(),
+    };
+    final about2 = TrStrings.lngTtlEditAbout2(TrStrings.lngTtlEditAbout2Link());
+    return '$about1\n\n$about2';
+  }
+
+  void _save() {
+    widget.engine.setHistoryTTL(widget.accountId, widget.chatId, _kTtlPeriods[_selected]);
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final labels = [
+      TrStrings.lngManageMessagesTtlDisable(),
+      TrStrings.lngManageMessagesTtlAfter1(),
+      TrStrings.lngManageMessagesTtlAfter2(),
+      TrStrings.lngManageMessagesTtlAfter3(),
+    ];
+
+    return TelegramBox(
+      title: TrStrings.lngManageMessagesTtlTitle(),
+      scrollableContent: false,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, kBoxMediumSkip),
+            child: _TTLSlider(
+              labels: labels,
+              selected: _selected,
+              textFg: p.windowSubTextFg,
+              activeFg: p.mediaPlayerActiveFg,
+              inactiveFg: p.mediaPlayerInactiveFg,
+              onChanged: (i) => setState(() => _selected = i),
+            ),
+          ),
+          // DividerLabel (auto_delete_settings.cpp:248-256): explanatory text on
+          // a full-width divider band.
+          Container(
+            width: double.infinity,
+            color: p.boxDividerBg,
+            padding: const EdgeInsets.fromLTRB(24, 10, 24, 10),
+            child: Text(
+              _aboutText,
+              style: TextStyle(
+                fontSize: 13,
+                height: 18 / 13,
+                color: p.windowSubTextFg,
+              ),
+            ),
+          ),
+        ],
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: TrStrings.lngCancel(),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        TelegramBoxButton(
+          text: TrStrings.lngSettingsSave(),
+          onPressed: _save,
+        ),
+      ],
+    );
+  }
+}
+
+// Draggable TTL slider — port of AyuGram CreateSliderForTTL
+// (auto_delete_settings.cpp:19-184). Labels on top, a row of points joined by
+// lines below; tap or drag to pick. Points ≤ selected use activeFg.
+class _TTLSlider extends StatelessWidget {
+  final List<String> labels;
+  final int selected;
+  final Color textFg;
+  final Color activeFg;
+  final Color inactiveFg;
+  final ValueChanged<int> onChanged;
+
+  const _TTLSlider({
+    required this.labels,
+    required this.selected,
+    required this.textFg,
+    required this.activeFg,
+    required this.inactiveFg,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const height = _kTtlLabelHeight + _kTtlSkip + _kTtlChosenSize;
+    final count = labels.length;
+    return SizedBox(
+      height: height,
+      child: LayoutBuilder(
+        builder: (ctx, constraints) {
+          final width = constraints.maxWidth;
+          final step = count > 1 ? width / (count - 1) : width;
+          void handle(double dx) {
+            if (step <= 0) return;
+            final idx = ((dx + step / 2) ~/ step).clamp(0, count - 1);
+            if (idx != selected) onChanged(idx);
+          }
+
+          // Tap or drag to pick (AyuGram tracks press→move; here onTapDown
+          // handles a click and the horizontal-drag callbacks handle a drag).
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (d) => handle(d.localPosition.dx),
+            onHorizontalDragStart: (d) => handle(d.localPosition.dx),
+            onHorizontalDragUpdate: (d) => handle(d.localPosition.dx),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: CustomPaint(
+                size: Size(width, height),
+                painter: _TTLSliderPainter(
+                  labels: labels,
+                  selected: selected,
+                  textFg: textFg,
+                  activeFg: activeFg,
+                  inactiveFg: inactiveFg,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TTLSliderPainter extends CustomPainter {
+  final List<String> labels;
+  final int selected;
+  final Color textFg;
+  final Color activeFg;
+  final Color inactiveFg;
+
+  _TTLSliderPainter({
+    required this.labels,
+    required this.selected,
+    required this.textFg,
+    required this.activeFg,
+    required this.inactiveFg,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final count = labels.length;
+    if (count < 2) return;
+    final width = size.width;
+    final points = List<double>.generate(count, (i) => width * i / (count - 1));
+    final centerY = _kTtlLabelHeight + _kTtlSkip + _kTtlChosenSize / 2;
+
+    // Labels: first left-aligned, last right-aligned, others centered.
+    for (var i = 0; i < count; i++) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: labels[i],
+          style: TextStyle(fontSize: _kTtlFontSize, color: textFg),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final shift = (i == count - 1)
+          ? tp.width
+          : (i > 0 ? tp.width / 2 : 0.0);
+      tp.paint(canvas, Offset(points[i] - shift, 0));
+    }
+
+    // Points + connecting lines.
+    for (var i = 0; i < count; i++) {
+      final sz = (i == selected) ? _kTtlChosenSize : _kTtlPointSize;
+      final pointFg = (i <= selected) ? activeFg : inactiveFg;
+      final shift = (i == count - 1) ? sz : (i > 0 ? sz / 2 : 0.0);
+      final px = points[i] - shift;
+      canvas.drawOval(
+        Rect.fromLTWH(px, centerY - sz / 2, sz, sz),
+        Paint()..color = pointFg..style = PaintingStyle.fill,
+      );
+
+      if (i + 1 == count) break;
+      final nextSz = (i + 1 == selected) ? _kTtlChosenSize : _kTtlPointSize;
+      final nextShift = (i + 1 == count - 1) ? nextSz : nextSz / 2;
+      final lineFg = (i + 1 <= selected) ? activeFg : inactiveFg;
+      final from = px + sz + _kTtlStroke * 1.5;
+      final till = points[i + 1] - nextShift - _kTtlStroke * 1.5;
+      if (till > from) {
+        canvas.drawLine(
+          Offset(from, centerY),
+          Offset(till, centerY),
+          Paint()
+            ..color = lineFg
+            ..strokeWidth = _kTtlStroke
+            ..strokeCap = StrokeCap.round
+            ..style = PaintingStyle.stroke,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TTLSliderPainter old) =>
+      old.selected != selected ||
+      old.textFg != textFg ||
+      old.activeFg != activeFg ||
+      old.inactiveFg != inactiveFg ||
+      old.labels.length != labels.length;
 }
 
 // ─── §36.12 Permission Request Dialogs ──────────────────────────────────────
@@ -1488,6 +1765,36 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
   bool _isWayland = false;
   int _selectedIndex = -1;
   bool _withAudio = false;
+  // AyuGram only shows the "Share audio" checkbox when loopback capture is
+  // supported (desktop_capture_choose_source.cpp:456 →
+  // Webrtc::LoopbackAudioCaptureSupported()). On an unsupported platform the
+  // control would be a no-op, so it must be hidden entirely.
+  bool _audioSupported = false;
+
+  // Mirror of Webrtc::LoopbackAudioCaptureSupported(): always on Windows, and on
+  // Linux when a PulseAudio/PipeWire monitor (loopback) source is present.
+  Future<bool> _loopbackAudioSupported() async {
+    if (Platform.isWindows) return true;
+    if (Platform.isLinux) {
+      try {
+        final pactl = await Process.run('pactl', ['list', 'sources', 'short']);
+        if (pactl.exitCode == 0 &&
+            (pactl.stdout as String).contains('.monitor')) {
+          return true;
+        }
+      } catch (_) {}
+      try {
+        final pw = await Process.run('pw-cli', ['list-objects']);
+        if (pw.exitCode == 0 &&
+            (pw.stdout as String).contains('Audio/Source')) {
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+    // macOS loopback needs a virtual device that isn't present by default.
+    return false;
+  }
 
   @override
   void initState() {
@@ -1611,10 +1918,13 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
       ));
     }
 
+    final audioSupported = await _loopbackAudioSupported();
+
     if (mounted) {
       setState(() {
         _sources = sources;
         _loading = false;
+        _audioSupported = audioSupported;
         if (sources.isNotEmpty) _selectedIndex = 0;
       });
       _captureThumbnails();
@@ -1696,7 +2006,9 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
                           : GridView.builder(
                               gridDelegate:
                                   const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
+                                // AyuGram lays sources out in a 3-column grid
+                                // (kColumns = 3, desktop_capture_choose_source.cpp:31).
+                                crossAxisCount: 3,
                                 mainAxisSpacing: 8,
                                 crossAxisSpacing: 8,
                                 childAspectRatio: 16 / 10,
@@ -1782,39 +2094,40 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
                             ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: Checkbox(
-                            value: _withAudio,
-                            onChanged: (v) =>
-                                setState(() => _withAudio = v ?? false),
-                            activeColor: accentColor,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () =>
-                              setState(() => _withAudio = !_withAudio),
-                          child: Text(
-                            'SHARE AUDIO',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
-                              letterSpacing: 0.5,
+                  if (_audioSupported)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: Checkbox(
+                              value: _withAudio,
+                              onChanged: (v) =>
+                                  setState(() => _withAudio = v ?? false),
+                              activeColor: accentColor,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () =>
+                                setState(() => _withAudio = !_withAudio),
+                            child: Text(
+                              'SHARE AUDIO',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: textColor,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                 ],
               ),
       ),
@@ -1946,6 +2259,69 @@ Future<bool> showDynamicReportFlow(
   }
 }
 
+// AddReportDetailsIconButton (report_box_graphics.cpp:209): the
+// `blocked_peers_empty` Lottie, played once after the box finishes appearing.
+// Shared by the standalone report-details box AND the combined options+comment
+// box so both report paths show the same illustration.
+class _ReportDetailsLottie extends StatefulWidget {
+  const _ReportDetailsLottie();
+
+  @override
+  State<_ReportDetailsLottie> createState() => _ReportDetailsLottieState();
+}
+
+class _ReportDetailsLottieState extends State<_ReportDetailsLottie>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onLoaded(LottieComposition composition) {
+    _controller.duration = composition.duration;
+    final anim = ModalRoute.of(context)?.animation;
+    if (anim != null && !anim.isCompleted) {
+      void listener(AnimationStatus status) {
+        if (status == AnimationStatus.completed && mounted) {
+          _controller.forward();
+          anim.removeStatusListener(listener);
+        }
+      }
+      anim.addStatusListener(listener);
+    } else {
+      if (mounted) _controller.forward();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 16),
+        child: SizedBox(
+          width: 120,
+          height: 120,
+          child: Lottie.asset(
+            'assets/animations/blocked_peers_empty.json',
+            controller: _controller,
+            onLoaded: _onLoaded,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ReportOptionPickerBox extends StatefulWidget {
   final String title;
   final List<ReportOptionItem> options;
@@ -2036,7 +2412,10 @@ class _ReportOptionPickerBoxState extends State<_ReportOptionPickerBox> {
               );
             }),
             if (widget.hasComment) ...[
-              const SizedBox(height: 8),
+              // AyuGram's combined options+comment box shows the
+              // AddReportDetailsIconButton illustration above the field
+              // (report_messages_box.cpp:124-130).
+              const _ReportDetailsLottie(),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: ValueListenableBuilder<String?>(
@@ -2117,42 +2496,17 @@ class _ReportDetailsBox extends StatefulWidget {
   State<_ReportDetailsBox> createState() => _ReportDetailsBoxState();
 }
 
-class _ReportDetailsBoxState extends State<_ReportDetailsBox>
-    with SingleTickerProviderStateMixin {
+class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
   final _textController = TextEditingController();
   final _focusNode = FocusNode();
-  late final AnimationController _lottieController;
   final _errorText = ValueNotifier<String?>(null);
-
-  @override
-  void initState() {
-    super.initState();
-    _lottieController = AnimationController(vsync: this);
-  }
 
   @override
   void dispose() {
     _textController.dispose();
     _focusNode.dispose();
-    _lottieController.dispose();
     _errorText.dispose();
     super.dispose();
-  }
-
-  void _onLottieLoaded(LottieComposition composition) {
-    _lottieController.duration = composition.duration;
-    final anim = ModalRoute.of(context)?.animation;
-    if (anim != null && !anim.isCompleted) {
-      void listener(AnimationStatus status) {
-        if (status == AnimationStatus.completed && mounted) {
-          _lottieController.forward();
-          anim.removeStatusListener(listener);
-        }
-      }
-      anim.addStatusListener(listener);
-    } else {
-      if (mounted) _lottieController.forward();
-    }
   }
 
   void _submit() {
@@ -2178,21 +2532,7 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 16),
-                child: SizedBox(
-                  width: 120,
-                  height: 120,
-                  child: Lottie.asset(
-                    'assets/animations/blocked_peers_empty.json',
-                    controller: _lottieController,
-                    onLoaded: _onLottieLoaded,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-            ),
+            const _ReportDetailsLottie(),
             Text(
               'Please enter any additional details relevant to your report.',
               style: TextStyle(fontSize: 14, color: textFg),

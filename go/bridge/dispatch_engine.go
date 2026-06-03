@@ -886,18 +886,49 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return nil, e.SetForumViewAsMessages(params.AccountID, params.ChatID, params.AsMessages)
 
 	case "ClearHistory":
-		var req pb.EngineClearHistoryRequest
-		if err := proto.Unmarshal(payload, &req); err != nil {
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Revoke    bool   `json:"revoke"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return nil, e.ClearHistory(req.AccountId, req.ChatId)
+		return nil, e.ClearHistory(params.AccountID, params.ChatID, params.Revoke)
 
 	case "DeleteChat":
-		var req pb.EngineDeleteChatRequest
-		if err := proto.Unmarshal(payload, &req); err != nil {
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Revoke    bool   `json:"revoke"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return nil, e.DeleteChat(req.AccountId, req.ChatId)
+		return nil, e.DeleteChat(params.AccountID, params.ChatID, params.Revoke)
+
+	case "DeleteAllFromParticipant":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.DeleteAllFromParticipant(params.AccountID, params.ChatID, params.UserID)
+
+	case "ReportParticipantSpam":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			UserID    string `json:"user_id"`
+			MsgIDs    []int  `json:"msg_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ReportParticipantSpam(params.AccountID, params.ChatID, params.UserID, params.MsgIDs)
 
 	case "ForwardMessage":
 		var req pb.EngineForwardMessageRequest

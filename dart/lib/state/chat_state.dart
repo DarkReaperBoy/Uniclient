@@ -2131,8 +2131,8 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
-  void clearHistory(String accountId, String chatId) {
-    _engine.clearHistory(accountId, chatId);
+  void clearHistory(String accountId, String chatId, {bool revoke = false}) {
+    _engine.clearHistory(accountId, chatId, revoke: revoke);
     // If this is the active chat, clear local messages.
     if (_activeChat?.accountId == accountId && _activeChat?.chatId == chatId) {
       _messages.clear();
@@ -2141,8 +2141,8 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
-  void deleteChat(String accountId, String chatId) {
-    _engine.deleteChat(accountId, chatId);
+  void deleteChat(String accountId, String chatId, {bool revoke = false}) {
+    _engine.deleteChat(accountId, chatId, revoke: revoke);
     // If this was the active chat, clear it.
     if (_activeChat?.accountId == accountId && _activeChat?.chatId == chatId) {
       _activeChat = null;

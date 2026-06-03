@@ -3225,8 +3225,31 @@ class _ChatViewState extends State<ChatView>
     final count = _selectedMsgIds.length;
     final ids = _selectedMsgIds.toList();
     final idSet = _selectedMsgIds;
-    final warnPaid = computePaidPostWarning(
-        chatState.messages.where((m) => idSet.contains(m.msgId)));
+    final selectedMsgs =
+        chatState.messages.where((m) => idSet.contains(m.msgId)).toList();
+    final engine = context.read<AppState>().engine;
+    final warnPaid = computePaidPostWarning(selectedMsgs);
+
+    // AyuGram only offers the ban/report/delete-all moderate panel for a single
+    // participant (delete_messages_box.cpp:57-60). Enable it only when every
+    // selected message is incoming from one common sender in a channel/supergroup
+    // I administer.
+    String? mfId;
+    String? mfName;
+    final canModerate = chat?.isAdmin == true &&
+        (chat?.type == ChatType.group || chat?.type == ChatType.channel);
+    if (canModerate &&
+        selectedMsgs.isNotEmpty &&
+        selectedMsgs.every((m) => !m.isOutgoing)) {
+      final senders = selectedMsgs.map((m) => m.senderId).toSet();
+      if (senders.length == 1 && senders.first.isNotEmpty) {
+        mfId = selectedMsgs.first.senderId;
+        mfName = selectedMsgs.first.senderName;
+      }
+    }
+    final moderateFromId = mfId;
+    final moderateFromName = mfName;
+
     showDeleteConfirmBox(
       context,
       mode: DeleteBoxMode.bulkMessages,
@@ -3234,11 +3257,30 @@ class _ChatViewState extends State<ChatView>
       peerName: chat?.title ?? '',
       messageCount: count,
       canRevoke: chat?.type == ChatType.dm,
-      showModeratePanel: chat?.isAdmin == true,
+      showModeratePanel: moderateFromId != null,
+      moderateFromId: moderateFromId,
+      moderateFromName: moderateFromName,
+      chatId: chat?.chatId,
+      accountId: chat?.accountId,
       isPaidPost: warnPaid != null,
       paidPostType: warnPaid ?? PaidPostType.stars,
     ).then((result) {
       if (!result.confirmed) return;
+      // Moderate actions on the common sender (delete_messages_box.cpp:636-651).
+      if (moderateFromId != null && chat != null) {
+        final acc = chat.accountId;
+        if (result.banUser) {
+          engine.banMember(acc, chat.chatId, moderateFromId);
+        }
+        if (result.reportSpam) {
+          final intIds =
+              ids.map((id) => int.tryParse(id)).whereType<int>().toList();
+          engine.reportParticipantSpam(acc, chat.chatId, moderateFromId, intIds);
+        }
+        if (result.deleteAll) {
+          engine.deleteAllFromParticipant(acc, chat.chatId, moderateFromId);
+        }
+      }
       for (final id in ids) {
         chatState.deleteMessage(id);
       }
@@ -3248,6 +3290,7 @@ class _ChatViewState extends State<ChatView>
 
   void _showDeleteMessageConfirm(ChatState chatState, CachedMessage msg, ChatInfo? chat) {
     final isModerating = chat?.isAdmin == true && !msg.isOutgoing;
+    final engine = context.read<AppState>().engine;
     final warnPaid = computePaidPostWarning([msg]);
     showDeleteConfirmBox(
       context,
@@ -3263,7 +3306,25 @@ class _ChatViewState extends State<ChatView>
       isPaidPost: warnPaid != null,
       paidPostType: warnPaid ?? PaidPostType.stars,
     ).then((result) {
-      if (result.confirmed) chatState.deleteMessage(msg.msgId);
+      if (!result.confirmed) return;
+      // Moderate panel actions (delete_messages_box.cpp:636-651): kick the
+      // sender, report their messages as spam, and/or delete every message
+      // they sent — each gated on its checkbox.
+      if (isModerating && chat != null) {
+        final acc = msg.accountId;
+        if (result.banUser) {
+          engine.banMember(acc, chat.chatId, msg.senderId);
+        }
+        if (result.reportSpam) {
+          final idInt = int.tryParse(msg.msgId);
+          engine.reportParticipantSpam(
+              acc, chat.chatId, msg.senderId, idInt != null ? [idInt] : const []);
+        }
+        if (result.deleteAll) {
+          engine.deleteAllFromParticipant(acc, chat.chatId, msg.senderId);
+        }
+      }
+      chatState.deleteMessage(msg.msgId);
     });
   }
 
@@ -6577,6 +6638,7 @@ class _ChatTopBar extends StatelessWidget {
             mode: DeleteBoxMode.clearHistory,
             chatType: chat.type,
             peerName: chat.title,
+            canRevoke: chat.type == ChatType.dm,
             isSavedMessages: chat.title == 'Saved Messages',
             messagesTTL: chat.ttlPeriod,
           ).then((r) {
@@ -6588,9 +6650,11 @@ class _ChatTopBar extends StatelessWidget {
                 accountId: chat.accountId,
                 chatId: chat.chatId,
                 currentTTL: chat.ttlPeriod,
+                chatType: chat.type,
+                peerName: chat.title,
               );
             } else if (r.confirmed) {
-              chatState.clearHistory(chat.accountId, chat.chatId);
+              chatState.clearHistory(chat.accountId, chat.chatId, revoke: r.revoke);
             }
           });
         case 'delete_chat':
@@ -6611,7 +6675,7 @@ class _ChatTopBar extends StatelessWidget {
             if (r.removeFromFolders) {
               chatState.removeChatFromAllFolders(chat.accountId, chat.chatId);
             }
-            chatState.deleteChat(chat.accountId, chat.chatId);
+            chatState.deleteChat(chat.accountId, chat.chatId, revoke: r.revoke);
           });
         case 'leave':
           showDeleteConfirmBox(

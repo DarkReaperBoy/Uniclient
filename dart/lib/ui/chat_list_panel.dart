@@ -1707,6 +1707,7 @@ class _ChatListPanelState extends State<ChatListPanel>
               mode: DeleteBoxMode.clearHistory,
               chatType: chat.type,
               peerName: chat.title,
+              canRevoke: chat.type == ChatType.dm,
               isSavedMessages: chat.title == 'Saved Messages',
               messagesTTL: chat.ttlPeriod,
             ).then((r) {
@@ -1718,9 +1719,11 @@ class _ChatListPanelState extends State<ChatListPanel>
                   accountId: chat.accountId,
                   chatId: chat.chatId,
                   currentTTL: chat.ttlPeriod,
+                  chatType: chat.type,
+                  peerName: chat.title,
                 );
               } else if (r.confirmed) {
-                chatState2.clearHistory(chat.accountId, chat.chatId);
+                chatState2.clearHistory(chat.accountId, chat.chatId, revoke: r.revoke);
               }
             });
           }
@@ -1744,7 +1747,7 @@ class _ChatListPanelState extends State<ChatListPanel>
               if (r.removeFromFolders) {
                 chatState2.removeChatFromAllFolders(chat.accountId, chat.chatId);
               }
-              chatState2.deleteChat(chat.accountId, chat.chatId);
+              chatState2.deleteChat(chat.accountId, chat.chatId, revoke: r.revoke);
             });
           }
         case 'leave':
