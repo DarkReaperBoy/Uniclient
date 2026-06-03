@@ -191,7 +191,9 @@ class CachedUserpics {
         expired.add(entry.key);
         try {
           File(entry.value.filePath).deleteSync();
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('notification_manager_native', 'File(entry.value.filePath).deleteSync(): $e');
+        }
       }
     }
 
@@ -210,7 +212,9 @@ class CachedUserpics {
     for (final entry in _cache.values) {
       try {
         File(entry.filePath).deleteSync();
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('notification_manager_native', 'File(entry.filePath).deleteSync(): $e');
+      }
     }
     _cache.clear();
   }
@@ -986,7 +990,9 @@ class NativeManager extends NotificationManager {
         signature: DBusSignature('b'),
       );
       _inhibited = v.asBoolean();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('notification_manager_native', 'final v = await _notifProxy!.getProperty(: $e');
+    }
 
     final contextKey = '${data.accountId}:${data.chatId}';
 
@@ -1161,7 +1167,9 @@ class NativeManager extends NotificationManager {
       if (oldestPath != null) {
         try {
           File(oldestPath).deleteSync();
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('notification_manager_native', 'File(oldestPath).deleteSync(): $e');
+        }
       }
     }
   }
@@ -1271,7 +1279,9 @@ class NativeManager extends NotificationManager {
               ]),
             );
           }
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('notification_manager_native', 'final String? imgPath: $e');
+        }
       }
 
       if (!data.hideMarkAsRead) {
@@ -1313,7 +1323,9 @@ class NativeManager extends NotificationManager {
         'CloseNotification',
         [DBusUint32(nativeId)],
       );
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('notification_manager_native', 'await _notifProxy?.callMethod(: $e');
+    }
   }
 
   Future<void> _removePortalNotification(String notifId) async {
@@ -1330,7 +1342,9 @@ class NativeManager extends NotificationManager {
         'RemoveNotification',
         [DBusString(notifId)],
       );
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('notification_manager_native', 'final dbus = _dbus: $e');
+    }
   }
 
   @override
@@ -1505,7 +1519,9 @@ class NativeManager extends NotificationManager {
     for (final path in _soundCache.values) {
       try {
         File(path).deleteSync();
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('notification_manager_native', 'File(path).deleteSync(): $e');
+      }
     }
     _soundCache.clear();
     _dbus?.close();

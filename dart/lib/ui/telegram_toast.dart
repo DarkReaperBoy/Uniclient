@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import 'package:uniclient/utils/debug.dart';
 
 enum ToastAttach { none, left, top, right, bottom }
 
@@ -407,7 +408,9 @@ class _StickerToastState extends State<_StickerToast>
       if (fileData != null && fileData.fileData.isNotEmpty && mounted) {
         setState(() => _loadedLottieData = fileData.fileData);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('telegram_toast', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   void _startHide() {

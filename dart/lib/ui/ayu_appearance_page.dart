@@ -11,6 +11,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'ayu_section_builder.dart';
 import 'ayu_toggle.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class AyuAppearancePage extends StatelessWidget {
   const AyuAppearancePage({super.key});
@@ -540,8 +541,8 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
                     setState(() => _channelId = id);
                   }
                 }
-              } catch (_) {
-                // resolve failed — nothing to open
+              } catch (e) {
+                Debug.log('ayu_appearance_page', 'final account = appState.activeAccount: $e');
               }
             }
             if (id != null && mounted) {
@@ -754,7 +755,9 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
       if (families == null && (Platform.isAndroid || Platform.isIOS)) {
         families = await _loadViaMobileFontDir();
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('ayu_appearance_page', 'if (Platform.isLinux || Platform.isMacOS): $e');
+    }
     if (families != null && families.isNotEmpty) {
       if (mounted) setState(() { _systemFonts = ['', ...families!]; _loadingFonts = false; _cachedFilteredFonts = null; });
     } else if (mounted) {
@@ -784,7 +787,9 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
           return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('ayu_appearance_page', 'final result = await Process.run(\'fc-list\', [\'-f\', \'%{fam...: $e');
+    }
     return null;
   }
 
@@ -811,7 +816,9 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
           return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('ayu_appearance_page', 'final result = await Process.run(\'osascript\', [: $e');
+    }
     return null;
   }
 
@@ -833,7 +840,9 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
           return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('ayu_appearance_page', 'final result = await Process.run(\'powershell\', [: $e');
+    }
     return null;
   }
 
@@ -855,7 +864,9 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
           family = family.replaceAll(RegExp(r'_'), ' ');
           if (family.isNotEmpty) families.add(family);
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('ayu_appearance_page', 'final dir = Directory(dirPath): $e');
+      }
     }
     if (families.isNotEmpty) {
       return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
@@ -1157,8 +1168,8 @@ class _AppIconPickerState extends State<_AppIconPicker> {
                   await const MethodChannel('com.uniclient.app/tray')
                       .invokeMethod('updateAppIcon',
                           {'icon': newIcon.isEmpty ? 'default' : newIcon});
-                } catch (_) {
-                  // native tray plugin unavailable (e.g. non-Linux) — ignore
+                } catch (e) {
+                  Debug.log('ayu_appearance_page', 'await const MethodChannel(\'com.uniclient.app/tray\'): $e');
                 }
               }();
             },
@@ -1188,7 +1199,7 @@ class _AppIconPickerState extends State<_AppIconPicker> {
                       width: 64,
                       height: 64,
                       color: const Color(0xFF40A7E3),
-                      child: const Icon(Icons.image_not_supported,
+                      child: const Icon(Icons.apps,
                           color: Colors.white, size: 24),
                     ),
                   ),

@@ -17,6 +17,7 @@ import '../utils/country_data.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const double _kBoxWidth = 304.0;
 const double _kCoverSize = 304.0;
@@ -336,7 +337,9 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         setState(() => _photoCount = count);
         _preloadAdjacentPhotos(0);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('peer_short_info', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   void _navigatePhoto(int delta) {
@@ -545,18 +548,22 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       thumbColor: isDark
           ? const Color(0x4DFFFFFF)
           : const Color(0x66C7C7C7),
-      child: ListView(
-        controller: _scrollController,
-        shrinkWrap: true,
-        padding: EdgeInsets.zero,
-        children: [
+      child: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           _buildCoverOverlay(theme, isDark),
           Container(
             color: bgColor,
             child: _buildInfoRows(theme, isDark),
           ),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          controller: _scrollController,
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     );
   }
 

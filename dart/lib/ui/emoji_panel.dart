@@ -14,6 +14,7 @@ import '../data/emoji_data.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'gesture_utils.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const double _kPanelWidth = 345.0;
 const double _kPanelMinHeight = 278.0;
@@ -76,7 +77,9 @@ void _loadEmojiPrefs(String configDir) {
         (k, v) => MapEntry(k.toString(), v is int ? v : 0),
       );
     }
-  } catch (_) {}
+  } catch (e) {
+    Debug.log('emoji_panel', 'final file = File(\'\$configDir/emoji_prefs.json\'): $e');
+  }
 }
 
 void _saveEmojiPrefs() {
@@ -86,7 +89,9 @@ void _saveEmojiPrefs() {
       'recentEmojis': _recentEmojis,
       'skinTonePrefs': _skinTonePrefs,
     }));
-  } catch (_) {}
+  } catch (e) {
+    Debug.log('emoji_panel', 'File(\'\$_emojiPrefsConfigDir/emoji_prefs.json\').writeAsStr...: $e');
+  }
 }
 
 Uint8List _decodeStrippedThumbB64(String b64) {
@@ -895,7 +900,9 @@ class _EmojiTabState extends State<_EmojiTab> {
           _loadedPacks = true;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('emoji_panel', 'final appState = context.read<AppState>(): $e');
+    }
   }
 
   void _selectCategory(int index) {
@@ -1273,7 +1280,9 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> with SingleTickerPro
         if (file.isTgs) {
           try {
             _decompressedLottie = Uint8List.fromList(gzip.decode(file.fileData));
-          } catch (_) {}
+          } catch (e) {
+            Debug.log('emoji_panel', '_decompressedLottie = Uint8List.fromList(gzip.decode(file...: $e');
+          }
         } else if (file.isWebm) {
           _initWebmPlayer(file, docId);
         }
@@ -1329,7 +1338,7 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> with SingleTickerPro
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf0f0f0);
-    final powerSaving = context.read<AppState>().powerSaving(AppState.kPowerSavingEmojiStatus);
+    final powerSaving = context.watch<AppState>().powerSaving(AppState.kPowerSavingEmojiStatus);
     const innerSize = _kEmojiCellSize - 8.0;
 
     Widget child;
@@ -1416,7 +1425,9 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> with SingleTickerPro
             cacheWidth: (size * 2).round(),
           ),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('emoji_panel', 'final bytes = _decodeStrippedThumbB64(widget.sticker.thum...: $e');
+      }
     }
     return _fallbackEmoji();
   }
@@ -1711,7 +1722,9 @@ class _StickerTabState extends State<_StickerTab> {
           _activePackIndex = 0;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('emoji_panel', 'final appState = context.read<AppState>(): $e');
+    }
   }
 
   void _loadStickerFile(int docId) {
@@ -2507,7 +2520,9 @@ class _StickerCellState extends State<_StickerCell> with SingleTickerProviderSta
     if (file.isTgs && _decompressedLottie == null) {
       try {
         _decompressedLottie = Uint8List.fromList(gzip.decode(file.fileData));
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('emoji_panel', '_decompressedLottie = Uint8List.fromList(gzip.decode(file...: $e');
+      }
     }
     if (file.isWebm && _webmPlayer == null) {
       _initWebmPlayer(file);
@@ -2562,7 +2577,7 @@ class _StickerCellState extends State<_StickerCell> with SingleTickerProviderSta
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf0f0f0);
-    final stickerPanelPowerSave = context.read<AppState>().powerSaving(AppState.kPowerSavingStickersPanel);
+    final stickerPanelPowerSave = context.watch<AppState>().powerSaving(AppState.kPowerSavingStickersPanel);
     final cellInner = _kStickerCellSize - 8;
 
     Widget child;
@@ -2647,7 +2662,9 @@ class _StickerCellState extends State<_StickerCell> with SingleTickerProviderSta
           gaplessPlayback: true,
           cacheWidth: (size * 2).round(),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('emoji_panel', 'final bytes = _decodeStrippedThumbB64(widget.sticker.thum...: $e');
+      }
     }
     return _stickerFallback();
   }
@@ -2730,10 +2747,11 @@ class _StickerPackFooter extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: borderColor, width: 1)),
       ),
-      child: ListView(
-        controller: scrollController,
+      child: ListView.builder(
+          controller: scrollController,
         scrollDirection: Axis.horizontal,
-        children: items,
+          itemCount: items.length,
+          itemBuilder: (_, _lvI) => items[_lvI],
       ),
     );
   }
@@ -2932,7 +2950,9 @@ class _GifTabState extends State<_GifTab> {
           _loaded = true;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('emoji_panel', 'final gifs = await engine.getSavedGifs(activeAccount.id): $e');
+    }
   }
 
   void _onSearchChanged() {
@@ -3590,7 +3610,9 @@ void _gifFileCacheSet(int docId, String path) {
     for (final k in keysToRemove) {
       final old = _gifFileCache.remove(k);
       if (old != null) {
-        try { File(old).deleteSync(); } catch (_) {}
+        try { File(old).deleteSync(); } catch (e) {
+          Debug.log('emoji_panel', 'File(old).deleteSync(): $e');
+        }
       }
     }
   }
@@ -3727,7 +3749,9 @@ class _StickerPreviewOverlayState extends State<_StickerPreviewOverlay> with Sin
     if (widget.fileData != null && widget.fileData!.isTgs) {
       try {
         _decompressedLottie = Uint8List.fromList(gzip.decode(widget.fileData!.fileData));
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('emoji_panel', '_decompressedLottie = Uint8List.fromList(gzip.decode(widg...: $e');
+      }
     } else if (widget.fileData != null && widget.fileData!.isWebm) {
       _initWebmPlayer(widget.fileData!);
     }
@@ -4021,7 +4045,9 @@ class _StickerSetDialogCellState extends State<_StickerSetDialogCell> with Singl
       try {
         _decompressedLottie = Uint8List.fromList(gzip.decode(file.fileData));
         if (mounted) setState(() {});
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('emoji_panel', '_decompressedLottie = Uint8List.fromList(gzip.decode(file...: $e');
+      }
     } else if (file.isWebm && _webmPlayer == null) {
       _initWebmPlayer(file);
     }
@@ -4098,7 +4124,9 @@ class _StickerSetDialogCellState extends State<_StickerSetDialogCell> with Singl
       try {
         final bytes = _decodeStrippedThumbB64(widget.sticker.thumbB64);
         return Image.memory(bytes, fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: 120);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('emoji_panel', 'final bytes = _decodeStrippedThumbB64(widget.sticker.thum...: $e');
+      }
     }
     return Text(widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '?', style: const TextStyle(fontSize: 28));
   }

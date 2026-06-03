@@ -23,6 +23,7 @@ import 'popup_menu.dart';
 import 'choose_datetime_box.dart';
 import 'photo_crop_editor.dart';
 import 'telegram_toast.dart' show showTelegramToast;
+import 'package:uniclient/utils/debug.dart';
 
 const int _captionMaxLengthDefault = 2048;
 const int _captionMaxLengthPremium = 4096;
@@ -477,7 +478,8 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       if (!mounted) return;
       _engineMembers = members;
       _lastMemberRefresh = DateTime.now();
-    } catch (_) {
+    } catch (e) {
+      Debug.log('send_files_box', 'final appState = context.read<AppState>(): $e');
     } finally {
       _membersRefreshPending = false;
     }
@@ -505,7 +507,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       final commands = await appState.engine.getChatBotCommands(accountId, chatId);
       if (!mounted) return;
       _botCommands = commands;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final appState = context.read<AppState>(): $e');
+    }
   }
 
   Future<void> _fetchPremiumStatus() async {
@@ -521,7 +525,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
             ? _captionMaxLengthPremium
             : _captionMaxLengthDefault;
       });
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final appState = context.read<AppState>(): $e');
+    }
   }
 
   Future<void> _fetchStarsLimit() async {
@@ -532,7 +538,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       final limit = await appState.engine.getStarsPaidPostAmountMax(accountId);
       if (!mounted) return;
       setState(() => _starsPostLimit = limit);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final appState = context.read<AppState>(): $e');
+    }
   }
 
   @override
@@ -626,7 +634,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         _acFilteredMembers = merged;
         _showMentionPanel = merged.isNotEmpty;
       });
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final appState = context.read<AppState>(): $e');
+    }
   }
 
   void _insertMention(MemberInfo member) {
@@ -879,13 +889,17 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       try {
         final pasted = await _tryClipboardImage();
         if (pasted) return;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('send_files_box', 'final pasted = await _tryClipboardImage(): $e');
+      }
     }
     if (Platform.isWindows) {
       try {
         final pasted = await _tryClipboardImageWindows();
         if (pasted) return;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('send_files_box', 'final pasted = await _tryClipboardImageWindows(): $e');
+      }
     }
     // Fallback: just let normal paste happen
     final data = await Clipboard.getData(Clipboard.kTextPlain);
@@ -913,7 +927,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     try {
       final r = await Process.run('wl-paste', ['--list-types']);
       if (r.exitCode == 0) types = r.stdout.toString();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final r = await Process.run(\'wl-paste\', [\'--list-types\']): $e');
+    }
     // Fallback to X11
     if (types == null || (!types.contains('image/png') && !types.contains('image/jpeg'))) {
       try {
@@ -922,7 +938,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           types = r.stdout.toString();
           clipTool = 'xclip';
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('send_files_box', 'final r = await Process.run(\'xclip\', [\'-selection\', \'clip...: $e');
+      }
     }
     if (types == null) return false;
     if (!types.contains('image/png') && !types.contains('image/jpeg')) return false;
@@ -1033,7 +1051,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         file.imageHeight = h;
         file.hasThumb = true;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final data = await File(file.path).readAsBytes(): $e');
+    }
   }
 
   static Future<void> _parseAudioTags(_PreparedFile file) async {
@@ -1073,7 +1093,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       } finally {
         await raf.close();
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final header = await _readBytes(raf, 0, 10): $e');
+    }
   }
 
   static Future<List<int>> _readBytes(
@@ -1467,7 +1489,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       if (newFiles.isEmpty) return;
       setState(() => _files.addAll(newFiles));
       _loadImageDimensions();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final result = await FilePicker.platform.pickFiles(allowM...: $e');
+    }
   }
 
   void _addDroppedFiles(List<String> paths) {
@@ -1684,13 +1708,16 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       if (converted) {
         finalPath = webpPath;
         finalExt = 'webp';
-        try { await File(pngPath).delete(); } catch (_) {}
+        try { await File(pngPath).delete(); } catch (e) {
+          Debug.log('send_files_box', 'await File(pngPath).delete(): $e');
+        }
       } else {
         finalPath = pngPath;
         finalExt = 'png';
       }
 
       final baseName = _files.first.name.replaceAll(RegExp(r'\.\w+$'), '');
+      if (!mounted) return;
       setState(() {
         _files[0] = _PreparedFile(
           path: finalPath,
@@ -1719,7 +1746,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           final f = File(webpPath);
           if (await f.exists() && await f.length() > 0) return true;
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('send_files_box', 'final r = await Process.run(tool[0] as String, [: $e');
+      }
     }
     return false;
   }
@@ -1806,7 +1835,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     RecentHashtags.extractFromText(parsed.text);
     try {
       context.read<AppState>().updateRecentHashtags(RecentHashtags.currentTags);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'context.read<AppState>().updateRecentHashtags(RecentHasht...: $e');
+    }
     final coverPaths = <int, String>{};
     for (var i = 0; i < _files.length; i++) {
       if (_files[i].videoCoverPath != null) {
@@ -2263,7 +2294,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         if (mounted) showTelegramToast(context, 'Only one file can be sent in slow mode');
         return false;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final appState = context.read<AppState>(): $e');
+    }
     return true;
   }
 
@@ -3140,7 +3173,9 @@ class _SingleMediaPreview extends StatelessWidget {
         size: f.lengthSync(),
         type: _SendFilesBoxDialogState._detectType(name),
       ));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final result = await FilePicker.platform.pickFiles(): $e');
+    }
   }
 
   void _doEdit(BuildContext context) {
@@ -3231,7 +3266,9 @@ class _SingleMediaPreview extends StatelessWidget {
           onCoverChanged?.call();
         },
       );
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final result = await FilePicker.platform.pickFiles(: $e');
+    }
   }
 
   void _doClearCover() {
@@ -3522,7 +3559,9 @@ class _AlbumPreviewState extends State<_AlbumPreview>
         size: f.lengthSync(),
         type: _SendFilesBoxDialogState._detectType(name),
       ));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final result = await FilePicker.platform.pickFiles(): $e');
+    }
   }
 
   void _renameFile(int idx, _PreparedFile file) {
@@ -3615,7 +3654,9 @@ class _AlbumPreviewState extends State<_AlbumPreview>
           widget.onCoverChanged?.call();
         },
       );
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('send_files_box', 'final result = await FilePicker.platform.pickFiles(: $e');
+    }
   }
 
   @override

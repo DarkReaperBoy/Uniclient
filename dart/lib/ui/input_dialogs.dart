@@ -534,17 +534,15 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
               const SizedBox(height: 8),
               SizedBox(
                 height: (_additionalUsernames.length * 36.0).clamp(0, 180),
-                child: ReorderableListView(
+                child: ReorderableListView.builder(
                   shrinkWrap: true,
                   buildDefaultDragHandles: true,
                   onReorder: _reorderUsernames,
-                  children: [
-                    for (var i = 0; i < _additionalUsernames.length; i++)
-                      KeyedSubtree(
-                        key: ValueKey(_additionalUsernames[i]['username']),
-                        child: _usernameRow(_additionalUsernames[i], textFg, subColor, p),
-                      ),
-                  ],
+                  itemCount: _additionalUsernames.length,
+                  itemBuilder: (context, i) => KeyedSubtree(
+                    key: ValueKey(_additionalUsernames[i]['username']),
+                    child: _usernameRow(_additionalUsernames[i], textFg, subColor, p),
+                  ),
                 ),
               ),
             ],
@@ -2377,15 +2375,13 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                     fontWeight: FontWeight.w600,
                     color: accentColor)),
             const SizedBox(height: 8),
-            ReorderableListView(
+            ReorderableListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               buildDefaultDragHandles: false,
               onReorder: _reorderOptions,
-              children: [
-                for (var i = 0; i < _optionCtrls.length; i++)
-                  _buildOptionRow(i, p, textColor, subColor),
-              ],
+              itemCount: _optionCtrls.length,
+              itemBuilder: (context, i) => _buildOptionRow(i, p, textColor, subColor),
             ),
             if (_optionCtrls.length < _kMaxOptions)
               Padding(

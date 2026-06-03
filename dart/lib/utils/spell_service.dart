@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/services.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class UniSpellCheckService implements SpellCheckService {
   static final UniSpellCheckService instance = UniSpellCheckService._();
@@ -57,7 +58,9 @@ class UniSpellCheckService implements SpellCheckService {
             words.add(word.toLowerCase());
           }
           if (words.isNotEmpty) _dictionaries[code] = words;
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('spell_service', 'final words = <String>: $e');
+        }
       }
     }
     _loaded = true;

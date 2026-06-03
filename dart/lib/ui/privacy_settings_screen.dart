@@ -19,6 +19,7 @@ import '../state/app_state.dart';
 import 'active_sessions_screen.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
   const PrivacySettingsScreen({super.key});
@@ -658,10 +659,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       ),
       body: Scrollbar(
         controller: _scrollController,
-        child: ListView(
-          controller: _scrollController,
+        child: ListView.builder(
+            controller: _scrollController,
           padding: EdgeInsets.zero,
-          children: children,
+            itemCount: children.length,
+            itemBuilder: (_, _lvI) => children[_lvI],
         ),
       ),
     );
@@ -826,7 +828,9 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       try {
         final bd = await engine.getSelfBirthday(accountId);
         hasBirthday = bd.day > 0 && bd.month > 0;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('privacy_settings_screen', 'final bd = await engine.getSelfBirthday(accountId): $e');
+      }
     }
 
     final isPremium = appState.effectivePremium;
@@ -3433,7 +3437,9 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
       await widget.engine.checkCloudPassword(widget.accountId, password);
       if (!mounted) return;
       if (_pendingResetDate > 0) {
-        try { await widget.engine.cancelResetPassword(widget.accountId); } catch (_) {}
+        try { await widget.engine.cancelResetPassword(widget.accountId); } catch (e) {
+          Debug.log('privacy_settings_screen', 'await widget.engine.cancelResetPassword(widget.accountId): $e');
+        }
       }
       setState(() => _loading = false);
       if (widget.navigateToLoginEmail) {
@@ -4474,7 +4480,9 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
     if (confirmed != true || !mounted) return;
     try {
       await widget.engine.cancelPasswordEmail(widget.accountId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('privacy_settings_screen', 'await widget.engine.cancelPasswordEmail(widget.accountId): $e');
+    }
     if (mounted) {
       widget.onDone();
       Navigator.of(context).pop();
@@ -5352,9 +5360,8 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
           ),
         ),
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
+      body: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           Container(
             color: dividerBg,
             padding: const EdgeInsets.symmetric(vertical: 20),
@@ -5429,8 +5436,13 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
               padding: EdgeInsets.all(16),
               child: Center(child: CircularProgressIndicator()),
             ),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          padding: EdgeInsets.zero,
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     );
   }
 }
@@ -6336,9 +6348,8 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
               fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
         ),
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
+      body: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           const SizedBox(height: 8),
           _PrivacyIconRow(
             icon: Icons.lock_outline,
@@ -6382,8 +6393,13 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
                 : const Color(0xFFF1F1F1),
           ),
           const SizedBox(height: 7),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          padding: EdgeInsets.zero,
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
         child: InkWell(
@@ -7145,6 +7161,7 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
     final accountId = context.read<AppState>().activeAccountId;
     if (accountId.isEmpty) return;
     await engine.unblockUser(accountId, userId);
+    if (!mounted) return;
     setState(() {
       _blockedUsers.removeWhere((u) => (u['id'] as String? ?? '') == userId);
       _totalCount = (_totalCount - 1).clamp(0, _totalCount);
@@ -7525,7 +7542,9 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
       try {
         final bytes = base64Decode(avatarB64);
         return ClipOval(child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover));
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('privacy_settings_screen', 'final bytes = base64Decode(avatarB64): $e');
+      }
     }
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     final colorIndex = name.isNotEmpty ? name.codeUnitAt(0) % 7 : 0;
@@ -7829,7 +7848,9 @@ class _PrivacyExceptionPickerState extends State<_PrivacyExceptionPicker> {
         return ClipOval(
           child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('privacy_settings_screen', 'final bytes = base64Decode(avatarB64): $e');
+      }
     }
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     final colors = [
@@ -8143,9 +8164,8 @@ class _WebSessionsScreenState extends State<_WebSessionsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _sessions == null || _sessions!.isEmpty
               ? Center(child: Text('No active web sessions', style: TextStyle(color: subtextColor)))
-              : ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
+              : Builder(builder: (_) {
+                final _lvKids = <Widget>[
                     if (_sessions!.length > 1)
                       InkWell(
                         onTap: _terminateAll,
@@ -8191,8 +8211,13 @@ class _WebSessionsScreenState extends State<_WebSessionsScreen> {
                         style: TextStyle(fontSize: 13, color: subtextColor),
                       ),
                     ),
-                  ],
-                ),
+                  ];
+                return ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: _lvKids.length,
+                  itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                );
+              }),
     );
   }
 }

@@ -16,6 +16,7 @@ import 'confirm_box.dart' show showScreenShareChooser;
 import 'shell.dart' show UniClientShell;
 
 import '../models/engine_models.dart';
+import 'package:uniclient/utils/debug.dart';
 
 enum GroupCallMode { narrow, wide }
 
@@ -228,7 +229,9 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           }
         }
         if (needsRebuild) setState(() {});
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('call_screen', 'final engine = context.read<EngineService>(): $e');
+      }
     });
   }
 
@@ -2278,7 +2281,9 @@ Future<void> _showSoundDevicePicker(BuildContext context) async {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('call_screen', 'final result = await Process.run(\'pactl\', [\'list\', \'sinks...: $e');
+    }
   } else if (Platform.isMacOS || Platform.isWindows) {
     try {
       final engine = context.read<EngineService>();
@@ -2287,7 +2292,9 @@ Future<void> _showSoundDevicePicker(BuildContext context) async {
       for (final d in devList) {
         deviceMap[d] = d;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('call_screen', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   if (!context.mounted) return;
@@ -2469,7 +2476,9 @@ class _CallSettingsSheetState extends State<_CallSettingsSheet> {
         if (mounted && (level - _micLevel).abs() > 0.01) {
           setState(() => _micLevel = level);
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('call_screen', 'final engine = context.read<EngineService>(): $e');
+      }
     });
   }
 
@@ -2696,7 +2705,9 @@ Future<void> _showInputDevicePicker(BuildContext context) async {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('call_screen', 'final result = await Process.run(\'pactl\', [\'list\', \'sourc...: $e');
+    }
   } else if (Platform.isMacOS || Platform.isWindows) {
     try {
       final engine = context.read<EngineService>();
@@ -2704,7 +2715,9 @@ Future<void> _showInputDevicePicker(BuildContext context) async {
       for (final d in devList) {
         deviceMap[d] = d;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('call_screen', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   if (!context.mounted) return;

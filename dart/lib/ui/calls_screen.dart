@@ -20,6 +20,7 @@ import 'settings_screen.dart' show devicesScreenRoute;
 import 'telegram_toast.dart';
 import 'call_panel.dart' show CallRatingDialog, showCallRatingDialog;
 import 'call_screen.dart' show MinimisedCallBar, showGroupCallPanel;
+import 'package:uniclient/utils/debug.dart';
 
 export 'call_panel.dart' show CallRatingDialog, showCallRatingDialog;
 export 'call_screen.dart' show MinimisedCallBar;
@@ -273,7 +274,9 @@ class _CallsBoxState extends State<_CallsBox> {
           return action == 'phone_call' || action == 'group_call';
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('calls_screen', 'final m = jsonDecode(msg.contentRaw): $e');
+    }
     return false;
   }
 
@@ -309,7 +312,9 @@ class _CallsBoxState extends State<_CallsBox> {
                 });
               }
               await _refreshCallHistory();
-            } catch (_) {}
+            } catch (e) {
+              Debug.log('calls_screen', 'await engine.clearCallHistory(accountId, revoke: revoke): $e');
+            }
           },
         );
       },
@@ -1027,7 +1032,9 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
           _alreadyInIds = gc.participants.map((p) => p.userId).toSet();
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('calls_screen', 'final gc = await engine.getGroupCall(accountId, widget.gr...: $e');
+    }
   }
 
   @override
@@ -2111,7 +2118,9 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
           try {
             await engine.deleteMessage(
                 widget.accountId, group.peerId, entry.msgId);
-          } catch (_) {}
+          } catch (e) {
+            Debug.log('calls_screen', 'await engine.deleteMessage(: $e');
+          }
         }
         widget.onDeleted(group);
         break;

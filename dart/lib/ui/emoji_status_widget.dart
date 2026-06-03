@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import 'custom_emoji_cache.dart' show CustomEmojiCache, EmojiSizeConstants, EmojiSizeTag;
+import 'package:uniclient/utils/debug.dart';
 
 class EmojiStatusWidget extends StatefulWidget {
   final String emojiStatusId;
@@ -141,7 +142,9 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
   void _decompressLottie(Uint8List tgsData) {
     try {
       _decompressedLottie = Uint8List.fromList(gzip.decode(tgsData));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('emoji_status_widget', '_decompressedLottie = Uint8List.fromList(gzip.decode(tgsD...: $e');
+    }
   }
 
   bool _isPowerSaving(BuildContext context) {

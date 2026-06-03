@@ -28,6 +28,7 @@ import 'photo_crop_editor.dart';
 import 'shell.dart';
 import 'telegram_toast.dart';
 import 'telegram_tooltip.dart';
+import 'package:uniclient/utils/debug.dart';
 
 enum _MediaViewerMode { windowed, maximized, fullscreen }
 
@@ -506,7 +507,9 @@ class _MediaViewerState extends State<MediaViewer>
         try {
           _chatStateRef = context.read<ChatState>();
           _chatStateRef!.addListener(_onCallStateChanged);
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('media_viewer', '_chatStateRef = context.read<ChatState>(): $e');
+        }
       }
     });
   }
@@ -663,7 +666,9 @@ class _MediaViewerState extends State<MediaViewer>
           _windowedX = (data['x'] as num?)?.toDouble() ?? _kDefaultX;
           _windowedY = (data['y'] as num?)?.toDouble() ?? _kDefaultY;
         });
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('media_viewer', 'final file = File(path): $e');
+      }
     });
   }
 
@@ -678,7 +683,9 @@ class _MediaViewerState extends State<MediaViewer>
         'x': _windowedX,
         'y': _windowedY,
       }));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('media_viewer', 'File(path).writeAsStringSync(jsonEncode(: $e');
+    }
   }
 
   void _setMode(_MediaViewerMode mode) {
@@ -2782,7 +2789,9 @@ class _MediaViewerState extends State<MediaViewer>
     Directory? downloadsDir;
     try {
       downloadsDir = await getDownloadsDirectory();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('media_viewer', 'downloadsDir = await getDownloadsDirectory(): $e');
+    }
     if (downloadsDir == null) {
       final dirPath = await FilePicker.platform.getDirectoryPath();
       if (dirPath == null || !mounted) return;
@@ -3001,12 +3010,16 @@ class _MediaViewerState extends State<MediaViewer>
         proc.stdin.add(bytes);
         await proc.stdin.close();
         if (await proc.exitCode == 0) return true;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('media_viewer', 'final proc = await Process.start(\'wl-copy\', [\'--type\', mi...: $e');
+      }
       try {
         final result = await Process.run('xclip',
             ['-selection', 'clipboard', '-t', mimeType, '-i', filePath]);
         if (result.exitCode == 0) return true;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('media_viewer', 'final result = await Process.run(\'xclip\',: $e');
+      }
     } else if (Platform.isMacOS) {
       try {
         final tmpPath = filePath.endsWith('.png') ? filePath : '/tmp/uniclient_clip.png';
@@ -3014,7 +3027,9 @@ class _MediaViewerState extends State<MediaViewer>
         final result = await Process.run('osascript',
             ['-e', 'set the clipboard to (read (POSIX file "$tmpPath") as «class PNGf»)']);
         if (result.exitCode == 0) return true;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('media_viewer', 'final tmpPath = filePath.endsWith(\'.png\') ? filePath : \'/...: $e');
+      }
     } else if (Platform.isWindows) {
       try {
         final tmpPath = filePath.endsWith('.png') ? filePath : '${Directory.systemTemp.path}\\uniclient_clip.png';
@@ -3024,7 +3039,9 @@ class _MediaViewerState extends State<MediaViewer>
             '[System.Windows.Forms.Clipboard]::SetImage('
             '[System.Drawing.Image]::FromFile("$tmpPath"))']);
         if (result.exitCode == 0) return true;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('media_viewer', 'final tmpPath = filePath.endsWith(\'.png\') ? filePath : \'\$...: $e');
+      }
     }
     return false;
   }
@@ -3052,7 +3069,9 @@ class _MediaViewerState extends State<MediaViewer>
       final tmpFile = File('${Directory.systemTemp.path}/uniclient_frame.png');
       await tmpFile.writeAsBytes(screenshot);
       final ok = await _copyBytesToClipboard(screenshot, 'image/png', tmpFile.path);
-      try { tmpFile.deleteSync(); } catch (_) {}
+      try { tmpFile.deleteSync(); } catch (e) {
+        Debug.log('media_viewer', 'tmpFile.deleteSync(): $e');
+      }
       if (!mounted) return;
       showTelegramToast(context, ok ? 'Frame copied to clipboard' : 'Failed to copy frame');
     } catch (e) {
@@ -3184,7 +3203,9 @@ class _MediaViewerState extends State<MediaViewer>
     try {
       final msgId = int.tryParse(msg.msgId) ?? 0;
       stats = await engine.getMessageStats(accountId, msg.chatId, msgId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('media_viewer', 'final msgId = int.tryParse(msg.msgId) ?? 0: $e');
+    }
 
     if (!mounted) return;
 
@@ -4658,7 +4679,9 @@ class _PipWidgetState extends State<PipOverlayWidget>
           _width = (data['w'] as num?)?.toDouble() ?? _kPipDefaultSize;
           _height = (data['h'] as num?)?.toDouble() ?? _kPipDefaultSize;
         });
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('media_viewer', 'final file = File(path): $e');
+      }
     });
   }
 
@@ -4669,7 +4692,9 @@ class _PipWidgetState extends State<PipOverlayWidget>
       File(path).writeAsStringSync(jsonEncode({
         'x': _x, 'y': _y, 'w': _width, 'h': _height,
       }));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('media_viewer', 'File(path).writeAsStringSync(jsonEncode(: $e');
+    }
   }
 
   void _togglePlayPause() {
@@ -5984,7 +6009,9 @@ class _StoryReactionsPanelState extends State<_StoryReactionsPanel>
       if (reactions.isNotEmpty && mounted) {
         setState(() => _reactions = reactions.length > 7 ? reactions.sublist(0, 7) : reactions);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('media_viewer', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   @override
@@ -6526,7 +6553,9 @@ class _StoriesViewerState extends State<StoriesViewer>
     try {
       final viewers = await engine.getStoryViewers(accountId, story.id);
       if (mounted) setState(() => _topViewers = viewers.take(3).toList());
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('media_viewer', 'final viewers = await engine.getStoryViewers(accountId, s...: $e');
+    }
   }
 
   void _pausePlayback() {
@@ -6841,7 +6870,9 @@ class _StoriesViewerState extends State<StoriesViewer>
           fit: BoxFit.contain,
           gaplessPlayback: true,
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('media_viewer', 'return Image.memory(: $e');
+      }
     }
     return const Center(
       child: Icon(Icons.image, color: Colors.white38, size: 64),
@@ -7522,7 +7553,9 @@ class _StoriesViewerState extends State<StoriesViewer>
           fit: BoxFit.cover,
           gaplessPlayback: true,
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('media_viewer', 'return Image.memory(: $e');
+      }
     }
     return Center(
       child: Icon(

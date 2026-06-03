@@ -8,6 +8,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../theme/telegram_palette.dart';
 import 'forum_topic_icon.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const double _boxMaxHeight = 408;
 const double _boxWidth = 320;
@@ -234,7 +235,9 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
           if (sticker.thumbB64.isNotEmpty && !_decodedThumbCache.containsKey(sticker.thumbB64)) {
             try {
               _decodedThumbCache[sticker.thumbB64] = base64Decode(sticker.thumbB64);
-            } catch (_) {}
+            } catch (e) {
+              Debug.log('edit_forum_topic_box', '_decodedThumbCache[sticker.thumbB64] = base64Decode(stick...: $e');
+            }
           }
         }
       }

@@ -16,6 +16,7 @@ import '../utils/spell_service.dart';
 import 'chat_export.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
 
 void showProxiesDialog(BuildContext context) {
   showDialog(context: context, builder: (_) => const _ProxiesBox());
@@ -52,7 +53,9 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       try {
         final result = await Process.run('pgrep', ['-x', 'orca']);
         if (result.exitCode == 0) detected = true;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('advanced_settings_screen', 'final result = await Process.run(\'pgrep\', [\'-x\', \'orca\']): $e');
+      }
       if (!detected) {
         try {
           final result = await Process.run('gdbus', [
@@ -64,19 +67,25 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
           ]);
           final out = (result.stdout as String).trim();
           if (out.contains('true')) detected = true;
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('advanced_settings_screen', 'final result = await Process.run(\'gdbus\', [: $e');
+        }
       }
     } else if (Platform.isMacOS) {
       try {
         final result = await Process.run('defaults', ['read', 'com.apple.universalaccess', 'voiceOverOnOffKey']);
         if ((result.stdout as String).trim() == '1') detected = true;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('advanced_settings_screen', 'final result = await Process.run(\'defaults\', [\'read\', \'co...: $e');
+      }
     } else if (Platform.isWindows) {
       try {
         final result = await Process.run('powershell', ['-Command',
           '(Get-ItemProperty HKCU:\\Software\\Microsoft\\Narrator\\NoRoam -Name RunningState -ErrorAction SilentlyContinue).RunningState']);
         if ((result.stdout as String).trim() == '1') detected = true;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('advanced_settings_screen', 'final result = await Process.run(\'powershell\', [\'-Command\',: $e');
+      }
     }
     if (mounted && detected != _screenReaderDetected) {
       setState(() => _screenReaderDetected = detected);
@@ -146,9 +155,10 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
           ),
         ),
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: children,
+      body: ListView.builder(
+          padding: EdgeInsets.zero,
+          itemCount: children.length,
+          itemBuilder: (_, _lvI) => children[_lvI],
       ),
     );
   }
@@ -1256,7 +1266,9 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
               .length;
           if (count > 0) return '$count';
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('advanced_settings_screen', 'final dir = Directory(\'/usr/share/hunspell\'): $e');
+      }
     }
     try {
       final customDir = Directory(UniSpellCheckService.dictsDir);
@@ -1266,7 +1278,9 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
             .length;
         if (count > 0) return '$count';
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('advanced_settings_screen', 'final customDir = Directory(UniSpellCheckService.dictsDir): $e');
+    }
     return 'System';
   }
 
@@ -2014,7 +2028,9 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
         'account_id': appState.activeAccountId,
         'tag': tagIdx,
       });
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('advanced_settings_screen', 'await appState.engine.callGeneric(\'__engine\', \'ClearCache...: $e');
+    }
     if (!mounted) return;
     setState(() => _tagSizes[tagIdx] = 0);
     // Re-query so the "Media cache" remainder stays consistent.
@@ -2025,7 +2041,9 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
     final appState = context.read<AppState>();
     try {
       appState.engine.clearCache(accountId: appState.activeAccountId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('advanced_settings_screen', 'appState.engine.clearCache(accountId: appState.activeAcco...: $e');
+    }
     if (mounted) {
       setState(() {
         for (var i = 0; i < _tagSizes.length; i++) _tagSizes[i] = 0;
@@ -2338,7 +2356,9 @@ class _ManageDictionariesBoxState extends State<_ManageDictionariesBox> {
             isLocal: isLocal,
           ));
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('advanced_settings_screen', 'final d = Directory(dirPath): $e');
+      }
     }
     installed.sort((a, b) => a.label.compareTo(b.label));
 
@@ -2611,7 +2631,9 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('advanced_settings_screen', 'final psDir = Directory(\'/sys/class/power_supply\'): $e');
+    }
   }
 
   Future<void> _checkPowerSaverMode() async {
@@ -2621,7 +2643,9 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
       final result = await Process.run('powerprofilesctl', ['get']);
       final profile = (result.stdout as String).trim();
       if (profile == 'power-saver') detected = true;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('advanced_settings_screen', 'final result = await Process.run(\'powerprofilesctl\', [\'ge...: $e');
+    }
     if (!detected) {
       try {
         final result = await Process.run('gdbus', [
@@ -2633,7 +2657,9 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
         ]);
         final out = (result.stdout as String).trim();
         if (out.contains('true')) detected = true;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('advanced_settings_screen', 'final result = await Process.run(\'gdbus\', [: $e');
+      }
     }
     if (!mounted) return;
     setState(() => _osPowerSaver = detected);
@@ -3863,7 +3889,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
       final msg = switch (lastProblem) {
         'incorrect' => 'This proxy link uses an invalid secret parameter.',
         'unsupported' =>
-          'This proxy type is not supported or the link is invalid.',
+          "This client version doesn't support this proxy type, or the proxy link is invalid.",
         'invalid' => 'The proxy link is invalid.',
         _ => 'This is not a proxy link.',
       };
@@ -4492,10 +4518,8 @@ class _RecentDownloadsBoxState extends State<_RecentDownloadsBox> {
             ),
             SizedBox(
               height: 32,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                children: _filterLabels.entries.map((e) {
+              child: Builder(builder: (_) {
+                final _lvKids = _filterLabels.entries.map((e) {
                   final sel = _filter == e.key;
                   return Padding(
                     padding: const EdgeInsets.only(right: 6),
@@ -4513,8 +4537,14 @@ class _RecentDownloadsBoxState extends State<_RecentDownloadsBox> {
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                     ),
                   );
-                }).toList(),
-              ),
+                }).toList();
+                return ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                  itemCount: _lvKids.length,
+                  itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                );
+              }),
             ),
             const SizedBox(height: 4),
             Divider(height: 1, color: dividerColor),

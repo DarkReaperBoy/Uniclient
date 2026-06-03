@@ -12,6 +12,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const double _exportPanelWidth = 364;
 const double _exportPanelHeight = 480;
@@ -227,7 +228,9 @@ class _ExportPanelController {
   static void close() {
     if (_entry == null) return;
     _visible.value = false;
-    try { _entry!.remove(); } catch (_) {}
+    try { _entry!.remove(); } catch (e) {
+      Debug.log('chat_export', '_entry!.remove(): $e');
+    }
     _entry = null;
     _activeAccountId = null;
   }
@@ -600,7 +603,9 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           orElse: () => _format,
         );
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_export', 'final file = File(path): $e');
+    }
   }
 
   Map<String, dynamic> get _settingsMap => {
@@ -642,7 +647,9 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     if (path.isEmpty) return;
     try {
       File(path).writeAsStringSync(jsonEncode(_settingsMap));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_export', 'File(path).writeAsStringSync(jsonEncode(_settingsMap)): $e');
+    }
   }
 
   void _scheduleSave() {
@@ -1381,10 +1388,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         Expanded(
           child: Stack(
             children: [
-              ListView(
-                controller: _scrollController,
-                padding: EdgeInsets.zero,
-                children: [
+              Builder(builder: (_) {
+                final _lvKids = <Widget>[
                   // §29.3.1 Account Data (no header)
                   _buildOptionWithAbout(
                     'Personal information',
@@ -1521,8 +1526,14 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   _buildFormatRadio(
                       'HTML and JSON', _ExportFormat.htmlAndJson, textColor),
                   const SizedBox(height: 8),
-                ],
-              ),
+                ];
+                return ListView.builder(
+                  controller: _scrollController,
+                padding: EdgeInsets.zero,
+                  itemCount: _lvKids.length,
+                  itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                );
+              }),
               // Top fade shadow
               if (_showTopShadow)
                 Positioned(
@@ -1902,10 +1913,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         Expanded(
           child: Stack(
             children: [
-              ListView(
-                controller: _scrollController,
-                padding: EdgeInsets.zero,
-                children: [
+              Builder(builder: (_) {
+                final _lvKids = <Widget>[
                   _buildSectionHeader('Media export settings', headerColor),
                   _buildMediaCheckbox('Photos', _mediaPhotos,
                       (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
@@ -1953,8 +1962,14 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   _buildCombinedFormatLocation(accentColor, subtextColor),
                   _buildDateRangeFilter(accentColor, subtextColor),
                   const SizedBox(height: 8),
-                ],
-              ),
+                ];
+                return ListView.builder(
+                  controller: _scrollController,
+                padding: EdgeInsets.zero,
+                  itemCount: _lvKids.length,
+                  itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                );
+              }),
               if (_showTopShadow)
                 Positioned(
                   top: 0,
@@ -2271,9 +2286,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       children: [
         const SizedBox(height: 10),
         Expanded(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
+          child: Builder(builder: (_) {
+            final _lvKids = <Widget>[
               for (int _si = 0; _si < visibleSteps.length; _si++) ...[
                 if (_si > 0) const SizedBox(height: 10),
                 AnimatedOpacity(
@@ -2373,8 +2387,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     ),
                   ),
                 ),
-            ],
-          ),
+            ];
+            return ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: _lvKids.length,
+              itemBuilder: (_, _lvI) => _lvKids[_lvI],
+            );
+          }),
         ),
         if (!_exportDone)
           SizedBox(
@@ -3189,7 +3208,9 @@ class _ExportSuggestBoxState extends State<_ExportSuggestBox> {
       engine.callGeneric(
         widget.accountId ?? '', 'ClearExportSuggestion', {},
       ).catchError((_) {});
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_export', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   @override

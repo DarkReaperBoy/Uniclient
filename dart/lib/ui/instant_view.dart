@@ -16,6 +16,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import 'package:uniclient/utils/debug.dart';
 
 void openInstantView(BuildContext context, String accountId, String url, {String? siteName}) {
   Navigator.of(context, rootNavigator: true).push(
@@ -2871,7 +2872,9 @@ class _IvChannelBlockState extends State<_IvChannelBlock> {
           setState(() => _joined = true);
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('instant_view', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   Future<void> _joinChannel() async {

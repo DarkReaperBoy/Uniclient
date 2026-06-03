@@ -24,6 +24,7 @@ import 'telegram_toast.dart';
 import 'popup_menu.dart';
 import 'privacy_settings_screen.dart';
 import 'settings_style.dart';
+import 'package:uniclient/utils/debug.dart';
 
 /// "My Profile" / "Edit Profile" page (§14.5).
 /// Opened from hamburger drawer "My Profile" row or Settings "My Account".
@@ -389,9 +390,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
           ),
         ),
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
+      body: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           _ProfilePhotoArea(account: account, isDark: isDark, statusText: _statusText, isStatusOnline: _isStatusOnline),
           Container(height: 8, color: dividerColor),
           _BioInput(
@@ -566,8 +566,13 @@ class _MyProfilePageState extends State<MyProfilePage> {
           ),
           Container(height: 8, color: dividerColor),
           _AccountsSection(isDark: isDark),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          padding: EdgeInsets.zero,
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     );
   }
 
@@ -749,7 +754,9 @@ class _BioInputState extends State<_BioInput> {
       if (acc == null) return;
       final packs = await engine.getInstalledEmojiSets(acc.id);
       if (mounted) _cachedEmojiPacks = packs;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('my_profile_page', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   @override
@@ -940,7 +947,9 @@ class _BioInputState extends State<_BioInput> {
       try {
         final bytes = base64Decode(sticker.thumbB64);
         return Image.memory(bytes, width: 28, height: 28, fit: BoxFit.contain);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('my_profile_page', 'final bytes = base64Decode(sticker.thumbB64): $e');
+      }
     }
     return Text(sticker.emoji, style: const TextStyle(fontSize: 24));
   }
@@ -1374,7 +1383,9 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
         }
       },
     );
-    try { tmpFile.deleteSync(); } catch (_) {}
+    try { tmpFile.deleteSync(); } catch (e) {
+      Debug.log('my_profile_page', 'tmpFile.deleteSync(): $e');
+    }
   }
 
   void _openEmojiBuilder(BuildContext context) async {

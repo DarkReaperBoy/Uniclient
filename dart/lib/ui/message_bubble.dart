@@ -44,6 +44,7 @@ import 'media_viewer.dart';
 import 'sticker_pack_viewer.dart';
 import 'payment_panel.dart';
 import 'web_app_panel.dart';
+import 'package:uniclient/utils/debug.dart';
 
 Uint8List _gzipDecode(Uint8List data) => Uint8List.fromList(gzip.decode(data));
 
@@ -2265,7 +2266,9 @@ class _ReactorAvatar extends StatelessWidget {
             errorBuilder: (_, __, ___) => _fallback(context),
           ),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('message_bubble', 'final bytes = base64Decode(avatarB64): $e');
+      }
     }
     return _fallback(context);
   }
@@ -2376,7 +2379,9 @@ class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
       final result = await compute(_gzipDecode, data);
       if (!mounted) return;
       setState(() => _decompressedLottie = result);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('message_bubble', 'final result = await compute(_gzipDecode, data): $e');
+    }
   }
 
   void _requestFile() {
@@ -4177,7 +4182,9 @@ class _TgsStickerPlayerState extends State<_TgsStickerPlayer>
       );
       _StickerCache.putComposition(widget.filePath, composition);
       if (mounted) _setupAnimation(composition);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('message_bubble', 'final compressed = await File(widget.filePath).readAsBytes(): $e');
+    }
   }
 
   void _setupAnimation(LottieComposition composition) {
@@ -4211,7 +4218,7 @@ class _TgsStickerPlayerState extends State<_TgsStickerPlayer>
     if (_composition == null || _animController == null) {
       return const SizedBox.shrink();
     }
-    final powerSaving = context.read<AppState>().powerSaving(AppState.kPowerSavingStickersChat);
+    final powerSaving = context.watch<AppState>().powerSaving(AppState.kPowerSavingStickersChat);
     if (powerSaving && _animController!.isAnimating) {
       _animController!.stop();
     } else if (!powerSaving && !_animController!.isAnimating) {
@@ -4760,7 +4767,9 @@ class _AudioIndicatorState extends State<_AudioIndicator> {
       accessHash = int.tryParse(extraParts[0]) ?? 0;
       try {
         fileRef = base64.decode(extraParts[1]);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('message_bubble', 'fileRef = base64.decode(extraParts[1]): $e');
+      }
     }
     audio.playVoice(message.mediaLocalPath, message.msgId,
       chatId: message.chatId,
@@ -6162,7 +6171,9 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
       final result = await compute(_gzipDecode, data);
       if (!mounted) return;
       setState(() => _decompressedLottie = result);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('message_bubble', 'final result = await compute(_gzipDecode, data): $e');
+    }
   }
 
   bool _isPowerSaving(BuildContext context) {
@@ -6464,7 +6475,9 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
       final result = await compute(_gzipDecode, data);
       if (!mounted) return;
       setState(() => _decompressedLottie = result);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('message_bubble', 'final result = await compute(_gzipDecode, data): $e');
+    }
   }
 
   bool _isPowerSaving(BuildContext context) {
@@ -6715,7 +6728,9 @@ class _WebmEmojiPlayerState extends State<_WebmEmojiPlayer> {
         _player = player;
         _videoController = controller;
       });
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('message_bubble', 'final dir = await _ensureCacheDir(): $e');
+    }
   }
 
   @override
@@ -7519,7 +7534,9 @@ class _RichMessageTextState extends State<_RichMessageText> {
     bool disabled = false;
     try {
       disabled = context.read<AppState>().disableOpenLinkWarning;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('message_bubble', 'disabled = context.read<AppState>().disableOpenLinkWarning: $e');
+    }
     if (!disabled && _urlRequiresConfirmation(uri)) {
       showConfirmBox(
         context,
@@ -9159,7 +9176,9 @@ class _WebPagePreview extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
     try {
       await engine.importChatInvite(message.accountId, hash);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('message_bubble', 'await engine.importChatInvite(message.accountId, hash): $e');
+    }
   }
 
   void _openStickerSetFromUrl(BuildContext context, String url) {
@@ -9596,7 +9615,9 @@ class _WebPagePreview extends StatelessWidget {
             child: ColoredBox(color: isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe8ecf0)),
           ),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('message_bubble', 'final bytes = base64Decode(message.wpThumbB64): $e');
+      }
     }
 
     final textWidgets = <Widget>[];
@@ -9755,7 +9776,8 @@ class _GameCardState extends State<_GameCard> {
       if (url != null && url.isNotEmpty) {
         launcher.launchUrl(Uri.parse(url));
       }
-    } catch (_) {
+    } catch (e) {
+      Debug.log('message_bubble', 'String? url: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -9785,7 +9807,9 @@ class _GameCardState extends State<_GameCard> {
           width: double.infinity,
           errorBuilder: (_, __, ___) => const SizedBox.shrink(),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('message_bubble', 'final bytes = base64Decode(msg.gameThumbB64): $e');
+      }
     }
 
     return Column(
@@ -10201,7 +10225,9 @@ class _UrlAuthDialogState extends State<_UrlAuthDialog> {
       final appState = context.read<AppState>();
       final active = appState.activeAccount;
       if (active != null) return active.displayName;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('message_bubble', 'final appState = context.read<AppState>(): $e');
+    }
     return 'your account';
   }
 }
@@ -10374,7 +10400,8 @@ class _InlineButtonState extends State<_InlineButton>
           if (answer.isNotEmpty && mounted) {
             showTelegramToast(context, answer);
           }
-        } catch (_) {
+        } catch (e) {
+          Debug.log('message_bubble', 'final chatState = context.read<ChatState>(): $e');
         } finally {
           if (mounted) setState(() => _loading = false);
         }
@@ -10406,7 +10433,8 @@ class _InlineButtonState extends State<_InlineButton>
           } else if (result.message.isNotEmpty) {
             showTelegramToast(context, result.message);
           }
-        } catch (_) {
+        } catch (e) {
+          Debug.log('message_bubble', 'final chatState = context.read<ChatState>(): $e');
         } finally {
           if (mounted) setState(() => _loading = false);
         }
@@ -10806,7 +10834,9 @@ class _InlineButtonState extends State<_InlineButton>
             }
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('message_bubble', 'final result = await Process.run(\'geoclue-where-am-i\', [\'...: $e');
+      }
       if (context.mounted) showManualFallback();
     });
   }

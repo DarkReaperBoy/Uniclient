@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import '../theme/theme.dart';
 import '../state/chat_state.dart';
 import 'ayu_section_builder.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class AyuFiltersPage extends StatelessWidget {
   const AyuFiltersPage({super.key});
@@ -294,6 +295,7 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -1326,15 +1328,18 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
     _enabled = widget.filter?.enabled ?? true;
     _caseInsensitive = widget.filter?.caseInsensitive ?? true;
     _reversed = widget.filter?.reversed ?? false;
-    _textController.addListener(() {
-      if (_error != null || _warning != null) {
-        setState(() { _error = null; _warning = null; });
-      }
-    });
+    _textController.addListener(_onFilterTextChanged);
+  }
+
+  void _onFilterTextChanged() {
+    if (_error != null || _warning != null) {
+      setState(() { _error = null; _warning = null; });
+    }
   }
 
   @override
   void dispose() {
+    _textController.removeListener(_onFilterTextChanged);
     _textController.dispose();
     super.dispose();
   }
@@ -1738,7 +1743,9 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
               } else {
                 await engineSvc.resolveUsername(accountId, entry.value);
               }
-            } catch (_) {}
+            } catch (e) {
+              Debug.log('ayu_filters_page', 'final hash = _extractInviteHash(entry.value): $e');
+            }
           }
         }
       }
@@ -1887,7 +1894,9 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
               if (profile != null && profile.username.isNotEmpty) {
                 username = profile.username;
               }
-            } catch (_) {}
+            } catch (e) {
+              Debug.log('ayu_filters_page', 'final profile = await engineSvc.getUserProfile(accountId,...: $e');
+            }
           }
           break;
         }

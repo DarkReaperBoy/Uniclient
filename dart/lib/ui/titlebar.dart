@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import '../theme/telegram_palette.dart';
 import 'telegram_tooltip.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class _ButtonLayout {
   final List<_ButtonType> left;
@@ -141,7 +142,9 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
       final result =
           await CustomTitlebar.channel.invokeMethod<bool>('isMaximized');
       if (mounted) setState(() => _isMaximized = result ?? false);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('titlebar', 'final result =: $e');
+    }
   }
 
   Future<void> _queryButtonLayout() async {
@@ -151,7 +154,9 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
       if (result != null && mounted) {
         setState(() => _layout = _ButtonLayout.parse(result));
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('titlebar', 'final result =: $e');
+    }
   }
 
   Future<void> _queryOneSideControls() async {
@@ -159,7 +164,9 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
       final result =
           await CustomTitlebar.channel.invokeMethod<bool>('getOneSideControls');
       if (mounted) setState(() => _oneSideControls = result ?? false);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('titlebar', 'final result =: $e');
+    }
   }
 
   Future<void> _queryResizeEnabled() async {
@@ -167,37 +174,49 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
       final result =
           await CustomTitlebar.channel.invokeMethod<bool>('getResizeEnabled');
       if (mounted) setState(() => _resizeEnabled = result ?? true);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('titlebar', 'final result =: $e');
+    }
   }
 
   Future<void> _minimize() async {
     try {
       await CustomTitlebar.channel.invokeMethod('minimize');
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('titlebar', 'await CustomTitlebar.channel.invokeMethod(\'minimize\'): $e');
+    }
   }
 
   Future<void> _toggleMaximize() async {
     try {
       await CustomTitlebar.channel.invokeMethod('maximize');
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('titlebar', 'await CustomTitlebar.channel.invokeMethod(\'maximize\'): $e');
+    }
   }
 
   Future<void> _close() async {
     try {
       await CustomTitlebar.channel.invokeMethod('close');
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('titlebar', 'await CustomTitlebar.channel.invokeMethod(\'close\'): $e');
+    }
   }
 
   Future<void> _startDrag() async {
     try {
       await CustomTitlebar.channel.invokeMethod('startDrag');
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('titlebar', 'await CustomTitlebar.channel.invokeMethod(\'startDrag\'): $e');
+    }
   }
 
   Future<void> _showWindowMenu() async {
     try {
       await CustomTitlebar.channel.invokeMethod('showWindowMenu');
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('titlebar', 'await CustomTitlebar.channel.invokeMethod(\'showWindowMenu\'): $e');
+    }
   }
 
   Widget _buildButton(_ButtonType type, TelegramPalette palette) {

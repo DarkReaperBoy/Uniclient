@@ -21,6 +21,7 @@ import '../theme/telegram_palette.dart';
 import 'confirm_box.dart';
 import 'photo_crop_editor.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
 
 /// §21: Create Group / Channel Wizard.
 /// Multi-step layered-box flow, all boxes 364px (boxWideWidth).
@@ -166,7 +167,9 @@ class _WizardDialogState extends State<_WizardDialog>
       final ttl = await _engine.getDefaultHistoryTTL(_accountId);
       if (!mounted || ttl <= 0) return;
       setState(() => _ttlSeconds = ttl);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('create_group_wizard', 'final ttl = await _engine.getDefaultHistoryTTL(_accountId): $e');
+    }
   }
 
   void _showTTLPickerBox() {
@@ -276,7 +279,7 @@ class _WizardDialogState extends State<_WizardDialog>
           _isPublic = false;
         });
       } else if (msg.contains('FLOOD_WAIT')) {
-        debugPrint('Username probe rate-limited: $msg');
+        Debug.log('create_group_wizard', 'Username probe rate-limited: $msg');
       }
     }
   }
@@ -542,7 +545,9 @@ class _WizardDialogState extends State<_WizardDialog>
 
       if (!gotImage) {
         // Clean up temp file if empty
-        try { await File(tempPath).delete(); } catch (_) {}
+        try { await File(tempPath).delete(); } catch (e) {
+          Debug.log('create_group_wizard', 'await File(tempPath).delete(): $e');
+        }
         if (!mounted) return;
         showTelegramToast(context, 'No image in clipboard');
         return;
@@ -556,7 +561,9 @@ class _WizardDialogState extends State<_WizardDialog>
         purpose: PhotoEditorPurpose.setPhoto,
         onDone: (croppedFile) async {
           final bytes = await croppedFile.readAsBytes();
-          try { await File(tempPath).delete(); } catch (_) {}
+          try { await File(tempPath).delete(); } catch (e) {
+            Debug.log('create_group_wizard', 'await File(tempPath).delete(): $e');
+          }
           if (!mounted) return;
           setState(() {
             _photoBytes = bytes;
@@ -695,7 +702,9 @@ class _WizardDialogState extends State<_WizardDialog>
       final limits = await _engine.getPublicLinksLimits(_accountId);
       freeLimit = limits['free_limit'] ?? 10;
       premiumLimit = limits['premium_limit'] ?? 20;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('create_group_wizard', 'final limits = await _engine.getPublicLinksLimits(_accoun...: $e');
+    }
     if (!mounted) return;
     showDialog<bool>(
       context: context,
@@ -798,7 +807,7 @@ class _WizardDialogState extends State<_WizardDialog>
           try {
             await _engine.editChannelPhoto(_accountId, _createdChatId, _photoPath!);
           } catch (e) {
-            debugPrint('Failed to upload channel photo: $e');
+            Debug.error('create_group_wizard', 'Failed to upload channel photo', e);
           }
         }
         if (!mounted) return;
@@ -850,7 +859,7 @@ class _WizardDialogState extends State<_WizardDialog>
           try {
             await _engine.editChannelPhoto(_accountId, chatId, _photoPath!);
           } catch (e) {
-            debugPrint('Failed to upload group photo: $e');
+            Debug.error('create_group_wizard', 'Failed to upload group photo', e);
           }
         }
         if (!mounted) return;
@@ -2770,7 +2779,9 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         _secondaryUsernames = entries;
         _origSecondaryUsernames = entries.map((e) => e.copy()).toList();
       });
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('create_group_wizard', 'final usernames = await engine.getChannelUsernames(widget...: $e');
+    }
   }
 
   Future<void> _loadInviteLink() async {
@@ -2938,7 +2949,9 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
           final limits = await engine.getPublicLinksLimits(widget.accountId);
           freeLimit = limits['free_limit'] ?? 10;
           premiumLimit = limits['premium_limit'] ?? 20;
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('create_group_wizard', 'final limits = await engine.getPublicLinksLimits(widget.a...: $e');
+        }
         if (!mounted) return;
         final revoked = await showDialog<bool>(
           context: context,

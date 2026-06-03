@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
 import 'debug.dart';
+import 'package:uniclient/utils/debug.dart';
 
 /// Manages the system tray icon via a native MethodChannel.
 ///
@@ -102,7 +103,9 @@ class SystemTray {
         if (interval != null && interval > 0) {
           _doubleClickIntervalMs = interval;
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('system_tray', 'final interval =: $e');
+      }
 
       if (showTrayIcon) {
         await _createIcon();

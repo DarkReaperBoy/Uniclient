@@ -698,15 +698,18 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.currentValue);
-    _controller.addListener(() {
-      if (_showError && _controller.text.trim().isNotEmpty) {
-        setState(() => _showError = false);
-      }
-    });
+    _controller.addListener(_onControllerChanged);
+  }
+
+  void _onControllerChanged() {
+    if (_showError && _controller.text.trim().isNotEmpty) {
+      setState(() => _showError = false);
+    }
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();

@@ -20,6 +20,7 @@ import '../state/audio_service.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import '../utils/system_tray.dart';
+import 'package:uniclient/utils/debug.dart';
 
 enum ShortcutCommand {
   closeTelegram,
@@ -547,7 +548,8 @@ class ShortcutSystem {
       }
       final json = const JsonEncoder.withIndent('  ').convert(entries);
       File('$_configDir/shortcuts-default.json').writeAsStringSync(json);
-    } catch (_) {
+    } catch (e) {
+      Debug.log('keyboard_shortcuts', '_ensureConfigDir(): $e');
     }
   }
 
@@ -598,7 +600,9 @@ class ShortcutSystem {
         final binding = _parseKeyBinding(keys, cmd);
         if (binding != null) _bindings.add(binding);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('keyboard_shortcuts', 'final file = File(\'\$_configDir/shortcuts-custom.json\'): $e');
+    }
   }
 
   void _writeCustomTemplate() {
@@ -619,7 +623,9 @@ class ShortcutSystem {
       lines.add('// ]');
       lines.add('[]');
       File('$_configDir/shortcuts-custom.json').writeAsStringSync(lines.join('\n'));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('keyboard_shortcuts', '_ensureConfigDir(): $e');
+    }
   }
 
   void addBinding(
@@ -774,7 +780,9 @@ class ShortcutSystem {
       }
       final json = const JsonEncoder.withIndent('  ').convert(entries);
       File('$_configDir/shortcuts-custom.json').writeAsStringSync(json);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('keyboard_shortcuts', '_ensureConfigDir(): $e');
+    }
   }
 
   void dispose() {
@@ -1233,7 +1241,9 @@ class _ShortcutListenerState extends State<ShortcutListener>
     sys.registerHandler(ShortcutCommand.lockTelegram, () {
       try {
         context.read<AppState>().lockByPasscode();
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('keyboard_shortcuts', 'context.read<AppState>().lockByPasscode(): $e');
+      }
       return true;
     });
     sys.registerHandler(ShortcutCommand.closeTelegram, () {

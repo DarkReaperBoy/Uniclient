@@ -623,24 +623,26 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     // the gift-duration options and the Award button remain, matching the
     // source's isSpecificUsers() layout.
     if (_isSpecificUsers && _type == _GiveawayType.random) {
-      return ListView(
-        shrinkWrap: true,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        children: [
+      return Builder(builder: (_) {
+        final _lvKids = <Widget>[
           _buildTypeSelector(isDark, primary, subColor),
           const SizedBox(height: 16),
           ..._buildAwardSection(p, isDark, primary, subColor),
           const SizedBox(height: 16),
           _buildActionButton(p, primary),
           const SizedBox(height: 8),
-        ],
-      );
+        ];
+        return ListView.builder(
+          shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      });
     }
 
-    return ListView(
-      shrinkWrap: true,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         _buildTypeSelector(isDark, primary, subColor),
         const SizedBox(height: 16),
         if (_type == _GiveawayType.prepaid)
@@ -658,8 +660,14 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         const SizedBox(height: 16),
         _buildActionButton(p, primary),
         const SizedBox(height: 8),
-      ],
-    );
+      ];
+      return ListView.builder(
+        shrinkWrap: true,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 
   /// The Award flow body: gift-duration cards priced per chosen recipient.

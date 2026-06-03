@@ -22,6 +22,7 @@ import 'create_giveaway_box.dart' show showCreateGiveawayBox;
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
 import 'info_panel.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
 
 Future<bool?> showEditPeerInfoBox(
   BuildContext context, {
@@ -172,7 +173,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
       );
       verifier = info['has_verifier_settings'] == true;
       starRefAllowed = info['starref_allowed'] == true;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'final info = await engine.getBotManageInfo(: $e');
+    }
     // Balances: the rows stay hidden until a non-zero balance is confirmed.
     try {
       final stats = await engine.getStarsRevenueStats(
@@ -185,7 +188,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         hasCredits = current > 0;
         hasCurrency = overall > 0 || current > 0;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'final stats = await engine.getStarsRevenueStats(: $e');
+    }
     if (mounted) {
       setState(() {
         _botHasVerifierSettings = verifier;
@@ -218,7 +223,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         if (profile != null && mounted) {
           setState(() => _descCtrl.text = profile.bio);
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('admin_tools', 'final profile = await engine.getUserProfile(: $e');
+      }
     }
   }
 
@@ -325,10 +332,8 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           children: [
             _buildTitleBar(textColor, bgColor, accentColor, dividerColor),
             Flexible(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                children: [
+              child: Builder(builder: (_) {
+                final _lvKids = <Widget>[
                   _buildPhotoSection(accentColor, textColor, subTextColor),
                   _buildTitleField(textColor),
                   _buildDescriptionField(textColor, subTextColor),
@@ -361,8 +366,14 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                     _buildDeleteButton(attentionColor),
                     const SizedBox(height: 12),
                   ],
-                ],
-              ),
+                ];
+                return ListView.builder(
+                  padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                  itemCount: _lvKids.length,
+                  itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                );
+              }),
             ),
           ],
         ),
@@ -768,7 +779,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
       if (_isChannel) {
         try {
           groups = await engine.getDiscussionGroups(widget.chat.accountId);
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('admin_tools', 'groups = await engine.getDiscussionGroups(widget.chat.acc...: $e');
+        }
       }
       if (!mounted) return;
 
@@ -963,7 +976,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     Map<String, dynamic>? boostData;
     try {
       boostData = await engine.getBoosts(widget.chat.accountId, widget.chat.chatId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'boostData = await engine.getBoosts(widget.chat.accountId,...: $e');
+    }
     if (!mounted) return;
 
     final boosts = boostData?['boosts'] as int? ?? 0;
@@ -1139,7 +1154,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     List<String> availableReactions = [];
     try {
       availableReactions = await engine.getAvailableReactions(widget.chat.accountId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'availableReactions = await engine.getAvailableReactions(w...: $e');
+    }
 
     if (!mounted) return;
 
@@ -1308,7 +1325,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     List<PeerColorEntry> colors = [];
     try {
       colors = await engine.getPeerColors(widget.chat.accountId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'colors = await engine.getPeerColors(widget.chat.accountId): $e');
+    }
     if (!mounted || colors.isEmpty) {
       if (mounted) showTelegramToast(context, 'Could not load colors');
       return;
@@ -1317,7 +1336,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     Map<String, dynamic> fullInfo = {};
     try {
       fullInfo = await engine.getFullChatInfo(widget.chat.accountId, widget.chat.chatId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'fullInfo = await engine.getFullChatInfo(widget.chat.accou...: $e');
+    }
 
     final currentColorId = fullInfo['peer_color_id'] as int? ?? -1;
     final currentStatusId = (fullInfo['emoji_status_id'] as int?) ?? 0;
@@ -1335,7 +1356,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         emojiThumbs = await engine.getCustomEmojiThumbs(
             widget.chat.accountId, emojiIds.take(60).toList());
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'emojiIds = await engine.getBackgroundEmojiList(widget.cha...: $e');
+    }
     if (!mounted) return;
     // Ensure the currently-set emoji is selectable even if outside the pool.
     final pickIds = <int>[
@@ -1519,9 +1542,8 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           return;
         }
       }
-    } catch (_) {
-      // Couldn't determine requirements — fall through and let the save attempt
-      // surface any server-side error as before.
+    } catch (e) {
+      Debug.log('admin_tools', 'final req = await engine.getColorLevelRequirements(widget...: $e');
     }
 
     try {
@@ -1719,7 +1741,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     try {
       final fetched = await engine.getChatUsername(widget.chat.accountId, widget.chat.chatId);
       if (fetched.isNotEmpty) username = fetched;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'final fetched = await engine.getChatUsername(widget.chat....: $e');
+    }
     if (!mounted || username.isEmpty) return;
     final link = 'https://t.me/$username';
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1887,7 +1911,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         widget.chat.chatId,
       );
       affiliateInfo = fullInfo['star_ref_program'] as Map<String, dynamic>? ?? {};
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'final fullInfo = await engine.getFullChatInfo(: $e');
+    }
     if (!mounted) return;
 
     final hasProgram = affiliateInfo.isNotEmpty;
@@ -2006,7 +2032,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     List<ContactInfo> contacts = [];
     try {
       contacts = await engine.getContacts(widget.chat.accountId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'contacts = await engine.getContacts(widget.chat.accountId): $e');
+    }
     if (!mounted) return;
 
     final searchCtrl = TextEditingController();
@@ -2959,10 +2987,8 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
               )
             else
               Flexible(
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  shrinkWrap: true,
-                  children: [
+                child: Builder(builder: (_) {
+                  final _lvKids = <Widget>[
                     const SizedBox(height: 8),
                     _buildSectionHeader('What can members of this group do?', headerColor),
                     const SizedBox(height: 4),
@@ -3003,8 +3029,14 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
                     const SizedBox(height: 12),
                     _buildAddExceptionButton(accentColor, textColor),
                     const SizedBox(height: 12),
-                  ],
-                ),
+                  ];
+                  return ListView.builder(
+                    padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                    itemCount: _lvKids.length,
+                    itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                  );
+                }),
               ),
           ],
         ),
@@ -3862,10 +3894,8 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
               )
             else
               Flexible(
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  shrinkWrap: true,
-                  children: [
+                child: Builder(builder: (_) {
+                  final _lvKids = <Widget>[
                     _buildCover(textColor, subTextColor, accentColor),
                     Divider(height: 1, color: dividerColor),
                     const SizedBox(height: 8),
@@ -3881,8 +3911,14 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
                     const SizedBox(height: 4),
                     _buildDurationPicker(accentColor, textColor, subTextColor),
                     const SizedBox(height: 12),
-                  ],
-                ),
+                  ];
+                  return ListView.builder(
+                    padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                    itemCount: _lvKids.length,
+                    itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                  );
+                }),
               ),
           ],
         ),
@@ -4386,7 +4422,9 @@ class _EditAdminBoxState extends State<_EditAdminBox>
         _amCreator = flags['am_creator'] == true;
         _isBroadcast = flags['is_broadcast'] == true;
       });
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   Future<void> _loadExistingRights() async {
@@ -4408,7 +4446,9 @@ class _EditAdminBoxState extends State<_EditAdminBox>
           }
         }
       });
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   @override
@@ -4714,10 +4754,8 @@ class _EditAdminBoxState extends State<_EditAdminBox>
           children: [
             _buildTitleBar(textColor, accentColor, dividerColor),
             Flexible(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                children: [
+              child: Builder(builder: (_) {
+                final _lvKids = <Widget>[
                   _buildCover(textColor, subTextColor, accentColor),
                   Divider(height: 1, color: dividerColor),
                   const SizedBox(height: 8),
@@ -4783,8 +4821,14 @@ class _EditAdminBoxState extends State<_EditAdminBox>
                     _buildPromotedByInfo(subTextColor, accentColor),
                   ],
                   const SizedBox(height: 12),
-                ],
-              ),
+                ];
+                return ListView.builder(
+                  padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                  itemCount: _lvKids.length,
+                  itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                );
+              }),
             ),
           ],
         ),
@@ -5274,7 +5318,9 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
           limit: 200,
         );
         _adminList = res.members;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('admin_tools', 'final res = await context.read<EngineService>().getChatMe...: $e');
+      }
     }
     if (!mounted) return;
     showDialog(
@@ -6136,10 +6182,8 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
             ),
             Divider(height: 1, color: dividerColor),
             Flexible(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                children: [
+              child: Builder(builder: (_) {
+                final _lvKids = <Widget>[
                   const SizedBox(height: 8),
                   _buildSection(memberLabel, _memberSection, headerColor, accentColor, textColor),
                   Divider(height: 1, color: dividerColor),
@@ -6151,8 +6195,14 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
                     _buildAdminsSection(headerColor, accentColor, textColor, isDark),
                   ],
                   const SizedBox(height: 8),
-                ],
-              ),
+                ];
+                return ListView.builder(
+                  padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                  itemCount: _lvKids.length,
+                  itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                );
+              }),
             ),
           ],
         ),
@@ -6531,7 +6581,9 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
       if (widget.adminId.isEmpty) {
         try {
           admins = await engine.getAdminsWithInvites(widget.accountId, widget.chatId);
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('admin_tools', 'admins = await engine.getAdminsWithInvites(widget.account...: $e');
+        }
       }
       if (mounted) {
         setState(() {
@@ -6750,10 +6802,8 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
             Flexible(
               child: _loading
                 ? const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))
-                : ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.only(bottom: 16),
-                    children: [
+                : Builder(builder: (_) {
+                  final _lvKids = <Widget>[
                       ..._buildPermanentLink(palette, textColor, subColor),
                       _buildCreateButton(palette, textColor),
                       if (_activeLinks.where((l) => !l.permanent).isNotEmpty) ...[
@@ -6768,8 +6818,14 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
                         _buildSectionHeader('Other Admins', textColor, subColor),
                         ..._adminsWithInvites.map((a) => _buildAdminRow(a, palette, textColor, subColor)),
                       ],
-                    ],
-                  ),
+                    ];
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.only(bottom: 16),
+                    itemCount: _lvKids.length,
+                    itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                  );
+                }),
             ),
           ],
         ),
@@ -7849,7 +7905,9 @@ class _MemberListScreenState extends State<_MemberListScreen>
           _canInviteUsers = flags['can_invite_users'] == true;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'final flags = await context.read<EngineService>().getChat...: $e');
+    }
   }
 
   bool _canAddForTab(_MemberTab tab) {
@@ -8317,7 +8375,9 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
       for (final c in contacts) {
         byId[c.userId] = _PickerEntry(c.userId, c.displayName, c.username, c.avatarB64);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'final contacts = await engine.getContacts(widget.accountId): $e');
+    }
     // For special-member adds, also seed with the chat's existing participants
     // (AddSpecialBoxController searches participants → members → contacts → global).
     if (widget.includeMembers) {
@@ -8327,7 +8387,9 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
         for (final m in res.members) {
           byId[m.userId] = _PickerEntry(m.userId, m.displayName, m.username, m.avatarB64);
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('admin_tools', 'final res = await engine.getChatMembersByRole(widget.acco...: $e');
+      }
     }
     if (!mounted) return;
     setState(() {
@@ -8364,7 +8426,9 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
         try {
           final p = await engine.getUserProfile(widget.accountId, id);
           if (p != null && p.displayName.isNotEmpty) name = p.displayName;
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('admin_tools', 'final p = await engine.getUserProfile(widget.accountId, id): $e');
+        }
         final entry = _PickerEntry(id, name, q, '');
         if (mounted) {
           setState(() {
@@ -8375,7 +8439,9 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
         }
         return;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'final p = await engine.getUserProfile(widget.accountId, id): $e');
+    }
     if (mounted) {
       setState(() => _resolving = false);
       showTelegramToast(context, 'User not found');
@@ -8582,7 +8648,9 @@ class _MemberRow extends StatelessWidget {
           radius: 21,
           backgroundImage: MemoryImage(bytes),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('admin_tools', 'final bytes = base64Decode(member.avatarB64): $e');
+      }
     }
     final initials = member.displayName.isNotEmpty
         ? member.displayName.substring(0, 1).toUpperCase()
@@ -8748,7 +8816,9 @@ class _MemberRow extends StatelessWidget {
               try {
                 await engine.removeMember(accountId, chatId, member.userId);
                 onRefresh();
-              } catch (_) {}
+              } catch (e) {
+                Debug.log('admin_tools', 'await engine.removeMember(accountId, chatId, member.userId): $e');
+              }
             },
             child: Text('Remove', style: TextStyle(color: Colors.red.shade400)),
           ),
@@ -8761,7 +8831,9 @@ class _MemberRow extends StatelessWidget {
     try {
       await engine.unbanChatMember(accountId, chatId, member.userId);
       onRefresh();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'await engine.unbanChatMember(accountId, chatId, member.us...: $e');
+    }
   }
 
   // Approves or dismisses a pending join request. Mirrors AyuGram
@@ -9115,9 +9187,8 @@ class _StatisticsScreenState extends State<_StatisticsScreen> {
       final topAdmins = (data['top_admins'] as List?) ?? const [];
       final topInviters = (data['top_inviters'] as List?) ?? const [];
 
-      body = ListView(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        children: [
+      body = Builder(builder: (_) {
+        final _lvKids = <Widget>[
           if (periodMin > 0 && periodMax > 0)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -9188,8 +9259,13 @@ class _StatisticsScreenState extends State<_StatisticsScreen> {
                     style: TextStyle(color: subTextColor, fontSize: 14)),
               ),
             ),
-        ],
-      );
+        ];
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      });
     }
 
     return Scaffold(
@@ -9574,7 +9650,9 @@ class _StatChartWidgetState extends State<_StatChartWidget> {
         try {
           final loaded = await context.read<EngineService>().loadStatsGraph(widget.accountId, token);
           dataStr = loaded['data'];
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('admin_tools', 'final loaded = await context.read<EngineService>().loadSt...: $e');
+        }
       }
     }
     _StatChart? parsed;
@@ -9812,9 +9890,8 @@ class _MessageStatsScreenState extends State<_MessageStatsScreen> {
       final data = _data ?? {};
       final charts = (data['charts'] as List?) ?? const [];
       final forwards = data['public_forwards_count'] as int? ?? 0;
-      body = ListView(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        children: [
+      body = Builder(builder: (_) {
+        final _lvKids = <Widget>[
           if (forwards > 0)
             Container(
               margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
@@ -9842,8 +9919,13 @@ class _MessageStatsScreenState extends State<_MessageStatsScreen> {
               child: Center(child: Text('No statistics for this message.',
                   style: TextStyle(color: subTextColor, fontSize: 14))),
             ),
-        ],
-      );
+        ];
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      });
     }
 
     return Scaffold(
@@ -10037,9 +10119,8 @@ class _BoostsScreenState extends State<_BoostsScreen> {
                     }
                     return false;
                   },
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    children: [
+                  child: Builder(builder: (_) {
+                    final _lvKids = <Widget>[
                       // Level + progress header.
                       Container(
                         margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -10123,8 +10204,13 @@ class _BoostsScreenState extends State<_BoostsScreen> {
                       // Create-giveaway / "Get Boosts via Gifts" button
                       // (FillGetBoostsButton → CreateGiveawayBox).
                       _buildGiveawayButton(accentColor),
-                    ],
-                  ),
+                    ];
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      itemCount: _lvKids.length,
+                      itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                    );
+                  }),
                 ),
     );
   }
@@ -10416,7 +10502,9 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
         setState(() => _tonStats = ton);
         if (_tonHasAny(ton)) _loadMoreTonTransactions();
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('admin_tools', 'final ton = await engine.getBroadcastRevenueStats(widget....: $e');
+    }
     try {
       final s = await engine.getStarsRevenueStats(widget.accountId, widget.chatId);
       if (mounted) setState(() { _stats = s; _loading = false; });
@@ -10940,9 +11028,8 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
         ),
       );
     } else {
-      body = ListView(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        children: [
+      body = Builder(builder: (_) {
+        final _lvKids = <Widget>[
           // Currency (TON) section first, then the Stars (credits) section.
           ...tonSection(),
           Container(
@@ -11038,8 +11125,13 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Text('No transactions yet.', style: TextStyle(color: subTextColor, fontSize: 13)),
             ),
-        ],
-      );
+        ];
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      });
     }
 
     return Scaffold(
@@ -11196,9 +11288,8 @@ class _StarRefJoinScreenState extends State<_StarRefJoinScreen> {
         ),
       );
     } else {
-      body = ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
+      body = Builder(builder: (_) {
+        final _lvKids = <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Text(
@@ -11252,8 +11343,13 @@ class _StarRefJoinScreenState extends State<_StarRefJoinScreen> {
                     style: TextStyle(color: subTextColor, fontSize: 14)),
               ),
             ),
-        ],
-      );
+        ];
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      });
     }
 
     return Scaffold(

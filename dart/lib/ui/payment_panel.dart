@@ -987,9 +987,8 @@ class _PaymentPanelState extends State<PaymentPanel>
     final currency = _formData['currency'] as String? ??
         widget.data.currency;
 
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         if (_errorText.isNotEmpty && _state == _PanelState.form)
           Container(
             width: double.infinity,
@@ -1057,8 +1056,13 @@ class _PaymentPanelState extends State<PaymentPanel>
           ),
         ],
         const SizedBox(height: 16),
-      ],
-    );
+      ];
+      return ListView.builder(
+        padding: EdgeInsets.zero,
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 
   Widget _buildCoverSection(Color fg, Color subFg) {

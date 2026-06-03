@@ -727,11 +727,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     _resetController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
-    )..addListener(() {
-        setState(() {
-          _swipeOffset = _resetFrom * (1.0 - _resetController.value);
-        });
-      });
+    )..addListener(_onResetTick);
     // Spec §2.7: Ripple animation for 80px action area on threshold crossing.
     _rippleController = AnimationController(
       vsync: this,
@@ -765,8 +761,15 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     );
   }
 
+  void _onResetTick() {
+    setState(() {
+      _swipeOffset = _resetFrom * (1.0 - _resetController.value);
+    });
+  }
+
   @override
   void dispose() {
+    _resetController.removeListener(_onResetTick);
     _resetController.dispose();
     _rippleController.dispose();
     _iconEntranceController.dispose();

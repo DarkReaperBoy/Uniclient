@@ -193,9 +193,15 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     List<String> cameras = [];
     List<String> inputs = [];
     List<String> outputs = [];
-    try { cameras = await engine.getAudioDevices(accountId, 'camera'); } catch (_) {}
-    try { inputs = await engine.getAudioDevices(accountId, 'input'); } catch (_) {}
-    try { outputs = await engine.getAudioDevices(accountId, 'output'); } catch (_) {}
+    try { cameras = await engine.getAudioDevices(accountId, 'camera'); } catch (e) {
+      Debug.log('call_panel', 'cameras = await engine.getAudioDevices(accountId, \'camera\'): $e');
+    }
+    try { inputs = await engine.getAudioDevices(accountId, 'input'); } catch (e) {
+      Debug.log('call_panel', 'inputs = await engine.getAudioDevices(accountId, \'input\'): $e');
+    }
+    try { outputs = await engine.getAudioDevices(accountId, 'output'); } catch (e) {
+      Debug.log('call_panel', 'outputs = await engine.getAudioDevices(accountId, \'output\'): $e');
+    }
     if (mounted) {
       setState(() {
         _cameraDevices = ['Default', ...cameras];
@@ -290,7 +296,9 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       if (mounted) {
         setState(() => _soundPeakValue = peak);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('call_panel', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   void _scheduleControlsHide(Duration timeout) {
@@ -2687,7 +2695,9 @@ class _CallRatingDialogState extends State<CallRatingDialog> {
         _selectedRating,
         comment,
       );
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('call_panel', 'final engine = context.read<EngineService>(): $e');
+    }
     if (mounted) Navigator.of(context).pop();
   }
 

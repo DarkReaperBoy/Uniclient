@@ -35,6 +35,7 @@ import 'telegram_tooltip.dart';
 import 'telegram_toast.dart';
 import 'emoji_status_widget.dart';
 import 'peer_short_info.dart';
+import 'package:uniclient/utils/debug.dart';
 
 enum InfoWrapMode { side, narrow, layer }
 
@@ -245,19 +246,25 @@ class _InfoPanelState extends State<InfoPanel> {
     Map<String, int> counts = {};
     try {
       counts = engine.getSharedMediaCounts(chat.accountId, chat.chatId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('info_panel', 'counts = engine.getSharedMediaCounts(chat.accountId, chat...: $e');
+    }
 
     List<MemberInfo> members = [];
     try {
       members = await engine.getChatMembers(chat.accountId, chat.chatId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('info_panel', 'members = await engine.getChatMembers(chat.accountId, cha...: $e');
+    }
 
     List<PinnedGiftItem> gifts = [];
     if (chat.type == ChatType.dm) {
       try {
         final result = await engine.getPinnedStarGifts(chat.accountId, chat.chatId);
         if (result != null) gifts = result.gifts;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('info_panel', 'final result = await engine.getPinnedStarGifts(chat.accou...: $e');
+      }
     }
 
     if (mounted) {
@@ -1279,7 +1286,9 @@ class _PinnedGiftWidget extends StatelessWidget {
             fit: BoxFit.cover,
           ),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('info_panel', 'final bytes = base64Decode(gift.thumbB64): $e');
+      }
     }
     return Container(
       width: size,
@@ -3124,7 +3133,9 @@ class _UserProfilePageState extends State<_UserProfilePage> {
         widget.chat.accountId, widget.member.userId,
       );
       if (mounted) setState(() => _mediaCounts = counts);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('info_panel', 'final counts = engine.getSharedMediaCounts(: $e');
+    }
   }
 
   @override
@@ -5514,7 +5525,9 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
       final engine = context.read<EngineService>();
       await engine.createStoryAlbum(widget.accountId, name);
       _loadStoryAlbums();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('info_panel', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   Future<void> _reorderAlbums(List<StoryAlbumInfo> newOrder) async {
@@ -7753,7 +7766,9 @@ class _MemberRow extends StatelessWidget {
             errorBuilder: (_, __, ___) => _initialsFallback(color, name, size, fontSize),
           ),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('info_panel', 'final bytes = base64Decode(member.avatarB64): $e');
+      }
     }
     return _initialsFallback(color, name, size, fontSize);
   }
@@ -8206,7 +8221,9 @@ class _SimilarChannelRow extends StatelessWidget {
           radius: 23,
           backgroundImage: MemoryImage(Uint8List.fromList(bytes)),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('info_panel', 'final bytes = base64Decode(channel.avatarB64): $e');
+      }
     }
     return CircleAvatar(
       radius: 23,
@@ -8270,7 +8287,9 @@ class _SavedMediaFilterSectionState extends State<_SavedMediaFilterSection> {
       final engine = context.read<EngineService>();
       final tags = engine.getSavedReactionTags(widget.accountId);
       if (mounted) setState(() => _tags = tags);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('info_panel', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   @override
@@ -8465,10 +8484,8 @@ class _BoostsPageState extends State<_BoostsPage> {
     final isDark = widget.theme.brightness == Brightness.dark;
     final subColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
 
-    return ListView(
-      controller: widget.scrollController,
-      padding: EdgeInsets.zero,
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         const SizedBox(height: 16),
         Center(child: Text('Level $level', style: TextStyle(
           fontSize: 24,
@@ -8631,8 +8648,14 @@ class _BoostsPageState extends State<_BoostsPage> {
           ),
         ),
         const SizedBox(height: 24),
-      ],
-    );
+      ];
+      return ListView.builder(
+        controller: widget.scrollController,
+      padding: EdgeInsets.zero,
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 
   Widget _buildBoosterTabs() {
@@ -9069,10 +9092,8 @@ class _StatisticsPageState extends State<_StatisticsPage>
       }
     }
     final recentPosts = (_stats!['recent_posts'] as List<dynamic>?) ?? [];
-    return ListView(
-      controller: widget.scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         const SizedBox(height: 17),
         _OverviewHeader(
           title: 'Overview',
@@ -9106,8 +9127,14 @@ class _StatisticsPageState extends State<_StatisticsPage>
         ],
         if (!isChannel) ..._buildTopMembersLists(),
         const SizedBox(height: 20),
-      ],
-    );
+      ];
+      return ListView.builder(
+        controller: widget.scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 
   List<Widget> _buildTopMembersLists() {
@@ -10084,10 +10111,8 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
         ),
         Container(height: 1, color: widget.theme.dividerColor),
         Expanded(
-          child: ListView(
-            controller: widget.scrollController,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            children: [
+          child: Builder(builder: (_) {
+            final _lvKids = <Widget>[
               const SizedBox(height: 12),
               _MessagePreviewRow(
                 post: widget.postData,
@@ -10160,8 +10185,14 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
                 ],
               ],
               const SizedBox(height: 20),
-            ],
-          ),
+            ];
+            return ListView.builder(
+              controller: widget.scrollController,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: _lvKids.length,
+              itemBuilder: (_, _lvI) => _lvKids[_lvI],
+            );
+          }),
         ),
       ],
     );

@@ -18,6 +18,7 @@ import '../models/engine_models.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
   const NotificationsSettingsScreen({super.key});
@@ -75,11 +76,15 @@ class _NotificationsSettingsScreenState
     try {
       final contactJoinedEnabled = await engine.getContactSignUpNotification(accountId);
       if (mounted) appState.setNotifContactJoinedTelegram(contactJoinedEnabled);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('notifications_settings_screen', 'final contactJoinedEnabled = await engine.getContactSignU...: $e');
+    }
     try {
       final callsDisabled = await engine.getCallsDisabledHere(accountId);
       if (mounted) appState.setNotifAcceptCallsOnDevice(!callsDisabled);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('notifications_settings_screen', 'final callsDisabled = await engine.getCallsDisabledHere(a...: $e');
+    }
     try {
       final config = await engine.getLocalNotifyConfig(accountId);
       if (mounted && config.isNotEmpty) {
@@ -90,7 +95,9 @@ class _NotificationsSettingsScreenState
           appState.setNotifVolumeFromEngine((config['global_volume'] as num?)?.toInt() ?? 100);
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('notifications_settings_screen', 'final config = await engine.getLocalNotifyConfig(accountId): $e');
+    }
     if (mounted) setState(() => _serverStatesLoaded = true);
   }
 
@@ -108,7 +115,9 @@ class _NotificationsSettingsScreenState
           _channelExceptionCount = counts['channel'] ?? 0;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('notifications_settings_screen', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   @override
@@ -187,10 +196,11 @@ class _NotificationsSettingsScreenState
       ),
       body: Scrollbar(
         controller: _scrollController,
-        child: ListView(
-          controller: _scrollController,
+        child: ListView.builder(
+            controller: _scrollController,
           padding: EdgeInsets.zero,
-          children: children,
+            itemCount: children.length,
+            itemBuilder: (_, _lvI) => children[_lvI],
         ),
       ),
     );
@@ -1714,7 +1724,9 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
           }
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('notifications_settings_screen', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   void _loadExceptions() async {
@@ -1846,9 +1858,8 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
           ),
         ),
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
+      body: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           _NotifIconToggleRow(
             icon: Icons.notifications,
             iconColor: iconColor,
@@ -1988,8 +1999,13 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
               onTap: () => _showDeleteAllConfirmation(context),
             ),
           const SizedBox(height: 32),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          padding: EdgeInsets.zero,
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     ),
     );
   }
@@ -3451,9 +3467,8 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
       ),
       body: !_loaded
           ? Center(child: CircularProgressIndicator(color: accentColor))
-          : ListView(
-        padding: EdgeInsets.zero,
-        children: [
+          : Builder(builder: (_) {
+            final _lvKids = <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
             child: Text(
@@ -3557,8 +3572,13 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
             hoverBg: hoverBg,
           ),
           const SizedBox(height: 32),
-        ],
-      ),
+        ];
+            return ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: _lvKids.length,
+              itemBuilder: (_, _lvI) => _lvKids[_lvI],
+            );
+          }),
     );
   }
 }
@@ -4127,7 +4147,9 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
           }
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('notifications_settings_screen', 'final appState = context.read<AppState>(): $e');
+    }
   }
 
   Color get _bgColor =>
@@ -4263,7 +4285,9 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
       final engine = context.read<EngineService>();
       final accountId = appState.activeAccountId;
       await engine.deleteRingtone(accountId, documentId: id);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('notifications_settings_screen', 'final appState = context.read<AppState>(): $e');
+    }
     if (!mounted) return;
     setState(() {
       _tones.removeWhere((t) => t.id == id);

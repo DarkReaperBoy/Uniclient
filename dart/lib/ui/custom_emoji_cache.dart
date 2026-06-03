@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/engine_models.dart';
 import '../bridge/engine_service.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class _DecodedThumbResult {
   final int documentId;
@@ -101,6 +102,16 @@ class CustomEmojiCache {
   final Map<int, int> _fileFailedRetryTime = {};
   static const int _retryDelayMs = 5000;
 
+  /// Cancels the in-flight batch timers. The cache is a process-lifetime
+  /// singleton, but exposing teardown keeps the one-shot `Timer(Duration.zero, …)`
+  /// batchers from outliving a forced reset and gives tests a clean shutdown.
+  void dispose() {
+    _batchTimer?.cancel();
+    _batchTimer = null;
+    _fileBatchTimer?.cancel();
+    _fileBatchTimer = null;
+  }
+
   Future<void> initDiskCache(String cacheDir) async {
     if (kIsWeb) return;
     _diskCacheDir = '$cacheDir/emoji';
@@ -116,7 +127,9 @@ class CustomEmojiCache {
           if (docId != null) _diskIndex.add(docId);
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('custom_emoji_cache', 'await for (final entity in dir.list()): $e');
+    }
   }
 
   void addListener(VoidCallback cb) { _globalListeners.add(cb); }
@@ -234,7 +247,9 @@ class CustomEmojiCache {
       await File('$basePath.dat').writeAsBytes(data.fileData, flush: true);
       await File('$basePath.mime').writeAsString(data.mimeType, flush: true);
       _diskIndex.add(documentId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('custom_emoji_cache', 'final basePath = \'\$_diskCacheDir/\$documentId\': $e');
+    }
   }
 
   Future<void> _writeThumbToDisk(int documentId, Uint8List data) async {
@@ -242,7 +257,9 @@ class CustomEmojiCache {
     try {
       await File('$_diskCacheDir/$documentId.thumb')
           .writeAsBytes(data, flush: true);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('custom_emoji_cache', 'await File(\'\$_diskCacheDir/\$documentId.thumb\'): $e');
+    }
   }
 
   Future<void> _writePathToDisk(int documentId, Uint8List data) async {
@@ -250,7 +267,9 @@ class CustomEmojiCache {
     try {
       await File('$_diskCacheDir/$documentId.path')
           .writeAsBytes(data, flush: true);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('custom_emoji_cache', 'await File(\'\$_diskCacheDir/\$documentId.path\'): $e');
+    }
   }
 
   Future<void> _loadFromDisk(int documentId) async {
@@ -324,7 +343,9 @@ class CustomEmojiCache {
         _notifyListeners({documentId});
         return;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('custom_emoji_cache', 'final thumbFile = File(\'\$_diskCacheDir/\$documentId.thumb\'): $e');
+    }
     _batchQueue.add(_PendingRequest(documentId, accountId, engine));
     if (_batchTimer == null) {
       _batchTimer = Timer(Duration.zero, () {

@@ -16,6 +16,7 @@ import 'info_panel.dart';
 import 'privacy_settings_screen.dart';
 import 'settings_style.dart';
 import 'shell.dart';
+import 'package:uniclient/utils/debug.dart';
 
 String _formatCountDecimal(int n) {
   if (n < 1000) return '$n';
@@ -165,7 +166,9 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
         });
         _invalidateCachedReactorData();
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('reactions_detail', 'final engine = context.read<EngineService>(): $e');
+    }
   }
 
   Future<void> _fetchReadInfo() async {
@@ -195,7 +198,9 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
           _cachedReadParticipants = [];
           setState(() => _readCount = 0);
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('reactions_detail', 'final result = await engine.getOutboxReadDate(: $e');
+      }
     } else {
       try {
         final result = await engine.getMessageReadParticipantsDetailed(
@@ -205,7 +210,9 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
         _cachedReadParticipants = result.participants;
         _cachedPrivacyState = result.privacyState;
         setState(() => _readCount = result.participants.length);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('reactions_detail', 'final result = await engine.getMessageReadParticipantsDet...: $e');
+      }
     }
   }
 
@@ -213,6 +220,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   void dispose() {
     _editSub?.cancel();
     _statusSub?.cancel();
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -962,7 +970,7 @@ class _ReadParticipantRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = participant.name.isNotEmpty ? participant.name : 'User ${participant.userId}';
     final hasDate = participant.date > 0;
-    final showSec = context.read<AppState>().showMessageSeconds;
+    final showSec = context.watch<AppState>().showMessageSeconds;
     final use24h = MediaQuery.of(context).alwaysUse24HourFormat;
     final dateStr = formatReadDateLocal(participant.date, showSeconds: showSec, use24HourFormat: use24h);
 
@@ -1429,7 +1437,9 @@ class _InlineCustomEmojiState extends State<_InlineCustomEmoji>
     try {
       final result = await compute(_gzipDecodeReactions, data);
       if (mounted) setState(() => _decompressedLottie = result);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('reactions_detail', 'final result = await compute(_gzipDecodeReactions, data): $e');
+    }
   }
 
   void _onLottieLoaded(LottieComposition c) {

@@ -21,6 +21,7 @@ import 'settings_style.dart';
 import 'shortcuts_settings_screen.dart';
 import 'telegram_toast.dart';
 import 'theme_editor.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
   const ChatSettingsScreen({super.key});
@@ -195,7 +196,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         if (thumbB64.isNotEmpty) {
           try {
             previewBytes = Uint8List.fromList(const Base64Decoder().convert(thumbB64));
-          } catch (_) {}
+          } catch (e) {
+            Debug.log('chat_settings_screen', 'previewBytes = Uint8List.fromList(const Base64Decoder().c...: $e');
+          }
         }
         if (!mounted) return;
         final confirmed = await showDialog<Map<String, dynamic>>(
@@ -233,7 +236,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         Uint8List? imageBytes;
         try {
           imageBytes = Uint8List.fromList(const Base64Decoder().convert(thumbB64));
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('chat_settings_screen', 'imageBytes = Uint8List.fromList(const Base64Decoder().con...: $e');
+        }
         if (imageBytes != null && mounted) {
           final confirmed = await showDialog<Map<String, dynamic>>(
             context: context,
@@ -372,10 +377,8 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           ),
         ],
       ),
-      body: ListView(
-        primary: true,
-        padding: EdgeInsets.zero,
-        children: [
+      body: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           const SizedBox(height: 10),
           _ThemeCardRow(
             isDark: isDark,
@@ -669,8 +672,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           _ShortcutsArchiveSection(isDark: isDark, accentColor: currentAccent),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          primary: true,
+        padding: EdgeInsets.zero,
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     );
   }
 
@@ -811,7 +820,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_settings_screen', 'final r =: $e');
+    }
     try {
       final r =
           Process.runSync('defaults', ['read', '-g', 'AppleAccentColor']);
@@ -830,7 +841,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         final hex = palette[idx];
         if (hex != null) return hex;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_settings_screen', 'final r =: $e');
+    }
     return '#007aff';
   }
 
@@ -851,7 +864,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               int.parse(m[1]!), int.parse(m[2]!), int.parse(m[3]!));
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_settings_screen', 'final r = Process.runSync(: $e');
+    }
     try {
       final r = Process.runSync(
         'reg',
@@ -866,7 +881,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               abgr & 0xFF, (abgr >> 8) & 0xFF, (abgr >> 16) & 0xFF);
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_settings_screen', 'final r = Process.runSync(: $e');
+    }
     return null;
   }
 
@@ -2191,7 +2208,9 @@ Future<List<String>> _scanSystemFonts() async {
         }
       }
     }
-  } catch (_) {}
+  } catch (e) {
+    Debug.log('chat_settings_screen', 'if (Platform.isLinux): $e');
+  }
 
   if (fonts.length <= 1) {
     if (Platform.isLinux) {
@@ -3047,7 +3066,9 @@ class _WallpaperBrowserState extends State<_WallpaperBrowser> {
       if (b64.isNotEmpty) {
         try {
           thumbs[i] = Uint8List.fromList(const Base64Decoder().convert(b64));
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('chat_settings_screen', 'thumbs[i] = Uint8List.fromList(const Base64Decoder().conv...: $e');
+        }
       }
     }
     _decodedThumbs = thumbs;
@@ -4012,6 +4033,7 @@ class _StickerPackManagerState extends State<_StickerPackManager> {
     final pack = _packs![index];
     try {
       await widget.engine.uninstallStickerSet(widget.accountId, pack.setId, pack.accessHash);
+      if (!mounted) return;
       setState(() => _packs!.removeAt(index));
     } catch (_) {
       if (mounted) showTelegramToast(context, 'Failed to remove pack');

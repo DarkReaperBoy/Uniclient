@@ -59,9 +59,8 @@ class AyuGramSettingsScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
+      body: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           Center(
             child: SizedBox(
               width: TgTokens.settingsCloudPasswordIconSize,
@@ -215,8 +214,13 @@ class AyuGramSettingsScreen extends StatelessWidget {
           ),
 
           const SizedBox(height: 24),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          padding: EdgeInsets.zero,
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     );
   }
 

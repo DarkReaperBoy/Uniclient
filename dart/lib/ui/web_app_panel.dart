@@ -12,6 +12,8 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 import 'emoji_status_widget.dart';
+import 'story_editor.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const _kPanelWidth = 384.0;
 const _kPanelHeight = 694.0;
@@ -304,7 +306,9 @@ class _WebAppPanelState extends State<WebAppPanel>
         data = <String, dynamic>{};
       }
       _handleWebAppEvent(event, data);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('web_app_panel', 'final parsed = jsonDecode(message.message) as Map<String,...: $e');
+    }
   }
 
   void _handleWebAppEvent(String event, Map<String, dynamic> data) {
@@ -568,37 +572,18 @@ class _WebAppPanelState extends State<WebAppPanel>
   }
 
   void _handleOpenScanQrPopup() {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        content: const Text('QR code scanning is not supported on this platform.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    ).then((_) {
-      _postEventToWebView('scan_qr_popup_closed');
-    });
+    // Live QR scanning needs a camera + decoder this desktop build has no access
+    // to. Per the Mini App protocol we decline by reporting the popup closed with
+    // no result, so the web app can react — rather than showing a fake alert.
+    _postEventToWebView('scan_qr_popup_closed');
   }
 
   void _handleShareToStory() {
     if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        content: const Text('Story sharing is not supported.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+    // Open the real story composer so the user can create and post a story.
+    // (The bot-supplied media is not yet pre-loaded into the editor; the user
+    // adds media in the composer.)
+    unawaited(showStoryEditor(context));
   }
 
   void _handleRequestWriteAccess() {
@@ -783,7 +768,9 @@ class _WebAppPanelState extends State<WebAppPanel>
       if (clipData?.text != null) {
         result['data'] = clipData!.text;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('web_app_panel', 'final clipData = await Clipboard.getData(Clipboard.kTextP...: $e');
+    }
     _postEventToWebView('clipboard_text_received', result);
   }
 
@@ -1301,7 +1288,9 @@ class _WebAppPanelState extends State<WebAppPanel>
         "if(window.TelegramGameProxy)"
         "{window.TelegramGameProxy.receiveEvent('$event',$jsonData);}",
       );
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('web_app_panel', 'controller.runJavaScript(: $e');
+    }
   }
 
   @override
@@ -1382,7 +1371,9 @@ class _WebAppPanelState extends State<WebAppPanel>
               .whereType<Map<String, dynamic>>()
               .toList();
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('web_app_panel', 'final dlResult = await engine.callGeneric(: $e');
+      }
     }
 
     if (!mounted) return;
@@ -1577,7 +1568,11 @@ class _WebAppPanelState extends State<WebAppPanel>
           child: Material(
             color: Colors.transparent,
             child: GestureDetector(
-              onTap: () {},
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                // Absorb taps on the web-app panel so they don't fall through
+                // to anything behind it.
+              },
               child: Container(
                 width: panelWidth,
                 height: panelHeight,

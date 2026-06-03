@@ -25,8 +25,18 @@ class TrStrings {
   static String lngPasscodeSubmit() => 'Submit';
   static String lngPasscodeLogout() => 'Log out';
   static String lngPasscodeWrong() => 'Wrong passcode';
-  static String lngPasscodeEmpty() => 'Please enter your passcode';
   static String lngPasscodeLogoutSure() => 'Are you sure you want to log out?';
+  // System-unlock info label shown on the cold-start lock (domain not started),
+  // beneath the logout link. AyuGram's lng_passcode_winhello / _touchid /
+  // _applewatch / _systempwd (window_lock_widgets.cpp:132-161).
+  static String lngPasscodeWinhello() =>
+      'You need to enter your passcode\nbefore you can use Windows Hello.';
+  static String lngPasscodeTouchid() =>
+      'You need to enter your passcode\nbefore you can use Touch ID.';
+  static String lngPasscodeApplewatch() =>
+      'You need to enter your passcode\nbefore you can use Watch to unlock.';
+  static String lngPasscodeSystempwd() =>
+      'You need to enter your passcode\nbefore you can use system password.';
   static String lngCancel() => 'Cancel';
   static String lngFileTooLarge(int count) =>
       count == 1 ? 'The file exceeds the size limit.' : '$count files exceed the size limit.';

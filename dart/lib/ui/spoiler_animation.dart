@@ -10,6 +10,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const int _kFrameCount = 60;
 const int _kFramesPerRow = 10;
@@ -315,7 +316,9 @@ Future<void> _saveSpoilerCache(
     out.setRange(0, _kCacheHeaderSize, header.buffer.asUint8List());
     out.setRange(_kCacheHeaderSize, out.length, compressed);
     await file.writeAsBytes(out);
-  } catch (_) {}
+  } catch (e) {
+    Debug.log('spoiler_animation', 'final dir = Directory(cacheBase): $e');
+  }
 }
 
 void _applyImageDarkening(Uint8List pixels) {
@@ -746,7 +749,9 @@ mixin SpoilerAnimationMixin<T extends StatefulWidget> on State<T> {
       }
       SpoilerAnimationManager.instance.powerSavingPaused =
           _spoilerAppState!.powerSaving(AppState.kPowerSavingChatSpoiler);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('spoiler_animation', 'if (_spoilerAppState == null): $e');
+    }
   }
 
   void _onPowerSavingChanged() {
@@ -754,7 +759,9 @@ mixin SpoilerAnimationMixin<T extends StatefulWidget> on State<T> {
     try {
       SpoilerAnimationManager.instance.powerSavingPaused =
           _spoilerAppState!.powerSaving(AppState.kPowerSavingChatSpoiler);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('spoiler_animation', 'SpoilerAnimationManager.instance.powerSavingPaused =: $e');
+    }
   }
 
   void disposeSpoiler() {

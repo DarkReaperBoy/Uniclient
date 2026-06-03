@@ -10,6 +10,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import 'package:uniclient/utils/debug.dart';
 
 /// Per-color gradient palette for forum topic bubble icons — spec §22.2.1.
 class TopicIconPalette {
@@ -440,7 +441,9 @@ Future<void> _fetchCustomEmojiData(EngineService engine, String accountId, int d
           try {
             final decoded = await Isolate.run(() => gzip.decode(file.fileData));
             _customEmojiLottieCache[documentId] = decoded is Uint8List ? decoded : Uint8List.fromList(decoded);
-          } catch (_) {}
+          } catch (e) {
+            Debug.log('forum_topic_icon', 'final decoded = await Isolate.run(() => gzip.decode(file....: $e');
+          }
         }
       } else {
         final thumbs = await engine.getCustomEmojiThumbs(accountId, [documentId]);

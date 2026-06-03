@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:characters/characters.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const List<EmojiEntry> kEmojiSuggestions = [
   EmojiEntry('#️⃣', ['hash']),
@@ -3060,7 +3061,9 @@ class EmojiKeywords {
         File('${dir.path}/$langCode.json')
             .writeAsStringSync(json.encode({'v': version, 'kw': kw}));
       });
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('emoji_data', 'await Isolate.run((): $e');
+    }
   }
 
   Future<void> loadCacheFromDisk() async {
@@ -3087,7 +3090,9 @@ class EmojiKeywords {
         final pack = _langPacks.putIfAbsent(entry.key, _LangPack.new);
         pack.load(kw, version);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('emoji_data', 'final parsed = await Isolate.run((): $e');
+    }
   }
 
   bool get hasServerData => _langPacks.isNotEmpty;

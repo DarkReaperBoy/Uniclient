@@ -17,6 +17,7 @@ import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
 import 'confirm_box.dart';
 import 'telegram_tooltip.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class StickerPackViewer extends StatefulWidget {
   final CachedMessage? message;
@@ -182,7 +183,9 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
         );
         Navigator.pop(context);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('sticker_pack_viewer', 'final accountId = widget.accountId: $e');
+    }
     if (mounted) setState(() => _installing = false);
   }
 

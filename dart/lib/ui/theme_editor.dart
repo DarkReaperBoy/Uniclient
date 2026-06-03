@@ -18,6 +18,7 @@ import 'confirm_box.dart';
 import 'telegram_toast.dart';
 import '../theme/theme_name_generator.dart';
 import '../theme/theme_preview.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class ThemeEditorScreen extends StatefulWidget {
   final TelegramPalette palette;
@@ -88,7 +89,9 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
       final data = ThemeFileData(palette: _currentPalette);
       final text = exportThemeFile(data);
       await File(_editingPalettePath!).writeAsBytes(text);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('theme_editor', 'final data = ThemeFileData(palette: _currentPalette): $e');
+    }
   }
 
   @override

@@ -15,6 +15,7 @@ import '../theme/theme.dart';
 import 'filter_column.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const _kFilterIconOrder = <String>[
   'Cat', 'Book', 'Money', 'Game', 'Light', 'Like',
@@ -145,7 +146,9 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
         )).toList();
         setState(() => _recommended = filtered);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('folders_settings_screen', 'final suggestions = await engine.getSuggestedFolders(acco...: $e');
+    }
   }
 
   Future<void> _saveChanges() async {
@@ -157,7 +160,9 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
     for (final folderId in _pendingRemovals) {
       try {
         await chatState.deleteFolder(account.id, folderId);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('folders_settings_screen', 'await chatState.deleteFolder(account.id, folderId): $e');
+      }
     }
     final remainingOrder = _folders
         .where((f) => !_pendingRemovals.contains(f.id))
@@ -167,7 +172,9 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
       try {
         final engine = context.read<EngineService>();
         engine.reorderDialogFilters(account.id, remainingOrder);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('folders_settings_screen', 'final engine = context.read<EngineService>(): $e');
+      }
     }
   }
 
@@ -368,8 +375,8 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
           ),
         ),
       ),
-      body: ListView(
-        children: [
+      body: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           // §18.2 Animated Header
           _AnimatedHeader(
             isDark: isDark,
@@ -395,7 +402,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
               folder: _folders[i],
               isRemoved: _pendingRemovals.contains(_folders[i].id),
               chatCount: _countChatsInFolder(_folders[i]),
-              showTags: context.read<ChatState>().showFolderTags,
+              showTags: context.watch<ChatState>().showFolderTags,
               isDark: isDark,
               hoverColor: hoverColor,
               textColor: textColor,
@@ -423,7 +430,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
-            child: (_recommended.isNotEmpty && _folders.length < ((context.read<AppState>().effectivePremium) ? _folderLimitPremium : _folderLimitFree))
+            child: (_recommended.isNotEmpty && _folders.length < ((context.watch<AppState>().effectivePremium) ? _folderLimitPremium : _folderLimitFree))
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -450,10 +457,10 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
           ),
 
           // §18.11 Show Folder Tags toggle — only shown for premium Telegram users
-          if ((context.read<AppState>().activeAccount?.platform ?? '') == 'telegram' &&
-              context.read<AppState>().effectivePremium) ...[
+          if ((context.watch<AppState>().activeAccount?.platform ?? '') == 'telegram' &&
+              context.watch<AppState>().effectivePremium) ...[
             _TagsToggle(
-              value: context.read<ChatState>().showFolderTags,
+              value: context.watch<ChatState>().showFolderTags,
               isPremium: true,
               isDark: isDark,
               textColor: textColor,
@@ -502,8 +509,12 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
           ),
 
           const SizedBox(height: 24),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     );
   }
 }
@@ -4452,7 +4463,9 @@ class _ChatlistFolderRemovalDialogState
     try {
       suggestedIds =
           await engine.getLeaveChatlistSuggestions(accountId, folderId);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('folders_settings_screen', 'suggestedIds =: $e');
+    }
 
     final allChats = chatState.chatsForAccount(accountId);
     final suggestedSet = suggestedIds.toSet();

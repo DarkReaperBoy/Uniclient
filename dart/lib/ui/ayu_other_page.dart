@@ -16,6 +16,8 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'ayu_section_builder.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AyuOtherPage extends StatelessWidget {
   const AyuOtherPage({super.key});
@@ -110,12 +112,16 @@ class AyuOtherPage extends StatelessWidget {
     b.addSectionDivider();
 
     // --- Utility Actions (§54.15) ---
-    b.addWidget(_ActionButton(
-      label: 'Register URL Scheme',
-      icon: Icons.link,
-      isDark: isDark,
-      onTap: () => _registerUrlScheme(context),
-    ));
+    // URL-scheme registration only applies to desktop platforms; don't offer the
+    // action where it can't run (no fake "unsupported" message).
+    if (!kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
+      b.addWidget(_ActionButton(
+        label: 'Register URL Scheme',
+        icon: Icons.link,
+        isDark: isDark,
+        onTap: () => _registerUrlScheme(context),
+      ));
+    }
     b.addWidget(_ActionButton(
       label: 'Reset Settings',
       icon: Icons.restore,
@@ -161,9 +167,10 @@ class AyuOtherPage extends StatelessWidget {
     } else if (Platform.isWindows) {
       _registerWindowsUrlScheme(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('URL scheme registration is not supported on this platform')),
-      );
+      // The Register-URL-Scheme action is only offered on desktop (see the
+      // visibility gate where the button is built), so this branch is
+      // unreachable in practice; log defensively rather than showing a message.
+      Debug.log('ayu_other_page', 'URL scheme registration unavailable on this platform');
     }
   }
 
@@ -501,6 +508,15 @@ class _DonateInfoBox extends StatefulWidget {
     );
   }
 
+  /// Cancels the hourly RC refresh timer — AyuGram `RCManager::stop()`
+  /// (`ayu/utils/rc_manager.cpp`), invoked on shutdown. The timer is otherwise
+  /// app-lifetime, refreshing the RC config every hour for the whole session like
+  /// the C++ manager, so this is the single teardown path for it.
+  static void stopRcManager() {
+    _rcRefreshTimer?.cancel();
+    _rcRefreshTimer = null;
+  }
+
   /// One RC round-trip, deduplicated so concurrent callers share the in-flight
   /// request (analogue of C++ `clearSentRequest()` keeping a single live reply).
   static Future<void> _makeRcRequest() {
@@ -514,7 +530,9 @@ class _DonateInfoBox extends StatefulWidget {
       if (data != null) {
         _applyRcData(data);
       }
-    } catch (_) {} finally {
+    } catch (e) {
+      Debug.log('ayu_other_page', 'final data = await _tryFetchRcFrom(_rcPrimaryUrl) ??: $e');
+    } finally {
       _rcInFlight = null;
     }
   }
@@ -531,7 +549,9 @@ class _DonateInfoBox extends StatefulWidget {
         return jsonDecode(body) as Map<String, dynamic>;
       }
       client.close();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('ayu_other_page', 'final client = HttpClient(): $e');
+    }
     return null;
   }
 

@@ -542,8 +542,9 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
             recordingColor: goodColor,
             textColor: textColor,
             hoverBg: hoverBg,
-            onTap: () {},
-            onSecondaryTapUp: (_) {},
+            // Tapping the row that is actively capturing keys cancels recording.
+            onTap: _cancelRecording,
+            onSecondaryTapUp: (_) => _cancelRecording(),
           );
         }
         if (bindings.isEmpty) {
@@ -635,8 +636,9 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
         recordingColor: goodColor,
         textColor: textColor,
         hoverBg: hoverBg,
-        onTap: () {},
-        onSecondaryTapUp: (_) {},
+        // Tapping the row that is actively capturing keys cancels recording.
+        onTap: _cancelRecording,
+        onSecondaryTapUp: (_) => _cancelRecording(),
       ));
     }
 

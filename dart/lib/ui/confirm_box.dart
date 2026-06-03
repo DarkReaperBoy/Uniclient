@@ -14,6 +14,7 @@ import '../bridge/engine_service.dart';
 import '../theme/telegram_palette.dart';
 import '../l10n/strings.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
 
 // ─── §36.1 Box/Dialog Infrastructure Constants ───────────────────────────────
 
@@ -1782,14 +1783,18 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
             (pactl.stdout as String).contains('.monitor')) {
           return true;
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('confirm_box', 'final pactl = await Process.run(\'pactl\', [\'list\', \'source...: $e');
+      }
       try {
         final pw = await Process.run('pw-cli', ['list-objects']);
         if (pw.exitCode == 0 &&
             (pw.stdout as String).contains('Audio/Source')) {
           return true;
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('confirm_box', 'final pw = await Process.run(\'pw-cli\', [\'list-objects\']): $e');
+      }
       return false;
     }
     // macOS loopback needs a virtual device that isn't present by default.
@@ -1805,7 +1810,9 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
   @override
   void dispose() {
     for (final path in _thumbnails.values) {
-      try { File(path).deleteSync(); } catch (_) {}
+      try { File(path).deleteSync(); } catch (e) {
+        Debug.log('confirm_box', 'File(path).deleteSync(): $e');
+      }
     }
     super.dispose();
   }
@@ -1839,10 +1846,14 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
                   sources.add(ScreenShareSource(id: 'window:$wid', name: name));
                 }
               }
-            } catch (_) {}
+            } catch (e) {
+              Debug.log('confirm_box', 'final nameRes = await Process.run(\'kdotool\', [\'getwindown...: $e');
+            }
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('confirm_box', 'final nameRes = await Process.run(\'kdotool\', [\'getwindown...: $e');
+      }
     } else {
       try {
         final xrandr = await Process.run('xrandr', ['--listmonitors']);
@@ -1860,7 +1871,9 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
             ));
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('confirm_box', 'final xrandr = await Process.run(\'xrandr\', [\'--listmonito...: $e');
+      }
 
       try {
         final wmctrl = await Process.run('wmctrl', ['-l']);
@@ -1903,10 +1916,14 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
                     ));
                   }
                 }
-              } catch (_) {}
+              } catch (e) {
+                Debug.log('confirm_box', 'final nameResult = await Process.run(: $e');
+              }
             }
           }
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('confirm_box', 'final nameResult = await Process.run(: $e');
+        }
       }
     }
 
@@ -1969,7 +1986,9 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
             .timeout(const Duration(seconds: 3));
         return r.exitCode == 0 ? path : null;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('confirm_box', 'if (source.isScreen): $e');
+    }
     return null;
   }
 
@@ -2913,7 +2932,9 @@ Future<bool> showReportReactionBox(
     if (context.mounted) {
       showTelegramToast(context, 'Report submitted. Thank you!');
     }
-  } catch (_) {}
+  } catch (e) {
+    Debug.log('confirm_box', 'if (result.ban): $e');
+  }
   return true;
 }
 

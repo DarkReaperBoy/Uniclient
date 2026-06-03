@@ -55,6 +55,12 @@ class RichTextEditingController extends TextEditingController {
     addListener(_onTextChanged);
   }
 
+  @override
+  void dispose() {
+    removeListener(_onTextChanged);
+    super.dispose();
+  }
+
   void _onTextChanged() {
     final newText = text;
     if (newText == _prevText) return;

@@ -60,6 +60,7 @@ import 'choose_datetime_box.dart';
 import 'emoji_panel.dart';
 import '../utils/web_drop.dart';
 import '../l10n/strings.dart';
+import 'package:uniclient/utils/debug.dart';
 
 final _hiddenPinnedMessages = <String>{};
 
@@ -76,7 +77,9 @@ Future<void> _loadHiddenPins() async {
       final data = jsonDecode(await file.readAsString());
       if (data is List) _hiddenPinnedMessages.addAll(data.cast<String>());
     }
-  } catch (_) {}
+  } catch (e) {
+    Debug.log('chat_view', 'final file = File(_hiddenPinsPath): $e');
+  }
 }
 
 Future<void> _saveHiddenPin(String key) async {
@@ -85,7 +88,9 @@ Future<void> _saveHiddenPin(String key) async {
     final file = File(_hiddenPinsPath);
     await file.parent.create(recursive: true);
     await file.writeAsString(jsonEncode(_hiddenPinnedMessages.toList()));
-  } catch (_) {}
+  } catch (e) {
+    Debug.log('chat_view', 'final file = File(_hiddenPinsPath): $e');
+  }
 }
 
 bool _isPinnedHidden(String accountId, String chatId, String msgId) {
@@ -2299,7 +2304,9 @@ class _ChatViewState extends State<ChatView>
       final engine = context.read<EngineService>();
       try {
         totalCount = await engine.searchMessagesFromCount(chat.accountId, chat.chatId, msg.senderId);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_view', 'totalCount = await engine.searchMessagesFromCount(chat.ac...: $e');
+      }
     }
     if (!mounted) return;
 
@@ -2958,7 +2965,9 @@ class _ChatViewState extends State<ChatView>
           if (mounted) {
             showTelegramToast(context, '$senderName removed from contacts');
           }
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('chat_view', 'await engine.deleteContact(accountId, senderId): $e');
+        }
       case 'share_contact':
         final phone = profile?.phone ?? '';
         if (phone.isNotEmpty) {
@@ -2989,7 +2998,9 @@ class _ChatViewState extends State<ChatView>
             if (mounted) {
               showTelegramToast(context, '$senderName blocked');
             }
-          } catch (_) {}
+          } catch (e) {
+            Debug.log('chat_view', 'await engine.blockUser(accountId, senderId): $e');
+          }
         }
       case 'unblock':
         try {
@@ -2997,7 +3008,9 @@ class _ChatViewState extends State<ChatView>
           if (mounted) {
             showTelegramToast(context, '$senderName unblocked');
           }
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('chat_view', 'await engine.unblockUser(accountId, senderId): $e');
+        }
       case 'report':
         try {
           await showDynamicReportFlow(
@@ -3007,7 +3020,9 @@ class _ChatViewState extends State<ChatView>
             chatId: senderId,
             msgIds: const [],
           );
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('chat_view', 'await showDynamicReportFlow(: $e');
+        }
       case 'promote':
         if (mounted) {
           showEditAdminBox(
@@ -3044,7 +3059,9 @@ class _ChatViewState extends State<ChatView>
             if (mounted) {
               showTelegramToast(context, '$senderName banned');
             }
-          } catch (_) {}
+          } catch (e) {
+            Debug.log('chat_view', 'await engine.banMember(accountId, chat.chatId, senderId): $e');
+          }
         }
       case 'delete_all':
         final confirmed = await _showConfirmDialog(
@@ -3060,7 +3077,9 @@ class _ChatViewState extends State<ChatView>
             if (mounted) {
               showTelegramToast(context, '${senderMsgs.length} messages from $senderName deleted');
             }
-          } catch (_) {}
+          } catch (e) {
+            Debug.log('chat_view', 'final senderMsgs = chatState.messages: $e');
+          }
         }
     }
   }
@@ -3114,7 +3133,9 @@ class _ChatViewState extends State<ChatView>
                   if (mounted) {
                     showTelegramToast(context, '${firstCtrl.text.trim()} added to contacts');
                   }
-                } catch (_) {}
+                } catch (e) {
+                  Debug.log('chat_view', 'await engine.addContact(: $e');
+                }
               },
               child: const Text('Add'),
             ),
@@ -3378,6 +3399,7 @@ class _ChatViewState extends State<ChatView>
               scheduleDate: opts.scheduleDate,
             );
           }
+          if (!mounted) return;
           setState(() {
             _forwardingMsgIds = [];
             _forwardHideSender = false;
@@ -3958,7 +3980,9 @@ class _ChatViewState extends State<ChatView>
             );
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_view', 'final ek = EmojiKeywords.instance: $e');
+      }
     }
   }
 
@@ -4732,6 +4756,7 @@ class _ChatViewState extends State<ChatView>
       );
       if (discard != true) return;
     }
+    if (!mounted) return;
     setState(() {
       _editingMsgId = null;
       _editOriginalText = '';
@@ -8893,7 +8918,9 @@ class _ReplyBar extends StatelessWidget {
           height: 32,
           gaplessPlayback: true,
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_view', 'final bytes = base64Decode(msg.mediaThumbB64): $e');
+      }
     }
     return Container(
       color: Colors.grey.withValues(alpha: 0.3),
@@ -9180,7 +9207,9 @@ class _ForwardBar extends StatelessWidget {
           height: 32,
           gaplessPlayback: true,
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_view', 'final bytes = base64Decode(msg.mediaThumbB64): $e');
+      }
     }
     return Container(
       color: Colors.grey.withValues(alpha: 0.3),
@@ -10356,7 +10385,9 @@ class _ChatIntroWidgetState extends State<_ChatIntroWidget> {
       if (withThumb.isNotEmpty) {
         setState(() => _greetingSticker = withThumb[withThumb.length ~/ 2]);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_view', 'final stickers = await engine.getStickerSuggestions(chat....: $e');
+    }
   }
 
   void _sendSticker() {
@@ -10510,7 +10541,9 @@ class _VoiceListenBarState extends State<_VoiceListenBar> {
     }));
     try {
       await player.open(Media(widget.filePath), play: false);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_view', 'await player.open(Media(widget.filePath), play: false): $e');
+    }
   }
 
   void _togglePlayback() {
@@ -12982,7 +13015,9 @@ class _ComposeCustomEmojiState extends State<_ComposeCustomEmoji>
     if (file != null && file.isTgs && _decompressedLottie == null) {
       try {
         _decompressedLottie = Uint8List.fromList(gzip.decode(file.fileData));
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_view', '_decompressedLottie = Uint8List.fromList(gzip.decode(file...: $e');
+      }
     }
     _updatePhase();
     setState(() {});
@@ -14450,7 +14485,9 @@ class _ComposeAreaState extends State<_ComposeArea>
         },
         onError: (_) {},
       );
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_view', '_amplitudeSub = recorder: $e');
+    }
     _recordingTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (_recordingStart != null) {
         setState(() {
@@ -15022,7 +15059,9 @@ class _ComposeAreaState extends State<_ComposeArea>
           return true;
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_view', 'final wlResult = await Process.run(\'wl-paste\', [\'--type\',...: $e');
+    }
     try {
       final xResult = await Process.run('xclip',
           ['-selection', 'clipboard', '-t', 'image/png', '-o'],
@@ -15035,7 +15074,9 @@ class _ComposeAreaState extends State<_ComposeArea>
           return true;
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_view', 'final xResult = await Process.run(\'xclip\',: $e');
+    }
     return false;
   }
 
@@ -15256,23 +15297,23 @@ class _ComposeAreaState extends State<_ComposeArea>
   }
 
   Future<void> _pickFiles() async {
-    debugPrint('ATTACH: _pickFiles called');
+    Debug.log('chat_view', 'ATTACH: _pickFiles called');
     try {
       final result = await FilePicker.platform.pickFiles(
         allowMultiple: true,
       );
-      debugPrint('ATTACH: result=$result');
+      Debug.log('chat_view', 'ATTACH: result=$result');
       if (result == null || result.files.isEmpty) return;
       final paths = result.files
           .where((f) => f.path != null)
           .map((f) => f.path!)
           .toList();
-      debugPrint('ATTACH: picked ${paths.length} files: $paths');
+      Debug.log('chat_view', 'ATTACH: picked ${paths.length} files: $paths');
       if (paths.isNotEmpty) {
         widget.onFilesSelected?.call(paths);
       }
     } catch (e) {
-      debugPrint('ATTACH: error=$e');
+      Debug.error('chat_view', 'ATTACH: file pick failed', e);
     }
   }
 
@@ -15291,7 +15332,7 @@ class _ComposeAreaState extends State<_ComposeArea>
         widget.onFilesSelected?.call(paths);
       }
     } catch (e) {
-      debugPrint('ATTACH: media pick error=$e');
+      Debug.error('chat_view', 'ATTACH: media pick failed', e);
     }
   }
 
@@ -17782,15 +17823,19 @@ class _ShareBoxState extends State<_ShareBox> {
     final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
     return SizedBox(
       height: 32,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: [
+      child: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           _buildFolderTab(isDark, accentColor, null, 'All Chats'),
           for (final folder in widget.folders)
             _buildFolderTab(isDark, accentColor, folder.id, folder.name),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     );
   }
 
@@ -19331,7 +19376,9 @@ class _GalleryResultItemState extends State<_GalleryResultItem> {
         final bytes = base64Decode(widget.item.thumbB64);
         return Image.memory(Uint8List.fromList(bytes), fit: BoxFit.cover, gaplessPlayback: true,
             errorBuilder: (_, __, ___) => _fallbackContent());
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_view', 'final bytes = base64Decode(widget.item.thumbB64): $e');
+      }
     }
     return _fallbackContent();
   }
@@ -19489,7 +19536,9 @@ class _ListResultItemState extends State<_ListResultItem> {
         return Image.memory(bytes, fit: BoxFit.cover,
             width: _thumbSize, height: _thumbSize - 12, gaplessPlayback: true,
             errorBuilder: (_, __, ___) => Center(child: _thumbIcon()));
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_view', 'final bytes = base64Decode(widget.item.thumbB64): $e');
+      }
     }
     return Center(child: _thumbIcon());
   }
@@ -20090,7 +20139,11 @@ void _showChatPreviewPopup(BuildContext ctx, ChatInfo chat, ChatState chatState)
       behavior: HitTestBehavior.opaque,
       child: Center(
         child: GestureDetector(
-          onTap: () {},
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            // Absorb taps on the preview popup so they don't reach the barrier
+            // GestureDetector and dismiss it.
+          },
           child: Material(
             elevation: 8,
             borderRadius: BorderRadius.circular(10),
@@ -21347,7 +21400,9 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
           limit: 50,
         );
         reactors = result.reactors;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_view', 'final result = await widget.engine.getMessageReactorsList(: $e');
+      }
     }
 
     final readResult = await readFuture;
@@ -21872,7 +21927,9 @@ class _WhoReadAvatar extends StatelessWidget {
         return ClipOval(
           child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover),
         );
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_view', 'final bytes = base64Decode(avatarB64): $e');
+      }
     }
     final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
     final colorIdx = name.hashCode.abs() % _colors.length;
@@ -22303,9 +22360,8 @@ class _TranslateBoxState extends State<_TranslateBox> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: SizedBox(
         height: 36,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          children: _languages.entries.map((e) {
+        child: Builder(builder: (_) {
+          final _lvKids = _languages.entries.map((e) {
             final selected = _targetLang == e.key;
             return Padding(
               padding: const EdgeInsets.only(right: 6),
@@ -22326,8 +22382,13 @@ class _TranslateBoxState extends State<_TranslateBox> {
                 visualDensity: VisualDensity.compact,
               ),
             );
-          }).toList(),
-        ),
+          }).toList();
+          return ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _lvKids.length,
+            itemBuilder: (_, _lvI) => _lvKids[_lvI],
+          );
+        }),
       ),
     );
   }

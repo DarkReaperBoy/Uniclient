@@ -1114,9 +1114,10 @@ Scaffold ayuSettingsScaffold({
       ),
       actions: actions,
     ),
-    body: ListView(
-      padding: EdgeInsets.zero,
-      children: children,
+    body: ListView.builder(
+        padding: EdgeInsets.zero,
+        itemCount: children.length,
+        itemBuilder: (_, _lvI) => children[_lvI],
     ),
   );
 }

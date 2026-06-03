@@ -5581,7 +5581,9 @@ class EngineService {
   void markAsOnline() {
     try {
       _callRaw('__engine', 'MarkAsOnline', Uint8List(0));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('engine_service', '_callRaw(\'__engine\', \'MarkAsOnline\', Uint8List(0)): $e');
+    }
   }
 
   void updateConfig({
@@ -6697,7 +6699,9 @@ class EngineService {
           final e = d['extra'];
           if (e is Map<String, dynamic>) extra = e;
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('engine_service', 'final d = jsonDecode(contentRaw): $e');
+      }
     }
     return CachedMessage(
       accountId: p.accountId,

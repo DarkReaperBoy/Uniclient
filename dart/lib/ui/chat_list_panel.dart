@@ -29,6 +29,7 @@ import 'story_editor.dart';
 import 'telegram_toast.dart';
 import 'peer_short_info.dart';
 import '../theme/telegram_palette.dart';
+import 'package:uniclient/utils/debug.dart';
 
 /// The entire left panel: search bar + chat list.
 /// When [collapsed] is true, renders in avatar-only narrow mode (spec §1:
@@ -1473,7 +1474,10 @@ class _ChatListPanelState extends State<ChatListPanel>
                 isNarrow: widget.collapsed,
                 typingUser: typingUser,
                 typingAction: typingAction,
-                onTap: () {},
+                onTap: () {
+                  // Drag-reorder ghost row, wrapped in IgnorePointer above —
+                  // it can never receive taps.
+                },
               ),
             ),
           ),
@@ -1542,7 +1546,7 @@ class _ChatListPanelState extends State<ChatListPanel>
         peerId: chat.chatId,
       );
     } catch (e) {
-      debugPrint('Failed to load stories: $e');
+      Debug.error('chat_list_panel', 'Failed to load stories', e);
     }
   }
 

@@ -321,6 +321,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   String _configDir = '';
   bool _passcodeLocked = false;
+  // AyuGram's Core::App().domain().started(): false during the cold-start lock
+  // that protects local storage before login, true once the first unlock (or a
+  // no-passcode startup) has loaded accounts. Drives which system-unlock affordance
+  // the lock screen shows — the active IconButton when started, the "enter your
+  // passcode first" info label when not. ← window_lock_widgets.cpp:123-128.
+  bool _domainStarted = false;
   int _passcodeBadTries = 0;
   DateTime? _passcodeLastTry;
   Timer? _autoLockTimer;
@@ -741,6 +747,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get canAddAccount => _accounts.length < maxAccountLimit;
 
   bool get passcodeLocked => _passcodeLocked;
+  bool get domainStarted => _domainStarted;
   bool get nativeWindowFrame => _nativeWindowFrame;
   bool get showChatNameInTitle => _showChatNameInTitle;
   bool get showAccountNameInTitle => _showAccountNameInTitle;
@@ -1472,11 +1479,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (Platform.isWindows) {
       try {
         await _windowChannel.invokeMethod('setDisplayAffinity', enabled);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('app_state', 'await _windowChannel.invokeMethod(\'setDisplayAffinity\', e...: $e');
+      }
     } else if (Platform.isMacOS) {
       try {
         await _windowChannel.invokeMethod('setWindowSharing', !enabled);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('app_state', 'await _windowChannel.invokeMethod(\'setWindowSharing\', !en...: $e');
+      }
     }
   }
 
@@ -2073,7 +2084,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (dir.isEmpty) continue;
       try {
         if (File('$dir${Platform.pathSeparator}$name').existsSync()) return true;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('app_state', 'if (File(\'\$dir\${Platform.pathSeparator}\$name\').existsSync...: $e');
+      }
     }
     return false;
   }
@@ -2521,7 +2534,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           if (await f.exists()) await f.delete();
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('app_state', 'if (Platform.isLinux): $e');
+    }
   }
 
   void setStartMinimized(bool v) {
@@ -3533,7 +3548,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         if (event.localPath.isNotEmpty) {
           final name = event.localPath.split('/').last.split('\\').last;
           int size = 0;
-          try { size = File(event.localPath).lengthSync(); } catch (_) {}
+          try { size = File(event.localPath).lengthSync(); } catch (e) {
+            Debug.log('app_state', 'size = File(event.localPath).lengthSync(): $e');
+          }
           addRecentDownload(name, event.localPath, size);
         }
       }));
@@ -3564,7 +3581,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (_nativeWindowFrame && (Platform.isLinux || Platform.isWindows)) {
         try {
           await _windowChannel.invokeMethod('setDecorated', true);
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('app_state', 'await _windowChannel.invokeMethod(\'setDecorated\', true): $e');
+        }
       }
       _initialized = true;
       Debug.log('APP', 'Engine initialized, ${_accounts.length} accounts');
@@ -3591,6 +3610,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _accounts = accounts;
     _rebuildAccountLookup();
     _initialized = true;
+    _domainStarted = true;
     notifyListeners();
   }
 
@@ -3600,7 +3620,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if ((data['hash'] as String? ?? '').isNotEmpty) {
         _passcodeLocked = true;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('app_state', 'final data = _engine.getPasscodeConfig(): $e');
+    }
+    // No passcode gate at startup → the domain is started immediately. With a
+    // passcode, it stays "not started" until the first successful unlock.
+    if (!_passcodeLocked) _domainStarted = true;
     _lastNonIdleTime = DateTime.now().millisecondsSinceEpoch;
     checkAutoLock(_lastNonIdleTime);
   }
@@ -3627,6 +3652,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void unlockPasscode() {
     _passcodeLocked = false;
+    // First unlock starts the domain (AyuGram's domain.start(passcode)); it stays
+    // started across any later auto-lock for the rest of the session.
+    _domainStarted = true;
     _passcodeBadTries = 0;
     _passcodeLastTry = null;
     _lastNonIdleTime = DateTime.now().millisecondsSinceEpoch;
@@ -3675,7 +3703,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         unlockPasscode();
         return true;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('app_state', 'final data = _engine.getPasscodeConfig(): $e');
+    }
     _passcodeBadTries++;
     _passcodeLastTry = DateTime.now();
     return false;
@@ -3825,7 +3855,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     try {
       _engine.clearPasscode();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('app_state', '_engine.clearPasscode(): $e');
+    }
     _autoLockTimer?.cancel();
     _shouldLockAt = 0;
   }
@@ -3843,7 +3875,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     for (final id in ids) {
       try {
         _engine.removeAccount(id);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('app_state', '_engine.removeAccount(id): $e');
+      }
       // Drop each logged-out account's notification state before stale timers fire.
       onAccountRemoved?.call(id);
       _connStates.remove(id);
@@ -3863,7 +3897,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _shouldLockAt = 0;
     try {
       _engine.clearPasscode();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('app_state', '_engine.clearPasscode(): $e');
+    }
     _cachedHasPasscode = null;
     _cachedAutoLockSeconds = null;
     notifyListeners();
@@ -4035,7 +4071,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (Platform.isLinux || Platform.isWindows) {
       try {
         await _windowChannel.invokeMethod('setDecorated', value);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('app_state', 'await _windowChannel.invokeMethod(\'setDecorated\', value): $e');
+      }
     }
     _saveWindowPrefs();
     notifyListeners();
@@ -4397,7 +4435,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _loadWallpaper(data);
       _loadCustomThemeFromCache();
       noHwAccelVideo = !_hardwareAccelVideo;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('app_state', 'final file = File(path): $e');
+    }
   }
 
   void _saveWindowPrefs() {
@@ -4410,7 +4450,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (path.isEmpty) return;
     try {
       File(path).writeAsStringSync(jsonEncode(_buildPrefsMap()));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('app_state', 'File(path).writeAsStringSync(jsonEncode(_buildPrefsMap())): $e');
+    }
   }
 
   Future<void> _flushWindowPrefs() async {
@@ -4418,7 +4460,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (path.isEmpty) return;
     try {
       await File(path).writeAsString(jsonEncode(_buildPrefsMap()));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('app_state', 'await File(path).writeAsString(jsonEncode(_buildPrefsMap())): $e');
+    }
   }
 
   Map<String, dynamic> _buildPrefsMap() => {
@@ -4654,11 +4698,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (_wallpaper.imageBytes != null && _configDir.isNotEmpty) {
       try {
         File('$_configDir/wallpaper.dat').writeAsBytesSync(_wallpaper.imageBytes!);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('app_state', 'File(\'\$_configDir/wallpaper.dat\').writeAsBytesSync(_wallp...: $e');
+      }
     } else if (_wallpaper.patternBytes != null && _configDir.isNotEmpty) {
       try {
         File('$_configDir/wallpaper_pattern.dat').writeAsBytesSync(_wallpaper.patternBytes!);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('app_state', 'File(\'\$_configDir/wallpaper_pattern.dat\').writeAsBytesSyn...: $e');
+      }
     }
   }
 
@@ -4736,7 +4784,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         onAddAccount?.call(id, platform);
       }
     } catch (e) {
-      // Ignore malformed/missing files.
+      Debug.log('app_state', 'final f = File(cmdFilePath): $e');
     }
   }
 

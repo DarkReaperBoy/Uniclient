@@ -15,6 +15,7 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../models/engine_models.dart';
 import 'color_picker_box.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const double _kContentMarginLeft = 20;
 const double _kContentMarginTop = 20;
@@ -211,7 +212,9 @@ class _TextAnnotation {
       final codec = await ui.instantiateImageCodec(imageBytes!);
       final frame = await codec.getNextFrame();
       _decodedImage = frame.image;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('photo_crop_editor', 'final codec = await ui.instantiateImageCodec(imageBytes!): $e');
+    }
   }
 
   _TextAnnotation copy() => _TextAnnotation(
@@ -850,7 +853,9 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     if (sticker.thumbB64.isNotEmpty) {
       try {
         imgBytes = Uint8List.fromList(base64Decode(sticker.thumbB64));
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('photo_crop_editor', 'imgBytes = Uint8List.fromList(base64Decode(sticker.thumbB...: $e');
+      }
     }
 
     final ann = _TextAnnotation(
@@ -2782,7 +2787,9 @@ class _ControlBar extends StatelessWidget {
           child: _BarIconButton(
             icon: Icons.brush_outlined,
             state: _IconState.active,
-            onPressed: () {},
+            // Active paint-tool indicator (non-interactive — wrapped in
+            // IgnorePointer); re-selects the current tool if ever reached.
+            onPressed: () => onPaintToolChanged?.call(currentPaintTool),
             tooltip: 'Paint',
           ),
         ),

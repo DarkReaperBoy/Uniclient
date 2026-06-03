@@ -30,6 +30,7 @@ import 'input_dialogs.dart' show showUsernameBox;
 import 'settings_style.dart';
 import 'telegram_toast.dart';
 import '../theme/telegram_palette.dart';
+import 'package:uniclient/utils/debug.dart';
 
 void _openUrl(String url) {
   launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
@@ -128,7 +129,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('settings_screen', 'final languages = await engine.getLanguages(accountId): $e');
+    }
   }
 
   Future<void> _reloadSettingsData() async {
@@ -154,7 +157,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _showPasswordValidation = !hasPassword && pendingEmail;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('settings_screen', 'final results = await Future.wait([: $e');
+    }
   }
 
   @override
@@ -270,9 +275,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
+      body: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           // §14.2: Profile header / cover area.
           _ProfileHeader(account: account, isDark: isDark),
           if (_showPhoneValidation)
@@ -621,8 +625,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 32),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          padding: EdgeInsets.zero,
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     );
   }
 
@@ -1045,7 +1054,9 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
           }
         }
         if (items.isNotEmpty) return items.take(64).toList();
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('settings_screen', 'final sets = await engine.getInstalledEmojiSets(accountId): $e');
+      }
       return [];
     }
 
@@ -1062,7 +1073,9 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                   if (items[i].thumbB64.isNotEmpty) {
                     try {
                       thumbs[i] = base64Decode(items[i].thumbB64);
-                    } catch (_) {}
+                    } catch (e) {
+                      Debug.log('settings_screen', 'thumbs[i] = base64Decode(items[i].thumbB64): $e');
+                    }
                   }
                 }
                 setDialogState(() {
@@ -1206,7 +1219,9 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
           }
         }
         if (items.isNotEmpty) return items.take(64).toList();
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('settings_screen', 'final sets = await engine.getInstalledEmojiSets(accountId): $e');
+      }
       return [];
     }
 
@@ -1223,7 +1238,9 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                   if (items[i].thumbB64.isNotEmpty) {
                     try {
                       thumbs[i] = _decodeStrippedThumb(items[i].thumbB64);
-                    } catch (_) {}
+                    } catch (e) {
+                      Debug.log('settings_screen', 'thumbs[i] = _decodeStrippedThumb(items[i].thumbB64): $e');
+                    }
                   }
                 }
                 setDialogState(() {
@@ -2469,8 +2486,8 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
       ('nobody', 'Nobody'),
     ];
 
-    return ListView(
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -2691,8 +2708,12 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
           ),
         ),
         const SizedBox(height: 8),
-      ],
-    );
+      ];
+      return ListView.builder(
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 }
 
@@ -2773,7 +2794,9 @@ class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
         });
         return;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('settings_screen', 'final result = await engine.getPremiumFeatures(widget.acc...: $e');
+    }
     if (mounted) setState(() { _loading = false; _loadError = true; });
   }
 
@@ -2799,9 +2822,8 @@ class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
+          : Builder(builder: (_) {
+            final _lvKids = <Widget>[
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -2889,8 +2911,13 @@ class _PremiumInfoScreenState extends State<_PremiumInfoScreen> {
                     ),
                   ),
                 ],
-              ],
-            ),
+              ];
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _lvKids.length,
+              itemBuilder: (_, _lvI) => _lvKids[_lvI],
+            );
+          }),
     );
   }
 }
@@ -3138,7 +3165,9 @@ class _CurrencyScreenState extends State<_CurrencyScreen> {
     try {
       final balance = await engine.getTonBalance(widget.accountId);
       if (mounted && balance.isNotEmpty) setState(() => _balance = balance);
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('settings_screen', 'final balance = await engine.getTonBalance(widget.accountId): $e');
+    }
   }
 
   @override
@@ -3161,9 +3190,8 @@ class _CurrencyScreenState extends State<_CurrencyScreen> {
         ),
         title: Text('Telegram Currency', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -3205,8 +3233,13 @@ class _CurrencyScreenState extends State<_CurrencyScreen> {
               child: const Text('Refresh Balance', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             ),
           ),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     );
   }
 }
@@ -3284,8 +3317,8 @@ class _BusinessScreenState extends State<_BusinessScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              children: [
+          : Builder(builder: (_) {
+            final _lvKids = <Widget>[
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Container(
@@ -3332,8 +3365,12 @@ class _BusinessScreenState extends State<_BusinessScreen> {
                       ),
                     ),
                   ),
-              ],
-            ),
+              ];
+            return ListView.builder(
+              itemCount: _lvKids.length,
+              itemBuilder: (_, _lvI) => _lvKids[_lvI],
+            );
+          }),
     );
   }
 }
@@ -3517,9 +3554,8 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
     final intervals = _data['intervals'] as Map<String, dynamic>? ?? {};
     final timezone = _data['timezone'] as String? ?? 'UTC';
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         InkWell(
           onTap: () => setState(() => _data['enabled'] = !enabled),
           hoverColor: hoverBg,
@@ -3556,8 +3592,13 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
           for (final day in days)
             _buildDayRow(day, intervals, textColor, subtextColor, accentColor, hoverBg, isDark),
         ],
-      ],
-    );
+      ];
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 
   Widget _buildDayRow(String day, Map<String, dynamic> intervals, Color textColor, Color subtextColor, Color accentColor, Color hoverBg, bool isDark) {
@@ -3710,9 +3751,8 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
     final lat = _data['lat'] as num? ?? 0.0;
     final lng = _data['lng'] as num? ?? 0.0;
     final hasCoords = lat != 0.0 || lng != 0.0;
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         Text('Business Address', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
         const SizedBox(height: 8),
         TextField(
@@ -3782,8 +3822,13 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
             ),
           ),
         Text('This address and location will be displayed on your profile.', style: TextStyle(fontSize: 13, color: subtextColor)),
-      ],
-    );
+      ];
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 
   Widget _buildMessageEditor(Color textColor, Color subtextColor, Color accentColor) {
@@ -3794,9 +3839,8 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
     final inactivityDays = _data['inactivity_days'] as int? ?? 7;
     final scheduleType = _data['schedule'] as String? ?? 'always';
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         Text(
           isGreeting ? 'Greeting Message' : 'Away Message',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor),
@@ -3886,15 +3930,19 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
               : 'This message will be sent automatically when you are unavailable.',
           style: TextStyle(fontSize: 13, color: subtextColor),
         ),
-      ],
-    );
+      ];
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 
   Widget _buildQuickRepliesEditor(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
     final replies = _data['replies'] as List<dynamic>? ?? [];
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         Text('Quick Replies', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
         const SizedBox(height: 8),
         Text('Set up shortcuts for frequently used messages.', style: TextStyle(fontSize: 13, color: subtextColor)),
@@ -3921,8 +3969,11 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
                         final engine = context.read<EngineService>();
                         try {
                           await engine.deleteQuickReplyShortcut(widget.accountId, shortcutId);
-                        } catch (_) {}
+                        } catch (e) {
+                          Debug.log('settings_screen', 'await engine.deleteQuickReplyShortcut(widget.accountId, s...: $e');
+                        }
                       }
+                      if (!mounted) return;
                       setState(() {
                         final r = List<dynamic>.from(replies)..removeAt(i);
                         _data['replies'] = r;
@@ -3940,8 +3991,13 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
           label: const Text('Add Quick Reply'),
           style: OutlinedButton.styleFrom(foregroundColor: accentColor, side: BorderSide(color: accentColor)),
         ),
-      ],
-    );
+      ];
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 
   void _showAddQuickReplyDialog(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
@@ -3983,7 +4039,9 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
                 try {
                   await engine.setBusinessFeature(widget.accountId, widget.featureKey, Map<String, dynamic>.from(_data));
                   await _loadData();
-                } catch (_) {}
+                } catch (e) {
+                  Debug.log('settings_screen', 'await engine.setBusinessFeature(widget.accountId, widget....: $e');
+                }
               }
             },
             child: Text('Add', style: TextStyle(color: accentColor)),
@@ -4001,9 +4059,8 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
       _data['bots'] = bots;
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         Text('Connected Chatbots', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
         const SizedBox(height: 8),
         Text('Connect Telegram bots to manage customer conversations.', style: TextStyle(fontSize: 13, color: subtextColor)),
@@ -4064,8 +4121,13 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
           label: const Text('Connect Bot'),
           style: OutlinedButton.styleFrom(foregroundColor: accentColor, side: BorderSide(color: accentColor)),
         ),
-      ],
-    );
+      ];
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 
   void _showAddBotDialog(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
@@ -4103,9 +4165,8 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
   }
 
   Widget _buildIntroEditor(Color textColor, Color subtextColor, Color accentColor) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         Text('Chat Intro', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
         const SizedBox(height: 8),
         Text('Customize the intro that new customers see when they open a chat with you.', style: TextStyle(fontSize: 13, color: subtextColor)),
@@ -4121,15 +4182,19 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: accentColor)),
           ),
         ),
-      ],
-    );
+      ];
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 
   Widget _buildLinksEditor(Color textColor, Color subtextColor, Color accentColor, bool isDark) {
     final links = _data['links'] as List<dynamic>? ?? [];
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    return Builder(builder: (_) {
+      final _lvKids = <Widget>[
         Text('Chat Links', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
         const SizedBox(height: 8),
         Text('Create direct links that customers can use to start a chat with you.', style: TextStyle(fontSize: 13, color: subtextColor)),
@@ -4164,8 +4229,11 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
                         final engine = context.read<EngineService>();
                         try {
                           await engine.deleteBusinessChatLink(widget.accountId, slug);
-                        } catch (_) {}
+                        } catch (e) {
+                          Debug.log('settings_screen', 'await engine.deleteBusinessChatLink(widget.accountId, slug): $e');
+                        }
                       }
+                      if (!mounted) return;
                       setState(() {
                         final l = List<dynamic>.from(links)..removeAt(i);
                         _data['links'] = l;
@@ -4194,8 +4262,13 @@ class _BusinessSubPageState extends State<_BusinessSubPage> {
           label: const Text('Create Link'),
           style: OutlinedButton.styleFrom(foregroundColor: accentColor, side: BorderSide(color: accentColor)),
         ),
-      ],
-    );
+      ];
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _lvKids.length,
+        itemBuilder: (_, _lvI) => _lvKids[_lvI],
+      );
+    });
   }
 }
 
@@ -4245,7 +4318,9 @@ class _GiftCatalogScreenState extends State<_GiftCatalogScreen> {
       for (final entry in b64Map.entries) {
         try {
           result[entry.key] = base64Decode(entry.value);
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('settings_screen', 'result[entry.key] = base64Decode(entry.value): $e');
+        }
       }
       return result;
     });

@@ -121,7 +121,9 @@ class _AuthScreenState extends State<AuthScreen>
       final tmpFile = File('${Directory.systemTemp.path}/uniclient_signup_avatar.png');
       await tmpFile.writeAsBytes(bytes);
       await engine.uploadProfilePhoto(accountId, tmpFile.path);
-      try { await tmpFile.delete(); } catch (_) {}
+      try { await tmpFile.delete(); } catch (e) {
+        Debug.log('auth_screen', 'await tmpFile.delete(): $e');
+      }
     } catch (e) {
       Debug.error('AUTH', 'Avatar upload failed', e);
       messenger?.showSnackBar(
@@ -1866,8 +1868,8 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
     setState(() => _callStatus = _CallStatus.calling);
     try {
       await widget.onResendCode?.call();
-    } catch (_) {
-      // Surfaced via the auth state's error path; keep the Calling→Called UI.
+    } catch (e) {
+      Debug.log('auth_screen', 'await widget.onResendCode?.call(): $e');
     }
     if (!mounted) return;
     setState(() => _callStatus = _CallStatus.called);
@@ -1936,6 +1938,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
     if (data?.text == null) return;
     final digits = data!.text!.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return;
+    if (!mounted) return;
     setState(() {
       for (var i = 0; i < widget.digitCount && i < digits.length; i++) {
         _digits[i] = digits[i];
@@ -2510,7 +2513,9 @@ class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
                       context.read<AppState>().addRecentLanguage(val!);
                       try {
                         context.read<EngineService>().updateConfig(language: val);
-                      } catch (_) {}
+                      } catch (e) {
+                        Debug.log('auth_screen', 'context.read<EngineService>().updateConfig(language: val): $e');
+                      }
                       // Re-render the intro in the chosen language: fetch the
                       // cloud pack via the in-progress account's connection
                       // (served pre-auth), mirroring AyuGram rebuilding the

@@ -834,7 +834,11 @@ class _InfoLayerOverlay extends StatelessWidget {
         alignment: Alignment.topCenter,
         padding: const EdgeInsets.only(left: 48, right: 48, top: 20),
         child: GestureDetector(
-          onTap: () {},
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            // Absorb taps on the panel so they don't fall through to the
+            // backdrop GestureDetector above and dismiss the info layer.
+          },
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 392),
             child: InfoPanel(

@@ -29,6 +29,7 @@ import 'settings_style.dart' show settingsPageRoute;
 import 'telegram_toast.dart';
 import 'telegram_tooltip.dart';
 import '../theme/telegram_palette.dart';
+import 'package:uniclient/utils/debug.dart';
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
 /// Shows active account profile at top, collapsible account switcher,
@@ -93,9 +94,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                 child: Scrollbar(
                   thumbVisibility: true,
                   interactive: true,
-                  child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
+                  child: Builder(builder: (_) {
+                    final _lvKids = <Widget>[
                     // Account list (collapsible) — SlideWrap toggled by
                     // mainMenuAccountsShownValue (spec §3.2). 6px mainMenuSkip spacers.
                     ClipRect(
@@ -502,8 +502,13 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       ),
                     // §3.6: Footer — product name + version/about links.
                     const _FooterSection(),
-                    ],
-                  ),
+                    ];
+                    return ListView.builder(
+                      padding: EdgeInsets.zero,
+                      itemCount: _lvKids.length,
+                      itemBuilder: (_, _lvI) => _lvKids[_lvI],
+                    );
+                  }),
                 ),
               ),
             ),
@@ -617,7 +622,9 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
       try {
         final result = await engine.getArchiveSettings(account.id);
         keepArchivedUnmuted = result.keepArchivedUnmuted;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('hamburger_drawer', 'final result = await engine.getArchiveSettings(account.id): $e');
+      }
     }
     if (!context.mounted) return;
 

@@ -335,34 +335,25 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
           vsync: this,
           duration: const Duration(milliseconds: 200),
           value: l.isHiddenOnStart ? 0.0 : 1.0,
-        )..addListener(() => setState(() {}))
+        )..addListener(_rebuild)
     };
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: _kXExpandDuration),
-    )..addListener(() {
-        final t = _sineInOut(_animController.value);
-        setState(() {
-          _rangeStart = _animFromStart + (_animToStart - _animFromStart) * t;
-          _rangeEnd = _animFromEnd + (_animToEnd - _animFromEnd) * t;
-        });
-        _updateRulerRange();
-        _updateFooterYRange();
-        _updateDateStep();
-      });
+    )..addListener(_onExpandTick);
     _chartTicker = createTicker(_onChartTick);
     _pieAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
-    )..addListener(() => setState(() {}));
+    )..addListener(_rebuild);
     _serverZoomAnim = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
-    )..addListener(() => setState(() {}));
+    )..addListener(_rebuild);
     _shakeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
-    )..addListener(() => setState(() {}));
+    )..addListener(_rebuild);
     _updateRulerRange();
     _updateFooterYRange();
   }
@@ -387,7 +378,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
             vsync: this,
             duration: const Duration(milliseconds: 200),
             value: l.isHiddenOnStart ? 0.0 : 1.0,
-          )..addListener(() => setState(() {}));
+          )..addListener(_rebuild);
         }
       }
       _lineVisible = {
@@ -457,14 +448,32 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     });
   }
 
+  void _rebuild() => setState(() {});
+
+  void _onExpandTick() {
+    final t = _sineInOut(_animController.value);
+    setState(() {
+      _rangeStart = _animFromStart + (_animToStart - _animFromStart) * t;
+      _rangeEnd = _animFromEnd + (_animToEnd - _animFromEnd) * t;
+    });
+    _updateRulerRange();
+    _updateFooterYRange();
+    _updateDateStep();
+  }
+
   @override
   void dispose() {
+    _animController.removeListener(_onExpandTick);
     _animController.dispose();
     _chartTicker.dispose();
+    _pieAnimController.removeListener(_rebuild);
     _pieAnimController.dispose();
+    _serverZoomAnim.removeListener(_rebuild);
     _serverZoomAnim.dispose();
+    _shakeController.removeListener(_rebuild);
     _shakeController.dispose();
     for (final c in _lineAlphaControllers.values) {
+      c.removeListener(_rebuild);
       c.dispose();
     }
     for (final tp in _textPainterCache.values) {

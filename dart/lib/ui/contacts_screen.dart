@@ -23,6 +23,7 @@ import 'input_dialogs.dart';
 import 'media_viewer.dart';
 import 'photo_crop_editor.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const double _boxWideWidth = 364;
 const double _boxTitleHeight = 48;
@@ -197,7 +198,9 @@ class _ContactsBoxState extends State<_ContactsBox> {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('contacts_screen', 'final fullInfo = await engine.getContactFullInfo(account....: $e');
+    }
     if (mounted) setState(() => _globalSearching = false);
   }
 
@@ -665,7 +668,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
         peerId: contact.userId,
       );
     } catch (e) {
-      debugPrint('Failed to load stories: $e');
+      Debug.error('contacts_screen', 'Failed to load stories', e);
     }
   }
 }
@@ -1529,7 +1532,9 @@ class _EditContactBoxState extends State<_EditContactBox> {
         _hasBirthday = bDay > 0 && bMonth > 0;
         _showSharePhone = info['need_contacts_exception'] as bool? ?? false;
       });
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('contacts_screen', 'final info = await widget.engine.getContactFullInfo(accou...: $e');
+    }
   }
 
   void _onNameChanged() => setState(() {});
@@ -1651,7 +1656,9 @@ class _EditContactBoxState extends State<_EditContactBox> {
     await tmp.writeAsBytes(bytes);
     if (!mounted) return;
     await _editAndApplyPhoto(tmp, suggest);
-    try { tmp.deleteSync(); } catch (_) {}
+    try { tmp.deleteSync(); } catch (e) {
+      Debug.log('contacts_screen', 'tmp.deleteSync(): $e');
+    }
   }
 
   Future<void> _choosePhotoFromEmoji(bool suggest) async {
@@ -2517,7 +2524,9 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
       if (mounted && _query == query) {
         setState(() => _serverResults = results);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('contacts_screen', 'final results = await widget.engine.searchGlobalChats(acc...: $e');
+    }
   }
 
   @override

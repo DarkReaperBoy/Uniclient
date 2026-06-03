@@ -71,7 +71,9 @@ void main() {
             .split('\x00')
             .where((s) => s.isNotEmpty)
             .toList();
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('main', 'final raw = File(\'/proc/self/cmdline\').readAsBytesSync(): $e');
+      }
     }
     if (args.contains('-ghost') || args.contains('--ghost')) {
       _cliGhostFlag = true;
@@ -329,14 +331,18 @@ class _UniClientAppState extends State<UniClientApp>
           final data = jsonDecode(emojiFile.readAsStringSync()) as Map<String, dynamic>;
           EmojiKeywords.instance.loadState(data);
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('main', 'final emojiFile = File(\'\$configDir/emoji_state.json\'): $e');
+      }
       EmojiKeywords.instance.init(
         cacheDir: cacheDir,
         saveCallback: () {
           try {
             File('$configDir/emoji_state.json')
                 .writeAsStringSync(jsonEncode(EmojiKeywords.instance.saveState()));
-          } catch (_) {}
+          } catch (e) {
+            Debug.log('main', 'File(\'\$configDir/emoji_state.json\'): $e');
+          }
         },
       );
     } else {
@@ -721,8 +727,8 @@ class _UniClientAppState extends State<UniClientApp>
           // second-scale values), so convert ms → s here.
           onlineCloudTimeoutSec: onlineMs != null ? onlineMs ~/ 1000 : null,
         );
-      } catch (_) {
-        // Transient (account disconnected mid-fetch / no network): keep defaults.
+      } catch (e) {
+        Debug.log('main', 'final cfg = await engine.callGeneric(: $e');
       }
     });
 
@@ -1770,7 +1776,9 @@ class _UniClientAppState extends State<UniClientApp>
       try {
         final ctx = _navigatorKey.currentContext;
         if (ctx != null) ctx.read<AppState>().lockByPasscode();
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('main', 'final ctx = _navigatorKey.currentContext: $e');
+      }
       return;
     }
     if (lc == 'ctrl+tab' || lc == 'control+tab') {
@@ -2383,7 +2391,9 @@ class _UniClientAppState extends State<UniClientApp>
       try {
         final emojiFile = File('${_appStateRef!.configDir}/emoji_state.json');
         emojiFile.writeAsStringSync(jsonEncode(EmojiKeywords.instance.saveState()));
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('main', 'final emojiFile = File(\'\${_appStateRef!.configDir}/emoji_...: $e');
+      }
     }
     _themeFadeCtrl?.dispose();
     _themeCrossFadeImage?.dispose();
@@ -2569,7 +2579,7 @@ class _UniClientAppState extends State<UniClientApp>
   }
 }
 
-/// §25.9.3: Theme switch confirmation overlay with 16s auto-revert countdown.
+/// §25.9.3: Theme switch confirmation overlay with 15s auto-revert countdown.
 class _ThemeRevertOverlay extends StatefulWidget {
   const _ThemeRevertOverlay();
 
@@ -2613,10 +2623,17 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
     _lastDisplayedSeconds = -1;
     _countdownTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       _remainingMs = _totalMs - _stopwatch.elapsedMilliseconds;
-      if (_remainingMs <= 0) {
+      // AyuGram computes secondsLeft via C++ integer division (truncation) and
+      // reverts the moment that hits <= 0 — i.e. when msPassed >= 15000 (15.0s),
+      // not when the full 15999ms elapses. Using `~/` matches that: 15999 ~/ 1000
+      // first shows 15 (not ceil()'s off-by-one 16), and 999 ~/ 1000 == 0 fires
+      // the revert at 15.0s. ← window_theme_warning.cpp:96 (setSecondsLeft(
+      // (kWaitBeforeRevertMs - msPassed) / 1000)), :99-100 (if (secondsLeft <= 0)
+      // Revert()).
+      final seconds = _remainingMs ~/ 1000;
+      if (seconds <= 0) {
         _revert();
       } else {
-        final seconds = (_remainingMs / 1000).ceil();
         if (seconds != _lastDisplayedSeconds) {
           _lastDisplayedSeconds = seconds;
           setState(() {});
@@ -2691,7 +2708,10 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
   Widget _buildBox(BuildContext context) {
     final p = context.palette;
     final accentColor = p.windowActiveTextFg;
-    final seconds = (_remainingMs / 1000).ceil();
+    // Integer truncation to match AyuGram's C++ `_secondsLeft` (init
+    // kWaitBeforeRevertMs / 1000 == 15, recomputed by truncation each tick), not
+    // ceil() which would show 16. ← window_theme_warning.cpp:31,96.
+    final seconds = _remainingMs ~/ 1000;
 
     return Material(
       color: Colors.transparent,
@@ -2844,19 +2864,45 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
           _systemUnlockEnabled = data['systemUnlockEnabled'] as bool? ?? false;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('main', 'final data = engine.getPasscodeConfig(): $e');
+    }
   }
 
   bool get _showSystemUnlockButton =>
       _unlockStatus.unlockType != UnlockType.none && _systemUnlockEnabled;
 
+  /// AyuGram's setupSystemUnlockInfo label text — the platform hint shown on the
+  /// cold-start lock (domain not started) telling the user system unlock becomes
+  /// available once they enter the passcode. ← window_lock_widgets.cpp:132-145.
+  String _systemUnlockInfoText() {
+    if (!kIsWeb && Platform.isWindows) return TrStrings.lngPasscodeWinhello();
+    switch (_unlockStatus.unlockType) {
+      case UnlockType.biometrics:
+        return TrStrings.lngPasscodeTouchid();
+      case UnlockType.companion:
+        return TrStrings.lngPasscodeApplewatch();
+      case UnlockType.defaultUnlock:
+        return TrStrings.lngPasscodeSystempwd();
+      case UnlockType.none:
+        return '';
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _visible) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _focusNode.requestFocus();
         final cooldownElapsed = DateTime.now().difference(_lastSystemUnlockAttempt) >= _systemUnlockCooldown;
-        if (_showSystemUnlockButton && !_systemUnlockSuggested && cooldownElapsed) {
+        // Only the started path (active-session lock) auto-suggests system unlock
+        // on window-activate; the cold-start lock just shows the info label.
+        // ← window_lock_widgets.cpp:123-128,164.
+        if (_showSystemUnlockButton &&
+            context.read<AppState>().domainStarted &&
+            !_systemUnlockSuggested &&
+            cooldownElapsed) {
           _triggerSystemUnlock();
         }
       });
@@ -2903,7 +2949,10 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     final appState = context.read<AppState>();
     final entered = _controller.text;
     if (entered.isEmpty) {
-      _showError(TrStrings.lngPasscodeEmpty());
+      // AyuGram's submit() on empty input calls only `_passcode->showError()` —
+      // the field-shake feedback, with NO error label (there is no
+      // lng_passcode_empty string in the Telegram lang). ← window_lock_widgets.cpp:260-263.
+      _shakeField();
       return;
     }
     if (!appState.passcodeCanTry()) {
@@ -2924,6 +2973,13 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
       baseOffset: 0,
       extentOffset: _controller.text.length,
     );
+    _focusNode.requestFocus();
+  }
+
+  /// The field-shake feedback shown for empty input — AyuGram's
+  /// `_passcode->showError()` with no error label. ← window_lock_widgets.cpp:261.
+  void _shakeField() {
+    _shakeAnim.forward(from: 0.0);
     _focusNode.requestFocus();
   }
 
@@ -2979,6 +3035,10 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
 
+    // AyuGram wires the active system-unlock button only when the domain is
+    // started; the cold-start lock shows the info label instead.
+    // ← window_lock_widgets.cpp:123-128.
+    final domainStarted = context.watch<AppState>().domainStarted;
     final palette = context.palette;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = palette.windowBg;
@@ -3113,7 +3173,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                     ),
                   ),
                 ),
-                if (_showSystemUnlockButton)
+                if (domainStarted && _showSystemUnlockButton)
                   Positioned(
                     left: (constraints.maxWidth + 225) / 2 - 32,
                     top: inputY + _inputFieldHeight - 36,
@@ -3147,6 +3207,22 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                     ),
                   ),
                 ),
+                // Cold-start lock (domain not started): AyuGram shows a centred
+                // info label beneath the logout link with the platform hint text,
+                // 12px below it (passcodeSystemUnlockSkip), full width minus the
+                // 22px box row padding. Same availability gate as the IconButton.
+                // ← window_lock_widgets.cpp:132-161, boxes.style:319-323.
+                if (!domainStarted && _showSystemUnlockButton)
+                  Positioned(
+                    left: 22,
+                    right: 22,
+                    top: inputY + _inputFieldHeight + _passcodeSubmitSkip + 42 + 16 + 16 + 12,
+                    child: Text(
+                      _systemUnlockInfoText(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: subtextColor),
+                    ),
+                  ),
                 if (_showLogoutConfirm)
                   Positioned.fill(
                     child: AnimatedBuilder(

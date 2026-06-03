@@ -73,9 +73,8 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
+      body: Builder(builder: (_) {
+        final _lvKids = <Widget>[
           const SizedBox(height: 7),
           // ── Ghost essentials (§51.2.1) ──
           _GhostEssentialsHeader(
@@ -298,8 +297,13 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
             useMaterial: appState.materialSwitches,
           ),
           const SizedBox(height: 24),
-        ],
-      ),
+        ];
+        return ListView.builder(
+          padding: EdgeInsets.zero,
+          itemCount: _lvKids.length,
+          itemBuilder: (_, _lvI) => _lvKids[_lvI],
+        );
+      }),
     );
   }
 }

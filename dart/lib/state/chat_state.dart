@@ -849,8 +849,8 @@ class ChatState extends ChangeNotifier {
   Future<void> deleteFolder(String accountId, String folderId) async {
     try {
       await _engine.deleteFolder(accountId, folderId);
-    } catch (_) {
-      // Engine error — folder might already be gone; still refresh.
+    } catch (e) {
+      Debug.log('chat_state', 'await _engine.deleteFolder(accountId, folderId): $e');
     }
     if (_activeFolderId == folderId) {
       _activeFolderId = null;
@@ -989,7 +989,9 @@ class ChatState extends ChangeNotifier {
       _sharedFoldersPremium = limits['shared_folders_premium'] ?? 20;
       _linksPerFolderFree = limits['links_per_folder_free'] ?? 3;
       _linksPerFolderPremium = limits['links_per_folder_premium'] ?? 20;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', 'final limits = await _engine.getFolderLimits(accountId): $e');
+    }
   }
 
   /// Called when the user switches active account.
@@ -1239,7 +1241,9 @@ class ChatState extends ChangeNotifier {
       if (_forumHasMore) {
         _autoPreloadForumTopics(chat);
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', 'final topics = await _engine.getForumTopics(chat.accountI...: $e');
+    }
     _forumFirstLoadDone = true;
     final key = '${chat.accountId}:${chat.chatId}';
     _forumRecentTopics[key] = _recentTopicsByDate(_forumTopics);
@@ -1273,7 +1277,9 @@ class ChatState extends ChangeNotifier {
         _sortTopics(_forumTopics);
         _forumHasMore = topics.length >= 500;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', 'int offsetDate = 0: $e');
+    }
     _forumLoadingMore = false;
     if (chat == _forumParentChat) notifyListeners();
   }
@@ -1292,7 +1298,9 @@ class ChatState extends ChangeNotifier {
       _forumTopics = topics;
       _sortTopics(_forumTopics);
       _forumHasMore = topics.length >= 20;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', 'final topics = await _engine.getForumTopics(chat.accountI...: $e');
+    }
     if (chat == _forumParentChat) {
       final key = '${chat.accountId}:${chat.chatId}';
       _forumRecentTopics[key] = _recentTopicsByDate(_forumTopics);
@@ -1357,7 +1365,9 @@ class ChatState extends ChangeNotifier {
       try {
         final (pinned, _) = _engine.getPinnedSavedSublists(accountId);
         _pinnedSublists = pinned;
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_state', 'final (pinned, _) = _engine.getPinnedSavedSublists(accoun...: $e');
+      }
 
       // First batch: kListFirstPerPage=20 non-pinned sublists
       final (sublists, total) = _engine.getSavedSublists(
@@ -1386,7 +1396,9 @@ class ChatState extends ChangeNotifier {
         await _loadMoreSavedSublistsInternal();
         return;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', 'final (pinned, _) = _engine.getPinnedSavedSublists(accoun...: $e');
+    }
     _savedSublistsLoading = false;
     notifyListeners();
     loadSavedReactionTags();
@@ -1428,7 +1440,9 @@ class ChatState extends ChangeNotifier {
         await _loadMoreSavedSublistsInternal();
         return;
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', 'final (sublists, total) = _engine.getSavedSublists(: $e');
+    }
     _savedSublistsLoadingMore = false;
     notifyListeners();
   }
@@ -1526,7 +1540,9 @@ class ChatState extends ChangeNotifier {
         sublistPeerId: sublistPeerId,
       );
       _savedReactionTags = tags;
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', 'final tags = _engine.getSavedReactionTags(: $e');
+    }
     _savedReactionTagsLoading = false;
     notifyListeners();
   }
@@ -1541,7 +1557,9 @@ class ChatState extends ChangeNotifier {
         title: title,
       );
       await loadSavedReactionTags();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', '_engine.renameSavedReactionTag(: $e');
+    }
   }
 
   void openTopic(ForumTopic topic) {
@@ -2285,7 +2303,9 @@ class ChatState extends ChangeNotifier {
             if (docId > 0) ids.add(docId);
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('chat_state', 'final entities = jsonDecode(msg.contentRich) as List: $e');
+      }
     }
     if (ids.isNotEmpty) {
       CustomEmojiCache.instance.preloadBatch(ids, accountId, _engine);
@@ -2313,7 +2333,9 @@ class ChatState extends ChangeNotifier {
         _avatarCache['$accountId:$chatId'] = Map.of(_senderAvatars);
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', 'const batchSize = 200: $e');
+    }
   }
 
   /// Fetch the online member count for a group/channel via the platform API.
@@ -2324,8 +2346,8 @@ class ChatState extends ChangeNotifier {
         _groupOnlineCount = count;
         notifyListeners();
       }
-    } catch (_) {
-      // Non-critical — subtitle falls back to "X members" without online count.
+    } catch (e) {
+      Debug.log('chat_state', 'final count = await _engine.getOnlineCount(accountId, cha...: $e');
     }
   }
 
@@ -2453,7 +2475,9 @@ class ChatState extends ChangeNotifier {
       await _engine.toggleConnectedBotPaused(chat.accountId, chat.chatId, paused: newPaused);
       _connectedBotPaused = newPaused;
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', 'await _engine.toggleConnectedBotPaused(chat.accountId, ch...: $e');
+    }
   }
 
   Future<void> removeConnectedBot() async {
@@ -2465,7 +2489,9 @@ class ChatState extends ChangeNotifier {
       _connectedBotPaused = false;
       _connectedBotsCache.remove(chat.accountId);
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('chat_state', 'await _engine.disablePeerConnectedBot(chat.accountId, cha...: $e');
+    }
   }
 
   /// Re-fetch the latest messages for the active chat and merge.
@@ -3058,7 +3084,9 @@ class ChatState extends ChangeNotifier {
         accessHash = int.tryParse(parts[0]) ?? 0;
         try {
           fileRef = base64.decode(parts[1]);
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('chat_state', 'fileRef = base64.decode(parts[1]): $e');
+        }
       }
     }
     audio.playVoice(

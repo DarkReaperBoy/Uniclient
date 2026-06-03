@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 
 import '../bridge/engine_service.dart';
+import 'package:uniclient/utils/debug.dart';
 
 /// Playlist repeat mode for the media player (mirrors AyuGram RepeatMode:
 /// None / One / All — media_player_button.h).
@@ -155,7 +156,9 @@ class AudioService extends ChangeNotifier {
           _savedPositions[entries[i].key] = Duration(milliseconds: entries[i].value as int);
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('audio_service', 'final file = File(\'\$_configDir/audio_positions.json\'): $e');
+    }
   }
 
   void _persistSavedPositions() {
@@ -169,7 +172,9 @@ class AudioService extends ChangeNotifier {
         }
         File('$_configDir/audio_positions.json')
             .writeAsStringSync(jsonEncode(data));
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('audio_service', 'final data = <String, int>: $e');
+      }
     });
   }
 
@@ -433,14 +438,18 @@ class AudioService extends ChangeNotifier {
       _ducking = true;
       try {
         await p.setVolume(0);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('audio_service', 'await p.setVolume(0): $e');
+      }
     }
     _duckTimer?.cancel();
     _duckTimer = Timer(length, () async {
       _ducking = false;
       try {
         await _player?.setVolume(100);
-      } catch (_) {}
+      } catch (e) {
+        Debug.log('audio_service', 'await _player?.setVolume(100): $e');
+      }
     });
   }
 
@@ -741,7 +750,9 @@ class AudioService extends ChangeNotifier {
             _currentFileRef = newRef;
             await send(newRef);
           }
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('audio_service', 'final newRef = await _engine.refreshDocumentFileRef(: $e');
+        }
       } else {
         debugPrint('AudioService: reportMusicListen failed: $e');
       }

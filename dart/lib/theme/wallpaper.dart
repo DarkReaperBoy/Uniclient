@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image/image.dart' as img;
 import 'package:vector_graphics/vector_graphics.dart' as vgfx;
+import 'package:uniclient/utils/debug.dart';
 
 enum WallpaperType { solid, gradient, pattern, image }
 
@@ -1032,7 +1033,9 @@ Future<ui.Image?> _decodePatternBytes(Uint8List bytes) async {
   if (data.length >= 2 && data[0] == 0x1f && data[1] == 0x8b) {
     try {
       data = Uint8List.fromList(GZipDecoder().decodeBytes(data));
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('wallpaper', 'data = Uint8List.fromList(GZipDecoder().decodeBytes(data)): $e');
+    }
   }
   if (_looksLikeSvg(data)) {
     return _rasterizeSvg(data);

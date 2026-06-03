@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import 'package:uniclient/utils/debug.dart';
 
 class RegexFilter {
   final String id;
@@ -226,8 +227,8 @@ RegExp? compileFilterPattern(String text, bool caseInsensitive) {
       try {
         return RegExp(candidate,
             multiLine: true, unicode: unicode, caseSensitive: !caseInsensitive);
-      } catch (_) {
-        // fall through to the next, more permissive, attempt
+      } catch (e) {
+        Debug.log('ayu_filter', 'return RegExp(candidate,: $e');
       }
     }
   }
@@ -377,10 +378,8 @@ String _extractSingleText(CachedMessage msg, {Set<String>? extractedUrls}) {
           }
         }
       }
-    } catch (_) {
-      // contentRich that isn't a JSON entities array carries no URL entities to
-      // extract; visible-text matching (above) still applies. Silent like every
-      // other contentRich consumer (chat_state, message_bubble, notifications).
+    } catch (e) {
+      Debug.log('ayu_filter', 'final entities = jsonDecode(msg.contentRich) as List: $e');
     }
   }
 
@@ -431,7 +430,9 @@ Map<String, dynamic>? _extractExtra(String raw) {
     if (m is Map<String, dynamic>) {
       return m['extra'] as Map<String, dynamic>?;
     }
-  } catch (_) {}
+  } catch (e) {
+    Debug.log('ayu_filter', 'final m = jsonDecode(raw): $e');
+  }
   return null;
 }
 

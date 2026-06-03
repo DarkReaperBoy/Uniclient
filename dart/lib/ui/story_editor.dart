@@ -16,6 +16,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'telegram_toast.dart';
+import 'package:uniclient/utils/debug.dart';
 
 const double _canvasWidth = 540;
 const double _canvasHeight = 960;
@@ -363,7 +364,9 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           final codec = await ui.instantiateImageCodec(coverBytes);
           final frame = await codec.getNextFrame();
           if (mounted) setState(() => _videoCoverFrame = frame.image);
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('story_editor', 'final codec = await ui.instantiateImageCodec(coverBytes): $e');
+        }
       }
       _extractVideoThumbnails(file, duration);
     } finally {
@@ -400,8 +403,8 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           thumbs.add(null);
         }
       }
-    } catch (_) {
-      // Fall back to empty thumbnails
+    } catch (e) {
+      Debug.log('story_editor', 'final codec = await ui.instantiateImageCodec(: $e');
     } finally {
       await player.dispose();
     }
@@ -522,6 +525,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
       progressTimer.cancel();
       _uploadProgressNotifier.value = 1.0;
+      if (!mounted) return;
       setState(() => _posted = true);
 
       if (mounted) Navigator.of(context).pop();
@@ -642,7 +646,9 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
             Rect.fromLTWH(-dw / 2, -dh / 2, dw, dh),
             Paint(),
           );
-        } catch (_) {}
+        } catch (e) {
+          Debug.log('story_editor', 'final codec = await ui.instantiateImageCodec(item.sticker...: $e');
+        }
       } else if (item.isText && item.text.isNotEmpty) {
         final tp = TextPainter(
           text: TextSpan(
@@ -2055,7 +2061,9 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           if (sticker.thumbB64.isNotEmpty) {
             try {
               imageBytes = Uint8List.fromList(base64Decode(sticker.thumbB64));
-            } catch (_) {}
+            } catch (e) {
+              Debug.log('story_editor', 'imageBytes = Uint8List.fromList(base64Decode(sticker.thum...: $e');
+            }
           }
           final item = _SceneItem(
             position: center,
@@ -2102,7 +2110,9 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           });
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      Debug.log('story_editor', 'final files = await engine.getStickerFiles(accountId, [do...: $e');
+    }
   }
 
   void _handleKeyEvent(KeyEvent event) {
@@ -3160,7 +3170,9 @@ class _StickerPickerPanelState extends State<_StickerPickerPanel> {
             if (sticker.thumbB64.isNotEmpty && !_stickerThumbCache.containsKey(sticker.fileId)) {
               try {
                 _stickerThumbCache[sticker.fileId] = Uint8List.fromList(base64Decode(sticker.thumbB64));
-              } catch (_) {}
+              } catch (e) {
+                Debug.log('story_editor', '_stickerThumbCache[sticker.fileId] = Uint8List.fromList(b...: $e');
+              }
             }
           }
         }

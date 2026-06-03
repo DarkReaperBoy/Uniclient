@@ -37,6 +37,11 @@ class Debug {
       if (stack != null) buf.writeln('  ${stack.toString().split('\n').take(10).join('\n  ')}');
       buf.writeln();
       file.writeAsStringSync(buf.toString(), mode: FileMode.append);
-    } catch (_) {}
+    } catch (_) {
+      // Terminal fallback: this IS the crash logger. If persisting the crash log
+      // fails (disk full, no permissions, missing dir), there is nowhere left to
+      // report it — logging here would recurse straight back into error() and
+      // _appendCrashLog(). Swallowing is the only safe option at this layer.
+    }
   }
 }
