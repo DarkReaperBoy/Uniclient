@@ -1566,6 +1566,13 @@ class _ChatListPanelState extends State<ChatListPanel>
         shadowBanId != null;
     final isShadowBanned = canShadowBan && appState.isShadowBanned(shadowBanId!);
 
+    // "Show / Hide filtered messages" — AyuGram's only way to reveal regex/shadowban-
+    // hidden messages (context_menu.cpp:258-271). Returns non-null only once this chat
+    // has had messages hidden by the filter engine (or the user already toggled it),
+    // mirroring FiltersController::filteredMessagesShown → hasFilteredMessages. true =
+    // currently revealed (offer "Hide"), false = currently hidden (offer "Show").
+    final filteredShown = appState.filterEngine.filteredMessagesShown(chat.chatId);
+
     final viewLabel = isDm
         ? 'View Profile'
         : chat.type == ChatType.channel
@@ -1605,6 +1612,17 @@ class _ChatListPanelState extends State<ChatListPanel>
                   ? 'Typing Exclusion: Always'
                   : 'Typing Exclusion',
         ),
+        if (filteredShown != null)
+          TelegramMenuItem(
+            value: 'toggle_filtered',
+            label: filteredShown
+                ? 'Hide filtered messages'
+                : 'Show filtered messages',
+            icon: Icon(
+              filteredShown ? Icons.visibility_off : Icons.visibility,
+              size: 20,
+            ),
+          ),
         const TelegramMenuItem(
           value: 'view_deleted',
           label: 'View deleted messages',
@@ -1685,6 +1703,11 @@ class _ChatListPanelState extends State<ChatListPanel>
           if (context.mounted) {
             _showTypingExclusionMenu(context, chat, globalPosition);
           }
+        case 'toggle_filtered':
+          // Flip showing-filtered for this peer; the filter engine's notifyListeners
+          // (chat_view's fireUpdate equivalent) re-runs the open chat's _filterMessages
+          // so hidden messages appear/disappear. ← context_menu.cpp:264-266
+          appState.filterEngine.toggleFilteredMessagesShown(chat.chatId);
         case 'view_deleted':
           chatState.openChat(chat);
           Future.microtask(() => chatState.openDeletedMessages());

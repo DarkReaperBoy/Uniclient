@@ -49,7 +49,15 @@ class RegexFilter {
     'enabled': enabled,
     'reversed': reversed,
     'caseInsensitive': caseInsensitive,
-    if (dialogId != null && dialogId!.isNotEmpty) 'dialogId': dialogId,
+    // AyuGram ALWAYS writes the dialogId key, using an explicit JSON null for shared
+    // filters (`filterJson["dialogId"] = QJsonValue()`, filters_utils.cpp:475-479). A
+    // *missing* key imports as QJsonValue::Undefined, whose isNull() is false, so
+    // AyuGram's `if (!dialogIdValue.isNull())` import branch runs and toLongLong()
+    // yields 0 — the shared filter is silently filed under byDialogId[0] and never
+    // matches. Emit null for shared filters so they round-trip into real AyuGram.
+    // (Dart's fromJson reads `j['dialogId']?.toString()`, so null/absent both load as a
+    // null dialogId — local persistence is unaffected.) ← filters_utils.cpp:475-479,726-731
+    'dialogId': isShared ? null : dialogId,
   };
 
   factory RegexFilter.fromJson(Map<String, dynamic> j) => RegexFilter(
@@ -860,17 +868,21 @@ class AyuFilterEngine extends ChangeNotifier {
     return false;
   }
 
-  // AyuGram's filterBlocked()/isBlocked() (filters_controller.cpp:30-37,95-136): a
-  // shadowbanned sender always hides the message; a *blocked* sender hides only when
-  // hideFromBlocked is on. Both apply to the direct sender (when it isn't the chat peer
-  // itself) and to a forwarded message's original sender. filtersEnabled is already
-  // guaranteed true by the caller. The verdict is intentionally NOT cached.
+  // AyuGram's filterBlocked()/isBlocked() (filters_controller.cpp:30-37,95-136): the
+  // ENTIRE block check — the direct sender AND the forwarded-original-sender branch
+  // (both live inside isBlocked) — is gated behind `from() != peer`. So in any chat
+  // where the sender IS the peer (1-1 DMs, channel posts, anonymous-admin group posts)
+  // nothing is hidden via block/shadowban — not even a message forwarded from a
+  // blocked/shadowbanned user. The Go engine leaves SenderID empty when a message has
+  // no explicit from_id (exactly the DM/channel-post case, where from()==peer), so
+  // "sender is the peer" is `senderId == null || senderId == chatId`. A shadowbanned
+  // sender always hides the message; a *blocked* sender hides only when hideFromBlocked
+  // is on. filtersEnabled is already guaranteed true by the caller. Not cached.
   bool _filterBlocked(CachedMessage msg, AppState appState) {
     final senderId = _parseSenderId(msg.senderId);
-    if (senderId != null && msg.senderId != msg.chatId) {
-      if (appState.isShadowBanned(senderId)) return true;
-      if (appState.hideFromBlocked && appState.isBlocked(senderId)) return true;
-    }
+    if (senderId == null || msg.senderId == msg.chatId) return false;
+    if (appState.isShadowBanned(senderId)) return true;
+    if (appState.hideFromBlocked && appState.isBlocked(senderId)) return true;
     final fwdId = _parseForwardSenderId(msg.forwardFrom);
     if (fwdId != null) {
       if (appState.isShadowBanned(fwdId)) return true;

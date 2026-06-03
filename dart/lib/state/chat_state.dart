@@ -2799,6 +2799,21 @@ class ChatState extends ChangeNotifier {
         );
       }
       _messages[idx] = updated;
+      // Re-filter the edited message. AyuGram calls FiltersController::invalidate on
+      // every message edit (data_session.cpp:2750) so the regex verdict is recomputed
+      // from the new text: an incoming message edited to newly match a filter gets
+      // hidden, and a hidden message edited to no longer match reappears. Without it the
+      // stale per-message verdict in the cache survives until an unrelated rebuildCache().
+      // groupedId invalidates the whole album (AyuGram invalidates every group member).
+      // Gated on filtersEnabled, matching FiltersController::invalidate's early-out.
+      // ← filters_controller.cpp:206-213, filters_cache_controller.cpp:216-225
+      if (_appState.filtersEnabled) {
+        _appState.filterEngine.invalidateMessage(
+          event.chatId,
+          event.msgId,
+          groupedId: updated.groupedId,
+        );
+      }
       notifyListeners();
     }
   }
