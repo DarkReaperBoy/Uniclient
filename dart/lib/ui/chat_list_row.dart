@@ -29,27 +29,39 @@ Uint8List _cachedThumbDecode(String b64) {
   return decoded;
 }
 
-const _monthAbbr = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-];
-
-String formatChatListTime(int timestampMs) {
+/// Chat-list timestamp formatter — ports AyuGram `FormatDialogsDate`
+/// (`ui/text/format_values.cpp:526-542`). Three cases, and crucially NO literal
+/// "Yesterday":
+///   1. Same calendar day OR less than 20 hours old → local short time (HH:mm).
+///      The 20-hour rule means a message that is <20h old but crossed midnight
+///      still shows the time, not a day name.
+///   2. Otherwise within the last 7 calendar days → abbreviated day-of-week
+///      (matches `langDayOfWeek`, which returns the SHORT weekday name).
+///   3. Older → locale short (numeric) date including the year — never "Jan 5".
+String formatChatListTime(BuildContext context, int timestampMs) {
   if (timestampMs == 0) return '';
   final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
   final now = DateTime.now();
-  final diff = now.difference(dt);
 
-  if (diff.inDays == 0 && dt.day == now.day) {
+  // "Show all dates that are in the last 20 hours in time format."
+  const kRecentlyInSeconds = 20 * 3600;
+  final sameDate =
+      dt.year == now.year && dt.month == now.month && dt.day == now.day;
+  final secondsApart = now.difference(dt).inSeconds.abs();
+  if (sameDate || secondsApart < kRecentlyInSeconds) {
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
-  if (diff.inDays == 1 || (diff.inDays == 0 && dt.day != now.day)) {
-    return 'Yesterday';
-  }
-  if (diff.inDays < 7) {
+
+  // Within the last 7 calendar days → abbreviated weekday name.
+  final nowMidnight = DateTime(now.year, now.month, now.day);
+  final dtMidnight = DateTime(dt.year, dt.month, dt.day);
+  final daysApart = nowMidnight.difference(dtMidnight).inDays.abs();
+  if (daysApart < 7) {
     return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][dt.weekday - 1];
   }
-  return '${_monthAbbr[dt.month - 1]} ${dt.day}';
+
+  // Older → locale short (numeric) date including the year.
+  return MaterialLocalizations.of(context).formatCompactDate(dt);
 }
 
 /// Spec §2.7: Data carried during a drag-and-drop forward gesture.
@@ -300,7 +312,7 @@ class ChatListRow extends StatelessWidget {
                             ),
                           const SizedBox(width: 5),
                           Text(
-                            formatChatListTime(chat.lastMsgTime),
+                            formatChatListTime(context, chat.lastMsgTime),
                             style: TextStyle(
                               fontSize: 13,
                               color: isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg,
@@ -309,43 +321,18 @@ class ChatListRow extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      // Bottom row: preview + badges.
+                      // Bottom row: preview + trailing badges.
+                      // AyuGram PaintBadges (dialogs_layout.cpp:198-287) paints
+                      // right-to-left from the right edge: the unread counter hugs
+                      // the right edge, then mention/reaction, then poll to its left.
+                      // Laid out left-to-right here as poll → mention/reaction →
+                      // unread, so the unread badge ends up rightmost.
                       Row(
                         children: [
                           Expanded(
                             child: _buildPreview(palette, nameColor, mutedColor, showDrafts),
                           ),
-                          // Unread badge or unread dot.
-                          if (chat.unreadCount > 0) ...[
-                            const SizedBox(width: 8),
-                            _UnreadBadge(
-                              count: chat.unreadCount,
-                              bgColor: badgeBg,
-                              textColor: badgeText,
-                            ),
-                          ] else if (chat.isUnreadMark) ...[
-                            const SizedBox(width: 8),
-                            _UnreadDot(bgColor: badgeBg),
-                          ] else if (chat.isPinned) ...[
-                            const SizedBox(width: 8),
-                            Icon(Icons.push_pin, size: 14, color: mutedColor),
-                          ],
-                          if (chat.unreadMentionCount > 0) ...[
-                            const SizedBox(width: 5),
-                            _ThreeStateBadgeIcon(
-                              icon: Icons.alternate_email,
-                              color: isNarrow ? badgeBg : palette.dialogsMentionIconFg,
-                              isNarrow: isNarrow,
-                            ),
-                          ],
-                          if (chat.unreadReactionCount > 0) ...[
-                            const SizedBox(width: 5),
-                            _ThreeStateBadgeIcon(
-                              icon: Icons.favorite,
-                              color: isNarrow ? badgeBg : palette.dialogsReactionIconFg,
-                              isNarrow: isNarrow,
-                            ),
-                          ],
+                          // Poll badge — leftmost of the cluster.
                           if (chat.unreadPollCount > 0) ...[
                             const SizedBox(width: 5),
                             _ThreeStateBadgeIcon(
@@ -353,6 +340,38 @@ class ChatListRow extends StatelessWidget {
                               color: isNarrow ? badgeBg : palette.dialogsPollIconFg,
                               isNarrow: isNarrow,
                             ),
+                          ],
+                          // Mention OR reaction — only one (dialogs_layout.cpp:248-272),
+                          // mention takes priority; never both together.
+                          if (chat.unreadMentionCount > 0) ...[
+                            const SizedBox(width: 5),
+                            _ThreeStateBadgeIcon(
+                              icon: Icons.alternate_email,
+                              color: isNarrow ? badgeBg : palette.dialogsMentionIconFg,
+                              isNarrow: isNarrow,
+                            ),
+                          ] else if (chat.unreadReactionCount > 0) ...[
+                            const SizedBox(width: 5),
+                            _ThreeStateBadgeIcon(
+                              icon: Icons.favorite,
+                              color: isNarrow ? badgeBg : palette.dialogsReactionIconFg,
+                              isNarrow: isNarrow,
+                            ),
+                          ],
+                          // Unread badge / dot / pin — rightmost, hugs the right edge.
+                          if (chat.unreadCount > 0) ...[
+                            const SizedBox(width: 5),
+                            _UnreadBadge(
+                              count: chat.unreadCount,
+                              bgColor: badgeBg,
+                              textColor: badgeText,
+                            ),
+                          ] else if (chat.isUnreadMark) ...[
+                            const SizedBox(width: 5),
+                            _UnreadDot(bgColor: badgeBg),
+                          ] else if (chat.isPinned) ...[
+                            const SizedBox(width: 5),
+                            Icon(Icons.push_pin, size: 14, color: mutedColor),
                           ],
                         ],
                       ),
@@ -1129,7 +1148,7 @@ class _ChatAvatar extends StatelessWidget {
                 child: CustomPaint(
                   painter: _StoriesRingPainter(
                     storyCount: chat.storyCount,
-                    hasUnread: chat.hasUnreadStory,
+                    unreadCount: _effectiveStoriesUnread(chat),
                     isLiveStream: chat.isLiveStream,
                     isDark: isDark,
                     minified: minified,
@@ -1206,15 +1225,37 @@ class _ChatAvatar extends StatelessWidget {
     return t[0].toUpperCase();
   }
 
+  /// Effective unread-story count driving the ring's per-segment split
+  /// (AyuGram `dialogs_row.cpp:452-470` reads `data->storiesUnreadCount`). When
+  /// the engine reports an explicit unread count we use it (clamped to the total);
+  /// otherwise we fall back to the aggregate `hasUnreadStory` flag — treating all
+  /// stories as unread (the prior all-gradient look) when set, none when clear.
+  static int _effectiveStoriesUnread(ChatInfo chat) {
+    if (chat.storiesUnreadCount > 0) {
+      return math.min(chat.storiesUnreadCount, chat.storyCount);
+    }
+    return chat.hasUnreadStory ? chat.storyCount : 0;
+  }
+
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 }
 
-/// Custom painter for stories ring around chat list avatars.
-/// Spec §2: two geometry modes (full/expanded and small/minified).
-/// Ring offset outside userpic by 1.5 × lineWidth.
+/// Custom painter for the stories ring around chat-list avatars.
+///
+/// Ports AyuGram's dialog-row outline (`dialogs/dialogs_row.cpp:441-481` +
+/// `ui/effects/outline_segments.cpp`). The ring is built from MIXED segments in a
+/// single pass: `storiesReadCount` thin gray arcs (`lineReadTwice/2`) plus
+/// `storiesUnreadCount` thick gradient arcs (`lineTwice/2`). A peer with e.g. 5
+/// stories / 2 unread therefore shows 3 thin gray + 2 thick gradient arcs of
+/// different widths — never a single uniform ring.
+///
+/// Two geometry modes (`dialogs.style`): full/expanded
+/// (`dialogsStoriesFull` lineTwice 4 / lineReadTwice 2 → 2.0 / 1.0) and
+/// small/minified (`dialogsStories` lineTwice 3 / lineReadTwice 0 → 1.5 / 0,
+/// i.e. read segments are not drawn when collapsed).
 class _StoriesRingPainter extends CustomPainter {
   final int storyCount;
-  final bool hasUnread;
+  final int unreadCount;
   final bool isLiveStream;
   final bool isDark;
   final bool minified;
@@ -1222,99 +1263,123 @@ class _StoriesRingPainter extends CustomPainter {
 
   _StoriesRingPainter({
     required this.storyCount,
-    required this.hasUnread,
+    required this.unreadCount,
     required this.isLiveStream,
     required this.isDark,
     this.minified = false,
     this.readOpacity = 0.6,
   });
 
+  double get _unreadLine => minified
+      ? _ChatAvatar._unreadLineWidthSmall
+      : _ChatAvatar._unreadLineWidthFull;
+  double get _readLine => minified
+      ? _ChatAvatar._readLineWidthSmall
+      : _ChatAvatar._readLineWidthFull;
+
   @override
   void paint(Canvas canvas, Size size) {
     if (storyCount <= 0) return;
-
-    // Spec §2: small/minified read ring is not drawn (lineReadTwice: 0px).
-    final lineWidth = hasUnread
-        ? (minified ? _ChatAvatar._unreadLineWidthSmall : _ChatAvatar._unreadLineWidthFull)
-        : (minified ? _ChatAvatar._readLineWidthSmall : _ChatAvatar._readLineWidthFull);
-    if (lineWidth <= 0) return; // small/minified read ring: skip entirely
 
     final photoRadius = minified
         ? _ChatAvatar._storyPhotoSizeSmall / 2
         : _ChatAvatar._storyPhotoSizeFull / 2;
     final center = Offset(size.width / 2, size.height / 2);
-    final offset = 1.5 * lineWidth;
-    final ringRadius = photoRadius + offset;
+    // Ring sits just outside the photo. Anchor the centerline with the thick
+    // (unread) line so every segment shares one radius regardless of its width.
+    final ringRadius = photoRadius + 1.5 * _unreadLine;
+    final ringRect = Rect.fromCircle(center: center, radius: ringRadius);
 
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = lineWidth
-      ..strokeCap = StrokeCap.round;
-
-    // Spec §2: read ring opacity = 0.6 (main strip), 1.0 (Info/Mine strips).
-    // Applied as QPainter opacity (canvas-level), not color alpha channel.
-    final applyReadOpacity = !hasUnread && !isLiveStream && readOpacity < 1.0;
-
+    // Live stream → single solid red ring (AyuGram storiesHasVideoStream branch).
     if (isLiveStream) {
-      // Spec §2: live-stream ring = solid attentionButtonFg (red).
-      paint.color = const Color(0xFFe53935);
-    } else if (hasUnread) {
-      // Spec §2: unread gradient topRight→bottomLeft, #0dcc39 green→#0992ef blue.
-      // Theme-invariant (same in day and night).
-      paint.shader = const LinearGradient(
-        begin: Alignment.topRight,
-        end: Alignment.bottomLeft,
-        colors: [Color(0xFF0dcc39), Color(0xFF0992ef)],
-      ).createShader(Rect.fromCircle(center: center, radius: ringRadius));
-    } else {
-      // Spec §2: read ring = solid dialogsUnreadBgMuted.
-      paint.color = isDark
-          ? const Color(0xFF3e546a)
-          : const Color(0xFFbbbbbb);
-    }
-
-    if (applyReadOpacity) {
-      canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, readOpacity));
-    }
-
-    if (storyCount == 1) {
-      // Spec §2: single story = full ellipse.
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _unreadLine
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFe53935);
       canvas.drawCircle(center, ringRadius, paint);
-    } else {
-      // Spec §2: multi-story ring = segments with ~160-unit separators, round caps.
-      _drawSegmentedRing(canvas, center, ringRadius, paint);
+      return;
     }
 
-    if (applyReadOpacity) {
-      canvas.restore();
+    final unread = unreadCount.clamp(0, storyCount);
+    final readCount = storyCount - unread;
+
+    // Unread gradient (theme-invariant): topRight #0dcc39 → bottomLeft #0992ef.
+    final unreadShader = const LinearGradient(
+      begin: Alignment.topRight,
+      end: Alignment.bottomLeft,
+      colors: [Color(0xFF0dcc39), Color(0xFF0992ef)],
+    ).createShader(ringRect);
+    // Read segments → solid muted (dialogsUnreadBgMuted), dimmed by readOpacity.
+    final readColor =
+        (isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb))
+            .withValues(alpha: readOpacity);
+
+    Paint segPaint(double width, {Shader? shader, Color? color}) {
+      final p = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round;
+      if (shader != null) p.shader = shader;
+      if (color != null) p.color = color;
+      return p;
     }
+
+    // Build segments in AyuGram push order: read first, then unread. Each Paint
+    // carries its own strokeWidth so the read/unread thickness split renders.
+    final segments = <Paint>[
+      for (var i = 0; i < readCount; i++) segPaint(_readLine, color: readColor),
+      for (var i = 0; i < unread; i++) segPaint(_unreadLine, shader: unreadShader),
+    ];
+    if (segments.isEmpty) return;
+
+    _drawSegments(canvas, ringRect, segments);
   }
 
-  /// Draw segmented ring arcs for multi-story rings.
-  /// Spec §2: ~160 out of 5760 units (full circle) per separator, round caps.
-  void _drawSegmentedRing(
-      Canvas canvas, Offset center, double radius, Paint paint) {
-    // 5760 units = full circle (Qt convention), separator = ~160 units.
-    const fullCircleUnits = 5760.0;
-    const separatorUnits = 160.0;
-    final separatorRadians = (separatorUnits / fullCircleUnits) * 2 * math.pi;
-    final totalSep = storyCount * separatorRadians;
-    final arcPerStory = (2 * math.pi - totalSep) / storyCount;
+  /// Port of `Ui::PaintOutlineSegments` (circle branch,
+  /// `outline_segments.cpp:16-80`): equal-length arcs separated by ~160/5760
+  /// gaps, round caps, drawn back-to-front starting from the top. Zero-width
+  /// segments (the minified read line) are skipped.
+  void _drawSegments(Canvas canvas, Rect rect, List<Paint> segments) {
+    final count = math.min(segments.length, 50); // kOutlineSegmentsMax
+    if (count == 1) {
+      canvas.drawArc(rect, 0, 2 * math.pi, false, segments.first);
+      return;
+    }
+    const fullUnits = 5760.0; // arc::kFullLength
+    const smallUnits = 160.0;
+    const quarterUnits = 1440.0; // arc::kQuarterLength (top of the circle)
+    const unitToRad = (2 * math.pi) / fullUnits;
+    final separatorUnits = (fullUnits > 1.1 * smallUnits * count)
+        ? smallUnits
+        : (fullUnits / (count * 1.1));
+    final lengthUnits = (fullUnits - separatorUnits * count) / count;
 
-    // Start from top (−π/2).
-    var startAngle = -math.pi / 2;
-    final rect = Rect.fromCircle(center: center, radius: radius);
-
-    for (var i = 0; i < storyCount; i++) {
-      canvas.drawArc(rect, startAngle, arcPerStory, false, paint);
-      startAngle += arcPerStory + separatorRadians;
+    // AyuGram starts at kQuarterLength + separator/2 and walks counter-clockwise
+    // (Qt's positive direction). Flutter's drawArc is clockwise-positive, so the
+    // angles are negated to preserve the same orientation.
+    var startUnits = quarterUnits + separatorUnits / 2;
+    for (var i = 0; i < count; i++) {
+      final seg = segments[count - 1 - i]; // back-to-front (unread first, at top)
+      if (seg.strokeWidth <= 0) {
+        startUnits += lengthUnits + separatorUnits;
+        continue;
+      }
+      canvas.drawArc(
+        rect,
+        -(startUnits * unitToRad),
+        -(lengthUnits * unitToRad),
+        false,
+        seg,
+      );
+      startUnits += lengthUnits + separatorUnits;
     }
   }
 
   @override
   bool shouldRepaint(_StoriesRingPainter oldDelegate) =>
       storyCount != oldDelegate.storyCount ||
-      hasUnread != oldDelegate.hasUnread ||
+      unreadCount != oldDelegate.unreadCount ||
       isLiveStream != oldDelegate.isLiveStream ||
       isDark != oldDelegate.isDark ||
       minified != oldDelegate.minified ||
@@ -1706,7 +1771,8 @@ class _SendStateIcon extends StatelessWidget {
     final Color iconColor;
     if (isActive) {
       iconColor = palette.dialogsTextFgActive;
-    } else if (status == MsgStatus.sending) {
+    } else if (status == MsgStatus.sending || status == MsgStatus.failed) {
+      // AyuGram routes both sending AND failed to dialogsSendingIcon's styling.
       iconColor = palette.dialogsSendingIconFg;
     } else {
       iconColor = palette.dialogsSentIconFg;
@@ -1715,7 +1781,11 @@ class _SendStateIcon extends StatelessWidget {
     final IconData icon;
     final double iconSize;
     switch (status) {
+      // AyuGram dialogs_layout.cpp:782-798: item->isSending() || item->hasFailed()
+      // both resolve to st::dialogsSendingIcon (the clock). There is no distinct
+      // error glyph in the chat-list send-state slot.
       case MsgStatus.sending:
+      case MsgStatus.failed:
         icon = Icons.access_time;
         iconSize = 11;
       case MsgStatus.sent:
@@ -1725,9 +1795,6 @@ class _SendStateIcon extends StatelessWidget {
       case MsgStatus.read:
         icon = Icons.done_all;
         iconSize = 14;
-      case MsgStatus.failed:
-        icon = Icons.error_outline;
-        iconSize = 13;
       default:
         return const SizedBox(width: 20);
     }
@@ -2263,29 +2330,25 @@ class ForumChatListRow extends StatelessWidget {
                             ],
                             const SizedBox(width: 5),
                             Text(
-                              formatChatListTime(chat.lastMsgTime),
+                              formatChatListTime(context, chat.lastMsgTime),
                               style: TextStyle(
                                 fontSize: 13,
                                 color: isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg,
                               ),
                             ),
-                            if (chat.unreadCount > 0) ...[
-                              const SizedBox(width: 8),
-                              _UnreadBadge(
-                                count: chat.unreadCount,
-                                bgColor: isActive
+                            // Trailing badges, right-to-left like AyuGram PaintBadges
+                            // (dialogs_layout.cpp:198-287): poll (leftmost) →
+                            // mention/reaction (only one, mention wins) →
+                            // unread/dot/pin (rightmost, hugs the right edge).
+                            if (chat.unreadPollCount > 0) ...[
+                              const SizedBox(width: 5),
+                              _ThreeStateBadgeIcon(
+                                icon: Icons.poll,
+                                color: isActive
                                     ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
                                     : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg),
-                                textColor: isActive ? palette.dialogsUnreadFgActive : palette.dialogsUnreadFg,
+                                isNarrow: false,
                               ),
-                            ] else if (chat.isUnreadMark) ...[
-                              const SizedBox(width: 8),
-                              _UnreadDot(bgColor: isActive
-                                  ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
-                                  : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg)),
-                            ] else if (chat.isPinned) ...[
-                              const SizedBox(width: 8),
-                              Icon(Icons.push_pin, size: 14, color: mutedColor),
                             ],
                             if (chat.unreadMentionCount > 0) ...[
                               const SizedBox(width: 5),
@@ -2296,8 +2359,7 @@ class ForumChatListRow extends StatelessWidget {
                                     : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg),
                                 isNarrow: false,
                               ),
-                            ],
-                            if (chat.unreadReactionCount > 0) ...[
+                            ] else if (chat.unreadReactionCount > 0) ...[
                               const SizedBox(width: 5),
                               _ThreeStateBadgeIcon(
                                 icon: Icons.favorite,
@@ -2307,15 +2369,23 @@ class ForumChatListRow extends StatelessWidget {
                                 isNarrow: false,
                               ),
                             ],
-                            if (chat.unreadPollCount > 0) ...[
+                            if (chat.unreadCount > 0) ...[
                               const SizedBox(width: 5),
-                              _ThreeStateBadgeIcon(
-                                icon: Icons.poll,
-                                color: isActive
+                              _UnreadBadge(
+                                count: chat.unreadCount,
+                                bgColor: isActive
                                     ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
                                     : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg),
-                                isNarrow: false,
+                                textColor: isActive ? palette.dialogsUnreadFgActive : palette.dialogsUnreadFg,
                               ),
+                            ] else if (chat.isUnreadMark) ...[
+                              const SizedBox(width: 5),
+                              _UnreadDot(bgColor: isActive
+                                  ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
+                                  : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg)),
+                            ] else if (chat.isPinned) ...[
+                              const SizedBox(width: 5),
+                              Icon(Icons.push_pin, size: 14, color: mutedColor),
                             ],
                           ],
                         ),

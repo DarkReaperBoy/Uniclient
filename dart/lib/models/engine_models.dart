@@ -222,6 +222,7 @@ class ChatInfo {
   final String parentTitle;
   final int storyCount;
   final bool hasUnreadStory;
+  final int storiesUnreadCount;
   final bool isLiveStream;
   final bool isBot;
   final bool isUnreadMark;
@@ -283,6 +284,7 @@ class ChatInfo {
     this.parentTitle = '',
     this.storyCount = 0,
     this.hasUnreadStory = false,
+    this.storiesUnreadCount = 0,
     this.isLiveStream = false,
     this.isBot = false,
     this.isContact = false,
@@ -345,6 +347,7 @@ class ChatInfo {
     parentTitle: safeStr(j['parent_title'] as String? ?? ''),
     storyCount: j['story_count'] as int? ?? 0,
     hasUnreadStory: j['has_unread_story'] as bool? ?? false,
+    storiesUnreadCount: j['stories_unread_count'] as int? ?? 0,
     isLiveStream: j['is_live_stream'] as bool? ?? false,
     isBot: j['is_bot'] as bool? ?? false,
     isContact: j['is_contact'] as bool? ?? false,
