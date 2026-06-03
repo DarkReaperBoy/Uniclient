@@ -21,6 +21,8 @@ class AyuToggle extends StatefulWidget {
 class _AyuToggleState extends State<AyuToggle>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  // CurvedAnimation applies easeOutCubic to the DIRECTION OF TRAVEL (see initState).
+  late final CurvedAnimation _animation;
 
   @override
   void initState() {
@@ -30,10 +32,25 @@ class _AyuToggleState extends State<AyuToggle>
       // AyuGram switches BOTH duration and curve on isMaterialSwitches():
       // material → _duration (150ms, widgets.style:879) + easeOutCubic;
       // non-material → defaultToggleDuration (=universalDuration=120ms,
-      // basic.style:131) + linear (checkbox.cpp:61-62). The curve is switched
-      // in build(); the duration is switched here.
+      // basic.style:131) + linear (checkbox.cpp:61-62). The duration is
+      // switched here; the curve is applied via the CurvedAnimation below.
       duration: Duration(milliseconds: widget.isMaterial ? 150 : 120),
       value: widget.value ? 1.0 : 0.0,
+    );
+    // AyuGram applies easeOutCubic to the DIRECTION OF TRAVEL: every toggle is a
+    // fresh start(from, to, easeOutCubic) (checkbox.cpp:57-62), computed as
+    // _cur = from + delta·((dt-1)³+1) (animation_value.h:85-87 +
+    // animation_value.cpp:94-104). So OFF (from=1→0) traces (1-dt)³ —
+    // decelerating into off — and ON (from=0→1) traces 1-(1-dt)³. A
+    // CurvedAnimation with reverseCurve=easeOutCubic.flipped reproduces both:
+    // forward → easeOutCubic, reverse → flip → (1-dt)³ in time. (Driving a
+    // linear controller with reverse() and applying easeOutCubic.transform() to
+    // its 1→0 value instead gives 1-dt³ — an inverted, accelerating OFF.)
+    // Non-material is linear/symmetric, so build() reads the raw value for it.
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeOutCubic.flipped,
     );
   }
 
@@ -57,6 +74,7 @@ class _AyuToggleState extends State<AyuToggle>
 
   @override
   void dispose() {
+    _animation.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -76,7 +94,6 @@ class _AyuToggleState extends State<AyuToggle>
   Widget build(BuildContext context) {
     final palette = context.palette;
     final isMat = widget.isMaterial;
-    final curve = isMat ? Curves.easeOutCubic : Curves.linear;
 
     final switchDiam = isMat ? _diameter : _defDiameter;
     final switchShift = isMat ? _matShift : _defShift;
@@ -89,7 +106,10 @@ class _AyuToggleState extends State<AyuToggle>
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
-          final t = curve.transform(_controller.value);
+          // Material: easeOutCubic applied in the direction of travel by the
+          // CurvedAnimation (forward → easeOutCubic, reverse → flipped).
+          // Non-material: raw linear controller value (symmetric, no curve).
+          final t = isMat ? _animation.value : _controller.value;
 
           final fgColor =
               Color.lerp(palette.checkboxFg, palette.windowBgActive, t)!;
