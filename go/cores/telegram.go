@@ -7828,16 +7828,17 @@ func mathRandUint32() uint32 {
 
 // JoinGroupCall joins an active group call in a chat.
 func (t *TelegramCore) JoinGroupCall(chatID string) (*CallSession, error) {
-	return t.joinGroupCallInternal(chatID, false)
+	return t.joinGroupCallInternal(chatID, false, nil)
 }
 
 // JoinGroupCallWithVideo joins a group call with video enabled.
 // video=true adds a VP8 video track to the SFU PeerConnection.
 func (t *TelegramCore) JoinGroupCallWithVideo(chatID string, video bool) (*CallSession, error) {
-	return t.joinGroupCallInternal(chatID, video)
+	return t.joinGroupCallInternal(chatID, video, nil)
 }
 
-func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool) (*CallSession, error) {
+// joinAs is the identity to join as (yourself / a channel you own). nil = InputPeerSelf.
+func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs tg.InputPeerClass) (*CallSession, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
 		t.mu.RUnlock()
@@ -8171,13 +8172,17 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool) (*CallSe
 	// Call phone.joinGroupCall (must join muted, then unmute after connecting)
 	// Retry on -503 (server timeout — transient)
 	inputGroupCall := &tg.InputGroupCall{ID: gcID, AccessHash: gcAccessHash}
+	joinAsPeer := joinAs
+	if joinAsPeer == nil {
+		joinAsPeer = &tg.InputPeerSelf{}
+	}
 	var joinResp tg.UpdatesClass
 	for attempt := 0; attempt < 3; attempt++ {
 		joinResp, err = t.api.PhoneJoinGroupCall(t.ctx, &tg.PhoneJoinGroupCallRequest{
 			Muted:        true,
 			VideoStopped: !video,
 			Call:         inputGroupCall,
-			JoinAs:       &tg.InputPeerSelf{},
+			JoinAs:       joinAsPeer,
 			Params:       tg.DataJSON{Data: string(paramsJSON)},
 		})
 		if err == nil {
@@ -9679,6 +9684,206 @@ func (t *TelegramCore) GetGroupCall(chatID string) (*CallSession, error) {
 	}
 
 	return cs, nil
+}
+
+// JoinAsPeerInfo is a JSON-friendly identity the user can join a group call as
+// (yourself, or a channel/group you manage). Mirrors phone.JoinAsPeers entries.
+type JoinAsPeerInfo struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Subtitle  string `json:"subtitle"`
+	IsSelf    bool   `json:"is_self"`
+	IsChannel bool   `json:"is_channel"`
+}
+
+// GetGroupCallJoinAsPeers returns the identities the user can join the chat's
+// group call as, via phone.getGroupCallJoinAs (yourself + your channels/groups).
+func (t *TelegramCore) GetGroupCallJoinAsPeers(chatID string) ([]JoinAsPeerInfo, error) {
+	t.mu.RLock()
+	if !t.authed || t.api == nil {
+		t.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	selfID := t.selfID
+	t.mu.RUnlock()
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve peer: %w", err)
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, fmt.Errorf("input peer: %w", err)
+	}
+
+	res, err := t.api.PhoneGetGroupCallJoinAs(t.ctx, inputPeer)
+	if err != nil {
+		return nil, fmt.Errorf("phone.getGroupCallJoinAs: %w", err)
+	}
+
+	users := map[int64]*tg.User{}
+	for _, u := range res.Users {
+		if uu, ok := u.(*tg.User); ok {
+			users[uu.ID] = uu
+		}
+	}
+	chans := map[int64]*tg.Channel{}
+	chats := map[int64]*tg.Chat{}
+	for _, c := range res.Chats {
+		switch cc := c.(type) {
+		case *tg.Channel:
+			chans[cc.ID] = cc
+		case *tg.Chat:
+			chats[cc.ID] = cc
+		}
+	}
+
+	out := make([]JoinAsPeerInfo, 0, len(res.Peers))
+	for _, p := range res.Peers {
+		switch pp := p.(type) {
+		case *tg.PeerUser:
+			name := ""
+			if u := users[pp.UserID]; u != nil {
+				name = strings.TrimSpace(u.FirstName + " " + u.LastName)
+				if name == "" {
+					name = u.Username
+				}
+			}
+			isSelf := pp.UserID == selfID
+			sub := ""
+			if isSelf {
+				sub = "Personal account"
+			}
+			out = append(out, JoinAsPeerInfo{
+				ID:       strconv.FormatInt(pp.UserID, 10),
+				Title:    name,
+				Subtitle: sub,
+				IsSelf:   isSelf,
+			})
+		case *tg.PeerChannel:
+			name, sub := "", ""
+			if c := chans[pp.ChannelID]; c != nil {
+				name = c.Title
+				count, _ := c.GetParticipantsCount()
+				if c.Broadcast {
+					sub = fmt.Sprintf("%d subscribers", count)
+				} else {
+					sub = fmt.Sprintf("%d members", count)
+				}
+			}
+			out = append(out, JoinAsPeerInfo{
+				ID:        strconv.FormatInt(-(pp.ChannelID + 1000000000000), 10),
+				Title:     name,
+				Subtitle:  sub,
+				IsChannel: true,
+			})
+		case *tg.PeerChat:
+			name, sub := "", ""
+			if c := chats[pp.ChatID]; c != nil {
+				name = c.Title
+				sub = fmt.Sprintf("%d members", c.ParticipantsCount)
+			}
+			out = append(out, JoinAsPeerInfo{
+				ID:       strconv.FormatInt(-pp.ChatID, 10),
+				Title:    name,
+				Subtitle: sub,
+			})
+		}
+	}
+	return out, nil
+}
+
+// JoinGroupCallAs leaves any current join and rejoins the chat's group call
+// using the given identity (joinAsChatID). It also persists the choice as the
+// default join-as peer (phone.saveDefaultGroupCallJoinAs), matching AyuGram.
+func (t *TelegramCore) JoinGroupCallAs(chatID, joinAsChatID string) (*CallSession, error) {
+	t.mu.RLock()
+	if !t.authed || t.api == nil {
+		t.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	t.mu.RUnlock()
+
+	joinAsPeerClass, err := t.resolvePeer(joinAsChatID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve join-as peer: %w", err)
+	}
+	joinAsInput, err := t.toInputPeer(joinAsPeerClass)
+	if err != nil {
+		return nil, fmt.Errorf("join-as input peer: %w", err)
+	}
+
+	// Persist the default identity (best-effort — non-fatal on failure).
+	if dialogPeer, derr := t.resolvePeer(chatID); derr == nil {
+		if dialogInput, ierr := t.toInputPeer(dialogPeer); ierr == nil {
+			_, _ = t.api.PhoneSaveDefaultGroupCallJoinAs(t.ctx, &tg.PhoneSaveDefaultGroupCallJoinAsRequest{
+				Peer:   dialogInput,
+				JoinAs: joinAsInput,
+			})
+		}
+	}
+
+	return t.joinGroupCallInternal(chatID, false, joinAsInput)
+}
+
+// SendGroupCallMessage sends an ephemeral message into the chat's group-call
+// message stream via phone.sendGroupCallMessage (NOT the permanent chat history).
+func (t *TelegramCore) SendGroupCallMessage(chatID, text string) error {
+	t.mu.RLock()
+	if !t.authed || t.api == nil {
+		t.mu.RUnlock()
+		return ErrAuth
+	}
+	t.mu.RUnlock()
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return fmt.Errorf("resolve peer: %w", err)
+	}
+	gcID, gcAccessHash, err := t.resolveGroupCall(peer)
+	if err != nil {
+		return err
+	}
+	_, err = t.api.PhoneSendGroupCallMessage(t.ctx, &tg.PhoneSendGroupCallMessageRequest{
+		Call:     &tg.InputGroupCall{ID: gcID, AccessHash: gcAccessHash},
+		RandomID: time.Now().UnixNano(),
+		Message:  tg.TextWithEntities{Text: text},
+	})
+	if err != nil {
+		return fmt.Errorf("phone.sendGroupCallMessage: %w", err)
+	}
+	return nil
+}
+
+// GetGroupCallScheduleSubscribed reports whether the user is subscribed to the
+// scheduled-start reminder for the chat's group call (real->scheduleStartSubscribed()).
+func (t *TelegramCore) GetGroupCallScheduleSubscribed(chatID string) (bool, error) {
+	t.mu.RLock()
+	if !t.authed || t.api == nil {
+		t.mu.RUnlock()
+		return false, ErrAuth
+	}
+	t.mu.RUnlock()
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return false, fmt.Errorf("resolve peer: %w", err)
+	}
+	gcID, gcAccessHash, err := t.resolveGroupCall(peer)
+	if err != nil {
+		return false, err
+	}
+	res, err := t.api.PhoneGetGroupCall(t.ctx, &tg.PhoneGetGroupCallRequest{
+		Call:  &tg.InputGroupCall{ID: gcID, AccessHash: gcAccessHash},
+		Limit: 1,
+	})
+	if err != nil {
+		return false, fmt.Errorf("phone.getGroupCall: %w", err)
+	}
+	if gc, ok := res.Call.(*tg.GroupCall); ok {
+		return gc.ScheduleStartSubscribed, nil
+	}
+	return false, nil
 }
 
 // CreateScheduledGroupCall creates a group call scheduled for a future time.

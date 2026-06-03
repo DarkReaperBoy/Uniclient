@@ -6159,6 +6159,60 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.LeaveGroupCall(params.AccountID, params.CallID)
 
+	case "GetGroupCallJoinAsPeers":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		peers, err := e.GetGroupCallJoinAsPeers(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(peers)
+
+	case "JoinGroupCallAs":
+		var params struct {
+			AccountID    string `json:"account_id"`
+			ChatID       string `json:"chat_id"`
+			JoinAsChatID string `json:"join_as_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		callID, err := e.JoinGroupCallAs(params.AccountID, params.ChatID, params.JoinAsChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"call_id": callID})
+
+	case "SendGroupCallMessage":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Text      string `json:"text"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SendGroupCallMessage(params.AccountID, params.ChatID, params.Text)
+
+	case "GetGroupCallScheduleSubscribed":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		subscribed, err := e.GetGroupCallScheduleSubscribed(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(subscribed)
+
 	case "RaiseHand":
 		var params struct {
 			AccountID string `json:"account_id"`

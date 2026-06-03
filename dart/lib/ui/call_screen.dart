@@ -12,13 +12,15 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import 'shell.dart' show UniClientShell;
 
 import '../models/engine_models.dart';
 
 enum GroupCallMode { narrow, wide }
 
-enum MuteButtonState { unmuted, muted, forceMuted }
+enum MuteButtonState { connecting, unmuted, muted, forceMuted }
 
 class GroupCallPanel extends StatefulWidget {
   final GroupCallInfo info;
@@ -29,6 +31,7 @@ class GroupCallPanel extends StatefulWidget {
   final bool isRaisedHand;
   final bool isRtmp;
   final bool isCanManage;
+  final bool isConnecting;
   final DateTime? callStartTime;
   final VoidCallback? onLeave;
   final VoidCallback? onToggleMute;
@@ -55,6 +58,7 @@ class GroupCallPanel extends StatefulWidget {
     this.isRaisedHand = false,
     this.isRtmp = false,
     this.isCanManage = false,
+    this.isConnecting = false,
     this.isVideoActive = false,
     this.isScreenShareActive = false,
     this.isMessagesVisible = false,
@@ -103,7 +107,6 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   bool _isRecording = false;
   bool _isPushToTalk = false;
   Timer? _pushToTalkTimer;
-  static const _kSpacePushToTalkDelay = Duration(milliseconds: 250);
 
   @override
   void initState() {
@@ -271,12 +274,30 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  // Matches an RTMP space-hold, or the user-configured push-to-talk shortcut.
+  bool _isPttKey(KeyEvent event, AppState appState) {
+    if (widget.isRtmp && event.logicalKey == LogicalKeyboardKey.space) {
+      return true;
+    }
+    if (appState.callPushToTalk) {
+      final sc = appState.callPttShortcut;
+      if (sc.isEmpty || sc == 'Space') {
+        return event.logicalKey == LogicalKeyboardKey.space;
+      }
+      final keyLabel = sc.split('+').last;
+      return event.logicalKey.keyLabel.toLowerCase() == keyLabel.toLowerCase();
+    }
+    return false;
+  }
+
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (!widget.isRtmp) return KeyEventResult.ignored;
-    if (event.logicalKey != LogicalKeyboardKey.space) {
+    final appState = context.read<AppState>();
+    if (!widget.isRtmp && !appState.callPushToTalk) {
       return KeyEventResult.ignored;
     }
+    if (!_isPttKey(event, appState)) return KeyEventResult.ignored;
     if (widget.isForceMuted) return KeyEventResult.handled;
+    final releaseDelay = Duration(milliseconds: appState.callPttDelay);
     if (event is KeyDownEvent || event is KeyRepeatEvent) {
       _pushToTalkTimer?.cancel();
       _pushToTalkTimer = null;
@@ -288,7 +309,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     }
     if (event is KeyUpEvent && _isPushToTalk) {
       _pushToTalkTimer?.cancel();
-      _pushToTalkTimer = Timer(_kSpacePushToTalkDelay, () {
+      _pushToTalkTimer = Timer(releaseDelay, () {
         if (_isPushToTalk && mounted) {
           _isPushToTalk = false;
           if (!widget.isSelfMuted) {
@@ -302,6 +323,11 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   }
 
   MuteButtonState get _muteState {
+    // Scheduled state is handled separately (via _isScheduled in the button);
+    // before the call instance connects, AyuGram shows a gray "Connecting…".
+    if (widget.isConnecting && widget.scheduleDate == 0) {
+      return MuteButtonState.connecting;
+    }
     if (widget.isForceMuted || widget.isRaisedHand) {
       return MuteButtonState.forceMuted;
     }
@@ -474,16 +500,36 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   void _showParticipantMenu(BuildContext context, GroupCallParticipant p, {Offset? position}) {
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
+    final chatState = context.read<ChatState>();
     final accountId = appState.activeAccountId;
+    final selfUserId = appState.activeAccount?.selfUserId ?? '';
     final callId = widget.info.callId;
     if (callId.isEmpty) return;
+    final isSelf = p.userId == selfUserId;
 
     final items = <PopupMenuEntry<String>>[];
 
+    // View profile / Send message — shown for every non-self participant.
+    if (!isSelf) {
+      items.add(const PopupMenuItem(value: 'profile', child: Text('View profile')));
+      items.add(const PopupMenuItem(value: 'message', child: Text('Send message')));
+    }
+
+    // Admin server-side mute/unmute.
     if (!p.isMuted && widget.isCanManage) {
       items.add(const PopupMenuItem(value: 'mute', child: Text('Mute')));
     } else if (p.isMuted && widget.isCanManage) {
       items.add(const PopupMenuItem(value: 'unmute', child: Text('Unmute')));
+    }
+
+    // Local "Mute for me" / "Unmute for me" — available to EVERY user, driven
+    // by mutedByMe (AyuGram mute_for_me). Implemented via per-listener volume.
+    if (!isSelf) {
+      final mutedForMe = p.mutedByMe || p.volume == 0;
+      items.add(PopupMenuItem(
+        value: mutedForMe ? 'unmute_for_me' : 'mute_for_me',
+        child: Text(mutedForMe ? 'Unmute for me' : 'Mute for me'),
+      ));
     }
 
     items.add(PopupMenuItem(
@@ -491,7 +537,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
       child: Text('Volume: ${(p.volume / 100).round()}%'),
     ));
 
-    if (widget.isCanManage) {
+    if (widget.isCanManage && !isSelf) {
       items.add(const PopupMenuDivider());
       items.add(const PopupMenuItem(
         value: 'kick',
@@ -510,10 +556,23 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     ).then((value) {
       if (value == null) return;
       switch (value) {
+        case 'profile':
+          // Leave the panel up (call keeps running via the minimised bar) and
+          // open the user's profile in the main UI.
+          Navigator.of(context).pop();
+          chatState.openChatById(p.userId);
+          UniClientShell.openInfoRequest?.call();
+        case 'message':
+          Navigator.of(context).pop();
+          chatState.openChatById(p.userId);
         case 'mute':
           engine.muteGroupCallParticipant(accountId, callId, p.userId, true);
         case 'unmute':
           engine.muteGroupCallParticipant(accountId, callId, p.userId, false);
+        case 'mute_for_me':
+          engine.setGroupCallParticipantVolume(accountId, callId, p.userId, 0);
+        case 'unmute_for_me':
+          engine.setGroupCallParticipantVolume(accountId, callId, p.userId, 10000);
         case 'volume':
           _showVolumeSlider(context, p, callId: callId);
         case 'kick':
@@ -1419,6 +1478,8 @@ class _BigMuteButtonState extends State<_BigMuteButton>
       return widget.isCanManage ? _greenColor : _purpleColor;
     }
     switch (widget.state) {
+      case MuteButtonState.connecting:
+        return _grayColor;
       case MuteButtonState.unmuted:
         return _greenColor;
       case MuteButtonState.muted:
@@ -1435,6 +1496,8 @@ class _BigMuteButtonState extends State<_BigMuteButton>
   }
 
   void _handleTap(BuildContext context) {
+    // The button is inert while the call instance is still connecting.
+    if (widget.state == MuteButtonState.connecting) return;
     widget.onTap?.call();
   }
 
@@ -1446,6 +1509,8 @@ class _BigMuteButtonState extends State<_BigMuteButton>
       return widget.scheduleStartSubscribed ? 'Cancel Reminder' : 'Set Reminder';
     }
     switch (widget.state) {
+      case MuteButtonState.connecting:
+        return 'Connecting...';
       case MuteButtonState.unmuted:
         return 'Mute';
       case MuteButtonState.muted:
@@ -1461,6 +1526,8 @@ class _BigMuteButtonState extends State<_BigMuteButton>
       return widget.scheduleStartSubscribed ? Icons.notifications_active : Icons.notifications_outlined;
     }
     switch (widget.state) {
+      case MuteButtonState.connecting:
+        return Icons.mic_none;
       case MuteButtonState.unmuted:
         return Icons.mic;
       case MuteButtonState.muted:
@@ -1703,42 +1770,72 @@ void showGroupCallPanel(
   Widget? videoViewport,
 }) {
   final engine = context.read<EngineService>();
-  final accountId = context.read<AppState>().activeAccountId;
+  final appState = context.read<AppState>();
+  final accountId = appState.activeAccountId;
+  final selfUserId = appState.activeAccount?.selfUserId ?? '';
   final chatId = info.chatId;
+  // Ephemeral group-call messages only (NOT permanent chat history). Sends go
+  // through phone.sendGroupCallMessage and are echoed here locally.
   final callMessages = <CachedMessage>[];
   StateSetter? persistedSetState;
 
-  if (chatId.isNotEmpty) {
-    engine.getMessages(accountId, chatId, limit: 30).then((msgs) {
-      callMessages.addAll(msgs);
+  // Mutable call state, kept live so the panel reacts to server-pushed changes
+  // (admin force-mute/unmute) the same way AyuGram's setupRealMuteButtonState
+  // binds the button to `_call->mutedValue()`.
+  var selfMuted = isSelfMuted;
+  var forceMuted = isForceMuted;
+  var raisedHand = isRaisedHand;
+  var cameraEnabled = false;
+  var screenShareEnabled = false;
+  var recording = isRecording;
+  var messagesVisible = false;
+  var pttActive = false;
+  var scheduleSubscribed = info.scheduleStartSubscribed;
+  // Show gray "Connecting…" until the call instance reports in, unless we're
+  // already in the participant list (panel reopened on a live call) or scheduled.
+  var connecting = info.scheduleDate == 0 &&
+      !info.participants.any((p) => p.userId == selfUserId);
+
+  // Seed the scheduled "Set/Cancel Reminder" toggle from real server state.
+  if (info.scheduleDate > 0 && chatId.isNotEmpty) {
+    engine.getGroupCallScheduleSubscribed(accountId, chatId).then((sub) {
+      scheduleSubscribed = sub;
       persistedSetState?.call(() {});
     });
   }
 
-  final msgSub = chatId.isNotEmpty
-      ? engine.onMsgReceived.listen((event) {
-          if (event.chatId == chatId && event.accountId == accountId) {
-            callMessages.add(event.message);
-            persistedSetState?.call(() {});
-          }
+  // Fallback: never get stuck on "Connecting…" if no state event arrives.
+  final connectTimer = connecting
+      ? Timer(const Duration(milliseconds: 1500), () {
+          connecting = false;
+          persistedSetState?.call(() {});
         })
       : null;
+
+  final stateSub = engine.onGroupCallState.listen((event) {
+    if (event.info.callId != info.callId) return;
+    if (connecting) connecting = false; // receiving updates = connected
+    GroupCallParticipant? self;
+    for (final p in event.info.participants) {
+      if (p.userId == selfUserId) {
+        self = p;
+        break;
+      }
+    }
+    if (self != null) {
+      // muted + can't self-unmute → admin force-muted (RaisedHand if hand up).
+      forceMuted = self.isMuted && !self.canSelfUnmute && self.raisedHandRating == 0;
+      raisedHand = self.isMuted && !self.canSelfUnmute && self.raisedHandRating > 0;
+      selfMuted = self.isMuted && self.canSelfUnmute;
+    }
+    persistedSetState?.call(() {});
+  });
 
   showDialog(
     context: context,
     barrierDismissible: false,
     barrierColor: Colors.black54,
     builder: (ctx) {
-      var selfMuted = isSelfMuted;
-      var forceMuted = isForceMuted;
-      var raisedHand = isRaisedHand;
-      var cameraEnabled = false;
-      var screenShareEnabled = false;
-      var recording = isRecording;
-      var messagesVisible = false;
-      var pttActive = false;
-      var scheduleSubscribed = false;
-
       final mq = MediaQuery.of(ctx);
       final screenW = mq.size.width;
       final screenH = mq.size.height;
@@ -1782,6 +1879,7 @@ void showGroupCallPanel(
                   isForceMuted: forceMuted,
                   isRaisedHand: raisedHand,
                   isCanManage: isCanManage,
+                  isConnecting: connecting,
                   isVideoActive: cameraEnabled,
                   isScreenShareActive: screenShareEnabled,
                   isMessagesVisible: messagesVisible,
@@ -1792,7 +1890,17 @@ void showGroupCallPanel(
                   onLeave: () {
                     if (isCanManage) {
                       _showLeaveOrEndDialog(ctx,
-                        onLeave: () => Navigator.of(ctx).pop(),
+                        onLeave: () {
+                          // A manager who picks "Leave" must still disconnect
+                          // from the backend (AyuGram endCall()→hangup()).
+                          final engine = sbCtx.read<EngineService>();
+                          final accountId = sbCtx.read<AppState>().activeAccountId;
+                          final callId = info.callId;
+                          if (callId.isNotEmpty) {
+                            engine.leaveGroupCall(accountId, callId);
+                          }
+                          Navigator.of(ctx).pop();
+                        },
                         onEndForAll: () async {
                           final engine = sbCtx.read<EngineService>();
                           final accountId = sbCtx.read<AppState>().activeAccountId;
@@ -1903,7 +2011,7 @@ void showGroupCallPanel(
                     }
                   },
                   onOpenMenu: () {
-                    _showGroupCallMenu(ctx, callId: info.callId,
+                    _showGroupCallMenu(ctx, callId: info.callId, chatId: info.chatId,
                       isRecording: recording,
                       onRecordingChanged: (v) {
                         recording = v;
@@ -1919,9 +2027,21 @@ void showGroupCallPanel(
                     final engine = sbCtx.read<EngineService>();
                     final accountId = sbCtx.read<AppState>().activeAccountId;
                     final chatId = info.chatId;
-                    if (chatId.isNotEmpty) {
-                      engine.sendMessage(accountId, chatId, text);
-                    }
+                    if (chatId.isEmpty) return;
+                    // Ephemeral group-call message (phone.sendGroupCallMessage),
+                    // NOT a permanent chat message. Echo it locally for feedback.
+                    engine.sendGroupCallMessage(accountId, chatId, text);
+                    callMessages.add(CachedMessage(
+                      accountId: accountId,
+                      chatId: chatId,
+                      msgId: 'gc_${DateTime.now().microsecondsSinceEpoch}',
+                      senderId: selfUserId,
+                      senderName: appState.activeAccount?.displayName ?? '',
+                      contentText: text,
+                      timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+                      isOutgoing: true,
+                    ));
+                    setSbState(() {});
                   },
                   callMessages: callMessages,
                 ));
@@ -1932,11 +2052,12 @@ void showGroupCallPanel(
       );
     },
   ).then((_) {
-    msgSub?.cancel();
+    stateSub.cancel();
+    connectTimer?.cancel();
   });
 }
 
-void _showGroupCallMenu(BuildContext context, {String callId = '', bool isRecording = false, ValueChanged<bool>? onRecordingChanged}) {
+void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId = '', bool isRecording = false, ValueChanged<bool>? onRecordingChanged}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF1E2530),
@@ -1960,7 +2081,7 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', bool isRecord
                       style: TextStyle(color: Colors.white)),
                   onTap: () {
                     Navigator.pop(ctx2);
-                    _showJoinAsChooser(context, callId: callId);
+                    _showJoinAsChooser(context, chatId: chatId, callId: callId);
                   },
                 ),
                 ListTile(
@@ -2031,7 +2152,7 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', bool isRecord
                       style: TextStyle(color: Colors.white)),
                   onTap: () {
                     Navigator.pop(ctx2);
-                    _showCallSettingsFromMenu(context);
+                    _showCallSettingsFromMenu(context, callId: callId);
                   },
                 ),
                 const Divider(color: Color(0xFF2C3640), height: 1),
@@ -2056,9 +2177,17 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', bool isRecord
   );
 }
 
-void _showJoinAsChooser(BuildContext context, {String callId = ''}) {
-  final appState = context.read<AppState>();
-  final accounts = appState.accounts;
+// Lists the join-as *peer identities* (yourself / channels you manage) for THIS
+// session — matching Telegram/AyuGram's phone.getGroupCallJoinAs — not local
+// accounts. Selecting one rejoins the call under that identity.
+Future<void> _showJoinAsChooser(BuildContext context, {String chatId = '', String callId = ''}) async {
+  final engine = context.read<EngineService>();
+  final accountId = context.read<AppState>().activeAccountId;
+  if (chatId.isEmpty) return;
+
+  final peers = await engine.getGroupCallJoinAsPeers(accountId, chatId);
+  if (!context.mounted || peers.isEmpty) return;
+
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF1E2530),
@@ -2078,33 +2207,36 @@ void _showJoinAsChooser(BuildContext context, {String callId = ''}) {
                       fontSize: 16,
                       fontWeight: FontWeight.w600)),
             ),
-            ...accounts.map((acc) => ListTile(
+            ...peers.map((peer) => ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: const Color(0xFF3390EC),
+                    backgroundColor: peer.isChannel
+                        ? const Color(0xFF8774E1)
+                        : const Color(0xFF3390EC),
                     radius: 18,
-                    child: Text(
-                      (acc.displayName.isNotEmpty ? acc.displayName[0] : '?')
-                          .toUpperCase(),
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                    child: Icon(
+                      peer.isChannel ? Icons.campaign : Icons.person,
+                      color: Colors.white,
+                      size: 18,
                     ),
                   ),
-                  title: Text(acc.displayName,
+                  title: Text(peer.title.isNotEmpty ? peer.title : 'Unknown',
                       style: const TextStyle(color: Colors.white)),
-                  subtitle: acc.username.isNotEmpty
-                      ? Text('@${acc.username}',
+                  subtitle: peer.subtitle.isNotEmpty
+                      ? Text(peer.subtitle,
                           style: const TextStyle(
                               color: Colors.white54, fontSize: 12))
                       : null,
-                  trailing: acc.id == appState.activeAccountId
+                  trailing: peer.isSelf
                       ? const Icon(Icons.check_circle, color: Color(0xFF3390EC))
                       : null,
                   onTap: () async {
                     Navigator.pop(ctx);
-                    if (acc.id != appState.activeAccountId && callId.isNotEmpty) {
-                      final engine = context.read<EngineService>();
-                      appState.setActiveAccountId(acc.id);
-                      await engine.joinGroupCall(acc.id, callId);
+                    if (peer.id.isEmpty) return;
+                    // Rejoin under the chosen identity: leave, then join-as.
+                    if (callId.isNotEmpty) {
+                      await engine.leaveGroupCall(accountId, callId);
                     }
+                    await engine.joinGroupCallAs(accountId, chatId, peer.id);
                   },
                 )),
           ],
@@ -2287,8 +2419,287 @@ Future<void> _showInviteMembersFromMenu(BuildContext context, {String callId = '
   }
 }
 
-void _showCallSettingsFromMenu(BuildContext context) {
+void _showCallSettingsFromMenu(BuildContext context, {String callId = ''}) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1E2530),
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+    ),
+    builder: (ctx) => _CallSettingsSheet(callId: callId),
+  );
+}
+
+/// Group-call settings: noise suppression, microphone (input) picker + live
+/// mic-test meter, output device, and push-to-talk configuration. Ports
+/// AyuGram's `calls_group_settings.cpp` (microphone + LevelMeter + PTT).
+class _CallSettingsSheet extends StatefulWidget {
+  final String callId;
+  const _CallSettingsSheet({this.callId = ''});
+
+  @override
+  State<_CallSettingsSheet> createState() => _CallSettingsSheetState();
+}
+
+class _CallSettingsSheetState extends State<_CallSettingsSheet> {
+  Timer? _micTimer;
+  double _micLevel = 0.0;
+  bool _recordingShortcut = false;
+  final _shortcutFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _micTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
+      if (!mounted) return;
+      try {
+        final engine = context.read<EngineService>();
+        final accountId = context.read<AppState>().activeAccountId;
+        final level = await engine.getCallSoundPeak(accountId, widget.callId);
+        if (mounted && (level - _micLevel).abs() > 0.01) {
+          setState(() => _micLevel = level);
+        }
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _micTimer?.cancel();
+    _shortcutFocus.dispose();
+    super.dispose();
+  }
+
+  static String _formatDelay(int ms) {
+    if (ms < 1000) return '${ms}ms';
+    return '${(ms / 1000).toStringAsFixed(2)}s';
+  }
+
+  KeyEventResult _onShortcutKey(FocusNode node, KeyEvent event) {
+    if (!_recordingShortcut || event is! KeyDownEvent) {
+      return _recordingShortcut ? KeyEventResult.handled : KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    final modifiers = <LogicalKeyboardKey>{
+      LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.controlRight,
+      LogicalKeyboardKey.shiftLeft, LogicalKeyboardKey.shiftRight,
+      LogicalKeyboardKey.altLeft, LogicalKeyboardKey.altRight,
+      LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.metaRight,
+    };
+    if (modifiers.contains(key)) return KeyEventResult.handled;
+
+    final pressed = HardwareKeyboard.instance.logicalKeysPressed;
+    final mods = <String>[];
+    if (pressed.contains(LogicalKeyboardKey.controlLeft) ||
+        pressed.contains(LogicalKeyboardKey.controlRight)) mods.add('Ctrl');
+    if (pressed.contains(LogicalKeyboardKey.shiftLeft) ||
+        pressed.contains(LogicalKeyboardKey.shiftRight)) mods.add('Shift');
+    if (pressed.contains(LogicalKeyboardKey.altLeft) ||
+        pressed.contains(LogicalKeyboardKey.altRight)) mods.add('Alt');
+    if (pressed.contains(LogicalKeyboardKey.metaLeft) ||
+        pressed.contains(LogicalKeyboardKey.metaRight)) mods.add('Meta');
+    var label = key.keyLabel;
+    if (key == LogicalKeyboardKey.space) label = 'Space';
+    if (label.isEmpty) label = key.debugName ?? 'Key';
+    final shortcut = [...mods, label].join('+');
+    context.read<AppState>().setCallPttShortcut(shortcut);
+    setState(() => _recordingShortcut = false);
+    return KeyEventResult.handled;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Call Settings',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600)),
+            ),
+            SwitchListTile(
+              title: const Text('Noise Suppression',
+                  style: TextStyle(color: Colors.white)),
+              value: appState.callNoiseSuppression,
+              activeColor: const Color(0xFF4DC920),
+              onChanged: (v) {
+                appState.setCallNoiseSuppression(v);
+                final engine = context.read<EngineService>();
+                engine.setNoiseSuppression(appState.activeAccountId, '', v);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.mic, color: Colors.white70),
+              title: const Text('Microphone',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: Text(appState.callInputDevice,
+                  style: const TextStyle(color: Colors.white38, fontSize: 12)),
+              onTap: () {
+                Navigator.pop(context);
+                _showInputDevicePicker(context);
+              },
+            ),
+            // Live mic-test level meter (AyuGram Ui::LevelMeter).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: _MicLevelMeter(level: _micLevel),
+            ),
+            ListTile(
+              leading: const Icon(Icons.volume_up, color: Colors.white70),
+              title: const Text('Output Device',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: Text(appState.callOutputDevice,
+                  style: const TextStyle(color: Colors.white38, fontSize: 12)),
+              onTap: () {
+                Navigator.pop(context);
+                _showSoundDevicePicker(context);
+              },
+            ),
+            const Divider(color: Color(0xFF2C3640), height: 1),
+            SwitchListTile(
+              title: const Text('Push to Talk',
+                  style: TextStyle(color: Colors.white)),
+              value: appState.callPushToTalk,
+              activeColor: const Color(0xFF4DC920),
+              onChanged: (v) => appState.setCallPushToTalk(v),
+            ),
+            if (appState.callPushToTalk) ...[
+              Focus(
+                focusNode: _shortcutFocus,
+                onKeyEvent: _onShortcutKey,
+                child: ListTile(
+                  leading: const Icon(Icons.keyboard, color: Colors.white70),
+                  title: const Text('Shortcut',
+                      style: TextStyle(color: Colors.white)),
+                  subtitle: Text(
+                    _recordingShortcut ? 'Recording…' : appState.callPttShortcut,
+                    style: TextStyle(
+                        color: _recordingShortcut
+                            ? const Color(0xFF4DC920)
+                            : Colors.white38,
+                        fontSize: 12),
+                  ),
+                  onTap: () {
+                    setState(() => _recordingShortcut = true);
+                    _shortcutFocus.requestFocus();
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Delay: ${_formatDelay(appState.callPttDelay)}',
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 13)),
+                    Slider(
+                      value: appState.callPttDelay.toDouble().clamp(0, 2000),
+                      min: 0,
+                      max: 2000,
+                      divisions: 200,
+                      activeColor: const Color(0xFF4DC920),
+                      onChanged: (v) => appState.setCallPttDelay(v.round()),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Horizontal mic-test level meter — ported from AyuGram's `Ui::LevelMeter`.
+class _MicLevelMeter extends StatelessWidget {
+  final double level;
+  const _MicLevelMeter({required this.level});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 6,
+      child: CustomPaint(
+        size: const Size(double.infinity, 6),
+        painter: _MicLevelPainter(level: level.clamp(0.0, 1.0)),
+      ),
+    );
+  }
+}
+
+class _MicLevelPainter extends CustomPainter {
+  final double level;
+  _MicLevelPainter({required this.level});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final radius = Radius.circular(size.height / 2);
+    final bg = Paint()..color = const Color(0x33FFFFFF);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, radius), bg);
+    if (level > 0.001) {
+      final fg = Paint()..color = const Color(0xFF4DC920);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Offset.zero & Size(size.width * level, size.height), radius),
+        fg,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MicLevelPainter old) => old.level != level;
+}
+
+/// Microphone (audio input) device picker — mirrors `_showSoundDevicePicker`
+/// but for capture devices. Ports AyuGram's ChooseCaptureDeviceBox.
+Future<void> _showInputDevicePicker(BuildContext context) async {
   final appState = context.read<AppState>();
+  final deviceMap = <String, String>{'Default': 'Default'};
+  if (Platform.isLinux) {
+    try {
+      final result = await Process.run('pactl', ['list', 'sources', 'short']);
+      if (result.exitCode == 0) {
+        final lines = (result.stdout as String).trim().split('\n');
+        for (final line in lines) {
+          if (line.trim().isEmpty) continue;
+          final parts = line.split('\t');
+          if (parts.length >= 2) {
+            final rawName = parts[1];
+            // Skip monitor sources — those are output loopbacks, not mics.
+            if (rawName.endsWith('.monitor')) continue;
+            final displayName = rawName
+                .replaceAll('alsa_input.', '')
+                .replaceAll('.analog-stereo', ' (Analog Stereo)')
+                .replaceAll('.analog-mono', ' (Analog Mono)')
+                .replaceAll('_', ' ');
+            deviceMap[displayName] = rawName;
+          }
+        }
+      }
+    } catch (_) {}
+  } else if (Platform.isMacOS || Platform.isWindows) {
+    try {
+      final engine = context.read<EngineService>();
+      final devList = await engine.getAudioDevices(appState.activeAccountId, 'input');
+      for (final d in devList) {
+        deviceMap[d] = d;
+      }
+    } catch (_) {}
+  }
+
+  if (!context.mounted) return;
+  final current = appState.callInputDevice;
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF1E2530),
@@ -2296,50 +2707,41 @@ void _showCallSettingsFromMenu(BuildContext context) {
       borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
     ),
     builder: (ctx) {
-      return StatefulBuilder(
-        builder: (ctx2, setSheetState) {
-          return SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('Call Settings',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600)),
-                ),
-                SwitchListTile(
-                  title: const Text('Noise Suppression',
-                      style: TextStyle(color: Colors.white)),
-                  value: appState.callNoiseSuppression,
-                  activeColor: const Color(0xFF4DC920),
-                  onChanged: (v) {
-                    setSheetState(() {
-                      appState.setCallNoiseSuppression(v);
-                    });
-                    final engine = context.read<EngineService>();
-                    final accountId = appState.activeAccountId;
-                    engine.setNoiseSuppression(accountId, '', v);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.volume_up, color: Colors.white70),
-                  title: const Text('Output Device',
-                      style: TextStyle(color: Colors.white)),
-                  subtitle: Text(appState.callOutputDevice,
-                      style: const TextStyle(color: Colors.white38, fontSize: 12)),
-                  onTap: () {
-                    Navigator.pop(ctx2);
-                    _showSoundDevicePicker(context);
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Microphone',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600)),
             ),
-          );
-        },
+            for (final entry in deviceMap.entries)
+              ListTile(
+                leading: Icon(
+                  entry.value == current
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                  color: entry.value == current
+                      ? const Color(0xFF4DC920)
+                      : Colors.white38,
+                  size: 20,
+                ),
+                title: Text(entry.key,
+                    style: const TextStyle(color: Colors.white)),
+                onTap: () {
+                  appState.setCallInputDevice(entry.value);
+                  final engine = context.read<EngineService>();
+                  engine.setCallAudioDevice(
+                      appState.activeAccountId, 'input', entry.value);
+                  Navigator.pop(ctx);
+                },
+              ),
+          ],
+        ),
       );
     },
   );
@@ -2527,16 +2929,33 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  // The audio-level blobs are painted in the bar's own state color (AyuGram
+  // _groupBrush): green active, blue muted, purple force-muted — not hardcoded.
+  Color get _blobColor {
+    switch (_toState) {
+      case _CallBarState.active:
+        return const Color(0xFF0DCC39);
+      case _CallBarState.muted:
+        return const Color(0xFF0992EF);
+      case _CallBarState.forceMuted:
+        return const Color(0xFF7A6AF1);
+      case _CallBarState.connecting:
+        return const Color(0xFF8F8F8F);
+    }
+  }
+
   static List<Color> _gradientColors(_CallBarState state, bool isPersonal) {
     if (isPersonal) {
+      // Personal (1:1) calls use a FLAT solid fill (AyuGram calls_top_bar.cpp:823):
+      // callBarBg (= dialogsBgActive #419fd9, blue) active, callBarBgMuted
+      // (#8f8f8f) when muted. Only group calls use a gradient.
       switch (state) {
         case _CallBarState.active:
-          return [const Color(0xFF0dcc39), const Color(0xFF0bb6bd)];
+          return [const Color(0xFF419FD9), const Color(0xFF419FD9)];
         case _CallBarState.muted:
         case _CallBarState.connecting:
-          return [const Color(0xFF7F8A96), const Color(0xFF7F8A96)];
         case _CallBarState.forceMuted:
-          return [const Color(0xFF7F8A96), const Color(0xFF7F8A96)];
+          return [const Color(0xFF8F8F8F), const Color(0xFF8F8F8F)];
       }
     }
     switch (state) {
@@ -2650,6 +3069,20 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
                     },
                   ),
                 ),
+                if (!isPersonal &&
+                    widget.callStartTime != null &&
+                    !widget.isConnecting) ...[
+                  Text(
+                    _formatDuration(_durationSeconds),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 if (isPersonal) ...[
                   Padding(
                     padding: const EdgeInsets.only(top: 10),
@@ -2678,7 +3111,7 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
       ),
     ),
     if (showBlobs)
-      _LinearBlobsBar(level: widget.audioLevel),
+      _LinearBlobsBar(level: widget.audioLevel, color: _blobColor),
     ],
     );
   }
@@ -2686,8 +3119,9 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
 
 class _LinearBlobsBar extends StatefulWidget {
   final double level;
+  final Color color;
 
-  const _LinearBlobsBar({this.level = 0.0});
+  const _LinearBlobsBar({this.level = 0.0, this.color = const Color(0xFF4DC920)});
 
   static const _height = 3.0;
   static const _blobCount = 3;
@@ -2777,6 +3211,7 @@ class _LinearBlobsBarState extends State<_LinearBlobsBar>
       painter: _LinearBlobsPainter(
         blobRadii: _blobRadii,
         level: widget.level,
+        color: widget.color,
       ),
     );
   }
@@ -2785,15 +3220,17 @@ class _LinearBlobsBarState extends State<_LinearBlobsBar>
 class _LinearBlobsPainter extends CustomPainter {
   final List<List<double>> blobRadii;
   final double level;
+  final Color color;
 
-  _LinearBlobsPainter({required this.blobRadii, required this.level});
+  _LinearBlobsPainter({required this.blobRadii, required this.level, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Layered translucent fills of the bar's state color (AyuGram _groupBrush).
     final colors = [
-      const Color(0xFF52CE5B).withAlpha(60),
-      const Color(0xFF00B151).withAlpha(40),
-      const Color(0xFF4DC920).withAlpha(30),
+      color.withAlpha(60),
+      color.withAlpha(40),
+      color.withAlpha(30),
     ];
 
     for (var b = 0; b < blobRadii.length; b++) {
@@ -3187,7 +3624,12 @@ class ScreenShareSource {
 
 Future<ScreenShareSource?> showScreenShareChooser(BuildContext context) async {
   if (Platform.isLinux) {
-    final portalResult = await _tryPortalScreenCast();
+    // The system portal picker can't host our "Share audio" checkbox, so ask
+    // the audio preference up-front and thread it into the portal result
+    // (AyuGram surfaces the same checkbox in desktop_capture_choose_source.cpp).
+    final withAudio = await _askShareAudio(context);
+    if (withAudio == null) return null; // user cancelled
+    final portalResult = await _tryPortalScreenCast(withAudio: withAudio);
     if (portalResult != null) return portalResult;
   }
   if (!context.mounted) return null;
@@ -3198,7 +3640,50 @@ Future<ScreenShareSource?> showScreenShareChooser(BuildContext context) async {
   );
 }
 
-Future<ScreenShareSource?> _tryPortalScreenCast() async {
+// Pre-flight "Share audio" prompt for the Linux portal path. Returns the chosen
+// value, or null if the user cancelled.
+Future<bool?> _askShareAudio(BuildContext context) {
+  bool shareAudio = false;
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx2, setDlg) => AlertDialog(
+        backgroundColor: const Color(0xFF1E2530),
+        title: const Text('Share Screen', style: TextStyle(color: Colors.white)),
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: shareAudio,
+                onChanged: (v) => setDlg(() => shareAudio = v ?? false),
+                activeColor: const Color(0xFF3390EC),
+                side: const BorderSide(color: Color(0x80FFFFFF)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text('Share audio',
+                style: TextStyle(color: Color(0xCCFFFFFF), fontSize: 14)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx2),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx2, shareAudio),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<ScreenShareSource?> _tryPortalScreenCast({bool withAudio = false}) async {
   final client = DBusClient.session();
   try {
     final object = DBusRemoteObject(
@@ -3307,6 +3792,7 @@ Future<ScreenShareSource?> _tryPortalScreenCast() async {
       id: 'pipewire:$nodeId',
       name: isScreen ? 'Screen' : 'Window',
       isScreen: isScreen,
+      withAudio: withAudio,
     );
   } catch (_) {
     return null;

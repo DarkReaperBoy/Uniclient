@@ -1868,6 +1868,88 @@ func (e *Engine) LeaveGroupCall(accountID, callID string) error {
 	return fmt.Errorf("core does not support LeaveGroupCall")
 }
 
+// GetGroupCallJoinAsPeers returns the identities the user can join a chat's
+// group call as (yourself / your channels), via phone.getGroupCallJoinAs.
+func (e *Engine) GetGroupCallJoinAsPeers(accountID, chatID string) ([]cores.JoinAsPeerInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type joinAsLister interface {
+		GetGroupCallJoinAsPeers(chatID string) ([]cores.JoinAsPeerInfo, error)
+	}
+	if gc, ok := acc.Core.(joinAsLister); ok {
+		return gc.GetGroupCallJoinAsPeers(chatID)
+	}
+	return nil, fmt.Errorf("core does not support GetGroupCallJoinAsPeers")
+}
+
+// JoinGroupCallAs rejoins a chat's group call as the given identity (joinAsChatID).
+func (e *Engine) JoinGroupCallAs(accountID, chatID, joinAsChatID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	type joinAsJoiner interface {
+		JoinGroupCallAs(chatID, joinAsChatID string) (*cores.CallSession, error)
+	}
+	if gc, ok := acc.Core.(joinAsJoiner); ok {
+		cs, err := gc.JoinGroupCallAs(chatID, joinAsChatID)
+		if err != nil {
+			return "", err
+		}
+		if cs == nil {
+			return "", fmt.Errorf("JoinGroupCallAs returned nil session")
+		}
+		return cs.ID, nil
+	}
+	return "", fmt.Errorf("core does not support JoinGroupCallAs")
+}
+
+// SendGroupCallMessage sends an ephemeral message into a group call's message
+// stream (NOT the permanent chat history), via phone.sendGroupCallMessage.
+func (e *Engine) SendGroupCallMessage(accountID, chatID, text string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type gcMessenger interface {
+		SendGroupCallMessage(chatID, text string) error
+	}
+	if gc, ok := acc.Core.(gcMessenger); ok {
+		return gc.SendGroupCallMessage(chatID, text)
+	}
+	return fmt.Errorf("core does not support SendGroupCallMessage")
+}
+
+// GetGroupCallScheduleSubscribed reports whether the user is subscribed to a
+// scheduled group call's start reminder (real->scheduleStartSubscribed()).
+func (e *Engine) GetGroupCallScheduleSubscribed(accountID, chatID string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return false, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return false, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type subChecker interface {
+		GetGroupCallScheduleSubscribed(chatID string) (bool, error)
+	}
+	if gc, ok := acc.Core.(subChecker); ok {
+		return gc.GetGroupCallScheduleSubscribed(chatID)
+	}
+	return false, fmt.Errorf("core does not support GetGroupCallScheduleSubscribed")
+}
+
 func (e *Engine) RaiseHand(accountID, callID string, raised bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

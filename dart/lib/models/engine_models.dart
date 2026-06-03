@@ -2644,6 +2644,7 @@ class GroupCallInfo {
   final bool messagesEnabled;
   final int messagesMinPrice;
   final String conferenceInviteLink;
+  final bool scheduleStartSubscribed;
 
   const GroupCallInfo({
     this.callId = '',
@@ -2661,6 +2662,7 @@ class GroupCallInfo {
     this.messagesEnabled = false,
     this.messagesMinPrice = 0,
     this.conferenceInviteLink = '',
+    this.scheduleStartSubscribed = false,
   });
 
   factory GroupCallInfo.fromJson(Map<String, dynamic> j) => GroupCallInfo(
@@ -2681,6 +2683,33 @@ class GroupCallInfo {
     messagesEnabled: j['messages_enabled'] as bool? ?? false,
     messagesMinPrice: (j['messages_min_price'] as num?)?.toInt() ?? 0,
     conferenceInviteLink: j['conference_invite_link'] as String? ?? '',
+    scheduleStartSubscribed: j['schedule_start_subscribed'] as bool? ?? false,
+  );
+}
+
+/// A peer identity the user can join a group call as (yourself / a channel you
+/// manage). Mirrors AyuGram's `possibleJoinAs` entries.
+class JoinAsPeer {
+  final String id;
+  final String title;
+  final String subtitle;
+  final bool isSelf;
+  final bool isChannel;
+
+  const JoinAsPeer({
+    this.id = '',
+    this.title = '',
+    this.subtitle = '',
+    this.isSelf = false,
+    this.isChannel = false,
+  });
+
+  factory JoinAsPeer.fromJson(Map<String, dynamic> j) => JoinAsPeer(
+    id: j['id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    subtitle: j['subtitle'] as String? ?? '',
+    isSelf: j['is_self'] as bool? ?? false,
+    isChannel: j['is_channel'] as bool? ?? false,
   );
 }
 

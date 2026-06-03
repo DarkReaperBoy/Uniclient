@@ -471,6 +471,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String _callSpecificOutputDevice = '';
   String _callSpecificInputDevice = '';
   bool _callNoiseSuppression = true;
+  bool _callPushToTalk = false;
+  String _callPttShortcut = 'Space';
+  int _callPttDelay = 200; // ms — release delay after the PTT key is let go
   bool _notifAllAccountsNotify = true;
   bool _notifIncludeMutedChats = true;
   bool _notifIncludeMutedInFolders = true;
@@ -804,6 +807,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get callSpecificOutputDevice => _callSpecificOutputDevice;
   String get callSpecificInputDevice => _callSpecificInputDevice;
   bool get callNoiseSuppression => _callNoiseSuppression;
+  bool get callPushToTalk => _callPushToTalk;
+  String get callPttShortcut => _callPttShortcut;
+  int get callPttDelay => _callPttDelay;
   bool get notifAllAccountsNotify => _notifAllAccountsNotify;
   bool get notifIncludeMutedChats => _notifIncludeMutedChats;
   bool get notifIncludeMutedInFolders => _notifIncludeMutedInFolders;
@@ -1244,6 +1250,27 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setCallNoiseSuppression(bool v) {
     if (_callNoiseSuppression == v) return;
     _callNoiseSuppression = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setCallPushToTalk(bool v) {
+    if (_callPushToTalk == v) return;
+    _callPushToTalk = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setCallPttShortcut(String v) {
+    if (_callPttShortcut == v) return;
+    _callPttShortcut = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setCallPttDelay(int v) {
+    if (_callPttDelay == v) return;
+    _callPttDelay = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -4169,6 +4196,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _callSpecificOutputDevice = data['callSpecificOutputDevice'] as String? ?? '';
       _callSpecificInputDevice = data['callSpecificInputDevice'] as String? ?? '';
       _callNoiseSuppression = data['callNoiseSuppression'] as bool? ?? true;
+      _callPushToTalk = data['callPushToTalk'] as bool? ?? false;
+      _callPttShortcut = data['callPttShortcut'] as String? ?? 'Space';
+      _callPttDelay = (data['callPttDelay'] as num?)?.toInt() ?? 200;
       _notifAllAccountsNotify = data['notifAllAccountsNotify'] as bool? ?? true;
       _notifIncludeMutedChats = data['notifIncludeMutedChats'] as bool? ?? true;
       _notifIncludeMutedInFolders = data['notifIncludeMutedInFolders'] as bool? ?? true;
@@ -4496,6 +4526,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'callSpecificOutputDevice': _callSpecificOutputDevice,
         'callSpecificInputDevice': _callSpecificInputDevice,
         'callNoiseSuppression': _callNoiseSuppression,
+        'callPushToTalk': _callPushToTalk,
+        'callPttShortcut': _callPttShortcut,
+        'callPttDelay': _callPttDelay,
         'notifAllAccountsNotify': _notifAllAccountsNotify,
         'notifIncludeMutedChats': _notifIncludeMutedChats,
         'notifIncludeMutedInFolders': _notifIncludeMutedInFolders,

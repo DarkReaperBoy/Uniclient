@@ -382,18 +382,61 @@ class _UniClientShellState extends State<UniClientShell>
         );
       } else {
         final selfUserId = context.read<AppState>().activeAccount?.selfUserId ?? '';
-        final selfMuted = groupCall!.participants.any((p) =>
-            p.userId == selfUserId && p.isMuted);
+        GroupCallParticipant? selfP;
+        for (final p in groupCall!.participants) {
+          if (p.userId == selfUserId) {
+            selfP = p;
+            break;
+          }
+        }
+        final selfMuted = selfP?.isMuted ?? false;
+        // muted + can't self-unmute → admin force-muted (RaisedHand if hand up).
+        final forceMuted = selfP != null &&
+            selfP.isMuted && !selfP.canSelfUnmute && selfP.raisedHandRating == 0;
+        final raisedHand = selfP != null &&
+            selfP.isMuted && !selfP.canSelfUnmute && selfP.raisedHandRating > 0;
+        // Not yet in the participant list = the call instance is still joining.
+        final isConnecting = selfP == null;
+        final isCanManage = chatState.activeChat?.isAdmin ?? false;
+        // Loudest participant drives the bar's audio-level blobs.
+        double audioLevel = 0.0;
+        for (final p in groupCall.participants) {
+          if (p.audioLevel > audioLevel) audioLevel = p.audioLevel;
+        }
+        // Duration since the local user joined (selfP.date is a unix timestamp).
+        final callStartTime = (selfP != null && selfP.date > 0)
+            ? DateTime.fromMillisecondsSinceEpoch(selfP.date * 1000)
+            : null;
         callBar = MinimisedCallBar(
           peerName: groupCall.title.isNotEmpty
               ? groupCall.title
               : chatState.activeChat?.title ?? 'Group Call',
           participants: groupCall.participants,
           isSelfMuted: selfMuted,
+          isForceMuted: forceMuted,
+          isRaisedHand: raisedHand,
+          isConnecting: isConnecting,
+          isCanManage: isCanManage,
+          audioLevel: audioLevel,
+          callStartTime: callStartTime,
+          callId: groupCall.callId,
+          onTap: () {
+            // Reopen the full call panel (AyuGram top bar → showInfoPanel).
+            showGroupCallPanel(
+              context,
+              groupCall!,
+              chatTitle: chatState.activeChat?.title ?? '',
+              isCanManage: isCanManage,
+              isSelfMuted: selfMuted,
+              isForceMuted: forceMuted,
+              isRaisedHand: raisedHand,
+              callStartTime: callStartTime,
+            );
+          },
           onHangup: () {
-            if (accountId.isNotEmpty && groupCall.callId.isNotEmpty) {
-              context.read<EngineService>().endCall(accountId, groupCall.callId);
-            }
+            // _CallBarHangupButton leaves/ends the call itself via callId +
+            // isCanManage; just clear local state so the bar disappears.
+            chatState.setActiveGroupCall(null);
           },
           onToggleMute: () {
             if (accountId.isNotEmpty && groupCall.callId.isNotEmpty) {

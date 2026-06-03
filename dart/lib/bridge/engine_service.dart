@@ -2459,6 +2459,84 @@ class EngineService {
     }
   }
 
+  /// Lists the identities the user can join the chat's group call as
+  /// (yourself / channels you manage), via phone.getGroupCallJoinAs.
+  Future<List<JoinAsPeer>> getGroupCallJoinAsPeers(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    try {
+      final respBytes = await _callAsync(
+          '__engine', 'GetGroupCallJoinAsPeers', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final result = json.decode(utf8.decode(respBytes));
+      if (result is List) {
+        return result
+            .map((e) => JoinAsPeer.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getGroupCallJoinAsPeers failed', e);
+      return [];
+    }
+  }
+
+  /// Rejoins the chat's group call as the given identity (joinAsId) and persists
+  /// it as the default join-as peer. Returns the call ID.
+  Future<String> joinGroupCallAs(String accountId, String chatId, String joinAsId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'join_as_id': joinAsId,
+    }));
+    try {
+      final respBytes = await _callAsync(
+          '__engine', 'JoinGroupCallAs', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return '';
+      final result = json.decode(utf8.decode(respBytes));
+      if (result is Map<String, dynamic>) return result['call_id'] as String? ?? '';
+      return '';
+    } catch (e) {
+      Debug.error('ENGINE', 'joinGroupCallAs failed', e);
+      return '';
+    }
+  }
+
+  /// Sends an ephemeral message into a group call's message stream (NOT the
+  /// permanent chat history), via phone.sendGroupCallMessage.
+  Future<void> sendGroupCallMessage(String accountId, String chatId, String text) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'text': text,
+    }));
+    try {
+      await _callAsync('__engine', 'SendGroupCallMessage', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'sendGroupCallMessage failed', e);
+    }
+  }
+
+  /// Reports whether the user is subscribed to a scheduled group call's start
+  /// reminder (real->scheduleStartSubscribed()).
+  Future<bool> getGroupCallScheduleSubscribed(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    try {
+      final respBytes = await _callAsync(
+          '__engine', 'GetGroupCallScheduleSubscribed', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return false;
+      final result = json.decode(utf8.decode(respBytes));
+      return result == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> startScheduledGroupCall(String accountId, String callId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
