@@ -424,75 +424,58 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             wallpaper: appState.wallpaper,
             onColorSelected: (color) {
               final hex = '#${color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
+              // AyuGram: choosing a manual palette color disables the
+              // system-accent option (setSystemAccentColorEnabled(false) +
+              // systemAccentWrap->entity()->setChecked(false)).
+              // settings_chat.cpp:2661-2665
+              if (appState.useSystemAccent) {
+                appState.useSystemAccent = false;
+              }
               appState.updateAccentColor(hex);
             },
           ),
-          Padding(
-            padding: const EdgeInsets.only(left: 22, right: 22, top: 12, bottom: 4),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: Checkbox(
-                    value: appState.useSystemAccent,
-                    onChanged: (v) {
-                      final enabled = v ?? false;
-                      appState.useSystemAccent = enabled;
-                      if (enabled) {
-                        appState.updateAccentColor(_readSystemAccent());
-                      }
-                    },
-                    activeColor: accentColor,
-                    side: BorderSide(color: subtextColor, width: 1.5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
+          // AyuGram gates this behind a SlideWrap toggled on only when
+          // IsSystemAccentColorSupported() && a built-in theme is selected
+          // (type != Type(-1)); on unsupported platforms / cloud themes it is
+          // hidden entirely. settings_chat.cpp:2356-2365 / :2506-2510
+          if (_isSystemAccentSupported() && _activeCloudThemeId == 0)
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: 22, right: 22, top: 12, bottom: 4),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Checkbox(
+                      value: appState.useSystemAccent,
+                      onChanged: (v) {
+                        final enabled = v ?? false;
+                        appState.useSystemAccent = enabled;
+                        if (enabled) {
+                          final accent = _systemAccentColor();
+                          if (accent != null) {
+                            appState.updateAccentColor(accent);
+                          }
+                        }
+                      },
+                      activeColor: accentColor,
+                      side: BorderSide(color: subtextColor, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
                     ),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
                   ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'Use system accent color',
-                  style: TextStyle(fontSize: 14, color: textColor),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Text(
+                    'Use system accent color',
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                ],
+              ),
             ),
-          ),
-          _CloudThemeSection(
-            themes: _cloudThemes,
-            loaded: _cloudThemesLoaded,
-            isDark: isDark,
-            accentColor: currentAccent,
-            activeThemeId: _activeCloudThemeId,
-            onThemeSelected: (theme) {
-              setState(() => _activeCloudThemeId = theme.id);
-              final targetTheme = theme.isDark ? 'night' : 'day_blue';
-              final accentHex = theme.accentColor != 0
-                  ? '#${(theme.accentColor & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}'
-                  : null;
-              appState.applyTestingTheme(targetTheme, accentColor: accentHex);
-              final account = appState.activeAccount;
-              if (account != null) {
-                context.read<EngineService>().installCloudTheme(
-                  account.id,
-                  theme.id,
-                  isDark: theme.isDark,
-                );
-              }
-            },
-            onEditTheme: _activeCloudThemeId != 0 &&
-                _cloudThemes.any((t) => t.id == _activeCloudThemeId && t.isCreator && t.documentId != 0)
-                ? () => _openThemeEditor(context)
-                : null,
-            onThemeDeleted: () {
-              setState(() {
-                _activeCloudThemeId = 0;
-              });
-              _loadCloudThemes();
-            },
-          ),
           const SizedBox(height: 8),
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
@@ -542,6 +525,42 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   _restartApp();
                 }
               });
+            },
+          ),
+          // AyuGram builds BuildThemeSettingsSection (peer color → auto-night →
+          // font) BEFORE BuildCloudThemesSection, so the cloud themes block sits
+          // after the font row, not before it. settings_chat.cpp:1308-1309
+          _CloudThemeSection(
+            themes: _cloudThemes,
+            loaded: _cloudThemesLoaded,
+            isDark: isDark,
+            accentColor: currentAccent,
+            activeThemeId: _activeCloudThemeId,
+            onThemeSelected: (theme) {
+              setState(() => _activeCloudThemeId = theme.id);
+              final targetTheme = theme.isDark ? 'night' : 'day_blue';
+              final accentHex = theme.accentColor != 0
+                  ? '#${(theme.accentColor & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}'
+                  : null;
+              appState.applyTestingTheme(targetTheme, accentColor: accentHex);
+              final account = appState.activeAccount;
+              if (account != null) {
+                context.read<EngineService>().installCloudTheme(
+                  account.id,
+                  theme.id,
+                  isDark: theme.isDark,
+                );
+              }
+            },
+            onEditTheme: _activeCloudThemeId != 0 &&
+                _cloudThemes.any((t) => t.id == _activeCloudThemeId && t.isCreator && t.documentId != 0)
+                ? () => _openThemeEditor(context)
+                : null,
+            onThemeDeleted: () {
+              setState(() {
+                _activeCloudThemeId = 0;
+              });
+              _loadCloudThemes();
             },
           ),
           const SizedBox(height: 7),
@@ -675,27 +694,195 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     return v != null ? Color(v) : null;
   }
 
-  static String _readSystemAccent() {
-    if (Platform.isLinux) {
-      try {
-        final home = Platform.environment['HOME'] ?? '';
-        final file = File('$home/.config/kdeglobals');
-        if (file.existsSync()) {
-          for (final line in file.readAsLinesSync()) {
-            if (line.startsWith('AccentColor=')) {
-              final parts = line.substring('AccentColor='.length).split(',');
-              if (parts.length >= 3) {
-                final r = int.tryParse(parts[0].trim()) ?? 0;
-                final g = int.tryParse(parts[1].trim()) ?? 0;
-                final b = int.tryParse(parts[2].trim()) ?? 0;
-                return '#${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}';
-              }
-            }
+  // ── System accent color (AyuGram: Window::Theme::SystemAccentColor()) ──
+  //
+  // AyuGram reads QPalette::Highlight cross-platform and returns
+  // std::optional<QColor>; the "Use system accent color" option only exists
+  // when that optional has a value (IsSystemAccentColorSupported()). We mirror
+  // that by querying the REAL OS accent on Linux (KDE/GNOME), macOS and
+  // Windows, returning null when the platform genuinely cannot report one —
+  // never a hardcoded fake. (window_themes_embedded.cpp:186-194)
+
+  static String? _cachedSystemAccent;
+  static bool _systemAccentResolved = false;
+
+  /// The real OS accent as a `#rrggbb` string, or null when the platform
+  /// cannot report one. Resolved once per app session (the underlying lookup
+  /// may spawn a short subprocess).
+  static String? _systemAccentColor() {
+    if (_systemAccentResolved) return _cachedSystemAccent;
+    _systemAccentResolved = true;
+    try {
+      if (Platform.isLinux) {
+        _cachedSystemAccent = _linuxAccent();
+      } else if (Platform.isMacOS) {
+        _cachedSystemAccent = _macAccent();
+      } else if (Platform.isWindows) {
+        _cachedSystemAccent = _windowsAccent();
+      }
+    } catch (_) {
+      _cachedSystemAccent = null;
+    }
+    return _cachedSystemAccent;
+  }
+
+  /// Whether the OS can report a system accent — gates the checkbox the same
+  /// way AyuGram's IsSystemAccentColorSupported() (== SystemAccentColor()
+  /// .has_value()) does. (settings_chat.cpp:106-108)
+  static bool _isSystemAccentSupported() => _systemAccentColor() != null;
+
+  // Linux: KDE Plasma stores a custom accent under [General] AccentColor in
+  // ~/.config/kdeglobals; otherwise Qt's QPalette::Highlight resolves to the
+  // [Colors:Selection] BackgroundNormal. GNOME 47+ exposes a named accent via
+  // gsettings. Anything else has no standard system accent → null (checkbox
+  // hidden), matching what Qt would report on those desktops.
+  static String? _linuxAccent() {
+    final home = Platform.environment['HOME'] ?? '';
+    if (home.isNotEmpty) {
+      final file = File('$home/.config/kdeglobals');
+      if (file.existsSync()) {
+        String? accent;
+        String? selection;
+        var section = '';
+        for (final raw in file.readAsLinesSync()) {
+          final line = raw.trim();
+          if (line.startsWith('[') && line.endsWith(']')) {
+            section = line;
+            continue;
+          }
+          if (line.startsWith('AccentColor=')) {
+            accent = _rgbTripletToHex(line.substring('AccentColor='.length));
+          } else if (section == '[Colors:Selection]' &&
+              line.startsWith('BackgroundNormal=')) {
+            selection =
+                _rgbTripletToHex(line.substring('BackgroundNormal='.length));
           }
         }
-      } catch (_) {}
+        if (accent != null) return accent;
+        if (selection != null) return selection;
+      }
     }
-    return '#40a7e3';
+    return _gnomeAccent();
+  }
+
+  static String? _gnomeAccent() {
+    try {
+      final r = Process.runSync(
+        'gsettings',
+        ['get', 'org.gnome.desktop.interface', 'accent-color'],
+      );
+      if (r.exitCode != 0) return null;
+      final name = (r.stdout as String).trim().replaceAll("'", '');
+      // libadwaita named accent colors (GNOME 47+).
+      const map = {
+        'blue': '#3584e4',
+        'teal': '#2190a4',
+        'green': '#3a944a',
+        'yellow': '#c88800',
+        'orange': '#ed5b00',
+        'red': '#e62d42',
+        'pink': '#d56199',
+        'purple': '#9141ac',
+        'slate': '#6f8396',
+      };
+      return map[name];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // macOS: AppleHighlightColor is the QPalette::Highlight equivalent
+  // ("r g b Name" floats in 0..1). Falls back to the AppleAccentColor index,
+  // then to the default system blue — macOS always reports a highlight, so
+  // (like Qt) this never returns null.
+  static String? _macAccent() {
+    try {
+      final r =
+          Process.runSync('defaults', ['read', '-g', 'AppleHighlightColor']);
+      if (r.exitCode == 0) {
+        final parts = (r.stdout as String).trim().split(RegExp(r'\s+'));
+        if (parts.length >= 3) {
+          final rr = double.tryParse(parts[0]);
+          final gg = double.tryParse(parts[1]);
+          final bb = double.tryParse(parts[2]);
+          if (rr != null && gg != null && bb != null) {
+            return _rgbToHex(
+                (rr * 255).round(), (gg * 255).round(), (bb * 255).round());
+          }
+        }
+      }
+    } catch (_) {}
+    try {
+      final r =
+          Process.runSync('defaults', ['read', '-g', 'AppleAccentColor']);
+      if (r.exitCode == 0) {
+        final idx = int.tryParse((r.stdout as String).trim());
+        const palette = {
+          -1: '#989898',
+          0: '#ff5257',
+          1: '#f7821b',
+          2: '#ffc600',
+          3: '#62ba46',
+          4: '#007aff',
+          5: '#953d96',
+          6: '#f74f9e',
+        };
+        final hex = palette[idx];
+        if (hex != null) return hex;
+      }
+    } catch (_) {}
+    return '#007aff';
+  }
+
+  // Windows: QPalette::Highlight maps to COLOR_HIGHLIGHT
+  // (HKCU\Control Panel\Colors\Hilight, "r g b"); falls back to the DWM accent
+  // (ABGR DWORD). Always present on Windows 8+, so this returns non-null there.
+  static String? _windowsAccent() {
+    try {
+      final r = Process.runSync(
+        'reg',
+        ['query', r'HKCU\Control Panel\Colors', '/v', 'Hilight'],
+      );
+      if (r.exitCode == 0) {
+        final m = RegExp(r'Hilight\s+REG_SZ\s+(\d+)\s+(\d+)\s+(\d+)')
+            .firstMatch(r.stdout as String);
+        if (m != null) {
+          return _rgbToHex(
+              int.parse(m[1]!), int.parse(m[2]!), int.parse(m[3]!));
+        }
+      }
+    } catch (_) {}
+    try {
+      final r = Process.runSync(
+        'reg',
+        ['query', r'HKCU\Software\Microsoft\Windows\DWM', '/v', 'AccentColor'],
+      );
+      if (r.exitCode == 0) {
+        final m = RegExp(r'AccentColor\s+REG_DWORD\s+0x([0-9a-fA-F]+)')
+            .firstMatch(r.stdout as String);
+        if (m != null) {
+          final abgr = int.parse(m[1]!, radix: 16);
+          return _rgbToHex(
+              abgr & 0xFF, (abgr >> 8) & 0xFF, (abgr >> 16) & 0xFF);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static String? _rgbTripletToHex(String triplet) {
+    final parts = triplet.split(',');
+    if (parts.length < 3) return null;
+    final r = int.tryParse(parts[0].trim());
+    final g = int.tryParse(parts[1].trim());
+    final b = int.tryParse(parts[2].trim());
+    if (r == null || g == null || b == null) return null;
+    return _rgbToHex(r, g, b);
+  }
+
+  static String _rgbToHex(int r, int g, int b) {
+    String h(int v) => v.clamp(0, 255).toRadixString(16).padLeft(2, '0');
+    return '#${h(r)}${h(g)}${h(b)}';
   }
 }
 
@@ -3620,15 +3807,16 @@ class _StickersEmojiSection extends StatelessWidget {
           isDark: isDark,
           onChanged: onSuggestEmojiChanged,
         ),
-        if (suggestEmoji)
+        // AyuGram: rpl::combine(AmPremiumValue, suggestEmoji, _1 && _2) — the
+        // row is shown only when the user is Premium AND "Suggest Emoji" is on;
+        // a non-premium user never sees it. settings_chat.cpp:1507-1517
+        if (isPremium && suggestEmoji)
           _StickerCheckbox(
             label: 'Suggest Animated Emoji',
-            value: suggestAnimatedEmoji && isPremium,
+            value: suggestAnimatedEmoji,
             isDark: isDark,
-            onChanged: isPremium ? onSuggestAnimatedEmojiChanged : (_) {},
+            onChanged: onSuggestAnimatedEmojiChanged,
             nested: true,
-            premiumOnly: true,
-            enabled: isPremium,
           ),
         _StickerCheckbox(
           label: 'Suggest Stickers by Emoji',
@@ -3666,8 +3854,6 @@ class _StickerCheckbox extends StatelessWidget {
   final bool isDark;
   final ValueChanged<bool> onChanged;
   final bool nested;
-  final bool premiumOnly;
-  final bool enabled;
 
   const _StickerCheckbox({
     required this.label,
@@ -3675,8 +3861,6 @@ class _StickerCheckbox extends StatelessWidget {
     required this.isDark,
     required this.onChanged,
     this.nested = false,
-    this.premiumOnly = false,
-    this.enabled = true,
   });
 
   @override
@@ -3685,12 +3869,10 @@ class _StickerCheckbox extends StatelessWidget {
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor =
-        context.palette.windowBgActive;
-    final disabledColor = subtextColor.withValues(alpha: 0.5);
+    final accentColor = context.palette.windowBgActive;
 
     return InkWell(
-      onTap: enabled ? () => onChanged(!value) : null,
+      onTap: () => onChanged(!value),
       child: Padding(
         padding: EdgeInsets.only(
           left: nested ? 44 : 22,
@@ -3705,12 +3887,9 @@ class _StickerCheckbox extends StatelessWidget {
               height: 20,
               child: Checkbox(
                 value: value,
-                onChanged: enabled ? (v) => onChanged(v ?? false) : null,
+                onChanged: (v) => onChanged(v ?? false),
                 activeColor: accentColor,
-                side: BorderSide(
-                  color: enabled ? subtextColor : disabledColor,
-                  width: 1.5,
-                ),
+                side: BorderSide(color: subtextColor, width: 1.5),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(4),
                 ),
@@ -3722,18 +3901,9 @@ class _StickerCheckbox extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: enabled ? textColor : disabledColor,
-                ),
+                style: TextStyle(fontSize: 14, color: textColor),
               ),
             ),
-            if (premiumOnly)
-              Icon(
-                Icons.lock_outline,
-                size: 14,
-                color: enabled ? const Color(0xFFFFA500) : disabledColor,
-              ),
           ],
         ),
       ),
