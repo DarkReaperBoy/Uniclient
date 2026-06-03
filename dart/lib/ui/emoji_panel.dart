@@ -837,6 +837,10 @@ void addRecentEmoji(String emoji) {
     _recentEmojis = _recentEmojis.sublist(0, 54);
   }
   _saveEmojiPrefs();
+  // Feed the single global recent list so inline emoji suggestions prioritize
+  // emoji used from the panel too (AyuGram updates `recentEmoji()` from every
+  // source — emoji_list_widget.cpp:2473).
+  EmojiKeywords.instance.recordRecent(emoji);
 }
 
 class _EmojiTab extends StatefulWidget {
@@ -913,6 +917,9 @@ class _EmojiTabState extends State<_EmojiTab> {
       _recentEmojis = _recentEmojis.sublist(0, 54);
     }
     _saveEmojiPrefs();
+    // Mirror AyuGram: a panel pick updates the single global recent list, so
+    // inline emoji suggestions prioritize it (emoji_list_widget.cpp:2473).
+    EmojiKeywords.instance.recordRecent(emoji);
     widget.onEmojiSelected?.call(emoji);
   }
 

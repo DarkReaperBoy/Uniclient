@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:characters/characters.dart';
+
 const List<EmojiEntry> kEmojiSuggestions = [
   EmojiEntry('#️⃣', ['hash']),
   EmojiEntry('0️⃣', ['zero']),
@@ -2767,6 +2769,51 @@ String _normalizeLegacyQuery(String q) {
   return sb.toString();
 }
 
+/// Mirrors codegen's `ReplacementWords` (replaces.cpp:40-63): splits a built-in
+/// keyword into words on every char that is NOT a letter or number, keeping
+/// '-'/'+' inside a word only when immediately followed by a number. So
+/// `blond-haired_man` → [blond, haired, man], `e-mail` → [e, mail],
+/// `fleur-de-lis` → [de, fleur, lis], `non-potable_water` → [non, potable,
+/// water] — letting interior-word queries (`:haired`, `:mail`, `:de`/`:lis`,
+/// `:potable`) match, where the old `split('_')` kept them as one word and
+/// matched nothing. Returned sorted (the C++ QMap iterates keys in order), which
+/// is what the interior-word matcher (`_matchLegacyTail`/`_legacyLowerBound`)
+/// relies on, and duplicate words are kept (QMap re-emits each key `count`
+/// times). Built-in keywords are ASCII shortcodes, so the ASCII letter/number
+/// tests are equivalent to Qt's `isLetterOrNumber()`/`isNumber()` for this data.
+List<String> _splitReplacementWords(String s) {
+  final words = <String>[];
+  final sb = StringBuffer();
+  void feed() {
+    if (sb.isNotEmpty) {
+      words.add(sb.toString());
+      sb.clear();
+    }
+  }
+
+  for (int i = 0; i < s.length; i++) {
+    final c = s.codeUnitAt(i);
+    final isNumber = c >= 0x30 && c <= 0x39;
+    final isLetterOrNumber =
+        isNumber || (c >= 0x61 && c <= 0x7A) || (c >= 0x41 && c <= 0x5A);
+    if (isLetterOrNumber) {
+      sb.writeCharCode(c);
+      continue;
+    } else if (c == 0x2D || c == 0x2B) {
+      // '-' or '+': keep only if the next char is a number.
+      final next = i + 1 < s.length ? s.codeUnitAt(i + 1) : -1;
+      if (next >= 0x30 && next <= 0x39) {
+        sb.writeCharCode(c);
+        continue;
+      }
+    }
+    feed();
+  }
+  feed();
+  words.sort();
+  return words;
+}
+
 /// Mirrors `Completer::matchQueryForCurrentItem` (emoji_suggestions.cpp:301):
 /// returns the words-used count on a match, or -1 on no match. Single-word
 /// replacements match only as a prefix-from-start; multi-word replacements allow
@@ -2896,8 +2943,7 @@ class EmojiKeywords {
     for (final e in kEmojiSuggestions) {
       final lists = <List<String>>[];
       for (final kw in e.keywords) {
-        final parts = kw.split('_').where((w) => w.isNotEmpty).toList()..sort();
-        lists.add(parts);
+        lists.add(_splitReplacementWords(kw));
       }
       out.add(_LegacyCandidate(e, lists));
     }
@@ -3069,6 +3115,35 @@ class EmojiKeywords {
     _scheduleSave();
   }
 
+  /// The set of every built-in emoji (default/yellow form), used to detect
+  /// emoji inside sent message text. Built once.
+  late final Set<String> _knownEmojiSet = {
+    for (final e in kEmojiSuggestions) e.emoji,
+  };
+
+  /// Records every standard emoji found in [text] as recent. AyuGram's
+  /// `recentEmoji()` is the single global list `PrioritizeRecent` reads, and it
+  /// is updated whenever an emoji passes through the text engine — including
+  /// message text — via `UiIntegration::defaultEmojiVariant`
+  /// (ui_integration.cpp:471). Wiring this into the send path keeps inline
+  /// suggestion ordering in sync with what the user actually sends, instead of
+  /// only with accepted autocomplete picks. Skin-tone variants are recorded as
+  /// used (their base is a known emoji); `_prioritizeRecent` strips the tone
+  /// when matching against suggestions.
+  void recordRecentFromText(String text) {
+    if (text.isEmpty) return;
+    for (final cluster in text.characters) {
+      if (_knownEmojiSet.contains(cluster)) {
+        recordRecent(cluster);
+      } else {
+        final base = _stripSkinTone(cluster);
+        if (base != cluster && _knownEmojiSet.contains(base)) {
+          recordRecent(cluster);
+        }
+      }
+    }
+  }
+
   List<String> get recentEmojis => List.unmodifiable(_recentEmojis);
 
   /// Resolves an emoji to the user's chosen skin-tone variant for inline
@@ -3117,33 +3192,32 @@ class EmojiKeywords {
     final maxLen = maxQueryLength();
     if (maxLen > 0 && q.length > maxLen) return const [];
 
-    final exactMatches = <EmojiEntry>[];
-    final prefixMatches = <EmojiEntry>[];
+    // Mirrors AyuGram `EmojiKeywords::query` (emoji_keywords.cpp:608-642): each
+    // language pack's full result is appended in turn (server data), then the
+    // built-in fallback is appended STRICTLY AFTER all packs
+    // (`AppendLegacySuggestions`, :639). There is NO global exact-vs-prefix
+    // bucketing across sources — a built-in/legacy EXACT match must NOT float
+    // ahead of a server-pack PREFIX match. Each pack's own query already orders
+    // exact-key emoji before prefix-key emoji via lexicographic key iteration.
+    final result = <EmojiEntry>[];
     final seen = <String>{};
 
     for (final pack in _langPacks.entries) {
-      _searchLangPack(pack.key, pack.value, q, exact, seen, exactMatches, prefixMatches);
+      _searchLangPack(pack.key, pack.value, q, exact, seen, result);
     }
 
     if (!exact) {
-      _searchLegacyData(q, seen, exactMatches, prefixMatches);
+      _searchLegacyData(q, seen, result);
     }
 
-    List<EmojiEntry> result;
-    if (exact) {
-      result = exactMatches;
-    } else {
-      result = [...exactMatches, ...prefixMatches];
-    }
+    final prioritized = _prioritizeRecent(result);
 
-    result = _prioritizeRecent(result);
-
-    result = result.map((e) {
+    final mapped = prioritized.map((e) {
       final variant = applyVariant(e.emoji);
       return variant == e.emoji ? e : EmojiEntry(variant, e.keywords);
     }).toList();
 
-    return result.length > limit ? result.sublist(0, limit) : result;
+    return mapped.length > limit ? mapped.sublist(0, limit) : mapped;
   }
 
   void _searchLangPack(
@@ -3152,13 +3226,18 @@ class EmojiKeywords {
     String q,
     bool exact,
     Set<String> seen,
-    List<EmojiEntry> exactMatches,
-    List<EmojiEntry> prefixMatches,
+    List<EmojiEntry> result,
   ) {
     if (pack.keywords.isEmpty) return;
     if (q.length > pack.maxKeyLength) return;
     if (exact && _skipExactKeyword(langCode, q)) return;
 
+    // Mirrors `EmojiKeywords::LangPack::query` (emoji_keywords.cpp:473-496):
+    // iterate keys from `lower_bound(q)` while they still match, appending each
+    // key's emoji in lexicographic order. The exact key `q` sorts first (it is
+    // the shortest key with that prefix), so exact-key emoji naturally precede
+    // prefix-key emoji within the pack — no separate exact bucket needed. Exact
+    // mode keeps only the exact key (`take_while(key == q)`).
     final keys = pack.sortedKeys;
     int lo = 0, hi = keys.length;
     while (lo < hi) {
@@ -3171,16 +3250,14 @@ class EmojiKeywords {
     }
     for (int i = lo; i < keys.length; i++) {
       final keyword = keys[i];
-      if (!keyword.startsWith(q)) break;
+      if (exact) {
+        if (keyword != q) break;
+      } else if (!keyword.startsWith(q)) {
+        break;
+      }
       final emojis = pack.keywords[keyword]!;
-      if (keyword == q) {
-        for (final emoji in emojis) {
-          if (seen.add(emoji)) exactMatches.add(EmojiEntry(emoji, [keyword]));
-        }
-      } else if (!exact) {
-        for (final emoji in emojis) {
-          if (seen.add(emoji)) prefixMatches.add(EmojiEntry(emoji, [keyword]));
-        }
+      for (final emoji in emojis) {
+        if (seen.add(emoji)) result.add(EmojiEntry(emoji, [keyword]));
       }
     }
   }
@@ -3188,12 +3265,12 @@ class EmojiKeywords {
   void _searchLegacyData(
     String q,
     Set<String> seen,
-    List<EmojiEntry> exactMatches,
-    List<EmojiEntry> prefixMatches,
+    List<EmojiEntry> result,
   ) {
     if (_badSuggestionChar.hasMatch(q)) return;
     final normalized = _normalizeLegacyQuery(q);
     if (normalized.isEmpty) return;
+    final querySize = normalized.length;
     final firstChar = normalized.codeUnitAt(0);
 
     // Collect the best-ranked match per emoji, allowing interior-word matches
@@ -3208,8 +3285,15 @@ class EmojiKeywords {
       for (int ki = 0; ki < cand.wordLists.length; ki++) {
         final words = cand.wordLists[ki];
         if (words.isEmpty) continue;
-        final wordsUsed = _matchLegacyWords(words, normalized);
-        if (wordsUsed < 0) continue;
+        final matched = _matchLegacyWords(words, normalized);
+        if (matched < 0) continue;
+        // Single-character fast path: `Completer::processInitialList`
+        // (emoji_suggestions.cpp:267-276) short-circuits when `_querySize == 1`
+        // and adds EVERY first-char-indexed candidate with `wordsUsed = 1`, with
+        // no matching pass. So a multi-word candidate matched on an interior word
+        // is NOT demoted to `wordsUsed = 2` (which `_legacyRankKey` would push
+        // below single-word matches). Same result set, but the AyuGram order.
+        final wordsUsed = querySize == 1 ? 1 : matched;
         final rawKw = cand.entry.keywords[ki];
         final candidate = _LegacyResult(
           cand.entry,
@@ -3232,6 +3316,9 @@ class EmojiKeywords {
 
     // Stable-sort by rank key; original (declaration) order breaks ties, exactly
     // as the stacked stable_partitions in prepareResult preserve relative order.
+    // The whole legacy block is appended AFTER all language-pack results
+    // (AppendLegacySuggestions), and within it rank order already puts exact
+    // matches first — so there is no global exact/prefix re-bucketing.
     final order = List<int>.generate(results.length, (i) => i);
     order.sort((a, b) {
       final ka = _legacyRankKey(results[a]);
@@ -3240,12 +3327,7 @@ class EmojiKeywords {
       return a - b;
     });
     for (final i in order) {
-      final r = results[i];
-      if (r.isExact) {
-        exactMatches.add(r.entry);
-      } else {
-        prefixMatches.add(r.entry);
-      }
+      result.add(results[i].entry);
     }
   }
 

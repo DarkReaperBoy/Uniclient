@@ -278,6 +278,12 @@ class _MessageBubbleState extends State<MessageBubble> {
     final chatId = chatState.activeChat?.chatId ?? '';
     if (accountId.isEmpty || chatId.isEmpty) return;
     engine.reactToMessage(accountId, chatId, widget.message.msgId, emoji);
+    // Reacting with an emoji counts as "using" it — feed the global recent list
+    // that inline suggestions prioritize, matching AyuGram updating
+    // `recentEmoji()` from every source (emoji_keywords.cpp:650-654).
+    if (emoji.isNotEmpty) {
+      EmojiKeywords.instance.recordRecent(emoji);
+    }
   }
 
   final GlobalKey _stripKey = GlobalKey();

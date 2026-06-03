@@ -4336,6 +4336,10 @@ class _ChatViewState extends State<ChatView>
         forceSmallMedia: _webPreviewForceSmall,
         invertMedia: _webPreviewInvert,
         webPageOptional: !_previewUrlRewritten);
+    // Feed emoji in the sent text into the global recent list so inline
+    // suggestions prioritize them — AyuGram updates `recentEmoji()` for every
+    // emoji that passes through the text engine (ui_integration.cpp:471).
+    EmojiKeywords.instance.recordRecentFromText(text);
     _composeController.clear();
     _pendingRetryTimer?.cancel();
     setState(() {
