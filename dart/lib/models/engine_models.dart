@@ -257,6 +257,7 @@ class ChatInfo {
   final String draftReplyToMsgId;
   final bool isClosed;
   final int pendingRequestsCount;
+  final bool hasActiveCall;
 
   const ChatInfo({
     required this.accountId,
@@ -317,6 +318,7 @@ class ChatInfo {
     this.draftReplyToMsgId = '',
     this.isClosed = false,
     this.pendingRequestsCount = 0,
+    this.hasActiveCall = false,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -378,6 +380,7 @@ class ChatInfo {
     draftReplyToMsgId: j['draft_reply_to_msg_id'] as String? ?? '',
     isClosed: j['is_closed'] as bool? ?? false,
     pendingRequestsCount: j['pending_requests_count'] as int? ?? 0,
+    hasActiveCall: j['has_active_call'] as bool? ?? false,
   );
 
   /// Time as DateTime for display.

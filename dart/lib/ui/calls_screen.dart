@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:share_plus/share_plus.dart';
 
@@ -18,7 +17,6 @@ import '../theme/theme.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
 import 'settings_screen.dart' show devicesScreenRoute;
-import 'settings_style.dart';
 import 'telegram_toast.dart';
 import 'call_panel.dart' show CallRatingDialog, showCallRatingDialog;
 import 'call_screen.dart' show MinimisedCallBar, showGroupCallPanel;
@@ -185,64 +183,51 @@ class _CallsBoxState extends State<_CallsBox> {
     return groups;
   }
 
-  static const _kGroupCallScanLimit = 20;
-  bool _initialGroupCallLoadDone = false;
-  final List<GroupCallStateEvent> _pendingGroupCallEvents = [];
-
-  Future<void> _loadActiveGroupCalls() async {
+  void _loadActiveGroupCalls() {
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
     final accountId = appState.activeAccountId;
+    // Mirror AyuGram's calls box (calls_box_controller.cpp:198): surface active
+    // group calls straight from the cached Data::ChannelHasActiveCall flag —
+    // here ChatInfo.hasActiveCall, sourced from the MTProto call_not_empty flag
+    // on the chat-list payload — while iterating already-loaded chats. No
+    // per-chat getGroupCall round-trips. Live counts/callIds arrive via
+    // GroupCallStateEvent and reconcile in _updateGroupCallEntry (by chatId).
     final chats = engine.getChatList(accountId: accountId, limit: 200);
-    final pinned = chats
-        .where((c) => c.isPinned && (c.type == ChatType.group || c.type == ChatType.channel))
-        .toList();
-    final nonPinned = chats
-        .where((c) => !c.isPinned && (c.type == ChatType.group || c.type == ChatType.channel))
-        .take(_kGroupCallScanLimit)
-        .toList();
-    final candidates = [...pinned, ...nonPinned];
-
-    final futures = candidates.map((chat) async {
-      try {
-        final gc = await engine.getGroupCall(accountId, chat.chatId);
-        if (gc != null && gc.active) {
-          return _ActiveGroupCallEntry(chat: chat, callInfo: gc);
-        }
-      } catch (_) {}
-      return null;
-    });
-    final results = await Future.wait(futures);
-    final entries = results.whereType<_ActiveGroupCallEntry>().toList();
-    if (mounted) {
-      setState(() => _activeGroupCalls = entries);
-      _initialGroupCallLoadDone = true;
-      for (final event in _pendingGroupCallEvents) {
-        _updateGroupCallEntry(event);
-      }
-      _pendingGroupCallEvents.clear();
+    final entries = <_ActiveGroupCallEntry>[];
+    for (final chat in chats) {
+      if (!chat.hasActiveCall) continue;
+      if (chat.type != ChatType.group && chat.type != ChatType.channel) continue;
+      entries.add(_ActiveGroupCallEntry(
+        chat: chat,
+        callInfo: GroupCallInfo(chatId: chat.chatId, active: true),
+      ));
     }
+    // Called once from initState before the first build: assign directly (a
+    // setState() here would throw). The GroupCallStateEvent subscription is
+    // created right after this in initState, so no live event can be missed.
+    _activeGroupCalls = entries;
   }
 
-  void _onGroupCallEvent(GroupCallStateEvent event) {
-    if (!_initialGroupCallLoadDone) {
-      _pendingGroupCallEvents.add(event);
-      return;
-    }
-    _updateGroupCallEntry(event);
-  }
+  void _onGroupCallEvent(GroupCallStateEvent event) => _updateGroupCallEntry(event);
 
   Future<void> _updateGroupCallEntry(GroupCallStateEvent event) async {
     final info = event.info;
+    // Match by callId OR chatId: entries seeded from the cached chat-list flag
+    // in _loadActiveGroupCalls carry no callId yet, so the first live event for
+    // that chat reconciles by chatId (and fills in the real callId/count).
+    bool matches(_ActiveGroupCallEntry e) =>
+        (info.callId.isNotEmpty && e.callInfo.callId == info.callId) ||
+        (info.chatId.isNotEmpty && e.chat.chatId == info.chatId);
     if (!info.active) {
       if (mounted) {
         setState(() {
-          _activeGroupCalls.removeWhere((e) => e.callInfo.callId == info.callId);
+          _activeGroupCalls.removeWhere(matches);
         });
       }
       return;
     }
-    final idx = _activeGroupCalls.indexWhere((e) => e.callInfo.callId == info.callId);
+    final idx = _activeGroupCalls.indexWhere(matches);
     if (idx >= 0) {
       if (mounted) {
         setState(() {
@@ -741,11 +726,17 @@ class _GroupCallRowState extends State<_GroupCallRow> {
                                   try {
                                     await engine.joinGroupCall(
                                         chat.accountId, chat.chatId);
+                                    if (!context.mounted) return;
+                                    // Row entry is seeded from the cached
+                                    // chat-list flag (no callId/count yet);
+                                    // fetch real call info for the live panel.
+                                    final info = await engine.getGroupCall(
+                                        chat.accountId, chat.chatId);
                                     if (context.mounted) {
                                       Navigator.of(context).pop();
                                       showGroupCallPanel(
                                         context,
-                                        widget.entry.callInfo,
+                                        info ?? widget.entry.callInfo,
                                         chatTitle: chat.title,
                                       );
                                     }
@@ -1125,21 +1116,30 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
         await engine.startCall(accountId, userId, video: video);
         if (mounted) Navigator.of(context).pop(true);
       } else {
+        // AyuGram's multi-select path (calls_group_invite_controller.cpp:1187)
+        // calls startOrJoinConferenceCall, which opens Group::Panel and joins
+        // the creator into the live call immediately (calls_instance.cpp:295),
+        // THEN sends the invites — so invitees join a call the host is already
+        // in, instead of being shown a share-link box first.
+        final permOk = await requestCallPermissions(context);
+        if (!permOk || !mounted) return;
         final result = await engine.createConferenceCall(accountId);
-        if (result != null && result.inviteLink.isNotEmpty) {
-          await engine.inviteToConferenceCall(
-            accountId, result.callId, _selectedIds.toList());
-          if (mounted) {
-            Navigator.of(context).pop(true);
-            _showLinkBox(context, result.inviteLink,
-                initial: true, callId: result.callId);
-          }
-        } else if (result != null) {
-          if (mounted) Navigator.of(context).pop(true);
-        } else {
+        if (result == null) {
           if (mounted) {
             showTelegramToast(context, 'Failed to create conference call');
           }
+          return;
+        }
+        await engine.joinGroupCall(accountId, result.callId);
+        await engine.inviteToConferenceCall(
+            accountId, result.callId, _selectedIds.toList());
+        final info = await engine.getGroupCall(accountId, result.callId);
+        if (mounted) {
+          Navigator.of(context).pop(true);
+          showGroupCallPanel(
+            context,
+            info ?? GroupCallInfo(callId: result.callId),
+          );
         }
       }
     } catch (e) {
@@ -2129,14 +2129,15 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
 
   void _startRedial(BuildContext context) async {
     final group = widget.group;
-    final permOk = await requestCallPermissions(
-      context,
-      video: group.isVideo,
-    );
+    // AyuGram's right-action handler (calls_box_controller.cpp:616) redials via
+    // startOutgoingCall(user, {}) — a default-constructed StartOutgoingCallArgs
+    // with video=false (calls_instance.h:59) — so redial is ALWAYS a voice
+    // call, regardless of the original call type. Only the button icon differs
+    // (callCameraReDial vs callReDial), which is handled in build().
+    final permOk = await requestCallPermissions(context);
     if (!permOk || !context.mounted) return;
     final engine = context.read<EngineService>();
-    await engine.startCall(widget.accountId, group.peerId,
-        video: group.isVideo);
+    await engine.startCall(widget.accountId, group.peerId, video: false);
   }
 
   @override
@@ -2332,705 +2333,6 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// §34.14 Call Settings Screen
-// ---------------------------------------------------------------------------
-
-class _CallSettingsScreen extends StatefulWidget {
-  const _CallSettingsScreen();
-
-  @override
-  State<_CallSettingsScreen> createState() => _CallSettingsScreenState();
-}
-
-class _CallSettingsScreenState extends State<_CallSettingsScreen> {
-  List<String> _outputDevices = ['Default'];
-  List<String> _inputDevices = ['Default'];
-  List<String> _cameraDevices = ['Default'];
-
-  @override
-  void initState() {
-    super.initState();
-    _enumerateDevices();
-  }
-
-  Future<void> _enumerateDevices() async {
-    await _enumerateViaEngine();
-    if (_outputDevices.length <= 1 && _inputDevices.length <= 1) {
-      if (Platform.isLinux) {
-        final sinks = await _pactlList('sink');
-        final sources = await _pactlList('source');
-        final cameras = await _v4l2List();
-        if (mounted) {
-          setState(() {
-            if (sinks.isNotEmpty) _outputDevices = ['Default', ...sinks];
-            if (sources.isNotEmpty) _inputDevices = ['Default', ...sources];
-            if (cameras.isNotEmpty) _cameraDevices = ['Default', ...cameras];
-          });
-        }
-      } else {
-        await _enumerateNative();
-      }
-    }
-  }
-
-  Future<void> _enumerateNative() async {
-    if (Platform.isMacOS) {
-      await _enumerateMacOS();
-    } else if (Platform.isWindows) {
-      await _enumerateWindows();
-    }
-  }
-
-  Future<void> _enumerateMacOS() async {
-    try {
-      final result = await Process.run('system_profiler', ['SPAudioDataType', '-json']);
-      if (result.exitCode == 0) {
-        final data = json.decode(result.stdout as String) as Map<String, dynamic>;
-        final audioItems = data['SPAudioDataType'] as List<dynamic>? ?? [];
-        final outputs = <String>[];
-        final inputs = <String>[];
-        for (final item in audioItems) {
-          final map = item as Map<String, dynamic>;
-          final name = map['_name'] as String? ?? '';
-          if (name.isEmpty) continue;
-          final coreaudioType = map['coreaudio_output_source'] as String?;
-          if (coreaudioType != null) {
-            outputs.add(name);
-          } else {
-            inputs.add(name);
-          }
-        }
-        if (mounted && (outputs.isNotEmpty || inputs.isNotEmpty)) {
-          setState(() {
-            if (outputs.isNotEmpty) _outputDevices = ['Default', ...outputs];
-            if (inputs.isNotEmpty) _inputDevices = ['Default', ...inputs];
-          });
-        }
-      }
-    } catch (_) {}
-    try {
-      final result = await Process.run('system_profiler', ['SPCameraDataType', '-json']);
-      if (result.exitCode == 0) {
-        final data = json.decode(result.stdout as String) as Map<String, dynamic>;
-        final cameraItems = data['SPCameraDataType'] as List<dynamic>? ?? [];
-        final cameras = <String>[];
-        for (final item in cameraItems) {
-          final name = (item as Map<String, dynamic>)['_name'] as String? ?? '';
-          if (name.isNotEmpty) cameras.add(name);
-        }
-        if (mounted && cameras.isNotEmpty) {
-          setState(() => _cameraDevices = ['Default', ...cameras]);
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _enumerateWindows() async {
-    try {
-      final result = await Process.run('powershell', [
-        '-NoProfile', '-Command',
-        'Get-CimInstance Win32_SoundDevice | Select-Object -ExpandProperty Name',
-      ]);
-      if (result.exitCode == 0) {
-        final lines = (result.stdout as String).trim().split('\n')
-            .map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-        if (mounted && lines.isNotEmpty) {
-          setState(() {
-            _outputDevices = ['Default', ...lines];
-            _inputDevices = ['Default', ...lines];
-          });
-        }
-      }
-    } catch (_) {}
-    try {
-      final result = await Process.run('powershell', [
-        '-NoProfile', '-Command',
-        'Get-CimInstance Win32_PnPEntity | Where-Object {\$_.PNPClass -eq "Camera"} | Select-Object -ExpandProperty Name',
-      ]);
-      if (result.exitCode == 0) {
-        final lines = (result.stdout as String).trim().split('\n')
-            .map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-        if (mounted && lines.isNotEmpty) {
-          setState(() => _cameraDevices = ['Default', ...lines]);
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _enumerateViaEngine() async {
-    final engine = context.read<EngineService>();
-    final accountId = context.read<AppState>().activeAccountId;
-    try {
-      final outputs = await engine.getAudioDevices(accountId, 'output');
-      final inputs = await engine.getAudioDevices(accountId, 'input');
-      final cameras = await engine.getAudioDevices(accountId, 'camera');
-      if (mounted) {
-        setState(() {
-          _outputDevices = ['Default', ...outputs.where((d) => d != 'Default')];
-          _inputDevices = ['Default', ...inputs.where((d) => d != 'Default')];
-          _cameraDevices = ['Default', ...cameras.where((d) => d != 'Default')];
-        });
-      }
-    } catch (_) {}
-  }
-
-  Future<List<String>> _pactlList(String type) async {
-    try {
-      final result = await Process.run('pactl', ['list', '${type}s', 'short']);
-      if (result.exitCode != 0) return [];
-      final lines = (result.stdout as String).trim().split('\n');
-      final names = <String>[];
-      for (final line in lines) {
-        if (line.trim().isEmpty) continue;
-        final parts = line.split('\t');
-        if (parts.length >= 2) {
-          final name = parts[1];
-          if (type == 'source' && name.contains('.monitor')) continue;
-          final friendly = name
-              .replaceAll('alsa_output.', '')
-              .replaceAll('alsa_input.', '')
-              .replaceAll('.analog-stereo', ' (Analog Stereo)')
-              .replaceAll('.hdmi-stereo', ' (HDMI Stereo)')
-              .replaceAll('_', ' ');
-          names.add(friendly);
-        }
-      }
-      return names;
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<List<String>> _v4l2List() async {
-    try {
-      final result =
-          await Process.run('v4l2-ctl', ['--list-devices']);
-      if (result.exitCode != 0) return [];
-      final lines = (result.stdout as String).trim().split('\n');
-      final names = <String>[];
-      for (final line in lines) {
-        final trimmed = line.trim();
-        if (trimmed.isEmpty) continue;
-        if (trimmed.endsWith(':')) {
-          names.add(trimmed.substring(0, trimmed.length - 1).trim());
-        }
-      }
-      return names;
-    } catch (_) {
-      return [];
-    }
-  }
-
-  void _onAcceptCallsChanged(bool v) {
-    final appState = context.read<AppState>();
-    appState.setNotifAcceptCallsOnDevice(v);
-    final engine = context.read<EngineService>();
-    final accountId = appState.activeAccountId;
-    engine.accountUpdateDeviceLocked(accountId, v ? 0 : 1);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final appState = context.watch<AppState>();
-
-    final bgColor = p.boxBg;
-    final textColor = p.boxTextFg;
-    final subtextColor = p.boxTitleAdditionalFg;
-    final dividerColor = p.boxDividerBg;
-    final accentColor = p.windowBgActive;
-
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: bgColor,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'Call Settings',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
-        ),
-      ),
-      body: ListView(
-        children: [
-          _CallSettingsSectionHeader(label: 'Output', color: accentColor),
-          _CallSettingsDeviceRow(
-            icon: Icons.volume_up,
-            label: appState.callOutputDevice,
-            textColor: textColor,
-            subtextColor: subtextColor,
-            isDark: isDark,
-            onTap: () => _showDevicePicker(
-              title: 'Output Device',
-              current: appState.callOutputDevice,
-              devices: _outputDevices,
-              onSelected: (d) {
-                appState.setCallOutputDevice(d);
-                final engine = context.read<EngineService>();
-                final accountId = appState.activeAccountId;
-                engine.setCallAudioDevice(accountId, 'output', d);
-              },
-            ),
-          ),
-          Divider(height: 1, color: dividerColor, indent: 60),
-          _CallSettingsSectionHeader(label: 'Input', color: accentColor),
-          _CallSettingsDeviceRow(
-            icon: Icons.mic,
-            label: appState.callInputDevice,
-            textColor: textColor,
-            subtextColor: subtextColor,
-            isDark: isDark,
-            onTap: () => _showDevicePicker(
-              title: 'Input Device',
-              current: appState.callInputDevice,
-              devices: _inputDevices,
-              onSelected: (d) {
-                appState.setCallInputDevice(d);
-                final engine = context.read<EngineService>();
-                final accountId = appState.activeAccountId;
-                engine.setCallAudioDevice(accountId, 'input', d);
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(60, 8, 22, 12),
-            child: InputLevelMeter(
-              isDark: isDark,
-              accentColor: accentColor,
-              selectedDevice: appState.callInputDevice,
-            ),
-          ),
-          Divider(height: 1, color: dividerColor, indent: 60),
-          _CallSettingsSectionHeader(label: 'Call Devices', color: accentColor),
-          _CallSettingsToggleRow(
-            label: 'Use same devices for calls',
-            value: appState.callUseSameDevices,
-            textColor: textColor,
-            accentColor: accentColor,
-            isDark: isDark,
-            onChanged: (v) => appState.setCallUseSameDevices(v),
-          ),
-          _CallSettingsInfoLabel(
-            text: 'When enabled, calls use the same speaker and microphone '
-                'as the rest of the app.',
-            color: subtextColor,
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-            alignment: Alignment.topCenter,
-            clipBehavior: Clip.hardEdge,
-            child: appState.callUseSameDevices
-                ? const SizedBox.shrink()
-                : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Divider(height: 1, color: dividerColor, indent: 60),
-                      _CallSettingsSectionHeader(label: 'Call Output', color: accentColor),
-                      _CallSettingsDeviceRow(
-                        icon: Icons.volume_up,
-                        label: appState.callSpecificOutputDevice.isEmpty
-                            ? 'Default'
-                            : appState.callSpecificOutputDevice,
-                        textColor: textColor,
-                        subtextColor: subtextColor,
-                        isDark: isDark,
-                        onTap: () => _showDevicePicker(
-                          title: 'Call Output Device',
-                          current: appState.callSpecificOutputDevice.isEmpty
-                              ? 'Default'
-                              : appState.callSpecificOutputDevice,
-                          devices: _outputDevices,
-                          onSelected: (d) => appState.setCallSpecificOutputDevice(d),
-                        ),
-                      ),
-                      Divider(height: 1, color: dividerColor, indent: 60),
-                      _CallSettingsSectionHeader(label: 'Call Microphone', color: accentColor),
-                      _CallSettingsDeviceRow(
-                        icon: Icons.mic,
-                        label: appState.callSpecificInputDevice.isEmpty
-                            ? 'Default'
-                            : appState.callSpecificInputDevice,
-                        textColor: textColor,
-                        subtextColor: subtextColor,
-                        isDark: isDark,
-                        onTap: () => _showDevicePicker(
-                          title: 'Call Microphone',
-                          current: appState.callSpecificInputDevice.isEmpty
-                              ? 'Default'
-                              : appState.callSpecificInputDevice,
-                          devices: _inputDevices,
-                          onSelected: (d) => appState.setCallSpecificInputDevice(d),
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-          Divider(height: 1, color: dividerColor, indent: 60),
-          _CallSettingsSectionHeader(label: 'Camera', color: accentColor),
-          _CallSettingsDeviceRow(
-            icon: Icons.videocam,
-            label: appState.callCameraDevice,
-            textColor: textColor,
-            subtextColor: subtextColor,
-            isDark: isDark,
-            onTap: () => _showDevicePicker(
-              title: 'Camera',
-              current: appState.callCameraDevice,
-              devices: _cameraDevices,
-              onSelected: (d) {
-                appState.setCallCameraDevice(d);
-                final engine = context.read<EngineService>();
-                final accountId = appState.activeAccountId;
-                engine.setCallAudioDevice(accountId, 'camera', d);
-              },
-            ),
-          ),
-          Divider(height: 1, color: dividerColor, indent: 60),
-          _CallSettingsSectionHeader(label: 'Other', color: accentColor),
-          _CallSettingsToggleRow(
-            label: 'Accept incoming calls on this device',
-            value: appState.notifAcceptCallsOnDevice,
-            textColor: textColor,
-            accentColor: accentColor,
-            isDark: isDark,
-            onChanged: _onAcceptCallsChanged,
-          ),
-          _CallSettingsInfoLabel(
-            text:
-                'When disabled, incoming calls will not ring on this device.',
-            color: subtextColor,
-          ),
-          _CallSettingsActionRow(
-            icon: Icons.settings,
-            label: 'Open system sound preferences',
-            textColor: textColor,
-            isDark: isDark,
-            onTap: () {
-              if (Platform.isLinux) {
-                Process.run('xdg-open', ['gnome-control-center://sound'])
-                    .catchError((_) {
-                  return Process.run('xdg-open', ['x-settings://sound']);
-                }).catchError((_) {
-                  return Process.run('pavucontrol', []);
-                });
-              } else if (Platform.isMacOS) {
-                Process.run('open',
-                    ['/System/Library/PreferencePanes/Sound.prefPane']);
-              } else if (Platform.isWindows) {
-                Process.run('control', ['mmsys.cpl', 'sounds']);
-              }
-            },
-          ),
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  void _showDevicePicker({
-    required String title,
-    required String current,
-    required List<String> devices,
-    required ValueChanged<String> onSelected,
-  }) {
-    final p = context.palette;
-    final textColor = p.boxTextFg;
-    final accentColor = p.windowBgActive;
-    final bgColor = p.boxBg;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: devices.length,
-            itemBuilder: (context, index) {
-              final device = devices[index];
-              return RadioListTile<String>(
-                value: device,
-                groupValue: current,
-                activeColor: accentColor,
-                title: Text(
-                  device,
-                  style: TextStyle(fontSize: 14, color: textColor),
-                ),
-                onChanged: (v) {
-                  if (v != null) {
-                    onSelected(v);
-                    Navigator.of(ctx).pop();
-                  }
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: accentColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CallSettingsSectionHeader extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _CallSettingsSectionHeader(
-      {required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 16, 22, 4),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
-      ),
-    );
-  }
-}
-
-class _CallSettingsDeviceRow extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final Color textColor;
-  final Color subtextColor;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  const _CallSettingsDeviceRow({
-    required this.icon,
-    required this.label,
-    required this.textColor,
-    required this.subtextColor,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  @override
-  State<_CallSettingsDeviceRow> createState() => _CallSettingsDeviceRowState();
-}
-
-class _CallSettingsDeviceRowState extends State<_CallSettingsDeviceRow> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final hoverBg =
-        widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Container(
-          color: _hovered ? hoverBg : Colors.transparent,
-          padding: SettingsStyle.iconRowPadding,
-          child: Row(
-            children: [
-              Icon(widget.icon, size: 24, color: widget.subtextColor),
-              const SizedBox(width: SettingsStyle.iconGap),
-              Expanded(
-                child: Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: SettingsStyle.buttonFontSize,
-                    color: widget.textColor,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(Icons.chevron_right, size: 20, color: widget.subtextColor),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CallSettingsToggleRow extends StatefulWidget {
-  final String label;
-  final bool value;
-  final Color textColor;
-  final Color accentColor;
-  final bool isDark;
-  final ValueChanged<bool> onChanged;
-
-  const _CallSettingsToggleRow({
-    required this.label,
-    required this.value,
-    required this.textColor,
-    required this.accentColor,
-    required this.isDark,
-    required this.onChanged,
-  });
-
-  @override
-  State<_CallSettingsToggleRow> createState() => _CallSettingsToggleRowState();
-}
-
-class _CallSettingsToggleRowState extends State<_CallSettingsToggleRow> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final hoverBg =
-        widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => widget.onChanged(!widget.value),
-        child: Container(
-          color: _hovered ? hoverBg : Colors.transparent,
-          padding: SettingsStyle.iconRowPadding,
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: SettingsStyle.buttonFontSize,
-                    color: widget.textColor,
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 36,
-                height: 20,
-                child: Switch(
-                  value: widget.value,
-                  onChanged: widget.onChanged,
-                  activeColor: widget.accentColor,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CallSettingsInfoLabel extends StatelessWidget {
-  final String text;
-  final Color color;
-
-  const _CallSettingsInfoLabel({required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
-      child: Text(
-        text,
-        style: TextStyle(fontSize: 13, color: color),
-      ),
-    );
-  }
-}
-
-class _CallSettingsActionRow extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final Color textColor;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  const _CallSettingsActionRow({
-    required this.icon,
-    required this.label,
-    required this.textColor,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  @override
-  State<_CallSettingsActionRow> createState() =>
-      _CallSettingsActionRowState();
-}
-
-class _CallSettingsActionRowState extends State<_CallSettingsActionRow> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final hoverBg =
-        widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-    final iconColor =
-        widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Container(
-          color: _hovered ? hoverBg : Colors.transparent,
-          padding: SettingsStyle.iconRowPadding,
-          child: Row(
-            children: [
-              Icon(widget.icon, size: 24, color: iconColor),
-              const SizedBox(width: SettingsStyle.iconGap),
-              Expanded(
-                child: Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: SettingsStyle.buttonFontSize,
-                    color: widget.textColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 

@@ -214,6 +214,7 @@ type Dialog struct {
 	IsAdmin             bool   `json:"is_admin,omitempty"`
 	NoForwards          bool   `json:"no_forwards,omitempty"`
 	Username            string `json:"username,omitempty"`
+	HasActiveCall       bool   `json:"has_active_call,omitempty"` // group/livestream call with participants (MTProto call_not_empty)
 	AccessHash          int64  `json:"-"`
 	Platform            string `json:"platform"`
 }

@@ -1157,6 +1157,7 @@ type EngineChatInfo struct {
 	NoForwards           bool                   `protobuf:"varint,33,opt,name=no_forwards,json=noForwards,proto3" json:"no_forwards,omitempty"`
 	IsSelf               bool                   `protobuf:"varint,34,opt,name=is_self,json=isSelf,proto3" json:"is_self,omitempty"`
 	IsAdmin              bool                   `protobuf:"varint,35,opt,name=is_admin,json=isAdmin,proto3" json:"is_admin,omitempty"`
+	HasActiveCall        bool                   `protobuf:"varint,36,opt,name=has_active_call,json=hasActiveCall,proto3" json:"has_active_call,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1432,6 +1433,13 @@ func (x *EngineChatInfo) GetIsSelf() bool {
 func (x *EngineChatInfo) GetIsAdmin() bool {
 	if x != nil {
 		return x.IsAdmin
+	}
+	return false
+}
+
+func (x *EngineChatInfo) GetHasActiveCall() bool {
+	if x != nil {
+		return x.HasActiveCall
 	}
 	return false
 }
@@ -14694,7 +14702,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\v2\x1a.uniclient.EngineAuthStateR\x05state\"8\n" +
 	"\x17EngineCancelAuthRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xb2\t\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\xda\t\n" +
 	"\x0eEngineChatInfo\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -14740,7 +14748,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\vno_forwards\x18! \x01(\bR\n" +
 	"noForwards\x12\x17\n" +
 	"\ais_self\x18\" \x01(\bR\x06isSelf\x12\x19\n" +
-	"\bis_admin\x18# \x01(\bR\aisAdmin\"\x83\x01\n" +
+	"\bis_admin\x18# \x01(\bR\aisAdmin\x12&\n" +
+	"\x0fhas_active_call\x18$ \x01(\bR\rhasActiveCall\"\x83\x01\n" +
 	"\x18EngineGetChatListRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1a\n" +

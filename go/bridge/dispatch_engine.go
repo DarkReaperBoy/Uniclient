@@ -7076,6 +7076,7 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		NoForwards:           c.NoForwards,
 		IsSelf:               c.IsSelf,
 		IsAdmin:              c.IsAdmin,
+		HasActiveCall:        c.HasActiveCall,
 	}
 }
 

@@ -142,6 +142,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV39,
 	migrateV40,
 	migrateV41,
+	migrateV42,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -830,5 +831,16 @@ func migrateV41(tx *sql.Tx) error {
 		return nil
 	}
 	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN paid_post_type INTEGER NOT NULL DEFAULT 0`)
+	return err
+}
+
+// migrateV42 adds has_active_call column to chats table (MTProto channel/chat
+// call_not_empty flag) so the calls box can surface active group calls from the
+// cached chat list without per-chat getGroupCall round-trips.
+func migrateV42(tx *sql.Tx) error {
+	if columnExists(tx, "chats", "has_active_call") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN has_active_call INTEGER NOT NULL DEFAULT 0`)
 	return err
 }
