@@ -349,46 +349,6 @@ text and flips `_useUrl=true` via setState, mirroring `RadioenumGroup<bool>(clip
 on the clipboard the URL radio is pre-selected and the field pre-filled in one click; with non-URL text it
 correctly defaults to Clipboard mode (URL field hidden). No crashes in the app log.
 
-# ayu_general_page — AyuGram "General" settings page
-
-The page is a faithful structural port of AyuGram's `BuildQoLToggles` (settings_general.cpp:157-299): same sections, order, labels, collapsibles, beta badges, and restart prompt. Every toggle is correctly wired to `AppState`, which persists to local JSON (`_saveWindowPrefs`).
-
-**The problem is on the consumption side.** Of the 16 interactive controls, only **2** are actually read by any feature (`showMessageSeconds` → message_bubble.dart:381 etc.; `showPeerId` → info_panel.dart:3865). The other **14 are dead toggles**: the saved value is never read anywhere in `dart/` or `go/`, never serialized into a bridge call, and (for translation) the proto/engine has no field to carry it. Flipping them produces zero observable effect — exactly the "appears to work but doesn't" placeholder the ZERO-placeholders rule bans. AyuGram has a concrete consumption site for every one of these settings (cited below).
-
-## Dead toggles — saved to AppState but never consumed by the feature they control
-
-- [ ] [CRITICAL] "Translation Provider" choose-button (Telegram/Google/Yandex/Native) is never used — uniclient's translate path passes only a target lang code; `EngineTranslateTextRequest` (proto) and Go `Engine.TranslateText(accountID,chatID,msgID,toLang,text)` have NO provider field, so Google/Yandex/Native can never take effect. AyuGram reads `translationProvider()` to select the actual backend — `ayu_general_page.dart:34-47` ← `AyuGram/SourceFiles/lang/translate_provider.cpp:34` (also history/view/history_view_translate_bar.cpp:494)
-
-- [ ] [CRITICAL] "Disable Stories" persists but the stories bar (`chat_list_panel.dart:840`, gated only on `!collapsed && !_searching`) is never gated on it — toggling it leaves stories fully visible — `ayu_general_page.dart:53-62` ← `AyuGram/SourceFiles/dialogs/dialogs_widget.cpp:1003` (also data/data_session.cpp:332, info/info_top_bar.cpp:522)
-
-- [ ] [CRITICAL] "Disable Open Link Warning" controls a warning that does not exist — links open directly via `launchUrl` (message_bubble.dart:7476) with no "Open this link?" confirmation anywhere. AyuGram gates that confirmation box on `!disableOpenLinkWarning()` — `ayu_general_page.dart:64-68` ← `AyuGram/SourceFiles/core/click_handler_types.cpp:260`
-
-- [ ] [CRITICAL] "Collapse Similar Channels" never affects the similar-channels sheet (`info_panel.dart:7967` renders a flat ListView, always expanded). AyuGram checks `collapseSimilarChannels()` when building the recommendation list — `ayu_general_page.dart:82-86` ← `AyuGram/SourceFiles/apiwrap.cpp:1841`
-
-- [ ] [CRITICAL] "Hide Similar Channels Tab" never hides the similar-channels action row (`info_panel.dart:4819`, always shown). AyuGram checks `hideSimilarChannels()` to suppress the block — `ayu_general_page.dart:87-91` ← `AyuGram/SourceFiles/info/profile/info_profile_inner_widget.cpp:367`
-
-- [ ] [CRITICAL] "Disable Notify Delay" persists but the notification/online-window path (app_state.dart:682) never consults it. AyuGram branches on `disableNotificationsDelay()` to bypass the delay — `ayu_general_page.dart:95-99` ← `AyuGram/SourceFiles/window/notifications_manager.cpp:396`
-
-- [ ] [CRITICAL] "Filter Zalgo" controls Zalgo-stripping logic that does not exist in uniclient (no `filterZalgo`/combining-char strip anywhere, even at startup). AyuGram strips Zalgo from peer names when set — `ayu_general_page.dart:104-118` ← `AyuGram/SourceFiles/data/data_user.cpp:365` (impl ayu/utils/telegram_helpers.cpp:1260; also data_channel.cpp:143, data_chat.cpp:122)
-
-- [ ] [CRITICAL] "Improve Link Previews" persists but has no consumer anywhere. AyuGram gates its link-preview improvement on `improveLinkPreviews()` — `ayu_general_page.dart:120-124` ← `AyuGram/SourceFiles/ayu/utils/telegram_helpers.cpp:1535`
-
-- [ ] [CRITICAL] "Spoof Webview as Android" never happens — the bot web app panel builds its WebViewController with no `setUserAgent`/platform override (web_app_panel.dart:206-230). AyuGram returns "android" vs "tdesktop" platform string based on the setting — `ayu_general_page.dart:147-151` ← `AyuGram/SourceFiles/inline_bots/bot_attach_web_view.cpp:779`
-
-- [ ] [CRITICAL] "Increase Content Height" never resizes the web app panel — height is hardcoded `_kPanelHeight = 694.0` (web_app_panel.dart:17), never switched to the increased value (782px). AyuGram applies the increased height when set — `ayu_general_page.dart:164-168` ← `AyuGram/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:420` (botWebViewPanelHeightIncreased=782px, ayu_styles.style)
-
-- [ ] [CRITICAL] "Increase Content Width" never resizes the web app panel — width is hardcoded `_kPanelWidth = 384.0` (web_app_panel.dart:16), never switched to the increased value (512px). AyuGram applies the increased width when set — `ayu_general_page.dart:169-173` ← `AyuGram/SourceFiles/ui/chat/attach/attach_bot_webview.cpp:423` (botWebViewPanelWidthIncreased=512px, ayu_styles.style)
-
-- [ ] [CRITICAL] "For Stickers" confirmation persists but sticker send paths fire `engine.sendSticker(...)` immediately (chat_view.dart:5814, sticker_pack_viewer.dart:210) with no confirm box. AyuGram pops a confirm box before sending when set — `ayu_general_page.dart:181-185` ← `AyuGram/SourceFiles/chat_helpers/stickers_list_widget.cpp:2302`
-
-- [ ] [CRITICAL] "For GIFs" confirmation persists but the GIF send path (chat_view.dart:5817) sends directly with no confirm box. AyuGram pops a confirm box before sending when set — `ayu_general_page.dart:187-191` ← `AyuGram/SourceFiles/chat_helpers/gifs_list_widget.cpp:550`
-
-- [ ] [CRITICAL] "For Voice Messages" confirmation persists but voice send (chat_view.dart:14433) sends directly; the listen-preview UI is unrelated. AyuGram pops a confirm box before sending when set — `ayu_general_page.dart:193-197` ← `AyuGram/SourceFiles/history/view/controls/history_view_voice_record_bar.cpp:3058`
-
-## Behavioral deviation
-
-- [ ] [MAJOR] "Filter Zalgo" toggle uses the wrong confirm flow: a prompt-FIRST "Apply/Cancel" box with no restart action. AyuGram applies the setting immediately on toggle, then shows the standard restart prompt (Restart Now → `Core::Restart()` / Later) — identical to "Disable Stories", which the Dart code DOES port correctly via `_showRestartPrompt` (ayu_general_page.dart:211-231). Filter Zalgo should reuse that same restart prompt — `ayu_general_page.dart:107-116` ← `AyuGram/SourceFiles/ayu/ui/settings/settings_general.cpp:218-228` (+ settings_ayu_utils.cpp:36-45 ShowRestartPrompt)
-
 # ayu_section_builder — AyuGram settings-section widget builder
 
 Pure UI builder (titles, toggles, sliders, choose-buttons, collapsible nested
