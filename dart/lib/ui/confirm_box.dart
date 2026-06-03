@@ -2156,33 +2156,24 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
 
 const String _kReportBack = '__back__';
 
-// Peer kind drives the static reason-picker title and (potentially) the reason
-// set for a whole-peer report. ← Ui::ReportSource (report_box_graphics.h).
-enum ReportPeerKind { channel, group, bot, user }
-
+// Whole-peer / per-message report. Mirrors AyuGram's ShowReportMessageBox:
+// messages.report is issued with whatever ids we have (possibly none, for a
+// chat-info "Report"); the server drives the dynamic option/comment flow. If it
+// answers MESSAGE_ID_REQUIRED, a message chooser is shown and messages.report is
+// re-issued with the picked ids (the rest of reportInput preserved) — it never
+// falls back to account.reportPeer.
+// ← boxes/report_messages_box.cpp:69-207 / window_session_controller.cpp:2958
+//   → mainwidget.cpp:1291 (showChooseReportMessages → in-chat message selection).
 Future<bool> showDynamicReportFlow(
   BuildContext context, {
   required EngineService engine,
   required String accountId,
   required String chatId,
   required List<int> msgIds,
-  ReportPeerKind peerKind = ReportPeerKind.user,
 }) async {
-  // A whole-peer report (chat-info "Report") carries no message ids. The modern
-  // messages.report flow rejects an empty id list with MESSAGE_ID_REQUIRED
-  // (observed live), so route it to account.reportPeer via a static reason
-  // picker instead of the per-message dynamic flow.
-  // ← report_messages_box.cpp:84 (MESSAGE_ID_REQUIRED) / api_report.cpp:26.
-  if (msgIds.isEmpty) {
-    return _showPeerReportFlow(
-      context,
-      engine: engine,
-      accountId: accountId,
-      chatId: chatId,
-      peerKind: peerKind,
-    );
-  }
-
+  // Mutable so a MESSAGE_ID_REQUIRED chooser can fill in the ids and retry, just
+  // like AyuGram's `copy.ids = std::move(ids)` re-issue (report_messages_box.cpp:92).
+  var ids = List<int>.from(msgIds);
   final optionStack = <List<int>>[];
   List<int> currentOption = [];
 
@@ -2190,10 +2181,25 @@ Future<bool> showDynamicReportFlow(
     final result = await engine.reportMessage(
       accountId,
       chatId,
-      msgIds,
+      ids,
       option: currentOption,
     );
     if (result == null || !context.mounted) return false;
+
+    // Server needs specific messages: open the recent-messages chooser, then
+    // retry messages.report with the chosen ids (currentOption preserved).
+    // ← report_messages_box.cpp:84-100 (MESSAGE_ID_REQUIRED → showChooseReportMessages).
+    if (result.resultType == 'message_id_required') {
+      final chosen = await _showReportMessageChooser(
+        context,
+        engine: engine,
+        accountId: accountId,
+        chatId: chatId,
+      );
+      if (chosen == null || chosen.isEmpty || !context.mounted) return false;
+      ids = chosen;
+      continue;
+    }
 
     if (result.resultType == 'reported') {
       if (context.mounted) {
@@ -2231,7 +2237,7 @@ Future<bool> showDynamicReportFlow(
         final finalResult = await engine.reportMessage(
           accountId,
           chatId,
-          msgIds,
+          ids,
           option: commentOpt,
           message: comment,
         );
@@ -2262,7 +2268,7 @@ Future<bool> showDynamicReportFlow(
       final finalResult = await engine.reportMessage(
         accountId,
         chatId,
-        msgIds,
+        ids,
         option: result.commentOption,
         message: comment,
       );
@@ -2283,124 +2289,277 @@ Future<bool> showDynamicReportFlow(
   }
 }
 
-// Whole-peer report path: a static reason picker (account.reportPeer's fixed
-// ReportReason set) followed by an optional moderation comment, then a single
-// account.reportPeer submit. Mirrors AyuGram's static ReportPhoto flow
-// (report_messages_box.cpp:48-58 → ReportReasonBox → ReportDetailsBox).
-Future<bool> _showPeerReportFlow(
+// Recent-messages chooser shown when messages.report answers MESSAGE_ID_REQUIRED.
+// AyuGram opens the chat in a selection mode and, once the user has picked at
+// least one message, re-issues messages.report with `getSelectedItems()`
+// (history_widget.cpp:5421 reportSelectedMessages → done(ids)). We present the
+// equivalent as a multi-select list of the peer's recent messages; "Report"
+// returns the chosen server ids so showDynamicReportFlow can retry.
+Future<List<int>?> _showReportMessageChooser(
   BuildContext context, {
   required EngineService engine,
   required String accountId,
   required String chatId,
-  required ReportPeerKind peerKind,
-}) async {
-  final reason = await showTelegramBox<String>(
+}) {
+  return showTelegramBox<List<int>>(
     context: context,
-    builder: (ctx) => _PeerReportReasonBox(peerKind: peerKind),
+    builder: (ctx) => _ReportMessageChooserBox(
+      engine: engine,
+      accountId: accountId,
+      chatId: chatId,
+    ),
   );
-  if (reason == null || !context.mounted) return false;
-
-  // Optional moderation comment, like ReportPhoto → ReportDetailsBox.
-  final comment = await showReportDetailsBox(context, optional: true);
-  if (comment == null || !context.mounted) return false;
-
-  final ok = await engine.reportPeer(
-    accountId,
-    chatId,
-    reason,
-    message: comment,
-  );
-  if (context.mounted) {
-    showTelegramToast(
-      context,
-      ok
-          // lng_report_thanks
-          ? 'Thank you! Your report will be reviewed by our team.'
-          : 'Report failed. Please try again.',
-    );
-  }
-  return ok;
 }
 
-// Static reason picker for a whole-peer report. Reasons match AyuGram's
-// ReportReasonBox for a peer source (Spam, Fake, Violence, ChildAbuse,
-// Pornography, Copyright, Other); IllegalDrugs/PersonalDetails are message- and
-// story-only and so are omitted. ← report_box_graphics.cpp:84-118.
-class _PeerReportReasonBox extends StatelessWidget {
-  final ReportPeerKind peerKind;
-  const _PeerReportReasonBox({required this.peerKind});
+class _ReportMessageChooserBox extends StatefulWidget {
+  final EngineService engine;
+  final String accountId;
+  final String chatId;
+  const _ReportMessageChooserBox({
+    required this.engine,
+    required this.accountId,
+    required this.chatId,
+  });
 
-  String get _title => switch (peerKind) {
-    ReportPeerKind.channel => 'Report channel', // lng_report_title
-    ReportPeerKind.group => 'Report Group', // lng_report_group_title
-    ReportPeerKind.bot => 'Report bot', // lng_report_bot_title
-    ReportPeerKind.user => 'Report', // lng_profile_report
-  };
+  @override
+  State<_ReportMessageChooserBox> createState() =>
+      _ReportMessageChooserBoxState();
+}
+
+class _ReportMessageChooserBoxState extends State<_ReportMessageChooserBox> {
+  bool _loading = true;
+  bool _failed = false;
+  List<CachedMessage> _messages = const [];
+  final Set<int> _selected = <int>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final msgs = await widget.engine.fetchLiveMessages(
+        widget.accountId,
+        widget.chatId,
+        limit: 60,
+      );
+      // Only real, reportable messages: drop service events and any unsent /
+      // local-only message that has no server id to pass to messages.report.
+      final list = msgs
+          .where((m) => !m.isService && (int.tryParse(m.msgId) ?? 0) > 0)
+          .toList()
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      if (mounted) {
+        setState(() {
+          _messages = list;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _failed = true;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  void _toggle(int id) {
+    setState(() {
+      if (!_selected.remove(id)) _selected.add(id);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
     final textFg = p.boxTextFg;
+    final subFg = p.windowSubTextFg;
+    final accent = p.windowBgActive;
     final hoverBg = p.windowBgOver;
 
-    const reasons = <(String, String)>[
-      ('spam', 'Spam'),
-      ('fake', 'Fake Account'),
-      ('violence', 'Violence'),
-      ('child_abuse', 'Child Abuse'),
-      ('pornography', 'Pornography'),
-      ('copyright', 'Copyright'),
-      ('other', 'Other'),
-    ];
+    Widget body;
+    if (_loading) {
+      body = SizedBox(
+        height: 120,
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+          ),
+        ),
+      );
+    } else if (_failed || _messages.isEmpty) {
+      body = SizedBox(
+        height: 120,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              _failed
+                  ? "Couldn't load messages. Please try again."
+                  : 'There are no messages to report here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: subFg),
+            ),
+          ),
+        ),
+      );
+    } else {
+      body = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final m in _messages)
+            _buildRow(m, textFg, subFg, accent, hoverBg),
+        ],
+      );
+    }
 
     return TelegramBox(
-      title: _title,
+      title: TrStrings.lngReportSelectMessages(),
       showClose: true,
-      content: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final (key, label) in reasons)
-              InkWell(
-                onTap: () => Navigator.of(context).pop(key),
-                hoverColor: hoverBg,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                            color: textFg,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 20,
-                        color: textFg.withValues(alpha: 0.5),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text(
+              TrStrings.lngReportPleaseSelectMessages(),
+              style: TextStyle(fontSize: 13, color: p.boxTitleAdditionalFg),
+            ),
+          ),
+          body,
+        ],
       ),
       buttons: [
         TelegramBoxButton(
           text: 'CANCEL',
           onPressed: () => Navigator.of(context).pop(),
         ),
+        TelegramBoxButton(
+          text: 'REPORT',
+          onPressed: _selected.isEmpty
+              ? null
+              : () => Navigator.of(context).pop(_selected.toList()),
+        ),
       ],
       scrollableContent: true,
     );
   }
+
+  Widget _buildRow(
+    CachedMessage m,
+    Color textFg,
+    Color subFg,
+    Color accent,
+    Color hoverBg,
+  ) {
+    final id = int.parse(m.msgId);
+    final selected = _selected.contains(id);
+    final preview = _reportChooserPreview(m);
+    final time = _reportChooserTime(m.timestamp);
+    final hasSender = m.senderName.trim().isNotEmpty;
+    return InkWell(
+      onTap: () => _toggle(id),
+      hoverColor: hoverBg,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: selected,
+                onChanged: (_) => _toggle(id),
+                activeColor: accent,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (hasSender)
+                        Expanded(
+                          child: Text(
+                            m.senderName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: textFg,
+                            ),
+                          ),
+                        )
+                      else
+                        const Spacer(),
+                      if (time.isNotEmpty)
+                        Text(
+                          time,
+                          style: TextStyle(fontSize: 12, color: subFg),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    preview,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 14, color: textFg),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// One-line preview of a message for the report chooser: caption/text if present,
+// otherwise a media-kind label (matches the chat-list media fallbacks).
+String _reportChooserPreview(CachedMessage m) {
+  final text = m.contentText.trim();
+  if (text.isNotEmpty) return text.replaceAll(RegExp(r'\s+'), ' ');
+  switch (m.mediaType) {
+    case 1:
+      return 'Photo';
+    case 2:
+      return 'Video';
+    case 3:
+      return 'Audio';
+    case 4:
+      return 'Voice message';
+    case 5:
+      return 'Video message';
+    case 6:
+      return 'Sticker';
+    case 7:
+      return 'GIF';
+    case 8:
+      return m.mediaFileName.isNotEmpty ? m.mediaFileName : 'File';
+  }
+  return 'Message';
+}
+
+String _reportChooserTime(int timestampMs) {
+  if (timestampMs == 0) return '';
+  final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+  return '${dt.hour.toString().padLeft(2, '0')}:'
+      '${dt.minute.toString().padLeft(2, '0')}';
 }
 
 // AddReportDetailsIconButton (report_box_graphics.cpp:209): the

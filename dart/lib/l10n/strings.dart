@@ -108,6 +108,12 @@ class TrStrings {
       'Are you sure you want to report reactions from this user?';
   static String lngReportAndBanButton() => 'Ban user';
 
+  // Report message chooser (lang.strings lng_report_select_messages /
+  // lng_report_please_select_messages → mainwidget.cpp:1291)
+  static String lngReportSelectMessages() => 'Select messages';
+  static String lngReportPleaseSelectMessages() =>
+      'Please select messages to report.';
+
   // Auto-delete (delete_messages_box.cpp:306-315)
   static String lngEnableAutoDelete() => 'Enable auto-delete';
   static String lngEditAutoDeleteSettings() => 'Edit auto-delete settings';

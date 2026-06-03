@@ -15725,7 +15725,18 @@ func (t *TelegramCore) ReportMessage(chatID string, msgIDs []int, option []byte,
 	result, err := t.api.MessagesReport(t.ctx, &tg.MessagesReportRequest{
 		Peer: inputPeer, ID: msgIDs, Option: option, Message: message,
 	})
-	if err != nil { return nil, err }
+	if err != nil {
+		// The modern messages.report flow rejects an empty (or insufficient) id
+		// list with MESSAGE_ID_REQUIRED. AyuGram answers this by opening a message
+		// chooser and re-issuing messages.report with the picked ids — it never
+		// falls back to account.reportPeer. Surface it as a dedicated result type
+		// so the UI can present a chooser and retry, matching that behaviour.
+		// ← boxes/report_messages_box.cpp:84 (MESSAGE_ID_REQUIRED).
+		if rpcErr, ok := tgerr.As(err); ok && rpcErr.Type == "MESSAGE_ID_REQUIRED" {
+			return &ReportResult{Type: "message_id_required"}, nil
+		}
+		return nil, err
+	}
 	switch r := result.(type) {
 	case *tg.ReportResultChooseOption:
 		opts := make([]ReportOption, len(r.Options))
