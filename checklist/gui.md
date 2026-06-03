@@ -349,26 +349,6 @@ text and flips `_useUrl=true` via setState, mirroring `RadioenumGroup<bool>(clip
 on the clipboard the URL radio is pre-selected and the field pre-filled in one click; with non-URL text it
 correctly defaults to Clipboard mode (URL field hidden). No crashes in the app log.
 
-# ayu_section_builder — AyuGram settings-section widget builder
-
-Pure UI builder (titles, toggles, sliders, choose-buttons, collapsible nested
-checkboxes, beta badge) porting AyuGram's `settings_ayu_utils.cpp` +
-`ayu_builder.cpp`. No engine calls live here by design — every component takes
-caller-supplied callbacks and wires them correctly. No stubs, no placeholders,
-no empty callbacks (the lone `onChanged: (_) {}` at line 817 is the intentionally
-display-only master `AyuToggle`; the wrapping `GestureDetector` at line 796 does
-the real work, matching AyuGram's `toggleButton->clicks` handler). Behaviour for
-the collapsible master/lock logic, count display, and shift-to-lock all match the
-C++ 1:1. Findings below are layout/color deviations.
-
-- [ ] [MAJOR] Slider value label is rendered in the title row (top, far-right) above a **full-width** slider, but AyuGram renders the value label **inline to the right of the slider track** (slider width = `outer − labelWidth`), with the title as a separate full-width button above it. Both the value's position and the slider's width differ. — `ayu_section_builder.dart:477-525` ← `AyuGram/SourceFiles/ayu/ui/settings/ayu_builder.cpp:193-212` + `AyuGram/SourceFiles/settings/settings_common.cpp:598-609`
-
-- [ ] [MAJOR] When `showTitle == false` the slider drops the value label entirely (the whole `if (widget.showTitle)` row is skipped), but AyuGram still shows the inline value label (`MakeSliderWithLabel` always creates the label; `showTitle=false` only removes the title button and zeroes the min-label-width hint). — `ayu_section_builder.dart:477` ← `AyuGram/SourceFiles/ayu/ui/settings/ayu_builder.cpp:201-221`
-
-- [ ] [MAJOR] Slider value label color is `windowBgActive` (#40A7E3, the bright fill blue) but AyuGram's `settingsScaleLabel` uses `windowActiveTextFg` (#168ACD, the online/active-text blue) — the exact wrong-blue the file's own header comment (lines 18-21) warns against. — `ayu_section_builder.dart:491` ← `AyuGram/SourceFiles/settings/settings.style:70-72`
-
-- [ ] [MAJOR] Choose-button right (current-value) label color is `windowBgActive` (#40A7E3) but AyuGram's `AddButtonWithLabel` right label uses `defaultSettingsRightLabel.textFg = windowActiveTextFg` (#168ACD). Same wrong-blue token as the slider label. — `ayu_section_builder.dart:551,574` ← `AyuGram/lib_ui/ui/widgets/widgets.style:1514-1515,1526`
-
 # ayu_toggle — AyuGram defaultToggle switch (ToggleView port)
 
 Audited `dart/lib/ui/ayu_toggle.dart` against `lib_ui/ui/widgets/checkbox.cpp`
