@@ -1255,6 +1255,7 @@ class _AccentColorPalette extends StatelessWidget {
     final result = await showColorPickerBox(
       context: context,
       initialColor: currentColor,
+      mode: ColorEditorMode.hsl,
       lightnessMin: lightnessMin,
       lightnessMax: lightnessMax,
     );

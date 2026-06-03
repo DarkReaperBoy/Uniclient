@@ -19,11 +19,21 @@ const double _kArrowHalf = 3.5;
 const double _kEditWidth = 390;
 const double _kMinFieldWidth = 60;
 
+/// Mirrors AyuGram's `ColorEditor::Mode` (`ui/widgets/color_editor.h`).
+///
+/// * [rgba] — saturation×brightness picker square + vertical hue slider
+///   (+ optional opacity slider). HSV color space.
+/// * [hsl] — hue×saturation picker square + horizontal lightness slider, no
+///   hue slider, no opacity. HSL color space; lightness is bounded to
+///   [lightnessMin]…[lightnessMax].
+enum ColorEditorMode { rgba, hsl }
+
 Future<Color?> showColorPickerBox({
   required BuildContext context,
   required Color initialColor,
   String title = 'Choose Color',
   bool showOpacity = false,
+  ColorEditorMode mode = ColorEditorMode.rgba,
   double? lightnessMin,
   double? lightnessMax,
 }) {
@@ -33,6 +43,7 @@ Future<Color?> showColorPickerBox({
       initialColor: initialColor,
       title: title,
       showOpacity: showOpacity,
+      mode: mode,
       lightnessMin: lightnessMin,
       lightnessMax: lightnessMax,
     ),
@@ -43,6 +54,7 @@ class _ColorPickerBox extends StatefulWidget {
   final Color initialColor;
   final String title;
   final bool showOpacity;
+  final ColorEditorMode mode;
   final double? lightnessMin;
   final double? lightnessMax;
 
@@ -50,6 +62,7 @@ class _ColorPickerBox extends StatefulWidget {
     required this.initialColor,
     required this.title,
     this.showOpacity = false,
+    this.mode = ColorEditorMode.rgba,
     this.lightnessMin,
     this.lightnessMax,
   });
@@ -77,6 +90,27 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
 
   bool _updatingFields = false;
   final List<int> _wheelAccum = List.filled(7, 0);
+
+  bool get _isHsl => widget.mode == ColorEditorMode.hsl;
+
+  // Lightness limits (HSL mode only), as fractions 0..1. Mirror AyuGram's
+  // `_lightnessMin`/`_lightnessMax` (bytes 0..255 there). Default = full range.
+  double get _lightnessMinV => widget.lightnessMin ?? 0.0;
+  double get _lightnessMaxV => widget.lightnessMax ?? 1.0;
+
+  double _clampLightness(double v) {
+    final lo = _lightnessMinV;
+    final hi = _lightnessMaxV;
+    return hi > lo ? v.clamp(lo, hi) : lo;
+  }
+
+  // Position of the lightness slider arrow within its [min..max] range.
+  // Mirrors `Slider::valueFromColor` for `Type::Lightness`.
+  double get _lightnessSliderValue {
+    final range = _lightnessMaxV - _lightnessMinV;
+    if (range <= 0) return 0;
+    return ((_brightness - _lightnessMinV) / range).clamp(0.0, 1.0);
+  }
 
   FocusNode _makeNumericFocus(TextEditingController ctrl, int max, int idx) {
     return FocusNode(
@@ -111,7 +145,9 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
       if (ctrl == _hCtrl || ctrl == _sCtrl || ctrl == _bCtrl) {
         if (ctrl == _hCtrl) _hue = val.toDouble();
         if (ctrl == _sCtrl) _saturation = val / 100;
-        if (ctrl == _bCtrl) _brightness = val / 100;
+        if (ctrl == _bCtrl) {
+          _brightness = _isHsl ? _clampLightness(val / 100) : val / 100;
+        }
         _updatingFields = true;
         final c = _currentColor;
         _rCtrl.text = c.red.toString();
@@ -140,11 +176,19 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
   @override
   void initState() {
     super.initState();
-    final hsv = HSVColor.fromColor(widget.initialColor);
-    _hue = hsv.hue;
-    _saturation = hsv.saturation;
-    _brightness = hsv.value;
-    _opacity = hsv.alpha;
+    if (_isHsl) {
+      final hsl = HSLColor.fromColor(widget.initialColor);
+      _hue = hsl.hue;
+      _saturation = hsl.saturation;
+      _brightness = _clampLightness(hsl.lightness);
+      _opacity = 1.0;
+    } else {
+      final hsv = HSVColor.fromColor(widget.initialColor);
+      _hue = hsv.hue;
+      _saturation = hsv.saturation;
+      _brightness = hsv.value;
+      _opacity = hsv.alpha;
+    }
 
     _hCtrl = TextEditingController();
     _sCtrl = TextEditingController();
@@ -203,25 +247,14 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     super.dispose();
   }
 
-  double get _clampedBrightness {
-    if (widget.lightnessMin == null && widget.lightnessMax == null) {
-      return _brightness;
-    }
-    final hsvColor = HSVColor.fromAHSV(1, _hue, _saturation, _brightness);
-    final hsl = HSLColor.fromColor(hsvColor.toColor());
-    var lightness = hsl.lightness;
-    if (widget.lightnessMin != null && lightness < widget.lightnessMin!) {
-      lightness = widget.lightnessMin!;
-    }
-    if (widget.lightnessMax != null && lightness > widget.lightnessMax!) {
-      lightness = widget.lightnessMax!;
-    }
-    final clamped = hsl.withLightness(lightness).toColor();
-    return HSVColor.fromColor(clamped).value;
-  }
-
-  Color get _currentColor =>
-      HSVColor.fromAHSV(_opacity, _hue, _saturation, _clampedBrightness).toColor();
+  // In HSL mode `_brightness` holds the HSL *lightness*, already bounded to
+  // [_lightnessMinV.._lightnessMaxV] by the slider range and the L-field clamp
+  // (so the crosshair/slider/swatch never disagree with the result — the bug
+  // the old output-only clamp caused). In RGBA mode it is the HSV value.
+  Color get _currentColor => _isHsl
+      ? HSLColor.fromAHSL(1.0, _hue, _saturation, _clampLightness(_brightness))
+          .toColor()
+      : HSVColor.fromAHSV(_opacity, _hue, _saturation, _brightness).toColor();
 
   static String _hex2(int v) => v.toRadixString(16).padLeft(2, '0');
 
@@ -255,7 +288,11 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     setState(() {
       if (h != null) _hue = h.clamp(0, 360).toDouble();
       if (s != null) _saturation = (s / 100).clamp(0.0, 1.0);
-      if (b != null) _brightness = (b / 100).clamp(0.0, 1.0);
+      if (b != null) {
+        _brightness = _isHsl
+            ? _clampLightness(b / 100)
+            : (b / 100).clamp(0.0, 1.0);
+      }
       _updatingFields = true;
       final c = _currentColor;
       _rCtrl.text = c.red.toString();
@@ -273,21 +310,29 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     final b = int.tryParse(_blueCtrl.text);
     if (r == null && g == null && b == null) return;
     final c = Color.fromARGB(
-      (_opacity * 255).round(),
+      _isHsl ? 255 : (_opacity * 255).round(),
       (r ?? _currentColor.red).clamp(0, 255),
       (g ?? _currentColor.green).clamp(0, 255),
       (b ?? _currentColor.blue).clamp(0, 255),
     );
-    final hsv = HSVColor.fromColor(c);
     setState(() {
-      _hue = hsv.hue;
-      _saturation = hsv.saturation;
-      _brightness = hsv.value;
+      if (_isHsl) {
+        final hsl = HSLColor.fromColor(c);
+        _hue = hsl.hue;
+        _saturation = hsl.saturation;
+        _brightness = _clampLightness(hsl.lightness);
+      } else {
+        final hsv = HSVColor.fromColor(c);
+        _hue = hsv.hue;
+        _saturation = hsv.saturation;
+        _brightness = hsv.value;
+      }
       _updatingFields = true;
       _hCtrl.text = _hue.round().toString();
       _sCtrl.text = (_saturation * 100).round().toString();
       _bCtrl.text = (_brightness * 100).round().toString();
-      _hexCtrl.text = _hexString(c);
+      // HSL clamps lightness, so the hex must reflect the bounded result.
+      _hexCtrl.text = _hexString(_isHsl ? _currentColor : c);
       _updatingFields = false;
     });
   }
@@ -310,19 +355,27 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
       c = Color(0xFF000000 | val);
     }
 
-    final hsv = HSVColor.fromColor(c);
     setState(() {
-      _hue = hsv.hue;
-      _saturation = hsv.saturation;
-      _brightness = hsv.value;
-      if (hex.length == 8) _opacity = c.alpha / 255;
+      if (_isHsl) {
+        final hsl = HSLColor.fromColor(c);
+        _hue = hsl.hue;
+        _saturation = hsl.saturation;
+        _brightness = _clampLightness(hsl.lightness);
+      } else {
+        final hsv = HSVColor.fromColor(c);
+        _hue = hsv.hue;
+        _saturation = hsv.saturation;
+        _brightness = hsv.value;
+        if (hex.length == 8) _opacity = c.alpha / 255;
+      }
+      final display = _isHsl ? _currentColor : c;
       _updatingFields = true;
       _hCtrl.text = _hue.round().toString();
       _sCtrl.text = (_saturation * 100).round().toString();
       _bCtrl.text = (_brightness * 100).round().toString();
-      _rCtrl.text = c.red.toString();
-      _gCtrl.text = c.green.toString();
-      _blueCtrl.text = c.blue.toString();
+      _rCtrl.text = display.red.toString();
+      _gCtrl.text = display.green.toString();
+      _blueCtrl.text = display.blue.toString();
       _updatingFields = false;
     });
   }
@@ -330,12 +383,20 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
   void _submit() => Navigator.of(context).pop(_currentColor);
 
   void _resetToOriginal() {
-    final hsv = HSVColor.fromColor(widget.initialColor);
     setState(() {
-      _hue = hsv.hue;
-      _saturation = hsv.saturation;
-      _brightness = hsv.value;
-      _opacity = hsv.alpha;
+      if (_isHsl) {
+        final hsl = HSLColor.fromColor(widget.initialColor);
+        _hue = hsl.hue;
+        _saturation = hsl.saturation;
+        _brightness = _clampLightness(hsl.lightness);
+        _opacity = 1.0;
+      } else {
+        final hsv = HSVColor.fromColor(widget.initialColor);
+        _hue = hsv.hue;
+        _saturation = hsv.saturation;
+        _brightness = hsv.value;
+        _opacity = hsv.alpha;
+      }
       _syncAllFields();
     });
   }
@@ -360,10 +421,14 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     final totalWidth = maxWidth > screenWidth ? screenWidth - 16 : maxWidth;
     final innerWidth =
         totalWidth - kBoxPadding.left - kBoxPadding.right;
-    final pickerSize = (innerWidth -
-            _kSliderTotalWidth -
-            2 * _kEditSkip -
-            _kMinFieldWidth)
+    // RGBA reserves room for the vertical hue slider beside the square; HSL has
+    // no hue slider, so the square can use that width.
+    final pickerSize = (_isHsl
+            ? (innerWidth - _kEditSkip - _kMinFieldWidth)
+            : (innerWidth -
+                _kSliderTotalWidth -
+                2 * _kEditSkip -
+                _kMinFieldWidth))
         .clamp(150.0, _kPickerSize);
 
     return Focus(
@@ -409,34 +474,62 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                                     ),
                                     child: _GradientSquare(
                                       pickerSize: pickerSize,
+                                      mode: widget.mode,
                                       hue: _hue,
                                       saturation: _saturation,
                                       brightness: _brightness,
-                                      onChanged: (s, b) {
+                                      onChanged: (x, y) {
                                         setState(() {
-                                          _saturation = s;
-                                          _brightness = b;
+                                          if (_isHsl) {
+                                            // x = hue, y = saturation
+                                            _hue = x * 360;
+                                            _saturation = 1.0 - y;
+                                          } else {
+                                            // x = saturation, y = brightness
+                                            _saturation = x;
+                                            _brightness = 1.0 - y;
+                                          }
                                           _syncAllFields();
                                         });
                                       },
                                     ),
                                   ),
-                                  SizedBox(width: _kEditSkip),
-                                  _VerticalHueSlider(
-                                    pickerSize: pickerSize,
-                                    value: 1.0 - _hue / 360,
-                                    arrowColor: p.sliderBgActive,
-                                    onChanged: (v) {
-                                      setState(() {
-                                        _hue = (1.0 - v) * 360;
-                                        _syncAllFields();
-                                      });
-                                    },
-                                  ),
+                                  if (!_isHsl) ...[
+                                    SizedBox(width: _kEditSkip),
+                                    _VerticalHueSlider(
+                                      pickerSize: pickerSize,
+                                      value: 1.0 - _hue / 360,
+                                      arrowColor: p.sliderBgActive,
+                                      onChanged: (v) {
+                                        setState(() {
+                                          _hue = (1.0 - v) * 360;
+                                          _syncAllFields();
+                                        });
+                                      },
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
-                            if (widget.showOpacity) ...[
+                            if (_isHsl) ...[
+                              const SizedBox(height: 2),
+                              _HorizontalLightnessSlider(
+                                pickerSize: pickerSize,
+                                hue: _hue,
+                                saturation: _saturation,
+                                lightnessMin: _lightnessMinV,
+                                lightnessMax: _lightnessMaxV,
+                                value: _lightnessSliderValue,
+                                arrowColor: p.sliderBgActive,
+                                onChanged: (v) {
+                                  setState(() {
+                                    _brightness = _clampLightness(_lightnessMinV +
+                                        v * (_lightnessMaxV - _lightnessMinV));
+                                    _syncAllFields();
+                                  });
+                                },
+                              ),
+                            ] else if (widget.showOpacity) ...[
                               const SizedBox(height: 2),
                               _HorizontalOpacitySlider(
                                 pickerSize: pickerSize,
@@ -543,8 +636,8 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
             _onHSBFieldChanged, suffix: '°'),
         _numField('S', _sCtrl, 100, _sFocus, 1, labelFg, textFg, borderColor,
             _onHSBFieldChanged, suffix: '%'),
-        _numField('B', _bCtrl, 100, _bFocus, 2, labelFg, textFg, borderColor,
-            _onHSBFieldChanged, suffix: '%'),
+        _numField(_isHsl ? 'L' : 'B', _bCtrl, 100, _bFocus, 2, labelFg, textFg,
+            borderColor, _onHSBFieldChanged, suffix: '%'),
         const SizedBox(height: 13),
         _numField('R', _rCtrl, 255, _rFocus, 3, labelFg, textFg, borderColor,
             _onRGBFieldChanged),
@@ -777,17 +870,21 @@ class _MaxValueFormatter extends TextInputFormatter {
   }
 }
 
-// ─── 2D HSB gradient square ─────────────────────────────────────────────────
+// ─── 2D picker square (RGBA: sat×bri @ hue · HSL: hue×sat @ lightness) ───────
 
 class _GradientSquare extends StatefulWidget {
   final double pickerSize;
+  final ColorEditorMode mode;
   final double hue;
   final double saturation;
-  final double brightness;
-  final void Function(double saturation, double brightness) onChanged;
+  final double brightness; // HSV value (RGBA) or HSL lightness (HSL)
+  // Reports the normalized pointer position (x, y), each 0..1. The owner maps
+  // it to colour components according to [mode].
+  final void Function(double x01, double y01) onChanged;
 
   const _GradientSquare({
     required this.pickerSize,
+    required this.mode,
     required this.hue,
     required this.saturation,
     required this.brightness,
@@ -802,9 +899,9 @@ class _GradientSquareState extends State<_GradientSquare> {
   final ValueNotifier<Offset?> _cursorNotifier = ValueNotifier(null);
 
   void _handle(Offset local) {
-    final s = (local.dx / widget.pickerSize).clamp(0.0, 1.0);
-    final b = 1.0 - (local.dy / widget.pickerSize).clamp(0.0, 1.0);
-    widget.onChanged(s, b);
+    final x = (local.dx / widget.pickerSize).clamp(0.0, 1.0);
+    final y = (local.dy / widget.pickerSize).clamp(0.0, 1.0);
+    widget.onChanged(x, y);
   }
 
   @override
@@ -815,6 +912,19 @@ class _GradientSquareState extends State<_GradientSquare> {
 
   @override
   Widget build(BuildContext context) {
+    final isHsl = widget.mode == ColorEditorMode.hsl;
+    // Normalized crosshair position and the colour shown beneath it.
+    final crossX01 = isHsl ? (widget.hue / 360) : widget.saturation;
+    final crossY01 =
+        isHsl ? (1.0 - widget.saturation) : (1.0 - widget.brightness);
+    final markColor = isHsl
+        ? HSLColor.fromAHSL(1, widget.hue, widget.saturation, widget.brightness)
+            .toColor()
+        : HSVColor.fromAHSV(1, widget.hue, widget.saturation, widget.brightness)
+            .toColor();
+    final CustomPainter bgPainter = isHsl
+        ? _HSLGradientPainter(lightness: widget.brightness)
+        : _HSBGradientPainter(hue: widget.hue);
     return MouseRegion(
       cursor: SystemMouseCursors.none,
       onHover: (e) => _cursorNotifier.value = e.localPosition,
@@ -833,13 +943,11 @@ class _GradientSquareState extends State<_GradientSquare> {
           width: widget.pickerSize,
           height: widget.pickerSize,
           child: CustomPaint(
-            painter: _HSBGradientPainter(hue: widget.hue),
+            painter: bgPainter,
             foregroundPainter: _CrosshairAndCursorPainter(
-              crossX: widget.saturation * widget.pickerSize,
-              crossY: (1 - widget.brightness) * widget.pickerSize,
-              hue: widget.hue,
-              saturation: widget.saturation,
-              brightness: widget.brightness,
+              crossX: crossX01 * widget.pickerSize,
+              crossY: crossY01 * widget.pickerSize,
+              markColor: markColor,
               cursorNotifier: _cursorNotifier,
             ),
           ),
@@ -877,23 +985,21 @@ class _HSBGradientPainter extends CustomPainter {
 
 class _CrosshairAndCursorPainter extends CustomPainter {
   final double crossX, crossY;
-  final double hue, saturation, brightness;
+  final Color markColor;
   final ValueNotifier<Offset?> cursorNotifier;
   _CrosshairAndCursorPainter({
     required this.crossX,
     required this.crossY,
-    required this.hue,
-    required this.saturation,
-    required this.brightness,
+    required this.markColor,
     required this.cursorNotifier,
   }) : super(repaint: cursorNotifier);
 
   @override
   void paint(Canvas canvas, Size size) {
     final pos = Offset(crossX, crossY);
-    final c = HSVColor.fromAHSV(1, hue, saturation, brightness).toColor();
-    final lum =
-        0.2989 * c.red / 255 + 0.5870 * c.green / 255 + 0.1140 * c.blue / 255;
+    final lum = 0.2989 * markColor.red / 255 +
+        0.5870 * markColor.green / 255 +
+        0.1140 * markColor.blue / 255;
     final fg =
         lum > 0.6 ? const Color(0xFF000000) : const Color(0xFFFFFFFF);
 
@@ -930,9 +1036,46 @@ class _CrosshairAndCursorPainter extends CustomPainter {
   bool shouldRepaint(_CrosshairAndCursorPainter old) =>
       old.crossX != crossX ||
       old.crossY != crossY ||
-      old.hue != hue ||
-      old.saturation != saturation ||
-      old.brightness != brightness;
+      old.markColor != markColor;
+}
+
+// ─── 2D HSL gradient square (hue × saturation, at fixed lightness) ───────────
+//
+// Mirrors AyuGram `Picker::preparePaletteHSL`: x = hue (0→360 left→right),
+// y = saturation (full at top → 0 at bottom), all at the current lightness.
+class _HSLGradientPainter extends CustomPainter {
+  final double lightness; // 0..1
+  _HSLGradientPainter({required this.lightness});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+
+    // Horizontal full-saturation rainbow at the current lightness.
+    final hueStops = <Color>[
+      for (var i = 0; i <= 12; i++)
+        HSLColor.fromAHSL(1, (i * 30).toDouble(), 1, lightness).toColor(),
+    ];
+    final hueShader = LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: hueStops,
+    ).createShader(rect);
+    canvas.drawRect(rect, Paint()..shader = hueShader);
+
+    // Desaturate downward toward the neutral gray at this lightness. Blending
+    // gray with alpha = (1 - saturation) yields exactly HSL(hue, sat, L).
+    final gray = HSLColor.fromAHSL(1, 0, 0, lightness).toColor();
+    final satShader = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [gray.withAlpha(0), gray],
+    ).createShader(rect);
+    canvas.drawRect(rect, Paint()..shader = satShader);
+  }
+
+  @override
+  bool shouldRepaint(_HSLGradientPainter old) => old.lightness != lightness;
 }
 
 class _CheckerboardPainter extends CustomPainter {
@@ -1152,4 +1295,121 @@ class _HorizontalOpacityPainter extends CustomPainter {
   @override
   bool shouldRepaint(_HorizontalOpacityPainter old) =>
       old.color != color || old.value != value || old.arrowColor != arrowColor;
+}
+
+// ─── Horizontal lightness slider (HSL mode) ─────────────────────────────────
+//
+// Mirrors AyuGram `Slider` with `Type::Lightness`: a horizontal ramp from
+// `lightnessMin` to `lightnessMax` at the current hue/saturation. Its range IS
+// the limit window, so the produced lightness can never escape [min..max].
+class _HorizontalLightnessSlider extends StatelessWidget {
+  final double pickerSize;
+  final double hue, saturation;
+  final double lightnessMin, lightnessMax;
+  final double value; // 0..1 within [min..max]
+  final Color arrowColor;
+  final ValueChanged<double> onChanged;
+  const _HorizontalLightnessSlider({
+    required this.pickerSize,
+    required this.hue,
+    required this.saturation,
+    required this.lightnessMin,
+    required this.lightnessMax,
+    required this.value,
+    required this.arrowColor,
+    required this.onChanged,
+  });
+
+  void _handle(Offset local) {
+    onChanged((local.dx / pickerSize).clamp(0.0, 1.0));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (e) => _handle(e.localPosition),
+      onPointerMove: (e) => _handle(e.localPosition),
+      child: SizedBox(
+        width: pickerSize,
+        height: _kSliderTotalWidth,
+        child: CustomPaint(
+          painter: _HorizontalLightnessPainter(
+            hue: hue,
+            saturation: saturation,
+            lightnessMin: lightnessMin,
+            lightnessMax: lightnessMax,
+            value: value,
+            arrowColor: arrowColor,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HorizontalLightnessPainter extends CustomPainter {
+  final double hue, saturation;
+  final double lightnessMin, lightnessMax;
+  final double value;
+  final Color arrowColor;
+
+  _HorizontalLightnessPainter({
+    required this.hue,
+    required this.saturation,
+    required this.lightnessMin,
+    required this.lightnessMax,
+    required this.value,
+    required this.arrowColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final barRect = Rect.fromLTWH(0, _kSliderSkip, size.width, _kSliderWidth);
+    final rrect = RRect.fromRectAndRadius(barRect, const Radius.circular(4));
+
+    final shadowPaint = Paint()
+      ..color = const Color(0x2B000000)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawRRect(rrect, shadowPaint);
+
+    const steps = 12;
+    final stops = <Color>[
+      for (var i = 0; i <= steps; i++)
+        HSLColor.fromAHSL(
+          1,
+          hue,
+          saturation,
+          lightnessMin + (i / steps) * (lightnessMax - lightnessMin),
+        ).toColor(),
+    ];
+    final gradient = LinearGradient(colors: stops);
+    canvas.drawRRect(rrect, Paint()..shader = gradient.createShader(barRect));
+
+    final markX = value * size.width;
+    _drawArrow(canvas, markX, 0, _kSliderSkip, true, arrowColor);
+    _drawArrow(canvas, markX, size.height, _kSliderSkip, false, arrowColor);
+  }
+
+  static void _drawArrow(Canvas canvas, double tipX, double baseY, double depth,
+      bool pointsDown, Color color) {
+    final dir = pointsDown ? 1.0 : -1.0;
+    final path = Path()
+      ..moveTo(tipX - _kArrowHalf, baseY)
+      ..quadraticBezierTo(tipX - _kArrowHalf * 0.3, baseY + dir * depth * 0.5,
+          tipX, baseY + dir * depth)
+      ..quadraticBezierTo(tipX + _kArrowHalf * 0.3, baseY + dir * depth * 0.5,
+          tipX + _kArrowHalf, baseY)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_HorizontalLightnessPainter old) =>
+      old.hue != hue ||
+      old.saturation != saturation ||
+      old.lightnessMin != lightnessMin ||
+      old.lightnessMax != lightnessMax ||
+      old.value != value ||
+      old.arrowColor != arrowColor;
 }

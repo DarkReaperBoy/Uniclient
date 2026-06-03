@@ -1417,6 +1417,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                                     context: context,
                                     initialColor: _brushColor,
                                     title: 'Choose Color',
+                                    mode: ColorEditorMode.hsl,
                                   );
                                   if (c != null) _setBrushColor(c);
                                 },
