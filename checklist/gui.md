@@ -161,11 +161,18 @@ VERIFIED CORRECT (no action):
   match `widgets.style:1058-1063`.
 - `dark`/`light` getters are exercised by test/ (not dead code).
 
-## Findings
-
-- [ ] [MAJOR] Global input default uses `OutlineInputBorder` (a full 4-sided rectangle) for both resting and focused borders, but AyuGram's `defaultInputField` has `borderRadius: 0px` (widgets.style:1064), which routes to `InputField::paintFlatSurrounding` — it draws ONLY a bottom underline: a 1px resting line `fillRect(0, height()-border, width(), border, borderFg)` plus an animated 2px active line at the bottom edge. The full-box `paintRoundSurrounding` is used solely when `borderRadius > 0`. Result: every unstyled `TextField` renders as a boxed field instead of AyuGram's flat underline field. Should be `UnderlineInputBorder`. — `theme.dart:47-54` ← `AyuGram/lib_ui/ui/widgets/fields/input_field.cpp:2388-2398` (+ `widgets.style:1064`)
-
-- [ ] [MAJOR] Input `contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)` contradicts AyuGram `defaultInputField.textMargins: margins(0px, 28px, 0px, 4px)` — AyuGram has zero horizontal inset (text flush to the field's left/right edges) and asymmetric vertical (28px top reserving room for the floating placeholder, 4px bottom). The 16px horizontal inset is a side-effect of the boxed-border choice above; with the correct flat underline it should be 0. — `theme.dart:55` ← `AyuGram/lib_ui/ui/widgets/widgets.style:1045`
+Both input-field findings VERIFIED & CLOSED (commit 4ea812c): the global input
+default now uses `UnderlineInputBorder` for both resting (1px `inputBorderFg`) and
+focused (2px `activeLineFg`) borders — matching AyuGram `paintFlatSurrounding`
+(`input_field.cpp:2389` `fillRect(0, height()-border, width(), border, borderFg)`,
+bottom underline only; `defaultInputField.borderRadius: 0px`, `widgets.style:1064`)
+— and `contentPadding: EdgeInsets.fromLTRB(0, 28, 0, 4)` matches
+`defaultInputField.textMargins: margins(0px, 28px, 0px, 4px)` (`widgets.style:1045`)
+exactly. Confirmed visually in the Add-Quick-Reply dialog (default-decoration
+`TextField`s) in BOTH desktop (1024×768) and mobile (400×720): every unstyled field
+renders as a flat bottom-underline field — not a box — with placeholder text flush
+to the left edge (zero horizontal inset). Build clean; app launches, navigates 5+
+screens and the dialog, and processes live events with no crash.
 
 # theme_file — Telegram `.tdesktop-theme`/`.tdesktop-palette` parser, exporter & disk cache
 
