@@ -1187,9 +1187,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _callOutputDevice = v;
     notifyListeners();
     _saveWindowPrefs();
-    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
-      'type': 'output', 'device': v,
-    }).catchError((_) {});
+    _engine.setCallAudioDevice(_activeAccountId, 'output', v);
   }
 
   void setCallInputDevice(String v) {
@@ -1197,9 +1195,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _callInputDevice = v;
     notifyListeners();
     _saveWindowPrefs();
-    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
-      'type': 'input', 'device': v,
-    }).catchError((_) {});
+    _engine.setCallAudioDevice(_activeAccountId, 'input', v);
   }
 
   void setCallCameraDevice(String v) {
@@ -1207,9 +1203,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _callCameraDevice = v;
     notifyListeners();
     _saveWindowPrefs();
-    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
-      'type': 'camera', 'device': v,
-    }).catchError((_) {});
+    _engine.setCallAudioDevice(_activeAccountId, 'camera', v);
   }
 
   void setCallUseSameDevices(bool v) {
@@ -1226,12 +1220,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     notifyListeners();
     _saveWindowPrefs();
-    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
-      'type': 'call_output', 'device': _callSpecificOutputDevice,
-    }).catchError((_) {});
-    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
-      'type': 'call_input', 'device': _callSpecificInputDevice,
-    }).catchError((_) {});
+    _engine.setCallAudioDevice(
+        _activeAccountId, 'call_output', _callSpecificOutputDevice);
+    _engine.setCallAudioDevice(
+        _activeAccountId, 'call_input', _callSpecificInputDevice);
   }
 
   void setCallSpecificOutputDevice(String v) {
@@ -1239,9 +1231,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _callSpecificOutputDevice = v;
     notifyListeners();
     _saveWindowPrefs();
-    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
-      'type': 'call_output', 'device': v,
-    }).catchError((_) {});
+    _engine.setCallAudioDevice(_activeAccountId, 'call_output', v);
   }
 
   void setCallSpecificInputDevice(String v) {
@@ -1249,9 +1239,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _callSpecificInputDevice = v;
     notifyListeners();
     _saveWindowPrefs();
-    _engine.callGeneric(_activeAccountId, 'SetCallDevice', {
-      'type': 'call_input', 'device': v,
-    }).catchError((_) {});
+    _engine.setCallAudioDevice(_activeAccountId, 'call_input', v);
   }
 
   void setCallNoiseSuppression(bool v) {
@@ -3073,7 +3061,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get notifAllowSound => _notifAllowSound;
   set notifAllowSound(bool v) { if (_notifAllowSound != v) { _notifAllowSound = v; _saveWindowPrefs(); notifyListeners(); } }
   int get notifVolume => _notifVolume;
-  set notifVolume(int v) { if (_notifVolume != v) { _notifVolume = v; _engine.callGeneric('__engine', 'SetNotificationVolume', {'volume': v}).catchError((_) {}); _saveWindowPrefs(); notifyListeners(); } }
+  // No engine push: the volume is consumed entirely Dart-side by
+  // notification_sound.dart (see the comment at _saveWindowPrefs above). The
+  // engine has no SetNotificationVolume handler, so any FFI call here would just
+  // error and be swallowed.
+  set notifVolume(int v) { if (_notifVolume != v) { _notifVolume = v; _saveWindowPrefs(); notifyListeners(); } }
   void setNotifVolumeFromEngine(int v) { if (_notifVolume != v) { _notifVolume = v; notifyListeners(); } }
 
   // ── Per-chat / per-type ringtone volume (AyuGram ringtoneVolume, 2-tier) ──

@@ -531,23 +531,9 @@ class _UniClientAppState extends State<UniClientApp>
       // Track unread count changes and update tray tooltip + badge (§37.11).
       if (_tray.isAvailable) {
         _chatStateRef = chatState;
-        _unreadListener = () {
-          final settings = _notifSystem.settings;
-          final badge = chatState.badgeUnreadCount(
-            includeMuted: settings.includeMutedChats,
-            countMessages: settings.countUnreadMessages,
-          );
-          final muted = chatState.badgeUnreadMuted(
-            includeMuted: settings.includeMutedChats,
-          );
-          _tray.updateUnread(badge);
-          _tray.updateBadge(badge, muted: muted);
-        };
+        _unreadListener = () => _refreshUnreadBadge(appState);
         chatState.addListener(_unreadListener!);
-        final initBadge = chatState.badgeUnreadCount();
-        final initMuted = chatState.badgeUnreadMuted();
-        _tray.updateUnread(initBadge);
-        _tray.updateBadge(initBadge, muted: initMuted);
+        _refreshUnreadBadge(appState);
       }
     }
 
@@ -555,16 +541,9 @@ class _UniClientAppState extends State<UniClientApp>
     if (kIsWeb) {
       _webNotifier.init();
       _chatStateRef = chatState;
-      _unreadListener = () {
-        final settings = _notifSystem.settings;
-        final badge = chatState.badgeUnreadCount(
-          includeMuted: settings.includeMutedChats,
-          countMessages: settings.countUnreadMessages,
-        );
-        _webNotifier.updateBadge(badge);
-      };
+      _unreadListener = () => _refreshUnreadBadge(appState);
       chatState.addListener(_unreadListener!);
-      _webNotifier.updateBadge(chatState.badgeUnreadCount());
+      _refreshUnreadBadge(appState);
     }
 
     _chatStateRef ??= chatState;
@@ -819,6 +798,43 @@ class _UniClientAppState extends State<UniClientApp>
       useNativeNotifications: current.useNativeNotifications,
       forceCustomNotifications: current.forceCustomNotifications,
     ));
+    // Re-push the OS unread badge so settings that affect it take effect on
+    // toggle rather than waiting for the next unread-count change: most
+    // importantly hideNotificationBadge (force count to 0 — AyuGram
+    // main_window_win.cpp:641-642 / tray_win.cpp:146), plus includeMutedChats
+    // and countUnreadMessages.
+    _refreshUnreadBadge(appState);
+  }
+
+  /// Computes and pushes the OS tray/taskbar (desktop) or favicon (web) unread
+  /// badge. Honors AyuGram's hideNotificationBadge — when set the count is
+  /// forced to 0 so nothing shows (main_window_win.cpp:641-642,
+  /// tray_win.cpp:146) — alongside the includeMutedChats / countUnreadMessages
+  /// notification prefs. Shared by the chatState unread listener (count changed)
+  /// and _syncNotifSettings (prefs changed).
+  void _refreshUnreadBadge(AppState appState) {
+    final chatState = _chatStateRef;
+    if (chatState == null) return;
+    final settings = _notifSystem.settings;
+    final hide = appState.hideNotificationBadge;
+    final badge = hide
+        ? 0
+        : chatState.badgeUnreadCount(
+            includeMuted: settings.includeMutedChats,
+            countMessages: settings.countUnreadMessages,
+          );
+    if (_tray.isAvailable) {
+      final muted = hide
+          ? false
+          : chatState.badgeUnreadMuted(
+              includeMuted: settings.includeMutedChats,
+            );
+      _tray.updateUnread(badge);
+      _tray.updateBadge(badge, muted: muted);
+    }
+    if (kIsWeb) {
+      _webNotifier.updateBadge(badge);
+    }
   }
 
   void _syncTrayAccounts(AppState appState) {
