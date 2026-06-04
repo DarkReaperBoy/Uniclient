@@ -59,6 +59,16 @@ abstract final class TgTokens {
   static const double topBarMenuToggleWidth = 44;
   static const double topBarCallWidth = 40;
 
+  // theme editor box (window.style — same file as the layout above).
+  // Resolved literals: these are defined in window/window.style, NOT in a
+  // separate theme_editor.style, so they belong in the resolved table.
+  static const Size themeEditorSampleSize = Size(90, 51); // window.style:167 themeEditorSampleSize size(90px,51px)
+  static const EdgeInsets themeEditorMargin =
+      EdgeInsets.fromLTRB(17, 10, 17, 10); // window.style:168 themeEditorMargin margins(17px,10px,17px,10px)
+  static const double themeEditorDescriptionSkip = 10; // window.style:169 themeEditorDescriptionSkip 10px
+  static const TextStyle themeEditorNameFont =
+      TextStyle(fontSize: 15, fontWeight: FontWeight.w600); // window.style:170 themeEditorNameFont font(15px semibold)
+
   // §56.4 — dialogs/dialogs.style — chat list
 
   static const double dialogsRowHeight = 62;
@@ -95,6 +105,18 @@ abstract final class TgTokens {
 
   static const Size normalBoxLottieSize = Size(120, 120);
 
+  // local-storage (cache) box rows (boxes.style — same file as above).
+  static const double localStorageRowHeight = 50; // boxes.style:202 localStorageRowHeight 50px
+  static const EdgeInsets localStorageRowPadding =
+      EdgeInsets.fromLTRB(22, 5, 20, 5); // boxes.style:203 localStorageRowPadding margins(22px,5px,20px,5px)
+
+  // passcode-lock box (boxes.style — same file as above).
+  static const TextStyle passcodeHeaderFont =
+      TextStyle(fontSize: 19); // boxes.style:290 passcodeHeaderFont font(19px)
+  static const double passcodeHeaderHeight = 80; // boxes.style:291 passcodeHeaderHeight 80px
+  static const EdgeInsets passcodePadding =
+      EdgeInsets.fromLTRB(0, 0, 0, 5); // boxes.style:299 passcodePadding margins(0px,0px,0px,5px)
+
   // §56.7 — settings/settings.style — settings panels
 
   static const double settingsCloudPasswordIconSize = 100;
@@ -128,8 +150,13 @@ abstract final class TgTokens {
   static const double defaultInputFieldFontSize = 14;
   static const double defaultRadioSize = 22;
   static const double defaultRadioStroke = 2;
-  static const double defaultMultiSelectHeight = 32;
-  static const double defaultMultiSelectRadius = 8;
+  static const double defaultMultiSelectHeight = 32; // widgets.style:1082 defaultMultiSelectItem.height 32px
+  // multi_select.cpp:184-186 paints the selected-contact pill with
+  //   radius = min(AyuUserpic::ComputeRadius(height), height/2)
+  // ComputeRadius(32) returns height/2 = 16 at the default avatarCorners
+  // (23 == kMaxAvatarCorners → ayu_userpic.cpp:35), so min(16, 16) = 16 — a
+  // full pill, not a rounded-rect. (Was 8 — a 50% under-rounding.)
+  static const double defaultMultiSelectRadius = 16;
   static const double defaultRoundShadowBlur = 8;
   static const Offset defaultRoundShadowOffset = Offset(0, 2);
   // menuIconSize removed: invented/unsourced — no such token exists anywhere in
@@ -160,17 +187,34 @@ abstract final class TgTokens {
   // st::check, st::canAddCaption, st::hasGroupOption
 
   // §56.13 — coverage notes
-  // ~90 tokens resolved with literal values (§56.1–56.9 above + TelegramPalette).
-  // ~25 tokens unresolved (theme_editor.style, intro.style, platform-specific):
+  // ~99 tokens resolved with literal values (§56.1–56.9 above + TelegramPalette).
+  // The theme-editor scalar tokens (themeEditorSampleSize/Margin/DescriptionSkip/
+  // NameFont) live in window/window.style — NOT a separate theme_editor.style —
+  // and the passcode/local-storage box scalars (passcodeHeaderFont/HeaderHeight/
+  // Padding, localStorageRowHeight/RowPadding) live in boxes/boxes.style; all are
+  // resolved above (§56.3, §56.6) with line citations, so they are no longer
+  // listed here.
+  //
+  // The 16 below remain unresolved for concrete reasons, NOT because they sit in
+  // an unread file:
+  //   • intro.style: introStepFont, introStepSize, introTitleFont
+  //   • OS/native dialogs (no .style literal): biometricPromptTitle,
+  //     biometricPromptDescription, platformTitleFont
+  //   • non-scalar widget-style objects (not a single literal): localStorageLimitSlider
+  //     (MediaSlider, boxes.style:223)
+  //   • palette colors → live in TelegramPalette, not as scalar tokens here:
+  //     themeEditorNameFg
+  //   • no matching definition in any .style file (no such token name exists in
+  //     the AyuGram source): passcodeSubmitFont, passcodeLetterFont,
+  //     passcodeDigitFont, localStorageClearFont
+  //   • compose-files preview, not yet cross-referenced: composeFilesPreviewHeight,
+  //     composeFilesPreviewPadding, composeAutocompleteMaxHeight, composeSlowmodeLabel
   static const List<String> unresolvedTokens = [
-    'themeEditorMargin', 'themeEditorSampleSize', 'themeEditorDescriptionSkip',
-    'themeEditorNameFont', 'themeEditorNameFg',
-    'passcodeHeaderFont', 'passcodeHeaderHeight',
-    'passcodeSubmitFont', 'passcodePadding',
+    'themeEditorNameFg',
+    'passcodeSubmitFont',
     'passcodeLetterFont', 'passcodeDigitFont',
     'biometricPromptTitle', 'biometricPromptDescription',
     'introStepFont', 'introStepSize', 'introTitleFont',
-    'localStorageRowHeight', 'localStorageRowPadding',
     'localStorageLimitSlider', 'localStorageClearFont',
     'composeFilesPreviewHeight', 'composeFilesPreviewPadding',
     'composeAutocompleteMaxHeight', 'composeSlowmodeLabel',
