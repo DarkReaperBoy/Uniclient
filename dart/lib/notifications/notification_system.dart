@@ -179,6 +179,10 @@ class NotificationSystem {
 
   void init(NotificationSettings settings) {
     _settings = settings;
+    // Re-push the sound-file hint to the native manager once the bundled default
+    // sound finishes its async first-launch extraction — `defaultSoundPath` is
+    // empty until then, so the initial _syncNativeSoundPath() below can't see it.
+    _soundPlayer.onDefaultSoundReady = _syncNativeSoundPath;
     _soundPlayer.init();
     _dndChecker.init();
     _selectManager();
