@@ -49,20 +49,36 @@ class _ThemePreviewImageState extends State<ThemePreviewImage> {
 
   // The default chat wallpaper (AyuGram paints it over the history region when
   // the theme has no embedded background — window_theme_preview.cpp:462-485).
-  // Its colors are fixed (palette-independent), so it is generated once.
-  void _generateWallpaper() {
-    const size = 256;
-    final bytes = defaultWallpaperGradientPixels(size: size);
-    ui.decodeImageFromPixels(bytes, size, size, ui.PixelFormat.rgba8888,
-        (image) {
-      if (!mounted) {
-        image.dispose();
-        return;
+  // For the theme wallpaper it overlays the Telegram doodle pattern
+  // (`:/gui/art/background.tgv`) on the fixed 4-colour default gradient via
+  // PreparePatternImage at intensity 50 (cpp:468-480). The result is
+  // palette-independent, so it is generated once.
+  Future<void> _generateWallpaper() async {
+    ui.Image? image;
+    try {
+      final tgv = await rootBundle.load('assets/images/background.tgv');
+      image = await prepareDefaultPatternImage(tgv.buffer.asUint8List());
+    } catch (_) {
+      image = null;
+    }
+    // Fall back to the plain default gradient (no doodle) if the pattern asset
+    // can't be loaded or decoded, so the chat area never shows a flat windowBg.
+    if (image == null) {
+      const size = 256;
+      try {
+        image = await decodeRgbaPixels(
+            defaultWallpaperGradientPixels(size: size), size, size);
+      } catch (_) {
+        image = null;
       }
-      setState(() {
-        _wallpaperImage?.dispose();
-        _wallpaperImage = image;
-      });
+    }
+    if (!mounted) {
+      image?.dispose();
+      return;
+    }
+    setState(() {
+      _wallpaperImage?.dispose();
+      _wallpaperImage = image;
     });
   }
 
@@ -342,11 +358,15 @@ class _ThemePreviewPainter extends CustomPainter {
       Paint()..color = palette.shadowFg,
     );
 
-    // Top bar: name and status
+    // Top bar: name and status. The "online" status is active
+    // (_topBarStatusActive = true, generateData), so AyuGram paints it with
+    // historyStatusFgActive (window_theme_preview.cpp:550) — which the palette
+    // binds to windowActiveTextFg (chat.style:460), NOT contactsStatusFgOnline
+    // (the two diverge in night/macOS and custom/cloud themes).
     _drawText(canvas, 'Eva Summer', left + 17, 8, 15,
         palette.dialogsNameFg, FontWeight.w600);
     _drawText(canvas, 'online', left + 17, 32, 13,
-        palette.contactsStatusFgOnline, FontWeight.normal);
+        palette.windowActiveTextFg, FontWeight.normal);
 
     // Top bar: right-aligned icons using AyuGram button widths
     // topBarMenuToggle.width=44, topBarSkip=-5, topBarCall.width=40, topBarSearch.width=40
@@ -366,6 +386,52 @@ class _ThemePreviewPainter extends CustomPainter {
     _drawComposeArea(canvas, left, chatWidth);
   }
 
+  // Port of Ui::ComputeChatBackgroundRects (chat_theme.cpp:833-878): cover-fit
+  // [image] into [fill], returning the source crop ([from]) and destination
+  // ([to]) rects. The axis where the image is relatively smaller is filled and
+  // the other centre-cropped, with the crop extent parity-matched to the image.
+  // C++ `int(...)` truncates toward zero, so the centring offset (which can be
+  // negative) uses truncateToDouble, not floor.
+  ({Rect from, Rect to}) _computeChatBackgroundRects(Size fill, Size image) {
+    final iw = image.width.toInt();
+    final ih = image.height.toInt();
+    final fw = fill.width;
+    final fh = fill.height;
+    if (iw * fh > ih * fw) {
+      final pxsize = fh / ih;
+      var takewidth = (fw / pxsize).ceil();
+      if (takewidth > iw) {
+        takewidth = iw;
+      } else if ((iw % 2) != (takewidth % 2)) {
+        takewidth++;
+      }
+      return (
+        from: Rect.fromLTWH(
+            ((iw - takewidth) ~/ 2).toDouble(), 0, takewidth.toDouble(),
+            ih.toDouble()),
+        to: Rect.fromLTWH(
+            ((fw - takewidth * pxsize) / 2).truncateToDouble(), 0,
+            (takewidth * pxsize).ceilToDouble(), fh),
+      );
+    } else {
+      final pxsize = fw / iw;
+      var takeheight = (fh / pxsize).ceil();
+      if (takeheight > ih) {
+        takeheight = ih;
+      } else if ((ih % 2) != (takeheight % 2)) {
+        takeheight++;
+      }
+      return (
+        from: Rect.fromLTWH(
+            0, ((ih - takeheight) ~/ 2).toDouble(), iw.toDouble(),
+            takeheight.toDouble()),
+        to: Rect.fromLTWH(
+            0, ((fh - takeheight * pxsize) / 2).truncateToDouble(),
+            fw, (takeheight * pxsize).ceilToDouble()),
+      );
+    }
+  }
+
   void _drawMessageArea(Canvas canvas, double left, double chatWidth) {
     final areaBottom = _canvasHeight - _composeHeight;
 
@@ -378,17 +444,27 @@ class _ThemePreviewPainter extends CustomPainter {
     canvas.clipRect(historyRect);
 
     // Chat background wallpaper. AyuGram's paintHistoryBackground() paints the
-    // default wallpaper (the DefaultWallPaper gradient) over the history region,
-    // on top of the base windowBg fill, before drawing any bubbles
-    // (window_theme_preview.cpp:444-485). The image is built from the fixed
-    // kDefaultWallpaperColors; until it decodes, fall back to the gradient's
-    // average tone so the chat area never shows a flat windowBg.
+    // default wallpaper (the 4-colour gradient + doodle pattern) over the
+    // history region, on top of the base windowBg fill, before drawing any
+    // bubbles (window_theme_preview.cpp:444-485). It is cover-fit into a
+    // `chatWidth × _canvasHeight` box via ComputeChatBackgroundRects and anchored
+    // to the body top (shifted up by topBarHeight, `fromy`), so the history shows
+    // the centre band rather than the whole image squashed flat (cpp:519-530).
+    // Until it decodes, fall back to the gradient's average tone so the chat area
+    // never shows a flat windowBg.
     final wp = wallpaperImage;
     if (wp != null) {
+      const fromy = -_topBarHeight;
+      final rects = _computeChatBackgroundRects(
+        Size(chatWidth, _canvasHeight),
+        Size(wp.width.toDouble(), wp.height.toDouble()),
+      );
+      // to.moveTop(+fromy) then to.moveTopLeft(+_history.topLeft()=(left,topBar)).
+      final dst = rects.to.translate(left, _topBarHeight + fromy);
       canvas.drawImageRect(
         wp,
-        Rect.fromLTWH(0, 0, wp.width.toDouble(), wp.height.toDouble()),
-        historyRect,
+        rects.from,
+        dst,
         Paint()..filterQuality = FilterQuality.high,
       );
     } else {

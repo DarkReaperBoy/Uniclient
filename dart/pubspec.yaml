@@ -61,6 +61,7 @@ flutter:
     - assets/icon/icon_256.png
     - assets/icon/icon_64.png
     - assets/images/themeimage.jpg
+    - assets/images/background.tgv
     - assets/animations/
     - assets/animations/devices/
     - assets/animations/photo_editor/

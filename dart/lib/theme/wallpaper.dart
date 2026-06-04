@@ -613,6 +613,84 @@ const List<Color> kDefaultWallpaperColors = [
 Uint8List defaultWallpaperGradientPixels({int size = 256}) =>
     _generateGradientBytes(kDefaultWallpaperColors, 0, size);
 
+/// Decodes a raw RGBA8888 pixel buffer into a [ui.Image] (a `Future`-returning
+/// wrapper over the callback-based [ui.decodeImageFromPixels]).
+Future<ui.Image> decodeRgbaPixels(Uint8List bytes, int width, int height) {
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+      bytes, width, height, ui.PixelFormat.rgba8888, completer.complete);
+  return completer.future;
+}
+
+/// Builds the default chat wallpaper as a single prepared [ui.Image]: the
+/// 4-colour default gradient ([kDefaultWallpaperColors]) with the Telegram
+/// doodle pattern overlaid at intensity 50 (soft-light, opacity 0.5). A Dart
+/// port of AyuGram's
+/// `PreparePatternImage(ReadBackgroundImage(":/gui/art/background.tgv"),
+/// DefaultWallPaper().backgroundColors(), gradientRotation()=0,
+/// patternOpacity()=0.5)` (ui/chat/chat_theme.cpp:1135 → GenerateBackgroundImage
+/// :1103), as used by the theme-preview history background
+/// (window/themes/window_theme_preview.cpp:468-480). [tgvBytes] is the gzipped
+/// doodle SVG (`assets/images/background.tgv`). Returns null if the doodle can't
+/// be decoded, so callers fall back to the plain gradient.
+Future<ui.Image?> prepareDefaultPatternImage(Uint8List tgvBytes) async {
+  // The doodle: gunzip + rasterize the SVG (≡ ReadBackgroundImage gzipSvg=true).
+  final pattern = await _decodePatternBytes(tgvBytes);
+  if (pattern == null) return null;
+  final w = pattern.width;
+  final h = pattern.height;
+  if (w <= 0 || h <= 0) {
+    pattern.dispose();
+    return null;
+  }
+
+  // The base 4-colour default gradient, dithered — GenerateBackgroundImage
+  // dithers when `bg.size() > 1 && patternOpacity >= 0` (our case). It is
+  // generated square and stretched to the doodle's size, exactly as AyuGram
+  // generates the gradient at `pattern.size()`.
+  final gradient = await decodeRgbaPixels(
+      defaultWallpaperGradientPixels(size: _kComplexGradientSize),
+      _kComplexGradientSize,
+      _kComplexGradientSize);
+
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  final dst = Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble());
+  final hq = Paint()..filterQuality = FilterQuality.high;
+
+  canvas.drawImageRect(
+    gradient,
+    Rect.fromLTWH(0, 0, gradient.width.toDouble(), gradient.height.toDouble()),
+    dst,
+    hq,
+  );
+
+  // Doodle overlay: soft-light at 0.5 opacity (intensity 50, patternOpacity >= 0
+  // branch of GenerateBackgroundImage / _PatternWallpaperPainter). The default
+  // colours are light, so IsPatternInverted() is false → the doodle's alpha is
+  // not inverted; it is drawn once filling the whole rect (PreparePatternImage's
+  // `p.drawImage(QRect(QPoint(), pattern.size()), pattern)`), not tiled.
+  const patternOpacity = 0.5; // WallPaper::kDefaultIntensity (50) / 100.
+  canvas.saveLayer(
+    dst,
+    Paint()
+      ..blendMode = BlendMode.softLight
+      ..color = Color.fromARGB((patternOpacity * 255).round(), 255, 255, 255),
+  );
+  canvas.drawImageRect(
+    pattern,
+    Rect.fromLTWH(0, 0, pattern.width.toDouble(), pattern.height.toDouble()),
+    dst,
+    hq,
+  );
+  canvas.restore();
+
+  final image = await recorder.endRecording().toImage(w, h);
+  gradient.dispose();
+  pattern.dispose();
+  return image;
+}
+
 bool _sameColors(List<Color> a, List<Color> b) {
   if (a.length != b.length) return false;
   for (int i = 0; i < a.length; i++) {
