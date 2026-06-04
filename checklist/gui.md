@@ -193,13 +193,25 @@ anti-zip-bomb uncompressed-size check, and the CRC32 cache scheme
 The public API is wired (`parseThemeFile`/`exportThemeFile`→`theme_editor.dart`,
 cache fns→`app_state.dart`). No stubs/TODOs/placeholders/fake data.
 
-The findings below are genuine behavioral deviations from the AyuGram source.
-
-- [ ] [CRITICAL] Palette fallback-chain cascade (`finalize()`→`compute()`) is not implemented — when a loaded theme sets only base colors, the 236 reference-colors that should inherit from them keep stale defaults instead. AyuGram calls `out->palette.finalize(paletteColorizer)` after `loadColorScheme`, and `compute(index, fallbackIndex, value)` copies each unset color from its fallback when that fallback is `Loaded` (set by the theme or an earlier cascade step). e.g. `colors.palette:53` defines `menuBg: windowBg;` and `:345` `msgInBg: windowBg;`, so a theme that sets only `windowBg: #000000;` makes the menu/message-bubble black in AyuGram. The Dart parser only resolves references *physically present in the theme file*, then `merged = fallbackMap..addAll(resolved)` fills every other key with the `dayBlue` default (flat `m['x'] ?? fb.x` in `paletteFromMap`) — so `menuBg`/`msgInBg`/etc. stay white. Up to 236/580 colors can be wrong for a partial palette, and user-imported `.tdesktop-palette` files reach this path (`theme_editor.dart:423`). — `theme_file.dart:201` (+ `paletteFromMap` `theme_file.dart:1128`) ← `AyuGram/Telegram/SourceFiles/window/themes/window_theme.cpp:368` + `AyuGram/Telegram/lib_ui/ui/style/style_core_palette.cpp:158` + `AyuGram/Telegram/lib_ui/ui/colors.palette:53`
-
-- [ ] [MAJOR] Parser is line-based (`text.split('\n')`, one `name: value;` assumed per physical line) whereas AyuGram's `ReadPaletteValues` runs a whitespace-delimited *streaming* loop over `readNameAndValue`, which is newline-agnostic. Consequence: a declaration split across lines such as `windowBg:\n#ffffff;` makes the Dart's first line `windowBg:` fail the trailing-`;` check and **hard-reject the entire theme** (`return null`, line 142) — AyuGram parses it fine. Likewise multiple `name: value;` pairs on one physical line (`windowBg: #fff; windowFg: #000;`) collapse into one malformed entry and silently drop those colors. Real AyuGram exports are one-per-line so typical themes load, but any spec-valid theme using cross-line/multi-pair layout breaks. — `theme_file.dart:96` (+ hard-reject `theme_file.dart:142`) ← `AyuGram/Telegram/SourceFiles/window/themes/window_theme.cpp:1521` + `window_theme.cpp:122`
-
-- [ ] [MAJOR] Background validation is stricter than AyuGram and rejects the whole theme for inputs AyuGram accepts. `_isValidBackgroundImage` gates on JPEG/PNG magic bytes (`bytes[0]==0xFF&&…` / 8-byte PNG signature) and returns false for anything else, after which `_parseZipTheme` aborts the entire theme (`return null`, line 460). AyuGram reads the background by filename only and decodes it format-agnostically via `QImageReader::size()` + `Images::Read(...)`, accepting any Qt-decodable image (e.g. a WebP/BMP stored as `background.png`). So a theme AyuGram renders is fully rejected here. (Narrow in practice — Telegram only ever writes jpg/png backgrounds — but a genuine deviation: the Dart is the stricter of the two.) — `theme_file.dart:320` (+ reject `theme_file.dart:460`) ← `AyuGram/Telegram/SourceFiles/window/themes/window_theme.cpp:329` + `window_theme.cpp:336`
+All three findings VERIFIED & CLOSED (commit b21a11f). Confirmed against AyuGram
+ground truth + a focused parser test exercising the real `parsePaletteText`/
+`parseThemeFile` code paths (15/15 pass), plus a runtime launch in desktop+mobile
+with no crash/theme errors:
+- [CRITICAL] `finalize()` cascade now implemented (Pass 3 over `_paletteFallbacks`
+  in colors.palette declaration order, mirroring `compute()` style_core_palette.cpp:158-180
+  run via finalize() window_theme.cpp:368). A theme setting only `windowBg:#000000;`
+  now cascades menuBg & msgInBg (colors.palette:53/:345 `:windowBg`) to black, and
+  the chain is transitive (`windowBgOver→menuBgOver→botKbBg`); explicit colors still
+  win and an unset-fallback key keeps its own default — verified by test.
+- [MAJOR] Line-based tokenizer replaced by a streaming, newline-agnostic port of
+  `readNameAndValue`/`ReadPaletteValues` (window_theme.cpp:122-164,1514-1537) with a
+  faithful `_stripComments`. Cross-line `windowBg:\n#ffffff;` and multi-pair
+  `windowBg:#123456; windowFg:#abcdef;` both parse; comments/whitespace tolerated;
+  structural errors (missing `;`/`:`, empty value) still hard-reject — parity with AyuGram.
+- [MAJOR] Background validation now format-agnostic: `_isValidBackgroundImage`
+  decodes via `package:image` (≡ Images::Read, window_theme.cpp:328-343) instead of
+  gating on JPEG/PNG magic bytes. BMP/TGA stored as `background.png` are accepted;
+  undecodable bytes still reject the theme.
 
 # theme_name_generator — Telegram Desktop theme-name generator (redmean nearest-color + random adjective/subjective)
 
