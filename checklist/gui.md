@@ -215,9 +215,22 @@ with no crash/theme errors:
 
 # theme_name_generator — Telegram Desktop theme-name generator (redmean nearest-color + random adjective/subjective)
 
-Port is near-perfect: the redmean distance formula (incl. `>>8` truncations, `4*g*g`, `512+rMean`, `767-rMean`), `rMean` (`(r+c.r)>>1` ≡ C++ `(r1+r2)/2`), the 50/50 adjective-prefix/subjective-suffix branch, and all three data tables were verified 1:1 — 99 colors (hex→RGB all correct), 107 adjectives, 81 subjectives, with matching order including the non-alphabetical quirks ("Flash","Fire"; "Shine","Shadow","Shimmer"). Wiring is correct: `generateThemeName(widget.palette.windowActiveTextFg)` (theme_editor.dart:1317) matches AyuGram's `GenerateName(collected.accent)` where `collected.accent = st::windowActiveTextFg->c` (window_theme_editor_box.cpp:773,790). One genuine algorithmic divergence:
+Port is near-perfect: the redmean distance formula (incl. `>>8` truncations, `4*g*g`, `512+rMean`, `767-rMean`), `rMean` (`(r+c.r)>>1` ≡ C++ `(r1+r2)/2`), the 50/50 adjective-prefix/subjective-suffix branch, and all three data tables were verified 1:1 — 99 colors (hex→RGB all correct), 107 adjectives, 81 subjectives, with matching order including the non-alphabetical quirks ("Flash","Fire"; "Shine","Shadow","Shimmer"). Wiring is correct: `generateThemeName(widget.palette.windowActiveTextFg)` (theme_editor.dart:1317) matches AyuGram's `GenerateName(collected.accent)` where `collected.accent = st::windowActiveTextFg->c` (window_theme_editor_box.cpp:773,790). The one genuine algorithmic divergence is now VERIFIED & CLOSED (commit 801ed7f),
+confirmed against AyuGram ground truth + a focused test that drives the real
+`generateThemeName` against an independent C++-data reference (flat_map +
+min_element semantics), plus a desktop+mobile launch with no crash/theme errors:
 
-- [ ] [MAJOR] Nearest-color tie-breaking diverges from source. AyuGram stores the palette in a `base::flat_map<uint32, const char*>` keyed by packed-RGB color, so it iterates in ascending color-key order and `ranges::min_element` returns the LOWEST-key entry among equidistant colors. The Dart `_colors` list preserves C++ *declaration* order and the scan keeps the first minimum in declaration order (`if (dist < bestDist)`), so an exact distance tie resolves to the first-*declared* entry instead of the lowest-key entry — producing a different color name for equidistant accents. The `>>8` truncation in the redmean metric collapses nearby distances, making such ties realistically reachable. Fix: iterate the palette in ascending packed-RGB-key order (or sort `_colors` by `(r<<16)|(g<<8)|b`) before the min search so the tie-break matches `flat_map`. — `theme_name_generator.dart:15-27` (declaration-order scan with `dist < bestDist` tie-break) ← `window/themes/window_themes_generate_name.cpp:16` (`base::flat_map<uint32, const char*>` key-sorted container) + `:345` (`ranges::min_element(kColors, pred)`)
+- [MAJOR] Nearest-color tie-break now matches `base::flat_map` + `ranges::min_element`.
+  `generateThemeName` scans a key-sorted view (`_sortedColors`, ascending packed-RGB
+  key) with a strict `<`, so equidistant accents resolve to the LOWEST-key entry —
+  identical to AyuGram (window_themes_generate_name.cpp:16,345). Verified: the Dart
+  `_colors` table is a 1:1 transcription of C++ `kColors` (99/99 entries, all keys
+  distinct, key-sorted view == flat_map order); the real `generateThemeName` == the
+  C++ reference across the full palette + a 1728-accent grid; the two named exact
+  ties resolve correctly (rgb(42,81,186) Azure→Sapphire, rgb(3,96,93) Lagoon→Teal);
+  a 140608-accent sweep finds 12 decl-vs-key divergences, all genuine ties won by
+  the lower key. `_colors` stays in declaration order for 1:1 source verification.
+  — `theme_name_generator.dart:11-43,61-62`
 
 # theme_preview — Telegram Desktop theme-preview image (dialogs + chat mock)
 
