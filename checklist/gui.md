@@ -129,15 +129,20 @@ from those exports — meaning at runtime `palette::compute()`
 the Dart instead hardcoded the `colors.palette` literal default (a light-theme value) or
 a wrong proxy. So in the dark/day themes these keys show the wrong color.
 
-- [ ] [MAJOR] Dark-theme chat-list **mention icon** hardcoded to the light-theme accent `#40A7E3` instead of inheriting the per-theme accent `dialogsVerifiedIconBg`. In `nightGreen` the theme accent is teal `#53edde` (Dart palette even stores it correctly at line 4932) yet the mention badge renders blue — a clearly wrong hue. `colors.palette:690` defines `dialogsMentionIconFg: #40a7e3 | dialogsVerifiedIconBg;` and the key is absent from `night`/`night-green.tdesktop-theme` (⇒ inherits the accent). Should be `#6AB3F3` (night) / `#53EDDE` (nightGreen). — `telegram_palette.dart:4030` & `telegram_palette.dart:5209` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:690`
+All 5 fallback-inheritance findings above VERIFIED & CLOSED (commit 3e702d2): every one of the
+19 changed values is byte-exact against the AyuGram ground truth, computed by resolving each
+`key: #literal | fallback;` against the extracted `night`/`night-green`/`day-blue.tdesktop-theme`
+exports. mention→dialogsVerifiedIconBg (#6AB3F3 / #53EDDE); reaction→attentionButtonFg
+(#EC3942 / #F57474) & poll→historyPeer5NameFg (#B48BF2 / #B383F3); archiveFg→dialogsNameFg
+(#F5F5F5) & archiveFgOver→dialogsNameFgOver→windowBoldFgOver (#E9E9E9); dayBlue
+emojiSubIconFgActive→windowBoldFg #222222, callBarBgMuted→dialogsUnreadBgMuted #BBBBBB,
+callArrowFg→boxTextFgGood #4AB44A, callArrowMissedFg/historyCallArrowMissedInFg→boxTextFgError
+#D84D4D, mainMenuCloudBg→activeButtonBgRipple #2095D0; spellUnderline→attentionButtonFg opaque
+(#EC3942 / #F57474 / #D14E4E). Each target key confirmed ABSENT from its theme export (⇒ inherits).
+Build clean; app launches & renders in desktop+mobile with no crash (light/classicDay default theme
+untouched, as intended).
 
-- [ ] [MAJOR] Dark-theme chat-list **reaction icon** and **poll icon** keep the light-theme literals (`dialogsReactionIconFg #E05356`, `dialogsPollIconFg #997BE1`) instead of the theme-overridden fallbacks. Per `colors.palette:691` `dialogsReactionIconFg: #e05356 | attentionButtonFg;` → night `#ec3942` / nightGreen `#f57474`; `colors.palette:692` `dialogsPollIconFg: #997be1 | historyPeer5NameFg;` → night `#b48bf2` / nightGreen `#b383f3`. Both keys are absent from the dark theme exports (⇒ inherit). — `telegram_palette.dart:4031-4032` & `telegram_palette.dart:5210-5211` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:691-692`
-
-- [ ] [MAJOR] Dark-theme `dialogsArchiveFg`/`dialogsArchiveFgOver` set to `windowSubTextFg` (`#708499` night, `#82868A` nightGreen — identical to the palette's own `windowSubTextFg` at lines 3662/4879) instead of the C++ fallback `dialogsNameFg`/`dialogsNameFgOver`. `colors.palette:197` `dialogsArchiveFg: #525252 | dialogsNameFg;` and `colors.palette:215` `dialogsArchiveFgOver: #525252 | dialogsNameFgOver;`; both absent from the dark exports, so runtime inherits `dialogsNameFg=#f5f5f5` (the archive label renders as a normal chat name). Dart's muted gray-blue is neither the literal nor the fallback. — `telegram_palette.dart:3721`,`4018` & `telegram_palette.dart:4934`,`5197` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:197`,`215`
-
-- [ ] [MAJOR] `dayBlue` (the selectable "Day" theme) bakes several `|`-fallback keys with the *classic* literal instead of the value they inherit once `day-blue.tdesktop-theme` overrides the fallback key — so "Day" wrongly equals "Classic" for these. Examples: `emojiSubIconFgActive` Dart `#666666` vs inherited `windowBoldFg=#222222` (≈27% off); `callBarBgMuted` Dart `#8F8F8F` vs `dialogsUnreadBgMuted=#bbbbbb` (≈17%); `callArrowFg` Dart `#2DAD2D` vs `boxTextFgGood=#4ab44a`; `callArrowMissedFg`/`historyCallArrowMissedInFg` Dart `#DD5B4A` vs `boxTextFgError=#d84d4d`; `mainMenuCloudBg` Dart `#2785BF` vs `activeButtonBgRipple=#2095d0`. — `telegram_palette.dart:3412`,`3559`,`3369`,`3370`,`3431`,`3512` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:249`,`602`,`163`,`164`,`276`,`499`
-
-- [ ] [MAJOR] Same fallback-inheritance bug for the dark themes' `spellUnderline`: Dart keeps the literal translucent red `#FF000088`, but `colors.palette:614` `spellUnderline: #ff000088 | attentionButtonFg;` makes it inherit the (opaque) theme red — night `#ec3942`, nightGreen `#f57474`, dayBlue `#d14e4e` — losing both the hue shift and the intended alpha behavior. — `telegram_palette.dart:4228` (night), `telegram_palette.dart:5407` (nightGreen), `telegram_palette.dart:3600` (dayBlue) ← `AyuGram/Telegram/lib_ui/ui/colors.palette:614`
+- [ ] [MINOR] `dayBlue` `historyCallArrowMissedInFgSelected` still baked with the *classic* literal `#DD5B4A` instead of the inherited `#D84D4D` — same fallback-inheritance class as the 5 fixed items above, and a direct sibling of `historyCallArrowMissedInFg` (which WAS fixed). `colors.palette:277` `historyCallArrowMissedInFgSelected: callArrowMissedFg;` is a pure alias; in `day-blue.tdesktop-theme` both `historyCallArrowMissedInFgSelected` and `callArrowMissedFg` are absent, so it inherits `callArrowMissedFg → boxTextFgError = #d84d4d`. (night/nightGreen are CORRECT — both override this key to `#FFFFFF`.) ~5.5% max-channel deviation; only on a *selected* missed-call message arrow in the Day theme. — `telegram_palette.dart:3432` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:277`
 
 # theme — Material ThemeData bridge from TelegramPalette (input/scrollbar/tooltip/text defaults)
 
