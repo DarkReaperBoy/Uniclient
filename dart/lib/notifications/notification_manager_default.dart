@@ -54,6 +54,7 @@ class DefaultManager extends NotificationManager {
   VoidCallbackNoArgs? onStartHidingHideAll;
   VoidCallbackNoArgs? onStartHidingHideAllFast;
   VoidCallbackNoArgs? onStopHidingHideAll;
+  VoidCallbackNoArgs? onCornerChanged;
   bool Function(String id)? isStickyCheck;
 
   List<DefaultNotificationItem> get activeNotifications =>
@@ -353,6 +354,7 @@ class DefaultManager extends NotificationManager {
 
   @override
   void updateSettings(NotificationSettings settings) {
+    final cornerChanged = _corner != settings.corner;
     _maxVisible = settings.maxNotificationCount.clamp(1, 5);
     _corner = settings.corner;
     // NOTE: AyuGram's settingsChanged() also handles ChangeType::DemoIsShown/
@@ -364,13 +366,43 @@ class DefaultManager extends NotificationManager {
     // AppState.notifDemoShown), so it is intentionally not re-handled in this
     // controller's settings path.
 
+    // MaxCount change: evict the over-limit notifications through the FAST-hide
+    // channel (150ms / notifyFastAnim fade), NOT the abrupt full-opacity
+    // dismiss()->onDismiss teardown. AyuGram's settingsChanged(MaxCount) calls
+    // unlinkHistory() on each excess, which routes through hideFast()
+    // (notifications_manager_default.cpp:148-156; unlinkHistory->hideFast
+    // :1202,:570). Evict OLDEST first (_active.first), matching AyuGram keeping
+    // the newest notificationsCount(). Remove from the live set immediately so
+    // it stops counting toward _maxVisible (like AyuGram's isUnlinked()); the
+    // popup view self-removes on fade-end and calls back dismiss() — a safe
+    // no-op once it is gone from _active. With no view mounted to animate, fall
+    // back to an immediate onDismiss so it can't get stuck. (Mirrors the
+    // _clearScoped fast-fade path :247-262, instead of the snap-away dismiss().)
     while (_active.length > _maxVisible) {
       final excess = _active.first;
-      dismiss(excess.id);
+      _dismissTimers[excess.id]?.cancel();
+      _dismissTimers.remove(excess.id);
+      _active.removeAt(0);
+      if (onStartHidingFast != null) {
+        onStartHidingFast!(excess.id);
+      } else {
+        onDismiss?.call(excess.id);
+      }
     }
 
     while (_queue.isNotEmpty && _active.length < _maxVisible) {
       _displayItem(_queue.removeFirst());
+    }
+
+    // Corner change: AyuGram's settingsChanged(Corner) immediately repositions
+    // every live notification AND the HideAll button via updatePosition
+    // (notifications_manager_default.cpp:139-148). Fire a reposition signal so
+    // the view recomputes every popup's slot + the HideAll button for the new
+    // corner — without this, popups already on screen stay stuck in the old
+    // corner until the next show/dismiss. Fired after the eviction/promotion so
+    // it reflects the final live set.
+    if (cornerChanged) {
+      onCornerChanged?.call();
     }
     onHideAllChanged?.call();
   }

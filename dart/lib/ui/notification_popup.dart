@@ -171,6 +171,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     widget.manager.onStartHidingHideAll = _onStartHidingHideAll;
     widget.manager.onStartHidingHideAllFast = _onStartHidingHideAllFast;
     widget.manager.onStopHidingHideAll = _onStopHidingHideAll;
+    widget.manager.onCornerChanged = _onCornerChanged;
     widget.manager.isStickyCheck = _isPopupSticky;
   }
 
@@ -193,6 +194,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       widget.manager.onStartHidingHideAll = _onStartHidingHideAll;
       widget.manager.onStartHidingHideAllFast = _onStartHidingHideAllFast;
       widget.manager.onStopHidingHideAll = _onStopHidingHideAll;
+      widget.manager.onCornerChanged = _onCornerChanged;
       widget.manager.isStickyCheck = _isPopupSticky;
     }
   }
@@ -372,6 +374,21 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       _hideAllHiding = false;
       _hideAllFastHiding = false;
       _hideAllOpacity = 1.0;
+    });
+  }
+
+  // AyuGram's settingsChanged(ChangeType::Corner) immediately repositions every
+  // live notification AND the HideAll button via updatePosition
+  // (notifications_manager_default.cpp:139-148). Recompute every popup's targetY
+  // for the new orientation and rebuild — build() reads the new corner for the
+  // x-position, top-center width, and the HideAll button slot, so a single
+  // setState repositions the whole stack (the AnimatedPositioned rows slide to
+  // their new slots). Without this, a popup already on screen stays stuck in the
+  // old corner until the next show/dismiss.
+  void _onCornerChanged() {
+    if (!mounted) return;
+    setState(() {
+      _recalcPositions();
     });
   }
 
