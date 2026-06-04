@@ -41,18 +41,25 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: p.windowBg,
-        // AyuGram defaultInputField: borderRadius 0px (flat field), resting
-        // border borderFg=inputBorderFg, focused border borderFgActive=activeLineFg,
-        // border 1px / borderActive 2px (widgets.style:1058-1064).
-        border: OutlineInputBorder(
+        // AyuGram defaultInputField has borderRadius 0px, which routes to
+        // InputField::paintFlatSurrounding (input_field.cpp:2388-2398): it draws
+        // ONLY a bottom underline — a 1px resting line in borderFg=inputBorderFg
+        // plus an animated 2px active line in borderFgActive=activeLineFg — not a
+        // full box (paintRoundSurrounding is used only when borderRadius > 0).
+        // So both borders are flat UnderlineInputBorder, no top-corner rounding
+        // (border 1px / borderActive 2px, widgets.style:1058-1064).
+        border: UnderlineInputBorder(
           borderRadius: BorderRadius.zero,
           borderSide: BorderSide(color: p.inputBorderFg),
         ),
-        focusedBorder: OutlineInputBorder(
+        focusedBorder: UnderlineInputBorder(
           borderRadius: BorderRadius.zero,
           borderSide: BorderSide(color: p.activeLineFg, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        // textMargins: margins(0px, 28px, 0px, 4px) — zero horizontal inset (text
+        // flush to the field's left/right edges), 28px top reserving room for the
+        // floating placeholder, 4px bottom (widgets.style:1045).
+        contentPadding: const EdgeInsets.fromLTRB(0, 28, 0, 4),
         hintStyle: TextStyle(color: p.windowSubTextFg),
       ),
       scrollbarTheme: ScrollbarThemeData(
