@@ -3,6 +3,7 @@ import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:dbus/dbus.dart';
 import 'package:ffi/ffi.dart';
@@ -492,17 +493,7 @@ class NativeManager extends NotificationManager {
       _drawGradientCircle(image, pair[0], pair[1], size);
 
       if (initials.isNotEmpty) {
-        final font = img.arial24;
-        int textW = 0;
-        for (final cu in initials.codeUnits) {
-          final ch = font.characters[cu];
-          if (ch != null) textW += ch.xAdvance;
-        }
-        final x = (size - textW) ~/ 2;
-        final y = (size - font.lineHeight) ~/ 2;
-        img.drawString(image, initials,
-            font: font, x: x, y: y,
-            color: img.ColorRgba8(255, 255, 255, 255));
+        await _drawInitials(image, initials, size);
       }
 
       await _storeGeneratedUserpic(cacheKey, cacheDir, image, 'placeholder');
@@ -595,6 +586,81 @@ class NativeManager extends NotificationManager {
         if (coverage <= 0) continue;
         image.setPixelRgba(px, py, r, g, b, (coverage * 255).round());
       }
+    }
+  }
+
+  // EmptyUserpic::paint's initials text (empty_userpic.cpp:305-337): the peer's
+  // initials, drawn centered in white over the gradient circle. AyuGram draws them
+  // with `st::historyPeerUserpicFont` (semiboldFont == font(13px semibold),
+  // basic.style:53 / chat.style:448) at pixel size `(size*13)/33`, via Qt's
+  // `p.setFont(font); p.drawText(QRect(x,y,size,size), _string, al_center)` — a
+  // FULL-UNICODE font, so the letter always appears.
+  //
+  // The `image` package's only text path (`img.drawString` + `img.arial24`) embeds
+  // a BMFont with ONLY 92 glyphs (ASCII U+0020-U+007E plus U+2116 №); `drawString`
+  // silently skips every other code point, so Cyrillic / Greek / Arabic / Hebrew /
+  // Thai / Kana / CJK / Hangul / accented-Latin initials would render as a bare
+  // colored circle with no letter — the bulk of Telegram's real user base. We
+  // instead rasterize the initials through dart:ui (the platform font stack, full
+  // Unicode + per-script fallback, exactly like Qt's drawText) and alpha-composite
+  // the result over the circle.
+  static Future<void> _drawInitials(img.Image image, String text, int size) async {
+    try {
+      final fontSize = (size * 13) / 33; // EmptyUserpic::paint fontsize formula
+      final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
+        textAlign: ui.TextAlign.center,
+        fontSize: fontSize,
+        fontWeight: ui.FontWeight.w600, // semibold (basic.style:53 semiboldFont)
+        maxLines: 1,
+      ))
+        ..pushStyle(ui.TextStyle(
+          color: const ui.Color(0xFFFFFFFF), // historyPeerUserpicFg == windowFgActive
+          fontSize: fontSize,
+          fontWeight: ui.FontWeight.w600,
+        ))
+        ..addText(text);
+      final paragraph = builder.build()
+        ..layout(ui.ParagraphConstraints(width: size.toDouble()));
+
+      // al_center centers vertically too; ParagraphBuilder lays out from the top,
+      // so shift down by the leftover height to center within the size×size box.
+      final dy = (size - paragraph.height) / 2.0;
+
+      final recorder = ui.PictureRecorder();
+      ui.Canvas(recorder).drawParagraph(paragraph, ui.Offset(0, dy));
+      final picture = recorder.endRecording();
+      final rendered = await picture.toImage(size, size);
+      picture.dispose();
+      final bytes =
+          await rendered.toByteData(format: ui.ImageByteFormat.rawStraightRgba);
+      rendered.dispose();
+      if (bytes == null) return;
+      final pixels = bytes.buffer.asUint8List();
+
+      // Straight-alpha "over": out = src*a + dst*(1-a). The text is white and sits
+      // well inside the opaque circle, so only its anti-aliased edges blend.
+      for (var py = 0; py < size; py++) {
+        for (var px = 0; px < size; px++) {
+          final o = (py * size + px) * 4;
+          final sa = pixels[o + 3];
+          if (sa == 0) continue;
+          final fa = sa / 255.0;
+          final inv = 1.0 - fa;
+          final bg = image.getPixel(px, py);
+          image.setPixelRgba(
+            px,
+            py,
+            (pixels[o] * fa + bg.r * inv).round().clamp(0, 255),
+            (pixels[o + 1] * fa + bg.g * inv).round().clamp(0, 255),
+            (pixels[o + 2] * fa + bg.b * inv).round().clamp(0, 255),
+            (sa + bg.a * inv).round().clamp(0, 255),
+          );
+        }
+      }
+    } catch (e) {
+      // Best-effort: on any rasterization failure keep the gradient circle (still
+      // a valid placeholder) rather than aborting the whole userpic.
+      Debug.log('NOTIF', 'Initials render failed: $e');
     }
   }
 
