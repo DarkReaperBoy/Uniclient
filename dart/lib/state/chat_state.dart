@@ -1830,9 +1830,11 @@ class ChatState extends ChangeNotifier {
       if (idx >= 0) forwardMsgs.add(_messages[idx]);
     }
 
-    final progress = ForwardProgress();
-
     if (forwardMsgs.isNotEmpty && AyuForward.needsIntelligentForward(forwardMsgs, chat)) {
+      // Restricted forward (no-forwards bypass / resend-as-own). AyuGram creates
+      // a ForwardState here (ayu_forward.cpp:287,330,332), so the AyuForward
+      // progress bar replaces the compose area in the destination chat.
+      final progress = ForwardProgress();
       await AyuForward.intelligentForward(
         engine: _engine,
         accountId: chat.accountId,
@@ -1847,19 +1849,15 @@ class ChatState extends ChangeNotifier {
         progress: progress,
       );
     } else {
-      AyuForward.startNativeForward(toChatId, progress, msgIds.length);
-      int sent = 0;
-      try {
-        for (final id in msgIds) {
-          if (progress.isCancelled) break;
-          await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId,
-            dropAuthor: dropAuthor, dropCaptions: dropCaptions,
-            silent: silent, scheduleDate: scheduleDate);
-          sent++;
-          progress.update(sent: sent);
-        }
-      } finally {
-        AyuForward.finishNativeForward(toChatId, progress, sent);
+      // Non-restricted (plain) forward. AyuGram falls through both early-return
+      // branches of `ApiWrap::forwardMessages` to the normal Telegram batch path,
+      // which never constructs a ForwardState — so no AyuForward progress bar is
+      // shown (apiwrap.cpp:3494-3503). Register NO ForwardProgress here: the
+      // compose area stays put and the forward fires as an ordinary batch.
+      for (final id in msgIds) {
+        await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId,
+          dropAuthor: dropAuthor, dropCaptions: dropCaptions,
+          silent: silent, scheduleDate: scheduleDate);
       }
     }
 

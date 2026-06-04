@@ -123,20 +123,16 @@ class AyuForward {
     });
   }
 
-  static void startNativeForward(String toChatId, ForwardProgress progress, int total) {
-    _activeForwards[toChatId] = progress;
-    progress.update(
-      phase: AyuForwardPhase.sending,
-      total: total,
-      chunks: 1,
-      chunk: 1,
-    );
-  }
-
-  static void finishNativeForward(String toChatId, ForwardProgress progress, int sent) {
-    progress.update(phase: AyuForwardPhase.finished, sent: sent);
-    _scheduleCleanup(toChatId);
-  }
+  // NOTE: there is deliberately NO native-forward progress concept here.
+  // AyuGram's `ApiWrap::forwardMessages` routes a non-restricted (plain) forward
+  // through the normal Telegram batch path (apiwrap.cpp:3503+, after both early
+  // returns) which NEVER constructs a `ForwardState` — so `isForwarding(peer)`
+  // stays false and no AyuForward bar replaces the compose area. A `ForwardState`
+  // (and therefore the bar) is created ONLY for `intelligentForward` / full
+  // resend (ayu_forward.cpp:287,330,332). Registering a `ForwardProgress` for the
+  // ordinary native path would wrongly show the cancelable "Forwarding N/N" bar
+  // in the destination chat, so the previous `startNativeForward` /
+  // `finishNativeForward` helpers were removed.
 
   static bool isMessageRestricted(CachedMessage msg) {
     if (msg.isDeleted) return true;
@@ -297,9 +293,18 @@ class AyuForward {
           case ForwardMethod.resendAsOwn:
             final albumGroups = _groupByAlbum(chunk.messages);
             int sentInChunk = 0;
+            // AyuGram downloads the ENTIRE chunk's media up front in ONE
+            // Downloading phase (`loadDocuments`), then runs the send loop once —
+            // showing "Loading media" exactly once, followed by a live, continuous
+            // "Forwarding 1/N…N/N" (ayu_forward.cpp:356-441). Our engine's
+            // resendAsOwn/resendAlbumAsOwn download+reupload atomically, so we
+            // can't physically pre-download, but we mirror the DISPLAY: the
+            // per-chunk reset above already set phase=downloading once, and we do
+            // NOT flip back to downloading per group. Each completed group only
+            // advances the sent count while staying in the Sending phase, so the
+            // status no longer oscillates "Loading media"↔"Forwarding".
             for (final group in albumGroups) {
               if (progress?.isCancelled == true) break;
-              progress?.update(phase: AyuForwardPhase.downloading);
 
               if (group.length > 1) {
                 await engine.resendAlbumAsOwn(
