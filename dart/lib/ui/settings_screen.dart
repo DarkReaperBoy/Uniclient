@@ -2361,7 +2361,7 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
       engine.getAudioDevices(accountId, 'output'),
       engine.getAudioDevices(accountId, 'input'),
       engine.getAudioDevices(accountId, 'camera'),
-      engine.getPrivacySetting(accountId, 'phone_p2p'),
+      engine.getPrivacySetting(accountId, 'calls_p2p'),
       engine.getCallsDisabledHere(accountId),
     ]);
 
@@ -2396,7 +2396,7 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
     setState(() => _p2pOption = option);
     final appState = context.read<AppState>();
     final engine = context.read<EngineService>();
-    await engine.setPrivacySetting(appState.activeAccountId, 'phone_p2p', option);
+    await engine.setPrivacySetting(appState.activeAccountId, 'calls_p2p', option);
   }
 
   Future<void> _toggleCallsDisabled(bool disabled) async {
