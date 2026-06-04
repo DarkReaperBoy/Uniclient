@@ -142,8 +142,6 @@ callArrowFg→boxTextFgGood #4AB44A, callArrowMissedFg/historyCallArrowMissedInF
 Build clean; app launches & renders in desktop+mobile with no crash (light/classicDay default theme
 untouched, as intended).
 
-- [ ] [MINOR] `dayBlue` `historyCallArrowMissedInFgSelected` still baked with the *classic* literal `#DD5B4A` instead of the inherited `#D84D4D` — same fallback-inheritance class as the 5 fixed items above, and a direct sibling of `historyCallArrowMissedInFg` (which WAS fixed). `colors.palette:277` `historyCallArrowMissedInFgSelected: callArrowMissedFg;` is a pure alias; in `day-blue.tdesktop-theme` both `historyCallArrowMissedInFgSelected` and `callArrowMissedFg` are absent, so it inherits `callArrowMissedFg → boxTextFgError = #d84d4d`. (night/nightGreen are CORRECT — both override this key to `#FFFFFF`.) ~5.5% max-channel deviation; only on a *selected* missed-call message arrow in the Day theme. — `telegram_palette.dart:3432` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:277`
-
 # theme — Material ThemeData bridge from TelegramPalette (input/scrollbar/tooltip/text defaults)
 
 Scope: `theme.dart` maps `TelegramPalette` → Flutter `ThemeData`. It has no 1:1
