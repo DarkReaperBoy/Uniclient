@@ -28,9 +28,10 @@ class ChatState extends ChangeNotifier {
   List<CachedMessage> _pinnedMessages = [];
   bool _loadingMessages = false;
   bool _hasMoreMessages = true;
-  // After a jumpToMessage the shown window sits in the past, so there are also
-  // NEWER messages to load when scrolling back toward the present (AyuGram's
-  // loadMessagesDown direction). Tracked separately from _hasMoreMessages.
+  // After a jumpToMessage the shown window is centered on a past target, so beyond
+  // its loaded newer-context half there are still more NEWER messages to load when
+  // scrolling back toward the present (AyuGram's loadMessagesDown direction).
+  // Tracked separately from _hasMoreMessages.
   bool _loadingMessagesDown = false;
   bool _hasMoreMessagesDown = false;
   bool _isFirstLoad = true;
@@ -1725,10 +1726,8 @@ class ChatState extends ChangeNotifier {
     }
   }
 
-  /// Jump to messages around a specific timestamp (for pinned message navigation).
-  /// Loads a window of messages where the target is the newest (index 0 in reversed list).
-  /// Suppresses polling refresh for 10 seconds so the user can read the jumped-to area.
-  /// If [highlightMsgId] is set, the UI will highlight that message with a fade animation.
+  /// Highlight state for jump-to-message: the UI fade-highlights this msgId once
+  /// after a jump completes, then calls [clearPendingHighlight].
   String? _pendingHighlightMsgId;
   String? get pendingHighlightMsgId => _pendingHighlightMsgId;
   void clearPendingHighlight() { _pendingHighlightMsgId = null; }
@@ -1738,27 +1737,65 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Jump to a window of messages CENTERED on the message at [timestampMs], so the
+  /// target lands mid-viewport with context on BOTH sides. Mirrors AyuGram's
+  /// HistoryWidget::firstLoadMessages jump branch (history_widget.cpp:4420-4423),
+  /// which requests `offset = -kMessagesPerPage/2; offsetId = _showAtMsgId;` — the
+  /// MTProto idiom that fetches ~half newer + half older around the target.
+  ///
+  /// The engine's GetMessages treats beforeMs/afterMs as mutually exclusive (one
+  /// query each, cache_msgs.go:100-125), so we issue two parallel reads and stitch
+  /// them newest-first:
+  ///   - older-or-equal half: `beforeMs: timestampMs + 1` → [target, older…]
+  ///   - strictly-newer half: `afterMs: timestampMs`      → [newer…]
+  /// The `+1` boundary keeps same-timestamp siblings in the older half only, so the
+  /// two sets are disjoint by timestamp (we de-dup by msgId defensively anyway).
+  ///
+  /// Suppresses polling refresh for 10s — only while genuinely jumped away from the
+  /// bottom — so the user can read the area. If [highlightMsgId] is set, the UI
+  /// highlights that message with a fade animation.
   Future<void> jumpToMessage(int timestampMs, {String? highlightMsgId}) async {
     final chat = _activeChat;
     if (chat == null) return;
     SpoilerRevealManager.instance.hideAll();
 
-    final around = await _engine.getMessages(
-      chat.accountId, chat.chatId,
-      beforeMs: timestampMs + 1,
-    );
-    if (around.isNotEmpty) {
-      _messages = around;
-      _hasMoreMessages = true;
-      // The shown window ends at the target (in the past), so newer messages
-      // exist to load when scrolling down. The first loadMoreMessagesDown that
-      // returns empty clears this (harmless if the target was already latest).
-      _hasMoreMessagesDown = true;
-      _loadingMessagesDown = false;
-      _jumpedUntil = DateTime.now().add(const Duration(seconds: 10));
-      _pendingHighlightMsgId = highlightMsgId;
-      notifyListeners();
+    // kMessagesPerPage = 50; offset = -loadCount/2 → ~25 newer + 25 older (incl. target).
+    const half = 25;
+    final results = await Future.wait([
+      _engine.getMessages(chat.accountId, chat.chatId,
+          beforeMs: timestampMs + 1, limit: half),
+      _engine.getMessages(chat.accountId, chat.chatId,
+          afterMs: timestampMs, limit: half),
+    ]);
+    if (_disposed) return;
+    final olderHalf = results[0]; // [target, older…] newest-first
+    final newerHalf = results[1]; // [newer…] newest-first
+    if (olderHalf.isEmpty && newerHalf.isEmpty) return;
+
+    // Stitch newest-first: newer context on top, target + older context below.
+    final seen = <String>{};
+    final combined = <CachedMessage>[];
+    for (final m in [...newerHalf, ...olderHalf]) {
+      if (seen.add(m.msgId)) combined.add(m);
     }
+    _messages = combined;
+
+    // Older (up) direction: keep loadable; loadMoreMessages self-corrects at the top.
+    _hasMoreMessages = true;
+    // Newer (down) direction: we are "jumped" only if a full newer page came back,
+    // i.e. messages exist beyond the loaded window. A short newer half means the
+    // present is already in view, so we're at the bottom (not jumped).
+    _hasMoreMessagesDown = newerHalf.length >= half;
+    _loadingMessagesDown = false;
+    if (_hasMoreMessagesDown) {
+      _jumpedUntil = DateTime.now().add(const Duration(seconds: 10));
+    } else {
+      _jumpedUntil = null;
+    }
+    _pendingHighlightMsgId = highlightMsgId;
+    _preloadCustomEmoji(combined, chat.accountId);
+    _autoDownloadMedia(combined);
+    notifyListeners();
   }
 
   /// Whether the message list is in a "jumped" state (not showing latest messages).
