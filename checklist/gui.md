@@ -21,16 +21,6 @@ No placeholders, stubs, mock data, TODOs, or unwired engine paths were found —
 implementation. Two behavioral deviations remain, both in `updateSettings`
 (AyuGram's `settingsChanged`).
 
-- [ ] [MAJOR] `updateSettings` evicts over-limit notifications with an instant `dismiss()`
-  (→ `onDismiss`, the abrupt full-opacity teardown) instead of AyuGram's `unlinkHistory()` →
-  `hideFast()` 150ms fade. The selection (evict oldest) is correct, but the animation channel
-  is wrong — AyuGram fades the excess out; this snaps it away. This also contradicts the file's
-  own `_clearScoped` design (`:250-261`), which deliberately routes through `onStartHidingFast`
-  precisely to avoid "the abrupt full-opacity teardown the old dismiss()->onDismiss path
-  produced." — `notification_manager_default.dart:367-370` (immediate path `:145-146`) ←
-  `notifications_manager_default.cpp:148-156` (MaxCount→`unlinkHistory`) + `:1202`,`:570`
-  (`unlinkHistory`→`hideFast`)
-
 - [ ] [MAJOR] On a notifications-corner change, `updateSettings` updates `_corner` but never
   repositions notifications already on screen. The manager exposes no corner/reposition signal,
   and the view only recomputes positions on show/dismiss/reply (`notification_popup.dart`
@@ -41,6 +31,30 @@ implementation. Two behavioral deviations remain, both in `updateSettings`
   stays stuck in the old corner until the next show/dismiss (new popups do pick up the new
   corner). — `notification_manager_default.dart:354-357` ←
   `notifications_manager_default.cpp:139-148`
+  VERIFY 2026-06-04: the controller-side fix IS implemented correctly (manager fires
+  `onCornerChanged` when `_corner` changes `:404-406`; view wires it to `_recalcPositions`
+  `notification_popup.dart:174,197,388-393`) and the HideAll button DOES reposition on a
+  corner change at runtime. BUT the notifications themselves still do NOT visibly move — they
+  are stuck top-left regardless of corner (see the CRITICAL item below). So this item cannot
+  be closed until that rendering bug is fixed. The premise "new popups do pick up the new
+  corner" is also FALSE in practice (fresh popups also render top-left).
+
+- [ ] [CRITICAL] Notification popups are mis-positioned — they ALWAYS render at the Stack's
+  default top-left, ignoring the configured corner, and never reposition. (Found during
+  verification 2026-06-04; PRE-EXISTING — present at HEAD~1:560, not introduced by the
+  corner/eviction commit.) Root cause: each popup's `AnimatedPositioned` is wrapped in a
+  `RepaintBoundary` that is the direct child of the `Stack`, so the `Positioned`/
+  `AnimatedPositioned` is NOT a direct Stack child. Flutter rejects the parent data and logs
+  "Incorrect use of ParentDataWidget … Positioned(left: 698.0, top: 7.0) … placed inside a
+  RepaintBoundary" (~675× in `/tmp/uniclient_log.txt`) and DISCARDS the left/top offset, so
+  every notification falls back to top-left. The HideAll button (a valid direct `Positioned`
+  child of the Stack `:623`) positions correctly — which is why it moves on a corner change
+  but the notifications do not. This single bug breaks ALL popup positioning and is the reason
+  the [MAJOR] corner-reposition item above cannot be verified visually. Fix: make the
+  `AnimatedPositioned` the direct child of the `Stack` and put the `RepaintBoundary` INSIDE it
+  (`AnimatedPositioned(… child: RepaintBoundary(child: MouseRegion(…)))`). —
+  `notification_popup.dart:576-610` (RepaintBoundary→`_NotificationPopupWidget`→
+  `AnimatedPositioned` `:725`)
 
 ## Notes (informational — minor, not blocking)
 
