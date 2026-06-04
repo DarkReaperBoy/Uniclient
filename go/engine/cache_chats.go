@@ -2171,6 +2171,13 @@ func (e *Engine) SetCallAudioDevice(accountID, deviceType, device string) error 
 		e.config.CallInputDevice = device
 	case "camera":
 		e.config.CallCameraDevice = device
+	case "call_output":
+		// Separate call-only output device (AyuGram callPlaybackDeviceId).
+		// Empty value means "use the same device as the rest of the app".
+		e.config.CallSeparateOutputDevice = device
+	case "call_input":
+		// Separate call-only input device (AyuGram callCaptureDeviceId).
+		e.config.CallSeparateInputDevice = device
 	default:
 		return fmt.Errorf("unknown device type: %s", deviceType)
 	}

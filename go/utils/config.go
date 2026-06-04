@@ -52,7 +52,11 @@ type AppConfig struct {
 	CallOutputDevice string `json:"call_output_device,omitempty"`
 	CallInputDevice  string `json:"call_input_device,omitempty"`
 	CallCameraDevice string `json:"call_camera_device,omitempty"`
-	NoiseSuppression bool   `json:"noise_suppression,omitempty"`
+	// Separate call-only audio devices (AyuGram callPlaybackDeviceId/callCaptureDeviceId).
+	// Empty means "use the same devices as the rest of the app" (the default).
+	CallSeparateOutputDevice string `json:"call_separate_output_device,omitempty"`
+	CallSeparateInputDevice  string `json:"call_separate_input_device,omitempty"`
+	NoiseSuppression         bool   `json:"noise_suppression,omitempty"`
 }
 
 // DefaultConfig returns an AppConfig populated with sensible defaults.
