@@ -3429,7 +3429,7 @@ class TelegramPalette {
     historyCallArrowInFg: Color(0xFF32B032),
     historyCallArrowInFgSelected: Color(0xFF2592A8),
     historyCallArrowMissedInFg: Color(0xFFD84D4D),
-    historyCallArrowMissedInFgSelected: Color(0xFFDD5B4A),
+    historyCallArrowMissedInFgSelected: Color(0xFFD84D4D),
     historyCallArrowOutFg: Color(0xFF32B032),
     historyCallArrowOutFgSelected: Color(0xFF2592A8),
     historyUnreadBarBorder: Color(0x18000000),
