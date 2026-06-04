@@ -2,14 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_manager_native — Linux native (D-Bus org.freedesktop.Notifications) + Flatpak portal notification manager
-
-Audited against `platform/linux/notifications_manager_linux.cpp`, `window/notifications_utilities.cpp`, `ui/empty_userpic.cpp`, `ui/chat/chat_style.cpp`, `data/data_peer.cpp`. The file is a careful, largely faithful port: avatar resize+circle (`GenerateUserpicImage`/`Images::Circle`), color→palette map (`[0,7,4,1,6,3,5]`, `kSimpleColorIndexCount=7`), body markup (`<b>%1</b>\n%2` / `lng_dialogs_text_with_from`), sound-file caching + DND, `handlesSound` dispatch contract, action ordering (default / mail-mark-read / inline-reply), all clear paths (item/topic/sublist/history→`clearForChat`/session→`clearForAccount`/all), the five D-Bus signal subscriptions, the Flatpak portal `AddNotification` branch, the `image-data`/`image_data`/`icon_data` spec-version key, and the `!hasImage ? appIcon : ""` fallback all match. One real defect found.
-
-## Findings
-
-- [ ] [CRITICAL] Placeholder (avatar-less) userpic initials are rendered with `img.arial24`, whose embedded BMFont contains only **92 glyphs — ASCII U+0020–U+007E plus U+2116 (№)**. `_getInitials` (a faithful port of `EmptyUserpic::fillString`) correctly extracts initials for Cyrillic, Greek, Armenian, Hebrew, Arabic, Thai, Kana, CJK, Hangul **and even Latin-1-accented letters**, but `img.drawString` silently skips every code point not in the font, so any peer whose name begins with a non-ASCII letter renders as a bare colored gradient circle with **no letter at all**. This hits the bulk of Telegram/AyuGram's real user base (Russian/Persian/Arabic/CJK names, plus "Émile"/"Müller"/"Øystein"-style accented Latin names). AyuGram draws the initials with `st::historyPeerUserpicFont` (a full-Unicode Qt font via `p.setFont(font); p.drawText(...)`), so the letter always appears. Net effect: the colored-initials placeholder shown in every native + portal notification is missing its text element for most non-English users. — `notification_manager_native.dart:495-505` ← `AyuGram/Telegram/SourceFiles/ui/empty_userpic.cpp:305-334`
-
 # notification_sound — in-app notification ringtone player (volume resolution + audio ducking)
 
 Scope: `NotificationSoundPlayer` plays the alert sound for a notification (custom
