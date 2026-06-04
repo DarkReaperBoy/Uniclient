@@ -681,6 +681,11 @@ class _UniClientAppState extends State<UniClientApp>
     chatState.onChatActivated = (accountId, chatId) {
       _notifSystem.clearForChat(accountId, chatId);
     };
+    // §37: a deleted/unsent message must have its on-screen notification pulled —
+    // AyuGram History::destroyMessage → System::clearFromItem (history.cpp:630).
+    chatState.onMessageDeleted = (accountId, chatId, messageId) {
+      _notifSystem.clearFromItem(accountId, chatId, messageId);
+    };
     // Resolve notifications parked while their chat's mute state was unknown,
     // once a fresh chat list may have cached it (cheap no-op when none waiting).
     chatState.onMuteStateMaybeResolved = () => _notifSystem.checkDelayed();

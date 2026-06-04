@@ -1,8 +1,4 @@
 import 'dart:async';
-import 'dart:io';
-
-import 'package:dbus/dbus.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../l10n/strings.dart';
 import '../utils/debug.dart';
@@ -48,50 +44,10 @@ class _AccountSessionState {
   int lastSetOnlineAt = 0;
 }
 
-class _DndChecker {
-  bool _inhibited = false;
-  DBusClient? _dbus;
-  Timer? _pollTimer;
-
-  bool get isActive => _inhibited;
-
-  void init() {
-    if (kIsWeb || !Platform.isLinux) return;
-    _poll();
-    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) => _poll());
-  }
-
-  Future<void> _poll() async {
-    try {
-      _dbus ??= DBusClient.session();
-      final proxy = DBusRemoteObject(
-        _dbus!,
-        name: 'org.freedesktop.Notifications',
-        path: DBusObjectPath('/org/freedesktop/Notifications'),
-      );
-      final val = await proxy.getProperty(
-        'org.freedesktop.Notifications',
-        'Inhibited',
-        signature: DBusSignature('b'),
-      );
-      _inhibited = val.asBoolean();
-    } catch (_) {
-      _inhibited = false;
-    }
-  }
-
-  void dispose() {
-    _pollTimer?.cancel();
-    _dbus?.close();
-    _dbus = null;
-  }
-}
-
 class NotificationSystem {
   NotificationManager _manager = DummyManager();
   NotificationSettings _settings = const NotificationSettings();
   final NotificationSoundPlayer _soundPlayer = NotificationSoundPlayer();
-  final _DndChecker _dndChecker = _DndChecker();
 
   bool _passcodeLocked = false;
   bool get passcodeLocked => _passcodeLocked;
@@ -184,13 +140,13 @@ class NotificationSystem {
     // empty until then, so the initial _syncNativeSoundPath() below can't see it.
     _soundPlayer.onDefaultSoundReady = _syncNativeSoundPath;
     _soundPlayer.init();
-    _dndChecker.init();
     _selectManager();
     _syncNativeSoundPath();
     Debug.log('NOTIF', 'system init, manager=${_manager.type}');
   }
 
   void updateSettings(NotificationSettings settings) {
+    final oldSettings = _settings;
     final oldType = _manager.type;
     _settings = settings;
     _selectManager();
@@ -198,6 +154,21 @@ class NotificationSystem {
     if (oldType != _manager.type) {
       Debug.log(
           'NOTIF', 'manager switched: $oldType → ${_manager.type}');
+    }
+    // AyuGram's System ctor couples settingsChanged → clearAll/updateAll
+    // (notifications_manager.cpp:206-216). A DesktopEnabled change (here the
+    // `desktopNotify` flag flipping, fired only on actual change in AyuGram's
+    // settings UI, settings_notifications.cpp:1065-1069) clears every on-screen
+    // popup so disabling desktop notifications doesn't leave lingering toasts.
+    // A ViewParams change (AyuGram's `notifyView`, decomposed Dart-side into
+    // previewName/previewText) calls updateAll() so already-shown notifications
+    // refresh their name/text preview live.
+    if (oldSettings.desktopNotify != settings.desktopNotify) {
+      clearAll();
+    }
+    if (oldSettings.previewName != settings.previewName ||
+        oldSettings.previewText != settings.previewText) {
+      updateAll();
     }
   }
 
@@ -284,7 +255,13 @@ class NotificationSystem {
   }
 
   void onNewMessage(NotificationData data) {
-    if (!_settings.desktopNotify) return;
+    // desktopNotify is intentionally NOT gated here. AyuGram registers the
+    // sound/flash alert (`_whenAlerts`) with NO desktopNotify gate — only the
+    // visual toast is gated (notifications_manager.cpp:454 alert vs :464 toast;
+    // showNext fires alerts before the `!desktopNotify()` early-return at
+    // :782-789). So with desktop popups off but "Play sound"/"Flash taskbar"
+    // on, the alert still plays/flashes — these are independent settings. The
+    // toast itself is gated below in _dispatch.
     if (data.isHidden) return;
     if (data.isOutgoing && !data.isScheduled) return;
 
@@ -548,7 +525,13 @@ class NotificationSystem {
         if (group.length == 1) {
           _dispatch(group.first);
         } else {
-          _dispatch(group.first.copyWith(
+          // AyuGram advances `groupedItem` to each later forward and shows the
+          // LAST (notifications_manager.cpp:901 `groupedItem = nextItem`,
+          // displayed via `_lastHistoryItemId = groupedItem->fullId()` at :916/
+          // :937), so a tapped "Forwarded N messages" opens at the latest
+          // forward — not the earliest — and carries its timestamp/message id.
+          // The album branch above already uses .last; match it here.
+          _dispatch(group.last.copyWith(
             text: TrStrings.lngForwardMessages(group.length),
             forwardCount: group.length,
           ));
@@ -610,7 +593,16 @@ class NotificationSystem {
     final isNative = _manager is NativeManager;
     final dnd = isNative ? (nativeManager!.inhibited) : false;
 
-    _manager.showNotification(display, effectiveSettings);
+    // Only the visual toast is gated by desktopNotify — the sound/flash alert
+    // below fires regardless (AyuGram's showNext fires alerts BEFORE the
+    // `!desktopNotify()` early-return, notifications_manager.cpp:782-789). For a
+    // native daemon that plays the sound itself (handlesSound), the sound rides
+    // along inside showNotification and so is correctly suppressed with the
+    // toast — mirroring AyuGram's VolumeSupported()==false branch where the
+    // daemon owns the sound (notifications_manager_linux.cpp:236).
+    if (_settings.desktopNotify) {
+      _manager.showNotification(display, effectiveSettings);
+    }
 
     final forceSilent = effectiveData.isSilent || effectiveData.soundNone || (isNative && dnd);
 
@@ -784,6 +776,17 @@ class NotificationSystem {
         .remove(_threadKeyOf(accountId, chatId, '', sublistPeerId));
   }
 
+  /// Dismiss the on-screen notification for a single message — called when that
+  /// message is deleted or unsent. AyuGram's `System::clearFromItem` is invoked
+  /// from `History::destroyMessage` on every message removal and simply forwards
+  /// to the active manager without touching scheduling/dedup state
+  /// (notifications_manager.cpp:627-631). Fires for ANY chat, not just the
+  /// active one (a deleted message in a background chat must still have its
+  /// popup pulled).
+  void clearFromItem(String accountId, String chatId, String messageId) {
+    _manager.clearForItem(accountId, chatId, messageId);
+  }
+
   void clearForAccount(String accountId) {
     _manager.clearForAccount(accountId);
     // C++ clearFromSession → clearForThreadIf cancels the wait timer and drops
@@ -843,7 +846,6 @@ class NotificationSystem {
     _lastAlertPerThread.clear();
     _accountStates.clear();
     _soundPlayer.dispose();
-    _dndChecker.dispose();
     _manager.dispose();
   }
 }

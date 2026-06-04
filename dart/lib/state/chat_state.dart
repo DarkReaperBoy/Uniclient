@@ -109,6 +109,13 @@ class ChatState extends ChangeNotifier {
   /// (history/history_widget.cpp:4086).
   void Function(String accountId, String chatId)? onChatActivated;
 
+  /// Fired when a message is deleted/unsent in ANY chat (not just the active
+  /// one), so the notification system dismisses that message's on-screen popup.
+  /// Mirrors AyuGram's History::destroyMessage → System::clearFromItem
+  /// (history/history.cpp:630).
+  void Function(String accountId, String chatId, String messageId)?
+      onMessageDeleted;
+
   /// Fired when THIS account's own user status arrives (only ever from another
   /// logged-in device), feeding the online-aware notification delay
   /// (cOtherOnline). [lastSeenMs] is the exact was-online epoch-ms for offline
@@ -2846,6 +2853,11 @@ class ChatState extends ChangeNotifier {
 
   void _handleMsgDeleted(MsgDeletedEvent event) {
     if (_disposed) return;
+    // Pull the message's notification popup regardless of which chat is open —
+    // AyuGram's History::destroyMessage fires System::clearFromItem for every
+    // removal in any history, not only the active one (the active-chat guard
+    // below is purely about updating the visible message list).
+    onMessageDeleted?.call(event.accountId, event.chatId, event.msgId);
     if (_activeChat?.accountId != event.accountId || _activeChat?.chatId != event.chatId) return;
 
     final idx = _messages.indexWhere((m) => m.msgId == event.msgId);
