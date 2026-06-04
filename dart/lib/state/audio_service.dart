@@ -539,6 +539,21 @@ class AudioService extends ChangeNotifier {
     _accumulatedMs = 0;
     _listenStartTime = null;
 
+    // AyuGram Instance::play marks voice / round-video messages as listened the
+    // moment playback starts: `if (document->isVoiceMessage() ||
+    // document->isVideoMessage()) document->owner().markMediaRead(document);`
+    // (media_player_instance.cpp:829-831). This clears the unread-voice state
+    // and sends the listened receipt to the sender. Music tracks (Type::Song)
+    // are NOT marked, so gate on !isSong. The same-message toggle path above
+    // returns early, so this only fires on a fresh play — matching C++
+    // playPause(audioId) routing to playPause(type) (no re-mark) for the
+    // current track vs play(audioId) for a new one. The engine's
+    // ReadMessageContents → Telegram messages.readMessageContents is a no-op
+    // for already-read messages, so re-playing a read voice message is safe.
+    if (!isSong && accountId.isNotEmpty && chatId.isNotEmpty && msgId.isNotEmpty) {
+      _engine.readMessageContents(accountId, chatId, msgId);
+    }
+
     _subs.add(player.stream.playing.listen((v) {
       if (_player != player) return;
       final wasPlaying = _playing;
@@ -572,10 +587,14 @@ class AudioService extends ChangeNotifier {
       notifyListeners();
       // Auto-advance on completion — mirrors AyuGram StoppedAtEnd handling
       // (media_player_instance.cpp:1300-1310):
-      //   repeat-one    → re-seek to 0 and replay the same track
+      //   repeat-one (song only) → re-seek to 0 and replay the same track.
+      //     repeat() returns RepeatMode::None for Type::Voice
+      //     (media_player_instance.cpp:1198-1202), so a finished voice /
+      //     round-video message NEVER repeat-ones — it advances like the
+      //     repeat-ALL path, which is already _isSong-gated (:276).
       //   autoplay off  → stop (playback stays finished)
       //   otherwise     → move to the next track (next() stops if none queued)
-      if (_repeatMode == AudioRepeatMode.one) {
+      if (_isSong && _repeatMode == AudioRepeatMode.one) {
         final p = _player;
         if (p != null) {
           _position = Duration.zero;
