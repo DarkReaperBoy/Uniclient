@@ -573,39 +573,46 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
             isPasscodeLocked: widget.isPasscodeLocked,
           );
 
+      // The AnimatedPositioned MUST be the direct child of the Stack for its
+      // left/top parent data to apply. _NotificationPopupWidget is a transparent
+      // (component) element, so the AnimatedPositioned it returns counts as the
+      // Stack's direct child. The RepaintBoundary lives INSIDE that
+      // AnimatedPositioned (see _NotificationPopupWidget.build) — wrapping the
+      // widget in a RepaintBoundary HERE would push the Positioned one render
+      // object level too deep, so Flutter would reject the parent data
+      // ("Incorrect use of ParentDataWidget") and pin every popup to the Stack's
+      // top-left corner instead of the configured corner.
       children.add(
-        RepaintBoundary(
-          child: _NotificationPopupWidget(
-            key: ValueKey(popup.id),
-            popup: popup,
-            x: xPos,
-            y: yPos,
-            width: width,
-            hideReply: hideReply,
-            bgColor: bgColor,
-            borderColor: borderColor,
-            titleColor: titleColor,
-            bodyColor: bodyColor,
-            closeColor: closeColor,
-            accentColor: accentColor,
-            settings: widget.settings,
-            onHoverEnter: () => _onHoverEnter(popup),
-            onHoverExit: () => _onHoverExit(popup),
-            onTap: () => _onTapNotification(popup),
-            onRightClick: () => _onRightClickDismiss(popup),
-            onClose: () => _onCloseClick(popup),
-            onReplyClick: () => _onReplyClick(popup),
-            onReplySend: () => _onReplySend(popup),
-            onReplyCancel: () => _onReplyCancel(popup),
-            onReplyHeightChanged: (h) {
-              if (popup.replyHeight != h) {
-                setState(() {
-                  popup.replyHeight = h;
-                  _recalcPositions();
-                });
-              }
-            },
-          ),
+        _NotificationPopupWidget(
+          key: ValueKey(popup.id),
+          popup: popup,
+          x: xPos,
+          y: yPos,
+          width: width,
+          hideReply: hideReply,
+          bgColor: bgColor,
+          borderColor: borderColor,
+          titleColor: titleColor,
+          bodyColor: bodyColor,
+          closeColor: closeColor,
+          accentColor: accentColor,
+          settings: widget.settings,
+          onHoverEnter: () => _onHoverEnter(popup),
+          onHoverExit: () => _onHoverExit(popup),
+          onTap: () => _onTapNotification(popup),
+          onRightClick: () => _onRightClickDismiss(popup),
+          onClose: () => _onCloseClick(popup),
+          onReplyClick: () => _onReplyClick(popup),
+          onReplySend: () => _onReplySend(popup),
+          onReplyCancel: () => _onReplyCancel(popup),
+          onReplyHeightChanged: (h) {
+            if (popup.replyHeight != h) {
+              setState(() {
+                popup.replyHeight = h;
+                _recalcPositions();
+              });
+            }
+          },
         ),
       );
     }
@@ -726,122 +733,127 @@ class _NotificationPopupWidget extends StatelessWidget {
       duration: _shiftDuration,
       left: x,
       top: y,
-      child: MouseRegion(
-        onEnter: (_) => onHoverEnter(),
-        onExit: (_) => onHoverExit(),
-        child: AnimatedOpacity(
-          opacity: popup.opacity,
-          duration: hideDuration,
-          curve: hideEasing,
-          child: GestureDetector(
-            onTap: onTap,
-            onSecondaryTap: onRightClick,
-            child: Container(
-              width: width,
-              constraints:
-                  const BoxConstraints(minHeight: _notifyMinHeight),
-              decoration: BoxDecoration(
-                color: bgColor,
-                border:
-                    Border.all(color: borderColor, width: _borderWidth),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    height: _notifyMinHeight,
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          left: _photoPos,
-                          top: _photoPos,
-                          child: _Avatar(
-                            name: content.title,
-                            avatarPath: nameHidden ? '' : data.avatarPath,
-                            accentColor: accentColor,
-                            forceHiddenPlaceholder: nameHidden,
-                          ),
-                        ),
-                        Positioned(
-                          left: _textLeft,
-                          top: _textTop,
-                          right: _closeSize + _closePosRight + 4,
-                          child: Text(
-                            content.title,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: titleColor,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Positioned(
-                          left: _textLeft,
-                          top: _itemTopOffset + 13,
-                          right: _closeSize + _closePosRight + 4,
-                          bottom: 4,
-                          child: ShaderMask(
-                            shaderCallback: (Rect bounds) {
-                              return const LinearGradient(
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                                colors: [
-                                  Colors.white,
-                                  Colors.white,
-                                  Colors.transparent,
-                                ],
-                                stops: [0.0, 0.85, 1.0],
-                              ).createShader(bounds);
-                            },
-                            blendMode: BlendMode.dstIn,
-                            child: Text.rich(
-                              popup._cachedBodySpan!,
-                              maxLines: 2,
-                              overflow: TextOverflow.clip,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: _closePosRight,
-                          top: _closePosTop,
-                          child: _CloseButton(
-                            color: closeColor,
-                            onTap: onClose,
-                          ),
-                        ),
-                        if (!popup.replyOpen && !hideReply)
+      // RepaintBoundary goes INSIDE the AnimatedPositioned (not wrapping it), so
+      // the AnimatedPositioned stays the Stack's direct child and its left/top
+      // parent data is honoured. The boundary still isolates each popup's paint.
+      child: RepaintBoundary(
+        child: MouseRegion(
+          onEnter: (_) => onHoverEnter(),
+          onExit: (_) => onHoverExit(),
+          child: AnimatedOpacity(
+            opacity: popup.opacity,
+            duration: hideDuration,
+            curve: hideEasing,
+            child: GestureDetector(
+              onTap: onTap,
+              onSecondaryTap: onRightClick,
+              child: Container(
+                width: width,
+                constraints:
+                    const BoxConstraints(minHeight: _notifyMinHeight),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  border:
+                      Border.all(color: borderColor, width: _borderWidth),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: _notifyMinHeight,
+                      child: Stack(
+                        children: [
                           Positioned(
-                            right: 9,
-                            bottom: 9,
-                            child: IgnorePointer(
-                              ignoring: !popup.hovered,
-                              child: AnimatedOpacity(
-                                opacity: popup.hovered ? 1.0 : 0.0,
-                                duration: _actionsFadeDuration,
-                                child: _ReplyButton(
-                                  accentColor: accentColor,
-                                  onTap: onReplyClick,
-                                ),
+                            left: _photoPos,
+                            top: _photoPos,
+                            child: _Avatar(
+                              name: content.title,
+                              avatarPath: nameHidden ? '' : data.avatarPath,
+                              accentColor: accentColor,
+                              forceHiddenPlaceholder: nameHidden,
+                            ),
+                          ),
+                          Positioned(
+                            left: _textLeft,
+                            top: _textTop,
+                            right: _closeSize + _closePosRight + 4,
+                            child: Text(
+                              content.title,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: titleColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Positioned(
+                            left: _textLeft,
+                            top: _itemTopOffset + 13,
+                            right: _closeSize + _closePosRight + 4,
+                            bottom: 4,
+                            child: ShaderMask(
+                              shaderCallback: (Rect bounds) {
+                                return const LinearGradient(
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                  colors: [
+                                    Colors.white,
+                                    Colors.white,
+                                    Colors.transparent,
+                                  ],
+                                  stops: [0.0, 0.85, 1.0],
+                                ).createShader(bounds);
+                              },
+                              blendMode: BlendMode.dstIn,
+                              child: Text.rich(
+                                popup._cachedBodySpan!,
+                                maxLines: 2,
+                                overflow: TextOverflow.clip,
                               ),
                             ),
                           ),
-                      ],
+                          Positioned(
+                            right: _closePosRight,
+                            top: _closePosTop,
+                            child: _CloseButton(
+                              color: closeColor,
+                              onTap: onClose,
+                            ),
+                          ),
+                          if (!popup.replyOpen && !hideReply)
+                            Positioned(
+                              right: 9,
+                              bottom: 9,
+                              child: IgnorePointer(
+                                ignoring: !popup.hovered,
+                                child: AnimatedOpacity(
+                                  opacity: popup.hovered ? 1.0 : 0.0,
+                                  duration: _actionsFadeDuration,
+                                  child: _ReplyButton(
+                                    accentColor: accentColor,
+                                    onTap: onReplyClick,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (popup.replyOpen)
-                    _ReplyField(
-                      controller: popup.replyController,
-                      width: width,
-                      accentColor: accentColor,
-                      bgColor: bgColor,
-                      bodyColor: bodyColor,
-                      onSend: onReplySend,
-                      onCancel: onReplyCancel,
-                      onHeightChanged: onReplyHeightChanged,
-                    ),
-                ],
+                    if (popup.replyOpen)
+                      _ReplyField(
+                        controller: popup.replyController,
+                        width: width,
+                        accentColor: accentColor,
+                        bgColor: bgColor,
+                        bodyColor: bodyColor,
+                        onSend: onReplySend,
+                        onCancel: onReplyCancel,
+                        onHeightChanged: onReplyHeightChanged,
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
