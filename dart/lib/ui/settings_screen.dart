@@ -2358,8 +2358,8 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
     if (accountId.isEmpty) return;
 
     final results = await Future.wait([
-      engine.getAudioDevices(accountId, 'playback'),
-      engine.getAudioDevices(accountId, 'capture'),
+      engine.getAudioDevices(accountId, 'output'),
+      engine.getAudioDevices(accountId, 'input'),
       engine.getAudioDevices(accountId, 'camera'),
       engine.getPrivacySetting(accountId, 'phone_p2p'),
       engine.getCallsDisabledHere(accountId),
@@ -2373,11 +2373,14 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
     final callsDisabled = results[4] as bool;
 
     setState(() {
-      _outputDevices = outputDevs.isNotEmpty ? outputDevs : ['Default'];
-      _inputDevices = inputDevs.isNotEmpty ? inputDevs : ['Default'];
+      // The engine returns only real devices; prepend the "Default" sentinel
+      // (the system default device) exactly like the in-call pickers do.
+      _outputDevices = ['Default', ...outputDevs];
+      _inputDevices = ['Default', ...inputDevs];
       _cameraDevices = cameraDevs.isNotEmpty ? cameraDevs : [];
-      _selectedOutput = outputDevs.isNotEmpty ? outputDevs.first : 'Default';
-      _selectedInput = inputDevs.isNotEmpty ? inputDevs.first : 'Default';
+      // Reflect the persisted selection so the picker opens on the saved device.
+      _selectedOutput = appState.callOutputDevice;
+      _selectedInput = appState.callInputDevice;
       _selectedCamera = cameraDevs.isNotEmpty ? cameraDevs.first : 'Default';
       final opt = p2pSetting?['option'] as String? ?? 'contacts';
       _p2pOption = opt;
@@ -2498,22 +2501,20 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
           label: 'Output device',
           value: _selectedOutput,
           isDark: isDark,
-          onTap: () => _showDevicePicker('Output device', _outputDevices, _selectedOutput, (dev) async {
+          onTap: () => _showDevicePicker('Output device', _outputDevices, _selectedOutput, (dev) {
             setState(() => _selectedOutput = dev);
-            final appState = context.read<AppState>();
-            final engine = context.read<EngineService>();
-            await engine.setCallAudioDevice(appState.activeAccountId, 'playback', dev);
+            // Routes to engine.setCallAudioDevice(..,'output',..) + persists prefs.
+            context.read<AppState>().setCallOutputDevice(dev);
           }),
         ),
         _DeviceSettingRow(
           label: 'Input device',
           value: _selectedInput,
           isDark: isDark,
-          onTap: () => _showDevicePicker('Input device', _inputDevices, _selectedInput, (dev) async {
+          onTap: () => _showDevicePicker('Input device', _inputDevices, _selectedInput, (dev) {
             setState(() => _selectedInput = dev);
-            final appState = context.read<AppState>();
-            final engine = context.read<EngineService>();
-            await engine.setCallAudioDevice(appState.activeAccountId, 'capture', dev);
+            // Routes to engine.setCallAudioDevice(..,'input',..) + persists prefs.
+            context.read<AppState>().setCallInputDevice(dev);
           }),
         ),
         Padding(

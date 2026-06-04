@@ -8,8 +8,11 @@ import (
 	"log"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"uniclient/cores"
@@ -2027,8 +2030,200 @@ func (e *Engine) GetAudioDevices(accountID, deviceType string) ([]string, error)
 	return devices, nil
 }
 
+// enumerateAudioDevices returns the real OS audio/video devices for the given
+// type ("output", "input", or "camera"). The returned names deliberately do NOT
+// include a "Default" entry — every Dart caller (settings_screen, call_panel,
+// call_screen) prepends its own "Default" sentinel meaning "use the system
+// default device", so adding one here would duplicate it.
+//
+// Pure Go, zero CGo. On Linux it prefers PulseAudio/PipeWire device names via
+// `pactl` when that tool is present (friendly names matching the in-call picker
+// and AyuGram), and always falls back to the ALSA proc filesystem
+// (/proc/asound/*), which exists on every Linux machine even without pactl.
+// Cameras come from /sys/class/video4linux. On platforms whose audio APIs need
+// CGo (Windows WASAPI, macOS CoreAudio) the list is empty and callers fall back
+// to "Default".
 func (e *Engine) enumerateAudioDevices(deviceType string) []string {
-	return []string{}
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	if deviceType == "camera" {
+		return enumerateV4L2Cameras()
+	}
+	if deviceType != "output" && deviceType != "input" {
+		return nil
+	}
+	if devs := enumeratePulseDevices(deviceType); len(devs) > 0 {
+		return devs
+	}
+	return enumerateAlsaDevices(deviceType)
+}
+
+// enumeratePulseDevices lists PulseAudio/PipeWire sinks (output) or sources
+// (input) via `pactl list short`. Returns nil if pactl is unavailable so the
+// caller can fall back to ALSA. Mirrors the name cleanup used by the in-call
+// Linux picker (call_screen.dart) so both surfaces show identical labels.
+func enumeratePulseDevices(deviceType string) []string {
+	kind := "sinks"
+	if deviceType == "input" {
+		kind = "sources"
+	}
+	out, err := exec.Command("pactl", "list", "short", kind).Output()
+	if err != nil {
+		return nil
+	}
+	var devices []string
+	seen := make(map[string]bool)
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Split(strings.TrimSpace(line), "\t")
+		if len(fields) < 2 {
+			continue
+		}
+		raw := fields[1]
+		// A PulseAudio ".monitor" source is the loopback of an output, not a
+		// real microphone — skip it for the input list.
+		if deviceType == "input" && strings.HasSuffix(raw, ".monitor") {
+			continue
+		}
+		name := prettifyPulseName(raw)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		devices = append(devices, name)
+	}
+	return devices
+}
+
+// prettifyPulseName turns a raw PulseAudio device id into a human-readable name,
+// matching the substitutions in call_screen.dart so the settings tab and the
+// in-call picker display identical labels for the same device.
+func prettifyPulseName(raw string) string {
+	s := raw
+	s = strings.ReplaceAll(s, "alsa_output.", "")
+	s = strings.ReplaceAll(s, "alsa_input.", "")
+	s = strings.ReplaceAll(s, ".analog-stereo", " (Analog Stereo)")
+	s = strings.ReplaceAll(s, ".hdmi-stereo", " (HDMI Stereo)")
+	s = strings.ReplaceAll(s, "_", " ")
+	return strings.TrimSpace(s)
+}
+
+// enumerateAlsaDevices parses /proc/asound/pcm (always present on Linux) for PCM
+// devices supporting the requested direction: "output" matches PCMs exposing a
+// "playback" stream, "input" matches a "capture" stream. Each name is prefixed
+// with the friendly card name from /proc/asound/cards.
+func enumerateAlsaDevices(deviceType string) []string {
+	data, err := os.ReadFile("/proc/asound/pcm")
+	if err != nil {
+		return nil
+	}
+	want := "playback"
+	if deviceType == "input" {
+		want = "capture"
+	}
+	cards := readAlsaCardNames()
+	var devices []string
+	seen := make(map[string]bool)
+	for _, line := range strings.Split(string(data), "\n") {
+		// Format: "CC-DD: <id> : <name> : playback N : capture N"
+		fields := strings.Split(line, ":")
+		if len(fields) < 2 {
+			continue
+		}
+		// Direction lives only in the trailing "playback N"/"capture N" fields.
+		hasDir := false
+		for _, f := range fields[2:] {
+			if strings.Contains(f, want) {
+				hasDir = true
+				break
+			}
+		}
+		if !hasDir {
+			continue
+		}
+		cardDev := strings.TrimSpace(fields[0]) // "01-00"
+		cardIdx := cardDev
+		if dash := strings.IndexByte(cardDev, '-'); dash > 0 {
+			cardIdx = cardDev[:dash]
+		}
+		pcmName := strings.TrimSpace(fields[1])
+		display := pcmName
+		if idx, err := strconv.Atoi(cardIdx); err == nil {
+			if cardName := cards[idx]; cardName != "" && !strings.Contains(pcmName, cardName) {
+				display = cardName + " — " + pcmName
+			}
+		}
+		if display == "" || seen[display] {
+			continue
+		}
+		seen[display] = true
+		devices = append(devices, display)
+	}
+	return devices
+}
+
+// readAlsaCardNames maps each ALSA card index to its human-readable long name
+// from /proc/asound/cards (e.g. 1 -> "HDA Intel PCH").
+func readAlsaCardNames() map[int]string {
+	cards := make(map[int]string)
+	data, err := os.ReadFile("/proc/asound/cards")
+	if err != nil {
+		return cards
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		// Header lines: " 1 [PCH            ]: HDA-Intel - HDA Intel PCH"
+		open := strings.IndexByte(line, '[')
+		closeColon := strings.Index(line, "]:")
+		if open < 0 || closeColon < open {
+			continue
+		}
+		idx, err := strconv.Atoi(strings.TrimSpace(line[:open]))
+		if err != nil {
+			continue
+		}
+		bracketID := strings.TrimSpace(line[open+1 : closeColon])
+		rest := strings.TrimSpace(line[closeColon+2:]) // "HDA-Intel - HDA Intel PCH"
+		name := bracketID
+		if i := strings.LastIndex(rest, " - "); i >= 0 {
+			name = strings.TrimSpace(rest[i+3:])
+		} else if rest != "" {
+			name = rest
+		}
+		cards[idx] = name
+	}
+	return cards
+}
+
+// enumerateV4L2Cameras lists capture cameras from /sys/class/video4linux,
+// reading each node's friendly name. A single physical camera can expose
+// several /dev/videoN nodes that share a name; deduping by name collapses them.
+func enumerateV4L2Cameras() []string {
+	entries, err := os.ReadDir("/sys/class/video4linux")
+	if err != nil {
+		return nil
+	}
+	var cams []string
+	seen := make(map[string]bool)
+	for _, ent := range entries {
+		devName := ent.Name()
+		if !strings.HasPrefix(devName, "video") {
+			continue
+		}
+		nameBytes, err := os.ReadFile("/sys/class/video4linux/" + devName + "/name")
+		if err != nil {
+			continue
+		}
+		camName := strings.TrimSpace(string(nameBytes))
+		if camName == "" {
+			camName = devName
+		}
+		if seen[camName] {
+			continue
+		}
+		seen[camName] = true
+		cams = append(cams, camName)
+	}
+	return cams
 }
 
 func (e *Engine) GetCallSoundPeak(accountID, callID string) (float64, error) {
