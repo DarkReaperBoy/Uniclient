@@ -554,6 +554,23 @@ class NotificationSystem {
       );
     }
 
+    // AyuGram's NativeManager::doShowNotification early-returns and shows NO
+    // notification when a reaction/poll-vote arrives while the name preview is
+    // hidden: `if (reactionFrom && options.hideNameAndPhoto) return;`
+    // (notifications_manager.cpp:1563-1565). `reactionFrom` is non-null for BOTH
+    // reactions and poll votes (the type is Reaction/PollVote only when a reactor
+    // exists), and hideNameAndPhoto == !previewName. effectiveSettings already
+    // forces previewName off under a passcode lock (above), so this single guard
+    // covers both the previewName-off setting and the locked case. Without it a
+    // reaction would leak the message text ("reacted 👍 to «…»") with previewName
+    // off, or surface "reacted 👍 to your message" with title "UniClient" under
+    // lock — AyuGram shows nothing in either case. Reactions are already forced
+    // silent upstream, so no sound/flash is lost by returning here.
+    if ((data.isReaction || data.isPollVote) &&
+        !effectiveSettings.previewName) {
+      return;
+    }
+
     var effectiveData = data;
 
     if (!effectiveData.hideMarkAsRead) {

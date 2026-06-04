@@ -499,6 +499,18 @@ String _withCaption(String attachType, NotificationData data) {
 }
 
 String _messageTextForType(NotificationData data) {
+  // MediaGame::notificationText() — a game carries no attachment, so the engine
+  // assigns it no media-type int (messageType stays 0/none; the db.go media
+  // constants stop at MediaInvoice=12) and an empty body text. A game is
+  // identified solely by its title (Message.hasGame == gameTitle.isNotEmpty).
+  // Prepend the 🎮 game-controller emoji (U+1F3AE, UTF-16 surrogate pair
+  // 0xD83C 0xDFAE) + a space + the title, exactly like AyuGram. Checked BEFORE
+  // the switch — otherwise messageType 0 falls through to `default`, which masks
+  // the empty text and yields a blank/generic body.
+  // (data_media_types.cpp:2069-2081)
+  if (data.gameTitle.isNotEmpty) {
+    return '\u{1F3AE} ${data.gameTitle}';
+  }
   switch (data.messageType) {
     case 1: // image
       return _withCaption(TrStrings.lngNotifPhoto(), data);
