@@ -9,11 +9,17 @@ import 'package:flutter/painting.dart';
 // kSubjectives data from the AyuGram source.
 
 String generateThemeName(Color accent) {
-  int bestIdx = 0;
-  int bestDist = 0x7fffffff;
   final r = accent.red, g = accent.green, b = accent.blue;
-  for (int i = 0; i < _colors.length; i++) {
-    final c = _colors[i];
+  // AyuGram's kColors is a base::flat_map<uint32, const char*> keyed by
+  // packed-RGB color, so it iterates in ascending key order and
+  // ranges::min_element returns the LOWEST-key entry among equidistant colors
+  // (window_themes_generate_name.cpp:16,345). Iterate the key-sorted view so a
+  // strict `<` keeps the first minimum in ascending-key order — i.e. the lowest
+  // packed-RGB key on a distance tie — matching the flat_map tie-break. (The
+  // >>8 truncations below collapse nearby distances, making such ties reachable.)
+  _ColorEntry best = _sortedColors[0];
+  int bestDist = 0x7fffffff;
+  for (final c in _sortedColors) {
     final dr = r - c.r;
     final dg = g - c.g;
     final db = b - c.b;
@@ -22,10 +28,10 @@ String generateThemeName(Color accent) {
         (((512 + rMean) * dr * dr) >> 8) + (4 * dg * dg) + (((767 - rMean) * db * db) >> 8);
     if (dist < bestDist) {
       bestDist = dist;
-      bestIdx = i;
+      best = c;
     }
   }
-  final colorName = _colors[bestIdx].name;
+  final colorName = best.name;
   final rng = Random();
   if (rng.nextBool()) {
     final adj = _adjectives[rng.nextInt(_adjectives.length)];
@@ -40,7 +46,20 @@ class _ColorEntry {
   final String name;
   final int r, g, b;
   const _ColorEntry(this.name, this.r, this.g, this.b);
+
+  // Packed-RGB key — the base::flat_map<uint32, const char*> key in
+  // window_themes_generate_name.cpp:16 (color = (r<<16)|(g<<8)|b).
+  int get key => (r << 16) | (g << 8) | b;
 }
+
+// AyuGram declares kColors as an initializer list (preserved verbatim below in
+// declaration order for 1:1 source verification), but base::flat_map stores it
+// sorted by the packed-RGB key. _sortedColors materialises that container order
+// (ascending key) so the nearest-color tie-break matches the C++ flat_map +
+// ranges::min_element. All 99 keys are distinct, so no de-duplication is needed.
+// Lazily initialised once on first access (library-level final).
+final List<_ColorEntry> _sortedColors = List<_ColorEntry>.of(_colors)
+  ..sort((a, b) => a.key.compareTo(b.key));
 
 // kColors (window_themes_generate_name.cpp) — declaration order preserved.
 const _colors = <_ColorEntry>[
