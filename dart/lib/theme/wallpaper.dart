@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:archive/archive.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image/image.dart' as img;
@@ -12,6 +13,24 @@ import 'package:vector_graphics/vector_graphics.dart' as vgfx;
 import 'package:uniclient/utils/debug.dart';
 
 enum WallpaperType { solid, gradient, pattern, image }
+
+/// One collectible-gift "symbol" stamped over a gift-pattern wallpaper: a
+/// normalized `[0,1]` placement [area] within a single pattern tile plus a
+/// [rotation] in degrees. Port of AyuGram `ChatThemeGiftSymbol`
+/// (ui/chat/chat_theme.h:29-32). Parsed from the `<g id="GiftPatterns">`
+/// cut-out group of the pattern document SVG by [parseGiftSymbolsFromTgv]
+/// (port of `ParseGiftSymbols`, ui/chat/chat_theme.cpp:1015-1077).
+class WallpaperGiftSymbol {
+  /// Placement within ONE pattern tile, normalized to `[0,1]` on both axes
+  /// (matches AyuGram's `area.x * w` mapping, chat_theme.cpp:136-142).
+  final Rect area;
+
+  /// Clockwise rotation in degrees applied about the symbol's center
+  /// (`p.rotate(symbol.rotation)`, chat_theme.cpp:154).
+  final double rotation;
+
+  const WallpaperGiftSymbol({required this.area, required this.rotation});
+}
 
 class WallpaperData {
   final WallpaperType type;
@@ -23,6 +42,19 @@ class WallpaperData {
   final Uint8List? patternBytes;
   final bool tiled;
 
+  /// Collectible-gift symbol placements over a gift-pattern wallpaper, parsed
+  /// from the `GiftPatterns` group of [patternBytes]. Empty for ordinary
+  /// (non-gift) patterns. Port of `ChatThemeBackground::giftSymbols`
+  /// (ui/chat/chat_theme.h:41).
+  final List<WallpaperGiftSymbol> giftSymbols;
+
+  /// Pre-rendered raster of the gift's symbol custom-emoji that is stamped at
+  /// each [giftSymbols] placement — AyuGram's `giftSymbolFrame`
+  /// (ui/chat/chat_theme.h:42, produced by `PrepareGiftSymbol`). When null and
+  /// [giftSymbols] is non-empty the frame is derived from the rendered pattern
+  /// SVG itself (the symbol artwork the document carries at those positions).
+  final Uint8List? giftSymbolFrame;
+
   const WallpaperData({
     this.type = WallpaperType.solid,
     this.backgroundColors = const [],
@@ -32,6 +64,8 @@ class WallpaperData {
     this.imageBytes,
     this.patternBytes,
     this.tiled = false,
+    this.giftSymbols = const [],
+    this.giftSymbolFrame,
   });
 
   static const WallpaperData none = WallpaperData();
@@ -81,6 +115,7 @@ class WallpaperData {
     required List<Color> backgroundColors,
     int intensity = 50,
     int rotation = 0,
+    Uint8List? giftSymbolFrame,
   }) {
     return WallpaperData(
       type: WallpaperType.pattern,
@@ -88,6 +123,11 @@ class WallpaperData {
       backgroundColors: backgroundColors,
       patternIntensity: intensity,
       gradientRotation: rotation,
+      // Collectible-gift pattern documents embed a `GiftPatterns` group; parse
+      // its symbol placements up-front so the renderer can stamp the gift
+      // overlay (chat_theme.cpp:120-202). Empty for ordinary patterns.
+      giftSymbols: parseGiftSymbolsFromTgv(patternBytes),
+      giftSymbolFrame: giftSymbolFrame,
     );
   }
 
@@ -321,26 +361,29 @@ class ChatWallpaper extends StatelessWidget {
   Widget _buildImage() {
     if (wallpaper.imageBytes == null) return ColoredBox(color: fallbackColor);
 
-    Widget img = Image.memory(
-      wallpaper.imageBytes!,
-      fit: wallpaper.tiled ? BoxFit.none : BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      gaplessPlayback: true,
-    );
-
+    // Tiled images repeat a small bitmap; the tile painter must keep every tile
+    // at native resolution, so it is never downscaled.
     if (wallpaper.tiled) {
-      img = _TiledImage(imageBytes: wallpaper.imageBytes!);
+      final Widget tiled = _TiledImage(imageBytes: wallpaper.imageBytes!);
+      if (wallpaper.blurred) {
+        return ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: tiled,
+        );
+      }
+      return tiled;
     }
 
-    if (wallpaper.blurred) {
-      img = ImageFiltered(
-        imageFilter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: img,
-      );
-    }
-
-    return img;
+    // Full-screen cover image: decode (and optionally pre-blur) at the actual
+    // fill resolution instead of holding the stored full-size (≤2960px) source
+    // and GPU-blurring it on every composite. Mirrors AyuGram scaling the
+    // prepared image down to the chat-background rect (chat_theme.cpp:233-237)
+    // and `PrepareBlurredBackground` pre-blurring a ≤900px copy once
+    // (chat_theme.cpp:1173-1184).
+    return _ScaledWallpaperImage(
+      imageBytes: wallpaper.imageBytes!,
+      blurred: wallpaper.blurred,
+    );
   }
 
   Widget _buildPattern() {
@@ -365,6 +408,8 @@ class ChatWallpaper extends StatelessWidget {
       intensity: wallpaper.patternIntensity,
       opacity: wallpaper.patternOpacity.clamp(0.0, 1.0),
       fallbackColor: fallbackColor,
+      giftSymbols: wallpaper.giftSymbols,
+      giftSymbolFrame: wallpaper.giftSymbolFrame,
     );
   }
 }
@@ -592,6 +637,47 @@ Uint8List _generateGradientBytes(List<Color> colors, int rotation, int size,
       ? _complexGradientPixels(colors, rotation, progress, size)
       : _linearGradientPixels(colors, rotation, size);
   return _ditherPixels(raw, size, size, _gradientSeed(colors, rotation));
+}
+
+/// Serializable argument bundle for the off-thread gradient generation (Color
+/// is passed as its packed ARGB int so the message is trivially sendable across
+/// the isolate boundary).
+class _GradientGenRequest {
+  final List<int> colorValues;
+  final int rotation;
+  final int size;
+  final double progress;
+  const _GradientGenRequest(
+      this.colorValues, this.rotation, this.size, this.progress);
+}
+
+/// Top-level [compute] entry point — runs on a background isolate.
+Uint8List _generateGradientBytesIsolate(_GradientGenRequest r) {
+  final colors = r.colorValues.map((v) => Color(v)).toList();
+  return _generateGradientBytes(colors, r.rotation, r.size,
+      progress: r.progress);
+}
+
+/// Generates the dithered gradient pixel buffer **on a background isolate** via
+/// [compute], instead of blocking the UI thread. The 256×256 complex gradient
+/// (per-pixel sqrt/sin/cos × N colors) or 512×512 linear gradient PLUS the
+/// full per-pixel dither pass is heavy enough to drop frames if run inline —
+/// and it fires on every wallpaper change AND every send-triggered
+/// complex-gradient rotation, i.e. exactly during the "background shifts when
+/// you send" animation. Mirrors AyuGram, which runs the whole `CacheBackground`
+/// (gradient + dither) on a worker thread via `crl::async` and marshals the
+/// result back with `crl::on_main` (ui/chat/chat_theme.cpp:704-728).
+///
+/// On platforms without isolate support (web) [compute] transparently falls
+/// back to a synchronous call, so behaviour is preserved there.
+Future<Uint8List> _generateGradientBytesAsync(
+    List<Color> colors, int rotation, int size,
+    {double progress = 1.0}) {
+  return compute(
+    _generateGradientBytesIsolate,
+    _GradientGenRequest(
+        colors.map((c) => c.value).toList(), rotation, size, progress),
+  );
 }
 
 /// The fixed 4-color default Telegram chat wallpaper, from AyuGram
@@ -839,28 +925,34 @@ class _RasterGradientState extends State<_RasterGradient>
       progress = 1.0;
     }
 
-    final bytes =
-        _generateGradientBytes(colors, rotation, size, progress: progress);
     final token = ++_genToken;
-    ui.decodeImageFromPixels(bytes, size, size, ui.PixelFormat.rgba8888,
-        (image) {
-      if (!mounted || token != _genToken) {
-        image.dispose();
-        return;
-      }
-      setState(() {
-        if (crossFade && _image != null) {
-          _prevImage?.dispose();
-          _prevImage = _image;
-          _image = image;
-          _fade.forward(from: 0.0);
-        } else {
-          _prevImage?.dispose();
-          _prevImage = null;
-          _image?.dispose();
-          _image = image;
-          _fade.value = 1.0;
+    // Heavy gradient + dither generation runs OFF the UI thread (mirrors
+    // AyuGram's `cacheBackgroundAsync` → `crl::async`, chat_theme.cpp:704-728);
+    // a newer _generate() supersedes this one via the token check after the
+    // await, so a burst of send-rotations never piles up stale frames.
+    _generateGradientBytesAsync(colors, rotation, size, progress: progress)
+        .then((bytes) {
+      if (!mounted || token != _genToken) return;
+      ui.decodeImageFromPixels(bytes, size, size, ui.PixelFormat.rgba8888,
+          (image) {
+        if (!mounted || token != _genToken) {
+          image.dispose();
+          return;
         }
+        setState(() {
+          if (crossFade && _image != null) {
+            _prevImage?.dispose();
+            _prevImage = _image;
+            _image = image;
+            _fade.forward(from: 0.0);
+          } else {
+            _prevImage?.dispose();
+            _prevImage = null;
+            _image?.dispose();
+            _image = image;
+            _fade.value = 1.0;
+          }
+        });
       });
     });
   }
@@ -989,6 +1081,198 @@ class _TiledPainter extends CustomPainter {
   bool shouldRepaint(_TiledPainter old) => !identical(old.image, image);
 }
 
+/// Full-screen chat-background image, decoded — and, when requested, blurred —
+/// at the actual fill resolution rather than the stored full size. Ports two
+/// AyuGram optimisations the naive `Image.memory` + per-frame `ImageFiltered`
+/// path skipped:
+///
+///  * **Scale-to-fill** — AyuGram scales the prepared image down to the chat
+///    background rect before painting (`ComputeChatBackgroundRects` + `scaled`,
+///    chat_theme.cpp:230-238). Stored wallpapers are capped at 2960px, so a
+///    full-screen image shown at ~400–1280px would otherwise decode/retain ~8×
+///    the pixels actually drawn. We decode to the cover size for the current
+///    fill area (never upscaling past the source).
+///  * **Cached ≤900px pre-blur** — AyuGram blurs a downscaled (≤900px) copy
+///    ONCE and caches it (`PrepareBlurredBackground`, chat_theme.cpp:1173-1184)
+///    instead of GPU-blurring the full-res image every frame. We pre-blur the
+///    decoded image into a cached [ui.Image] and just blit it afterwards.
+class _ScaledWallpaperImage extends StatefulWidget {
+  final Uint8List imageBytes;
+  final bool blurred;
+
+  const _ScaledWallpaperImage({
+    required this.imageBytes,
+    required this.blurred,
+  });
+
+  @override
+  State<_ScaledWallpaperImage> createState() => _ScaledWallpaperImageState();
+}
+
+class _ScaledWallpaperImageState extends State<_ScaledWallpaperImage> {
+  // AyuGram PrepareBlurredBackground kSize / kRadius (chat_theme.cpp:1174-1175).
+  static const int kBlurMaxSize = 900;
+  static const double kBlurSigma = 24;
+
+  ui.Image? _image;
+  int _token = 0;
+  Size _decodedFor = Size.zero; // completed decode target (device px)
+  Size _pendingFor = Size.zero; // in-flight decode target (device px)
+
+  @override
+  void didUpdateWidget(_ScaledWallpaperImage old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.imageBytes, widget.imageBytes) ||
+        old.blurred != widget.blurred) {
+      _token++; // drop any in-flight decode for the previous config
+      _decodedFor = Size.zero;
+      _pendingFor = Size.zero;
+      // The fresh decode is kicked off by the build() that follows this call.
+    }
+  }
+
+  @override
+  void dispose() {
+    _token++;
+    _image?.dispose();
+    super.dispose();
+  }
+
+  void _ensureDecoded(Size targetDevicePx) {
+    if (targetDevicePx.width <= 0 || targetDevicePx.height <= 0) return;
+    // Decode when we have nothing yet, or the fill area grew meaningfully (a
+    // 10%+8px tolerance avoids a decode storm while a window is being resized).
+    final grew = targetDevicePx.width > _decodedFor.width * 1.1 + 8 ||
+        targetDevicePx.height > _decodedFor.height * 1.1 + 8;
+    if (_image != null && !grew) return;
+    if (_pendingFor == targetDevicePx) return; // already decoding this size
+    _pendingFor = targetDevicePx;
+    final token = ++_token;
+    _decodeScaledWallpaper(widget.imageBytes, targetDevicePx, widget.blurred)
+        .then((decoded) {
+      if (!mounted || token != _token) {
+        decoded?.dispose();
+        return;
+      }
+      setState(() {
+        _image?.dispose();
+        _image = decoded;
+        _decodedFor = targetDevicePx;
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1.0;
+    return LayoutBuilder(builder: (context, constraints) {
+      final w = constraints.maxWidth.isFinite ? constraints.maxWidth : 0.0;
+      final h = constraints.maxHeight.isFinite ? constraints.maxHeight : 0.0;
+      // setState (inside _ensureDecoded) only fires after the decode's first
+      // await, i.e. a later turn — never during this build.
+      _ensureDecoded(Size(w * dpr, h * dpr));
+      final image = _image;
+      if (image == null) return const SizedBox.expand();
+      return CustomPaint(size: Size.infinite, painter: _CoverImagePainter(image));
+    });
+  }
+}
+
+/// Decodes [bytes] scaled down to cover [fillDevicePx] (never upscaling past the
+/// source), and — when [blur] — downsizes to ≤900px and bakes a one-time blur
+/// into the returned cached image. Uses [ui.ImageDescriptor] so the source is
+/// only ever rasterised at the size actually needed.
+Future<ui.Image?> _decodeScaledWallpaper(
+    Uint8List bytes, Size fillDevicePx, bool blur) async {
+  ui.ImmutableBuffer? buffer;
+  ui.ImageDescriptor? descriptor;
+  ui.Codec? codec;
+  try {
+    buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    descriptor = await ui.ImageDescriptor.encoded(buffer);
+    final iw = descriptor.width, ih = descriptor.height;
+    if (iw <= 0 || ih <= 0) return null;
+    // Cover scale: fill the area on both axes, clamped so we never decode the
+    // source larger than it actually is.
+    double s = math.max(fillDevicePx.width / iw, fillDevicePx.height / ih);
+    if (s > 1.0 || !s.isFinite) s = 1.0;
+    int tw = math.max(1, (iw * s).round());
+    int th = math.max(1, (ih * s).round());
+    // Blurred copies are downscaled to ≤900px before blurring (cheap + cached).
+    if (blur) {
+      final longest = math.max(tw, th);
+      if (longest > _ScaledWallpaperImageState.kBlurMaxSize) {
+        final bs = _ScaledWallpaperImageState.kBlurMaxSize / longest;
+        tw = math.max(1, (tw * bs).round());
+        th = math.max(1, (th * bs).round());
+      }
+    }
+    codec = await descriptor.instantiateCodec(targetWidth: tw, targetHeight: th);
+    final frame = await codec.getNextFrame();
+    var image = frame.image;
+    if (blur) {
+      final blurred = _preBlurImage(image, _ScaledWallpaperImageState.kBlurSigma);
+      image.dispose();
+      image = blurred;
+    }
+    return image;
+  } catch (e) {
+    Debug.log('wallpaper', '_decodeScaledWallpaper: $e');
+    return null;
+  } finally {
+    codec?.dispose();
+    descriptor?.dispose();
+    buffer?.dispose();
+  }
+}
+
+/// Bakes a one-time gaussian blur into a cached [ui.Image] (the Dart equivalent
+/// of AyuGram caching `Images::BlurLargeImage`, chat_theme.cpp:1183), so the
+/// composite never re-runs the blur on every frame.
+ui.Image _preBlurImage(ui.Image src, double sigma) {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  canvas.drawImage(
+    src,
+    Offset.zero,
+    Paint()
+      ..imageFilter = ui.ImageFilter.blur(
+          sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.clamp)
+      ..filterQuality = FilterQuality.high,
+  );
+  final picture = recorder.endRecording();
+  final out = picture.toImageSync(src.width, src.height);
+  picture.dispose();
+  return out;
+}
+
+/// Paints a pre-scaled [ui.Image] with `BoxFit.cover` semantics (fill, then
+/// center-crop the overflow) — matching AyuGram's chat-background fill rect.
+class _CoverImagePainter extends CustomPainter {
+  final ui.Image image;
+
+  _CoverImagePainter(this.image);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final iw = image.width.toDouble(), ih = image.height.toDouble();
+    if (iw <= 0 || ih <= 0) return;
+    final scale = math.max(size.width / iw, size.height / ih);
+    final dw = iw * scale, dh = ih * scale;
+    final dx = (size.width - dw) / 2, dy = (size.height - dh) / 2;
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, iw, ih),
+      Rect.fromLTWH(dx, dy, dw, dh),
+      Paint()..filterQuality = FilterQuality.high,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CoverImagePainter old) => !identical(old.image, image);
+}
+
 class _PatternWallpaper extends StatefulWidget {
   final List<Color> backgroundColors;
   final int gradientRotation;
@@ -996,6 +1280,8 @@ class _PatternWallpaper extends StatefulWidget {
   final int intensity;
   final double opacity;
   final Color fallbackColor;
+  final List<WallpaperGiftSymbol> giftSymbols;
+  final Uint8List? giftSymbolFrame;
 
   const _PatternWallpaper({
     required this.backgroundColors,
@@ -1004,6 +1290,8 @@ class _PatternWallpaper extends StatefulWidget {
     required this.intensity,
     required this.opacity,
     required this.fallbackColor,
+    this.giftSymbols = const [],
+    this.giftSymbolFrame,
   });
 
   @override
@@ -1013,6 +1301,7 @@ class _PatternWallpaper extends StatefulWidget {
 class _PatternWallpaperState extends State<_PatternWallpaper> {
   ui.Image? _gradientImage;
   ui.Image? _patternImage;
+  ui.Image? _giftFrameImage;
   int _gradToken = 0;
   int _patToken = 0;
 
@@ -1030,7 +1319,9 @@ class _PatternWallpaperState extends State<_PatternWallpaper> {
         !_sameColors(old.backgroundColors, widget.backgroundColors)) {
       _generateGradient();
     }
-    if (!identical(old.patternBytes, widget.patternBytes)) {
+    if (!identical(old.patternBytes, widget.patternBytes) ||
+        !identical(old.giftSymbols, widget.giftSymbols) ||
+        !identical(old.giftSymbolFrame, widget.giftSymbolFrame)) {
       _decodePattern();
     }
   }
@@ -1039,6 +1330,7 @@ class _PatternWallpaperState extends State<_PatternWallpaper> {
   void dispose() {
     _gradientImage?.dispose();
     _patternImage?.dispose();
+    _giftFrameImage?.dispose();
     super.dispose();
   }
 
@@ -1058,30 +1350,51 @@ class _PatternWallpaperState extends State<_PatternWallpaper> {
     }
     final size =
         colors.length > 2 ? _kComplexGradientSize : _kLinearGradientSize;
-    final bytes = _generateGradientBytes(colors, widget.gradientRotation, size);
     final token = ++_gradToken;
-    ui.decodeImageFromPixels(bytes, size, size, ui.PixelFormat.rgba8888, (image) {
-      if (!mounted || token != _gradToken) {
-        image.dispose();
-        return;
-      }
-      setState(() {
-        _gradientImage?.dispose();
-        _gradientImage = image;
+    // Off-thread gradient + dither generation (chat_theme.cpp:704-728), so the
+    // pattern's underlying gradient never janks the UI thread on a wallpaper
+    // change.
+    _generateGradientBytesAsync(colors, widget.gradientRotation, size)
+        .then((bytes) {
+      if (!mounted || token != _gradToken) return;
+      ui.decodeImageFromPixels(bytes, size, size, ui.PixelFormat.rgba8888,
+          (image) {
+        if (!mounted || token != _gradToken) {
+          image.dispose();
+          return;
+        }
+        setState(() {
+          _gradientImage?.dispose();
+          _gradientImage = image;
+        });
       });
     });
   }
 
   Future<void> _decodePattern() async {
     final token = ++_patToken;
-    final image = await _decodePatternBytes(widget.patternBytes);
+    ui.Image? tile;
+    ui.Image? frame;
+    if (widget.giftSymbols.isNotEmpty) {
+      // Collectible-gift pattern: cut the `GiftPatterns` group out of the tile
+      // and supply the gift symbol frame (chat_theme.cpp:120-202).
+      final result = await _decodeGiftPattern(
+          widget.patternBytes, widget.giftSymbols, widget.giftSymbolFrame);
+      tile = result.$1;
+      frame = result.$2;
+    } else {
+      tile = await _decodePatternBytes(widget.patternBytes);
+    }
     if (!mounted || token != _patToken) {
-      image?.dispose();
+      tile?.dispose();
+      frame?.dispose();
       return;
     }
     setState(() {
       _patternImage?.dispose();
-      _patternImage = image;
+      _patternImage = tile;
+      _giftFrameImage?.dispose();
+      _giftFrameImage = frame;
     });
   }
 
@@ -1095,6 +1408,8 @@ class _PatternWallpaperState extends State<_PatternWallpaper> {
         intensity: widget.intensity,
         opacity: widget.opacity,
         fallbackColor: widget.fallbackColor,
+        giftSymbols: widget.giftSymbols,
+        giftFrame: _giftFrameImage,
       ),
       size: Size.infinite,
     );
@@ -1169,6 +1484,201 @@ Future<ui.Image?> _decodeRaster(Uint8List bytes) {
   return completer.future;
 }
 
+// ===========================================================================
+// Collectible-gift pattern wallpapers — ports of AyuGram's gift-symbol tiling
+// (ui/chat/chat_theme.cpp:59-202) and the `GiftPatterns` SVG cut-out
+// (lib_ui/ui/image/image_prepare.cpp:404-413).
+//
+// A gift wallpaper's pattern document embeds a `<g id="GiftPatterns"> … </g>`
+// group of `<rect>` placeholders (each a normalized position + optional
+// rotation) that mark where the gift's symbol custom-emoji should be stamped.
+// AyuGram cuts that group out of the tiled pattern and re-stamps the gift's
+// emoji frame at each position — rotated, at 0.8 opacity — skipping the
+// most-central slot for the live gift itself, which it overlays separately.
+// ===========================================================================
+
+/// Locates the `<g id="GiftPatterns" …> … </g>` group inside a (gzipped)
+/// pattern document and returns its raw inner content plus the SVG viewBox used
+/// to normalize coordinates. Mirrors the `svgCutOutId = "GiftPatterns"` lookup
+/// in `Images::Read` (image_prepare.cpp:404-409) — the `id` must be the first
+/// attribute on the `<g>`, exactly as AyuGram requires. Returns null for an
+/// ordinary (non-gift) pattern.
+({String content, double vbW, double vbH})? _extractGiftPatternsGroup(
+    Uint8List bytes) {
+  var data = bytes;
+  if (data.length >= 2 && data[0] == 0x1f && data[1] == 0x8b) {
+    try {
+      data = Uint8List.fromList(GZipDecoder().decodeBytes(data));
+    } catch (_) {
+      return null;
+    }
+  }
+  if (!_looksLikeSvg(data)) return null;
+  final svg = utf8.decode(data, allowMalformed: true);
+  final start = svg.indexOf('<g id="GiftPatterns"');
+  if (start < 0) return null;
+  final end = svg.indexOf('</g>', start);
+  if (end < 0) return null;
+  final vb = _svgViewBox(svg);
+  if (vb == null) return null;
+  return (content: svg.substring(start, end + 4), vbW: vb.$1, vbH: vb.$2);
+}
+
+/// SVG root user-unit dimensions (viewBox, else width/height) used to normalize
+/// gift-symbol rects into `[0,1]`.
+(double, double)? _svgViewBox(String svg) {
+  final vbMatch = RegExp(r'viewBox\s*=\s*"([^"]*)"').firstMatch(svg);
+  if (vbMatch != null) {
+    final parts = vbMatch.group(1)!.trim().split(RegExp(r'[\s,]+'));
+    if (parts.length == 4) {
+      final w = double.tryParse(parts[2]);
+      final h = double.tryParse(parts[3]);
+      if (w != null && h != null && w > 0 && h > 0) return (w, h);
+    }
+  }
+  final wMatch = RegExp(r'<svg[^>]*\bwidth\s*=\s*"([\d.]+)').firstMatch(svg);
+  final hMatch = RegExp(r'<svg[^>]*\bheight\s*=\s*"([\d.]+)').firstMatch(svg);
+  final w = wMatch != null ? double.tryParse(wMatch.group(1)!) : null;
+  final h = hMatch != null ? double.tryParse(hMatch.group(1)!) : null;
+  if (w != null && h != null && w > 0 && h > 0) return (w, h);
+  return null;
+}
+
+/// Port of `ParseGiftSymbols` (chat_theme.cpp:1015-1077): parses each
+/// `<rect x=".." y=".." width=".." height=".." [transform=rotate(deg)]/>` in the
+/// cut-out `GiftPatterns` group into a normalized [WallpaperGiftSymbol]. Rect
+/// coordinates are SVG user units divided by the viewBox, so `area` ends up in
+/// `[0,1]` within a tile (equivalent to AyuGram's `cw = scale / size.width`).
+List<WallpaperGiftSymbol> parseGiftSymbolsFromTgv(Uint8List bytes) {
+  final group = _extractGiftPatternsGroup(bytes);
+  if (group == null) return const [];
+  final cw = 1.0 / group.vbW;
+  final ch = 1.0 / group.vbH;
+  final rectRe = RegExp(r'<rect\b([^>]*?)/?>', dotAll: true);
+  final xRe = RegExp(r'\bx\s*=\s*"([-\d.eE]+)"');
+  final yRe = RegExp(r'\by\s*=\s*"([-\d.eE]+)"');
+  final wRe = RegExp(r'\bwidth\s*=\s*"([-\d.eE]+)"');
+  final hRe = RegExp(r'\bheight\s*=\s*"([-\d.eE]+)"');
+  final rotRe = RegExp(r'rotate\(\s*([-\d.eE]+)');
+  final result = <WallpaperGiftSymbol>[];
+  for (final m in rectRe.allMatches(group.content)) {
+    final attrs = m.group(1)!;
+    final x = double.tryParse(xRe.firstMatch(attrs)?.group(1) ?? '');
+    final y = double.tryParse(yRe.firstMatch(attrs)?.group(1) ?? '');
+    final w = double.tryParse(wRe.firstMatch(attrs)?.group(1) ?? '');
+    final h = double.tryParse(hRe.firstMatch(attrs)?.group(1) ?? '');
+    if (x == null || y == null || w == null || h == null) continue;
+    final rot =
+        double.tryParse(rotRe.firstMatch(attrs)?.group(1) ?? '') ?? 0.0;
+    result.add(WallpaperGiftSymbol(
+      area: Rect.fromLTWH(x * cw, y * ch, w * cw, h * ch),
+      rotation: rot,
+    ));
+  }
+  return result;
+}
+
+/// Port of `ChooseGiftSymbolSkip` (chat_theme.cpp:59-78): selects the symbol
+/// whose center is most central AND whose area is largest — the slot reserved
+/// for the gift itself (left empty in the center tile, drawn as a distinct
+/// overlay). Returns -1 for an empty list.
+int chooseGiftSymbolSkip(List<WallpaperGiftSymbol> symbols) {
+  if (symbols.isEmpty) return -1;
+  var maxIndex = -1;
+  var maxValue = 0.0;
+  for (int i = 0; i < symbols.length; i++) {
+    final c = symbols[i].area.center;
+    final value = math.min(c.dx, 1.0 - c.dx) *
+        math.min(c.dy, 1.0 - c.dy) *
+        math.min(symbols[i].area.width, symbols[i].area.height);
+    if (maxIndex < 0 || maxValue < value) {
+      maxIndex = i;
+      maxValue = value;
+    }
+  }
+  return maxIndex;
+}
+
+/// Decodes a gift-pattern document into `(tile, frame)`:
+///  * **tile** — the pattern SVG with its `GiftPatterns` group removed, so the
+///    placeholder rects are not double-drawn under the stamped symbols
+///    (mirrors the `svgCutOutId` removal, image_prepare.cpp:410).
+///  * **frame** — the gift symbol raster: the explicit gift custom-emoji frame
+///    when supplied, otherwise derived from the document itself by rasterizing
+///    the full SVG and cropping the most-central symbol's region.
+Future<(ui.Image?, ui.Image?)> _decodeGiftPattern(Uint8List bytes,
+    List<WallpaperGiftSymbol> symbols, Uint8List? explicitFrame) async {
+  var data = bytes;
+  if (data.length >= 2 && data[0] == 0x1f && data[1] == 0x8b) {
+    try {
+      data = Uint8List.fromList(GZipDecoder().decodeBytes(data));
+    } catch (e) {
+      Debug.log('wallpaper', '_decodeGiftPattern gunzip: $e');
+    }
+  }
+  if (!_looksLikeSvg(data)) {
+    // Raster gift pattern (no SVG cut-out possible): tile it plainly and use
+    // the explicit frame if any.
+    final tile = await _decodePatternBytes(bytes);
+    final frame =
+        explicitFrame != null ? await _decodeRaster(explicitFrame) : null;
+    return (tile, frame);
+  }
+
+  final svg = utf8.decode(data, allowMalformed: true);
+  var tileSvg = svg;
+  final start = svg.indexOf('<g id="GiftPatterns"');
+  if (start >= 0) {
+    final end = svg.indexOf('</g>', start);
+    if (end >= 0) {
+      tileSvg = svg.substring(0, start) + svg.substring(end + 4);
+    }
+  }
+  final tile = await _rasterizeSvg(Uint8List.fromList(utf8.encode(tileSvg)));
+
+  ui.Image? frame;
+  if (explicitFrame != null) {
+    frame = await _decodeRaster(explicitFrame);
+  } else {
+    final full = await _rasterizeSvg(data);
+    if (full != null) {
+      final skip = chooseGiftSymbolSkip(symbols);
+      if (skip >= 0) {
+        frame = _cropSymbolFrame(full, symbols[skip].area);
+      }
+      full.dispose();
+    }
+  }
+  return (tile, frame);
+}
+
+/// Crops the normalized [normArea] region out of a rendered pattern image,
+/// producing the gift symbol frame to stamp. Used when no explicit gift emoji
+/// frame is available — the artwork comes straight from the document.
+ui.Image? _cropSymbolFrame(ui.Image full, Rect normArea) {
+  final fw = full.width.toDouble();
+  final fh = full.height.toDouble();
+  final sx = normArea.left * fw;
+  final sy = normArea.top * fh;
+  final sw = normArea.width * fw;
+  final sh = normArea.height * fh;
+  final outW = sw.round();
+  final outH = sh.round();
+  if (outW <= 0 || outH <= 0) return null;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  canvas.drawImageRect(
+    full,
+    Rect.fromLTWH(sx, sy, sw, sh),
+    Rect.fromLTWH(0, 0, sw, sh),
+    Paint()..filterQuality = FilterQuality.high,
+  );
+  final picture = recorder.endRecording();
+  final out = picture.toImageSync(outW, outH);
+  picture.dispose();
+  return out;
+}
+
 class _PatternWallpaperPainter extends CustomPainter {
   final List<Color> colors;
   final ui.Image? gradientImage;
@@ -1176,6 +1686,8 @@ class _PatternWallpaperPainter extends CustomPainter {
   final int intensity;
   final double opacity;
   final Color fallbackColor;
+  final List<WallpaperGiftSymbol> giftSymbols;
+  final ui.Image? giftFrame;
 
   _PatternWallpaperPainter({
     required this.colors,
@@ -1184,6 +1696,8 @@ class _PatternWallpaperPainter extends CustomPainter {
     required this.intensity,
     required this.opacity,
     required this.fallbackColor,
+    this.giftSymbols = const [],
+    this.giftFrame,
   });
 
   static const _invertColorFilter = ColorFilter.matrix(<double>[
@@ -1202,6 +1716,12 @@ class _PatternWallpaperPainter extends CustomPainter {
       return;
     }
 
+    // Collectible-gift symbols are stamped only over positive-intensity
+    // (soft-light) patterns, exactly as AyuGram only paints them on the
+    // `isPattern` tile (chat_theme.cpp:120-202).
+    final hasGifts =
+        giftFrame != null && giftSymbols.isNotEmpty && intensity >= 0;
+
     if (intensity >= 0) {
       _drawGradient(canvas, size);
       canvas.saveLayer(
@@ -1214,8 +1734,14 @@ class _PatternWallpaperPainter extends CustomPainter {
       if (_isPatternInverted()) {
         paint.colorFilter = _invertColorFilter;
       }
-      _tilePattern(canvas, size, pattern, paint);
+      _tilePattern(canvas, size, pattern, paint, stampGifts: hasGifts);
       canvas.restore();
+      // The reserved center slot is filled by the gift itself, drawn distinct
+      // (full opacity, outside the soft-light layer) like AyuGram overlaying the
+      // live gift custom-emoji at `giftArea` (chat_theme.cpp:189-202).
+      if (hasGifts) {
+        _drawGiftOverlay(canvas, size, pattern);
+      }
     } else {
       canvas.saveLayer(rect, Paint());
       _drawGradient(canvas, size);
@@ -1224,6 +1750,7 @@ class _PatternWallpaperPainter extends CustomPainter {
         size,
         pattern,
         Paint()..blendMode = BlendMode.dstIn,
+        stampGifts: false,
       );
       if (intensity > -100) {
         final blackOpacity = (1.0 + intensity / 100.0).clamp(0.0, 1.0);
@@ -1255,28 +1782,100 @@ class _PatternWallpaperPainter extends CustomPainter {
     }
   }
 
-  /// Port of the pattern tiling in `chat_theme.cpp:122-210`: the pattern is
-  /// scaled (KeepAspectRatio) to fit a square the height of the area, then tiled
-  /// across BOTH rows and columns. The column count is forced odd and centered
-  /// (`((cx/2)*2)+1`), matching AyuGram's pattern layout.
-  void _tilePattern(Canvas canvas, Size size, ui.Image pattern, Paint paint) {
+  /// Pattern tile geometry (`chat_theme.cpp:122-185`): the pattern scaled
+  /// (KeepAspectRatio) to a square the height of the area, the odd/centered
+  /// column count, the row count, and the centering x-shift.
+  _PatternTiling? _computeTiling(Size size, ui.Image pattern) {
     final scale = size.height / math.max(pattern.width, pattern.height);
     final tw = pattern.width * scale;
     final th = pattern.height * scale;
-    if (tw <= 0 || th <= 0) return;
-    final src = Rect.fromLTWH(
-        0, 0, pattern.width.toDouble(), pattern.height.toDouble());
+    if (tw <= 0 || th <= 0) return null;
     final cx = (size.width / tw).ceil();
     final cy = (size.height / th).ceil();
     final cols = ((cx ~/ 2) * 2) + 1;
     final rows = cy;
     final xshift = (size.width - cols * tw) / 2;
-    for (int y = 0; y < rows; y++) {
-      for (int x = 0; x < cols; x++) {
-        final dst = Rect.fromLTWH(xshift + x * tw, y * th, tw, th);
-        canvas.drawImageRect(pattern, src, dst, paint);
+    return _PatternTiling(tw: tw, th: th, xshift: xshift, cols: cols, rows: rows);
+  }
+
+  /// Port of the pattern tiling in `chat_theme.cpp:122-210`: the pattern is
+  /// scaled (KeepAspectRatio) to fit a square the height of the area, then tiled
+  /// across BOTH rows and columns. The column count is forced odd and centered
+  /// (`((cx/2)*2)+1`), matching AyuGram's pattern layout. When [stampGifts] is
+  /// set, the gift symbol frame is stamped (rotated, 0.8 opacity) at every
+  /// symbol position on every tile — except the most-central symbol on the
+  /// center-top tile, whose slot is reserved for the gift overlay
+  /// (chat_theme.cpp:162-210).
+  void _tilePattern(Canvas canvas, Size size, ui.Image pattern, Paint paint,
+      {required bool stampGifts}) {
+    final t = _computeTiling(size, pattern);
+    if (t == null) return;
+    final src = Rect.fromLTWH(
+        0, 0, pattern.width.toDouble(), pattern.height.toDouble());
+    final skipCol = t.cols ~/ 2;
+    final skip = stampGifts ? chooseGiftSymbolSkip(giftSymbols) : -1;
+    for (int y = 0; y < t.rows; y++) {
+      for (int x = 0; x < t.cols; x++) {
+        final tileX = t.xshift + x * t.tw;
+        final tileY = y * t.th;
+        canvas.drawImageRect(
+            pattern, src, Rect.fromLTWH(tileX, tileY, t.tw, t.th), paint);
+        if (stampGifts) {
+          for (int i = 0; i < giftSymbols.length; i++) {
+            if (x == skipCol && y == 0 && i == skip) continue;
+            _stampGiftSymbol(canvas, tileX, tileY, t.tw, t.th, giftSymbols[i],
+                opacity: 0.8);
+          }
+        }
       }
     }
+  }
+
+  /// Draws the gift symbol frame for one [symbol] within the tile at
+  /// (`tileX`,`tileY`): scaled so its width fills the symbol rect and rotated
+  /// about the rect center — the Dart equivalent of `giftSymbolPaint`
+  /// (chat_theme.cpp:143-160). [opacity] modulates the frame alpha (0.8 for the
+  /// tiled symbols, 1.0 for the center gift overlay).
+  void _stampGiftSymbol(Canvas canvas, double tileX, double tileY, double tw,
+      double th, WallpaperGiftSymbol symbol,
+      {required double opacity}) {
+    final frame = giftFrame;
+    if (frame == null || frame.width <= 0) return;
+    final left = tileX + symbol.area.left * tw;
+    final top = tileY + symbol.area.top * th;
+    final w = symbol.area.width * tw;
+    if (w <= 0) return;
+    final h = w * frame.height / frame.width; // square emoji → h == w
+    final centerX = left + w / 2;
+    final centerY = top + h / 2;
+    canvas.save();
+    canvas.translate(centerX, centerY);
+    canvas.rotate(symbol.rotation * math.pi / 180.0);
+    canvas.translate(-centerX, -centerY);
+    canvas.drawImageRect(
+      frame,
+      Rect.fromLTWH(0, 0, frame.width.toDouble(), frame.height.toDouble()),
+      Rect.fromLTWH(left, top, w, h),
+      Paint()
+        ..filterQuality = FilterQuality.high
+        ..color = Color.fromRGBO(0, 0, 0, opacity),
+    );
+    canvas.restore();
+  }
+
+  /// Draws the gift itself in the reserved center-top slot (the symbol skipped
+  /// in [_tilePattern]) — full opacity, normal blend, so the collectible gift
+  /// stands distinct from the soft-light-tinted tiled symbols, mirroring
+  /// AyuGram overlaying the live gift custom-emoji at `giftArea`
+  /// (chat_theme.cpp:189-202).
+  void _drawGiftOverlay(Canvas canvas, Size size, ui.Image pattern) {
+    final skip = chooseGiftSymbolSkip(giftSymbols);
+    if (skip < 0) return;
+    final t = _computeTiling(size, pattern);
+    if (t == null) return;
+    final tileX = t.xshift + (t.cols ~/ 2) * t.tw;
+    _stampGiftSymbol(canvas, tileX, 0.0, t.tw, t.th, giftSymbols[skip],
+        opacity: 1.0);
   }
 
   bool _isPatternInverted() {
@@ -1297,10 +1896,30 @@ class _PatternWallpaperPainter extends CustomPainter {
   bool shouldRepaint(_PatternWallpaperPainter old) =>
       !identical(old.gradientImage, gradientImage) ||
       !identical(old.patternImage, patternImage) ||
+      !identical(old.giftFrame, giftFrame) ||
+      !identical(old.giftSymbols, giftSymbols) ||
       old.colors != colors ||
       old.intensity != intensity ||
       old.opacity != opacity ||
       old.fallbackColor != fallbackColor;
+}
+
+/// Resolved pattern tile geometry shared by [_PatternWallpaperPainter] between
+/// the pattern tiling and the gift-symbol stamping.
+class _PatternTiling {
+  final double tw;
+  final double th;
+  final double xshift;
+  final int cols;
+  final int rows;
+
+  const _PatternTiling({
+    required this.tw,
+    required this.th,
+    required this.xshift,
+    required this.cols,
+    required this.rows,
+  });
 }
 
 Color computeAverageColor(Uint8List imageBytes) {
