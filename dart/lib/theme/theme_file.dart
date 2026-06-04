@@ -73,77 +73,39 @@ PaletteParseResult? parsePaletteText(
 }) {
   final fallbackMap = paletteToMap(fallback);
   final paletteKeys = fallbackMap.keys.toSet();
-  CloudThemeMeta? cloudMeta;
+  // Cloud-theme service metadata lives in `// THEME EDITOR SERVICE INFO` lines,
+  // which are `//` comments — invisible to the palette tokenizer below once
+  // comments are stripped. AyuGram reads it in a SEPARATE pass over the raw text
+  // (`ReadCloudFromText`, window_theme_editor.cpp:357-381), NOT as part of
+  // `ReadPaletteValues`; we mirror that by extracting it from the un-stripped text.
+  final CloudThemeMeta? cloudMeta = readCloudMeta(text);
 
-  bool inServiceBlock = false;
-  int? serviceId;
-  int? serviceHash;
-
-  text = _stripBlockComments(text);
-
-  // ── Pass 1: tokenize into ordered (name, value) pairs ──
-  // Mirrors AyuGram's `readNameAndValue` (window_theme.cpp:122-164). AyuGram
-  // HARD-REJECTS the entire theme on ANY structural syntax error: `readNameAndValue`
-  // returns false → `ReadPaletteValues` aborts the whole parse (1525-1528) →
-  // `LoadTheme` declines and the previous theme stays (user sees "Theme Error").
-  // The rejecting conditions are: an empty name (:129-132), a missing `:`
-  // separator (:137-140), an empty value token (:148-151), and a missing
-  // trailing `;` (:158-161). We reproduce each by returning null — the caller
-  // then keeps the previous theme instead of loading a partial palette.
-  // (Bad hex DIGITS and unresolved references are NOT structural errors: AyuGram
-  // skips those in `setColorSchemeValue` and keeps loading — handled in pass 2.)
+  // ── Pass 1: STREAMING tokenize into ordered (name, value) pairs ──
+  // Mirrors AyuGram's `ReadPaletteValues` (window_theme.cpp:1514-1537): strip all
+  // C-style comments (`base::parse::stripComments`), then run a whitespace-delimited
+  // loop of `readNameAndValue` (window_theme.cpp:122-164) that is NEWLINE-AGNOSTIC.
+  // A declaration may span physical lines (`windowBg:\n#ffffff;`) and several pairs
+  // may share one line (`windowBg: #fff; windowFg: #000;`) — the previous line-based
+  // `split('\n')` mis-parsed both (the former hard-rejected the whole theme, the
+  // latter silently dropped colors). AyuGram HARD-REJECTS the entire theme on ANY
+  // structural syntax error (`readNameAndValue` → false → `ReadPaletteValues` →
+  // false → `LoadTheme` declines and the previous theme stays — user sees "Theme
+  // Error"). The rejecting conditions are: an empty name (:129-132), a missing `:`
+  // separator (:137-140), an empty value token (:148-151), and a missing trailing
+  // `;` (:158-161). We reproduce each by returning null — the caller then keeps the
+  // previous theme instead of loading a partial palette. (Bad hex DIGITS and
+  // unresolved references are NOT structural errors: AyuGram skips those in
+  // `setColorSchemeValue` and keeps loading — handled in pass 2.)
+  final stripped = _stripComments(text);
   final entries = <MapEntry<String, String>>[];
-  for (final rawLine in text.split('\n')) {
-    final line = rawLine.trim();
-
-    if (line == '// THEME EDITOR SERVICE INFO START') {
-      inServiceBlock = true;
-      continue;
-    }
-    if (line == '// THEME EDITOR SERVICE INFO END') {
-      inServiceBlock = false;
-      if (serviceId != null && serviceHash != null) {
-        cloudMeta = CloudThemeMeta(id: serviceId, accessHash: serviceHash);
-      }
-      continue;
-    }
-    if (inServiceBlock) {
-      final stripped = line.startsWith('//') ? line.substring(2).trim() : line;
-      final colonPos = stripped.indexOf(': ');
-      if (colonPos >= 0) {
-        final key = stripped.substring(0, colonPos).toUpperCase();
-        final value = _parseUint64(stripped.substring(colonPos + 2).trim());
-        if (value != null) {
-          if (key == 'ID') serviceId = value;
-          if (key == 'ACCESS') serviceHash = value;
-        }
-      }
-      continue;
-    }
-
-    // Whitespace-only lines and full-line `//` comments are eaten by
-    // base::parse::stripComments / skipWhitespaces — not an error, just skipped.
-    if (line.isEmpty || line.startsWith('//')) continue;
-
-    // Trailing line comments (`name: value; // note`) are removed by
-    // stripComments before parsing in AyuGram. We strip from the first `//`
-    // (color/reference tokens never contain `//`).
-    var content = line;
-    final lineCommentIdx = content.indexOf('//');
-    if (lineCommentIdx >= 0) content = content.substring(0, lineCommentIdx).trimRight();
-    if (content.isEmpty) continue;
-
-    final colonIdx = content.indexOf(':');
-    if (colonIdx < 0) return null; // missing `:` → hard reject (:137-140)
-    final name = content.substring(0, colonIdx).trim();
-    if (name.isEmpty) return null; // empty name → hard reject (:129-132)
-
-    var value = content.substring(colonIdx + 1).trim();
-    if (!value.endsWith(';')) return null; // missing `;` → hard reject (:158-161)
-    value = value.substring(0, value.length - 1).trim();
-    if (value.isEmpty) return null; // empty value token → hard reject (:148-151)
-
-    entries.add(MapEntry(name, value));
+  var pos = 0;
+  final end = stripped.length;
+  while (true) {
+    final nv = _readNameAndValue(stripped, pos, end);
+    if (nv == null) return null; // structural syntax error → hard reject
+    pos = nv.next;
+    if (nv.name == null) break; // skipWhitespaces reached end → done (empty name)
+    entries.add(MapEntry(nv.name!, nv.value!));
   }
 
   // ── Pass 2: resolve values STRICTLY IN-ORDER, single pass ──
@@ -198,6 +160,41 @@ PaletteParseResult? parsePaletteText(
     }
   }
 
+  // Snapshot the tokens the theme file EXPLICITLY declared (an explicit hex or an
+  // in-file reference) BEFORE the cascade below starts writing inherited colors
+  // into `resolved`. The editor uses this to split "the theme's own colors" from
+  // the rest (`theme_editor.dart:186`); a cascaded key (e.g. menuBg inheriting
+  // windowBg) must stay on the "New color scheme keys" side, not masquerade as a
+  // user-set token.
+  final explicitTokens = {...resolved.keys, ...referenceChain.keys};
+
+  // ── Pass 3: finalize() fallback-chain cascade ──
+  // The missing piece AyuGram runs as `out->palette.finalize(paletteColorizer)`
+  // right after loadColorScheme (window_theme.cpp:368). `palette::compute(index,
+  // fallbackIndex, value)` (style_core_palette.cpp:158-180) copies each color the
+  // theme did NOT set from its colors.palette fallback WHEN that fallback is Loaded
+  // — set by the theme OR by an earlier cascade step — and marks the inherited
+  // color Loaded too, so later links inherit transitively. We replicate it by
+  // walking `_paletteFallbacks` in EXACT colors.palette declaration order: a
+  // reference key absent from the theme inherits its fallback's resolved value iff
+  // that fallback is already loaded. Declaration order is essential and faithful —
+  // a forward reference whose fallback is only DEFAULTING (not theme-set, not yet
+  // cascaded) keeps its own default, exactly as C++'s in-order compute() leaves it
+  // `Created`. (No colorizer here: the user-import / .tdesktop-palette path passes
+  // an empty colorizer — window_theme.cpp:294-295 — so compute()'s colorize branch
+  // never runs.) Without this, a theme that set only `windowBg: #000000;` left
+  // menuBg/msgInBg/… (up to 236 reference colors) at the light dayBlue default;
+  // now they cascade to black, matching AyuGram.
+  for (final fb in _paletteFallbacks.entries) {
+    final name = fb.key;
+    if (loaded.contains(name)) continue; // theme set it → status != Initial, skip
+    final fallbackColor = resolved[fb.value]; // non-null ⇔ fallback is Loaded
+    if (fallbackColor != null) {
+      resolved[name] = fallbackColor;
+      loaded.add(name); // mark Loaded so a later link can cascade through this one
+    }
+  }
+
   final merged = Map<String, Color>.from(fallbackMap)..addAll(resolved);
   final palette = paletteFromMap(merged, fallback);
 
@@ -205,7 +202,7 @@ PaletteParseResult? parsePaletteText(
     palette: palette,
     cloudMeta: cloudMeta,
     referenceChain: referenceChain,
-    explicitTokens: {...resolved.keys, ...referenceChain.keys},
+    explicitTokens: explicitTokens,
   );
 }
 
@@ -277,35 +274,116 @@ CloudThemeMeta? readCloudMeta(String text) {
 
 // ── Private helpers ──
 
-String _stripBlockComments(String text) {
+/// Strip all C-style comments — `//` to end-of-line and `/* … */` — faithfully
+/// porting `base::parse::stripComments` (parse_helper.cpp:13-97). Each comment is
+/// replaced by a single space so it can never glue two adjacent tokens together,
+/// and every line break is preserved (newlines inside a block comment too). An
+/// unterminated `/* …` eats to EOF and is dropped, matching AyuGram. (The C++
+/// version also tracks `"`-delimited strings; palette files contain none — a `"`
+/// is not a name character so it would be rejected either way — so that branch is
+/// intentionally omitted.) The result feeds the whitespace-delimited tokenizer.
+String _stripComments(String text) {
+  const none = 0, singleLine = 1, multiLine = 2;
+  var state = none;
   final buf = StringBuffer();
   var i = 0;
   final n = text.length;
   while (i < n) {
-    if (i + 1 < n && text[i] == '/' && text[i + 1] == '*') {
-      final end = text.indexOf('*/', i + 2);
-      // Unterminated block comment: AyuGram's stripComments lets the comment
-      // "eat" everything to EOF and drops it, so we stop here too.
-      if (end < 0) break;
-      // Replace the comment body with a single space but RE-EMIT every newline
-      // inside it. A multi-line `/* … */` — or one whose `*/` shares a line with
-      // the following `name: value;` — must NOT collapse two palette lines into
-      // one (which mis-parses and silently drops both colors). AyuGram's
-      // base::parse::stripComments substitutes a space for comment text and
-      // preserves '\n'/'\r\n' (parse_helper.cpp:31-37,65-83).
+    final c = text.codeUnitAt(i);
+    final next = (i + 1 < n) ? text.codeUnitAt(i + 1) : 0;
+    if (state == none && c == 0x2F /* / */ && next == 0x2F /* / */) {
       buf.write(' ');
-      for (var j = i + 2; j < end; j++) {
-        final c = text.codeUnitAt(j);
-        if (c == 0x0A || c == 0x0D) buf.writeCharCode(c);
-      }
-      buf.write(' ');
-      i = end + 2;
-    } else {
-      buf.writeCharCode(text.codeUnitAt(i));
+      state = singleLine;
+      i += 2;
+    } else if (state == singleLine && (c == 0x0A || c == 0x0D)) {
+      buf.writeCharCode(c); // the line break that ends the comment is kept
+      state = none;
       i++;
+    } else if (state == none && c == 0x2F /* / */ && next == 0x2A /* * */) {
+      buf.write(' ');
+      state = multiLine;
+      i += 2;
+    } else if (state == multiLine && c == 0x2A /* * */ && next == 0x2F /* / */) {
+      state = none;
+      i += 2;
+    } else if (state == multiLine && (c == 0x0A || c == 0x0D)) {
+      buf.writeCharCode(c); // newlines inside a block comment are kept
+      i++;
+    } else if (state == none) {
+      buf.writeCharCode(c);
+      i++;
+    } else {
+      i++; // inside a comment — drop the character
     }
   }
   return buf.toString();
+}
+
+/// `base::parse::skipWhitespaces` (parse_helper.h:15-25): advance past spaces,
+/// newlines, tabs and CRs. Returns the new offset (callers test `== end`).
+int _skipWhitespaces(String s, int from, int end) {
+  while (from != end) {
+    final c = s.codeUnitAt(from);
+    if (c == 0x20 || c == 0x0A || c == 0x09 || c == 0x0D) {
+      from++;
+    } else {
+      break;
+    }
+  }
+  return from;
+}
+
+/// `base::parse::readName` (parse_helper.h:27-38): read a maximal run of name
+/// characters `[A-Za-z0-9_]`. Returns the offset just past the run.
+int _readName(String s, int from, int end) {
+  while (from != end) {
+    final c = s.codeUnitAt(from);
+    if ((c >= 0x61 && c <= 0x7A) || // a-z
+        (c >= 0x41 && c <= 0x5A) || // A-Z
+        (c >= 0x30 && c <= 0x39) || // 0-9
+        (c == 0x5F)) {
+      // _
+      from++;
+    } else {
+      break;
+    }
+  }
+  return from;
+}
+
+/// One step of AyuGram's streaming `readNameAndValue` (window_theme.cpp:122-164),
+/// operating on the comment-stripped scheme. Returns the parsed (name, value) and
+/// the offset to resume from; `name == null` signals clean end-of-content (the
+/// `skipWhitespaces` returned end with nothing left). Returns null on ANY of the
+/// four structural errors AyuGram rejects with (empty name, missing `:`, empty
+/// value, missing `;`), which the caller turns into a whole-theme rejection.
+({String? name, String? value, int next})? _readNameAndValue(
+    String s, int from, int end) {
+  from = _skipWhitespaces(s, from, end);
+  if (from == end) return (name: null, value: null, next: from); // end of content
+
+  final nameStart = from;
+  from = _readName(s, from, end);
+  if (from == nameStart) return null; // empty name (:129-132)
+  final name = s.substring(nameStart, from);
+
+  from = _skipWhitespaces(s, from, end);
+  if (from == end) return null; // unexpected end (:133-135)
+  if (s.codeUnitAt(from) != 0x3A /* : */) return null; // expected ':' (:137-140)
+  from = _skipWhitespaces(s, from + 1, end);
+  if (from == end) return null; // unexpected end (:141-143)
+
+  final valueStart = from;
+  if (s.codeUnitAt(from) == 0x23 /* # */) from++;
+  final valueNameStart = from;
+  from = _readName(s, from, end);
+  if (from == valueNameStart) return null; // empty value (:148-151)
+  final value = s.substring(valueStart, from);
+
+  from = _skipWhitespaces(s, from, end);
+  if (from == end) return null; // unexpected end (:154-156)
+  if (s.codeUnitAt(from) != 0x3B /* ; */) return null; // expected ';' (:158-161)
+  return (name: name, value: value, next: from + 1);
 }
 
 bool _looksLikeZip(Uint8List bytes) =>
@@ -316,30 +394,39 @@ bool _looksLikeZip(Uint8List bytes) =>
     bytes[3] == 0x04;
 
 bool _isValidBackgroundImage(Uint8List bytes) {
-  if (bytes.length < 8) return false;
-  final isJpeg = bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
-  final isPng = bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E &&
-      bytes[3] == 0x47 && bytes[4] == 0x0D && bytes[5] == 0x0A &&
-      bytes[6] == 0x1A && bytes[7] == 0x0A;
-  if (!isJpeg && !isPng) return false;
+  if (bytes.length < 4) return false;
+  // AyuGram reads the background by FILENAME only and decodes it FORMAT-AGNOSTICALLY
+  // (QImageReader::size() bound check, then Images::Read({.forceOpaque=true}),
+  // window_theme.cpp:328-343) — it does NOT gate on JPEG/PNG magic bytes. So a
+  // Qt-decodable WebP/BMP stored as `background.png` renders there; gating on magic
+  // bytes here (the previous behaviour) rejected the WHOLE theme for inputs AyuGram
+  // accepts. We now mirror AyuGram: decode whatever the image library can read.
+  //
+  // Fast-path bound: when the header IS a measurable PNG/JPEG, read the dimensions
+  // cheaply and reject an oversized bitmap before paying for a full decode (mirrors
+  // QImageReader::size()). Unmeasurable formats (WebP/BMP/…) fall through to the
+  // decode below — exactly AyuGram's path, not an early rejection.
   final dims = _readImageDimensions(bytes);
-  if (dims == null) return false;
-  final (w, h) = dims;
-  if (w <= 0 || h <= 0 || w * h > _kBackgroundMaxPixels) return false;
-  // AyuGram does not stop at the header: after the QImageReader::size() bound
-  // check it fully decodes the bytes via Images::Read({.forceOpaque=true}) and
-  // rejects the WHOLE theme when the result is null (window_theme.cpp:336-343).
-  // A file with a valid PNG/JPEG header but a corrupt/undecodable body passes
-  // the size check above yet must still be refused — otherwise it is accepted
-  // here but fails to render later in Flutter. package:image decodes
-  // synchronously (same library the wallpaper pipeline uses) and returns null
-  // on any decode failure, mirroring `background.isNull()`. The size caps above
-  // run first, so the decode cost stays bounded for untrusted archives.
+  if (dims != null) {
+    final (w, h) = dims;
+    if (w <= 0 || h <= 0 || w * h > _kBackgroundMaxPixels) return false;
+  }
+  // Full format-agnostic decode ≡ Images::Read: package:image decodes PNG/JPEG/
+  // WebP/BMP/GIF/TIFF, matching Qt's broad support. A null/throwing decode is
+  // AyuGram's `background.isNull()` → reject. The caller already capped the input
+  // at kThemeBackgroundSizeLimit (4 MB), so the decode cost stays bounded even for
+  // untrusted archives.
+  img.Image? decoded;
   try {
-    if (img.decodeImage(bytes) == null) return false;
+    decoded = img.decodeImage(bytes);
   } catch (_) {
     return false;
   }
+  if (decoded == null) return false;
+  // Authoritative size check for formats _readImageDimensions can't measure
+  // (size.isEmpty() / > kBackgroundSizeLimit, window_theme.cpp:331-334).
+  final w = decoded.width, h = decoded.height;
+  if (w <= 0 || h <= 0 || w * h > _kBackgroundMaxPixels) return false;
   return true;
 }
 
@@ -533,6 +620,253 @@ String _generatePaletteText(ThemeFileData data) {
 
   return buf.toString();
 }
+
+// ── Palette fallback chain (for finalize() cascade) ──
+// Every `key: fallbackKey;` reference from AyuGram's lib_ui/ui/colors.palette, in
+// EXACT declaration order (236 of the 580 colors are references; the other 344 have
+// literal `#rrggbb` defaults and need no cascade — an unset literal simply keeps its
+// dayBlue default via `merged`). The order mirrors the generated `palette::finalize()`
+// compute(index, fallbackIndex, value) call sequence (style_core_palette.cpp:158-180);
+// a const map literal preserves insertion order, so iterating `.entries` walks it in
+// declaration order. Used by Pass 3 in parsePaletteText. Keep 1:1 with colors.palette.
+const Map<String, String> _paletteFallbacks = {
+  'windowFgOver': 'windowFg',
+  'slideFadeOutShadowFg': 'windowShadowFg',
+  'activeButtonBg': 'windowBgActive',
+  'activeButtonFg': 'windowFgActive',
+  'activeButtonFgOver': 'activeButtonFg',
+  'activeButtonSecondaryFgOver': 'activeButtonSecondaryFg',
+  'lightButtonBg': 'windowBg',
+  'lightButtonFg': 'windowActiveTextFg',
+  'lightButtonFgOver': 'lightButtonFg',
+  'menuBg': 'windowBg',
+  'menuBgOver': 'windowBgOver',
+  'menuBgRipple': 'windowBgRipple',
+  'radialFg': 'windowFgActive',
+  'placeholderFg': 'windowSubTextFg',
+  'filterInputActiveBg': 'windowBg',
+  'filterInputInactiveBg': 'windowBgOver',
+  'botKbBg': 'menuBgOver',
+  'botKbDownBg': 'menuBgRipple',
+  'botKbColor': 'windowBoldFgOver',
+  'sliderBgActive': 'windowBgActive',
+  'titleBg': 'windowBgOver',
+  'titleBgActive': 'titleBg',
+  'titleButtonBg': 'titleBg',
+  'titleButtonBgActive': 'titleButtonBg',
+  'titleButtonFgActive': 'titleButtonFg',
+  'titleButtonBgActiveOver': 'titleButtonBgOver',
+  'titleButtonFgActiveOver': 'titleButtonFgOver',
+  'titleButtonCloseBg': 'titleButtonBg',
+  'titleButtonCloseFg': 'titleButtonFg',
+  'titleButtonCloseFgOver': 'windowFgActive',
+  'titleButtonCloseBgActive': 'titleButtonCloseBg',
+  'titleButtonCloseFgActive': 'titleButtonCloseFg',
+  'titleButtonCloseBgActiveOver': 'titleButtonCloseBgOver',
+  'titleButtonCloseFgActiveOver': 'titleButtonCloseFgOver',
+  'cancelIconFg': 'menuIconFg',
+  'cancelIconFgOver': 'menuIconFgOver',
+  'boxBg': 'windowBg',
+  'boxTextFg': 'windowFg',
+  'boxSearchBg': 'boxBg',
+  'boxTitleCloseFg': 'cancelIconFg',
+  'boxTitleCloseFgOver': 'cancelIconFgOver',
+  'boxDividerBg': 'windowBgOver',
+  'boxDividerFg': 'windowShadowFg',
+  'membersAboutLimitFg': 'windowSubTextFgOver',
+  'contactsBg': 'windowBg',
+  'contactsBgOver': 'windowBgOver',
+  'contactsNameFg': 'boxTextFg',
+  'contactsStatusFg': 'windowSubTextFg',
+  'contactsStatusFgOver': 'windowSubTextFgOver',
+  'contactsStatusFgOnline': 'windowActiveTextFg',
+  'photoCropFadeBg': 'layerBg',
+  'introBg': 'windowBg',
+  'introTitleFg': 'windowBoldFg',
+  'introDescriptionFg': 'windowSubTextFg',
+  'dialogsMenuIconFg': 'menuIconFg',
+  'dialogsMenuIconFgOver': 'menuIconFgOver',
+  'dialogsBg': 'windowBg',
+  'dialogsNameFg': 'windowBoldFg',
+  'dialogsChatIconFg': 'dialogsNameFg',
+  'dialogsDateFg': 'windowSubTextFg',
+  'dialogsTextFg': 'windowSubTextFg',
+  'dialogsTextFgService': 'windowActiveTextFg',
+  'dialogsVerifiedIconBg': 'windowBgActive',
+  'dialogsVerifiedIconFg': 'windowFgActive',
+  'dialogsUnreadBg': 'windowBgActive',
+  'dialogsUnreadFg': 'windowFgActive',
+  'dialogsScamFg': 'dialogsDraftFg',
+  'dialogsBgOver': 'windowBgOver',
+  'dialogsNameFgOver': 'windowBoldFgOver',
+  'dialogsChatIconFgOver': 'dialogsNameFgOver',
+  'dialogsDateFgOver': 'windowSubTextFgOver',
+  'dialogsTextFgOver': 'windowSubTextFgOver',
+  'dialogsTextFgServiceOver': 'dialogsTextFgService',
+  'dialogsDraftFgOver': 'dialogsDraftFg',
+  'dialogsVerifiedIconBgOver': 'dialogsVerifiedIconBg',
+  'dialogsVerifiedIconFgOver': 'dialogsVerifiedIconFg',
+  'dialogsSendingIconFgOver': 'dialogsSendingIconFg',
+  'dialogsUnreadBgOver': 'dialogsUnreadBg',
+  'dialogsUnreadBgMutedOver': 'dialogsUnreadBgMuted',
+  'dialogsUnreadFgOver': 'dialogsUnreadFg',
+  'dialogsScamFgOver': 'dialogsDraftFgOver',
+  'dialogsNameFgActive': 'windowFgActive',
+  'dialogsChatIconFgActive': 'dialogsNameFgActive',
+  'dialogsDateFgActive': 'windowFgActive',
+  'dialogsTextFgActive': 'windowFgActive',
+  'dialogsTextFgServiceActive': 'dialogsTextFgActive',
+  'dialogsVerifiedIconBgActive': 'dialogsTextFgActive',
+  'dialogsVerifiedIconFgActive': 'dialogsBgActive',
+  'dialogsSentIconFgActive': 'dialogsTextFgActive',
+  'dialogsUnreadBgActive': 'dialogsTextFgActive',
+  'dialogsUnreadBgMutedActive': 'dialogsDraftFgActive',
+  'dialogsUnreadFgActive': 'dialogsBgActive',
+  'dialogsScamFgActive': 'dialogsDraftFgActive',
+  'dialogsRippleBg': 'windowBgRipple',
+  'dialogsRippleBgActive': 'activeButtonBgRipple',
+  'searchedBarBg': 'windowBgOver',
+  'searchedBarFg': 'windowSubTextFgOver',
+  'topBarBg': 'windowBg',
+  'emojiPanBg': 'windowBg',
+  'emojiPanHeaderFg': 'windowSubTextFg',
+  'stickerPanDeleteFg': 'windowFgActive',
+  'historyTextInFg': 'windowFg',
+  'historyTextInFgSelected': 'historyTextInFg',
+  'historyTextOutFg': 'windowFg',
+  'historyTextOutFgSelected': 'historyTextOutFg',
+  'historyLinkInFg': 'windowActiveTextFg',
+  'historyLinkInFgSelected': 'historyLinkInFg',
+  'historyLinkOutFg': 'windowActiveTextFg',
+  'historyLinkOutFgSelected': 'historyLinkOutFg',
+  'historyFileNameInFg': 'historyTextInFg',
+  'historyFileNameInFgSelected': 'historyFileNameInFg',
+  'historyFileNameOutFg': 'historyTextOutFg',
+  'historyFileNameOutFgSelected': 'historyFileNameOutFg',
+  'historyIconFgInverted': 'windowFgActive',
+  'historyCallArrowMissedInFg': 'callArrowMissedFg',
+  'historyCallArrowMissedInFgSelected': 'callArrowMissedFg',
+  'historyCallArrowOutFg': 'historyCallArrowInFg',
+  'historyCallArrowOutFgSelected': 'historyCallArrowInFgSelected',
+  'historyUnreadBarBorder': 'shadowFg',
+  'historyForwardChooseFg': 'windowFgActive',
+  'historyPeer1NameFgSelected': 'historyPeer1NameFg',
+  'historyPeer2NameFgSelected': 'historyPeer2NameFg',
+  'historyPeer3NameFgSelected': 'historyPeer3NameFg',
+  'historyPeer4NameFg': 'windowActiveTextFg',
+  'historyPeer4NameFgSelected': 'historyPeer4NameFg',
+  'historyPeer5NameFgSelected': 'historyPeer5NameFg',
+  'historyPeer6NameFgSelected': 'historyPeer6NameFg',
+  'historyPeer7NameFgSelected': 'historyPeer7NameFg',
+  'historyPeer8NameFgSelected': 'historyPeer8NameFg',
+  'historyPeerUserpicFg': 'windowFgActive',
+  'historyPeerSavedMessagesBg': 'historyPeer4UserpicBg',
+  'historyPeerArchiveUserpicBg': 'dialogsUnreadBgMuted',
+  'historyPeerSavedMessagesBg2': 'historyPeer4UserpicBg2',
+  'msgInBg': 'windowBg',
+  'msgInServiceFg': 'windowActiveTextFg',
+  'msgInServiceFgSelected': 'windowActiveTextFg',
+  'msgServiceFg': 'windowFgActive',
+  'msgInReplyBarColor': 'activeLineFg',
+  'msgInReplyBarSelColor': 'activeLineFg',
+  'msgOutReplyBarSelColor': 'historyOutIconFgSelected',
+  'msgImgReplyBarColor': 'msgServiceFg',
+  'msgInMonoFgSelected': 'msgInMonoFg',
+  'msgOutMonoFgSelected': 'msgOutMonoFg',
+  'msgDateImgFg': 'msgServiceFg',
+  'msgFileThumbLinkInFg': 'lightButtonFg',
+  'msgFileThumbLinkInFgSelected': 'lightButtonFgOver',
+  'msgFileInBg': 'windowBgActive',
+  'historyFileInIconFg': 'msgInBg',
+  'historyFileInIconFgSelected': 'msgInBgSelected',
+  'historyFileInRadialFg': 'historyFileInIconFg',
+  'historyFileInRadialFgSelected': 'historyFileInIconFgSelected',
+  'historyFileOutIconFg': 'msgOutBg',
+  'historyFileOutIconFgSelected': 'msgOutBgSelected',
+  'historyFileOutRadialFg': 'historyFileOutIconFg',
+  'historyFileOutRadialFgSelected': 'historyFileOutIconFgSelected',
+  'historyFileThumbIconFg': 'msgInBg',
+  'historyFileThumbIconFgSelected': 'msgInBgSelected',
+  'historyFileThumbRadialFg': 'historyFileThumbIconFg',
+  'historyFileThumbRadialFgSelected': 'historyFileThumbIconFgSelected',
+  'historyVideoMessageProgressFg': 'historyFileThumbIconFg',
+  'msgWaveformInActive': 'windowBgActive',
+  'msgBotKbIconFg': 'msgServiceFg',
+  'mediaInFg': 'msgInDateFg',
+  'mediaInFgSelected': 'msgInDateFgSelected',
+  'mediaOutFg': 'msgOutDateFg',
+  'mediaOutFgSelected': 'msgOutDateFgSelected',
+  'youtubePlayIconFg': 'windowFgActive',
+  'historyToDownBg': 'windowBg',
+  'historyToDownBgOver': 'windowBgOver',
+  'historyToDownBgRipple': 'windowBgRipple',
+  'historyToDownFg': 'menuIconFg',
+  'historyToDownFgOver': 'menuIconFgOver',
+  'historyComposeAreaBg': 'msgInBg',
+  'historyComposeAreaFg': 'historyTextInFg',
+  'historyComposeAreaFgService': 'msgInDateFg',
+  'historyComposeIconFg': 'menuIconFg',
+  'historyComposeIconFgOver': 'menuIconFgOver',
+  'historySendIconFg': 'windowBgActive',
+  'historySendIconFgOver': 'windowBgActive',
+  'historyPinnedBg': 'historyComposeAreaBg',
+  'historyReplyBg': 'historyComposeAreaBg',
+  'historyReplyIconFg': 'windowBgActive',
+  'historyReplyCancelFg': 'cancelIconFg',
+  'historyReplyCancelFgOver': 'cancelIconFgOver',
+  'historyComposeButtonBg': 'historyComposeAreaBg',
+  'historyComposeButtonBgOver': 'windowBgOver',
+  'historyComposeButtonBgRipple': 'windowBgRipple',
+  'overviewCheckBgActive': 'windowBgActive',
+  'overviewCheckBorder': 'windowBg',
+  'overviewCheckFgActive': 'windowBg',
+  'profileVerifiedCheckBg': 'windowBgActive',
+  'profileVerifiedCheckFg': 'windowFgActive',
+  'profileAdminStartFg': 'windowBgActive',
+  'notificationsBoxMonitorFg': 'windowFg',
+  'notificationsBoxScreenBg': 'dialogsBgActive',
+  'notificationSampleUserpicFg': 'windowBgActive',
+  'mainMenuBg': 'windowBg',
+  'mainMenuCoverBg': 'dialogsBgActive',
+  'mainMenuCloudFg': 'activeButtonFg',
+  'mediaPlayerBg': 'windowBg',
+  'mediaPlayerActiveFg': 'windowBgActive',
+  'mediaPlayerInactiveFg': 'sliderBgInactive',
+  'mediaviewFileBg': 'windowBg',
+  'mediaviewFileNameFg': 'windowFg',
+  'mediaviewFileSizeFg': 'windowSubTextFg',
+  'mediaviewFileExtFg': 'activeButtonFg',
+  'mediaviewMenuFg': 'windowFgActive',
+  'mediaviewVideoBg': 'imageBg',
+  'mediaviewCaptionFg': 'mediaviewControlFg',
+  'mediaviewSaveMsgBg': 'toastBg',
+  'mediaviewSaveMsgFg': 'toastFg',
+  'mediaviewPlaybackIconFg': 'mediaviewPlaybackActive',
+  'mediaviewPlaybackIconFgOver': 'mediaviewPlaybackActiveOver',
+  'notificationBg': 'windowBg',
+  'callBarBg': 'dialogsBgActive',
+  'callBarMuteRipple': 'dialogsRippleBgActive',
+  'callBarFg': 'dialogsNameFgActive',
+  'importantTooltipBg': 'toastBg',
+  'importantTooltipFg': 'toastFg',
+  'importantTooltipFgLink': 'mediaviewTextLinkFg',
+  'walletTitleBgActive': 'walletTitleBg',
+  'walletTitleButtonBg': 'walletTitleBg',
+  'walletTitleButtonBgActive': 'walletTitleButtonBg',
+  'walletTitleButtonFgActive': 'walletTitleButtonFg',
+  'walletTitleButtonBgActiveOver': 'walletTitleButtonBgOver',
+  'walletTitleButtonFgActiveOver': 'walletTitleButtonFgOver',
+  'walletTitleButtonCloseBg': 'walletTitleButtonBg',
+  'walletTitleButtonCloseFg': 'walletTitleButtonFg',
+  'walletTitleButtonCloseBgOver': 'titleButtonCloseBgOver',
+  'walletTitleButtonCloseFgOver': 'titleButtonCloseFgOver',
+  'walletTitleButtonCloseBgActive': 'walletTitleButtonCloseBg',
+  'walletTitleButtonCloseFgActive': 'walletTitleButtonCloseFg',
+  'walletTitleButtonCloseBgActiveOver': 'walletTitleButtonCloseBgOver',
+  'walletTitleButtonCloseFgActiveOver': 'walletTitleButtonCloseFgOver',
+  'walletTopIconFg': 'walletTopLabelFg',
+  'rankUserFg': 'windowSubTextFg',
+};
 
 // ── Token name ↔ palette field mapping ──
 
