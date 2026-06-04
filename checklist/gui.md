@@ -253,10 +253,28 @@ Verification result: ~70 numeric/size/duration/margin tokens were cross-checked
 against the actual AyuGram `.style` files and **all but one match exactly**, with
 line-accurate source citations already present in the file's comments
 (e.g. `widgets.style:1070`, `info.style:527`, `settings.style:205` all verified
-correct). Two real issues remain.
+correct). Both flagged issues are now VERIFIED & CLOSED (commit e7fa47a) —
+confirmed 1:1 against AyuGram ground truth (window.style, boxes.style,
+widgets.style, multi_select.cpp, ayu_userpic.cpp) plus a clean `flutter analyze`
+(no issues) and a desktop build + launch with no crash. These are dead reference
+constants (unreferenced in `lib/`), so the audit is pure value-fidelity.
 
-- [ ] [MAJOR] `unresolvedTokens` falsely marks ≥8 tokens as unresolvable when they are present in the very `.style` files this file already reads from. The §56.13 comment attributes the "~25 unresolved" set to "theme_editor.style, intro.style, platform-specific" (line 164), but `themeEditorMargin`/`themeEditorDescriptionSkip`/`themeEditorNameFont` are in `window.style`, and `passcodeHeaderFont`/`passcodeHeaderHeight`/`passcodePadding`/`localStorageRowHeight`/`localStorageRowPadding` are in `boxes.style`. Proof of impact: `passcodeHeaderHeight`(80) and `passcodeHeaderFont`(19px) are already consumed as hardcoded literals in `main.dart:3082-3092` with a `boxes.style:290-291` citation — i.e. they were resolved and used, yet are still listed here as "unresolved". Net effect: real values are missing from the token table and get hardcoded inline at call sites, defeating the token file's purpose. — `theme_tokens.dart:168` ← `AyuGram/Telegram/SourceFiles/boxes/boxes.style:290`
-- [ ] [MAJOR] `defaultMultiSelectRadius = 8` does not match AyuGram's value. The multi-select tag (selected-contact pill) is painted with `radius = min(AyuUserpic::ComputeRadius(height), height/2)` (`multi_select.cpp:184-186`). With the item `height: 32px` (`widgets.style:1082` `defaultMultiSelectItem`) and the default `avatarCorners = 23 == kMaxAvatarCorners`, `ComputeRadius(32)` returns `32/2 = 16` (`ayu_userpic.cpp:33-37`) — a full pill. The token's `8` is a 50% deviation that would render a rounded-rect instead of a pill. (Currently dead — defined but unreferenced anywhere in `lib/`, so no runtime impact today, but the stored value is wrong for any future consumer.) — `theme_tokens.dart:132` ← `AyuGram/Telegram/SourceFiles/ui/widgets/multi_select.cpp:184`
+- [MAJOR] `unresolvedTokens` false-positives FIXED. The 9 tokens that live in the
+  `.style` files this table already reads are now resolved literals with
+  line-accurate citations, each matching AyuGram exactly: `themeEditorSampleSize`
+  size(90,51), `themeEditorMargin` margins(17,10,17,10), `themeEditorDescriptionSkip`
+  10, `themeEditorNameFont` 15px semibold (window.style:167-170);
+  `localStorageRowHeight` 50, `localStorageRowPadding` margins(22,5,20,5)
+  (boxes.style:202-203); `passcodeHeaderFont` 19px, `passcodeHeaderHeight` 80,
+  `passcodePadding` margins(0,0,0,5) (boxes.style:290-291,299). The 16 remaining
+  `unresolvedTokens` were re-checked and are genuinely absent as scalar `.style`
+  literals (`localStorageLimitSlider` is a non-scalar MediaSlider object,
+  boxes.style:223); §56.13 rewritten to justify each. — `theme_tokens.dart:65-118,212-222`
+- [MAJOR] `defaultMultiSelectRadius` 8 → 16 FIXED. Pill radius is
+  `min(ComputeRadius(32), 32/2)` (multi_select.cpp:184); with default
+  `avatarCorners = 23 == kMaxAvatarCorners` (ayu_settings.h:697, ayu_ui_settings.h:11)
+  `ComputeRadius(32)` returns `32/2 = 16` (ayu_userpic.cpp:35), so `min(16,16) = 16`
+  — a full pill, not a rounded-rect. Verified against ground truth. — `theme_tokens.dart:159`
 
 ## Notes (not flagged — adaptation / out of CRITICAL-MAJOR scope)
 
