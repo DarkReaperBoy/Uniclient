@@ -60,7 +60,6 @@ class _AyuChatsPageState extends State<AyuChatsPage> {
     b.addSubsectionTitle('Stickers & Emoji');
     b.addSettingToggle(
       label: 'Show only added emojis/stickers',
-      subtitle: 'Filter picker to only show packs you\'ve added',
       value: appState.showOnlyAddedEmojisAndStickers,
       onChanged: (v) => appState.setShowOnlyAddedEmojisAndStickers(v),
     );
@@ -127,13 +126,11 @@ class _AyuChatsPageState extends State<AyuChatsPage> {
     );
     b.addSettingToggle(
       label: 'Quick Admin Shortcuts',
-      subtitle: 'Enable quick admin action shortcuts',
       value: appState.quickAdminShortcuts,
       onChanged: (v) => appState.setQuickAdminShortcuts(v),
     );
     b.addSettingToggle(
       label: 'Message Shot',
-      subtitle: 'Share styled message screenshots',
       value: appState.showMessageShot,
       onChanged: (v) => appState.setShowMessageShot(v),
     );
@@ -194,19 +191,16 @@ class _AyuChatsPageState extends State<AyuChatsPage> {
     }
     b.addSettingToggle(
       label: 'Remove message tail',
-      subtitle: 'Clean rounded rectangles without tail accent',
       value: appState.removeTail,
       onChanged: (v) => appState.setRemoveTail(v),
     );
     b.addSettingToggle(
       label: 'Hide side "Share" button',
-      subtitle: 'Hide the circular forward button on messages',
       value: appState.hideFastShare,
       onChanged: (v) => appState.setHideFastShare(v),
     );
     b.addSettingToggle(
       label: 'Simple quotes and replies',
-      subtitle: 'Uniform reply bar style without colorful accents',
       value: appState.simpleQuotesAndReplies,
       onChanged: (v) => appState.setSimpleQuotesAndReplies(v),
     );
@@ -270,49 +264,42 @@ class _AyuChatsPageState extends State<AyuChatsPage> {
     b.addSubsectionTitle('Message Field Elements');
     b.addSettingToggle(
       label: 'Attach',
-      subtitle: 'Show paperclip button in compose area',
       value: appState.showAttachButton,
       onChanged: (v) => appState.setShowAttachButton(v),
       icon: Icons.attach_file,
     );
     b.addSettingToggle(
       label: 'Commands',
-      subtitle: 'Show bot commands (/) button',
       value: appState.showCommandsButton,
       onChanged: (v) => appState.setShowCommandsButton(v),
       icon: Icons.code,
     );
     b.addSettingToggle(
       label: 'TTL',
-      subtitle: 'Show auto-delete timer button',
       value: appState.showAutoDeleteButton,
       onChanged: (v) => appState.setShowAutoDeleteButton(v),
       icon: Icons.timer_outlined,
     );
     b.addSettingToggle(
       label: 'Emoji',
-      subtitle: 'Show emoji button in compose area',
       value: appState.showEmojiButton,
       onChanged: (v) => appState.setShowEmojiButton(v),
       icon: Icons.emoji_emotions_outlined,
     );
     b.addSettingToggle(
       label: 'Voice',
-      subtitle: 'Show microphone/voice button',
       value: appState.showMicrophoneButton,
       onChanged: (v) => appState.setShowMicrophoneButton(v),
       icon: Icons.mic_none,
     );
     b.addSettingToggle(
       label: 'Gift',
-      subtitle: 'Show gift button in DMs',
       value: appState.showGiftButton,
       onChanged: (v) => appState.setShowGiftButton(v),
       icon: Icons.card_giftcard,
     );
     b.addSettingToggle(
       label: 'AI Editor',
-      subtitle: 'Show AI editor button in compose area',
       value: appState.showAiEditorButton,
       onChanged: (v) => appState.setShowAiEditorButton(v),
       icon: Icons.auto_awesome,
@@ -326,14 +313,12 @@ class _AyuChatsPageState extends State<AyuChatsPage> {
     b.addSubsectionTitle('Message Field Popups');
     b.addSettingToggle(
       label: 'Attach popup',
-      subtitle: 'Show file/poll picker when pressing attach',
       value: appState.showAttachPopup,
       onChanged: (v) => appState.setShowAttachPopup(v),
       icon: Icons.attach_file,
     );
     b.addSettingToggle(
       label: 'Emoji popup',
-      subtitle: 'Show emoji/sticker panel when pressing emoji',
       value: appState.showEmojiPopup,
       onChanged: (v) => appState.setShowEmojiPopup(v),
       icon: Icons.emoji_emotions_outlined,
@@ -771,8 +756,12 @@ class _EditMarkBoxContentState extends State<_EditMarkBoxContent> {
           },
         ),
         TelegramBoxButton(
+          // AyuGram's Save button calls save() directly — no validation — so the
+          // user can clear a mark (edit_mark_box.cpp:50-54). Only the Enter key
+          // runs submit()/validates (edit_mark_box.cpp:61-67,73-80), wired via the
+          // box's onConfirm and the field's onSubmitted above.
           text: TrStrings.lngSettingsSave(),
-          onPressed: _submit,
+          onPressed: _save,
         ),
         TelegramBoxButton(
           text: TrStrings.lngCancel(),
@@ -821,16 +810,34 @@ class _MessagePreviewStandalone extends StatelessWidget {
     );
   }
 
+  // Telegram's corner-radius mapping (ui/chat/chat_style_radius.cpp:39-48):
+  // scales a target corner radius `maximum` by the slider value across its 0..16
+  // range with round-half-up integer division, clamped to [0, maximum]. AyuGram
+  // feeds the live preview the raw slider value via SetBubbleRadiusOverride
+  // (message_preview.cpp:169), which drives both BubbleRadiusLarge/Small().
+  double _mapBubbleRadius(int sliderValue, int maximum) {
+    const int sliderMax = 16;
+    if (sliderValue <= 0 || maximum <= 0) {
+      return 0;
+    } else if (sliderValue >= sliderMax) {
+      return maximum.toDouble();
+    }
+    final result = (sliderValue * maximum + (sliderMax ~/ 2)) ~/ sliderMax;
+    return (result < 0 ? 0 : (result > maximum ? maximum : result)).toDouble();
+  }
+
   Widget _buildBubble(BuildContext context, int bubbleRadius) {
     final p = context.palette;
     final radiusLarge = bubbleRadius.toDouble();
-    // Telegram bubble corner math (ui/chat message_bubble): the tail-side corner
-    // uses a fixed small radius (st::bubbleRadiusSmall ≈ 4px), clamped so it
-    // never exceeds the configured large radius; with the tail hidden every
-    // corner uses the large radius. (Was an arbitrary radiusLarge*6/16 factor.)
-    const double bubbleRadiusSmall = 4.0;
-    final radiusSmall =
-        showTail ? bubbleRadiusSmall.clamp(0.0, radiusLarge) : radiusLarge;
+    // Tail-side (bottom-left) corner. AyuGram derives it as
+    // MapBubbleRadius(sliderValue, st::bubbleRadiusSmall), where bubbleRadiusSmall =
+    // roundRadiusLarge = 6px (chat.style:434, basic.style:103) — so the tail corner
+    // is 6px at the default radius (16) and shrinks with the slider (≈3px @8,
+    // ≈2px @4), never pinned at a constant. With the tail hidden every corner is large.
+    const int bubbleRadiusSmall = 6;
+    final radiusSmall = showTail
+        ? _mapBubbleRadius(bubbleRadius, bubbleRadiusSmall)
+        : radiusLarge;
     final senderColor = simpleQuotesAndReplies
         ? p.windowBgActive
         : p.historyPeer4NameFg;
