@@ -38,7 +38,15 @@ class AyuGeneralPage extends StatelessWidget {
         0: 'Telegram',
         1: 'Google',
         2: 'Yandex',
-        if (nativeProviderName != null) 3: nativeProviderName,
+        // AyuGram only pushes the Native option when
+        // Platform::IsTranslateProviderAvailable() is true (settings_general.cpp:46-60).
+        // On Linux that requires `crow`/`org.kde.CrowTranslate` on PATH
+        // (translate_provider_linux.cpp:86-88); macOS/Windows always have it.
+        // `nativeTranslateAvailable` mirrors that exact check (app_state.dart:2051),
+        // so gate on it too — otherwise selecting "Linux" without Crow installed
+        // silently reverts to Telegram via the setter clamp.
+        if (nativeProviderName != null && appState.nativeTranslateAvailable)
+          3: nativeProviderName,
       },
       onChanged: (v) => appState.setTranslationProvider(v),
     );
