@@ -513,12 +513,6 @@ and the draft-vs-unread gating (`unreadCount == 0` correctly mirrors AyuGram's
 `chat_list_panel.dart` (`recentTopicsFor`, `typingUserFor`, `openTopic`, `_performSwipeAction`).
 No stubs, empty callbacks, mock data, or unwired elements found.
 
-Two forum-topics behavioral deviations:
-
-- [ ] [MAJOR] Forum topic-jump bubble targets the *first unread* topic instead of the *front* (latest-activity) topic. `_findUnreadFrontTopic` returns the first topic in `recentTopics` whose `unreadCount > 0`, so it can show a jump bubble for a non-front topic when the front topic is already read. AyuGram rotates the topic matching `frontRootId` (the latest message's topic) to the front and sets `_jumpToTopic = false` unless *that* front topic is unread — i.e. it shows the bubble only for the latest-active topic, and shows nothing when that topic is read. Dart therefore renders a jump bubble in cases AyuGram renders none. — `chat_list_row.dart:2404,2422-2427` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_topics_view.cpp:101-112`
-
-- [ ] [MAJOR] Forum row omits the empty/loading topics state. When `recentTopics` is empty, `_TopicsPreview.build` returns `SizedBox.shrink()`, leaving the 21px topics area blank. AyuGram's `TopicsView::paint` draws localized text in this case — `lng_contacts_loading` ("Loading…") while topics are still loading, or `lng_filters_no_chats` once loaded with none — so the row never shows an empty gap. — `chat_list_row.dart:2447-2449` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_topics_view.cpp:211-220`
-
 # chat_settings_screen — Telegram Desktop "Chat Settings" page (themes, accent, peer color, fonts, cloud themes, wallpaper, quick action, stickers/emoji, messages, sensitive content, archive)
 
 Backend wiring is solid across the file — every engine call is real (`getSelfColorAndChannel`, `getContentSettings`/`setContentSettings`, `getCloudThemes`, `getWallpapers`, `downloadWallpaperDocument`, `getPeerColors`, `updateNameColor`, `installCloudTheme`/`deleteCloudTheme`, `getInstalledStickerPacks`/`getInstalledEmojiSets`, `install`/`uninstall`/`reorder`/`searchStickerSets`, `getAvailableReactions`/`setDefaultReaction`, `getArchiveSettings`/`setArchiveSettings`). No empty callbacks, no "coming soon" stubs, no fake/mock data. The cloud-theme context menu (Share→addtheme link, Edit when owner+active, Delete with confirm) matches AyuGram 1:1. Section ordering matches `BuildChatSectionContent`. Findings below are content/label/visual deviations from the C++ authority.
