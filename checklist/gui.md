@@ -582,31 +582,6 @@ an internal 8px skip) lands exactly `colorEditSkip` = 10px from the picker edge 
 measured 10.00px in both modes (cpp:1030). `flutter_audit.sh verify` PASS, no
 crashes/overflow in desktop or mobile runs.
 
-# confirm_box — box infrastructure, delete/leave, moderate, single-choice, auto-delete TTL, screen-share, report flow
-
-Backend wiring is solid: every box reaches the engine (`searchMessagesFromCount`,
-`setHistoryTTL`, `reportMessage`, `reportReaction`, `banMember`,
-`fetchLiveMessages`, `toggleScreenSharing`), every result is consumed by real
-callers, and there are no empty callbacks, TODO stubs, mock data, or "coming
-soon" placeholders. Dimensions match AyuGram (boxWidth 320, boxTitleHeight 48,
-boxMediumSkip 20, boxLittleSkip 10, boxOptionListSkip 20, normalBoxLottieSize
-120, defaultSliderForTTL point/chosen/skip/stroke = 6/12/8/2). All findings below
-are behavioral/content deviations.
-
-- [ ] [MAJOR] Revoke checkbox default is wrong for clearHistory/leaveChat: `_revokeDefault = !appState.deleteOnlyForYouRemembered` is applied to **all** modes, and `deleteOnlyForYouRemembered` defaults to false, so a fresh user clearing/leaving a DM gets "Also delete for {peer}" **checked by default** — a destructive default. AyuGram creates the revoke checkbox with a hardcoded `false` for the full-history-wipe path and reads the remembered setting **only** in the per-message branch. — `confirm_box.dart:597-606` (and 602-603) ← `AyuGram/Telegram/SourceFiles/boxes/delete_messages_box.cpp:168-172` (vs per-message `:247-253`)
-
-- [ ] [MAJOR] "Remember this choice" sub-checkbox is rendered for clearHistory and leaveChat modes (anytime `_revokeLabel != null`), but AyuGram only creates `_revokeRemember` inside the single-/bulk-message `checkFromSinglePeer()` branch — full-history wipes and `DeleteChatBox` never show a remember toggle. — `confirm_box.dart:912-927` ← `AyuGram/Telegram/SourceFiles/boxes/delete_messages_box.cpp:254-267`
-
-- [ ] [MAJOR] Moderate panel renders "Ban User" and "Delete All from {name}" unconditionally whenever `showModeratePanel` is set (no `canBan`/`canDeleteAll` gating), so a Ban/Delete-All control can appear for a sender the user can't action (another admin, or missing the specific right) and the action silently no-ops. AyuGram creates `_banUser` only if `item->suggestBanReport()` and `_deleteAll` only if `item->suggestDeleteAllReport()`; only Report Spam is unconditional. — `confirm_box.dart:892-911` ← `AyuGram/Telegram/SourceFiles/boxes/delete_messages_box.cpp:193-216`
-
-- [ ] [MAJOR] Delete/clear/leave confirmation bodies are reworded and drop AyuGram's destructive-action warning. AyuGram's strings end with "\n\nThis action cannot be undone." for `lng_sure_delete_history` (DM clear/leave), `lng_sure_delete_group_history`, `lng_sure_delete_channel_history` (bold), `lng_sure_delete_and_exit` (group leave), and `lng_sure_delete_saved_messages`; the Dart `_bodyText` omits the warning entirely and uses "delete all message history in" instead of "delete all messages in". — `confirm_box.dart:629-690` (e.g. 653-673) ← `AyuGram/Telegram/Resources/langs/lang.strings:2280-2288` (`delete_messages_box.cpp:126-160`)
-
-- [ ] [MAJOR] SingleChoiceBox omits the "OK" button AyuGram adds (`box->addButton(tr::lng_box_ok(), …)`). The Dart passes `buttons: const []`, so the box has no explicit confirm/dismiss button — the only way out is selecting a row or a barrier tap. — `confirm_box.dart:1097` ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:22`
-
-- [ ] [MAJOR] Screen-share source previews are one-shot static screenshots (`grim`/`import` captured once in `_captureThumb`, and never refreshed; Wayland **window** sources get no image at all — only screens are captured), whereas AyuGram renders a live 1 fps `Webrtc::VideoTrack` preview per source via `Source::setupPreview`. The chooser's core "see what you're sharing" affordance is degraded/stale. — `confirm_box.dart:1968-1993` ← `AyuGram/Telegram/SourceFiles/calls/group/ui/desktop_capture_choose_source.cpp:237-246` (and 133-235)
-
-- [ ] [MAJOR] Report option-picker button set diverges from AyuGram. AyuGram always shows a right-side action — "Report" when a comment field is present, otherwise "Close" — plus a left "Back" button when drilled into a sub-option (`!optionId.isNull()`). The Dart shows only "Back" when drilled in without a comment (no right-side Close), and adds an extra "CANCEL" at a top-level comment screen where AyuGram shows "Report" alone. — `confirm_box.dart:2780-2797` ← `AyuGram/Telegram/SourceFiles/boxes/report_messages_box.cpp:185-195`
-
 # contacts_screen — Contacts box, Edit Contact box, Share Contact box
 
 Audited against AyuGram/Telegram Desktop ground truth: `peer_list_controllers.cpp`
