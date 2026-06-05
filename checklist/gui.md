@@ -582,18 +582,6 @@ an internal 8px skip) lands exactly `colorEditSkip` = 10px from the picker edge 
 measured 10.00px in both modes (cpp:1030). `flutter_audit.sh verify` PASS, no
 crashes/overflow in desktop or mobile runs.
 
-# compose_entities — rich-text compose controller (markdown, entities, custom emoji, dates)
-
-`compose_entities.dart` is a faithful port of AyuGram's `Ui::InputField` send-time markdown
-pipeline: markdown delimiters are applied at extraction time (`getTextWithAppliedMarkdown`),
-not live-on-type — which **matches** AyuGram (`commitMarkdownReplacement` is dead/commented at
-`input_field.cpp:4416`; markdown is committed only at send via
-`history_widget.cpp:4853 → input_field.cpp:3775`). Delimiter set (bold `**`, italic `__`,
-strike `~~`, spoiler `||`, code `` ` ``) matches `input_field.cpp:1313-1319`. Findings below are
-concrete deviations verified against AyuGram C++ + the Go entity contract.
-
-- [ ] [MAJOR] Inserted formatted-date is dropped on the **media/album caption** send path. `buildStyledCaption` (`go/cores/telegram.go:2561`) has no `formatted_date` case, so a date entity placed in a photo/media caption falls to `default: styling.Plain(substr)` — only the date *text* survives and the `messageEntityFormattedDate` entity is lost. The compose_entities chapter wired the other three send paths (`SendMessage`, `EditMessageWithEntities`, `parseNoteEntities`) but missed this one, even though the implementing commit's message claimed "album media" coverage. gotd exposes `styling.FormattedDate(s, relative, shortTime, longTime, shortDate, longDate, dayOfWeek, date)` (`telegram/message/styling/options.gen.go:218`), so the fix is to add `case "formatted_date": opts = append(opts, styling.FormattedDate(substr, e.DateRelative, e.DateShortTime, e.DateLongTime, e.DateShortDate, e.DateLongDate, e.DateDayOfWeek, e.Date))` to `buildStyledCaption`. (Found during compose_entities stage-2 verification; the other 4 chapter items verified PASS and were closed.)
-
 # confirm_box — box infrastructure, delete/leave, moderate, single-choice, auto-delete TTL, screen-share, report flow
 
 Backend wiring is solid: every box reaches the engine (`searchMessagesFromCount`,
