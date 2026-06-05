@@ -475,29 +475,6 @@ MAJOR `_AyuChooseButton`/`_SingleChoiceBox` deviations were found and fixed
   the value). Desktop + mobile. No crashes/exceptions in the choose-button/dialog path.
   ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:22`
 
-# calls_screen — Calls box (history list, active group calls, create/conference call, clear-history, mic level meter)
-
-Backend wiring is solid: every engine method used (`getCallHistory`, `clearCallHistory`,
-`getChatList`, `joinGroupCall`, `getGroupCall`, `getConfcallSizeLimit`, `getContacts`,
-`startCall`, `createConferenceCall`, `inviteToConferenceCall`, `deleteMessage`) is a real
-`_callAsync('__engine', …)` bridge call — no stubs, no empty callbacks, no mock data, no
-"coming soon" feedback. The mic level meter does genuine PCM capture (parec/pw-record/ffmpeg)
-rather than a fake animation. Findings below are deviations from the AyuGram C++ ground truth.
-
-- [ ] [MAJOR] Active-group-call row status appends "· N participants", but AyuGram's `GroupCallRow` sets the status to **only** the lowercased peer-type string ("public channel" / "private group" / …) with no participant count — `calls_screen.dart:622-625` ← `AyuGram/Telegram/SourceFiles/calls/calls_box_controller.cpp:104-116`
-
-- [ ] [MAJOR] Mic LevelMeter bars are horizontally **centered** (`startX = (size.width - totalWidth) / 2`), but AyuGram's `LevelMeter::paintEvent` draws every bar starting from `x = 0` (left-aligned, `QRect(0,0,…)` translated by `(lineWidth+lineSpacing)*i`) — at typical settings widths this shifts the whole meter — `calls_screen.dart:2576-2582` ← `AyuGram/Telegram/SourceFiles/ui/widgets/level_meter.cpp:34-42`
-
-- [ ] [MAJOR] Mic LevelMeter colors are hardcoded (`accentColor` for active, literal `0xFF3B4654`/`0xFFD8D8D8` for inactive) instead of the spec'd theme tokens `mediaPlayerActiveFg` / `mediaPlayerInactiveFg` — `calls_screen.dart:2540-2544` ← `AyuGram/Telegram/lib_ui/ui/widgets/widgets.style:1474-1475` (`defaultLevelMeter`)
-
-- [ ] [MAJOR] Conference-invite contact row renders an extra 22px radio/check circle on **every** selectable row (`radio_button_unchecked` → `check_circle`), but AyuGram's `ConfInviteRow` exposes only 2 elements (video + audio) and indicates selection solely by the icon switching to the active accent color — no separate check element for selectable rows — `calls_screen.dart:1952-1966` ← `AyuGram/Telegram/SourceFiles/calls/group/calls_group_invite_controller.cpp:220-222,282-319`
-
-- [ ] [MAJOR] Conference-invite row places video (camera) icon to the **left** of audio (phone); AyuGram positions video as element 1 at the right edge and audio (element 2) to its left, i.e. order is reversed — `calls_screen.dart:1921-1950` ← `AyuGram/Telegram/SourceFiles/calls/group/calls_group_invite_controller.cpp:224-240`
-
-- [ ] [MAJOR] "Create Call" button label does not match AyuGram's `lng_confcall_create_call` = **"Start New Call"** (the description text also differs from `lng_confcall_create_call_description` = "You can add up to {count} participants to a call.") — `calls_screen.dart:944,963` ← `AyuGram/Telegram/SourceFiles/calls/calls_box_controller.cpp:778,783`
-
-- [ ] [MAJOR] New-Call box action button shows "Start Call" (selection) / "Create Call" (none), but AyuGram uses `lng_group_call_confcall_add` = **"Call"** when contacts are selected and `lng_create_group_create` = **"Create"** when none are — `calls_screen.dart:1221` ← `AyuGram/Telegram/SourceFiles/calls/group/calls_group_invite_controller.cpp:1200-1205`
-
 # chat_export — Telegram data-export UI (top bar, settings panel, calendar/time/format pickers, suggest box)
 
 Feature is genuinely wired to a real Go takeout backend (`engine/export.go`: InitTakeout → dialogs/profile/contacts/sessions/messages → JSON, progress/error/complete events). No placeholders or empty callbacks. Defaults (types, fullChats "only-my", Photo-only media, 8 MB size, HTML format) and almost all paddings/dimensions match AyuGram's `export.style` 1:1. The deviations below are in panel titles, per-chat layout, and the progress widget.
