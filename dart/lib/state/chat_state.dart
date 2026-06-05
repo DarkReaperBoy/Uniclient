@@ -517,6 +517,16 @@ class ChatState extends ChangeNotifier {
     return const [];
   }
 
+  /// Whether the recent-topics list for a forum chat has finished loading (vs
+  /// still being fetched). Mirrors AyuGram `Forum::topicsList()->loaded()`,
+  /// which `TopicsView` uses to pick "No chats" over "Loading…" in the empty
+  /// state (dialogs_topics_view.cpp:113,212-214). The key is present in
+  /// `_forumRecentTopics` only after `getForumTopics` resolves, so a still-
+  /// fetching forum (which `recentTopicsFor` returns `const []` for) reports
+  /// not-loaded, and a loaded-but-topicless forum reports loaded.
+  bool forumTopicsLoaded(String accountId, String chatId) =>
+      _forumRecentTopics.containsKey('$accountId:$chatId');
+
   /// Online member count for the active group/channel chat.
   int get groupOnlineCount => _groupOnlineCount;
 

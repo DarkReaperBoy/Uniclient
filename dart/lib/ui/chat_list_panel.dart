@@ -1042,6 +1042,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                                   isActive: isActive,
                                   isNarrow: widget.collapsed,
                                   recentTopics: chatState.recentTopicsFor(chat.accountId, chat.chatId),
+                                  topicsLoaded: chatState.forumTopicsLoaded(chat.accountId, chat.chatId),
                                   onTap: () => chatState.openChat(chat),
                                   onSecondaryTap: (pos) =>
                                       _showChatContextMenu(context, chat, pos),

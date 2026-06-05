@@ -57,6 +57,10 @@ class LangPack extends ChangeNotifier {
     // Login-email setup step (intro_email.cpp:45,53).
     'lng_intro_email_setup_title',
     'lng_settings_cloud_login_email_about',
+    // Forum row topics-preview empty state (dialogs_topics_view.cpp:212-214):
+    // shown in a collapsed forum dialog row when it has no recent topics.
+    'lng_filters_no_chats',
+    'lng_contacts_loading',
   ];
 
   /// Embedded English baseline (Telegram Desktop `lang.strings`). Kept in sync
@@ -91,6 +95,8 @@ class LangPack extends ChangeNotifier {
     'lng_settings_cloud_login_email_about':
         'You will receive Telegram login codes via email and not SMS. Please '
         'enter an email address to which you have access.',
+    'lng_filters_no_chats': 'No chats',
+    'lng_contacts_loading': 'Loading...',
   };
 
   /// Localized string: server overlay → English baseline → raw key.

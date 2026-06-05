@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/lang_pack.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
@@ -2180,6 +2181,10 @@ class ForumChatListRow extends StatelessWidget {
   final bool isActive;
   final bool isNarrow;
   final List<ForumTopic> recentTopics;
+  /// Whether [recentTopics] has finished loading from the engine. Drives the
+  /// empty-state text (Loading… vs No chats), mirroring AyuGram
+  /// `Forum::topicsList()->loaded()` (dialogs_topics_view.cpp:113,212-214).
+  final bool topicsLoaded;
   final VoidCallback onTap;
   final ValueChanged<Offset>? onSecondaryTap;
   final VoidCallback? onStoryTap;
@@ -2192,6 +2197,7 @@ class ForumChatListRow extends StatelessWidget {
     required this.isActive,
     this.isNarrow = false,
     required this.recentTopics,
+    this.topicsLoaded = false,
     required this.onTap,
     this.onSecondaryTap,
     this.onStoryTap,
@@ -2406,6 +2412,7 @@ class ForumChatListRow extends StatelessWidget {
                           child: _TopicsPreview(
                             topics: recentTopics,
                             isActive: isActive,
+                            loaded: topicsLoaded,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -2427,11 +2434,19 @@ class ForumChatListRow extends StatelessWidget {
     );
   }
 
+  /// The front topic for the topic-jump bubble — the topic that holds the
+  /// chat's latest message. AyuGram (dialogs_topics_view.cpp:101-112) derives
+  /// `frontRootId` from the dialog's last item (`item->topicRootId()`), rotates
+  /// that topic to the front of the recent list, then shows the jump bubble
+  /// ONLY when that front topic is unread (`if (!_titles.front().unread)
+  /// _jumpToTopic = false`). `recentTopics` is sorted by last-message recency
+  /// (topMessageId desc, _recentTopicsByDate), so the front topic is always the
+  /// first entry — a read front topic shows NO bubble even when an older topic
+  /// is still unread.
   ForumTopic? _findUnreadFrontTopic() {
-    for (final t in recentTopics) {
-      if (t.unreadCount > 0) return t;
-    }
-    return null;
+    if (recentTopics.isEmpty) return null;
+    final front = recentTopics.first;
+    return front.unreadCount > 0 ? front : null;
   }
 
 }
@@ -2441,10 +2456,12 @@ class ForumChatListRow extends StatelessWidget {
 class _TopicsPreview extends StatelessWidget {
   final List<ForumTopic> topics;
   final bool isActive;
+  final bool loaded;
 
   const _TopicsPreview({
     required this.topics,
     required this.isActive,
+    required this.loaded,
   });
 
   static const _topicsSkip = 8.0;
@@ -2453,7 +2470,24 @@ class _TopicsPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     if (topics.isEmpty) {
-      return const SizedBox.shrink();
+      // AyuGram dialogs_topics_view.cpp:211-220: the topics area is never left
+      // blank — when there are no recent topics it paints localized text in
+      // dialogsTextFont: "Loading…" (lng_contacts_loading) while the list is
+      // still loading, or "No chats" (lng_filters_no_chats) once loaded with
+      // none (_allLoaded ↔ [loaded]).
+      final lang = context.watch<LangPack>();
+      final text = loaded
+          ? lang.tr('lng_filters_no_chats')
+          : lang.tr('lng_contacts_loading');
+      return Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13,
+          color: isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg,
+        ),
+      );
     }
 
     final children = <InlineSpan>[];
