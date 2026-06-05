@@ -475,22 +475,6 @@ MAJOR `_AyuChooseButton`/`_SingleChoiceBox` deviations were found and fixed
   the value). Desktop + mobile. No crashes/exceptions in the choose-button/dialog path.
   ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:22`
 
-# birthday_picker — Telegram day/month/year drum picker dialog (ports AyuGram `EditBirthdayBox`)
-
-Backend wiring is **correct**: the dialog returns a `(day, month, year)` record and both
-callers consume it through the engine — `my_profile_page.dart:267,277` →
-`engine.updateBirthday(...)` and `contacts_screen.dart:1751` → `engine.suggestBirthday(...)`.
-No stubs, empty callbacks, TODOs, or fake data. The findings below are behavioral/visual
-deviations from the C++ source.
-
-- [ ] [MAJOR] Future birthdays are not blocked — the month wheel always shows 12 months and the day wheel always shows the full month length, even when the currently-selected year is the current year. AyuGram caps the month count to the current month, and the day count to the current day, whenever `year == maxYear` (resp. `&& month == max.month()`), so a user can never pick a birthday in the future. The Dart picker lets you select e.g. Dec 31 of the current year. — `birthday_picker.dart:144` (`itemCount: 12` always) & `birthday_picker.dart:72-78` (`_daysInMonth` never clamps to today) ← `AyuGram/SourceFiles/ui/boxes/edit_birthday_box.cpp:108` (`monthsCount = (year == maxYear) ? max.month() : 12`) & `edit_birthday_box.cpp:146-147` (`daysCount = (year == maxYear && month == max.month()) ? max.day() : ...`)
-
-- [ ] [MAJOR] Feb 29 is unavailable when the year is left unset — for the "—" (year not set) option the Dart `_daysInMonth` substitutes the current calendar year for the leap-year test, so February shows only 28 days in non-leap years (e.g. 2026), preventing a leap-day birthday from being entered without a year. AyuGram's day-count formula treats an unset year (`year == 0`) as leap via the `!year` short-circuit, always yielding 29 days for February when no year is chosen. — `birthday_picker.dart:73-75` (`year = yearIndex < _yearCount-1 ? _minYear+yearIndex : _maxYear;` then `year % 4 == 0 ...`) ← `AyuGram/SourceFiles/ui/boxes/edit_birthday_box.cpp:148-152` (`(month == 2) ? ((!year || (!(year % 4) && ((year % 100) || !(year % 400)))) ? 29 : 28)`)
-
-- [ ] [MAJOR] Selection-frame indicator lines are missing — AyuGram paints two horizontal `st::activeLineFg` lines bracketing the centered item (at `height/2 ± itemHeight/2`), the signature "selected row" frame of the drum picker. The Dart dialog renders only the bare wheels with no such overlay, so the selected row has no framing rule. — `birthday_picker.dart:130-160` (plain `SizedBox` → `Row` of wheels, no Stack/overlay lines) ← `AyuGram/SourceFiles/ui/boxes/edit_birthday_box.cpp:181-187` (`p.fillRect(lineRect.translated(0, itemHeight/2), st::activeLineFg); p.fillRect(lineRect.translated(0, -itemHeight/2), st::activeLineFg);`)
-
-- [ ] [MAJOR] Item rendering diverges from the drum-picker paint model — AyuGram draws every item with a single uniform font (`st::boxTextFont`) and a single color (`st::defaultFlatLabel.textFg`), differentiating the center only by a continuous opacity fade (`setOpacity(revProgress)`) plus a vertical squish (`yScale` 0.2→1.0). The Dart version applies no opacity gradient (off-center items stay fully opaque) and instead hard-codes a two-tier treatment: selected = 16px / w600 / `textColor`, others = 14px / w400 / `subtextColor`. This is a different visual treatment (discrete bold/size/color step vs. smooth fade). — `birthday_picker.dart:222-226` (`fontSize: isSelected ? 16 : 14, fontWeight: isSelected ? w600 : w400, color: isSelected ? textColor : subtextColor`) ← `AyuGram/SourceFiles/ui/widgets/vertical_drum_picker.cpp:40-47` (uniform `font`, `yScale` + `setOpacity(revProgress)`) & `edit_birthday_box.cpp:38` (`font = st::boxTextFont` for all items)
-
 # call_panel — 1:1 voice/video call panel (incoming/active/busy/ended states, encryption fingerprint, signal bars, self-view bubble, conference invite, rating dialog)
 
 Audited `dart/lib/ui/call_panel.dart` against AyuGram `calls/calls_panel.cpp`, `calls_emoji_fingerprint.cpp`, `calls_signal_bars.cpp`, `calls_video_bubble.cpp`, `calls_panel_background.cpp`, `calls.style`, and `ui/boxes/rate_call_box.cpp`.
