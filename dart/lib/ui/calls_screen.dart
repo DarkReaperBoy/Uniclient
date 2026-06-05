@@ -611,19 +611,16 @@ class _GroupCallRowState extends State<_GroupCallRow> {
 
   String _statusLabel() {
     final chat = widget.entry.chat;
-    final gc = widget.entry.callInfo;
     final isPublic = chat.username.isNotEmpty;
-    final typeStr = switch (chat.type) {
+    // AyuGram GroupCallRow sets the status to ONLY the lowercased peer-type
+    // string (lng_create_public_channel_title / lng_create_private_group_title
+    // / … → .toLower()) with no participant count —
+    // calls_box_controller.cpp:104-116.
+    return switch (chat.type) {
       ChatType.channel => isPublic ? 'public channel' : 'private channel',
       ChatType.group => isPublic ? 'public group' : 'private group',
       _ => 'chat',
     };
-    final count = gc.participantsCount;
-    if (count > 0) {
-      final noun = count == 1 ? 'participant' : 'participants';
-      return '$typeStr · $count $noun';
-    }
-    return typeStr;
   }
 
   @override
@@ -941,7 +938,9 @@ class _CreateCallButtonState extends State<_CreateCallButton>
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            'Create Call',
+                            // AyuGram lng_confcall_create_call
+                            // (calls_box_controller.cpp:778)
+                            'Start New Call',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -960,7 +959,11 @@ class _CreateCallButtonState extends State<_CreateCallButton>
         Padding(
           padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
           child: Text(
-            'You can create a group call for up to $_confcallSizeLimit participants.',
+            // AyuGram lng_confcall_create_call_description
+            // (calls_box_controller.cpp:783) — "#one"/"#other" plural forms.
+            _confcallSizeLimit == 1
+                ? 'You can add up to 1 participant to a call.'
+                : 'You can add up to $_confcallSizeLimit participants to a call.',
             style: TextStyle(
               fontSize: 13,
               color: p.boxTitleAdditionalFg,
@@ -1218,7 +1221,10 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
     final hoverBg = p.windowBgOver;
 
     final hasSelection = _selectedIds.isNotEmpty;
-    final buttonLabel = hasSelection ? 'Start Call' : 'Create Call';
+    // AyuGram: lng_group_call_confcall_add ("Call") when contacts are selected,
+    // lng_create_group_create ("Create") when none —
+    // calls_group_invite_controller.cpp:1200-1205.
+    final buttonLabel = hasSelection ? 'Call' : 'Create';
     final isReactivate = widget.discardedInviteMsgId != 0;
 
     return Dialog(
@@ -1914,57 +1920,59 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
                 right: 4,
                 top: 0,
                 bottom: 0,
+                // AyuGram ConfInviteRow exposes only 2 elements: audio (phone,
+                // element 2) on the left and video (camera, element 1) at the
+                // right edge — element order is reversed from naive
+                // left-to-right. Selection is indicated SOLELY by the icon
+                // switching to the active accent color; there is NO separate
+                // check/radio circle on selectable rows. Already-in members are
+                // DisabledChecked (elementsCount 0) and show only the check
+                // indicator — calls_group_invite_controller.cpp:220-240,282-319.
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (!alreadyIn) ...[
-                      SizedBox(
-                        width: 36,
-                        height: 52,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          onPressed: widget.onVideoTap,
-                          icon: Icon(
-                            Icons.videocam,
-                            size: 20,
-                            color: widget.selected && widget.isVideo
-                                ? widget.accentColor
-                                : inactiveIconColor,
+                  children: alreadyIn
+                      ? [
+                          SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: Icon(Icons.check_circle,
+                                size: 22, color: inactiveIconColor),
                           ),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 36,
-                        height: 52,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          onPressed: widget.onAudioTap,
-                          icon: Icon(
-                            Icons.call,
-                            size: 20,
-                            color: widget.selected && !widget.isVideo
-                                ? widget.accentColor
-                                : inactiveIconColor,
+                        ]
+                      : [
+                          // audio (phone) — element 2, to the left of video
+                          SizedBox(
+                            width: 36,
+                            height: 52,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              onPressed: widget.onAudioTap,
+                              icon: Icon(
+                                Icons.call,
+                                size: 20,
+                                color: widget.selected && !widget.isVideo
+                                    ? widget.accentColor
+                                    : inactiveIconColor,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
-                    SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: alreadyIn
-                          ? Icon(Icons.check_circle,
-                              size: 22, color: inactiveIconColor)
-                          : widget.selected
-                              ? Icon(Icons.check_circle,
-                                  size: 22, color: widget.accentColor)
-                              : Icon(Icons.radio_button_unchecked,
-                                  size: 22,
-                                  color: widget.isDark
-                                      ? const Color(0xFF3E546A)
-                                      : const Color(0xFFD0D0D0)),
-                    ),
-                  ],
+                          // video (camera) — element 1, at the right edge
+                          SizedBox(
+                            width: 36,
+                            height: 52,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              onPressed: widget.onVideoTap,
+                              icon: Icon(
+                                Icons.videocam,
+                                size: 20,
+                                color: widget.selected && widget.isVideo
+                                    ? widget.accentColor
+                                    : inactiveIconColor,
+                              ),
+                            ),
+                          ),
+                        ],
                 ),
               ),
             ],
@@ -2534,14 +2542,15 @@ class _InputLevelMeterState extends State<InputLevelMeter>
         ),
       );
     }
+    // AyuGram defaultLevelMeter uses theme tokens mediaPlayerActiveFg /
+    // mediaPlayerInactiveFg, not hardcoded colors — widgets.style:1474-1475.
+    final p = context.palette;
     return CustomPaint(
       size: const Size(double.infinity, 18),
       painter: LevelMeterPainter(
         level: (_capturing && !_powerSaving) ? _displayLevel : 0.0,
-        activeColor: widget.accentColor,
-        inactiveColor: widget.isDark
-            ? const Color(0xFF3B4654)
-            : const Color(0xFFD8D8D8),
+        activeColor: p.mediaPlayerActiveFg,
+        inactiveColor: p.mediaPlayerInactiveFg,
       ),
     );
   }
@@ -2573,13 +2582,13 @@ class LevelMeterPainter extends CustomPainter {
       ..strokeWidth = _lineWidth
       ..strokeCap = StrokeCap.round;
 
-    final totalWidth = _lineCount * _lineWidth + (_lineCount - 1) * _spacing;
-    final startX = (size.width - totalWidth) / 2;
-    final clampedStart = startX < 0 ? 0.0 : startX;
+    // AyuGram LevelMeter::paintEvent draws every bar left-aligned starting from
+    // x = 0 (QRect(0,0,…) translated by (lineWidth+lineSpacing)*i), not centered
+    // — level_meter.cpp:34-42.
     final activeCount = (level * _lineCount).round();
 
     for (int i = 0; i < _lineCount; i++) {
-      final x = clampedStart + i * (_lineWidth + _spacing) + _lineWidth / 2;
+      final x = i * (_lineWidth + _spacing) + _lineWidth / 2;
       if (x > size.width) break;
       final paint = i < activeCount ? activePaint : inactivePaint;
       canvas.drawLine(
