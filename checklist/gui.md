@@ -475,22 +475,6 @@ MAJOR `_AyuChooseButton`/`_SingleChoiceBox` deviations were found and fixed
   the value). Desktop + mobile. No crashes/exceptions in the choose-button/dialog path.
   ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:22`
 
-# chat_export — Telegram data-export UI (top bar, settings panel, calendar/time/format pickers, suggest box)
-
-Feature is genuinely wired to a real Go takeout backend (`engine/export.go`: InitTakeout → dialogs/profile/contacts/sessions/messages → JSON, progress/error/complete events). No placeholders or empty callbacks. Defaults (types, fullChats "only-my", Photo-only media, 8 MB size, HTML format) and almost all paddings/dimensions match AyuGram's `export.style` 1:1. The deviations below are in panel titles, per-chat layout, and the progress widget.
-
-- [ ] [MAJOR] Per-chat / per-topic panel title is invented text instead of AyuGram's keys — Dart returns `'Export Chat History'` / `'Export Topic History'`, but AyuGram sets the single-peer/topic panel title to `lng_export_header_chats` / `lng_export_header_topic` ("Chat export settings" / "Topic export settings") — the very same strings the Dart itself uses for the full-export *section header* (`chat_export.dart:1428` → 'Chat export settings'). The title and that section header must be identical text; they are not. — `chat_export.dart:159-162` ← `AyuGram/Telegram/SourceFiles/export/view/export_view_panel_controller.cpp:175-179`
-
-- [ ] [MAJOR] Full-export panel title wrong — Dart returns `'Export Your Data'`, but AyuGram titles the full-export panel with `lng_export_title` ("Export Telegram Data"). — `chat_export.dart:158` ← `AyuGram/Telegram/SourceFiles/export/view/export_view_panel_controller.cpp:178-179`
-
-- [ ] [MAJOR] Per-chat mode renders an extra "Media export settings" header that AyuGram omits — in single-peer mode AyuGram's `setupMediaOptions` calls `addMediaOptions(container)` directly with **no** `addHeader(...)` (the header is only added inside the SlideWrap for the full-export path). The Dart per-chat layout inserts `_buildSectionHeader('Media export settings', …)` as its first row. — `chat_export.dart:1918` ← `AyuGram/Telegram/SourceFiles/export/view/export_view_settings.cpp:218-223`
-
-- [ ] [MAJOR] Per-chat panel height is 540 px instead of the fixed 480 px — AyuGram uses a single `st::exportPanelSize` = 364×480 for every mode (`setInnerSize(st::exportPanelSize)`), including single-peer; the Dart hardcodes `_isPerChat ? 540.0 : _exportPanelHeight`, ~12.5 % taller than the source. (Same 540 also at `chat_export.dart:279` and `:2543`.) — `chat_export.dart:1292` ← `AyuGram/Telegram/SourceFiles/export/view/export.style:13` (+ `export_view_panel_controller.cpp:180`)
-
-- [ ] [MAJOR] Progress view drops AyuGram's per-file byte-download row and its fixed multi-row layout — AyuGram's `ProgressWidget` shows a fixed set of rows (2 for single-peer, 3 for full) that update *in place*: an overall "main" step row, the current-entity row, **and** a separate per-file byte row built via `pushBytes(...)` → `Ui::FormatDownloadText(bytesLoaded, bytesCount)` (e.g. "1.2 MB / 5.0 MB"). The Dart instead renders a flat list of predicted step rows (`_exportSteps`) shown one-at-a-time with fade in/out and exposes no per-file byte-download progress row at all. — `chat_export.dart:2266-2398` ← `AyuGram/Telegram/SourceFiles/export/view/export_view_content.cpp:59-71` (+ `export_view_progress.cpp:310-353`)
-
-- [ ] [MAJOR] Critical-error screen adds Close + "Try Again" buttons that don't exist in AyuGram — AyuGram's `showCriticalError` shows only the error `FlatLabel` (top-padded panelHeight/4) with no buttons and `setHideOnDeactivate(false)`; there is no in-panel retry-to-settings path. The Dart error placeholder adds a `'Close'` button and a `'Try Again'` button (`_retryExport` → back to settings phase). — `chat_export.dart:2563-2589` ← `AyuGram/Telegram/SourceFiles/export/view/export_view_panel_controller.cpp:264-279`
-
 # chat_list_panel — left panel (search, folder tabs, stories, top peers, chat list, forum/saved sublists)
 
 Audited dart/lib/ui/chat_list_panel.dart (6984 lines) against AyuGram Desktop C++.
