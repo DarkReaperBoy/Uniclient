@@ -536,17 +536,28 @@ mock data, no TODOs. Title strings, `kScheduledUntilOnlineTimestamp` (0x7FFFFFFE
 jump delay (700ms), tooltip delay (350ms), wheel steps (hour 1 / minute 10), drum
 heights (200px = 5×40), and the all-weeks scrollable grid all match AyuGram. The
 premium-toast link, send-when-online, repeat menu, and calendar date-pick are all
-wired to the engine / navigator. Findings below are real but secondary.
-
-- [ ] [MAJOR] "Select days" must be a bottom-LEFT button (`addLeftButton`), with "Close" on the right; the Dart builds both as ordinary right-side buttons (neither sets `isLeft: true`), so they render side-by-side on the right — `choose_datetime_box.dart:550-553` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:1431-1444`
-
-- [ ] [MAJOR] Schedule submit button is missing the send-options context menu. AyuGram wires `SetupMenuAndShortcuts` onto the submit button, giving a right-click/secondary menu with "Send silently" + message-effect options; only the Ctrl→silent keyboard path is ported, so silent scheduled send is **unreachable on touch/mobile** and effects can never be chosen — `choose_datetime_box.dart:1781-1784` ← `AyuGram/Telegram/SourceFiles/history/view/history_view_schedule_box.cpp:183-187`
-
-- [ ] [MAJOR] Repeat label is rendered as one flat accent-colored, non-bold string. AyuGram renders `"Repeat:"` in the default label color, then a separate bold link (`tr::bold(text)`) in the link color carrying the dropdown/lock icon — i.e. two-tone with a bold value, not all-accent — `choose_datetime_box.dart:1761-1769` ← `AyuGram/Telegram/SourceFiles/ui/boxes/choose_date_time.cpp:300-318`
-
-- [ ] [MAJOR] Dynamic-image fade-in never animates: the `AnimationController` is created and `forward()`-ed but no listener is attached, so `dynamicImageOpacity` (read from `fadeController.value`) is captured once at ≈0.0 by the single `setState`. With opacity 0 the thumbnail is skipped entirely (`opacity > 0` gate at :1277), so each circular day-image stays hidden until an unrelated parent rebuild — no smooth fade. AyuGram drives this per-frame via `Ui::Animations::Basic`. (Latent: no in-app `showCalendarBox` caller currently passes `dynamicImageForDate`.) — `choose_datetime_box.dart:264-268` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:674-694`
-
-- [ ] [MAJOR] Dynamic day-image decodes at full resolution: `Image.memory` is given display `width/height: 34` but no `cacheWidth`/`cacheHeight`, so the source bytes are decoded at native size then downscaled. AyuGram requests the bitmap pre-sized via `state.image->image(_st.cellInner)` (34px). (Latent: same unused `dynamicImageForDate` path.) — `choose_datetime_box.dart:1283-1288` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:841`
+wired to the engine / navigator. All 5 MAJOR findings verified fixed & closed
+against AyuGram ground truth: (1) "Select days" is now a bottom-LEFT button
+(`isLeft: true`) with "Close" on the right, matching `createButtons()`
+addLeftButton/addButton split (calendar_box.cpp:1431-1444) — the shared
+`_buildButtonRow` partitions left buttons before the `Spacer()` and right after
+(confirm_box.dart:236-288); latent (no in-app caller passes `allowsSelection:true`),
+code-verified. (2) The schedule submit button gained the send-options secondary
+menu: right-click (desktop) + long-press (mobile) open a "Send without sound" menu
+→ `_submit(silent: true)` — both modes verified live to return `silent:true`
+(Type::SilentOnly, history_view_schedule_box.cpp:183-187; effects omitted, no
+session effect picker exists). (3) Repeat label is now two-tone — "Repeat:" in the
+default label color (titleFg) + a BOLD accent value (windowActiveTextFg) carrying
+the dropdown/lock icon, verified desktop 1024×768 + mobile 400×720
+(choose_date_time.cpp:300-318). (4) Dynamic-image fade now animates per-frame: a
+listener on `fadeController` rebuilds the grid each tick so the rising
+`fadeController.value` (read at the _DayCell call site, :753) drives opacity 0→1
+over 200ms, mirroring `Ui::Animations::Basic` (calendar_box.cpp:674-694); latent
+(no caller passes `dynamicImageForDate`), code-verified. (5) Dynamic day-image now
+decodes pre-sized via `cacheWidth/cacheHeight = _cellInner×2 = 68px` (retina of the
+34px cell) instead of native-res-then-downscale, matching
+`state.image->image(_st.cellInner)` where cellInner=34px (calendar_box.cpp:841,
+boxes.style:447); latent, code-verified. No crashes in desktop or mobile runs.
 
 # color_picker_box — HSV/HSL colour editor (AyuGram `ColorEditor`)
 
