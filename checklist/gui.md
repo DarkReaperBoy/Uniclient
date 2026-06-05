@@ -301,205 +301,44 @@ placeholders, stubs, empty callbacks, mock data, or broken wiring found.
 
 # admin_tools — Telegram admin/management UI (edit peer, permissions, restrict/promote, admin log, invite links, members, statistics, boosts, monetization, star-ref)
 
-Audited `dart/lib/ui/admin_tools.dart` (11,535 lines, 12 components) against AyuGram Desktop C++ ground truth. Findings grouped by component; CRITICAL before MAJOR within each.
-
-## _EditPeerInfoBox — edit channel/group/bot dialog (settings section)
-
-- [ ] [CRITICAL] `_toggleTopics()` calls `engine.toggleForum(enabled)` directly without showing `ToggleTopicsBox`, so the user can't choose Tabs vs List layout and `forumTabs` is never sent — `admin_tools.dart:944` ← `AyuGram/boxes/peers/toggle_topics_box.cpp:141`
-- [ ] [CRITICAL] `_onSave()` only persists noForwards/joinToSend/joinRequest/title/description/photo; history-visibility, autotranslate, signatures, signatureProfiles, forum-tabs are applied immediately in their own dialogs instead of being queued into the single Save pipeline AyuGram uses — `admin_tools.dart:2624` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2234`
-- [ ] [CRITICAL] Channel/Group Type row is shown for all users; AyuGram gates `fillPrivacyTypeButton` on `channel->amCreator()`, not merely `canEditInformation` — `admin_tools.dart:615` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1432`
-- [ ] [CRITICAL] History-visibility row has no location-channel guard; AyuGram's `refreshHistoryVisibility` hides the row when the channel `hasLocation` — `admin_tools.dart:605` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:864`
-- [ ] [CRITICAL] `isPrivate` is derived from the `-100` chatId prefix heuristic instead of the real `has_username` flag from `getChatPermissionFlags`; AyuGram uses `channel->hasUsername()` — `admin_tools.dart:604` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:991`
-- [ ] [MAJOR] History-visibility dialog is a flat 2-button AlertDialog; AyuGram's `EditPeerHistoryVisibilityBox` uses radio buttons + a discard-changes confirmation on cancel — `admin_tools.dart:885` ← `AyuGram/boxes/peers/edit_peer_history_visibility_box.cpp:20`
-- [ ] [MAJOR] `_setHistoryVisibility` fires `togglePreHistoryHidden` immediately on dismiss; AyuGram defers it to the Save pipeline (`validateHistoryVisibility`→`saveHistoryVisibility`) — `admin_tools.dart:926` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2564`
-- [ ] [MAJOR] `_toggleAutoTranslate` fires `toggleChannelAutoTranslation` immediately; AyuGram defers via `_autotranslateSavedValue`→`saveAutotranslate` — `admin_tools.dart:1086` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2684`
-- [ ] [MAJOR] `_toggleSignMessages`/`_toggleSignProfiles` fire `toggleSignatures` immediately; AyuGram stores `_signaturesSavedValue`/`_signatureProfilesSavedValue` and saves them together via `saveSignatures()` — `admin_tools.dart:1104` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2707`
-- [ ] [MAJOR] Sign-Messages row lacks the contextual subtitle/description that switches between "sign messages about" and "sign profiles about" — `admin_tools.dart:724` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1320`
-- [ ] [MAJOR] Discussion-link row shows a static `'Linked'/'Add'`; AyuGram reactively shows the linked channel's actual name (or restore-link text) — `admin_tools.dart:636` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1068`
-- [ ] [MAJOR] Discussion-link dialog calls `setDiscussionGroup` immediately; AyuGram saves via `_discussionLinkSavedValue`→`saveDiscussionLink()` and pre-toggles the linked group's pre-history if hidden — `admin_tools.dart:835` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2373`
-- [ ] [MAJOR] Topics row locked-state shows a toast on tap instead of AyuGram's `setToggleLocked` greyed-toggle visual — `admin_tools.dart:667` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1157`
-- [ ] [MAJOR] Reactions dialog hardcodes `mode='all'` on open and never pre-populates `selectedEmojis` from the peer's current allowed-reactions `some` list — `admin_tools.dart:1163` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1512`
-- [ ] [MAJOR] Forums/Topics row is shown for any non-channel peer without an `_amCreator`/`isMegagroup` gate; AyuGram's `canEditForum` requires megagroup + creator (or chat creator for legacy) — `admin_tools.dart:660` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1443`
-
-## _EditPeerInfoBox — bot rows & channel manage section
-
-- [ ] [CRITICAL] Bot "Affiliate Program" opens a custom AlertDialog instead of navigating to the full `Info::BotStarRef::Setup::Make(user)` setup page (commission slider, duration) — `admin_tools.dart:1692` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1985`
-- [ ] [CRITICAL] Bot "Currency/Balance" row opens `_showRevenueStats` AlertDialog instead of navigating to `Info::ChannelEarn::Make(peer)` — `admin_tools.dart:1672` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1866`
-- [ ] [CRITICAL] Bot "Credits/Stars" row opens `_showRevenueStats` AlertDialog instead of navigating to `Info::BotEarn::Make(peer)` — `admin_tools.dart:1681` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1925`
-- [ ] [CRITICAL] Currency AND credits balance visibility both gate on `getStarsRevenueStats`; AyuGram uses `payments.GetStarsRevenueStats` for currency but `payments.GetStarsStatus` (CreditsStatus) for credits — so the credits row shows/hides off the wrong data — `admin_tools.dart:181` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1933`
-- [ ] [CRITICAL] Anti-spam toggle lives inside the Edit-Peer-Info box; AyuGram renders it as the "above" widget of the Admins participant-list box, not in `edit_peer_info_box.cpp` at all — `admin_tools.dart:346` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1352`
-- [ ] [CRITICAL] `_onSave` calls `editChatDescription` unconditionally; AyuGram's `saveDescription` skips the RPC when the text is unchanged, avoiding `CHAT_ABOUT_NOT_MODIFIED` — `admin_tools.dart:2639` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2508`
-- [ ] [MAJOR] "Affiliate Program" row placed 4th (before Admins); AyuGram orders it last, after Recent Actions — `admin_tools.dart:2227` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1663`
-- [ ] [MAJOR] "Pending Requests" placed after "Removed Users"; AyuGram places it between Members and Removed Users — `admin_tools.dart:2290` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1635`
-- [ ] [MAJOR] Statistics/Boosts/Monetization rows are in the edit box; AyuGram's `fillManageSection` has none of these — they are Info-panel section pages — `admin_tools.dart:2324` ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1391`
-- [ ] [MAJOR] `_antispamMinMembers` hardcoded to 100; AyuGram reads `telegram_antispam_group_size_min` from server appConfig — `admin_tools.dart:142` ← `AyuGram/menu/menu_antispam_validator.cpp:37`
-
-## _EditPeerPermissionsBox — default permissions
-
-- [ ] [CRITICAL] Section order wrong: Dart renders Slowmode→Boosts→Charge-Stars; AyuGram renders Charge-Stars→Boosts→Slowmode — `admin_tools.dart:3001` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:1182`
-- [ ] [CRITICAL] Charge-stars uses a plain integer TextField instead of the non-linear `SetupChargeSlider` (1–100 step 1, 100–1000 step 10, 1000+ step 100) — `admin_tools.dart:3434` ← `AyuGram/boxes/edit_privacy_box.cpp:1219`
-- [ ] [CRITICAL] Missing the channel "Removed users" (kicked) button; `AddBannedButtons` adds both an Exceptions button and a Removed-users button, Dart renders only "Add Exception" — `admin_tools.dart:3472` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:1092`
-- [ ] [MAJOR] No public-channel/discussion-link locked-flag enforcement; AyuGram disables `ChangeInfo|PinMessages` with a tooltip for public channels / linked discussions. `showEditPeerPermissionsBox` takes no isPublic/hasDiscussionLink param and never locks those flags — `admin_tools.dart:2750` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:1132`
-- [ ] [MAJOR] `_hasSendRestrictions` reads only the initial flag state; AyuGram recomputes it reactively (`rpl::combine(changes, slowmodeSeconds)`) so the boosts section toggles as flags/slowmode change — `admin_tools.dart:2950` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:1231`
-- [ ] [MAJOR] Charge-stars validation accepts `>= 0` (allows 0 while enabled); AyuGram's slider minimum is 1 when the toggle is on (`allowZero=false`) — `admin_tools.dart:3449` ← `AyuGram/boxes/edit_privacy_box.cpp:1220`
-
-## _EditRestrictedBox — restrict a member
-
-- [ ] [CRITICAL] Missing the "Promote to admin" and "Remove from group" action buttons that AyuGram's `EditRestrictedBox::prepare()` adds at the bottom (promote when `canAddAdmins`, remove with kick confirmation) — `admin_tools.dart:3863` ← `AyuGram/boxes/peers/edit_participant_box.cpp:844`
-- [ ] [CRITICAL] Default-rights gating not implemented: flags banned by the chat's `defaultRestrictions` must render locked/disabled ("Forbidden for all members"); Dart only seeds initial state and never locks them, so users appear able to grant permissions they cannot — `admin_tools.dart:3718` ← `AyuGram/boxes/peers/edit_participant_box.cpp:746`
-- [ ] [CRITICAL] Missing the "Restricted/Banned by [user] on [date]" attribution footer AyuGram shows when `_since` is set — `admin_tools.dart:3692` ← `AyuGram/boxes/peers/edit_participant_box.cpp:816`
-- [ ] [MAJOR] `_toggleFlag` dependency chain is one-directional (bans `embed_links` when `send_plain` banned, and reverse); AyuGram's full `ApplyDependencies` also propagates media-flag bans up to `send_plain` via the `ViewMessages` chain and cascades unbans down — `admin_tools.dart:3781` ← `AyuGram/boxes/peers/edit_peer_permissions_box.cpp:264`
-- [ ] [MAJOR] Existing non-standard `until` collapses to `_BanDuration.custom`; AyuGram's `createUntilVariants` inserts the exact prior expiry as a selectable radio option so it isn't lost — `admin_tools.dart:3725` ← `AyuGram/boxes/peers/edit_participant_box.cpp:1029`
-- [ ] [MAJOR] Custom expiry uses two separate date+time pickers instead of AyuGram's unified `ChooseDateTimeBox`, allowing mismatched cancels and not clamping the minimum to now atomically — `admin_tools.dart:3821` ← `AyuGram/boxes/peers/edit_participant_box.cpp:980`
-
-## _EditAdminBox — edit admin rights / transfer ownership
-
-- [ ] [CRITICAL] `_addAsAdmin` checkbox rendered for every member; AyuGram shows it only when adding a non-existing bot to a non-broadcast chat (`_addingBot && !existing && !isBroadcast`) — `admin_tools.dart:4762` ← `AyuGram/boxes/peers/edit_participant_box.cpp:361`
-- [ ] [CRITICAL] `!_addAsAdmin` save path calls `engine.demoteAdmin`; AyuGram calls `AddBotToGroup(user, peer, token)` (a bot-add, not a demotion) — `admin_tools.dart:4475` ← `AyuGram/boxes/peers/edit_participant_box.cpp:605`
-- [ ] [CRITICAL] `ChatAdminRight::Other` bit is never OR'd into the rights bitmask on save; AyuGram always forces `value() | ChatAdminRight::Other` before the save callback — `admin_tools.dart:4478` ← `AyuGram/boxes/peers/edit_participant_box.cpp:590`
-- [ ] [CRITICAL] Transfer-ownership skips the mandatory pre-flight `messages_EditChatCreator(inputCheckPasswordEmpty)` probe AyuGram uses to route to the password-error box or the confirmation dialog before asking for a password — `admin_tools.dart:4539` ← `AyuGram/boxes/peers/channel_ownership_transfer.cpp:48`
-- [ ] [CRITICAL] Transfer shows no confirmation dialog before the password prompt; AyuGram shows `MakeConfirmBox` (`lng_rights_transfer_about/_sure`) after the pre-flight, then `requestPassword()` — `admin_tools.dart:4604` ← `AyuGram/boxes/peers/channel_ownership_transfer.cpp:60`
-- [ ] [CRITICAL] Dismiss button shown for any `role=='admin'` without excluding the chat creator; AyuGram guards with `!isTargetCreator` — `admin_tools.dart:4813` ← `AyuGram/boxes/peers/edit_participant_box.cpp:554`
-- [ ] [MAJOR] `_showTransferSecurityCheck` handles only the `NoPassword` case; AyuGram's `TransferPasswordError` renders distinct content/buttons for the `Later` (`PASSWORD_TOO_FRESH`/`SESSION_TOO_FRESH`) case — `admin_tools.dart:4554` ← `AyuGram/boxes/passcode_box.cpp:82`
-- [ ] [MAJOR] `SESSION_TOO_FRESH`/`PASSWORD_TOO_FRESH` caught only post-submit (shown as a toast) instead of in a pre-flight probe routing to the proper error box — `admin_tools.dart:4709` ← `AyuGram/boxes/peers/channel_ownership_transfer.cpp:55`
+Audited `dart/lib/ui/admin_tools.dart` against AyuGram Desktop C++ ground truth.
+VERIFIED 2026-06-05 (Stage-2): ~144 of ~160 items PASS and were deleted. The 16 items
+below remain — Stage-1 implementation gaps confirmed by code+engine inspection vs AyuGram.
+App builds + launches clean; admin-log screen renders + errors gracefully (smoke-tested).
 
 ## _AdminLogScreen — recent actions log
 
-Note: the systemic issue is that AyuGram renders every admin-log entry as a full message bubble with the actual changed content / old-vs-new diff and clickable links (`GenerateItems`), whereas the Dart `_AdminLogEventTile` reduces each event to a single generic one-line string. Each event type below is a concrete instance.
-
-- [ ] [CRITICAL] `change_about` shows a one-liner; AyuGram emits a body message with the new description plus an "Original" block of the old text — `admin_tools.dart:5874` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:925`
-- [ ] [CRITICAL] `change_username`/`change_usernames` shows a one-liner; AyuGram shows the new link plus a "Previous link" original block (and reorder/activate/deactivate variants) — `admin_tools.dart:5876` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:950`
-- [ ] [CRITICAL] `pin_message`/`unpin_message` shows a one-liner; AyuGram renders the full pinned message as a second bubble — `admin_tools.dart:5884` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1027`
-- [ ] [CRITICAL] `delete_message` shows "deleted a message"; AyuGram renders the full deleted message body — `admin_tools.dart:5891` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1112`
-- [ ] [CRITICAL] `participant_ban` collapses ban/unban/restrict/kick into "changed restrictions for…" with no per-flag diff; AyuGram lists every changed flag via `GenerateParticipantChangeText` — `admin_tools.dart:5898` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1157`
-- [ ] [CRITICAL] `participant_admin` collapses promote/demote into "changed admin rights for…" with no diff; AyuGram lists added/removed rights via `GenerateAdminChangeText` — `admin_tools.dart:5900` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1165`
-- [ ] [CRITICAL] `stop_poll` shows "stopped a poll"; AyuGram renders the poll message bubble — `admin_tools.dart:5908` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1290`
-- [ ] [CRITICAL] `send_message` shows "sent a message"; AyuGram renders the full sent message body — `admin_tools.dart:5936` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1674`
-- [ ] [CRITICAL] `change_default_rights` shows "changed default permissions" with no diff; AyuGram enumerates every changed default flag via `GenerateDefaultBannedRightsChangeText` — `admin_tools.dart:5906` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1281`
 - [ ] [CRITICAL] `invite_edit` shows "edited an invite link"; AyuGram produces a label/expiry/usage/approval diff via `GenerateInviteLinkChangeText` — `admin_tools.dart:5931` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1561`
-- [ ] [CRITICAL] `join_by_invite` shows "joined via invite link"; AyuGram shows the actual (clickable) link and distinguishes filter vs regular link — `admin_tools.dart:5925` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1517`
-- [ ] [CRITICAL] `join_by_request` shows "was accepted…"; AyuGram shows who approved and which invite link (two clickable links) — `admin_tools.dart:5968` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1631`
-- [ ] [CRITICAL] `participant_mute`/`participant_unmute` show generic text with no participant identity; AyuGram shows the participant name as a clickable link — `admin_tools.dart:5918` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1442`
-- [ ] [CRITICAL] `participant_volume` shows generic text with no name/value; AyuGram shows the participant (linked) and exact volume % — `admin_tools.dart:5970` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1568`
-- [ ] [CRITICAL] `change_ttl` passes raw `event.detail`; AyuGram differentiates set/removed/changed and formats the human-readable duration — `admin_tools.dart:5932` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1594`
-- [ ] [CRITICAL] `change_reactions` shows "changed available reactions" with no list; AyuGram shows the reaction emoji list (disabled/all/specific) — `admin_tools.dart:5951` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1692`
 - [ ] [CRITICAL] `edit_topic` shows "edited a topic"; AyuGram emits 1–3 messages for title/closed/hidden changes — `admin_tools.dart:5943` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1842`
-- [ ] [CRITICAL] `change_emoji_status` shows "changed emoji status"; AyuGram produces set/removed/changed plus until-date variants — `admin_tools.dart:5962` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:2039`
-- [ ] [CRITICAL] `change_peer_color`/`change_profile_color` show generic one-liners; AyuGram emits separate color-index (#N) and background-emoji messages — `admin_tools.dart:5954` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:2002`
 - [ ] [CRITICAL] `participant_invite` flat "invited…"; AyuGram varies text by prior participant state and includes cleared-restriction diffs via `GenerateParticipantChangeText` — `admin_tools.dart:5897` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1152`
-- [ ] [CRITICAL] `invite_delete`/`invite_revoke` show generic text; AyuGram includes the actual invite link as a clickable link — `admin_tools.dart:5927` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1537`
-- [ ] [CRITICAL] `change_about`/`change_username`/`change_title` never distinguish "removed" vs "changed" (empty newValue); AyuGram uses separate removed/changed phrases — `admin_tools.dart:5873` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:899`
-- [ ] [CRITICAL] `change_photo` never distinguishes "removed photo" (`photoEmpty`) from "changed photo" — `admin_tools.dart:5879` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:980`
-- [ ] [CRITICAL] `change_stickerset` never distinguishes "removed sticker set" (`inputStickerSetEmpty`) from "changed sticker set" — `admin_tools.dart:5902` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1180`
-- [ ] [CRITICAL] `change_linked_chat` shows "changed the linked chat"; AyuGram distinguishes removed vs changed and includes the linked chat name as a clickable link — `admin_tools.dart:5910` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1308`
-- [ ] [CRITICAL] `toggle_slowmode` passes raw `event.detail`; AyuGram distinguishes "removed slow mode" (0) vs changed and formats minutes/seconds — `admin_tools.dart:5912` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1376`
-- [ ] [MAJOR] No tap-through to the referenced message/user from any event tile; AyuGram renders events as full bubbles with `ClickHandler` links on usernames, invites and messages — `admin_tools.dart:5615` ← `AyuGram/history/admin_log/history_admin_log_inner.cpp:710`
 - [ ] [MAJOR] `change_usernames` maps to a single string; AyuGram handles reorder / activate-deactivate / generic sub-cases — `admin_tools.dart:5953` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1731`
-- [ ] [MAJOR] `participant_edit_rank` renders the target user as plain text; AyuGram adds a clickable link via `addServiceMessageWithLink` for the non-self case — `admin_tools.dart:5979` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:2167`
-- [ ] [MAJOR] `call_setting` passes raw `event.detail`; AyuGram generates distinct allowed/disallowed-unmute strings for group vs channel from `join_muted` — `admin_tools.dart:5922` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1480`
-- [ ] [MAJOR] `sub_extend` shows "extended subscription" with no name/date; AyuGram shows the participant (linked) and expiry date — `admin_tools.dart:5966` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:2130`
-- [ ] [MAJOR] Empty state doesn't distinguish has-search (query-specific text) from has-filter; AyuGram uses separate strings — `admin_tools.dart:5456` ← `AyuGram/history/admin_log/history_admin_log_inner.cpp:608`
 
 ## _InviteLinksBox — invite-link management
 
-- [ ] [CRITICAL] `_LinkColorState` has no `subscription` variant; AyuGram gives subscription links a distinct `Color::Subscription` (msgFile2Bg + SVG icon), so they're miscolored — `admin_tools.dart:6485` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:40`
-- [ ] [CRITICAL] `_InviteLinkData.progress` requires `startDate > 0`, returning -1 (permanent) for links that have only `expireDate`; AyuGram falls back to `startDate = startDate ? startDate : date` so the arc still draws — `admin_tools.dart:6439` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:130`
-- [ ] [CRITICAL] Editing a link with a non-preset usage limit (e.g. 25) silently loses it; AyuGram dynamically inserts the existing `usageLimit` into the preset list — `admin_tools.dart:6506` ← `AyuGram/ui/boxes/edit_invite_link.cpp:255`
-- [ ] [CRITICAL] Editing a link with a non-standard expiry can silently drop to "Never" on a failed fuzzy 10% match; AyuGram uses an absolute `(now - preset >= expireValue)` comparison — `admin_tools.dart:6493` ← `AyuGram/ui/boxes/edit_invite_link.cpp:245`
-- [ ] [CRITICAL] `_LinkInfoBox` loads all importers in one `getInviteImporters` call with no pagination; AyuGram paginates (kFirstPage=20 then kPerPage=100 with `_lastUser` cursor) so >20 importers are truncated and never load more — `admin_tools.dart:7139` ← `AyuGram/boxes/peers/edit_peer_invite_link.cpp:898`
-- [ ] [CRITICAL] Requests-to-join block shown only when `link.needApproval`; AyuGram shows the requesters sub-list whenever `data.requested > 0` regardless of the flag — `admin_tools.dart:7150` ← `AyuGram/boxes/peers/edit_peer_invite_link.cpp:879`
-- [ ] [CRITICAL] Missing the "Reactivate" button for expired non-revoked non-bot links (`AddReactivateLinkButton`) — `admin_tools.dart:7284` ← `AyuGram/boxes/peers/edit_peer_invite_link.cpp:573`
-- [ ] [CRITICAL] Missing the conditional expiry/usage status labels under the link (red "expired", grey "Expires at…"/"already used", plain divider) — `admin_tools.dart:7196` ← `AyuGram/boxes/peers/edit_peer_invite_link.cpp:531`
-- [ ] [CRITICAL] `_loadAll` has no real-time update subscription; AyuGram's `LinksController` subscribes to `inviteLinks().updates()` for create/revoke/delete events — `admin_tools.dart:6575` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:450`
 - [ ] [CRITICAL] No link-list pagination; AyuGram's `loadMoreRows` uses `_offsetDate`/`_offsetLink` cursors, so many-link chats are truncated — `admin_tools.dart:6575` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:495`
-- [ ] [MAJOR] Permanent-link block has no "Revoke" context-menu item (guarded by `!admin->isBot()` in AyuGram) — `admin_tools.dart:6871` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:1308`
-- [ ] [MAJOR] `_InviteLinkData.statusText` omits the "can join: N" line for unused links with a usage cap (`usage==0 && usageLimit>0`) — `admin_tools.dart:6462` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:169`
-- [ ] [MAJOR] For <24h expiry the row shows a relative "Nh left" countdown; AyuGram shows the absolute local time-of-day — `admin_tools.dart:6471` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:208`
-- [ ] [MAJOR] Row subtitle never shows the `requested: N` count that AyuGram appends/substitutes in `ComputeStatus` — `admin_tools.dart:6460` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:189`
-- [ ] [MAJOR] `_LinkArcPainter` inner solid-fill radius `r*0.55` is arbitrary; AyuGram uses `inner = size - 2*st::inviteLinkIconSkip` — `admin_tools.dart:6537` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:742`
-- [ ] [MAJOR] The whole link list is pre-materialized into `_lvKids` then handed to `ListView.builder`, defeating lazy building; AyuGram uses virtual peer-list rows — `admin_tools.dart:6806` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:450`
 
 ## _MemberListScreen — members / admins / restricted / removed
 
-- [ ] [CRITICAL] `_MemberRow` has no `onTap`; clicking a member does nothing. AyuGram's `rowClicked` opens the short-info box (or directly the admin/restricted editor). Only right-click/long-press is wired — `admin_tools.dart:8950` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1753`
-- [ ] [CRITICAL] Kicked-tab "Add to Group" is shown for all channels including broadcast; AyuGram gates it behind `isMegagroup() && canAddMembers()` — `admin_tools.dart:8718` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1946`
-- [ ] [CRITICAL] Kicked-tab "Delete" aliases to `_doUnban` (identical to "Remove Restrictions") and never removes the row; AyuGram's Delete removes the row then `unblock()`s without re-adding — `admin_tools.dart:8783` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1955`
-- [ ] [MAJOR] Restrict-without-kick context item uses `!isChannel` but doesn't exclude gigagroups; AyuGram requires `isMegagroup() && !isGigagroup()` — `admin_tools.dart:8703` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1975`
 - [ ] [MAJOR] Member picker does client-side filtering of a pre-loaded contacts+members snapshot; AyuGram's `AddSpecialBoxSearchController` does debounced server-side participant search per keystroke (then contacts, then global) — `admin_tools.dart:8403` ← `AyuGram/boxes/peers/add_participants_box.cpp:1725`
 - [ ] [MAJOR] Promote in the Add-Admin flow calls `promoteAdmin` directly, bypassing AyuGram's `showAdmin`/`checkInfoLoaded` pre-flight (already-kicked/restricted confirmation) — `admin_tools.dart:8301` ← `AyuGram/boxes/peers/add_participants_box.cpp:1412`
 - [ ] [MAJOR] Restrict in the Add-Exception flow calls `restrictMember` directly, bypassing AyuGram's `showRestricted`/`checkInfoLoaded` checks — `admin_tools.dart:8303` ← `AyuGram/boxes/peers/add_participants_box.cpp:1542`
-- [ ] [MAJOR] Members tab shows "Add Member" for broadcast channels with no chat-size-max check / `MaxInviteBox` fallback that AyuGram enforces — `admin_tools.dart:8913` ← `AyuGram/boxes/peers/edit_participants_box.cpp:1091`
-- [ ] [MAJOR] `_statusText()` returns a static "offline" fallback and never uses the model's `lastSeenKind`/`lastSeenTs`; AyuGram shows the real last-seen string (`Data::OnlineText`) — `admin_tools.dart:8617` ← `AyuGram/boxes/peers/edit_participants_box.cpp:2421`
-- [ ] [MAJOR] No online-status re-sort; AyuGram's `ParticipantsOnlineSorter` continuously re-sorts members by online status (1s debounce) — `admin_tools.dart:7988` ← `AyuGram/boxes/peers/edit_participants_box.cpp:912`
 
 ## _StatisticsScreen / _MessageStatsScreen — channel & message statistics
 
-- [ ] [CRITICAL] Channel overview iterates JSON keys into N generic cards instead of AyuGram's fixed 2×2 grid (memberCount / enabledNotifications% / meanViewCount / meanStoryViewCount); `meanStoryViewCount` is absent — `admin_tools.dart:9141` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:425`
-- [ ] [CRITICAL] Missing the second overview block (Channel Story Stats: meanShare / meanStoryShare / meanReaction / meanStoryReaction counts) — `admin_tools.dart:9140` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:724`
-- [ ] [CRITICAL] `_humanize()` title-cases raw JSON keys instead of using the localized stat labels (`lng_stats_overview_*`) — `admin_tools.dart:9031` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:483`
-- [ ] [CRITICAL] Growth badge shows only `+X.Y%`; AyuGram shows `+N (X%)` with the absolute diff (`FormatCountToShort`) and the U+2212 minus glyph for negatives — `admin_tools.dart:9335` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:344`
-- [ ] [CRITICAL] `_MessageStatsScreen` shows only a scalar `public_forwards_count`; AyuGram shows the full paginated public-forwards list (`PublicForwardsController`) plus a private-forwards count card — `admin_tools.dart:9892` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:770`
-- [ ] [CRITICAL] Per-message overview cards (views / publicForwards / reactions / privateForwards) are absent; only an optional "Public Shares" row is shown — `admin_tools.dart:9890` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:515`
-- [ ] [CRITICAL] Recent-posts list renders ALL posts at once; AyuGram shows the first 10 with a "Show more" loading 30 at a time — `admin_tools.dart:9219` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:868`
 - [ ] [CRITICAL] Charts have no interactivity: `_StatGraphPainter` lacks hover tooltip, footer range-selector, click-to-zoom (`zoomRequests`/`setZoomedChartData`) and line-toggle filter (`ChartLinesFilterWidget`) — `admin_tools.dart:9689` ← `AyuGram/statistics/chart_widget.cpp:1153`
-- [ ] [CRITICAL] Charts have no x-axis date labels; AyuGram renders an adaptive bottom date caption row (`PaintBottomLine`) — `admin_tools.dart:9699` ← `AyuGram/statistics/chart_widget.cpp:100`
 - [ ] [MAJOR] Y-axis is 5 static rules; AyuGram uses `ChartRulersView` with animated ruler transitions and per-line value labels — `admin_tools.dart:9708` ← `AyuGram/statistics/view/chart_rulers_view.cpp:1`
-- [ ] [MAJOR] `_StatGraphPainter.shouldRepaint` compares list identity (recreated each build) forcing a repaint every frame, and the `CustomPaint` has no `RepaintBoundary` — `admin_tools.dart:9835` ← `AyuGram/statistics/chart_widget.cpp:1153`
-- [ ] [MAJOR] `_StatChart.build` recomputes all geometry synchronously in `build()` with no caching / `RepaintBoundary` — `admin_tools.dart:9575` ← `AyuGram/statistics/chart_widget.cpp:1153`
-- [ ] [MAJOR] Overview numbers use `_fmtNum` (full integer); AyuGram uses `Lang::FormatCountToShort` (1.2K / 3.4M) — `admin_tools.dart:9099` ← `AyuGram/statistics/chart_rulers_data.cpp:29`
-- [ ] [MAJOR] `_RecentPostRow` shows "N views" as plain text; AyuGram right-aligns views on the name line and shares(+icon)/reactions(+icon) at the status-line right edge — `admin_tools.dart:9449` ← `AyuGram/info/statistics/info_statistics_recent_message.cpp:256`
-- [ ] [MAJOR] Recent-post thumbnail uses a pre-encoded `thumb_b64` field; AyuGram live-downloads the real photo/document thumbnail (`_photoMedia`/`_documentMedia`, lazy, spoiler-aware) — `admin_tools.dart:9431` ← `AyuGram/info/statistics/info_statistics_recent_message.cpp:97`
-- [ ] [MAJOR] Recent-post date uses day-mon-year only; AyuGram renders `FormatDateTime(ItemDateTime(item))` with the time component — `admin_tools.dart:9107` ← `AyuGram/info/statistics/info_statistics_recent_message.cpp:82`
-- [ ] [MAJOR] Supergroup overview relies on arbitrary JSON key order; AyuGram uses a fixed 2×2 layout (memberCount/messageCount/viewerCount/senderCount) with localized labels — `admin_tools.dart:9141` ← `AyuGram/info/statistics/info_statistics_inner_widget.cpp:498`
 
 ## _BoostsScreen — channel boosts
 
-- [ ] [CRITICAL] Overview is one big card (level + progress bar) instead of AyuGram's 4-cell grid (level / premium-audience / boost-count / boosts-to-next) each with sub-labels — `admin_tools.dart:10073` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:65`
-- [ ] [CRITICAL] The `FillBoostLimit` animated bubble+limit-row bar (before the overview) is absent; only a plain `LinearProgressIndicator` is shown — `admin_tools.dart:10125` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:311`
-- [ ] [CRITICAL] `_BoosterRow` has no `onTap`; AyuGram opens peer info / `GiftCodePendingBox` / `ResolveGiftCode` / `BoostCreditsBox` / a toast depending on the booster type — `admin_tools.dart:10402` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:402`
-- [ ] [CRITICAL] Booster avatar shows only a letter initial; AyuGram uses the real userpic (or a type-colored `EmptyUserpic` with the unclaimed/unknown icon overlay) — `admin_tools.dart:10408` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:492`
-- [ ] [CRITICAL] Both tabs always render; AyuGram hides the tab switcher when only one of boosts/gifts has data (`hasOneTab`) — `admin_tools.dart:10315` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:431`
-- [ ] [CRITICAL] Tab counts use the raw paginated `count`; AyuGram uses `multipliedTotal` (weighted) so badges can be wrong — `admin_tools.dart:10339` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:436`
-- [ ] [CRITICAL] Premium audience shown as a plain `Text` percentage; AyuGram renders it as the top-right grid cell with value=`premiumMemberCount`, a `%` sub-label, and group-vs-channel label variants — `admin_tools.dart:10154` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:124`
-- [ ] [CRITICAL] `_buildGiveawayButton` always rendered; AyuGram guards it behind `giveawayGiftsPurchaseAvailable()` and returns early if false — `admin_tools.dart:10349` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:232`
 - [ ] [CRITICAL] Prepaid-giveaway rows don't distinguish PrepaidCredits vs Prepaid, lack the boost-count badge, and tap `_openGiveaway()` generically without passing the specific giveaway; AyuGram uses `GiveawayTypeRow` passing the `g` struct — `admin_tools.dart:10284` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:341`
-- [ ] [MAJOR] Booster status text always formats the epoch as "Expires X" for all types; AyuGram varies by type (real/credits use `expiresAt`; unclaimed/pending use months + date) — `admin_tools.dart:10421` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:539`
-- [ ] [MAJOR] Special-booster names hardcoded 'Unclaimed'/'Giveaway'/'Unknown'; AyuGram uses localized strings (and a credits-amount string for credits rows) — `admin_tools.dart:10393` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:557`
-- [ ] [MAJOR] Right-side "Giveaway"/"Gift" badge is plain inline text; AyuGram paints a styled pill badge (icon + color) as a proper right action — `admin_tools.dart:10426` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:588`
-- [ ] [MAJOR] Share section uses freeform text + `Share.share(url)`; AyuGram uses an `AddHeader(lng_boosts_link_title)` section + the dedicated `ShareInviteLinkBox` flow — `admin_tools.dart:10218` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:172`
-- [ ] [MAJOR] Both booster lists are materialized into `_lvKids` then fed to `ListView.builder` rather than the incremental `PeerListContent` pattern — `admin_tools.dart:10177` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:1437`
 
 ## _MonetizationScreen — TON & Stars revenue
 
-- [ ] [CRITICAL] Withdraw uses a plain AlertDialog password prompt; AyuGram does `cloudPassword().reload()`→`state()`→`PasscodeBox::CloudFields` so the SRP `InputCheckPasswordSRP` check runs — the raw password is sent to the engine without it — `admin_tools.dart:10548` ← `AyuGram/api/api_earn.cpp:61`
 - [ ] [CRITICAL] Stars withdrawal is missing the minimum-amount input field (`AddInputFieldForCredits`, capped at `starsWithdrawMax`) and the `stars_revenue_withdrawal_min` enforcement; Dart only does a full-balance withdraw — `admin_tools.dart:11057` ← `AyuGram/settings/settings_credits_graphics.cpp:3322`
-- [ ] [CRITICAL] Stars balance omits `nextWithdrawalAt` lock + live countdown that AyuGram shows on the withdraw button (updates every 250ms) — `admin_tools.dart:10827` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:940`
-- [ ] [CRITICAL] Missing the "Buy Ads" second button (`buyAdsUrl`) AyuGram renders alongside withdraw when present — `admin_tools.dart:11057` ← `AyuGram/settings/settings_credits_graphics.cpp:3346`
-- [ ] [CRITICAL] TON `withdrawal_enabled` read from the per-peer stats payload; AyuGram reads the global appConfig `channel_revenue_withdrawal_enabled` via `WithdrawalEnabled(session)` — `admin_tools.dart:10870` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:82`
-- [ ] [MAJOR] TON `topHoursGraph` bar chart ("Top hours") is absent; only the generic `charts` list is rendered — `admin_tools.dart:10972` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:621`
 - [ ] [MAJOR] TON and Stars rendered as separate stacked cards; AyuGram lays available/current/overall for both currencies side-by-side in the same rows with column gating — `admin_tools.dart:10913` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:682`
-- [ ] [MAJOR] `_fmtTon` keeps only 2 fractional digits (`%1e9 ~/ 1e7`); AyuGram's `MajorPart`/`MinorPart` keep the full 9-digit minor part with trailing-zero chopping — `admin_tools.dart:10579` ← `AyuGram/info/channel_statistics/earn/earn_format.cpp:24`
 - [ ] [MAJOR] Transaction rows are static, non-tappable; AyuGram makes each a `SettingsButton` opening a details box (recipient/address/success link + `AddChannelEarnTable`) — `admin_tools.dart:10706` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:1143`
 - [ ] [MAJOR] Transaction history omits the Full/In/Out filter tabs AyuGram provides via `AddCreditsHistoryList` / `requestHistory` — `admin_tools.dart:11106` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:979`
 - [ ] [MAJOR] "Restrict sponsored messages" toggle (with boost-level badge + `RestrictSponsored`) is absent for non-megagroup channels — `admin_tools.dart:11153` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:1391`
-- [ ] [MAJOR] No empty-state; AyuGram shows `Dialogs::SearchEmpty` (lottie) when both currency & credits earn are empty — `admin_tools.dart:11020` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:357`
-
-## _StarRefJoinScreen — affiliate programs (join)
-
-- [ ] [CRITICAL] `_duration()` emits raw `'3mo'`/`'1y'`; `FormatProgramDuration` uses localized `lng_months`/`lng_years` ("3 months"/"1 year") — `admin_tools.dart:11266` ← `AyuGram/info/bot/starref/info_bot_starref_common.cpp:226`
-- [ ] [CRITICAL] `_commission()` uses `toStringAsFixed` (can yield "5.0%"); `FormatCommission` is `number(commission/10.) + '%'` which drops trailing zeros — `admin_tools.dart:11259` ← `AyuGram/info/bot/starref/info_bot_starref_common.cpp:222`
-- [ ] [CRITICAL] Suggested-list sort picker (Profitability / Revenue / Date) is absent — no enum, no UI, no `order_by_revenue`/`order_by_date` flag to `getSuggestedStarRefBots` — `admin_tools.dart:11194` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:385`
-- [ ] [CRITICAL] Tapping a connected row does nothing; AyuGram opens `StarRefLinkBox` (link, users count, recipient, copy + ToS) — `_ConnectedStarRefRow` has no tap handler — `admin_tools.dart:11395` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:519`
-- [ ] [CRITICAL] Tapping a suggested row connects immediately with no confirmation; AyuGram opens `JoinStarRefBox` (userpic transfer, commission/duration, recipient chooser, ToS) — `admin_tools.dart:11228` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:545`
-- [ ] [CRITICAL] Connected rows have no context menu (Open bot / Copy link / Leave-revoke via `EditConnectedStarRefBot f_revoked`); the revoke flow is entirely missing — `admin_tools.dart:11395` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:591`
-- [ ] [CRITICAL] Bot avatars use a letter-only `CircleAvatar`; AyuGram uses the real peer userpic with an overlaid chain-link Lottie badge for connected bots — `admin_tools.dart:11404` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:199`
-- [ ] [CRITICAL] Commission shown as plain `Text`; AyuGram paints a custom rounded-rect badge (`st::starrefCommissionFont`) in `paintStatusText` — `admin_tools.dart:11514` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:170`
-- [ ] [CRITICAL] No revoke action, so the revoke→move-back-to-suggested transition never occurs — `admin_tools.dart:11374` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:622`
-- [ ] [CRITICAL] The three info blocks (Reliable / Transparent / Simple, with title/about/icon) shown above the lists are absent — `admin_tools.dart:11291` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:715`
-- [ ] [MAJOR] Connected list loaded in one non-paginated call; AyuGram paginates with `_offsetDate`/`_offsetThing` (kPerPage=50) — `admin_tools.dart:11193` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:354`
-- [ ] [MAJOR] `_connect()` auto-copies the URL + toast; AyuGram instead opens `StarRefLinkBox` and closes the join box — no clipboard write on connect — `admin_tools.dart:11243` ← `AyuGram/info/bot/starref/info_bot_starref_common.cpp:666`
-- [ ] [MAJOR] Revoked connected rows show ' · ended'; AyuGram removes revoked rows from the Joined list entirely (and re-adds to suggested) — `admin_tools.dart:11393` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:622`
-- [ ] [MAJOR] `getSuggestedStarRefBots` never passes the sort-order flag, so even with a picker the API always defaults to profitability — `admin_tools.dart:11216` ← `AyuGram/info/bot/starref/info_bot_starref_join_widget.cpp:385`
 
 # advanced_settings_screen — Advanced settings page (§14.7): update, data/storage, auto-download, window title/close, system integration, performance, spellchecker, screen reader, export + Proxies/LocalStorage/PowerSaving/AutoDownload/Experimental dialogs
 
