@@ -299,47 +299,6 @@ chat_theme.cpp:40-57/646), pattern tiling + odd-column centering (chat_theme.cpp
 engine document download (message_bubble.dart:9419 `downloadWallpaperDocument`). No
 placeholders, stubs, empty callbacks, mock data, or broken wiring found.
 
-# admin_tools — Telegram admin/management UI (edit peer, permissions, restrict/promote, admin log, invite links, members, statistics, boosts, monetization, star-ref)
-
-Audited `dart/lib/ui/admin_tools.dart` against AyuGram Desktop C++ ground truth.
-VERIFIED 2026-06-05 (Stage-2): ~144 of ~160 items PASS and were deleted. The 16 items
-below remain — Stage-1 implementation gaps confirmed by code+engine inspection vs AyuGram.
-App builds + launches clean; admin-log screen renders + errors gracefully (smoke-tested).
-
-## _AdminLogScreen — recent actions log
-
-- [ ] [CRITICAL] `invite_edit` shows "edited an invite link"; AyuGram produces a label/expiry/usage/approval diff via `GenerateInviteLinkChangeText` — `admin_tools.dart:5931` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1561`
-- [ ] [CRITICAL] `edit_topic` shows "edited a topic"; AyuGram emits 1–3 messages for title/closed/hidden changes — `admin_tools.dart:5943` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1842`
-- [ ] [CRITICAL] `participant_invite` flat "invited…"; AyuGram varies text by prior participant state and includes cleared-restriction diffs via `GenerateParticipantChangeText` — `admin_tools.dart:5897` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1152`
-- [ ] [MAJOR] `change_usernames` maps to a single string; AyuGram handles reorder / activate-deactivate / generic sub-cases — `admin_tools.dart:5953` ← `AyuGram/history/admin_log/history_admin_log_item.cpp:1731`
-
-## _InviteLinksBox — invite-link management
-
-- [ ] [CRITICAL] No link-list pagination; AyuGram's `loadMoreRows` uses `_offsetDate`/`_offsetLink` cursors, so many-link chats are truncated — `admin_tools.dart:6575` ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp:495`
-
-## _MemberListScreen — members / admins / restricted / removed
-
-- [ ] [MAJOR] Member picker does client-side filtering of a pre-loaded contacts+members snapshot; AyuGram's `AddSpecialBoxSearchController` does debounced server-side participant search per keystroke (then contacts, then global) — `admin_tools.dart:8403` ← `AyuGram/boxes/peers/add_participants_box.cpp:1725`
-- [ ] [MAJOR] Promote in the Add-Admin flow calls `promoteAdmin` directly, bypassing AyuGram's `showAdmin`/`checkInfoLoaded` pre-flight (already-kicked/restricted confirmation) — `admin_tools.dart:8301` ← `AyuGram/boxes/peers/add_participants_box.cpp:1412`
-- [ ] [MAJOR] Restrict in the Add-Exception flow calls `restrictMember` directly, bypassing AyuGram's `showRestricted`/`checkInfoLoaded` checks — `admin_tools.dart:8303` ← `AyuGram/boxes/peers/add_participants_box.cpp:1542`
-
-## _StatisticsScreen / _MessageStatsScreen — channel & message statistics
-
-- [ ] [CRITICAL] Charts have no interactivity: `_StatGraphPainter` lacks hover tooltip, footer range-selector, click-to-zoom (`zoomRequests`/`setZoomedChartData`) and line-toggle filter (`ChartLinesFilterWidget`) — `admin_tools.dart:9689` ← `AyuGram/statistics/chart_widget.cpp:1153`
-- [ ] [MAJOR] Y-axis is 5 static rules; AyuGram uses `ChartRulersView` with animated ruler transitions and per-line value labels — `admin_tools.dart:9708` ← `AyuGram/statistics/view/chart_rulers_view.cpp:1`
-
-## _BoostsScreen — channel boosts
-
-- [ ] [CRITICAL] Prepaid-giveaway rows don't distinguish PrepaidCredits vs Prepaid, lack the boost-count badge, and tap `_openGiveaway()` generically without passing the specific giveaway; AyuGram uses `GiveawayTypeRow` passing the `g` struct — `admin_tools.dart:10284` ← `AyuGram/info/channel_statistics/boosts/info_boosts_inner_widget.cpp:341`
-
-## _MonetizationScreen — TON & Stars revenue
-
-- [ ] [CRITICAL] Stars withdrawal is missing the minimum-amount input field (`AddInputFieldForCredits`, capped at `starsWithdrawMax`) and the `stars_revenue_withdrawal_min` enforcement; Dart only does a full-balance withdraw — `admin_tools.dart:11057` ← `AyuGram/settings/settings_credits_graphics.cpp:3322`
-- [ ] [MAJOR] TON and Stars rendered as separate stacked cards; AyuGram lays available/current/overall for both currencies side-by-side in the same rows with column gating — `admin_tools.dart:10913` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:682`
-- [ ] [MAJOR] Transaction rows are static, non-tappable; AyuGram makes each a `SettingsButton` opening a details box (recipient/address/success link + `AddChannelEarnTable`) — `admin_tools.dart:10706` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:1143`
-- [ ] [MAJOR] Transaction history omits the Full/In/Out filter tabs AyuGram provides via `AddCreditsHistoryList` / `requestHistory` — `admin_tools.dart:11106` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:979`
-- [ ] [MAJOR] "Restrict sponsored messages" toggle (with boost-level badge + `RestrictSponsored`) is absent for non-megagroup channels — `admin_tools.dart:11153` ← `AyuGram/info/channel_statistics/earn/info_channel_earn_list.cpp:1391`
-
 # advanced_settings_screen — Advanced settings page (§14.7): update, data/storage, auto-download, window title/close, system integration, performance, spellchecker, screen reader, export + Proxies/LocalStorage/PowerSaving/AutoDownload/Experimental dialogs
 
 Overall this is a high-fidelity port. Section order, the auto-download size-limit curve (`SizeLimitByIndex`), local-storage limit ladders + 100 MB floor + 6 cache tags, the experimental-flag list (all 29 in exact order), proxy link parsing / MTProto secret validation / public-link generation / rotation timeouts, and the engine wiring (`GetCacheSizesByTag`, `ClearCacheByTag`, `CheckProxy`, `SetExperimentalFlag`, `SetLocalStorageLimits`, `recentDownloads`) were all verified against AyuGram and the Go engine and match. The findings below are the genuine behavioral deviations.
