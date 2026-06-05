@@ -369,13 +369,21 @@ present in the correct order, and all 31 settings call real `AppState` setters
 (no stubs, no empty callbacks, no fake/unwired controls). The bubble-radius live
 preview, restart prompt, collapsible "Hide Reactions" ANY-semantics, semi-
 transparent opacity (0.7), and the demo message-preview content all match the
-AyuGram ground truth. The findings below are the genuine deviations.
-
-- [ ] [MAJOR] Bubble-radius preview tail corner hardcoded to `4.0` and non-scaling, but AyuGram derives it as `MapBubbleRadius(sliderValue, bubbleRadiusSmall)` where `bubbleRadiusSmall = roundRadiusLarge = 6px` — so at the default radius (16) the tail corner should be **6px**, and it must shrink with the slider (≈3px at 8, ≈2px at 4), not stay pinned at 4px — `ayu_chats_page.dart:831-833` (`const double bubbleRadiusSmall = 4.0; radiusSmall = showTail ? bubbleRadiusSmall.clamp(0.0, radiusLarge) : radiusLarge`) ← `AyuGram/ui/chat/chat_style_radius.cpp:39-82` (`MapBubbleRadius` + `BubbleRadiusSmall()`), `AyuGram/ui/chat/chat.style:434` (`bubbleRadiusSmall: roundRadiusLarge`) + `AyuGram/lib_ui/ui/basic.style:103` (`roundRadiusLarge: 6px`), applied via `AyuGram/Telegram/SourceFiles/ayu/ui/components/message_preview.cpp:169` (`SetBubbleRadiusOverride`)
-
-- [ ] [MAJOR] Edit-mark dialog "Save" button runs non-empty validation (`_submit`), so an empty mark can never be saved; AyuGram's Save button calls `save()` **directly** (no validation) and only the Enter key calls `submit()` which validates — i.e. AyuGram lets the user clear a mark via the Save button, the Dart blocks it — `ayu_chats_page.dart:773-776` (`onPressed: _submit`) + `ayu_chats_page.dart:718-725` (`_submit` rejects empty) ← `AyuGram/Telegram/SourceFiles/ayu/ui/boxes/edit_mark_box.cpp:50-54` (Save → `save()` directly) vs `edit_mark_box.cpp:61-67,73-80` (only `submits()`/Enter → `submit()` validates)
-
-- [ ] [MAJOR] Invented per-toggle subtitles render a second line on ~15 toggles, but AyuGram's `AddSettingToggle`/`ayu.addSettingToggle` take only title+getter+setter(+icon) with no `about`/subtitle, so every one of these rows is single-line in AyuGram — fabricated copy + a row-height layout deviation across the whole page (e.g. `subtitle: 'Filter picker to only show packs you've added'`, `'Enable quick admin action shortcuts'`, `'Hide the circular forward button on messages'`, plus all 7 field-element and 2 field-popup rows) — `ayu_chats_page.dart:63,130,136,197,203,209,273,280,287,294,301,308,315,329,336` (subtitles, rendered at `ayu_section_builder.dart:403-406`) ← `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_chats.cpp:40-45,114-125,381-429,437-450` (toggles with no subtitle) + `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_ayu_utils.cpp:641-665` (`AddSettingToggle` has no about parameter)
+AyuGram ground truth. All 3 MAJOR deviations were found and fixed (verified in
+desktop, commit 1b0a65b9; all three are width-independent — radius math, a
+centered modal, and single-line rows — with no responsive variants): (1) the
+bubble-radius preview tail corner now uses `MapBubbleRadius(sliderValue,
+st::bubbleRadiusSmall)` with `bubbleRadiusSmall = roundRadiusLarge = 6px`
+(`chat_style_radius.cpp:39-48`, `chat.style:434`, `basic.style:103`) — 6px at the
+default radius (16) and scaling 6→3→2 across the slider — replacing the
+hardcoded, non-scaling `4.0`; the live preview was confirmed to re-render and
+scale its corners as the slider moves. (2) The edit-mark "Save" button now calls
+`save()` directly (so an empty mark CAN be cleared) while only Enter/`submit()`
+validates, matching `edit_mark_box.cpp:50-54,73-80` — confirmed: clearing the
+Deleted mark via Save removed it from the preview, while Enter on an empty field
+kept the box open. (3) The ~15 fabricated per-toggle subtitles were removed so
+every toggle row is single-line, matching AyuGram's subtitle-less
+`addSettingToggle` (`settings_chats.cpp`, `settings_ayu_utils.cpp:641-665`).
 
 # ayu_filters_page — AyuGram Regex Filters settings page (toggles, shared/shadow-ban/per-dialog lists, regex edit box, import/export)
 
