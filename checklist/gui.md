@@ -305,33 +305,23 @@ Overall this is a high-fidelity port. Section order, the auto-download size-limi
 
 # auth_screen — Telegram intro/auth flow (phone, code, 2FA, email, signup, QR)
 
-Backend wiring is solid: `submitInput`, `switchToMethod` (`auth_state.dart:85,122`),
-`uploadProfilePhoto` (`engine_service.dart:5144`), `LangPack.setLanguage/tr/trf`
-(`lang_pack.dart:63,66,77`) all resolve to real implementations. No stub callbacks,
-no dead buttons, no mock data. The QR passkey link is correctly gated out for the
-no-CGo build (documented). Findings below are AyuGram behavioral/copy deviations.
-
-- [ ] [MAJOR] Signup name-field order is keyed to text **direction (RTL)** instead of the locale's **name ordering**. AyuGram inverts the first/last fields when `langFirstNameGoesSecond()` is true — a per-language flag derived from the `lng_full_name` format (true for ja/ko/zh/hu, which are LTR; false for ar/fa, which are RTL). The Dart uses `Directionality.of(context) == TextDirection.rtl`, which is the opposite population: it wrongly inverts Arabic/Persian and fails to invert East-Asian/Hungarian. — `auth_screen.dart:862` (also field mapping `:925,:937`) ← `AyuGram/intro/intro_signup.cpp:37` + `AyuGram/lang/lang_keys.cpp:59`
-
-- [ ] [MAJOR] Code/OTP step title is a static "Enter Verification Code" and never shows the phone number. AyuGram titles the code step with the formatted destination phone (`Ui::FormatPhone(getData()->phone)`), switching to the Fragment title only for Fragment delivery. The number only appears in the Dart as a small "Code sent to …" subtitle (`:1276`), so the prominent title diverges from AyuGram. — `auth_screen.dart:561` ← `AyuGram/intro/intro_code.cpp:52-57`
-
-- [ ] [MAJOR] "Didn't get the code?" link uses the wrong label and conveys the wrong action. AyuGram's link is `lng_code_no_telegram` = **"Send code via SMS"** (`intro_code.cpp:35`), and clicking it resends via SMS (flips `codeByTelegram=false`). The wiring is correct (`onDidntGetCode` → `_noTelegramCode`), but the label "Didn't get the code?" misstates what the button does and is hardcoded English. — `auth_screen.dart:2238` ← `AyuGram/intro/intro_code.cpp:35,73` (lang.strings:417)
-
-## Hardcoded English copy bypasses the watched LangPack (these steps won't localize)
-
-`build()` calls `context.watch<LangPack>()` (`:313`) precisely so a language change
-re-renders the intro in the chosen language ("matching AyuGram rebuilding from the
-cloud pack"). Phone/QR/choose steps honor this via `lang.tr(...)`, but the steps below
-emit literal English, so a user who picks e.g. Persian still sees English here — and
-several strings also differ in wording from AyuGram's ground-truth values.
-
-- [ ] [MAJOR] 2FA/password step title + description are hardcoded English and ignore the lang pack. AyuGram uses `tr::lng_signin_title` = "Cloud password check" and `tr::lng_signin_desc` = "Please enter your cloud password."; the Dart hardcodes "Enter Your Password" and a longer custom sentence. — `auth_screen.dart:562,710,722` ← `AyuGram/intro/intro_password_check.cpp:55-56,350-358` (lang.strings:427-428)
-
-- [ ] [MAJOR] Signup step title + description are hardcoded English and ignore the lang pack; text also differs. AyuGram: `tr::lng_signup_title` = "Your Info", `tr::lng_signup_desc` = "Please enter your name and\nupload a photo." Dart: "Your Name" / "Enter your name and add a\nprofile photo". — `auth_screen.dart:565,887,895` ← `AyuGram/intro/intro_signup.cpp:53-54` (lang.strings:451-452)
-
-- [ ] [MAJOR] Email-setup step title + about are hardcoded English and ignore the lang pack. AyuGram builds them from `tr::lng_intro_email_setup_title` and `tr::lng_settings_cloud_login_email_about`; the Dart inlines the English literals (the comment even names the keys but never calls `lang.tr`). — `auth_screen.dart:564,966,975-976` ← `AyuGram/intro/intro_email.cpp:43-56` (lang.strings:401)
-
-- [ ] [MAJOR] Fragment-delivery instruction is hardcoded English and **drops the phone number**. AyuGram's `lng_intro_fragment_about` interpolates the formatted phone (`lt_phone_number`) into the description; the Dart shows a fixed sentence with no number and no localization. — `auth_screen.dart:1270` ← `AyuGram/intro/intro_code.cpp:96-100`
+Verified against AyuGram intro sources (`intro_code.cpp`, `intro_password_check.cpp`,
+`intro_signup.cpp`, `intro_email.cpp`, `lang_keys.cpp`) and `Resources/langs/lang.strings`;
+all 7 MAJOR deviations fixed and confirmed (commit da6ba9e7). (1) Signup name-field order
+now keyed to name *ordering* via `LangPack.firstNameGoesSecond` — a 1:1 port of
+`langFirstNameGoesSecond()` (sentinel chars 0x01/0x02 + `indexOf` compare, `lang_keys.cpp:59-69`),
+replacing the wrong RTL `Directionality` probe; field controllers + `lng_signup_firstname/lastname`
+labels invert on it (`intro_signup.cpp:37,84-89`). (2) Code/OTP step title shows the formatted
+phone (`_otpPhone` ← `Ui::FormatPhone`), Fragment title only for Fragment delivery
+(`intro_code.cpp:52-57`) — **visually confirmed desktop+mobile**: title rendered "+98 920 405 9095".
+(3) Code link = `lng_code_no_telegram` "Send code via SMS" (`intro_code.cpp:35,73`) — **visually
+confirmed desktop+mobile**. (4) 2FA title/desc = `lng_signin_title`/`lng_signin_desc`
+(`intro_password_check.cpp:55,358`). (5) Signup title/desc = `lng_signup_title`/`lng_signup_desc`
+(`intro_signup.cpp:53-54`). (6) Email title/about = `lng_intro_email_setup_title`/
+`lng_settings_cloud_login_email_about` (`intro_email.cpp:45,53`). (7) Fragment instruction =
+`lng_intro_fragment_about` interpolating the phone via `trf` (`intro_code.cpp:96-100`). All 12
+embedded baseline strings match `lang.strings` exactly; the `lang.tr/trf` pipeline is proven
+end-to-end (phone + code steps render localized values, no raw keys, no crashes).
 
 # ayu_appearance_page — AyuGram Appearance settings (app icon, avatar corners, mono font, folder/tray/drawer elements)
 
