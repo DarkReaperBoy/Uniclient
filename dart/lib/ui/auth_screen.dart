@@ -76,6 +76,10 @@ class _AuthScreenState extends State<AuthScreen>
   final _phoneFocusNode = FocusNode();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
+  // Formatted phone the user submitted, shown as the code-step title and woven
+  // into the Fragment instruction — AyuGram titles the code step with
+  // `Ui::FormatPhone(getData()->phone)` (intro_code.cpp:55).
+  String _otpPhone = '';
   late CountryInfo _selectedCountry;
   late _PhoneNumberFormatter _phoneFormatter;
   Uint8List? _signupAvatarBytes;
@@ -171,6 +175,9 @@ class _AuthScreenState extends State<AuthScreen>
         return;
       }
       if (code.isEmpty || phone.length < 2) return;
+      // Remember the formatted number to title the code step with, mirroring
+      // AyuGram's `Ui::FormatPhone(getData()->phone)` (intro_code.cpp:55).
+      _otpPhone = '+$code ${formatPhoneDigits(phone, code)}';
       setState(() => _showErrorBorder = false);
       authState.submitInput('+$code$phone');
       return;
@@ -558,11 +565,16 @@ class _AuthScreenState extends State<AuthScreen>
       'input' => data.fieldType == 'phone'
           ? lang.tr('lng_phone_title')
           : 'Enter ${data.fieldType}',
-      'otp' => 'Enter Verification Code',
-      '2fa' => 'Enter Your Password',
+      // AyuGram titles the code step with the formatted destination phone,
+      // swapping to the Fragment title only for Fragment delivery
+      // (intro_code.cpp:52-57).
+      'otp' => data.codeByFragmentUrl.isNotEmpty
+          ? lang.tr('lng_intro_fragment_title')
+          : (_otpPhone.isNotEmpty ? _otpPhone : 'Enter Verification Code'),
+      '2fa' => lang.tr('lng_signin_title'),
       'qr' => lang.tr('lng_intro_qr_title'),
-      'email' => 'Choose a login email',
-      'signup' => 'Your Name',
+      'email' => lang.tr('lng_intro_email_setup_title'),
+      'signup' => lang.tr('lng_signup_title'),
       'ready' => 'Authenticated!',
       'error' => 'Authentication Error',
       _ => 'Authenticating...',
@@ -573,13 +585,13 @@ class _AuthScreenState extends State<AuthScreen>
       AuthStateData? data, AuthState authState, ThemeData theme, LangPack lang) {
     final state = data?.state ?? '';
     if (state == '2fa') {
-      return _build2FA(data!, authState, theme);
+      return _build2FA(data!, authState, theme, lang);
     }
     if (state == 'signup') {
-      return _buildSignUp(data!, authState, theme);
+      return _buildSignUp(data!, authState, theme, lang);
     }
     if (state == 'email') {
-      return _buildEmail(data!, authState, theme);
+      return _buildEmail(data!, authState, theme, lang);
     }
     final hasCover = _hasCover(state);
     return Column(
@@ -636,7 +648,7 @@ class _AuthScreenState extends State<AuthScreen>
         if (data?.state == 'qr')
           _buildQR(data, authState, theme, lang),
         if (data?.state == 'input' || data?.state == 'otp')
-          _buildInput(data!, authState, theme),
+          _buildInput(data!, authState, theme, lang),
       ],
     );
   }
@@ -687,7 +699,8 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  Widget _build2FA(AuthStateData data, AuthState authState, ThemeData theme) {
+  Widget _build2FA(
+      AuthStateData data, AuthState authState, ThemeData theme, LangPack lang) {
     const fieldTop = 74.0;
     const recoveryFieldTop = 96.0;
     const fieldHeight = 61.0;
@@ -707,7 +720,8 @@ class _AuthScreenState extends State<AuthScreen>
             left: 0,
             right: 0,
             child: Text(
-              'Enter Your Password',
+              // lng_signin_title (intro_password_check.cpp:55).
+              lang.tr('lng_signin_title'),
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
             ),
@@ -719,7 +733,8 @@ class _AuthScreenState extends State<AuthScreen>
             child: Text(
               _isRecoveryMode
                   ? 'Recovery code sent to ${data.sentTo.isNotEmpty ? data.sentTo : "your email"}.'
-                  : 'You have Two-Step Verification enabled, so your account is protected with an additional password.',
+                  // lng_signin_desc (intro_password_check.cpp:358).
+                  : lang.tr('lng_signin_desc'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.textTheme.bodySmall?.color,
                 height: 20 / 14,
@@ -858,8 +873,12 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Widget _buildSignUp(
-      AuthStateData data, AuthState authState, ThemeData theme) {
-    final isRtl = Directionality.of(context) == TextDirection.rtl;
+      AuthStateData data, AuthState authState, ThemeData theme, LangPack lang) {
+    // Field order follows the locale's name *ordering*, not text direction:
+    // East-Asian/Hungarian put the family name first; RTL languages (ar/fa)
+    // keep the given name first. Mirrors AyuGram `_invertOrder =
+    // langFirstNameGoesSecond()` (intro_signup.cpp:37).
+    final invertOrder = lang.firstNameGoesSecond;
     return Column(
       key: const ValueKey('signup'),
       mainAxisSize: MainAxisSize.min,
@@ -884,7 +903,8 @@ class _AuthScreenState extends State<AuthScreen>
         ),
         const SizedBox(height: 20),
         Text(
-          'Your Name',
+          // lng_signup_title (intro_signup.cpp:53).
+          lang.tr('lng_signup_title'),
           style: theme.textTheme.headlineMedium,
           textAlign: TextAlign.center,
         ),
@@ -892,7 +912,8 @@ class _AuthScreenState extends State<AuthScreen>
         SizedBox(
           width: double.infinity,
           child: Text(
-            'Enter your name and add a\nprofile photo',
+            // lng_signup_desc (intro_signup.cpp:54).
+            lang.tr('lng_signup_desc'),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.textTheme.bodySmall?.color,
               height: 1.4,
@@ -922,11 +943,14 @@ class _AuthScreenState extends State<AuthScreen>
         SizedBox(
           width: double.infinity,
           child: TextField(
-            controller: isRtl ? _lastNameController : _firstNameController,
+            controller:
+                invertOrder ? _lastNameController : _firstNameController,
             autofocus: true,
             textInputAction: TextInputAction.next,
             decoration: InputDecoration(
-              labelText: isRtl ? 'Last name' : 'First name',
+              labelText: invertOrder
+                  ? lang.tr('lng_signup_lastname')
+                  : lang.tr('lng_signup_firstname'),
             ),
           ),
         ),
@@ -934,11 +958,14 @@ class _AuthScreenState extends State<AuthScreen>
         SizedBox(
           width: double.infinity,
           child: TextField(
-            controller: isRtl ? _firstNameController : _lastNameController,
+            controller:
+                invertOrder ? _firstNameController : _lastNameController,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submit(authState),
             decoration: InputDecoration(
-              labelText: isRtl ? 'First name' : 'Last name',
+              labelText: invertOrder
+                  ? lang.tr('lng_signup_firstname')
+                  : lang.tr('lng_signup_lastname'),
             ),
           ),
         ),
@@ -951,7 +978,7 @@ class _AuthScreenState extends State<AuthScreen>
   /// MTPaccount_SendVerifyEmailCode and advances to the code step.
   /// Ref: AyuGram intro/intro_email.cpp:30-145.
   Widget _buildEmail(
-      AuthStateData data, AuthState authState, ThemeData theme) {
+      AuthStateData data, AuthState authState, ThemeData theme, LangPack lang) {
     // Prefill the address once when entering the step (intro_email.cpp:84).
     if (_emailController.text.isEmpty && data.email.isNotEmpty) {
       _emailController.text = data.email;
@@ -963,7 +990,8 @@ class _AuthScreenState extends State<AuthScreen>
         Icon(Icons.alternate_email, size: 48, color: theme.colorScheme.primary),
         const SizedBox(height: 16),
         Text(
-          'Choose a login email', // lng_intro_email_setup_title
+          // lng_intro_email_setup_title (intro_email.cpp:45).
+          lang.tr('lng_intro_email_setup_title'),
           style: theme.textTheme.headlineMedium,
           textAlign: TextAlign.center,
         ),
@@ -971,9 +999,8 @@ class _AuthScreenState extends State<AuthScreen>
         SizedBox(
           width: double.infinity,
           child: Text(
-            // lng_settings_cloud_login_email_about
-            'You will receive Telegram login codes via email and not SMS. '
-            'Please enter an email address to which you have access.',
+            // lng_settings_cloud_login_email_about (intro_email.cpp:53).
+            lang.tr('lng_settings_cloud_login_email_about'),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.textTheme.bodySmall?.color,
               height: 1.4,
@@ -1257,7 +1284,8 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  Widget _buildInput(AuthStateData data, AuthState authState, ThemeData theme) {
+  Widget _buildInput(AuthStateData data, AuthState authState, ThemeData theme,
+      LangPack lang) {
     final isOtp = data.state == 'otp';
     final isPhone = data.state == 'input' && data.fieldType == 'phone';
     final isFragment = isOtp && data.codeByFragmentUrl.isNotEmpty;
@@ -1265,9 +1293,10 @@ class _AuthScreenState extends State<AuthScreen>
     return Column(
       children: [
         if (isFragment) ...[
-          // lng_intro_fragment_about — direct the user to Fragment for the code.
+          // lng_intro_fragment_about — direct the user to Fragment, weaving in
+          // the formatted phone number (intro_code.cpp:96-100).
           Text(
-            'Get the code in the Anonymous Numbers section on Fragment.',
+            lang.trf('lng_intro_fragment_about', {'phone_number': _otpPhone}),
             style: theme.textTheme.bodySmall,
             textAlign: TextAlign.center,
           ),
@@ -2235,7 +2264,8 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
           TextButton(
             onPressed: widget.onDidntGetCode,
             child: Text(
-              "Didn't get the code?",
+              // lng_code_no_telegram — resends via SMS (intro_code.cpp:35,73).
+              lang.tr('lng_code_no_telegram'),
               style: TextStyle(
                 fontSize: 13,
                 color: theme.colorScheme.primary,
