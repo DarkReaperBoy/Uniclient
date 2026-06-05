@@ -2043,34 +2043,66 @@ func (e *Engine) GetStarsRevenueStats(accountID, chatID string) (cores.StarsReve
 	return getter.GetStarsRevenueStats(chatID)
 }
 
-func (e *Engine) GetChannelStarsTransactions(accountID, chatID, offset string, limit int) (map[string]interface{}, error) {
+func (e *Engine) GetChannelStarsTransactions(accountID, chatID, offset string, limit int, filter string) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type getter interface {
-		GetStarsTransactions(chatID, offset string, limit int) (map[string]interface{}, error)
+		GetStarsTransactions(chatID, offset string, limit int, filter string) (map[string]interface{}, error)
 	}
 	g, ok := acc.Core.(getter)
 	if !ok {
 		return nil, fmt.Errorf("platform does not support stars transactions")
 	}
-	return g.GetStarsTransactions(chatID, offset, limit)
+	return g.GetStarsTransactions(chatID, offset, limit, filter)
 }
 
-func (e *Engine) GetStarsRevenueWithdrawalUrl(accountID, chatID, password string) (string, error) {
+func (e *Engine) GetStarsRevenueWithdrawalUrl(accountID, chatID, password string, amount int64) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return "", fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type getter interface {
-		GetStarsRevenueWithdrawalUrl(chatID, password string) (string, error)
+		GetStarsRevenueWithdrawalUrl(chatID, password string, amount int64) (string, error)
 	}
 	g, ok := acc.Core.(getter)
 	if !ok {
 		return "", fmt.Errorf("platform does not support stars withdrawal")
 	}
-	return g.GetStarsRevenueWithdrawalUrl(chatID, password)
+	return g.GetStarsRevenueWithdrawalUrl(chatID, password, amount)
+}
+
+// GetSponsoredInfo / SetRestrictSponsored back the "Restrict sponsored messages"
+// toggle in the channel earn screen (info_channel_earn_list.cpp:1391).
+func (e *Engine) GetSponsoredInfo(accountID, chatID string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetSponsoredInfo(chatID string) (map[string]interface{}, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support sponsored info")
+	}
+	return g.GetSponsoredInfo(chatID)
+}
+
+func (e *Engine) SetRestrictSponsored(accountID, chatID string, restricted bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type setter interface {
+		SetRestrictSponsored(chatID string, restricted bool) error
+	}
+	g, ok := acc.Core.(setter)
+	if !ok {
+		return fmt.Errorf("platform does not support restricting sponsored messages")
+	}
+	return g.SetRestrictSponsored(chatID, restricted)
 }
 
 // GetBroadcastRevenueStats returns the channel's TON (currency) ad-revenue stats

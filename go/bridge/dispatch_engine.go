@@ -1784,15 +1784,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "GetExportedChatInvites":
 		var params struct {
-			AccountID string `json:"account_id"`
-			ChatID    string `json:"chat_id"`
-			Revoked   bool   `json:"revoked"`
-			AdminID   string `json:"admin_id"`
+			AccountID  string `json:"account_id"`
+			ChatID     string `json:"chat_id"`
+			Revoked    bool   `json:"revoked"`
+			AdminID    string `json:"admin_id"`
+			OffsetDate int    `json:"offset_date"`
+			OffsetLink string `json:"offset_link"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		links, err := e.GetExportedChatInvites(params.AccountID, params.ChatID, params.Revoked, params.AdminID)
+		links, err := e.GetExportedChatInvites(params.AccountID, params.ChatID, params.Revoked, params.AdminID, params.OffsetDate, params.OffsetLink)
 		if err != nil {
 			return nil, err
 		}
@@ -6798,11 +6800,12 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			ChatID    string `json:"chat_id"`
 			Offset    string `json:"offset"`
 			Limit     int    `json:"limit"`
+			Filter    string `json:"filter"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		result, err := e.GetChannelStarsTransactions(params.AccountID, params.ChatID, params.Offset, params.Limit)
+		result, err := e.GetChannelStarsTransactions(params.AccountID, params.ChatID, params.Offset, params.Limit, params.Filter)
 		if err != nil {
 			return nil, err
 		}
@@ -6813,15 +6816,44 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			AccountID string `json:"account_id"`
 			ChatID    string `json:"chat_id"`
 			Password  string `json:"password"`
+			Amount    int64  `json:"amount"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		url, err := e.GetStarsRevenueWithdrawalUrl(params.AccountID, params.ChatID, params.Password)
+		url, err := e.GetStarsRevenueWithdrawalUrl(params.AccountID, params.ChatID, params.Password, params.Amount)
 		if err != nil {
 			return nil, err
 		}
 		return json.Marshal(map[string]string{"url": url})
+
+	case "GetSponsoredInfo":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetSponsoredInfo(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "SetRestrictSponsored":
+		var params struct {
+			AccountID  string `json:"account_id"`
+			ChatID     string `json:"chat_id"`
+			Restricted bool   `json:"restricted"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SetRestrictSponsored(params.AccountID, params.ChatID, params.Restricted); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
 
 	case "GetBroadcastRevenueStats":
 		var params struct {

@@ -6683,6 +6683,157 @@ class _AdminLogEventTile extends StatelessWidget {
     return '${seconds}s';
   }
 
+  // Unix-timestamp → short date+time, mirroring AyuGram's langDateTime() used in
+  // the invite-link / restriction "until" diffs (history_admin_log_item.cpp:505).
+  static String _fmtDate(int ts) {
+    if (ts <= 0) return '';
+    final dt = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
+    String two(int v) => v < 10 ? '0$v' : '$v';
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  // "forever" / "until <date>" suffix for restriction verbs
+  // (GeneratePermissionsChangeText, history_admin_log_item.cpp:362-396).
+  static String _restrictUntilText(int until) {
+    if (until <= 0) return ''; // 0 == forever
+    return ' until ${_fmtDate(until)}';
+  }
+
+  // Topic title/closed/hidden change list for edit_topic; AyuGram emits one
+  // service message per changed facet (createEditTopic, :1842).
+  List<String> get _topicChanges {
+    final d = event.actionData;
+    final title = d['topic_title'] as String? ?? '';
+    final prevTitle = d['prev_title'] as String? ?? '';
+    final out = <String>[];
+    if (title != prevTitle) {
+      if (prevTitle.isEmpty) {
+        out.add(title.isEmpty ? 'changed a topic' : 'changed a topic to "$title"');
+      } else {
+        out.add('changed topic "$prevTitle" to "$title"');
+      }
+    }
+    final q = title.isNotEmpty ? ' "$title"' : '';
+    final prevClosed = d['prev_closed'] == true;
+    final newClosed = d['new_closed'] == true;
+    if (prevClosed != newClosed) {
+      out.add(newClosed ? 'closed topic$q' : 'reopened topic$q');
+    }
+    final prevHidden = d['prev_hidden'] == true;
+    final newHidden = d['new_hidden'] == true;
+    if (prevHidden != newHidden) {
+      out.add(newHidden ? 'hid topic$q' : 'unhid topic$q');
+    }
+    return out;
+  }
+
+  // change_usernames: distinguishes reorder / activate / deactivate / single /
+  // generic, mirroring createChangeUsernames (history_admin_log_item.cpp:1731).
+  ({String desc, List<String> newList, List<String> prevList}) _usernamesChange() {
+    final d = event.actionData;
+    final prev = (d['prev_usernames'] as List?)?.cast<String>() ?? const <String>[];
+    final next = (d['new_usernames'] as List?)?.cast<String>() ?? const <String>[];
+    String linkUrl(String u) => 't.me/$u';
+    // Same size.
+    if (next.length == prev.length) {
+      if (next.length == 1) {
+        final p = prev.first, n = next.first;
+        if (n.isEmpty && p.isNotEmpty) return (desc: 'removed the link', newList: const [], prevList: const []);
+        if (p.isEmpty && n.isNotEmpty) return (desc: 'set the link', newList: const [], prevList: const []);
+        return (desc: 'changed the link', newList: const [], prevList: const []);
+      }
+      final wasReordered = next.every((l) => prev.contains(l));
+      if (wasReordered) {
+        return (
+          desc: 'reordered the list of links',
+          newList: next.map(linkUrl).toList(),
+          prevList: prev.map(linkUrl).toList(),
+        );
+      }
+    } else if ((next.length - prev.length).abs() == 1) {
+      final activated = next.length > prev.length;
+      final larger = activated ? next : prev;
+      final smaller = activated ? prev : next;
+      final changed = larger.firstWhere((l) => !smaller.contains(l), orElse: () => '');
+      return (
+        desc: activated ? 'activated the link ${linkUrl(changed)}' : 'deactivated the link ${linkUrl(changed)}',
+        newList: const [],
+        prevList: const [],
+      );
+    }
+    // Generic fallback.
+    return (
+      desc: 'changed the list of links',
+      newList: next.map(linkUrl).toList(),
+      prevList: prev.map(linkUrl).toList(),
+    );
+  }
+
+  // Field-level invite-link diff (label / expiry / usage / approval), mirroring
+  // GenerateInviteLinkChangeText (history_admin_log_item.cpp:521-553).
+  List<Widget> _inviteEditDiffLines(Color accentColor) {
+    final d = event.actionData;
+    final out = <Widget>[];
+    Widget diff(String label) => Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(label, style: TextStyle(fontSize: 12, color: subTextColor)),
+        );
+    final prevTitle = d['prev_title'] as String? ?? '';
+    final newTitle = d['new_title'] as String? ?? '';
+    if (prevTitle != newTitle) {
+      out.add(diff('Label: ${prevTitle.isEmpty ? "—" : prevTitle} → ${newTitle.isEmpty ? "—" : newTitle}'));
+    }
+    final prevExp = (d['prev_expire'] as num?)?.toInt() ?? 0;
+    final newExp = (d['new_expire'] as num?)?.toInt() ?? 0;
+    if (prevExp != newExp) {
+      final a = prevExp == 0 ? 'Never' : _fmtDate(prevExp);
+      final b = newExp == 0 ? 'Never' : _fmtDate(newExp);
+      out.add(diff('Expiry: $a → $b'));
+    }
+    final prevUse = (d['prev_usage'] as num?)?.toInt() ?? 0;
+    final newUse = (d['new_usage'] as num?)?.toInt() ?? 0;
+    if (prevUse != newUse) {
+      final a = prevUse == 0 ? 'Unlimited' : '$prevUse';
+      final b = newUse == 0 ? 'Unlimited' : '$newUse';
+      out.add(diff('Usage limit: $a → $b'));
+    }
+    final prevReq = d['prev_request_needed'] == true;
+    final newReq = d['new_request_needed'] == true;
+    if (prevReq != newReq) {
+      out.add(diff(newReq ? 'Request to join: enabled' : 'Request to join: disabled'));
+    }
+    if (out.isEmpty) return out;
+    return [Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: out),
+    )];
+  }
+
+  // Plain extra-line list (topic secondary changes, username link lists).
+  Widget _extraLine(String text) => Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Text(text, style: TextStyle(fontSize: 12, color: subTextColor)),
+      );
+
+  Widget _linkListBlock(String? heading, List<String> links, Color accentColor) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (heading != null && heading.isNotEmpty)
+            Text(heading, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: accentColor)),
+          for (final l in links)
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Text(l, style: TextStyle(fontSize: 12, color: accentColor, decoration: TextDecoration.underline)),
+            ),
+        ],
+      ),
+    );
+  }
+
   // Per-flag labels for the restriction / admin-rights diffs.
   static const _bannedLabels = {
     'send_plain': 'Send messages', 'send_media': 'Send media',
@@ -6738,6 +6889,50 @@ class _AdminLogEventTile extends StatelessWidget {
           event.actionData['new_admin'] as Map?,
           _adminLabels);
       out.addAll(_diffLines(added, removed, accentColor, restrict: false));
+    } else if (event.action == 'participant_invite') {
+      // GenerateParticipantChangeText with no old participant: the invited
+      // user's CURRENT rights render as a diff from empty
+      // (history_admin_log_item.cpp:1152, 609-639).
+      final type = event.actionData['inv_type'] as String? ?? 'member';
+      if (type == 'admin') {
+        final (added, removed) =
+            _rightsDiff(null, event.actionData['new_admin'] as Map?, _adminLabels);
+        out.addAll(_diffLines(added, removed, accentColor, restrict: false));
+      } else if (type == 'restricted' || type == 'banned') {
+        final (added, removed) =
+            _rightsDiff(null, event.actionData['new_banned'] as Map?, _bannedLabels);
+        out.addAll(_diffLines(removed, added, accentColor, restrict: true));
+      }
+    }
+    // edit_topic: title change is the header; closed/hidden changes render as
+    // extra lines (createEditTopic emits 1–3 messages, :1842).
+    if (event.action == 'edit_topic') {
+      final changes = _topicChanges;
+      if (changes.length > 1) {
+        out.add(Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [for (final c in changes.skip(1)) _extraLine(c)],
+          ),
+        ));
+      }
+    }
+    // change_usernames: render the new link list (+ previous order for reorder
+    // and the generic fallback), createChangeUsernames (:1735-1816).
+    if (event.action == 'change_usernames') {
+      final u = _usernamesChange();
+      if (u.newList.isNotEmpty) {
+        out.add(_linkListBlock(null, u.newList, accentColor));
+      }
+      if (u.prevList.isNotEmpty) {
+        out.add(_linkListBlock('Previous order', u.prevList, accentColor));
+      }
+    }
+    // invite_edit: field-level label/expiry/usage/approval diff.
+    if (event.action == 'invite_edit') {
+      out.addAll(_inviteEditDiffLines(accentColor));
     }
     // Clickable invite link.
     if (_link.isNotEmpty) {
@@ -6817,8 +7012,21 @@ class _AdminLogEventTile extends StatelessWidget {
         return 'left the ${isChannel ? "channel" : "group"}';
       case 'participant_invite': {
         final name = _target.isNotEmpty ? _target : (event.detail.isNotEmpty ? event.detail : 'a $memberLabel');
-        // Prior non-member ⇒ "invited"; prior member ⇒ rights restored, etc.
-        return 'invited $name';
+        // Verb varies by the invited participant's CURRENT type — admin →
+        // promoted, banned/restricted → restricted, else → invited
+        // (GenerateParticipantChangeText, history_admin_log_item.cpp:642-689).
+        final type = event.actionData['inv_type'] as String? ?? 'member';
+        final until = (event.actionData['inv_until'] as num?)?.toInt() ?? 0;
+        switch (type) {
+          case 'admin':
+            return 'promoted $name';
+          case 'banned':
+            return 'banned $name${_restrictUntilText(until)}';
+          case 'restricted':
+            return 'restricted $name${_restrictUntilText(until)}';
+          default:
+            return 'invited $name';
+        }
       }
       case 'participant_ban': {
         final name = _target.isNotEmpty ? _target : (event.detail.isNotEmpty ? event.detail : 'a $memberLabel');
@@ -6898,8 +7106,10 @@ class _AdminLogEventTile extends StatelessWidget {
         return '${event.detail} forum mode';
       case 'create_topic':
         return 'created a topic';
-      case 'edit_topic':
-        return 'edited a topic';
+      case 'edit_topic': {
+        final changes = _topicChanges;
+        return changes.isEmpty ? 'edited a topic' : changes.first;
+      }
       case 'delete_topic':
         return 'deleted a topic';
       case 'pin_topic':
@@ -6913,7 +7123,7 @@ class _AdminLogEventTile extends StatelessWidget {
         return 'changed the allowed reactions';
       }
       case 'change_usernames':
-        return 'changed the list of links';
+        return _usernamesChange().desc;
       case 'change_peer_color': {
         final idx = (event.actionData['color_index'] as num?)?.toInt() ?? 0;
         return 'changed the name color (#$idx)';
@@ -7567,11 +7777,35 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
   List<_InviteLinkData> _revokedLinks = [];
   List<Map<String, dynamic>> _adminsWithInvites = [];
   bool _loading = true;
+  // Pagination cursors — the server returns a slice keyed off the last link's
+  // (date, url), so many-link chats load incrementally on scroll
+  // (LinksController::loadMoreRows, edit_peer_invite_links.cpp:495-538).
+  static const int _kLinksPage = 100;
+  bool _hasMoreActive = false;
+  bool _hasMoreRevoked = false;
+  bool _loadingMore = false;
+  final ScrollController _scroll = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_onScroll);
     _loadAll();
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scroll.hasClients || _loadingMore) return;
+    if (!_hasMoreActive && !_hasMoreRevoked) return;
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 240) {
+      _loadMore();
+    }
   }
 
   Future<void> _loadAll() async {
@@ -7592,6 +7826,9 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
           _activeLinks = active.map(_InviteLinkData.fromMap).toList();
           _revokedLinks = revoked.map(_InviteLinkData.fromMap).toList();
           _adminsWithInvites = admins;
+          _hasMoreActive = active.length >= _kLinksPage;
+          _hasMoreRevoked = revoked.length >= _kLinksPage;
+          _loadingMore = false;
           _loading = false;
         });
       }
@@ -7600,6 +7837,49 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
         setState(() => _loading = false);
         showTelegramToast(context, 'Failed to load invite links: $e');
       }
+    }
+  }
+
+  // Loads the next slice — active links first, then revoked once active is
+  // exhausted — using the last loaded link as the (offset_date, offset_link)
+  // cursor (appendSlice, edit_peer_invite_links.cpp:520-538).
+  Future<void> _loadMore() async {
+    if (_loadingMore) return;
+    setState(() => _loadingMore = true);
+    final engine = context.read<EngineService>();
+    try {
+      if (_hasMoreActive && _activeLinks.isNotEmpty) {
+        final last = _activeLinks.last;
+        final more = await engine.getExportedChatInvites(widget.accountId, widget.chatId,
+            adminId: widget.adminId, offsetDate: last.date, offsetLink: last.link);
+        final seen = _activeLinks.map((l) => l.link).toSet();
+        final fresh = more.map(_InviteLinkData.fromMap).where((l) => !seen.contains(l.link)).toList();
+        if (mounted) {
+          setState(() {
+            _activeLinks.addAll(fresh);
+            _hasMoreActive = more.length >= _kLinksPage && fresh.isNotEmpty;
+            _loadingMore = false;
+          });
+        }
+      } else if (_hasMoreRevoked && _revokedLinks.isNotEmpty) {
+        final last = _revokedLinks.last;
+        final more = await engine.getExportedChatInvites(widget.accountId, widget.chatId,
+            revoked: true, adminId: widget.adminId, offsetDate: last.date, offsetLink: last.link);
+        final seen = _revokedLinks.map((l) => l.link).toSet();
+        final fresh = more.map(_InviteLinkData.fromMap).where((l) => !seen.contains(l.link)).toList();
+        if (mounted) {
+          setState(() {
+            _revokedLinks.addAll(fresh);
+            _hasMoreRevoked = more.length >= _kLinksPage && fresh.isNotEmpty;
+            _loadingMore = false;
+          });
+        }
+      } else if (mounted) {
+        setState(() => _loadingMore = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loadingMore = false);
+      Debug.log('admin_tools', '_loadMore invite links: $e');
     }
   }
 
@@ -7824,8 +8104,14 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
                         () => _buildSectionHeader('Other Admins', textColor, subColor),
                         ..._adminsWithInvites.map((a) => () => _buildAdminRow(a, palette, textColor, subColor)),
                       ],
+                      if (_loadingMore)
+                        () => const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+                            ),
                     ];
                   return ListView.builder(
+                    controller: _scroll,
                     shrinkWrap: true,
                     padding: const EdgeInsets.only(bottom: 16),
                     itemCount: builders.length,
@@ -9538,7 +9824,7 @@ class _MemberTabBody extends StatelessWidget {
     // contact picker (AddSpecialBoxController). Both replace the old free-text
     // username/ID box (add_participants_box.cpp:768 / 1234).
     final isMembersTab = tab == _MemberTab.members;
-    final selected = await showDialog<List<String>>(
+    final selected = await showDialog<List<_PickerEntry>>(
       context: ctx,
       builder: (_) => _MemberPickerDialog(
         accountId: accountId,
@@ -9551,25 +9837,103 @@ class _MemberTabBody extends StatelessWidget {
       ),
     );
     if (selected == null || selected.isEmpty) return;
-    try {
-      if (isMembersTab) {
-        await engine.addMembers(accountId, chatId, selected);
-      } else {
-        for (final userId in selected) {
-          if (tab == _MemberTab.kicked) {
-            await engine.banMember(accountId, chatId, userId);
-          } else if (tab == _MemberTab.admins) {
-            await engine.promoteAdmin(accountId, chatId, userId);
-          } else {
-            await engine.restrictMember(accountId, chatId, userId);
-          }
+    // Add Members (multi-select) and Ban (single) act directly; Add Admin /
+    // Add Exception run the showAdmin/showRestricted pre-flight + rights editor.
+    if (isMembersTab) {
+      try {
+        await engine.addMembers(accountId, chatId, selected.map((e) => e.id).toList());
+        onRefresh();
+        if (ctx.mounted) showTelegramToast(ctx, 'Done');
+      } catch (e) {
+        if (ctx.mounted) showTelegramToast(ctx, 'Failed: $e');
+      }
+      return;
+    }
+    final entry = selected.first;
+    if (tab == _MemberTab.kicked) {
+      try {
+        await engine.banMember(accountId, chatId, entry.id);
+        onRefresh();
+        if (ctx.mounted) showTelegramToast(ctx, 'Done');
+      } catch (e) {
+        if (ctx.mounted) showTelegramToast(ctx, 'Failed: $e');
+      }
+      return;
+    }
+    // checkInfoLoaded: fetch the target's current status before opening the
+    // editor (add_participants_box.cpp:1386-1410).
+    final status = await _preflightStatus(engine, entry.id);
+    if (!ctx.mounted) return;
+    if (tab == _MemberTab.admins) {
+      // showAdmin restriction confirmations (add_participants_box.cpp:1439-1492).
+      if (status == 'kicked' || status == 'restricted') {
+        if (!await _confirmAdd(ctx,
+            'This user was removed from the ${isChannel ? "channel" : "group"}. Add them back as admin?')) {
+          return;
+        }
+      } else if (status == 'external') {
+        if (!await _confirmAdd(ctx,
+            'Add this user to the ${isChannel ? "channel" : "group"} and promote to admin?')) {
+          return;
         }
       }
-      onRefresh();
-      if (ctx.mounted) showTelegramToast(ctx, 'Done');
-    } catch (e) {
-      if (ctx.mounted) showTelegramToast(ctx, 'Failed: $e');
+      if (!ctx.mounted) return;
+      final member = MemberInfo(
+        userId: entry.id,
+        displayName: entry.name,
+        username: entry.username,
+        avatarB64: entry.avatarB64,
+        role: (status == 'admin' || status == 'creator') ? 'admin' : 'member',
+      );
+      final saved = await showEditAdminBox(ctx,
+          accountId: accountId, chatId: chatId, member: member, isChannel: isChannel, isForum: isForum);
+      if (saved == true) onRefresh();
+    } else {
+      // showRestricted: confirm before restricting an admin/creator
+      // (add_participants_box.cpp:1561-1576).
+      if (status == 'admin' || status == 'creator') {
+        if (!await _confirmAdd(ctx, 'This user is an admin. Restrict them anyway?')) return;
+      }
+      if (!ctx.mounted) return;
+      final member = MemberInfo(
+        userId: entry.id,
+        displayName: entry.name,
+        username: entry.username,
+        avatarB64: entry.avatarB64,
+        role: (status == 'restricted' || status == 'kicked') ? 'restricted' : 'member',
+      );
+      final saved = await showEditRestrictedBox(ctx,
+          accountId: accountId, chatId: chatId, member: member, isForum: isForum);
+      if (saved == true) onRefresh();
     }
+  }
+
+  // checkInfoLoaded equivalent: returns the target's current chat status
+  // (creator/admin/restricted/kicked/member) or 'external' when they are not a
+  // participant (channels.getParticipant fails with USER_NOT_PARTICIPANT).
+  Future<String> _preflightStatus(EngineService engine, String userId) async {
+    try {
+      final info = await engine.getParticipantInfo(accountId, chatId, userId);
+      if (info.isEmpty) return 'external';
+      final role = (info['role'] as String?) ?? '';
+      return role.isEmpty ? 'member' : role;
+    } catch (_) {
+      return 'external';
+    }
+  }
+
+  Future<bool> _confirmAdd(BuildContext ctx, String message) async {
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (c) => AlertDialog(
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('OK')),
+        ],
+      ),
+    );
+    return ok == true;
   }
 }
 
@@ -9608,12 +9972,24 @@ class _MemberPickerDialog extends StatefulWidget {
 
 class _MemberPickerDialogState extends State<_MemberPickerDialog> {
   final _searchCtrl = TextEditingController();
-  List<_PickerEntry> _all = [];
+  // Base list shown with no query: all contacts (loaded once, filtered locally
+  // like ContactsBoxController) plus a recent-participants snapshot.
+  List<_PickerEntry> _contacts = [];
+  List<_PickerEntry> _base = [];
+  // Currently displayed rows (base list, or live search results).
   List<_PickerEntry> _filtered = [];
+  // Every entry seen so far, keyed by id, so multi-select can resolve picked
+  // ids back to full entries even across separate search batches.
+  final Map<String, _PickerEntry> _entryById = {};
   final Set<String> _selected = {};
   bool _loading = true;
   bool _resolving = false;
+  bool _searching = false;
   String _query = '';
+  Timer? _debounce;
+  // Debounce between keystroke and server search (AddSpecialBoxSearchController
+  // AutoSearchTimeout, add_participants_box.cpp:1735).
+  static const _kSearchDebounce = Duration(milliseconds: 350);
 
   @override
   void initState() {
@@ -9623,29 +9999,37 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
 
+  void _remember(Iterable<_PickerEntry> entries) {
+    for (final e in entries) {
+      _entryById[e.id] = e;
+    }
+  }
+
   Future<void> _load() async {
     final engine = context.read<EngineService>();
-    final byId = <String, _PickerEntry>{};
+    final contacts = <String, _PickerEntry>{};
     try {
-      final contacts = await engine.getContacts(widget.accountId);
-      for (final c in contacts) {
-        byId[c.userId] = _PickerEntry(c.userId, c.displayName, c.username, c.avatarB64);
+      final list = await engine.getContacts(widget.accountId);
+      for (final c in list) {
+        contacts[c.userId] = _PickerEntry(c.userId, c.displayName, c.username, c.avatarB64);
       }
     } catch (e) {
       Debug.log('admin_tools', 'final contacts = await engine.getContacts(widget.accountId): $e');
     }
-    // For special-member adds, also seed with the chat's existing participants
-    // (AddSpecialBoxController searches participants → members → contacts → global).
+    final base = <String, _PickerEntry>{...contacts};
+    // For special-member adds, seed the no-query view with a recent-participants
+    // snapshot (live per-keystroke participant search runs server-side below).
     if (widget.includeMembers) {
       try {
         final res = await engine.getChatMembersByRole(widget.accountId, widget.chatId,
             role: 'members', limit: 100);
         for (final m in res.members) {
-          byId[m.userId] = _PickerEntry(m.userId, m.displayName, m.username, m.avatarB64);
+          base[m.userId] = _PickerEntry(m.userId, m.displayName, m.username, m.avatarB64);
         }
       } catch (e) {
         Debug.log('admin_tools', 'final res = await engine.getChatMembersByRole(widget.acco...: $e');
@@ -9653,27 +10037,70 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
     }
     if (!mounted) return;
     setState(() {
-      _all = byId.values.toList()
+      _contacts = contacts.values.toList()
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      _filtered = _all;
+      _base = base.values.toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _filtered = _base;
       _loading = false;
     });
+    _remember(_base);
   }
 
   void _onSearch(String q) {
-    final ql = q.trim().toLowerCase();
+    final trimmed = q.trim();
+    _query = trimmed;
+    _debounce?.cancel();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _searching = false;
+        _filtered = _base;
+      });
+      return;
+    }
+    setState(() => _searching = true);
+    _debounce = Timer(_kSearchDebounce, () => _runSearch(trimmed));
+  }
+
+  // Debounced per-keystroke search: server-side participant search first
+  // (ChannelParticipantsSearch), then local contact matches, then offer global
+  // resolve — AddSpecialBoxSearchController order participants → contacts →
+  // global (add_participants_box.cpp:1775-1797).
+  Future<void> _runSearch(String q) async {
+    final engine = context.read<EngineService>();
+    final ql = q.toLowerCase();
+    final byId = <String, _PickerEntry>{};
+    // 1. Server-side participant search (skipped for the contacts-only Add
+    // Members picker, which mirrors ContactsBoxController).
+    if (widget.includeMembers) {
+      try {
+        final res = await engine.getChatMembersByRole(widget.accountId, widget.chatId,
+            role: 'members', query: q, limit: 50);
+        for (final m in res.members) {
+          byId[m.userId] = _PickerEntry(m.userId, m.displayName, m.username, m.avatarB64);
+        }
+      } catch (e) {
+        Debug.log('admin_tools', '_runSearch participants: $e');
+      }
+    }
+    // A newer keystroke superseded this request — drop the stale result.
+    if (!mounted || q != _query) return;
+    // 2. Local contact matches (full contact list is already loaded).
+    for (final c in _contacts) {
+      if (c.name.toLowerCase().contains(ql) || c.username.toLowerCase().contains(ql)) {
+        byId.putIfAbsent(c.id, () => c);
+      }
+    }
+    final results = byId.values.toList();
+    _remember(results);
     setState(() {
-      _query = q.trim();
-      _filtered = ql.isEmpty
-          ? _all
-          : _all
-              .where((e) =>
-                  e.name.toLowerCase().contains(ql) || e.username.toLowerCase().contains(ql))
-              .toList();
+      _filtered = results;
+      _searching = false;
     });
   }
 
-  // Resolves a username not in the local list and adds it (global search step).
+  // Resolves a username not in the participant/contact results and adds it
+  // (global search step — contacts.resolveUsername).
   Future<void> _resolveGlobal() async {
     final q = _query.startsWith('@') ? _query.substring(1) : _query;
     if (q.isEmpty || _resolving) return;
@@ -9690,9 +10117,9 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
           Debug.log('admin_tools', 'final p = await engine.getUserProfile(widget.accountId, id): $e');
         }
         final entry = _PickerEntry(id, name, q, '');
+        _remember([entry]);
         if (mounted) {
           setState(() {
-            if (!_all.any((e) => e.id == id)) _all = [entry, ..._all];
             _filtered = [entry];
             _resolving = false;
           });
@@ -9718,7 +10145,8 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
         }
       });
     } else {
-      Navigator.pop(context, [id]);
+      final entry = _entryById[id] ?? _PickerEntry(id, id, '', '');
+      Navigator.pop(context, [entry]);
     }
   }
 
@@ -9749,10 +10177,15 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
               ),
               onChanged: _onSearch,
               onSubmitted: (_) {
-                if (_filtered.isEmpty) _resolveGlobal();
+                if (_filtered.isEmpty && !_searching) _resolveGlobal();
               },
             ),
-            const SizedBox(height: 8),
+            // Thin progress bar while a debounced server search is in flight.
+            SizedBox(
+              height: 2,
+              child: _searching ? const LinearProgressIndicator(minHeight: 2) : null,
+            ),
+            const SizedBox(height: 6),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
@@ -9761,8 +10194,8 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('No matches', style: TextStyle(color: subColor)),
-                              if (_query.isNotEmpty) ...[
+                              Text(_searching ? 'Searching…' : 'No matches', style: TextStyle(color: subColor)),
+                              if (_query.isNotEmpty && !_searching) ...[
                                 const SizedBox(height: 8),
                                 _resolving
                                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
@@ -9816,7 +10249,10 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
         TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: subColor))),
         if (widget.multiSelect)
           TextButton(
-            onPressed: _selected.isEmpty ? null : () => Navigator.pop(context, _selected.toList()),
+            onPressed: _selected.isEmpty
+                ? null
+                : () => Navigator.pop(context,
+                    _selected.map((id) => _entryById[id] ?? _PickerEntry(id, id, '', '')).toList()),
             child: Text('Add${_selected.isNotEmpty ? ' (${_selected.length})' : ''}',
                 style: TextStyle(color: widget.accentColor, fontWeight: FontWeight.w600)),
           ),
@@ -11072,53 +11508,33 @@ class _StatChart {
     return out;
   }
 
-  Widget build(Color cardColor, Color textColor, Color subTextColor) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
-          // RepaintBoundary isolates the chart so list scrolling doesn't repaint it.
-          RepaintBoundary(
-            child: SizedBox(
-              height: 150,
-              width: double.infinity,
-              child: CustomPaint(painter: _StatGraphPainter(series, colors, kind)),
-            ),
-          ),
-          // Adaptive bottom date caption row (PaintBottomLine, chart_widget.cpp:100).
-          if (xValues.length >= 2)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  for (final t in _xLabels())
-                    Text(t, style: TextStyle(color: subTextColor, fontSize: 10)),
-                ],
-              ),
-            ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            runSpacing: 4,
-            children: List.generate(names.length, (i) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(width: 10, height: 10,
-                    decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle)),
-                const SizedBox(width: 4),
-                Text(names[i], style: TextStyle(color: subTextColor, fontSize: 12)),
-              ],
-            )),
-          ),
-        ],
-      ),
-    );
+  // Date+time caption for the crosshair tooltip header at a given x index.
+  String xLabelAt(int idx) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (idx < 0 || idx >= xValues.length) return '';
+    final ms = xValues[idx];
+    if (ms <= 0) return '';
+    final d = DateTime.fromMillisecondsSinceEpoch(ms);
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  List<String> xLabels() => _xLabels();
+
+  // Compact axis/tooltip number format (1.2K / 3.4M), matching AyuGram's
+  // ChartHorizontalLinesData label shortener (chart_horizontal_lines_data.cpp).
+  static String formatValue(double v) {
+    final a = v.abs();
+    String s;
+    if (a >= 1000000) {
+      s = '${(v / 1000000).toStringAsFixed(v.abs() >= 10000000 ? 0 : 1)}M';
+    } else if (a >= 1000) {
+      s = '${(v / 1000).toStringAsFixed(v.abs() >= 10000 ? 0 : 1)}K';
+    } else if (v == v.roundToDouble()) {
+      s = v.toInt().toString();
+    } else {
+      s = v.toStringAsFixed(1);
+    }
+    return s.replaceAll('.0K', 'K').replaceAll('.0M', 'M');
   }
 }
 
@@ -11196,77 +11612,618 @@ class _StatChartWidgetState extends State<_StatChartWidget> {
     if (_failed || _parsed == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: _parsed!.build(widget.cardColor, widget.textColor, widget.subTextColor),
+      child: _InteractiveChart(
+        accountId: widget.accountId,
+        chart: _parsed!,
+        zoomToken: widget.chart['zoom_token'] as String? ?? '',
+        cardColor: widget.cardColor,
+        textColor: widget.textColor,
+        subTextColor: widget.subTextColor,
+      ),
     );
   }
 }
 
-class _StatGraphPainter extends CustomPainter {
+// Interactive statistics chart: line-toggle filter (tap legend), hover/touch
+// crosshair tooltip, animated Y-axis rulers with value labels, a draggable
+// footer range-selector, and click-to-zoom (StatsLoadAsyncGraph with the clicked
+// x). Mirrors AyuGram ChartWidget + ChartLinesFilterWidget + ChartRulersView
+// (statistics/chart_widget.cpp, view/chart_rulers_view.cpp).
+class _InteractiveChart extends StatefulWidget {
+  final String accountId;
+  final _StatChart chart;
+  final String zoomToken;
+  final Color cardColor;
+  final Color textColor;
+  final Color subTextColor;
+  const _InteractiveChart({
+    required this.accountId,
+    required this.chart,
+    required this.zoomToken,
+    required this.cardColor,
+    required this.textColor,
+    required this.subTextColor,
+  });
+
+  @override
+  State<_InteractiveChart> createState() => _InteractiveChartState();
+}
+
+class _InteractiveChartState extends State<_InteractiveChart>
+    with SingleTickerProviderStateMixin {
+  // Series toggled off via the legend (ChartLinesFilterWidget).
+  final Set<int> _hidden = {};
+  // Crosshair selection index into the visible window (-1 = none).
+  int _selectedIndex = -1;
+  // Footer range window as fractions [0,1] of the full x range.
+  double _rangeStart = 0;
+  double _rangeEnd = 1;
+  // Animated Y max so rulers slide when toggling lines (ChartRulersView).
+  late AnimationController _animCtrl;
+  double _animMaxFrom = 1, _animMaxTo = 1;
+  double _shownMax = 1;
+
+  // Zoom state: when set, we render the fetched zoomed (e.g. hourly) chart with
+  // a "Zoom Out" affordance.
+  _StatChart? _zoomed;
+  bool _zooming = false;
+
+  _StatChart get _chart => _zoomed ?? widget.chart;
+  bool get _isLine => _chart.kind == _ChartKind.line;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 220))
+      ..addListener(() {
+        setState(() {
+          _shownMax = _animMaxFrom + (_animMaxTo - _animMaxFrom) * _animCtrl.value;
+        });
+      });
+    _shownMax = _animMaxTo = _computeMax();
+  }
+
+  @override
+  void didUpdateWidget(_InteractiveChart old) {
+    super.didUpdateWidget(old);
+    if (old.chart != widget.chart) {
+      _hidden.clear();
+      _zoomed = null;
+      _selectedIndex = -1;
+      _rangeStart = 0;
+      _rangeEnd = 1;
+      _shownMax = _animMaxTo = _computeMax();
+    }
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  int get _maxLen {
+    var m = 0;
+    for (final s in _chart.series) {
+      if (s.length > m) m = s.length;
+    }
+    return m;
+  }
+
+  // [i0,i1] integer x-window from the range fractions.
+  (int, int) get _window {
+    final n = _maxLen;
+    if (n < 2) return (0, n - 1 < 0 ? 0 : n - 1);
+    final i0 = (_rangeStart * (n - 1)).floor().clamp(0, n - 1);
+    final i1 = (_rangeEnd * (n - 1)).ceil().clamp(0, n - 1);
+    return (i0, i1 < i0 ? i0 : i1);
+  }
+
+  // Max across visible series within the window — drives the rulers.
+  double _computeMax() {
+    final (i0, i1) = _window;
+    double maxV = 0;
+    if (_chart.kind == _ChartKind.stackedBar ||
+        _chart.kind == _ChartKind.bar ||
+        _chart.kind == _ChartKind.stackedArea) {
+      for (var i = i0; i <= i1; i++) {
+        double sum = 0;
+        for (var si = 0; si < _chart.series.length; si++) {
+          if (_hidden.contains(si)) continue;
+          final s = _chart.series[si];
+          if (i < s.length) sum += s[i];
+        }
+        if (sum > maxV) maxV = sum;
+      }
+    } else {
+      for (var si = 0; si < _chart.series.length; si++) {
+        if (_hidden.contains(si)) continue;
+        final s = _chart.series[si];
+        for (var i = i0; i <= i1 && i < s.length; i++) {
+          if (s[i] > maxV) maxV = s[i];
+        }
+      }
+    }
+    return maxV <= 0 ? 1 : maxV;
+  }
+
+  void _animateToMax() {
+    final target = _computeMax();
+    if ((target - _animMaxTo).abs() < 1e-9) return;
+    _animMaxFrom = _shownMax;
+    _animMaxTo = target;
+    _animCtrl
+      ..reset()
+      ..forward();
+  }
+
+  void _toggleSeries(int i) {
+    setState(() {
+      if (_hidden.contains(i)) {
+        _hidden.remove(i);
+      } else if (_hidden.length < _chart.series.length - 1) {
+        // Never hide the last visible line (AyuGram keeps ≥1 enabled).
+        _hidden.add(i);
+      }
+      _selectedIndex = -1;
+    });
+    _animateToMax();
+  }
+
+  void _onHover(Offset local, Size size) {
+    final n = _maxLen;
+    if (n < 2) return;
+    final (i0, i1) = _window;
+    final span = (i1 - i0);
+    if (span <= 0) return;
+    final frac = (local.dx / size.width).clamp(0.0, 1.0);
+    final idx = (i0 + frac * span).round().clamp(i0, i1);
+    if (idx != _selectedIndex) setState(() => _selectedIndex = idx);
+  }
+
+  void _clearHover() {
+    if (_selectedIndex != -1) setState(() => _selectedIndex = -1);
+  }
+
+  Future<void> _zoomAt(int idx) async {
+    if (widget.zoomToken.isEmpty || _zoomed != null || _zooming) return;
+    if (idx < 0 || idx >= widget.chart.xValues.length) return;
+    final ms = widget.chart.xValues[idx];
+    if (ms <= 0) return;
+    setState(() => _zooming = true);
+    try {
+      // StatsLoadAsyncGraph wants the x in seconds (zoomRequests fire(x), then
+      // requestZoom(token, x) — info_statistics_inner_widget.cpp:154).
+      final loaded = await context
+          .read<EngineService>()
+          .loadStatsGraph(widget.accountId, widget.zoomToken, x: ms ~/ 1000);
+      final data = loaded['data'];
+      _StatChart? zoomed;
+      if (data is String && data.isNotEmpty) {
+        zoomed = _StatChart.parse(widget.chart.title, data,
+            type: (loaded['type'] as String?) ?? 'Linear');
+      }
+      if (!mounted) return;
+      setState(() {
+        _zooming = false;
+        if (zoomed != null) {
+          _zoomed = zoomed;
+          _hidden.clear();
+          _selectedIndex = -1;
+          _rangeStart = 0;
+          _rangeEnd = 1;
+          _shownMax = _animMaxTo = _computeMax();
+        }
+      });
+    } catch (e) {
+      Debug.log('admin_tools', 'chart zoom: $e');
+      if (mounted) setState(() => _zooming = false);
+    }
+  }
+
+  void _zoomOut() {
+    setState(() {
+      _zoomed = null;
+      _hidden.clear();
+      _selectedIndex = -1;
+      _rangeStart = 0;
+      _rangeEnd = 1;
+      _shownMax = _animMaxTo = _computeMax();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chart = _chart;
+    final (i0, i1) = _window;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: widget.cardColor, borderRadius: BorderRadius.circular(10)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(chart.title,
+                    style: TextStyle(color: widget.textColor, fontSize: 14, fontWeight: FontWeight.w600)),
+              ),
+              if (_zooming)
+                const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+              if (_zoomed != null && !_zooming)
+                GestureDetector(
+                  onTap: _zoomOut,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.zoom_out, size: 16, color: widget.subTextColor),
+                    const SizedBox(width: 2),
+                    Text('Zoom Out', style: TextStyle(color: widget.subTextColor, fontSize: 12)),
+                  ]),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Main interactive plot.
+          RepaintBoundary(
+            child: SizedBox(
+              height: 160,
+              width: double.infinity,
+              child: LayoutBuilder(builder: (ctx, c) {
+                final size = Size(c.maxWidth, c.maxHeight);
+                return MouseRegion(
+                  onHover: (e) => _onHover(e.localPosition, size),
+                  onExit: (_) => _clearHover(),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (d) {
+                      _onHover(d.localPosition, size);
+                    },
+                    onTapUp: (_) {
+                      if (_isLine && widget.zoomToken.isNotEmpty && _zoomed == null && _selectedIndex >= 0) {
+                        _zoomAt(_selectedIndex);
+                      }
+                    },
+                    onHorizontalDragUpdate: (d) => _onHover(d.localPosition, size),
+                    onHorizontalDragEnd: (_) => _clearHover(),
+                    child: CustomPaint(
+                      painter: _InteractiveChartPainter(
+                        series: chart.series,
+                        colors: chart.colors,
+                        kind: chart.kind,
+                        hidden: _hidden,
+                        i0: i0,
+                        i1: i1,
+                        maxY: _shownMax,
+                        selectedIndex: _selectedIndex,
+                        rulerColor: widget.subTextColor.withValues(alpha: 0.18),
+                        labelColor: widget.subTextColor,
+                        crosshairColor: widget.subTextColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          // Crosshair tooltip.
+          if (_selectedIndex >= 0) _buildTooltip(),
+          // Adaptive bottom date caption row (PaintBottomLine, chart_widget.cpp:100).
+          if (chart.xValues.length >= 2)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  for (final t in chart.xLabels())
+                    Text(t, style: TextStyle(color: widget.subTextColor, fontSize: 10)),
+                ],
+              ),
+            ),
+          // Footer range-selector (only meaningful for time-series with width).
+          if (_maxLen >= 8 && _zoomed == null) _buildRangeSelector(),
+          const SizedBox(height: 8),
+          // Toggleable legend (ChartLinesFilterWidget).
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: List.generate(chart.names.length, (i) {
+              final off = _hidden.contains(i);
+              return GestureDetector(
+                onTap: () => _toggleSeries(i),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: off ? Colors.transparent : chart.colors[i].withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: chart.colors[i].withValues(alpha: off ? 0.4 : 0.0)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(off ? Icons.circle_outlined : Icons.check_circle,
+                          size: 12, color: chart.colors[i]),
+                      const SizedBox(width: 4),
+                      Text(chart.names[i],
+                          style: TextStyle(
+                              color: off ? widget.subTextColor : widget.textColor, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTooltip() {
+    final chart = _chart;
+    final idx = _selectedIndex;
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: widget.subTextColor.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(chart.xLabelAt(idx),
+              style: TextStyle(color: widget.textColor, fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          for (var si = 0; si < chart.series.length; si++)
+            if (!_hidden.contains(si) && idx < chart.series[si].length)
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(width: 8, height: 8,
+                        decoration: BoxDecoration(color: chart.colors[si], shape: BoxShape.circle)),
+                    const SizedBox(width: 5),
+                    Text('${chart.names[si]}: ',
+                        style: TextStyle(color: widget.subTextColor, fontSize: 12)),
+                    Text(_StatChart.formatValue(chart.series[si][idx]),
+                        style: TextStyle(color: widget.textColor, fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+
+  // Footer overview strip with two draggable handles defining the visible
+  // window (ChartWidget::Footer, chart_widget.cpp range selector).
+  Widget _buildRangeSelector() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: SizedBox(
+        height: 34,
+        child: LayoutBuilder(builder: (ctx, c) {
+          final w = c.maxWidth;
+          void setFromDx(double dx, bool isStart) {
+            final f = (dx / w).clamp(0.0, 1.0);
+            setState(() {
+              if (isStart) {
+                _rangeStart = f.clamp(0.0, _rangeEnd - 0.08);
+              } else {
+                _rangeEnd = f.clamp(_rangeStart + 0.08, 1.0);
+              }
+            });
+            _animateToMax();
+          }
+
+          final left = _rangeStart * w;
+          final right = _rangeEnd * w;
+          return Stack(
+            children: [
+              // Faint full-range overview.
+              Positioned.fill(
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _InteractiveChartPainter(
+                      series: _chart.series,
+                      colors: _chart.colors,
+                      kind: _chart.kind,
+                      hidden: _hidden,
+                      i0: 0,
+                      i1: _maxLen - 1,
+                      maxY: _computeFullMax(),
+                      selectedIndex: -1,
+                      rulerColor: Colors.transparent,
+                      labelColor: Colors.transparent,
+                      crosshairColor: Colors.transparent,
+                      overview: true,
+                    ),
+                  ),
+                ),
+              ),
+              // Dim the excluded sides.
+              Positioned(left: 0, top: 0, bottom: 0, width: left,
+                  child: Container(color: widget.subTextColor.withValues(alpha: 0.18))),
+              Positioned(left: right, right: 0, top: 0, bottom: 0,
+                  child: Container(color: widget.subTextColor.withValues(alpha: 0.18))),
+              // Window border.
+              Positioned(
+                left: left, width: (right - left).clamp(0.0, w), top: 0, bottom: 0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: widget.subTextColor.withValues(alpha: 0.6), width: 1.5),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              // Left handle.
+              Positioned(
+                left: (left - 11).clamp(0.0, w), top: 0, bottom: 0, width: 22,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragUpdate: (d) => setFromDx((d.globalPosition.dx) - _localOriginX(ctx), true),
+                  child: Center(child: Container(width: 4, height: 18, decoration: BoxDecoration(color: widget.subTextColor, borderRadius: BorderRadius.circular(2)))),
+                ),
+              ),
+              // Right handle.
+              Positioned(
+                left: (right - 11).clamp(0.0, w), top: 0, bottom: 0, width: 22,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragUpdate: (d) => setFromDx((d.globalPosition.dx) - _localOriginX(ctx), false),
+                  child: Center(child: Container(width: 4, height: 18, decoration: BoxDecoration(color: widget.subTextColor, borderRadius: BorderRadius.circular(2)))),
+                ),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  double _localOriginX(BuildContext ctx) {
+    final box = ctx.findRenderObject();
+    if (box is RenderBox) return box.localToGlobal(Offset.zero).dx;
+    return 0;
+  }
+
+  double _computeFullMax() {
+    final saved0 = _rangeStart, saved1 = _rangeEnd;
+    _rangeStart = 0;
+    _rangeEnd = 1;
+    final m = _computeMax();
+    _rangeStart = saved0;
+    _rangeEnd = saved1;
+    return m;
+  }
+}
+
+// Renders the visible x-window [i0,i1] of the (non-hidden) series against a
+// shared 0..maxY scale, drawing labeled Y-axis rulers (ChartRulersView) and an
+// optional crosshair. `overview:true` paints just the lines for the footer
+// range-selector strip (no rulers/labels/crosshair).
+class _InteractiveChartPainter extends CustomPainter {
   final List<List<double>> series;
   final List<Color> colors;
   final _ChartKind kind;
+  final Set<int> hidden;
+  final int i0;
+  final int i1;
+  final double maxY;
+  final int selectedIndex;
+  final Color rulerColor;
+  final Color labelColor;
+  final Color crosshairColor;
+  final bool overview;
 
-  _StatGraphPainter(this.series, this.colors, [this.kind = _ChartKind.line]);
+  _InteractiveChartPainter({
+    required this.series,
+    required this.colors,
+    required this.kind,
+    required this.hidden,
+    required this.i0,
+    required this.i1,
+    required this.maxY,
+    required this.selectedIndex,
+    required this.rulerColor,
+    required this.labelColor,
+    required this.crosshairColor,
+    this.overview = false,
+  });
 
   Color _colorAt(int i) => i < colors.length ? colors[i] : const Color(0xFF50A2E9);
 
+  bool _visible(int si) => !hidden.contains(si);
+
+  double _xOf(int i, Size size) {
+    final span = i1 - i0;
+    if (span <= 0) return 0;
+    return size.width * (i - i0) / span;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
-    if (series.isEmpty) return;
-    var maxLen = 0;
-    for (final s in series) {
-      if (s.length > maxLen) maxLen = s.length;
-    }
-    if (maxLen < 1) return;
+    if (series.isEmpty || i1 < i0) return;
+    final m = maxY <= 0 ? 1.0 : maxY;
 
-    // Horizontal guide lines.
-    final guide = Paint()
-      ..color = const Color(0x22808080)
-      ..strokeWidth = 1;
-    for (var g = 0; g <= 4; g++) {
-      final y = size.height * g / 4;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), guide);
+    // Y-axis rulers with per-level value labels (ChartRulersView, animated via
+    // the maxY the state interpolates — chart_rulers_view.cpp).
+    if (!overview && rulerColor.a > 0) {
+      final guide = Paint()
+        ..color = rulerColor
+        ..strokeWidth = 1;
+      const rulers = 5;
+      for (var g = 0; g < rulers; g++) {
+        final frac = g / (rulers - 1);
+        final y = size.height - frac * size.height;
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), guide);
+        if (labelColor.a > 0) {
+          final value = m * frac;
+          final tp = TextPainter(
+            text: TextSpan(
+              text: _StatChart.formatValue(value),
+              style: TextStyle(color: labelColor, fontSize: 10),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          final ly = (y - tp.height - 1).clamp(0.0, size.height - tp.height);
+          tp.paint(canvas, Offset(0, ly));
+        }
+      }
     }
 
     switch (kind) {
       case _ChartKind.bar:
       case _ChartKind.stackedBar:
-        _paintBars(canvas, size, maxLen);
+        _paintBars(canvas, size, m);
         break;
       case _ChartKind.stackedArea:
-        _paintStackedArea(canvas, size, maxLen);
+        _paintStackedArea(canvas, size, m);
         break;
       case _ChartKind.line:
-        _paintLines(canvas, size);
+        _paintLines(canvas, size, m);
         break;
+    }
+
+    // Crosshair + per-series dots at the selected index.
+    if (!overview && selectedIndex >= i0 && selectedIndex <= i1 && crosshairColor.a > 0) {
+      final x = _xOf(selectedIndex, size);
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height),
+          Paint()..color = crosshairColor..strokeWidth = 1);
+      if (kind == _ChartKind.line) {
+        for (var si = 0; si < series.length; si++) {
+          if (!_visible(si)) continue;
+          final s = series[si];
+          if (selectedIndex >= s.length) continue;
+          final y = size.height - (s[selectedIndex] / m).clamp(0.0, 1.0) * size.height;
+          canvas.drawCircle(Offset(x, y), 3.5, Paint()..color = _colorAt(si));
+          canvas.drawCircle(Offset(x, y), 3.5,
+              Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 1.5);
+        }
+      }
     }
   }
 
-  void _paintLines(Canvas canvas, Size size) {
-    double minY = double.infinity, maxY = -double.infinity;
-    for (final s in series) {
-      for (final v in s) {
-        if (v < minY) minY = v;
-        if (v > maxY) maxY = v;
-      }
-    }
-    if (!minY.isFinite || !maxY.isFinite) return;
-    if (maxY == minY) maxY = minY + 1;
+  void _paintLines(Canvas canvas, Size size, double m) {
     for (var si = 0; si < series.length; si++) {
+      if (!_visible(si)) continue;
       final s = series[si];
       if (s.length < 2) continue;
       final paint = Paint()
         ..color = _colorAt(si)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
+        ..strokeWidth = overview ? 1 : 2
         ..strokeJoin = StrokeJoin.round
         ..strokeCap = StrokeCap.round;
       final path = Path();
-      for (var i = 0; i < s.length; i++) {
-        final x = size.width * i / (s.length - 1);
-        final y = size.height - (s[i] - minY) / (maxY - minY) * size.height;
-        if (i == 0) {
+      var started = false;
+      for (var i = i0; i <= i1 && i < s.length; i++) {
+        final x = _xOf(i, size);
+        final y = size.height - (s[i] / m).clamp(0.0, 1.0) * size.height;
+        if (!started) {
           path.moveTo(x, y);
+          started = true;
         } else {
           path.lineTo(x, y);
         }
@@ -11275,90 +12232,72 @@ class _StatGraphPainter extends CustomPainter {
     }
   }
 
-  // Stacked vertical bars: each x sums its series into stacked segments.
-  void _paintBars(Canvas canvas, Size size, int maxLen) {
-    double maxSum = 0;
-    for (var i = 0; i < maxLen; i++) {
-      double sum = 0;
-      for (final s in series) {
-        if (i < s.length) sum += s[i];
-      }
-      if (sum > maxSum) maxSum = sum;
-    }
-    if (maxSum <= 0) maxSum = 1;
-    final slot = size.width / maxLen;
-    final barW = slot * 0.8;
-    for (var i = 0; i < maxLen; i++) {
+  // Stacked vertical bars within the window, scaled to the shared max.
+  void _paintBars(Canvas canvas, Size size, double m) {
+    final cols = i1 - i0 + 1;
+    if (cols < 1) return;
+    final slot = size.width / cols;
+    final barW = slot * (overview ? 0.9 : 0.8);
+    for (var i = i0; i <= i1; i++) {
       var yTop = size.height;
-      final x = i * slot + (slot - barW) / 2;
+      final x = (i - i0) * slot + (slot - barW) / 2;
       for (var si = 0; si < series.length; si++) {
+        if (!_visible(si)) continue;
         final s = series[si];
         if (i >= s.length) continue;
-        final h = s[i] / maxSum * size.height;
+        final h = (s[i] / m).clamp(0.0, 1.0) * size.height;
         if (h <= 0) continue;
-        canvas.drawRect(
-          Rect.fromLTWH(x, yTop - h, barW, h),
-          Paint()..color = _colorAt(si),
-        );
+        canvas.drawRect(Rect.fromLTWH(x, yTop - h, barW, h), Paint()..color = _colorAt(si));
         yTop -= h;
       }
     }
   }
 
-  // Stacked filled areas (percentage-style stacking).
-  void _paintStackedArea(Canvas canvas, Size size, int maxLen) {
-    if (maxLen < 2) return;
-    double maxSum = 0;
-    for (var i = 0; i < maxLen; i++) {
-      double sum = 0;
-      for (final s in series) {
-        if (i < s.length) sum += s[i];
-      }
-      if (sum > maxSum) maxSum = sum;
-    }
-    if (maxSum <= 0) maxSum = 1;
-    final cumulative = List<double>.filled(maxLen, 0);
+  // Stacked filled areas within the window.
+  void _paintStackedArea(Canvas canvas, Size size, double m) {
+    if (i1 - i0 < 1) return;
+    final cumulative = <int, double>{};
     for (var si = 0; si < series.length; si++) {
+      if (!_visible(si)) continue;
       final s = series[si];
       final path = Path();
-      // top edge (cumulative + current), left→right
-      for (var i = 0; i < maxLen; i++) {
+      var started = false;
+      for (var i = i0; i <= i1; i++) {
         final v = i < s.length ? s[i] : 0;
-        final x = size.width * i / (maxLen - 1);
-        final y = size.height - (cumulative[i] + v) / maxSum * size.height;
-        if (i == 0) {
+        final x = _xOf(i, size);
+        final base = cumulative[i] ?? 0;
+        final y = size.height - ((base + v) / m).clamp(0.0, 1.0) * size.height;
+        if (!started) {
           path.moveTo(x, y);
+          started = true;
         } else {
           path.lineTo(x, y);
         }
       }
-      // bottom edge (cumulative), right→left
-      for (var i = maxLen - 1; i >= 0; i--) {
-        final x = size.width * i / (maxLen - 1);
-        final y = size.height - cumulative[i] / maxSum * size.height;
+      for (var i = i1; i >= i0; i--) {
+        final x = _xOf(i, size);
+        final base = cumulative[i] ?? 0;
+        final y = size.height - (base / m).clamp(0.0, 1.0) * size.height;
         path.lineTo(x, y);
       }
       path.close();
       canvas.drawPath(path, Paint()..color = _colorAt(si).withValues(alpha: 0.75));
-      for (var i = 0; i < maxLen; i++) {
-        cumulative[i] += i < s.length ? s[i] : 0;
+      for (var i = i0; i <= i1; i++) {
+        cumulative[i] = (cumulative[i] ?? 0) + (i < s.length ? s[i] : 0);
       }
     }
   }
 
   @override
-  bool shouldRepaint(_StatGraphPainter old) {
-    // Content-aware comparison instead of list identity (which would force a
-    // repaint every frame when the series list is recreated, chart_widget.cpp:1153).
-    if (old.kind != kind || old.series.length != series.length) return true;
-    for (var i = 0; i < series.length; i++) {
-      if (old.series[i].length != series[i].length) return true;
-      if (old.series[i].isNotEmpty &&
-          (old.series[i].first != series[i].first || old.series[i].last != series[i].last)) {
-        return true;
-      }
-    }
-    return false;
+  bool shouldRepaint(_InteractiveChartPainter old) {
+    return old.kind != kind ||
+        old.i0 != i0 ||
+        old.i1 != i1 ||
+        old.maxY != maxY ||
+        old.selectedIndex != selectedIndex ||
+        old.hidden.length != hidden.length ||
+        old.series.length != series.length ||
+        old.overview != overview;
   }
 }
 
@@ -11565,6 +12504,9 @@ class _BoostsScreenState extends State<_BoostsScreen> {
   bool _hasMore = true;
   bool _giftsHasMore = true;
   bool _giftsLoadedOnce = false;
+  // Premium→boosts multiplier for the prepaid-giveaway badge (premium giveaways
+  // gain quantity * multiplier boosts, giveawayBoostsPerPremium()).
+  int _boostsPerPremium = 4;
 
   @override
   void initState() {
@@ -11580,6 +12522,15 @@ class _BoostsScreenState extends State<_BoostsScreen> {
       if (mounted) setState(() { _status = s; _loadingStatus = false; });
     } catch (e) {
       if (mounted) setState(() { _error = e; _loadingStatus = false; });
+    }
+    // Best-effort multiplier for the premium prepaid-giveaway boost badge.
+    try {
+      final cfg = await engine.getGiveawayConfig(widget.accountId);
+      if (mounted && (cfg['boosts_per_premium'] ?? 0) > 0) {
+        setState(() => _boostsPerPremium = cfg['boosts_per_premium']!);
+      }
+    } catch (e) {
+      Debug.log('admin_tools', 'boosts_per_premium config: $e');
     }
   }
 
@@ -11627,7 +12578,7 @@ class _BoostsScreenState extends State<_BoostsScreen> {
     }
   }
 
-  void _openGiveaway() {
+  void _openGiveaway({int prepaidIndex = 0}) {
     final prepaid = _status?['prepaid_giveaways'];
     final prepaidList = prepaid is List ? prepaid.cast<Map<String, dynamic>>() : <Map<String, dynamic>>[];
     showCreateGiveawayBox(
@@ -11636,6 +12587,7 @@ class _BoostsScreenState extends State<_BoostsScreen> {
       chatId: widget.chatId,
       theme: Theme.of(context),
       prepaidGiveaways: prepaidList,
+      selectedPrepaidIndex: prepaidIndex,
     );
   }
 
@@ -11930,28 +12882,65 @@ class _BoostsScreenState extends State<_BoostsScreen> {
         child: Text('Prepaid Giveaways',
             style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
       ),
-      ...prepaid.whereType<Map>().map((g) {
+      ...prepaid.whereType<Map>().toList().asMap().entries.map((entry) {
+        final idx = entry.key;
+        final g = entry.value;
         final quantity = (g['quantity'] as num?)?.toInt() ?? 0;
         final months = (g['months'] as num?)?.toInt() ?? 0;
+        final credits = (g['credits'] as num?)?.toInt() ?? 0;
+        // PrepaidCredits (Stars) vs Prepaid (Premium) — GiveawayTypeRow type
+        // (info_boosts_inner_widget.cpp:351). Stars rows show a star icon + the
+        // star amount; premium rows show the subscription length.
+        final isCredits = credits > 0;
+        // Boost-count badge: explicit for stars, quantity * multiplier for
+        // premium (info_boosts_inner_widget.cpp:374).
+        final explicitBoosts = (g['boosts'] as num?)?.toInt() ?? 0;
+        final boostCount = explicitBoosts > 0 ? explicitBoosts : quantity * _boostsPerPremium;
+        final title = isCredits ? 'Star Giveaway' : '$quantity Telegram Premium';
+        final subtitle = isCredits
+            ? '$quantity ${quantity == 1 ? 'giveaway' : 'giveaways'} · $credits Stars'
+            : '$months ${months == 1 ? 'month' : 'months'}';
         return InkWell(
-          onTap: _openGiveaway,
+          onTap: () => _openGiveaway(prepaidIndex: idx),
           child: Container(
             margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
             child: Row(
               children: [
-                CircleAvatar(radius: 18, backgroundColor: accentColor, child: const Icon(Icons.card_giftcard, color: Colors.white, size: 18)),
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: isCredits ? const Color(0xFFE8A93B) : accentColor,
+                  child: Icon(isCredits ? Icons.star : Icons.card_giftcard, color: Colors.white, size: 18),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('$quantity Telegram Premium', style: TextStyle(color: textColor, fontSize: 14)),
-                      Text('$months ${months == 1 ? 'month' : 'months'}', style: TextStyle(color: subTextColor, fontSize: 12)),
+                      Text(title, style: TextStyle(color: textColor, fontSize: 14)),
+                      Text(subtitle, style: TextStyle(color: subTextColor, fontSize: 12)),
                     ],
                   ),
                 ),
+                // Boost-count badge with a small boost icon (CreateBadge).
+                if (boostCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.bolt, size: 13, color: accentColor),
+                        Text('$boostCount',
+                            style: TextStyle(color: accentColor, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                const SizedBox(width: 6),
                 Icon(Icons.chevron_right, color: subTextColor),
               ],
             ),
@@ -12185,6 +13174,14 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
   bool _txHasMore = true;
   bool _loadingTx = false;
   bool _txLoadedOnce = false;
+  // Full / Incoming / Outgoing history filter ('' / 'in' / 'out'),
+  // AddCreditsHistoryList tabs (info_channel_earn_list.cpp:979).
+  String _txFilter = '';
+
+  // Restrict-sponsored toggle state (broadcast channels only):
+  // {is_broadcast, restricted, required_level, current_level}.
+  Map<String, dynamic>? _sponsored;
+  bool _settingSponsored = false;
 
   // TON (currency) ad-revenue — the currency side of AyuGram's earn section,
   // shown before the Stars/credits side (info_channel_earn_list.cpp:611).
@@ -12237,6 +13234,13 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
       _loadMoreTransactions();
     } catch (e) {
       if (mounted) setState(() { _error = e; _loading = false; });
+    }
+    // Restrict-sponsored toggle info (broadcast channels only) — best-effort.
+    try {
+      final sp = await engine.getSponsoredInfo(widget.accountId, widget.chatId);
+      if (mounted && sp['is_broadcast'] == true) setState(() => _sponsored = sp);
+    } catch (e) {
+      Debug.log('admin_tools', 'getSponsoredInfo: $e');
     }
   }
 
@@ -12323,12 +13327,26 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     return '≈ \$${usd.toStringAsFixed(2)}';
   }
 
+  // Switches the Stars history filter tab (Full / Incoming / Outgoing) and
+  // re-requests from the start with the new inbound/outbound flag.
+  void _setTxFilter(String filter) {
+    if (_txFilter == filter || _loadingTx) return;
+    setState(() {
+      _txFilter = filter;
+      _transactions.clear();
+      _txOffset = '';
+      _txHasMore = true;
+      _txLoadedOnce = false;
+    });
+    _loadMoreTransactions();
+  }
+
   Future<void> _loadMoreTransactions() async {
     if (_loadingTx || !_txHasMore) return;
     setState(() { _loadingTx = true; _txLoadedOnce = true; });
     final engine = context.read<EngineService>();
     try {
-      final res = await engine.getChannelStarsTransactions(widget.accountId, widget.chatId, offset: _txOffset);
+      final res = await engine.getChannelStarsTransactions(widget.accountId, widget.chatId, offset: _txOffset, filter: _txFilter);
       final list = (res['transactions'] as List?) ?? const [];
       final next = res['next_offset'] as String? ?? '';
       if (mounted) {
@@ -12344,15 +13362,23 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     }
   }
 
-  // Withdraw flow: collect the 2FA password, fetch the withdrawal URL, open it.
+  // Withdraw flow: choose the amount (AddInputFieldForCredits, min/max gated),
+  // then collect the 2FA password, fetch the withdrawal URL, open it.
   Future<void> _withdraw() async {
     if (_withdrawing) return;
+    final data = _stats ?? const {};
+    final available = data['available_balance'] as int? ?? 0;
+    final minAmount = (data['withdrawal_min'] as num?)?.toInt() ?? 0;
+    var maxAmount = (data['withdrawal_max'] as num?)?.toInt() ?? available;
+    if (maxAmount <= 0 || maxAmount > available) maxAmount = available;
+    final amount = await _promptWithdrawAmount(available, minAmount, maxAmount);
+    if (amount == null || !mounted) return;
     final password = await _promptPassword();
     if (password == null || password.isEmpty || !mounted) return;
     setState(() => _withdrawing = true);
     final engine = context.read<EngineService>();
     try {
-      final url = await engine.getStarsRevenueWithdrawalUrl(widget.accountId, widget.chatId, password);
+      final url = await engine.getStarsRevenueWithdrawalUrl(widget.accountId, widget.chatId, password, amount: amount);
       if (!mounted) return;
       setState(() => _withdrawing = false);
       if (url.isEmpty) {
@@ -12416,6 +13442,74 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // Amount-to-withdraw input (AddInputFieldForCredits, settings_credits_graphics.cpp:3322).
+  // Defaults to the full available balance; enforces [min, max] with the
+  // stars_revenue_withdrawal_min floor and the per-withdrawal cap.
+  Future<int?> _promptWithdrawAmount(int available, int minAmount, int maxAmount) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+    final ctrl = TextEditingController(text: '$maxAmount');
+    return showDialog<int>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) {
+        String? error;
+        int? parse() => int.tryParse(ctrl.text.trim());
+        return AlertDialog(
+          backgroundColor: bgColor,
+          title: Text('Withdraw Stars', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Available: $available  •  Min: $minAmount',
+                  style: TextStyle(color: subTextColor, fontSize: 13)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.star, color: Color(0xFFFFB800), size: 20),
+                  labelText: 'Amount',
+                  errorText: error,
+                  border: const UnderlineInputBorder(),
+                ),
+                onChanged: (_) => setDlg(() {}),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: subTextColor))),
+            TextButton(
+              onPressed: () {
+                final v = parse();
+                if (v == null || v <= 0) {
+                  setDlg(() => error = 'Enter an amount');
+                  return;
+                }
+                if (v < minAmount) {
+                  setDlg(() => error = 'Minimum is $minAmount Stars');
+                  return;
+                }
+                if (v > maxAmount) {
+                  setDlg(() => error = 'Maximum is $maxAmount Stars');
+                  return;
+                }
+                Navigator.pop(ctx, v);
+              },
+              child: Text('Continue', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        );
+      }),
     );
   }
 
@@ -12535,45 +13629,240 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
             ? 'Pending'
             : _txDate(date);
     final usd = _fmtUsdTon(amount, usdRate);
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(refund ? '$label (refund)' : label,
-                    style: TextStyle(color: textColor, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
-                if (sub.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(sub, style: TextStyle(color: subTextColor, fontSize: 12)),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
+    return InkWell(
+      // Each row opens a details box (recipient/address/success link +
+      // AddChannelEarnTable, info_channel_earn_list.cpp:1143).
+      onTap: () => _showTonTxDetails(tx, label, amount, date, usdRate, incoming),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.diamond, size: 14, color: tonColor),
-                  const SizedBox(width: 3),
-                  Text('${incoming ? '+' : ''}${_fmtTon(amount)}',
-                      style: TextStyle(color: amountColor, fontSize: 15, fontWeight: FontWeight.w700)),
+                  Text(refund ? '$label (refund)' : label,
+                      style: TextStyle(color: textColor, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  if (sub.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(sub, style: TextStyle(color: subTextColor, fontSize: 12)),
+                  ],
                 ],
               ),
-              if (usd.isNotEmpty)
-                Text(usd, style: TextStyle(color: subTextColor.withValues(alpha: 0.7), fontSize: 11)),
-            ],
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.diamond, size: 14, color: tonColor),
+                    const SizedBox(width: 3),
+                    Text('${incoming ? '+' : ''}${_fmtTon(amount)}',
+                        style: TextStyle(color: amountColor, fontSize: 15, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+                if (usd.isNotEmpty)
+                  Text(usd, style: TextStyle(color: subTextColor.withValues(alpha: 0.7), fontSize: 11)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // TON transaction details box (info_channel_earn_list.cpp:1148): amount + date,
+  // an earn table of fields (recipient/provider/address), an in/out description
+  // and the blockchain explorer success-link button (entry.successLink, :1244).
+  void _showTonTxDetails(
+      Map<String, dynamic> tx, String label, int amount, int date, double usdRate, bool incoming) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+    final url = (tx['transaction_url'] as String?) ?? '';
+    final recipient = (tx['recipient'] as String?) ?? (tx['address'] as String?) ?? '';
+    final usd = _fmtUsdTon(amount, usdRate);
+    Widget row(String k, String v) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(k, style: TextStyle(color: subTextColor, fontSize: 13)),
+            const SizedBox(width: 12),
+            Flexible(child: Text(v, textAlign: TextAlign.right,
+                style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500))),
+          ]),
+        );
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Row(children: [
+          const Icon(Icons.diamond, size: 18, color: Color(0xFF0098EA)),
+          const SizedBox(width: 6),
+          Text('${incoming ? '+' : ''}${_fmtTon(amount)} TON',
+              style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w600)),
+        ]),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (usd.isNotEmpty) row('Value', usd),
+          if (date > 0) row('Date', _txDate(date)),
+          if ((tx['description'] as String?)?.isNotEmpty ?? false)
+            row('Description', tx['description'] as String),
+          if (recipient.isNotEmpty) row('Recipient', recipient),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              incoming
+                  ? 'Proceeds from ads shown in this channel.'
+                  : 'Withdrawal to your TON wallet.',
+              style: TextStyle(color: subTextColor, fontSize: 12),
+            ),
           ),
+        ]),
+        actions: [
+          if (url.isNotEmpty)
+            TextButton.icon(
+              icon: Icon(Icons.open_in_new, size: 16, color: accentColor),
+              label: Text('View in Explorer', style: TextStyle(color: accentColor)),
+              onPressed: () {
+                final uri = Uri.tryParse(url);
+                if (uri != null) launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+            ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
         ],
       ),
     );
+  }
+
+  // Full / Incoming / Outgoing slider for the Stars history.
+  Widget _buildTxFilterTabs(Color cardColor, Color textColor, Color subTextColor, Color accentColor) {
+    Widget tab(String label, String value) {
+      final selected = _txFilter == value;
+      return Expanded(
+        child: InkWell(
+          onTap: () => _setTxFilter(value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              children: [
+                Text(label,
+                    style: TextStyle(
+                        color: selected ? accentColor : subTextColor,
+                        fontSize: 13,
+                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+                const SizedBox(height: 4),
+                Container(height: 2, color: selected ? accentColor : Colors.transparent),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+      child: Row(children: [
+        tab('All', ''),
+        tab('Incoming', 'in'),
+        tab('Outgoing', 'out'),
+      ]),
+    );
+  }
+
+  // "Restrict sponsored messages" toggle with a boost-level badge; only for
+  // broadcast channels, locked below the required level (info_channel_earn_list.cpp:1391).
+  List<Widget> _buildSponsoredToggle(Color cardColor, Color textColor, Color subTextColor, Color accentColor) {
+    final sp = _sponsored;
+    if (sp == null || sp['is_broadcast'] != true) return const [];
+    final restricted = sp['restricted'] == true;
+    final requiredLevel = (sp['required_level'] as num?)?.toInt() ?? 0;
+    final currentLevel = (sp['current_level'] as num?)?.toInt() ?? 0;
+    final locked = currentLevel < requiredLevel;
+    return [
+      const SizedBox(height: 18),
+      Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(10)),
+        child: Row(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text('Restrict sponsored messages',
+                        style: TextStyle(color: textColor, fontSize: 14)),
+                  ),
+                  if (requiredLevel > 0) ...[
+                    const SizedBox(width: 8),
+                    // Boost-level badge (AddLevelBadge).
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [Color(0xFF6C5CE7), Color(0xFF8E7BEF)]),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.bolt, size: 11, color: Colors.white),
+                        Text('Lv $requiredLevel',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_settingSponsored)
+              const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+            else
+              Switch(
+                value: restricted,
+                onChanged: (v) => _toggleSponsored(v, locked, requiredLevel),
+              ),
+          ],
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+        child: Text(
+          locked
+              ? 'Reach boost level $requiredLevel to switch off ads in this channel.'
+              : 'Switch off ads in this channel. You will no longer earn from sponsored messages.',
+          style: TextStyle(fontSize: 12, color: subTextColor, height: 1.4),
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _toggleSponsored(bool value, bool locked, int requiredLevel) async {
+    if (_settingSponsored) return;
+    if (locked && value) {
+      // CheckBoostLevel: can't restrict ads until the channel reaches the level.
+      showTelegramToast(context, 'Reach boost level $requiredLevel to restrict ads.');
+      return;
+    }
+    setState(() => _settingSponsored = true);
+    final engine = context.read<EngineService>();
+    try {
+      await engine.setRestrictSponsored(widget.accountId, widget.chatId, value);
+      if (mounted) {
+        setState(() {
+          _sponsored = {...?_sponsored, 'restricted': value};
+          _settingSponsored = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _settingSponsored = false);
+        showTelegramToast(context, 'Failed: $e');
+      }
+    }
   }
 
   @override
@@ -12593,41 +13882,8 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     final withdrawalEnabled = data['withdrawal_enabled'] as bool? ?? false;
     final usdRate = (data['usd_rate'] as num?)?.toDouble() ?? 0.0;
 
-    Widget balanceTile(String label, int stars, {bool emphasize = false}) {
-      final usd = _fmtUsd(stars, usdRate);
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: TextStyle(fontSize: 13, color: subTextColor)),
-                  if (usd.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(usd, style: TextStyle(fontSize: 12, color: subTextColor.withValues(alpha: 0.7))),
-                  ],
-                ],
-              ),
-            ),
-            const Icon(Icons.star, size: 18, color: starColor),
-            const SizedBox(width: 4),
-            Text(
-              '$stars',
-              style: TextStyle(
-                fontSize: emphasize ? 20 : 16,
-                fontWeight: FontWeight.w700,
-                color: emphasize ? accentColor : textColor,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // ── TON (currency) ad-revenue ── shown BEFORE the Stars section, matching
-    // AyuGram (currency THEN credits — info_channel_earn_list.cpp:611,930).
+    // ── TON (currency) ad-revenue ── shown alongside the Stars (credits) side in
+    // the combined overview (currency + credits — info_channel_earn_list.cpp:682).
     const tonColor = Color(0xFF0098EA);
     final tonData = _tonStats ?? const {};
     final tonAvailable = tonData['available_balance'] as int? ?? 0; // nanotons
@@ -12643,69 +13899,80 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
             tonCharts.isNotEmpty ||
             _tonTransactions.isNotEmpty);
 
-    Widget tonBalanceTile(String label, int nanotons, {bool emphasize = false}) {
-      final usd = _fmtUsdTon(nanotons, tonUsdRate);
+    // Combined overview: Available / Current / Overall as three rows, each with
+    // the TON and Stars values side-by-side, gated by which currency has data
+    // (addOverview, info_channel_earn_list.cpp:682). Replaces the two separate
+    // per-currency balance cards.
+    final hasStars =
+        available != 0 || current != 0 || overall != 0 || _transactions.isNotEmpty || _txLoadedOnce;
+    Widget overviewValue(IconData icon, Color color, String amount, String usd) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 3),
+            Text(amount, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: textColor)),
+          ]),
+          if (usd.isNotEmpty)
+            Text(usd, style: TextStyle(fontSize: 11, color: subTextColor.withValues(alpha: 0.7))),
+        ],
+      );
+    }
+
+    Widget overviewRow(String label, int tonVal, int starVal) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: TextStyle(fontSize: 13, color: subTextColor)),
-                  if (usd.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(usd, style: TextStyle(fontSize: 12, color: subTextColor.withValues(alpha: 0.7))),
-                  ],
-                ],
-              ),
-            ),
-            const Icon(Icons.diamond, size: 18, color: tonColor),
-            const SizedBox(width: 4),
-            Text(
-              _fmtTon(nanotons),
-              style: TextStyle(
-                fontSize: emphasize ? 20 : 16,
-                fontWeight: FontWeight.w700,
-                color: emphasize ? accentColor : textColor,
-              ),
-            ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Text(label, style: TextStyle(fontSize: 13, color: subTextColor))),
+          if (hasTon) ...[
+            const SizedBox(width: 10),
+            overviewValue(Icons.diamond, tonColor, _fmtTon(tonVal), _fmtUsdTon(tonVal, tonUsdRate)),
           ],
-        ),
+          if (hasStars) ...[
+            const SizedBox(width: 18),
+            overviewValue(Icons.star, starColor, '$starVal', _fmtUsd(starVal, usdRate)),
+          ],
+        ]),
+      );
+    }
+
+    Widget combinedOverview() {
+      if (!hasTon && !hasStars) return const SizedBox.shrink();
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+            child: Row(children: [
+              Expanded(
+                child: Text('Overview',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+              ),
+              // Column headers indicate which currency each value belongs to.
+              if (hasTon)
+                const Icon(Icons.diamond, size: 14, color: tonColor),
+              if (hasTon && hasStars) const SizedBox(width: 18),
+              if (hasStars)
+                const Icon(Icons.star, size: 14, color: starColor),
+            ]),
+          ),
+          overviewRow('Available to withdraw', tonAvailable, available),
+          Divider(height: 1, color: bgColor),
+          overviewRow('Current balance', tonCurrent, current),
+          Divider(height: 1, color: bgColor),
+          overviewRow('Total lifetime revenue', tonOverall, overall),
+          const SizedBox(height: 6),
+        ]),
       );
     }
 
     List<Widget> tonSection() {
       if (!hasTon) return const [];
       return [
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
-                child: Row(
-                  children: [
-                    const Icon(Icons.diamond, size: 16, color: tonColor),
-                    const SizedBox(width: 6),
-                    Text('TON Balance',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
-                  ],
-                ),
-              ),
-              tonBalanceTile('Available to withdraw', tonAvailable, emphasize: true),
-              Divider(height: 1, color: bgColor),
-              tonBalanceTile('Current balance', tonCurrent),
-              Divider(height: 1, color: bgColor),
-              tonBalanceTile('Total lifetime revenue', tonOverall),
-              const SizedBox(height: 6),
-            ],
-          ),
-        ),
         // TON withdraw button (Api::HandleWithdrawalButton, currency/ton path).
         if (tonWithdrawalEnabled && tonAvailable > 0)
           Padding(
@@ -12818,29 +14085,10 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     } else {
       body = Builder(builder: (_) {
         final _lvKids = <Widget>[
-          // Currency (TON) section first, then the Stars (credits) section.
+          // Combined TON+Stars overview (side-by-side, column-gated), then the
+          // currency (TON) withdraw/charts/history, then the Stars equivalents.
+          combinedOverview(),
           ...tonSection(),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 6),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
-                  child: Text('Stars Balance',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
-                ),
-                balanceTile('Available to withdraw', available, emphasize: true),
-                Divider(height: 1, color: bgColor),
-                balanceTile('Current balance', current),
-                Divider(height: 1, color: bgColor),
-                balanceTile('Total lifetime revenue', overall),
-                const SizedBox(height: 6),
-              ],
-            ),
-          ),
           // Withdraw button + the optional "Buy Ads" button AyuGram renders
           // alongside it when buyAdsUrl is present (settings_credits_graphics.cpp:3346).
           // The withdraw button locks until nextWithdrawalAt with a live countdown
@@ -12921,16 +14169,29 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
                   )),
             ];
           })(),
-          // Transaction history (info_channel_earn_list.cpp:1288).
-          if (_transactions.isNotEmpty || _loadingTx) ...[
+          // Transaction history (info_channel_earn_list.cpp:1288) with the
+          // Full / Incoming / Outgoing filter tabs (AddCreditsHistoryList).
+          if (_transactions.isNotEmpty || _loadingTx || _txLoadedOnce) ...[
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
               child: Text('Transactions',
                   style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
             ),
+            _buildTxFilterTabs(cardColor, textColor, subTextColor, accentColor),
+            const SizedBox(height: 6),
+            if (_transactions.isEmpty && _loadingTx)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+              )
+            else if (_transactions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Text('No transactions.', style: TextStyle(color: subTextColor, fontSize: 13)),
+              ),
             ..._transactions.map((tx) => _buildTransactionRow(tx, cardColor, textColor, subTextColor, starColor)),
-            if (_txHasMore)
+            if (_txHasMore && _transactions.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.all(8),
                 child: Center(
@@ -12939,11 +14200,10 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
                       : TextButton(onPressed: _loadMoreTransactions, child: Text('Show more', style: TextStyle(color: accentColor))),
                 ),
               ),
-          ] else if (_txLoadedOnce)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Text('No transactions yet.', style: TextStyle(color: subTextColor, fontSize: 13)),
-            ),
+          ],
+          // Restrict sponsored messages toggle (broadcast channels only,
+          // info_channel_earn_list.cpp:1391).
+          ..._buildSponsoredToggle(cardColor, textColor, subTextColor, accentColor),
         ];
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 12),

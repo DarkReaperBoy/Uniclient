@@ -33,6 +33,9 @@ Future<void> showCreateGiveawayBox(
   required String chatId,
   required ThemeData theme,
   List<Map<String, dynamic>>? prepaidGiveaways,
+  // Index of the specific prepaid giveaway that was tapped, so the box opens
+  // pre-selected on it (AyuGram passes the concrete `g`, info_boosts_inner_widget.cpp:382).
+  int selectedPrepaidIndex = 0,
 }) {
   return showTelegramBox(
     context: context,
@@ -41,6 +44,7 @@ Future<void> showCreateGiveawayBox(
       chatId: chatId,
       theme: theme,
       prepaidGiveaways: prepaidGiveaways ?? [],
+      selectedPrepaidIndex: selectedPrepaidIndex,
     ),
   );
 }
@@ -50,12 +54,14 @@ class _CreateGiveawayBox extends StatefulWidget {
   final String chatId;
   final ThemeData theme;
   final List<Map<String, dynamic>> prepaidGiveaways;
+  final int selectedPrepaidIndex;
 
   const _CreateGiveawayBox({
     required this.accountId,
     required this.chatId,
     required this.theme,
     required this.prepaidGiveaways,
+    this.selectedPrepaidIndex = 0,
   });
 
   @override
@@ -108,6 +114,8 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     _loadOptions();
     if (widget.prepaidGiveaways.isNotEmpty) {
       _type = _GiveawayType.prepaid;
+      _selectedPrepaidIndex =
+          widget.selectedPrepaidIndex.clamp(0, widget.prepaidGiveaways.length - 1);
     }
   }
 

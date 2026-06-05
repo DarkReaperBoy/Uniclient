@@ -3436,12 +3436,14 @@ class EngineService {
 
   // ── Chat Invite Links ──
 
-  Future<List<Map<String, dynamic>>> getExportedChatInvites(String accountId, String chatId, {bool revoked = false, String adminId = ''}) async {
+  Future<List<Map<String, dynamic>>> getExportedChatInvites(String accountId, String chatId, {bool revoked = false, String adminId = '', int offsetDate = 0, String offsetLink = ''}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'revoked': revoked,
       if (adminId.isNotEmpty) 'admin_id': adminId,
+      if (offsetDate > 0) 'offset_date': offsetDate,
+      if (offsetLink.isNotEmpty) 'offset_link': offsetLink,
     }));
     final respBytes = await _callAsync('__engine', 'GetExportedChatInvites', Uint8List.fromList(payload));
     final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
@@ -4420,30 +4422,62 @@ class EngineService {
   /// transaction list). Returns {transactions:[{id, amount, date, refund, title,
   /// description}], next_offset}.
   Future<Map<String, dynamic>> getChannelStarsTransactions(String accountId, String chatId,
-      {String offset = '', int limit = 30}) async {
+      {String offset = '', int limit = 30, String filter = ''}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'offset': offset,
       'limit': limit,
+      // '' = all, 'in' = incoming, 'out' = outgoing (history filter tabs).
+      'filter': filter,
     }));
     final resp = await _callAsync('__engine', 'GetChannelStarsTransactions', Uint8List.fromList(payload));
     if (resp.isEmpty) return {'transactions': [], 'next_offset': ''};
     return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
   }
 
-  /// Returns a URL to withdraw the channel's available Stars balance, gated on
-  /// the 2FA [password] (Api::HandleWithdrawalButton).
-  Future<String> getStarsRevenueWithdrawalUrl(String accountId, String chatId, String password) async {
+  /// Returns a URL to withdraw a chosen [amount] of the channel's Stars balance
+  /// (0 = full available), gated on the 2FA [password] (Api::HandleWithdrawalButton).
+  Future<String> getStarsRevenueWithdrawalUrl(String accountId, String chatId, String password,
+      {int amount = 0}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'password': password,
+      'amount': amount,
     }));
     final resp = await _callAsync('__engine', 'GetStarsRevenueWithdrawalUrl', Uint8List.fromList(payload));
     if (resp.isEmpty) return '';
     final m = json.decode(utf8.decode(resp)) as Map<String, dynamic>;
     return m['url'] as String? ?? '';
+  }
+
+  /// Whether the channel can restrict sponsored messages (broadcast-only), the
+  /// current state, the required boost level and the channel's current level —
+  /// drives the "Restrict sponsored messages" toggle (info_channel_earn_list.cpp:1391).
+  Future<Map<String, dynamic>> getSponsoredInfo(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    try {
+      final resp = await _callAsync('__engine', 'GetSponsoredInfo', Uint8List.fromList(payload));
+      if (resp.isEmpty) return {'is_broadcast': false};
+      return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getSponsoredInfo failed', e);
+      return {'is_broadcast': false};
+    }
+  }
+
+  /// Toggles channel-wide sponsored-message suppression (channels.restrictSponsoredMessages).
+  Future<void> setRestrictSponsored(String accountId, String chatId, bool restricted) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'restricted': restricted,
+    }));
+    await _callAsync('__engine', 'SetRestrictSponsored', Uint8List.fromList(payload));
   }
 
   /// Channel TON (currency) ad-revenue stats — the currency side of the earn

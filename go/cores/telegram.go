@@ -14304,6 +14304,38 @@ func adminLogInviteLink(inv tg.ExportedChatInviteClass) string {
 	return ""
 }
 
+// adminLogInviteFields surfaces the field-level invite-link properties (link,
+// label, expiry, usage limit, request-approval) so the UI can build the
+// GenerateInviteLinkChangeText diff (history_admin_log_item.cpp:457-558).
+func adminLogInviteFields(inv tg.ExportedChatInviteClass) (string, map[string]interface{}) {
+	e, ok := inv.(*tg.ChatInviteExported)
+	if !ok {
+		return "", map[string]interface{}{}
+	}
+	title, _ := e.GetTitle()
+	expire, _ := e.GetExpireDate()
+	usage, _ := e.GetUsageLimit()
+	return e.Link, map[string]interface{}{
+		"title":          title,
+		"expire":         expire,
+		"usage":          usage,
+		"request_needed": e.RequestNeeded,
+	}
+}
+
+// adminLogTopicFields extracts the reduced ForumTopic fields surfaced in
+// topic-related admin-log events (title/closed/hidden/id). Reduced info only
+// (core.telegram.org/api/recent-actions); deleted topics yield zero values.
+func adminLogTopicFields(tc tg.ForumTopicClass) (title string, closed, hidden bool, id int) {
+	if ft, ok := tc.(*tg.ForumTopic); ok {
+		return ft.Title, ft.Closed, ft.Hidden, ft.ID
+	}
+	if ft, ok := tc.(*tg.ForumTopicDeleted); ok {
+		return "", false, false, ft.ID
+	}
+	return "", false, false, 0
+}
+
 func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionClass, users map[int64]*tg.User) map[string]interface{} {
 	msgMedia := func(m tg.MessageClass) map[string]interface{} {
 		msg, ok := m.(*tg.Message)
@@ -14363,13 +14395,31 @@ func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionCl
 			"new_rank":   newRank,
 		}
 	case *tg.ChannelAdminLogEventActionParticipantInvite:
-		prevA, prevB, prevMember, _ := adminLogParticipantRights(a.Participant)
-		return map[string]interface{}{
-			"target":      participantUserName(a.Participant, users),
-			"prev_admin":  prevA,
-			"prev_banned": prevB,
-			"prev_member": prevMember,
+		// GenerateParticipantChangeText(channel, participant) with no old
+		// participant: the verb + diff vary by the invited participant's
+		// CURRENT type (admin → promoted+rights, banned/restricted →
+		// restricted+perms, member → invited). history_admin_log_item.cpp:1152.
+		adminMap, bannedMap, isMember, _ := adminLogParticipantRights(a.Participant)
+		d := map[string]interface{}{
+			"target":     participantUserName(a.Participant, users),
+			"inv_member": isMember,
 		}
+		switch pp := a.Participant.(type) {
+		case *tg.ChannelParticipantAdmin, *tg.ChannelParticipantCreator:
+			d["inv_type"] = "admin"
+			d["new_admin"] = adminMap
+		case *tg.ChannelParticipantBanned:
+			if bannedMap != nil && bannedMap["view_messages"] {
+				d["inv_type"] = "banned"
+			} else {
+				d["inv_type"] = "restricted"
+			}
+			d["new_banned"] = bannedMap
+			d["inv_until"] = pp.BannedRights.UntilDate
+		default:
+			d["inv_type"] = "member"
+		}
+		return d
 	case *tg.ChannelAdminLogEventActionChangeAvailableReactions:
 		d := map[string]interface{}{}
 		mode, list := adminLogReactions(a.NewValue)
@@ -14393,10 +14443,21 @@ func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionCl
 	case *tg.ChannelAdminLogEventActionExportedInviteRevoke:
 		return map[string]interface{}{"link": adminLogInviteLink(a.Invite)}
 	case *tg.ChannelAdminLogEventActionExportedInviteEdit:
-		return map[string]interface{}{
-			"link":     adminLogInviteLink(a.NewInvite),
-			"prev_link": adminLogInviteLink(a.PrevInvite),
+		// Surface old/new {title,expire,usage,request_needed} so the UI builds
+		// the field-level diff (GenerateInviteLinkChangeText, :457-558).
+		prevLink, prevFields := adminLogInviteFields(a.PrevInvite)
+		newLink, newFields := adminLogInviteFields(a.NewInvite)
+		d := map[string]interface{}{
+			"link":      newLink,
+			"prev_link": prevLink,
 		}
+		for k, v := range prevFields {
+			d["prev_"+k] = v
+		}
+		for k, v := range newFields {
+			d["new_"+k] = v
+		}
+		return d
 	case *tg.ChannelAdminLogEventActionParticipantJoinByRequest:
 		return map[string]interface{}{
 			"link":        adminLogInviteLink(a.Invite),
@@ -14445,6 +14506,27 @@ func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionCl
 		return map[string]interface{}{"join_muted": a.JoinMuted}
 	case *tg.ChannelAdminLogEventActionParticipantSubExtend:
 		return map[string]interface{}{"target": participantUserName(a.NewParticipant, users)}
+	case *tg.ChannelAdminLogEventActionEditTopic:
+		// 1–3 messages for title/closed/hidden changes (createEditTopic,
+		// history_admin_log_item.cpp:1842).
+		pTitle, pClosed, pHidden, _ := adminLogTopicFields(a.PrevTopic)
+		nTitle, nClosed, nHidden, tid := adminLogTopicFields(a.NewTopic)
+		return map[string]interface{}{
+			"topic_id":    tid,
+			"topic_title": nTitle,
+			"prev_title":  pTitle,
+			"prev_closed": pClosed,
+			"new_closed":  nClosed,
+			"prev_hidden": pHidden,
+			"new_hidden":  nHidden,
+		}
+	case *tg.ChannelAdminLogEventActionChangeUsernames:
+		// reorder / activate-deactivate / single / generic sub-cases computed
+		// UI-side from the two lists (createChangeUsernames, :1731).
+		return map[string]interface{}{
+			"prev_usernames": a.PrevValue,
+			"new_usernames":  a.NewValue,
+		}
 	}
 	return nil
 }
@@ -18058,10 +18140,22 @@ func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, err
 		for _, pg := range prepaid {
 			switch g := pg.(type) {
 			case *tg.PrepaidGiveaway:
+				// Premium subscriptions — boost count is quantity * multiplier
+				// (computed UI-side); no credits field.
 				giveaways = append(giveaways, map[string]interface{}{
 					"id":       g.ID,
 					"months":   g.Months,
 					"quantity": g.Quantity,
+					"date":     g.Date,
+				})
+			case *tg.PrepaidStarsGiveaway:
+				// Telegram Stars giveaway (GiveawayTypeRow::Type::PrepaidCredits):
+				// carries the star amount + an explicit boost count.
+				giveaways = append(giveaways, map[string]interface{}{
+					"id":       g.ID,
+					"credits":  g.Stars,
+					"quantity": g.Quantity,
+					"boosts":   g.Boosts,
 					"date":     g.Date,
 				})
 			}
@@ -21023,6 +21117,25 @@ func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) 
 	for _, u := range result.Users {
 		if user, ok := u.(*tg.User); ok && user.ID == uid {
 			cu := t.convertUser(user)
+			// Surface the participant's current status so the Add-Admin /
+			// Add-Exception flows can run AyuGram's showAdmin/showRestricted
+			// pre-flight (already-kicked/restricted/admin confirmation,
+			// add_participants_box.cpp:1412/1542). "kicked" == fully banned
+			// (view_messages), "restricted" == partial ban.
+			switch pp := result.Participant.(type) {
+			case *tg.ChannelParticipantCreator:
+				cu.Role = "creator"
+			case *tg.ChannelParticipantAdmin:
+				cu.Role = "admin"
+			case *tg.ChannelParticipantBanned:
+				if pp.BannedRights.ViewMessages {
+					cu.Role = "kicked"
+				} else {
+					cu.Role = "restricted"
+				}
+			case *tg.ChannelParticipant, *tg.ChannelParticipantSelf:
+				cu.Role = "member"
+			}
 			if bp, ok := result.Participant.(*tg.ChannelParticipantBanned); ok {
 				br := bp.BannedRights
 				// Ban expiry (0 / INT_MAX = forever). AyuGram seeds the
@@ -21509,6 +21622,11 @@ type StarsRevenueResult struct {
 	// Revenue + top-hours graphs (the earn section's charts) — previously
 	// dropped (info_channel_earn_list.cpp:611).
 	Charts []map[string]interface{} `json:"charts,omitempty"`
+	// Withdrawal amount bounds for the AddInputFieldForCredits field
+	// (settings_credits_graphics.cpp:3322): min from appConfig
+	// stars_revenue_withdrawal_min, max capped per-withdrawal.
+	WithdrawalMin int64 `json:"withdrawal_min,omitempty"`
+	WithdrawalMax int64 `json:"withdrawal_max,omitempty"`
 }
 
 func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, error) {
@@ -21527,19 +21645,29 @@ func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, 
 	if c := statsGraphToMap("Top Hours", result.TopHoursGraph, "Linear"); c != nil {
 		charts = append(charts, c)
 	}
+	// Withdrawal bounds: minimum from appConfig (stars_revenue_withdrawal_min),
+	// max is the per-withdrawal cap clamped to the available balance.
+	avail := result.Status.AvailableBalance.GetAmount()
+	withdrawMin := int64(t.appConfigIntNoLock("stars_revenue_withdrawal_min", 1000))
+	withdrawMax := int64(t.appConfigIntNoLock("stars_revenue_withdrawal_max", 1000000000))
+	if withdrawMax <= 0 || withdrawMax > avail {
+		withdrawMax = avail
+	}
 	return StarsRevenueResult{
 		CurrentBalance:    result.Status.CurrentBalance.GetAmount(),
-		AvailableBalance:  result.Status.AvailableBalance.GetAmount(),
+		AvailableBalance:  avail,
 		OverallRevenue:    result.Status.OverallRevenue.GetAmount(),
 		WithdrawalEnabled: result.Status.WithdrawalEnabled,
 		UsdRate:           result.UsdRate,
 		Charts:            charts,
+		WithdrawalMin:     withdrawMin,
+		WithdrawalMax:     withdrawMax,
 	}, nil
 }
 
 // GetStarsTransactions returns the Stars transaction history for the channel's
 // balance — the earn section's transaction list (info_channel_earn_list.cpp:1288).
-func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int) (map[string]interface{}, error) {
+func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, filter string) (map[string]interface{}, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -21556,11 +21684,20 @@ func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int) (m
 	if limit <= 0 {
 		limit = 30
 	}
-	res, err := t.api.PaymentsGetStarsTransactions(t.ctx, &tg.PaymentsGetStarsTransactionsRequest{
+	// Full / Incoming / Outgoing history filter tabs (AddCreditsHistoryList,
+	// info_channel_earn_list.cpp:979; requestHistory inbound/outbound flags).
+	req := &tg.PaymentsGetStarsTransactionsRequest{
 		Peer:   inputPeer,
 		Offset: offset,
 		Limit:  limit,
-	})
+	}
+	switch filter {
+	case "in":
+		req.Inbound = true
+	case "out":
+		req.Outbound = true
+	}
+	res, err := t.api.PaymentsGetStarsTransactions(t.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -21589,7 +21726,7 @@ func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int) (m
 // GetStarsRevenueWithdrawalUrl returns a URL to withdraw the channel's available
 // Stars balance, gated on the user's 2FA password (Api::HandleWithdrawalButton →
 // info_channel_earn_list.cpp:917).
-func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string) (string, error) {
+func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amount int64) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -21607,9 +21744,14 @@ func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string) (st
 	if err != nil {
 		return "", fmt.Errorf("get revenue stats: %w", err)
 	}
-	amount := stats.Status.AvailableBalance.GetAmount()
-	if amount <= 0 {
+	avail := stats.Status.AvailableBalance.GetAmount()
+	if avail <= 0 {
 		return "", fmt.Errorf("no balance available to withdraw")
+	}
+	// A user-chosen partial amount (AddInputFieldForCredits) is clamped to the
+	// available balance; 0 means "withdraw everything".
+	if amount <= 0 || amount > avail {
+		amount = avail
 	}
 	pw, err := t.api.AccountGetPassword(t.ctx)
 	if err != nil {
@@ -21628,6 +21770,81 @@ func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string) (st
 		return "", err
 	}
 	return res.URL, nil
+}
+
+// GetSponsoredInfo reports whether the channel can restrict sponsored messages
+// (broadcast-only), the current restricted state, the boost level required
+// (appConfig channel_restrict_sponsored_level_min) and the channel's current
+// level — driving the "Restrict sponsored messages" toggle + level badge
+// (info_channel_earn_list.cpp:1391).
+func (t *TelegramCore) GetSponsoredInfo(chatID string) (map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	ch, ok := peer.(*tg.PeerChannel)
+	if !ok {
+		return map[string]interface{}{"is_broadcast": false}, nil
+	}
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	inputCh := &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}
+	requiredLevel := t.appConfigIntNoLock("channel_restrict_sponsored_level_min", 50)
+	isBroadcast := false
+	restricted := false
+	full, err := t.api.ChannelsGetFullChannel(t.ctx, inputCh)
+	if err != nil {
+		return nil, err
+	}
+	if cf, ok := full.FullChat.(*tg.ChannelFull); ok {
+		restricted = cf.RestrictedSponsored
+	}
+	for _, c := range full.Chats {
+		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {
+			isBroadcast = cc.Broadcast && !cc.Megagroup
+		}
+	}
+	currentLevel := 0
+	if isBroadcast {
+		if bs, err := t.api.PremiumGetBoostsStatus(t.ctx, &tg.InputPeerChannel{ChannelID: ch.ChannelID, AccessHash: hash}); err == nil {
+			currentLevel = bs.Level
+		}
+	}
+	return map[string]interface{}{
+		"is_broadcast":   isBroadcast,
+		"restricted":     restricted,
+		"required_level": requiredLevel,
+		"current_level":  currentLevel,
+	}, nil
+}
+
+// SetRestrictSponsored toggles channel-wide ad suppression
+// (channels.restrictSponsoredMessages, Api::RestrictSponsored —
+// info_channel_earn_list.cpp:1442). Gated server-side on the boost level.
+func (t *TelegramCore) SetRestrictSponsored(chatID string, restricted bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return err
+	}
+	ch, ok := peer.(*tg.PeerChannel)
+	if !ok {
+		return fmt.Errorf("not a channel")
+	}
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	_, err = t.api.ChannelsRestrictSponsoredMessages(t.ctx, &tg.ChannelsRestrictSponsoredMessagesRequest{
+		Channel:    &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Restricted: restricted,
+	})
+	return err
 }
 
 // GetBroadcastRevenueStats returns the channel's TON (currency) ad-revenue stats:
@@ -21711,6 +21928,14 @@ func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, li
 			"failed":      tx.Failed,
 			"title":       tx.Title,
 			"description": tx.Description,
+		}
+		// Blockchain explorer success link + completion date for the details box
+		// (entry.successLink, info_channel_earn_list.cpp:1244).
+		if url, ok := tx.GetTransactionURL(); ok && url != "" {
+			m["transaction_url"] = url
+		}
+		if td, ok := tx.GetTransactionDate(); ok && td != 0 {
+			m["transaction_date"] = td
 		}
 		txns = append(txns, m)
 	}
@@ -28475,7 +28700,7 @@ func inviteLinkFromExported(inv *tg.ChatInviteExported) map[string]interface{} {
 	return m
 }
 
-func (t *TelegramCore) GetExportedChatInvites(chatID string, revoked bool, adminID string) ([]map[string]interface{}, error) {
+func (t *TelegramCore) GetExportedChatInvites(chatID string, revoked bool, adminID string, offsetDate int, offsetLink string) ([]map[string]interface{}, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil { return nil, err }
 	defer unlock()
@@ -28491,6 +28716,14 @@ func (t *TelegramCore) GetExportedChatInvites(chatID string, revoked bool, admin
 		AdminID: adminUser,
 		Revoked: revoked,
 		Limit:   100,
+	}
+	// Pagination cursor: last link's (date, url) from the previous slice
+	// (inviteLinks().requestMoreLinks, edit_peer_invite_links.cpp:511-517).
+	if offsetDate > 0 {
+		req.SetOffsetDate(offsetDate)
+	}
+	if offsetLink != "" {
+		req.SetOffsetLink(offsetLink)
 	}
 	result, err := t.api.MessagesGetExportedChatInvites(t.ctx, req)
 	if err != nil { return nil, err }
