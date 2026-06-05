@@ -6,7 +6,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
@@ -20,7 +19,7 @@ import 'package:uniclient/utils/debug.dart';
 
 enum GroupCallMode { narrow, wide }
 
-enum MuteButtonState { connecting, unmuted, muted, forceMuted }
+enum MuteButtonState { connecting, unmuted, muted, forceMuted, raisedHand }
 
 class GroupCallPanel extends StatefulWidget {
   final GroupCallInfo info;
@@ -38,6 +37,7 @@ class GroupCallPanel extends StatefulWidget {
   final VoidCallback? onToggleVideo;
   final VoidCallback? onToggleScreenShare;
   final VoidCallback? onOpenMenu;
+  final VoidCallback? onOpenSettings;
   final VoidCallback? onToggleMessages;
   final ValueChanged<String>? onSendMessage;
   final Widget? videoViewport;
@@ -70,6 +70,7 @@ class GroupCallPanel extends StatefulWidget {
     this.onToggleVideo,
     this.onToggleScreenShare,
     this.onOpenMenu,
+    this.onOpenSettings,
     this.onToggleMessages,
     this.onSendMessage,
     this.videoViewport,
@@ -107,6 +108,10 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   bool _isRecording = false;
   bool _isPushToTalk = false;
   Timer? _pushToTalkTimer;
+  // Locally pinned video feed key ("<userId>:camera" / "<userId>:screen"), or
+  // null for the auto grid. Mirrors AyuGram's client-side videoEndpointPinned —
+  // pure UI state, no server call.
+  String? _pinnedVideoKey;
 
   @override
   void initState() {
@@ -330,9 +335,11 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     if (widget.isConnecting && widget.scheduleDate == 0) {
       return MuteButtonState.connecting;
     }
-    if (widget.isForceMuted || widget.isRaisedHand) {
-      return MuteButtonState.forceMuted;
-    }
+    // RaisedHand and ForceMuted are DISTINCT states (AyuGram Type::RaisedHand vs
+    // Type::ForceMuted): raised-hand is checked first since it's the more
+    // specific case (force-muted + you've asked to speak).
+    if (widget.isRaisedHand) return MuteButtonState.raisedHand;
+    if (widget.isForceMuted) return MuteButtonState.forceMuted;
     if (widget.isSelfMuted) return MuteButtonState.muted;
     return MuteButtonState.unmuted;
   }
@@ -394,6 +401,8 @@ class _GroupCallPanelState extends State<GroupCallPanel>
                 const SizedBox(height: 2),
                 Text(
                   '$count participant${count == 1 ? '' : 's'} · ${_formatDuration(_durationSeconds)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Color(0xAAFFFFFF),
                     fontSize: 13,
@@ -511,6 +520,36 @@ class _GroupCallPanelState extends State<GroupCallPanel>
 
     final items = <PopupMenuEntry<String>>[];
 
+    // Pin video / screencast — only when 2+ video feeds are on screen (AyuGram
+    // calls_group_members.cpp:1404-1452 hasTwoOrMore gate). Pinning is local UI
+    // state (videoEndpointPinned), no server call.
+    final feeds = _videoFeeds;
+    if (feeds.length >= 2) {
+      final cameraKey = '${p.userId}:camera';
+      final screenKey = '${p.userId}:screen';
+      if (feeds.any((f) => f.key == cameraKey)) {
+        items.add(PopupMenuItem(
+          value: 'pin_camera',
+          child: Text(_pinnedVideoKey == cameraKey ? 'Unpin video' : 'Pin video'),
+        ));
+      }
+      if (feeds.any((f) => f.key == screenKey)) {
+        items.add(PopupMenuItem(
+          value: 'pin_screen',
+          child: Text(_pinnedVideoKey == screenKey
+              ? 'Unpin screencast'
+              : 'Pin screencast'),
+        ));
+      }
+    }
+
+    // Self row, force-muted with hand up → "Cancel request to speak" (AyuGram
+    // lng_group_call_context_remove_hand → lowers the hand back to ForceMuted).
+    if (isSelf && widget.isRaisedHand) {
+      items.add(const PopupMenuItem(
+          value: 'remove_hand', child: Text('Cancel request to speak')));
+    }
+
     // View profile / Send message — shown for every non-self participant.
     if (!isSelf) {
       items.add(const PopupMenuItem(value: 'profile', child: Text('View profile')));
@@ -579,6 +618,14 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           _showVolumeSlider(context, p, callId: callId);
         case 'kick':
           engine.kickGroupCallParticipant(accountId, callId, p.userId);
+        case 'pin_camera':
+          final k = '${p.userId}:camera';
+          setState(() => _pinnedVideoKey = _pinnedVideoKey == k ? null : k);
+        case 'pin_screen':
+          final k = '${p.userId}:screen';
+          setState(() => _pinnedVideoKey = _pinnedVideoKey == k ? null : k);
+        case 'remove_hand':
+          engine.raiseHand(accountId, callId, false);
       }
     });
   }
@@ -845,31 +892,24 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           top: BorderSide(color: Color(0x20FFFFFF), width: 1),
         ),
       ),
+      // AyuGram narrow 5-button layout (calls_group_panel.cpp:2602-2653):
+      // [Video, Settings, Mute(dead-center), Chat, Hangup]. The big Mute button
+      // is the middle (3rd) child so spaceEvenly centers it. Screen-share is
+      // EXPLICITLY hidden in narrow mode (toggle(_screenShare,false)) — it lives
+      // only in the "…" menu. Settings (gear) is a primary control here.
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _GroupCallControlButton(
-            icon: Icons.chat_bubble_outline,
-            label: 'Chat',
-            isActive: widget.isMessagesVisible,
-            onTap: widget.onToggleMessages,
-          ),
-          _GroupCallControlButton(
-            icon: Icons.screen_share_outlined,
-            label: 'Screen',
-            isActive: widget.isScreenShareActive,
-            onTap: widget.onToggleScreenShare,
-          ),
           _GroupCallControlButton(
             icon: Icons.videocam_outlined,
             label: 'Video',
             isActive: widget.isVideoActive,
             onTap: widget.onToggleVideo,
           ),
-          _GroupCallActionButton(
-            icon: Icons.call_end,
-            backgroundColor: const Color(0xFFE53935),
-            onTap: widget.onLeave,
+          _GroupCallControlButton(
+            icon: Icons.settings_outlined,
+            label: 'Settings',
+            onTap: widget.onOpenSettings,
           ),
           _BigMuteButton(
             state: _muteState,
@@ -877,6 +917,17 @@ class _GroupCallPanelState extends State<GroupCallPanel>
             scheduleDate: widget.scheduleDate,
             isCanManage: widget.isCanManage,
             scheduleStartSubscribed: widget.scheduleStartSubscribed,
+          ),
+          _GroupCallControlButton(
+            icon: Icons.chat_bubble_outline,
+            label: 'Chat',
+            isActive: widget.isMessagesVisible,
+            onTap: widget.onToggleMessages,
+          ),
+          _GroupCallActionButton(
+            icon: Icons.call_end,
+            backgroundColor: const Color(0xFFE53935),
+            onTap: widget.onLeave,
           ),
         ],
       ),
@@ -897,7 +948,46 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     );
   }
 
+  // Video feeds shown in the wide-mode viewport: a camera and/or screen tile per
+  // participant who is sharing video, plus a synthetic tile for an RTMP
+  // livestream (whose broadcast is not tied to a participant row).
+  List<_VideoFeed> get _videoFeeds {
+    final feeds = <_VideoFeed>[];
+    for (final p in widget.info.participants) {
+      final hasCamera = p.videoCameraEndpoint.isNotEmpty ||
+          (p.hasVideo && p.videoScreenEndpoint.isEmpty);
+      if (hasCamera) {
+        feeds.add(_VideoFeed(
+          key: '${p.userId}:camera',
+          kind: 'camera',
+          participant: p,
+          label: p.displayName,
+        ));
+      }
+      if (p.videoScreenEndpoint.isNotEmpty) {
+        feeds.add(_VideoFeed(
+          key: '${p.userId}:screen',
+          kind: 'screen',
+          participant: p,
+          label: p.displayName,
+        ));
+      }
+    }
+    if (feeds.isEmpty && widget.isRtmp) {
+      feeds.add(_VideoFeed(
+        key: 'rtmp:screen',
+        kind: 'screen',
+        participant: null,
+        label: widget.chatTitle.isNotEmpty
+            ? widget.chatTitle
+            : (widget.info.title.isNotEmpty ? widget.info.title : 'Live Stream'),
+      ));
+    }
+    return feeds;
+  }
+
   Widget _buildWideMode() {
+    final accountId = context.read<AppState>().activeAccountId;
     return Row(
       children: [
         Expanded(
@@ -905,28 +995,17 @@ class _GroupCallPanelState extends State<GroupCallPanel>
             children: [
               Expanded(
                 child: widget.videoViewport ??
-                    Container(
-                      color: const Color(0xFF0D1117),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.videocam_off,
-                              color: const Color(0x60FFFFFF),
-                              size: 48,
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'No video',
-                              style: TextStyle(
-                                color: Color(0x60FFFFFF),
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    _GroupCallViewport(
+                      callId: widget.info.callId,
+                      accountId: accountId,
+                      feeds: _videoFeeds,
+                      isRtmp: widget.isRtmp,
+                      pinnedKey: _pinnedVideoKey,
+                      participantSpeaking: _participantSpeaking,
+                      validAvatarPaths: _validAvatarPaths,
+                      onTilePinToggle: (key) => setState(() {
+                        _pinnedVideoKey = _pinnedVideoKey == key ? null : key;
+                      }),
                     ),
               ),
               _buildBottomControls(wide: true),
@@ -990,6 +1069,356 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A single video stream shown in the group-call viewport. [kind] is "camera"
+/// or "screen"; [participant] is null for an RTMP livestream's broadcast feed.
+class _VideoFeed {
+  final String key;
+  final String kind; // "camera" | "screen"
+  final GroupCallParticipant? participant;
+  final String label;
+  const _VideoFeed({
+    required this.key,
+    required this.kind,
+    this.participant,
+    this.label = '',
+  });
+}
+
+/// The wide-mode video viewport — a responsive grid of live video tiles, porting
+/// AyuGram's `Calls::Group::Viewport`. When one feed is pinned it fills the
+/// stage and the rest become a thumbnail strip; otherwise tiles tile a grid.
+/// Each tile renders the live decoded frame polled from the engine, falling
+/// back to the speaker's avatar when no frame has arrived (AyuGram's paused /
+/// no-frame tile state).
+class _GroupCallViewport extends StatelessWidget {
+  final String callId;
+  final String accountId;
+  final List<_VideoFeed> feeds;
+  final bool isRtmp;
+  final String? pinnedKey;
+  final Map<String, bool> participantSpeaking;
+  final Set<String> validAvatarPaths;
+  final ValueChanged<String> onTilePinToggle;
+
+  const _GroupCallViewport({
+    required this.callId,
+    required this.accountId,
+    required this.feeds,
+    required this.isRtmp,
+    required this.pinnedKey,
+    required this.participantSpeaking,
+    required this.validAvatarPaths,
+    required this.onTilePinToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (feeds.isEmpty) {
+      return Container(
+        color: const Color(0xFF0D1117),
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.videocam_off, color: Color(0x60FFFFFF), size: 48),
+              SizedBox(height: 12),
+              Text('No video',
+                  style: TextStyle(color: Color(0x60FFFFFF), fontSize: 14)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    _VideoFeed? pinned;
+    if (pinnedKey != null) {
+      for (final f in feeds) {
+        if (f.key == pinnedKey) {
+          pinned = f;
+          break;
+        }
+      }
+    }
+    // RTMP / single feed always fills the stage.
+    if (pinned == null && (isRtmp || feeds.length == 1)) {
+      pinned = feeds.first;
+    }
+
+    Widget buildTile(_VideoFeed f) => _GroupCallVideoTile(
+          key: ValueKey(f.key),
+          callId: callId,
+          accountId: accountId,
+          feed: f,
+          isSpeaking: f.participant != null &&
+              (participantSpeaking[f.participant!.userId] ??
+                  f.participant!.isSpeaking),
+          validAvatarPaths: validAvatarPaths,
+          pinned: pinnedKey == f.key,
+          canPin: feeds.length >= 2,
+          onPinToggle: () => onTilePinToggle(f.key),
+        );
+
+    if (pinned != null) {
+      final stage = pinned;
+      final others = feeds.where((f) => f.key != stage.key).toList();
+      return Container(
+        color: const Color(0xFF0D1117),
+        child: Column(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: buildTile(stage),
+              ),
+            ),
+            if (others.isNotEmpty)
+              SizedBox(
+                height: 88,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+                  itemCount: others.length,
+                  itemBuilder: (ctx, i) => Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 10,
+                      child: buildTile(others[i]),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      color: const Color(0xFF0D1117),
+      padding: const EdgeInsets.all(4),
+      child: LayoutBuilder(
+        builder: (ctx, c) {
+          final cols = (c.maxWidth > 560 && feeds.length > 4)
+              ? 3
+              : (feeds.length == 1 ? 1 : 2);
+          return GridView.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: cols,
+              childAspectRatio: 16 / 10,
+              mainAxisSpacing: 4,
+              crossAxisSpacing: 4,
+            ),
+            itemCount: feeds.length,
+            itemBuilder: (ctx, i) => buildTile(feeds[i]),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// One video tile: polls the engine for the latest decoded frame of its feed
+/// and renders it (RawImage, cover-fit). With no frame it shows the speaker's
+/// avatar + name — AyuGram's no-frame / paused tile. A pin toggle sits top-right
+/// when 2+ feeds are shown; mic/screen badges and a speaking ring overlay.
+class _GroupCallVideoTile extends StatefulWidget {
+  final String callId;
+  final String accountId;
+  final _VideoFeed feed;
+  final bool isSpeaking;
+  final bool pinned;
+  final bool canPin;
+  final Set<String> validAvatarPaths;
+  final VoidCallback onPinToggle;
+
+  const _GroupCallVideoTile({
+    super.key,
+    required this.callId,
+    required this.accountId,
+    required this.feed,
+    required this.isSpeaking,
+    required this.pinned,
+    required this.canPin,
+    required this.validAvatarPaths,
+    required this.onPinToggle,
+  });
+
+  @override
+  State<_GroupCallVideoTile> createState() => _GroupCallVideoTileState();
+}
+
+class _GroupCallVideoTileState extends State<_GroupCallVideoTile> {
+  Timer? _timer;
+  ui.Image? _frame;
+  bool _decoding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // ~12fps poll — enough for a smooth tile without flooding the FFI bridge.
+    _timer = Timer.periodic(const Duration(milliseconds: 80), (_) => _poll());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _poll());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _frame?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _poll() async {
+    if (!mounted || _decoding) return;
+    try {
+      final engine = context.read<EngineService>();
+      if (widget.callId.isEmpty) return;
+      final f = await engine.getGroupCallVideoFrame(
+          widget.accountId, widget.callId, widget.feed.kind);
+      if (!mounted) return;
+      if (f == null) {
+        if (_frame != null) {
+          final old = _frame;
+          setState(() => _frame = null);
+          old?.dispose();
+        }
+        return;
+      }
+      _decoding = true;
+      ui.decodeImageFromPixels(
+          f.rgba, f.width, f.height, ui.PixelFormat.rgba8888, (img) {
+        _decoding = false;
+        if (!mounted) {
+          img.dispose();
+          return;
+        }
+        final old = _frame;
+        setState(() => _frame = img);
+        old?.dispose();
+      });
+    } catch (_) {
+      _decoding = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.feed.participant;
+    final hasFrame = _frame != null;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1B2026),
+          borderRadius: BorderRadius.circular(10),
+          border: widget.isSpeaking
+              ? Border.all(color: const Color(0xFF4DC920), width: 2)
+              : null,
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (hasFrame)
+              RawImage(image: _frame, fit: BoxFit.cover)
+            else
+              Center(child: _avatar(p)),
+            // Name + mic state (bottom-left).
+            Positioned(
+              left: 8,
+              right: 8,
+              bottom: 6,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.feed.kind == 'screen')
+                    const Padding(
+                      padding: EdgeInsets.only(right: 4),
+                      child: Icon(Icons.screen_share,
+                          color: Colors.white, size: 14),
+                    ),
+                  if (p != null && p.isMuted)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 4),
+                      child: Icon(Icons.mic_off,
+                          color: Color(0xCCFFFFFF), size: 14),
+                    ),
+                  Flexible(
+                    child: Text(
+                      widget.feed.label.isNotEmpty ? widget.feed.label : 'User',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 3)],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Pin toggle (top-right) when there's more than one feed.
+            if (widget.canPin)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Material(
+                  color: Colors.black38,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: widget.onPinToggle,
+                    child: Padding(
+                      padding: const EdgeInsets.all(5),
+                      child: Icon(
+                        widget.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _avatar(GroupCallParticipant? p) {
+    final name = p?.displayName ?? widget.feed.label;
+    final id = p?.userId ?? widget.feed.key;
+    final color = HSLColor.fromAHSL(
+      1.0,
+      (id.hashCode.abs() % 360).toDouble(),
+      0.5,
+      0.45,
+    ).toColor();
+    if (p != null &&
+        p.avatarPath.isNotEmpty &&
+        widget.validAvatarPaths.contains(p.avatarPath)) {
+      return ClipOval(
+        child: Image.file(File(p.avatarPath),
+            width: 64, height: 64, fit: BoxFit.cover, cacheWidth: 128),
+      );
+    }
+    final initials = name.isNotEmpty
+        ? name
+            .split(' ')
+            .where((w) => w.isNotEmpty)
+            .take(2)
+            .map((w) => w[0].toUpperCase())
+            .join()
+        : '?';
+    return CircleAvatar(
+      radius: 32,
+      backgroundColor: color,
+      child: Text(initials,
+          style: const TextStyle(
+              color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -1497,6 +1926,9 @@ class _BigMuteButtonState extends State<_BigMuteButton>
       case MuteButtonState.muted:
         return _grayColor;
       case MuteButtonState.forceMuted:
+      case MuteButtonState.raisedHand:
+        // Both share AyuGram's purple blob (RaisedHand maps to ForceMuted's
+        // gradient — call_mute_button.cpp:79-82); they differ by icon + label.
         return _purpleColor;
     }
   }
@@ -1524,11 +1956,14 @@ class _BigMuteButtonState extends State<_BigMuteButton>
       case MuteButtonState.connecting:
         return 'Connecting...';
       case MuteButtonState.unmuted:
-        return 'Mute';
+        // AyuGram shows the STATE, not the action: lng_group_call_you_are_live.
+        return 'You are Live';
       case MuteButtonState.muted:
         return 'Unmute';
       case MuteButtonState.forceMuted:
-        return 'Raise Hand';
+        return 'Muted by admin'; // lng_group_call_force_muted
+      case MuteButtonState.raisedHand:
+        return 'You asked to speak'; // lng_group_call_raised_hand
     }
   }
 
@@ -1545,7 +1980,9 @@ class _BigMuteButtonState extends State<_BigMuteButton>
       case MuteButtonState.muted:
         return Icons.mic_off;
       case MuteButtonState.forceMuted:
-        return Icons.back_hand_outlined;
+        return Icons.back_hand_outlined; // can ask to speak (hand down)
+      case MuteButtonState.raisedHand:
+        return Icons.back_hand; // filled = your hand is already up
     }
   }
 
@@ -1843,28 +2280,72 @@ void showGroupCallPanel(
     persistedSetState?.call(() {});
   });
 
+  // Incoming group-call messages from ANY participant (updateGroupCallMessage).
+  // AyuGram renders these in the call's message strip — without this the panel
+  // would only ever show our own sends. We append to the SAME list the input
+  // box feeds, deduping our own server-echoed sends against the optimistic local
+  // echo so a sent message isn't shown twice.
+  final msgSub = engine.onGroupCallMessage.listen((event) {
+    if (event.callId.isNotEmpty && event.callId != info.callId) return;
+    if (event.text.isEmpty) return;
+    if (event.outgoing) {
+      // Drop the server echo of our own send if we already appended it locally.
+      final dup = callMessages.any((m) =>
+          m.isOutgoing && m.contentText == event.text && m.msgId.startsWith('gc_'));
+      if (dup) return;
+    }
+    callMessages.add(CachedMessage(
+      accountId: accountId,
+      chatId: info.chatId,
+      msgId: event.messageId.isNotEmpty ? 'gcm_${event.messageId}' : 'gcm_${event.date}_${event.senderId}',
+      senderId: event.senderId,
+      senderName: event.senderName.isNotEmpty
+          ? event.senderName
+          : (event.outgoing ? (appState.activeAccount?.displayName ?? '') : ''),
+      senderColorId: event.senderId.hashCode.abs() % 64,
+      senderRank: event.fromAdmin ? 'admin' : '',
+      contentText: event.text,
+      timestamp: event.date > 0 ? event.date : DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      isOutgoing: event.outgoing,
+    ));
+    persistedSetState?.call(() {});
+  });
+
   showDialog(
     context: context,
     barrierDismissible: false,
     barrierColor: Colors.black54,
     builder: (ctx) {
-      final mq = MediaQuery.of(ctx);
-      final screenW = mq.size.width;
-      final screenH = mq.size.height;
-      final panelWidth = info.isRtmp ? GroupCallPanel.defaultWidthRtmp : GroupCallPanel.defaultWidthNarrow;
-      final panelHeight = info.isRtmp ? GroupCallPanel.defaultHeightRtmp : GroupCallPanel.defaultHeight;
-      final w = math.min(panelWidth, screenW - 32);
-      final h = math.min(panelHeight, screenH - 32);
       return Center(
-        child: SizedBox(
-          width: w,
-          height: h,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: StatefulBuilder(
-              builder: (sbCtx, setSbState) {
+        child: StatefulBuilder(
+          builder: (sbCtx, setSbState) {
                 persistedSetState = setSbState;
-                return KeyboardListener(
+                final mq = MediaQuery.of(sbCtx);
+                final screenW = mq.size.width;
+                final screenH = mq.size.height;
+                // Wide mode (the live video viewport) needs a wider panel.
+                // AyuGram opens RTMP / video chats wide; pinning to 380px (the
+                // old bug) kept wide mode unreachable, so the video area was a
+                // permanent "No video" box. Recomputed on every rebuild so the
+                // panel grows the moment video turns on.
+                final wantsWide = info.isRtmp ||
+                    cameraEnabled ||
+                    screenShareEnabled ||
+                    info.participants.any((p) => p.hasVideo);
+                final panelWidth = wantsWide
+                    ? GroupCallPanel.defaultWidthRtmp
+                    : GroupCallPanel.defaultWidthNarrow;
+                final panelHeight = wantsWide
+                    ? GroupCallPanel.defaultHeightRtmp
+                    : GroupCallPanel.defaultHeight;
+                final w = math.min(panelWidth, screenW - 32);
+                final h = math.min(panelHeight, screenH - 32);
+                return SizedBox(
+                  width: w,
+                  height: h,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: KeyboardListener(
                   focusNode: FocusNode()..requestFocus(),
                   autofocus: true,
                   onKeyEvent: (event) {
@@ -1890,6 +2371,7 @@ void showGroupCallPanel(
                   isSelfMuted: selfMuted,
                   isForceMuted: forceMuted,
                   isRaisedHand: raisedHand,
+                  isRtmp: info.isRtmp,
                   isCanManage: isCanManage,
                   isConnecting: connecting,
                   isVideoActive: cameraEnabled,
@@ -2025,11 +2507,21 @@ void showGroupCallPanel(
                   onOpenMenu: () {
                     _showGroupCallMenu(ctx, callId: info.callId, chatId: info.chatId,
                       isRecording: recording,
+                      isCanManage: isCanManage,
+                      isLivestream: info.isRtmp,
+                      currentTitle: info.title,
                       onRecordingChanged: (v) {
                         recording = v;
                         setSbState(() {});
                       },
                     );
+                  },
+                  onOpenSettings: () {
+                    _showCallSettingsFromMenu(ctx,
+                      callId: info.callId,
+                      isCanManage: isCanManage,
+                      muteNewParticipants: false,
+                      messagesEnabled: info.messagesEnabled);
                   },
                   onToggleMessages: () {
                     messagesVisible = !messagesVisible;
@@ -2056,20 +2548,208 @@ void showGroupCallPanel(
                     setSbState(() {});
                   },
                   callMessages: callMessages,
-                ));
-              },
-            ),
-          ),
+                ),
+                  ),
+                  ),
+                );
+          },
         ),
       );
     },
   ).then((_) {
     stateSub.cancel();
+    msgSub.cancel();
     connectTimer?.cancel();
   });
 }
 
-void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId = '', bool isRecording = false, ValueChanged<bool>? onRecordingChanged}) {
+/// Result of the start-recording dialog (AyuGram RecordingType + title).
+class _RecordingOptions {
+  final String title;
+  final bool video;
+  final bool portrait;
+  const _RecordingOptions({required this.title, required this.video, required this.portrait});
+}
+
+/// Manager rename dialog (AyuGram EditGroupCallTitleBox → phone.editGroupCallTitle).
+void _showEditCallTitleDialog(BuildContext context, {required String callId, String currentTitle = ''}) {
+  final engine = context.read<EngineService>();
+  final accountId = context.read<AppState>().activeAccountId;
+  final controller = TextEditingController(text: currentTitle);
+  void submit(BuildContext ctx) {
+    if (callId.isNotEmpty) {
+      engine.editGroupCallTitle(accountId, callId, controller.text.trim());
+    }
+    Navigator.pop(ctx);
+  }
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: const Color(0xFF1E2530),
+      title: const Text('Edit Title', style: TextStyle(color: Colors.white)),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          hintText: 'Title',
+          hintStyle: TextStyle(color: Color(0x60FFFFFF)),
+        ),
+        onSubmitted: (_) => submit(ctx),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        TextButton(onPressed: () => submit(ctx), child: const Text('Save')),
+      ],
+    ),
+  ).then((_) => controller.dispose());
+}
+
+Future<bool?> _confirmStopRecording(BuildContext context) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: const Color(0xFF1E2530),
+      content: const Text(
+        'Stop recording? The recording will be saved to your Saved Messages.',
+        style: TextStyle(color: Color(0xAAFFFFFF)),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
+      ],
+    ),
+  );
+}
+
+/// Two-stage start-recording flow porting AyuGram StartGroupCallRecordingBox +
+/// AddTitleGroupCallRecordingBox: pick audio-only vs "Also record video" +
+/// landscape/portrait orientation, then a recording title.
+Future<_RecordingOptions?> _showStartRecordingDialog(BuildContext context) async {
+  var video = false;
+  var portrait = false;
+  final proceed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx2, setS) => AlertDialog(
+        backgroundColor: const Color(0xFF1E2530),
+        title: const Text('Start Recording', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Record this chat and save the result into a file?\n\nParticipants will see that the chat is being recorded.',
+              style: TextStyle(color: Color(0xAAFFFFFF), fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              activeColor: const Color(0xFF4DC920),
+              title: const Text('Also record video', style: TextStyle(color: Colors.white)),
+              subtitle: Text(
+                video ? 'Choose video orientation' : 'This chat will be recorded into an audio file',
+                style: const TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+              value: video,
+              onChanged: (v) => setS(() => video = v ?? false),
+            ),
+            if (video)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  children: [
+                    Expanded(child: _OrientationChoice(
+                      label: 'Landscape', icon: Icons.crop_landscape,
+                      selected: !portrait, onTap: () => setS(() => portrait = false))),
+                    const SizedBox(width: 8),
+                    Expanded(child: _OrientationChoice(
+                      label: 'Portrait', icon: Icons.crop_portrait,
+                      selected: portrait, onTap: () => setS(() => portrait = true))),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx2, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx2, true), child: const Text('Continue')),
+        ],
+      ),
+    ),
+  );
+  if (proceed != true || !context.mounted) return null;
+
+  final controller = TextEditingController();
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: const Color(0xFF1E2530),
+      title: const Text('Add Title', style: TextStyle(color: Colors.white)),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          hintText: 'Recording Title',
+          hintStyle: TextStyle(color: Color(0x60FFFFFF)),
+        ),
+        onSubmitted: (_) => Navigator.pop(ctx, true),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Start')),
+      ],
+    ),
+  );
+  final title = controller.text.trim();
+  controller.dispose();
+  if (confirmed != true) return null;
+  return _RecordingOptions(title: title, video: video, portrait: portrait);
+}
+
+class _OrientationChoice extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  const _OrientationChoice({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? const Color(0xFF4DC920) : const Color(0x40FFFFFF),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: selected ? const Color(0xFF4DC920) : Colors.white70, size: 28),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(
+              color: selected ? const Color(0xFF4DC920) : Colors.white70, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId = '', bool isRecording = false, bool isCanManage = false, bool isLivestream = false, String currentTitle = '', ValueChanged<bool>? onRecordingChanged}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF1E2530),
@@ -2096,6 +2776,21 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId
                     _showJoinAsChooser(context, chatId: chatId, callId: callId);
                   },
                 ),
+                // Manager-only "Edit title" (rename the voice chat / livestream),
+                // AyuGram calls_group_menu.cpp:525-544.
+                if (isCanManage)
+                  ListTile(
+                    leading: const Icon(Icons.edit_outlined, color: Colors.white70),
+                    title: Text(
+                      isLivestream ? 'Edit live stream title' : 'Edit Video Chat Title',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx2);
+                      _showEditCallTitleDialog(context,
+                          callId: callId, currentTitle: currentTitle);
+                    },
+                  ),
                 ListTile(
                   leading: Icon(
                     recording ? Icons.stop_circle : Icons.fiber_manual_record,
@@ -2107,28 +2802,38 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId
                   ),
                   onTap: () async {
                     Navigator.pop(ctx2);
-                    if (callId.isNotEmpty) {
-                      if (recording) {
-                        await engine.stopCallRecording(accountId, callId);
-                        recording = false;
-                        onRecordingChanged?.call(false);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Recording saved')),
-                          );
-                        }
-                      } else {
-                        final timestamp = DateTime.now().millisecondsSinceEpoch;
-                        final tmpDir = await getTemporaryDirectory();
-                        final filePath = '${tmpDir.path}/call_recording_$timestamp.wav';
-                        await engine.startCallRecording(accountId, callId, filePath);
-                        recording = true;
-                        onRecordingChanged?.call(true);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Recording started')),
-                          );
-                        }
+                    if (callId.isEmpty) return;
+                    if (recording) {
+                      // Server-side stop (phone.toggleGroupCallRecord start=false).
+                      final ok = await _confirmStopRecording(context);
+                      if (ok != true) return;
+                      await engine.toggleGroupCallRecord(accountId, callId, start: false);
+                      recording = false;
+                      onRecordingChanged?.call(false);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Recording saved to Saved Messages')),
+                        );
+                      }
+                    } else {
+                      // Two-stage AyuGram flow: choose audio-only / video +
+                      // orientation, then a title; then start SERVER-SIDE
+                      // recording (delivered to Saved Messages).
+                      final opts = await _showStartRecordingDialog(context);
+                      if (opts == null || !context.mounted) return;
+                      await engine.toggleGroupCallRecord(accountId, callId,
+                          start: true,
+                          title: opts.title,
+                          video: opts.video,
+                          videoPortrait: opts.portrait);
+                      recording = true;
+                      onRecordingChanged?.call(true);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(opts.video
+                              ? 'Started recording the video stream'
+                              : 'Audio recording started')),
+                        );
                       }
                     }
                   },
@@ -2435,7 +3140,7 @@ Future<void> _showInviteMembersFromMenu(BuildContext context, {String callId = '
   }
 }
 
-void _showCallSettingsFromMenu(BuildContext context, {String callId = ''}) {
+void _showCallSettingsFromMenu(BuildContext context, {String callId = '', bool isCanManage = false, bool muteNewParticipants = false, bool messagesEnabled = false}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF1E2530),
@@ -2443,16 +3148,30 @@ void _showCallSettingsFromMenu(BuildContext context, {String callId = ''}) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
     ),
-    builder: (ctx) => _CallSettingsSheet(callId: callId),
+    builder: (ctx) => _CallSettingsSheet(
+      callId: callId,
+      isCanManage: isCanManage,
+      initialMuteNewParticipants: muteNewParticipants,
+      initialMessagesEnabled: messagesEnabled,
+    ),
   );
 }
 
-/// Group-call settings: noise suppression, microphone (input) picker + live
-/// mic-test meter, output device, and push-to-talk configuration. Ports
-/// AyuGram's `calls_group_settings.cpp` (microphone + LevelMeter + PTT).
+/// Group-call settings: (manager) mute-new-joined + enable-messages toggles,
+/// noise suppression, microphone (input) picker + live mic-test meter, output
+/// device, and push-to-talk configuration. Ports AyuGram's
+/// `calls_group_settings.cpp` (manager toggles + microphone + LevelMeter + PTT).
 class _CallSettingsSheet extends StatefulWidget {
   final String callId;
-  const _CallSettingsSheet({this.callId = ''});
+  final bool isCanManage;
+  final bool initialMuteNewParticipants;
+  final bool initialMessagesEnabled;
+  const _CallSettingsSheet({
+    this.callId = '',
+    this.isCanManage = false,
+    this.initialMuteNewParticipants = false,
+    this.initialMessagesEnabled = false,
+  });
 
   @override
   State<_CallSettingsSheet> createState() => _CallSettingsSheetState();
@@ -2462,6 +3181,8 @@ class _CallSettingsSheetState extends State<_CallSettingsSheet> {
   Timer? _micTimer;
   double _micLevel = 0.0;
   bool _recordingShortcut = false;
+  late bool _muteNewParticipants = widget.initialMuteNewParticipants;
+  late bool _messagesEnabled = widget.initialMessagesEnabled;
   final _shortcutFocus = FocusNode();
 
   @override
@@ -2542,6 +3263,37 @@ class _CallSettingsSheetState extends State<_CallSettingsSheet> {
                       fontSize: 16,
                       fontWeight: FontWeight.w600)),
             ),
+            // Manager-only toggles (AyuGram calls_group_settings.cpp:298-310):
+            // mute newly-joined members + enable in-call text messages.
+            if (widget.isCanManage) ...[
+              SwitchListTile(
+                title: const Text('Mute new participants',
+                    style: TextStyle(color: Colors.white)),
+                value: _muteNewParticipants,
+                activeColor: const Color(0xFF4DC920),
+                onChanged: widget.callId.isEmpty
+                    ? null
+                    : (v) {
+                        setState(() => _muteNewParticipants = v);
+                        context.read<EngineService>().setGroupCallMuteNewParticipants(
+                            appState.activeAccountId, widget.callId, v);
+                      },
+              ),
+              SwitchListTile(
+                title: const Text('Enable messages',
+                    style: TextStyle(color: Colors.white)),
+                value: _messagesEnabled,
+                activeColor: const Color(0xFF4DC920),
+                onChanged: widget.callId.isEmpty
+                    ? null
+                    : (v) {
+                        setState(() => _messagesEnabled = v);
+                        context.read<EngineService>().setGroupCallMessagesEnabled(
+                            appState.activeAccountId, widget.callId, v);
+                      },
+              ),
+              const Divider(color: Color(0xFF2C3640), height: 1),
+            ],
             SwitchListTile(
               title: const Text('Noise Suppression',
                   style: TextStyle(color: Colors.white)),

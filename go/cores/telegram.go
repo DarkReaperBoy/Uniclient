@@ -683,6 +683,37 @@ func (t *TelegramCore) initClient() {
 		})
 		return nil
 	})
+
+	// Ephemeral group-call chat messages from any participant. AyuGram ingests
+	// updateGroupCallMessage (and the encrypted conference variant) and renders
+	// them in the call panel's message strip — see calls_group_messages.cpp.
+	dispatcher.OnGroupCallMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateGroupCallMessage) error {
+		gcID := inputGroupCallID(u.Call)
+		fromID := peerToID(u.Message.FromID)
+		senderName := t.resolveCallMemberName(e, gcID, fromID)
+		t.fireUpdate(Update{
+			Type:     UpdateGroupCallMessage,
+			Platform: tgPlatform,
+			GroupCallMessage: &GroupCallMessageUpdate{
+				CallID:     strconv.FormatInt(gcID, 10),
+				MessageID:  strconv.Itoa(u.Message.ID),
+				SenderID:   fromID,
+				SenderName: senderName,
+				Text:       u.Message.Message.Text,
+				Date:       int64(u.Message.Date),
+				Outgoing:   fromID == strconv.FormatInt(t.selfID, 10),
+				FromAdmin:  u.Message.FromAdmin,
+			},
+		})
+		return nil
+	})
+	// Encrypted (conference / E2E) group-call messages: we have no group-call E2E
+	// chain to decrypt the payload, so we log and skip rather than surface
+	// ciphertext garbage (which would violate "never show fake content").
+	dispatcher.OnGroupCallEncryptedMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateGroupCallEncryptedMessage) error {
+		fmt.Printf("[tg-group] updateGroupCallEncryptedMessage: %d bytes (no E2E chain — skipped)\n", len(u.EncryptedMessage))
+		return nil
+	})
 	// Notification settings pushed from server (cross-device sync).
 	dispatcher.OnNotifySettings(func(ctx context.Context, e tg.Entities, u *tg.UpdateNotifySettings) error {
 		var peerType string
@@ -2936,6 +2967,18 @@ type tgCall struct {
 	recording     bool
 	recordingFile *os.File
 	recordingMu   sync.Mutex
+
+	// Latest decoded incoming video frame per stream kind (camera / screen),
+	// kept as YUV420P so the UI can poll & render it (GetGroupCallVideoFrame).
+	// Populated from the decode path in handleIncomingVideoRTP when a decoder
+	// is configured; empty otherwise (the UI then shows the avatar tile).
+	incomingFrameMu      sync.Mutex
+	incomingCameraFrame  []byte
+	incomingCameraW      int
+	incomingCameraH      int
+	incomingScreenFrame  []byte
+	incomingScreenW      int
+	incomingScreenH      int
 
 	// Signaling encryption counter (accessed atomically via tgEncryptSignaling)
 	sigCounter uint32
@@ -9451,6 +9494,182 @@ func (t *TelegramCore) MuteGroupCallParticipant(callID string, userID string, mu
 	return nil
 }
 
+// resolveActiveGroupCall maps a numeric call ID to its active session, returning
+// the parsed ID and the session (errors if not an active group call).
+func (t *TelegramCore) resolveActiveGroupCall(callID string) (int64, *tgCall, error) {
+	t.mu.RLock()
+	authed := t.authed && t.api != nil
+	t.mu.RUnlock()
+	if !authed {
+		return 0, nil, ErrAuth
+	}
+	cid, err := strconv.ParseInt(callID, 10, 64)
+	if err != nil {
+		return 0, nil, fmt.Errorf("invalid call ID: %w", err)
+	}
+	t.mu.RLock()
+	call := t.activeCalls[cid]
+	t.mu.RUnlock()
+	if call == nil || !call.isGroupCall {
+		return 0, nil, fmt.Errorf("no active group call %s", callID)
+	}
+	return cid, call, nil
+}
+
+// EditGroupCallTitle renames a voice chat / livestream (manager-only on the
+// server). Mirrors AyuGram GroupCall::changeTitle → phone.editGroupCallTitle.
+func (t *TelegramCore) EditGroupCallTitle(callID, title string) error {
+	cid, call, err := t.resolveActiveGroupCall(callID)
+	if err != nil {
+		return err
+	}
+	_, err = t.api.PhoneEditGroupCallTitle(t.ctx, &tg.PhoneEditGroupCallTitleRequest{
+		Call:  &tg.InputGroupCall{ID: cid, AccessHash: call.accessHash},
+		Title: title,
+	})
+	if err != nil {
+		return fmt.Errorf("phone.editGroupCallTitle: %w", err)
+	}
+	fmt.Printf("[tg-group] EditGroupCallTitle %s -> %q\n", callID, title)
+	return nil
+}
+
+// ToggleGroupCallRecord starts/stops SERVER-SIDE recording of a group call. The
+// result is delivered to Saved Messages. Mirrors AyuGram GroupCall::toggleRecording
+// → phone.toggleGroupCallRecord (start/video/title flags + video_portrait).
+func (t *TelegramCore) ToggleGroupCallRecord(callID string, start bool, title string, video bool, videoPortrait bool) error {
+	cid, call, err := t.resolveActiveGroupCall(callID)
+	if err != nil {
+		return err
+	}
+	req := &tg.PhoneToggleGroupCallRecordRequest{
+		Call: &tg.InputGroupCall{ID: cid, AccessHash: call.accessHash},
+	}
+	if start {
+		req.SetStart(true)
+	}
+	if video {
+		req.SetVideo(true)
+		req.SetVideoPortrait(videoPortrait)
+	}
+	if title != "" {
+		req.SetTitle(title)
+	}
+	_, err = t.api.PhoneToggleGroupCallRecord(t.ctx, req)
+	if err != nil {
+		return fmt.Errorf("phone.toggleGroupCallRecord: %w", err)
+	}
+	fmt.Printf("[tg-group] ToggleGroupCallRecord %s start=%v video=%v portrait=%v title=%q\n",
+		callID, start, video, videoPortrait, title)
+	return nil
+}
+
+// SetGroupCallMuteNewParticipants toggles whether newly joined members are muted
+// by default (manager-only). Mirrors AyuGram SaveCallJoinMuted →
+// phone.toggleGroupCallSettings(join_muted).
+func (t *TelegramCore) SetGroupCallMuteNewParticipants(callID string, muted bool) error {
+	cid, call, err := t.resolveActiveGroupCall(callID)
+	if err != nil {
+		return err
+	}
+	req := &tg.PhoneToggleGroupCallSettingsRequest{
+		Call: &tg.InputGroupCall{ID: cid, AccessHash: call.accessHash},
+	}
+	req.SetJoinMuted(muted)
+	_, err = t.api.PhoneToggleGroupCallSettings(t.ctx, req)
+	if err != nil {
+		return fmt.Errorf("phone.toggleGroupCallSettings(join_muted): %w", err)
+	}
+	fmt.Printf("[tg-group] SetGroupCallMuteNewParticipants %s muted=%v\n", callID, muted)
+	return nil
+}
+
+// SetGroupCallMessagesEnabled toggles in-call text messages (manager-only).
+// Mirrors AyuGram SaveCallMessagesEnabled →
+// phone.toggleGroupCallSettings(messages_enabled).
+func (t *TelegramCore) SetGroupCallMessagesEnabled(callID string, enabled bool) error {
+	cid, call, err := t.resolveActiveGroupCall(callID)
+	if err != nil {
+		return err
+	}
+	req := &tg.PhoneToggleGroupCallSettingsRequest{
+		Call: &tg.InputGroupCall{ID: cid, AccessHash: call.accessHash},
+	}
+	req.SetMessagesEnabled(enabled)
+	_, err = t.api.PhoneToggleGroupCallSettings(t.ctx, req)
+	if err != nil {
+		return fmt.Errorf("phone.toggleGroupCallSettings(messages_enabled): %w", err)
+	}
+	fmt.Printf("[tg-group] SetGroupCallMessagesEnabled %s enabled=%v\n", callID, enabled)
+	return nil
+}
+
+// GetGroupCallVideoFrame returns the latest decoded incoming video frame for a
+// stream kind ("camera" or "screen") as RGBA8888 bytes plus its dimensions.
+// Returns (nil, 0, 0, nil) when no frame is available yet — the UI then shows
+// the participant's avatar tile (AyuGram's no-frame / paused state).
+func (t *TelegramCore) GetGroupCallVideoFrame(callID, endpoint string) ([]byte, int, int, error) {
+	_, call, err := t.resolveActiveGroupCall(callID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	call.incomingFrameMu.Lock()
+	var yuv []byte
+	var w, h int
+	if endpoint == "screen" {
+		yuv, w, h = call.incomingScreenFrame, call.incomingScreenW, call.incomingScreenH
+	} else {
+		yuv, w, h = call.incomingCameraFrame, call.incomingCameraW, call.incomingCameraH
+	}
+	call.incomingFrameMu.Unlock()
+	if len(yuv) == 0 || w <= 0 || h <= 0 {
+		return nil, 0, 0, nil
+	}
+	rgba := yuv420pToRGBA(yuv, w, h)
+	if rgba == nil {
+		return nil, 0, 0, nil
+	}
+	return rgba, w, h, nil
+}
+
+// yuv420pToRGBA converts a planar YUV420P (I420) frame to packed RGBA8888 using
+// the BT.601 color matrix. Returns nil if the buffer is too small for w*h.
+func yuv420pToRGBA(yuv []byte, w, h int) []byte {
+	cw := (w + 1) / 2
+	ySize := w * h
+	cSize := cw * ((h + 1) / 2)
+	if len(yuv) < ySize+2*cSize {
+		return nil
+	}
+	uPlane := yuv[ySize:]
+	vPlane := yuv[ySize+cSize:]
+	rgba := make([]byte, w*h*4)
+	clamp := func(v int) byte {
+		if v < 0 {
+			return 0
+		}
+		if v > 255 {
+			return 255
+		}
+		return byte(v)
+	}
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			yi := y*w + x
+			ci := (y/2)*cw + (x / 2)
+			c := int(yuv[yi]) - 16
+			d := int(uPlane[ci]) - 128
+			e := int(vPlane[ci]) - 128
+			o := yi * 4
+			rgba[o] = clamp((298*c + 409*e + 128) >> 8)
+			rgba[o+1] = clamp((298*c - 100*d - 208*e + 128) >> 8)
+			rgba[o+2] = clamp((298*c + 516*d + 128) >> 8)
+			rgba[o+3] = 255
+		}
+	}
+	return rgba
+}
+
 // KickGroupCallParticipant removes a participant from a group call by setting their left flag.
 func (t *TelegramCore) KickGroupCallParticipant(callID string, userID string) error {
 	t.mu.RLock()
@@ -10624,14 +10843,32 @@ func (t *TelegramCore) handleIncomingVideoRTP(call *tgCall, pkt *pionrtp.Packet,
 			onRawFrame(completeFrame)
 		}
 
-		// Decode to YUV420P if decoder available
-		if onDecodedFrame != nil && call.videoDecoder != nil {
+		// Decode to YUV420P if decoder available. The decoded frame is both
+		// delivered to any registered callback AND cached so the call panel can
+		// poll the latest frame via GetGroupCallVideoFrame.
+		if call.videoDecoder != nil {
 			yuv, w, h, err := call.videoDecoder.Decode(completeFrame)
 			if err == nil && yuv != nil {
-				onDecodedFrame(yuv, w, h)
+				if onDecodedFrame != nil {
+					onDecodedFrame(yuv, w, h)
+				}
+				call.storeIncomingFrame(isScreen, yuv, w, h)
 			}
 		}
 	}
+}
+
+// storeIncomingFrame caches the latest decoded YUV420P frame for a stream kind
+// so the call panel can poll & render it (GetGroupCallVideoFrame).
+func (c *tgCall) storeIncomingFrame(isScreen bool, yuv []byte, w, h int) {
+	frame := append([]byte(nil), yuv...)
+	c.incomingFrameMu.Lock()
+	if isScreen {
+		c.incomingScreenFrame, c.incomingScreenW, c.incomingScreenH = frame, w, h
+	} else {
+		c.incomingCameraFrame, c.incomingCameraW, c.incomingCameraH = frame, w, h
+	}
+	c.incomingFrameMu.Unlock()
 }
 
 // stripVP8RTPDescriptor removes the VP8 RTP payload descriptor per RFC 7741.
@@ -12947,6 +13184,40 @@ func inputPeerToID(peer tg.InputPeerClass) string {
 	default:
 		return ""
 	}
+}
+
+// inputGroupCallID extracts the numeric call ID from an InputGroupCallClass
+// (the *tg.InputGroupCall concrete type carries .ID).
+func inputGroupCallID(call tg.InputGroupCallClass) int64 {
+	if igc, ok := call.(*tg.InputGroupCall); ok {
+		return igc.ID
+	}
+	return 0
+}
+
+// resolveCallMemberName resolves a participant's display name for a group-call
+// message: first from the update's inline entities, then the cached user store.
+func (t *TelegramCore) resolveCallMemberName(e tg.Entities, gcID int64, userID string) string {
+	if userID == "" {
+		return ""
+	}
+	id, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return ""
+	}
+	if u, ok := e.Users[id]; ok {
+		name := strings.TrimSpace(u.FirstName + " " + u.LastName)
+		if name != "" {
+			return name
+		}
+		if u.Username != "" {
+			return u.Username
+		}
+	}
+	if id == t.selfID && t.selfName != "" {
+		return t.selfName
+	}
+	return ""
 }
 
 func peerToID(peer tg.PeerClass) string {

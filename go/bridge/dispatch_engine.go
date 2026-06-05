@@ -6359,6 +6359,76 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SendGroupCallMessage(params.AccountID, params.ChatID, params.Text)
 
+	case "EditGroupCallTitle":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			Title     string `json:"title"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.EditGroupCallTitle(params.AccountID, params.CallID, params.Title)
+
+	case "ToggleGroupCallRecord":
+		var params struct {
+			AccountID     string `json:"account_id"`
+			CallID        string `json:"call_id"`
+			Start         bool   `json:"start"`
+			Title         string `json:"title"`
+			Video         bool   `json:"video"`
+			VideoPortrait bool   `json:"video_portrait"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ToggleGroupCallRecord(params.AccountID, params.CallID, params.Start, params.Title, params.Video, params.VideoPortrait)
+
+	case "SetGroupCallMuteNewParticipants":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			Muted     bool   `json:"muted"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetGroupCallMuteNewParticipants(params.AccountID, params.CallID, params.Muted)
+
+	case "SetGroupCallMessagesEnabled":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetGroupCallMessagesEnabled(params.AccountID, params.CallID, params.Enabled)
+
+	case "GetGroupCallVideoFrame":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			Endpoint  string `json:"endpoint"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		rgba, w, h, err := e.GetGroupCallVideoFrame(params.AccountID, params.CallID, params.Endpoint)
+		if err != nil {
+			return nil, err
+		}
+		if len(rgba) == 0 {
+			return []byte{}, nil // no frame yet — UI shows the avatar tile
+		}
+		// Wire format: [w:uint32 LE][h:uint32 LE][rgba8888...]
+		out := make([]byte, 8+len(rgba))
+		out[0], out[1], out[2], out[3] = byte(w), byte(w>>8), byte(w>>16), byte(w>>24)
+		out[4], out[5], out[6], out[7] = byte(h), byte(h>>8), byte(h>>16), byte(h>>24)
+		copy(out[8:], rgba)
+		return out, nil
+
 	case "GetGroupCallScheduleSubscribed":
 		var params struct {
 			AccountID string `json:"account_id"`

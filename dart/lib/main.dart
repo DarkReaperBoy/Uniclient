@@ -1428,6 +1428,8 @@ class _UniClientAppState extends State<UniClientApp>
               isRecording: cmd['isRecording'] == true,
               isSelfMuted: cmd['isSelfMuted'] == true,
               isForceMuted: cmd['isForceMuted'] == true,
+              isRaisedHand: cmd['isRaisedHand'] == true,
+              isCanManage: cmd['isCanManage'] == true,
             );
           }
 

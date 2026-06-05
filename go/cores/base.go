@@ -59,6 +59,7 @@ const (
 	UpdateUserStatus     UpdateType = "user_status"
 	UpdateTyping         UpdateType = "typing"
 	UpdateCallState      UpdateType = "call_state"
+	UpdateGroupCallMessage UpdateType = "group_call_message"
 	UpdateGroupMembers    UpdateType = "group_members"
 	UpdateVerification    UpdateType = "verification"
 	UpdateConnectivity    UpdateType = "connectivity"
@@ -615,7 +616,24 @@ type Update struct {
 	Action       string            `json:"action,omitempty"` // typing action: "typing", "record_video", "upload_photo", etc.
 	ConnState    string            `json:"conn_state,omitempty"` // "connected", "disconnected", "reconnecting"
 	NotifySettings *NotifySettingsUpdate `json:"notify_settings,omitempty"`
+	GroupCallMessage *GroupCallMessageUpdate `json:"group_call_message,omitempty"`
 	Platform     string            `json:"platform"`
+}
+
+// GroupCallMessageUpdate carries an ephemeral message posted into a group call's
+// message stream (updateGroupCallMessage / updateGroupCallEncryptedMessage).
+// These are NOT permanent chat history; they live only for the call's duration.
+type GroupCallMessageUpdate struct {
+	CallID     string `json:"call_id"`
+	ChatID     string `json:"chat_id,omitempty"`
+	MessageID  string `json:"message_id,omitempty"`
+	SenderID   string `json:"sender_id"`
+	SenderName string `json:"sender_name,omitempty"`
+	Text       string `json:"text"`
+	Date       int64  `json:"date"`
+	Outgoing   bool   `json:"outgoing"`
+	FromAdmin  bool   `json:"from_admin,omitempty"`
+	Encrypted  bool   `json:"encrypted,omitempty"`
 }
 
 // NotifySettingsUpdate carries a notification settings change from the server.

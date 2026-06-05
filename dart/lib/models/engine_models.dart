@@ -2693,6 +2693,20 @@ class GroupCallInfo {
   );
 }
 
+/// A decoded incoming group-call video frame (RGBA8888) ready to hand to
+/// `decodeImageFromPixels` for rendering in a viewport tile.
+class GroupCallVideoFrame {
+  final int width;
+  final int height;
+  final Uint8List rgba;
+
+  const GroupCallVideoFrame({
+    required this.width,
+    required this.height,
+    required this.rgba,
+  });
+}
+
 /// A peer identity the user can join a group call as (yourself / a channel you
 /// manage). Mirrors AyuGram's `possibleJoinAs` entries.
 class JoinAsPeer {
@@ -2727,6 +2741,49 @@ class GroupCallStateEvent {
     this.accountId = '',
     this.info = const GroupCallInfo(),
   });
+}
+
+/// An ephemeral message posted into a group call's message stream by ANY
+/// participant (updateGroupCallMessage). These live only for the call's
+/// duration — they are NOT permanent chat history.
+class GroupCallMessageEvent {
+  final String accountId;
+  final String callId;
+  final String chatId;
+  final String messageId;
+  final String senderId;
+  final String senderName;
+  final String text;
+  final int date;
+  final bool outgoing;
+  final bool fromAdmin;
+
+  const GroupCallMessageEvent({
+    this.accountId = '',
+    this.callId = '',
+    this.chatId = '',
+    this.messageId = '',
+    this.senderId = '',
+    this.senderName = '',
+    this.text = '',
+    this.date = 0,
+    this.outgoing = false,
+    this.fromAdmin = false,
+  });
+
+  factory GroupCallMessageEvent.fromJson(Map<String, dynamic> j, {String accountId = ''}) =>
+      GroupCallMessageEvent(
+        accountId: accountId,
+        callId: j['call_id'] as String? ?? '',
+        chatId: j['chat_id'] as String? ?? '',
+        messageId: j['message_id'] as String? ?? '',
+        senderId: j['sender_id'] as String? ?? '',
+        senderName: j['sender_name'] as String? ?? '',
+        text: j['text'] as String? ?? '',
+        date: (j['date'] as num?)?.toInt() ?? 0,
+        outgoing: j['outgoing'] as bool? ?? false,
+        fromAdmin: j['from_admin'] as bool? ?? false,
+      );
 }
 
 // ── 1:1 Call events ──

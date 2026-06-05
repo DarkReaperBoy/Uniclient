@@ -54,6 +54,7 @@ class EngineService {
   final _incomingCallController = StreamController<IncomingCallEvent>.broadcast();
   final _callStateController = StreamController<CallStateEvent>.broadcast();
   final _groupCallStateController = StreamController<GroupCallStateEvent>.broadcast();
+  final _groupCallMessageController = StreamController<GroupCallMessageEvent>.broadcast();
   final _exportProgressController = StreamController<ExportProgressEvent>.broadcast();
   final _exportErrorController = StreamController<ExportErrorEvent>.broadcast();
   final _exportCompleteController = StreamController<ExportCompleteEvent>.broadcast();
@@ -79,6 +80,7 @@ class EngineService {
   Stream<IncomingCallEvent> get onIncomingCall => _incomingCallController.stream;
   Stream<CallStateEvent> get onCallState => _callStateController.stream;
   Stream<GroupCallStateEvent> get onGroupCallState => _groupCallStateController.stream;
+  Stream<GroupCallMessageEvent> get onGroupCallMessage => _groupCallMessageController.stream;
   Stream<ExportProgressEvent> get onExportProgress => _exportProgressController.stream;
   Stream<ExportErrorEvent> get onExportError => _exportErrorController.stream;
   Stream<ExportCompleteEvent> get onExportComplete => _exportCompleteController.stream;
@@ -2577,6 +2579,94 @@ class EngineService {
       await _callAsync('__engine', 'SendGroupCallMessage', Uint8List.fromList(payload));
     } catch (e) {
       Debug.error('ENGINE', 'sendGroupCallMessage failed', e);
+    }
+  }
+
+  /// Renames a voice chat / livestream (manager-only) via phone.editGroupCallTitle.
+  Future<void> editGroupCallTitle(String accountId, String callId, String title) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'title': title,
+    }));
+    try {
+      await _callAsync('__engine', 'EditGroupCallTitle', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'editGroupCallTitle failed', e);
+    }
+  }
+
+  /// Starts/stops SERVER-SIDE group-call recording via phone.toggleGroupCallRecord.
+  /// The recording is delivered to Saved Messages. [video]/[videoPortrait] choose
+  /// audio-only vs landscape/portrait video; [title] is optional.
+  Future<void> toggleGroupCallRecord(String accountId, String callId,
+      {required bool start, String title = '', bool video = false, bool videoPortrait = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'start': start,
+      'title': title,
+      'video': video,
+      'video_portrait': videoPortrait,
+    }));
+    try {
+      await _callAsync('__engine', 'ToggleGroupCallRecord', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'toggleGroupCallRecord failed', e);
+    }
+  }
+
+  /// Toggles default-mute-on-join (manager-only) via phone.toggleGroupCallSettings.
+  Future<void> setGroupCallMuteNewParticipants(String accountId, String callId, bool muted) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'muted': muted,
+    }));
+    try {
+      await _callAsync('__engine', 'SetGroupCallMuteNewParticipants', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setGroupCallMuteNewParticipants failed', e);
+    }
+  }
+
+  /// Toggles in-call text messages (manager-only) via phone.toggleGroupCallSettings.
+  Future<void> setGroupCallMessagesEnabled(String accountId, String callId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'enabled': enabled,
+    }));
+    try {
+      await _callAsync('__engine', 'SetGroupCallMessagesEnabled', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setGroupCallMessagesEnabled failed', e);
+    }
+  }
+
+  /// Fetches the latest decoded incoming video frame for a group-call stream
+  /// ("camera" or "screen") as RGBA8888 + dimensions, or null if none yet.
+  /// Wire format: [width:uint32 LE][height:uint32 LE][rgba...].
+  Future<GroupCallVideoFrame?> getGroupCallVideoFrame(String accountId, String callId, String endpoint) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'endpoint': endpoint,
+    }));
+    try {
+      final resp = await _callAsync('__engine', 'GetGroupCallVideoFrame', Uint8List.fromList(payload));
+      if (resp.length < 8) return null;
+      final bd = ByteData.sublistView(resp);
+      final w = bd.getUint32(0, Endian.little);
+      final h = bd.getUint32(4, Endian.little);
+      if (w <= 0 || h <= 0 || resp.length < 8 + w * h * 4) return null;
+      return GroupCallVideoFrame(
+        width: w,
+        height: h,
+        rgba: Uint8List.sublistView(resp, 8),
+      );
+    } catch (e) {
+      return null;
     }
   }
 
@@ -6407,6 +6497,7 @@ class EngineService {
     _incomingCallController.close();
     _callStateController.close();
     _groupCallStateController.close();
+    _groupCallMessageController.close();
     _exportProgressController.close();
     _exportErrorController.close();
     _exportCompleteController.close();
@@ -6637,6 +6728,12 @@ class EngineService {
             accountId: event['account_id'] as String? ?? '',
             info: GroupCallInfo.fromJson(data),
           ));
+        }
+
+      case 'group_call_message':
+        if (data is Map<String, dynamic>) {
+          _groupCallMessageController.add(GroupCallMessageEvent.fromJson(data,
+            accountId: event['account_id'] as String? ?? ''));
         }
 
       case 'export_progress':

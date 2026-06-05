@@ -29,6 +29,7 @@ const (
 	EventIncomingCall    = "incoming_call"
 	EventCallState       = "call_state"
 	EventGroupCallState  = "group_call_state"
+	EventGroupCallMessage = "group_call_message"
 	EventExportProgress  = "export_progress"
 	EventExportError     = "export_error"
 	EventExportComplete  = "export_complete"
@@ -252,6 +253,13 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 	case cores.UpdateCallState:
 		if u.Call != nil {
 			e.handleCallUpdate(accountID, u.Call)
+		}
+
+	case cores.UpdateGroupCallMessage:
+		if u.GroupCallMessage != nil {
+			// Ephemeral group-call message from any participant — forwarded
+			// straight to the open call panel (NOT cached as chat history).
+			e.emitEvent(EventGroupCallMessage, accountID, u.GroupCallMessage)
 		}
 
 	case cores.UpdateConnectivity:

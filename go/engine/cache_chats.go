@@ -1974,6 +1974,97 @@ func (e *Engine) RaiseHand(accountID, callID string, raised bool) error {
 	return fmt.Errorf("core does not support RaiseHand")
 }
 
+// EditGroupCallTitle renames a voice chat / livestream (manager-only).
+func (e *Engine) EditGroupCallTitle(accountID, callID, title string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type titleEditor interface {
+		EditGroupCallTitle(callID, title string) error
+	}
+	if te, ok := acc.Core.(titleEditor); ok {
+		return te.EditGroupCallTitle(callID, title)
+	}
+	return fmt.Errorf("core does not support EditGroupCallTitle")
+}
+
+// ToggleGroupCallRecord starts/stops server-side group-call recording.
+func (e *Engine) ToggleGroupCallRecord(accountID, callID string, start bool, title string, video, videoPortrait bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type recorder interface {
+		ToggleGroupCallRecord(callID string, start bool, title string, video, videoPortrait bool) error
+	}
+	if r, ok := acc.Core.(recorder); ok {
+		return r.ToggleGroupCallRecord(callID, start, title, video, videoPortrait)
+	}
+	return fmt.Errorf("core does not support ToggleGroupCallRecord")
+}
+
+// SetGroupCallMuteNewParticipants toggles default-mute-on-join (manager-only).
+func (e *Engine) SetGroupCallMuteNewParticipants(accountID, callID string, muted bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type joinMuteToggler interface {
+		SetGroupCallMuteNewParticipants(callID string, muted bool) error
+	}
+	if jm, ok := acc.Core.(joinMuteToggler); ok {
+		return jm.SetGroupCallMuteNewParticipants(callID, muted)
+	}
+	return fmt.Errorf("core does not support SetGroupCallMuteNewParticipants")
+}
+
+// SetGroupCallMessagesEnabled toggles in-call text messages (manager-only).
+func (e *Engine) SetGroupCallMessagesEnabled(accountID, callID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type messagesToggler interface {
+		SetGroupCallMessagesEnabled(callID string, enabled bool) error
+	}
+	if mt, ok := acc.Core.(messagesToggler); ok {
+		return mt.SetGroupCallMessagesEnabled(callID, enabled)
+	}
+	return fmt.Errorf("core does not support SetGroupCallMessagesEnabled")
+}
+
+// GetGroupCallVideoFrame returns the latest decoded incoming video frame for a
+// stream kind ("camera"/"screen") as RGBA8888 + dimensions, or empty if none.
+func (e *Engine) GetGroupCallVideoFrame(accountID, callID, endpoint string) ([]byte, int, int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, 0, 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, 0, 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type frameProvider interface {
+		GetGroupCallVideoFrame(callID, endpoint string) ([]byte, int, int, error)
+	}
+	if fp, ok := acc.Core.(frameProvider); ok {
+		return fp.GetGroupCallVideoFrame(callID, endpoint)
+	}
+	return nil, 0, 0, fmt.Errorf("core does not support GetGroupCallVideoFrame")
+}
+
 func (e *Engine) StartScheduledGroupCall(accountID, callID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
