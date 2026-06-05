@@ -475,14 +475,6 @@ MAJOR `_AyuChooseButton`/`_SingleChoiceBox` deviations were found and fixed
   the value). Desktop + mobile. No crashes/exceptions in the choose-button/dialog path.
   ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:22`
 
-# call_screen — Telegram group-call (voice chat) panel, big mute button, speaker blobs, call settings, minimised call top bar
-
-Scope of this file: the **group-call** panel (`GroupCallPanel` / `showGroupCallPanel`), the big mute button, speaker/blob animations, the "…" menu, the call-settings sheet, and the minimised active-call top bar (`MinimisedCallBar`). The full 1:1 call panel (emoji fingerprint, accept/decline, big avatar) lives elsewhere and is out of scope here.
-
-Verified facts used below: AyuGram narrow control layout `calls_group_panel.cpp:2566-2653`; mute-button text `calls_group_panel.cpp:893-938` + `lang.strings:5925-5929`; incoming group-call messages `calls_group_messages.cpp:219-385`; recording flow `calls_group_menu.cpp:546-582` + `calls_group_recording_box.cpp:289-346`; settings controls `calls_group_settings.cpp:298-385`; member context menu `calls_group_members.cpp:1325-1551`.
-
-- [ ] [MINOR] Group-call bottom control bar (narrow/mobile mode) overflows 9.8px on the right when the local user is in the raised-hand state, clipping the red leave (end-call) button. Cause: `_BigMuteButton` is a Column with a fixed 68px button but an UNCONSTRAINED `Text(_label)` (`call_screen.dart:2140`); the long "You asked to speak" caption (`:2055`) makes that column wider than its 68px budget, so the narrow `_buildBottomControls` Row (`:989`, spaceEvenly, fixed 380px, hPad=0) overflows — Flutter logs "A RenderFlex overflowed by 9.8 pixels on the right". Only in raised-hand state at ≤400px; the shorter "You are Live"/"Mute" captions fit, and desktop wide mode is unaffected. Fix: constrain/clip the mute-button label (e.g. wrap in `SizedBox(width: 68)` + ellipsis, or position the label without affecting Row width). — `call_screen.dart:966-1023` + `:2090-2145` ← `AyuGram/calls/group/calls_group_panel.cpp:2566-2653`
-
 # calls_screen — Calls box (history list, active group calls, create/conference call, clear-history, mic level meter)
 
 Backend wiring is solid: every engine method used (`getCallHistory`, `clearCallHistory`,
