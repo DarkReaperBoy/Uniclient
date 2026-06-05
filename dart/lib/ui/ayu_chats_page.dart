@@ -240,6 +240,12 @@ class _AyuChatsPageState extends State<AyuChatsPage> {
     for (final item in _contextMenuItems(appState)) {
       b.addChooseButton(
         label: item.label,
+        // Every context-menu choose button shares ONE generic box title
+        // (ayu_SettingsContextMenuTitle = "Choose when to show the item") while
+        // each row label differs ("Reactions Panel", "Views Panel", …) —
+        // settings_chats.cpp:309-310. Without this the box would reuse the row
+        // label (e.g. a box titled "Reactions Panel" instead of the generic one).
+        boxTitle: 'Choose when to show the item',
         value: item.value,
         items: const {0: 'Hidden', 1: 'Shown', 2: 'Extended Menu'},
         onChanged: item.onChanged,

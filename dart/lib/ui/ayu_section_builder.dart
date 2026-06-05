@@ -98,6 +98,14 @@ class AyuSectionBuilder {
 
   void addChooseButton({
     required String label,
+    // AyuGram's AddChooseButton takes a `boxTitle` distinct from the button
+    // `title`/`label`: the choice box is titled by `boxTitle` while the row shows
+    // `title` (`.title = boxTitle`, settings_ayu_utils.cpp:494-535). Context-menu
+    // choose buttons all share ONE generic box title (ayu_SettingsContextMenuTitle)
+    // while each row label differs ("Reactions Panel", "Views Panel", …) —
+    // settings_chats.cpp:309-310. When null, fall back to `label` (matches buttons
+    // whose boxTitle == title, e.g. ChannelBottomButton, settings_chats.cpp:100-101).
+    String? boxTitle,
     required int value,
     required Map<int, String> items,
     required ValueChanged<int> onChanged,
@@ -105,6 +113,7 @@ class AyuSectionBuilder {
   }) {
     _children.add(_AyuChooseButton(
       label: label,
+      boxTitle: boxTitle,
       value: value,
       items: items,
       onChanged: onChanged,
@@ -591,6 +600,9 @@ class _AyuSliderState extends State<_AyuSlider> {
 
 class _AyuChooseButton extends StatelessWidget {
   final String label;
+  // Title for the SingleChoiceBox; distinct from the row `label` so context-menu
+  // buttons share one generic title (settings_ayu_utils.cpp:528). Null → `label`.
+  final String? boxTitle;
   final int value;
   final Map<int, String> items;
   final ValueChanged<int> onChanged;
@@ -599,6 +611,7 @@ class _AyuChooseButton extends StatelessWidget {
 
   const _AyuChooseButton({
     required this.label,
+    this.boxTitle,
     required this.value,
     required this.items,
     required this.onChanged,
@@ -645,7 +658,7 @@ class _AyuChooseButton extends StatelessWidget {
     showTelegramBox(
       context: context,
       builder: (ctx) => _SingleChoiceBox(
-        title: label,
+        title: boxTitle ?? label,
         items: items,
         currentValue: value,
         onChanged: (v) {
@@ -683,27 +696,34 @@ class _SingleChoiceBox extends StatelessWidget {
             final selected = e.key == currentValue;
             return InkWell(
               onTap: () => onChanged(e.key),
+              hoverColor: p.windowBgOver,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
                 child: Row(
                   children: [
+                    // AyuGram builds each option with Ui::Radiobutton: the radio
+                    // marker sits on the LEFT (ring + filled inner dot when
+                    // selected, toggledFg = windowBgActive) and the label follows
+                    // to its right — NOT a hollow ring on the right
+                    // (single_choice_box.cpp:34, defaultRadio widgets.style:860:
+                    // diameter 22px, thickness 2px).
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Radio<bool>(
+                        value: true,
+                        groupValue: selected,
+                        onChanged: (_) => onChanged(e.key),
+                        activeColor: p.windowBgActive,
+                        materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(e.value,
                           style: TextStyle(fontSize: 14, color: p.boxTextFg)),
-                    ),
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: selected
-                              ? p.windowBgActive
-                              : p.boxTextFg.withValues(alpha: 0.3),
-                          width: selected ? 6 : 2,
-                        ),
-                      ),
                     ),
                   ],
                 ),
@@ -714,7 +734,10 @@ class _SingleChoiceBox extends StatelessWidget {
       ),
       buttons: [
         TelegramBoxButton(
-          text: 'Cancel',
+          // AyuGram's SingleChoiceBox bottom button is tr::lng_box_ok() ("OK");
+          // selection auto-applies on tap, so the button just closes the box
+          // (single_choice_box.cpp:22). "Cancel" was wrong and misleading.
+          text: 'OK',
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
