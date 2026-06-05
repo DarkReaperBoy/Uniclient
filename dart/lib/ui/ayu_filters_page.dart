@@ -715,17 +715,38 @@ class _AyuFiltersListScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
+          // Add (`+`) icon — AyuGram adds it unconditionally to the top bar of
+          // EVERY AyuFiltersList screen (info_wrap_widget.cpp:469-500). In
+          // shadow-ban mode it opens the Select-Chat picker (addShadowBan);
+          // everywhere else (shared, per-dialog main view, AND the per-dialog
+          // pick-exclude sub-screen) it opens RegexEditBox(nullptr, nullptr,
+          // dialogId) — a fresh filter scoped to the current dialog (null for
+          // shared). Never gated on whether filters already exist.
           if (mode == _FiltersListMode.shadowBan)
             IconButton(
               icon: Icon(Icons.add,
                   color: isDark ? Colors.white : Colors.black87),
+              tooltip: 'Add',
               onPressed: () => _showAddShadowBanDialog(context, appState),
             )
-          else if (mode != _FiltersListMode.perDialog || showExclude)
+          else
             IconButton(
               icon: Icon(Icons.add,
                   color: isDark ? Colors.white : Colors.black87),
+              tooltip: 'Add',
               onPressed: () => _showRegexEditBox(context, appState, null),
+            ),
+          // Exclude (`tag_remove`) icon — AyuGram shows it whenever
+          // showExclude == true, i.e. the per-dialog main view, regardless of
+          // whether any filters/exclusions exist yet
+          // (info_wrap_widget.cpp:503-513). It opens the pick-exclude
+          // sub-screen (showExclude = false).
+          if (mode == _FiltersListMode.perDialog && showExclude)
+            IconButton(
+              icon: Icon(Icons.label_off_outlined,
+                  color: isDark ? Colors.white : Colors.black87),
+              tooltip: 'Exclude a shared filter',
+              onPressed: () => _navigateToPickExclude(context, appState),
             ),
         ],
       ),
@@ -829,15 +850,11 @@ class _AyuFiltersListScreen extends StatelessWidget {
       }
     }
 
-    if (mode == _FiltersListMode.perDialog) {
-      items.add(() => const SizedBox(height: 12));
-      items.add(() => _sectionDivider(isDark));
-      items.add(() => const SizedBox(height: 4));
-      items.add(() => _AddExclusionButton(
-        isDark: isDark,
-        onTap: () => _navigateToPickExclude(context, appState),
-      ));
-    }
+    // The "Exclude a shared filter" affordance lives in the top bar
+    // (st::filtersExcludeIcon), not as an inline list row — see the app-bar
+    // actions above. AyuGram keeps it always reachable in per-dialog mode,
+    // so it must NOT depend on this body (which early-returns on an empty
+    // dialog).
 
     items.add(() => const SizedBox(height: 8));
   }
@@ -1118,31 +1135,6 @@ class _PickExcludeRow extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-      ),
-    );
-  }
-}
-
-class _AddExclusionButton extends StatelessWidget {
-  final bool isDark;
-  final VoidCallback onTap;
-
-  const _AddExclusionButton({required this.isDark, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final accentColor =
-        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-        child: Row(children: [
-          Icon(Icons.add, size: 20, color: accentColor),
-          const SizedBox(width: 12),
-          Text('Exclude a shared filter',
-              style: TextStyle(fontSize: 14, color: accentColor)),
-        ]),
       ),
     );
   }
