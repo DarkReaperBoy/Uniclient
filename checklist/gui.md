@@ -387,13 +387,26 @@ every toggle row is single-line, matching AyuGram's subtitle-less
 
 # ayu_filters_page — AyuGram Regex Filters settings page (toggles, shared/shadow-ban/per-dialog lists, regex edit box, import/export)
 
-Overall the port is faithful and fully wired: every toggle calls `filterEngine.rebuildCache()` + `notifyListeners()` + persist (the equivalent of AyuGram's `FiltersCacheController::rebuildCache()` + `fireUpdate()`), add/edit/delete/toggle filter, exclusions, shadow-ban add/remove, clear-all, select-chat, and import/export (clipboard + URL/dpaste) all reach the real engine. No placeholders, stubs, empty callbacks, mock data, or "coming soon" feedback found. The findings below are behavioral deviations in the per-dialog exclude flow, where AyuGram exposes the actions as always-present top-bar icons but the Dart port renders them inline and gates them on list contents.
-
-- [ ] [MAJOR] Per-dialog "Exclude a shared filter" affordance disappears when the dialog has no per-dialog filters/exclusions yet. `_buildFilterListItems` early-returns with just the `_emptyState('No filters.')` before ever adding `_AddExclusionButton`, and there is no top-bar exclude action in `_AyuFiltersListScreen.actions`. AyuGram instead renders a dedicated top-bar Exclude icon (`st::filtersExcludeIcon`) that is **always** present in per-dialog (`showExclude == true`) mode, with no check on whether filters exist. Result: pick a fresh group/channel via the top-menu "Select Chat" (which exists specifically to set up filters/exclusions for that chat) and you can add a per-dialog regex filter but cannot exclude any of your shared filters from it — the entire exclude capability is unreachable for that dialog. — `ayu_filters_page.dart:780-782` (early return skips the exclude button) + `ayu_filters_page.dart:832-840` (inline `_AddExclusionButton`) ← `AyuGram/info/info_wrap_widget.cpp:503-513` (top-bar Exclude icon, unconditionally shown in per-dialog mode)
-
-- [ ] [MAJOR] The per-dialog Exclude action is placed as an inline list row at the bottom of the filter list, not as a top-bar icon button. AyuGram's per-dialog view carries **two** top-bar icon buttons — Add (`st::filtersAddIcon`) and Exclude (`st::filtersExcludeIcon`); the Dart `_AyuFiltersListScreen` app bar only ever adds a single Add icon (`actions:` builds Add for shadow-ban/shared/per-dialog and nothing else), moving Exclude into the scrollable body. Beyond the empty-state regression above, this is a structural mismatch with the reference top bar. — `ayu_filters_page.dart:717-730` (app-bar `actions` only build an Add icon) ← `AyuGram/info/info_wrap_widget.cpp:469-513` (Add icon at :470, Exclude icon at :503-506)
-
-- [ ] [MAJOR] The "pick a shared filter to exclude" sub-screen (per-dialog, `showExclude == false`) has no top-bar Add button. The app-bar condition `mode != _FiltersListMode.perDialog || showExclude` evaluates false for this screen, so no action button is built. AyuGram adds the Add (`+`) icon to the top bar unconditionally for every `AyuFiltersList` screen — including the pick-exclude screen — wiring it to `RegexEditBox(nullptr, nullptr, controller->dialogId)`. The reference therefore lets the user add a new per-dialog filter from the pick-exclude screen; the Dart port drops that affordance. — `ayu_filters_page.dart:699-700` (pick-exclude branch) + `ayu_filters_page.dart:724-729` (Add gated out when `mode == perDialog && !showExclude`) ← `AyuGram/info/info_wrap_widget.cpp:470,495-500` (Add icon added unconditionally, opens `RegexEditBox`)
+Overall the port is faithful and fully wired: every toggle calls `filterEngine.rebuildCache()` + `notifyListeners()` + persist (the equivalent of AyuGram's `FiltersCacheController::rebuildCache()` + `fireUpdate()`), add/edit/delete/toggle filter, exclusions, shadow-ban add/remove, clear-all, select-chat, and import/export (clipboard + URL/dpaste) all reach the real engine. No placeholders, stubs, empty callbacks, mock data, or "coming soon" feedback found. All 3 MAJOR deviations were found and fixed (commit 646850ca), and verified in
+both desktop (1024×768) and mobile (400×720, sized via the compositor since the
+GTK window-resize IPC is a no-op on Wayland) — the `_AyuFiltersListScreen`
+app-bar `actions` carry no responsive/`MediaQuery` branches, so the icons render
+identically at any width. The per-dialog exclude flow now mirrors AyuGram's
+`AyuFiltersList` top bar (`info_wrap_widget.cpp:467-514`): (1)+(2) the inline
+`_AddExclusionButton` list row was removed entirely and Exclude is now a
+dedicated top-bar `IconButton` (`Icons.label_off_outlined` ← `st::filtersExcludeIcon`
+/ `menu/tag_remove`) built whenever `mode == perDialog && showExclude` (the
+per-dialog main view), independent of the body's empty-state early return — so it
+stays reachable on a fresh dialog with no filters (confirmed: a group opened via
+the top-menu "Select Chat" shows two top-bar icons, Add + Exclude, above an empty
+"No filters." body, in both desktop and mobile). (3) the Add (`+`) icon is now
+built unconditionally for every non-shadow-ban screen (plain `else` branch, no
+longer gated by `mode != perDialog || showExclude`), including the pick-exclude
+sub-screen, where it opens `_RegexEditBox` scoped to the current `dialogId`
+(← `RegexEditBox(nullptr, nullptr, controller->dialogId)`) — confirmed the
+pick-exclude screen now shows a single Add icon that opens the "Add Filter" box.
+Regression-checked: Shared and Shadow-ban screens show only the Add icon (no
+Exclude leak), and the Shadow-ban Add opens the Select-Chat picker. No crashes.
 
 # ayu_general_page — AyuGram General settings page (Translate / QoL / Webview / Confirmations)
 
