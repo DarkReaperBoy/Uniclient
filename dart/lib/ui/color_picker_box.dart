@@ -421,10 +421,15 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     final totalWidth = maxWidth > screenWidth ? screenWidth - 16 : maxWidth;
     final innerWidth =
         totalWidth - kBoxPadding.left - kBoxPadding.right;
+    // Right-hand column width. In HSL mode the absent hue slider frees
+    // `colorEditSkip` of width, which AyuGram folds into the column:
+    // fieldWidth = colorSampleSize.width (60) + colorEditSkip (10) = 70 in HSL,
+    // 60 in RGBA. (color_editor.cpp:1053-1054)
+    final fieldWidth = _kMinFieldWidth + (_isHsl ? _kEditSkip : 0);
     // RGBA reserves room for the vertical hue slider beside the square; HSL has
     // no hue slider, so the square can use that width.
     final pickerSize = (_isHsl
-            ? (innerWidth - _kEditSkip - _kMinFieldWidth)
+            ? (innerWidth - _kEditSkip - fieldWidth)
             : (innerWidth -
                 _kSliderTotalWidth -
                 2 * _kEditSkip -
@@ -455,6 +460,11 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      // AyuGram centers the picker+sliders+fields cluster within
+                      // the 390px editor: left = (width - fullwidth) / 2, giving
+                      // symmetric margins instead of dumping the slack on the
+                      // right. (color_editor.cpp:1026)
+                      mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Column(
@@ -495,7 +505,13 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                                     ),
                                   ),
                                   if (!_isHsl) ...[
-                                    SizedBox(width: _kEditSkip),
+                                    // The slider widget already carries an 8px
+                                    // internal _kSliderSkip before its bar, so a
+                                    // (colorEditSkip - colorSliderSkip) = 2px
+                                    // spacer lands the bar exactly colorEditSkip
+                                    // (10px) from the picker edge — matching
+                                    // AyuGram. (color_editor.cpp:1030)
+                                    SizedBox(width: _kEditSkip - _kSliderSkip),
                                     _VerticalHueSlider(
                                       pickerSize: pickerSize,
                                       value: 1.0 - _hue / 360,
@@ -550,7 +566,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                         ),
                         SizedBox(width: _kEditSkip),
                         SizedBox(
-                          width: _kMinFieldWidth,
+                          width: fieldWidth,
                           child: _buildFieldColumn(
                               p.boxTitleAdditionalFg, p.boxTextFg, p.inputBorderFg),
                         ),
