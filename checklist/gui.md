@@ -446,12 +446,34 @@ metrics all match the AyuGram source after verification against
 `ayu_builder.cpp`, `settings_ayu_utils.cpp`, `settings_common.cpp`,
 `continuous_sliders.h`, and the relevant `.style` files. The empty
 `onChanged: (_) {}` at line 880 is intentional (the toggle is `IgnorePointer`-
-wrapped and taps are handled by the parent `GestureDetector`), not a stub. The
-findings below are the real deviations.
+wrapped and taps are handled by the parent `GestureDetector`), not a stub. All 3
+MAJOR `_AyuChooseButton`/`_SingleChoiceBox` deviations were found and fixed
+(commit 5df1a89a) and verified live in both desktop (1024×768) and mobile
+(400×720) on the real AyuGram → Chats → "Context Menu Elements" choose buttons:
 
-- [ ] [MAJOR] Choose-button dialog shows the WRONG title: `_AyuChooseButton` reuses the button `label` as the choice-box title (`title: label`), and the builder's `addChooseButton` exposes no separate box-title parameter. AyuGram passes a distinct `boxTitle` — its context-menu choose buttons all share the generic box title `ayu_SettingsContextMenuTitle` ("Context menu") while each button's `title` is specific ("Reactions Panel", "Views Panel", …). In the Dart app these are wired exactly this way (`ayu_chats_page.dart:247-253` over `_contextMenuItems` labels "Reactions Panel"/"Views Panel"/…), so tapping "Reactions Panel" opens a dialog titled "Reactions Panel" instead of "Context menu". — `ayu_section_builder.dart:648` (and missing param at `ayu_section_builder.dart:99-114`) ← `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_ayu_utils.cpp:528`
-- [ ] [MAJOR] `_SingleChoiceBox` renders the selection marker on the RIGHT of each option (Row = `Expanded(Text)` then the circle) and draws it as a hollow thick ring (6px border) instead of a radio dot. AyuGram's `SingleChoiceBox` builds each option with `Ui::Radiobutton`, which renders the radio marker on the LEFT with the text to its right and shows a filled inner dot when selected. — `ayu_section_builder.dart:689-707` ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:34`
-- [ ] [MAJOR] `_SingleChoiceBox`'s bottom action button is labelled "Cancel"; AyuGram's `SingleChoiceBox` uses `tr::lng_box_ok()` ("OK"). Since selection auto-applies on tap in both, "Cancel" is the wrong (and misleading) action label versus the ground-truth source. — `ayu_section_builder.dart:717` ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:22`
+- [MAJOR] Choose-button dialog title FIXED & VERIFIED. `addChooseButton` now
+  takes a `boxTitle` distinct from the row `label`, and `_AyuChooseButton`'s
+  `_showChoiceDialog` titles the box `boxTitle ?? label` (`ayu_section_builder.dart:108,661`)
+  — mirroring AyuGram's `AddChooseButton(..., boxTitle, ...)` → `SingleChoiceBox{.title = boxTitle}`
+  (`settings_ayu_utils.cpp:499,530`). The context-menu rows pass the shared generic
+  title `'Choose when to show the item'` (= `ayu_SettingsContextMenuTitle`,
+  `lang.strings:8109`, used by all 7 buttons at `settings_chats.cpp:310-365`)
+  (`ayu_chats_page.dart:248`). Confirmed: tapping "Reactions Panel" opens a dialog
+  titled "Choose when to show the item", NOT "Reactions Panel" — desktop + mobile.
+  ← `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_ayu_utils.cpp:528`
+- [MAJOR] Radio marker FIXED & VERIFIED. `_SingleChoiceBox` now builds each option
+  as a real `Radio<bool>` (activeColor `windowBgActive`) on the LEFT with the label
+  `Expanded` to its right (`ayu_section_builder.dart:710-727`) — matching AyuGram's
+  `Ui::Radiobutton`. Confirmed via 4× zoom: the selected option renders a blue ring
+  with a FILLED inner dot on the left, unselected options are hollow rings, text to
+  the right — not a hollow right-side ring. Desktop + mobile.
+  ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:34`
+- [MAJOR] Bottom button label FIXED & VERIFIED. The box's action button now reads
+  "OK" (`ayu_section_builder.dart:740`) = `tr::lng_box_ok()` ("OK", `lang.strings:125`),
+  not "Cancel". Confirmed: button labeled "OK" closes the box; selection auto-applies
+  on option tap (live Hidden→Extended Menu→Hidden round-trip, row right-label tracks
+  the value). Desktop + mobile. No crashes/exceptions in the choose-button/dialog path.
+  ← `AyuGram/Telegram/SourceFiles/ui/boxes/single_choice_box.cpp:22`
 
 # birthday_picker — Telegram day/month/year drum picker dialog (ports AyuGram `EditBirthdayBox`)
 
