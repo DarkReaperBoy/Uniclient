@@ -1218,7 +1218,14 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
-    final isSystem = Platform.isLinux || Platform.isMacOS;
+    // Matches AyuGram Platform::Spellchecker::IsSystemSpellchecker(): true on
+    // Windows (IsWindows8OrGreater(), spellcheck_win.cpp:335-339 — all supported
+    // Windows builds are 8+), macOS (returns true), and Linux (returns true).
+    // When true, the auto-download + manage-dictionaries (Hunspell-only) controls
+    // are hidden and the toggle reads "Use system spellchecker"
+    // (settings_advanced.cpp:882, 912-943).
+    final isSystem =
+        Platform.isWindows || Platform.isMacOS || Platform.isLinux;
 
     return [
       _SubsectionTitle(title: 'Spellchecker', color: accentColor),
@@ -2662,16 +2669,17 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
       }
     }
     if (!mounted) return;
+    // Apply the OS power-saver override LIVE only — never persist it. The engine
+    // already receives the forced state via `force_all` (AppState.setAutoPowerSaving
+    // forwards it to SetPowerSaving), and the app's animation getters already read
+    // every feature as disabled while `autoPowerSaving` is on. Writing
+    // kPowerSavingAll into the per-feature flags here would be both redundant and
+    // destructive: it permanently overwrites the user's stored choices with
+    // all-disabled, with no revert path when the OS power-saver later turns off.
+    // AyuGram shows the battery override live but never writes the flags while
+    // battery-saving is active (settings_power_saving.cpp:116-127). _osPowerSaver
+    // only drives the lock overlay (_overlayActive).
     setState(() => _osPowerSaver = detected);
-    if (_autoEnabled && detected) {
-      _applyAutoFlags();
-    }
-  }
-
-  void _applyAutoFlags() {
-    final appState = context.read<AppState>();
-    setState(() => _flags = AppState.kPowerSavingAll);
-    appState.setPowerSaving(AppState.kPowerSavingAll, true);
   }
 
   bool get _overlayActive => _autoEnabled && _osPowerSaver;
@@ -2805,11 +2813,18 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
                       if (_autoEnabled != appState.autoPowerSaving) {
                         appState.setAutoPowerSaving(_autoEnabled);
                       }
-                      final old = appState.powerSavingFlags;
-                      final changed = old ^ _flags;
-                      for (var bit = 0; bit < 12; bit++) {
-                        if (changed & (1 << bit) != 0) {
-                          appState.setPowerSaving(1 << bit, _flags & (1 << bit) != 0);
+                      // Don't persist per-feature flags while the OS power-saver
+                      // override is active (AyuGram: `if (ignore || !batterySaving)`,
+                      // settings_power_saving.cpp:121-123). The override is live-only;
+                      // the user's stored choices are preserved for when it ends.
+                      if (!_overlayActive) {
+                        final old = appState.powerSavingFlags;
+                        final changed = old ^ _flags;
+                        for (var bit = 0; bit < 12; bit++) {
+                          if (changed & (1 << bit) != 0) {
+                            appState.setPowerSaving(
+                                1 << bit, _flags & (1 << bit) != 0);
+                          }
                         }
                       }
                       Navigator.of(context).pop();
@@ -4074,7 +4089,7 @@ class _EditProxyDialog extends StatefulWidget {
 }
 
 class _EditProxyDialogState extends State<_EditProxyDialog> {
-  _ProxyType _type = _ProxyType.socks5;
+  _ProxyType _type = _ProxyType.mtproto;
   late final TextEditingController _hostCtrl;
   late final TextEditingController _portCtrl;
   late final TextEditingController _userCtrl;
@@ -4085,7 +4100,9 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
   void initState() {
     super.initState();
     final e = widget.existing;
-    _type = e?.type ?? _ProxyType.socks5;
+    // AyuGram: a brand-new proxy (data.type == Type::None) defaults to MTPROTO
+    // (connection_box.cpp:1582-1584); an existing proxy keeps its stored type.
+    _type = e?.type ?? _ProxyType.mtproto;
     _hostCtrl = TextEditingController(text: e?.host ?? '');
     _portCtrl =
         TextEditingController(text: e != null && e.port > 0 ? '${e.port}' : '');
@@ -4174,13 +4191,14 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
               ),
             ),
 
-            // Type radio group
+            // Type radio group — AyuGram order: MTPROTO, SOCKS5, HTTP
+            // (connection_box.cpp:1468-1472).
+            _typeRadio('MTPROTO', _ProxyType.mtproto, textColor, accentColor,
+                hoverBg),
             _typeRadio('SOCKS5', _ProxyType.socks5, textColor, accentColor,
                 hoverBg),
             _typeRadio(
                 'HTTP', _ProxyType.http, textColor, accentColor, hoverBg),
-            _typeRadio('MTPROTO', _ProxyType.mtproto, textColor, accentColor,
-                hoverBg),
             const SizedBox(height: 8),
 
             // Host + Port row
