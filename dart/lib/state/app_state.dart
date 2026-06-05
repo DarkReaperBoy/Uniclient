@@ -4729,16 +4729,36 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
-    _wallpaper = WallpaperData(
-      type: type,
-      backgroundColors: colors,
-      patternIntensity: intensity,
-      gradientRotation: rotation,
-      blurred: blurred,
-      tiled: tiled,
-      imageBytes: imageBytes,
-      patternBytes: patternBytes,
-    );
+    if (type == WallpaperType.pattern && patternBytes != null) {
+      // Collectible-gift pattern documents embed a `<g id="GiftPatterns">`
+      // cut-out group whose rects define the gift-symbol overlay placements.
+      // AyuGram re-parses these from the pattern bytes on every background
+      // prepare (ReadBackgroundImage findGiftSymbols=true → ParseGiftSymbols,
+      // chat_theme.cpp:1084-1099) — they are never persisted separately. Route
+      // reload-from-prefs through fromPattern (exactly like the live apply path,
+      // message_bubble.dart:9433) so giftSymbols are re-parsed; the bare
+      // constructor leaves them empty, which makes the rotated gift overlay +
+      // center-skip layout vanish after a restart until the wallpaper is
+      // re-applied. No giftSymbolFrame is passed (matching the apply path) — the
+      // frame is derived from the document SVG itself at decode time.
+      _wallpaper = WallpaperData.fromPattern(
+        patternBytes: patternBytes,
+        backgroundColors: colors,
+        intensity: intensity,
+        rotation: rotation,
+      );
+    } else {
+      _wallpaper = WallpaperData(
+        type: type,
+        backgroundColors: colors,
+        patternIntensity: intensity,
+        gradientRotation: rotation,
+        blurred: blurred,
+        tiled: tiled,
+        imageBytes: imageBytes,
+        patternBytes: patternBytes,
+      );
+    }
   }
 
   static String _platformLabel(String platform) => switch (platform.toLowerCase()) {
