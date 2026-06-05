@@ -260,12 +260,21 @@ func (ft *ForumTopic) IsGeneral() bool { return ft.ID == "1" }
 // within a message's text. Offset and Length are in UTF-16 code units to match
 // Telegram's convention; the Dart side works natively in UTF-16.
 type TextEntity struct {
-	Type       string `json:"type"`               // "bold","italic","underline","strike","code","pre","text_url","url","mention","hashtag","bot_command","email","phone","cashtag","spoiler","blockquote","custom_emoji","mention_name","bank_card"
+	Type       string `json:"type"`               // "bold","italic","underline","strike","code","pre","text_url","url","mention","hashtag","bot_command","email","phone","cashtag","spoiler","blockquote","custom_emoji","mention_name","bank_card","formatted_date"
 	Offset     int    `json:"offset"`             // start position in UTF-16 code units
 	Length     int    `json:"length"`             // length in UTF-16 code units
 	URL        string `json:"url,omitempty"`      // for text_url
 	Language   string `json:"language,omitempty"` // for pre (code block language)
 	DocumentID int64  `json:"document_id,omitempty"` // for custom_emoji
+	// formatted_date (messageEntityFormattedDate): a clickable, locale-rendered
+	// date. Date is the unix-seconds timestamp; the bools are the render flags.
+	Date          int  `json:"date,omitempty"`
+	DateRelative  bool `json:"relative,omitempty"`
+	DateShortTime bool `json:"short_time,omitempty"`
+	DateLongTime  bool `json:"long_time,omitempty"`
+	DateShortDate bool `json:"short_date,omitempty"`
+	DateLongDate  bool `json:"long_date,omitempty"`
+	DateDayOfWeek bool `json:"day_of_week,omitempty"`
 }
 
 // Message represents a single message with its content, metadata, and attachments.

@@ -170,6 +170,7 @@ class ChatView extends StatefulWidget {
   static VoidCallback? selectAllComposeRequest;
   static VoidCallback? showLinkDialogRequest;
   static VoidCallback? showCodeLanguageDialogRequest;
+  static VoidCallback? showDatePickerRequest;
   static VoidCallback? toggleEmojiPanelRequest;
   static bool Function()? startRecordVoiceRequest;
   static bool Function()? startRecordRoundRequest;
@@ -553,6 +554,7 @@ class _ChatViewState extends State<ChatView>
     ChatView.selectAllComposeRequest = _selectAllCompose;
     ChatView.showLinkDialogRequest = _showLinkDialogFromHarness;
     ChatView.showCodeLanguageDialogRequest = _showCodeLanguageDialogFromHarness;
+    ChatView.showDatePickerRequest = _showDatePickerFromHarness;
     ChatView.toggleEmojiPanelRequest = () {
       if (context.read<AppState>().showEmojiPopup) {
         setState(() => _emojiPanelVisible = !_emojiPanelVisible);
@@ -647,6 +649,9 @@ class _ChatViewState extends State<ChatView>
     }
     if (ChatView.showCodeLanguageDialogRequest == _showCodeLanguageDialogFromHarness) {
       ChatView.showCodeLanguageDialogRequest = null;
+    }
+    if (ChatView.showDatePickerRequest == _showDatePickerFromHarness) {
+      ChatView.showDatePickerRequest = null;
     }
     ChatView.toggleEmojiPanelRequest = null;
     if (ChatView.scrollPageRequest == _scrollPage) {
@@ -4332,6 +4337,25 @@ class _ChatViewState extends State<ChatView>
     final existingLang = ctrl.getCodeLanguage() ?? '';
     _showCodeLanguageBox(context, existingLang, (language) {
       ctrl.setCodeLanguage(language);
+    });
+  }
+
+  // "Insert Date" keyboard shortcut (keyboard_shortcuts.dart formatDate). Opens
+  // the date+time picker that inserts a real messageEntityFormattedDate, instead
+  // of toggleFormat(FormatType.date) which produced an inert, timestamp-less,
+  // never-sent entity.
+  void _showDatePickerFromHarness() {
+    showCalendarBox(
+      context,
+      initialDate: DateTime.now(),
+      minDate: DateTime(1970),
+      maxDate: DateTime(2036, 12, 31),
+    ).then((date) {
+      if (date == null || !mounted) return;
+      showChooseDateTimeBox(context, initialDate: date).then((result) {
+        if (result == null || !mounted) return;
+        _composeController.insertDateTimestamp(result.dateTime);
+      });
     });
   }
 
@@ -13300,6 +13324,7 @@ class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
     final hasOverlayEntities = entities.any((e) =>
         e.type == FormatType.blockquote ||
         e.type == FormatType.code ||
+        e.type == FormatType.pre ||
         e.type == FormatType.spoiler);
     if (!hasOverlayEntities) return const SizedBox.shrink();
 
@@ -13390,7 +13415,8 @@ class _FormattingPainter extends CustomPainter {
     for (var i = 0; i < entities.length; i++) {
       final entity = entities[i];
       if (entity.type == FormatType.blockquote ||
-          entity.type == FormatType.code) {
+          entity.type == FormatType.code ||
+          entity.type == FormatType.pre) {
         _paintBlockDecoration(canvas, tp, entity, plainText, textAreaWidth);
       }
       if (entity.type == FormatType.spoiler) {
@@ -13426,7 +13452,7 @@ class _FormattingPainter extends CustomPainter {
     const radius = 5.0;
     const outlineShift = 2.0;
 
-    final isCode = entity.type == FormatType.code;
+    final isCode = entity.type == FormatType.code || entity.type == FormatType.pre;
     final isBlockquote = entity.type == FormatType.blockquote;
     final hasHeader = isCode && entity.language != null && entity.language!.isNotEmpty;
     final headerHeight = hasHeader ? 20.0 : 0.0;
@@ -13654,7 +13680,7 @@ class _CodeHeaderTapLayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final codeEntities = controller.entities
-        .where((e) => e.type == FormatType.code &&
+        .where((e) => (e.type == FormatType.code || e.type == FormatType.pre) &&
             e.language != null && e.language!.isNotEmpty)
         .toList();
     if (codeEntities.isEmpty) return const SizedBox.shrink();
@@ -15751,6 +15777,7 @@ class _ComposeAreaState extends State<_ComposeArea>
                 if (richCtrl != null && richCtrl.entities.any((e) =>
                     e.type == FormatType.blockquote ||
                     e.type == FormatType.code ||
+                    e.type == FormatType.pre ||
                     e.type == FormatType.spoiler))
                   Positioned.fill(
                     child: Stack(

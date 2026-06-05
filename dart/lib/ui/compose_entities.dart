@@ -4,7 +4,19 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 
-enum FormatType { bold, italic, underline, strike, code, spoiler, blockquote, link, customEmoji, date }
+enum FormatType { bold, italic, underline, strike, code, pre, spoiler, blockquote, link, customEmoji, date }
+
+/// Bit flags describing how a [FormatType.date] entity renders, mirroring
+/// Telegram's `messageEntityFormattedDate#904ac7c7` flags (AyuGram
+/// `api/api_text_entities.cpp:391`, `core/ui_integration.cpp:196`).
+class DateFlag {
+  static const int relative = 1 << 0;
+  static const int shortTime = 1 << 1;
+  static const int longTime = 1 << 2;
+  static const int shortDate = 1 << 3;
+  static const int longDate = 1 << 4;
+  static const int dayOfWeek = 1 << 5;
+}
 
 class ComposeEntity {
   int offset;
@@ -15,8 +27,9 @@ class ComposeEntity {
   final int? documentId;
   final String? altText;
   final int? timestamp;
+  final int dateFlags;
 
-  ComposeEntity({required this.offset, required this.length, required this.type, this.url, this.language, this.documentId, this.altText, this.timestamp});
+  ComposeEntity({required this.offset, required this.length, required this.type, this.url, this.language, this.documentId, this.altText, this.timestamp, this.dateFlags = 0});
 
   Map<String, dynamic> toJson() {
     final typeStr = switch (type) {
@@ -25,17 +38,30 @@ class ComposeEntity {
       FormatType.underline => 'underline',
       FormatType.strike => 'strike',
       FormatType.code => 'code',
+      FormatType.pre => 'pre',
       FormatType.spoiler => 'spoiler',
       FormatType.blockquote => 'blockquote',
       FormatType.link => 'text_url',
       FormatType.customEmoji => 'custom_emoji',
-      FormatType.date => 'custom_date',
+      FormatType.date => 'formatted_date',
     };
     final m = <String, dynamic>{'type': typeStr, 'offset': offset, 'length': length};
     if (url != null && url!.isNotEmpty) m['url'] = url!;
     if (language != null && language!.isNotEmpty) m['language'] = language!;
     if (documentId != null && documentId != 0) m['document_id'] = documentId!;
-    if (timestamp != null) m['timestamp'] = timestamp!;
+    if (altText != null && altText!.isNotEmpty) m['alt_text'] = altText!;
+    if (type == FormatType.date) {
+      // Serialize as a real `messageEntityFormattedDate` payload the Go core
+      // can forward to the wire (date in unix seconds + render flags), instead
+      // of an inert `custom_date`+`timestamp` the send path silently dropped.
+      m['date'] = timestamp ?? 0;
+      if ((dateFlags & DateFlag.relative) != 0) m['relative'] = true;
+      if ((dateFlags & DateFlag.shortTime) != 0) m['short_time'] = true;
+      if ((dateFlags & DateFlag.longTime) != 0) m['long_time'] = true;
+      if ((dateFlags & DateFlag.shortDate) != 0) m['short_date'] = true;
+      if ((dateFlags & DateFlag.longDate) != 0) m['long_date'] = true;
+      if ((dateFlags & DateFlag.dayOfWeek) != 0) m['day_of_week'] = true;
+    }
     return m;
   }
 }
@@ -151,6 +177,11 @@ class RichTextEditingController extends TextEditingController {
   }
 
   void toggleFormat(FormatType type) {
+    // A date is an inline insertion (see insertDateTimestamp / the date picker),
+    // not a range format that toggles over a selection. Guard against creating
+    // a timestamp-less, doubly-inert date entity — AyuGram inserts dates via the
+    // picker, never as a toggle.
+    if (type == FormatType.date) return;
     final sel = selection;
     if (!sel.isValid || sel.isCollapsed) return;
 
@@ -316,6 +347,7 @@ class RichTextEditingController extends TextEditingController {
       length: formatted.length,
       type: FormatType.date,
       timestamp: ts,
+      dateFlags: DateFlag.shortDate,
     ));
     super.text = _prevText;
     selection = TextSelection.collapsed(offset: pos + formatted.length);
@@ -359,20 +391,62 @@ class RichTextEditingController extends TextEditingController {
     return jsonEncode(entities.map((e) => e.toJson()).toList());
   }
 
-  ({String text, String entitiesJson}) getTextWithAppliedMarkdown() {
-    var src = text.trim();
-    if (src.isEmpty) return (text: src, entitiesJson: entitiesJson);
+  static final RegExp _languagePattern = RegExp(r'^[A-Za-z0-9+#._-]+$');
 
-    final emojiEnts = entities.where((e) => e.type == FormatType.customEmoji).toList()
+  /// Pure extractor — mirrors AyuGram's `const InputField::getTextWithAppliedMarkdown()`
+  /// (`input_field.cpp:3775`): it NEVER mutates [text] or the live [entities]
+  /// list. It trims the text, re-bases a working copy of the entities by the
+  /// leading-whitespace shift, expands custom-emoji placeholders, and applies
+  /// typed markdown (`**bold**`, ```` ```pre ```` , …), returning a fresh
+  /// (clean text, entities JSON). A second call (save-retry after a network
+  /// error, or leading-whitespace + toolbar formatting) therefore always sees
+  /// the original offsets, never corrupted ones.
+  ({String text, String entitiesJson}) getTextWithAppliedMarkdown() {
+    final raw = text;
+    final leftTrimmed = raw.trimLeft();
+    final leading = raw.length - leftTrimmed.length;
+    var src = leftTrimmed.trimRight();
+    if (src.isEmpty) return (text: '', entitiesJson: '');
+
+    // Build re-based COPIES of the entities so we never touch field state. The
+    // leading `trim()` shifts every offset left by [leading]; clamp into range.
+    final working = <ComposeEntity>[];
+    for (final e in entities) {
+      var off = e.offset - leading;
+      var len = e.length;
+      if (off < 0) {
+        len += off;
+        off = 0;
+      }
+      if (len <= 0 || off >= src.length) continue;
+      if (off + len > src.length) len = src.length - off;
+      if (len <= 0) continue;
+      working.add(ComposeEntity(
+        offset: off, length: len, type: e.type,
+        url: e.url, language: e.language,
+        documentId: e.documentId, altText: e.altText,
+        timestamp: e.timestamp, dateFlags: e.dateFlags));
+    }
+
+    // Expand custom-emoji entities. A freshly-inserted emoji occupies a single
+    // placeholder char (_emojiPlaceholder) that must be swapped for its alt text
+    // before sending; a server-loaded emoji already carries its real text in the
+    // field (AyuGram stores the real text, not a placeholder —
+    // input_field.cpp:886) so we leave that untouched, which is what stops a
+    // re-saved note from silently dropping the emoji.
+    final emojiEnts = working.where((e) => e.type == FormatType.customEmoji).toList()
       ..sort((a, b) => b.offset.compareTo(a.offset));
     for (final ce in emojiEnts) {
       if (ce.offset < 0 || ce.offset >= src.length || ce.offset + ce.length > src.length) continue;
+      final covered = src.substring(ce.offset, ce.offset + ce.length);
+      if (covered != _emojiPlaceholder) continue; // real text present — preserve
       final alt = ce.altText ?? '';
+      if (alt.isEmpty) continue; // nothing to substitute; keep the placeholder
       src = src.substring(0, ce.offset) + alt + src.substring(ce.offset + ce.length);
       final delta = alt.length - ce.length;
-      for (final e in entities) {
-        if (e == ce) {
-          e.length = alt.length;
+      for (final e in working) {
+        if (identical(e, ce)) {
+          ce.length = alt.length;
           continue;
         }
         if (e.offset > ce.offset) e.offset += delta;
@@ -386,7 +460,7 @@ class RichTextEditingController extends TextEditingController {
     }
 
     final mdDelimiters = <({String delim, FormatType type, bool isBlock})>[
-      (delim: '```', type: FormatType.code, isBlock: true),
+      (delim: '```', type: FormatType.pre, isBlock: true),
       (delim: '**', type: FormatType.bold, isBlock: false),
       (delim: '__', type: FormatType.italic, isBlock: false),
       (delim: '~~', type: FormatType.strike, isBlock: false),
@@ -394,7 +468,7 @@ class RichTextEditingController extends TextEditingController {
       (delim: '`', type: FormatType.code, isBlock: false),
     ];
 
-    final strips = <({int start, int delimLen, int contentStart, int contentEnd, FormatType type})>[];
+    final strips = <({int start, int delimLen, int contentStart, int contentEnd, FormatType type, String? language})>[];
     final used = List<bool>.filled(src.length, false);
 
     for (final md in mdDelimiters) {
@@ -406,7 +480,7 @@ class RichTextEditingController extends TextEditingController {
         if (openIdx < 0 || openIdx + dLen >= src.length) break;
         if (used[openIdx]) { searchFrom = openIdx + 1; continue; }
 
-        final contentStart = openIdx + dLen;
+        var contentStart = openIdx + dLen;
         int closeIdx;
         if (md.isBlock) {
           closeIdx = src.indexOf(d, contentStart);
@@ -433,14 +507,39 @@ class RichTextEditingController extends TextEditingController {
           continue;
         }
 
+        // Fenced ``` block → Pre (block code), not inline code. An optional
+        // language on the opening line (```lang\n…) becomes the Pre entity's
+        // language and is stripped from the content (AyuGram parses ``` as
+        // kTagPre → MessageEntityPre with language, text_entity.cpp:2179).
+        String? language;
+        if (md.type == FormatType.pre) {
+          final nl = src.indexOf('\n', contentStart);
+          if (nl >= 0 && nl < closeIdx) {
+            final candidate = src.substring(contentStart, nl).trim();
+            if (candidate.isNotEmpty && _languagePattern.hasMatch(candidate)) {
+              language = candidate;
+            }
+            // Strip the opening line (language token + newline) for fenced blocks.
+            for (var i = contentStart; i < nl + 1; i++) used[i] = true;
+            contentStart = nl + 1;
+          }
+        }
+        if (contentStart >= closeIdx) {
+          searchFrom = tagEnd;
+          continue;
+        }
+
         for (var i = openIdx; i < openIdx + dLen; i++) used[i] = true;
         for (var i = closeIdx; i < closeIdx + dLen; i++) used[i] = true;
-        strips.add((start: openIdx, delimLen: dLen, contentStart: contentStart, contentEnd: closeIdx, type: md.type));
+        strips.add((start: openIdx, delimLen: dLen, contentStart: contentStart, contentEnd: closeIdx, type: md.type, language: language));
         searchFrom = closeIdx + dLen;
       }
     }
 
-    if (strips.isEmpty) return (text: src, entitiesJson: entitiesJson);
+    if (strips.isEmpty) {
+      final json = working.isEmpty ? '' : jsonEncode(working.map((e) => e.toJson()).toList());
+      return (text: src, entitiesJson: json);
+    }
 
     strips.sort((a, b) => a.start.compareTo(b.start));
 
@@ -462,12 +561,12 @@ class RichTextEditingController extends TextEditingController {
       final newOffset = s.contentStart - offsetMap[s.contentStart];
       final newLength = (s.contentEnd - offsetMap[s.contentEnd]) - newOffset;
       if (newLength > 0) {
-        mdEntities.add(ComposeEntity(offset: newOffset, length: newLength, type: s.type));
+        mdEntities.add(ComposeEntity(offset: newOffset, length: newLength, type: s.type, language: s.language));
       }
     }
 
     final adjustedExisting = <ComposeEntity>[];
-    for (final e in entities) {
+    for (final e in working) {
       final oStart = e.offset;
       final oEnd = e.offset + e.length;
       if (oStart >= src.length || oEnd > src.length) continue;
@@ -479,7 +578,7 @@ class RichTextEditingController extends TextEditingController {
           offset: newStart, length: newLen, type: e.type,
           url: e.url, language: e.language,
           documentId: e.documentId, altText: e.altText,
-          timestamp: e.timestamp));
+          timestamp: e.timestamp, dateFlags: e.dateFlags));
       }
     }
 
@@ -494,12 +593,13 @@ class RichTextEditingController extends TextEditingController {
       case 'italic': return FormatType.italic;
       case 'underline': return FormatType.underline;
       case 'strike': return FormatType.strike;
-      case 'code':
-      case 'pre': return FormatType.code;
+      case 'code': return FormatType.code;
+      case 'pre': return FormatType.pre;
       case 'spoiler': return FormatType.spoiler;
       case 'blockquote': return FormatType.blockquote;
       case 'text_url': return FormatType.link;
       case 'custom_emoji': return FormatType.customEmoji;
+      case 'formatted_date':
       case 'custom_date': return FormatType.date;
       default: return null;
     }
@@ -522,6 +622,13 @@ class RichTextEditingController extends TextEditingController {
             final offset = (item['offset'] as num?)?.toInt() ?? 0;
             final length = (item['length'] as num?)?.toInt() ?? 0;
             if (length <= 0 || offset < 0) continue;
+            var dateFlags = 0;
+            if (item['relative'] == true) dateFlags |= DateFlag.relative;
+            if (item['short_time'] == true) dateFlags |= DateFlag.shortTime;
+            if (item['long_time'] == true) dateFlags |= DateFlag.longTime;
+            if (item['short_date'] == true) dateFlags |= DateFlag.shortDate;
+            if (item['long_date'] == true) dateFlags |= DateFlag.longDate;
+            if (item['day_of_week'] == true) dateFlags |= DateFlag.dayOfWeek;
             entities.add(ComposeEntity(
               offset: offset,
               length: length,
@@ -530,7 +637,8 @@ class RichTextEditingController extends TextEditingController {
               language: item['language'] as String?,
               documentId: (item['document_id'] as num?)?.toInt(),
               altText: item['alt_text'] as String?,
-              timestamp: (item['timestamp'] as num?)?.toInt(),
+              timestamp: (item['date'] as num?)?.toInt() ?? (item['timestamp'] as num?)?.toInt(),
+              dateFlags: dateFlags,
             ));
           }
         }
@@ -570,6 +678,10 @@ class RichTextEditingController extends TextEditingController {
 
     final monoFg = palette.msgInMonoFg;
     final codeBg = Color.alphaBlend(palette.msgInMonoFg.withValues(alpha: 0.08), palette.windowBg);
+    // Quote background tint, matching the _ComposeFormattingOverlay outline
+    // accent (windowBgActive @ 8%). Fields without that overlay (contact notes,
+    // file captions) rely solely on this for the in-field quote styling.
+    final quoteBg = Color.alphaBlend(palette.windowBgActive.withValues(alpha: 0.08), palette.windowBg);
     final linkFg = palette.historyLinkInFg;
     final spoilerFg = style?.color;
 
@@ -615,7 +727,8 @@ class RichTextEditingController extends TextEditingController {
       } else if (active.isEmpty) {
         spans.add(TextSpan(text: t.substring(segStart, segEnd)));
       } else {
-        final hasCode = active.contains(FormatType.code);
+        // Pre (block code) and inline code both render monospace.
+        final hasCode = active.contains(FormatType.code) || active.contains(FormatType.pre);
         var merged = const TextStyle();
 
         if (hasCode) {
@@ -653,7 +766,11 @@ class RichTextEditingController extends TextEditingController {
           merged = merged.copyWith(color: spoilerFg);
         }
         if (active.contains(FormatType.blockquote) && !hasCode) {
-          merged = merged.copyWith(height: 1.4);
+          // Quote background + line height, mirroring AyuGram's in-field quote
+          // block (QuoteStyle / SetBlockMargins, input_field.cpp:933-959). The
+          // left outline bar + quote icon are drawn by _ComposeFormattingOverlay
+          // where present; here the background gives the styling on its own.
+          merged = merged.copyWith(height: 1.4, backgroundColor: quoteBg);
         }
 
         spans.add(TextSpan(text: t.substring(segStart, segEnd), style: merged));

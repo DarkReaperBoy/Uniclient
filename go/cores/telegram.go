@@ -1816,6 +1816,18 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 			ent = &tg.MessageEntityBlockquote{Offset: e.Offset, Length: e.Length}
 		case "custom_emoji":
 			ent = &tg.MessageEntityCustomEmoji{Offset: e.Offset, Length: e.Length, DocumentID: e.DocumentID}
+		case "formatted_date":
+			ent = &tg.MessageEntityFormattedDate{
+				Offset:    e.Offset,
+				Length:    e.Length,
+				Date:      e.Date,
+				Relative:  e.DateRelative,
+				ShortTime: e.DateShortTime,
+				LongTime:  e.DateLongTime,
+				ShortDate: e.DateShortDate,
+				LongDate:  e.DateLongDate,
+				DayOfWeek: e.DateDayOfWeek,
+			}
 		default:
 			continue
 		}
@@ -2090,6 +2102,18 @@ func (t *TelegramCore) EditMessageWithEntities(chatID string, msgID string, text
 					ent = &tg.MessageEntityBlockquote{Offset: e.Offset, Length: e.Length}
 				case "custom_emoji":
 					ent = &tg.MessageEntityCustomEmoji{Offset: e.Offset, Length: e.Length, DocumentID: e.DocumentID}
+				case "formatted_date":
+					ent = &tg.MessageEntityFormattedDate{
+						Offset:    e.Offset,
+						Length:    e.Length,
+						Date:      e.Date,
+						Relative:  e.DateRelative,
+						ShortTime: e.DateShortTime,
+						LongTime:  e.DateLongTime,
+						ShortDate: e.DateShortDate,
+						LongDate:  e.DateLongDate,
+						DayOfWeek: e.DateDayOfWeek,
+					}
 				default:
 					continue
 				}
@@ -12665,6 +12689,16 @@ func convertTgEntities(entities []tg.MessageEntityClass) []TextEntity {
 			te = TextEntity{Type: "blockquote", Offset: v.Offset, Length: v.Length}
 		case *tg.MessageEntityCustomEmoji:
 			te = TextEntity{Type: "custom_emoji", Offset: v.Offset, Length: v.Length, DocumentID: v.DocumentID}
+		case *tg.MessageEntityFormattedDate:
+			te = TextEntity{
+				Type: "formatted_date", Offset: v.Offset, Length: v.Length, Date: v.Date,
+				DateRelative:  v.Relative,
+				DateShortTime: v.ShortTime,
+				DateLongTime:  v.LongTime,
+				DateShortDate: v.ShortDate,
+				DateLongDate:  v.LongDate,
+				DateDayOfWeek: v.DayOfWeek,
+			}
 		default:
 			continue
 		}
@@ -29740,6 +29774,18 @@ func parseNoteEntities(entitiesJSON string) []tg.MessageEntityClass {
 			ent = &tg.MessageEntityBlockquote{Offset: e.Offset, Length: e.Length}
 		case "custom_emoji":
 			ent = &tg.MessageEntityCustomEmoji{Offset: e.Offset, Length: e.Length, DocumentID: e.DocumentID}
+		case "formatted_date":
+			ent = &tg.MessageEntityFormattedDate{
+				Offset:    e.Offset,
+				Length:    e.Length,
+				Date:      e.Date,
+				Relative:  e.DateRelative,
+				ShortTime: e.DateShortTime,
+				LongTime:  e.DateLongTime,
+				ShortDate: e.DateShortDate,
+				LongDate:  e.DateLongDate,
+				DayOfWeek: e.DateDayOfWeek,
+			}
 		default:
 			continue
 		}

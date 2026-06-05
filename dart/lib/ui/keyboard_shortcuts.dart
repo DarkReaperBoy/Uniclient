@@ -1441,8 +1441,11 @@ class _ShortcutListenerState extends State<ShortcutListener>
       return ChatView.showLinkDialogRequest != null;
     });
     sys.registerHandler(ShortcutCommand.formatDate, () {
-      ChatView.toggleFormatRequest?.call(FormatType.date);
-      return ChatView.toggleFormatRequest != null;
+      // Open the date+time picker (inserts a real messageEntityFormattedDate)
+      // rather than toggleFormat(FormatType.date), which built an inert,
+      // timestamp-less date entity the send path dropped.
+      ChatView.showDatePickerRequest?.call();
+      return ChatView.showDatePickerRequest != null;
     });
 
     sys.registerHandler(ShortcutCommand.message, () {
