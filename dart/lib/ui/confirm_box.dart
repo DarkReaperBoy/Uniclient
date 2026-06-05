@@ -501,6 +501,8 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
   int messageCount = 1,
   bool canRevoke = false,
   bool showModeratePanel = false,
+  bool canBan = false,
+  bool canDeleteAll = false,
   bool isSavedMessages = false,
   bool isSavedMusic = false,
   bool isScheduled = false,
@@ -526,6 +528,8 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
       messageCount: messageCount,
       canRevoke: canRevoke,
       showModeratePanel: showModeratePanel,
+      canBan: canBan,
+      canDeleteAll: canDeleteAll,
       isSavedMessages: isSavedMessages,
       isSavedMusic: isSavedMusic,
       isScheduled: isScheduled,
@@ -552,6 +556,8 @@ class _DeleteContent extends StatefulWidget {
   final int messageCount;
   final bool canRevoke;
   final bool showModeratePanel;
+  final bool canBan;
+  final bool canDeleteAll;
   final bool isSavedMessages;
   final bool isSavedMusic;
   final bool isScheduled;
@@ -575,6 +581,8 @@ class _DeleteContent extends StatefulWidget {
     required this.messageCount,
     required this.canRevoke,
     required this.showModeratePanel,
+    this.canBan = false,
+    this.canDeleteAll = false,
     required this.isSavedMessages,
     this.isSavedMusic = false,
     this.isScheduled = false,
@@ -610,13 +618,24 @@ class _DeleteContentState extends State<_DeleteContent> {
   bool _blockBot = false;
   bool _removeFromFolders = false;
 
+  // AyuGram reads the remembered "only for you" default ONLY in the per-message
+  // checkFromSinglePeer() branch (delete_messages_box.cpp:245-253). The
+  // full-history-wipe path (clearHistory / leaveChat / DeleteChatBox / date
+  // range) hardcodes the revoke checkbox to `false` and never offers the
+  // "Remember this choice" sub-toggle (delete_messages_box.cpp:166-172,
+  // 254-267).
+  bool get _isPerMessageMode =>
+      widget.mode == DeleteBoxMode.singleMessage ||
+      widget.mode == DeleteBoxMode.bulkMessages;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialized) {
       _initialized = true;
       final appState = context.read<AppState>();
-      _revokeDefault = !appState.deleteOnlyForYouRemembered;
+      _revokeDefault =
+          _isPerMessageMode ? !appState.deleteOnlyForYouRemembered : false;
       _revoke = _revokeDefault;
       _fetchModerateCount(appState);
     }
@@ -662,32 +681,48 @@ class _DeleteContentState extends State<_DeleteContent> {
         if (n == 1) return 'Are you sure you want to delete this message?';
         return 'Are you sure you want to delete $n messages?';
       case DeleteBoxMode.clearHistory:
+        // AyuGram _wipeHistoryJustClear branch (delete_messages_box.cpp:123-143):
+        // saved → lng_sure_delete_saved_messages, broadcast channel →
+        // lng_sure_delete_channel_history (bold warning), user →
+        // lng_sure_delete_history, group → lng_sure_delete_group_history. Every
+        // string ends with the destructive-action warning (lang.strings:2280-2288).
         if (widget.isSavedMessages) {
-          return 'Are you sure you want to delete your Saved Messages?';
+          return 'Are you sure you want to delete all your saved messages?'
+              '\n\nThis action cannot be undone.';
         }
         switch (widget.chatType) {
           case ChatType.channel:
-            return 'Are you sure you want to delete all message history in "$name"?';
+            return 'Are you sure you want to delete all messages in "$name"?'
+                '\n\n**This action cannot be undone.**';
           case ChatType.group:
           case ChatType.topic:
-            return 'Are you sure you want to delete all message history in "$name"?';
+            return 'Are you sure you want to delete all messages in "$name"?'
+                '\n\nThis action cannot be undone.';
           case ChatType.dm:
           default:
-            return 'Are you sure you want to delete all message history with $name?';
+            return 'Are you sure you want to delete all message history with $name?'
+                '\n\nThis action cannot be undone.';
         }
       case DeleteBoxMode.leaveChat:
+        // AyuGram deleteConversation branch (delete_messages_box.cpp:144-164):
+        // saved → lng_sure_delete_saved_messages, user → lng_sure_delete_history,
+        // group → lng_sure_delete_and_exit (delete history and leave), broadcast
+        // channel → lng_sure_leave_channel (no warning).
         if (widget.isSavedMessages) {
-          return 'Are you sure you want to delete your Saved Messages?';
+          return 'Are you sure you want to delete all your saved messages?'
+              '\n\nThis action cannot be undone.';
         }
         switch (widget.chatType) {
           case ChatType.channel:
             return 'Are you sure you want to leave this channel?';
           case ChatType.group:
           case ChatType.topic:
-            return 'Are you sure you want to delete and leave "$name"?';
+            return 'Are you sure you want to delete all message history and leave «$name»?'
+                '\n\nThis action cannot be undone.';
           case ChatType.dm:
           default:
-            return 'Are you sure you want to delete all message history with $name?';
+            return 'Are you sure you want to delete all message history with $name?'
+                '\n\nThis action cannot be undone.';
         }
       case DeleteBoxMode.deleteTopic:
         return 'Are you sure you want to delete the topic "$name"?';
@@ -901,46 +936,59 @@ class _DeleteContentState extends State<_DeleteContent> {
           ],
           Padding(
             padding: kBoxPadding,
-            child: Text(
-              _bodyText,
-              style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
-            ),
+            // `_buildBoldText` renders the **…** markup in
+            // lng_sure_delete_channel_history's bold warning; every other body is
+            // plain text and falls through unchanged.
+            child: _buildBoldText(_bodyText, textFg),
           ),
           if (widget.showModeratePanel) ...[
             const SizedBox(height: kBoxMediumSkip),
-            _checkbox('Ban User', _banUser,
-                (v) => setState(() => _banUser = v ?? false), checkClr, textFg),
-            const SizedBox(height: kBoxLittleSkip),
+            // AyuGram creates "Ban User" only when item->suggestBanReport()
+            // (delete_messages_box.cpp:193-199) — i.e. the actor can actually
+            // restrict this sender; "Delete All" only when
+            // suggestDeleteAllReport() (:205-216). Only "Report Spam" is
+            // unconditional (:200-204).
+            if (widget.canBan) ...[
+              _checkbox('Ban User', _banUser,
+                  (v) => setState(() => _banUser = v ?? false), checkClr, textFg),
+              const SizedBox(height: kBoxLittleSkip),
+            ],
             _checkbox(
                 'Report Spam',
                 _reportSpam,
                 (v) => setState(() => _reportSpam = v ?? false),
                 checkClr,
                 textFg),
-            const SizedBox(height: kBoxLittleSkip),
-            _checkbox(
-              'Delete All from ${widget.moderateFromName ?? widget.peerName}',
-              _deleteAll,
-              (v) => setState(() => _deleteAll = v ?? false),
-              checkClr,
-              textFg,
-            ),
+            if (widget.canDeleteAll) ...[
+              const SizedBox(height: kBoxLittleSkip),
+              _checkbox(
+                'Delete All from ${widget.moderateFromName ?? widget.peerName}',
+                _deleteAll,
+                (v) => setState(() => _deleteAll = v ?? false),
+                checkClr,
+                textFg,
+              ),
+            ],
           ],
           if (_revokeLabel != null) ...[
             const SizedBox(height: kBoxMediumSkip),
             _checkbox(_revokeLabel!, _revoke,
                 (v) => setState(() => _revoke = v ?? false), checkClr, textFg),
-            AnimatedSize(
-              duration: kBoxDuration,
-              alignment: Alignment.topCenter,
-              child: _revoke != _revokeDefault
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: kBoxLittleSkip),
-                      child: _checkbox('Remember this choice', _revokeRemember,
-                          (v) => setState(() => _revokeRemember = v ?? false), checkClr, textFg),
-                    )
-                  : const SizedBox.shrink(),
-            ),
+            // AyuGram only creates the "Remember this choice" toggle inside the
+            // per-message checkFromSinglePeer() branch (delete_messages_box.cpp:
+            // 254-267); full-history wipes and DeleteChatBox never show it.
+            if (_isPerMessageMode)
+              AnimatedSize(
+                duration: kBoxDuration,
+                alignment: Alignment.topCenter,
+                child: _revoke != _revokeDefault
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: kBoxLittleSkip),
+                        child: _checkbox('Remember this choice', _revokeRemember,
+                            (v) => setState(() => _revokeRemember = v ?? false), checkClr, textFg),
+                      )
+                    : const SizedBox.shrink(),
+              ),
           ],
           // "Stop and block bot" — AyuGram maybeBotCheckbox (moderate_messages_box.cpp:1020-1032),
           // shown for any bot peer regardless of folder membership.
@@ -1111,7 +1159,15 @@ class _SingleChoiceContentState extends State<_SingleChoiceContent> {
           }),
         ),
       ),
-      buttons: const [],
+      buttons: [
+        // AyuGram adds an "OK" button that simply closes the box
+        // (single_choice_box.cpp:22). Tapping a row already applies the choice
+        // and closes; OK dismisses without changing the selection.
+        TelegramBoxButton(
+          text: 'OK',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
     );
   }
 }
@@ -1778,7 +1834,14 @@ class _ScreenShareChooser extends StatefulWidget {
 
 class _ScreenShareChooserState extends State<_ScreenShareChooser> {
   List<ScreenShareSource> _sources = [];
-  final Map<int, String> _thumbnails = {};
+  // Raw PNG bytes per source, re-grabbed once a second so the preview stays
+  // live — AyuGram renders each source as a 1 fps Webrtc::VideoTrack
+  // (desktop_capture_choose_source.cpp:128 SourceData().fps == 1,
+  // setupPreview:237-246). Bytes (not file paths) so Flutter's image cache
+  // doesn't pin a stale first frame across refreshes.
+  final Map<int, Uint8List> _thumbBytes = {};
+  Timer? _previewTimer;
+  bool _capturing = false;
   bool _loading = true;
   bool _isWayland = false;
   int _selectedIndex = -1;
@@ -1826,11 +1889,7 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
 
   @override
   void dispose() {
-    for (final path in _thumbnails.values) {
-      try { File(path).deleteSync(); } catch (e) {
-        Debug.log('confirm_box', 'File(path).deleteSync(): $e');
-      }
-    }
+    _previewTimer?.cancel();
     super.dispose();
   }
 
@@ -1962,49 +2021,112 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
         if (sources.isNotEmpty) _selectedIndex = 0;
       });
       _captureThumbnails();
+      // Keep previews live at ~1 fps (AyuGram SourceData().fps == 1).
+      _previewTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => _captureThumbnails(),
+      );
     }
   }
 
   Future<void> _captureThumbnails() async {
-    final count = _sources.length < 12 ? _sources.length : 12;
-    final futures = List.generate(count, (i) async {
-      final path = await _captureThumb(_sources[i], i);
-      return path != null ? MapEntry(i, path) : null;
-    });
-    final results = await Future.wait(futures);
-    if (!mounted) return;
-    final captured = <int, String>{};
-    for (final entry in results) {
-      if (entry != null) captured[entry.key] = entry.value;
-    }
-    if (captured.isNotEmpty) {
-      setState(() => _thumbnails.addAll(captured));
+    // Skip a tick if the previous refresh is still grabbing frames, so slow
+    // capture tools can't pile up behind the 1 fps timer.
+    if (!mounted || _capturing) return;
+    _capturing = true;
+    try {
+      final count = _sources.length < 12 ? _sources.length : 12;
+      final futures = List.generate(count, (i) async {
+        final bytes = await _captureThumb(_sources[i], i);
+        return bytes != null ? MapEntry(i, bytes) : null;
+      });
+      final results = await Future.wait(futures);
+      if (!mounted) return;
+      final captured = <int, Uint8List>{};
+      for (final entry in results) {
+        if (entry != null) captured[entry.key] = entry.value;
+      }
+      if (captured.isNotEmpty) {
+        setState(() => _thumbBytes.addAll(captured));
+      }
+    } finally {
+      _capturing = false;
     }
   }
 
-  Future<String?> _captureThumb(ScreenShareSource source, int index) async {
+  // Grab one frame for a source and return its PNG bytes (the temp file is
+  // deleted immediately so per-second refreshes don't accumulate on disk).
+  Future<Uint8List?> _captureThumb(ScreenShareSource source, int index) async {
     final path = '/tmp/uniclient_ss_thumb_$index.png';
     try {
+      ProcessResult? r;
       if (source.isScreen) {
-        if (_isWayland) {
-          final r = await Process.run('grim', ['-s', '0.1', path])
-              .timeout(const Duration(seconds: 3));
-          return r.exitCode == 0 ? path : null;
-        } else {
-          final r = await Process.run(
-              'import', ['-window', 'root', '-resize', '160x100', path])
-              .timeout(const Duration(seconds: 3));
-          return r.exitCode == 0 ? path : null;
-        }
-      } else if (!_isWayland) {
+        r = _isWayland
+            ? await Process.run('grim', ['-s', '0.25', path])
+                .timeout(const Duration(seconds: 3))
+            : await Process.run(
+                    'import', ['-window', 'root', '-resize', '160x100', path])
+                .timeout(const Duration(seconds: 3));
+      } else {
         final wid = source.id.replaceFirst('window:', '');
-        final r = await Process.run(
-            'import', ['-window', wid, '-resize', '160x100', path])
-            .timeout(const Duration(seconds: 3));
-        return r.exitCode == 0 ? path : null;
+        r = _isWayland
+            ? await _captureWaylandWindow(wid, path)
+            : await Process.run(
+                    'import', ['-window', wid, '-resize', '160x100', path])
+                .timeout(const Duration(seconds: 3));
+      }
+      if (r != null && r.exitCode == 0) {
+        final file = File(path);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          try {
+            await file.delete();
+          } catch (_) {}
+          if (bytes.isNotEmpty) return bytes;
+        }
       }
     } catch (e) {
-      Debug.log('confirm_box', 'if (source.isScreen): $e');
+      Debug.log('confirm_box', '_captureThumb(${source.id}): $e');
+    }
+    return null;
+  }
+
+  // Wayland window preview: AyuGram's per-window Webrtc preview has no direct
+  // CLI equivalent, so we resolve the window's geometry via kdotool (KDE) and
+  // grab that screen region with grim. Returns null (→ the source icon is shown
+  // instead) when the compositor tools aren't available.
+  Future<ProcessResult?> _captureWaylandWindow(String wid, String path) async {
+    try {
+      final geo = await Process.run(
+        'kdotool',
+        ['getwindowgeometry', '--shell', wid],
+      ).timeout(const Duration(seconds: 2));
+      if (geo.exitCode != 0) return null;
+      final out = geo.stdout as String;
+      final x = _shellInt(out, 'X');
+      final y = _shellInt(out, 'Y');
+      final w = _shellInt(out, 'WIDTH');
+      final h = _shellInt(out, 'HEIGHT');
+      if (x == null || y == null || w == null || h == null || w <= 0 || h <= 0) {
+        return null;
+      }
+      return await Process.run(
+        'grim',
+        ['-g', '$x,$y ${w}x$h', '-s', '0.5', path],
+      ).timeout(const Duration(seconds: 3));
+    } catch (e) {
+      Debug.log('confirm_box', '_captureWaylandWindow($wid): $e');
+      return null;
+    }
+  }
+
+  // Parse a `KEY=value` line (xdotool/kdotool --shell output) into an int.
+  int? _shellInt(String shellOutput, String key) {
+    for (final line in shellOutput.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('$key=')) {
+        return int.tryParse(trimmed.substring(key.length + 1).trim());
+      }
     }
     return null;
   }
@@ -2074,14 +2196,15 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
                                         Expanded(
                                           child: Padding(
                                             padding: const EdgeInsets.all(4),
-                                            child: _thumbnails.containsKey(i)
+                                            child: _thumbBytes.containsKey(i)
                                                 ? ClipRRect(
                                                     borderRadius:
                                                         BorderRadius.circular(4),
-                                                    child: Image.file(
-                                                      File(_thumbnails[i]!),
+                                                    child: Image.memory(
+                                                      _thumbBytes[i]!,
                                                       fit: BoxFit.cover,
                                                       width: double.infinity,
+                                                      gaplessPlayback: true,
                                                       cacheWidth: 160,
                                                       cacheHeight: 100,
                                                       errorBuilder:
@@ -2795,21 +2918,25 @@ class _ReportOptionPickerBoxState extends State<_ReportOptionPickerBox> {
         ),
       ),
       buttons: [
+        // AyuGram (report_messages_box.cpp:185-195): a left "Back" only when
+        // drilled into a sub-option (!optionId.isNull()), and a right-side
+        // action that is always present — "Report" when a comment field is
+        // shown (:185), otherwise "Close" which dismisses the whole flow (:187-190).
         if (widget.showBackButton)
           TelegramBoxButton(
             text: 'Back',
             isLeft: true,
             onPressed: () => Navigator.of(context).pop(_kReportBack),
           ),
-        if (!widget.showBackButton)
-          TelegramBoxButton(
-            text: 'CANCEL',
-            onPressed: () => Navigator.of(context).pop(),
-          ),
         if (widget.hasComment)
           TelegramBoxButton(
-            text: 'REPORT',
+            text: 'Report',
             onPressed: _submitComment,
+          )
+        else
+          TelegramBoxButton(
+            text: 'Close',
+            onPressed: () => Navigator.of(context).pop(),
           ),
       ],
       scrollableContent: true,

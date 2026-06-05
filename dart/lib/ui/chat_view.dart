@@ -3275,6 +3275,13 @@ class _ChatViewState extends State<ChatView>
     }
     final moderateFromId = mfId;
     final moderateFromName = mfName;
+    // AyuGram gates the moderate checkboxes per item->suggestBanReport() (can I
+    // restrict THIS sender) and suggestDeleteAllReport() (do I have delete
+    // rights) — delete_messages_box.cpp:193-216. A titled admin/owner (non-empty
+    // senderRank) can't be banned (canRestrictParticipant == false).
+    final senderTitled = moderateFromId != null &&
+        selectedMsgs.isNotEmpty &&
+        selectedMsgs.first.senderRank.trim().isNotEmpty;
 
     showDeleteConfirmBox(
       context,
@@ -3284,6 +3291,8 @@ class _ChatViewState extends State<ChatView>
       messageCount: count,
       canRevoke: chat?.type == ChatType.dm,
       showModeratePanel: moderateFromId != null,
+      canBan: moderateFromId != null && !senderTitled,
+      canDeleteAll: moderateFromId != null,
       moderateFromId: moderateFromId,
       moderateFromName: moderateFromName,
       chatId: chat?.chatId,
@@ -3325,6 +3334,10 @@ class _ChatViewState extends State<ChatView>
       peerName: chat?.title ?? '',
       canRevoke: chat?.type == ChatType.dm && msg.isOutgoing,
       showModeratePanel: isModerating,
+      // suggestBanReport(): a titled admin/owner (non-empty rank) can't be
+      // restricted; suggestDeleteAllReport() only needs my delete right.
+      canBan: isModerating && msg.senderRank.trim().isEmpty,
+      canDeleteAll: isModerating,
       moderateFromId: isModerating ? msg.senderId : null,
       moderateFromName: isModerating ? msg.senderName : null,
       chatId: chat?.chatId,
