@@ -299,10 +299,6 @@ chat_theme.cpp:40-57/646), pattern tiling + odd-column centering (chat_theme.cpp
 engine document download (message_bubble.dart:9419 `downloadWallpaperDocument`). No
 placeholders, stubs, empty callbacks, mock data, or broken wiring found.
 
-Remaining issues:
-
-- [ ] [MAJOR] Persisted collectible-gift pattern wallpapers lose their gift-symbol overlay after an app restart: `_loadWallpaper` rebuilds the `WallpaperData` with the **bare constructor** (passing `patternBytes` but never re-parsing the `GiftPatterns` cut-out group), so `giftSymbols`/`giftSymbolFrame` come back empty and the rotated gift overlay + center-skip layout vanish until the wallpaper is re-applied. The live apply path (`message_bubble.dart:9433`) correctly uses `WallpaperData.fromPattern` (which parses the gift symbols), but reload-from-prefs does not — it should route through `fromPattern` (or persist + restore the parsed `giftSymbols`). — `app_state.dart:4732` (bare ctor) vs `wallpaper.dart:113-132` (`fromPattern`)
-
 # admin_tools — Telegram admin/management UI (edit peer, permissions, restrict/promote, admin log, invite links, members, statistics, boosts, monetization, star-ref)
 
 Audited `dart/lib/ui/admin_tools.dart` (11,535 lines, 12 components) against AyuGram Desktop C++ ground truth. Findings grouped by component; CRITICAL before MAJOR within each.
