@@ -2609,6 +2609,8 @@ func (t *TelegramCore) buildStyledCaption(text, entitiesJSON string) []styling.S
 			opts = append(opts, styling.Blockquote(substr, false))
 		case "custom_emoji":
 			opts = append(opts, styling.CustomEmoji(substr, e.DocumentID))
+		case "formatted_date":
+			opts = append(opts, styling.FormattedDate(substr, e.DateRelative, e.DateShortTime, e.DateLongTime, e.DateShortDate, e.DateLongDate, e.DateDayOfWeek, e.Date))
 		default:
 			opts = append(opts, styling.Plain(substr))
 		}
