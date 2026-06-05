@@ -174,6 +174,11 @@ type User struct {
 	BusinessHours          string `json:"business_hours,omitempty"`
 	BannedRights           map[string]bool `json:"banned_rights,omitempty"`
 	BannedUntil            int             `json:"banned_until,omitempty"`
+	// Attribution for the "Restricted/Banned by X on DATE" footer
+	// (edit_participant_box.cpp:816): the admin who applied the ban + when.
+	BannedBy               string          `json:"banned_by,omitempty"`
+	BannedByName           string          `json:"banned_by_name,omitempty"`
+	BannedDate             int             `json:"banned_date,omitempty"`
 	StarsPerMessage        int64           `json:"stars_per_message,omitempty"`
 	NeedContactsException  bool            `json:"need_contacts_exception,omitempty"`
 }

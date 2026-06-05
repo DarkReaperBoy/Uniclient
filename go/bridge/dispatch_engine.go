@@ -296,6 +296,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.TransferChannelOwnership(params.AccountID, params.ChatID, params.UserID, params.Password)
 
+	case "TransferOwnershipPreflight":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		status, err := e.TransferOwnershipPreflight(params.AccountID, params.ChatID, params.UserID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"status": status})
+
 	case "PromoteAdmin":
 		var req pb.EnginePromoteAdminRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
@@ -874,6 +889,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return nil, e.ToggleForum(req.AccountId, req.ChatId, req.Enabled)
+
+	case "ToggleForumTabs":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Enabled   bool   `json:"enabled"`
+			Tabs      bool   `json:"tabs"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ToggleForumTabs(params.AccountID, params.ChatID, params.Enabled, params.Tabs)
 
 	case "SetForumViewAsMessages":
 		var params struct {
@@ -2394,16 +2421,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "GetInviteImportersList":
 		var params struct {
-			AccountID string `json:"account_id"`
-			ChatID    string `json:"chat_id"`
-			Link      string `json:"link"`
-			Requested bool   `json:"requested"`
-			Limit     int    `json:"limit"`
+			AccountID    string `json:"account_id"`
+			ChatID       string `json:"chat_id"`
+			Link         string `json:"link"`
+			Requested    bool   `json:"requested"`
+			Limit        int    `json:"limit"`
+			OffsetUserID int64  `json:"offset_user_id"`
+			OffsetDate   int    `json:"offset_date"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		info, err := e.GetInviteImportersList(params.AccountID, params.ChatID, params.Link, params.Requested, params.Limit)
+		info, err := e.GetInviteImportersList(params.AccountID, params.ChatID, params.Link, params.Requested, params.Limit, params.OffsetUserID, params.OffsetDate)
 		if err != nil {
 			return nil, err
 		}
@@ -2411,15 +2440,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "GetSuggestedStarRefBots":
 		var params struct {
-			AccountID string `json:"account_id"`
-			ChatID    string `json:"chat_id"`
-			Offset    string `json:"offset"`
-			Limit     int    `json:"limit"`
+			AccountID      string `json:"account_id"`
+			ChatID         string `json:"chat_id"`
+			Offset         string `json:"offset"`
+			Limit          int    `json:"limit"`
+			OrderByRevenue bool   `json:"order_by_revenue"`
+			OrderByDate    bool   `json:"order_by_date"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		info, err := e.GetSuggestedStarRefBots(params.AccountID, params.ChatID, params.Offset, params.Limit)
+		info, err := e.GetSuggestedStarRefBots(params.AccountID, params.ChatID, params.Offset, params.Limit, params.OrderByRevenue, params.OrderByDate)
 		if err != nil {
 			return nil, err
 		}
@@ -2444,15 +2475,29 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			AccountID string `json:"account_id"`
 			ChatID    string `json:"chat_id"`
 			BotID     string `json:"bot_id"`
+			Revoked   bool   `json:"revoked"`
+			Link      string `json:"link"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		info, err := e.ConnectStarRefBot(params.AccountID, params.ChatID, params.BotID)
+		info, err := e.ConnectStarRefBot(params.AccountID, params.ChatID, params.BotID, params.Revoked, params.Link)
 		if err != nil {
 			return nil, err
 		}
 		return json.Marshal(info)
+
+	case "SetStarRefProgram":
+		var params struct {
+			AccountID          string `json:"account_id"`
+			ChatID             string `json:"chat_id"`
+			CommissionPermille int    `json:"commission_permille"`
+			DurationMonths     int    `json:"duration_months"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetStarRefProgram(params.AccountID, params.ChatID, params.CommissionPermille, params.DurationMonths)
 
 	case "SetChatReactionsMode":
 		var params struct {

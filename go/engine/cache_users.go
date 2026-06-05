@@ -842,6 +842,20 @@ func (e *Engine) TransferChannelOwnership(accountID, chatID, userID, password st
 	return fmt.Errorf("platform does not support TransferChannelOwnership")
 }
 
+func (e *Engine) TransferOwnershipPreflight(accountID, chatID, userID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type probe interface {
+		TransferOwnershipPreflight(chatID, userID string) (string, error)
+	}
+	if p, ok := acc.Core.(probe); ok {
+		return p.TransferOwnershipPreflight(chatID, userID)
+	}
+	return "", fmt.Errorf("platform does not support ownership-transfer preflight")
+}
+
 func (e *Engine) PromoteAdmin(accountID, chatID, userID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

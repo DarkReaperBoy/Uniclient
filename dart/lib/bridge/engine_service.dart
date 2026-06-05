@@ -424,6 +424,22 @@ class EngineService {
     await _callAsync('__engine', 'TransferChannelOwnership', Uint8List.fromList(payload));
   }
 
+  /// Pre-flight EditChatCreator probe (empty password) routing the transfer flow
+  /// to the right error/confirmation box BEFORE asking for the password
+  /// (channel_ownership_transfer.cpp:48). Returns one of: "need_password",
+  /// "no_password", "password_too_fresh", "session_too_fresh", "ok", or a raw error.
+  Future<String> transferOwnershipPreflight(String accountId, String chatId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'user_id': userId,
+    }));
+    final resp = await _callAsync('__engine', 'TransferOwnershipPreflight', Uint8List.fromList(payload));
+    if (resp.isEmpty) return '';
+    final m = json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+    return m['status'] as String? ?? '';
+  }
+
   Future<void> promoteAdmin(String accountId, String chatId, String userId) async {
     final req = epb.EnginePromoteAdminRequest()
       ..accountId = accountId
@@ -1252,12 +1268,14 @@ class EngineService {
   /// Suggested bot affiliate programs this channel can join. Returns
   /// {count, bots:[{bot_id, bot_name, bot_username, commission_permille, duration_months}], next_offset}.
   Future<Map<String, dynamic>> getSuggestedStarRefBots(String accountId, String chatId,
-      {String offset = '', int limit = 20}) async {
+      {String offset = '', int limit = 20, bool orderByRevenue = false, bool orderByDate = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'offset': offset,
       'limit': limit,
+      'order_by_revenue': orderByRevenue,
+      'order_by_date': orderByDate,
     }));
     final resp = await _callAsync('__engine', 'GetSuggestedStarRefBots', Uint8List.fromList(payload));
     if (resp.isEmpty) return {};
@@ -1275,11 +1293,14 @@ class EngineService {
 
   /// Connects this channel to a bot's affiliate program, returning the new
   /// connected entry (with its referral url).
-  Future<Map<String, dynamic>> connectStarRefBot(String accountId, String chatId, String botId) async {
+  Future<Map<String, dynamic>> connectStarRefBot(String accountId, String chatId, String botId,
+      {bool revoked = false, String link = ''}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'bot_id': botId,
+      'revoked': revoked,
+      if (link.isNotEmpty) 'link': link,
     }));
     final resp = await _callAsync('__engine', 'ConnectStarRefBot', Uint8List.fromList(payload));
     if (resp.isEmpty) return {};
@@ -3255,6 +3276,18 @@ class EngineService {
     await _callAsync('__engine', 'ToggleForum', req.writeToBuffer());
   }
 
+  /// Enables/disables forum mode AND selects the tabbed vs list layout, mirroring
+  /// AyuGram's ToggleTopicsBox callback `(enabled, tabs)` (toggle_topics_box.cpp:214).
+  Future<void> toggleForumTabs(String accountId, String chatId, bool enabled, bool tabs) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'enabled': enabled,
+      'tabs': tabs,
+    }));
+    await _callAsync('__engine', 'ToggleForumTabs', Uint8List.fromList(payload));
+  }
+
   Future<void> setForumViewAsMessages(String accountId, String chatId, bool asMessages) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -3460,13 +3493,15 @@ class EngineService {
   /// for the single-link info box (edit_peer_invite_link.cpp:592). Returns
   /// {count, importers:[{user_id, display_name, username, avatar_b64, date, about}]}.
   Future<Map<String, dynamic>> getInviteImporters(String accountId, String chatId, String link,
-      {bool requested = false, int limit = 50}) async {
+      {bool requested = false, int limit = 50, String offsetUserId = '', int offsetDate = 0}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'link': link,
       'requested': requested,
       'limit': limit,
+      if (offsetUserId.isNotEmpty) 'offset_user_id': int.tryParse(offsetUserId) ?? 0,
+      if (offsetDate > 0) 'offset_date': offsetDate,
     }));
     final resp = await _callAsync('__engine', 'GetInviteImportersList', Uint8List.fromList(payload));
     if (resp.isEmpty) return {'count': 0, 'importers': []};

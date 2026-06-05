@@ -910,6 +910,30 @@ func (e *Engine) ToggleForum(accountID, chatID string, enabled bool) error {
 	return nil
 }
 
+// ToggleForumTabs forwards both the enabled and tabs/list-layout choice from
+// AyuGram's ToggleTopicsBox to the core (channels.toggleForum tabs flag).
+func (e *Engine) ToggleForumTabs(accountID, chatID string, enabled, tabs bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type forumTabsToggler interface {
+		ToggleForumTabs(chatID string, enabled, tabs bool) error
+	}
+	ft, ok := acc.Core.(forumTabsToggler)
+	if !ok {
+		return fmt.Errorf("core does not support forum tabs toggle")
+	}
+	if err := ft.ToggleForumTabs(chatID, enabled, tabs); err != nil {
+		return err
+	}
+	go func() {
+		ctx := context.Background()
+		e.syncAccount(ctx, accountID)
+	}()
+	return nil
+}
+
 func (e *Engine) SetForumViewAsMessages(accountID, chatID string, asMessages bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1783,34 +1807,34 @@ func (e *Engine) GetBotVerifyState(accountID, botID, userID string) (bool, error
 	return g.GetBotVerifyState(botID, userID)
 }
 
-func (e *Engine) GetInviteImportersList(accountID, chatID, link string, requested bool, limit int) (map[string]interface{}, error) {
+func (e *Engine) GetInviteImportersList(accountID, chatID, link string, requested bool, limit int, offsetUserID int64, offsetDate int) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type getter interface {
-		GetInviteImportersList(chatID, link string, requested bool, limit int) (map[string]interface{}, error)
+		GetInviteImportersList(chatID, link string, requested bool, limit int, offsetUserID int64, offsetDate int) (map[string]interface{}, error)
 	}
 	g, ok := acc.Core.(getter)
 	if !ok {
 		return nil, fmt.Errorf("platform does not support invite importers")
 	}
-	return g.GetInviteImportersList(chatID, link, requested, limit)
+	return g.GetInviteImportersList(chatID, link, requested, limit, offsetUserID, offsetDate)
 }
 
-func (e *Engine) GetSuggestedStarRefBots(accountID, chatID, offset string, limit int) (map[string]interface{}, error) {
+func (e *Engine) GetSuggestedStarRefBots(accountID, chatID, offset string, limit int, orderByRevenue, orderByDate bool) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type getter interface {
-		GetSuggestedStarRefBots(chatID, offset string, limit int) (map[string]interface{}, error)
+		GetSuggestedStarRefBots(chatID, offset string, limit int, orderByRevenue, orderByDate bool) (map[string]interface{}, error)
 	}
 	g, ok := acc.Core.(getter)
 	if !ok {
 		return nil, fmt.Errorf("platform does not support star-ref join")
 	}
-	return g.GetSuggestedStarRefBots(chatID, offset, limit)
+	return g.GetSuggestedStarRefBots(chatID, offset, limit, orderByRevenue, orderByDate)
 }
 
 func (e *Engine) GetConnectedStarRefBots(accountID, chatID string) ([]map[string]interface{}, error) {
@@ -1828,19 +1852,34 @@ func (e *Engine) GetConnectedStarRefBots(accountID, chatID string) ([]map[string
 	return g.GetConnectedStarRefBots(chatID)
 }
 
-func (e *Engine) ConnectStarRefBot(accountID, chatID, botID string) (map[string]interface{}, error) {
+func (e *Engine) ConnectStarRefBot(accountID, chatID, botID string, revoked bool, link string) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type getter interface {
-		ConnectStarRefBot(chatID, botID string) (map[string]interface{}, error)
+		ConnectStarRefBot(chatID, botID string, revoked bool, link string) (map[string]interface{}, error)
 	}
 	g, ok := acc.Core.(getter)
 	if !ok {
 		return nil, fmt.Errorf("platform does not support star-ref join")
 	}
-	return g.ConnectStarRefBot(chatID, botID)
+	return g.ConnectStarRefBot(chatID, botID, revoked, link)
+}
+
+func (e *Engine) SetStarRefProgram(accountID, chatID string, commissionPermille, durationMonths int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type setter interface {
+		SetStarRefProgram(chatID string, commissionPermille, durationMonths int) error
+	}
+	s, ok := acc.Core.(setter)
+	if !ok {
+		return fmt.Errorf("platform does not support star-ref program setup")
+	}
+	return s.SetStarRefProgram(chatID, commissionPermille, durationMonths)
 }
 
 type DefaultBannedRights struct {
