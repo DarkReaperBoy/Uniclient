@@ -380,6 +380,19 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       body: Builder(builder: (_) {
         final _lvKids = <Widget>[
           const SizedBox(height: 10),
+          // AyuGram SetupThemeOptions opens with AddSubsectionTitle(lng_settings_themes).
+          // settings_chat.cpp:2688-2690
+          Padding(
+            padding: const EdgeInsets.only(left: 22, top: 4, bottom: 8),
+            child: Text(
+              'Themes',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: currentAccent,
+              ),
+            ),
+          ),
           _ThemeCardRow(
             isDark: isDark,
             currentTheme: appState.themeId,
@@ -482,6 +495,19 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           const SizedBox(height: 8),
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
+          // AyuGram SetupThemeSettings: AddSubsectionTitle(lng_settings_theme_settings)
+          // before the peer-color (Your Color) button. settings_chat.cpp:2809-2811
+          Padding(
+            padding: const EdgeInsets.only(left: 22, top: 4, bottom: 8),
+            child: Text(
+              'Theme settings',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: currentAccent,
+              ),
+            ),
+          ),
           _YourColorRow(
             colorId: _selfColorId,
             isDark: isDark,
@@ -605,6 +631,16 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             onActionChanged: (action) {
               appState.swipeAction = action;
             },
+          ),
+          // AyuGram appends AddDividerText(lng_settings_quick_dialog_action_about)
+          // below the quick-action button. settings_chat.cpp:2336-2338
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 22, right: 22, top: 4, bottom: 4),
+            child: Text(
+              'Choose the action you want to perform when you middle-click or swipe left in the chat list.',
+              style: TextStyle(fontSize: 13, color: subtextColor),
+            ),
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -934,7 +970,7 @@ const _themePresets = [
   ),
   _ThemePreset(
     id: 'day_blue',
-    label: 'Day Blue',
+    label: 'Day',
     background: Color(0xFF7EC4EA),
     receivedBubble: Color(0xFFFFFFFF),
     sentBubble: Color(0xFFD7F0FF),
@@ -942,18 +978,18 @@ const _themePresets = [
   ),
   _ThemePreset(
     id: 'night',
-    label: 'Night',
+    label: 'Tinted',
     background: Color(0xFF485761),
-    receivedBubble: Color(0xFF24292E),
-    sentBubble: Color(0xFF265E8C),
+    receivedBubble: Color(0xFF6B808D),
+    sentBubble: Color(0xFF5CA7D4),
     isDarkTheme: true,
   ),
   _ThemePreset(
     id: 'night_green',
-    label: 'Night Green',
+    label: 'Night',
     background: Color(0xFF485761),
-    receivedBubble: Color(0xFF33393F),
-    sentBubble: Color(0xFF2A2F33),
+    receivedBubble: Color(0xFF6B808D),
+    sentBubble: Color(0xFF6B808D),
     isDarkTheme: true,
   ),
 ];
@@ -2542,7 +2578,7 @@ class _CloudThemeSectionState extends State<_CloudThemeSection> {
             child: Row(
               children: [
                 Text(
-                  'Cloud Themes',
+                  'Custom themes',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -2554,7 +2590,7 @@ class _CloudThemeSectionState extends State<_CloudThemeSection> {
                   GestureDetector(
                     onTap: () => setState(() => _showAll = true),
                     child: Text(
-                      'Show All',
+                      'Show all themes',
                       style: TextStyle(
                         fontSize: 13,
                         color: widget.accentColor,
@@ -2931,6 +2967,19 @@ class _ChatBackgroundSectionState extends State<_ChatBackgroundSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // AyuGram SetupChatBackground: AddSubsectionTitle(lng_settings_section_background)
+          // above the wallpaper thumbnail row. settings_chat.cpp:2013-2015
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Text(
+              'Chat wallpaper',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: accentColor,
+              ),
+            ),
+          ),
           const SizedBox(height: 4),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3341,7 +3390,7 @@ class _ChatListQuickActionSection extends StatelessWidget {
     ('read', 'Read', Icons.done_all),
     ('archive', 'Archive', Icons.archive),
     ('delete', 'Delete', Icons.delete),
-    ('disabled', 'Disabled', Icons.block),
+    ('disabled', 'Change folder', Icons.folder_outlined),
   ];
 
   IconData _iconForAction(String action) {
@@ -3556,11 +3605,12 @@ class _QuickActionPreviewState extends State<_QuickActionPreview>
         actionLabel = 'Delete';
       default:
         actionColor = const Color(0xFF999999);
-        actionIcon = Icons.block;
-        actionLabel = 'Disabled';
+        actionIcon = Icons.folder_outlined;
+        actionLabel = 'Change folder';
     }
 
-    final triggerLabel = action == 'disabled' ? 'Swipe' : 'Both';
+    final triggerLabel =
+        action == 'disabled' ? 'Swipe left' : 'Swipe left and Middle-click';
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 200),
@@ -3855,13 +3905,13 @@ class _StickersEmojiSection extends StatelessWidget {
         const SizedBox(height: 4),
         _StickerNavButton(
           icon: Icons.sticky_note_2_outlined,
-          label: 'My Stickers',
+          label: 'Manage sticker sets',
           isDark: isDark,
           onTap: () => _showInstalledPacks(context, isDark, 'stickers'),
         ),
         _StickerNavButton(
           icon: Icons.emoji_emotions_outlined,
-          label: 'Emoji Sets',
+          label: 'Choose emoji set',
           isDark: isDark,
           onTap: () => _showInstalledPacks(context, isDark, 'emoji'),
         ),
@@ -4352,7 +4402,7 @@ class _MessagesSection extends StatelessWidget {
     final dividerColor =
         isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
     final isMac = Theme.of(context).platform == TargetPlatform.macOS;
-    final ctrlLabel = isMac ? 'Cmd+Enter' : 'Ctrl+Enter';
+    final ctrlLabel = isMac ? 'Send with Cmd+Enter' : 'Send with Ctrl+Enter';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4360,7 +4410,7 @@ class _MessagesSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(left: 22, top: 4, bottom: 4),
           child: Text(
-            'Send by',
+            'Messages',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -4371,7 +4421,7 @@ class _MessagesSection extends StatelessWidget {
         _SendTypeRadio(
           value: 'enter',
           groupValue: sendBy,
-          label: 'Enter',
+          label: 'Send with Enter',
           isDark: isDark,
           accentColor: accentColor,
           onChanged: onSendByChanged,
@@ -4384,18 +4434,7 @@ class _MessagesSection extends StatelessWidget {
           accentColor: accentColor,
           onChanged: onSendByChanged,
         ),
-        const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.only(left: 22, top: 4, bottom: 4),
-          child: Text(
-            'Double-click action',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: accentColor,
-            ),
-          ),
-        ),
+        const SizedBox(height: 8),
         _SendTypeRadio(
           value: 'reply',
           groupValue: doubleClickAction,
@@ -4424,13 +4463,13 @@ class _MessagesSection extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         _MessageCheckbox(
-          label: 'Show reply button in corner',
+          label: 'Reply button on messages',
           value: showReplyButton,
           isDark: isDark,
           onChanged: onShowReplyButtonChanged,
         ),
         _MessageCheckbox(
-          label: 'Show reaction button in corner',
+          label: 'Reaction button on messages',
           value: showReactionButton,
           isDark: isDark,
           onChanged: onShowReactionButtonChanged,
@@ -5117,7 +5156,7 @@ class _SensitiveContentSection extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Disable filtering',
+                    'Show 18+ Content',
                     style: TextStyle(fontSize: 14, color: textColor),
                   ),
                 ),
