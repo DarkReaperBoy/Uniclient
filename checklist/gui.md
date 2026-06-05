@@ -495,9 +495,6 @@ tabs 33h / barTop30 / barStroke6 / barRadius2 / 150ms (`dialogs.style:799-817`);
 searchIn height 38 / photo 28 (`dialogs.style:518-519`); IsHashOrCashtag &
 searchFromPeer group-gating (`chat_search_in.cpp:237`, `dialogs_widget.cpp:4459`).
 
-- [ ] [MAJOR] Drag-a-chat-into-a-folder works only for pinned chats — AyuGram starts a drag-to-filter on ANY dialog with a real history (threshold Y = 75px for pinned, 30px for non-pinned). The Flutter pointer handler bails unless there are ≥2 pinned chats (`if (_buildPinnedCount < 2) return;`) and only hit-tests `_pinnedRowKeys`, so non-pinned chats (the common case) can never be dragged onto a `FilterColumn` folder tab. — `chat_list_panel.dart:1249` ← `AyuGram/dialogs/dialogs_inner_widget.cpp:1766`
-  - PARTIAL FIX (2026-06-05 verify): non-pinned chats CAN now be dragged onto a folder tab — drop fires `AddChatToFolder` and folder membership updates (verified: Personal `includes` 1→2, dragged chatId added; engine returns OK). BUT a GESTURE CONFLICT was introduced: `SwipeableChatRow` is skipped only during pinned reorder (`chat_list_panel.dart:1066` `_reorderActive && isPinnedReorderable`), NOT during non-pinned drag-to-filter, so the leftward motion needed to reach a left-edge folder tab ALSO commits the swipe action. Reproduced 2/2: every drag-to-folder fired BOTH `AddChatToFolder` AND `ArchiveChat` — the chat was archived and vanished from the main list (with swipe action = delete this would DELETE the chat). FIX: also bypass/suppress `SwipeableChatRow` (or cancel its `HorizontalDragGestureRecognizer`) while `_dragToFilterActive`, so the swipe action does not fire during a drag-to-filter.
-
 # chat_list_row — chat-list row, swipe quick-actions, stories ring, special userpics, forum row
 
 Audited `dart/lib/ui/chat_list_row.dart` against AyuGram Desktop (`dialogs.style`,
