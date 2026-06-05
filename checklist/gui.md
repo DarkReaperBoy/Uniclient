@@ -567,14 +567,20 @@ math is provably identical (the two-layer Flutter gradients reduce to AyuGram's
 and every slider is wired to real state, the lightness-limit clamping mirrors
 `applyLimits`, and all three Dart callers (theme editor → RGBA+opacity, chat
 accent → HSL+limits, brush picker → HSL) match their AyuGram counterparts. No
-stubs, placeholders, mock data, or dead callbacks. The remaining issues are
-layout-fidelity (spacing) deviations from the `resizeEvent` geometry.
-
-- [ ] [MAJOR] HSL mode renders the right-hand column 10px (~14%) too narrow: the swatch + all 6 numeric fields + hex field are pinned to `_kMinFieldWidth` (60px) in both modes, but AyuGram widens them to `colorSampleSize.width + colorEditSkip` (60+10 = 70px) in HSL mode (the space freed by the absent hue slider). The Dart leaves that freed width as empty gap instead. — `color_picker_box.dart:552-553` ← `AyuGram/Telegram/SourceFiles/ui/widgets/color_editor.cpp:1053-1054`
-
-- [ ] [MAJOR] The picker + sliders + fields cluster is left-aligned (the wrapping `Row` defaults to `mainAxisSize.max` / `MainAxisAlignment.start`) instead of horizontally centered within the 390px editor area. AyuGram centers it via `left = (width() - fullwidth) / 2`, giving symmetric margins; the Dart dumps all slack on the right (≈64px of empty space in HSL mode, ≈19px in RGBA). — `color_picker_box.dart:457` ← `AyuGram/Telegram/SourceFiles/ui/widgets/color_editor.cpp:1026`
-
-- [ ] [MAJOR] Vertical hue slider sits ~8px too far from the picker square: the Dart inserts a full `_kEditSkip` (10px) spacer before a `_VerticalHueSlider` that *already* carries an internal `_kSliderSkip` (8px) left margin, so the slider bar lands 18px from the square. AyuGram offsets the slider by `colorEditSkip - colorSliderSkip` so its bar is exactly `colorEditSkip` (10px) from the picker edge. — `color_picker_box.dart:498` ← `AyuGram/Telegram/SourceFiles/ui/widgets/color_editor.cpp:1030`
+stubs, placeholders, mock data, or dead callbacks. All 3 MAJOR layout-fidelity
+findings verified fixed & closed against AyuGram `resizeEvent` ground truth
+(color_editor.cpp:1019-1094) via real render-geometry measurement at desktop
+1024×768 + mobile 400×720, both RGBA and HSL: (1) HSL right-hand column now widens
+to `colorSampleSize.width + colorEditSkip` = 60+10 = 70px (RGBA stays 60), folding
+the freed hue-slider width into the fields/swatch — measured fieldWidth 70 (HSL) /
+60 (RGBA) in both modes (cpp:1053-1054). (2) The picker+sliders+fields cluster is
+now horizontally centered (`MainAxisAlignment.center`), giving symmetric margins —
+measured L==R in all four cases (desktop RGBA 13.5/13.5, HSL 27/27; mobile RGBA
+4/4, HSL 0/0) instead of slack dumped on the right (cpp:1026). (3) The vertical hue
+slider spacer is now `colorEditSkip - colorSliderSkip` = 2px so its bar (carrying
+an internal 8px skip) lands exactly `colorEditSkip` = 10px from the picker edge —
+measured 10.00px in both modes (cpp:1030). `flutter_audit.sh verify` PASS, no
+crashes/overflow in desktop or mobile runs.
 
 # compose_entities — rich-text compose controller (markdown, entities, custom emoji, dates)
 
