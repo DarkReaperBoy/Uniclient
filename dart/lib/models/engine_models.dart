@@ -2863,6 +2863,11 @@ class ExportProgressEvent {
   final int totalSizeBytes;
   final int fileRandomId;
   final String fileName;
+  // Per-file byte-download progress for the progress view's byte row
+  // (AyuGram pushBytes → Ui::FormatDownloadText(bytesLoaded, bytesCount)).
+  final int bytesLoaded;
+  final int bytesCount;
+  final String bytesName;
 
   const ExportProgressEvent({
     this.accountId = '',
@@ -2875,6 +2880,9 @@ class ExportProgressEvent {
     this.totalSizeBytes = 0,
     this.fileRandomId = 0,
     this.fileName = '',
+    this.bytesLoaded = 0,
+    this.bytesCount = 0,
+    this.bytesName = '',
   });
 
   factory ExportProgressEvent.fromJson(Map<String, dynamic> j, {String accountId = ''}) => ExportProgressEvent(
@@ -2888,6 +2896,9 @@ class ExportProgressEvent {
     totalSizeBytes: j['total_size_bytes'] as int? ?? 0,
     fileRandomId: j['file_random_id'] as int? ?? 0,
     fileName: j['file_name'] as String? ?? '',
+    bytesLoaded: j['bytes_loaded'] as int? ?? 0,
+    bytesCount: j['bytes_count'] as int? ?? 0,
+    bytesName: j['bytes_name'] as String? ?? '',
   );
 }
 

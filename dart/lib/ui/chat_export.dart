@@ -154,12 +154,20 @@ class ExportTarget {
 
   String get settingsTitle {
     switch (mode) {
+      // Full-export panel title — AyuGram lng_export_title. The English
+      // ground-truth value in lang.strings:6823 is "Export Your Data"
+      // (export_view_panel_controller.cpp:178-179).
       case ExportMode.full:
         return 'Export Your Data';
+      // Single-peer / topic panel title — AyuGram lng_export_header_chats /
+      // lng_export_header_topic (lang.strings:6838-6839), the very same strings
+      // used for the full-export "Chats" section header (chat_export.dart:1428).
+      // The panel title and that section header must be identical text.
+      // (export_view_panel_controller.cpp:175-179)
       case ExportMode.perChat:
-        return 'Export Chat History';
+        return 'Chat export settings';
       case ExportMode.perTopic:
-        return 'Export Topic History';
+        return 'Topic export settings';
     }
   }
 
@@ -275,9 +283,10 @@ class _FloatingExportPanelState extends State<_FloatingExportPanel>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final panelH = widget.target.mode != ExportMode.full
-        ? 540.0
-        : _exportPanelHeight;
+    // Fixed panel height for every mode — AyuGram uses a single
+    // st::exportPanelSize (364×480) for single-peer, topic and full export
+    // (export.style:13, setInnerSize at export_view_panel_controller.cpp:180).
+    const panelH = _exportPanelHeight;
     _position ??= Offset(
       (size.width - _exportPanelWidth) / 2,
       (size.height - panelH) / 2,
@@ -346,6 +355,23 @@ class _ExportStepInfo {
   bool wasReported;
 
   _ExportStepInfo({required this.label, this.progress = 0.0, this.info = '', this.opacity = 1.0, this.hidden = false, this.wasReported = false});
+}
+
+/// One row of the export progress view — a faithful analogue of AyuGram's
+/// Export::View::Content::Row (export_view_content.h). [empty] rows render as
+/// blank fixed-height padding so the fixed multi-row layout height stays
+/// constant (AyuGram pads to requiredRows with empty Content::Row{}).
+class _ProgressRow {
+  final String label;
+  final String info;
+  final double progress;
+  final bool empty;
+  const _ProgressRow({
+    this.label = '',
+    this.info = '',
+    this.progress = 0.0,
+    this.empty = false,
+  });
 }
 
 class _ExportPanelDialogState extends State<_ExportPanelDialog>
@@ -431,6 +457,17 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   int _totalSizeBytes = 0;
   int _fileRandomId = 0;
   String _exportPath = '';
+
+  // Live state for the fixed multi-row progress view (item #5). AyuGram's
+  // ProgressWidget shows a fixed set of rows (2 single-peer / 3 full) that update
+  // in place: a "main" step row, the current-entity row, and a per-file byte row.
+  // _entity* carries the current sub-entity (chat title / "N messages"); _bytes*
+  // carries per-file download bytes for FormatDownloadText.
+  String _entityInfo = '';
+  double _entityProgress = 0.0;
+  String _bytesName = '';
+  int _bytesLoaded = 0;
+  int _bytesCount = 0;
 
   StreamSubscription<ExportProgressEvent>? _progressSub;
   StreamSubscription<ExportErrorEvent>? _errorSub;
@@ -834,6 +871,11 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     _totalFiles = 0;
     _totalSizeBytes = 0;
     _exportPath = '';
+    _entityInfo = '';
+    _entityProgress = 0.0;
+    _bytesName = '';
+    _bytesLoaded = 0;
+    _bytesCount = 0;
     _fadeOutTimer?.cancel();
     setState(() => _phase = ExportPhase.processing);
     context.read<ChatState>().startExportBar(onTap: _bringPanelToFront);
@@ -922,6 +964,15 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     bool fileIdChanged = false;
 
     setState(() {
+      // A new top-level step starting (progress 0) clears the per-step entity
+      // and byte rows so they don't carry stale text into the next step.
+      if (stepIdx >= 0 && totalSteps > 0 && progress == 0.0) {
+        _entityInfo = '';
+        _entityProgress = 0.0;
+        _bytesName = '';
+        _bytesLoaded = 0;
+        _bytesCount = 0;
+      }
       if (stepIdx >= 0 && totalSteps > 0) {
         while (_exportSteps.length < totalSteps) {
           _exportSteps.add(_ExportStepInfo(label: 'Step ${_exportSteps.length + 1}'));
@@ -983,6 +1034,24 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           }
           _currentStepIndex = existing;
         }
+      }
+
+      // Current-entity row: sub-step events (stepIndex < 0) carry the entity
+      // detail (chat title / "N messages") and its per-entity progress.
+      if (stepIdx < 0 && stepLabel.isNotEmpty) {
+        _entityInfo = event.info;
+        if (progress >= 0) _entityProgress = progress.clamp(0.0, 1.0);
+      }
+      // Per-file byte row: a byte payload fills it; a top-level step boundary
+      // with no byte payload clears it (matches AyuGram pushBytes early-return).
+      if (event.bytesCount > 0 || event.bytesName.isNotEmpty) {
+        _bytesName = event.bytesName;
+        _bytesLoaded = event.bytesLoaded;
+        _bytesCount = event.bytesCount;
+      } else if (stepIdx >= 0) {
+        _bytesName = '';
+        _bytesLoaded = 0;
+        _bytesCount = 0;
       }
 
       _totalFiles = event.totalFiles;
@@ -1289,7 +1358,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       color: Colors.transparent,
       child: Container(
         width: _exportPanelWidth,
-        height: _isPerChat ? 540.0 : _exportPanelHeight,
+        // Fixed 364×480 for every mode (st::exportPanelSize, export.style:13).
+        height: _exportPanelHeight,
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(_boxRadius),
@@ -1901,8 +1971,6 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final headerColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
         context.palette.windowBgActive;
     final shadowColor =
@@ -1915,7 +1983,11 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
             children: [
               Builder(builder: (_) {
                 final _lvKids = <Widget>[
-                  _buildSectionHeader('Media export settings', headerColor),
+                  // Single-peer mode adds media options directly with NO header —
+                  // AyuGram setupMediaOptions calls addMediaOptions(container)
+                  // without addHeader when _singlePeerId != 0; the
+                  // "Media export settings" header only exists on the full-export
+                  // path (export_view_settings.cpp:218-223).
                   _buildMediaCheckbox('Photos', _mediaPhotos,
                       (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
                   _buildMediaCheckbox('Video files', _mediaVideo,
@@ -2264,185 +2336,98 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   Widget _buildProcessingPlaceholder(Color subtextColor) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final activeFg =
-        context.palette.mediaPlayerActiveFg;
-    final inactiveFg =
-        context.palette.mediaPlayerInactiveFg;
-    final attentionFg =
-        context.palette.attentionButtonFg;
-    final linkColor =
-        context.palette.windowBgActive;
+    final activeFg = context.palette.mediaPlayerActiveFg;
+    final inactiveFg = context.palette.mediaPlayerInactiveFg;
+    final attentionFg = context.palette.attentionButtonFg;
+    final boldFg = context.palette.windowBoldFg;
+    final subFg = context.palette.windowSubTextFg;
+    final linkColor = context.palette.windowBgActive;
 
-    final visibleSteps = _exportSteps.where((s) => !s.hidden).toList();
+    // AyuGram's ProgressWidget shows a FIXED set of rows that update in place —
+    // 2 for single-peer, 3 for full export: a "main" step row, the current
+    // entity row, and a per-file byte-download row (FormatDownloadText). Rows
+    // padded to requiredRows render blank so the height stays constant.
+    // (export_view_progress.cpp + export_view_content.cpp ContentFromState)
+    final rows = _buildProgressRows();
 
     final aboutText = _exportDone
+        // lng_export_about_done / lng_export_progress
         ? 'Your data was successfully exported.'
         : 'You can close this window now. Please don\'t quit Telegram until the data export is completed.';
+
+    final rowKids = <Widget>[];
+    for (var i = 0; i < rows.length; i++) {
+      if (i > 0) rowKids.add(const SizedBox(height: 10));
+      rowKids.add(
+          _buildProgressRow(rows[i], boldFg, subFg, activeFg, inactiveFg));
+    }
 
     return Column(
       children: [
         const SizedBox(height: 10),
         Expanded(
-          child: Builder(builder: (_) {
-            final _lvKids = <Widget>[
-              for (int _si = 0; _si < visibleSteps.length; _si++) ...[
-                if (_si > 0) const SizedBox(height: 10),
-                AnimatedOpacity(
-                  opacity: visibleSteps[_si].opacity,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
-                    child: SizedBox(
-                      height: 30,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        transitionBuilder: (child, animation) =>
-                            FadeTransition(opacity: animation, child: child),
-                        child: Column(
-                          key: ValueKey(visibleSteps[_si].label),
-                          children: [
-                            Expanded(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      visibleSteps[_si].label,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: textColor,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 200),
-                                    child: Text(
-                                      visibleSteps[_si].info,
-                                      key: ValueKey('${_si}_${visibleSteps[_si].info}'),
-                                      style: TextStyle(
-                                          fontSize: 14, color: subtextColor),
-                                    ),
-                                  ),
-                                ],
+          child: SingleChildScrollView(
+            padding: EdgeInsets.zero,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ...rowKids,
+                // "Skip this file" link — appears after a file has been on a
+                // download for 5s (lng_export_skip_file).
+                if (!_exportDone)
+                  SizedBox(
+                    height: 28,
+                    child: AnimatedOpacity(
+                      opacity: _showSkipFile ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: GestureDetector(
+                            onTap: _showSkipFile ? _skipCurrentFile : null,
+                            child: MouseRegion(
+                              cursor: _showSkipFile
+                                  ? SystemMouseCursors.click
+                                  : SystemMouseCursors.basic,
+                              child: Text(
+                                'Skip this file',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: linkColor,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: linkColor,
+                                ),
                               ),
                             ),
-                            SizedBox(
-                              height: 3,
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  return Stack(
-                                    children: [
-                                      Container(
-                                        width: constraints.maxWidth,
-                                        height: 3,
-                                        color: inactiveFg,
-                                      ),
-                                      AnimatedContainer(
-                                        duration:
-                                            const Duration(milliseconds: 200),
-                                        curve: Curves.easeInOut,
-                                        width: constraints.maxWidth *
-                                            visibleSteps[_si].progress,
-                                        height: 3,
-                                        color: activeFg,
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
+                      ),
+                    ),
+                  ),
+                // About paragraph (exportAboutPadding margins(22,10,22,0)).
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Align(
+                      key: ValueKey(_exportDone),
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        aboutText,
+                        style: TextStyle(fontSize: 14, color: subtextColor),
                       ),
                     ),
                   ),
                 ),
               ],
-              if (_exportDone && _totalFiles > 0)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Total files: ${_formatFileCount(_totalFiles)}',
-                      style: TextStyle(fontSize: 14, color: subtextColor),
-                    ),
-                  ),
-                ),
-              if (_exportDone && _totalSizeBytes > 0)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Total size: ${_formatSize(_totalSizeBytes)}',
-                      style: TextStyle(fontSize: 14, color: subtextColor),
-                    ),
-                  ),
-                ),
-            ];
-            return ListView.builder(
-              padding: EdgeInsets.zero,
-              itemCount: _lvKids.length,
-              itemBuilder: (_, _lvI) => _lvKids[_lvI],
-            );
-          }),
-        ),
-        if (!_exportDone)
-          SizedBox(
-            height: 28,
-            child: AnimatedOpacity(
-              opacity: _showSkipFile ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 200),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 6, 22, 0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: GestureDetector(
-                    onTap: _showSkipFile ? _skipCurrentFile : null,
-                    child: MouseRegion(
-                      cursor: _showSkipFile
-                          ? SystemMouseCursors.click
-                          : SystemMouseCursors.basic,
-                      child: Text(
-                        'Skip this file',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: linkColor,
-                          decoration: TextDecoration.underline,
-                          decorationColor: linkColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: Align(
-              key: ValueKey(_exportDone),
-              alignment: Alignment.centerLeft,
-              child: Text(
-                aboutText,
-                style: TextStyle(fontSize: 14, color: subtextColor),
-              ),
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        // Bottom button — "Stop" while running, "Show my data" when finished,
+        // centered with a 30px bottom margin (exportCancelBottom).
         Padding(
-          padding: const EdgeInsets.only(bottom: 30),
+          padding: const EdgeInsets.only(top: 16, bottom: 30),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
             child: _exportDone
@@ -2497,6 +2482,169 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     );
   }
 
+  /// Builds the fixed set of progress rows, mirroring AyuGram ContentFromState:
+  /// single-peer → [entity, bytes]; full → [main, entity, bytes]. Empty trailing
+  /// rows are kept (blank) so the layout height stays constant, matching
+  /// AyuGram's requiredRows padding (export_view_content.cpp:163-166).
+  List<_ProgressRow> _buildProgressRows() {
+    if (_exportDone) {
+      // FinishedState rows: lng_export_finished / lng_export_total_amount /
+      // lng_export_total_size, all full-bar (export_view_content.cpp:170-193).
+      return [
+        const _ProgressRow(label: 'Data export completed.', progress: 1.0),
+        _ProgressRow(
+            label: 'Total files: ${_formatFileCount(_totalFiles)}',
+            progress: 1.0),
+        _ProgressRow(
+            label: 'Total size: ${_formatSize(_totalSizeBytes)}',
+            progress: 1.0),
+      ];
+    }
+
+    final steps = _exportSteps;
+    final totalSteps = steps.length;
+    final curIdx =
+        totalSteps == 0 ? 0 : _currentStepIndex.clamp(0, totalSteps - 1);
+    final cur =
+        totalSteps == 0 ? _ExportStepInfo(label: '') : steps[curIdx];
+    final overall = totalSteps > 0
+        ? ((curIdx + cur.progress) / totalSteps).clamp(0.0, 1.0)
+        : 0.0;
+
+    final hasBytes = _bytesCount > 0;
+    final byteRow = _ProgressRow(
+      label: hasBytes ? _bytesName : '',
+      info: hasBytes ? _formatDownloadText(_bytesLoaded, _bytesCount) : '',
+      progress: hasBytes ? (_bytesLoaded / _bytesCount).clamp(0.0, 1.0) : 0.0,
+      empty: !hasBytes,
+    );
+
+    if (_isPerChat) {
+      // Single-peer: [current-chat entity row, byte row] (no "main" row —
+      // ContentFromState omits pushMain when entityCount == 1).
+      return [
+        _ProgressRow(
+          label: widget.target.chatTitle ?? cur.label,
+          info: _entityInfo.isNotEmpty ? _entityInfo : cur.info,
+          progress: _entityProgress > 0 ? _entityProgress : cur.progress,
+        ),
+        byteRow,
+      ];
+    }
+
+    // Full export: [main step row, current-entity row, byte row].
+    final entityText = _entityInfo;
+    return [
+      _ProgressRow(
+        label: cur.label,
+        info: totalSteps > 0 ? '${curIdx + 1} / $totalSteps' : '',
+        progress: overall,
+      ),
+      _ProgressRow(
+        label: entityText,
+        progress: cur.progress,
+        empty: entityText.isEmpty,
+      ),
+      byteRow,
+    ];
+  }
+
+  /// One ProgressWidget::Row: label (left, 14 semibold windowBoldFg) + info
+  /// (right, 14 windowSubTextFg) with a 3px progress bar pinned to the bottom
+  /// (exportProgressWidth, fg=exportProgressFg, bg=exportProgressBg). [empty]
+  /// rows render as blank fixed-height padding to keep the layout constant.
+  Widget _buildProgressRow(_ProgressRow row, Color boldFg, Color subFg,
+      Color activeFg, Color inactiveFg) {
+    if (row.empty) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(22, 10, 22, 10),
+        child: SizedBox(height: 30),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+      child: SizedBox(
+        height: 30,
+        child: Column(
+          children: [
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      row.label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: boldFg,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (row.info.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      row.info,
+                      style: TextStyle(fontSize: 14, color: subFg),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 3,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Stack(
+                    children: [
+                      Container(
+                        width: constraints.maxWidth,
+                        height: 3,
+                        color: inactiveFg,
+                      ),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        width: constraints.maxWidth *
+                            row.progress.clamp(0.0, 1.0),
+                        height: 3,
+                        color: activeFg,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Port of Ui::FormatTextWithReadyAndTotal + lng_save_downloaded
+  /// ("{ready} / {total} {mb}") — format_values.cpp:24-50. e.g. "1.2 / 5.0 MB".
+  String _formatDownloadText(int ready, int total) {
+    String readyStr, totalStr, unit;
+    if (total >= 1024 * 1024) {
+      final r = ready * 10 ~/ (1024 * 1024);
+      final t = total * 10 ~/ (1024 * 1024);
+      readyStr = '${r ~/ 10}.${r % 10}';
+      totalStr = '${t ~/ 10}.${t % 10}';
+      unit = 'MB';
+    } else if (total >= 1024) {
+      readyStr = '${ready ~/ 1024}';
+      totalStr = '${total ~/ 1024}';
+      unit = 'KB';
+    } else {
+      readyStr = '$ready';
+      totalStr = '$total';
+      unit = 'B';
+    }
+    return '$readyStr / $totalStr $unit';
+  }
+
   String _formatFileCount(int count) {
     if (count < 1000) return count.toString();
     final s = count.toString();
@@ -2519,18 +2667,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
-  void _retryExport() {
-    setState(() {
-      _phase = ExportPhase.settings;
-      _errorDetail = '';
-    });
-  }
-
   Widget _buildErrorPlaceholder(Color subtextColor) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final errorColor =
-        context.palette.attentionButtonFg;
-    final accentColor = context.palette.windowBgActive;
+    final errorColor = context.palette.boxTextFgError;
 
     final String errorText;
     if (_errorType == _ExportErrorType.diskIo) {
@@ -2540,8 +2678,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       errorText = 'API Error happened :(\n$_errorDetail';
     }
 
-    final panelHeight = _isPerChat ? 540.0 : _exportPanelHeight;
-    final topPad = (panelHeight / 4).clamp(0.0, panelHeight);
+    // AyuGram showCriticalError: a single top-aligned error FlatLabel
+    // (st::exportErrorLabel — minWidth 175, align top, textFg boxTextFgError),
+    // top-padded by panelHeight/4, with NO buttons — there is no in-panel
+    // retry-to-settings path; the panel stays put (setHideOnDeactivate(false))
+    // and is dismissed only via the title-bar close (X).
+    // (export_view_panel_controller.cpp:264-279, export.style:43-47)
+    const topPad = _exportPanelHeight / 4;
 
     return Padding(
       padding: EdgeInsets.only(top: topPad),
@@ -2550,45 +2693,11 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         child: ConstrainedBox(
           constraints: const BoxConstraints(minWidth: 175),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  errorText,
-                  style: TextStyle(fontSize: 14, color: errorColor),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextButton(
-                      onPressed: _closePanel,
-                      style: TextButton.styleFrom(
-                        foregroundColor: subtextColor,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                        textStyle: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500),
-                      ),
-                      child: const Text('Close'),
-                    ),
-                    const SizedBox(width: 12),
-                    TextButton(
-                      onPressed: _retryExport,
-                      style: TextButton.styleFrom(
-                        foregroundColor: accentColor,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                        textStyle: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500),
-                      ),
-                      child: const Text('Try Again'),
-                    ),
-                  ],
-                ),
-              ],
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              errorText,
+              style: TextStyle(fontSize: 14, color: errorColor),
+              textAlign: TextAlign.center,
             ),
           ),
         ),

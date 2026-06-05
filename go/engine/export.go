@@ -52,6 +52,11 @@ type ExportProgressEvent struct {
 	TotalSize    int64   `json:"total_size_bytes"`
 	FileRandomID uint64  `json:"file_random_id,omitempty"`
 	FileName     string  `json:"file_name,omitempty"`
+	// Per-file byte-download progress for the progress view's byte row
+	// (AyuGram pushBytes → Ui::FormatDownloadText(bytesLoaded, bytesCount)).
+	BytesLoaded int64  `json:"bytes_loaded,omitempty"`
+	BytesCount  int64  `json:"bytes_count,omitempty"`
+	BytesName   string `json:"bytes_name,omitempty"`
 }
 
 type ExportErrorEvent struct {
@@ -496,6 +501,7 @@ func (e *Engine) exportDialogsList(ctx context.Context, acc *Account, state *exp
 	state.totalFiles++
 	state.totalSize += int64(len(data))
 	state.mu.Unlock()
+	e.emitExportFileBytes(acc.ID, state, "dialogs_list.json", int64(len(data)))
 	return nil
 }
 
@@ -518,6 +524,7 @@ func (e *Engine) exportPersonalInfo(ctx context.Context, acc *Account, state *ex
 	state.totalFiles++
 	state.totalSize += int64(len(data))
 	state.mu.Unlock()
+	e.emitExportFileBytes(acc.ID, state, "personal_information.json", int64(len(data)))
 	return nil
 }
 
@@ -540,6 +547,7 @@ func (e *Engine) exportContacts(ctx context.Context, acc *Account, state *export
 	state.totalFiles++
 	state.totalSize += int64(len(data))
 	state.mu.Unlock()
+	e.emitExportFileBytes(acc.ID, state, "contacts.json", int64(len(data)))
 	return nil
 }
 
@@ -562,6 +570,7 @@ func (e *Engine) exportSessions(ctx context.Context, acc *Account, state *export
 	state.totalFiles++
 	state.totalSize += int64(len(data))
 	state.mu.Unlock()
+	e.emitExportFileBytes(acc.ID, state, "sessions.json", int64(len(data)))
 	return nil
 }
 
@@ -662,6 +671,8 @@ func (e *Engine) exportChatHistory(ctx context.Context, acc *Account, state *exp
 	state.totalSize += int64(len(data))
 	state.mu.Unlock()
 
+	e.emitExportFileBytes(acc.ID, state, "messages.json", int64(len(data)))
+
 	return nil
 }
 
@@ -681,6 +692,31 @@ func (e *Engine) emitExportProgress(accountID string, state *exportState, step s
 		TotalFiles:   tf,
 		TotalSize:    ts,
 		FileRandomID: rid,
+	})
+}
+
+// emitExportFileBytes reports a single written export file to the progress
+// view's per-file byte row (AyuGram pushBytes → FormatDownloadText). Files are
+// marshalled then flushed atomically, so loaded == count for the file just
+// written. Carries no Step/TotalSteps, so the Dart handler updates only the
+// byte row and leaves the main/entity rows untouched.
+func (e *Engine) emitExportFileBytes(accountID string, state *exportState, name string, size int64) {
+	if size <= 0 {
+		return
+	}
+	state.mu.Lock()
+	rid := state.fileRandomID
+	tf := state.totalFiles
+	ts := state.totalSize
+	state.mu.Unlock()
+
+	e.emitEvent(EventExportProgress, accountID, ExportProgressEvent{
+		BytesName:    name,
+		BytesLoaded:  size,
+		BytesCount:   size,
+		FileRandomID: rid,
+		TotalFiles:   tf,
+		TotalSize:    ts,
 	})
 }
 
