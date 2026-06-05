@@ -31,6 +31,10 @@ class GroupCallPanel extends StatefulWidget {
   final bool isRtmp;
   final bool isCanManage;
   final bool isConnecting;
+  /// True for an E2E conference call (created via phone.createConferenceCall),
+  /// where participants can be in an invited/calling state and the manager can
+  /// Cancel invite / Stop ringing them. Mirrors AyuGram GroupCall::conference().
+  final bool isConference;
   final DateTime? callStartTime;
   final VoidCallback? onLeave;
   final VoidCallback? onToggleMute;
@@ -59,6 +63,7 @@ class GroupCallPanel extends StatefulWidget {
     this.isRtmp = false,
     this.isCanManage = false,
     this.isConnecting = false,
+    this.isConference = false,
     this.isVideoActive = false,
     this.isScreenShareActive = false,
     this.isMessagesVisible = false,
@@ -467,6 +472,55 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     final liveLevel = _participantLevels[p.userId] ?? p.audioLevel;
     final liveSpeaking = _participantSpeaking[p.userId] ?? p.isSpeaking;
 
+    // Conference invited/calling rows (AyuGram MembersRow Row::State::Invited /
+    // Calling): greyed avatar with no speaking blob, name over an "invited" /
+    // "calling..." status line, no mic/video/speaking icons.
+    if (p.isInvited) {
+      return GestureDetector(
+        onLongPress: () => _showParticipantMenu(context, p),
+        onSecondaryTapUp: (details) =>
+            _showParticipantMenu(context, p, position: details.globalPosition),
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Opacity(opacity: 0.6, child: avatar),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      p.displayName.isNotEmpty ? p.displayName : 'User',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xCCFFFFFF),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      p.isCalling ? 'calling...' : 'invited',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0x80FFFFFF),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return GestureDetector(
       onLongPress: () => _showParticipantMenu(context, p),
       onSecondaryTapUp: (details) => _showParticipantMenu(context, p, position: details.globalPosition),
@@ -517,6 +571,9 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     final callId = widget.info.callId;
     if (callId.isEmpty) return;
     final isSelf = p.userId == selfUserId;
+    // Invited/calling conference rows aren't joined participants yet: no
+    // pin/mute/volume/kick — only Stop ringing / Cancel invite / profile.
+    final isInvited = p.isInvited;
 
     final items = <PopupMenuEntry<String>>[];
 
@@ -524,7 +581,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     // calls_group_members.cpp:1404-1452 hasTwoOrMore gate). Pinning is local UI
     // state (videoEndpointPinned), no server call.
     final feeds = _videoFeeds;
-    if (feeds.length >= 2) {
+    if (!isInvited && feeds.length >= 2) {
       final cameraKey = '${p.userId}:camera';
       final screenKey = '${p.userId}:screen';
       if (feeds.any((f) => f.key == cameraKey)) {
@@ -550,40 +607,58 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           value: 'remove_hand', child: Text('Cancel request to speak')));
     }
 
+    // Conference invited/calling row (AyuGram calls_group_members.cpp:1485-1508,
+    // _call->conference() && isUser && invited): "Stop ringing" (Calling state
+    // only) then "Cancel invite", followed by a separator before profile.
+    if (!isSelf && widget.isConference && isInvited) {
+      if (p.isCalling) {
+        items.add(const PopupMenuItem(
+            value: 'stop_ringing', child: Text('Stop ringing')));
+      }
+      items.add(const PopupMenuItem(
+          value: 'cancel_invite', child: Text('Cancel invite')));
+      items.add(const PopupMenuDivider());
+    }
+
     // View profile / Send message — shown for every non-self participant.
     if (!isSelf) {
       items.add(const PopupMenuItem(value: 'profile', child: Text('View profile')));
       items.add(const PopupMenuItem(value: 'message', child: Text('Send message')));
     }
 
-    // Admin server-side mute/unmute.
-    if (!p.isMuted && widget.isCanManage) {
-      items.add(const PopupMenuItem(value: 'mute', child: Text('Mute')));
-    } else if (p.isMuted && widget.isCanManage) {
-      items.add(const PopupMenuItem(value: 'unmute', child: Text('Unmute')));
-    }
+    // The remaining entries (mute / volume / kick) operate on a JOINED
+    // participant — AyuGram suppresses them for Invited/Calling rows (no ssrc,
+    // canKick==false). Skip them entirely for invited rows.
+    if (!isInvited) {
+      // Admin server-side mute/unmute.
+      if (!p.isMuted && widget.isCanManage) {
+        items.add(const PopupMenuItem(value: 'mute', child: Text('Mute')));
+      } else if (p.isMuted && widget.isCanManage) {
+        items.add(const PopupMenuItem(value: 'unmute', child: Text('Unmute')));
+      }
 
-    // Local "Mute for me" / "Unmute for me" — available to EVERY user, driven
-    // by mutedByMe (AyuGram mute_for_me). Implemented via per-listener volume.
-    if (!isSelf) {
-      final mutedForMe = p.mutedByMe || p.volume == 0;
+      // Local "Mute for me" / "Unmute for me" — available to EVERY user, driven
+      // by mutedByMe (AyuGram mute_for_me). Implemented via per-listener volume.
+      if (!isSelf) {
+        final mutedForMe = p.mutedByMe || p.volume == 0;
+        items.add(PopupMenuItem(
+          value: mutedForMe ? 'unmute_for_me' : 'mute_for_me',
+          child: Text(mutedForMe ? 'Unmute for me' : 'Mute for me'),
+        ));
+      }
+
       items.add(PopupMenuItem(
-        value: mutedForMe ? 'unmute_for_me' : 'mute_for_me',
-        child: Text(mutedForMe ? 'Unmute for me' : 'Mute for me'),
+        value: 'volume',
+        child: Text('Volume: ${(p.volume / 100).round()}%'),
       ));
-    }
 
-    items.add(PopupMenuItem(
-      value: 'volume',
-      child: Text('Volume: ${(p.volume / 100).round()}%'),
-    ));
-
-    if (widget.isCanManage && !isSelf) {
-      items.add(const PopupMenuDivider());
-      items.add(const PopupMenuItem(
-        value: 'kick',
-        child: Text('Remove from call', style: TextStyle(color: Colors.redAccent)),
-      ));
+      if (widget.isCanManage && !isSelf) {
+        items.add(const PopupMenuDivider());
+        items.add(const PopupMenuItem(
+          value: 'kick',
+          child: Text('Remove from call', style: TextStyle(color: Colors.redAccent)),
+        ));
+      }
     }
 
     if (items.isEmpty) return;
@@ -626,6 +701,14 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           setState(() => _pinnedVideoKey = _pinnedVideoKey == k ? null : k);
         case 'remove_hand':
           engine.raiseHand(accountId, callId, false);
+        case 'stop_ringing':
+          // discard=false → phone.declineConferenceCallInvite (stop the ring,
+          // keep the invite). AyuGram cancelInvite(false).
+          engine.declineOutgoingConferenceInvite(accountId, callId, p.userId, false);
+        case 'cancel_invite':
+          // discard=true → delete the invite messages (revoke the invite).
+          // AyuGram cancelInvite(true).
+          engine.declineOutgoingConferenceInvite(accountId, callId, p.userId, true);
       }
     });
   }
@@ -672,7 +755,13 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     );
   }
 
-  Widget _buildChatPanel() {
+  Widget _buildChatPanel({bool wide = false}) {
+    // Narrow mode is a fixed-height column (title + participants + chat +
+    // 113px-padded controls); an open chat at the wide 200px message cap pushed
+    // the column ~23px past the panel height (RenderFlex overflow). Cap the
+    // narrow message list shorter so the whole column always fits. Wide mode
+    // lives in the taller video column, so it keeps the 200px cap.
+    final messagesMaxHeight = wide ? 200.0 : 160.0;
     return AnimatedSize(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOutCubic,
@@ -682,7 +771,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  constraints: const BoxConstraints(maxHeight: 200),
+                  constraints: BoxConstraints(maxHeight: messagesMaxHeight),
                   child: _buildMessagesList(),
                 ),
                 _buildMessageInput(),
@@ -1027,7 +1116,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
                 Expanded(child: _buildScheduledOverlay())
               else
                 _buildParticipantsList(),
-              _buildChatPanel(),
+              _buildChatPanel(wide: true),
             ],
           ),
         ),
@@ -2213,11 +2302,15 @@ void showGroupCallPanel(
   bool isForceMuted = false,
   bool isRaisedHand = false,
   bool isCanManage = false,
+  bool? isConference,
   DateTime? callStartTime,
   VoidCallback? onToggleMute,
   VoidCallback? onToggleVideo,
   Widget? videoViewport,
 }) {
+  // A non-empty conference invite link means this is an E2E conference call
+  // (phone.createConferenceCall); callers may also force it explicitly.
+  final conference = isConference ?? info.conferenceInviteLink.isNotEmpty;
   final engine = context.read<EngineService>();
   final appState = context.read<AppState>();
   final accountId = appState.activeAccountId;
@@ -2374,6 +2467,7 @@ void showGroupCallPanel(
                   isRtmp: info.isRtmp,
                   isCanManage: isCanManage,
                   isConnecting: connecting,
+                  isConference: conference,
                   isVideoActive: cameraEnabled,
                   isScreenShareActive: screenShareEnabled,
                   isMessagesVisible: messagesVisible,
@@ -2571,38 +2665,90 @@ class _RecordingOptions {
   const _RecordingOptions({required this.title, required this.video, required this.portrait});
 }
 
-/// Manager rename dialog (AyuGram EditGroupCallTitleBox → phone.editGroupCallTitle).
-void _showEditCallTitleDialog(BuildContext context, {required String callId, String currentTitle = ''}) {
-  final engine = context.read<EngineService>();
-  final accountId = context.read<AppState>().activeAccountId;
-  final controller = TextEditingController(text: currentTitle);
-  void submit(BuildContext ctx) {
-    if (callId.isNotEmpty) {
-      engine.editGroupCallTitle(accountId, callId, controller.text.trim());
-    }
-    Navigator.pop(ctx);
+/// A single-field text dialog whose [TextEditingController] is owned by its State
+/// and disposed in State.dispose(). Returns the trimmed text on confirm (an empty
+/// string IS a valid confirm) or null if cancelled/dismissed.
+///
+/// IMPORTANT: this exists to avoid the classic Flutter crash — disposing a
+/// controller synchronously right after `await showDialog(...)` (or in its
+/// `.then`) frees it while the dialog's reverse transition is still painting the
+/// TextField, so an Escape/barrier-dismiss re-subscribes to the freed controller
+/// and red-screens with "A TextEditingController was used after being disposed".
+class _CallTextInputDialog extends StatefulWidget {
+  final String title;
+  final String hint;
+  final String initialText;
+  final String confirmLabel;
+  const _CallTextInputDialog({
+    required this.title,
+    required this.hint,
+    this.initialText = '',
+    required this.confirmLabel,
+  });
+
+  @override
+  State<_CallTextInputDialog> createState() => _CallTextInputDialogState();
+}
+
+class _CallTextInputDialogState extends State<_CallTextInputDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialText);
   }
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() => Navigator.pop(context, _controller.text.trim());
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
       backgroundColor: const Color(0xFF1E2530),
-      title: const Text('Edit Title', style: TextStyle(color: Colors.white)),
+      title: Text(widget.title, style: const TextStyle(color: Colors.white)),
       content: TextField(
-        controller: controller,
+        controller: _controller,
         autofocus: true,
         style: const TextStyle(color: Colors.white),
-        decoration: const InputDecoration(
-          hintText: 'Title',
-          hintStyle: TextStyle(color: Color(0x60FFFFFF)),
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          hintStyle: const TextStyle(color: Color(0x60FFFFFF)),
         ),
-        onSubmitted: (_) => submit(ctx),
+        onSubmitted: (_) => _submit(),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-        TextButton(onPressed: () => submit(ctx), child: const Text('Save')),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: _submit, child: Text(widget.confirmLabel)),
       ],
+    );
+  }
+}
+
+/// Manager rename dialog (AyuGram EditGroupCallTitleBox → phone.editGroupCallTitle).
+void _showEditCallTitleDialog(BuildContext context,
+    {required String callId, String currentTitle = '', bool isLivestream = false}) {
+  final engine = context.read<EngineService>();
+  final accountId = context.read<AppState>().activeAccountId;
+  showDialog<String>(
+    context: context,
+    builder: (ctx) => _CallTextInputDialog(
+      title: isLivestream ? 'Edit live stream title' : 'Edit Video Chat Title',
+      hint: 'Title',
+      initialText: currentTitle,
+      confirmLabel: 'Save',
     ),
-  ).then((_) => controller.dispose());
+  ).then((value) {
+    if (value == null) return; // cancelled (Cancel / Escape / barrier)
+    if (callId.isNotEmpty) {
+      engine.editGroupCallTitle(accountId, callId, value);
+    }
+  });
 }
 
 Future<bool?> _confirmStopRecording(BuildContext context) {
@@ -2681,31 +2827,18 @@ Future<_RecordingOptions?> _showStartRecordingDialog(BuildContext context) async
   );
   if (proceed != true || !context.mounted) return null;
 
-  final controller = TextEditingController();
-  final confirmed = await showDialog<bool>(
+  // Stage 2 — recording title. The controller lives inside _CallTextInputDialog's
+  // State (disposed there), so Escape/barrier-dismiss no longer crashes. A null
+  // result means cancelled; an empty string is a valid (untitled) confirm.
+  final title = await showDialog<String>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: const Color(0xFF1E2530),
-      title: const Text('Add Title', style: TextStyle(color: Colors.white)),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        style: const TextStyle(color: Colors.white),
-        decoration: const InputDecoration(
-          hintText: 'Recording Title',
-          hintStyle: TextStyle(color: Color(0x60FFFFFF)),
-        ),
-        onSubmitted: (_) => Navigator.pop(ctx, true),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Start')),
-      ],
+    builder: (ctx) => const _CallTextInputDialog(
+      title: 'Add Title',
+      hint: 'Recording Title',
+      confirmLabel: 'Start',
     ),
   );
-  final title = controller.text.trim();
-  controller.dispose();
-  if (confirmed != true) return null;
+  if (title == null) return null;
   return _RecordingOptions(title: title, video: video, portrait: portrait);
 }
 
@@ -2788,7 +2921,9 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId
                     onTap: () {
                       Navigator.pop(ctx2);
                       _showEditCallTitleDialog(context,
-                          callId: callId, currentTitle: currentTitle);
+                          callId: callId,
+                          currentTitle: currentTitle,
+                          isLivestream: isLivestream);
                     },
                   ),
                 ListTile(

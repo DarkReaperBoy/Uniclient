@@ -2752,6 +2752,25 @@ class EngineService {
     }
   }
 
+  /// Cancels an OUTGOING conference-call invite (AyuGram
+  /// Instance::declineOutgoingConferenceInvite). [discard]=false stops the ring
+  /// via phone.declineConferenceCallInvite (keeps the invite); [discard]=true
+  /// revokes it by deleting the invite messages.
+  Future<void> declineOutgoingConferenceInvite(
+      String accountId, String callId, String userId, bool discard) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'user_id': userId,
+      'discard': discard,
+    }));
+    try {
+      await _callAsync('__engine', 'DeclineOutgoingConferenceInvite', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'declineOutgoingConferenceInvite failed', e);
+    }
+  }
+
   Future<void> toggleCamera(String accountId, String callId, bool enabled) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

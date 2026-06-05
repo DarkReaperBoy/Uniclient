@@ -159,6 +159,11 @@ type TelegramCore struct {
 	activeCalls   map[int64]*tgCall       // callID → active call
 	pendingDH     map[int64]*pendingDHState // callID → DH exchange state
 	confCallHash  map[int64]int64         // conference callID → accessHash (from CreateConferenceCall)
+	// Outgoing conference-call invites we've sent, tracked client-side like
+	// AyuGram Data::Session::_invitedToCallUsers. callID → userID → invite.
+	// Surfaced as invited/calling participant rows and used by
+	// DeclineOutgoingConferenceInvite (Cancel invite / Stop ringing).
+	confInvites   map[int64]map[int64]*confInviteEntry
 
 	// Admin rank cache — chatID → userID → custom rank title (e.g. "admin", "owner", "Head Mod")
 	adminRanks        map[int64]map[int64]string
@@ -248,6 +253,7 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 		activeCalls:        make(map[int64]*tgCall),
 		pendingDH:          make(map[int64]*pendingDHState),
 		confCallHash:       make(map[int64]int64),
+		confInvites:        make(map[int64]map[int64]*confInviteEntry),
 		rawSigInInterceptors:  make(map[int64]func([]byte)),
 		rawSigOutInterceptors: make(map[int64]func([]byte)),
 	}
@@ -671,6 +677,12 @@ func (t *TelegramCore) initClient() {
 			go t.sendSFUVideoConstraints(call)
 		}
 
+		// Cache the server snapshot (invite-free) then merge client-side
+		// conference invites as extra invited/calling rows.
+		call.lastParticipantsMu.Lock()
+		call.lastParticipants = participants
+		call.lastParticipantsMu.Unlock()
+
 		t.fireUpdate(Update{
 			Type:     UpdateCallState,
 			Platform: tgPlatform,
@@ -678,7 +690,7 @@ func (t *TelegramCore) initClient() {
 				ID:           strconv.FormatInt(gcID, 10),
 				State:        call.state,
 				IsGroup:      true,
-				Participants: participants,
+				Participants: t.mergeConfInvites(gcID, participants),
 			},
 		})
 		return nil
@@ -2922,6 +2934,13 @@ type tgCall struct {
 	done       chan struct{} // closed when call ends, signals all goroutines to exit
 	p2pAllowed bool // from PhoneCall response — controls ICE transport policy
 	conferenceSupported bool // from PhoneCall response — server allows upgrading this 1:1 call to a conference
+
+	// lastParticipants caches the most recent SERVER participant snapshot (before
+	// client-side conference invites are merged) so InviteToConferenceCall /
+	// DeclineOutgoingConferenceInvite can re-emit the list with invited/calling
+	// rows added or removed without waiting for the next server push.
+	lastParticipants   []CallParticipant
+	lastParticipantsMu sync.Mutex
 
 	// Audio receive callback (set via SetOnAudioFrame)
 	onAudioFrame func(frame []byte)
@@ -27703,11 +27722,170 @@ func (t *TelegramCore) CreateConferenceCall() (string, string, error) {
 	return "", "", fmt.Errorf("conference call created but no GroupCall found in updates")
 }
 
-// InviteToConferenceCall invites users to a conference/group call by call ID.
+// confInviteEntry tracks one outgoing conference-call invite (AyuGram
+// Data::Session InviteToCall): whether the invitee is still being rung and the
+// IDs of the invite service messages we sent (needed to Stop ringing / Cancel
+// invite).
+type confInviteEntry struct {
+	calling bool
+	msgIDs  []int
+}
+
+// collectConfInviteMessageIDs pulls the IDs of any new (service) messages out of
+// an Updates response — the conference-invite message
+// phone.inviteConferenceCallParticipant just created, which we later decline or
+// delete.
+func collectConfInviteMessageIDs(updates tg.UpdatesClass) []int {
+	var list []tg.UpdateClass
+	switch u := updates.(type) {
+	case *tg.Updates:
+		list = u.Updates
+	case *tg.UpdatesCombined:
+		list = u.Updates
+	case *tg.UpdateShort:
+		list = []tg.UpdateClass{u.Update}
+	}
+	var ids []int
+	add := func(msg tg.MessageClass) {
+		switch m := msg.(type) {
+		case *tg.Message:
+			if m.ID != 0 {
+				ids = append(ids, m.ID)
+			}
+		case *tg.MessageService:
+			if m.ID != 0 {
+				ids = append(ids, m.ID)
+			}
+		}
+	}
+	for _, update := range list {
+		switch upd := update.(type) {
+		case *tg.UpdateNewMessage:
+			add(upd.Message)
+		case *tg.UpdateNewChannelMessage:
+			add(upd.Message)
+		case *tg.UpdateMessageID:
+			if upd.ID != 0 {
+				ids = append(ids, upd.ID)
+			}
+		}
+	}
+	return ids
+}
+
+// registerConfInvite records (or updates) a tracked outgoing conference invite.
+func (t *TelegramCore) registerConfInvite(callID, userID int64, calling bool, msgIDs []int) {
+	t.peerMu.Lock()
+	defer t.peerMu.Unlock()
+	m := t.confInvites[callID]
+	if m == nil {
+		m = make(map[int64]*confInviteEntry)
+		t.confInvites[callID] = m
+	}
+	e := m[userID]
+	if e == nil {
+		e = &confInviteEntry{}
+		m[userID] = e
+	}
+	e.calling = calling
+	e.msgIDs = append(e.msgIDs, msgIDs...)
+}
+
+// takeConfInvite removes and returns a tracked invite (used when cancelling).
+func (t *TelegramCore) takeConfInvite(callID, userID int64) (*confInviteEntry, bool) {
+	t.peerMu.Lock()
+	defer t.peerMu.Unlock()
+	m := t.confInvites[callID]
+	if m == nil {
+		return nil, false
+	}
+	e, ok := m[userID]
+	if !ok {
+		return nil, false
+	}
+	delete(m, userID)
+	if len(m) == 0 {
+		delete(t.confInvites, callID)
+	}
+	return e, true
+}
+
+// mergeConfInvites appends tracked invited/calling users (not already joined) as
+// extra participant rows with State set — AyuGram setupInvitedUsers.
+func (t *TelegramCore) mergeConfInvites(callID int64, participants []CallParticipant) []CallParticipant {
+	t.peerMu.RLock()
+	m := t.confInvites[callID]
+	type inv struct {
+		uid     int64
+		calling bool
+	}
+	var list []inv
+	for uid, e := range m {
+		list = append(list, inv{uid, e.calling})
+	}
+	t.peerMu.RUnlock()
+	if len(list) == 0 {
+		return participants
+	}
+	joined := make(map[string]bool, len(participants))
+	for _, p := range participants {
+		joined[p.UserID] = true
+	}
+	for _, iv := range list {
+		uidStr := strconv.FormatInt(iv.uid, 10)
+		if joined[uidStr] {
+			continue // they joined — show the real participant row instead
+		}
+		state := "invited"
+		if iv.calling {
+			state = "calling"
+		}
+		participants = append(participants, CallParticipant{
+			UserID:      uidStr,
+			DisplayName: t.getCachedUserName(iv.uid),
+			State:       state,
+		})
+	}
+	return participants
+}
+
+// fireConfCallParticipants re-emits the cached server snapshot merged with the
+// current conference invites, so invited/calling rows appear/disappear right
+// after Invite / Cancel without waiting for the next server push.
+func (t *TelegramCore) fireConfCallParticipants(callID int64) {
+	t.mu.RLock()
+	call := t.activeCalls[callID]
+	t.mu.RUnlock()
+	if call == nil {
+		return
+	}
+	call.lastParticipantsMu.Lock()
+	base := make([]CallParticipant, len(call.lastParticipants))
+	copy(base, call.lastParticipants)
+	call.lastParticipantsMu.Unlock()
+	t.fireUpdate(Update{
+		Type:     UpdateCallState,
+		Platform: tgPlatform,
+		Call: &CallSession{
+			ID:           strconv.FormatInt(callID, 10),
+			State:        call.state,
+			IsGroup:      true,
+			Participants: t.mergeConfInvites(callID, base),
+		},
+	})
+}
+
+// InviteToConferenceCall invites users to a conference call by call ID via
+// phone.inviteConferenceCallParticipant (AyuGram InviteToConferenceCall) — each
+// invite rings the user and produces a service message we track, so the invite
+// can later have its ring stopped (phone.declineConferenceCallInvite) or be
+// cancelled (the message deleted). The invited users surface as invited/calling
+// participant rows until they join.
 func (t *TelegramCore) InviteToConferenceCall(callID string, userIDs []string) error {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
+	authed := t.authed && t.api != nil
+	t.mu.RUnlock()
+	if !authed {
 		return ErrAuth
 	}
 	cid, err := strconv.ParseInt(callID, 10, 64)
@@ -27720,25 +27898,90 @@ func (t *TelegramCore) InviteToConferenceCall(callID string, userIDs []string) e
 	if !ok {
 		return fmt.Errorf("no access hash for conference call %s", callID)
 	}
-	var users []tg.InputUserClass
+
+	var firstErr error
+	invited := 0
 	for _, uid := range userIDs {
-		id, err := strconv.ParseInt(uid, 10, 64)
-		if err != nil {
+		id, perr := strconv.ParseInt(uid, 10, 64)
+		if perr != nil {
 			continue
 		}
 		t.peerMu.RLock()
 		uHash := t.userAccessHash[id]
 		t.peerMu.RUnlock()
-		users = append(users, &tg.InputUser{UserID: id, AccessHash: uHash})
+		updates, ierr := t.api.PhoneInviteConferenceCallParticipant(t.ctx, &tg.PhoneInviteConferenceCallParticipantRequest{
+			Call:   &tg.InputGroupCall{ID: cid, AccessHash: hash},
+			UserID: &tg.InputUser{UserID: id, AccessHash: uHash},
+		})
+		if ierr != nil {
+			if firstErr == nil {
+				firstErr = ierr
+			}
+			continue
+		}
+		t.registerConfInvite(cid, id, true, collectConfInviteMessageIDs(updates))
+		invited++
 	}
-	if len(users) == 0 {
-		return fmt.Errorf("no valid user IDs")
+	if invited == 0 && firstErr != nil {
+		return firstErr
 	}
-	_, err = t.api.PhoneInviteToGroupCall(t.ctx, &tg.PhoneInviteToGroupCallRequest{
-		Call:  &tg.InputGroupCall{ID: cid, AccessHash: hash},
-		Users: users,
-	})
-	return err
+	t.fireConfCallParticipants(cid)
+	return nil
+}
+
+// DeclineOutgoingConferenceInvite cancels an outgoing conference-call invite
+// (AyuGram Instance::declineOutgoingConferenceInvite). discard=false ("Stop
+// ringing") declines each invite message via phone.declineConferenceCallInvite
+// but keeps the user invited; discard=true ("Cancel invite") revokes the invite
+// by deleting its messages.
+func (t *TelegramCore) DeclineOutgoingConferenceInvite(callID, userID string, discard bool) error {
+	t.mu.RLock()
+	authed := t.authed && t.api != nil
+	t.mu.RUnlock()
+	if !authed {
+		return ErrAuth
+	}
+	cid, err := strconv.ParseInt(callID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid call ID %q: %w", callID, err)
+	}
+	uid, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid user ID %q: %w", userID, err)
+	}
+
+	entry, ok := t.takeConfInvite(cid, uid)
+	var msgIDs []int
+	if ok {
+		msgIDs = entry.msgIDs
+	}
+
+	var firstErr error
+	if discard {
+		// Cancel invite: delete the invite messages (revoke on both sides).
+		if len(msgIDs) > 0 {
+			if _, derr := t.api.MessagesDeleteMessages(t.ctx, &tg.MessagesDeleteMessagesRequest{
+				ID:     msgIDs,
+				Revoke: true,
+			}); derr != nil {
+				firstErr = derr
+			}
+		}
+	} else {
+		// Stop ringing: decline each invite message; keep the user invited so a
+		// later Cancel can still revoke it (AyuGram re-registers as non-calling).
+		for _, mid := range msgIDs {
+			if _, derr := t.api.PhoneDeclineConferenceCallInvite(t.ctx, mid); derr != nil && firstErr == nil {
+				firstErr = derr
+			}
+		}
+		if ok {
+			t.registerConfInvite(cid, uid, false, msgIDs)
+		}
+	}
+
+	t.fireConfCallParticipants(cid)
+	return firstErr
 }
 
 // PhoneCreateGroupCall creates a new group call in a chat.

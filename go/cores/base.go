@@ -543,6 +543,10 @@ type CallParticipant struct {
 	SSRC               int32   `json:"ssrc,omitempty"`
 	LastActive         int64   `json:"last_active,omitempty"`
 	Date               int64   `json:"date,omitempty"`
+	// State is the conference-call row state: "" (a joined participant),
+	// "invited" (invited, not ringing) or "calling" (being rung). Mirrors
+	// AyuGram MembersRow Row::State::{Invited,Calling}.
+	State string `json:"state,omitempty"`
 }
 
 // Folder represents a named collection of chats for organizing the dialog list.

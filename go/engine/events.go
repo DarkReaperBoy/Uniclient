@@ -551,6 +551,7 @@ func (e *Engine) handleCallUpdate(accountID string, call *cores.CallSession) {
 				SSRC:               p.SSRC,
 				LastActive:         p.LastActive,
 				Date:               p.Date,
+				State:              p.State,
 			})
 		}
 		if info.ParticipantsCount == 0 && len(info.Participants) > 0 {

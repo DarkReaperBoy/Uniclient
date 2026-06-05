@@ -1568,6 +1568,7 @@ type GroupCallParticipant struct {
 	SSRC               int32   `json:"ssrc,omitempty"`
 	LastActive         int64   `json:"last_active,omitempty"`
 	Date               int64   `json:"date,omitempty"`
+	State              string  `json:"state,omitempty"` // "", "invited" or "calling" (conference rows)
 }
 
 // GetGroupCall checks whether a chat has an active group call and returns its info.
@@ -1638,6 +1639,7 @@ func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) 
 			SSRC:               p.SSRC,
 			LastActive:         p.LastActive,
 			Date:               p.Date,
+			State:              p.State,
 		}
 		avatarFile := filepath.Join(avatarDir, p.UserID+".jpg")
 		if data, err := os.ReadFile(avatarFile); err == nil && len(data) > 0 {
@@ -1729,6 +1731,26 @@ func (e *Engine) InviteToConferenceCall(accountID, callID string, userIDs []stri
 		return fmt.Errorf("conference call invites not supported by this platform")
 	}
 	return ci.InviteToConferenceCall(callID, userIDs)
+}
+
+// DeclineOutgoingConferenceInvite cancels an outgoing conference-call invite:
+// discard=false stops the ring (keeps the invite), discard=true revokes it.
+func (e *Engine) DeclineOutgoingConferenceInvite(accountID, callID, userID string, discard bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type confInviteDecliner interface {
+		DeclineOutgoingConferenceInvite(callID, userID string, discard bool) error
+	}
+	cd, ok := acc.Core.(confInviteDecliner)
+	if !ok {
+		return fmt.Errorf("conference call invites not supported by this platform")
+	}
+	return cd.DeclineOutgoingConferenceInvite(callID, userID, discard)
 }
 
 func (e *Engine) SendCallRating(accountID, callID string, rating int, comment string) error {

@@ -1411,6 +1411,8 @@ class _UniClientAppState extends State<UniClientApp>
                 isMuted: m['isMuted'] == true,
                 isSpeaking: m['isSpeaking'] == true,
                 hasVideo: m['hasVideo'] == true,
+                // '', 'invited' or 'calling' — drives conference invited rows.
+                participantState: m['state'] as String? ?? '',
               );
             }).toList();
             showGroupCallPanel(
@@ -1430,6 +1432,7 @@ class _UniClientAppState extends State<UniClientApp>
               isForceMuted: cmd['isForceMuted'] == true,
               isRaisedHand: cmd['isRaisedHand'] == true,
               isCanManage: cmd['isCanManage'] == true,
+              isConference: cmd['isConference'] == true,
             );
           }
 

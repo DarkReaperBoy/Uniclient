@@ -5692,6 +5692,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "DeclineOutgoingConferenceInvite":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			UserID    string `json:"user_id"`
+			Discard   bool   `json:"discard"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.DeclineOutgoingConferenceInvite(params.AccountID, params.CallID, params.UserID, params.Discard); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "ClearCallHistory":
 		var req pb.EngineClearCallHistoryRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

@@ -2580,6 +2580,12 @@ class GroupCallParticipant {
   final int lastActive;
   final int date;
   final bool onlyMinLoaded;
+  /// Conference-call row state: '' (a normal joined participant), 'invited' (the
+  /// user was invited and isn't ringing), or 'calling' (the user is being rung).
+  /// Mirrors AyuGram MembersRow Row::State::{Invited,Calling}. Invited/calling
+  /// users are not real call participants yet — they render as greyed rows with
+  /// an "invited"/"calling..." status and expose Cancel invite / Stop ringing.
+  final String participantState;
 
   const GroupCallParticipant({
     this.userId = '',
@@ -2605,7 +2611,12 @@ class GroupCallParticipant {
     this.lastActive = 0,
     this.date = 0,
     this.onlyMinLoaded = false,
+    this.participantState = '',
   });
+
+  /// True for invited/calling conference rows (not yet joined participants).
+  bool get isInvited => participantState == 'invited' || participantState == 'calling';
+  bool get isCalling => participantState == 'calling';
 
   factory GroupCallParticipant.fromJson(Map<String, dynamic> j) => GroupCallParticipant(
     userId: j['user_id'] as String? ?? '',
@@ -2631,6 +2642,7 @@ class GroupCallParticipant {
     lastActive: (j['last_active'] as num?)?.toInt() ?? 0,
     date: (j['date'] as num?)?.toInt() ?? 0,
     onlyMinLoaded: j['only_min_loaded'] as bool? ?? false,
+    participantState: j['state'] as String? ?? '',
   );
 }
 
