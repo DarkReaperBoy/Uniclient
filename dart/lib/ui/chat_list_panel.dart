@@ -204,13 +204,24 @@ class _ChatListPanelState extends State<ChatListPanel>
   final ScrollController _chatListScrollCtrl = ScrollController();
   final GlobalKey _chatListKey = GlobalKey();
   final GlobalKey<_StoriesBarState> _storiesBarKey = GlobalKey<_StoriesBarState>();
-  int? _reorderPinnedIdx; // 0-based index within pinned items
+  // Index of the grabbed row within _buildNonArchived. For pinned rows
+  // (index < _buildPinnedCount) this doubles as the pinned index, since pinned
+  // chats lead _buildNonArchived; non-pinned rows can also be grabbed for
+  // drag-to-filter (AyuGram drags ANY dialog with a real history).
+  int? _reorderPinnedIdx;
   int? _reorderPointer;
   Offset? _reorderStartPos;
   bool _reorderActive = false;
   double _reorderOffsetY = 0;
   OverlayEntry? _reorderOverlay;
+  // Reorder-overlay anchors for pinned rows only.
   final List<GlobalKey> _pinnedRowKeys = [];
+  // Hit-test anchors for EVERY non-archived row (pinned + non-pinned), keyed by
+  // position in _buildNonArchived — so any chat, not just pinned ones, can be
+  // grabbed and dragged onto a folder tab.
+  final List<GlobalKey> _rowKeys = [];
+  bool get _dragIsPinned =>
+      _reorderPinnedIdx != null && _reorderPinnedIdx! < _buildPinnedCount;
   // Cached during build for pointer handlers:
   List<ChatInfo> _buildNonArchived = [];
   int _buildPinnedCount = 0;
@@ -818,8 +829,9 @@ class _ChatListPanelState extends State<ChatListPanel>
       }
     }
 
-    // Sync pinned row keys and cache build data for drag handlers.
+    // Sync row keys and cache build data for drag handlers.
     _syncPinnedKeys(pinnedCount);
+    _syncRowKeys(nonArchived.length);
     _buildNonArchived = nonArchived;
     _buildPinnedCount = pinnedCount;
     final pinnedStartInVisible =
@@ -1001,6 +1013,11 @@ class _ChatListPanelState extends State<ChatListPanel>
                                 : -1;
                             final isPinnedReorderable =
                                 pinnedIdx >= 0 && pinnedIdx < pinnedCount;
+                            // Index into _buildNonArchived (pinned-first). Archived
+                            // rows shown above map to a negative index and are not
+                            // drag-to-filter sources.
+                            final nonArchivedIdx =
+                                chatIndex - pinnedStartInVisible;
 
                             // Spec §2.7: Resolve swipe action based on config + chat state.
                             final swipeAction = resolveSwipeAction(
@@ -1136,6 +1153,19 @@ class _ChatListPanelState extends State<ChatListPanel>
                               );
                             }
 
+                            // Anchor every non-archived row for drag hit-testing
+                            // so ANY chat (not just pinned) can be grabbed and
+                            // dragged onto a folder tab — matching AyuGram, which
+                            // drags any dialog with a real history
+                            // (dialogs_inner_widget.cpp:1766).
+                            if (nonArchivedIdx >= 0 &&
+                                nonArchivedIdx < _rowKeys.length) {
+                              row = KeyedSubtree(
+                                key: _rowKeys[nonArchivedIdx],
+                                child: row,
+                              );
+                            }
+
                             // Archived chats animate expand/collapse ~200ms (spec §2.5).
                             if (_showArchived &&
                                 showArchiveRow &&
@@ -1244,12 +1274,22 @@ class _ChatListPanelState extends State<ChatListPanel>
     }
   }
 
+  void _syncRowKeys(int count) {
+    while (_rowKeys.length < count) {
+      _rowKeys.add(GlobalKey());
+    }
+    if (_rowKeys.length > count) {
+      _rowKeys.removeRange(count, _rowKeys.length);
+    }
+  }
+
   void _onReorderPointerDown(PointerDownEvent event) {
     if (event.buttons != kPrimaryButton || _searching || _reorderActive) return;
-    if (_buildPinnedCount < 2) return;
-    for (var i = 0; i < _pinnedRowKeys.length && i < _buildPinnedCount; i++) {
-      final box =
-          _pinnedRowKeys[i].currentContext?.findRenderObject() as RenderBox?;
+    // Hit-test EVERY non-archived row (pinned + non-pinned). AyuGram begins a
+    // drag-to-filter on any dialog with a real history, not only pinned ones
+    // (dialogs_inner_widget.cpp:1766); pinned rows additionally drag-to-reorder.
+    for (var i = 0; i < _rowKeys.length && i < _buildNonArchived.length; i++) {
+      final box = _rowKeys[i].currentContext?.findRenderObject() as RenderBox?;
       if (box == null) continue;
       final local = box.globalToLocal(event.position);
       if (box.size.contains(local)) {
@@ -1279,22 +1319,37 @@ class _ChatListPanelState extends State<ChatListPanel>
 
     if (!_reorderActive) {
       final dx = rawDx.abs();
-      // Rightward horizontal > 10px and dominant → swipe gesture.
+      // Rightward horizontal > 10px and dominant → release (swipe action or tap).
       if (rawDx > 10 && dx > dy.abs()) {
         _reorderPinnedIdx = null;
         _reorderPointer = null;
         return;
       }
-      // Spec §13.4: Leftward > 30px OR vertical > 75px → drag-to-filter.
-      if (rawDx < -_kDragToFilterThresholdX ||
-          dy.abs() > _kDragToFilterThresholdY) {
-        _startDragToFilter(event.position);
+      if (_dragIsPinned) {
+        // Pinned: leftward > 30px OR long vertical > 75px (AyuGram
+        // kStartDragToFilterThresholdY) → drag-to-filter; otherwise a vertical
+        // drag (≥ 30px) reorders the pinned block (needs ≥ 2 pinned).
+        if (rawDx < -_kDragToFilterThresholdX ||
+            dy.abs() > _kDragToFilterThresholdY) {
+          _startDragToFilter(event.position);
+          return;
+        }
+        if (_buildPinnedCount >= 2 && dy.abs() >= _kReorderThreshold) {
+          _reorderActive = true;
+          _createReorderOverlay();
+          setState(() {});
+        }
         return;
       }
-      if (dy.abs() >= _kReorderThreshold) {
-        _reorderActive = true;
-        _createReorderOverlay();
-        setState(() {});
+      // Non-pinned: no reorder, and the horizontal axis belongs to the swipe
+      // action (SwipeableChatRow swipes leftward). A vertical mouse-drag past the
+      // non-pinned threshold (AyuGram kStartDragToFilterThresholdY = 30px) grabs
+      // the chat for drag-to-filter — any dialog with a real history can be
+      // dragged onto a folder tab (dialogs_inner_widget.cpp:1766). Mouse drags
+      // don't scroll the list (default ScrollBehavior excludes mouse), so this
+      // never fights vertical scrolling.
+      if (dy.abs() > _kReorderThreshold) {
+        _startDragToFilter(event.position);
       }
       return;
     }
@@ -1336,8 +1391,16 @@ class _ChatListPanelState extends State<ChatListPanel>
         chatState.reorderPinnedChats(
             appState.activeAccountId, _reorderPinnedIdx!, target);
       }
+      _cancelReorder();
+      return;
     }
-    _cancelReorder();
+    // Plain grab that never became a drag (a tap, or a vertical drag below the
+    // threshold): clear pointer state quietly — no setState, no rebuild. Every
+    // row is now grabbed on pointer-down, so this is the common path.
+    _reorderPinnedIdx = null;
+    _reorderPointer = null;
+    _reorderStartPos = null;
+    _reorderOffsetY = 0;
   }
 
   void _onReorderPointerCancel(PointerCancelEvent event) {
@@ -2768,10 +2831,52 @@ class _TopPeersStripState extends State<_TopPeersStrip> {
   bool _expanded = false;
   bool _showToggle = false;
 
+  // Cached frequent-contacts list. getTopPeers() is a blocking FFI call that can
+  // throw on FLOOD_WAIT, so it must NOT run inside build() — AyuGram constructs
+  // the strip once from a reactive rpl::producer<TopPeersList> and only repaints
+  // on stream updates (top_peers_strip.cpp:57). We fetch on mount and on account
+  // change; the online/unread badges still update live every rebuild via cheap
+  // in-memory chatState reads.
+  List<ChatInfo> _topPeers = const [];
+  bool _loadedPeers = false;
+  String? _loadedAccount;
+
   @override
   void initState() {
     super.initState();
     _checkEnabled();
+    // First fill is synchronous (before the first build) — assign fields
+    // directly, no setState (disallowed in initState).
+    _refreshTopPeers();
+  }
+
+  /// Fetches the frequent-contacts list and the fallback (recent DMs). Called
+  /// once on mount and again only when the active account changes — never per
+  /// build. Use [notify] = true for post-mount reloads so the strip rebuilds.
+  void _refreshTopPeers({bool notify = false}) {
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    List<ChatInfo> peers;
+    try {
+      peers = chatState.getTopPeers(accountId, limit: 20);
+    } catch (_) {
+      peers = const [];
+    }
+    if (peers.isEmpty) {
+      final dmChats = widget.chats
+          .where((c) => c.type == ChatType.dm && !c.isArchived)
+          .toList()
+        ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+      peers = dmChats.take(20).toList();
+    }
+    _loadedAccount = accountId;
+    _loadedPeers = true;
+    if (notify && mounted) {
+      setState(() => _topPeers = peers);
+    } else {
+      _topPeers = peers;
+    }
   }
 
   void _checkEnabled() async {
@@ -2825,25 +2930,21 @@ class _TopPeersStripState extends State<_TopPeersStrip> {
     final chatState = context.read<ChatState>();
     final appState = context.read<AppState>();
 
-    // getTopPeers() hits the engine synchronously via FFI and throws an
-    // EngineException on FLOOD_WAIT (or any engine error). Without this guard
-    // the throw escapes build() and Flutter replaces the entire left panel with
-    // its red ErrorWidget (e.g. focusing search with an empty query goes blank).
-    // Swallow it and fall through to the recent-DM fallback below — build() is a
-    // hot path, so we deliberately don't log here.
-    List<ChatInfo> topPeers;
-    try {
-      topPeers = chatState.getTopPeers(appState.activeAccountId, limit: 20);
-    } catch (_) {
-      topPeers = const [];
+    // Reload the cached frequent-contacts list only on account change — NEVER
+    // call the blocking getTopPeers() FFI inside build() (it throws on
+    // FLOOD_WAIT and any escape repaints the whole left panel as a red
+    // ErrorWidget). Deferred to a post-frame callback so the FFI stays off the
+    // synchronous build path; AyuGram likewise builds the strip once and only
+    // updates on stream events (top_peers_strip.cpp:57).
+    final accountId = appState.activeAccountId;
+    if (!_loadedPeers || _loadedAccount != accountId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && (_loadedAccount != accountId || !_loadedPeers)) {
+          _refreshTopPeers(notify: true);
+        }
+      });
     }
-    if (topPeers.isEmpty) {
-      final dmChats = widget.chats
-          .where((c) => c.type == ChatType.dm && !c.isArchived)
-          .toList()
-        ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
-      topPeers = dmChats.take(20).toList();
-    }
+    final topPeers = _topPeers;
     if (topPeers.isEmpty) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
@@ -2903,6 +3004,19 @@ class _TopPeersStripState extends State<_TopPeersStrip> {
               final color = palette.peerUserpicBg(_TopPeersStrip._colorRemap[numId.abs() % 7]);
               final initials = _initials(chat.title);
               final firstName = chat.title.split(RegExp(r'\s+')).first;
+              // Resolve the LIVE dialog state for badges. Top-peer entries from
+              // the FFI carry stale counts; the account chat list holds the live
+              // online/unread/muted state — mirroring AyuGram's TopPeersEntry
+              // {online,badge,unread,muted} sourced from the peer's History
+              // (top_peers_strip.cpp:833,854).
+              final live = widget.chats
+                      .where((c) => c.chatId == chat.chatId)
+                      .firstOrNull ??
+                  chat;
+              final isOnline = chatState.isChatOnline(live);
+              final unreadCount = live.unreadCount;
+              final hasUnread = unreadCount > 0 || live.isUnreadMark;
+              final surfaceColor = Theme.of(context).colorScheme.surface;
               return GestureDetector(
                 onTap: () => widget.onTap(chat),
                 onSecondaryTapUp: (details) =>
@@ -2922,22 +3036,63 @@ class _TopPeersStripState extends State<_TopPeersStrip> {
                       SizedBox(
                         width: _TopPeersStrip._avatarSize,
                         height: _TopPeersStrip._avatarSize,
-                        child: chat.avatarPath.isNotEmpty
-                            ? ClipOval(
-                                child: Image.file(
-                                  File(chat.avatarPath),
-                                  width: _TopPeersStrip._avatarSize,
-                                  height: _TopPeersStrip._avatarSize,
-                                  // Decode at display size (AyuGram caches userpics
-                                  // at the exact paint size — dialogs.style:761).
-                                  cacheWidth: (_TopPeersStrip._avatarSize * 2).toInt(),
-                                  cacheHeight: (_TopPeersStrip._avatarSize * 2).toInt(),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      _fallbackAvatar(color, initials),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            SizedBox(
+                              width: _TopPeersStrip._avatarSize,
+                              height: _TopPeersStrip._avatarSize,
+                              child: chat.avatarPath.isNotEmpty
+                                  ? ClipOval(
+                                      child: Image.file(
+                                        File(chat.avatarPath),
+                                        width: _TopPeersStrip._avatarSize,
+                                        height: _TopPeersStrip._avatarSize,
+                                        // Decode at display size (AyuGram caches
+                                        // userpics at the exact paint size —
+                                        // dialogs.style:761).
+                                        cacheWidth:
+                                            (_TopPeersStrip._avatarSize * 2).toInt(),
+                                        cacheHeight:
+                                            (_TopPeersStrip._avatarSize * 2).toInt(),
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            _fallbackAvatar(color, initials),
+                                      ),
+                                    )
+                                  : _fallbackAvatar(color, initials),
+                            ),
+                            // Online dot — bottom-right (AyuGram dialogsOnlineBadge,
+                            // top_peers_strip.cpp:833). Green dialogsOnlineBadgeFg
+                            // with a 2px cut-out ring in the strip background.
+                            if (isOnline)
+                              Positioned(
+                                right: -1,
+                                bottom: -1,
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: palette.dialogsOnlineBadgeFg,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: surfaceColor,
+                                      width: 2,
+                                    ),
+                                  ),
                                 ),
-                              )
-                            : _fallbackAvatar(color, initials),
+                              ),
+                            // Unread/muted counter — top-right, right-aligned at the
+                            // userpic edge (AyuGram PaintUnreadBadge(q, counter,
+                            // size, 0, st), top_peers_strip.cpp:854).
+                            if (hasUnread)
+                              Positioned(
+                                top: -2,
+                                right: -3,
+                                child: _unreadBadge(unreadCount, live.isMuted),
+                              ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 6),
                       SizedBox(
@@ -2990,6 +3145,43 @@ class _TopPeersStripState extends State<_TopPeersStrip> {
           },
         ),
       ],
+    );
+  }
+
+  /// Unread/muted counter badge painted on the frequent-contact userpic.
+  /// Matches AyuGram: muted → dialogsUnreadBgMuted, count ≥ 1000 → "{n/1000}K",
+  /// and a count-less unread mark → a small dot (the empty " " badgeString).
+  /// Style follows dialogsUnread* (font 12px bold, height 19px, padding 5px).
+  Widget _unreadBadge(int count, bool muted) {
+    final palette = context.palette;
+    final bg = muted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg;
+    if (count <= 0) {
+      return Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+      );
+    }
+    final text = count < 1000 ? '$count' : '${count ~/ 1000}K';
+    return Container(
+      height: 19,
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      constraints: const BoxConstraints(minWidth: 19),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(9.5),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: palette.dialogsUnreadFg,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          height: 1.0,
+        ),
+      ),
     );
   }
 
@@ -3053,7 +3245,11 @@ class _StoriesBarState extends State<_StoriesBar>
   static const _smallMaxThumbs = 3;
 
   static const _fullPhoto = 42.0;
-  static const _fullItemWidth = 72.0;
+  // AyuGram singleFull = full.photoLeft*2 + full.photo = 10*2 + 42 = 62px
+  // (dialogs_stories_list.cpp:148; dialogsStoriesFull photoLeft:10 photo:42).
+  // The skip-between is only added to fill width when items are sparse, never
+  // baked into the per-item width — so 62, not 72.
+  static const _fullItemWidth = 62.0;
 
   static const _unreadLineSmall = 1.5;
   static const _unreadLineFull = 2.0;
