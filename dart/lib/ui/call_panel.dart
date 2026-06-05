@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/telegram_palette.dart';
@@ -135,13 +135,15 @@ class CallPanel extends StatefulWidget {
 }
 
 class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
-  List<Color>? _dominantColors;
-  late AnimationController _rippleController;
   late AnimationController _controlsFadeController;
   Timer? _durationTimer;
   Timer? _controlsHideTimer;
   Timer? _soundPeakTimer;
-  double _soundPeakValue = 0.0;
+  // Scoped to the answer button's outer ripple only — mirrors AyuGram's
+  // _updateOuterRippleTimer (kSoundSampleMs=100ms) which repaints just the
+  // ripple, never the whole panel. Driven via a ValueNotifier so the 100ms
+  // sound-peak sampling no longer rebuilds the userpic/name/status/buttons tree.
+  final ValueNotifier<double> _soundPeak = ValueNotifier<double>(0.0);
   final ValueNotifier<int> _durationNotifier = ValueNotifier<int>(0);
   DateTime? _callStartTime;
   bool _avatarFileExists = false;
@@ -163,16 +165,11 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     super.initState();
     _isMuted = widget.info.isMuted;
     _isCameraOn = widget.info.isCameraOn;
-    _rippleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat();
     _controlsFadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 150),
       value: 1.0,
     );
-    _extractDominantColors();
     _cacheAvatarFileExists();
     _enumerateDevices();
     if (widget.info.state == CallPanelState.incoming ||
@@ -222,7 +219,6 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     }
     if (oldWidget.info.callerAvatarUrl != widget.info.callerAvatarUrl ||
         oldWidget.info.callerId != widget.info.callerId) {
-      _extractDominantColors();
       _cacheAvatarFileExists();
     }
     final isIncoming = widget.info.state == CallPanelState.incoming ||
@@ -263,9 +259,9 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _rippleController.dispose();
     _controlsFadeController.dispose();
     _durationNotifier.dispose();
+    _soundPeak.dispose();
     _durationTimer?.cancel();
     _controlsHideTimer?.cancel();
     _soundPeakTimer?.cancel();
@@ -282,9 +278,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   void _stopSoundPeakPolling() {
     _soundPeakTimer?.cancel();
     _soundPeakTimer = null;
-    if (mounted) {
-      setState(() => _soundPeakValue = 0.0);
-    }
+    _soundPeak.value = 0.0;
   }
 
   Future<void> _pollSoundPeak() async {
@@ -293,9 +287,9 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       final engine = context.read<EngineService>();
       final accountId = context.read<AppState>().activeAccountId;
       final peak = await engine.getCallSoundPeak(accountId, widget.info.callId);
-      if (mounted) {
-        setState(() => _soundPeakValue = peak);
-      }
+      // Scoped update: only the answer button's ripple repaints (via the
+      // ValueListenableBuilder in _AnswerButton), not the whole panel tree.
+      _soundPeak.value = peak;
     } catch (e) {
       Debug.log('call_panel', 'final engine = context.read<EngineService>(): $e');
     }
@@ -629,133 +623,33 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     }
   }
 
-  void _extractDominantColors() {
-    final url = widget.info.callerAvatarUrl;
-    if (url.isNotEmpty) {
-      _loadImageColors(url);
-    } else {
-      _setFallbackColors();
-    }
-  }
+  // AyuGram paints a radial gradient centered on the userpic, sourced from the
+  // peer's color profile (peerColors().colorProfileFor) — NOT from the avatar
+  // bitmap. The peer name-color index isn't plumbed to the panel, so we resolve
+  // the *default* profile the same way Telegram does for a peer without a custom
+  // color: the deterministic peerId→userpic-palette mapping (the very two-tone
+  // gradient painted behind the peer's letter-avatar). Darkened for the dark
+  // panel so the white controls stay legible: lighter centre (under the userpic)
+  // → darker edge, matching ColorProfileSet{edge, center} reversed in updateBrush.
+  static const _profileColorRemap = [0, 7, 4, 1, 6, 3, 5];
 
-  void _setFallbackColors() {
+  List<Color> _profileGradientColors(TelegramPalette palette) {
     final id = widget.info.callerId;
-    final hash = id.hashCode.abs();
-    final hue = (hash % 360).toDouble();
-    setState(() {
-      _dominantColors = [
-        HSLColor.fromAHSL(1.0, hue, 0.5, 0.25).toColor(),
-        HSLColor.fromAHSL(1.0, (hue + 40) % 360, 0.6, 0.15).toColor(),
-      ];
-    });
+    final numId = int.tryParse(id) ?? id.hashCode.abs();
+    final index = _profileColorRemap[numId.abs() % 7];
+    final center = _towardLightness(palette.peerUserpicBg(index), 0.34);
+    final edge = _towardLightness(palette.peerUserpicBg2(index), 0.20);
+    return [center, edge];
   }
 
-  Future<void> _loadImageColors(String path) async {
-    try {
-      final file = File(path);
-      if (!file.existsSync()) {
-        _setFallbackColors();
-        return;
-      }
-      final provider = FileImage(file);
-      final completer = Completer<ui.Image>();
-      final stream = provider.resolve(ImageConfiguration.empty);
-      late ImageStreamListener listener;
-      listener = ImageStreamListener(
-        (info, _) {
-          completer.complete(info.image);
-          stream.removeListener(listener);
-        },
-        onError: (error, _) {
-          if (!completer.isCompleted) completer.completeError(error);
-          stream.removeListener(listener);
-        },
-      );
-      stream.addListener(listener);
-
-      final image = await completer.future;
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (byteData == null || !mounted) {
-        _setFallbackColors();
-        return;
-      }
-
-      final pixels = Uint8List.fromList(byteData.buffer.asUint8List());
-      final result = await Isolate.run(() => _samplePixelColors(pixels));
-      if (!mounted) return;
-
-      if (result == null) {
-        _setFallbackColors();
-        return;
-      }
-
-      setState(() {
-        _dominantColors = [
-          _darkenColor(result.$1, 0.6),
-          _darkenColor(result.$2, 0.7),
-        ];
-      });
-    } catch (_) {
-      _setFallbackColors();
-    }
-  }
-
-  static (Color, Color)? _samplePixelColors(Uint8List pixels) {
-    int totalR = 0, totalG = 0, totalB = 0;
-    int darkR = 0, darkG = 0, darkB = 0;
-    int darkCount = 0;
-    final pixelCount = pixels.length ~/ 4;
-    final step = math.max(1, pixelCount ~/ 200);
-
-    for (int i = 0; i < pixels.length; i += step * 4) {
-      final r = pixels[i];
-      final g = pixels[i + 1];
-      final b = pixels[i + 2];
-      totalR += r;
-      totalG += g;
-      totalB += b;
-      final luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-      if (luminance < 128) {
-        darkR += r;
-        darkG += g;
-        darkB += b;
-        darkCount++;
-      }
-    }
-
-    final samples = pixelCount ~/ step;
-    if (samples == 0) return null;
-
-    final avgColor = Color.fromARGB(
-      255,
-      (totalR ~/ samples).clamp(0, 255),
-      (totalG ~/ samples).clamp(0, 255),
-      (totalB ~/ samples).clamp(0, 255),
-    );
-
-    Color darkColor;
-    if (darkCount > 0) {
-      darkColor = Color.fromARGB(
-        255,
-        (darkR ~/ darkCount).clamp(0, 255),
-        (darkG ~/ darkCount).clamp(0, 255),
-        (darkB ~/ darkCount).clamp(0, 255),
-      );
-    } else {
-      final hsl = HSLColor.fromColor(avgColor);
-      darkColor = hsl.withLightness((hsl.lightness * 0.4).clamp(0.0, 1.0)).toColor();
-    }
-
-    return (avgColor, darkColor);
-  }
-
-  static Color _darkenColor(Color c, double factor) {
-    return Color.fromARGB(
-      c.alpha,
-      (c.red * factor).round().clamp(0, 255),
-      (c.green * factor).round().clamp(0, 255),
-      (c.blue * factor).round().clamp(0, 255),
-    );
+  // Pull a peer color toward a target HSL lightness while keeping its hue, so the
+  // gradient reads as the peer's color but stays dark enough for the call panel.
+  static Color _towardLightness(Color c, double lightness) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl
+        .withLightness(lightness.clamp(0.0, 1.0))
+        .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+        .toColor();
   }
 
   Widget _buildUserpic(double size) {
@@ -903,8 +797,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
             ),
             const SizedBox(width: 80),
             _AnswerButton(
-              rippleController: _rippleController,
-              soundPeakValue: _soundPeakValue,
+              soundPeak: _soundPeak,
               onTap: widget.onAccept,
               isVideo: widget.info.isVideo,
             ),
@@ -919,54 +812,52 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     return LayoutBuilder(
       builder: (context, constraints) {
         final hasPreview = widget.info.isVideo && widget.selfVideoWidget != null;
-        return Stack(
+        // AyuGram keeps the callee userpic + name + status and places the
+        // outgoing self-preview as a small in-body block BELOW them
+        // (calls_panel.cpp:1226,1264-1271) — it is NOT a fullscreen self-camera.
+        // With a preview present it switches to the callBodyWithPreview layout
+        // whose photoSize is 100px (calls.style:57-67).
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (hasPreview)
-              Positioned.fill(
-                child: _OutgoingPreview(
-                  videoWidget: widget.selfVideoWidget!,
-                  containerHeight: constraints.maxHeight,
-                ),
+            const Spacer(flex: 3),
+            _buildUserpic(hasPreview ? 100 : 160),
+            const SizedBox(height: 20),
+            Text(
+              widget.info.callerName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 21,
+                fontWeight: FontWeight.w600,
               ),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Spacer(flex: 3),
-                if (!hasPreview) _buildUserpic(160),
-                if (!hasPreview) const SizedBox(height: 20),
-                Text(
-                  widget.info.callerName,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w600,
-                    shadows: hasPreview
-                        ? const [Shadow(blurRadius: 8, color: Color(0x80000000))]
-                        : null,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  callPanelStateLabel(widget.info.state, isVideo: widget.info.isVideo),
-                  style: TextStyle(
-                    color: const Color(0xAAFFFFFF),
-                    fontSize: 15,
-                    shadows: hasPreview
-                        ? const [Shadow(blurRadius: 8, color: Color(0x80000000))]
-                        : null,
-                  ),
-                ),
-                const Spacer(flex: 4),
-                _CallActionButton(
-                  icon: Icons.call_end,
-                  label: 'End Call',
-                  backgroundColor: const Color(0xFFE53935),
-                  onTap: widget.onHangup,
-                ),
-                const SizedBox(height: 48),
-              ],
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+            const SizedBox(height: 8),
+            Text(
+              callPanelStateLabel(widget.info.state, isVideo: widget.info.isVideo),
+              style: const TextStyle(
+                color: Color(0xAAFFFFFF),
+                fontSize: 15,
+              ),
+            ),
+            if (hasPreview) ...[
+              const SizedBox(height: 24),
+              _OutgoingPreview(
+                videoWidget: widget.selfVideoWidget!,
+                containerHeight: constraints.maxHeight,
+                innerWidth: constraints.maxWidth - 2 * 12, // 2 * callInnerPadding
+              ),
+            ],
+            const Spacer(flex: 4),
+            _CallActionButton(
+              icon: Icons.call_end,
+              label: 'End Call',
+              backgroundColor: const Color(0xFFE53935),
+              onTap: widget.onHangup,
+            ),
+            const SizedBox(height: 48),
           ],
         );
       },
@@ -1077,25 +968,67 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     final hasFingerprint = widget.info.fingerprintEmoji.length == 4;
     final hasSignal = widget.info.signalQuality >= 0;
     if (!hasFingerprint && !hasSignal) return const SizedBox.shrink();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (hasFingerprint)
-          _EncryptionFingerprint(
-            emoji: widget.info.fingerprintEmoji,
-            callerName: widget.info.callerName,
-          ),
-        if (hasFingerprint && hasSignal) const SizedBox(width: 6),
-        if (hasSignal)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(999),
+
+    // AyuGram CreateFingerprintAndSignalBars (calls_emoji_fingerprint.cpp:
+    // 224-309): ONE continuous badge — emoji on the left with a big-radius
+    // (height/2) left edge, signal bars on the right with a big-radius right
+    // edge, joined by small-radius (roundRadiusSmall = 3px) inner edges and a
+    // 2px skip (callFingerprintSignalBarsSkip). Both halves share callBgButton —
+    // NOT two separate pills with a 6px gap.
+    const badgeBg = Color(0x26FFFFFF); // st::callBgButton (~white @ 0.15 on the dark panel)
+    const big = Radius.circular(100);  // height/2 pill cap
+    const small = Radius.circular(3);  // st::roundRadiusSmall
+
+    return IntrinsicHeight(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (hasFingerprint)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: BorderRadius.only(
+                  topLeft: big,
+                  bottomLeft: big,
+                  topRight: hasSignal ? small : big,
+                  bottomRight: hasSignal ? small : big,
+                ),
+              ),
+              child: Padding(
+                // callFingerprintPadding: margins(10px, 4px, 8px, 5px).
+                padding: const EdgeInsets.fromLTRB(10, 4, 8, 5),
+                child: Center(
+                  child: _EncryptionFingerprint(
+                    emoji: widget.info.fingerprintEmoji,
+                    callerName: widget.info.callerName,
+                  ),
+                ),
+              ),
             ),
-            child: _SignalBars(quality: widget.info.signalQuality),
-          ),
-      ],
+          if (hasFingerprint && hasSignal)
+            const SizedBox(width: 2), // callFingerprintSignalBarsSkip
+          if (hasSignal)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: BorderRadius.only(
+                  topLeft: hasFingerprint ? small : big,
+                  bottomLeft: hasFingerprint ? small : big,
+                  topRight: big,
+                  bottomRight: big,
+                ),
+              ),
+              child: Padding(
+                // callSignalBarsPadding: margins(8px, 9px, 11px, 5px).
+                padding: const EdgeInsets.fromLTRB(8, 9, 11, 5),
+                child: Center(
+                  child: _SignalBars(quality: widget.info.signalQuality),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1412,7 +1345,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _dominantColors ?? [const Color(0xFF1a1a2e), const Color(0xFF0f0f1a)];
+    final colors = _profileGradientColors(context.palette);
 
     Widget content;
     switch (widget.info.state) {
@@ -1442,10 +1375,15 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         minHeight: CallPanel.minHeight,
       ),
       child: DecoratedBox(
+        // AyuGram QRadialGradient centered on the userpic (calls_panel_background
+        // .cpp:142-147), not a top→bottom linear fill. The userpic sits in the
+        // upper-centre of the body across the non-video states, so anchor the
+        // radial there with a radius that reaches the far corner. colors =
+        // [centre(lighter), edge(darker)].
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+          gradient: RadialGradient(
+            center: const Alignment(0.0, -0.3),
+            radius: 1.3,
             colors: colors,
           ),
         ),
@@ -1509,49 +1447,50 @@ class _CallActionButton extends StatelessWidget {
 }
 
 class _AnswerButton extends StatelessWidget {
-  final AnimationController rippleController;
-  final double soundPeakValue;
+  final ValueListenable<double> soundPeak;
   final VoidCallback? onTap;
   final bool isVideo;
 
   const _AnswerButton({
-    required this.rippleController,
-    this.soundPeakValue = 0.0,
+    required this.soundPeak,
     this.onTap,
     this.isVideo = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final core = Container(
+      width: 44,
+      height: 44,
+      decoration: const BoxDecoration(
+        color: Color(0xFF4CAF50),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        isVideo ? Icons.videocam : Icons.call,
+        color: Colors.white,
+        size: 24,
+      ),
+    );
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         GestureDetector(
           onTap: onTap,
-          child: AnimatedBuilder(
-            animation: rippleController,
-            builder: (context, child) {
+          // Only the outer ripple repaints on each 100ms sound-peak sample —
+          // the green core + icon are a const child reused across rebuilds.
+          child: ValueListenableBuilder<double>(
+            valueListenable: soundPeak,
+            child: core,
+            builder: (context, peak, child) {
               return CustomPaint(
                 painter: _RippleRingPainter(
-                  outerValue: soundPeakValue,
+                  outerValue: peak,
                   color: const Color(0xFF4CAF50),
                 ),
                 child: child,
               );
             },
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4CAF50),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isVideo ? Icons.videocam : Icons.call,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -1948,6 +1887,38 @@ class _InviteContactRow extends StatelessWidget {
     required this.onTap,
   });
 
+  static final _avatarCache = <String, Uint8List>{};
+
+  // AyuGram's invite rows are PeerListRows that paint the real userpic
+  // (calls_group_invite_controller.cpp:83,201). ContactInfo already carries the
+  // engine-decoded avatar as base64 — the same field the create-group picker
+  // decodes (create_group_wizard.dart:1716) — so render it instead of an
+  // initials-only CircleAvatar.
+  Widget _buildAvatar() {
+    if (contact.avatarB64.isNotEmpty) {
+      try {
+        final bytes = _avatarCache.putIfAbsent(
+            contact.avatarB64, () => base64Decode(contact.avatarB64));
+        return CircleAvatar(radius: 20, backgroundImage: MemoryImage(bytes));
+      } catch (_) {
+        // fall through to initials
+      }
+    }
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: accentColor.withValues(alpha: 0.2),
+      child: Text(
+        contact.displayName.isNotEmpty
+            ? contact.displayName[0].toUpperCase()
+            : '?',
+        style: TextStyle(
+          color: accentColor,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -1956,19 +1927,7 @@ class _InviteContactRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: accentColor.withValues(alpha: 0.2),
-              child: Text(
-                contact.displayName.isNotEmpty
-                    ? contact.displayName[0].toUpperCase()
-                    : '?',
-                style: TextStyle(
-                  color: accentColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+            _buildAvatar(),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -2209,27 +2168,23 @@ class _EncryptionFingerprintState extends State<_EncryptionFingerprint>
         animation: _controller,
         builder: (context, _) {
           final elapsedMs = _controller.value * _kTotalMs;
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(_kEmojiCount, (i) {
-                return Padding(
-                  padding: EdgeInsets.only(left: i > 0 ? 4 : 0),
-                  child: Text(
-                    _emojiAt(i, elapsedMs),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      decoration: TextDecoration.none,
-                    ),
+          // No background here — the badge in _buildFingerprintBadge paints the
+          // shared callBgButton shape. This renders just the emoji row, spaced
+          // by callFingerprintSkip (4px).
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(_kEmojiCount, (i) {
+              return Padding(
+                padding: EdgeInsets.only(left: i > 0 ? 4 : 0),
+                child: Text(
+                  _emojiAt(i, elapsedMs),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    decoration: TextDecoration.none,
                   ),
-                );
-              }),
-            ),
+                ),
+              );
+            }),
           );
         },
       ),
@@ -2477,45 +2432,174 @@ class _SelfViewBubbleState extends State<_SelfViewBubble>
 class _OutgoingPreview extends StatelessWidget {
   final Widget videoWidget;
   final double containerHeight;
+  final double innerWidth;
 
   const _OutgoingPreview({
     required this.videoWidget,
     required this.containerHeight,
+    required this.innerWidth,
   });
 
-  static const _minSize = Size(360, 120);
-  static const _maxSize = Size(1620, 540);
-  static const _hMin = 400.0;
-  static const _hDefault = CallPanel.defaultHeight;
+  // AyuGram calls.style:70-72.
+  static const _previewMin = Size(360, 120);      // callOutgoingPreviewMin
+  static const _previewDefault = Size(540, 180);  // callOutgoingPreview (at height == callHeight)
+  static const _previewMax = Size(1620, 540);     // callOutgoingPreviewMax (clamp ceiling only)
 
   @override
   Widget build(BuildContext context) {
-    final t = ((containerHeight - _hMin) / (_hDefault - _hMin)).clamp(0.0, 1.0);
-    final w = _minSize.width + (_maxSize.width - _minSize.width) * t;
-    final h = _minSize.height + (_maxSize.height - _minSize.height) * t;
+    // AyuGram calls_panel.cpp:1198-1209: interpolate Min→Default by
+    // (innerHeight - callHeightMin) / (callHeight - callHeightMin), anchored at
+    // callHeightMin (520) — NOT ramping toward the Max size — then clamp width
+    // to min(innerWidth, Max.w) and height to Max.h. At the panel's clamped
+    // 520–540px height this yields ≈360×120 → 540×180, a small in-body block,
+    // not the ≈1440–1620px fullscreen self-camera the old anchor produced.
+    const heightMin = CallPanel.minHeight;          // callHeightMin = 520
+    const heightDefault = CallPanel.defaultHeight;  // callHeight = 540
+    final innerHeight = math.max(containerHeight, heightMin);
+    final ratio = (innerHeight - heightMin) / (heightDefault - heightMin);
+    final maxW = _previewMin.width +
+        (_previewDefault.width - _previewMin.width) * ratio;
+    final maxH = _previewMin.height +
+        (_previewDefault.height - _previewMin.height) * ratio;
+    final w = math.min(maxW, math.min(innerWidth, _previewMax.width));
+    final h = math.min(maxH, _previewMax.height);
 
-    return Center(
-      child: Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.identity()..scale(-1.0, 1.0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-            width: w,
-            height: h,
-            child: FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: w,
-                height: h,
-                child: videoWidget,
-              ),
+    return Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.identity()..scale(-1.0, 1.0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: w,
+          height: h,
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: w,
+              height: h,
+              child: videoWidget,
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Maps an engine call-state string to a [CallPanelState]. Mirrors the parser
+/// used for incoming calls (main.dart) so outgoing calls report the same
+/// requesting → ringing → exchanging-keys → active → ended progression.
+CallPanelState parseCallPanelState(String state) => switch (state) {
+  'connecting' => CallPanelState.connecting,
+  'exchangingKeys' || 'exchanging_keys' => CallPanelState.exchangingKeys,
+  'waiting' => CallPanelState.waiting,
+  'requesting' => CallPanelState.requesting,
+  'ringing' => CallPanelState.ringing,
+  'hangingUp' || 'hanging_up' => CallPanelState.hangingUp,
+  'active' => CallPanelState.active,
+  'ended' => CallPanelState.ended,
+  'failed' => CallPanelState.failed,
+  'busy' => CallPanelState.busy,
+  'waitingUserConfirmation' || 'waiting_user_confirmation' =>
+    CallPanelState.waitingUserConfirmation,
+  _ => CallPanelState.incoming,
+};
+
+/// Places a real outgoing 1:1 call and shows the live call panel bound to it.
+///
+/// Mirrors AyuGram `Instance::startOutgoingCall` (calls_instance.cpp:199): it
+/// creates a real Call via the engine (`engine.startCall`) and binds the panel
+/// to its live state stream (`engine.onCallState`), so the hangup control
+/// operates on the real call and the panel advances through requesting →
+/// ringing → exchanging-keys → active instead of being frozen on "connecting…"
+/// forever. This is the single entry point the DM call buttons use.
+void startOutgoingCall(
+  BuildContext context, {
+  required String chatId,
+  required String chatTitle,
+  required String avatarPath,
+  required bool isVideo,
+}) {
+  final engine = context.read<EngineService>();
+  final accountId = context.read<AppState>().activeAccountId;
+
+  final infoController = StreamController<CallPanelInfo>.broadcast();
+  var liveCallId = '';
+  var conferenceSupported = false;
+  StreamSubscription<CallStateEvent>? sub;
+
+  void teardown() {
+    sub?.cancel();
+    sub = null;
+    if (!infoController.isClosed) infoController.close();
+  }
+
+  CallPanelInfo build(CallPanelState state, {String callId = ''}) => CallPanelInfo(
+        callerId: chatId,
+        callerName: chatTitle,
+        callerAvatarUrl: avatarPath,
+        isVideo: isVideo,
+        state: state,
+        callId: callId,
+        conferenceSupported: conferenceSupported,
+      );
+
+  sub = engine.onCallState.listen((event) {
+    final call = event.call;
+    // Bind to the call that belongs to this chat. Its id isn't known until the
+    // engine returns it (StartCall) or emits the first state event, so match by
+    // chat id first, then stick to the resolved call id.
+    final matches = (liveCallId.isNotEmpty && call.id == liveCallId) ||
+        (liveCallId.isEmpty && call.chatId == chatId);
+    if (!matches) return;
+    if (call.id.isNotEmpty) liveCallId = call.id;
+
+    final meta = call.meta;
+    if (meta['conference_supported'] == 'true') conferenceSupported = true;
+    final newState = parseCallPanelState(call.state);
+    infoController.add(CallPanelInfo(
+      callerId: chatId,
+      callerName: chatTitle,
+      callerAvatarUrl: avatarPath,
+      isVideo: isVideo || call.isVideo,
+      state: newState,
+      callId: call.id,
+      conferenceSupported: conferenceSupported,
+      isRemoteMuted: meta['remote_muted'] == 'true',
+      isRemoteLowBattery: meta['remote_low_battery'] == 'true',
+    ));
+    if (newState == CallPanelState.ended ||
+        newState == CallPanelState.failed ||
+        newState == CallPanelState.busy) {
+      teardown();
+    }
+  });
+
+  // Show the panel immediately, bound to the live stream (AyuGram opens the
+  // panel as soon as the Call is created). _LiveCallPanelDialog derives its
+  // effective call id from the streamed CallPanelInfo, so the controls become
+  // functional the moment the engine reports the call id.
+  showCallPanel(
+    context,
+    build(CallPanelState.requesting),
+    infoStream: infoController.stream,
+  );
+
+  // Actually place the call (AyuGram: createCall(user, Type::Outgoing, args)).
+  engine.startCall(accountId, chatId, video: isVideo).then((callId) {
+    if (callId != null && callId.isNotEmpty) {
+      liveCallId = callId;
+      // Seed the panel with the resolved id immediately so the hangup control
+      // works even before the first onCallState event arrives.
+      if (!infoController.isClosed) {
+        infoController.add(build(CallPanelState.requesting, callId: callId));
+      }
+    } else if (!infoController.isClosed) {
+      // Initiation failed outright — surface a "failed" panel and tear down.
+      infoController.add(build(CallPanelState.failed));
+      teardown();
+    }
+  });
 }
 
 void showCallPanel(
@@ -2566,6 +2650,15 @@ class _LiveCallPanelDialogState extends State<_LiveCallPanelDialog> {
   late CallPanelInfo _currentInfo;
   StreamSubscription<CallPanelInfo>? _sub;
 
+  // The call's id may not be known when the panel opens for an OUTGOING call:
+  // StartCall returns it asynchronously and the engine streams it via
+  // onCallState. Prefer the explicit id, then fall back to the live id carried
+  // by the latest CallPanelInfo, so the accept/decline/hangup controls operate
+  // on the real call instead of being permanent no-ops.
+  String get _liveCallId => widget.effectiveCallId.isNotEmpty
+      ? widget.effectiveCallId
+      : _currentInfo.callId;
+
   @override
   void initState() {
     super.initState();
@@ -2583,8 +2676,8 @@ class _LiveCallPanelDialogState extends State<_LiveCallPanelDialog> {
 
   void _closeAndRate() {
     Navigator.of(context).pop();
-    if (widget.effectiveCallId.isNotEmpty && _currentInfo.needRating) {
-      showCallRatingDialog(context, callId: widget.effectiveCallId);
+    if (_liveCallId.isNotEmpty && _currentInfo.needRating) {
+      showCallRatingDialog(context, callId: _liveCallId);
     }
   }
 
@@ -2603,25 +2696,28 @@ class _LiveCallPanelDialogState extends State<_LiveCallPanelDialog> {
             info: _currentInfo,
             onClose: _closeAndRate,
             onDecline: () {
-              if (widget.effectiveCallId.isNotEmpty) {
+              final callId = _liveCallId;
+              if (callId.isNotEmpty) {
                 final engine = context.read<EngineService>();
                 final accountId = context.read<AppState>().activeAccountId;
-                engine.declineCall(accountId, widget.effectiveCallId);
+                engine.declineCall(accountId, callId);
               }
               Navigator.of(context).pop();
             },
             onAccept: () {
-              if (widget.effectiveCallId.isNotEmpty) {
+              final callId = _liveCallId;
+              if (callId.isNotEmpty) {
                 final engine = context.read<EngineService>();
                 final accountId = context.read<AppState>().activeAccountId;
-                engine.acceptCall(accountId, widget.effectiveCallId);
+                engine.acceptCall(accountId, callId);
               }
             },
             onHangup: () {
-              if (widget.effectiveCallId.isNotEmpty) {
+              final callId = _liveCallId;
+              if (callId.isNotEmpty) {
                 final engine = context.read<EngineService>();
                 final accountId = context.read<AppState>().activeAccountId;
-                engine.endCall(accountId, widget.effectiveCallId);
+                engine.endCall(accountId, callId);
               }
               _closeAndRate();
             },

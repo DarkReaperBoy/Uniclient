@@ -6875,13 +6875,12 @@ class _ChatTopBar extends StatelessWidget {
       final isVideo = value == 'video_call';
       final permOk = await requestCallPermissions(context, video: isVideo);
       if (!permOk || !context.mounted) return;
-      showCallPanel(context, CallPanelInfo(
-        callerId: chat.chatId,
-        callerName: chat.title,
-        callerAvatarUrl: chat.avatarPath,
+      startOutgoingCall(context,
+        chatId: chat.chatId,
+        chatTitle: chat.title,
+        avatarPath: chat.avatarPath,
         isVideo: isVideo,
-        state: CallPanelState.connecting,
-      ));
+      );
     });
   }
 
@@ -6899,13 +6898,12 @@ class _ChatTopBar extends StatelessWidget {
       final isVideo = value == 'video_call';
       final permOk = await requestCallPermissions(context, video: isVideo);
       if (!permOk || !context.mounted) return;
-      showCallPanel(context, CallPanelInfo(
-        callerId: chat.chatId,
-        callerName: chat.title,
-        callerAvatarUrl: chat.avatarPath,
+      startOutgoingCall(context,
+        chatId: chat.chatId,
+        chatTitle: chat.title,
+        avatarPath: chat.avatarPath,
         isVideo: isVideo,
-        state: CallPanelState.connecting,
-      ));
+      );
     });
   }
 
@@ -7306,13 +7304,12 @@ class _ChatTopBar extends StatelessWidget {
                   onPressed: () async {
                     final permOk = await requestCallPermissions(context);
                     if (!permOk || !context.mounted) return;
-                    showCallPanel(context, CallPanelInfo(
-                      callerId: chat.chatId,
-                      callerName: chat.title,
-                      callerAvatarUrl: chat.avatarPath,
+                    startOutgoingCall(context,
+                      chatId: chat.chatId,
+                      chatTitle: chat.title,
+                      avatarPath: chat.avatarPath,
                       isVideo: false,
-                      state: CallPanelState.connecting,
-                    ));
+                    );
                   },
                 ),
               ),
