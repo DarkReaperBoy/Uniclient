@@ -423,9 +423,19 @@ improveLinkPreviews/showMessageSeconds/confirmations/translationProvider→chat_
 showPeerId→info_panel, spoof/increaseWebview→web_app_panel, disableNotifyDelay→main.dart,
 filterZalgo→safe_string global). No stubs, no empty callbacks, no mock data.
 
-One real behavioral deviation found:
+One real behavioral deviation was found and fixed (commit 26a115b7), then verified:
 
-- [ ] [MAJOR] Native translation provider option shown unconditionally instead of gating on availability. The choose-button adds the native entry whenever the platform is desktop (`if (nativeProviderName != null) 3: nativeProviderName` — non-null on macOS/Windows/Linux), so on Linux without `crow`/`org.kde.CrowTranslate` installed the "Linux" provider still appears in the dialog. AyuGram only pushes the Native option when `Platform::IsTranslateProviderAvailable()` is true (Linux: `!Command().isEmpty()`, i.e. one of `crow`/`org.kde.CrowTranslate` is on PATH). AppState already exposes the correct check (`nativeTranslateAvailable`, app_state.dart:2063 — same two executables) and even uses it to clamp the *setter* (app_state.dart:2099), but the UI list ignores it. Net effect: a "Linux" option AyuGram would hide is offered, and selecting it silently reverts to Telegram via the setter gate. Fix: also require `appState.nativeTranslateAvailable` in the `if`. — `ayu_general_page.dart:41` (gate at `ayu_general_page.dart:27-33`) ← `AyuGram/Telegram/SourceFiles/ayu/ui/settings/settings_general.cpp:46-60` (and `AyuGram/Telegram/SourceFiles/platform/linux/translate_provider_linux.cpp:86-88`)
+The Native translation provider option is now gated on availability instead of being shown
+unconditionally on any desktop platform. The choose-button's `items` map adds the native entry
+only when `nativeProviderName != null && appState.nativeTranslateAvailable`
+(`ayu_general_page.dart:48-49`), mirroring AyuGram's `Platform::IsTranslateProviderAvailable()`
+gate (`settings_general.cpp:46-60`; Linux: `!Command().isEmpty()` = `crow`/`org.kde.CrowTranslate`
+on PATH, `translate_provider_linux.cpp:86-88`). Verified end-to-end: on this Linux host with
+neither `crow` nor `org.kde.CrowTranslate` on PATH, the Translation Provider dialog shows only
+Telegram/Google/Yandex — no "Linux" entry — in both desktop (1024×768) and mobile (400×720)
+modes. Positive control: dropping a fake `crow` executable on PATH and relaunching makes the
+"Linux" option appear, confirming the gate is bidirectional and reads the same two executables
+as the setter clamp (`app_state.dart:2051,2083-2092`). No crashes.
 
 # ayu_section_builder — AyuGram settings section builder (toggles, sliders, choose buttons, collapsible toggles, dividers)
 
