@@ -2135,12 +2135,31 @@ class _BigMuteButtonState extends State<_BigMuteButton>
             ),
           ),
           const SizedBox(height: 6),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: Text(
-              _label,
-              key: ValueKey(widget.state),
-              style: const TextStyle(color: Color(0xAAFFFFFF), fontSize: 11),
+          // AyuGram draws the caption as a SINGLE centre-aligned, elided line
+          // (call_mute_button.cpp AnimatedLabel::paint → _text.drawElided(p, 0,
+          // y, width(), 1, style::al_center)). Its width is the button content
+          // width plus labelAdditional — setMaxWidth(w=_content->width()=68)
+          // resizes the label to w + additionalHeight (st::callMuteButton
+          // labelAdditional = 5px) → 73px — and it is absolutely positioned,
+          // centred on the 68px button (updateLabelGeometry), so a long caption
+          // never widens the button's slot or shifts its neighbours.
+          // Our control bar is a flex Row, so the caption MUST be width-pinned
+          // the same way: an UNCONSTRAINED Text let the 18-char "You asked to
+          // speak" raised-hand caption (:2055) balloon this Column past 68px and
+          // overflow the narrow 380px spaceEvenly Row by 9.8px, clipping the red
+          // leave button. Pin to 73px + ellipsis to reproduce AyuGram 1:1.
+          SizedBox(
+            width: hitWidth + 5, // _content width (68) + labelAdditional (5)
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Text(
+                _label,
+                key: ValueKey(widget.state),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Color(0xAAFFFFFF), fontSize: 11),
+              ),
             ),
           ),
         ],
