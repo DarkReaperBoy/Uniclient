@@ -330,16 +330,13 @@ and the components it builds (`icon_picker.cpp`, `avatar_corners_preview.cpp`,
 `font_selector.cpp`). Section structure, ordering, the app-icon picker, the avatar-corners
 slider/preview, the mono-font selector, and the tray/drawer toggle lists all match and are
 wired to real `AppState` setters that are consumed by real rendering code. The restart-prompt
-dialogs match `ShowRestartPrompt`. Three toggles, however, are non-functional: they flip and
-persist but no code anywhere consumes them, while AyuGram's equivalents drive real behavior.
-
-## Non-functional toggles (set & persisted, but zero consumers)
-
-- [ ] [CRITICAL] "Disable custom backgrounds" toggle does nothing — `appState.disableCustomBackgrounds` is written/persisted but never read by any rendering code (only refs in `app_state.dart` + this file; confirmed across `dart/ go/ linux/ windows/ macos/` — all other hits are build artifacts). In AyuGram this setting strips a chat's custom wallpaper so the global wallpaper shows (`disableCustomBackgrounds && resolved.paper && resolved.paper->media → resolved.paper = nullopt`). The Dart per-chat wallpaper path (`chat_view.dart:6075-6076` `_buildChatThemeWrapper`, which wraps the chat in `WallpaperProvider` from the per-chat theme) applies the custom background unconditionally and never checks this flag. — `ayu_appearance_page.dart:72-77` ← `AyuGram/window/section_widget.cpp:544-550`
-
-- [ ] [CRITICAL] "Single corner radius" toggle does nothing — `appState.singleCornerRadius` is written/persisted but never read by any rendering code (only refs in `app_state.dart` + this file). In AyuGram this controls `AyuUserpic::ShouldOverrideShape` so forum/rounded/monoforum avatars adopt the avatar-corners shape instead of their default rounded-rect (`ayu_userpic.cpp:28`, `empty_userpic.cpp:360,386`, `dialogs_row.cpp:474`). The Dart avatar renderer (`chat_list_row.dart:1108-1109`) applies `avatarCorners` to every avatar unconditionally with no forum distinction and no reference to this flag, so the user's choice has no effect. The UI even shows the description "Forums will have the same avatar shape as chats." for a control that is inert. — `ayu_appearance_page.dart:377-383` ← `AyuGram/ayu/ui/ayu_userpic.cpp:28`
-
-- [ ] [CRITICAL] "Hide notification badge" toggle does nothing — `appState.hideNotificationBadge` (shown on Windows/macOS only, matching AyuGram's `#if Q_OS_WIN || Q_OS_MAC`) is written/persisted but never read. In AyuGram it suppresses the tray-icon badge (`tray_win.cpp:146 if (settings.hideNotificationBadge())`) and forces the taskbar/dock unread counter to 0 (`main_window_win.cpp:641-642`, `tray_mac.mm:209-210`). The Dart badge path (`main.dart:543-544`/`549-550` → `system_tray.dart:267 updateBadge` → native `setUnreadBadge`) renders the unread badge with no reference to this flag, so on Win/Mac the badge always shows regardless of the toggle. — `ayu_appearance_page.dart:36-40` ← `AyuGram/platform/win/main_window_win.cpp:641`
+dialogs match `ShowRestartPrompt`. Three toggles were previously non-functional (flipped &
+persisted but unconsumed); all three are now wired to their rendering consumers and verified
+1:1 against AyuGram — `disableCustomBackgrounds` gates the per-chat `WallpaperProvider`
+(`chat_view.dart:6082` ↔ `section_widget.cpp:544-550`), `singleCornerRadius` drives the forum
+avatar shape (`chat_list_row.dart:1114` ↔ `dialogs_row.cpp:472-478`, forum-default 0.3·size vs
+`ComputeRadiusF` corners/23·size/2), and `hideNotificationBadge` forces the OS tray/taskbar
+unread count + muted to 0 (`main.dart:819` ↔ `main_window_win.cpp:638-642`/`tray_win.cpp:145`).
 
 ## Verified correct (no action needed)
 
