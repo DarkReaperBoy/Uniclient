@@ -1106,7 +1106,15 @@ class _ChatAvatar extends StatelessWidget {
 
     // §25.15.4: dynamic avatar corner radius from AyuGram prefs.
     final avatarCorner = context.select((AppState s) => s.avatarCorners);
-    final avatarRadius = photoSize / 2 * (avatarCorner / 23.0);
+    // AyuGram singleCornerRadius (ayu_userpic.cpp:28 ShouldOverrideShape,
+    // dialogs_row.cpp:472-478): forum avatars keep their default rounded-rect
+    // (radius = photoSize * ForumUserpicRadiusMultiplier 0.3, userpic_view.cpp:20-21)
+    // unless "Single corner radius" is on, in which case they adopt the same
+    // avatar-corners shape as regular chats (ComputeRadiusF = photoSize/2 · corners/23).
+    final singleCorner = context.select((AppState s) => s.singleCornerRadius);
+    final avatarRadius = (chat.isForum && !singleCorner)
+        ? photoSize * 0.3
+        : photoSize / 2 * (avatarCorner / 23.0);
 
     final Widget avatar;
     if (_isSavedMessages) {

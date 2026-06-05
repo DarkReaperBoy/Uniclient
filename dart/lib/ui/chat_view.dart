@@ -6072,7 +6072,16 @@ class _ChatViewState extends State<ChatView>
       child: child,
     );
 
-    if (wp != null) {
+    // AyuGram disableCustomBackgrounds (section_widget.cpp:544-550): when set, a
+    // chat's custom background paper is stripped (resolved.paper = nullopt) so the
+    // global wallpaper shows — "Force global wallpaper on all chats". Here the
+    // per-chat theme's wallpaper is that custom background; skipping the
+    // WallpaperProvider lets _ChatBackground resolve to the root (global)
+    // WallpaperProvider (main.dart:2470). The chat theme's bubble colors
+    // (ChatThemeOverride) still apply, mirroring AyuGram leaving resolved.theme intact.
+    final disableCustomBg =
+        context.select((AppState s) => s.disableCustomBackgrounds);
+    if (wp != null && !disableCustomBg) {
       result = WallpaperProvider(wallpaper: wp, child: result);
     }
 
