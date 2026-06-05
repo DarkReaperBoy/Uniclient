@@ -356,61 +356,75 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
           behavior: HitTestBehavior.opaque,
           onTap: widget.onCancel,
           child: Center(
-            child: Container(
-              width: innerW + _panelPadding * 2,
-              decoration: BoxDecoration(
-                color: boxBg,
-                borderRadius: BorderRadius.circular(_panelRadius),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(_panelPadding),
-              child: Wrap(
-                children: List.generate(visible.clamp(0, _list.length), (i) {
-                  final chat = _list[i];
-                  final selected = i == effectiveSelected;
-
-                  Uint8List? decodedParentAvatar;
-                  if (chat.type == ChatType.topic && chat.parentId.isNotEmpty) {
-                    final chatState = context.read<ChatState>();
-                    final parentChat = chatState.chats.cast<ChatInfo?>().firstWhere(
-                      (c) => c!.chatId == chat.parentId && c.accountId == chat.accountId,
-                      orElse: () => null,
-                    );
-                    if (parentChat != null &&
-                        parentChat.avatarPath.isNotEmpty &&
-                        !parentChat.avatarPath.startsWith('/')) {
-                      decodedParentAvatar = _decodeAvatar(parentChat.avatarPath);
-                    }
-                  }
-
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() => _selected = i);
-                      _confirm();
-                    },
-                    child: MouseRegion(
-                      onEnter: (_) => setState(() => _selected = i),
-                      child: _ChatSwitchCell(
-                        chat: chat,
-                        selected: selected,
-                        accentColor: accentColor,
-                        nameColor: nameColor,
-                        isDark: isDark,
-                        decodedAvatar: chat.avatarPath.isNotEmpty &&
-                                !chat.avatarPath.startsWith('/')
-                            ? _decodeAvatar(chat.avatarPath)
-                            : null,
-                        decodedParentAvatar: decodedParentAvatar,
-                      ),
+            // AyuGram absorbs every MouseButtonPress that lands on the panel:
+            // _view's event handler accept()s the press
+            // (window_chat_switch_process.cpp:413-417), so only presses on the
+            // surrounding _widget (outside the panel) fire _closeRequests
+            // (:307-313). Cells tile edge-to-edge with no inter-cell gaps, so the
+            // 12px padding ring is the only non-cell region of the panel — without
+            // this absorber a tap there bubbles up to the outer onTap and wrongly
+            // cancels the switcher. The empty onTap wins the gesture arena over
+            // the outer detector (the innermost tap recognizer takes the sweep),
+            // so a click on the panel padding is a no-op instead of a close.
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {},
+              child: Container(
+                width: innerW + _panelPadding * 2,
+                decoration: BoxDecoration(
+                  color: boxBg,
+                  borderRadius: BorderRadius.circular(_panelRadius),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
                     ),
-                  );
-                }),
+                  ],
+                ),
+                padding: const EdgeInsets.all(_panelPadding),
+                child: Wrap(
+                  children: List.generate(visible.clamp(0, _list.length), (i) {
+                    final chat = _list[i];
+                    final selected = i == effectiveSelected;
+
+                    Uint8List? decodedParentAvatar;
+                    if (chat.type == ChatType.topic && chat.parentId.isNotEmpty) {
+                      final chatState = context.read<ChatState>();
+                      final parentChat = chatState.chats.cast<ChatInfo?>().firstWhere(
+                        (c) => c!.chatId == chat.parentId && c.accountId == chat.accountId,
+                        orElse: () => null,
+                      );
+                      if (parentChat != null &&
+                          parentChat.avatarPath.isNotEmpty &&
+                          !parentChat.avatarPath.startsWith('/')) {
+                        decodedParentAvatar = _decodeAvatar(parentChat.avatarPath);
+                      }
+                    }
+
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _selected = i);
+                        _confirm();
+                      },
+                      child: MouseRegion(
+                        onEnter: (_) => setState(() => _selected = i),
+                        child: _ChatSwitchCell(
+                          chat: chat,
+                          selected: selected,
+                          accentColor: accentColor,
+                          nameColor: nameColor,
+                          isDark: isDark,
+                          decodedAvatar: chat.avatarPath.isNotEmpty &&
+                                  !chat.avatarPath.startsWith('/')
+                              ? _decodeAvatar(chat.avatarPath)
+                              : null,
+                          decodedParentAvatar: decodedParentAvatar,
+                        ),
+                      ),
+                    );
+                  }),
+                ),
               ),
             ),
           ),

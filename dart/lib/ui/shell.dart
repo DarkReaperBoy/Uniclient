@@ -514,6 +514,19 @@ class _UniClientShellState extends State<UniClientShell>
               },
               onRemove: (chat) {
                 chatState.removeChatFromOpenHistory(chat.chatId);
+                // AyuGram's Key_Q runs CloseInWindows(thread) right after
+                // dropping the chat from open-history: any window whose active
+                // chat is the removed thread clears its section stack, closing
+                // the open conversation (window_chat_switch_process.cpp:275-282
+                // Key_Q → chatOpenRemove + remove + CloseInWindows; :61-82
+                // CloseInWindows → clearSectionStack on the window whose
+                // activeChatCurrent().thread() == thread). Single-window port: if
+                // the removed chat is the one open in the background, close it —
+                // otherwise it stays visible after being dropped from history.
+                if (chatState.activeChat?.chatId == chat.chatId &&
+                    chatState.activeChat?.accountId == chat.accountId) {
+                  chatState.closeChat();
+                }
               },
               onCancel: () {
                 ShortcutSystem.instance.resume();
