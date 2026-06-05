@@ -76,12 +76,18 @@ class TelegramBoxButton {
   final VoidCallback? onPressed;
   final bool isDestructive;
   final bool isLeft;
+  // Secondary (right-click / long-press) action — mirrors AyuGram's
+  // SetupMenuAndShortcuts ContextMenu filter on a button (menu_send.cpp:864-869),
+  // reachable via right-click on desktop and long-press on touch. Receives the
+  // global pointer position so the caller can anchor a popup menu there.
+  final void Function(Offset globalPosition)? onSecondaryTap;
 
   const TelegramBoxButton({
     required this.text,
     this.onPressed,
     this.isDestructive = false,
     this.isLeft = false,
+    this.onSecondaryTap,
   });
 }
 
@@ -233,7 +239,7 @@ class _TelegramBoxState extends State<TelegramBox> {
 
     Widget btn(TelegramBoxButton b) {
       final fg = b.isDestructive ? p.attentionButtonFg : p.windowBgActive;
-      return ConstrainedBox(
+      Widget result = ConstrainedBox(
         constraints: const BoxConstraints(minWidth: 30),
         child: SizedBox(
           height: 34,
@@ -253,6 +259,17 @@ class _TelegramBoxState extends State<TelegramBox> {
           ),
         ),
       );
+      if (b.onSecondaryTap != null) {
+        // Right-click (desktop) + long-press (touch) open the secondary menu,
+        // matching AyuGram's ContextMenu event filter (menu_send.cpp:864-869).
+        // The inner TextButton keeps the primary tap.
+        result = GestureDetector(
+          onSecondaryTapDown: (d) => b.onSecondaryTap!(d.globalPosition),
+          onLongPressStart: (d) => b.onSecondaryTap!(d.globalPosition),
+          child: result,
+        );
+      }
+      return result;
     }
 
     return Padding(

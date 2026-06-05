@@ -261,10 +261,20 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
         final state = _dynamicImages[rKey];
         if (state == null) return;
         state.imageBytes = bytes;
-        state.fadeController = AnimationController(
+        // AyuGram drives the thumbnail fade per-frame via Ui::Animations::Basic
+        // over fadeWrapDuration=200ms (calendar_box.cpp:674-694, basic.style:97).
+        // Attach a listener so every tick rebuilds the grid and the rising
+        // fadeController.value (read at the _DayCell call site) animates the
+        // opacity from 0→1 — without it the value is captured once at ≈0.0.
+        final controller = AnimationController(
           vsync: this,
           duration: const Duration(milliseconds: 200),
-        )..forward();
+        );
+        controller.addListener(() {
+          if (mounted) setState(() {});
+        });
+        state.fadeController = controller;
+        controller.forward();
         setState(() {});
       });
     }
@@ -547,8 +557,10 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget>
         TelegramBoxButton(text: 'Close', onPressed: () => Navigator.of(context).pop()),
       ];
     } else if (!_selectionMode) {
+      // AyuGram createButtons(): "Close" on the right (addButton) and
+      // "Select days" on the bottom-LEFT (addLeftButton) — calendar_box.cpp:1434-1438.
       buttons = [
-        TelegramBoxButton(text: 'Select days', onPressed: _toggleSelectionMode),
+        TelegramBoxButton(text: 'Select days', onPressed: _toggleSelectionMode, isLeft: true),
         TelegramBoxButton(text: 'Close', onPressed: () => Navigator.of(context).pop()),
       ];
     } else {
@@ -1284,6 +1296,13 @@ class _DayCellState extends State<_DayCell> {
                                   widget.dynamicImageBytes!,
                                   width: _cellInner,
                                   height: _cellInner,
+                                  // AyuGram pre-sizes the bitmap to the cell via
+                                  // state.image->image(_st.cellInner) (34px) rather
+                                  // than decoding native-res then downscaling
+                                  // (calendar_box.cpp:841). ×2 is the retina decode
+                                  // factor used across the app.
+                                  cacheWidth: (_cellInner * 2).toInt(),
+                                  cacheHeight: (_cellInner * 2).toInt(),
                                   fit: BoxFit.cover,
                                   gaplessPlayback: true,
                                 ),
@@ -1496,6 +1515,29 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   // choose_date_time.cpp:220-229).
   void _submitWithCtrl() {
     _submit(silent: HardwareKeyboard.instance.isControlPressed);
+  }
+
+  // AyuGram wires SetupMenuAndShortcuts onto the schedule submit button with a
+  // Type::SilentOnly send menu (history_view_schedule_box.cpp:163-187,
+  // menu_send.cpp:748-757): a right-click (desktop) / long-press (touch) menu
+  // whose entry sends the scheduled message silently. Without it, silent
+  // scheduled send was reachable only via the Ctrl keyboard modifier — i.e.
+  // impossible on touch/mobile. (Message-effect entries are gated on a session
+  // effect picker the app does not yet have, so SilentOnly shows only this one.)
+  void _showSendOptionsMenu(Offset globalPosition) {
+    showTelegramMenu<String>(
+      context: context,
+      position: globalPosition,
+      items: [
+        TelegramMenuItem(
+          value: 'silent',
+          label: 'Send without sound',
+          icon: const Icon(Icons.notifications_off_outlined, size: 20),
+        ),
+      ],
+    ).then((v) {
+      if (v == 'silent' && mounted) _submit(silent: true);
+    });
   }
 
   void _sendWhenOnline() {
@@ -1758,9 +1800,27 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Repeat: ${_repeatPeriods[_repeatPeriod] ?? "Never"}',
-                      style: TextStyle(fontSize: 13, color: accentFg),
+                    // AyuGram renders "Repeat:" in the default label color, then
+                    // a separate bold link (tr::link(tr::bold(text))) in the link
+                    // color carrying the dropdown/lock icon — two-tone with a bold
+                    // value, not one flat accent string (choose_date_time.cpp:300-318).
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Repeat: ',
+                            style: TextStyle(fontSize: 13, color: titleFg),
+                          ),
+                          TextSpan(
+                            text: _repeatPeriods[_repeatPeriod] ?? 'Never',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: accentFg,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(width: 4),
                     if (_isPremium)
@@ -1781,6 +1841,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
         TelegramBoxButton(
           text: widget.submitTextOverride ?? 'Schedule',
           onPressed: _submitWithCtrl,
+          onSecondaryTap: _showSendOptionsMenu,
         ),
       ],
     );
