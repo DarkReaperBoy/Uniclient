@@ -230,6 +230,12 @@ class _ChatListPanelState extends State<ChatListPanel>
   bool _dragToFilterActive = false;
   OverlayEntry? _dragToFilterOverlay;
   Offset _dragToFilterPos = Offset.zero;
+  // True for the whole pointer gesture once it becomes a drag-to-filter, so the
+  // dragged row's SwipeableChatRow can't ALSO commit a swipe action. The swipe
+  // recognizer's onHorizontalDragEnd fires AFTER this list's Listener.onPointerUp
+  // (which already tore down the overlay and cleared _dragToFilterActive), so a
+  // flag that survives until the NEXT pointer-down is needed to suppress it.
+  bool _swipeSuppressedByDragToFilter = false;
 
   // ── Drag-and-drop forwarding (spec §2.7) ──
   /// Chat ID currently hovered during a forward drag.
@@ -1063,13 +1069,35 @@ class _ChatListPanelState extends State<ChatListPanel>
                               );
                             }
 
-                            if (_reorderActive && isPinnedReorderable) {
+                            // Skip the SwipeableChatRow wrapper for a row that is
+                            // mid-drag — either a pinned reorder, or a
+                            // drag-to-filter (this row lifted onto a folder tab).
+                            // SwipeableChatRow uses a horizontal-drag gesture
+                            // recognizer; the ~200px leftward travel needed to
+                            // reach a left-edge folder tab would otherwise ALSO
+                            // commit the swipe action (archive/delete) on drop,
+                            // making the chat vanish. Bypassing the wrapper
+                            // disposes that recognizer for the dragged row so only
+                            // AddChatToFolder fires.
+                            final isDraggingToFilter = _dragToFilterActive &&
+                                nonArchivedIdx == _reorderPinnedIdx;
+                            if ((_reorderActive && isPinnedReorderable) ||
+                                isDraggingToFilter) {
                               row = buildChatRow();
                             } else {
                               row = SwipeableChatRow(
                                 action: swipeAction,
-                                onAction: () => _performSwipeAction(
-                                    context, swipeAction, chat),
+                                onAction: () {
+                                  // Defense-in-depth: onHorizontalDragEnd fires
+                                  // AFTER Listener.onPointerUp clears the
+                                  // drag-to-filter state, so the build-time bypass
+                                  // above can miss a same-frame drag. This flag
+                                  // survives the whole gesture and blocks the
+                                  // stray swipe action.
+                                  if (_swipeSuppressedByDragToFilter) return;
+                                  _performSwipeAction(
+                                      context, swipeAction, chat);
+                                },
                                 child: buildChatRow(),
                               );
                             }
@@ -1284,6 +1312,10 @@ class _ChatListPanelState extends State<ChatListPanel>
   }
 
   void _onReorderPointerDown(PointerDownEvent event) {
+    // Fresh gesture — clear any swipe-suppression left over from a prior
+    // drag-to-filter (it is intentionally NOT cleared on pointer-up so the
+    // late onHorizontalDragEnd can still see it).
+    _swipeSuppressedByDragToFilter = false;
     if (event.buttons != kPrimaryButton || _searching || _reorderActive) return;
     // Hit-test EVERY non-archived row (pinned + non-pinned). AyuGram begins a
     // drag-to-filter on any dialog with a real history, not only pinned ones
@@ -1428,6 +1460,9 @@ class _ChatListPanelState extends State<ChatListPanel>
     if (_reorderPinnedIdx == null ||
         _reorderPinnedIdx! >= _buildNonArchived.length) return;
     _dragToFilterActive = true;
+    // Suppress the dragged row's swipe action for the rest of this gesture
+    // (reset on the next pointer-down). See _swipeSuppressedByDragToFilter.
+    _swipeSuppressedByDragToFilter = true;
     _dragToFilterPos = position;
     _createDragToFilterOverlay();
     final tabIdx = FilterColumn.hitTestFolderIndex(position);
