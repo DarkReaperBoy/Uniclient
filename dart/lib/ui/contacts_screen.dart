@@ -890,30 +890,35 @@ class _ContactRowState extends State<_ContactRow> {
     _avatarBytes = b64.isNotEmpty ? base64Decode(b64) : null;
   }
 
-  static const _rowHeight = 56.0;
-  static const _rowHeightStory = 52.0;
+  // AyuGram applies the `contactsWithStories` PeerListItem style to EVERY contacts
+  // row (peer_list_controllers.cpp:157 `setStyleOverrides(&st::contactsWithStories)`),
+  // so all rows share these dims whether or not the contact has stories — only the
+  // avatar story-ring is conditional. boxes.style:986-1002 (height 52, photo@(18,5),
+  // name@(70,7), status@(70,27)).
+  static const _rowHeight = 52.0;
   static const _avatarSize = 42.0;
-  static const _avatarLeft = 16.0;
-  static const _avatarTop = 7.0;
-  static const _avatarLeftStory = 18.0;
-  static const _avatarTopStory = 5.0;
-  static const _nameLeft = 74.0;
-  static const _nameTop = 9.0;
-  static const _nameLeftStory = 70.0;
-  static const _nameTopStory = 7.0;
-  static const _statusLeft = 74.0;
-  static const _statusTop = 30.0;
-  static const _statusLeftStory = 70.0;
-  static const _statusTopStory = 27.0;
+  static const _avatarLeft = 18.0;
+  static const _avatarTop = 5.0;
+  static const _nameLeft = 70.0;
+  static const _nameTop = 7.0;
+  static const _statusLeft = 70.0;
+  static const _statusTop = 27.0;
   static const _rightPad = 16.0;
   static const _ringStrokeUnread = 2.0;
   static const _ringStrokeRead = 1.0;
   static const _ringGap = 2.0;
+  // Mutual-contact right-edge action icon (`ayuContactsMutualIcon`, a 24px icon —
+  // contacts_mutual.png is 24×24) painted via `rightActionPaint`; its right margin
+  // equals `contactsWithStories.item.photoPosition.x()` = 18px.
+  // peer_list_controllers.cpp:65-106.
+  static const _mutualIconSize = 24.0;
+  static const _mutualIconRight = 18.0;
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
-  static const _onlineColor = Color(0xFF4dc920);
-  static const _statusOnlineColor = Color(0xFF4fae4e);
+  // `contactsStatusFgOnline: windowActiveTextFg = #168acd` (online blue),
+  // colors.palette:20/158, boxes.style:191.
+  static const _statusOnlineColor = Color(0xFF168acd);
   static const _statusOfflineDay = Color(0xFF999999);
   static const _statusOfflineNight = Color(0xFF6C7883);
   static const _statusHoverDay = Color(0xFF7c99b2);
@@ -935,6 +940,18 @@ class _ContactRowState extends State<_ContactRow> {
           final dt = DateTime.fromMillisecondsSinceEpoch(c.lastSeenTs * 1000);
           final now = DateTime.now();
           final diff = now.difference(dt);
+          // Sub-12h relative buckets before the today/yesterday/date fallback
+          // (data_peer_values.cpp:460-467 OnlineText).
+          final minutes = diff.inMinutes;
+          if (minutes <= 0) {
+            return 'last seen just now';
+          } else if (minutes < 60) {
+            return 'last seen $minutes ${minutes == 1 ? 'minute' : 'minutes'} ago';
+          }
+          final hours = diff.inHours;
+          if (hours < 12) {
+            return 'last seen $hours ${hours == 1 ? 'hour' : 'hours'} ago';
+          }
           if (diff.inDays == 0) {
             final h = dt.hour.toString().padLeft(2, '0');
             final m = dt.minute.toString().padLeft(2, '0');
@@ -1100,15 +1117,17 @@ class _ContactRowState extends State<_ContactRow> {
 
     final ringStroke = contact.hasUnreadStory ? _ringStrokeUnread : _ringStrokeRead;
     final ringOuterSize = hasStories ? _avatarSize + (ringStroke + _ringGap) * 2 : _avatarSize;
-    final baseAvatarLeft = hasStories ? _avatarLeftStory : _avatarLeft;
-    final baseAvatarTop = hasStories ? _avatarTopStory : _avatarTop;
-    final avatarOffsetX = hasStories ? baseAvatarLeft - (ringOuterSize - _avatarSize) / 2 : baseAvatarLeft;
-    final avatarOffsetY = hasStories ? baseAvatarTop - (ringOuterSize - _avatarSize) / 2 : baseAvatarTop;
-    final rowHeight = hasStories ? _rowHeightStory : _rowHeight;
-    final nameLeft = hasStories ? _nameLeftStory : _nameLeft;
-    final nameTop = hasStories ? _nameTopStory : _nameTop;
-    final statusLeft = hasStories ? _statusLeftStory : _statusLeft;
-    final statusTop = hasStories ? _statusTopStory : _statusTop;
+    final avatarOffsetX = hasStories ? _avatarLeft - (ringOuterSize - _avatarSize) / 2 : _avatarLeft;
+    final avatarOffsetY = hasStories ? _avatarTop - (ringOuterSize - _avatarSize) / 2 : _avatarTop;
+    const rowHeight = _rowHeight;
+    const nameLeft = _nameLeft;
+    const nameTop = _nameTop;
+    const statusLeft = _statusLeft;
+    const statusTop = _statusTop;
+    // Reserve room at the right edge for the mutual-contact action icon so the
+    // name/status ellipsize before it (peer_list_controllers.cpp rightAction).
+    final textRightInset =
+        contact.isMutualContact ? _mutualIconRight + _mutualIconSize + 8 : _rightPad;
 
     Widget avatarWidget = _avatarBytes != null
         ? ClipOval(
@@ -1146,32 +1165,14 @@ class _ContactRowState extends State<_ContactRow> {
         );
       }
     } else {
+      // AyuGram contacts rows draw NO online-dot userpic overlay: `ContactsMutualRow`
+      // only overrides `rightActionPaint` and the base `PeerListRow::paintUserpicOverlay`
+      // is empty (peer_list_controllers.cpp:65, peer_list_box.h:104). Online state is
+      // conveyed solely by the blue status text + the Online sort order.
       avatarArea = SizedBox(
         width: _avatarSize,
         height: _avatarSize,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            avatarWidget,
-            if (contact.isOnline)
-              Positioned(
-                right: -1,
-                bottom: -1,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: _onlineColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: _hovered ? widget.hoverBg : widget.bgColor,
-                      width: 2,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+        child: avatarWidget,
       );
     }
 
@@ -1197,19 +1198,9 @@ class _ContactRowState extends State<_ContactRow> {
         ),
       ));
     }
-    if (contact.isMutualContact) {
-      nameBadges.add(WidgetSpan(
-        alignment: PlaceholderAlignment.middle,
-        child: Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: Icon(
-            Icons.swap_horiz,
-            size: 16,
-            color: widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999),
-          ),
-        ),
-      ));
-    }
+    // Mutual-contact indicator is NOT an inline name badge — AyuGram paints it as a
+    // dedicated right-edge action icon (`st::ayuContactsMutualIcon` via
+    // `rightActionPaint`), added to the row Stack below. peer_list_controllers.cpp:93-106.
     if (contact.isScam) {
       nameBadges.add(WidgetSpan(
         alignment: PlaceholderAlignment.middle,
@@ -1266,7 +1257,7 @@ class _ContactRowState extends State<_ContactRow> {
                   Positioned(
                     left: nameLeft,
                     top: nameTop,
-                    right: _rightPad,
+                    right: textRightInset,
                     child: RichText(
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1284,7 +1275,7 @@ class _ContactRowState extends State<_ContactRow> {
                   Positioned(
                     left: statusLeft,
                     top: statusTop,
-                    right: _rightPad,
+                    right: textRightInset,
                     child: Text(
                       statusText,
                       style: TextStyle(
@@ -1295,6 +1286,27 @@ class _ContactRowState extends State<_ContactRow> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  // Mutual-contact right-edge action icon (ayuContactsMutualIcon),
+                  // vertically centred, right margin = photoPosition.x() = 18px.
+                  // peer_list_controllers.cpp:65-106.
+                  if (contact.isMutualContact)
+                    Positioned(
+                      right: _mutualIconRight,
+                      top: (rowHeight - _mutualIconSize) / 2,
+                      child: SizedBox(
+                        width: _mutualIconSize,
+                        height: _mutualIconSize,
+                        child: Center(
+                          child: Icon(
+                            Icons.swap_horiz,
+                            size: 20,
+                            color: _hovered
+                                ? (widget.isDark ? _statusHoverNight : _statusHoverDay)
+                                : (widget.isDark ? _statusOfflineNight : _statusOfflineDay),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -2130,6 +2142,17 @@ class _NotesField extends StatefulWidget {
   final Color subtextColor;
   final Color borderColor;
   final Color focusBorderColor;
+  // Decoration variants: the Edit-Contact Notes field uses an underline +
+  // floating label, while the Share-Contact comment reuses the same rich
+  // machinery inside a filled, rounded box with a placeholder hint.
+  final String? labelText;
+  final String? hintText;
+  final int? maxLines;
+  final int? minLines;
+  final bool filled;
+  final Color? fillColor;
+  final double borderRadius;
+  final bool showCounter;
 
   const _NotesField({
     required this.appState,
@@ -2141,6 +2164,14 @@ class _NotesField extends StatefulWidget {
     required this.subtextColor,
     required this.borderColor,
     required this.focusBorderColor,
+    this.labelText = 'Notes',
+    this.hintText,
+    this.maxLines = 3,
+    this.minLines = 1,
+    this.filled = false,
+    this.fillColor,
+    this.borderRadius = 18,
+    this.showCounter = true,
   });
 
   @override
@@ -2313,6 +2344,48 @@ class _NotesFieldState extends State<_NotesField> {
 
   @override
   Widget build(BuildContext context) {
+    final emojiButton = IconButton(
+      icon: Icon(
+        _emojiOpen ? Icons.keyboard : Icons.emoji_emotions_outlined,
+        size: 20,
+        color: _emojiOpen ? widget.focusBorderColor : widget.subtextColor,
+      ),
+      splashRadius: 16,
+      padding: widget.filled ? EdgeInsets.zero : const EdgeInsets.all(8),
+      constraints: widget.filled
+          ? const BoxConstraints(minWidth: 36, minHeight: 36)
+          : null,
+      onPressed: _toggleEmojiPanel,
+    );
+    final counterText = widget.showCounter ? null : '';
+    final decoration = widget.filled
+        ? InputDecoration(
+            hintText: widget.hintText,
+            hintStyle: TextStyle(fontSize: 15, color: widget.subtextColor),
+            isDense: true,
+            filled: true,
+            fillColor: widget.fillColor,
+            counterText: counterText,
+            contentPadding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(widget.borderRadius),
+              borderSide: BorderSide.none,
+            ),
+            suffixIcon: emojiButton,
+          )
+        : InputDecoration(
+            labelText: widget.labelText,
+            labelStyle: TextStyle(fontSize: 14, color: widget.subtextColor),
+            floatingLabelStyle: TextStyle(fontSize: 12, color: widget.focusBorderColor),
+            hintText: widget.hintText,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: widget.borderColor)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: widget.focusBorderColor, width: 2)),
+            counterStyle: TextStyle(fontSize: 11, color: widget.subtextColor),
+            counterText: counterText,
+            suffixIcon: emojiButton,
+          );
     return Focus(
       canRequestFocus: false,
       skipTraversal: true,
@@ -2321,29 +2394,11 @@ class _NotesFieldState extends State<_NotesField> {
         key: _fieldKey,
         controller: widget.controller,
         focusNode: widget.focusNode,
-        maxLines: 3,
-        minLines: 1,
+        maxLines: widget.maxLines,
+        minLines: widget.minLines,
         maxLength: widget.maxLength,
         style: TextStyle(fontSize: 15, color: widget.textColor),
-        decoration: InputDecoration(
-          labelText: 'Notes',
-          labelStyle: TextStyle(fontSize: 14, color: widget.subtextColor),
-          floatingLabelStyle: TextStyle(fontSize: 12, color: widget.focusBorderColor),
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 8),
-          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: widget.borderColor)),
-          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: widget.focusBorderColor, width: 2)),
-          counterStyle: TextStyle(fontSize: 11, color: widget.subtextColor),
-          suffixIcon: IconButton(
-            icon: Icon(
-              _emojiOpen ? Icons.keyboard : Icons.emoji_emotions_outlined,
-              size: 20,
-              color: _emojiOpen ? widget.focusBorderColor : widget.subtextColor,
-            ),
-            splashRadius: 16,
-            onPressed: _toggleEmojiPanel,
-          ),
-        ),
+        decoration: decoration,
       ),
     );
   }
@@ -2469,10 +2524,22 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
 
   String _query = '';
   final Set<String> _selected = {};
-  final _commentController = TextEditingController();
+  late final RichTextEditingController _commentController;
+  final _commentFocus = FocusNode();
   bool _sending = false;
   List<ChatInfo>? _serverResults;
   Timer? _searchDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    // Rich comment field (markdown + emoji panel + custom-emoji suggestions),
+    // submitted with entities via getTextWithAppliedMarkdown — mirrors AyuGram
+    // ShareBox `_comment` (share_box.cpp:215 InputField + InitMessageFieldHandlers
+    // :260 + SuggestionsController :357-361 + getTextWithAppliedMarkdown :686).
+    _commentController = RichTextEditingController()
+      ..accountId = widget.appState.activeAccountId ?? '';
+  }
 
   List<ChatInfo> get _chats {
     final activeAccountId = widget.appState.activeAccountId;
@@ -2533,6 +2600,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
   void dispose() {
     _searchDebounce?.cancel();
     _commentController.dispose();
+    _commentFocus.dispose();
     super.dispose();
   }
 
@@ -2551,7 +2619,8 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
     setState(() => _sending = true);
     final accountId = widget.appState.activeAccountId;
     if (accountId == null) return;
-    final comment = _commentController.text.trim();
+    final commentResult = _commentController.getTextWithAppliedMarkdown();
+    final hasComment = commentResult.text.trim().isNotEmpty;
     try {
       for (final chatId in _selected) {
         await widget.engine.sendContact(
@@ -2562,8 +2631,13 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
           widget.contactLastName,
           userId: widget.contactUserId,
         );
-        if (comment.isNotEmpty) {
-          await widget.engine.sendMessage(accountId, chatId, comment);
+        if (hasComment) {
+          await widget.engine.sendMessage(
+            accountId,
+            chatId,
+            commentResult.text,
+            entities: commentResult.entitiesJson,
+          );
         }
       }
       if (mounted) {
@@ -2590,6 +2664,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final palette = context.palette;
     final boxBg = palette.boxBg;
     final filtered = _filteredChats;
@@ -2697,20 +2772,24 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
                           minHeight: _commentHeightMin,
                           maxHeight: _commentHeightMax,
                         ),
-                        child: TextField(
+                        child: _NotesField(
+                          appState: widget.appState,
+                          engine: widget.engine,
                           controller: _commentController,
+                          focusNode: _commentFocus,
+                          maxLength: 4096,
+                          labelText: null,
+                          hintText: 'Add a comment...',
+                          filled: true,
+                          fillColor: palette.windowBgOver,
+                          borderRadius: 18,
                           maxLines: null,
-                          decoration: InputDecoration(
-                            hintText: 'Add a comment...',
-                            isDense: true,
-                            filled: true,
-                            fillColor: palette.windowBgOver,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
-                          ),
+                          minLines: 1,
+                          showCounter: false,
+                          textColor: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000),
+                          subtextColor: isDark ? const Color(0xFF6C7883) : const Color(0xFF999999),
+                          borderColor: isDark ? const Color(0xFF2B3A49) : const Color(0xFFDADADA),
+                          focusBorderColor: isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD),
                         ),
                       ),
                     )
@@ -2803,7 +2882,7 @@ class _ShareContactGridItem extends StatelessWidget {
                 duration: const Duration(milliseconds: 150),
                 width: radius * 2,
                 height: radius * 2,
-                child: _buildAvatar(radius, isDark, palette),
+                child: _buildAvatar(context, radius, isDark, palette),
               ),
             ),
           ),
@@ -2831,7 +2910,7 @@ class _ShareContactGridItem extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(double radius, bool isDark, TelegramPalette palette) {
+  Widget _buildAvatar(BuildContext context, double radius, bool isDark, TelegramPalette palette) {
     if (_isSavedMessages) {
       return CircleAvatar(
         radius: radius,
@@ -2840,11 +2919,18 @@ class _ShareContactGridItem extends StatelessWidget {
       );
     }
     if (chat.avatarPath.isNotEmpty) {
+      // Decode at display size (largest userpic diameter × devicePixelRatio) rather
+      // than full resolution — AyuGram paints a pre-rendered, display-sized round
+      // userpic (share_box.cpp:1193 checkbox.paint). Cache at the max (_imageRadius)
+      // so toggling selection (28↔24) doesn't force a re-decode.
+      final cachePx = (_imageRadius * 2 * MediaQuery.devicePixelRatioOf(context)).round();
       return ClipOval(
         child: Image.file(
           File(chat.avatarPath),
           width: radius * 2,
           height: radius * 2,
+          cacheWidth: cachePx,
+          cacheHeight: cachePx,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _fallbackAvatar(radius, palette),
         ),
