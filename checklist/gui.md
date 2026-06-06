@@ -582,37 +582,6 @@ an internal 8px skip) lands exactly `colorEditSkip` = 10px from the picker edge 
 measured 10.00px in both modes (cpp:1030). `flutter_audit.sh verify` PASS, no
 crashes/overflow in desktop or mobile runs.
 
-# contacts_screen — Contacts box, Edit Contact box, Share Contact box
-
-Audited against AyuGram/Telegram Desktop ground truth: `peer_list_controllers.cpp`
-(ContactsBoxController + PrepareContactsBox), `peers/edit_contact_box.cpp`,
-`share_box.cpp`, `boxes.style`, `data/data_peer_values.cpp`, `lib_ui/ui/colors.palette`.
-
-The file is well-wired overall: every action routes to a real engine call
-(getContacts, resolveUsername, searchGlobalChats, getContactFullInfo, addContact,
-deleteContact, blockUser, suggest/set/clearPersonalContactPhoto, suggestBirthday,
-sendContact, sendMessage, fetchPeerStories). No empty callbacks, no TODO/mock/stub
-data, no "coming soon" placeholders. Cover dims (108px, avatar 72@(19,18),
-name@(109,33), status@(109,57)), settings-row order/conditions, notes max-length 128,
-and the sort-toggle icon mapping all match AyuGram. Findings below are behavioral /
-visual / perf deviations.
-
-## MAJOR
-
-- [ ] [MAJOR] Online status text uses GREEN `#4fae4e`, but AyuGram colors online/active row status with `windowActiveTextFg = #168acd` (blue) via `statusFgActive: contactsStatusFgOnline` — `contacts_screen.dart:916` (`_statusOnlineColor`, used in `_statusColor` `contacts_screen.dart:960`) ← `AyuGramDesktop/Telegram/lib_ui/ui/colors.palette:158` (`contactsStatusFgOnline: windowActiveTextFg`) + `colors.palette:20` (`windowActiveTextFg: #168acd; // online blue`) / `boxes.style:191`.
-
-- [ ] [MAJOR] Draws a green "online" dot overlay on the contact-row avatar. AyuGram's contacts rows draw NO online dot — `ContactsMutualRow` only overrides `rightActionPaint` (right-edge mutual icon) and the base `PeerListRow::paintUserpicOverlay` is empty; online state is conveyed only by the blue status text + Online sort order — `contacts_screen.dart:1156` (the `if (contact.isOnline)` Positioned dot, lines 1156-1172) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/peer_list_controllers.cpp:69` (ContactsMutualRow, no userpic overlay) / `boxes/peer_list_box.h:104` (empty `paintUserpicOverlay`).
-
-- [ ] [MAJOR] Mutual-contact indicator is rendered as an inline `Icons.swap_horiz` badge after the name. AyuGram renders mutual contacts with a dedicated right-edge action icon (`st::ayuContactsMutualIcon`) via `rightActionPaint`, not an inline name badge — `contacts_screen.dart:1200` (`if (contact.isMutualContact)` WidgetSpan, lines 1200-1212) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/peer_list_controllers.cpp:93` (`rightActionPaint` … `st::ayuContactsMutualIcon`, lines 93-106).
-
-- [ ] [MAJOR] "Last seen" for the `exact` kind skips the sub-12h relative buckets. The Dart jumps straight to "today/yesterday at HH:MM"; AyuGram shows "last seen just now" (<1m), "last seen N minutes ago" (<60m), and "last seen N hours ago" (<12h) before falling back to today/yesterday/date — `contacts_screen.dart:933` (`case 'exact'`, lines 933-952) ← `AyuGramDesktop/Telegram/SourceFiles/data/data_peer_values.cpp:460` (`OnlineText` relative buckets, lines 460-467).
-
-- [ ] [MAJOR] Non-story contact rows use base `peerListBoxItem` dimensions (height 56, avatar@(16,7), name@(74,9), status@(74,30)) instead of the `contactsWithStories` style AyuGram applies to EVERY contact row (height 52, photo@(18,5), name@(70,7), status@(70,27)) via `setStyleOverrides(&st::contactsWithStories)`. Since most contacts have no stories, most rows render at the wrong height/offsets — `contacts_screen.dart:893` (`_rowHeight`/`_avatarLeft`/`_nameLeft`/`_nameTop`/`_statusTop` non-story consts, lines 893-905; selected at 1107-1111) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/boxes.style:989` (`contactsWithStories` height 52 / positions, lines 986-1002) + `peer_list_controllers.cpp:157` (applied to all rows).
-
-- [ ] [MAJOR] Share-Contact comment field is a plain `TextField` and is sent as plain text. AyuGram's ShareBox comment is a rich `Ui::InputField` with full markdown formatting, an emoji panel, and custom-emoji suggestions, submitted via `getTextWithAppliedMarkdown()` so entities are preserved (the Notes field in this very file IS rich — inconsistent) — `contacts_screen.dart:2700` (plain comment TextField, lines 2700-2714; sent plain at `sendMessage` line 2566) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/share_box.cpp:260` (`InitMessageFieldHandlers` + emoji suggestions :357-361 + `getTextWithAppliedMarkdown` :686).
-
-- [ ] [MAJOR] Share-grid avatars decode at full resolution: `Image.file` without `cacheWidth`/`cacheHeight` for a ~48–56px circle, in a `GridView` that can hold the entire chat list. AyuGram paints a pre-rendered, display-sized round userpic (`checkbox.paint`). The contact-row and edit-cover images in this same file already pass `cacheWidth`/`cacheHeight`, so this is an oversight — `contacts_screen.dart:2844` (`Image.file` in `_buildAvatar`, lines 2844-2850) ← `AyuGramDesktop/Telegram/SourceFiles/boxes/share_box.cpp:1193` (`chat->checkbox.paint` pre-sized userpic).
-
 # create_giveaway_box — Telegram boost-giveaway creation box (Premium / Stars / Prepaid + Award Specific Users)
 
 Backend wiring verified end-to-end: every engine call (`getGiftCodeOptions`,
