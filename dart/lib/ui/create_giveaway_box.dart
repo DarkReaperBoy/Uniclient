@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -334,40 +335,26 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       return;
     }
 
-    final chatState = context.read<ChatState>();
-    final accountId = widget.accountId;
-
-    // Source collects only broadcast channels (!channel->isMegagroup()); the
-    // local cache's ChatType.channel is exactly the broadcast set. Megagroups
-    // (ChatType.group) are excluded.
-    final chats = chatState.chatsForAccount(accountId);
-    final channels = chats.where((c) =>
-      c.type == ChatType.channel &&
-      !_additionalChannelIds.contains(c.chatId) &&
-      c.chatId != widget.chatId
-    ).toList();
-
-    if (channels.isEmpty) {
-      showTelegramToast(context, 'No more channels available to add');
-      return;
-    }
-
+    // The picker loads boost-eligible peers from stories.getChatsToSend
+    // (AyuGram MyChannelsListController) — channels AND supergroups the user can
+    // actually include, not whatever the local cache holds. It returns the
+    // chosen ChatInfo (with username + member count) or null on cancel.
     final p = context.palette;
-    final selected = await showTelegramBox<String>(
+    final chat = await showTelegramBox<ChatInfo>(
       context: context,
       builder: (ctx) => _ChannelPickerBox(
-        channels: channels,
+        accountId: widget.accountId,
+        hostChatId: widget.chatId,
+        excludeIds: List.from(_additionalChannelIds),
         palette: p,
       ),
     );
-    if (selected == null || !mounted) return;
-
-    final chat = channels.firstWhere((c) => c.chatId == selected, orElse: () => channels.first);
+    if (chat == null || !mounted) return;
 
     void add() {
       if (!mounted) return;
       setState(() {
-        _additionalChannelIds.add(selected);
+        _additionalChannelIds.add(chat.chatId);
         _additionalChannelNames.add(chat.title);
       });
     }
@@ -404,7 +391,16 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         chatId: widget.chatId,
         palette: p,
         maxUsers: _addPeersMax,
-        initialSelectedIds: List.from(_awardUserIds),
+        // Pass the full selected members so a re-opened picker keeps them
+        // checked and returnable even when they fall outside the current
+        // page/search (server-side pagination can't guarantee they reload).
+        initialSelected: [
+          for (var i = 0; i < _awardUserIds.length; i++)
+            MemberInfo(
+              userId: _awardUserIds[i],
+              displayName: i < _awardUserNames.length ? _awardUserNames[i] : '',
+            ),
+        ],
       ),
     );
     if (result == null || !mounted) return; // cancelled
@@ -650,6 +646,13 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     }
 
     return Builder(builder: (_) {
+      final isRandom = _type == _GiveawayType.random;
+      // AyuGram body order (create_giveaway_box.cpp): winners-slider → Channels
+      // (@862) → Users/countries (@942) → Duration gift-options (listOptionsRandom
+      // @1041) → Additional prize (@1100) → Date (@1255) → Show winners (@1322).
+      // The slider/header is type-specific (random vs credits vs prepaid); the
+      // random Duration cards are deferred until AFTER the channel + eligibility
+      // steps, then Additional-prize / Date / Show-winners follow in source order.
       final _lvKids = <Widget>[
         _buildTypeSelector(isDark, primary, subColor),
         const SizedBox(height: 16),
@@ -663,8 +666,14 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         ..._buildChannelsSection(p, isDark, primary, subColor),
         const SizedBox(height: 12),
         ..._buildMemberFilterSection(p, isDark, primary, subColor),
+        if (isRandom) ...[
+          const SizedBox(height: 12),
+          ..._buildRandomDurationSection(p, isDark, primary, subColor),
+        ],
         const SizedBox(height: 12),
-        _buildSettingsSection(p, isDark, primary, subColor),
+        ..._buildAdditionalPrizeSection(p, isDark, primary, subColor),
+        ..._buildDateSection(p, isDark, primary, subColor),
+        ..._buildShowWinnersSection(p, isDark, primary, subColor),
         const SizedBox(height: 16),
         _buildActionButton(p, primary),
         const SizedBox(height: 8),
@@ -919,9 +928,11 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     }
 
     final selectedOpt = _currentOption;
-    final currency = selectedOpt['currency'] as String? ?? 'USD';
-    final amount = selectedOpt['amount'] as num? ?? 0;
 
+    // Header + winners slider only. The Duration gift-option cards and Total
+    // price are rendered later by _buildRandomDurationSection — AyuGram adds the
+    // duration list (listOptionsRandom) AFTER the Channels and Users sections
+    // (create_giveaway_box.cpp:1041), not right under the slider.
     return [
       Text(
         'Premium Subscription Gifts',
@@ -960,10 +971,20 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
             if (idx >= 0) setState(() => _selectedOptionIndex = idx);
           },
         ),
-        const SizedBox(height: 12),
       ],
+    ];
+  }
 
-      // Duration as gift option cards
+  /// Duration gift-option cards + total price for the random giveaway. Rendered
+  /// after the Channels + Users steps to match AyuGram's listOptionsRandom
+  /// placement (create_giveaway_box.cpp:1041, 1100-1338).
+  List<Widget> _buildRandomDurationSection(TelegramPalette p, bool isDark, Color primary, Color subColor) {
+    if (_options.isEmpty) return [];
+    final selectedOpt = _currentOption;
+    final currency = selectedOpt['currency'] as String? ?? 'USD';
+    final amount = selectedOpt['amount'] as num? ?? 0;
+
+    return [
       Text(
         'Duration for $_currentWinners winner${_currentWinners == 1 ? '' : 's'}',
         style: TextStyle(fontSize: 12, color: subColor),
@@ -1509,100 +1530,121 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
     ];
   }
 
-  Widget _buildSettingsSection(TelegramPalette p, bool isDark, Color primary, Color subColor) {
+  // ── Settings rows (AyuGram order: Additional prize → Date → Show winners) ──
+
+  /// Additional-prize toggle + optional description field. First of the three
+  /// trailing settings, opening with a divider from the section above (AyuGram
+  /// additionalWrap, create_giveaway_box.cpp:1100-1252).
+  List<Widget> _buildAdditionalPrizeSection(TelegramPalette p, bool isDark, Color primary, Color subColor) {
     final fgColor = isDark ? Colors.white : Colors.black87;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Divider(color: widget.theme.dividerColor),
-        const SizedBox(height: 4),
-
-        // Show Winners toggle
-        _SettingsToggleRow(
-          label: 'Show Winners',
-          value: _showWinners,
-          fgColor: fgColor,
-          primary: primary,
-          onTap: () => setState(() => _showWinners = !_showWinners),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(left: 0, bottom: 8),
-          child: Text(
-            'The list of winners will be publicly visible after the giveaway ends.',
-            style: TextStyle(fontSize: 11, color: subColor),
-          ),
-        ),
-
-        // Additional Prize toggle
-        _SettingsToggleRow(
-          label: 'Additional Prize',
-          value: _showAdditionalPrize,
-          fgColor: fgColor,
-          primary: primary,
-          onTap: () => setState(() {
-            _showAdditionalPrize = !_showAdditionalPrize;
-            if (!_showAdditionalPrize) _prizeController.clear();
-          }),
-        ),
-        if (_showAdditionalPrize) ...[
-          const SizedBox(height: 8),
-          TextField(
-            controller: _prizeController,
-            maxLength: 128,
-            style: TextStyle(fontSize: 13, color: fgColor),
-            decoration: InputDecoration(
-              hintText: 'Enter additional prize description',
-              hintStyle: TextStyle(fontSize: 13, color: subColor),
-              counterText: '',
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: widget.theme.dividerColor),
-              ),
-            ),
-          ),
-        ],
-
+    return [
+      Divider(color: widget.theme.dividerColor),
+      const SizedBox(height: 4),
+      _SettingsToggleRow(
+        label: 'Additional Prize',
+        value: _showAdditionalPrize,
+        fgColor: fgColor,
+        primary: primary,
+        onTap: () => setState(() {
+          _showAdditionalPrize = !_showAdditionalPrize;
+          if (!_showAdditionalPrize) _prizeController.clear();
+        }),
+      ),
+      if (_showAdditionalPrize) ...[
         const SizedBox(height: 8),
-        // End Date
-        InkWell(
-          onTap: () async {
-            final minDate = DateTime.now().add(const Duration(days: 3));
-            final maxDate = DateTime.now().add(Duration(seconds: _giveawayPeriodMax));
-            final picked = await showCalendarBox(
-              context,
-              initialDate: _untilDate,
-              minDate: minDate,
-              maxDate: maxDate,
-            );
-            if (picked != null && mounted) {
-              setState(() => _untilDate = picked);
-            }
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                Icon(Icons.calendar_today, size: 18, color: subColor),
-                const SizedBox(width: 10),
-                Expanded(child: Text('End Date', style: TextStyle(
-                  fontSize: 13, color: fgColor,
-                ))),
-                Text(
-                  '${_untilDate.day}/${_untilDate.month}/${_untilDate.year}',
-                  style: TextStyle(fontSize: 13, color: primary),
-                ),
-                const SizedBox(width: 4),
-                Icon(Icons.chevron_right, size: 18, color: subColor),
-              ],
+        TextField(
+          controller: _prizeController,
+          maxLength: 128,
+          style: TextStyle(fontSize: 13, color: fgColor),
+          decoration: InputDecoration(
+            hintText: 'Enter additional prize description',
+            hintStyle: TextStyle(fontSize: 13, color: subColor),
+            counterText: '',
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: widget.theme.dividerColor),
             ),
           ),
         ),
       ],
-    );
+      const SizedBox(height: 8),
+    ];
+  }
+
+  /// End date+time row. AyuGram opens Ui::ChooseDateTimeBox so BOTH the end date
+  /// and time are chosen, with `.min = now` and `.max = now + giveawayPeriodMax`
+  /// (create_giveaway_box.cpp:1272-1289). The label shows date AND time.
+  List<Widget> _buildDateSection(TelegramPalette p, bool isDark, Color primary, Color subColor) {
+    final fgColor = isDark ? Colors.white : Colors.black87;
+    return [
+      InkWell(
+        onTap: () async {
+          final now = DateTime.now();
+          final result = await showChooseDateTimeBox(
+            context,
+            initialDate: _untilDate,
+            title: 'Select End Date',
+            submitText: 'Save',
+            showRepeat: false,
+            minDate: now,
+            maxDate: now.add(Duration(seconds: _giveawayPeriodMax)),
+          );
+          if (result != null && mounted) {
+            setState(() => _untilDate = result.dateTime);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Icon(Icons.calendar_today, size: 18, color: subColor),
+              const SizedBox(width: 10),
+              Expanded(child: Text('End Date', style: TextStyle(
+                fontSize: 13, color: fgColor,
+              ))),
+              Text(
+                _formatEndDateTime(_untilDate),
+                style: TextStyle(fontSize: 13, color: primary),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right, size: 18, color: subColor),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+    ];
+  }
+
+  /// Show-winners toggle — last of the trailing settings (AyuGram winnersWrap,
+  /// create_giveaway_box.cpp:1322-1338).
+  List<Widget> _buildShowWinnersSection(TelegramPalette p, bool isDark, Color primary, Color subColor) {
+    final fgColor = isDark ? Colors.white : Colors.black87;
+    return [
+      _SettingsToggleRow(
+        label: 'Show Winners',
+        value: _showWinners,
+        fgColor: fgColor,
+        primary: primary,
+        onTap: () => setState(() => _showWinners = !_showWinners),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 0, bottom: 8),
+        child: Text(
+          'The list of winners will be publicly visible after the giveaway ends.',
+          style: TextStyle(fontSize: 11, color: subColor),
+        ),
+      ),
+    ];
+  }
+
+  // Date + time, mirroring AyuGram's Ui::FormatDateTime on the end-date button.
+  String _formatEndDateTime(DateTime dt) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
   Widget _buildActionButton(TelegramPalette p, Color primary) {
@@ -1932,33 +1974,132 @@ class _MemberFilterRow extends StatelessWidget {
 }
 
 // ─── Channel Picker Box ─────────────────────────────────────────────────────
+//
+// Boost-eligible peer picker for "Add Channel" (mirrors AyuGram's
+// MyChannelsListController). Loads the list from stories.getChatsToSend — so it
+// shows only channels/supergroups the user can include, accepts megagroups, and
+// each row carries the live subscriber/member count. Pops the chosen ChatInfo.
 
-class _ChannelPickerBox extends StatelessWidget {
-  final List<ChatInfo> channels;
+class _ChannelPickerBox extends StatefulWidget {
+  final String accountId;
+  final String hostChatId;
+  final List<String> excludeIds;
   final TelegramPalette palette;
 
   const _ChannelPickerBox({
-    required this.channels,
+    required this.accountId,
+    required this.hostChatId,
+    required this.excludeIds,
     required this.palette,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final textFg = palette.boxTextFg;
+  State<_ChannelPickerBox> createState() => _ChannelPickerBoxState();
+}
 
-    return TelegramBox(
-      title: 'Add Channel',
-      content: SizedBox(
-        height: min(channels.length * 48.0, 300),
+class _ChannelPickerBoxState extends State<_ChannelPickerBox> {
+  bool _loading = true;
+  String? _error;
+  List<ChatInfo> _channels = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final engine = Provider.of<AppState>(context, listen: false).engine;
+      final chats = await engine.getChatsToSend(widget.accountId);
+      if (!mounted) return;
+      setState(() {
+        // Skip the host peer (it's always row 0 of the giveaway) and anything
+        // already added — matching the source's `peer == _peer` skip and the
+        // already-selected dedup.
+        _channels = chats
+            .where((c) =>
+                c.chatId != widget.hostChatId &&
+                !widget.excludeIds.contains(c.chatId))
+            .toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  // "12,345 subscribers" (broadcast) / "12,345 members" (megagroup), matching
+  // AyuGram createRow's lng_chat_status_subscribers / lng_chat_status_members.
+  String _statusFor(ChatInfo c) {
+    final n = c.memberCount;
+    if (n <= 0) return '';
+    final s = _grouped(n);
+    if (c.type == ChatType.channel) {
+      return n == 1 ? '1 subscriber' : '$s subscribers';
+    }
+    return n == 1 ? '1 member' : '$s members';
+  }
+
+  static String _grouped(int n) {
+    final str = n.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buf.write(',');
+      buf.write(str[i]);
+    }
+    return buf.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.palette;
+    final textFg = p.boxTextFg;
+    final subColor = p.windowSubTextFg;
+
+    Widget content;
+    if (_loading) {
+      content = const Padding(
+        padding: EdgeInsets.all(32),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else if (_error != null) {
+      content = Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+        child: Text(
+          'Failed to load channels.\n$_error',
+          style: TextStyle(fontSize: 12, color: subColor),
+          textAlign: TextAlign.center,
+          maxLines: 4,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    } else if (_channels.isEmpty) {
+      content = Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          'No more channels available to add.',
+          style: TextStyle(fontSize: 13, color: subColor),
+          textAlign: TextAlign.center,
+        ),
+      );
+    } else {
+      content = SizedBox(
+        height: min(_channels.length * 56.0, 320),
         child: ListView.builder(
-          itemCount: channels.length,
+          itemCount: _channels.length,
           itemBuilder: (ctx, i) {
-            final ch = channels[i];
+            final ch = _channels[i];
+            final status = _statusFor(ch);
             return InkWell(
-              onTap: () => Navigator.of(ctx).pop(ch.chatId),
-              hoverColor: palette.windowBgOver,
+              onTap: () => Navigator.of(ctx).pop(ch),
+              hoverColor: p.windowBgOver,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 10, 24, 10),
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
                 child: Row(
                   children: [
                     Icon(
@@ -1968,10 +2109,21 @@ class _ChannelPickerBox extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        ch.title,
-                        style: TextStyle(fontSize: 14, color: textFg),
-                        overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ch.title,
+                            style: TextStyle(fontSize: 14, color: textFg),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (status.isNotEmpty)
+                            Text(
+                              status,
+                              style: TextStyle(fontSize: 12, color: subColor),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
                       ),
                     ),
                   ],
@@ -1980,7 +2132,13 @@ class _ChannelPickerBox extends StatelessWidget {
             );
           },
         ),
-      ),
+      );
+    }
+
+    return TelegramBox(
+      title: 'Add Channel',
+      showClose: true,
+      content: content,
       buttons: const [],
     );
   }
@@ -1998,14 +2156,14 @@ class _AwardMembersBox extends StatefulWidget {
   final String chatId;
   final TelegramPalette palette;
   final int maxUsers;
-  final List<String> initialSelectedIds;
+  final List<MemberInfo> initialSelected;
 
   const _AwardMembersBox({
     required this.accountId,
     required this.chatId,
     required this.palette,
     required this.maxUsers,
-    required this.initialSelectedIds,
+    required this.initialSelected,
   });
 
   @override
@@ -2013,42 +2171,87 @@ class _AwardMembersBox extends StatefulWidget {
 }
 
 class _AwardMembersBoxState extends State<_AwardMembersBox> {
-  bool _loading = true;
+  // AyuGram's AwardMembersListController extends ParticipantsBoxController, which
+  // pages the full participant list and searches server-side. We mirror that via
+  // getChatMembersByRole(role:'members') — query → ChannelParticipantsSearch,
+  // offset → pagination — instead of one client-filtered 200-member fetch.
+  static const int _pageSize = 50;
+
+  bool _loading = true;     // first page / search reload
+  bool _loadingMore = false;
   String? _error;
-  List<MemberInfo> _members = [];
-  late final Set<String> _selectedIds;
+  final List<MemberInfo> _members = [];
+  // Retains the full selected MemberInfo so selections survive page/search
+  // changes (a selected user outside the current page is still returnable).
+  final Map<String, MemberInfo> _selected = {};
+  int _offset = 0;
+  bool _hasMore = true;
   String _query = '';
+  int _searchSeq = 0;       // discards responses from superseded searches
+  Timer? _debounce;
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _selectedIds = Set.from(widget.initialSelectedIds);
-    _load();
+    for (final m in widget.initialSelected) {
+      _selected[m.userId] = m;
+    }
+    _scrollController.addListener(_onScroll);
+    _loadFirstPage();
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadFirstPage() async {
+    final seq = ++_searchSeq;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _members.clear();
+      _offset = 0;
+      _hasMore = true;
+    });
     try {
       final engine = Provider.of<AppState>(context, listen: false).engine;
-      final members = await engine.getChatMembers(
+      final result = await engine.getChatMembersByRole(
         widget.accountId,
         widget.chatId,
-        limit: 200,
+        role: 'members',
+        query: _query,
+        limit: _pageSize,
+        offset: 0,
       );
-      if (!mounted) return;
+      if (!mounted || seq != _searchSeq) return;
       setState(() {
         // Source's createRow drops bots and self.
-        _members = members.where((m) => !m.isBot && !m.isSelf).toList();
+        _members
+          ..clear()
+          ..addAll(result.members.where((m) => !m.isBot && !m.isSelf));
+        // Advance by the RAW server page length (server offset counts every
+        // participant, including the bots/self we hide).
+        _offset = result.members.length;
+        _hasMore = result.members.length >= _pageSize;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || seq != _searchSeq) return;
       setState(() {
         _error = e.toString();
         _loading = false;
@@ -2056,17 +2259,58 @@ class _AwardMembersBoxState extends State<_AwardMembersBox> {
     }
   }
 
+  Future<void> _loadMore() async {
+    if (_loadingMore || _loading || !_hasMore) return;
+    _loadingMore = true;
+    final seq = _searchSeq;
+    try {
+      final engine = Provider.of<AppState>(context, listen: false).engine;
+      final result = await engine.getChatMembersByRole(
+        widget.accountId,
+        widget.chatId,
+        role: 'members',
+        query: _query,
+        limit: _pageSize,
+        offset: _offset,
+      );
+      if (!mounted || seq != _searchSeq) {
+        _loadingMore = false;
+        return;
+      }
+      final existing = _members.map((m) => m.userId).toSet();
+      setState(() {
+        _members.addAll(result.members
+            .where((m) => !m.isBot && !m.isSelf && !existing.contains(m.userId)));
+        _offset += result.members.length;
+        _hasMore = result.members.length >= _pageSize;
+      });
+    } catch (_) {
+      // Keep whatever pages already loaded; the next scroll retries.
+    } finally {
+      _loadingMore = false;
+    }
+  }
+
+  void _onSearchChanged(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted || v == _query) return;
+      _query = v;
+      _loadFirstPage();
+    });
+  }
+
   void _toggle(MemberInfo m) {
-    if (_selectedIds.contains(m.userId)) {
-      setState(() => _selectedIds.remove(m.userId));
+    if (_selected.containsKey(m.userId)) {
+      setState(() => _selected.remove(m.userId));
       return;
     }
     // Enforce the app-config maximum (giveawayAddPeersMax, fallback 10).
-    if (_selectedIds.length >= widget.maxUsers) {
+    if (_selected.length >= widget.maxUsers) {
       showTelegramToast(context, 'You can select up to ${widget.maxUsers} subscribers.');
       return;
     }
-    setState(() => _selectedIds.add(m.userId));
+    setState(() => _selected[m.userId] = m);
   }
 
   @override
@@ -2074,13 +2318,6 @@ class _AwardMembersBoxState extends State<_AwardMembersBox> {
     final p = widget.palette;
     final textFg = p.boxTextFg;
     final subColor = p.windowSubTextFg;
-
-    final q = _query.toLowerCase();
-    final filtered = _members.where((m) =>
-      q.isEmpty ||
-      m.label.toLowerCase().contains(q) ||
-      m.username.toLowerCase().contains(q)
-    ).toList();
 
     Widget list;
     if (_loading) {
@@ -2099,7 +2336,7 @@ class _AwardMembersBoxState extends State<_AwardMembersBox> {
           overflow: TextOverflow.ellipsis,
         ),
       );
-    } else if (filtered.isEmpty) {
+    } else if (_members.isEmpty) {
       list = Padding(
         padding: const EdgeInsets.all(24),
         child: Text(
@@ -2109,12 +2346,25 @@ class _AwardMembersBoxState extends State<_AwardMembersBox> {
       );
     } else {
       list = SizedBox(
-        height: min(filtered.length * 52.0, 320),
+        height: min(_members.length * 52.0 + (_hasMore ? 36.0 : 0.0), 320),
         child: ListView.builder(
-          itemCount: filtered.length,
+          controller: _scrollController,
+          itemCount: _members.length + (_hasMore ? 1 : 0),
           itemBuilder: (ctx, i) {
-            final m = filtered[i];
-            final sel = _selectedIds.contains(m.userId);
+            if (i >= _members.length) {
+              // Trailing loading row triggers/visualises the next page.
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Center(
+                  child: SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              );
+            }
+            final m = _members[i];
+            final sel = _selected.containsKey(m.userId);
             return InkWell(
               onTap: () => _toggle(m),
               hoverColor: p.windowBgOver,
@@ -2187,7 +2437,7 @@ class _AwardMembersBoxState extends State<_AwardMembersBox> {
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
             child: TextField(
               controller: _searchController,
-              onChanged: (v) => setState(() => _query = v),
+              onChanged: _onSearchChanged,
               style: TextStyle(fontSize: 14, color: textFg),
               decoration: InputDecoration(
                 hintText: 'Search members',
@@ -2210,8 +2460,7 @@ class _AwardMembersBoxState extends State<_AwardMembersBox> {
         TelegramBoxButton(
           text: 'Save',
           onPressed: () {
-            final selected = _members.where((m) => _selectedIds.contains(m.userId)).toList();
-            Navigator.of(context).pop(selected);
+            Navigator.of(context).pop(_selected.values.toList());
           },
         ),
         TelegramBoxButton(

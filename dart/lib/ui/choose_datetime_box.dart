@@ -1360,6 +1360,11 @@ Future<ChooseDateTimeResult?> showChooseDateTimeBox(
   String? title,
   String? submitText,
   bool showRepeat = true,
+  // Optional bounds for the selectable date+time (mirrors AyuGram's
+  // ChooseDateTimeBox `.min`/`.max`). When null the calendar defaults to
+  // today → +1 year and the only floor is the 10-second minimal-schedule guard.
+  DateTime? minDate,
+  DateTime? maxDate,
 }) {
   return showTelegramBox<ChooseDateTimeResult>(
     context: context,
@@ -1370,6 +1375,8 @@ Future<ChooseDateTimeResult?> showChooseDateTimeBox(
       titleOverride: title,
       submitTextOverride: submitText,
       showRepeat: showRepeat,
+      minDate: minDate,
+      maxDate: maxDate,
     ),
   );
 }
@@ -1381,6 +1388,8 @@ class _ChooseDateTimeDialog extends StatefulWidget {
   final String? titleOverride;
   final String? submitTextOverride;
   final bool showRepeat;
+  final DateTime? minDate;
+  final DateTime? maxDate;
 
   const _ChooseDateTimeDialog({
     this.initialDate,
@@ -1389,6 +1398,8 @@ class _ChooseDateTimeDialog extends StatefulWidget {
     this.titleOverride,
     this.submitTextOverride,
     this.showRepeat = true,
+    this.minDate,
+    this.maxDate,
   });
 
   @override
@@ -1473,6 +1484,20 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     );
   }
 
+  // Calendar-day bounds (date-only). Default to today → +1 year when no explicit
+  // min/max is supplied, preserving the schedule-message behaviour; callers like
+  // the giveaway box pass `now` and `now + giveawayPeriodMax`.
+  DateTime get _minDay {
+    final m = widget.minDate ?? DateTime.now();
+    return DateTime(m.year, m.month, m.day);
+  }
+
+  DateTime get _maxDay {
+    final mx = widget.maxDate ??
+        DateTime(DateTime.now().year + 1, DateTime.now().month, DateTime.now().day);
+    return DateTime(mx.year, mx.month, mx.day);
+  }
+
   bool _validateTime() {
     final h = int.tryParse(_hourController.text);
     final m = int.tryParse(_minuteController.text);
@@ -1483,6 +1508,12 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     final dt = _combinedDateTime;
     final minTime = DateTime.now().add(const Duration(seconds: _kMinimalSchedule));
     if (dt.isBefore(minTime)) {
+      _showTimeError();
+      return false;
+    }
+    // Respect the optional upper bound (AyuGram's `.max`) so a time on the last
+    // selectable day cannot push the result past the allowed window.
+    if (widget.maxDate != null && dt.isAfter(widget.maxDate!)) {
       _showTimeError();
       return false;
     }
@@ -1550,15 +1581,14 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   }
 
   Future<void> _openCalendar() async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final maxDate = DateTime(today.year + 1, today.month, today.day);
+    final minDay = _minDay;
+    final maxDay = _maxDay;
     final picked = await showCalendarBox(
       context,
-      initialDate: _selectedDate.isBefore(today) ? today : _selectedDate,
+      initialDate: _selectedDate.isBefore(minDay) ? minDay : _selectedDate,
       selectedDate: _selectedDate,
-      minDate: today,
-      maxDate: maxDate,
+      minDate: minDay,
+      maxDate: maxDay,
     );
     if (picked != null && mounted) {
       setState(() => _selectedDate = picked);
@@ -1567,11 +1597,10 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   }
 
   void _scrollDate(int delta) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final maxDate = DateTime(today.year + 1, today.month, today.day);
+    final minDay = _minDay;
+    final maxDay = _maxDay;
     final newDate = _selectedDate.add(Duration(days: delta));
-    if (!newDate.isBefore(today) && !newDate.isAfter(maxDate)) {
+    if (!newDate.isBefore(minDay) && !newDate.isAfter(maxDay)) {
       setState(() => _selectedDate = newDate);
     }
   }

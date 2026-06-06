@@ -7295,6 +7295,40 @@ class EngineService {
     return (decoded as List).cast<Map<String, dynamic>>();
   }
 
+  /// Boost-eligible peers (channels + supergroups the user can post to) for the
+  /// giveaway "Add Channel" picker, via stories.getChatsToSend. Mirrors
+  /// AyuGram's MyChannelsListController (giveaway_list_controllers.cpp:250-293):
+  /// the server already filters to peers the user controls, and megagroups are
+  /// accepted alongside broadcasts. Returned as ChatInfo carrying the live
+  /// member count for the row status line.
+  Future<List<ChatInfo>> getChatsToSend(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final resp = await _callAsync('__engine', 'GetChatsToSend', Uint8List.fromList(payload));
+      if (resp.isEmpty) return [];
+      final decoded = json.decode(utf8.decode(resp));
+      if (decoded == null) return [];
+      return (decoded as List).map((e) {
+        final m = e as Map<String, dynamic>;
+        final typeStr = m['type'] as String? ?? 'channel';
+        final type = typeStr == 'group'
+            ? ChatType.group
+            : (typeStr == 'channel' ? ChatType.channel : ChatType.unspec);
+        return ChatInfo(
+          accountId: accountId,
+          chatId: m['chat_id'] as String? ?? '',
+          type: type,
+          title: m['title'] as String? ?? '',
+          username: m['username'] as String? ?? '',
+          memberCount: (m['member_count'] as num?)?.toInt() ?? 0,
+        );
+      }).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getChatsToSend failed', e);
+      return [];
+    }
+  }
+
   Future<void> launchPrepaidGiveaway(String accountId, String chatId, int giveawayId, Map<String, dynamic> params) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

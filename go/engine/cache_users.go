@@ -575,6 +575,57 @@ func (e *Engine) GetSimilarChannels(accountID, chatID string) ([]SimilarChannelI
 	return result, nil
 }
 
+// ChatToSendInfo is a boost-eligible peer returned to the giveaway "Add Channel"
+// picker. Type is "channel" (broadcast) or "group" (megagroup) so the UI can
+// show the matching subscriber/member status line.
+type ChatToSendInfo struct {
+	ChatID      string `json:"chat_id"`
+	Title       string `json:"title"`
+	Type        string `json:"type"`
+	Username    string `json:"username,omitempty"`
+	AvatarB64   string `json:"avatar_b64,omitempty"`
+	MemberCount int    `json:"member_count,omitempty"`
+}
+
+// GetChatsToSend returns channels and supergroups the user can include in a
+// boost giveaway, via stories.getChatsToSend. Mirrors AyuGram's
+// MyChannelsListController (giveaway_list_controllers.cpp:250-293) — the server
+// returns only peers the user can post to, so unlike the local chat cache it
+// excludes channels the user merely subscribes to and includes eligible
+// megagroups.
+func (e *Engine) GetChatsToSend(accountID string) ([]ChatToSendInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type chatsToSendProvider interface {
+		GetChatsToSend() ([]cores.Dialog, error)
+	}
+	p, ok := acc.Core.(chatsToSendProvider)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support chats to send")
+	}
+	dialogs, err := p.GetChatsToSend()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]ChatToSendInfo, 0, len(dialogs))
+	for _, d := range dialogs {
+		result = append(result, ChatToSendInfo{
+			ChatID:      d.ID,
+			Title:       d.Title,
+			Type:        string(d.Type),
+			Username:    d.Username,
+			AvatarB64:   d.AvatarB64,
+			MemberCount: d.MemberCount,
+		})
+	}
+	return result, nil
+}
+
 // BotCommandInfo is a bot command returned to the UI for autocomplete.
 type BotCommandInfo struct {
 	Command     string `json:"command"`

@@ -1163,6 +1163,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(channels)
 
+	// ── Chats to send (giveaway add-channel picker) ──
+
+	case "GetChatsToSend":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		chats, err := e.GetChatsToSend(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(chats)
+
 	case "GetChatBotCommands":
 		var params struct {
 			AccountID string `json:"account_id"`

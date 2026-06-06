@@ -18141,6 +18141,55 @@ func (t *TelegramCore) GetSimilarChannels(chatID string) ([]Dialog, error) {
 	return dialogs, nil
 }
 
+// GetChatsToSend returns the boost-eligible peers (channels and supergroups the
+// user can post stories/giveaways to) via stories.getChatsToSend. Mirrors
+// AyuGram's MyChannelsListController::prepare (giveaway_list_controllers.cpp:
+// 250-293): only channel-class peers pass (broadcasts AND megagroups — gotd
+// represents both as *tg.Channel), while basic groups and users are skipped.
+// Access hashes are cached so the returned IDs resolve later at giveaway launch.
+func (t *TelegramCore) GetChatsToSend() ([]Dialog, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.StoriesGetChatsToSend(t.ctx)
+	if err != nil { return nil, err }
+	var chats []tg.ChatClass
+	switch mc := result.(type) {
+	case *tg.MessagesChats:
+		chats = mc.Chats
+	case *tg.MessagesChatsSlice:
+		chats = mc.Chats
+	}
+	var dialogs []Dialog
+	for _, c := range chats {
+		channel, ok := c.(*tg.Channel)
+		if !ok { continue }
+		if channel.AccessHash != 0 {
+			t.cacheChannelHash(channel.ID, channel.AccessHash)
+		}
+		ctype := ChatTypeGroup
+		if channel.Broadcast { ctype = ChatTypeChannel }
+		d := Dialog{
+			ID:       strconv.FormatInt(-1000000000000-channel.ID, 10),
+			Title:    channel.Title,
+			Type:     ctype,
+			Username: channel.Username,
+			Platform: tgPlatform,
+		}
+		if cp, ok := channel.Photo.(*tg.ChatPhoto); ok {
+			if thumb, ok := cp.GetStrippedThumb(); ok && len(thumb) > 0 {
+				if jpg := tgStrippedToJPEG(thumb); len(jpg) > 0 {
+					d.AvatarB64 = base64.StdEncoding.EncodeToString(jpg)
+				}
+			}
+		}
+		if channel.ParticipantsCount > 0 {
+			d.MemberCount = channel.ParticipantsCount
+		}
+		dialogs = append(dialogs, d)
+	}
+	return dialogs, nil
+}
+
 // ExportMessageLink returns a public link to a specific message.
 func (t *TelegramCore) ExportMessageLink(chatID string, msgID string) (string, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
