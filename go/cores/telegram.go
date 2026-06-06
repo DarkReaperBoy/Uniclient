@@ -19719,6 +19719,106 @@ func (t *TelegramCore) GetFavedStickers() (int, error) {
 	return 0, nil
 }
 
+// GetFavedStickersList returns the user's favorited (starred) stickers as a
+// list. AyuGram shows these as the FavedSetId grid section (the first section,
+// before Recent) in the sticker panel — stickers_list_widget.cpp:2931.
+func (t *TelegramCore) GetFavedStickersList() ([]StickerInfo, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	result, err := t.api.MessagesGetFavedStickers(t.ctx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("get faved stickers: %w", err)
+	}
+	fs, ok := result.(*tg.MessagesFavedStickers)
+	if !ok {
+		return nil, nil
+	}
+	var stickers []StickerInfo
+	for _, doc := range fs.Stickers {
+		d, ok := doc.(*tg.Document)
+		if !ok {
+			continue
+		}
+		t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
+		si := StickerInfo{
+			ThumbB64: extractStrippedThumbB64(d.Thumbs),
+			MimeType: d.MimeType,
+			FileID:   strconv.FormatInt(d.ID, 10),
+			IsFaved:  true,
+		}
+		for _, attr := range d.Attributes {
+			switch a := attr.(type) {
+			case *tg.DocumentAttributeImageSize:
+				si.Width = a.W
+				si.Height = a.H
+			case *tg.DocumentAttributeVideo:
+				si.Width = a.W
+				si.Height = a.H
+			case *tg.DocumentAttributeSticker:
+				si.Emoji = a.Alt
+			}
+		}
+		stickers = append(stickers, si)
+	}
+	return stickers, nil
+}
+
+// GetGifSearchEmojies returns the GIF-search category emoji from the Telegram
+// app config key gif_search_emojies, falling back to AyuGram's fixed 10-emoji
+// list when the key is absent — stickers_list_footer.cpp:98
+// (GifSearchEmojiFallback + GifSectionsValue).
+func (t *TelegramCore) GetGifSearchEmojies() ([]string, error) {
+	fallback := []string{
+		"\U0001F44D", // 👍
+		"\U0001F618", // 😘
+		"\U0001F60D", // 😍
+		"\U0001F621", // 😡
+		"\U0001F973", // 🥳
+		"\U0001F602", // 😂
+		"\U0001F62E", // 😮
+		"\U0001F644", // 🙄
+		"\U0001F60E", // 😎
+		"\U0001F44E", // 👎
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return fallback, ErrAuth
+	}
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err != nil {
+		return fallback, nil
+	}
+	cfg, ok := result.(*tg.HelpAppConfig)
+	if !ok {
+		return fallback, nil
+	}
+	if jv := cfg.Config; jv != nil {
+		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
+			for _, kv := range obj.Value {
+				if kv.Key != "gif_search_emojies" {
+					continue
+				}
+				if arr, ok3 := kv.Value.(*tg.JSONArray); ok3 {
+					var out []string
+					for _, item := range arr.Value {
+						if s, ok4 := item.(*tg.JSONString); ok4 && s.Value != "" {
+							out = append(out, s.Value)
+						}
+					}
+					if len(out) > 0 {
+						return out, nil
+					}
+				}
+			}
+		}
+	}
+	return fallback, nil
+}
+
 // StartBot starts a conversation with a bot using a deep link parameter.
 func (t *TelegramCore) StartBot(botID string, chatID string, startParam string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -30422,6 +30522,40 @@ func (t *TelegramCore) SendStickerWithOpts(chatID string, stickerID string, sile
 			FileReference: fileRef,
 		}},
 		Silent: silent,
+	}
+	if scheduleDate > 0 {
+		req.SetScheduleDate(scheduleDate)
+	}
+	result, err := t.api.MessagesSendMedia(t.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return t.extractMessageFromUpdates(result, chatID), nil
+}
+
+// SendStickerWithCaption sends a sticker/GIF document with a text caption.
+// Backs the GIF panel's "Send GIF with caption" action — gifs_list_widget.cpp:430.
+func (t *TelegramCore) SendStickerWithCaption(chatID string, stickerID string, caption string, silent bool, scheduleDate int) (*Message, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	id, err := tgUserID(stickerID)
+	if err != nil {
+		return nil, err
+	}
+	accessHash := t.getCachedFileHash(id)
+	fileRef := t.getCachedFileRef(id)
+	req := &tg.MessagesSendMediaRequest{
+		Peer: inputPeer, RandomID: time.Now().UnixNano(),
+		Media: &tg.InputMediaDocument{ID: &tg.InputDocument{
+			ID:            id,
+			AccessHash:    accessHash,
+			FileReference: fileRef,
+		}},
+		Message: caption,
+		Silent:  silent,
 	}
 	if scheduleDate > 0 {
 		req.SetScheduleDate(scheduleDate)

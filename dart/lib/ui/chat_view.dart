@@ -5987,10 +5987,17 @@ class _ChatViewState extends State<ChatView>
             );
             setState(() => _emojiPanelVisible = false);
           },
-          onGifSend: (gifFileId, {StickerSendMode mode = StickerSendMode.normal}) {
+          onGifSend: (gifFileId, {StickerSendMode mode = StickerSendMode.normal, String caption = ''}) {
             final chat = context.read<ChatState>().activeChat;
             if (chat == null) return;
             final engine = context.read<EngineService>();
+            // "Send GIF with caption" already collected explicit user intent via
+            // the caption box, so it bypasses the send-confirmation prompt.
+            if (caption.isNotEmpty) {
+              engine.sendSticker(chat.accountId, chat.chatId, gifFileId, caption: caption);
+              setState(() => _emojiPanelVisible = false);
+              return;
+            }
             _confirmMediaSend(
               context,
               confirm: context.read<AppState>().gifConfirmation,

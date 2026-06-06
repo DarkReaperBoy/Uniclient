@@ -4392,16 +4392,56 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			AccountID    string `json:"account_id"`
 			ChatID       string `json:"chat_id"`
 			StickerID    string `json:"sticker_id"`
+			Caption      string `json:"caption"`
 			Silent       bool   `json:"silent"`
 			ScheduleDate int    `json:"schedule_date"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
+		if params.Caption != "" {
+			// "Send GIF with caption" — gifs_list_widget.cpp:430.
+			if err := e.SendStickerWithCaption(params.AccountID, params.ChatID, params.StickerID, params.Caption, params.Silent, params.ScheduleDate); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		}
 		if err := e.SendStickerWithOpts(params.AccountID, params.ChatID, params.StickerID, params.Silent, params.ScheduleDate); err != nil {
 			return nil, err
 		}
 		return nil, nil
+
+	case "GetFavedStickers":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		stickers, err := e.GetFavedStickers(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		if stickers == nil {
+			stickers = []cores.StickerInfo{}
+		}
+		return json.Marshal(stickers)
+
+	case "GetGifSearchEmojies":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		emojies, err := e.GetGifSearchEmojies(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		if emojies == nil {
+			emojies = []string{}
+		}
+		return json.Marshal(emojies)
 
 	case "SendStoryWithPhoto":
 		var params struct {

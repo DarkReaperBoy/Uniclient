@@ -33,6 +33,7 @@ const double _kCategoryBarHeight = 36.0;
 const double _kEmojiColorsPadding = 8.0;
 const double _kEmojiColorsSep = 1.0;
 const double _kPopupPad = 10.0;
+const double _kEmojiColorAllSkip = 9.0; // AyuGram emojiPanColorAllSkip
 
 Map<String, int> _skinTonePrefs = {};
 bool _emojiPrefsLoaded = false;
@@ -213,9 +214,29 @@ bool _supportsSkinTone(String emoji) {
 String _displayEmoji(String emoji) {
   if (!_supportsSkinTone(emoji)) return emoji;
   final key = _emojiPrefKey(emoji);
-  final pref = _skinTonePrefs[key];
+  // Mirror AyuGram Settings::lookupEmojiVariant (core_settings.cpp:1509): the
+  // per-emoji choice wins, otherwise the apply-to-all variant (empty-string
+  // key, written by saveAllEmojiVariants) applies.
+  final pref = _skinTonePrefs[key] ?? _skinTonePrefs[''];
   if (pref != null && pref > 0) return _applySkinTone(emoji, pref);
   return emoji;
+}
+
+/// Mirrors AyuGram Settings::hasChosenEmojiVariant (core_settings.cpp:1523): a
+/// variant counts as "chosen" if an apply-to-all tone exists (empty-string key)
+/// or this specific emoji has a recorded tone (including index 0 = default).
+bool _hasChosenEmojiVariant(String emoji) {
+  return _skinTonePrefs.containsKey('') ||
+      _skinTonePrefs.containsKey(_emojiPrefKey(emoji));
+}
+
+/// Mirrors AyuGram Settings::saveAllEmojiVariants (core_settings.cpp:1535):
+/// clears every per-emoji tone and records a single apply-to-all tone under the
+/// empty-string key so every variant-capable emoji recolors at once.
+void _saveAllEmojiVariants(int toneIndex) {
+  _skinTonePrefs.clear();
+  _skinTonePrefs[''] = toneIndex;
+  _saveEmojiPrefs();
 }
 
 class _EmptySearchPanel extends StatelessWidget {
@@ -273,7 +294,7 @@ class EmojiTabbedPanel extends StatefulWidget {
   final ValueChanged<String>? onEmojiSelected;
   final void Function(int documentId, String altText)? onCustomEmojiSelected;
   final void Function(String stickerId, {StickerSendMode mode})? onStickerSend;
-  final void Function(String gifFileId, {StickerSendMode mode})? onGifSend;
+  final void Function(String gifFileId, {StickerSendMode mode, String caption})? onGifSend;
   final void Function(int queryId, String resultId)? onInlineResultSend;
   final bool emojiOnly;
   final bool suppressStickerSets;
@@ -565,7 +586,7 @@ class _TabContent extends StatelessWidget {
   final void Function(int documentId, String altText)? onCustomEmojiSelected;
   final ValueChanged<bool>? onContextMenuToggle;
   final void Function(String stickerId, {StickerSendMode mode})? onStickerSend;
-  final void Function(String gifFileId, {StickerSendMode mode})? onGifSend;
+  final void Function(String gifFileId, {StickerSendMode mode, String caption})? onGifSend;
   final void Function(int queryId, String resultId)? onInlineResultSend;
 
   const _TabContent({
@@ -714,7 +735,7 @@ final List<_EmojiCategoryData> _emojiCategories = [
       '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌',
       '🐞', '🐜', '🪰', '🪲', '🪳', '🦟', '🦗', '🕷️', '🕸️', '🦂',
       '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀',
-      '🪸', '🐡', '���', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅',
+      '🪸', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅',
       '🐆', '🦓', '🫏', '🦍', '🦧', '🐘', '🦣', '🦛', '🦏', '🐪',
       '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏',
       '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛',
@@ -798,7 +819,7 @@ final List<_EmojiCategoryData> _emojiCategories = [
       '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️',
       '🛡️', '🚬', '⚰️', '🪦', '⚱️', '🏺', '🔮', '📿', '🧿', '🪬',
       '💈', '⚗️', '🔭', '🔬', '🕳️', '🩹', '🩺', '🩻', '🩼', '💊',
-      '💉', '🩸', '����', '🦠', '🧫', '🧪', '🌡️', '🧹', '🪠', '🧺',
+      '💉', '🩸', '🧬', '🦠', '🧫', '🧪', '🌡️', '🧹', '🪠', '🧺',
       '🧻', '🚽', '🚰', '🚿', '🛁', '🛀', '🧼', '🪥', '🪒', '🧽',
       '📦', '📫', '📪', '📬', '📭', '📮', '📯', '📜', '📃', '📄',
       '📑', '🧾', '📊', '📈', '📉', '🗒️', '🗓️', '📆', '📅', '🗑️',
@@ -865,6 +886,11 @@ class _EmojiTabState extends State<_EmojiTab> {
   String? _skinToneTarget;
   Offset _skinToneAnchorGlobal = Offset.zero;
   Size _skinToneAnchorSize = Size.zero;
+  // When true the picker is in "apply to all emoji" mode (opened from the
+  // People-section color button), mirroring AyuGram's OverButton picker
+  // (emoji_list_widget.cpp:2505) — it shows the "Choose color for all emoji"
+  // label and writes a single apply-to-all tone via saveAllEmojiVariants.
+  bool _skinToneAllMode = false;
   List<CustomEmojiSetSummary> _customPacks = [];
   final Set<int> _expandedPacks = {};
   bool _loadedPacks = false;
@@ -932,7 +958,21 @@ class _EmojiTabState extends State<_EmojiTab> {
 
   void _showSkinTone(String emoji, Offset globalPos, Size size) {
     setState(() {
+      _skinToneAllMode = false;
       _skinToneTarget = emoji;
+      _skinToneAnchorGlobal = globalPos;
+      _skinToneAnchorSize = size;
+    });
+  }
+
+  // Opens the picker in "apply to all" mode anchored to the People-section
+  // color button. Uses the hand-wave emoji 👋 (which has skin-tone variants) as
+  // the swatch source, matching AyuGram showPicker's OverButton branch
+  // (emoji_list_widget.cpp:2506).
+  void _showColorAllPicker(Offset globalPos, Size size) {
+    setState(() {
+      _skinToneAllMode = true;
+      _skinToneTarget = '\u{1F44B}';
       _skinToneAnchorGlobal = globalPos;
       _skinToneAnchorSize = size;
     });
@@ -940,7 +980,24 @@ class _EmojiTabState extends State<_EmojiTab> {
 
   void _dismissSkinTone() {
     if (_skinToneTarget == null) return;
-    setState(() => _skinToneTarget = null);
+    setState(() {
+      _skinToneTarget = null;
+      _skinToneAllMode = false;
+    });
+  }
+
+  // Handles a swatch tap from the picker. In apply-to-all mode it recolors every
+  // emoji at once (saveAllEmojiVariants) without sending anything; otherwise it
+  // records the per-emoji tone and sends, like AyuGram colorChosen
+  // (emoji_list_widget.cpp:2723).
+  void _onPickerToneSelected(String emoji, int index) {
+    if (_skinToneAllMode) {
+      _saveAllEmojiVariants(index);
+      _dismissSkinTone();
+      setState(() {}); // repaint the grid with the recolored emoji
+      return;
+    }
+    _onSkinToneSelected(emoji, index);
   }
 
   void _onSkinToneSelected(String emoji, int index) {
@@ -1005,6 +1062,11 @@ class _EmojiTabState extends State<_EmojiTab> {
                   return CustomScrollView(
                     controller: _scrollController,
                     slivers: [
+                      // AyuGram draws the "Choose color for all emoji" button on
+                      // the People section header only (hasColorButton ==
+                      // index == Section::People) — emoji_list_widget.cpp:2536.
+                      if (_activeCategory == 1)
+                        SliverToBoxAdapter(child: _buildColorAllHeader(isDark)),
                       SliverPadding(
                         padding: const EdgeInsets.all(_kEmojiGridPadding),
                         sliver: SliverGrid(
@@ -1110,6 +1172,7 @@ class _EmojiTabState extends State<_EmojiTab> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFFFFFFF);
     final sepColor = isDark ? const Color(0xFF2d3d4d) : const Color(0xFFdadada);
+    final labelColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
 
     final base = _getBaseEmoji(_skinToneTarget!);
     final variants = <String>[
@@ -1121,13 +1184,46 @@ class _EmojiTabState extends State<_EmojiTab> {
     const sep = _kEmojiColorsSep;
     const gap = _kEmojiColorsPadding;
     const pad = _kPopupPad;
+    const labelArea = 18.0;
+    final allMode = _skinToneAllMode;
     final popupW = pad * 2 + cs + gap + sep + gap + 5 * cs + 4 * gap;
-    const popupH = pad * 2 + cs;
+    final popupH = pad * 2 + cs + (allMode ? labelArea : 0.0);
+
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _PopupEmojiCell(
+          emoji: variants[0],
+          onTap: () => _onPickerToneSelected(variants[0], 0),
+        ),
+        SizedBox(width: gap),
+        Container(
+          width: sep,
+          height: cs * 0.6,
+          color: sepColor,
+        ),
+        SizedBox(width: gap),
+        for (var i = 1; i <= 5; i++) ...[
+          if (i > 1) SizedBox(width: gap),
+          _PopupEmojiCell(
+            emoji: variants[i],
+            onTap: () => _onPickerToneSelected(variants[i], i),
+          ),
+        ],
+      ],
+    );
 
     final stackSize = stackBox.size;
     final left = (localAnchor.dx + _skinToneAnchorSize.width / 2 - popupW / 2)
         .clamp(4.0, stackSize.width - popupW - 4);
-    final top = (localAnchor.dy - popupH - 4).clamp(4.0, double.infinity);
+    // Prefer above the anchor; flip below when there isn't room (the People
+    // color button sits near the top), mirroring showAt's flip in
+    // emoji_list_widget.cpp:2494.
+    final topAbove = localAnchor.dy - popupH - 4;
+    final top = topAbove >= 4.0
+        ? topAbove
+        : (localAnchor.dy + _skinToneAnchorSize.height + 4)
+            .clamp(4.0, (stackSize.height - popupH - 4).clamp(4.0, double.infinity));
     return Positioned(
       left: left,
       top: top,
@@ -1143,28 +1239,95 @@ class _EmojiTabState extends State<_EmojiTab> {
           height: popupH,
           child: Padding(
             padding: const EdgeInsets.all(pad),
-            child: Row(
-              children: [
-                _PopupEmojiCell(
-                  emoji: variants[0],
-                  onTap: () => _onSkinToneSelected(variants[0], 0),
-                ),
-                SizedBox(width: gap),
-                Container(
-                  width: sep,
-                  height: cs * 0.6,
-                  color: sepColor,
-                ),
-                SizedBox(width: gap),
-                for (var i = 1; i <= 5; i++) ...[
-                  if (i > 1) SizedBox(width: gap),
-                  _PopupEmojiCell(
-                    emoji: variants[i],
-                    onTap: () => _onSkinToneSelected(variants[i], i),
-                  ),
-                ],
-              ],
+            child: allMode
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: labelArea,
+                        width: double.infinity,
+                        child: Text(
+                          'Choose color for all emoji',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: labelColor),
+                        ),
+                      ),
+                      row,
+                    ],
+                  )
+                : row,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // The People-section apply-to-all color button (AyuGram colorButtonRect /
+  // emojiPanColorAll, emoji_list_widget.cpp:2541). Right-aligned on the header,
+  // 9px in from the grid edge; opens the picker in "all" mode.
+  Widget _buildColorAllHeader(bool isDark) {
+    final iconColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf0f0f0);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        _kEmojiGridPadding, 6, _kEmojiGridPadding + _kEmojiColorAllSkip, 1,
+      ),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: _ColorAllButton(
+          iconColor: iconColor,
+          hoverBg: hoverBg,
+          onTapButton: _showColorAllPicker,
+        ),
+      ),
+    );
+  }
+}
+
+class _ColorAllButton extends StatefulWidget {
+  final Color iconColor;
+  final Color hoverBg;
+  final void Function(Offset globalPos, Size size) onTapButton;
+
+  const _ColorAllButton({
+    required this.iconColor,
+    required this.hoverBg,
+    required this.onTapButton,
+  });
+
+  @override
+  State<_ColorAllButton> createState() => _ColorAllButtonState();
+}
+
+class _ColorAllButtonState extends State<_ColorAllButton> {
+  bool _hovered = false;
+
+  void _handleTap() {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    widget.onTapButton(box.localToGlobal(Offset.zero), box.size);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _handleTap,
+        child: Tooltip(
+          message: 'Choose color for all emoji',
+          waitDuration: const Duration(milliseconds: 400),
+          child: Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: _hovered ? widget.hoverBg : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
             ),
+            alignment: Alignment.center,
+            child: Icon(Icons.palette_outlined, size: 18, color: widget.iconColor),
           ),
         ),
       ),
@@ -1535,6 +1698,10 @@ class _EmojiCell extends StatefulWidget {
 class _EmojiCellState extends State<_EmojiCell> {
   bool _hovered = false;
   Timer? _skinToneTimer;
+  // Set once the color picker has been opened for the current press so the
+  // matching tap-up does NOT also send the emoji — mirrors AyuGram, where a
+  // press that opens the picker is consumed by it (emoji_list_widget.cpp:2296).
+  bool _pickerShownForPress = false;
 
   String get _shownEmoji => _displayEmoji(widget.emoji);
 
@@ -1544,15 +1711,47 @@ class _EmojiCellState extends State<_EmojiCell> {
     super.dispose();
   }
 
-  void _handleLongPress() {
-    if (!_supportsSkinTone(widget.emoji)) return;
+  void _openPicker() {
+    if (!mounted) return;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final pos = box.localToGlobal(Offset.zero);
+    widget.onSkinToneLongPress?.call(widget.emoji, pos, box.size);
+  }
+
+  // Mirrors AyuGram EmojiListWidget::mousePressEvent (emoji_list_widget.cpp:2296):
+  // pressing a variant-capable emoji opens the color picker IMMEDIATELY when no
+  // tone has ever been chosen, otherwise it arms a single 500ms kColorPickerDelay
+  // timer. The previous port double-delayed (~1s) by stacking a 500ms timer on
+  // top of the 500ms long-press recognizer.
+  void _handleTapDown() {
     _skinToneTimer?.cancel();
-    _skinToneTimer = Timer(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      final box = context.findRenderObject() as RenderBox;
-      final pos = box.localToGlobal(Offset.zero);
-      widget.onSkinToneLongPress?.call(widget.emoji, pos, box.size);
-    });
+    _pickerShownForPress = false;
+    if (!_supportsSkinTone(widget.emoji)) return;
+    if (!_hasChosenEmojiVariant(widget.emoji)) {
+      _pickerShownForPress = true;
+      _openPicker();
+    } else {
+      _skinToneTimer = Timer(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        _pickerShownForPress = true;
+        _openPicker();
+      });
+    }
+  }
+
+  void _handleTap() {
+    _skinToneTimer?.cancel();
+    if (_pickerShownForPress) {
+      _pickerShownForPress = false;
+      return; // the press opened the picker — don't also send the emoji
+    }
+    widget.onEmojiSelected(_shownEmoji);
+  }
+
+  void _handleTapCancel() {
+    _skinToneTimer?.cancel();
+    _pickerShownForPress = false;
   }
 
   @override
@@ -1566,9 +1765,11 @@ class _EmojiCellState extends State<_EmojiCell> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        child: PlatformGestureDetector(
-          onTap: () => widget.onEmojiSelected(_shownEmoji),
-          onLongPress: _supportsSkinTone(widget.emoji) ? _handleLongPress : null,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => _handleTapDown(),
+          onTap: _handleTap,
+          onTapCancel: _handleTapCancel,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 100),
             decoration: BoxDecoration(
@@ -1650,6 +1851,9 @@ class _StickerTab extends StatefulWidget {
 class _StickerTabState extends State<_StickerTab> {
   List<StickerPackSummary> _packs = [];
   List<StickerInfoItem> _recentStickers = [];
+  // Favorited (starred) stickers — AyuGram's FavedSetId section, shown first
+  // (before Recent) in the grid and footer (stickers_list_widget.cpp:2931).
+  List<StickerInfoItem> _favedStickers = [];
   List<StickerPackSummary> _featuredPacks = [];
   List<StickerPackSummary> _searchResults = [];
   bool _loaded = false;
@@ -1708,16 +1912,20 @@ class _StickerTabState extends State<_StickerTab> {
         engine.getInstalledStickerPacks(activeAccount.id),
         engine.getRecentStickers(activeAccount.id),
         engine.getFeaturedStickerPacks(activeAccount.id),
+        engine.getFavedStickers(activeAccount.id),
       ]);
       if (mounted) {
         final packs = results[0] as List<StickerPackSummary>;
         final recent = results[1] as List<StickerInfoItem>;
         final featured = results[2] as List<StickerPackSummary>;
+        final faved = results[3] as List<StickerInfoItem>;
+        _favedStickers = faved;
         _rebuildSectionKeys(recent, packs);
         setState(() {
           _packs = packs;
           _recentStickers = recent;
           _featuredPacks = featured;
+          _favedStickers = faved;
           _loaded = true;
           _activePackIndex = 0;
         });
@@ -1749,7 +1957,9 @@ class _StickerTabState extends State<_StickerTab> {
 
   void _rebuildSectionKeys(List<StickerInfoItem> recent, List<StickerPackSummary> packs) {
     _sectionKeys.clear();
-    final totalSections = (recent.isNotEmpty ? 1 : 0) + packs.length;
+    final totalSections = (_favedStickers.isNotEmpty ? 1 : 0) +
+        (recent.isNotEmpty ? 1 : 0) +
+        packs.length;
     for (int i = 0; i < totalSections; i++) {
       _sectionKeys.add(GlobalKey());
     }
@@ -1959,6 +2169,30 @@ class _StickerTabState extends State<_StickerTab> {
         }
       }
     }
+    // Keep the Faved section live: a newly faved sticker joins it, an unfaved
+    // one leaves it. Rebuild section keys so the footer/grid stay aligned.
+    final wasFaved = _favedStickers.any((s) => s.fileId == fileId);
+    if (newFaved && !wasFaved) {
+      StickerInfoItem? src;
+      for (final s in _recentStickers) {
+        if (s.fileId == fileId) { src = s; break; }
+      }
+      if (src == null) {
+        for (final pack in _packs) {
+          for (final s in pack.stickers) {
+            if (s.fileId == fileId) { src = s; break; }
+          }
+          if (src != null) break;
+        }
+      }
+      if (src != null) {
+        _favedStickers = [src.copyWith(isFaved: true), ..._favedStickers];
+        _rebuildSectionKeys(_recentStickers, _packs);
+      }
+    } else if (!newFaved && wasFaved) {
+      _favedStickers = _favedStickers.where((s) => s.fileId != fileId).toList();
+      _rebuildSectionKeys(_recentStickers, _packs);
+    }
   }
 
   void _showStickerPreview(BuildContext context, Offset position, StickerInfoItem sticker) {
@@ -2064,6 +2298,31 @@ class _StickerTabState extends State<_StickerTab> {
     }
   }
 
+  // Opens the sticker-set management box from the footer's settings gear
+  // (AyuGram StickersBox — stickers_list_widget.cpp:354). Lets the user remove
+  // installed sets and add trending ones; the panel reloads on close.
+  void _showStickerSettings() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final acc = context.read<AppState>().activeAccount;
+    if (acc == null) return;
+    final engine = context.read<EngineService>();
+    showDialog(
+      context: context,
+      builder: (ctx) => _ManageStickersDialog(
+        accountId: acc.id,
+        engine: engine,
+        installed: List<StickerPackSummary>.from(_packs),
+        featured: List<StickerPackSummary>.from(_featuredPacks),
+        isDark: isDark,
+      ),
+    ).then((_) {
+      if (mounted) {
+        _loaded = false;
+        _loadData();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -2083,10 +2342,12 @@ class _StickerTabState extends State<_StickerTab> {
         if (!_searching)
           _StickerPackFooter(
             packs: _packs,
+            hasFaved: _favedStickers.isNotEmpty,
             hasRecent: _recentStickers.isNotEmpty,
             activeIndex: _activePackIndex,
             scrollController: _footerScrollController,
             onPackTapped: _scrollToSection,
+            onSettings: _showStickerSettings,
             isDark: isDark,
             hasUnreadFeatured: _featuredPacks.any((p) => !p.installed && !_viewedFeaturedPacks.contains(p.setId)),
           ),
@@ -2170,7 +2431,7 @@ class _StickerTabState extends State<_StickerTab> {
   }
 
   Widget _buildGrid(bool isDark) {
-    if (_packs.isEmpty && _recentStickers.isEmpty) {
+    if (_packs.isEmpty && _recentStickers.isEmpty && _favedStickers.isEmpty) {
       if (_featuredPacks.isNotEmpty) {
         return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -2204,6 +2465,20 @@ class _StickerTabState extends State<_StickerTab> {
 
         final slivers = <Widget>[];
         int sectionIdx = 0;
+
+        // Faved (starred) stickers are AyuGram's first grid section, before
+        // Recent (stickers_list_widget.cpp:2931).
+        if (_favedStickers.isNotEmpty) {
+          slivers.addAll(_buildSectionSlivers(
+            key: _sectionKeys.length > sectionIdx ? _sectionKeys[sectionIdx] : null,
+            title: 'Favorite',
+            stickers: _favedStickers,
+            colCount: colCount,
+            cellSize: cellSize,
+            isDark: isDark,
+          ));
+          sectionIdx++;
+        }
 
         if (_recentStickers.isNotEmpty) {
           slivers.addAll(_buildSectionSlivers(
@@ -2677,21 +2952,219 @@ class _StickerCellState extends State<_StickerCell> with SingleTickerProviderSta
   }
 }
 
+// Sticker-set management box opened from the footer settings gear. Mirrors
+// AyuGram's StickersBox (Installed + Featured/Trending): remove your sets, add
+// trending ones. Self-contained so the parent only reloads on close.
+class _ManageStickersDialog extends StatefulWidget {
+  final String accountId;
+  final EngineService engine;
+  final List<StickerPackSummary> installed;
+  final List<StickerPackSummary> featured;
+  final bool isDark;
+
+  const _ManageStickersDialog({
+    required this.accountId,
+    required this.engine,
+    required this.installed,
+    required this.featured,
+    required this.isDark,
+  });
+
+  @override
+  State<_ManageStickersDialog> createState() => _ManageStickersDialogState();
+}
+
+class _ManageStickersDialogState extends State<_ManageStickersDialog> {
+  late List<StickerPackSummary> _installed;
+  late List<StickerPackSummary> _featured;
+
+  @override
+  void initState() {
+    super.initState();
+    _installed = List<StickerPackSummary>.from(widget.installed);
+    _featured = List<StickerPackSummary>.from(widget.featured);
+  }
+
+  Future<void> _remove(StickerPackSummary pack) async {
+    final ok = await widget.engine.uninstallStickerSet(widget.accountId, pack.setId, pack.accessHash);
+    if (ok && mounted) {
+      setState(() => _installed.removeWhere((p) => p.setId == pack.setId));
+    }
+  }
+
+  Future<void> _add(StickerPackSummary pack) async {
+    final ok = await widget.engine.installStickerSet(widget.accountId, pack.setId, pack.accessHash);
+    if (ok && mounted) {
+      setState(() {
+        _featured.removeWhere((p) => p.setId == pack.setId);
+        if (!_installed.any((p) => p.setId == pack.setId)) _installed.add(pack);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final bg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final textColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    final labelColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    final dividerColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8e8e8);
+    return Dialog(
+      backgroundColor: bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360, maxHeight: 520),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(child: Text('Sticker Sets', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor))),
+                  IconButton(
+                    icon: Icon(Icons.close, size: 20, color: labelColor),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: dividerColor),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                children: [
+                  if (_installed.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                      child: Text('YOUR STICKERS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: labelColor)),
+                    ),
+                    for (final pack in _installed)
+                      _ManageStickerRow(pack: pack, isDark: isDark, installed: true, onAction: () => _remove(pack)),
+                  ],
+                  if (_featured.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+                      child: Text('TRENDING', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: labelColor)),
+                    ),
+                    for (final pack in _featured)
+                      _ManageStickerRow(pack: pack, isDark: isDark, installed: false, onAction: () => _add(pack)),
+                  ],
+                  if (_installed.isEmpty && _featured.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(child: Text('No sticker sets', style: TextStyle(fontSize: 13, color: labelColor))),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ManageStickerRow extends StatelessWidget {
+  final StickerPackSummary pack;
+  final bool isDark;
+  final bool installed;
+  final VoidCallback onAction;
+
+  const _ManageStickerRow({
+    required this.pack,
+    required this.isDark,
+    required this.installed,
+    required this.onAction,
+  });
+
+  Widget _fallbackThumb(Color color) => Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+        child: Icon(Icons.sticky_note_2_outlined, size: 20, color: color),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final titleColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    final subtitleColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+    final dangerColor = isDark ? const Color(0xFFe53935) : const Color(0xFFdd4b39);
+
+    Widget thumb;
+    if (pack.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumbB64(pack.thumbB64);
+        thumb = ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.memory(bytes, fit: BoxFit.cover, width: 40, height: 40, gaplessPlayback: true, cacheWidth: 80),
+        );
+      } catch (_) {
+        thumb = _fallbackThumb(subtitleColor);
+      }
+    } else {
+      thumb = _fallbackThumb(subtitleColor);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      child: Row(
+        children: [
+          thumb,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(pack.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: titleColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Text('${pack.count} sticker${pack.count != 1 ? 's' : ''}', style: TextStyle(fontSize: 12, color: subtitleColor)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: onAction,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: installed ? Colors.transparent : accentColor,
+                border: installed ? Border.all(color: dangerColor) : null,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Text(
+                installed ? 'Remove' : 'Add',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: installed ? dangerColor : Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StickerPackFooter extends StatelessWidget {
   final List<StickerPackSummary> packs;
+  final bool hasFaved;
   final bool hasRecent;
   final int activeIndex;
   final ScrollController scrollController;
   final ValueChanged<int> onPackTapped;
+  final VoidCallback? onSettings;
   final bool isDark;
   final bool hasUnreadFeatured;
 
   const _StickerPackFooter({
     required this.packs,
+    required this.hasFaved,
     required this.hasRecent,
     required this.activeIndex,
     required this.scrollController,
     required this.onPackTapped,
+    this.onSettings,
     required this.isDark,
     this.hasUnreadFeatured = false,
   });
@@ -2701,9 +3174,23 @@ class _StickerPackFooter extends StatelessWidget {
     final borderColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8e8e8);
     final activeBg = isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8);
     final inactiveColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
 
     final items = <Widget>[];
     int itemIdx = 0;
+
+    // Faved (starred) section icon — AyuGram fillIcons emits FavedSetId first,
+    // before Recent (stickers_list_widget.cpp:2931).
+    if (hasFaved) {
+      final isActive = activeIndex == itemIdx;
+      items.add(_footerIcon(
+        index: itemIdx,
+        isActive: isActive,
+        activeBg: activeBg,
+        child: Icon(Icons.star, size: 22, color: isActive ? accentColor : inactiveColor),
+      ));
+      itemIdx++;
+    }
 
     if (hasRecent) {
       final isActive = activeIndex == itemIdx;
@@ -2711,7 +3198,7 @@ class _StickerPackFooter extends StatelessWidget {
         index: itemIdx,
         isActive: isActive,
         activeBg: activeBg,
-        child: Icon(Icons.access_time, size: 22, color: isActive ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd)) : inactiveColor),
+        child: Icon(Icons.access_time, size: 22, color: isActive ? accentColor : inactiveColor),
       ));
       itemIdx++;
     }
@@ -2727,17 +3214,17 @@ class _StickerPackFooter extends StatelessWidget {
             child: Image.memory(bytes, fit: BoxFit.cover, width: 26, height: 26, gaplessPlayback: true, cacheWidth: 52),
           );
         } catch (_) {
-          iconWidget = Icon(Icons.sticky_note_2_outlined, size: 22, color: isActive ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd)) : inactiveColor);
+          iconWidget = Icon(Icons.sticky_note_2_outlined, size: 22, color: isActive ? accentColor : inactiveColor);
         }
       } else {
-        iconWidget = Icon(Icons.sticky_note_2_outlined, size: 22, color: isActive ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd)) : inactiveColor);
+        iconWidget = Icon(Icons.sticky_note_2_outlined, size: 22, color: isActive ? accentColor : inactiveColor);
       }
       items.add(_footerIcon(
         index: itemIdx,
         isActive: isActive,
         activeBg: activeBg,
         child: iconWidget,
-        showBadge: itemIdx == 0 && !hasRecent && hasUnreadFeatured,
+        showBadge: itemIdx == 0 && hasUnreadFeatured,
       ));
       itemIdx++;
     }
@@ -2747,11 +3234,32 @@ class _StickerPackFooter extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: borderColor, width: 1)),
       ),
-      child: ListView.builder(
-          controller: scrollController,
-        scrollDirection: Axis.horizontal,
-          itemCount: items.length,
-          itemBuilder: (_, _lvI) => items[_lvI],
+      child: Row(
+        children: [
+          // Settings / manage-sets gear, fixed at the far left — opens the
+          // sticker-set management box (stickers_list_footer.cpp:301).
+          GestureDetector(
+            onTap: onSettings,
+            behavior: HitTestBehavior.opaque,
+            child: Tooltip(
+              message: 'Manage sticker sets',
+              waitDuration: const Duration(milliseconds: 400),
+              child: SizedBox(
+                width: _kStickerFooterHeight,
+                height: _kStickerFooterHeight,
+                child: Icon(Icons.settings_outlined, size: 22, color: inactiveColor),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              controller: scrollController,
+              scrollDirection: Axis.horizontal,
+              itemCount: items.length,
+              itemBuilder: (_, _lvI) => items[_lvI],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2872,14 +3380,15 @@ const double _kGifItemSkip = 3.0;
 const double _kGifRowBaseHeight = 100.0;
 const double _kGifFooterHeight = 44.0;
 
-const List<String> _kGifCategoryEmojis = [
-  '😂', '😍', '😘', '❤️', '🥳', '😡',
-  '👍', '🤔', '👏', '🙄', '😎', '💃',
-  '🐶', '🐱', '🎮', '🏆', '🎄', '⚽',
+// AyuGram's fixed GIF-search fallback (GifSearchEmojiFallback,
+// stickers_list_footer.cpp:98), used until the server-driven app-config list
+// (gif_search_emojies) resolves and when that key is absent.
+const List<String> _kGifSearchEmojiFallback = [
+  '👍', '😘', '😍', '😡', '🥳', '😂', '😮', '🙄', '😎', '👎',
 ];
 
 class _GifTab extends StatefulWidget {
-  final void Function(String gifFileId, {StickerSendMode mode})? onGifSend;
+  final void Function(String gifFileId, {StickerSendMode mode, String caption})? onGifSend;
   final ValueChanged<bool>? onContextMenuToggle;
   final void Function(int queryId, String resultId)? onInlineResultSend;
   final bool visible;
@@ -2900,6 +3409,9 @@ class _GifTabState extends State<_GifTab> {
   String _nextOffset = '';
   bool _loadingMore = false;
   int _activeCategoryIndex = -1;
+  // Server-driven GIF-search category emoji (app-config gif_search_emojies),
+  // initialized to AyuGram's fallback until the engine resolves the live list.
+  List<String> _gifCategoryEmojis = _kGifSearchEmojiFallback;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -2953,6 +3465,16 @@ class _GifTabState extends State<_GifTab> {
     } catch (e) {
       Debug.log('emoji_panel', 'final gifs = await engine.getSavedGifs(activeAccount.id): $e');
     }
+    // Resolve the server-driven GIF-search category row (gif_search_emojies);
+    // the engine applies AyuGram's fallback when the app-config key is absent.
+    try {
+      final emojies = await engine.getGifSearchEmojies(activeAccount.id);
+      if (mounted && emojies.isNotEmpty) {
+        setState(() => _gifCategoryEmojis = emojies);
+      }
+    } catch (e) {
+      Debug.log('emoji_panel', 'getGifSearchEmojies: $e');
+    }
   }
 
   void _onSearchChanged() {
@@ -2970,7 +3492,7 @@ class _GifTabState extends State<_GifTab> {
       });
       return;
     }
-    if (_activeCategoryIndex < 0 || (_activeCategoryIndex < _kGifCategoryEmojis.length && query != _kGifCategoryEmojis[_activeCategoryIndex])) {
+    if (_activeCategoryIndex < 0 || (_activeCategoryIndex < _gifCategoryEmojis.length && query != _gifCategoryEmojis[_activeCategoryIndex])) {
       setState(() { _activeCategoryIndex = -1; });
     }
     if (_gifBotId != null) {
@@ -2991,7 +3513,8 @@ class _GifTabState extends State<_GifTab> {
       });
       return;
     }
-    final emoji = _kGifCategoryEmojis[index];
+    if (index >= _gifCategoryEmojis.length) return;
+    final emoji = _gifCategoryEmojis[index];
     _activeCategoryIndex = index;
     _searchController.text = emoji;
     _searchController.selection = TextSelection.collapsed(offset: emoji.length);
@@ -3074,6 +3597,9 @@ class _GifTabState extends State<_GifTab> {
       items: [
         PopupMenuItem(value: 'send_silent', child: Text('Send Without Sound', style: TextStyle(fontSize: 13, color: textColor))),
         PopupMenuItem(value: 'schedule', child: Text('Schedule', style: TextStyle(fontSize: 13, color: textColor))),
+        // AyuGram includes lng_send_gif_with_caption between schedule and
+        // add/delete in the saved-GIF menu — gifs_list_widget.cpp:430.
+        PopupMenuItem(value: 'send_caption', child: Text('Send GIF with caption', style: TextStyle(fontSize: 13, color: textColor))),
         PopupMenuItem(
           value: 'delete',
           child: Text('Delete GIF', style: TextStyle(fontSize: 13, color: dangerColor)),
@@ -3085,6 +3611,11 @@ class _GifTabState extends State<_GifTab> {
       widget.onGifSend?.call(gif.fileId, mode: StickerSendMode.silent);
     } else if (result == 'schedule' && mounted) {
       widget.onGifSend?.call(gif.fileId, mode: StickerSendMode.schedule);
+    } else if (result == 'send_caption' && mounted) {
+      final caption = await _promptGifCaption();
+      if (caption != null && caption.isNotEmpty && mounted) {
+        widget.onGifSend?.call(gif.fileId, caption: caption);
+      }
     } else if (result == 'delete' && mounted) {
       final appState = context.read<AppState>();
       final engine = context.read<EngineService>();
@@ -3098,6 +3629,47 @@ class _GifTabState extends State<_GifTab> {
         });
       }
     }
+  }
+
+  // Prompts for a caption to attach to the GIF, mirroring AyuGram's
+  // SendGifWithCaptionBox. Returns the text, or null if cancelled.
+  Future<String?> _promptGifCaption() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final textColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    final accent = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+    final controller = TextEditingController();
+    final caption = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bg,
+        title: Text('Send GIF with caption', style: TextStyle(fontSize: 16, color: textColor)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          minLines: 1,
+          style: TextStyle(fontSize: 14, color: textColor),
+          decoration: InputDecoration(
+            hintText: 'Add a caption...',
+            hintStyle: TextStyle(color: textColor.withValues(alpha: 0.5)),
+          ),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel', style: TextStyle(color: textColor)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: Text('Send', style: TextStyle(color: accent)),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return caption;
   }
 
   void _onSearchResultContextMenu(InlineBotResult result, Offset globalPos) async {
@@ -3135,6 +3707,7 @@ class _GifTabState extends State<_GifTab> {
               : _buildSavedGifs(isDark),
         ),
         _GifCategoryFooter(
+          emojis: _gifCategoryEmojis,
           activeIndex: _activeCategoryIndex,
           onCategoryTap: _onCategoryTap,
           isDark: isDark,
@@ -3312,11 +3885,13 @@ class _GifTabState extends State<_GifTab> {
 }
 
 class _GifCategoryFooter extends StatelessWidget {
+  final List<String> emojis;
   final int activeIndex;
   final ValueChanged<int> onCategoryTap;
   final bool isDark;
 
   const _GifCategoryFooter({
+    required this.emojis,
     required this.activeIndex,
     required this.onCategoryTap,
     required this.isDark,
@@ -3336,7 +3911,7 @@ class _GifCategoryFooter extends StatelessWidget {
       ),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: _kGifCategoryEmojis.length + 1,
+        itemCount: emojis.length + 1,
         itemBuilder: (context, i) {
           if (i == 0) {
             final isActive = activeIndex < 0;
@@ -3371,7 +3946,7 @@ class _GifCategoryFooter extends StatelessWidget {
               ),
               alignment: Alignment.center,
               child: Text(
-                _kGifCategoryEmojis[catIdx],
+                emojis[catIdx],
                 style: const TextStyle(fontSize: 22),
               ),
             ),

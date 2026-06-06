@@ -1516,11 +1516,12 @@ class EngineService {
     }
   }
 
-  Future<void> sendSticker(String accountId, String chatId, String stickerId, {bool silent = false, int scheduleDate = 0}) async {
+  Future<void> sendSticker(String accountId, String chatId, String stickerId, {bool silent = false, int scheduleDate = 0, String caption = ''}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'sticker_id': stickerId,
+      if (caption.isNotEmpty) 'caption': caption,
       if (silent) 'silent': true,
       if (scheduleDate > 0) 'schedule_date': scheduleDate,
     }));
@@ -1763,6 +1764,48 @@ class EngineService {
     } catch (e) {
       Debug.error('ENGINE', 'getRecentStickers failed', e);
       return [];
+    }
+  }
+
+  /// Returns the account's favorited (starred) stickers. AyuGram surfaces these
+  /// as the first sticker-panel section (Data::Stickers::FavedSetId).
+  Future<List<StickerInfoItem>> getFavedStickers(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetFavedStickers', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+      return list.map((e) {
+        final m = e as Map<String, dynamic>;
+        return StickerInfoItem(
+          emoji: m['emoji'] as String? ?? '',
+          thumbB64: m['thumb_b64'] as String? ?? '',
+          width: m['width'] as int? ?? 0,
+          height: m['height'] as int? ?? 0,
+          mimeType: m['mime_type'] as String? ?? '',
+          fileId: m['file_id'] as String? ?? '',
+          isFaved: m['is_faved'] as bool? ?? true,
+        );
+      }).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getFavedStickers failed', e);
+      return [];
+    }
+  }
+
+  /// Returns the server-driven GIF-search category emoji (app-config
+  /// `gif_search_emojies`), with AyuGram's fixed 10-emoji fallback applied
+  /// server-side when the key is absent.
+  Future<List<String>> getGifSearchEmojies(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetGifSearchEmojies', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return const [];
+      final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+      return list.map((e) => e.toString()).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getGifSearchEmojies failed', e);
+      return const [];
     }
   }
 

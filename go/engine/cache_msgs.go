@@ -1374,6 +1374,48 @@ func (e *Engine) GetRecentStickers(accountID string) ([]cores.StickerInfo, error
 	return fetcher.GetRecentStickers()
 }
 
+type FavedStickersFetcher interface {
+	GetFavedStickersList() ([]cores.StickerInfo, error)
+}
+
+// GetFavedStickers returns the account's favorited (starred) stickers, shown as
+// the first sticker-panel section in AyuGram.
+func (e *Engine) GetFavedStickers(accountID string) ([]cores.StickerInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(FavedStickersFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support faved stickers")
+	}
+	return fetcher.GetFavedStickersList()
+}
+
+type GifSearchEmojiesFetcher interface {
+	GetGifSearchEmojies() ([]string, error)
+}
+
+// GetGifSearchEmojies returns the server-driven GIF-search category emoji
+// (app-config gif_search_emojies) with AyuGram's fixed fallback.
+func (e *Engine) GetGifSearchEmojies(accountID string) ([]string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(GifSearchEmojiesFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support gif search emojies")
+	}
+	return fetcher.GetGifSearchEmojies()
+}
+
 type StickerFaver interface {
 	FaveSticker(fileID int64, extra string, unfave bool) error
 }
@@ -2196,6 +2238,27 @@ func (e *Engine) SendStickerWithOpts(accountID, chatID, stickerID string, silent
 	}
 	_, err := acc.Core.SendSticker(chatID, stickerID)
 	return err
+}
+
+// SendStickerWithCaption sends a sticker/GIF document with a text caption,
+// backing the GIF panel's "Send GIF with caption" action.
+func (e *Engine) SendStickerWithCaption(accountID, chatID, stickerID, caption string, silent bool, scheduleDate int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type captionSender interface {
+		SendStickerWithCaption(chatID, stickerID, caption string, silent bool, scheduleDate int) (*cores.Message, error)
+	}
+	if c, ok := acc.Core.(captionSender); ok {
+		_, err := c.SendStickerWithCaption(chatID, stickerID, caption, silent, scheduleDate)
+		return err
+	}
+	// Fallback for platforms without caption support: send without the caption.
+	return e.SendStickerWithOpts(accountID, chatID, stickerID, silent, scheduleDate)
 }
 
 type PollOptions struct {
