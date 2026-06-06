@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
+import '../data/emoji_data.dart';
 import '../models/engine_models.dart';
 import '../theme/telegram_palette.dart';
 import 'forum_topic_icon.dart';
@@ -126,6 +127,13 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  // Set of emoji glyphs (normalized) that match the current search query via the
+  // keyword/suggestion engine — the Dart analogue of AyuGram's `_searchEmoji`
+  // set built by `SearchEmoji(_searchQuery, _searchEmoji)` (stickers_list_footer.cpp:147).
+  // null when no search is active. Custom emoji / topic icons are filtered by
+  // glyph membership, mirroring `appendPremiumSearchResults`' `_searchEmoji.contains(emoji)`
+  // (emoji_list_widget.cpp:793).
+  Set<String>? _searchMatchGlyphs;
 
   final GlobalKey _iconButtonKey = GlobalKey();
   OverlayEntry? _flyOverlay;
@@ -170,7 +178,48 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   }
 
   void _onSearchChanged() {
-    setState(() => _searchQuery = _searchController.text.toLowerCase().trim());
+    final q = _searchController.text.toLowerCase().trim();
+    if (q == _searchQuery) return;
+    setState(() {
+      _searchQuery = q;
+      _searchMatchGlyphs = q.isEmpty ? null : _computeSearchMatchGlyphs(q);
+    });
+  }
+
+  // Drop the U+FE0F variation selector and skin-tone modifiers so glyphs compare
+  // canonically — mirrors AyuGram's `emoji->original()` collapse in SearchEmoji
+  // (stickers_list_footer.cpp:157) and the keyword index's postfix handling.
+  static final RegExp _glyphSkinTone =
+      RegExp(r'[\u{1F3FB}-\u{1F3FF}]', unicode: true);
+  static String _normalizeGlyph(String emoji) =>
+      emoji.replaceAll('\u{FE0F}', '').replaceAll(_glyphSkinTone, '');
+
+  // Build the set of emoji glyphs matching [query] via the keyword/suggestion
+  // engine (emoji_data) — the Dart port of AyuGram's `SearchEmoji`
+  // (stickers_list_footer.cpp:147): split the query into words and union per-word
+  // matches. A word that is itself an emoji matches directly (the `Ui::Emoji::Find`
+  // branch, :164); otherwise it is looked up against the keyword index
+  // (`keywords.queryMine`, :174).
+  Set<String> _computeSearchMatchGlyphs(String query) {
+    final glyphs = <String>{};
+    for (final word in query.split(RegExp(r'\s+'))) {
+      if (word.isEmpty) continue;
+      // Direct-glyph branch: a pasted emoji matches itself. Harmless for plain
+      // text words (no topic icon normalizes to e.g. "cat").
+      glyphs.add(_normalizeGlyph(word));
+      for (final entry in EmojiKeywords.instance.search(word, limit: 500)) {
+        glyphs.add(_normalizeGlyph(entry.emoji));
+      }
+    }
+    return glyphs;
+  }
+
+  // True when [emoji]'s glyph is in the current keyword-match set. Mirrors
+  // `_searchEmoji.contains(emoji)` (emoji_list_widget.cpp:793).
+  bool _emojiMatchesQuery(String emoji) {
+    final set = _searchMatchGlyphs;
+    if (set == null || set.isEmpty || emoji.isEmpty) return false;
+    return set.contains(_normalizeGlyph(emoji));
   }
 
   EngineService? _getEngine() {
@@ -261,15 +310,6 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
       }
       final idx = math.Random().nextInt(_remainingColors.length);
       _colorId = _remainingColors.removeAt(idx);
-    });
-  }
-
-  void _selectColorFromGrid(int colorId) {
-    setState(() {
-      _colorId = colorId;
-      _iconEmojiId = 0;
-      _selectedEmojiStr = null;
-      _remainingColors = List.of(_topicColorIds)..remove(_colorId);
     });
   }
 
@@ -854,12 +894,12 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   Widget _buildSearchResultsGrid(bool isDark, EngineService? engine) {
     final accountId = widget.accountId;
     final matchingIcons = _serverIcons
-        .where((icon) => icon.emoji.toLowerCase().contains(_searchQuery))
+        .where((icon) => _emojiMatchesQuery(icon.emoji))
         .toList();
     final matchingSets = <(CustomEmojiSetSummary, List<StickerInfoItem>)>[];
     for (final emojiSet in _emojiSets) {
       final matches = emojiSet.stickers
-          .where((s) => s.emoji.toLowerCase().contains(_searchQuery))
+          .where((s) => _emojiMatchesQuery(s.emoji))
           .toList();
       if (matches.isNotEmpty) {
         matchingSets.add((emojiSet, matches));
@@ -981,10 +1021,12 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   }
 
   Widget _buildTopicIconsGrid(bool isDark, EngineService? engine) {
-    final filteredIcons = _searchQuery.isEmpty
-        ? _serverIcons
-        : _serverIcons.where((icon) => icon.emoji.toLowerCase().contains(_searchQuery)).toList();
-
+    // AyuGram's TopicIcon recent list is `[kDefaultIconId] + forumIcons().list()`
+    // (edit_forum_topic_box.cpp:285-289): a single default colored-letter cell
+    // followed by the free emoji icons — there is NO color grid. The topic color
+    // is changed only by tapping the top icon button (`_cycleColor` ← random
+    // `ChooseNextColorId`). Reached only when no search is active; search routes
+    // to `_buildSearchResultsGrid`.
     return SingleChildScrollView(
       padding: EdgeInsets.all(_gridPadding),
       child: Column(
@@ -994,14 +1036,9 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
             spacing: 2,
             runSpacing: 2,
             children: [
-              if (_searchQuery.isEmpty) ...[
-                _buildDefaultResetCell(isDark),
-                for (final colorId in _topicColorIds)
-                  _buildGridCell(colorId, isDark),
-              ],
-              if (filteredIcons.isNotEmpty)
-                for (final icon in filteredIcons)
-                  _buildServerIconGridCell(icon, isDark, engine),
+              _buildDefaultResetCell(isDark),
+              for (final icon in _serverIcons)
+                _buildServerIconGridCell(icon, isDark, engine),
               if (_loadingServerIcons)
                 const Padding(
                   padding: EdgeInsets.all(8),
@@ -1019,9 +1056,8 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   Widget _buildEmojiSetGrid(CustomEmojiSetSummary emojiSet, bool isDark, EngineService? engine) {
     final accountId = widget.accountId;
-    final stickers = _searchQuery.isEmpty
-        ? emojiSet.stickers
-        : emojiSet.stickers.where((s) => s.emoji.toLowerCase().contains(_searchQuery)).toList();
+    // Reached only when no search is active; search routes to _buildSearchResultsGrid.
+    final stickers = emojiSet.stickers;
 
     return CustomScrollView(
       slivers: [
@@ -1174,35 +1210,6 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                       icon.emoji.isNotEmpty ? icon.emoji : '\u{2753}',
                       style: const TextStyle(fontSize: 22),
                     ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGridCell(int colorId, bool isDark) {
-    final isSelected = _iconEmojiId == 0 && _colorId == colorId;
-    return GestureDetector(
-      onTap: () => _selectColorFromGrid(colorId),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          width: _gridCellSize,
-          height: _gridCellSize,
-          decoration: isSelected
-              ? BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: isDark
-                      ? const Color(0xFF2b5278)
-                      : const Color(0xFFE3F2FD),
-                )
-              : null,
-          child: Center(
-            child: ForumTopicIcon(
-              colorId: colorId,
-              title: _titleController.text,
-              size: _gridIconSize,
             ),
           ),
         ),
