@@ -582,39 +582,6 @@ an internal 8px skip) lands exactly `colorEditSkip` = 10px from the picker edge 
 measured 10.00px in both modes (cpp:1030). `flutter_audit.sh verify` PASS, no
 crashes/overflow in desktop or mobile runs.
 
-# create_group_wizard — Create Group/Channel wizard, SetupChannelBox, EditPeerTypeBox, PublicLinksLimitBox
-
-Audited `dart/lib/ui/create_group_wizard.dart` (3538 lines) against AyuGram's
-`boxes/add_contact_box.cpp` (`GroupInfoBox`, `SetupChannelBox`),
-`boxes/peers/add_participants_box.cpp` (`AddParticipantsBoxController`),
-`boxes/peers/edit_peer_type_box.{h,cpp}` (`EditPeerTypeBox`),
-`boxes/peers/edit_peer_permissions_box.cpp`, `boxes/peers/edit_peer_usernames_list.cpp`,
-`boxes/premium_limits_box.cpp` (`PublicLinksLimitBox`), and `menu/menu_ttl.cpp`.
-
-The file is genuinely well-wired — every visible control calls a real engine method, there
-are no stubs/placeholders/TODOs/"coming soon" snackbars, and many constants match AyuGram
-exactly (see Verified section). The findings below are behavioral deviations, not broken wiring.
-
-- [ ] [MAJOR] Auto-delete (TTL) picker is shown during creation for **megagroup and forum**, but AyuGram only attaches the TTL menu for the legacy `Type::Group`. The Dart gates the title-bar timer button on `widget.type != _WizardType.channel` (group + megagroup + forum), whereas AyuGram builds the TTL top-button strictly inside `if (_type == Type::Group)`. For megagroup/forum there is no creation-time TTL UI in the reference. — `create_group_wizard.dart:1080` ← `AyuGram/boxes/add_contact_box.cpp:628`
-
-- [ ] [MAJOR] Member-picker title shows the count `${_selectedMembers.length} / 200000` for **all** member-picker steps, including the broadcast-channel "Add Subscribers" step. AyuGram's `updateTitle()` sets the additional/count title to an **empty string** for broadcast channels (`_peer->isChannel() && !_peer->isMegagroup()`) and only shows the `%1 / %2` count for groups/megagroups. The Dart also **hardcodes `200000`** instead of using `session().serverConfig().megagroupSizeMax`. — `create_group_wizard.dart:1101-1103` ← `AyuGram/boxes/peers/add_participants_box.cpp:882-889`
-
-- [ ] [MAJOR] `_EditPeerTypeBox` adds a "Create Topics" permission toggle for forums (wired to `setDefaultBannedRights`), but AyuGram's `EditPeerTypeBox` has no such control — `EditPeerTypeData` carries only `privacy`, `username`, `usernamesOrder`, `hasDiscussionLink`, `noForwards`, `joinToWrite`, `requestToJoin`, and the Save callback bundles exactly those. The forum/topics restriction is edited elsewhere (permissions box), not in the type box. — `create_group_wizard.dart:3042-3056` ← `AyuGram/boxes/peers/edit_peer_type_box.h:36-44`
-
-- [ ] [MAJOR] Upload-progress ring on the userpic button is dead/non-functional: `_uploadProgress` is initialized to `-1` and is **never reassigned** anywhere in the file, so the `_ProgressRingPainter` + `_BottomClipper` overlay (which only renders when `uploadProgress >= 0`) can never appear, and the `_progressAnim.repeat()` path is unreachable. The photo upload itself (`editChannelPhoto`) works, but the progress UI that AyuGram's `UserpicButton` (Role::ChoosePhoto) provides is stubbed-out infrastructure. — `create_group_wizard.dart:305` (also `:1140`, `:1980`) ← `AyuGram/boxes/add_contact_box.cpp:563-569`
-
-## Verified correct (no action needed)
-
-- TTL option values (1 day … 1 year) match `menu/menu_ttl.cpp:168-184` exactly — `create_group_wizard.dart:102-120`.
-- Slowmode values `[0,5,10,30,60,300,900,3600]` match `SlowmodeDelayByIndex` — `create_group_wizard.dart:2674` ← `edit_peer_permissions_box.cpp:191-205`.
-- Username min/max length (5/32) and 200 ms debounce match `kMinUsernameLength`/`kMaxUsernameLength`/`kUsernameCheckTimeout` — `create_group_wizard.dart:613,622,646` ← `edit_peer_common.h:15-17`.
-- Title max 128 / description max 255 match `kMaxGroupChannelTitle`/`kMaxChannelDescription`; description hidden for groups matches `if (_type != Type::Group)` — `create_group_wizard.dart:38-39,1187` ← `add_contact_box.cpp:577,587,594`.
-- Creation defaults to **Public** (`SetupChannelBox` `Privacy::Public`); edit defaults to public-if-has-username (`EditPeerTypeBox`) — `create_group_wizard.dart:129,2734` ← `add_contact_box.cpp:978`, `edit_peer_type_box.cpp:356-360`.
-- "Invite via Link" button opens `EditPeerTypeBox` and its label ("Invite via Link") matches `lng_profile_add_via_link` — `create_group_wizard.dart:1445-1453` ← `add_participants_box.cpp:935-937`.
-- `USERS_TOO_FEW` → privacy-settings message matches `lng_cant_invite_privacy` — `create_group_wizard.dart:245-251` ← `add_contact_box.cpp:768-770`.
-- Permission-toggle visibility (joinToWrite gated on public-or-discussion-link, requestToJoin nested under joinToWrite, always-shown noForwards) matches the reference — `create_group_wizard.dart:3003-3041` ← `edit_peer_type_box.cpp:215-299`.
-- Secondary-username reorder (drag handle) + inactive strikethrough, and batch save on "Save", match the reference. Flows (group: info→members→create; channel/megagroup/forum: info→create→setup→members) match.
-
 # custom_emoji_cache — custom-emoji thumb/path/file cache (memory + disk, refcounted, batched engine fetch)
 
 Scope note: this file is the Dart analog of AyuGram's `Data::CustomEmojiManager`
