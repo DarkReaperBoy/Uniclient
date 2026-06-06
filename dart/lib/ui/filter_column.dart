@@ -39,13 +39,17 @@ class FilterColumn extends StatefulWidget {
     return _activeState?._hitTestTab(globalPos) ?? -1;
   }
 
-  /// Get the folder ID at the given tab index, or null.
+  /// Get the folder ID at the given unified slot index, or null. Returns null
+  /// for the "All Chats" slot (it is not a drop target for chats) and for
+  /// out-of-range indices.
   static String? folderIdAt(int index) {
-    if (_activeState == null || index < 0) return null;
-    final chatState = _activeState!.context.read<ChatState>();
-    final folders = chatState.folders;
-    if (index >= folders.length) return null;
-    return folders[index].id;
+    final state = _activeState;
+    if (state == null || index < 0 || index >= state._slots.length) return null;
+    final folderIdx = state._slots[index];
+    if (folderIdx < 0) return null; // "All Chats" slot
+    final folders = state.context.read<ChatState>().folders;
+    if (folderIdx >= folders.length) return null;
+    return folders[folderIdx].id;
   }
 
   static void clearDropHighlight() {
@@ -137,13 +141,26 @@ class _FilterColumnState extends State<FilterColumn> {
   bool _prevActiveFolderTracked = false;
 
   // Raw-pointer drag state (mirrors horizontal tab approach).
-  int? _dragIndex; // folder index being dragged (null = not tracking)
+  int? _dragIndex; // unified slot index being dragged (null = not tracking)
   int? _dragPointer; // pointer ID we're tracking
   double _dragOffset = 0; // vertical pixel offset of the dragged tab
   Offset? _dragStart; // pointer-down position to measure threshold
   bool _dragActive = false; // true once threshold exceeded
 
   final List<GlobalKey> _tabKeys = [];
+
+  // Unified reorderable list = [All Chats?] + folders, mirroring AyuGram's
+  // `_list`. Each slot maps to a folder index (>= 0) or the "All Chats" tab
+  // (-1). The All tab joins the list so it scrolls and (for premium users)
+  // reorders. Its position is not persisted by the engine (getFolders skips
+  // dialogFilterDefault), so it is tracked here for the session.
+  int _allIndex = 0; // position of the "All Chats" tab among folders
+  List<int> _slots = const []; // unified slot -> folder index (-1 = All Chats)
+  // Drag constraints snapshot, recomputed each build (AyuGram pinned intervals).
+  bool _premiumSnapshot = false;
+  int _premiumFromUnified = 1 << 30; // first locked (pinned) unified slot
+  int _dragLowerBound = 0; // lowest slot a drag may land on
+  int _dragUpperBound = 1 << 30; // highest slot a drag may land on
 
   // Spec §13.4: kFreezeTimeout — auto-switch folder after 2s hover while dragging.
   Timer? _autoSwitchTimer;
@@ -208,7 +225,16 @@ class _FilterColumnState extends State<FilterColumn> {
   void _onPointerDown(PointerDownEvent event) {
     if (event.buttons != kPrimaryButton) return;
     final tabIdx = _hitTestTab(event.position);
-    if (tabIdx < 0) return;
+    if (tabIdx < 0 || tabIdx >= _slots.length) return;
+    // AyuGram pinned-interval guard (window_filters_menu.cpp:228): the "All
+    // Chats" tab is pinned for non-premium users, and folders past the limit
+    // (the locked region rendered at 0.6 opacity) cannot be picked up.
+    final folderIdx = _slots[tabIdx];
+    if (folderIdx < 0) {
+      if (!_premiumSnapshot) return; // All Chats is pinned for free users
+    } else if (tabIdx >= _premiumFromUnified) {
+      return; // locked folder — pinned, not draggable
+    }
     _dragPointer = event.pointer;
     _dragIndex = tabIdx;
     _dragStart = event.position;
@@ -233,11 +259,35 @@ class _FilterColumnState extends State<FilterColumn> {
     if (_dragActive && _dragIndex != null) {
       final targetIndex = _computeDropIndex();
       if (targetIndex != null && targetIndex != _dragIndex!) {
-        final chatState = context.read<ChatState>();
-        chatState.reorderFolders(_dragIndex!, targetIndex);
+        _applyReorder(_dragIndex!, targetIndex);
       }
     }
     _cancelDrag();
+  }
+
+  /// Move the dragged unified slot to [target] and persist the new order
+  /// (mirrors AyuGram `applyReorder`). Updates the session-tracked "All Chats"
+  /// position and forwards the full id order (with `'0'` for All) to the engine.
+  void _applyReorder(int from, int target) {
+    if (from < 0 || from >= _slots.length) return;
+    final chatState = context.read<ChatState>();
+    final folders = chatState.folders;
+    final newSlots = List<int>.from(_slots);
+    // Same convention as ChatState.reorderFolders: decrement when moving down.
+    var insertAt = target;
+    if (insertAt > from) insertAt--;
+    insertAt = insertAt.clamp(0, newSlots.length - 1);
+    final moved = newSlots.removeAt(from);
+    newSlots.insert(insertAt, moved);
+    final allPos = newSlots.indexOf(-1);
+    if (allPos >= 0) {
+      // Number of folders preceding the All Chats slot == its folder position.
+      _allIndex = newSlots.take(allPos).where((s) => s >= 0).length;
+    }
+    final orderedIds = newSlots
+        .map((s) => (s < 0 || s >= folders.length) ? '0' : folders[s].id)
+        .toList();
+    chatState.applyFolderOrder(orderedIds);
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
@@ -280,7 +330,10 @@ class _FilterColumnState extends State<FilterColumn> {
         target = i;
       }
     }
-    return target;
+    // AyuGram pinned intervals: a drag may only land inside the non-pinned span
+    // (after a pinned "All Chats", before the locked-folder region).
+    if (_dragLowerBound > _dragUpperBound) return target;
+    return target.clamp(_dragLowerBound, _dragUpperBound);
   }
 
   void _autoScrollDuringDrag(Offset globalPos) {
@@ -423,8 +476,19 @@ class _FilterColumnState extends State<FilterColumn> {
     }
   }
 
-  void _scrollToActiveTab(int index) {
-    if (!_scrollController.hasClients || index < 0) return;
+  /// Map a folder index to its position in the unified reorderable list.
+  int _folderToUnified(int folderIndex) {
+    for (var u = 0; u < _slots.length; u++) {
+      if (_slots[u] == folderIndex) return u;
+    }
+    return -1;
+  }
+
+  void _scrollToActiveTab(int folderIndex) {
+    final index = _folderToUnified(folderIndex);
+    if (!_scrollController.hasClients || index < 0 || index >= _tabKeys.length) {
+      return;
+    }
     final box = _tabKeys[index].currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
     final scrollBox = context.findRenderObject() as RenderBox?;
@@ -662,12 +726,10 @@ class _FilterColumnState extends State<FilterColumn> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final chatState = context.watch<ChatState>();
     final appState = context.watch<AppState>();
     final folders = chatState.folders;
     final activeFolderId = chatState.activeFolderId;
-    final allUnread = chatState.unreadCountForAccount(appState.activeAccountId);
     int otherAccountsUnread = 0;
     for (final acc in appState.accounts) {
       if (acc.id != appState.activeAccountId) {
@@ -675,16 +737,43 @@ class _FilterColumnState extends State<FilterColumn> {
       }
     }
 
-    _syncTabKeys(folders.length);
-
     final isPremium = appState.effectivePremium;
-    final premiumFrom = isPremium
+    final folderLimit = isPremium
         ? chatState.folderLimitPremium
         : chatState.folderLimitFree;
+    final showAll = !appState.hideAllChatsFolder;
+
+    // Build the unified reorderable list = [All Chats?] + folders, mirroring
+    // AyuGram's `_list`. For free users "All Chats" is pinned at the top
+    // (AyuGram pins interval [0,1)); premium users may reposition it, so its
+    // session position is honoured only when premium.
+    final effectiveAllIdx = isPremium ? _allIndex.clamp(0, folders.length) : 0;
+    final slots = <int>[];
+    for (var f = 0; f <= folders.length; f++) {
+      if (showAll && f == effectiveAllIdx) slots.add(-1);
+      if (f < folders.length) slots.add(f);
+    }
+    _slots = slots;
+    _syncTabKeys(slots.length);
+
+    // AyuGram pinned-interval math (window_filters_menu.cpp:223-237): the first
+    // locked unified slot is the first folder slot past the current limit.
+    _premiumSnapshot = isPremium;
+    var premiumFromUnified = slots.length;
+    for (var u = 0; u < slots.length; u++) {
+      if (slots[u] >= 0 && slots[u] >= folderLimit) {
+        premiumFromUnified = u;
+        break;
+      }
+    }
+    _premiumFromUnified = premiumFromUnified;
+    final allSlotUnified = showAll ? slots.indexOf(-1) : -1;
+    _dragLowerBound = (!isPremium && allSlotUnified == 0) ? 1 : 0;
+    _dragUpperBound = premiumFromUnified - 1;
 
     if (activeFolderId != null) {
       final activeIdx = folders.indexWhere((f) => f.id == activeFolderId);
-      if (activeIdx >= 0 && activeIdx >= premiumFrom) {
+      if (activeIdx >= 0 && activeIdx >= folderLimit) {
         SchedulerBinding.instance.addPostFrameCallback((_) {
           if (mounted) chatState.setActiveFolder(null);
         });
@@ -726,7 +815,8 @@ class _FilterColumnState extends State<FilterColumn> {
       color: palette.sideBarBg,
       child: Column(
         children: [
-          // Hamburger menu button at top (windowFiltersMainMenu: minHeight 54px).
+          // Hamburger menu button at top — the ONLY fixed element (AyuGram
+          // `_menu`); everything below scrolls together inside `_scroll`.
           _SideBarButton(
             icon: Icons.menu,
             label: 'Menu',
@@ -738,20 +828,8 @@ class _FilterColumnState extends State<FilterColumn> {
             useDotBadge: true,
             onTap: widget.onOpenDrawer ?? () {},
           ),
-          if (!appState.hideAllChatsFolder)
-          GestureDetector(
-            onSecondaryTapUp: (details) => _showAllChatsContextMenu(
-              context, details.globalPosition),
-            child: _SideBarButton(
-              icon: Icons.chat,
-              label: 'All',
-              isActive: activeFolderId == null,
-              unreadCount: appState.hideNotificationCounters ? 0 : allUnread,
-              unreadAllMuted: chatState.isAccountUnreadAllMuted(appState.activeAccountId),
-              onTap: () => chatState.setActiveFolder(null),
-            ),
-          ),
-          // Folder tabs (scrollable, drag-reorderable via raw pointers).
+          // AyuGram `_container` (owned by `_scroll`): "All Chats", the folder
+          // `_list` and the "Edit" `_setup` button all scroll as one column.
           Expanded(
             child: Listener(
               onPointerDown: _onPointerDown,
@@ -762,82 +840,112 @@ class _FilterColumnState extends State<FilterColumn> {
                 controller: _scrollController,
                 physics: physics,
                 child: ValueListenableBuilder<int>(
-                valueListenable: FilterColumn.dropHighlightIndex,
-                builder: (context, dropIdx, _) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(folders.length, (index) {
-                    final folder = folders[index];
-                    final unread = appState.hideNotificationCounters ? 0 : chatState.unreadCountForFolder(folder.id);
-                    final allMuted = chatState.isFolderUnreadAllMuted(folder.id);
-                    final isDragged = _dragActive && _dragIndex == index;
-                    final shift = _computeShiftForTab(index);
-                    final isDropTarget = dropIdx == index;
-                    final isLocked = index >= premiumFrom;
-
-                    return AnimatedContainer(
-                      key: _tabKeys[index],
-                      duration: (_dragActive && !isDragged)
-                          ? const Duration(milliseconds: 150)
-                          : Duration.zero,
-                      transform: Matrix4.translationValues(
-                        0,
-                        isDragged ? _dragOffset : shift,
-                        isDragged ? 1 : 0,
+                  valueListenable: FilterColumn.dropHighlightIndex,
+                  builder: (context, dropIdx, _) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var u = 0; u < _slots.length; u++)
+                        _buildReorderSlot(context, u, dropIdx, activeFolderId,
+                            folderLimit, appState, chatState),
+                      // "Edit" setup button — scrolls with the list but is not
+                      // part of the reorderable `_list` (no tab key).
+                      _SideBarButton(
+                        icon: Icons.edit,
+                        label: 'Edit',
+                        isActive: false,
+                        unreadCount: 0,
+                        onTap: () => _openFoldersSettings(),
                       ),
-                      child: Opacity(
-                        opacity: isDragged ? 0.8 : 1.0,
-                        child: DragTarget<ForwardDragData>(
-                          onWillAcceptWithDetails: (_) => true,
-                          onMove: (_) {
-                            if (FilterColumn.dropHighlightIndex.value != index) {
-                              FilterColumn.dropHighlightIndex.value = index;
-                            }
-                          },
-                          onLeave: (_) {
-                            if (FilterColumn.dropHighlightIndex.value == index) {
-                              FilterColumn.dropHighlightIndex.value = -1;
-                            }
-                          },
-                          onAcceptWithDetails: (_) {
-                            FilterColumn.clearDropHighlight();
-                          },
-                          builder: (context, candidateData, rejectedData) =>
-                        GestureDetector(
-                          onSecondaryTapUp: _dragActive
-                              ? null
-                              : (details) => _showFolderContextMenu(
-                                    context, folder, details.globalPosition),
-                          child: _SideBarButton(
-                            icon: FilterColumn.folderIconForInfo(folder),
-                            label: folder.name,
-                            isActive: activeFolderId == folder.id,
-                            unreadCount: unread,
-                            unreadAllMuted: allMuted,
-                            locked: isLocked,
-                            forceRippled: isDropTarget,
-                            onTap: _dragActive
-                                ? () {}
-                                : () => _onFolderTap(folder, activeFolderId),
-                          ),
-                        ),
-                      ),
-                      ),
-                    );
-                  }),
+                    ],
+                  ),
                 ),
-              ),
               ),
             ),
           ),
-          // Spec §1: "Edit" button at bottom of filters sidebar.
-          _SideBarButton(
-            icon: Icons.edit,
-            label: 'Edit',
-            isActive: false,
-            unreadCount: 0,
-            onTap: () => _openFoldersSettings(),
-          ),
         ],
+      ),
+    );
+  }
+
+  /// Build one slot of the unified reorderable list (the "All Chats" tab or a
+  /// folder tab), including the drag transform, chat-drop target and badge.
+  Widget _buildReorderSlot(
+    BuildContext context,
+    int u,
+    int dropIdx,
+    String? activeFolderId,
+    int folderLimit,
+    AppState appState,
+    ChatState chatState,
+  ) {
+    final folders = chatState.folders;
+    final folderIdx = _slots[u];
+    final isAll = folderIdx < 0;
+    final folder = isAll ? null : folders[folderIdx];
+    final isLocked = !isAll && folderIdx >= folderLimit;
+
+    // Item 1: badge shows the count of unread CHATS, not summed messages.
+    final badge = appState.hideNotificationCounters
+        ? (count: 0, allMuted: false)
+        : chatState.folderUnreadBadge(folder?.id,
+            includeMuted: appState.notifIncludeMutedInFolders);
+
+    final isDragged = _dragActive && _dragIndex == u;
+    final shift = _computeShiftForTab(u);
+    final isDropTarget = dropIdx == u;
+
+    final button = _SideBarButton(
+      icon: isAll ? Icons.chat : FilterColumn.folderIconForInfo(folder!),
+      label: isAll ? 'All' : folder!.name,
+      isActive: isAll ? activeFolderId == null : activeFolderId == folder!.id,
+      unreadCount: badge.count,
+      unreadAllMuted: badge.allMuted,
+      locked: isLocked,
+      forceRippled: isDropTarget,
+      onTap: _dragActive
+          ? () {}
+          : isAll
+              ? () => chatState.setActiveFolder(null)
+              : () => _onFolderTap(folder!, activeFolderId),
+    );
+
+    return AnimatedContainer(
+      key: _tabKeys[u],
+      duration: (_dragActive && !isDragged)
+          ? const Duration(milliseconds: 150)
+          : Duration.zero,
+      transform: Matrix4.translationValues(
+        0,
+        isDragged ? _dragOffset : shift,
+        isDragged ? 1 : 0,
+      ),
+      child: Opacity(
+        opacity: isDragged ? 0.8 : 1.0,
+        child: DragTarget<ForwardDragData>(
+          onWillAcceptWithDetails: (_) => !isAll,
+          onMove: (_) {
+            if (!isAll && FilterColumn.dropHighlightIndex.value != u) {
+              FilterColumn.dropHighlightIndex.value = u;
+            }
+          },
+          onLeave: (_) {
+            if (FilterColumn.dropHighlightIndex.value == u) {
+              FilterColumn.dropHighlightIndex.value = -1;
+            }
+          },
+          onAcceptWithDetails: (_) {
+            FilterColumn.clearDropHighlight();
+          },
+          builder: (context, candidateData, rejectedData) => GestureDetector(
+            onSecondaryTapUp: _dragActive
+                ? null
+                : (details) => isAll
+                    ? _showAllChatsContextMenu(context, details.globalPosition)
+                    : _showFolderContextMenu(
+                        context, folder!, details.globalPosition),
+            child: button,
+          ),
+        ),
       ),
     );
   }
@@ -919,6 +1027,7 @@ class _SideBarButtonState extends State<_SideBarButton>
     super.dispose();
   }
 
+  static const int _kMaxLabelLines = 3;
   static const double _textTop = 40;
   static const double _textSkip = 6;
   static const double _iconSize = 24;
@@ -1009,9 +1118,32 @@ class _SideBarButtonState extends State<_SideBarButton>
 
   Widget _buildFullButton(BuildContext context, Color iconColor, Color textColor) {
     final effectiveUnread = widget.locked ? 0 : widget.unreadCount;
+
+    // Item 2 — AyuGram SideBarButton::resizeGetHeight (side_bar_button.cpp:109):
+    //   height = minHeight + max(0, min(textHeight, font.height * 3) - font.height)
+    // The button grows downward for 2–3 line folder names; the icon, badge and
+    // text-top stay pinned. Pre-measure the label so the layout delegate can
+    // report the grown height (a MultiChildLayoutDelegate can't size to its
+    // children, so the measurement happens here).
+    const labelStyle = TextStyle(fontSize: 11, fontWeight: FontWeight.w600);
+    final measureText = widget.locked ? '   ${widget.label}' : widget.label;
+    final painter = TextPainter(
+      text: TextSpan(text: measureText, style: labelStyle),
+      maxLines: _kMaxLabelLines,
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: FilterColumn.width - 2 * _textSkip);
+    final lineHeight = painter.preferredLineHeight;
+    final extra = math.max(
+      0.0,
+      math.min(painter.height, lineHeight * _kMaxLabelLines) - lineHeight,
+    );
+    final totalHeight = widget.minHeight + extra;
+
     return CustomMultiChildLayout(
       delegate: _SideBarButtonLayout(
         minHeight: widget.minHeight,
+        totalHeight: totalHeight,
         textTop: _textTop,
         textSkip: _textSkip,
         iconTop: _iconTop,
@@ -1051,7 +1183,7 @@ class _SideBarButtonState extends State<_SideBarButton>
                     fontWeight: FontWeight.w600,
                     color: textColor,
                   ),
-                  maxLines: 3,
+                  maxLines: _kMaxLabelLines,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                 )
@@ -1062,7 +1194,7 @@ class _SideBarButtonState extends State<_SideBarButton>
                     fontWeight: FontWeight.w600,
                     color: textColor,
                   ),
-                  maxLines: 3,
+                  maxLines: _kMaxLabelLines,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                 ),
@@ -1114,6 +1246,7 @@ enum _SideBarSlot { icon, label, badge }
 
 class _SideBarButtonLayout extends MultiChildLayoutDelegate {
   final double minHeight;
+  final double totalHeight;
   final double textTop;
   final double textSkip;
   final double iconTop;
@@ -1126,6 +1259,7 @@ class _SideBarButtonLayout extends MultiChildLayoutDelegate {
 
   _SideBarButtonLayout({
     required this.minHeight,
+    required this.totalHeight,
     required this.textTop,
     required this.textSkip,
     required this.iconTop,
@@ -1174,12 +1308,14 @@ class _SideBarButtonLayout extends MultiChildLayoutDelegate {
 
   @override
   Size getSize(BoxConstraints constraints) {
-    return Size(constraints.maxWidth, minHeight);
+    // Item 2: grown height (minHeight for 1-line labels, taller for 2–3 lines).
+    return Size(constraints.maxWidth, totalHeight);
   }
 
   @override
   bool shouldRelayout(_SideBarButtonLayout oldDelegate) {
     return minHeight != oldDelegate.minHeight
+        || totalHeight != oldDelegate.totalHeight
         || hasBadge != oldDelegate.hasBadge
         || hasLockIcon != oldDelegate.hasLockIcon;
   }

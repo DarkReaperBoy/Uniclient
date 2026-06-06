@@ -823,6 +823,35 @@ class ChatState extends ChangeNotifier {
     return chatsForFolder(folderId).fold(0, (sum, c) => sum + c.unreadCount);
   }
 
+  /// Folder / "All Chats" sidebar badge value: the number of unread **chats**
+  /// (not the sum of unread messages), mirroring AyuGram's
+  /// `window_filters_menu.cpp:343`:
+  ///   count = (chats + marks) - (includeMuted ? 0 : chatsMuted + marksMuted)
+  /// where `chats` counts chats with unread messages, `marks` counts chats
+  /// manually marked unread (no unread messages), and the `*Muted` terms are
+  /// their muted subsets. The badge is muted-styled only when [includeMuted]
+  /// is set and every counted chat is muted (`includeMuted && count == muted`).
+  /// Archived chats are excluded (the archive carries its own badge).
+  ({int count, bool allMuted}) folderUnreadBadge(
+    String? folderId, {
+    required bool includeMuted,
+  }) {
+    var chats = 0, chatsMuted = 0, marks = 0, marksMuted = 0;
+    for (final c in chatsForFolder(folderId)) {
+      if (c.isArchived) continue;
+      if (c.unreadCount > 0) {
+        chats++;
+        if (c.isMuted) chatsMuted++;
+      } else if (c.isUnreadMark) {
+        marks++;
+        if (c.isMuted) marksMuted++;
+      }
+    }
+    final muted = chatsMuted + marksMuted;
+    final count = (chats + marks) - (includeMuted ? 0 : muted);
+    return (count: count, allMuted: includeMuted && count == muted);
+  }
+
   /// Whether ALL unreads are from muted chats (badge should use muted color).
   /// Matches AyuGram's Domain::unreadBadgeMuted() — starts true, set false
   /// if any account has non-muted unreads.
@@ -978,6 +1007,34 @@ class ChatState extends ChangeNotifier {
       _engine.reorderDialogFilters(
         _foldersForAccount,
         _folders.map((f) => int.tryParse(f.id) ?? 0).toList(),
+      );
+    }
+    notifyListeners();
+  }
+
+  /// Apply a new sidebar order produced by a drag on the vertical folder rail.
+  /// [orderedIds] is the *unified* order in which the string `'0'` marks the
+  /// "All Chats" position (premium users can reposition it among folders —
+  /// AyuGram `window_filters_menu.cpp` keeps id 0 in the reorderable `_list`).
+  /// Folders are reordered to match and the full order — including the `0`
+  /// sentinel — is persisted via `messages.updateDialogFiltersOrder`, mirroring
+  /// AyuGram's `applyReorder`. The All position is not returned by `getFolders`
+  /// (the engine skips `dialogFilterDefault`), so it is tracked in the sidebar
+  /// widget for the session; the folder order itself round-trips normally.
+  void applyFolderOrder(List<String> orderedIds) {
+    final byId = {for (final f in _folders) f.id: f};
+    final newFolders = <FolderInfo>[];
+    for (final id in orderedIds) {
+      final f = byId[id];
+      if (f != null) newFolders.add(f);
+    }
+    if (newFolders.length == _folders.length) {
+      _folders = newFolders;
+    }
+    if (_foldersForAccount.isNotEmpty) {
+      _engine.reorderDialogFilters(
+        _foldersForAccount,
+        orderedIds.map((id) => int.tryParse(id) ?? 0).toList(),
       );
     }
     notifyListeners();
