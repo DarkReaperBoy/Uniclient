@@ -32,19 +32,27 @@ List<_DecodedThumbResult> _decodeThumbBatchIsolate(List<List<dynamic>> entries) 
   return results;
 }
 
+/// Frame sizes follow AyuGram `Data::FrameSizeFromTag(tag)` =
+/// `round(EmojiSizeFromTag(tag) * 1.12)` at DPR=1 / Scale=100%. The ×1.12 frame
+/// factor (`Ui::Text::AdjustCustomEmojiSize`, text_custom_emoji.cpp:44-46) is
+/// applied UNIFORMLY to every tag — not just `normal`.
+/// Refs: data_custom_emoji.cpp:1011-1015 (FrameSizeFromTag) + :83-95
+/// (EmojiSizeFromTag) + basic.style:57 (emojiSize:18) + chat.style:773-774
+/// (largeEmojiSize:36, largeEmojiOutline:1).
 enum EmojiSizeTag {
-  normal,   // 22px frame (inline in text — AdjustCustomEmojiSize: round(20*1.12))
-  large,    // 27px frame
-  isolated, // 38px frame (1-7 emoji messages — largeEmojiSize + 2*largeEmojiOutline)
-  setIcon,  // 21px frame (sticker set icons — ConvertScale(18*7/6))
+  normal,   // 20px frame: round(GetSizeNormal=emojiSize 18 * 1.12) — inline in text
+  large,    // 27px frame: round(GetSizeLarge=ConvertScale(18*4/3)=24 * 1.12)
+  isolated, // 43px frame: round((largeEmojiSize 36 + 2*largeEmojiOutline 1)=38 * 1.12) — 1-7 emoji messages
+  setIcon,  // 24px frame: round(ConvertScale(18*7/6)=21 * 1.12) — sticker set icons
 }
 
 class EmojiSizeConstants {
+  // AyuGram FrameSizeFromTag(tag) = round(EmojiSizeFromTag(tag) * 1.12) at DPR=1.
   static const Map<EmojiSizeTag, double> frameSizes = {
-    EmojiSizeTag.normal: 22.0,
-    EmojiSizeTag.large: 27.0,
-    EmojiSizeTag.isolated: 38.0,
-    EmojiSizeTag.setIcon: 21.0,
+    EmojiSizeTag.normal: 20.0,   // round(18 * 1.12) = 20
+    EmojiSizeTag.large: 27.0,    // round(24 * 1.12) = 27
+    EmojiSizeTag.isolated: 43.0, // round(38 * 1.12) = 43
+    EmojiSizeTag.setIcon: 24.0,  // round(21 * 1.12) = 24
   };
 
   static const int kMaxPerRequest = 100;
