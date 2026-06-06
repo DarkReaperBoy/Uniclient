@@ -79,6 +79,19 @@ class RegexFilter {
   int get hashCode => id.hashCode;
 }
 
+/// Full-field equality for the import diff, matching AyuGram's RegexFilter::operator==
+/// (entities.h:85-92): id + text + enabled + reversed + caseInsensitive + dialogId. The
+/// public [RegexFilter.operator==] intentionally compares only id (for set/list identity),
+/// so it can't be reused here. dialogId is normalised (null and '' both mean "shared", per
+/// [RegexFilter.isShared]) before comparison.
+bool _filtersEquivalent(RegexFilter a, RegexFilter b) =>
+    a.id == b.id &&
+    a.text == b.text &&
+    a.enabled == b.enabled &&
+    a.reversed == b.reversed &&
+    a.caseInsensitive == b.caseInsensitive &&
+    (a.dialogId ?? '') == (b.dialogId ?? '');
+
 class RegexFilterExclusion {
   final String dialogId;
   final String filterId;
@@ -317,37 +330,77 @@ String _translateIcuPattern(String text) {
   return out.toString();
 }
 
+// Maps the Go engine's media_type (go/engine/db.go:370-384 — capped at 12 = MediaInvoice)
+// to AyuGram's filter <type> tag (filters_utils.cpp typeOfMessage). Only engine values
+// 1..11 carry a bucket; 12 (invoice) and 0 (no media) resolve to TYPE_TEXT — except an
+// emoji-and-spaces-only text, which _resolveFilterType promotes to 19 (TYPE_EMOJIS).
+//
+// AyuGram's story (23/24), giveaway-start (26) and paid-media (29) tags are NOT
+// representable here: the engine's media switch (telegram.go convertMessage) never
+// classifies MessageMediaStory/Giveaway/PaidMedia/Dice — they fall through to media_type 0
+// with no service action — so, exactly like the MediaDice→15 case, those <type> values can
+// never be produced. (giveaway-results 28 and gift-stars 30 ARE produced, but via the
+// service-action path in _serviceMessageType, not this map.) ← filters_utils.cpp:534-637
 const _mediaTypeNames = <int, int>{
   1: 1,   // image → TYPE_PHOTO
   2: 3,   // video → TYPE_VIDEO
   3: 14,  // audio → TYPE_MUSIC
   4: 2,   // voice → TYPE_VOICE
   5: 5,   // videonote → TYPE_ROUND_VIDEO
-  6: 13,  // sticker → TYPE_STICKER
+  6: 13,  // sticker → TYPE_STICKER (static, TGS and webm all type 13 — see _resolveFilterType)
   7: 8,   // gif → TYPE_GIF
   8: 9,   // file → TYPE_FILE
   9: 17,  // poll → TYPE_POLL
   10: 4,  // location → TYPE_GEO
   11: 12, // contact → TYPE_CONTACT
-  // 12 = MediaInvoice in Go engine — no filter bucket for invoices
-  13: 19, // emoji-only text → TYPE_EMOJIS
-  14: 23, // story → TYPE_STORY
-  15: 24, // story mention → TYPE_STORY_MENTION
-  16: 26, // giveaway → TYPE_GIVEAWAY
-  17: 28, // giveaway results → TYPE_GIVEAWAY_RESULTS
-  18: 29, // paid media → TYPE_PAID_MEDIA
-  19: 30, // gift stars → TYPE_GIFT_STARS
+  // 12 = MediaInvoice → TYPE_TEXT (AyuGram: media->invoice() falls through to return 0).
 };
 
-int _resolveFilterType(CachedMessage msg) {
-  if (msg.mediaType == 6) {
-    if (msg.mediaMimeType == 'application/x-tgsticker' ||
-        msg.mediaMimeType == 'video/webm') {
-      return 15; // TYPE_ANIMATED_STICKER
-    }
-    return 13; // TYPE_STICKER
+// Emoji-sequence matcher mirroring message_bubble.dart's _nativeEmojiPattern (a base emoji
+// plus any trailing modifiers / ZWJ-joiners / components). Duplicated here to keep the data
+// layer independent of the UI layer. The character class contains the literal joiner code
+// points it strips: ZWJ (U+200D) and VS16 (U+FE0F); the strip pattern also drops ZWSP
+// (U+200B).
+final _emojiSequencePattern = RegExp(
+  '(?:\\p{Emoji_Presentation}|\\p{Emoji}️)'
+  '[‍️\\p{Emoji_Presentation}\\p{Emoji_Modifier}'
+  '\\p{Emoji_Modifier_Base}\\p{Emoji_Component}]*',
+  unicode: true,
+);
+final _emojiStripPattern = RegExp('[\\s‍️​]');
+
+/// Mirrors AyuGram's HistoryItem::isOnlyEmojiAndSpaces (history_item.cpp:8083-8089 →
+/// HasNotEmojiAndSpaces, :126-143): true when [text] is non-empty and every non-space run
+/// is an emoji. AyuGram walks the text with Ui::Emoji::Find against its emoji DB; we strip
+/// emoji sequences (the bubble's pattern) plus whitespace/joiners and require that at least
+/// one emoji matched and nothing else remains. No count cap — any number of emoji counts.
+bool _isOnlyEmojiAndSpaces(String text) {
+  if (text.isEmpty) return false;
+  final matches = _emojiSequencePattern.allMatches(text).toList();
+  if (matches.isEmpty) return false;
+  var stripped = text;
+  for (final m in matches.reversed) {
+    stripped = stripped.replaceRange(m.start, m.end, '');
   }
-  return _mediaTypeNames[msg.mediaType] ?? 0;
+  return stripped.replaceAll(_emojiStripPattern, '').isEmpty;
+}
+
+int _resolveFilterType(CachedMessage msg) {
+  final mapped = _mediaTypeNames[msg.mediaType];
+  if (mapped != null) return mapped;
+  // Reached only with no engine-modeled media (media_type 0) or an invoice (12). AyuGram's
+  // no-media branch promotes an emoji-and-spaces-only message to 19 (TYPE_EMOJIS) via
+  // isOnlyEmojiAndSpaces (filters_utils.cpp:598-601); a message that still carries media()
+  // — webpage / game / invoice — stays TYPE_TEXT. Guard exactly as the bubble's
+  // _detectIsolatedEmoji does so only a genuine no-media text is a candidate.
+  if (!msg.hasMedia &&
+      !msg.hasWebPage &&
+      !msg.hasGame &&
+      !msg.hasInvoice &&
+      _isOnlyEmojiAndSpaces(msg.contentText)) {
+    return 19; // TYPE_EMOJIS
+  }
+  return 0; // TYPE_TEXT
 }
 
 String _extractSingleText(CachedMessage msg, {Set<String>? extractedUrls}) {
@@ -395,10 +448,16 @@ int _serviceMessageType(CachedMessage msg) {
       case 'suggest_photo': return 21;
       case 'wallpaper': return 22;
       case 'gift_premium':
+        // AyuGram types a premium gift-code as 25 (TYPE_GIFT_PREMIUM_CHANNEL) when the
+        // gift carries a boosted channel and 18 (TYPE_GIFT_PREMIUM) otherwise
+        // (filters_utils.cpp:618-624 ← history_item.cpp:7299-7320: a GiftCode is always
+        // GiftType::Premium and gift.channel = channel(boost_peer)). The engine sets
+        // extra.channel=true for a channel gift-code (telegram.go convertServiceMessage).
+        // There is no separate 'gift_premium_channel' service tag — AyuGram models this as
+        // ONE MessageActionGiftCode action distinguished only by the channel flag.
         final extra = _extractExtra(msg.contentRaw);
         if (extra?['channel'] == true) return 25;
         return 18;
-      case 'gift_premium_channel': return 25;
       case 'gift_stars': return 30;
       case 'giveaway_results': return 28;
       case 'boost': return 10;
@@ -583,9 +642,17 @@ class AyuFilterEngine extends ChangeNotifier {
         .toList() ?? [];
     final removeIds = (data['removeFiltersById'] as List<dynamic>?)
         ?.map((e) => e.toString())
+        // AyuGram keeps a removal id only when it matches an existing filter
+        // (prepareChanges: `std::ranges::any_of(existingFilters, …)`,
+        // filters_utils.cpp:794-802); a backup referencing an unknown id is a no-op, not a
+        // change. Drop unknown ids so hasChanges and the confirm-dialog counts stay honest.
+        .where((id) => _filters.any((f) => f.id == id))
         .toList() ?? [];
     final removeExcl = (data['removeExclusions'] as List<dynamic>?)
         ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
+        // Likewise keep a removal-exclusion only when its (dialogId, filterId) exists
+        // locally (filters_utils.cpp:816-828; RegexFilterExclusion.== compares both fields).
+        .where((e) => _exclusions.contains(e))
         .toList() ?? [];
 
     final peersJson = data['peers'] as Map<String, dynamic>? ?? {};
@@ -600,8 +667,23 @@ class AyuFilterEngine extends ChangeNotifier {
     final toAdd = <RegexFilter>[];
     final toUpdate = <RegexFilter>[];
     for (final f in filters) {
-      if (_filters.any((ef) => ef.id == f.id)) {
-        toUpdate.add(f);
+      RegexFilter? existing;
+      for (final ef in _filters) {
+        if (ef.id == f.id) {
+          existing = ef;
+          break;
+        }
+      }
+      if (existing != null) {
+        // AyuGram records an override ONLY when the imported filter differs from the
+        // existing one (prepareChanges: `if (existing != regex)`, filters_utils.cpp:748-752
+        // — a full-field RegexFilter::operator==). A byte-identical re-import is a no-op.
+        // RegexFilter.operator== here compares only id, so do the full-field compare
+        // explicitly; otherwise re-importing an unchanged backup would report phantom
+        // "updates" and run no-op updateFilter() rebuilds.
+        if (!_filtersEquivalent(existing, f)) {
+          toUpdate.add(f);
+        }
       } else {
         toAdd.add(f);
       }

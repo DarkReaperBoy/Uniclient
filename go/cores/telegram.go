@@ -12485,6 +12485,18 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 
 	m.Text = t.serviceActionText(m.SenderName, svc.Action)
 	m.Extra["service_action"] = serviceActionTag(svc.Action)
+	// AyuGram types a premium gift-code as TYPE_GIFT_PREMIUM_CHANNEL (25) rather than
+	// TYPE_GIFT_PREMIUM (18) when the gift carries a boosted channel
+	// (history_item.cpp:7299-7320: gift.channel = channel(boost_peer); typeOfMessage
+	// filters_utils.cpp:618-624). Surface that as a `channel` flag in the message extra so
+	// the AyuGram regex-filter engine can reproduce the distinction.
+	if gc, ok := svc.Action.(*tg.MessageActionGiftCode); ok {
+		if bp, ok := gc.GetBoostPeer(); ok {
+			if _, isChannel := bp.(*tg.PeerChannel); isChannel {
+				m.Extra["channel"] = true
+			}
+		}
+	}
 	return m
 }
 
