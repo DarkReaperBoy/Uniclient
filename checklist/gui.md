@@ -582,21 +582,6 @@ an internal 8px skip) lands exactly `colorEditSkip` = 10px from the picker edge 
 measured 10.00px in both modes (cpp:1030). `flutter_audit.sh verify` PASS, no
 crashes/overflow in desktop or mobile runs.
 
-# custom_emoji_cache — custom-emoji thumb/path/file cache (memory + disk, refcounted, batched engine fetch)
-
-Scope note: this file is the Dart analog of AyuGram's `Data::CustomEmojiManager`
-(`data/stickers/data_custom_emoji.cpp/.h`). Backend wiring is solid — `request`/
-`requestFile` batch into real FFI calls `engine.getCustomEmojiThumbs` /
-`engine.getCustomEmojiFiles` (`custom_emoji_cache.dart:428,473` → `engine_service.dart:1593,1616`
-→ `_callAsync('__engine', 'GetCustomEmojiThumbs'/'GetCustomEmojiFiles')`). Batch cap
-`kMaxPerRequest=100` matches AyuGram `kMaxPerRequest=100`. Refcount-by-(docId,sizeTag),
-disk read/write, isolate base64 decode (`compute`), and listener notification are all
-real (no stubs, no placeholders, no fake data, no empty callbacks). Cached `_thumbs`,
-`_paths`, `_files` are each consumed for rendering (`message_bubble.dart:6265,6640`,
-`chat_view.dart:13073,13137`). One dimensional defect found.
-
-- [ ] [MAJOR] `EmojiSizeConstants.frameSizes` deviates from AyuGram `FrameSizeFromTag` for 3 of 4 tags. AyuGram computes EVERY tag's frame as `AdjustCustomEmojiSize(EmojiSizeFromTag/factor)*factor` = `round(size×1.12)` (uniform ×1.12 for all tags), giving `{normal:20, large:27, isolated:43, setIcon:24}` at DPR=1/Scale=100%. Dart has `{normal:22, large:27, isolated:38, setIcon:21}` — only `large` is correct. `normal` used a wrong base (`round(20×1.12)=22` per its own comment, but the base is `st::emojiSize=18`, so it should be `round(18×1.12)=20`); `isolated` and `setIcon` use the raw un-adjusted `EmojiSizeFromTag` value (38 and 21) and never apply the ×1.12 frame factor (should be 43 and 24). The enum comments at `:35-40` document these wrong values as if they matched AyuGram. The wrong constants are consumed as real image decode dimensions (`cacheWidth`/`cacheHeight`): `normal` at `message_bubble.dart:6388` and `setIcon` at `emoji_status_widget.dart:186`, so inline custom emoji and emoji-status icons decode at the wrong resolution vs AyuGram. — `custom_emoji_cache.dart:43-48` (and enum comments `custom_emoji_cache.dart:35-40`) ← `AyuGramDesktop/Telegram/SourceFiles/data/stickers/data_custom_emoji.cpp:1011-1015` (FrameSizeFromTag) + `data_custom_emoji.cpp:83-95` (EmojiSizeFromTag) + `AyuGramDesktop/Telegram/lib_ui/ui/text/text_custom_emoji.cpp:44-46` (AdjustCustomEmojiSize = round(×1.12)) + `AyuGramDesktop/Telegram/lib_ui/ui/basic.style:57` (emojiSize:18) + `AyuGramDesktop/Telegram/SourceFiles/ui/chat/chat.style:773-774` (largeEmojiSize:36, largeEmojiOutline:1)
-
 # edit_forum_topic_box — Create/Edit forum topic dialog (title + color + topic-icon/custom-emoji selector)
 
 Audited against AyuGram `boxes/peers/edit_forum_topic_box.cpp` + `chat_helpers/emoji_list_widget.cpp` + `dialogs/dialogs.style`.
