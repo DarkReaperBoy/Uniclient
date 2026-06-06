@@ -582,28 +582,6 @@ an internal 8px skip) lands exactly `colorEditSkip` = 10px from the picker edge 
 measured 10.00px in both modes (cpp:1030). `flutter_audit.sh verify` PASS, no
 crashes/overflow in desktop or mobile runs.
 
-# create_giveaway_box — Telegram boost-giveaway creation box (Premium / Stars / Prepaid + Award Specific Users)
-
-Backend wiring verified end-to-end: every engine call (`getGiftCodeOptions`,
-`getStarsGiveawayOptions`, `getGiveawayConfig`, `launchRandomGiveaway`,
-`launchCreditsGiveaway`, `launchPrepaidGiveaway`, `awardPremiumGiveaway`,
-`getChatMembers`) is a real `_callAsync('__engine', …)` bridge call backed by a
-real `tg.Payments*` API in `go/cores/telegram.go`. No empty callbacks, no TODO,
-no mock data, no "coming soon" — the feature is genuinely implemented. The
-findings below are behavioral/data-source deviations from the AyuGram source.
-
-- [ ] [MAJOR] End-date picker is **date-only**, not date+time. AyuGram opens `Ui::ChooseDateTimeBox` so the user sets the exact end **date AND time** (default = ThreeDaysAfterToday rounded to 5 min); the Dart opens `showCalendarBox` (calendar-only) and renders the value as `d/m/y` with no time, so the giveaway end **time** cannot be chosen and is silently lost. Should call `showChooseDateTimeBox` (which exists in the same file). — `create_giveaway_box.dart:1567` & display `create_giveaway_box.dart:1586` ← `info/channel_statistics/boosts/create_giveaway_box.cpp:1272-1289`
-
-- [ ] [MAJOR] End-date **minimum is wrong**. AyuGram sets `.min = QDateTime::currentSecsSinceEpoch` (i.e. *now*); the Dart forces `minDate = DateTime.now().add(Duration(days: 3))`, blocking the user from picking any end date inside the next 3 days that the source permits. — `create_giveaway_box.dart:1565` ← `info/channel_statistics/boosts/create_giveaway_box.cpp:1281`
-
-- [ ] [MAJOR] "Add Channel" picker reads the **local chat cache** instead of the dedicated `stories.getChatsToSend` API. AyuGram's `MyChannelsListController::prepare()` calls `MTPstories_GetChatsToSend()` to fetch only boost-eligible peers (channels the user can include) and accepts **megagroups** (`!peer->isChannel()` is the only skip → both broadcasts and supergroups pass; lang text is "Choose the groups **and** channels"). The Dart filters `chatState.chatsForAccount(...)` by `c.type == ChatType.channel` (broadcast-only), so it (a) lists channels the user merely subscribes to but doesn't administer — which the server will reject at launch — and (b) entirely excludes eligible megagroups. A Dart wrapper for the backend `StoriesGetChatsToSend` (already present at `go/cores/telegram.go:27466`) is never wired up. — `create_giveaway_box.dart:335-340` ← `info/channel_statistics/boosts/giveaway/giveaway_list_controllers.cpp:250-293` & `create_giveaway_box.cpp:919-923`
-
-- [ ] [MAJOR] "Award Specific Users" member picker loads **only the first 200 members** with client-side filtering and **no pagination / no server-side search**. AyuGram's `AwardMembersListController` extends `ParticipantsBoxController`, which paginates the full participant list and supports server search, so all members are reachable. In the Dart, `getChatMembers(..., limit: 200)` is fetched once; in any channel with >200 members the rest are unselectable and unsearchable. — `create_giveaway_box.dart:2028-2039` ← `info/channel_statistics/boosts/giveaway/giveaway_list_controllers.cpp:104-147`
-
-- [ ] [MAJOR] Channel-picker rows drop the **subscriber/member count** status. AyuGram's `MyChannelsListController::createRow` sets a custom status line with the live member count (`lng_chat_status_subscribers` / `lng_chat_status_members`, `channel->membersCount()`). The Dart `_ChannelPickerBox` row shows only an icon + title, discarding the count the source displays to help the user choose. — `create_giveaway_box.dart:1954-1968` ← `info/channel_statistics/boosts/giveaway/giveaway_list_controllers.cpp:299-308`
-
-- [ ] [MAJOR] Section **order/grouping diverges** from the source layout. AyuGram orders the random-giveaway body as: winners-slider → Channels → Users(countries) → **Duration gift-options** → Additional prize → Date → Show winners (the duration list `listOptionsRandom` is added at `create_giveaway_box.cpp:1041`, *after* Channels @862 and Users @942). The Dart renders Duration cards **inside `_buildRandomSection`, immediately after the slider and before Channels/Users**, then collapses Additional-prize + Date + Show-winners into a single "Settings" block in the reversed order (Show winners → Additional prize → Date). The duration step appears before, not after, the channel/eligibility steps. — `create_giveaway_box.dart:644-663` ← `info/channel_statistics/boosts/create_giveaway_box.cpp:1041-1044, 1100-1338`
-
 # ayu_filter — AyuGram regex-filter engine (matching, type resolution, import/export)
 
 Audited `dart/lib/data/ayu_filter.dart` against AyuGram's `ayu/features/filters/`
