@@ -582,30 +582,6 @@ an internal 8px skip) lands exactly `colorEditSkip` = 10px from the picker edge 
 measured 10.00px in both modes (cpp:1030). `flutter_audit.sh verify` PASS, no
 crashes/overflow in desktop or mobile runs.
 
-# ayu_filter — AyuGram regex-filter engine (matching, type resolution, import/export)
-
-Audited `dart/lib/data/ayu_filter.dart` against AyuGram's `ayu/features/filters/`
-(`filters_controller.cpp`, `filters_cache_controller.cpp`, `filters_utils.cpp`) and
-`ayu/data/entities.h`. The match/block/shared-vs-per-dialog/exclusion engine, the blob
-construction (`extractAllText`), `compileFilterPattern`, `publishFilters`, and the
-peer-resolution wiring (done in `ayu_filters_page.dart`) all faithfully mirror AyuGram.
-No stubs, empty callbacks, TODOs, or mock data. The findings below are message-type
-resolution and import-preview deviations.
-
-## Message type resolution (`<type>N</type>` blob tag)
-
-- [ ] [MAJOR] Animated/TGS stickers are typed `15` (TYPE_ANIMATED_STICKER), but AyuGram returns `15` **only for dice** and types every sticker as `13` (TYPE_STICKER). In `typeOfMessage` the `if (document->isAnimation()) return 15;` inside the `sticker()` branch is unreachable — the identical `isAnimation()` test six lines above already returned `8` (TYPE_GIF) — so the sole path to `15` is `dynamic_cast<Data::MediaDice*>`. The Dart returns `15` for mime `application/x-tgsticker`, so a filter on `<type>13</type>` misses TGS stickers and `<type>15</type>` wrongly catches them; conversely the Dart never produces `15` for dice (the Go engine doesn't model `MediaDice`). The `video/webm` arm of the same check is also dead — the Go engine rewrites webm-sticker mime to `video/webm+sticker` (telegram.go:11699), so `mediaMimeType == 'video/webm'` is never true. — `ayu_filter.dart:343-348` ← `ayu/features/filters/filters_utils.cpp:550-552,584-592`
-
-- [ ] [MAJOR] `_mediaTypeNames` keys 13–18 are unreachable, so several message kinds are never typed for filtering. The Go engine's `media_type` enum caps at `12` (`MediaInvoice`, go/engine/db.go:372-384) and has no story/giveaway/paid-media/emoji classification, yet the map assumes engine values 13–19. As a result **emoji-only** messages (map 13→19) fall through to `0` (TYPE_TEXT) instead of `19` (TYPE_EMOJIS) — AyuGram derives this from `item->isOnlyEmojiAndSpaces()` and the Dart has `contentText` available but never checks it; **stories** (14→23), **story-mentions** (15→24), **giveaways** (16→26), and **paid media** (18→29) are likewise never produced. A filter on any of those `<type>` tags silently never matches. (Map keys 17→28 giveaway-results and 19→30 gift-stars survive only because the service-action path also emits them; the five above have no fallback.) — `ayu_filter.dart:333-338` ← `ayu/features/filters/filters_utils.cpp:541-570,599-601`
-
-- [ ] [MAJOR] Channel premium gifts are typed `18` (TYPE_GIFT_PREMIUM) instead of `25` (TYPE_GIFT_PREMIUM_CHANNEL). The Dart distinguishes them via `_extractExtra(...)['channel'] == true`, but the Go engine never sets a `channel` flag for `MessageActionGiftCode` (serviceActionTag → `"gift_premium"`, telegram.go:12221-12222, no extra), so the branch always returns `18`. The sibling `case 'gift_premium_channel'` is also dead — the engine never emits that tag. AyuGram returns `25` whenever `gift->type == Premium && gift->channel`. — `ayu_filter.dart:397-401` ← `ayu/features/filters/filters_utils.cpp:618-624`
-
-## Import preview (`previewImport` vs `prepareChanges`)
-
-- [ ] [MAJOR] `previewImport` reports every same-id imported filter as an update, even when it is byte-identical to the existing one. AyuGram's `prepareChanges` only pushes to `filtersOverrides` when `existing != regex` (a full-field compare via `RegexFilter::operator==`, entities.h:85-92); an identical filter is a no-op. So re-importing one's own unchanged backup yields HasChanges=false / "no changes" in AyuGram, but in this app `updatedCount > 0`, the confirmation dialog shows "N filters updated", and `applyImport` runs N no-op `updateFilter` calls (each triggering `rebuildCache()` + `notifyListeners()`). The Dart's own `RegexFilter.operator==` only compares `id`, so even an equality guard here would be insufficient — all of text/enabled/reversed/caseInsensitive/dialogId must be compared. — `ayu_filter.dart:600-608` ← `ayu/features/filters/filters_utils.cpp:743-755`
-
-- [ ] [MAJOR] `previewImport` keeps `removeFiltersById` / `removeExclusions` entries that don't exist locally, whereas AyuGram drops them. `prepareChanges` only retains a removal id if `std::ranges::any_of(existingFilters, …)` (and likewise for exclusions), so a removal-backup referencing unknown ids produces HasChanges=false. The Dart maps the arrays verbatim with no existence check, so `filterIdsToRemove`/`exclusionsToRemove` can be non-empty (→ `hasChanges` true, wrong counts in the confirm dialog, no-op deletes applied) for ids the user never had. — `ayu_filter.dart:584-589` ← `ayu/features/filters/filters_utils.cpp:786-830`
-
 # create_group_wizard — Create Group/Channel wizard, SetupChannelBox, EditPeerTypeBox, PublicLinksLimitBox
 
 Audited `dart/lib/ui/create_group_wizard.dart` (3538 lines) against AyuGram's
