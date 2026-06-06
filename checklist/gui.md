@@ -594,40 +594,6 @@ Verified correct (no findings needed):
 
 ## Findings
 
-# emoji_status_widget — custom emoji status icon shown next to names (regular + collectible)
-
-Renders a peer's emoji status (custom emoji) next to their name in profile, chat
-view, chat list, and web-app panel. Handles regular statuses and "collectible"
-(unique-gift) statuses. Compared against AyuGram's emoji-status rendering path:
-`Info::Profile::Badge` (info_profile_badge.cpp), the collectible custom-emoji
-wrapper (`Ui::Premium::CollectibleEmoji` in premium_stars_colored.cpp), and the
-custom-emoji manager (data_custom_emoji.cpp).
-
-## Collectible status rendering (centerColor / edgeColor)
-
-- [ ] [CRITICAL] Collectible status recolors the **emoji glyph itself** with a `RadialGradient` via `ShaderMask` + `BlendMode.srcATop`, flattening the multicolor emoji into a solid gradient blob. AyuGram paints the emoji **unmodified** in its original colors (`_inner->paint(p, context)`) — the centerColor/edgeColor never touch the glyph. — `emoji_status_widget.dart:216-224` ← `ui/effects/premium_stars_colored.cpp:209-218`
-- [ ] [CRITICAL] The animated **colored mini-stars sparkle field** — the actual purpose of centerColor/edgeColor on a collectible status — is entirely missing. AyuGram renders 16 animated stars (`:/gui/icons/settings/starmini.svg`) that travel/fade, masks them with a radial gradient (centerColor→edgeColor) using `CompositionMode_SourceIn`, and draws that sparkle frame behind the emoji. The Dart has no star field and no animation for collectibles. — `emoji_status_widget.dart:216-224` ← `ui/effects/premium_stars_colored.cpp:100-207`
-
-## Emoji format support
-
-- [ ] [CRITICAL] WEBM (`video/webm`) animated emoji statuses are never rendered. `build()` only handles `file.isTgs` (Lottie) and `file.isWebp`; a webm status falls through to `_buildThumbOrFallback`, showing a frozen low-res thumbnail instead of the animated emoji. The model exposes `isWebm` and the sibling widget `forum_topic_icon.dart` already plays webm via a `_webmPlayer`, so this is a missing-format gap, not a backend limitation. — `emoji_status_widget.dart:187-214` ← `dart/lib/ui/forum_topic_icon.dart:556` (in-repo webm reference) / `data/stickers/data_custom_emoji.cpp:572-585` (AyuGram handles all formats uniformly)
-
-## Animation loop limit
-
-- [ ] [MAJOR] The Lottie animation loops **forever** (`status == completed → forward(from: 0)`), with no loop cap and no per-context control. AyuGram caps emoji-status animation at `kPlayStatusLimit = 12` loops via `Ui::Text::LimitedLoopsEmoji` in dialog-list, message, and menu contexts (where this widget is used — chat_list_row, chat_view), then freezes. Infinite looping is both a behavioral deviation and a continuous-repaint performance cost in lists. — `emoji_status_widget.dart:161-166` ← `history/view/history_view_message.cpp:1918-1922` (+ `kPlayStatusLimit` at `history_view_message.cpp:73`)
-
-## Power-saving behavior
-
-- [ ] [MAJOR] Power-saving (`kPowerSavingEmojiStatus`) drops to `_buildThumbOrFallback` for **every** format, replacing the real emoji with a low-res thumbnail (or even the premium-star fallback if no thumb), including for **static** WebP statuses that have nothing to animate. AyuGram's `kEmojiStatus` power-saving only sets `paused` — it still paints the actual emoji frame, just frozen. The Dart over-applies power-saving and degrades visible quality. — `emoji_status_widget.dart:187,212-214` ← `info/profile/info_profile_badge.cpp:154-162`
-
-## Fallback color
-
-- [ ] [MAJOR] Premium fallback icon color is hardcoded to `const Color(0xFF6C3BEB)` (a fixed purple) and uses the Material `Icons.workspace_premium`. AyuGram's premium/status star uses `premiumFg: profileVerifiedCheckBg`, which resolves to `windowBgActive` (the theme accent) — a theme-derived, blue-by-default color. The hardcoded purple is the wrong hue and ignores theming/light-dark. — `emoji_status_widget.dart:248-252` ← `info/info.style:608,614` / `lib_ui/ui/colors.palette:483`
-
-## Performance
-
-- [ ] [MAJOR] No `RepaintBoundary` around the perpetually-animating Lottie content; the widget returns a bare `SizedBox(child: content)`. Every animation frame can dirty the ancestor (each chat-list row / message header containing a status), causing wasteful repaints across the list. AyuGram isolates each badge in its own `RpWidget` (`_view`) that repaints independently of the surrounding name/row. — `emoji_status_widget.dart:226` ← `info/profile/info_profile_badge.cpp:90,148-149`
-
 # filter_column — vertical folder sidebar (FiltersMenu / SideBarButton)
 
 Implements Telegram Desktop's `Window::FiltersMenu` (72px vertical folder rail) plus the
