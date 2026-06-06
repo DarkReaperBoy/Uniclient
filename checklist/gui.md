@@ -594,47 +594,16 @@ Verified correct (no findings needed):
 
 ## Findings
 
-# filter_column — vertical folder sidebar (FiltersMenu / SideBarButton)
+# chat_list_panel — horizontal folder tabs unread badge (narrow/mobile mode)
 
-Implements Telegram Desktop's `Window::FiltersMenu` (72px vertical folder rail) plus the
-`Ui::SideBarButton` widget, lock icon and filter-icon computation. Backend wiring is solid:
-reorder → `reorderDialogFilters`, delete → `deleteFolder`, leave-chatlist →
-`GetLeaveChatlistSuggestions`/`LeaveChatlistFolder`, settings → `getSuggestedFolders` are all
-real bridge calls (no stubs). The emoji→icon map (`_emojiToIcon`) faithfully reproduces all 30
-active entries of AyuGram's `kIcons`, and the lock-icon geometry / button style constants
-(72px width, 62/54px heights, textTop 40, badge 17px @ (3,7), etc.) match `window.style` and
-`widgets.style`. The deviations below are behavioral/data, not placeholders.
-
-- [ ] [MAJOR] Folder & "All Chats" unread badge shows the SUM of unread **messages**
-  (`chatsForFolder(...).fold(sum + c.unreadCount)`, where `unreadCount` = per-chat message
-  count from `unread_count`), but AyuGram's badge shows the number of unread **chats**:
-  `count = (state.chats + state.marks) - (includeMuted ? 0 : chatsMuted + marksMuted)`. A folder
-  with 3 chats × 10 unread renders "30" instead of "3", and manually marked-unread chats
-  (`state.marks`) are never counted. — `filter_column.dart:770` (and `:749`, via
-  `chat_state.dart:805`/`:763`) ← `AyuGram/window/window_filters_menu.cpp:343`
-
-- [ ] [MAJOR] Button height is hard-fixed at `minHeight` (62px): `_SideBarButtonLayout.getSize`
-  returns `Size(maxWidth, minHeight)` regardless of label height, while the label is allowed up
-  to 3 lines (`maxLines: 3` at `:1054`/`:1065`, positioned at `textTop=40`). 2–3 line folder
-  names therefore paint past the 62px box (overflow/clip into the next tab). AyuGram's
-  `resizeGetHeight` grows the button: `minHeight + max(0, min(text.countHeight, font.height*3) -
-  font.height)`. — `filter_column.dart:1177` ← `AyuGram/lib_ui/ui/widgets/side_bar_button.cpp:109`
-
-- [ ] [MAJOR] Layout structure: "All Chats" (`:741`) and the bottom "Edit/Setup" button
-  (`:833`) are placed OUTSIDE the scrollable `Expanded`/`SingleChildScrollView` (`:755`), pinned
-  above and below the folder list. In AyuGram both the folder `_list` and the `_setup` button are
-  added to `_container`, which is the owned widget of `_scroll`, so "All", the folders, and "Edit"
-  all scroll together as one column (only the hamburger `_menu` is fixed). "All" is also part of
-  the reorderable `_list` (draggable for premium users); here it can never scroll or reorder. —
-  `filter_column.dart:833` ← `AyuGram/window/window_filters_menu.cpp:267`
-
-- [ ] [MAJOR] Drag-reorder has no premium-lock guard: `_onPointerDown`/`_computeDropIndex` pick up
-  any tab via raw hit-test and `_onPointerUp` persists the result through
-  `reorderFolders → reorderDialogFilters`, so a non-premium user with more folders than the limit
-  can drag locked folders (index ≥ `premiumFrom`, rendered at 0.6 opacity, `:775`/`:816`) and
-  reorder across the locked boundary. AyuGram pins that region via
-  `_reorder->addPinnedInterval(premiumFrom, max(1, list.size() - maxLimit))` so locked folders
-  cannot be moved. — `filter_column.dart:208` ← `AyuGram/window/window_filters_menu.cpp:228`
+- [ ] [MAJOR] The horizontal filter tabs (shown in narrow/oneColumn mode, where the vertical
+  `filter_column` rail is hidden) still show the SUM of unread **messages**, not the count of
+  unread **chats**. They call `chatState.unreadCountForFolder(folder.id)`
+  (`chatsForFolder(...).fold(sum + c.unreadCount)`) instead of the new `folderUnreadBadge`. At
+  400px the "Personal" tab shows 168 / "All" shows 999+, while the now-fixed desktop sidebar shows
+  3 / 117 for the same folders. Same fix as filter_column item 1 — route the tab badge through
+  `ChatState.folderUnreadBadge`. — `chat_list_panel.dart:2671` ←
+  `AyuGram/window/window_filters_menu.cpp:343` (found during filter_column mobile verification)
 
 # folders_settings_screen — Telegram Folders settings + Edit-Filter box
 
