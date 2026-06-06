@@ -1979,6 +1979,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]int{"free_limit": free, "premium_limit": premium})
 
+	case "GetMegagroupSizeMax":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		// GetMegagroupSizeMax always yields a usable value (200000 fallback on
+		// error), so surface it regardless of the lookup error.
+		sizeMax, _ := e.GetMegagroupSizeMax(params.AccountID)
+		return json.Marshal(map[string]int{"megagroup_size_max": sizeMax})
+
 	case "GetForumTopicDefaultIcons":
 		var params struct {
 			AccountID string `json:"account_id"`

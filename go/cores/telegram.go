@@ -20995,6 +20995,19 @@ func (t *TelegramCore) GetAppConfig() (bool, error) {
 	return true, nil
 }
 
+// GetMegagroupSizeMax returns the server-configured maximum number of members
+// a megagroup (supergroup) can hold, read from help.getConfig's
+// megagroup_size_max field. This drives the "%1 / %2" member-cap title in the
+// create-group/add-participants UI, matching AyuGram's
+// session().serverConfig().megagroupSizeMax.
+func (t *TelegramCore) GetMegagroupSizeMax() (int, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 0, ErrAuth }
+	result, err := t.api.HelpGetConfig(t.ctx)
+	if err != nil { return 0, err }
+	return result.MegagroupSizeMax, nil
+}
+
 // --- Remaining methods for comprehensive coverage ---
 
 // GetPassword retrieves the current 2FA password configuration for the account.

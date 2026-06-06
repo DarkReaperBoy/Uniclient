@@ -99,6 +99,12 @@ class _WizardDialogState extends State<_WizardDialog>
   // TTL (auto-delete) state for groups.
   int _ttlSeconds = 0;
 
+  // Server-configured megagroup member cap (help.getConfig: megagroup_size_max).
+  // Drives the "%1 / %2" count in the member-picker title for groups/megagroups,
+  // matching AyuGram's session().serverConfig().megagroupSizeMax. Falls back to
+  // the standard 200000 default until the real value loads.
+  int _megagroupSizeMax = 200000;
+
   static const Map<int, String> _ttlOptions = {
     0: 'Off',
     86400: '1 day',
@@ -159,7 +165,20 @@ class _WizardDialogState extends State<_WizardDialog>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _nameFocus.requestFocus();
       if (widget.type != _WizardType.channel) _loadDefaultTTL();
+      // The member cap is shown only for group/megagroup/forum (not broadcast
+      // channels), so only fetch the server value for those types.
+      if (widget.type != _WizardType.channel) _loadMegagroupSizeMax();
     });
+  }
+
+  Future<void> _loadMegagroupSizeMax() async {
+    try {
+      final max = await _engine.getMegagroupSizeMax(_accountId);
+      if (!mounted || max <= 0) return;
+      setState(() => _megagroupSizeMax = max);
+    } catch (e) {
+      Debug.log('create_group_wizard', 'getMegagroupSizeMax failed: $e');
+    }
   }
 
   Future<void> _loadDefaultTTL() async {
@@ -804,10 +823,19 @@ class _WizardDialogState extends State<_WizardDialog>
           _createdChatId = chatInfo.chatId;
         }
         if (_photoPath != null && _photoPath!.isNotEmpty) {
+          // Drive the userpic upload-progress ring (AyuGram UserpicButton
+          // Role::ChoosePhoto) while the photo upload is in flight. The info step
+          // (and its userpic) is still on screen here. EditChannelPhoto is an
+          // atomic FFI call with no byte-granular progress, so the overlay reads
+          // as an indeterminate spinner tied to the real upload lifecycle — it
+          // appears while _uploadProgress >= 0 and is cleared when the call ends.
+          if (mounted) setState(() => _uploadProgress = 0);
           try {
             await _engine.editChannelPhoto(_accountId, _createdChatId, _photoPath!);
           } catch (e) {
             Debug.error('create_group_wizard', 'Failed to upload channel photo', e);
+          } finally {
+            if (mounted) setState(() => _uploadProgress = -1);
           }
         }
         if (!mounted) return;
@@ -856,10 +884,14 @@ class _WizardDialogState extends State<_WizardDialog>
       final chatId = result['chat_id'] as String? ?? '';
       if (chatId.isNotEmpty) {
         if (_photoPath != null && _photoPath!.isNotEmpty) {
+          // Same upload-progress ring lifecycle as the channel/megagroup flow.
+          if (mounted) setState(() => _uploadProgress = 0);
           try {
             await _engine.editChannelPhoto(_accountId, chatId, _photoPath!);
           } catch (e) {
             Debug.error('create_group_wizard', 'Failed to upload group photo', e);
+          } finally {
+            if (mounted) setState(() => _uploadProgress = -1);
           }
         }
         if (!mounted) return;
@@ -1077,7 +1109,7 @@ class _WizardDialogState extends State<_WizardDialog>
               ),
             ),
           ),
-          if (_step == _WizardStep.info && widget.type != _WizardType.channel)
+          if (_step == _WizardStep.info && widget.type == _WizardType.group)
             GestureDetector(
               onTap: () => _showTTLPickerBox(),
               child: Padding(
@@ -1098,9 +1130,12 @@ class _WizardDialogState extends State<_WizardDialog>
                 ),
               ),
             ),
-          if (_step == _WizardStep.memberPicker)
+          // AyuGram's AddParticipantsBoxController::updateTitle() shows the
+          // "%1 / %2" count only for groups/megagroups; for a broadcast channel
+          // (isChannel && !isMegagroup) the additional title is an empty string.
+          if (_step == _WizardStep.memberPicker && widget.type != _WizardType.channel)
             Text(
-              '${_selectedMembers.length} / 200000',
+              '${_selectedMembers.length} / $_megagroupSizeMax',
               style: TextStyle(fontSize: 13, color: subtextColor),
             ),
         ],
@@ -2654,14 +2689,10 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
   bool _joinToSend = false;
   bool _noForwards = false;
   bool _joinRequest = false;
-  bool _isForum = false;
   int _slowmodeSeconds = 0;
 
   bool _hasDiscussionLink = false;
-  bool _createTopicsBanned = false;
-  Map<String, dynamic> _bannedRightsSnapshot = {};
 
-  bool _origCreateTopicsBanned = false;
   bool _origJoinToSend = false;
   bool _origNoForwards = false;
   bool _origJoinRequest = false;
@@ -2697,7 +2728,6 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         _noForwards != _origNoForwards ||
         _joinRequest != _origJoinRequest ||
         _slowmodeSeconds != _origSlowmodeSeconds ||
-        (_isForum && _createTopicsBanned != _origCreateTopicsBanned) ||
         _usernamesChanged();
   }
 
@@ -2721,13 +2751,11 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         engine.getChatUsername(widget.accountId, widget.chatId),
         engine.getChatPermissionFlags(widget.accountId, widget.chatId),
         engine.getLinkedChatId(widget.accountId, widget.chatId).catchError((_) => ''),
-        engine.getDefaultBannedRights(widget.accountId, widget.chatId).catchError((_) => <String, dynamic>{}),
       ]);
       if (!mounted) return;
       final username = results[0] as String;
       final flags = results[1] as Map<String, dynamic>;
       final linkedChatId = results[2] as String;
-      final bannedRights = results[3] as Map<String, dynamic>;
       setState(() {
         _currentUsername = username;
         _origUsername = username;
@@ -2739,11 +2767,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         _joinToSend = flags['join_to_send'] as bool? ?? false;
         _noForwards = flags['no_forwards'] as bool? ?? false;
         _joinRequest = flags['join_request'] as bool? ?? false;
-        _isForum = flags['is_forum'] as bool? ?? false;
         _slowmodeSeconds = flags['slowmode_seconds'] as int? ?? 0;
-        _bannedRightsSnapshot = Map<String, dynamic>.from(bannedRights);
-        _createTopicsBanned = bannedRights['manage_topics'] as bool? ?? false;
-        _origCreateTopicsBanned = _createTopicsBanned;
         _origJoinToSend = _joinToSend;
         _origNoForwards = _noForwards;
         _origJoinRequest = _joinRequest;
@@ -2901,12 +2925,6 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         await engine.setSlowMode(widget.accountId, widget.chatId, _slowmodeSeconds);
       }
       if (!mounted) return;
-      if (_isForum && _createTopicsBanned != _origCreateTopicsBanned) {
-        final rights = Map<String, dynamic>.from(_bannedRightsSnapshot);
-        rights['manage_topics'] = _createTopicsBanned;
-        await engine.setDefaultBannedRights(widget.accountId, widget.chatId, rights);
-      }
-      if (!mounted) return;
       for (var i = 0; i < _secondaryUsernames.length; i++) {
         if (i < _origSecondaryUsernames.length &&
             _secondaryUsernames[i].active != _origSecondaryUsernames[i].active) {
@@ -3039,21 +3057,10 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         if (_joinToSend)
           Container(height: 1, color: separatorColor),
       ],
-      if (_isForum) ...[
-        Container(height: 1, color: separatorColor),
-        _PermissionToggleRow(
-          icon: Icons.topic_outlined,
-          label: 'Create Topics',
-          subtitle: 'Members can create new forum topics.',
-          value: !_createTopicsBanned,
-          activeColor: toggleActiveColor,
-          textColor: textColor,
-          subtextColor: subtextColor,
-          onChanged: (v) {
-            setState(() => _createTopicsBanned = !v);
-          },
-        ),
-      ],
+      // NOTE: AyuGram's EditPeerTypeBox has no "Create Topics" control —
+      // EditPeerTypeData carries only privacy/username/usernamesOrder/
+      // hasDiscussionLink/noForwards/joinToWrite/requestToJoin. The forum
+      // topics restriction is edited in the permissions box, not here.
     ];
   }
 

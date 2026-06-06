@@ -3703,6 +3703,17 @@ class EngineService {
     };
   }
 
+  /// Server-configured maximum megagroup (supergroup) member count, read from
+  /// help.getConfig's `megagroup_size_max`. Mirrors AyuGram's
+  /// session().serverConfig().megagroupSizeMax. Falls back to 200000.
+  Future<int> getMegagroupSizeMax(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    final respBytes = await _callAsync('__engine', 'GetMegagroupSizeMax', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return 200000;
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return data['megagroup_size_max'] as int? ?? 200000;
+  }
+
   Future<List<Map<String, dynamic>>> getForumTopicDefaultIcons(String accountId) async {
     final payload = utf8.encode(json.encode({'account_id': accountId}));
     final respBytes = await _callAsync('__engine', 'GetForumTopicDefaultIcons', Uint8List.fromList(payload));

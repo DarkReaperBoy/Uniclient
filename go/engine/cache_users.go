@@ -2644,6 +2644,30 @@ func (e *Engine) GetPublicLinksLimits(accountID string) (int, int, error) {
 	return g.GetPublicLinksLimits()
 }
 
+type megagroupSizeMaxGetter interface {
+	GetMegagroupSizeMax() (int, error)
+}
+
+// GetMegagroupSizeMax returns the server-configured megagroup member cap
+// (help.getConfig megagroup_size_max). Always returns a usable value: it falls
+// back to the standard 200000 default when the account is not connected, the
+// core does not support the getter, or the lookup fails.
+func (e *Engine) GetMegagroupSizeMax(accountID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 200000, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(megagroupSizeMaxGetter)
+	if !ok {
+		return 200000, nil
+	}
+	n, err := g.GetMegagroupSizeMax()
+	if err != nil || n <= 0 {
+		return 200000, err
+	}
+	return n, nil
+}
+
 type forumTopicIconsFetcher interface {
 	GetForumTopicDefaultIcons() ([]cores.ForumTopicIconInfo, error)
 }
