@@ -594,21 +594,6 @@ Verified correct (no findings needed):
 
 ## Findings
 
-# ghost_settings_page — AyuGram Ghost/Spy/Other settings (§51) collapsible-toggle fidelity
-
-Backend wiring is faithful: the derived `ghostModeActive` formula (`ghost_settings_page`
-reads `GhostModeAccountSettings.ghostModeActive`, `app_state.dart:75-80` ← `ayu_settings.cpp:62-66`),
-the master-toggle flip (`app_state.dart:919-937` ← `ayu_settings.cpp:137-152`), the lock-all
-denial (`app_state.dart:962-971` ← `settings_ayu_utils.cpp:386-396`), the markRead/schedule
-mutual exclusion (`ghost_settings_page.dart:198-217` ← `settings_ayu.cpp:458-499`), the global-vs-
-per-account scope migration (`ghost_settings_page.dart:25-36` ← `settings_ayu.cpp:312-338`), the
-per-account engine push (`app_state.dart:1873-1914`), and every default value all match. The
-issues below are the collapsible "Ghost Mode" disclosure, which uses a different interaction model.
-
-- [ ] [MAJOR] "Ghost Mode" sub-toggle group visibility is gated on the **derived** `ghostModeActive` (`AnimatedSize` → `gs.ghostModeActive ? Column(...) : SizedBox.shrink()`), but AyuGram puts the 5 checkboxes in a `SlideWrap` whose expand/collapse is an **independent disclosure** toggled by tapping the header body (`raw->hide(...)` then `button->clicks → wrap->toggle()`), separate from the master switch (`toggleButton->clicks → flip all`). Consequence: in the Dart, unchecking any single sub-toggle makes the derived state `false`, which collapses the whole group and flips the master off, so a partial ghost config (e.g. ghost everything *except* online) can never be viewed or edited — turning the master back on resets all unlocked toggles. — `ghost_settings_page.dart:124-194` ← `settings_ayu_utils.cpp:302-320` / `settings_ayu_utils.cpp:453-464`
-- [ ] [MAJOR] The "Ghost Mode" header row is missing the expand/collapse **rotating arrow** affordance and the bold **"X/5" checked-count badge** that AyuGram renders beside the title in the collapsible header. The Dart row is a plain `_ToggleRow` with only a label + switch, so there is no count indicator and no expand affordance (the only way to reveal the sub-toggles is to turn the master fully on). — `ghost_settings_page.dart:104-119` ← `settings_ayu_utils.cpp:228-243` (bold "  X/Y" count label) / `settings_ayu_utils.cpp:245-299` (rotating `permissionsExpandIcon` arrow)
-- [ ] [MAJOR] The shift/long-press lock hint divider is rendered as an always-visible top-level row **before** the checkboxes, but AyuGram adds this description **inside** the collapsible `SlideWrap`, **after** the checkboxes (so it only shows while the section is expanded). In the Dart, when Ghost Mode is off the hint "Shift-click or long-press a toggle to lock it per-account." is shown even though no lockable toggles are visible. — `ghost_settings_page.dart:120-123` ← `settings_ayu_utils.cpp:438-441`
-
 # emoji_data — Telegram emoji keyword/suggestion engine port (emoji_keywords.cpp + emoji_suggestions.cpp)
 
 Scope: `dart/lib/data/emoji_data.dart` ports `Ui::Emoji::Completer`
