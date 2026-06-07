@@ -450,6 +450,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // per-type tier is also pushed to the engine for parity with the settings UI).
   final Map<String, int> _ringtoneVolumes = {}; // key "accountId:chatId"
   final Map<String, int> _notifTypeVolumes = {}; // key "accountId:type" (private/group/channel)
+  // Last-used mute durations (seconds), most-recent kept sorted ascending and
+  // capped at 2 — mirrors AyuGram SessionSettings::mutePeriods()/addMutePeriod()
+  // (main_session_settings.cpp:934-948). The mute menu renders one quick item per
+  // entry; the list starts empty (no defaults).
+  final List<int> _mutePeriods = [];
   // Per-chat custom notification SOUND override (AyuGram notifySettings().sound(thread),
   // notifications_manager.cpp:763,1006-1028). Set via the per-chat ringtone picker.
   // _chatSoundDocId: -2 = "None"/silent, >0 = custom ringtone (file path captured in
@@ -3097,6 +3102,25 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int chatRingtoneVolume(String accountId, String chatId) =>
       _ringtoneVolumes['$accountId:$chatId'] ?? 0;
 
+  /// Last-used mute durations (seconds) for the quick-mute menu items.
+  List<int> get mutePeriods => List.unmodifiable(_mutePeriods);
+
+  /// Records a used mute duration, keeping the most-recent pair sorted ascending
+  /// (AyuGram SessionSettings::addMutePeriod, main_session_settings.cpp:938-948).
+  void addMutePeriod(int period) {
+    if (period <= 0) return;
+    if (_mutePeriods.isEmpty) {
+      _mutePeriods.add(period);
+    } else if (_mutePeriods.last != period) {
+      final last = _mutePeriods.last;
+      _mutePeriods
+        ..clear()
+        ..addAll(last < period ? [last, period] : [period, last]);
+    }
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
   /// Sets (or clears, when [volume] <= 0) a per-chat ringtone volume override.
   void setChatRingtoneVolume(String accountId, String chatId, int volume) {
     final key = '$accountId:$chatId';
@@ -4199,6 +4223,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _notifTypeVolumes
         ..clear()
         ..addAll(_decodeVolumeMap(data['notifTypeVolumes']));
+      _mutePeriods
+        ..clear()
+        ..addAll(((data['mutePeriods'] as List?) ?? const [])
+            .map((e) => (e as num).toInt())
+            .where((e) => e > 0));
       _chatSoundDocId
         ..clear()
         ..addAll(_decodeIntMap(data['chatSoundDocId']));
@@ -4538,6 +4567,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'notifAllowSound': _notifAllowSound,
         'notifVolume': _notifVolume,
         'ringtoneVolumes': _ringtoneVolumes,
+        'mutePeriods': _mutePeriods,
         'notifTypeVolumes': _notifTypeVolumes,
         'chatSoundDocId': _chatSoundDocId,
         'chatSoundPath': _chatSoundPath,

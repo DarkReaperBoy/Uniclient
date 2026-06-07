@@ -2178,6 +2178,7 @@ class UserProfile {
   final int birthdayYear;
   final String personalChannelId;
   final String personalChannelName;
+  final int personalChannelSubscribers;
   final bool voiceMessagesForbidden;
   final bool contactRequirePremium;
   final String businessHours;
@@ -2208,6 +2209,7 @@ class UserProfile {
     this.birthdayYear = 0,
     this.personalChannelId = '',
     this.personalChannelName = '',
+    this.personalChannelSubscribers = 0,
     this.voiceMessagesForbidden = false,
     this.contactRequirePremium = false,
     this.businessHours = '',
@@ -2241,6 +2243,7 @@ class UserProfile {
     birthdayYear: j['birthday_year'] as int? ?? 0,
     personalChannelId: j['personal_channel_id'] as String? ?? '',
     personalChannelName: j['personal_channel_name'] as String? ?? '',
+    personalChannelSubscribers: j['personal_channel_count'] as int? ?? 0,
     voiceMessagesForbidden: j['voice_messages_forbidden'] as bool? ?? false,
     contactRequirePremium: j['contact_require_premium'] as bool? ?? false,
     businessHours: j['business_hours'] as String? ?? '',

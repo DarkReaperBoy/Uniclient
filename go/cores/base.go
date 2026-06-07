@@ -162,6 +162,7 @@ type User struct {
 	BirthdayYear  int        `json:"birthday_year,omitempty"`
 	PersonalChannelID      string `json:"personal_channel_id,omitempty"`
 	PersonalChannelName    string `json:"personal_channel_name,omitempty"`
+	PersonalChannelCount   int    `json:"personal_channel_count,omitempty"` // subscriber count appended to the personal-channel label
 	VoiceMessagesForbidden bool   `json:"voice_messages_forbidden,omitempty"`
 	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
 	IsMutualContact        bool   `json:"is_mutual_contact,omitempty"`

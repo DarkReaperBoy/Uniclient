@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +19,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/audio_service.dart';
 import '../state/chat_state.dart';
+import 'media_viewer.dart';
 import '../theme/theme.dart';
 import 'chat_export.dart';
 import 'chat_list_row.dart' show MyNotesUserpic, SavedMessagesUserpic;
@@ -115,6 +117,11 @@ class _InfoPanelState extends State<InfoPanel> {
   int _loadedMemberCount = 0;
   Map<String, int> _mediaCounts = {};
   List<PinnedGiftItem> _pinnedGifts = [];
+  // Server capability flags from channelFull (GetChatPermissionFlags). Gate the
+  // Statistics row on can_view_stats and the member Add button on can_invite_users
+  // — no member-count heuristics (AyuGram canViewStatistics / CanAddMemberValue).
+  bool _canViewStats = false;
+  bool _canAddMembers = false;
   StreamSubscription<ChatInfo>? _chatUpdatedSub;
 
   final List<_InfoNavPage> _navStack = [_InfoNavPage(type: _InfoPageType.chatInfo)];
@@ -267,11 +274,27 @@ class _InfoPanelState extends State<InfoPanel> {
       }
     }
 
+    // Server capability flags (channelFull). Basic legacy groups (no -100 prefix)
+    // have no channelFull — any member may add and there are no statistics, so the
+    // flags default accordingly without a network round-trip.
+    bool canViewStats = false;
+    bool canAddMembers = (chat.type == ChatType.group || chat.type == ChatType.topic) &&
+        !chat.chatId.startsWith('-100');
+    if (chat.chatId.startsWith('-100')) {
+      try {
+        final flags = await engine.getChatPermissionFlags(chat.accountId, chat.chatId);
+        canViewStats = flags['can_view_stats'] == true;
+        canAddMembers = flags['can_invite_users'] == true || flags['am_creator'] == true;
+      } catch (_) {}
+    }
+
     if (mounted) {
       setState(() {
         _members = members;
         _mediaCounts = counts;
         _pinnedGifts = gifts;
+        _canViewStats = canViewStats;
+        _canAddMembers = canAddMembers;
         _loadingMembers = false;
       });
     }
@@ -373,6 +396,8 @@ class _InfoPanelState extends State<InfoPanel> {
           loadingMembers: _loadingMembers,
           mediaCounts: _mediaCounts,
           pinnedGifts: _pinnedGifts,
+          canViewStats: _canViewStats,
+          canAddMembers: _canAddMembers,
           scrollController: _getScrollController(),
           onMemberTap: (member) {
             _pushPage(_InfoNavPage(
@@ -551,7 +576,12 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback? onDiscussTap;
   final VoidCallback? onGiftTap;
   final bool isAdmin;
+  final bool isCreator;
+  final bool isContact;
+  final bool isBot;
   final VoidCallback? onManageTap;
+  final VoidCallback? onReportTap;
+  final VoidCallback? onLeaveTap;
   final VideoController? videoAvatarController;
 
   static const double maxHeight = 236.0;
@@ -596,7 +626,12 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     this.onDiscussTap,
     this.onGiftTap,
     this.isAdmin = false,
+    this.isCreator = false,
+    this.isContact = false,
+    this.isBot = false,
     this.onManageTap,
+    this.onReportTap,
+    this.onLeaveTap,
     this.videoAvatarController,
   });
 
@@ -625,6 +660,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       linkedChatId != old.linkedChatId ||
       isPeerPremium != old.isPeerPremium ||
       isAdmin != old.isAdmin ||
+      isCreator != old.isCreator ||
       videoAvatarController != old.videoAvatarController;
 
   @override
@@ -706,7 +742,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                           onSecondaryTapUp: (isMyNotes || isSelf || (avatarPath.isEmpty && (avatarBytes == null || avatarBytes!.isEmpty)))
                               ? null
                               : (details) {
-                                  _showAvatarContextMenu(context, details.globalPosition, avatarPath, displayName, avatarBytes: avatarBytes, accountId: accountId, userId: chatId);
+                                  _showAvatarContextMenu(context, details.globalPosition, avatarPath, displayName, avatarBytes: avatarBytes, accountId: accountId, userId: chatId, chatType: chatType, isContact: isContact, isBot: isBot);
                                 },
                           child: SizedBox(
                             width: avatarDisplaySize,
@@ -956,7 +992,25 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       buttons.add(_ActionBtnData(Icons.card_giftcard_outlined, 'Gift', onGiftTap));
     }
 
-    if (buttons.length > 4) {
+    // "Report" for un-joined non-admin channels/groups (AyuGram: canJoin &&
+    // !amCreator && !hasAdminRights, info_profile_top_bar.cpp:986).
+    if (notJoined &&
+        (chatType == ChatType.channel || chatType == ChatType.group) &&
+        !isCreator && !isAdmin && onReportTap != null) {
+      buttons.add(_ActionBtnData(Icons.flag_outlined, 'Report', onReportTap));
+    }
+
+    // "Leave"/Delete-and-leave for joined, non-topic groups/channels
+    // (AyuGram: !canJoin && !topic && (chat || channel), :1007).
+    if (!notJoined &&
+        (chatType == ChatType.channel || chatType == ChatType.group) &&
+        onLeaveTap != null) {
+      buttons.add(_ActionBtnData(Icons.logout, 'Leave', onLeaveTap));
+    }
+
+    // AyuGram hard-caps the action row at 3 buttons and appends a "More" entry
+    // for anything beyond (info_profile_top_bar.cpp:715 chechMax max=3).
+    if (buttons.length > 3) {
       final overflow = buttons.sublist(3);
       buttons.removeRange(3, buttons.length);
       buttons.add(_ActionBtnData(Icons.more_horiz, 'More', null, isOverflow: true, overflowItems: overflow));
@@ -1061,9 +1115,16 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
             : null,
         child: InkWell(
           onTapDown: (details) { _lastTapPosition = details.globalPosition; },
+          // Mute button: a left click opens the full mute menu when the peer is
+          // NOT muted, and unmutes directly when it already is — mirrors AyuGram's
+          // SetupMuteMenu click filter (info_profile_top_bar.cpp:846-872).
           onTap: data.isOverflow
               ? () => _showOverflowMenu(context, data.overflowItems)
-              : data.onTap,
+              : data.isMute
+                  ? (data.isMuted
+                      ? data.onTap
+                      : () => _showMuteMenu(context, _lastTapPosition, data))
+                  : data.onTap,
           borderRadius: radius,
           child: SizedBox(
             height: _actionButtonSize,
@@ -1081,8 +1142,14 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     );
   }
 
+  // Mirrors AyuGram FillMuteMenu (menu_mute.cpp:313-367): "Notification sound" →
+  // RingtonesBox (with the volume slider), a sound on/off toggle, the dynamic
+  // last-used mutePeriods() quick durations, "Mute for…", then mute-forever. No
+  // standalone "Notification volume" entry — volume lives in the ringtones box.
   void _showMuteMenu(BuildContext context, Offset position,
       _ActionBtnData data) {
+    final appState = context.read<AppState>();
+    final periods = appState.mutePeriods;
     showTelegramMenu<String>(
       context: context,
       position: position,
@@ -1091,14 +1158,9 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
           const TelegramMenuItem(value: 'unmute', icon: Icon(Icons.notifications), label: 'Unmute')
         else ...[
           const TelegramMenuItem(value: 'sound_select', icon: Icon(Icons.music_note_outlined), label: 'Notification sound'),
-          const TelegramMenuItem(value: 'volume_set', icon: Icon(Icons.volume_up_outlined), label: 'Notification volume'),
           const TelegramMenuItem(value: 'sound_toggle', icon: Icon(Icons.volume_off_outlined), label: 'Sound off'),
-          const TelegramMenuItem(value: 'mute_1h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 1 hour'),
-          const TelegramMenuItem(value: 'mute_4h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 4 hours'),
-          const TelegramMenuItem(value: 'mute_8h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 8 hours'),
-          const TelegramMenuItem(value: 'mute_18h', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 18 hours'),
-          const TelegramMenuItem(value: 'mute_3d', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 3 days'),
-          const TelegramMenuItem(value: 'mute_1w', icon: Icon(Icons.notifications_off_outlined), label: 'Mute for 1 week'),
+          for (final p in periods)
+            TelegramMenuItem(value: 'mute_$p', icon: const Icon(Icons.notifications_off_outlined), label: 'Mute for ${_formatMuteFor(p)}'),
           const TelegramMenuItem(value: 'mute_custom', icon: Icon(Icons.schedule_outlined), label: 'Mute for...'),
           const TelegramMenuItem(value: 'mute_forever', icon: Icon(Icons.notifications_off), label: 'Mute forever', isAttention: true),
         ],
@@ -1111,10 +1173,6 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       }
       if (value == 'sound_select') {
         _showSoundSelectDialog(context);
-        return;
-      }
-      if (value == 'volume_set') {
-        _showVolumeDialog(context);
         return;
       }
       if (value == 'sound_toggle') {
@@ -1136,21 +1194,32 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
         chatState.muteChat(accountId, chatId, true);
         return;
       }
-      final seconds = switch (value) {
-        'mute_1h' => 3600,
-        'mute_4h' => 4 * 3600,
-        'mute_8h' => 8 * 3600,
-        'mute_18h' => 18 * 3600,
-        'mute_3d' => 3 * 24 * 3600,
-        'mute_1w' => 7 * 24 * 3600,
-        _ => 0,
-      };
-      if (seconds > 0) {
-        chatState.muteChat(accountId, chatId, true, durationSeconds: seconds);
-      } else {
-        data.onTap?.call();
+      if (value.startsWith('mute_')) {
+        final seconds = int.tryParse(value.substring(5)) ?? 0;
+        if (seconds > 0) {
+          chatState.muteChat(accountId, chatId, true, durationSeconds: seconds);
+          appState.addMutePeriod(seconds);
+        }
       }
     });
+  }
+
+  // AyuGram Ui::FormatMuteFor — coarse duration label for the quick-mute items.
+  static String _formatMuteFor(int seconds) {
+    if (seconds < 3600) {
+      final m = (seconds / 60).round();
+      return '$m minute${m == 1 ? '' : 's'}';
+    }
+    if (seconds < 86400) {
+      final h = (seconds / 3600).round();
+      return '$h hour${h == 1 ? '' : 's'}';
+    }
+    if (seconds < 7 * 86400) {
+      final d = (seconds / 86400).round();
+      return '$d day${d == 1 ? '' : 's'}';
+    }
+    final w = (seconds / (7 * 86400)).round();
+    return '$w week${w == 1 ? '' : 's'}';
   }
 
   void _showSoundSelectDialog(BuildContext context) {
@@ -1158,7 +1227,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     final appState = context.read<AppState>();
     showDialog<Map<String, dynamic>?>(
       context: context,
-      builder: (ctx) => _RingtonePickerDialog(accountId: accountId, engine: engine),
+      builder: (ctx) => _RingtonePickerDialog(accountId: accountId, chatId: chatId, engine: engine),
     ).then((selected) {
       if (selected == null) return;
       // Default carries 'document_id' (0); None carries -2; a custom saved
@@ -1179,19 +1248,6 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     });
   }
 
-  void _showVolumeDialog(BuildContext context) {
-    final appState = context.read<AppState>();
-    final initial = appState.chatRingtoneVolume(accountId, chatId);
-    showDialog<int>(
-      context: context,
-      builder: (ctx) => _ChatVolumeDialog(initial: initial),
-    ).then((volume) {
-      if (volume == null) return;
-      // 0 clears the per-chat override → falls back to per-type / global volume.
-      appState.setChatRingtoneVolume(accountId, chatId, volume);
-    });
-  }
-
   void _showCustomMuteDurationPicker(BuildContext context) {
     showDialog<int>(
       context: context,
@@ -1200,6 +1256,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       if (seconds != null && seconds > 0) {
         final chatState = context.read<ChatState>();
         chatState.muteChat(accountId, chatId, true, durationSeconds: seconds);
+        context.read<AppState>().addMutePeriod(seconds);
       }
     });
   }
@@ -1302,6 +1359,59 @@ class _PinnedGiftWidget extends StatelessWidget {
   }
 }
 
+// Grouped exact count with a noun ("1,234 subscribers" / "12 members"), matching
+// AyuGram's membersCount-derived labels.
+String _formatSubscriberCount(int n, {String noun = 'subscriber'}) {
+  final s = n.toString();
+  final buf = StringBuffer();
+  for (int i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+    buf.write(s[i]);
+  }
+  return '$buf $noun${n == 1 ? '' : 's'}';
+}
+
+// Photo/video/GIF cell tap: open the media viewer over the section's downloaded
+// items when this one is downloaded, otherwise kick off a download — mirroring
+// AyuGram Photo/Video/Gif::getState open/download links (overview_layout.cpp).
+void _openSharedMediaTap(BuildContext context, String accountId, String chatId,
+    SharedMediaItem item, List<SharedMediaItem> all) {
+  final downloaded = item.localPath.isNotEmpty && File(item.localPath).existsSync();
+  if (!downloaded) {
+    if (accountId.isNotEmpty && chatId.isNotEmpty) {
+      context.read<EngineService>().requestDownload(accountId, chatId, item.msgId);
+    }
+    return;
+  }
+  CachedMessage toMsg(SharedMediaItem m) => CachedMessage(
+        accountId: accountId,
+        chatId: chatId,
+        msgId: m.msgId,
+        mediaType: m.mediaType,
+        mediaLocalPath: m.localPath,
+        mediaFileName: m.fileName.isNotEmpty ? m.fileName : 'media',
+        mediaWidth: m.width,
+        mediaHeight: m.height,
+        mediaDuration: m.duration,
+        timestamp: m.timestamp,
+        hasMedia: true,
+      );
+  final gallery = all
+      .where((m) =>
+          (m.isImage || m.isVideo) &&
+          m.localPath.isNotEmpty &&
+          File(m.localPath).existsSync())
+      .map(toMsg)
+      .toList();
+  final current = toMsg(item);
+  final start = gallery.indexWhere((m) => m.msgId == item.msgId);
+  MediaViewer.open(
+    context,
+    message: start >= 0 ? gallery[start] : current,
+    allMessages: gallery.isNotEmpty ? gallery : [current],
+  );
+}
+
 void _openAvatarPhotoViewer(BuildContext context, String avatarPath, String title, {Uint8List? avatarBytes, String? accountId, String? userId}) {
   if (avatarPath.isEmpty && (avatarBytes == null || avatarBytes.isEmpty)) return;
   Navigator.of(context).push(
@@ -1327,20 +1437,79 @@ void _openAvatarPhotoViewer(BuildContext context, String avatarPath, String titl
   );
 }
 
-void _showAvatarContextMenu(BuildContext context, Offset position, String avatarPath, String title, {Uint8List? avatarBytes, String? accountId, String? userId}) {
+void _showAvatarContextMenu(BuildContext context, Offset position, String avatarPath, String title, {Uint8List? avatarBytes, String? accountId, String? userId, ChatType chatType = ChatType.dm, bool isContact = false, bool isBot = false}) {
+  // AyuGram userpic menu: Open Photo, plus (for a non-bot DM user) Report, and
+  // for a contact "Set Photo For…"/"Suggest Photo…" (info_profile_top_bar.cpp:1234).
+  final isUser = chatType == ChatType.dm && !isBot;
+  final canReport = isUser && (accountId?.isNotEmpty ?? false) && (userId?.isNotEmpty ?? false);
+  final canChangePhoto = isUser && isContact &&
+      (accountId?.isNotEmpty ?? false) && (userId?.isNotEmpty ?? false);
+
+  Future<void> pickAndApply(bool suggest) async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false);
+    final path = result?.files.firstOrNull?.path;
+    if (path == null || !context.mounted) return;
+    final engine = context.read<EngineService>();
+    try {
+      if (suggest) {
+        await engine.suggestContactPhoto(accountId!, userId!, path);
+      } else {
+        await engine.setPersonalContactPhoto(accountId!, userId!, path);
+      }
+      if (context.mounted) {
+        showTelegramToast(context, suggest ? 'Photo suggested' : 'Photo set');
+      }
+    } catch (e) {
+      if (context.mounted) showTelegramToast(context, 'Failed: $e');
+    }
+  }
+
   showTelegramMenu<String>(
     context: context,
     position: position,
     items: [
-      TelegramMenuItem(
+      const TelegramMenuItem(
         value: 'open_photo',
-        icon: const Icon(Icons.photo_outlined, size: 20),
+        icon: Icon(Icons.photo_outlined, size: 20),
         label: 'Open Photo',
       ),
+      if (canReport)
+        const TelegramMenuItem(
+          value: 'report',
+          icon: Icon(Icons.flag_outlined, size: 20),
+          label: 'Report',
+          isAttention: true,
+        ),
+      if (canChangePhoto) ...[
+        const TelegramMenuItem(
+          value: 'set_photo',
+          icon: Icon(Icons.add_a_photo_outlined, size: 20),
+          label: 'Set Photo For…',
+        ),
+        const TelegramMenuItem(
+          value: 'suggest_photo',
+          icon: Icon(Icons.photo_camera_back_outlined, size: 20),
+          label: 'Suggest Photo…',
+        ),
+      ],
     ],
   ).then((value) {
-    if (value == 'open_photo') {
-      _openAvatarPhotoViewer(context, avatarPath, title, avatarBytes: avatarBytes, accountId: accountId, userId: userId);
+    if (!context.mounted) return;
+    switch (value) {
+      case 'open_photo':
+        _openAvatarPhotoViewer(context, avatarPath, title, avatarBytes: avatarBytes, accountId: accountId, userId: userId);
+      case 'report':
+        showDynamicReportFlow(
+          context,
+          engine: context.read<EngineService>(),
+          accountId: accountId!,
+          chatId: userId!,
+          msgIds: const [],
+        );
+      case 'set_photo':
+        pickAndApply(false);
+      case 'suggest_photo':
+        pickAndApply(true);
     }
   });
 }
@@ -1502,9 +1671,10 @@ class _AvatarPhotoViewerState extends State<_AvatarPhotoViewer> {
 
 class _RingtonePickerDialog extends StatefulWidget {
   final String accountId;
+  final String chatId;
   final EngineService engine;
 
-  const _RingtonePickerDialog({required this.accountId, required this.engine});
+  const _RingtonePickerDialog({required this.accountId, required this.chatId, required this.engine});
 
   @override
   State<_RingtonePickerDialog> createState() => _RingtonePickerDialogState();
@@ -1513,10 +1683,15 @@ class _RingtonePickerDialog extends StatefulWidget {
 class _RingtonePickerDialogState extends State<_RingtonePickerDialog> {
   List<Map<String, dynamic>> _ringtones = [];
   bool _loading = true;
+  late double _volume;
 
   @override
   void initState() {
     super.initState();
+    _volume = context.read<AppState>()
+        .chatRingtoneVolume(widget.accountId, widget.chatId)
+        .toDouble()
+        .clamp(0, 100);
     _load();
   }
 
@@ -1532,95 +1707,74 @@ class _RingtonePickerDialogState extends State<_RingtonePickerDialog> {
       content: SizedBox(
         width: 300,
         height: 400,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : ListView.builder(
-                // Default + None are always offered; saved ringtones follow.
-                itemCount: _ringtones.length + 2,
-                itemBuilder: (ctx, i) {
-                  if (i == 0) {
-                    return ListTile(
-                      leading: const Icon(Icons.notifications_active),
-                      title: const Text('Default'),
-                      onTap: () => Navigator.pop(context, <String, dynamic>{'document_id': 0, 'name': 'Default'}),
-                    );
-                  }
-                  if (i == 1) {
-                    return ListTile(
-                      leading: const Icon(Icons.notifications_off),
-                      title: const Text('None'),
-                      onTap: () => Navigator.pop(context, <String, dynamic>{'document_id': -2, 'name': 'None'}),
-                    );
-                  }
-                  final tone = _ringtones[i - 2];
-                  final name = tone['name'] as String? ?? 'Ringtone';
-                  return ListTile(
-                    leading: const Icon(Icons.music_note),
-                    title: Text(name),
-                    onTap: () => Navigator.pop(context, tone),
-                  );
-                },
-              ),
+        child: Column(
+          children: [
+            // Per-chat volume slider embedded in the box, mirroring AyuGram's
+            // AddRingtonesVolumeSlider (ringtones_box.cpp:352). 0 clears the
+            // per-chat override → falls back to per-type / global volume.
+            Row(
+              children: [
+                const Icon(Icons.volume_up_outlined, size: 20),
+                Expanded(
+                  child: Slider(
+                    value: _volume,
+                    min: 0,
+                    max: 100,
+                    divisions: 100,
+                    label: '${_volume.round()}%',
+                    onChanged: (v) => setState(() => _volume = v),
+                    onChangeEnd: (v) => context
+                        .read<AppState>()
+                        .setChatRingtoneVolume(widget.accountId, widget.chatId, v.round()),
+                  ),
+                ),
+                SizedBox(
+                  width: 40,
+                  child: Text('${_volume.round()}%',
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(fontSize: 13)),
+                ),
+              ],
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
+                      // Default + None are always offered; saved ringtones follow.
+                      itemCount: _ringtones.length + 2,
+                      itemBuilder: (ctx, i) {
+                        if (i == 0) {
+                          return ListTile(
+                            leading: const Icon(Icons.notifications_active),
+                            title: const Text('Default'),
+                            onTap: () => Navigator.pop(context, <String, dynamic>{'document_id': 0, 'name': 'Default'}),
+                          );
+                        }
+                        if (i == 1) {
+                          return ListTile(
+                            leading: const Icon(Icons.notifications_off),
+                            title: const Text('None'),
+                            onTap: () => Navigator.pop(context, <String, dynamic>{'document_id': -2, 'name': 'None'}),
+                          );
+                        }
+                        final tone = _ringtones[i - 2];
+                        final name = tone['name'] as String? ?? 'Ringtone';
+                        return ListTile(
+                          leading: const Icon(Icons.music_note),
+                          title: Text(name),
+                          onTap: () => Navigator.pop(context, tone),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
-        ),
-      ],
-    );
-  }
-}
-
-// Per-chat notification ringtone volume slider (AyuGram ringtoneVolume override,
-// notifications_manager.cpp:763-772). 0 = no override → global/per-type volume.
-class _ChatVolumeDialog extends StatefulWidget {
-  final int initial;
-  const _ChatVolumeDialog({required this.initial});
-
-  @override
-  State<_ChatVolumeDialog> createState() => _ChatVolumeDialogState();
-}
-
-class _ChatVolumeDialogState extends State<_ChatVolumeDialog> {
-  late double _volume;
-
-  @override
-  void initState() {
-    super.initState();
-    _volume = widget.initial.toDouble().clamp(0, 100);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final v = _volume.round();
-    return AlertDialog(
-      title: const Text('Notification volume'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            v == 0 ? 'Default (use global volume)' : '$v%',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          Slider(
-            value: _volume,
-            min: 0,
-            max: 100,
-            divisions: 100,
-            label: v == 0 ? 'Default' : '$v%',
-            onChanged: (val) => setState(() => _volume = val),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, v),
-          child: const Text('Save'),
         ),
       ],
     );
@@ -2485,6 +2639,8 @@ class _ChatInfoPage extends StatefulWidget {
   final String title;
   final bool isLayer;
   final List<PinnedGiftItem> pinnedGifts;
+  final bool canViewStats;
+  final bool canAddMembers;
 
   const _ChatInfoPage({
     required this.chat,
@@ -2500,6 +2656,8 @@ class _ChatInfoPage extends StatefulWidget {
     required this.title,
     this.pinnedGifts = const [],
     this.isLayer = false,
+    this.canViewStats = false,
+    this.canAddMembers = false,
   });
 
   @override
@@ -2643,10 +2801,12 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
 
   bool _canShowStatsMenu() {
     final type = widget.chat.type;
-    if (type != ChatType.channel && type != ChatType.group) return false;
-    if (!widget.chat.isAdmin) return false;
-    final minMembers = type == ChatType.channel ? 50 : 500;
-    return widget.chat.memberCount >= minMembers;
+    // Channels always expose the "..." menu (Boosts); groups only when the server
+    // grants statistics (can_view_stats). No member-count heuristic — AyuGram
+    // gates statistics on canViewStatistics() (data_channel.cpp:1323).
+    if (type == ChatType.channel) return true;
+    if (type == ChatType.group) return widget.canViewStats;
+    return false;
   }
 
   bool _isPeerGiftEligible() {
@@ -2684,11 +2844,12 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     final isChannel = widget.chat.type == ChatType.channel;
 
     final items = <TelegramMenuItem<String>>[
-      TelegramMenuItem(
-        value: 'statistics',
-        icon: const Icon(Icons.bar_chart, size: 20),
-        label: 'Statistics',
-      ),
+      if (widget.canViewStats)
+        const TelegramMenuItem(
+          value: 'statistics',
+          icon: Icon(Icons.bar_chart, size: 20),
+          label: 'Statistics',
+        ),
       if (isChannel)
         const TelegramMenuItem(
           value: 'boosts',
@@ -2696,6 +2857,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
           label: 'Boosts',
         ),
     ];
+    if (items.isEmpty) return;
 
     final value = await showTelegramMenu<String>(
       context: context,
@@ -2712,6 +2874,31 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     }
   }
 
+  // Top-bar "Leave" routes through the same DeleteChatBox as the action-section
+  // leave (AyuGram DeleteAndLeaveHandler, info_profile_top_bar.cpp:1012).
+  void _confirmLeaveFromCover(BuildContext context) {
+    final chat = widget.chat;
+    final chatState = widget.chatState;
+    showDeleteConfirmBox(
+      context,
+      mode: DeleteBoxMode.leaveChat,
+      chatType: chat.type,
+      peerName: chat.title,
+      isBot: chat.isBot,
+      isInFolder: chatState.isChatInAnyFolder(chat.chatId),
+      peerAvatarPath: chat.avatarPath,
+    ).then((r) {
+      if (!r.confirmed) return;
+      if (r.blockBot && chat.isBot) {
+        chatState.blockUser(chat.accountId, chat.chatId);
+      }
+      if (r.removeFromFolders) {
+        chatState.removeChatFromAllFolders(chat.accountId, chat.chatId);
+      }
+      chatState.leaveChat(chat.accountId, chat.chatId);
+    });
+  }
+
   List<Widget> _buildInfoSections(BuildContext context) {
     final depsHash = Object.hashAll([
       widget.chat.chatId,
@@ -2724,19 +2911,25 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
       widget.loadingMembers,
       widget.isLayer,
       widget.pinnedGifts.length,
+      widget.canViewStats,
+      widget.canAddMembers,
     ]);
     if (_cachedSections != null && depsHash == _sectionsDepsHash) {
       return _cachedSections!;
     }
     _sectionsDepsHash = depsHash;
 
+    final isUserDm = widget.chat.type == ChatType.dm && !widget.chat.isSelf;
+    // AyuGram setupContent order: SavedMusic → Details → SharedMedia →
+    // Channel-Members/Manage → Actions → group Members. The member list is
+    // rendered AFTER the actions block (info_profile_inner_widget.cpp:196-256).
     final sections = <Widget>[
       const SizedBox(height: 16),
       _ChatDetails(chat: widget.chat, theme: widget.theme),
       _MusicMiniPlayer(chatId: widget.chat.chatId, theme: widget.theme),
       const Divider(height: 24),
       _NotificationToggle(chat: widget.chat, theme: widget.theme),
-      if (widget.mediaCounts.isNotEmpty) ...[
+      if (widget.mediaCounts.isNotEmpty || isUserDm) ...[
         const Divider(height: 24),
         _SharedMediaSection(
           counts: widget.mediaCounts,
@@ -2744,6 +2937,9 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
           isLayer: widget.isLayer,
           accountId: widget.chat.accountId,
           chatId: widget.chat.chatId,
+          // Common groups is a shared-media-style counted button grouped with
+          // Photos/Video/Files (AddCommonGroupsButton, info_media_buttons.cpp:211).
+          showCommonGroups: isUserDm,
           onOpenMedia: (type, label) {
             final panelState = context.findAncestorStateOfType<_InfoPanelState>();
             panelState?._pushPage(_InfoNavPage(
@@ -2752,6 +2948,25 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               mediaLabel: label,
             ));
           },
+        ),
+      ],
+      if (widget.chat.type == ChatType.group ||
+          widget.chat.type == ChatType.topic) ...[
+        const Divider(height: 24),
+        _GroupActionsSection(
+          chat: widget.chat,
+          theme: widget.theme,
+          members: widget.members,
+          canViewStats: widget.canViewStats,
+        ),
+      ],
+      if (widget.chat.type == ChatType.channel) ...[
+        const Divider(height: 24),
+        _ChannelActionsSection(
+          chat: widget.chat,
+          theme: widget.theme,
+          members: widget.members,
+          canViewStats: widget.canViewStats,
         ),
       ],
       if (widget.chat.type == ChatType.group ||
@@ -2766,23 +2981,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
           accountId: widget.chat.accountId,
           chatId: widget.chat.chatId,
           isForum: widget.chat.isForum,
-        ),
-      ],
-      if (widget.chat.type == ChatType.group ||
-          widget.chat.type == ChatType.topic) ...[
-        const Divider(height: 24),
-        _GroupActionsSection(
-          chat: widget.chat,
-          theme: widget.theme,
-          members: widget.members,
-        ),
-      ],
-      if (widget.chat.type == ChatType.channel) ...[
-        const Divider(height: 24),
-        _ChannelActionsSection(
-          chat: widget.chat,
-          theme: widget.theme,
-          members: widget.members,
+          canAddMembers: widget.canAddMembers,
         ),
       ],
       if (widget.chat.type == ChatType.dm &&
@@ -2923,9 +3122,23 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   ? () { _showStarGiftDialog(context); }
                   : null,
               isAdmin: widget.chat.isAdmin,
+              isCreator: widget.chat.isCreator,
+              isContact: widget.chat.isContact,
+              isBot: widget.chat.isBot,
               onManageTap: widget.chat.isAdmin && (widget.chat.type == ChatType.channel || widget.chat.type == ChatType.group)
                   ? () { showEditPeerInfoBox(context, chat: widget.chat, members: widget.members); }
                   : null,
+              onReportTap: () {
+                final engine = context.read<EngineService>();
+                showDynamicReportFlow(
+                  context,
+                  engine: engine,
+                  accountId: widget.chat.accountId,
+                  chatId: widget.chat.chatId,
+                  msgIds: const [],
+                );
+              },
+              onLeaveTap: () => _confirmLeaveFromCover(context),
               videoAvatarController: _videoAvatarController,
             ),
           ),
@@ -3073,57 +3286,26 @@ class _UserProfilePage extends StatefulWidget {
 class _UserProfilePageState extends State<_UserProfilePage> {
   static const _snapPoints = [0.0, 112.0, 180.0];
   Timer? _snapTimer;
-  int _commonGroupsCount = -1;
-  bool _commonGroupsLoaded = false;
   Map<String, int> _mediaCounts = {};
-  List<Map<String, dynamic>> _commonGroupsList = [];
+  // Fetched so the reused actions block can read isContact/isBlocked; the rich
+  // detail rows are rendered by _ChatDetails, which fetches independently.
+  UserProfile? _profile;
+  bool _loaded = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_commonGroupsLoaded) {
-      _commonGroupsLoaded = true;
-      _loadCommonGroups();
+    if (!_loaded) {
+      _loaded = true;
       _loadMediaCounts();
+      _loadProfile();
     }
   }
 
-  void _showCommonGroupsDialog(BuildContext ctx) {
-    final chats = _commonGroupsList;
-    if (chats.isEmpty) return;
-    showDialog(
-      context: ctx,
-      builder: (dialogCtx) => SimpleDialog(
-        title: Text('${chats.length} group${chats.length == 1 ? '' : 's'} in common'),
-        children: chats.map((c) {
-          final title = c['title'] as String? ?? c['chat_id'] as String? ?? '';
-          final chatId = c['chat_id'] as String? ?? '';
-          return SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(dialogCtx);
-              final chatState = ctx.read<ChatState>();
-              chatState.openChatById(chatId);
-            },
-            child: Text(title),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  void _loadCommonGroups() {
-    final engine = context.read<EngineService>();
-    engine.getCommonChats(widget.chat.accountId, widget.member.userId, limit: 100).then((chats) {
-      if (mounted) setState(() {
-        _commonGroupsCount = chats.length;
-        _commonGroupsList = chats;
-      });
-    }).catchError((_) {
-      if (mounted) setState(() {
-        _commonGroupsCount = 0;
-        _commonGroupsList = [];
-      });
-    });
+  void _loadProfile() {
+    context.read<EngineService>()
+        .getUserProfile(widget.chat.accountId, widget.member.userId)
+        .then((p) { if (mounted && p != null) setState(() => _profile = p); });
   }
 
   void _loadMediaCounts() {
@@ -3137,6 +3319,19 @@ class _UserProfilePageState extends State<_UserProfilePage> {
       Debug.log('info_panel', 'final counts = engine.getSharedMediaCounts(: $e');
     }
   }
+
+  // Synthetic DM ChatInfo for the member, so the reused detail/action widgets
+  // operate on this user. isContact/isBlocked come from the fetched profile.
+  ChatInfo get _userChat => ChatInfo(
+        accountId: widget.chat.accountId,
+        chatId: widget.member.userId,
+        type: ChatType.dm,
+        title: widget.member.label,
+        isBot: widget.member.isBot,
+        isContact: _profile?.isContact ?? false,
+        isBlocked: _profile?.isBlocked ?? false,
+        username: widget.member.username,
+      );
 
   @override
   void dispose() {
@@ -3235,55 +3430,33 @@ class _UserProfilePageState extends State<_UserProfilePage> {
           SliverList(
             delegate: SliverChildListDelegate([
               const SizedBox(height: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (widget.member.username.isNotEmpty)
-                    _TextWithLabel(
-                      value: '@${widget.member.username}',
-                      label: 'Username',
-                      theme: widget.theme,
-                      onTap: () {
-                        Clipboard.setData(
-                            ClipboardData(text: '@${widget.member.username}'));
-                        showTelegramToast(context, 'Username copied');
-                      },
-                    ),
-                  _TextWithLabel(
-                    value: widget.member.userId,
-                    label: 'ID',
-                    theme: widget.theme,
-                    onTap: () {
-                      Clipboard.setData(
-                          ClipboardData(text: widget.member.userId));
-                      showTelegramToast(context, 'ID copied');
-                    },
-                  ),
-                  if (widget.member.role.isNotEmpty &&
-                      widget.member.role != 'member')
-                    _TextWithLabel(
-                      value: widget.member.role,
-                      label: 'Role',
-                      theme: widget.theme,
-                    ),
-                  if (_commonGroupsCount > 0)
-                    _CommonGroupsRow(
-                      count: _commonGroupsCount,
-                      theme: widget.theme,
-                      onTap: () {
-                        _showCommonGroupsDialog(context);
-                      },
-                    ),
-                ],
-              ),
-              if (_mediaCounts.isNotEmpty) ...[
-                const Divider(height: 24),
-                _SharedMediaSection(
-                  counts: _mediaCounts,
-                  accountId: widget.chat.accountId,
-                  chatId: widget.member.userId,
+              // Full user profile (bio/about, phone, username, birthday, business
+              // hours/location, personal channel, notes, ID) — AyuGram user
+              // setupInfo (info_profile_actions.cpp:1709-1799).
+              _ChatDetails(chat: _userChat, theme: widget.theme),
+              if (widget.member.role.isNotEmpty &&
+                  widget.member.role != 'member')
+                _TextWithLabel(
+                  value: widget.member.customRank.isNotEmpty
+                      ? widget.member.customRank
+                      : widget.member.role,
+                  label: 'Role',
                   theme: widget.theme,
                 ),
+              const Divider(height: 24),
+              // Shared media + the common-groups counted button.
+              _SharedMediaSection(
+                counts: _mediaCounts,
+                accountId: widget.chat.accountId,
+                chatId: widget.member.userId,
+                theme: widget.theme,
+                showCommonGroups: true,
+              ),
+              // User actions: Share/Edit/Add/Delete Contact, Block (AyuGram
+              // fillUserActions, info_profile_actions.cpp:3015-3032).
+              if (!widget.member.isSelf) ...[
+                const Divider(height: 24),
+                _DmActionsSection(chat: _userChat, theme: widget.theme),
               ],
               const SizedBox(height: 16),
             ]),
@@ -3535,7 +3708,15 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
                     children: [
                       for (var j = 0; j < rowItems.length; j++) ...[
                         if (j > 0) const SizedBox(width: skip),
-                        _GridCell(item: rowItems[j], size: cellSide, height: cellHeight, theme: widget.theme),
+                        _GridCell(
+                          item: rowItems[j],
+                          size: cellSide,
+                          height: cellHeight,
+                          theme: widget.theme,
+                          accountId: widget.chat.accountId,
+                          chatId: widget.chat.chatId,
+                          onTap: () => _openSharedMediaTap(context, widget.chat.accountId, widget.chat.chatId, rowItems[j], _items),
+                        ),
                       ],
                     ],
                   ),
@@ -3627,7 +3808,7 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
                       children: [
                         for (var j = 0; j < rowItems.length; j++) ...[
                           if (j > 0) const SizedBox(width: skip),
-                          _buildGifCellInline(rowItems[j], rowHeight),
+                          _buildGifCellInline(context, rowItems[j], rowHeight),
                         ],
                       ],
                     ),
@@ -3641,8 +3822,15 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
     });
   }
 
-  Widget _buildGifCellInline(SharedMediaItem item, double rowHeight) {
-    return _GifCell(item: item, rowHeight: rowHeight, theme: widget.theme);
+  Widget _buildGifCellInline(BuildContext context, SharedMediaItem item, double rowHeight) {
+    return _GifCell(
+      item: item,
+      rowHeight: rowHeight,
+      theme: widget.theme,
+      accountId: widget.chat.accountId,
+      chatId: widget.chat.chatId,
+      onTap: () => _openSharedMediaTap(context, widget.chat.accountId, widget.chat.chatId, item, _items),
+    );
   }
 
   Widget _buildLazyList() {
@@ -3824,8 +4012,6 @@ class _ChatDetailsState extends State<_ChatDetails> {
   bool _fetched = false;
   String? _fetchedFor;
   StreamSubscription<ChatInfo>? _chatUpdatedSub;
-  int _commonGroupsCount = -1;
-  List<Map<String, dynamic>> _commonGroupsList = [];
   List<BotCommandInfo> _botCommands = [];
 
   @override
@@ -3879,7 +4065,6 @@ class _ChatDetailsState extends State<_ChatDetails> {
     engine.getUserProfile(widget.chat.accountId, widget.chat.chatId).then((p) {
       if (mounted && p != null) setState(() { _profile = p; _fetched = true; });
     });
-    _loadCommonGroups(engine);
     _loadBotCommands(engine);
   }
 
@@ -3888,43 +4073,6 @@ class _ChatDetailsState extends State<_ChatDetails> {
     engine.getChatBotCommands(widget.chat.accountId, widget.chat.chatId).then((cmds) {
       if (mounted) setState(() => _botCommands = cmds);
     }).catchError((_) {});
-  }
-
-  void _loadCommonGroups(EngineService engine) {
-    engine.getCommonChats(widget.chat.accountId, widget.chat.chatId, limit: 100).then((chats) {
-      if (mounted) setState(() {
-        _commonGroupsCount = chats.length;
-        _commonGroupsList = chats;
-      });
-    }).catchError((_) {
-      if (mounted) setState(() {
-        _commonGroupsCount = 0;
-        _commonGroupsList = [];
-      });
-    });
-  }
-
-  void _showCommonGroupsDialog(BuildContext ctx) {
-    final chats = _commonGroupsList;
-    if (chats.isEmpty) return;
-    showDialog(
-      context: ctx,
-      builder: (dialogCtx) => SimpleDialog(
-        title: Text('${chats.length} group${chats.length == 1 ? '' : 's'} in common'),
-        children: chats.map((c) {
-          final title = c['title'] as String? ?? c['chat_id'] as String? ?? '';
-          final chatId = c['chat_id'] as String? ?? '';
-          return SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(dialogCtx);
-              final chatState = ctx.read<ChatState>();
-              chatState.openChatById(chatId);
-            },
-            child: Text(title),
-          );
-        }).toList(),
-      ),
-    );
   }
 
   void _copy(String value, String label) {
@@ -4016,9 +4164,15 @@ class _ChatDetailsState extends State<_ChatDetails> {
           userId: widget.chat.chatId,
           onNoteChanged: () => _refetchProfile(),
         ));
-      if (profile.personalChannelName.isNotEmpty)
+      if (profile.personalChannelName.isNotEmpty) {
+        // AyuGram appends the subscriber count to the personal-channel label
+        // (channelLabelFactory/membersCount, info_profile_actions.cpp:2026).
+        final subs = profile.personalChannelSubscribers;
+        final value = subs > 0
+            ? '${profile.personalChannelName}  ·  ${_formatSubscriberCount(subs)}'
+            : profile.personalChannelName;
         children.add(_TextWithLabel(
-          value: profile.personalChannelName,
+          value: value,
           label: 'Personal Channel',
           theme: widget.theme,
           onTap: profile.personalChannelId.isNotEmpty
@@ -4028,6 +4182,7 @@ class _ChatDetailsState extends State<_ChatDetails> {
                 }
               : null,
         ));
+      }
       if (profile.isBot && _botCommands.isNotEmpty) {
         for (final cmd in _botCommands) {
           children.add(_BotCommandRow(
@@ -4047,14 +4202,7 @@ class _ChatDetailsState extends State<_ChatDetails> {
         onTap: () => _copy(peerIdStr, 'ID'),
       ));
 
-    if (isDm && _commonGroupsCount > 0)
-      children.add(_CommonGroupsRow(
-        count: _commonGroupsCount,
-        theme: widget.theme,
-        onTap: () {
-          _showCommonGroupsDialog(context);
-        },
-      ));
+    // Common groups moved to the shared-media section (AddCommonGroupsButton).
 
     if (children.isEmpty) return const SizedBox.shrink();
 
@@ -4125,59 +4273,96 @@ class _BusinessHoursWidget extends StatefulWidget {
 }
 
 class _BusinessHoursWidgetState extends State<_BusinessHoursWidget> {
+  static const int _kDay = 1440;        // minutes per day
+  static const int _kWeek = 10080;      // minutes per week
+  static const int _kInNextDayMax = 360; // 6h spill into next day (minutes)
+
   bool _expanded = false;
-  late final Map<String, dynamic> _data;
-  late final String _timezone;
-  late final List<_WeekInterval> _intervals;
+  // false → show the owner's local hours; true → shift to the viewer's timezone.
+  bool _myTimezone = false;
+  late final List<_WeekInterval> _intervals; // raw owner-timezone intervals
+  late final List<_WeekInterval> _shifted;   // shifted to the viewer's timezone
+  late final int _deltaMin;                  // viewer − owner UTC offset (minutes)
   bool _valid = false;
 
   @override
   void initState() {
     super.initState();
     try {
-      _data = (json.decode(widget.hoursJson) as Map).cast<String, dynamic>();
-      _timezone = _data['timezone'] as String? ?? '';
-      final rawIntervals = _data['intervals'] as List? ?? [];
+      final data = (json.decode(widget.hoursJson) as Map).cast<String, dynamic>();
+      final rawIntervals = data['intervals'] as List? ?? [];
       _intervals = rawIntervals.map((e) {
         final m = (e as Map).cast<String, dynamic>();
         return _WeekInterval(m['start'] as int? ?? 0, m['end'] as int? ?? 0);
       }).toList();
+      // Backend sends the owner's timezone offset (seconds). The delta to the
+      // viewer's local timezone drives ShiftedIntervals.
+      final ownerOffsetMin = ((data['utc_offset'] as int?) ?? 0) ~/ 60;
+      final localOffsetMin = DateTime.now().timeZoneOffset.inMinutes;
+      _deltaMin = localOffsetMin - ownerOffsetMin;
+      _shifted = _shiftIntervals(_intervals, _deltaMin);
       _valid = _intervals.isNotEmpty;
     } catch (_) {
-      _valid = false;
-      _timezone = '';
       _intervals = [];
+      _shifted = [];
+      _deltaMin = 0;
+      _valid = false;
     }
   }
 
-  bool _isOpenNow() {
+  // AyuGram ShiftedIntervals (info_profile_actions.cpp:356): shift every interval
+  // by the timezone delta, wrapping/splitting across the week boundary.
+  static List<_WeekInterval> _shiftIntervals(List<_WeekInterval> ivs, int delta) {
+    if (delta == 0 || ivs.isEmpty) return List.of(ivs);
+    final out = <_WeekInterval>[];
+    for (final iv in ivs) {
+      var s = iv.start + delta;
+      var e = iv.end + delta;
+      while (s < 0) { s += _kWeek; e += _kWeek; }
+      while (s >= _kWeek) { s -= _kWeek; e -= _kWeek; }
+      if (e <= _kWeek) {
+        out.add(_WeekInterval(s, e));
+      } else {
+        out.add(_WeekInterval(s, _kWeek));
+        out.add(_WeekInterval(0, e - _kWeek));
+      }
+    }
+    out.sort((a, b) => a.start.compareTo(b.start));
+    return out;
+  }
+
+  int _minuteOfWeekNow() {
     final now = DateTime.now();
-    final dayOfWeek = (now.weekday - 1) % 7;
-    final minuteOfWeek = dayOfWeek * 1440 + now.hour * 60 + now.minute;
-    for (final iv in _intervals) {
-      if (minuteOfWeek >= iv.start && minuteOfWeek < iv.end) return true;
-    }
-    return false;
+    final dow = (now.weekday - 1) % 7; // Monday = 0
+    return dow * _kDay + now.hour * 60 + now.minute;
   }
 
+  // AyuGram OpensIn (info_profile_actions.cpp:265): minutes until the next open
+  // interval, 0 when open now. Always against the viewer-shifted set.
   int _opensInMinutes() {
-    final now = DateTime.now();
-    final dayOfWeek = (now.weekday - 1) % 7;
-    final minuteOfWeek = dayOfWeek * 1440 + now.hour * 60 + now.minute;
-    int minDist = 10080;
-    for (final iv in _intervals) {
-      int dist = iv.start - minuteOfWeek;
-      if (dist <= 0) dist += 10080;
-      if (dist < minDist) minDist = dist;
+    var now = _minuteOfWeekNow();
+    while (now < 0) now += _kWeek;
+    while (now > _kWeek) now -= _kWeek;
+    var closest = _kWeek;
+    for (final iv in _shifted) {
+      if (iv.start <= now && iv.end > now) return 0;
+      if (iv.start > now && iv.start - now < closest) {
+        closest = iv.start - now;
+      } else if (iv.start < now) {
+        final next = iv.start + _kWeek - now;
+        if (next < closest) closest = next;
+      }
     }
-    return minDist;
+    return closest;
   }
+
+  bool _isOpenNow() => _opensInMinutes() == 0;
 
   String _opensInText() {
     final mins = _opensInMinutes();
     if (mins >= 1440) return 'Opens in ${mins ~/ 1440} day${mins >= 2880 ? 's' : ''}';
     if (mins >= 60) return 'Opens in ${mins ~/ 60} hour${mins >= 120 ? 's' : ''}';
-    return 'Opens in $mins min';
+    return 'Opens in ${mins < 1 ? 1 : mins} min';
   }
 
   String _dayName(int day) {
@@ -4185,24 +4370,60 @@ class _BusinessHoursWidgetState extends State<_BusinessHoursWidget> {
     return names[day % 7];
   }
 
-  String _formatMinute(int m) {
-    final h = (m ~/ 60) % 24;
-    final min = m % 60;
-    return '${h.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
+  // AyuGram FormatDayTime (info_profile_actions.cpp:314): a time past the day end
+  // gets the "next day" suffix; an exact day-end shows 00:00.
+  String _formatDayTime(int m) {
+    String wrap(int v) {
+      final h = v ~/ 60;
+      final min = v % 60;
+      return '${h.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
+    }
+    if (m > _kDay) return '${wrap(m - _kDay)} (next day)';
+    return wrap(m == _kDay ? 0 : m);
   }
 
-  List<String> _daySchedule(int day) {
-    final dayStart = day * 1440;
-    final dayEnd = dayStart + 1440;
-    final result = <String>[];
-    for (final iv in _intervals) {
-      if (iv.end > dayStart && iv.start < dayEnd) {
-        final s = (iv.start - dayStart).clamp(0, 1440);
-        final e = (iv.end - dayStart).clamp(0, 1440);
-        result.add('${_formatMinute(s)} – ${_formatMinute(e)}');
+  // Owner/shifted intervals expressed relative to a given day (minutes from the
+  // day start). An end > _kDay marks a past-midnight interval — AyuGram
+  // ExtractDayIntervals (data_business_common.cpp:291).
+  List<_WeekInterval> _extractDay(List<_WeekInterval> ivs, int day) {
+    final dayStart = day * _kDay;
+    final out = <_WeekInterval>[];
+    for (final iv in ivs) {
+      for (final off in const [0, _kWeek, -_kWeek]) {
+        final s = iv.start + off;
+        final e = iv.end + off;
+        if (e <= dayStart || s >= dayStart + _kDay + _kInNextDayMax) continue;
+        if (s >= dayStart) {
+          out.add(_WeekInterval(s - dayStart, e - dayStart));
+        } else if (e > dayStart) {
+          // Spill from the previous day's late interval into this morning.
+          final end = e - dayStart;
+          out.add(_WeekInterval(0, end > _kDay ? _kDay : end));
+        }
       }
     }
-    return result.isEmpty ? ['Closed'] : result;
+    out.sort((a, b) => a.start.compareTo(b.start));
+    return out;
+  }
+
+  // AyuGram IsFullOpen: the day's intervals cover the entire day.
+  bool _isDayFullOpen(List<_WeekInterval> dayIvs) {
+    for (final iv in dayIvs) {
+      if (iv.start <= 0 && iv.end >= _kDay) return true;
+    }
+    return false;
+  }
+
+  // FormatDayHours: "Open 24 hours" for a full day, "Closed" for none, otherwise
+  // the joined interval list. Owner-local unless the viewer toggled "My time".
+  String _dayHoursText(int day) {
+    final owner = _extractDay(_intervals, day);
+    if (_isDayFullOpen(owner)) return 'Open 24 hours';
+    final use = _myTimezone ? _extractDay(_shifted, day) : owner;
+    if (use.isEmpty) return 'Closed';
+    return use
+        .map((iv) => '${_formatDayTime(iv.start)} – ${_formatDayTime(iv.end)}')
+        .join(', ');
   }
 
   @override
@@ -4224,15 +4445,21 @@ class _BusinessHoursWidgetState extends State<_BusinessHoursWidget> {
     final isOpen = _isOpenNow();
     final statusColor = isOpen ? const Color(0xFF4CAF50) : const Color(0xFFDD4B39);
     final statusText = isOpen ? 'Open' : 'Closed';
+    // Today first, then the following six days (AyuGram (day + i) % 7, i=0..6).
+    final todayDow = (DateTime.now().weekday - 1) % 7;
+    final primary = widget.theme.colorScheme.primary;
+    // The "My time / Local time" toggle is only meaningful when the timezones
+    // actually differ (info_profile_actions.cpp:611-634).
+    final showToggle = _deltaMin != 0;
 
-    return InkWell(
-      onTap: () => setState(() => _expanded = !_expanded),
-      child: Padding(
-        padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Padding(
+      padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Row(
               children: [
                 Text(statusText, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: statusColor)),
                 const SizedBox(width: 8),
@@ -4245,42 +4472,67 @@ class _BusinessHoursWidgetState extends State<_BusinessHoursWidget> {
                 ),
               ],
             ),
-            const SizedBox(height: 2),
-            Text('Business Hours', style: TextStyle(fontSize: 12, color: widget.theme.colorScheme.primary)),
-            if (_expanded) ...[
-              const SizedBox(height: 8),
-              for (int d = 0; d < 7; d++)
-                Builder(builder: (context) {
-                  final schedule = _daySchedule(d);
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 90,
-                          child: Text(
-                            _dayName(d),
-                            style: TextStyle(fontSize: 13, color: widget.theme.textTheme.bodyMedium?.color),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            schedule.join(', '),
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: schedule.first == 'Closed'
-                                  ? widget.theme.colorScheme.onSurface.withValues(alpha: 0.5)
-                                  : widget.theme.textTheme.bodyMedium?.color,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  child: Text('Business Hours', style: TextStyle(fontSize: 12, color: primary)),
+                ),
+              ),
+              if (showToggle && _expanded)
+                InkWell(
+                  onTap: () => setState(() => _myTimezone = !_myTimezone),
+                  child: Text(
+                    _myTimezone ? 'My time' : 'Local time',
+                    style: TextStyle(fontSize: 12, color: primary, fontWeight: FontWeight.w500),
+                  ),
+                ),
             ],
+          ),
+          if (_expanded) ...[
+            const SizedBox(height: 8),
+            for (int i = 0; i < 7; i++)
+              Builder(builder: (context) {
+                final day = (todayDow + i) % 7;
+                final text = _dayHoursText(day);
+                final closed = text == 'Closed';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 90,
+                        child: Text(
+                          _dayName(day),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: i == 0
+                                ? widget.theme.textTheme.bodyLarge?.color
+                                : widget.theme.textTheme.bodyMedium?.color,
+                            fontWeight: i == 0 ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          text,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: closed
+                                ? widget.theme.colorScheme.onSurface.withValues(alpha: 0.5)
+                                : widget.theme.textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -4441,37 +4693,6 @@ class _BotCommandRow extends StatelessWidget {
   }
 }
 
-class _CommonGroupsRow extends StatelessWidget {
-  final int count;
-  final ThemeData theme;
-  final VoidCallback? onTap;
-
-  const _CommonGroupsRow({required this.count, required this.theme, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
-        child: Row(
-          children: [
-            Icon(Icons.group_outlined, size: 20, color: theme.textTheme.bodySmall?.color),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                '$count group${count == 1 ? '' : 's'} in common',
-                style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
-              ),
-            ),
-            Icon(Icons.chevron_right, size: 20, color: theme.textTheme.bodySmall?.color),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _NotificationToggle extends StatelessWidget {
   final ChatInfo chat;
   final ThemeData theme;
@@ -4506,11 +4727,13 @@ class _GroupActionsSection extends StatelessWidget {
   final ChatInfo chat;
   final ThemeData theme;
   final List<MemberInfo>? members;
+  final bool canViewStats;
 
   const _GroupActionsSection({
     required this.chat,
     required this.theme,
     this.members,
+    this.canViewStats = false,
   });
 
   bool _isSelfAdminIn(BuildContext context) {
@@ -4536,7 +4759,9 @@ class _GroupActionsSection extends StatelessWidget {
     final attentionColor = const Color(0xFFDD4B39);
     final accentColor = theme.colorScheme.primary;
 
-    final showStats = _isSelfAdmin && chat.memberCount >= 500;
+    // Statistics gates on the server can_view_stats flag, not a member-count
+    // heuristic (AyuGram canViewStatistics(), data_channel.cpp:1323).
+    final showStats = canViewStats;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4613,12 +4838,15 @@ class _GroupActionsSection extends StatelessWidget {
             ),
           ),
         ),
-        _ActionRow(
-          icon: Icons.flag_outlined,
-          label: 'Report',
-          theme: theme,
-          onTap: () => _confirmReport(context, chatState),
-        ),
+        // Report is hidden for the chat creator/owner (AyuGram `!chat ||
+        // chat->amCreator()`, window_peer_menu.cpp:985).
+        if (!chat.isCreator)
+          _ActionRow(
+            icon: Icons.flag_outlined,
+            label: 'Report',
+            theme: theme,
+            onTap: () => _confirmReport(context, chatState),
+          ),
         if (!chat.notJoined)
           _ActionRow(
             icon: Icons.logout,
@@ -4857,8 +5085,9 @@ class _ChannelActionsSection extends StatelessWidget {
   final ChatInfo chat;
   final ThemeData theme;
   final List<MemberInfo>? members;
+  final bool canViewStats;
 
-  const _ChannelActionsSection({required this.chat, required this.theme, this.members});
+  const _ChannelActionsSection({required this.chat, required this.theme, this.members, this.canViewStats = false});
 
   bool _isSelfAdminIn(BuildContext context) {
     if (members == null) return false;
@@ -4882,7 +5111,9 @@ class _ChannelActionsSection extends StatelessWidget {
     final chatState = context.read<ChatState>();
     final attentionColor = const Color(0xFFDD4B39);
 
-    final showStats = _isSelfAdmin && chat.memberCount >= 50;
+    // Statistics gates on the server can_view_stats flag, not a member-count
+    // heuristic (AyuGram canViewStatistics(), data_channel.cpp:1323).
+    final showStats = canViewStats;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4939,12 +5170,15 @@ class _ChannelActionsSection extends StatelessWidget {
             ),
           ),
         ),
-        _ActionRow(
-          icon: Icons.flag_outlined,
-          label: 'Report',
-          theme: theme,
-          onTap: () => _confirmReport(context, chatState),
-        ),
+        // Report is only added for non-creators (AyuGram `if (!channel->amCreator())`,
+        // info_profile_actions.cpp:3042).
+        if (!chat.isCreator)
+          _ActionRow(
+            icon: Icons.flag_outlined,
+            label: 'Report',
+            theme: theme,
+            onTap: () => _confirmReport(context, chatState),
+          ),
         if (!chat.notJoined)
           _ActionRow(
             icon: Icons.logout,
@@ -5304,6 +5538,9 @@ class _SharedMediaSection extends StatefulWidget {
   final String accountId;
   final String chatId;
   final void Function(String type, String label)? onOpenMedia;
+  // For a user DM, render the "N groups in common" counted button alongside the
+  // media buttons (AyuGram AddCommonGroupsButton, info_media_buttons.cpp:211).
+  final bool showCommonGroups;
 
   const _SharedMediaSection({
     required this.counts,
@@ -5312,6 +5549,7 @@ class _SharedMediaSection extends StatefulWidget {
     required this.accountId,
     required this.chatId,
     this.onOpenMedia,
+    this.showCommonGroups = false,
   });
 
   @override
@@ -5330,6 +5568,11 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
   List<StoryAlbumInfo>? _storyAlbums;
   bool _albumsLoading = false;
   int _activeStoryAlbumId = 0; // 0 = "All"
+
+  // Common groups, loaded reactively for user DMs (CommonGroupsCountValue).
+  int _commonGroupsCount = 0;
+  List<Map<String, dynamic>> _commonGroupsList = [];
+  bool _commonGroupsLoaded = false;
 
   static const _types = [
     ('photo', Icons.photo_outlined, 'Photos'),
@@ -5360,6 +5603,48 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.showCommonGroups && !_commonGroupsLoaded) {
+      _commonGroupsLoaded = true;
+      _loadCommonGroups();
+    }
+  }
+
+  void _loadCommonGroups() {
+    context.read<EngineService>()
+        .getCommonChats(widget.accountId, widget.chatId, limit: 100)
+        .then((chats) {
+      if (mounted) setState(() {
+        _commonGroupsCount = chats.length;
+        _commonGroupsList = chats;
+      });
+    }).catchError((_) {});
+  }
+
+  void _showCommonGroupsDialog() {
+    final chats = _commonGroupsList;
+    if (chats.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => SimpleDialog(
+        title: Text('${chats.length} group${chats.length == 1 ? '' : 's'} in common'),
+        children: chats.map((c) {
+          final title = c['title'] as String? ?? c['chat_id'] as String? ?? '';
+          final chatId = c['chat_id'] as String? ?? '';
+          return SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              context.read<ChatState>().openChatById(chatId);
+            },
+            child: Text(title),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   @override
@@ -5546,7 +5831,8 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
   Widget build(BuildContext context) {
     final visible =
         _types.where((t) => (widget.counts[t.$1] ?? 0) > 0).toList();
-    if (visible.isEmpty) return const SizedBox.shrink();
+    final showCommon = widget.showCommonGroups && _commonGroupsCount > 0;
+    if (visible.isEmpty && !showCommon) return const SizedBox.shrink();
 
     final iconColor = widget.theme.textTheme.bodySmall?.color ?? Colors.grey;
     final isDark = widget.theme.brightness == Brightness.dark;
@@ -5637,6 +5923,8 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
                   theme: widget.theme,
                   mediaType: type,
                   isSearch: _searchActive && _searchController.text.isNotEmpty,
+                  accountId: widget.accountId,
+                  chatId: widget.chatId,
                 )
               else if (_masonryTypes.contains(type))
                 _GifMasonryGrid(
@@ -5644,6 +5932,8 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
                   loading: _gridLoading,
                   theme: widget.theme,
                   isSearch: _searchActive && _searchController.text.isNotEmpty,
+                  accountId: widget.accountId,
+                  chatId: widget.chatId,
                 )
               else
                 _MediaListView(
@@ -5656,6 +5946,19 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
                   chatId: widget.chatId,
                 ),
           ],
+          // Common-groups counted button, grouped with the media buttons
+          // (AddCommonGroupsButton, info_media_buttons.cpp:211).
+          if (showCommon)
+            _SharedMediaRow(
+              icon: Icons.group_outlined,
+              label: 'Groups in common',
+              count: _commonGroupsCount,
+              iconColor: iconColor,
+              accentColor: accentColor,
+              theme: widget.theme,
+              expanded: false,
+              onTap: _showCommonGroupsDialog,
+            ),
         ],
       ),
     );
@@ -6127,6 +6430,8 @@ class _MediaGrid extends StatelessWidget {
   final ThemeData theme;
   final String mediaType;
   final bool isSearch;
+  final String accountId;
+  final String chatId;
 
   static const _minGridSize = 82.0;
   static const _skip = 2.0;
@@ -6140,6 +6445,8 @@ class _MediaGrid extends StatelessWidget {
     required this.theme,
     this.mediaType = 'photo',
     this.isSearch = false,
+    this.accountId = '',
+    this.chatId = '',
   });
 
   @override
@@ -6208,7 +6515,15 @@ class _MediaGrid extends StatelessWidget {
                   children: [
                     for (var j = 0; j < rowItems.length; j++) ...[
                       if (j > 0) const SizedBox(width: _skip),
-                      _GridCell(item: rowItems[j], size: cellSide, height: cellHeight, theme: theme),
+                      _GridCell(
+                        item: rowItems[j],
+                        size: cellSide,
+                        height: cellHeight,
+                        theme: theme,
+                        accountId: accountId,
+                        chatId: chatId,
+                        onTap: () => _openSharedMediaTap(context, accountId, chatId, rowItems[j], mediaItems),
+                      ),
                     ],
                   ],
                 ),
@@ -6249,6 +6564,8 @@ class _GifMasonryGrid extends StatelessWidget {
   final bool loading;
   final ThemeData theme;
   final bool isSearch;
+  final String accountId;
+  final String chatId;
 
   static const _skip = 2.0;
   static const _sidePadding = 3.0;
@@ -6259,6 +6576,8 @@ class _GifMasonryGrid extends StatelessWidget {
     required this.loading,
     required this.theme,
     this.isSearch = false,
+    this.accountId = '',
+    this.chatId = '',
   });
 
   @override
@@ -6348,7 +6667,7 @@ class _GifMasonryGrid extends StatelessWidget {
                     children: [
                       for (var j = 0; j < rowItems.length; j++) ...[
                         if (j > 0) const SizedBox(width: _skip),
-                        _buildGifCell(rowItems[j], rowHeight),
+                        _buildGifCell(context, rowItems[j], rowHeight, mediaItems),
                       ],
                     ],
                   ),
@@ -6361,8 +6680,15 @@ class _GifMasonryGrid extends StatelessWidget {
     });
   }
 
-  Widget _buildGifCell(SharedMediaItem item, double rowHeight) {
-    return _GifCell(item: item, rowHeight: rowHeight, theme: theme);
+  Widget _buildGifCell(BuildContext context, SharedMediaItem item, double rowHeight, List<SharedMediaItem> all) {
+    return _GifCell(
+      item: item,
+      rowHeight: rowHeight,
+      theme: theme,
+      accountId: accountId,
+      chatId: chatId,
+      onTap: () => _openSharedMediaTap(context, accountId, chatId, item, all),
+    );
   }
 }
 
@@ -6472,27 +6798,56 @@ class _FileListItem extends StatelessWidget {
     final ext = _extractExtension(item.fileName);
     final extColor = _extensionColor(ext);
 
+    // AyuGram Document draws the real file thumbnail (withThumb → loadThumbnail)
+    // or a typed generic icon, never just the extension text (overview_layout.cpp:1167).
+    Uint8List? thumb;
+    if (item.thumbB64.isNotEmpty) {
+      try {
+        final decoded = _GridCell._decodeThumb(item.thumbB64);
+        if (_GridCell._isValidImage(decoded)) thumb = decoded;
+      } catch (_) {}
+    }
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+
+    Widget leading;
+    if (thumb != null) {
+      leading = ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.memory(
+          thumb,
+          width: 44, height: 44, fit: BoxFit.cover,
+          gaplessPlayback: true,
+          cacheWidth: (44 * dpr).round(),
+          cacheHeight: (44 * dpr).round(),
+          errorBuilder: (_, __, ___) => _genericIcon(ext, extColor, isDark),
+        ),
+      );
+    } else {
+      leading = _genericIcon(ext, extColor, isDark);
+    }
+
     return InkWell(
       onTap: () => _onTap(context),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
           children: [
-            Container(
+            SizedBox(
               width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: extColor.withValues(alpha: isDark ? 0.25 : 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  ext.isNotEmpty ? ext.toUpperCase() : '?',
-                  style: TextStyle(
-                    fontSize: ext.length > 3 ? 9 : 11,
-                    fontWeight: FontWeight.w700,
-                    color: extColor,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  leading,
+                  Center(
+                    child: _DownloadProgressRing(
+                      accountId: accountId,
+                      chatId: chatId,
+                      msgId: item.msgId,
+                      size: 32,
+                      color: extColor,
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
             const SizedBox(width: 11),
@@ -6515,6 +6870,35 @@ class _FileListItem extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Typed generic document icon with the extension overlaid (AyuGram's typed
+  // generic doc icon when no thumbnail is available).
+  Widget _genericIcon(String ext, Color extColor, bool isDark) {
+    return Container(
+      width: 44, height: 44,
+      decoration: BoxDecoration(
+        color: extColor.withValues(alpha: isDark ? 0.25 : 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(Icons.insert_drive_file_outlined, size: 28, color: extColor.withValues(alpha: 0.7)),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              ext.isNotEmpty ? ext.toUpperCase() : '?',
+              style: TextStyle(
+                fontSize: ext.length > 3 ? 8 : 9,
+                fontWeight: FontWeight.w700,
+                color: extColor,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -6609,14 +6993,25 @@ class _AudioListItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
           children: [
-            Container(
+            SizedBox(
               width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: isActive ? accentColor.withValues(alpha: 0.8) : accentColor,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 22),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: isActive ? accentColor.withValues(alpha: 0.8) : accentColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 22),
+                    ),
+                  ),
+                  Center(
+                    child: _DownloadProgressRing(
+                      accountId: accountId, chatId: chatId, msgId: item.msgId, size: 40),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 11),
@@ -6693,14 +7088,25 @@ class _VoiceListItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
           children: [
-            Container(
+            SizedBox(
               width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: isActive ? accentColor.withValues(alpha: 0.8) : accentColor,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 22),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: isActive ? accentColor.withValues(alpha: 0.8) : accentColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 22),
+                    ),
+                  ),
+                  Center(
+                    child: _DownloadProgressRing(
+                      accountId: accountId, chatId: chatId, msgId: item.msgId, size: 40),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 11),
@@ -6873,19 +7279,30 @@ class _RoundListItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
           children: [
-            Container(
+            SizedBox(
               width: 44, height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: accentColor.withValues(alpha: isDark ? 0.25 : 0.12),
-                border: Border.all(color: accentColor, width: 2),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accentColor.withValues(alpha: isDark ? 0.25 : 0.12),
+                      border: Border.all(color: accentColor, width: 2),
+                    ),
+                    child: item.thumbB64.isNotEmpty
+                        ? ClipOval(child: Image.memory(
+                            Uint8List.fromList(base64Decode(item.thumbB64)),
+                            width: 44, height: 44, fit: BoxFit.cover,
+                          ))
+                        : Center(child: Icon(Icons.videocam, size: 20, color: accentColor)),
+                  ),
+                  Center(
+                    child: _DownloadProgressRing(
+                      accountId: accountId, chatId: chatId, msgId: item.msgId, size: 36),
+                  ),
+                ],
               ),
-              child: item.thumbB64.isNotEmpty
-                  ? ClipOval(child: Image.memory(
-                      Uint8List.fromList(base64Decode(item.thumbB64)),
-                      width: 44, height: 44, fit: BoxFit.cover,
-                    ))
-                  : Center(child: Icon(Icons.videocam, size: 20, color: accentColor)),
             ),
             const SizedBox(width: 11),
             Expanded(
@@ -6919,7 +7336,7 @@ class _RoundListItem extends StatelessWidget {
   }
 }
 
-class _PollListItem extends StatelessWidget {
+class _PollListItem extends StatefulWidget {
   final SharedMediaItem item;
   final ThemeData theme;
   final String accountId;
@@ -6927,20 +7344,74 @@ class _PollListItem extends StatelessWidget {
 
   const _PollListItem({required this.item, required this.theme, this.accountId = '', this.chatId = ''});
 
-  void _onTap(BuildContext context) {
+  @override
+  State<_PollListItem> createState() => _PollListItemState();
+}
+
+class _PollListItemState extends State<_PollListItem> {
+  CachedMessage? _msg;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPoll();
+  }
+
+  // Fetch the cached message so the row can render the real poll results — vote
+  // count, quiz/anonymous and closed state — instead of a static "Poll" string.
+  void _loadPoll() {
+    final item = widget.item;
+    if (widget.accountId.isEmpty || widget.chatId.isEmpty || item.timestamp <= 0) return;
+    context
+        .read<EngineService>()
+        .getMessages(widget.accountId, widget.chatId,
+            afterMs: item.timestamp - 2000,
+            beforeMs: item.timestamp + 2000,
+            limit: 20)
+        .then((msgs) {
+      if (!mounted) return;
+      for (final m in msgs) {
+        if (m.msgId == item.msgId) {
+          setState(() => _msg = m);
+          return;
+        }
+      }
+    }).catchError((_) {});
+  }
+
+  void _onTap() {
+    final item = widget.item;
     if (item.msgId.isEmpty || item.timestamp <= 0) return;
-    final chatState = context.read<ChatState>();
-    chatState.jumpToMessage(item.timestamp, highlightMsgId: item.msgId);
+    context.read<ChatState>().jumpToMessage(item.timestamp, highlightMsgId: item.msgId);
+  }
+
+  String _pollStatus() {
+    final m = _msg;
+    if (m == null) return '';
+    final parts = <String>[];
+    parts.add(m.pollQuiz ? 'Quiz' : (m.pollPublic ? 'Poll' : 'Anonymous Poll'));
+    if (m.pollClosed) {
+      parts.add('Final results');
+    } else {
+      final v = m.pollTotalVoters;
+      parts.add('$v vote${v == 1 ? '' : 's'}');
+    }
+    return parts.join(' · ');
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = widget.theme;
     final isDark = theme.brightness == Brightness.dark;
     final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF40a7e3);
     final subtitleColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final question = (_msg?.pollQuestion.isNotEmpty ?? false)
+        ? _msg!.pollQuestion
+        : (widget.item.fileName.isNotEmpty ? widget.item.fileName : 'Poll');
+    final status = _pollStatus();
 
     return InkWell(
-      onTap: () => _onTap(context),
+      onTap: _onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
@@ -6952,7 +7423,9 @@ class _PollListItem extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
-                child: Icon(Icons.poll, size: 22, color: accentColor),
+                child: Icon(
+                  (_msg?.pollQuiz ?? false) ? Icons.quiz_outlined : Icons.poll,
+                  size: 22, color: accentColor),
               ),
             ),
             const SizedBox(width: 11),
@@ -6961,15 +7434,17 @@ class _PollListItem extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.fileName.isNotEmpty ? item.fileName : 'Poll',
+                    question,
                     maxLines: 2, overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Poll',
-                    style: TextStyle(fontSize: 12, color: subtitleColor),
-                  ),
+                  if (status.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      status,
+                      style: TextStyle(fontSize: 12, color: subtitleColor),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -7004,17 +7479,92 @@ class _DateHeader extends StatelessWidget {
   }
 }
 
+// Live download-progress ring for media rows/cells: subscribes to the engine's
+// download-progress stream and paints a radial ring only while a download for
+// this message is in flight (AyuGram _radial / dataProgress, overview_layout.cpp:899).
+class _DownloadProgressRing extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final String msgId;
+  final double size;
+  final Color color;
+  final Color trackColor;
+
+  const _DownloadProgressRing({
+    required this.accountId,
+    required this.chatId,
+    required this.msgId,
+    this.size = 36,
+    this.color = Colors.white,
+    this.trackColor = const Color(0x40000000),
+  });
+
+  @override
+  State<_DownloadProgressRing> createState() => _DownloadProgressRingState();
+}
+
+class _DownloadProgressRingState extends State<_DownloadProgressRing> {
+  StreamSubscription<DownloadProgressEvent>? _sub;
+  double? _progress; // null = not downloading
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.accountId.isEmpty || widget.chatId.isEmpty || widget.msgId.isEmpty) {
+      return;
+    }
+    _sub = context.read<EngineService>().onDownloadProgress.listen((e) {
+      if (e.msgId != widget.msgId || e.chatId != widget.chatId) return;
+      if (!mounted) return;
+      setState(() {
+        _progress = (e.bytesTotal > 0 && e.bytesRecv < e.bytesTotal)
+            ? e.progress
+            : null;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_progress == null) return const SizedBox.shrink();
+    return Container(
+      width: widget.size,
+      height: widget.size,
+      decoration: BoxDecoration(color: widget.trackColor, shape: BoxShape.circle),
+      padding: const EdgeInsets.all(4),
+      child: CircularProgressIndicator(
+        value: _progress,
+        strokeWidth: 2.5,
+        valueColor: AlwaysStoppedAnimation(widget.color),
+        backgroundColor: widget.color.withValues(alpha: 0.25),
+      ),
+    );
+  }
+}
+
 class _GridCell extends StatefulWidget {
   final SharedMediaItem item;
   final double size;
   final double height;
   final ThemeData theme;
+  final VoidCallback? onTap;
+  final String accountId;
+  final String chatId;
 
   const _GridCell({
     required this.item,
     required this.size,
     double? height,
     required this.theme,
+    this.onTap,
+    this.accountId = '',
+    this.chatId = '',
   }) : height = height ?? size;
 
   @override
@@ -7152,6 +7702,11 @@ class _GridCellState extends State<_GridCell> {
     final placeholderColor = isDark
         ? const Color(0xFF2b3945)
         : const Color(0xFFe0e0e0);
+    // Decode the bitmap to the exact cell size — never the full source resolution
+    // (AyuGram ->pix(inner.size()), overview_layout.cpp:871).
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cw = (widget.size * dpr).round();
+    final ch = (widget.height * dpr).round();
 
     Widget content;
     if (_decodedBytes != null) {
@@ -7161,6 +7716,8 @@ class _GridCellState extends State<_GridCell> {
         height: widget.height,
         fit: BoxFit.cover,
         gaplessPlayback: true,
+        cacheWidth: cw,
+        cacheHeight: ch,
         errorBuilder: (_, __, ___) => _placeholder(placeholderColor),
       );
     } else if (!_decoding && widget.item.localPath.isNotEmpty && File(widget.item.localPath).existsSync()) {
@@ -7170,6 +7727,8 @@ class _GridCellState extends State<_GridCell> {
         height: widget.height,
         fit: BoxFit.cover,
         gaplessPlayback: true,
+        cacheWidth: cw,
+        cacheHeight: ch,
         errorBuilder: (_, __, ___) => _placeholder(placeholderColor),
       );
     } else {
@@ -7177,34 +7736,44 @@ class _GridCellState extends State<_GridCell> {
     }
 
     final isVideo = widget.item.isVideo;
-    return SizedBox(
-      width: widget.size,
-      height: widget.height,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(child: content),
-          if (isVideo && widget.item.duration > 0)
-            Positioned(
-              right: 4,
-              bottom: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Text(
-                  _formatDuration(widget.item.duration),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: SizedBox(
+        width: widget.size,
+        height: widget.height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipRRect(child: content),
+            if (isVideo && widget.item.duration > 0)
+              Positioned(
+                right: 4,
+                bottom: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    _formatDuration(widget.item.duration),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ),
+            Center(
+              child: _DownloadProgressRing(
+                accountId: widget.accountId,
+                chatId: widget.chatId,
+                msgId: widget.item.msgId,
+              ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -7234,11 +7803,17 @@ class _GifCell extends StatefulWidget {
   final SharedMediaItem item;
   final double rowHeight;
   final ThemeData theme;
+  final VoidCallback? onTap;
+  final String accountId;
+  final String chatId;
 
   const _GifCell({
     required this.item,
     required this.rowHeight,
     required this.theme,
+    this.onTap,
+    this.accountId = '',
+    this.chatId = '',
   });
 
   @override
@@ -7248,11 +7823,15 @@ class _GifCell extends StatefulWidget {
 class _GifCellState extends State<_GifCell> {
   Uint8List? _decodedBytes;
   bool _decoding = false;
+  Player? _player;
+  VideoController? _videoController;
+  String _playingPath = '';
 
   @override
   void initState() {
     super.initState();
     _startDecode();
+    _ensurePlayer();
   }
 
   @override
@@ -7262,6 +7841,51 @@ class _GifCellState extends State<_GifCell> {
       _decodedBytes = null;
       _startDecode();
     }
+    if (old.item.localPath != widget.item.localPath) {
+      _ensurePlayer();
+    }
+  }
+
+  // AyuGram's Gif uses a Media::Clip player (iconAnimated() true). Play the
+  // downloaded GIF inline (looped, muted); fall back to the thumbnail otherwise.
+  void _ensurePlayer() {
+    final path = widget.item.localPath;
+    if (path.isEmpty || !File(path).existsSync()) {
+      _disposePlayer();
+      return;
+    }
+    if (_playingPath == path && _player != null) return;
+    _disposePlayer();
+    _playingPath = path;
+    final player = Player();
+    if (AppState.noHwAccelVideo) {
+      (player.platform as NativePlayer).setProperty('hwdec', 'no');
+    }
+    final controller = VideoController(player);
+    player.setPlaylistMode(PlaylistMode.loop);
+    player.setVolume(0);
+    player.open(Media(path));
+    if (mounted) {
+      setState(() {
+        _player = player;
+        _videoController = controller;
+      });
+    } else {
+      player.dispose();
+    }
+  }
+
+  void _disposePlayer() {
+    _player?.dispose();
+    _player = null;
+    _videoController = null;
+    _playingPath = '';
+  }
+
+  @override
+  void dispose() {
+    _disposePlayer();
+    super.dispose();
   }
 
   void _startDecode() {
@@ -7290,15 +7914,26 @@ class _GifCellState extends State<_GifCell> {
     final placeholderColor = isDark
         ? const Color(0xFF2b3945)
         : const Color(0xFFe0e0e0);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
 
     Widget content;
-    if (_decodedBytes != null) {
+    if (_videoController != null) {
+      content = Video(
+        controller: _videoController!,
+        width: cellWidth,
+        height: widget.rowHeight,
+        fit: BoxFit.cover,
+        controls: NoVideoControls,
+      );
+    } else if (_decodedBytes != null) {
       content = Image.memory(
         _decodedBytes!,
         width: cellWidth,
         height: widget.rowHeight,
         fit: BoxFit.cover,
         gaplessPlayback: true,
+        cacheWidth: (cellWidth * dpr).round(),
+        cacheHeight: (widget.rowHeight * dpr).round(),
         errorBuilder: (_, __, ___) => Container(color: placeholderColor),
       );
     } else {
@@ -7308,10 +7943,25 @@ class _GifCellState extends State<_GifCell> {
       );
     }
 
-    return SizedBox(
-      width: cellWidth,
-      height: widget.rowHeight,
-      child: ClipRRect(child: content),
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: SizedBox(
+        width: cellWidth,
+        height: widget.rowHeight,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipRRect(child: content),
+            Center(
+              child: _DownloadProgressRing(
+                accountId: widget.accountId,
+                chatId: widget.chatId,
+                msgId: widget.item.msgId,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -7360,6 +8010,7 @@ class _MembersSection extends StatefulWidget {
   final String accountId;
   final String chatId;
   final bool isForum;
+  final bool canAddMembers;
 
   const _MembersSection({
     required this.members,
@@ -7370,6 +8021,7 @@ class _MembersSection extends StatefulWidget {
     required this.chatId,
     this.onMemberTap,
     this.isForum = false,
+    this.canAddMembers = false,
   });
 
   @override
@@ -7641,30 +8293,37 @@ class _MembersSectionState extends State<_MembersSection> {
                           ),
                         ),
                 ),
-                _MembersHeaderButton(
-                  icon: _searching ? Icons.close : Icons.search,
-                  tooltip: _searching ? 'Close search' : 'Search members',
-                  color: theme.textTheme.bodyMedium?.color ?? theme.iconTheme.color!,
-                  onTap: () {
-                    setState(() {
-                      _searching = !_searching;
-                      if (_searching) {
-                        _searchFocus.requestFocus();
-                      } else {
-                        _searchCtrl.clear();
-                        _serverSearchResults = null;
-                        _searchLoading = false;
-                        _searchDebounce?.cancel();
-                      }
-                    });
-                  },
-                ),
-                _MembersHeaderButton(
-                  icon: Icons.person_add_outlined,
-                  tooltip: 'Add member',
-                  color: theme.textTheme.bodyMedium?.color ?? theme.iconTheme.color!,
-                  onTap: () => _showAddMemberDialog(context),
-                ),
+                // Search appears only once there are enough members to be worth
+                // it (AyuGram kEnableSearchMembersAfterCount = 8,
+                // info_profile_members.cpp:40).
+                if (widget.memberCount >= 8 || _searching)
+                  _MembersHeaderButton(
+                    icon: _searching ? Icons.close : Icons.search,
+                    tooltip: _searching ? 'Close search' : 'Search members',
+                    color: theme.textTheme.bodyMedium?.color ?? theme.iconTheme.color!,
+                    onTap: () {
+                      setState(() {
+                        _searching = !_searching;
+                        if (_searching) {
+                          _searchFocus.requestFocus();
+                        } else {
+                          _searchCtrl.clear();
+                          _serverSearchResults = null;
+                          _searchLoading = false;
+                          _searchDebounce?.cancel();
+                        }
+                      });
+                    },
+                  ),
+                // Add-member is permission-gated (AyuGram CanAddMemberValue →
+                // canAddMembers, info_profile_members.cpp:210-225).
+                if (widget.canAddMembers)
+                  _MembersHeaderButton(
+                    icon: Icons.person_add_outlined,
+                    tooltip: 'Add member',
+                    color: theme.textTheme.bodyMedium?.color ?? theme.iconTheme.color!,
+                    onTap: () => _showAddMemberDialog(context),
+                  ),
               ],
             ),
           ),
@@ -7813,9 +8472,14 @@ class _MemberRow extends StatelessWidget {
       statusText = 'last seen recently';
     }
 
-    final String? tagText = hasAdminTag
-        ? (isOwner ? 'owner' : 'admin')
-        : null;
+    // A custom rank ("Head Mod" etc.) replaces the owner/admin badge text when
+    // set; otherwise fall back to the owner/admin badge (AyuGram uses _type.rank
+    // as the pill, info_profile_members_controllers.cpp:44-55).
+    final String? tagText = member.customRank.isNotEmpty
+        ? member.customRank
+        : hasAdminTag
+            ? (isOwner ? 'owner' : 'admin')
+            : null;
     final Color tagColor = palette.profileAdminStartFg;
 
     Widget row = SizedBox(
@@ -7928,11 +8592,17 @@ class _MemberRow extends StatelessWidget {
 
   void _showContextMenu(BuildContext context, Offset position) {
     final engine = context.read<EngineService>();
-    final isDark = theme.brightness == Brightness.dark;
-    final isOwnerOrCreator = member.role == 'owner' || member.role == 'creator';
-    final isAdmin = member.role == 'admin';
-    final attentionColor = isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39);
-    final iconColor = isDark ? const Color(0xFF8b9fad) : const Color(0xFF999999);
+    final isAdmin = member.role == 'admin' || member.role == 'owner' || member.role == 'creator';
+    // Each moderation action is gated independently on the per-participant
+    // permission flags the engine supplies (already exclude self), mirroring
+    // AyuGram canAddOrEditAdmin / canRestrictParticipant / canRemoveParticipant
+    // (edit_participants_box.cpp:1962-1998). No role-string heuristics.
+    final canEditAdmin = member.canEditAdmin;
+    final canRestrict = member.canRestrict;
+    // restrict-without-kick: chat creator or megagroup (not gigagroup). Member
+    // lists are only shown for groups/supergroups, so approximate via the -100
+    // (supergroup) id prefix (edit_participants_box.cpp:1975-1986).
+    final canRestrictWithoutKick = chatId.startsWith('-100');
 
     showTelegramMenu<String>(
       context: context,
@@ -7943,15 +8613,18 @@ class _MemberRow extends StatelessWidget {
         if (member.username.isNotEmpty)
           const TelegramMenuItem(value: 'copy_username', icon: Icon(Icons.alternate_email), label: 'Copy Username'),
         const TelegramMenuItem(value: 'copy_id', icon: Icon(Icons.tag), label: 'Copy ID'),
-        if (!isAdmin && !isOwnerOrCreator)
-          const TelegramMenuItem(value: 'promote', icon: Icon(Icons.arrow_upward), label: 'Promote'),
-        if (isAdmin && !isOwnerOrCreator)
-          const TelegramMenuItem(value: 'demote', icon: Icon(Icons.arrow_downward), label: 'Demote'),
-        if (!isOwnerOrCreator) ...[
+        // Single admin action: opens EditAdmin (which itself carries the dismiss-
+        // admin button). Label reflects promote vs edit, no standalone Demote.
+        if (canEditAdmin)
+          TelegramMenuItem(
+            value: 'promote',
+            icon: Icon(isAdmin ? Icons.shield_outlined : Icons.arrow_upward),
+            label: isAdmin ? 'Edit Permissions' : 'Promote to Admin',
+          ),
+        if (canRestrict && canRestrictWithoutKick)
           const TelegramMenuItem(value: 'restrict', icon: Icon(Icons.voice_over_off), label: 'Restrict'),
+        if (canRestrict)
           const TelegramMenuItem(value: 'remove', icon: Icon(Icons.person_remove_outlined), label: 'Remove', isAttention: true),
-          const TelegramMenuItem(value: 'ban', icon: Icon(Icons.block), label: 'Ban', isAttention: true),
-        ],
       ],
     ).then((value) {
       if (value == null) return;
@@ -7999,14 +8672,6 @@ class _MemberRow extends StatelessWidget {
             promotedBy: member.promotedBy,
             isForum: isForum,
           ).then((_) => onMutated?.call());
-        case 'demote':
-          engine.demoteAdmin(accountId, chatId, member.userId).then((_) {
-            onMutated?.call();
-          }).catchError((e) {
-            if (context.mounted) {
-              showTelegramToast(context, 'Failed to demote: $e');
-            }
-          });
         case 'restrict':
           showEditRestrictedBox(
             context,
@@ -8020,14 +8685,6 @@ class _MemberRow extends StatelessWidget {
           }).catchError((e) {
             if (context.mounted) {
               showTelegramToast(context, 'Failed to remove: $e');
-            }
-          });
-        case 'ban':
-          engine.banMember(accountId, chatId, member.userId).then((_) {
-            onMutated?.call();
-          }).catchError((e) {
-            if (context.mounted) {
-              showTelegramToast(context, 'Failed to ban: $e');
             }
           });
       }
@@ -8479,8 +9136,23 @@ class _BoostsPageState extends State<_BoostsPage> {
     final boosts = _data!['boosts'] as int? ?? 0;
     final currentLevelBoosts = _data!['current_level_boosts'] as int? ?? 0;
     final nextLevelBoosts = _data!['next_level_boosts'] as int? ?? 0;
-    final giftBoosts = _data!['gift_boosts'] as int? ?? 0;
     final boostUrl = _data!['boost_url'] as String? ?? '';
+    // Premium audience/members metric (AyuGram FillOverview premiumMemberCount +
+    // premiumMemberPercentage, info_boosts_inner_widget.cpp:135-140).
+    final premiumAudience = _data!['premium_audience'];
+    int premiumCount = 0;
+    int premiumPct = 0;
+    if (premiumAudience is Map) {
+      final part = (premiumAudience['part'] as num?)?.toDouble() ?? 0;
+      final total = (premiumAudience['total'] as num?)?.toDouble() ?? 0;
+      premiumCount = part.round();
+      premiumPct = total > 0 ? (part / total * 100).round() : 0;
+    }
+    final isGroup = widget.chat.type == ChatType.group;
+    final rawPrepaid = _data!['prepaid_giveaways'];
+    final prepaidGiveaways = rawPrepaid is List
+        ? rawPrepaid.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList()
+        : <Map<String, dynamic>>[];
     final isDark = widget.theme.brightness == Brightness.dark;
     final subColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
 
@@ -8541,15 +9213,52 @@ class _BoostsPageState extends State<_BoostsPage> {
               )),
               const SizedBox(height: 12),
               _BoostOverviewRow(label: 'Level', value: '$level', theme: widget.theme),
+              if (premiumCount > 0 || premiumPct > 0)
+                _BoostOverviewRow(
+                  label: isGroup ? 'Premium members' : 'Premium audience',
+                  value: '$premiumCount  ·  ~$premiumPct%',
+                  theme: widget.theme,
+                ),
               _BoostOverviewRow(label: 'Existing boosts', value: '$boosts', theme: widget.theme),
-              if (giftBoosts > 0)
-                _BoostOverviewRow(label: 'Boosts via gifts', value: '$giftBoosts', theme: widget.theme),
               if (nextLevelBoosts > 0)
                 _BoostOverviewRow(label: 'Boosts to level up', value: '${nextLevelBoosts - boosts}', theme: widget.theme),
             ],
           ),
         ),
         Divider(height: 1, color: widget.theme.dividerColor),
+        // Prepaid giveaways: a dedicated, directly-clickable section — each row
+        // shows a boost badge + months/credits and opens that giveaway (AyuGram
+        // info_boosts_inner_widget.cpp:341-397).
+        if (prepaidGiveaways.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text('Prepaid Giveaways', style: TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w600,
+              color: widget.theme.colorScheme.primary,
+            )),
+          ),
+          for (int i = 0; i < prepaidGiveaways.length; i++)
+            _PrepaidGiveawayRow(
+              data: prepaidGiveaways[i],
+              theme: widget.theme,
+              onTap: () => showCreateGiveawayBox(
+                context,
+                accountId: widget.chat.accountId,
+                chatId: widget.chat.chatId,
+                theme: widget.theme,
+                prepaidGiveaways: prepaidGiveaways,
+                selectedPrepaidIndex: i,
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Text(
+              'Select a prepaid giveaway to launch it.',
+              style: TextStyle(fontSize: 12, color: subColor),
+            ),
+          ),
+          Divider(height: 1, color: widget.theme.dividerColor),
+        ],
         // Boosters / Gifts tabs
         if (_boosters.isNotEmpty || _gifts.isNotEmpty) ...[
           const SizedBox(height: 8),
@@ -8799,6 +9508,80 @@ class _BoostOverviewRow extends StatelessWidget {
           Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
             color: isDark ? Colors.white : Colors.black87)),
         ],
+      ),
+    );
+  }
+}
+
+// A single prepaid giveaway row: boost badge + title + months/credits subtitle,
+// tap launches that giveaway (AyuGram GiveawayTypeRow, info_boosts_inner_widget.cpp:349).
+class _PrepaidGiveawayRow extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final ThemeData theme;
+  final VoidCallback onTap;
+  const _PrepaidGiveawayRow({required this.data, required this.theme, required this.onTap});
+
+  static const int _boostsPerPremium = 4; // appConfig giveaway_boosts_per_premium default
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final credits = (data['credits'] as num?)?.toInt() ?? 0;
+    final quantity = (data['quantity'] as num?)?.toInt() ?? 0;
+    final months = (data['months'] as num?)?.toInt() ?? 0;
+    final isStars = credits > 0;
+    // Boost count: stars carry it explicitly; premium = quantity × multiplier.
+    final boosts = isStars
+        ? ((data['boosts'] as num?)?.toInt() ?? quantity * _boostsPerPremium)
+        : quantity * _boostsPerPremium;
+    final title = isStars ? 'Stars Giveaway' : '$quantity Telegram Premium';
+    final subtitle = isStars
+        ? '$quantity winners · $credits Stars'
+        : '$months month subscription${months == 1 ? '' : 's'}';
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [
+                  theme.colorScheme.primary,
+                  theme.colorScheme.primary.withValues(alpha: 0.7),
+                ]),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.bolt, size: 13, color: Colors.white),
+                  Text('$boosts', style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white : Colors.black87)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999))),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 20,
+                color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999)),
+          ],
+        ),
       ),
     );
   }
@@ -10361,7 +11144,17 @@ class _PublicForwardRow extends StatelessWidget {
     final name = forward['name'] as String? ?? 'Unknown';
     final isStory = forward['type'] == 'story';
     final views = forward['views'] as int?;
+    final members = forward['members'] as int?;
+    final isMegagroup = forward['is_megagroup'] as bool? ?? false;
     final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    // AyuGram status: "<subscribers/members>, <views> views" with a "No views"
+    // fallback (info_statistics_list_controllers.cpp:421-434).
+    final statusParts = <String>[
+      if (members != null && members > 0)
+        _formatSubscriberCount(members, noun: isMegagroup ? 'member' : 'subscriber'),
+      (views != null && views > 0) ? '${_fmtViews(views)} views' : 'No views',
+    ];
+    final statusText = statusParts.join(', ');
 
     return InkWell(
       onTap: () {
@@ -10402,13 +11195,11 @@ class _PublicForwardRow extends StatelessWidget {
                       color: theme.textTheme.bodyLarge?.color,
                     ),
                   ),
-                  if (views != null) ...[
-                    const SizedBox(height: 1),
-                    Text(
-                      '${_fmtViews(views)} views',
-                      style: TextStyle(fontSize: 11, color: subColor),
-                    ),
-                  ],
+                  const SizedBox(height: 1),
+                  Text(
+                    statusText,
+                    style: TextStyle(fontSize: 11, color: subColor),
+                  ),
                 ],
               ),
             ),

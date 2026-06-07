@@ -179,6 +179,13 @@ type TelegramCore struct {
 	forumTopics   map[string]forumTopicInfo
 	forumTopicsMu sync.RWMutex
 
+	// Timezone UTC-offset cache (help.getTimezonesList) — id → utcOffset seconds.
+	// Lets the business-hours block shift owner intervals to the viewer's local
+	// time (info_profile_actions.cpp ShiftedIntervals). Guarded by its own mutex
+	// so it can be filled from code already holding t.mu.
+	timezoneOffsets   map[string]int
+	timezoneOffsetsMu sync.RWMutex
+
 	// Video codec factories — set via SetVideoEncoderFactory/SetVideoDecoderFactory.
 	// Keeps telegram.go pure Go: the implementation (e.g. vpx package) is injected by bridge/tests.
 	newVideoEncoder func(width, height, bitrate int) (VideoEncoder, error)
@@ -17290,6 +17297,10 @@ type ChatPermissionFlags struct {
 	IsGigagroup           bool   `json:"is_gigagroup"`
 	AmCreator             bool   `json:"am_creator"`
 	HasAdminRights        bool   `json:"has_admin_rights"`
+	// Server statistics-availability flag (channelFull.can_view_stats). The info
+	// panel gates the Statistics row on this, with no member threshold — mirrors
+	// AyuGram ChannelData::canViewStatistics() (data_channel.cpp:1323).
+	CanViewStats          bool   `json:"can_view_stats"`
 	AdminCanChangeInfo    bool   `json:"admin_can_change_info"`
 	// Member-management capabilities, for gating the member-list Add buttons
 	// (canAddNewItem → canAddMembers/canAddAdmins/canBanMembers).
@@ -17576,6 +17587,7 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 	flags := &ChatPermissionFlags{AutoTranslateMinLevel: 3}
 	if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
 		flags.SlowmodeSeconds = fc.SlowmodeSeconds
+		flags.CanViewStats = fc.CanViewStats
 		flags.Antispam = fc.Antispam
 		flags.PreHistoryHidden = fc.HiddenPrehistory
 		flags.NoTranslations = fc.TranslationsDisabled
@@ -19407,6 +19419,9 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 				for _, ch := range result.Chats {
 					if channel, ok := ch.(*tg.Channel); ok && channel.ID == pcID {
 						cu.PersonalChannelName = channel.Title
+						if pc, ok := channel.GetParticipantsCount(); ok {
+							cu.PersonalChannelCount = pc
+						}
 						break
 					}
 				}
@@ -19453,9 +19468,13 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 				}
 				type bh struct {
 					Timezone  string     `json:"timezone"`
+					UtcOffset int        `json:"utc_offset"` // owner timezone offset in seconds (help.getTimezonesList)
 					Intervals []interval `json:"intervals"`
 				}
 				out := bh{Timezone: bwh.TimezoneID}
+				if off, ok := t.timezoneOffsetNoLock(bwh.TimezoneID); ok {
+					out.UtcOffset = off
+				}
 				for _, wo := range bwh.WeeklyOpen {
 					out.Intervals = append(out.Intervals, interval{Start: wo.StartMinute, End: wo.EndMinute})
 				}
@@ -26385,6 +26404,38 @@ func (t *TelegramCore) HelpGetTimezonesList(hash int) (tg.HelpTimezonesListClass
 	return t.api.HelpGetTimezonesList(t.ctx, hash)
 }
 
+// timezoneOffsetNoLock returns the UTC offset (seconds) for a Telegram timezone
+// id, lazily fetching+caching help.getTimezonesList. The caller may already hold
+// t.mu (the business-hours emitter does), so this uses an independent mutex and
+// calls the api client directly. Returns (0,false) when the id is unknown.
+func (t *TelegramCore) timezoneOffsetNoLock(id string) (int, bool) {
+	if id == "" || t.api == nil {
+		return 0, false
+	}
+	t.timezoneOffsetsMu.RLock()
+	cache := t.timezoneOffsets
+	t.timezoneOffsetsMu.RUnlock()
+	if cache == nil {
+		result, err := t.api.HelpGetTimezonesList(t.ctx, 0)
+		if err != nil {
+			return 0, false
+		}
+		list, ok := result.(*tg.HelpTimezonesList)
+		if !ok {
+			return 0, false
+		}
+		cache = make(map[string]int, len(list.Timezones))
+		for _, tz := range list.Timezones {
+			cache[tz.ID] = tz.UtcOffset
+		}
+		t.timezoneOffsetsMu.Lock()
+		t.timezoneOffsets = cache
+		t.timezoneOffsetsMu.Unlock()
+	}
+	off, ok := cache[id]
+	return off, ok
+}
+
 // HelpGetUserInfo returns support info about a user.
 func (t *TelegramCore) HelpGetUserInfo(userid tg.InputUserClass) (tg.HelpUserInfoClass, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -28682,9 +28733,18 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 					case *tg.Channel:
 						row["name"] = v.Title
 						row["peer_id"] = fmt.Sprintf("channel_%d", v.ID)
+						// Subscriber/member count for the forward status line
+						// ("<subscribers/members>, <views> views",
+						// info_statistics_list_controllers.cpp:421-434).
+						if pc, ok := v.GetParticipantsCount(); ok {
+							row["members"] = pc
+						}
+						row["is_megagroup"] = v.Megagroup
 					case *tg.Chat:
 						row["name"] = v.Title
 						row["peer_id"] = fmt.Sprintf("chat_%d", v.ID)
+						row["members"] = v.ParticipantsCount
+						row["is_megagroup"] = true
 					}
 				} else if u, ok := userMap[peerID]; ok {
 					if usr, ok := u.(*tg.User); ok {
@@ -28762,9 +28822,15 @@ func (t *TelegramCore) GetMessagePublicForwardsJSON(chatID string, msgID int, of
 				case *tg.Channel:
 					row["name"] = v.Title
 					row["peer_id"] = fmt.Sprintf("channel_%d", v.ID)
+					if pc, ok := v.GetParticipantsCount(); ok {
+						row["members"] = pc
+					}
+					row["is_megagroup"] = v.Megagroup
 				case *tg.Chat:
 					row["name"] = v.Title
 					row["peer_id"] = fmt.Sprintf("chat_%d", v.ID)
+					row["members"] = v.ParticipantsCount
+					row["is_megagroup"] = true
 				}
 			}
 			row["msg_id"] = msg.ID
