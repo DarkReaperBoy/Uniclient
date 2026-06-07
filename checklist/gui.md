@@ -680,9 +680,19 @@ byte-for-byte exact matches (intro, passcode, theme-revert plural `#one/#other`,
 all reaction notifications `lng_reaction_*`, poll votes `lng_poll_vote*`, paid-post
 warnings `lng_suggest_warn_*`, TTL box `lng_manage_messages_ttl_*`, sessions
 `lng_settings_reset_*` / `lng_self_destruct_sessions_*`, AyuForward `ayu_AyuForwardStatus*`).
-One material deviation found.
-
-- [ ] [MAJOR] `lngFileTooLarge` is a fabricated string — the text "The file exceeds the size limit." / "$count files exceed the size limit." exists nowhere in AyuGram's lang pack (only unrelated `ayu_AttachmentsFolderMaxSizeDescription` uses "exceeds"). AyuGram's real over-sized-file flow is `FileSizeLimitBox` (a `SimpleLimitBox`), titled `lng_file_size_limit_title` = "File Too Large" with body `lng_file_size_limit1` = "The document can't be sent, because it is larger than {size}." where `{size}` is the actual backend-provided limit (bold, e.g. "2 GB"), plus a Premium upsell `lng_file_size_limit2` = "You can double this limit to {size} per document by subscribing to **Telegram Premium**." The Dart string drops the backend `{size}` value and the Premium upsell entirely, and is rendered as a generic `SnackBar` (`chat_view.dart:4906`) instead of the box — so the user never sees what the limit actually is. — `strings.dart:41-42` ← `AyuGram/Telegram/SourceFiles/boxes/premium_limits_box.cpp:1036` (`lng_file_size_limit1`, title `:1055`, premium `:1042`; lang.strings:270-271, title :267) / box triggered from `storage/localimageloader.cpp:1066`
+One material deviation was found and has been fixed & verified (commit b12baf92): the
+fabricated `lngFileTooLarge` ("The file exceeds the size limit.") was replaced by a
+1:1 port of AyuGram's over-sized-document flow — `FileSizeLimitBox`/`SimpleLimitBox`
+(`premium_limits_box.cpp:1009-1064`, triggered by `localimageloader.cpp:1058-1069`).
+`showFileSizeLimitBox` (`confirm_box.dart`) renders a box (not a SnackBar) titled
+`lng_file_size_limit_title` = "File Too Large" whose body states the real upload limit
+in bold via `lng_file_size_limit1` ("4 GB" when the file exceeds even the Premium limit,
+"2 GB" otherwise; limit math `(parts+999)/2000`, `tooLarge` = `>8000·512 KB` match the
+C++), with the Premium-doubling upsell `lng_file_size_limit2` gated behind a real
+purchase flow (matching the C++ `!premiumPossible` → OK-only branch). All 6 lang keys
+verified byte-for-byte against `lang.strings:267-271,285,125`; box rendering screenshot-
+verified in desktop (1024×768) and mobile (400×720), both the OK-only and the
+Increase-Limit+Cancel variants, no crashes/overflows.
 
 ## Verified-correct (no action — recorded for completeness)
 
