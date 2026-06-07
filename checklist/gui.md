@@ -632,19 +632,43 @@ fetch, so a stale-overwrite race is not reachable.
 Audited against AyuGram `window/window_main_menu.cpp`, `window/window_main_menu_helpers.cpp`,
 `settings/sections/settings_information.cpp` and `window/window.style`.
 The file is well-wired overall — no empty callbacks, no "coming soon" stubs, no mock data;
-account/chat data flows from real state. Findings below are deviations from the AyuGram source.
+account/chat data flows from real state.
 
-- [ ] [MAJOR] Menu item ORDER for LRead/SRead is wrong: AyuGram adds "Mark All Read (Silent)" (LRead) and "Mark Stories as Viewed" (SRead) immediately AFTER Saved Messages and BEFORE Settings/Night Mode/Ghost. The Dart places them AFTER Settings → Night Mode → Ghost Mode, near the bottom of the list. — `hamburger_drawer.dart:410-459` ← `AyuGram/SourceFiles/window/window_main_menu.cpp:767-843`
-
-- [ ] [MAJOR] Archive row is placed at the WRONG position. AyuGram calls `setupArchive()` BEFORE `setupMenu()` and both append to the same `_menu` VerticalLayout, so the Archive button (with a PlainShadow divider directly below it) renders at the TOP of the menu, above "My Profile". The Dart appends the Archive row at the very BOTTOM of `_lvKids`, after Streamer Mode and just before the footer, with no divider. — `hamburger_drawer.dart:477-502` ← `AyuGram/SourceFiles/window/window_main_menu.cpp:358-359` and `:550-564`
-
-- [ ] [MAJOR] PlainShadow divider after the My Profile/Bots block is rendered unconditionally. AyuGram gates it: `if (settings.showMyProfileInDrawer() || settings.showBotsInDrawer())` add PlainShadow. The Dart adds the divider as a plain (un-`if`'d) entry in `_lvKids`, so when BOTH "My Profile" and "Bots" rows are hidden, a stray separator line appears at the top of the menu. — `hamburger_drawer.dart:228-234` ← `AyuGram/SourceFiles/window/window_main_menu.cpp:720-723`
-
-- [ ] [MAJOR] Cover status line (the line under the name at `mainMenuCoverStatusTop` 103px) shows the wrong content and opens the wrong destination. AyuGram's `_setEmojiStatus` displays the localized link text "AyuGram Preferences" (`tr::ayu_AyuPreferences()`) and its click handler opens the AyuGram settings page (`controller->showSettings(Settings::AyuMain::Id())`). The Dart instead renders `@username` / phone / platform-label as an underlined link that opens the generic `SettingsScreen`. — `hamburger_drawer.dart:1066-1105` (built at `:960`) ← `AyuGram/SourceFiles/window/window_main_menu.cpp:111-116`, `:314`, `:667-671`
-
-- [ ] [MAJOR] "Add Test Account" / "Test Server" does not actually create a test-server account. The drawer's right-click context menu (`production` vs `test`) and the test-mode dialog only change the dialog TITLE; the platform tap calls `appState.addAccount(p.$1)` with no test flag, and `addAccount(String platform)` in `app_state.dart:3809` has no testMode parameter at all — so picking a platform under "Add Test Account" creates a normal production account. AyuGram's Test Server action calls `add(Environment::Test)`, connecting to the actual test datacenter. — `hamburger_drawer.dart:754-790` (drop at `:783`), context menu `:1290-1295` ← `AyuGram/SourceFiles/settings/sections/settings_information.cpp:1043-1048`
-
-- [ ] [MAJOR] "My Groups" / "My Channels" popup lists ALL groups/channels the user is in, not only the ones the user created/owns. AyuGram's `AddMyChannelsBox` filters with `amCreator()` (groups: `(c && c->amCreator()) || (g && g->amCreator())`; broadcasts: `channel->amCreator()`) — i.e. only chats the user is the creator of. The Dart `_showMyGroupsPopup` filters only by `c.type == group/channel` over `chatsForAccount`, with no ownership/creator check. — `hamburger_drawer.dart:731-752` (filter at `:736-738`) ← `AyuGram/SourceFiles/window/window_main_menu_helpers.cpp:206-232`
+All 6 MAJOR findings VERIFIED & CLOSED (commit c5bd2dc7). Confirmed against AyuGram ground
+truth + a live launch with the real account (desktop 1024×768 + mobile 400×720, drawer is a
+fixed 274px component that renders identically at both sizes), no crash:
+- [MAJOR] LRead/SRead order FIXED. "Mark All Read (Silent)" + "Mark Stories as Viewed" now
+  render immediately after Saved Messages and before Settings/Night Mode/Ghost — visually
+  confirmed (with both toggles enabled the order is Saved Messages → Mark All Read → Mark
+  Stories → Settings). Matches `window_main_menu.cpp:767-843`. — `hamburger_drawer.dart:352-405`
+- [MAJOR] Archive position FIXED. The Archive row ("Archived Chats") + its PlainShadow divider
+  are appended at the TOP of `_lvKids` (above My Profile); both gate together on
+  `hasArchivedChats && archiveInMainMenu`. Visually confirmed: with archiveInMainMenu=true the
+  Archive row renders at the top with a divider below it, and there is NO archive row at the
+  bottom. Matches `window_main_menu.cpp:358,550-564`. — `hamburger_drawer.dart:158-199`
+- [MAJOR] My Profile/Bots divider gating FIXED. Divider gated on
+  `showMyProfileInDrawer || showBotsInDrawer`. Visually confirmed: with both rows hidden (and
+  archive hidden) the menu starts directly with New Group — no stray separator. Matches
+  `window_main_menu.cpp:720-723`. — `hamburger_drawer.dart:274`
+- [MAJOR] Cover status line FIXED. Renders the link "AyuGram Preferences"; clicking it opens the
+  AyuGram settings page (AyuGramSettingsScreen — categories AyuGram/Filters/General/Appearance/
+  Chats/Other), NOT @username/phone or the generic SettingsScreen. Visually confirmed in both
+  modes. Matches `window_main_menu.cpp:111-116,314,667-671`. — `hamburger_drawer.dart:1103-1131`
+- [MAJOR] Add Test Account FIXED — creates a REAL test-DC account. `testMode` is plumbed
+  drawer→`app_state.addAccount(testMode)`→`engine_service`(`req.testMode`)→Go
+  `AddAccount(testMode)`→vault `TestMode`→bridge `UseTestDC`→`telegram.go dcs.Test()`.
+  Network-level proof: created a test Telegram account and submitted the test-DC-only phone
+  `9996621234` (format `99966XNNNN`) — it was ACCEPTED and the flow reached `state=otp` with no
+  error (production would reject with PHONE_NUMBER_INVALID), proving the socket hit the actual
+  test datacenter; log shows `Adding account: telegram (test server)`. Context menu shows
+  "Add Account"/"Add Test Account"; dialog title "Add Test Account". (Test account removed after
+  test.) Matches `settings_information.cpp:1043-1048`. — `hamburger_drawer.dart:783-821,1302-1322`
+- [MAJOR] My Groups/My Channels creator-only filter FIXED. `_showMyGroupsPopup` filters
+  `c.type == target && c.isCreator`; `is_creator` is plumbed cores.Chat→telegram.go→engine cache
+  (DB migrateV43, SELECT/INSERT/scan)→proto field 37→Dart `ChatInfo`. Visually confirmed: Groups
+  popup showed only 2 self-created "1 member" groups, Channels popup only 4 self-created "1
+  subscriber" channels — all the member-only groups/channels in the chat list were correctly
+  excluded. Matches `window_main_menu_helpers.cpp:206-232`. — `hamburger_drawer.dart:754-780`
 
 # info_panel — Telegram Desktop Info section (profile cover, details, shared media, members, statistics, boosts)
 
