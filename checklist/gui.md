@@ -670,27 +670,6 @@ fixed 274px component that renders identically at both sizes), no crash:
   subscriber" channels — all the member-only groups/channels in the chat list were correctly
   excluded. Matches `window_main_menu_helpers.cpp:206-232`. — `hamburger_drawer.dart:754-780`
 
-# music_player_bar — now-playing media-player bar (port of AyuGram `Media::Player::Widget`)
-
-Overall this file is well-wired: every `onTap` calls a real `AudioService`/`AppState`
-method, the repeat/order/speed/autoplay settings flow UI → `AppState` →
-`main.dart:377-390` listener → `AudioService` → playback (verified in
-`audio_service.dart` `nextInPlaylist`/`setRate`/completion handler). No stubs,
-no mock data, no TODO/`coming soon`. The findings below are missing controls and
-behavioral/visual deviations from the AyuGram source.
-
-- [ ] [CRITICAL] Volume control is entirely absent — AyuGram's player bar has a `_volumeToggle` mute button (icon reflects 0 / <0.66 / full volume) plus a hover/wheel-driven volume dropdown slider; the Dart controls list (prev, play, next, title, time, repeat, order, speed, more, close) has no volume toggle and no volume widget exists anywhere in the player UI — `music_player_bar.dart:80-136` ← `AyuGram/media/player/media_player_widget.cpp:57` + `AyuGram/media/player/media_player.style:241-250`
-
-- [ ] [MAJOR] Speed control offers only a discrete 4-value popup `[0.5, 1.0, 1.5, 2.0]`, but AyuGram's speed dropdown is a continuous slider over `kSpeedMin..kSpeedMax = 0.5..2.5` (sticky points 0.8/1.0/1.2/1.5/1.7/2.0/2.2) plus preset speed icons — the Dart caps at 2.0× (cannot reach 2.2/2.5×, a 20% short top end) and drops the slider/presets — `music_player_bar.dart:213-219` ← `AyuGram/media/media_common.h:41-42` + `AyuGram/media/player/media_player_dropdown.cpp:39-47` + `AyuGram/media/player/media_player.style:178-215`
-
-- [ ] [MAJOR] Order button is a 3-way tap-cycle (Default→Reverse→Shuffle→Default); AyuGram's order button opens a dropdown menu with two toggle actions ("Reverse", "Shuffle") where clicking an active mode returns to Default — different interaction model and menu contents — `music_player_bar.dart:180-198` ← `AyuGram/media/player/media_player_dropdown.cpp:646-693`
-
-- [ ] [MAJOR] Seek bar draws a static 2px line; AyuGram's `mediaPlayerPlayback` `FilledSlider` line is 4px at rest (`lineWidth`) and animates up to 8px (`fullWidth`) on hover over 150ms — the Dart line is half the resting thickness and has no hover-grow animation — `music_player_bar.dart:412-431` ← `AyuGram/media/player/media_player.style:288-295` + `AyuGram/ui/widgets/continuous_sliders.cpp:228`
-
-- [ ] [MAJOR] Title/name tap always calls `jumpToMessage`; AyuGram only "shows the item" (jumps) when `_type == Voice` or the song is from another session — for a current-session song, clicking the name toggles the playlist dropdown instead and the cursor stays default (not pointer) — `music_player_bar.dart:105-112` ← `AyuGram/media/player/media_player_widget.cpp:477-514` (note: the playlist dropdown panel itself is a separate unported component)
-
-- [ ] [MAJOR] Responsive breakpoint uses `maxWidth >= 600` to gate time text + inline repeat/order (else overflow menu); AyuGram's `mediaPlayerWideWidth` is 460px and the narrow mechanism differs — when narrow AyuGram hides the entire right-controls group (time/volume/repeat/order/speed) and reveals it on hover, rather than moving repeat/order into an overflow menu — so at 460–599px the two diverge on which controls are visible — `music_player_bar.dart:76` ← `AyuGram/media/player/media_player.style:88` + `AyuGram/media/player/media_player_widget.cpp:365,403-407`
-
 # my_profile_page — Edit Profile / My Account settings page (§14.5)
 
 Implements the self-profile settings page: photo, bio, name/phone/username rows,
