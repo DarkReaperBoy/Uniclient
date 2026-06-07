@@ -441,6 +441,64 @@ Widget _buildBoldText(String text, Color textFg) {
   return Text.rich(TextSpan(style: baseStyle, children: spans));
 }
 
+// ─── showFileSizeLimitBox — FileSizeLimitBox / SimpleLimitBox ─────────────────
+//
+// Port of FileSizeLimitBox (premium_limits_box.cpp:1009-1064), the box shown by
+// FileLoadTask::finish (localimageloader.cpp:1058-1069) when a document is too
+// large to upload. Title "File Too Large"; the body states the real upload
+// limit in bold (lng_file_size_limit1), plus a Premium-doubling upsell
+// (lng_file_size_limit2) only when Premium would still accept the file.
+//
+// Telegram upload limits live in Data::PremiumLimits (upload_max_fileparts):
+// default 4000 parts, premium 8000 parts, each part 512 KB → 2 GB / 4 GB. The
+// GB display is int(parts + 999) / 2000 (premium_limits_box.cpp:1018-1019) and
+// `tooLarge` compares the file against premiumLimit * 512 KB (:1021).
+const int _kUploadMaxDefaultParts = 4000;
+const int _kUploadMaxPremiumParts = 8000;
+const int _kUploadPartSizeBytes = 512 * 1024;
+
+Future<void> showFileSizeLimitBox(
+  BuildContext context, {
+  required int fileSizeBytes,
+  int uploadMaxDefaultParts = _kUploadMaxDefaultParts,
+  int uploadMaxPremiumParts = _kUploadMaxPremiumParts,
+  // This client has no Telegram Premium purchase flow, so the upsell button has
+  // nothing to wire to. Defaulting premiumPossible to false matches AyuGram's
+  // `!premiumPossible` branch (premium_limits_box.cpp:459-462) → OK-only box.
+  bool premiumPossible = false,
+  VoidCallback? onIncreaseLimit,
+}) {
+  final defaultGb = (uploadMaxDefaultParts + 999) ~/ 2000;
+  final premiumGb = (uploadMaxPremiumParts + 999) ~/ 2000;
+  final tooLarge = fileSizeBytes > uploadMaxPremiumParts * _kUploadPartSizeBytes;
+  final showLimit = tooLarge ? premiumGb : defaultGb;
+  // premium_limits_box.cpp:1023 — upsell only when Premium would still accept
+  // the file; we additionally require a real purchase flow so no dead button is
+  // ever shown.
+  final canUpsell = !tooLarge && premiumPossible && onIncreaseLimit != null;
+
+  final body = StringBuffer(TrStrings.lngFileSizeLimit1(
+      '**${TrStrings.lngFileSizeLimitGb(showLimit)}**'));
+  if (canUpsell) {
+    body
+      ..write(' ')
+      ..write(TrStrings.lngFileSizeLimit2(
+          '**${TrStrings.lngFileSizeLimitGb(premiumGb)}**'));
+  }
+
+  return showConfirmBox(
+    context,
+    title: TrStrings.lngFileSizeLimitTitle(),
+    text: body.toString(),
+    boldMarkup: true,
+    inform: !canUpsell,
+    confirmText:
+        canUpsell ? TrStrings.lngLimitsIncrease() : TrStrings.lngBoxOk(),
+    cancelText: TrStrings.lngCancel(),
+    onConfirm: canUpsell ? onIncreaseLimit : null,
+  );
+}
+
 // ─── Delete / Leave ConfirmBox — §36.2 destructive variant ───────────────────
 
 enum DeleteBoxMode { singleMessage, bulkMessages, clearHistory, leaveChat, deleteTopic, dateRange }

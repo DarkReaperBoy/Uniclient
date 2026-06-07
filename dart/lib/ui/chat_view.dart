@@ -4932,16 +4932,16 @@ class _ChatViewState extends State<ChatView>
                 overrideSendAsDocuments: asDocuments);
           }
         },
-        onDropRejected: (count) {
+        onDropRejected: (largestRejectedBytes) {
           setState(() {
             _isDragOver = false;
             _dragHoveredCard = 0;
           });
           _dragOverlayAnimCtrl.reverse();
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(TrStrings.lngFileTooLarge(count))),
-            );
+            // FileSizeLimitBox (premium_limits_box.cpp:1009-1064) — states the
+            // real upload limit, replacing a generic SnackBar.
+            showFileSizeLimitBox(context, fileSizeBytes: largestRejectedBytes);
           }
         },
       );

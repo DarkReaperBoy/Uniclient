@@ -14,7 +14,7 @@ Widget buildWebDropZone({
   void Function()? onDragLeave,
   void Function(Offset localPosition)? onDragUpdate,
   void Function(List<WebDroppedFile> files)? onDrop,
-  void Function(int rejectedCount)? onDropRejected,
+  void Function(int largestRejectedBytes)? onDropRejected,
 }) {
   return _WebDropZone(
     onDragEnter: onDragEnter,
@@ -32,7 +32,7 @@ class _WebDropZone extends StatefulWidget {
   final void Function()? onDragLeave;
   final void Function(Offset localPosition)? onDragUpdate;
   final void Function(List<WebDroppedFile> files)? onDrop;
-  final void Function(int rejectedCount)? onDropRejected;
+  final void Function(int largestRejectedBytes)? onDropRejected;
 
   const _WebDropZone({
     required this.child,
@@ -166,12 +166,16 @@ class _WebDropZoneState extends State<_WebDropZone> {
   Future<void> _readFiles(List<web.File> webFiles) async {
     final results = <WebDroppedFile>[];
     var sizeRejected = 0;
+    // Track the largest over-limit file so the FileSizeLimitBox can state the
+    // real upload limit (premium_limits_box.cpp:1009-1064) instead of a count.
+    var largestRejectedBytes = 0;
     for (var i = 0; i < webFiles.length; i += _kMaxConcurrentReads) {
       final batch = webFiles.skip(i).take(_kMaxConcurrentReads);
       final batchResults = await Future.wait(batch.map((wf) async {
         try {
           if (wf.size > _kMaxFileSizeBytes) {
             sizeRejected++;
+            if (wf.size > largestRejectedBytes) largestRejectedBytes = wf.size;
             return null;
           }
           final bytes = await _readFileBytes(wf);
@@ -191,7 +195,7 @@ class _WebDropZoneState extends State<_WebDropZone> {
     if (results.isNotEmpty) {
       widget.onDrop?.call(results);
     } else if (sizeRejected > 0) {
-      widget.onDropRejected?.call(sizeRejected);
+      widget.onDropRejected?.call(largestRejectedBytes);
     } else {
       widget.onDragLeave?.call();
     }

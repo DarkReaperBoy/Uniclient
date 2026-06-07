@@ -38,8 +38,21 @@ class TrStrings {
   static String lngPasscodeSystempwd() =>
       'You need to enter your passcode\nbefore you can use system password.';
   static String lngCancel() => 'Cancel';
-  static String lngFileTooLarge(int count) =>
-      count == 1 ? 'The file exceeds the size limit.' : '$count files exceed the size limit.';
+  // FileSizeLimitBox / SimpleLimitBox — over-sized-document upload box
+  // (premium_limits_box.cpp:1009-1064, triggered by FileLoadTask::finish at
+  // localimageloader.cpp:1058-1069; lang.strings:267-271,285,125). The body
+  // states the real backend upload limit (bold, e.g. "4 GB") via the {size}
+  // placeholder, with a Premium-doubling upsell when Premium would still accept
+  // the file. "$count GB" mirrors lng_file_size_limit#one/#other.
+  static String lngFileSizeLimitTitle() => 'File Too Large';
+  static String lngFileSizeLimitGb(int count) => '$count GB';
+  static String lngFileSizeLimit1(String size) =>
+      "The document can't be sent, because it is larger than $size.";
+  static String lngFileSizeLimit2(String size) =>
+      'You can double this limit to $size per document by subscribing to '
+      '**Telegram Premium**.';
+  static String lngLimitsIncrease() => 'Increase Limit';
+  static String lngBoxOk() => 'OK';
   static String lngFloodError() => 'Too many tries. Please try again later.';
 
   // Dialog text formatting (dialogs_entry.cpp)
