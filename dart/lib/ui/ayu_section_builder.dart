@@ -859,7 +859,7 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                           // a Material glyph (info.style:1314).
                           child: CustomPaint(
                             size: const Size(20, 20),
-                            painter: _ExpandArrowPainter(
+                            painter: ExpandArrowPainter(
                                 color: context.palette.windowBoldFg),
                           ),
                         ),
@@ -1086,11 +1086,13 @@ class _TgCheckboxPainter extends CustomPainter {
 
 /// Telegram "info/edit/expand_arrow_small" — a thin downward chevron, replacing
 /// Material's `Icons.expand_more`. Tinted windowBoldFg, rotated 180° on expand
-/// by the parent AnimatedRotation (info.style:1314).
-class _ExpandArrowPainter extends CustomPainter {
+/// by the parent AnimatedRotation (info.style:1314). Public so the Ghost Mode
+/// collapsible (ghost_settings_page.dart) can reuse the same faithful chevron
+/// instead of duplicating it.
+class ExpandArrowPainter extends CustomPainter {
   final Color color;
 
-  _ExpandArrowPainter({required this.color});
+  ExpandArrowPainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1112,7 +1114,7 @@ class _ExpandArrowPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_ExpandArrowPainter old) => old.color != color;
+  bool shouldRepaint(ExpandArrowPainter old) => old.color != color;
 }
 
 Scaffold ayuSettingsScaffold({

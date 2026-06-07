@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/theme.dart';
+import 'ayu_section_builder.dart' show ExpandArrowPainter;
 import 'ayu_toggle.dart';
 import 'confirm_box.dart';
 import 'telegram_toast.dart';
@@ -101,96 +102,20 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
               }
             },
           ),
-          _ToggleRow(
-            label: 'Ghost Mode',
-            value: gs.ghostModeActive,
-            onChanged: (v) {
-              final before = gs.ghostModeActive;
-              appState.setGhostModeEnabledForKey(key, v);
-              final after = appState.ensureGhostForKey(key).ghostModeActive;
-              if (before != after) {
-                showTelegramToast(context, after
-                    ? 'Ghost Mode turned on'
-                    : 'Ghost Mode turned off');
-              }
-            },
+          // The "Ghost Mode" collapsible mirrors AyuGram's AddCollapsibleToggle /
+          // AddInnerToggle (settings_ayu_utils.cpp:228-320, 438-464): the master
+          // switch flips all unlocked sub-toggles, while the 5 checkboxes live in
+          // an INDEPENDENT SlideWrap disclosure (header arrow + "X/5" badge) that
+          // expands/collapses on header-body tap — separate from the master
+          // switch — with the shift/long-press lock hint inside the wrap after the
+          // checkboxes.
+          _GhostModeSection(
+            gs: gs,
+            settingsKey: key,
+            appState: appState,
             isDark: isDark,
             useMaterial: appState.materialSwitches,
-          ),
-          _DividerText(
-            text: 'Shift-click or long-press a toggle to lock it per-account.',
-            color: subtitleColor,
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.topCenter,
-            child: gs.ghostModeActive
-                ? Column(
-                    children: [
-                      _LockableToggleRow(
-                        label: "Don't Read Messages",
-                        subtitle: 'Block read receipts from being sent',
-                        value: !gs.sendReadMessages,
-                        locked: gs.sendReadMessagesLocked,
-                        onChanged: (v) {
-                          gs.sendReadMessages = !v;
-                          appState.ghostSettingChanged(key);
-                        },
-                        onLock: () => appState.toggleLockForKey(key, 'sendReadMessages'),
-                        isDark: isDark,
-                      ),
-                      _LockableToggleRow(
-                        label: "Don't Read Stories",
-                        subtitle: 'Block story view confirmations',
-                        value: !gs.sendReadStories,
-                        locked: gs.sendReadStoriesLocked,
-                        onChanged: (v) {
-                          gs.sendReadStories = !v;
-                          appState.ghostSettingChanged(key);
-                        },
-                        onLock: () => appState.toggleLockForKey(key, 'sendReadStories'),
-                        isDark: isDark,
-                      ),
-                      _LockableToggleRow(
-                        label: "Don't Send Online",
-                        subtitle: 'Never report online status to the server',
-                        value: !gs.sendOnlinePackets,
-                        locked: gs.sendOnlinePacketsLocked,
-                        onChanged: (v) {
-                          gs.sendOnlinePackets = !v;
-                          appState.ghostSettingChanged(key);
-                        },
-                        onLock: () => appState.toggleLockForKey(key, 'sendOnlinePackets'),
-                        isDark: isDark,
-                      ),
-                      _LockableToggleRow(
-                        label: "Don't Send Typing",
-                        subtitle: 'Block typing and upload progress indicators',
-                        value: !gs.sendUploadProgress,
-                        locked: gs.sendUploadProgressLocked,
-                        onChanged: (v) {
-                          gs.sendUploadProgress = !v;
-                          appState.ghostSettingChanged(key);
-                        },
-                        onLock: () => appState.toggleLockForKey(key, 'sendUploadProgress'),
-                        isDark: isDark,
-                      ),
-                      _LockableToggleRow(
-                        label: 'Go Offline Automatically',
-                        subtitle: 'Immediately go offline after any online appearance',
-                        value: gs.sendOfflinePacketAfterOnline,
-                        locked: gs.sendOfflinePacketAfterOnlineLocked,
-                        onChanged: (v) {
-                          gs.sendOfflinePacketAfterOnline = v;
-                          appState.ghostSettingChanged(key);
-                        },
-                        onLock: () => appState.toggleLockForKey(key, 'sendOfflinePacketAfterOnline'),
-                        isDark: isDark,
-                      ),
-                    ],
-                  )
-                : const SizedBox.shrink(),
+            hintColor: subtitleColor,
           ),
           _ToggleRow(
             label: 'Read on Interact',
@@ -304,6 +229,258 @@ class _GhostSettingsPageState extends State<GhostSettingsPage> {
           itemBuilder: (_, _lvI) => _lvKids[_lvI],
         );
       }),
+    );
+  }
+}
+
+/// The collapsible "Ghost Mode" toggle group — a faithful port of AyuGram's
+/// AddCollapsibleToggle + AddInnerToggle (settings_ayu_utils.cpp:228-320,
+/// 438-464) as called for Ghost Mode in settings_ayu.cpp:425-430
+/// (toggledWhenAll = true, description = the shift/long-press lock hint).
+///
+/// Two INDEPENDENT controls share the header:
+///   • the master switch (`toggleButton->clicks`, :309-320) flips every unlocked
+///     sub-toggle on/off — its checked state is the derived `ghostModeActive`;
+///   • the SlideWrap disclosure (`button->clicks → wrap->toggle()`, :302-307)
+///     expands/collapses the 5 checkboxes and is toggled by tapping the header
+///     body. It starts collapsed (`raw->hide(anim::type::instant)`, :454) and is
+///     NOT tied to the master state — so a partial ghost config (e.g. ghost
+///     everything except online) stays viewable/editable with the master off.
+class _GhostModeSection extends StatefulWidget {
+  final GhostModeAccountSettings gs;
+  final String settingsKey;
+  final AppState appState;
+  final bool isDark;
+  final bool useMaterial;
+  final Color hintColor;
+
+  const _GhostModeSection({
+    required this.gs,
+    required this.settingsKey,
+    required this.appState,
+    required this.isDark,
+    required this.useMaterial,
+    required this.hintColor,
+  });
+
+  @override
+  State<_GhostModeSection> createState() => _GhostModeSectionState();
+}
+
+class _GhostModeSectionState extends State<_GhostModeSection> {
+  // SlideWrap starts hidden (raw->hide(anim::type::instant),
+  // settings_ayu_utils.cpp:454). This disclosure state is independent of the
+  // master Ghost Mode switch.
+  bool _expanded = false;
+
+  void _toggleMaster() {
+    // toggleButton->clicks flips all unlocked inner checks to !checked
+    // (settings_ayu_utils.cpp:309-320). setGhostModeEnabledForKey does the same
+    // lock-aware flip and (when enabling for the active account) marks online.
+    final before = widget.gs.ghostModeActive;
+    widget.appState.setGhostModeEnabledForKey(widget.settingsKey, !before);
+    final after =
+        widget.appState.ensureGhostForKey(widget.settingsKey).ghostModeActive;
+    if (before != after) {
+      showTelegramToast(context,
+          after ? 'Ghost Mode turned on' : 'Ghost Mode turned off');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gs = widget.gs;
+    final key = widget.settingsKey;
+    final appState = widget.appState;
+    final isDark = widget.isDark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    // Each row's checkbox `value`, in AyuGram order (settings_ayu.cpp:387-423).
+    // The bold "X/Y" badge counts ALL checked sub-toggles, incl. locked ones —
+    // countChecked, NOT countUnlockedChecked (settings_ayu_utils.cpp:234).
+    final checks = <bool>[
+      !gs.sendReadMessages,
+      !gs.sendReadStories,
+      !gs.sendOnlinePackets,
+      !gs.sendUploadProgress,
+      gs.sendOfflinePacketAfterOnline,
+    ];
+    final checkedCount = checks.where((c) => c).length;
+    final totalCount = checks.length;
+
+    final rows = <Widget>[
+      _LockableToggleRow(
+        label: "Don't Read Messages",
+        subtitle: 'Block read receipts from being sent',
+        value: !gs.sendReadMessages,
+        locked: gs.sendReadMessagesLocked,
+        onChanged: (v) {
+          gs.sendReadMessages = !v;
+          appState.ghostSettingChanged(key);
+        },
+        onLock: () => appState.toggleLockForKey(key, 'sendReadMessages'),
+        isDark: isDark,
+      ),
+      _LockableToggleRow(
+        label: "Don't Read Stories",
+        subtitle: 'Block story view confirmations',
+        value: !gs.sendReadStories,
+        locked: gs.sendReadStoriesLocked,
+        onChanged: (v) {
+          gs.sendReadStories = !v;
+          appState.ghostSettingChanged(key);
+        },
+        onLock: () => appState.toggleLockForKey(key, 'sendReadStories'),
+        isDark: isDark,
+      ),
+      _LockableToggleRow(
+        label: "Don't Send Online",
+        subtitle: 'Never report online status to the server',
+        value: !gs.sendOnlinePackets,
+        locked: gs.sendOnlinePacketsLocked,
+        onChanged: (v) {
+          gs.sendOnlinePackets = !v;
+          appState.ghostSettingChanged(key);
+        },
+        onLock: () => appState.toggleLockForKey(key, 'sendOnlinePackets'),
+        isDark: isDark,
+      ),
+      _LockableToggleRow(
+        label: "Don't Send Typing",
+        subtitle: 'Block typing and upload progress indicators',
+        value: !gs.sendUploadProgress,
+        locked: gs.sendUploadProgressLocked,
+        onChanged: (v) {
+          gs.sendUploadProgress = !v;
+          appState.ghostSettingChanged(key);
+        },
+        onLock: () => appState.toggleLockForKey(key, 'sendUploadProgress'),
+        isDark: isDark,
+      ),
+      _LockableToggleRow(
+        label: 'Go Offline Automatically',
+        subtitle: 'Immediately go offline after any online appearance',
+        value: gs.sendOfflinePacketAfterOnline,
+        locked: gs.sendOfflinePacketAfterOnlineLocked,
+        onChanged: (v) {
+          gs.sendOfflinePacketAfterOnline = v;
+          appState.ghostSettingChanged(key);
+        },
+        onLock: () =>
+            appState.toggleLockForKey(key, 'sendOfflinePacketAfterOnline'),
+        isDark: isDark,
+      ),
+      // Lock hint INSIDE the wrap, AFTER the checkboxes — only visible while the
+      // section is expanded (settings_ayu_utils.cpp:438-441).
+      _DividerText(
+        text: 'Shift-click or long-press a toggle to lock it per-account.',
+        color: widget.hintColor,
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Collapsible header: title + "X/5" badge + arrow ··· master switch ──
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Row(
+            children: [
+              // Tapping the label/arrow body toggles the disclosure (button->
+              // clicks → wrap->toggle(), settings_ayu_utils.cpp:302-307). The
+              // arrow hugs the right edge of the label text (:279-283).
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Ghost Mode',
+                                  style: TextStyle(
+                                      fontSize: 14, color: textColor),
+                                ),
+                                TextSpan(
+                                  text: '  $checkedCount/$totalCount',
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: textColor),
+                                ),
+                              ],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        AnimatedRotation(
+                          // The arrow rotates 180° in sync with the SlideWrap
+                          // (slideWrapDuration = 150ms, easeOutCubic) —
+                          // settings_ayu_utils.cpp:286-300.
+                          turns: _expanded ? 0.5 : 0.0,
+                          duration: const Duration(milliseconds: 150),
+                          curve: Curves.easeOutCubic,
+                          child: CustomPaint(
+                            size: const Size(20, 20),
+                            painter: ExpandArrowPainter(
+                                color: context.palette.windowBoldFg),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // 1px separator between the body and the toggle (height =
+              // 2*border + diameter = 2*2 + 14 = 18), settings_ayu_utils.cpp:170-186.
+              Container(width: 1, height: 18, color: context.palette.windowBgOver),
+              // Master switch: derived ghostModeActive; tap flips all unlocked
+              // sub-toggles. rightsButtonToggleWidth = 70 (boxes.style), flush
+              // right so it lines up with the other rows' toggles.
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleMaster,
+                child: SizedBox(
+                  width: 70,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: IgnorePointer(
+                      child: AyuToggle(
+                        value: gs.ghostModeActive,
+                        onChanged: (_) {},
+                        isMaterial: widget.useMaterial,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // ── SlideWrap body (height + opacity, easeOutCubic, slideWrapDuration =
+        // 150ms) — independent of the master switch (settings_ayu_utils.cpp:286-301).
+        AnimatedSize(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _expanded
+              ? TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, opacity, child) =>
+                      Opacity(opacity: opacity, child: child),
+                  child: Column(children: rows),
+                )
+              : const SizedBox(width: double.infinity, height: 0),
+        ),
+      ],
     );
   }
 }
