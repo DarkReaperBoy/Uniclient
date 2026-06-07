@@ -594,20 +594,6 @@ Verified correct (no findings needed):
 
 ## Findings
 
-# gesture_utils — platform-aware long-press duration + tap/long-press/right-click gesture wrapper
-
-This is a small, genuinely functional gesture utility (no placeholders, no stubs, no
-empty callbacks — all callbacks are passed through from the parent). It needs no backend
-wiring (pure gesture layer). The **desktop** long-press value (500ms) matches AyuGram's
-`QApplication::startDragTime()` (Qt default, never overridden in the AyuGram source) exactly,
-and `onSecondaryTapUp` → context-menu mapping is consistent with AyuGram triggering context
-menus on right-click (`contextMenuEvent`) and on touch long-press
-(`mouseActionFinish(_touchPos, Qt::RightButton)` → `showContextMenu`).
-
-Only one citable deviation against the AyuGram reference:
-
-- [ ] [MAJOR] Mobile long-press duration is hardcoded to 300ms, ~40% shorter than the only touch long-press/select value AyuGram uses. AyuGram uses `QApplication::startDragTime()` (Qt default = 500ms, never overridden anywhere in the source) uniformly for every touch-select / long-press / preview timer; there is no 300ms value in the reference. A 300ms hold is short enough to fire accidental long-press selection during a scroll/drag on touch devices. Desktop branch (500ms) is correct; only the mobile branch deviates. — `gesture_utils.dart:10` ← `AyuGram/Telegram/SourceFiles/history/history_inner_widget.cpp:1822` (`_touchSelectTimer.callOnce(QApplication::startDragTime())`; same pattern at `history/view/history_view_list_widget.cpp:3295`, `dialogs/dialogs_inner_widget.cpp:3576`, `media/view/media_view_overlay_widget.cpp:7742`)
-
 # ghost_settings_page — AyuGram Ghost/Spy/Other settings (§51) collapsible-toggle fidelity
 
 Backend wiring is faithful: the derived `ghostModeActive` formula (`ghost_settings_page`
