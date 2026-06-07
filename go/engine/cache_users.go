@@ -240,6 +240,23 @@ func (e *Engine) GetUserPhotoAtIndex(accountID, userID string, index int) (strin
 	return "", "", fmt.Errorf("core does not support GetUserPhotoAtIndex")
 }
 
+type commonChatsGetter interface {
+	GetCommonChats(userID string, limit int) ([]cores.Dialog, error)
+}
+
+// GetCommonChats returns the groups and channels shared with a specific user
+// (backs the shared-media "N groups in common" button, AyuGram AddCommonGroupsButton).
+func (e *Engine) GetCommonChats(accountID, userID string, limit int) ([]cores.Dialog, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+	if g, ok := acc.Core.(commonChatsGetter); ok {
+		return g.GetCommonChats(userID, limit)
+	}
+	return nil, fmt.Errorf("core does not support GetCommonChats")
+}
+
 type profilePhotoUploader interface {
 	UploadProfilePhoto(pngData []byte) error
 }

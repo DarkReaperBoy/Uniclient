@@ -3862,6 +3862,31 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(user)
 
+	case "GetCommonChats":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		dialogs, err := e.GetCommonChats(params.AccountID, params.UserID, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		chats := make([]map[string]interface{}, 0, len(dialogs))
+		for _, d := range dialogs {
+			chats = append(chats, map[string]interface{}{
+				"chat_id":      d.ID,
+				"title":        d.Title,
+				"type":         string(d.Type),
+				"member_count": d.MemberCount,
+				"username":     d.Username,
+			})
+		}
+		return json.Marshal(map[string]interface{}{"chats": chats})
+
 	case "GetUserPhotoCount":
 		var params struct {
 			AccountID string `json:"account_id"`
