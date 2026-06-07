@@ -4,10 +4,15 @@ import 'package:flutter/material.dart';
 
 Duration get platformLongPressDuration {
   switch (defaultTargetPlatform) {
+    // AyuGram uses QApplication::startDragTime() (Qt default 500ms, never
+    // overridden in the source) uniformly for every touch-select / long-press /
+    // preview timer — see history_inner_widget.cpp:1822, history_view_list_widget.cpp:3295,
+    // dialogs_inner_widget.cpp:3576, media_view_overlay_widget.cpp:7742. A shorter
+    // touch hold fires accidental long-press selection during a scroll/drag.
     case TargetPlatform.android:
     case TargetPlatform.iOS:
     case TargetPlatform.fuchsia:
-      return const Duration(milliseconds: 300);
+      return const Duration(milliseconds: 500);
     case TargetPlatform.linux:
     case TargetPlatform.macOS:
     case TargetPlatform.windows:
