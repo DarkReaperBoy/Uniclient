@@ -670,16 +670,6 @@ fixed 274px component that renders identically at both sizes), no crash:
   subscriber" channels — all the member-only groups/channels in the chat list were correctly
   excluded. Matches `window_main_menu_helpers.cpp:206-232`. — `hamburger_drawer.dart:754-780`
 
-# info_panel — Telegram Desktop Info section (profile cover, details, shared media, members, statistics, boosts)
-
-`dart/lib/ui/info_panel.dart` (~10,750 lines) reimplements AyuGram's `info/` subsystem: the flexible profile cover/top bar, chat/user/channel/topic info pages, details block (bio/username/phone/business-hours/personal-channel), mute & notification settings, shared media (photos/videos/files/audio/voice/links/gifs/music/stories/gifts), member list with admin management, similar channels, channel/group statistics, boosts, per-message statistics and add-member.
-
-Overall the engine wiring is genuine — almost every interactive element reaches a real `engine.*`/`chatState.*` method, dimensions in the cover delegate match `info.style` precisely (236/56px extents, 113/134/24px positions, 80px photo, 52px action buttons, 23px icons, 82px media grid), and there are no "coming soon" snackbars. The findings below are the real gaps: missing tap wiring on media cells, a member sub-page that never loads its data, permission gating that ignores backend flags, and a set of missing/relocated features and behavioral deviations versus the AyuGram ground truth.
-
-## ChatInfo & UserProfile pages
-
-- [ ] [MAJOR] "Common groups" is a standalone tappable row inside the details column loaded once via a `Future` with no live updates; AyuGram renders it as a shared-media-style button created in `setupSharedMedia` (`AddCommonGroupsButton`), grouped with Photos/Video/Files and reactive via `CommonGroupsCountValue` — `info_panel.dart:3269-3276` (and `:4444`) ← `AyuGram/info/media/info_media_buttons.cpp:211-227`
-
 # music_player_bar — now-playing media-player bar (port of AyuGram `Media::Player::Widget`)
 
 Overall this file is well-wired: every `onTap` calls a real `AudioService`/`AppState`
