@@ -594,17 +594,6 @@ Verified correct (no findings needed):
 
 ## Findings
 
-# chat_list_panel — horizontal folder tabs unread badge (narrow/mobile mode)
-
-- [ ] [MAJOR] The horizontal filter tabs (shown in narrow/oneColumn mode, where the vertical
-  `filter_column` rail is hidden) still show the SUM of unread **messages**, not the count of
-  unread **chats**. They call `chatState.unreadCountForFolder(folder.id)`
-  (`chatsForFolder(...).fold(sum + c.unreadCount)`) instead of the new `folderUnreadBadge`. At
-  400px the "Personal" tab shows 168 / "All" shows 999+, while the now-fixed desktop sidebar shows
-  3 / 117 for the same folders. Same fix as filter_column item 1 — route the tab badge through
-  `ChatState.folderUnreadBadge`. — `chat_list_panel.dart:2671` ←
-  `AyuGram/window/window_filters_menu.cpp:343` (found during filter_column mobile verification)
-
 # folders_settings_screen — Telegram Folders settings + Edit-Filter box
 
 Dart file implements the Folders settings section (AyuGram `settings/sections/settings_folders.cpp`) plus the Edit/Create folder box, include/exclude chat pickers, tag colors and shareable invite links (`boxes/filters/edit_filter_box.cpp`, `edit_filter_chats_list.cpp`, `edit_filter_chats_preview.cpp`, `edit_filter_links.cpp`). All engine methods exist; the issues below are wiring/data-loss, missing features and label/behavioral deviations.
