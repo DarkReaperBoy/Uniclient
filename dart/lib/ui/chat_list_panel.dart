@@ -885,9 +885,9 @@ class _ChatListPanelState extends State<ChatListPanel>
             if (chatState.hasFolders && !widget.filterSidebarVisible && !_searching)
               _HorizontalFolderTabs(
                 chatState: chatState,
-                allUnread: chatState.unreadCountForAccount(appState.activeAccountId),
                 hideAllChats: appState.hideAllChatsFolder,
                 hideCounters: appState.hideNotificationCounters,
+                includeMuted: appState.notifIncludeMutedInFolders,
               ),
             // Search tabs strip (spec §2.2: shown when typing in search bar).
             if (_searching && _searchController.text.isNotEmpty)
@@ -2285,15 +2285,18 @@ class _SearchBar extends StatelessWidget {
 /// indicator. 33px strip height, 9px horizontal padding, 14px semibold labels.
 class _HorizontalFolderTabs extends StatefulWidget {
   final ChatState chatState;
-  final int allUnread;
   final bool hideAllChats;
   final bool hideCounters;
+  // AyuGram Data::IncludeMutedCounterFoldersValue(): when false the folder badge
+  // drops fully-muted unread chats; when every counted chat is muted the badge is
+  // rendered in the muted color. (chat_filters_tabs_strip.cpp:238,254)
+  final bool includeMuted;
 
   const _HorizontalFolderTabs({
     required this.chatState,
-    required this.allUnread,
     this.hideAllChats = false,
     this.hideCounters = false,
+    this.includeMuted = false,
   });
 
   @override
@@ -2666,10 +2669,18 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
                     final isAllChats = !widget.hideAllChats && i == 0;
                     final folder = isAllChats ? null : folders[i - _allChatsOffset];
                     final label = isAllChats ? 'All' : folder!.name;
-                    final rawUnread = isAllChats
-                        ? widget.allUnread
-                        : widget.chatState.unreadCountForFolder(folder!.id);
-                    final unread = widget.hideCounters ? 0 : rawUnread;
+                    // Badge = count of unread CHATS (+marks, −muted unless
+                    // includeMuted), NOT the sum of unread messages — mirrors
+                    // AyuGram chat_filters_tabs_strip.cpp:249-260 (same math as
+                    // the vertical sidebar). "All" passes a null folder id so
+                    // folderUnreadBadge counts every chat.
+                    final badge = widget.hideCounters
+                        ? (count: 0, allMuted: false)
+                        : widget.chatState.folderUnreadBadge(
+                            folder?.id,
+                            includeMuted: widget.includeMuted,
+                          );
+                    final unread = badge.count;
                     final isDragged = _dragActive && _dragIndex == i;
                     double shiftX = 0;
                     if (_dragActive && _dragIndex != null && i != _dragIndex!) {
@@ -2687,6 +2698,7 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
                         labelKey: _labelKeys[i],
                         label: label,
                         unread: unread,
+                        unreadAllMuted: badge.allMuted,
                         isActive: isActive,
                         activeColor: activeColor,
                         inactiveColor: inactiveColor,
@@ -2753,6 +2765,9 @@ class _FolderTab extends StatelessWidget {
   final GlobalKey? labelKey; // for barSnapToLabel measurement by parent
   final String label;
   final int unread;
+  // True when every counted unread chat is muted — renders the badge in the
+  // muted color (AyuGram cacheUnreadCount(count, muted), active-agnostic).
+  final bool unreadAllMuted;
   final bool isActive;
   final Color activeColor;
   final Color inactiveColor;
@@ -2767,6 +2782,7 @@ class _FolderTab extends StatelessWidget {
     this.labelKey,
     required this.label,
     required this.unread,
+    this.unreadAllMuted = false,
     required this.isActive,
     required this.activeColor,
     required this.inactiveColor,
@@ -2817,13 +2833,20 @@ class _FolderTab extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 1),
                           decoration: BoxDecoration(
-                            color: context.palette.windowBgActive,
+                            // UnreadBadgeStyle(): dialogsUnreadBgMuted when fully
+                            // muted, else dialogsUnreadBg
+                            // (chat_filters_tabs_slider.cpp:173-178).
+                            color: unreadAllMuted
+                                ? context.palette.dialogsUnreadBgMuted
+                                : context.palette.dialogsUnreadBg,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            unread > 999 ? '999+' : '$unread',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            // AyuGram caps the badge at "99+" for >999
+                            // (_unreadMaxString, chat_filters_tabs_slider.cpp:29).
+                            unread > 999 ? '99+' : '$unread',
+                            style: TextStyle(
+                              color: context.palette.dialogsUnreadFg,
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
                             ),
