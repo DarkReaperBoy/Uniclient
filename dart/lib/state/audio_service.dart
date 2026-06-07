@@ -63,6 +63,10 @@ class AudioService extends ChangeNotifier {
   AudioRepeatMode _repeatMode = AudioRepeatMode.none;
   AudioOrderMode _orderMode = AudioOrderMode.defaultOrder;
   bool _autoplayNextDisabled = false;
+  // Song playback volume 0..1, synced from AppState.songVolume and applied to
+  // the media_kit player (0..100). Mirrors AyuGram mixer()->setSongVolume
+  // (media_player_volume_controller.cpp:78-83). Default kDefaultVolume = 0.9.
+  double _songVolume = 0.9;
 
   // ── Shuffle bookkeeping (mirrors AyuGram Instance::ShuffleData,
   // media_player_instance.cpp:93-109). The shuffle order is not pre-committed:
@@ -122,6 +126,13 @@ class AudioService extends ChangeNotifier {
   AudioRepeatMode get repeatMode => _repeatMode;
   AudioOrderMode get orderMode => _orderMode;
   bool get autoplayNextDisabled => _autoplayNextDisabled;
+  double get songVolume => _songVolume;
+
+  /// Account id the current track was opened from. Used by the player bar to
+  /// decide whether the song is "from another session" (a different account
+  /// than the one currently viewed) — AyuGram only jumps-to-message for songs
+  /// from another session (media_player_widget.cpp:482-483).
+  String get currentAccountId => _currentAccountId;
 
   /// Playback speed for the current track — music (songs) use
   /// [audioPlaybackSpeed]; voice/video messages use [voicePlaybackSpeed].
@@ -226,6 +237,20 @@ class AudioService extends ChangeNotifier {
       _player?.setRate(_currentSpeed);
       notifyListeners();
     }
+  }
+
+  /// Apply the song playback volume (0..1) to the active player. Mirrors
+  /// AyuGram's mixer()->setSongVolume (media_player_volume_controller.cpp:78-83).
+  /// While a notification sound ducks the audio (volume forced to 0), the new
+  /// level is stored but not applied — the duck-restore picks it up.
+  void setSongVolume(double v) {
+    final vol = v.clamp(0.0, 1.0).toDouble();
+    if (_songVolume == vol) return;
+    _songVolume = vol;
+    if (!_ducking) {
+      _player?.setVolume(vol * 100);
+    }
+    notifyListeners();
   }
 
   void setRepeatMode(AudioRepeatMode mode) {
@@ -446,9 +471,11 @@ class AudioService extends ChangeNotifier {
     _duckTimer = Timer(length, () async {
       _ducking = false;
       try {
-        await _player?.setVolume(100);
+        // Restore to the user's song volume, not hard 100% — the bar's volume
+        // slider / mute toggle may have set a lower level.
+        await _player?.setVolume(_songVolume * 100);
       } catch (e) {
-        Debug.log('audio_service', 'await _player?.setVolume(100): $e');
+        Debug.log('audio_service', 'await _player?.setVolume: $e');
       }
     });
   }
@@ -523,6 +550,9 @@ class AudioService extends ChangeNotifier {
 
     final player = Player();
     _player = player;
+    // Apply the persisted song volume to the fresh player (media_kit uses
+    // 0..100). Mirrors AyuGram applying songVolume to the mixer on play.
+    player.setVolume(_songVolume * 100);
     _currentMsgId = msgId;
     _currentChatId = chatId;
     _currentPerformer = performer;

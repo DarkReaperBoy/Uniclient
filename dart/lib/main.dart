@@ -384,6 +384,7 @@ class _UniClientAppState extends State<UniClientApp>
       audioService.setOrderMode(
           AudioOrderMode.values[appState.playerOrderMode.clamp(0, 2)]);
       audioService.setAutoplayNextDisabled(appState.disableAutoplayNext);
+      audioService.setSongVolume(appState.songVolume);
     }
     applyAudioSettings();
     _audioSettingsSyncListener = applyAudioSettings;

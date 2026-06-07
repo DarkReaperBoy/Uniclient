@@ -561,6 +561,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _playerRepeatMode = 0; // 0=none, 1=one, 2=all
   int _playerOrderMode = 0; // 0=default, 1=reverse, 2=shuffle
   bool _disableAutoplayNext = false;
+  // Song playback volume 0..1 and the last non-zero value, mirroring AyuGram
+  // core_settings songVolume / rememberedSongVolume (core_settings.h:172,632;
+  // default kDefaultVolume = 0.9, core_settings.h:123). The volume toggle mutes
+  // to 0 and restores to rememberedSongVolume; the slider updates both.
+  double _songVolume = 0.9;
+  double _rememberedSongVolume = 0.9;
 
   // §54.14: AyuGram General settings.
   int _translationProvider = 0; // 0=Telegram, 1=Google, 2=Yandex, 3=Native
@@ -1014,6 +1020,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get playerRepeatMode => _playerRepeatMode;
   int get playerOrderMode => _playerOrderMode;
   bool get disableAutoplayNext => _disableAutoplayNext;
+  double get songVolume => _songVolume;
+  double get rememberedSongVolume => _rememberedSongVolume;
 
   // §54.14: AyuGram General settings getters.
   int get translationProvider => _translationProvider;
@@ -1807,6 +1815,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _playerRepeatMode = 0;
     _playerOrderMode = 0;
     _disableAutoplayNext = false;
+    _songVolume = 0.9;
+    _rememberedSongVolume = 0.9;
     _translationProvider = 0;
     _disableStories = false;
     _disableOpenLinkWarning = false;
@@ -2001,6 +2011,28 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (_disableAutoplayNext == v) return;
     _disableAutoplayNext = v;
     notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  /// Set the song playback volume (0..1). Mirrors AyuGram setSongVolume — the
+  /// remembered (last non-zero) value is NOT touched here; the slider records it
+  /// separately via [setRememberedSongVolume] on drag-finish, and the mute
+  /// toggle restores from it (media_player_widget.cpp:130-137 /
+  /// media_player_volume_controller.cpp:38-44).
+  void setSongVolume(double v) {
+    final vol = v.clamp(0.0, 1.0).toDouble();
+    if (_songVolume == vol) return;
+    _songVolume = vol;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  /// Record the volume to restore on un-mute. Only updated for values > 0,
+  /// matching VolumeController's changeFinished callback.
+  void setRememberedSongVolume(double v) {
+    final vol = v.clamp(0.0, 1.0).toDouble();
+    if (vol <= 0 || _rememberedSongVolume == vol) return;
+    _rememberedSongVolume = vol;
     _saveWindowPrefs();
   }
 
@@ -4349,6 +4381,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _playerRepeatMode = (data['playerRepeatMode'] as int? ?? 0).clamp(0, 2);
       _playerOrderMode = (data['playerOrderMode'] as int? ?? 0).clamp(0, 2);
       _disableAutoplayNext = data['disableAutoplayNext'] as bool? ?? false;
+      _songVolume =
+          ((data['songVolume'] as num?)?.toDouble() ?? 0.9).clamp(0.0, 1.0).toDouble();
+      _rememberedSongVolume =
+          ((data['rememberedSongVolume'] as num?)?.toDouble() ?? 0.9).clamp(0.0, 1.0).toDouble();
       // §54.14: AyuGram General settings.
       final rawTp = data['translationProvider'];
       if (rawTp is String) {
@@ -4652,6 +4688,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'playerRepeatMode': _playerRepeatMode,
         'playerOrderMode': _playerOrderMode,
         'disableAutoplayNext': _disableAutoplayNext,
+        'songVolume': _songVolume,
+        'rememberedSongVolume': _rememberedSongVolume,
         'translationProvider': const ['telegram', 'google', 'yandex', 'native'][_translationProvider.clamp(0, 3)],
         'disableStories': _disableStories,
         'disableOpenLinkWarning': _disableOpenLinkWarning,
