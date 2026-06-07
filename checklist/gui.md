@@ -594,31 +594,6 @@ Verified correct (no findings needed):
 
 ## Findings
 
-# forum_topic_icon — forum topic icons (gradient bubble + letter, General "#" icon, custom-emoji icon)
-
-Compared against AyuGram's `data/data_forum_topic.cpp`, the topic-icon SVGs in
-`Resources/art/topic_icons/`, `info/profile/info_profile_cover.cpp`, and
-`boxes/peers/edit_forum_topic_box.cpp`.
-
-The file is genuinely wired — real engine calls (`getCustomEmojiFiles` /
-`getCustomEmojiThumbs` are real protobuf bridge calls), real TGS/webm/webp
-decode+playback, correct gradient colors (all 6 palettes + gray verified 1:1
-against the SVGs), correct size/font/textTop table (matches `dialogs.style:55-74`
-exactly), and the General-icon fill-rule is correct (subpath windings are
-opposite, so Dart's default `nonZero` cuts the hole like AyuGram's `evenodd`).
-No stubs, placeholders, mock data, or dead callbacks — hence no CRITICAL items.
-The findings below are behavioral/visual deviations.
-
-- [ ] [MAJOR] Animated custom-emoji topic icon loops **forever**; AyuGram plays it a limited number of loops (`kUserpicLoopsCount = 1`) via `Ui::Text::LimitedLoopsEmoji`, then freezes on the first frame. Lottie uses `_lottieController!.repeat()` and webm uses `setPlaylistMode(PlaylistMode.loop)`, so every topic row in the chat list with an animated custom icon animates continuously (wasted CPU + wrong UX). — `forum_topic_icon.dart:606` & `forum_topic_icon.dart:587` ← `AyuGram/data/data_forum_topic.cpp:46` (`kUserpicLoopsCount = 1`) + `AyuGram/data/data_forum_topic.cpp:809` (`std::make_unique<Ui::Text::LimitedLoopsEmoji>(...)`) + `AyuGram/lib_ui/ui/text/text_custom_emoji.cpp:129` (freeze after `_played == _limit`)
-
-- [ ] [MAJOR] `GeneralIconContext.profile` uses the wrong dark-theme color. Dart returns `0xFF7F91A4` (that is `dialogsTextFg` dark), but both consumers of this context — the profile cover (`info_panel.dart`) and the edit-topic icon preview (`edit_forum_topic_box.dart`) — correspond to AyuGram code that colorizes the general icon with `st::windowSubTextFg`, which is `#708499` in the dark palette (light `#999999` matches). So the General "#" icon renders ~12%-per-channel too light/blue in dark mode on the profile header and topic-edit screen. — `forum_topic_icon.dart:386` ← `AyuGram/info/profile/info_profile_cover.cpp:51` (`TopicIconView` default ctor → `st::windowSubTextFg`) + `AyuGram/boxes/peers/edit_forum_topic_box.cpp:228` (`GeneralIconPreview` → `st::windowSubTextFg->c`); dark `windowSubTextFg = #708499`
-
-- [ ] [MAJOR] Monochrome ("text-color") custom-emoji topic icons are never tinted. AyuGram passes a `textColor` to the icon's `paint()` and, when the emoji `emojiUsesTextColor()`, recolors every frame to the row/name color (`dialogsNameFg*` in the list, `windowFg`/textColor in the cover). The Dart widget renders the raw Lottie/webm/webp bytes with no color, and the engine model `CustomEmojiFileData` carries no `usesTextColor`/monochrome flag, so tinting is impossible — monochrome topic icons appear in their raw (usually black) form instead of the themed color. — `forum_topic_icon.dart:611-666` (build renders raw, no color) + `engine_models.dart:3204` (model has only `mimeType`+`fileData`) ← `AyuGram/info/profile/info_profile_cover.cpp:79` (`_playerUsesTextColor ? textColor : transparent`) + `AyuGram/data/data_forum_topic.cpp:652` (`_icon->paint({.textColor = ...})`)
-
-- [ ] [MAJOR] `extractTopicLetter` does not skip emoji before picking the letter, unlike AyuGram which calls `Ui::Emoji::Find` first and only then tests `isLetterOrNumber`. The Dart regex `[\p{L}\p{N}]` matches the digit inside keycap emoji (0️⃣–9️⃣), so a topic titled e.g. "1️⃣ Daily" renders the keycap emoji as the bubble "letter" instead of skipping it and using `D`. Edge-case but a genuine behavioral divergence from the source. — `forum_topic_icon.dart:145` ← `AyuGram/data/data_forum_topic.cpp:106` (`if (Ui::Emoji::Find(ch, end, &length)) { ch += length; continue; }` before the letter/number test)
-
-- [ ] [MAJOR] Single bubble geometry + stroke width hardcoded for all 7 palettes. Dart uses one `_bubblePathD` (blue/gray geometry, starts `M42,4.47368421`) and `strokeWidth = 2.94736842 * s` for every color, but in AyuGram only `blue.svg`/`gray.svg` use that path + `2.94736842`; `yellow`/`violet`/`green`/`rose`/`red` use a different bubble path (starts `M42,4.42105263`) with `stroke-width="2.84210526"`. Result: those 5 palettes get a ~3.7% thicker stroke on the wrong base path (net on-screen deviation is small, but it is wrong vs source for the majority of palettes). — `forum_topic_icon.dart:154` (`_bubblePathD`) & `forum_topic_icon.dart:311` (`strokeWidth = 2.94736842 * s`) ← `AyuGram/Telegram/Resources/art/topic_icons/yellow.svg:15` (`stroke-width="2.84210526"`, path `M42,4.42105263…`) vs `AyuGram/Telegram/Resources/art/topic_icons/blue.svg:15` (`stroke-width="2.94736842"`)
-
 # gesture_utils — platform-aware long-press duration + tap/long-press/right-click gesture wrapper
 
 This is a small, genuinely functional gesture utility (no placeholders, no stubs, no
