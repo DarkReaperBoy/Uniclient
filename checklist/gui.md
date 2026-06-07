@@ -594,44 +594,6 @@ Verified correct (no findings needed):
 
 ## Findings
 
-# folders_settings_screen — Telegram Folders settings + Edit-Filter box
-
-Dart file implements the Folders settings section (AyuGram `settings/sections/settings_folders.cpp`) plus the Edit/Create folder box, include/exclude chat pickers, tag colors and shareable invite links (`boxes/filters/edit_filter_box.cpp`, `edit_filter_chats_list.cpp`, `edit_filter_chats_preview.cpp`, `edit_filter_links.cpp`). All engine methods exist; the issues below are wiring/data-loss, missing features and label/behavioral deviations.
-
-## Critical
-
-- [ ] [CRITICAL] Creating a new folder silently drops ALL exclusion rules. The create branch passes no `excludeMuted/excludeRead/excludeArchived/excludeChatIds`, and `createFolder` (chat_state + engine) has no such params — so excluded chats and "Muted/Read/Archived" exclude-types chosen in the dialog are lost on creation (only re-saving via edit persists them). AyuGram's `collect()` returns the full filter incl. `never()`/exclude flags and saves it verbatim. — `folders_settings_screen.dart:313` (+ `bridge/engine_service.dart:891-900`) ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:821-847`
-
-- [ ] [CRITICAL] "New Chats"/"Existing Chats" include toggles are a misplaced + non-wired feature. These are Telegram **Business exceptions** (`NewChats`/`ExistingChats` flags), not folder include-types — AyuGram's folder editor only offers `kTypes = Contacts|NonContacts|Groups|Channels|Bots`. The Dart shows them in the include picker for chatlist folders and stores them in `FolderInfo` (`:1745-1746`), but `createFolder`/`editFolder` never pass `newChats`/`existingChats`, so the toggles do nothing end-to-end. — `folders_settings_screen.dart:3852-3854` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:573-577` (and `data/data_chat_filters.h:56-57`)
-
-## Major
-
-- [ ] [MAJOR] Public helper `showEditFolderBox` drops tag color and folder icon on save: its `editFolder` call omits `colorIndex` and `emoticon` (unlike the in-screen `_showEditFilterBox` at `:303-304`), so edits made through this entry point lose the chosen color/icon. — `folders_settings_screen.dart:80-92` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:840-846`
-
-- [ ] [MAJOR] "Show Folder Tags" toggle + its about text are hidden for non-premium Telegram users (gated on `effectivePremium`). AyuGram builds this button for every `premiumPossible()` session, showing it **locked** with the premium upsell on tap; the `_TagsToggle` lock branch is dead code (always called `isPremium: true`). — `folders_settings_screen.dart:460-461` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_folders.cpp:1016-1051`
-
-- [ ] [MAJOR] Shareable-links section is hidden unless editing (`if (widget.isEditMode)`). AyuGram adds the "Share Folder" subtitle + "Create Link" button unconditionally, supporting link creation during new-folder creation (it saves-then-exports). — `folders_settings_screen.dart:2023` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:849-876`
-
-- [ ] [MAJOR] Invite-link context menu is missing Share, "Get QR Code" and "Name Link" actions — only Copy/Delete exist. AyuGram's link row menu has Copy, Share, Get QR Code, Name Link (rename), Delete. — `folders_settings_screen.dart:1571-1574` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_links.cpp:611-630`
-
-- [ ] [MAJOR] Renaming an invite link ("Name Link") is entirely absent: `editFolderInviteLink` only sends `peerIds` (no title), and no rename UI exists. AyuGram offers `lng_filters_link_name_it` to set a custom link title. — `folders_settings_screen.dart:2659-2661` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_links.cpp:623-626`
-
-- [ ] [MAJOR] Link-eligibility check is wrong/incomplete: `_hasExclusions` only inspects exclude flags + `existingFolder.excludeChatIds` (stale — not the live `_excludedChatIds`), missing include-type flags entirely. AyuGram's `GoodForExportFilterLink` blocks sharing when `never()` is non-empty OR ANY `RulesMask` type flag (incl. Contacts/Groups/etc.) is set, with toast `lng_filters_link_cant`. A folder including "Groups" can wrongly create a link here. — `folders_settings_screen.dart:1473-1481` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_links.cpp:997-1006`
-
-- [ ] [MAJOR] Folder-row status text is wrong: hardcoded `"$count chats"` + `" · shareable"`. AyuGram uses `lng_filters_no_chats` ("No chats") for 0, pluralized `lng_filters_chats_count` ("1 chat"/"N chats"), and appends `" · shareable folder"` — so 0→"0 chats" and 1→"1 chats" and the suffix omits "folder". — `folders_settings_screen.dart:695-697` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_folders.cpp:160-173`
-
-- [ ] [MAJOR] Chatlist-folder removal issues a redundant double server request: `_ChatlistFolderRemovalDialog._onLeave` calls `leaveChatlistFolder` (→ `chatlists.leaveChatlist`, which removes the folder + leaves peers) and then adds the folder to `_pendingRemovals`, so dispose's `_saveChanges` also calls `deleteFolder` (→ `messages.updateDialogFilter` empty) on the already-removed id. AyuGram sends only the LeaveChatlist request. — `folders_settings_screen.dart:4496-4504` (+ `:160-166`) ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_folders.cpp:663-689`
-
-- [ ] [MAJOR] "Disable Animations" link-button visibility is wrong: shown whenever the name is non-empty. AyuGram shows it only when the title contains custom-emoji entities (`setVisible(!value.entities.isEmpty())`) — for plain text there is nothing to animate. — `folders_settings_screen.dart:1900-1906` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:560-563`
-
-- [ ] [MAJOR] View-section labels are wrong: subtitle "View" and radios "Side panel"/"Top bar". AyuGram: `lng_filters_view_subtitle` = "Tabs view", `lng_filters_vertical` = "Tabs on the left", `lng_filters_horizontal` = "Tabs at the top". — `folders_settings_screen.dart:1129,1138,1146` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_folders.cpp:1123-1146`
-
-- [ ] [MAJOR] Folder icons are rendered as color emoji in the icon picker (`_IconCell`) and the in-field toggle (`_FilterIconToggle`), whereas AyuGram paints monochrome filter **vector icons** (`icons.normal->paintInCenter`); this also disagrees with the Material vector icons shown in the folder rows (`folderIconForInfo`), so the picked glyph ≠ the displayed glyph. — `folders_settings_screen.dart:3111,3126,3429,3449` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:240-244`
-
-- [ ] [MAJOR] Name-field emoji button is a hardcoded 30-emoji grid (`_commonEmoji`) inserting only plain unicode. AyuGram attaches a full `TabbedPanel` emoji selector (all emoji + animated custom-emoji, premium-gated). — `folders_settings_screen.dart:3151-3158` ← `AyuGram/Telegram/SourceFiles/boxes/filters/edit_filter_box.cpp:495-534`
-
-- [ ] [MAJOR] Several section/button labels deviate from source strings: section title "Folders" vs `lng_filters_subtitle` "My folders"; exclude button "Remove Chats" vs `lng_filters_remove_chats` "Add Chats to Exclude"; "Tag Color" vs `lng_filters_tag_color_subtitle` "Folder color in chat list"; link buttons "Create Link"/"Add Link" vs "Create an Invite Link"/`lng_group_invite_add` "Create a New Link". — `folders_settings_screen.dart:389,3611,2129,2476` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_folders.cpp:977` / `boxes/filters/edit_filter_box.cpp:620,662,868,874`
-
 # forum_topic_icon — forum topic icons (gradient bubble + letter, General "#" icon, custom-emoji icon)
 
 Compared against AyuGram's `data/data_forum_topic.cpp`, the topic-icon SVGs in
