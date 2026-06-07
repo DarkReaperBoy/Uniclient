@@ -1238,13 +1238,56 @@ func (e *Engine) DeleteFolder(accountID, folderID string) error {
 	return fmt.Errorf("core does not support folder deletion")
 }
 
-// CreateFolderOpts contains filter flags for folder creation.
+// CreateFolderOpts contains the COMPLETE filter definition for folder
+// creation/edit, mirroring AyuGram's Data::ChatFilter collect() result: type
+// flags + exclude flags + exclude/pinned peers + tag color + emoticon + static
+// title. ColorIndex < 0 means "no tag color".
 type CreateFolderOpts struct {
-	Contacts    bool
-	NonContacts bool
-	Groups      bool
-	Channels    bool
-	Bots        bool
+	Contacts        bool
+	NonContacts     bool
+	Groups          bool
+	Channels        bool
+	Bots            bool
+	ExcludeMuted    bool
+	ExcludeRead     bool
+	ExcludeArchived bool
+	ExcludeChatIDs  []string
+	PinnedChatIDs   []string
+	IsChatList      bool
+	ColorIndex      int
+	Emoticon        string
+	StaticTitle     bool
+}
+
+// folderSaverFull is implemented by cores that can persist the full filter
+// definition (include/exclude peers + every flag + color + emoticon) via a
+// single updateDialogFilter call. filterID <= 0 creates a new folder.
+type folderSaverFull interface {
+	UpdateDialogFilterFull(filterID int, isChatList bool, name string,
+		includeIDs, excludeIDs, pinnedIDs []string,
+		contacts, nonContacts, groups, channels, bots bool,
+		excludeMuted, excludeRead, excludeArchived bool,
+		colorIndex int, emoticon string, staticTitle bool) (*cores.Folder, error)
+}
+
+func folderInfoFromCore(f *cores.Folder) *FolderInfo {
+	return &FolderInfo{
+		ID:              f.ID,
+		Name:            f.Name,
+		ChatIDs:         f.ChatIDs,
+		ExcludeChatIDs:  f.ExcludeChatIDs,
+		PinnedChatIDs:   f.PinnedChatIDs,
+		Contacts:        f.Contacts,
+		NonContacts:     f.NonContacts,
+		Groups:          f.Groups,
+		Channels:        f.Channels,
+		Bots:            f.Bots,
+		ExcludeMuted:    f.ExcludeMuted,
+		ExcludeRead:     f.ExcludeRead,
+		ExcludeArchived: f.ExcludeArchived,
+		IsChatList:      f.IsChatList,
+		Emoticon:        f.Emoticon,
+	}
 }
 
 // CreateFolder creates a new folder via the underlying core.
@@ -1254,7 +1297,23 @@ func (e *Engine) CreateFolder(accountID, name string, chatIDs []string, opts *Cr
 		return nil, fmt.Errorf("account not found: %s", accountID)
 	}
 
-	// Try extended creator (supports filter flags) first.
+	// Preferred: full saver — persists exclude flags/peers, color and emoticon
+	// in one shot (matches AyuGram saving the whole collect() result verbatim).
+	if opts != nil {
+		if fs, ok := acc.Core.(folderSaverFull); ok {
+			f, err := fs.UpdateDialogFilterFull(0, false, name,
+				chatIDs, opts.ExcludeChatIDs, opts.PinnedChatIDs,
+				opts.Contacts, opts.NonContacts, opts.Groups, opts.Channels, opts.Bots,
+				opts.ExcludeMuted, opts.ExcludeRead, opts.ExcludeArchived,
+				opts.ColorIndex, opts.Emoticon, opts.StaticTitle)
+			if err != nil {
+				return nil, err
+			}
+			return folderInfoFromCore(f), nil
+		}
+	}
+
+	// Fallback: extended creator (type flags only).
 	type folderCreatorEx interface {
 		CreateFolderWithFlags(name string, chatIDs []string, contacts, nonContacts, groups, channels, bots bool) (*cores.Folder, error)
 	}
@@ -1264,16 +1323,7 @@ func (e *Engine) CreateFolder(accountID, name string, chatIDs []string, opts *Cr
 			if err != nil {
 				return nil, err
 			}
-			return &FolderInfo{
-				ID:          f.ID,
-				Name:        f.Name,
-				ChatIDs:     f.ChatIDs,
-				Contacts:    f.Contacts,
-				NonContacts: f.NonContacts,
-				Groups:      f.Groups,
-				Channels:    f.Channels,
-				Bots:        f.Bots,
-			}, nil
+			return folderInfoFromCore(f), nil
 		}
 	}
 
@@ -1296,6 +1346,37 @@ func (e *Engine) CreateFolder(accountID, name string, chatIDs []string, opts *Cr
 		Name:    f.Name,
 		ChatIDs: f.ChatIDs,
 	}, nil
+}
+
+// EditFolder overwrites an existing folder with the COMPLETE filter definition,
+// mirroring AyuGram EditExistingFilter sending result.tl() via
+// messages.updateDialogFilter (edit_filter_box.cpp:991-1003). Uses the same full
+// saver as CreateFolder, preserving the existing filter id.
+func (e *Engine) EditFolder(accountID, folderID, name string, chatIDs []string, opts *CreateFolderOpts) (*FolderInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	id, err := strconv.Atoi(folderID)
+	if err != nil || id <= 0 {
+		return nil, fmt.Errorf("invalid folder id: %s", folderID)
+	}
+	fs, ok := acc.Core.(folderSaverFull)
+	if !ok {
+		return nil, fmt.Errorf("core does not support folder editing")
+	}
+	if opts == nil {
+		opts = &CreateFolderOpts{ColorIndex: -1}
+	}
+	f, err := fs.UpdateDialogFilterFull(id, opts.IsChatList, name,
+		chatIDs, opts.ExcludeChatIDs, opts.PinnedChatIDs,
+		opts.Contacts, opts.NonContacts, opts.Groups, opts.Channels, opts.Bots,
+		opts.ExcludeMuted, opts.ExcludeRead, opts.ExcludeArchived,
+		opts.ColorIndex, opts.Emoticon, opts.StaticTitle)
+	if err != nil {
+		return nil, err
+	}
+	return folderInfoFromCore(f), nil
 }
 
 // GetFolderInviteLinks returns invite links for a chat folder.
@@ -1397,17 +1478,18 @@ func (e *Engine) GetTopPeers(accountID string, limit int) ([]ChatInfo, error) {
 	return result, nil
 }
 
-// EditFolderInviteLink modifies which peers are included in a folder invite link.
-func (e *Engine) EditFolderInviteLink(accountID string, folderID int, slug string, peerIDs []string) (cores.ChatlistInviteLink, error) {
+// EditFolderInviteLink modifies the peers and/or custom title of a folder invite
+// link. A non-empty title renames the link ("Name Link" action).
+func (e *Engine) EditFolderInviteLink(accountID string, folderID int, slug string, peerIDs []string, title string) (cores.ChatlistInviteLink, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return cores.ChatlistInviteLink{}, fmt.Errorf("account not found: %s", accountID)
 	}
 	type linkEditor interface {
-		EditChatlistInvite(folderID int, slug string, peerIDs []string) (cores.ChatlistInviteLink, error)
+		EditChatlistInvite(folderID int, slug string, peerIDs []string, title string) (cores.ChatlistInviteLink, error)
 	}
 	if le, ok := acc.Core.(linkEditor); ok {
-		return le.EditChatlistInvite(folderID, slug, peerIDs)
+		return le.EditChatlistInvite(folderID, slug, peerIDs, title)
 	}
 	return cores.ChatlistInviteLink{}, fmt.Errorf("core does not support folder invite link editing")
 }

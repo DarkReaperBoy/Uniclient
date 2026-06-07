@@ -912,6 +912,11 @@ class EngineService {
     bool groups = false,
     bool channels = false,
     bool bots = false,
+    bool excludeMuted = false,
+    bool excludeRead = false,
+    bool excludeArchived = false,
+    List<String> excludeChatIds = const [],
+    List<String> pinnedChatIds = const [],
     bool staticTitle = false,
     int colorIndex = -1,
     String emoticon = '',
@@ -925,6 +930,11 @@ class EngineService {
       'groups': groups,
       'channels': channels,
       'bots': bots,
+      'exclude_muted': excludeMuted,
+      'exclude_read': excludeRead,
+      'exclude_archived': excludeArchived,
+      'exclude_chat_ids': excludeChatIds,
+      'pinned_chat_ids': pinnedChatIds,
       'static_title': staticTitle,
       'color_index': colorIndex,
       'emoticon': emoticon,
@@ -979,6 +989,8 @@ class EngineService {
     bool excludeRead = false,
     bool excludeArchived = false,
     List<String> excludeChatIds = const [],
+    List<String> pinnedChatIds = const [],
+    bool isChatList = false,
     bool staticTitle = false,
     int colorIndex = -1,
     String emoticon = '',
@@ -997,6 +1009,8 @@ class EngineService {
       'exclude_read': excludeRead,
       'exclude_archived': excludeArchived,
       'exclude_chat_ids': excludeChatIds,
+      'pinned_chat_ids': pinnedChatIds,
+      'is_chat_list': isChatList,
       'static_title': staticTitle,
       'color_index': colorIndex,
       'emoticon': emoticon,
@@ -1077,12 +1091,13 @@ class EngineService {
     }
   }
 
-  Future<ChatlistInviteLink?> editFolderInviteLink(String accountId, int folderId, String slug, List<String> peerIds) async {
+  Future<ChatlistInviteLink?> editFolderInviteLink(String accountId, int folderId, String slug, List<String> peerIds, {String title = ''}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'folder_id': folderId,
       'slug': slug,
       'peer_ids': peerIds,
+      'title': title,
     }));
     try {
       final respBytes = await _callAsync('__engine', 'EditFolderInviteLink', Uint8List.fromList(payload));

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../bridge/engine_service.dart';
@@ -12,6 +13,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
+import 'emoji_panel.dart';
 import 'filter_column.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
@@ -58,6 +60,45 @@ const _kFilterIconEmoji = <String, String>{
   'Setup': '\u{1F4CB}',
 };
 
+// Monochrome filter vector icons — AyuGram paints icons.normal->paintInCenter
+// (edit_filter_box.cpp:240-244), NOT color emoji. Each entry resolves to the SAME
+// Material glyph that FilterColumn.folderIconForInfo shows in the folder rows, so
+// the picked icon matches the displayed one exactly.
+const _kFilterIconData = <String, IconData>{
+  'Cat': Icons.pets_outlined,
+  'Book': Icons.menu_book_outlined,
+  'Money': Icons.attach_money,
+  'Game': Icons.sports_esports_outlined,
+  'Light': Icons.lightbulb_outlined,
+  'Like': Icons.thumb_up_outlined,
+  'Note': Icons.music_note_outlined,
+  'Palette': Icons.palette_outlined,
+  'Travel': Icons.flight_outlined,
+  'Sport': Icons.sports_soccer_outlined,
+  'Favorite': Icons.star_outline,
+  'Study': Icons.school_outlined,
+  'Airplane': Icons.flight_takeoff_outlined,
+  'Private': Icons.person_outline,
+  'Groups': Icons.group_outlined,
+  'All': Icons.chat_outlined,
+  'Unread': Icons.mark_chat_unread_outlined,
+  'Bots': Icons.smart_toy_outlined,
+  'Crown': Icons.workspace_premium_outlined,
+  'Flower': Icons.local_florist_outlined,
+  'Home': Icons.home_outlined,
+  'Love': Icons.favorite_outline,
+  'Mask': Icons.theater_comedy_outlined,
+  'Party': Icons.local_bar_outlined,
+  'Trade': Icons.trending_up,
+  'Work': Icons.work_outline,
+  'Unmuted': Icons.notifications_active_outlined,
+  'Channels': Icons.campaign_outlined,
+  'Custom': Icons.folder_outlined,
+  'Setup': Icons.assignment_outlined,
+};
+
+IconData _filterIconData(String name) => _kFilterIconData[name] ?? Icons.folder_outlined;
+
 void showEditFolderBox(BuildContext context, FolderInfo folder) {
   final theme = Theme.of(context);
   final isDark = theme.brightness == Brightness.dark;
@@ -88,7 +129,11 @@ void showEditFolderBox(BuildContext context, FolderInfo folder) {
         excludeRead: result.excludeRead,
         excludeArchived: result.excludeArchived,
         excludeChatIds: result.excludeChatIds,
+        pinnedChatIds: result.pinnedChatIds,
+        isChatList: result.isChatList,
         staticTitle: result.staticTitle,
+        colorIndex: result.colorIndex,
+        emoticon: result.emoticon,
       ).then((_) {
         if (context.mounted) {
           final order = chatState.folders.map((f) => int.tryParse(f.id) ?? 0).toList();
@@ -200,10 +245,23 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
         folder: folder,
       ),
     ).then((confirmed) {
-      if (confirmed == true) {
+      if (confirmed == true && mounted) {
+        // _ChatlistFolderRemovalDialog already called leaveChatlistFolder
+        // (chatlists.leaveChatlist), which removes the folder AND leaves the
+        // selected peers in one request. AyuGram sends ONLY that request
+        // (settings_folders.cpp:663-689), so we must NOT also queue a deleteFolder
+        // (messages.updateDialogFilter empty) on dispose — drop it from the list
+        // locally and resync instead of adding to _pendingRemovals.
         setState(() {
-          _pendingRemovals.add(folder.id);
+          _folders.removeWhere((f) => f.id == folder.id);
         });
+        final account = context.read<AppState>().activeAccount;
+        if (account != null) {
+          final chatState = context.read<ChatState>();
+          chatState.loadFoldersForAccount(account.id).then((_) {
+            if (mounted) setState(() => _folders = List.of(chatState.folders));
+          });
+        }
       }
     });
   }
@@ -287,9 +345,12 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
         if (account == null) return;
         final chatState = context.read<ChatState>();
         final engine = context.read<EngineService>();
-        if (existingFolder != null) {
+        // A folder freshly created mid-box (save-then-export for shareable links)
+        // carries its server id back in result.id — edit it rather than re-create.
+        if (existingFolder != null || result.id.isNotEmpty) {
+          final folderId = existingFolder?.id ?? result.id;
           chatState.editFolder(
-            account.id, existingFolder.id, result.name, result.chatIds,
+            account.id, folderId, result.name, result.chatIds,
             contacts: result.contacts,
             nonContacts: result.nonContacts,
             groups: result.groups,
@@ -299,6 +360,8 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             excludeRead: result.excludeRead,
             excludeArchived: result.excludeArchived,
             excludeChatIds: result.excludeChatIds,
+            pinnedChatIds: result.pinnedChatIds,
+            isChatList: result.isChatList,
             staticTitle: result.staticTitle,
             colorIndex: result.colorIndex,
             emoticon: result.emoticon,
@@ -317,6 +380,11 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             groups: result.groups,
             channels: result.channels,
             bots: result.bots,
+            excludeMuted: result.excludeMuted,
+            excludeRead: result.excludeRead,
+            excludeArchived: result.excludeArchived,
+            excludeChatIds: result.excludeChatIds,
+            pinnedChatIds: result.pinnedChatIds,
             staticTitle: result.staticTitle,
             colorIndex: result.colorIndex,
             emoticon: result.emoticon,
@@ -386,7 +454,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
 
           // §18.3 Existing Folders List
           _SectionTitle(
-            text: 'Folders',
+            text: 'My folders',
             color: sectionTitleColor,
           ),
           if (_loaded && _folders.isEmpty)
@@ -456,12 +524,13 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
                 : const SizedBox.shrink(),
           ),
 
-          // §18.11 Show Folder Tags toggle — only shown for premium Telegram users
-          if ((context.watch<AppState>().activeAccount?.platform ?? '') == 'telegram' &&
-              context.watch<AppState>().effectivePremium) ...[
+          // §18.11 Show Folder Tags toggle — shown for every Telegram session that
+          // can have premium (premiumPossible), locked with a premium upsell for
+          // non-premium users (settings_folders.cpp:1016-1051).
+          if ((context.watch<AppState>().activeAccount?.platform ?? '') == 'telegram') ...[
             _TagsToggle(
               value: context.watch<ChatState>().showFolderTags,
-              isPremium: true,
+              isPremium: context.watch<AppState>().effectivePremium,
               isDark: isDark,
               textColor: textColor,
               subtextColor: subtextColor,
@@ -470,6 +539,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
                 context.read<ChatState>().showFolderTags = v;
                 setState(() {});
               },
+              onPremiumRequired: () => _showPremiumPurchaseDialog(context, isDark),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
@@ -692,9 +762,15 @@ class _FolderRowState extends State<_FolderRow>
         : const Color(0xFF359AD5);
     final iconColor = _isHovered ? activeButtonBgOver : activeButtonBg;
 
-    final statusText = StringBuffer('${widget.chatCount} chats');
+    // lng_filters_no_chats / pluralized lng_filters_chats_count, plus the
+    // " \u00b7 shareable folder" suffix for chatlist folders (settings_folders.cpp:160-173).
+    final statusText = StringBuffer(widget.chatCount == 0
+        ? 'No chats'
+        : widget.chatCount == 1
+            ? '1 chat'
+            : '${widget.chatCount} chats');
     if (widget.folder.isChatList) {
-      statusText.write(' \u00b7 shareable');
+      statusText.write(' \u00b7 shareable folder');
     }
 
     return Opacity(
@@ -994,6 +1070,7 @@ class _TagsToggle extends StatefulWidget {
   final Color subtextColor;
   final Color hoverColor;
   final ValueChanged<bool> onChanged;
+  final VoidCallback onPremiumRequired;
 
   const _TagsToggle({
     required this.value,
@@ -1003,6 +1080,7 @@ class _TagsToggle extends StatefulWidget {
     required this.subtextColor,
     required this.hoverColor,
     required this.onChanged,
+    required this.onPremiumRequired,
   });
 
   @override
@@ -1035,6 +1113,12 @@ class _TagsToggleState extends State<_TagsToggle> {
   }
 
   void _onToggle(bool v) {
+    // Turning tags ON requires premium — show the upsell and stay off, matching
+    // AyuGram's locked toggle (settings_folders.cpp:1044-1051).
+    if (v && !widget.isPremium) {
+      widget.onPremiumRequired();
+      return;
+    }
     widget.onChanged(v);
     _debounce?.cancel();
     _pendingValue = v;
@@ -1126,7 +1210,7 @@ class _ViewSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
           child: Text(
-            'View',
+            'Tabs view',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -1135,7 +1219,7 @@ class _ViewSection extends StatelessWidget {
           ),
         ),
         _RadioRow(
-          label: 'Side panel',
+          label: 'Tabs on the left',
           selected: useVerticalTabs,
           textColor: textColor,
           accentColor: accentColor,
@@ -1143,7 +1227,7 @@ class _ViewSection extends StatelessWidget {
           onTap: () => onChanged(true),
         ),
         _RadioRow(
-          label: 'Top bar',
+          label: 'Tabs at the top',
           selected: !useVerticalTabs,
           textColor: textColor,
           accentColor: accentColor,
@@ -1233,8 +1317,6 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   bool _groups = false;
   bool _channels = false;
   bool _bots = false;
-  bool _newChats = false;
-  bool _existingChats = false;
   bool _excludeMuted = false;
   bool _excludeRead = false;
   bool _excludeArchived = false;
@@ -1246,10 +1328,21 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   bool _loadingLinks = false;
   List<String> _includedChatIds = [];
   List<String> _excludedChatIds = [];
+  // When a link is created during NEW-folder creation, AyuGram saves the folder
+  // first then exports the link (edit_filter_box.cpp:899-927). We hold the freshly
+  // created folder's id here so subsequent link operations target it, and so the
+  // final Save edits (not re-creates) it.
+  bool _titleHasCustomEmoji = false;
+  String? _createdFolderId;
 
+  String get _effectiveFolderId =>
+      _createdFolderId ?? widget.existingFolder?.id ?? '';
+
+  // AyuGram's folder editor only offers kTypes = Contacts | NonContacts | Groups
+  // | Channels | Bots (edit_filter_box.cpp:573-577). "New Chats"/"Existing Chats"
+  // are Telegram Business exceptions, NOT folder include-types, so they are not
+  // shown here.
   static const _allIncludeTypes = <_PreviewTypeInfo>[
-    _PreviewTypeInfo('newChats', 'New Chats', Icons.fiber_new, Color(0xFF7bc862)),
-    _PreviewTypeInfo('existingChats', 'Existing Chats', Icons.chat_bubble, Color(0xFF40a7e3)),
     _PreviewTypeInfo('contacts', 'Contacts', Icons.person, Color(0xFF7bc862)),
     _PreviewTypeInfo('nonContacts', 'Non-Contacts', Icons.person_outline, Color(0xFF6ec9cb)),
     _PreviewTypeInfo('groups', 'Groups', Icons.group, Color(0xFF7bc862)),
@@ -1274,8 +1367,6 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       _groups = f.groups;
       _channels = f.channels;
       _bots = f.bots;
-      _newChats = f.newChats;
-      _existingChats = f.existingChats;
       _excludeMuted = f.excludeMuted;
       _excludeRead = f.excludeRead;
       _excludeArchived = f.excludeArchived;
@@ -1291,9 +1382,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   }
 
   void _loadInviteLinks() {
-    final f = widget.existingFolder;
-    if (f == null || f.id.isEmpty) return;
-    final folderId = int.tryParse(f.id);
+    final folderId = int.tryParse(_effectiveFolderId);
     if (folderId == null) return;
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
@@ -1368,6 +1457,21 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     setState(() {});
   }
 
+  // A custom (animated) emoji can't render inline in this plain-text field, so we
+  // insert its alt text and flag the title as containing a custom-emoji entity —
+  // which is what makes the "Disable Animations" toggle relevant (item above).
+  // Choosing a premium-only animated emoji while non-premium shows the upsell,
+  // mirroring AyuGram (edit_filter_box.cpp:516-525).
+  void _insertCustomEmoji(int documentId, String altText) {
+    final isPremium = context.read<AppState>().effectivePremium;
+    if (!isPremium) {
+      _showPremiumPurchaseDialog(context, widget.isDark);
+      return;
+    }
+    _titleHasCustomEmoji = true;
+    _insertEmoji(altText.isNotEmpty ? altText : '\u{1F600}');
+  }
+
   void _showIconPicker() {
     final box = _iconToggleKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
@@ -1414,10 +1518,6 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   void _onToggle(String key, bool value) {
     setState(() {
       switch (key) {
-        case 'newChats':
-          _newChats = value;
-        case 'existingChats':
-          _existingChats = value;
         case 'contacts':
           _contacts = value;
         case 'nonContacts':
@@ -1441,16 +1541,11 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
 
   List<_PreviewTypeInfo> _buildIncludeTypeList() {
     final list = <_PreviewTypeInfo>[];
-    final isChatList = widget.existingFolder?.isChatList ?? false;
-    if (isChatList) {
-      if (_newChats) list.add(_allIncludeTypes[0]);
-      if (_existingChats) list.add(_allIncludeTypes[1]);
-    }
-    if (_contacts) list.add(_allIncludeTypes[2]);
-    if (_nonContacts) list.add(_allIncludeTypes[3]);
-    if (_groups) list.add(_allIncludeTypes[4]);
-    if (_channels) list.add(_allIncludeTypes[5]);
-    if (_bots) list.add(_allIncludeTypes[6]);
+    if (_contacts) list.add(_allIncludeTypes[0]);
+    if (_nonContacts) list.add(_allIncludeTypes[1]);
+    if (_groups) list.add(_allIncludeTypes[2]);
+    if (_channels) list.add(_allIncludeTypes[3]);
+    if (_bots) list.add(_allIncludeTypes[4]);
     return list;
   }
 
@@ -1470,29 +1565,73 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     _onToggle(key, false);
   }
 
+  // Mirrors AyuGram GoodForExportFilterLink (edit_filter_links.cpp:997-1006): a
+  // folder can only be shared if it has NO exclude chats (never()) AND no rule
+  // flags at all (RulesMask = every include-type flag Contacts/NonContacts/Groups/
+  // Channels/Bots PLUS every exclude-type flag Muted/Read/Archived). Uses the live
+  // edited state, not the stale persisted folder.
   bool get _hasExclusions =>
-      _excludeMuted || _excludeRead || _excludeArchived ||
-      (widget.existingFolder?.excludeChatIds.isNotEmpty ?? false);
+      _excludedChatIds.isNotEmpty ||
+      _contacts || _nonContacts || _groups || _channels || _bots ||
+      _excludeMuted || _excludeRead || _excludeArchived;
 
-  void _createInviteLink() {
+  // Saves the in-progress NEW folder so a link can be exported for it (AyuGram
+  // saves-then-exports, edit_filter_box.cpp:899-906). Returns the created folder
+  // id, or null if validation failed. Subsequent ops + the final Save reuse it.
+  Future<int?> _ensureFolderSaved(String accountId, ChatState chatState) async {
+    final existing = int.tryParse(_effectiveFolderId);
+    if (existing != null) return existing;
+
+    final name = _nameController.text.trim();
+    if (name.isEmpty || name.characters.length > 12) {
+      setState(() {
+        _nameError = name.isEmpty
+            ? 'Please enter a folder name.'
+            : 'Folder name must be 12 characters or less.';
+      });
+      _scrollController.animateTo(0,
+          duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      return null;
+    }
+    if (_includedChatIds.isEmpty) {
+      showTelegramToast(context, "The folder can't be empty.");
+      return null;
+    }
+    final emoticon = _selectedIconName != null
+        ? (_kFilterIconEmoji[_selectedIconName] ?? '')
+        : '';
+    final created = await chatState.createFolder(accountId, name, _includedChatIds,
+      colorIndex: _colorIndex,
+      emoticon: emoticon,
+      staticTitle: _staticTitle,
+    );
+    if (created == null) return null;
+    _createdFolderId = created.id;
+    return int.tryParse(created.id);
+  }
+
+  Future<void> _createInviteLink() async {
     if (_hasExclusions) {
-      showTelegramToast(context, "Can't create links for this folder.");
+      // lng_filters_link_cant
+      showTelegramToast(context,
+          "You can't share folders which include or exclude specific chat types like 'Groups', 'Contacts', etc.");
       return;
     }
-    final f = widget.existingFolder;
-    if (f == null || f.id.isEmpty) return;
-    final folderId = int.tryParse(f.id);
-    if (folderId == null) return;
     final appState = context.read<AppState>();
     final isPremium = appState.effectivePremium;
     final isDark = widget.isDark;
-
     final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccount?.id ?? '';
+    if (accountId.isEmpty) return;
+
+    // A brand-new (not-yet-shareable) folder consumes a shareable-folder slot.
+    final alreadyShareable = widget.existingFolder?.isChatList ?? false;
     final shareableCount = chatState.folders.where((fo) => fo.isChatList).length;
     final shareLimit = isPremium
         ? chatState.sharedFoldersPremium
         : chatState.sharedFoldersFree;
-    if (!f.isChatList && shareableCount >= shareLimit) {
+    if (!alreadyShareable && shareableCount >= shareLimit) {
       showDialog(
         context: context,
         builder: (_) => SimpleLimitBox(
@@ -1533,20 +1672,17 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       return;
     }
 
-    final engine = context.read<EngineService>();
-    final accountId = appState.activeAccount?.id ?? '';
-    if (accountId.isEmpty) return;
-    engine.createFolderInviteLink(accountId, folderId, f.name, f.chatIds).then((url) {
-      if (mounted && url != null) {
-        _loadInviteLinks();
-      }
-    });
+    final folderId = await _ensureFolderSaved(accountId, chatState);
+    if (!mounted || folderId == null) return;
+    final name = _nameController.text.trim();
+    final url = await engine.createFolderInviteLink(accountId, folderId, name, _includedChatIds);
+    if (mounted && url != null) {
+      _loadInviteLinks();
+    }
   }
 
   void _deleteInviteLink(ChatlistInviteLink link) {
-    final f = widget.existingFolder;
-    if (f == null || f.id.isEmpty) return;
-    final folderId = int.tryParse(f.id);
+    final folderId = int.tryParse(_effectiveFolderId);
     if (folderId == null) return;
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
@@ -1559,18 +1695,34 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     });
   }
 
+  // Link row menu mirrors AyuGram's: Copy, Share, Get QR Code, Name Link (rename),
+  // Delete (edit_filter_links.cpp:611-630).
   void _showLinkContextMenu(BuildContext context, ChatlistInviteLink link, Offset position) {
     final isDark = widget.isDark;
     final menuBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final menuText = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final deleteColor = isDark ? const Color(0xFFE53935) : const Color(0xFFE53935);
+    const deleteColor = Color(0xFFE53935);
+    PopupMenuItem<String> item(String value, String label, IconData icon, Color color) =>
+        PopupMenuItem(
+          value: value,
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 12),
+              Text(label, style: TextStyle(color: color, fontSize: 14)),
+            ],
+          ),
+        );
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
       color: menuBg,
       items: [
-        PopupMenuItem(value: 'copy', child: Text('Copy Link', style: TextStyle(color: menuText, fontSize: 14))),
-        PopupMenuItem(value: 'delete', child: Text('Delete Link', style: TextStyle(color: deleteColor, fontSize: 14))),
+        item('copy', 'Copy', Icons.copy, menuText),
+        item('share', 'Share', Icons.share, menuText),
+        item('qr', 'Get QR Code', Icons.qr_code, menuText),
+        item('rename', 'Name Link', Icons.edit_outlined, menuText),
+        item('delete', 'Delete', Icons.delete_outline, deleteColor),
       ],
     ).then((action) {
       if (!mounted || action == null) return;
@@ -1578,9 +1730,160 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
         case 'copy':
           Clipboard.setData(ClipboardData(text: link.url));
           showTelegramToast(context, 'Link copied');
+        case 'share':
+          Share.share(link.url);
+        case 'qr':
+          _showLinkQr(link);
+        case 'rename':
+          _renameInviteLink(link);
         case 'delete':
           _deleteInviteLink(link);
       }
+    });
+  }
+
+  void _showLinkQr(ChatlistInviteLink link) {
+    final isDark = widget.isDark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = widget.accentColor;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Invite Link',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: QrImageView(
+                  data: link.url,
+                  version: QrVersions.auto,
+                  size: 216,
+                  backgroundColor: Colors.white,
+                  eyeStyle: const QrEyeStyle(
+                    eyeShape: QrEyeShape.square,
+                    color: Color(0xFF000000),
+                  ),
+                  dataModuleStyle: const QrDataModuleStyle(
+                    dataModuleShape: QrDataModuleShape.square,
+                    color: Color(0xFF000000),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Everyone on Telegram can scan this code to add the folder.',
+                style: TextStyle(fontSize: 13, color: subtextColor),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 38,
+                child: TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text('OK', style: TextStyle(color: accentColor, fontSize: 14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // "Name Link" — set a custom title for an invite link (lng_filters_link_name_it,
+  // edit_filter_links.cpp:623-626). Persists via editFolderInviteLink's title.
+  void _renameInviteLink(ChatlistInviteLink link) {
+    final folderId = int.tryParse(_effectiveFolderId);
+    if (folderId == null) return;
+    final controller = TextEditingController(text: link.title);
+    final isDark = widget.isDark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final inputBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
+    showDialog<String>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 20, 22, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Name Link',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(fontSize: 14, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'Link name',
+                  hintStyle: TextStyle(color: subtextColor),
+                  filled: true,
+                  fillColor: inputBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: Text('Cancel', style: TextStyle(color: subtextColor, fontSize: 14)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+                    style: TextButton.styleFrom(
+                      backgroundColor: widget.accentColor,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    child: const Text('Save',
+                        style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).then((title) {
+      if (title == null || !mounted) return;
+      final engine = context.read<EngineService>();
+      final accountId = context.read<AppState>().activeAccount?.id ?? '';
+      if (accountId.isEmpty) return;
+      engine.editFolderInviteLink(accountId, folderId, link.slug, link.peerIds, title: title)
+          .then((updated) {
+        if (updated != null && mounted) {
+          setState(() {
+            final idx = _inviteLinks.indexWhere((l) => l.slug == updated.slug);
+            if (idx >= 0) _inviteLinks[idx] = updated;
+          });
+        }
+      });
     });
   }
 
@@ -1638,7 +1941,6 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   }
 
   void _openIncludeTypePicker() {
-    final isChatList = widget.existingFolder?.isChatList ?? false;
     final appState = context.read<AppState>();
     final accountId = appState.activeAccount?.id ?? '';
     final allChats = context.read<ChatState>().chatsForAccount(accountId);
@@ -1648,9 +1950,6 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       builder: (ctx) => _IncludeTypePicker(
         isDark: widget.isDark,
         accentColor: widget.accentColor,
-        isChatList: isChatList,
-        newChats: _newChats,
-        existingChats: _existingChats,
         contacts: _contacts,
         nonContacts: _nonContacts,
         groups: _groups,
@@ -1662,8 +1961,6 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     ).then((result) {
       if (result != null && mounted) {
         setState(() {
-          _newChats = result['newChats'] as bool? ?? _newChats;
-          _existingChats = result['existingChats'] as bool? ?? _existingChats;
           _contacts = result['contacts'] as bool? ?? _contacts;
           _nonContacts = result['nonContacts'] as bool? ?? _nonContacts;
           _groups = result['groups'] as bool? ?? _groups;
@@ -1679,8 +1976,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   void _onSave() {
     final name = _nameController.text.trim();
     final hasIncludeTypes =
-        _contacts || _nonContacts || _groups || _channels || _bots ||
-        _newChats || _existingChats;
+        _contacts || _nonContacts || _groups || _channels || _bots;
     final hasIncludeChats = _includedChatIds.isNotEmpty;
 
     if (name.isEmpty || name.characters.length > 12) {
@@ -1732,7 +2028,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
         ? (_kFilterIconEmoji[_selectedIconName] ?? '')
         : '';
     Navigator.of(context).pop(FolderInfo(
-      id: existing?.id ?? '',
+      id: existing?.id ?? _createdFolderId ?? '',
       name: name,
       chatIds: _includedChatIds,
       excludeChatIds: _excludedChatIds,
@@ -1742,8 +2038,6 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       groups: _groups,
       channels: _channels,
       bots: _bots,
-      newChats: _newChats,
-      existingChats: _existingChats,
       excludeMuted: _excludeMuted,
       excludeRead: _excludeRead,
       excludeArchived: _excludeArchived,
@@ -1868,6 +2162,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                                     child: _EmojiButton(
                                       isDark: widget.isDark,
                                       onEmojiSelected: _insertEmoji,
+                                      onCustomEmojiSelected: _insertCustomEmoji,
                                     ),
                                   ),
                                 ),
@@ -1897,7 +2192,10 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                                   ),
                                 ),
                               ),
-                            if (_nameController.text.isNotEmpty)
+                            // Only meaningful when the title contains custom-emoji
+                            // entities — plain text has nothing to animate
+                            // (edit_filter_box.cpp:560-563, setVisible on entities).
+                            if (_titleHasCustomEmoji)
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: Padding(
@@ -2020,20 +2318,21 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                           ),
                         );
                       }),
-                      if (widget.isEditMode) ...[
-                        const SizedBox(height: 16),
-                        _ShareableLinkSection(
-                          isDark: widget.isDark,
-                          accentColor: widget.accentColor,
-                          links: _inviteLinks,
-                          loading: _loadingLinks,
-                          hasExclusions: _hasExclusions,
-                          onCreateLink: _createInviteLink,
-                          onDeleteLink: _deleteInviteLink,
-                          onShowLink: _showLinkDetail,
-                          onShowContextMenu: _showLinkContextMenu,
-                        ),
-                      ],
+                      // AyuGram shows the "Share Folder" section unconditionally —
+                      // creating a link during new-folder creation saves-then-exports
+                      // (edit_filter_box.cpp:849-876).
+                      const SizedBox(height: 16),
+                      _ShareableLinkSection(
+                        isDark: widget.isDark,
+                        accentColor: widget.accentColor,
+                        links: _inviteLinks,
+                        loading: _loadingLinks,
+                        hasExclusions: _hasExclusions,
+                        onCreateLink: _createInviteLink,
+                        onDeleteLink: _deleteInviteLink,
+                        onShowLink: _showLinkDetail,
+                        onShowContextMenu: _showLinkContextMenu,
+                      ),
                     ],
                   ),
                 ),
@@ -2126,7 +2425,7 @@ class _TagColorSection extends StatelessWidget {
           child: Row(
             children: [
               Text(
-                'Tag Color',
+                'Folder color in chat list',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -2473,7 +2772,7 @@ class _ShareLinkButton extends StatelessWidget {
               ),
               const SizedBox(width: 15),
               Text(
-                hasLinks ? 'Add Link' : 'Create Link',
+                hasLinks ? 'Create a New Link' : 'Create an Invite Link',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -3108,7 +3407,6 @@ class _FilterIconToggleState extends State<_FilterIconToggle> {
     final hoverColor = widget.isDark
         ? const Color(0xFF4E647A)
         : const Color(0xFFAAAAAA);
-    final emoji = _kFilterIconEmoji[widget.iconName] ?? '\u{1F4C1}';
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -3121,9 +3419,11 @@ class _FilterIconToggleState extends State<_FilterIconToggle> {
           width: 36,
           height: 36,
           child: Center(
-            child: Opacity(
-              opacity: _hovering ? 0.8 : 0.5,
-              child: Text(emoji, style: const TextStyle(fontSize: 20)),
+            // Monochrome filter vector icon, like AyuGram's in-field toggle.
+            child: Icon(
+              _filterIconData(widget.iconName),
+              size: 22,
+              color: _hovering ? hoverColor : mutedColor,
             ),
           ),
         ),
@@ -3135,10 +3435,12 @@ class _FilterIconToggleState extends State<_FilterIconToggle> {
 class _EmojiButton extends StatefulWidget {
   final bool isDark;
   final ValueChanged<String> onEmojiSelected;
+  final void Function(int documentId, String altText) onCustomEmojiSelected;
 
   const _EmojiButton({
     required this.isDark,
     required this.onEmojiSelected,
+    required this.onCustomEmojiSelected,
   });
 
   @override
@@ -3148,25 +3450,36 @@ class _EmojiButton extends StatefulWidget {
 class _EmojiButtonState extends State<_EmojiButton> {
   bool _hovering = false;
 
-  static const _commonEmoji = [
-    '\u{1F4AC}', '\u{2B50}', '\u{1F4E2}', '\u{1F3AE}', '\u{1F4DA}',
-    '\u{1F3A8}', '\u{2708}', '\u{1F3C6}', '\u{1F4BC}', '\u{1F3E0}',
-    '\u{2764}', '\u{1F451}', '\u{1F338}', '\u{1F389}', '\u{1F4B0}',
-    '\u{1F431}', '\u{1F436}', '\u{1F525}', '\u{2705}', '\u{1F4CC}',
-    '\u{1F512}', '\u{1F514}', '\u{1F4A1}', '\u{1F4DD}', '\u{1F30D}',
-    '\u{1F3B5}', '\u{1F4F7}', '\u{1F4E6}', '\u{26A1}', '\u{1F680}',
-  ];
+  static const double _kPanelWidth = 345.0;
 
+  // Full emoji selector (all emoji + animated custom emoji), matching AyuGram's
+  // TabbedPanel EmojiOnly selector (edit_filter_box.cpp:495-534) — replaces the
+  // old hardcoded 30-emoji grid. The panel stays open for multiple picks and is
+  // dismissed by tapping outside or via onHide.
   void _showEmojiPicker() {
     final box = context.findRenderObject() as RenderBox?;
     if (box == null) return;
     final offset = box.localToGlobal(Offset.zero);
-    final bgColor = widget.isDark ? const Color(0xFF17212B) : Colors.white;
-    final headerColor = widget.isDark
-        ? const Color(0xFF6C7883)
-        : const Color(0xFF999999);
+    final size = box.size;
+    final screen = MediaQuery.of(context).size;
 
-    showDialog<String>(
+    // Anchor the panel's right edge near the button, clamped on-screen.
+    var left = offset.dx + size.width - _kPanelWidth;
+    if (left < 8) left = 8;
+    if (left + _kPanelWidth > screen.width - 8) left = screen.width - _kPanelWidth - 8;
+    final panelH = (0.75 * screen.height).clamp(278.0, 640.0) + 20.0;
+    var top = offset.dy + size.height + 4;
+    if (top + panelH > screen.height - 8) {
+      top = (offset.dy - panelH - 4).clamp(8.0, screen.height - panelH - 8);
+    }
+
+    // Re-inject the providers the panel relies on (same pattern as the contacts
+    // name-field emoji picker): they live above MaterialApp but we forward them
+    // explicitly so the panel resolves them inside the dialog route.
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+
+    showDialog<void>(
       context: context,
       barrierColor: Colors.transparent,
       builder: (ctx) => Stack(
@@ -3178,65 +3491,26 @@ class _EmojiButtonState extends State<_EmojiButton> {
             ),
           ),
           Positioned(
-            left: offset.dx - 200,
-            top: offset.dy + 30,
-            child: Material(
-              elevation: 4,
-              borderRadius: BorderRadius.circular(12),
-              color: bgColor,
-              child: SizedBox(
-                width: 244,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 14, 0, 6),
-                        child: Text(
-                          'Emoji',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: headerColor,
-                          ),
-                        ),
-                      ),
-                      Wrap(
-                        children: [
-                          for (final emoji in _commonEmoji)
-                            GestureDetector(
-                              onTap: () => Navigator.of(ctx).pop(emoji),
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: SizedBox(
-                                  width: 36,
-                                  height: 36,
-                                  child: Center(
-                                    child: Text(
-                                      emoji,
-                                      style: const TextStyle(fontSize: 20),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+            left: left,
+            top: top,
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<AppState>.value(value: appState),
+                Provider<EngineService>.value(value: engine),
+              ],
+              child: EmojiTabbedPanel(
+                visible: true,
+                emojiOnly: true,
+                suppressStickerSets: true,
+                onHide: () => Navigator.of(ctx).maybePop(),
+                onEmojiSelected: widget.onEmojiSelected,
+                onCustomEmojiSelected: widget.onCustomEmojiSelected,
               ),
             ),
           ),
         ],
       ),
-    ).then((emoji) {
-      if (emoji != null) {
-        widget.onEmojiSelected(emoji);
-      }
-    });
+    );
   }
 
   @override
@@ -3426,7 +3700,11 @@ class _IconCellState extends State<_IconCell> {
     final activeBg = widget.isDark
         ? const Color(0xFF2B5278)
         : const Color(0xFFE3F0FA);
-    final emoji = _kFilterIconEmoji[widget.iconName] ?? '\u{1F4C1}';
+    // Monochrome vector icon (AyuGram's filter icons), highlighted by accent when
+    // selected so it agrees with the in-field toggle and the folder rows.
+    final iconColor = widget.isSelected
+        ? (widget.isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD))
+        : (widget.isDark ? const Color(0xFFAAB6C0) : const Color(0xFF707579));
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -3446,11 +3724,10 @@ class _IconCellState extends State<_IconCell> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Center(
-            child: Text(
-              emoji,
-              style: const TextStyle(
-                fontSize: 22,
-              ),
+            child: Icon(
+              _filterIconData(widget.iconName),
+              size: 22,
+              color: iconColor,
             ),
           ),
         ),
@@ -3608,7 +3885,8 @@ class _RemoveChatsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hoverColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-    final label = selectedCount > 0 ? 'Remove Chats ($selectedCount)' : 'Remove Chats';
+    // lng_filters_remove_chats — the exclude-section button (edit_filter_box.cpp:620).
+    final label = selectedCount > 0 ? 'Add Chats to Exclude ($selectedCount)' : 'Add Chats to Exclude';
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -3771,9 +4049,6 @@ class _PreviewRowState extends State<_PreviewRow> {
 class _IncludeTypePicker extends StatefulWidget {
   final bool isDark;
   final Color accentColor;
-  final bool isChatList;
-  final bool newChats;
-  final bool existingChats;
   final bool contacts;
   final bool nonContacts;
   final bool groups;
@@ -3785,9 +4060,6 @@ class _IncludeTypePicker extends StatefulWidget {
   const _IncludeTypePicker({
     required this.isDark,
     required this.accentColor,
-    required this.isChatList,
-    required this.newChats,
-    required this.existingChats,
     required this.contacts,
     required this.nonContacts,
     required this.groups,
@@ -3802,8 +4074,6 @@ class _IncludeTypePicker extends StatefulWidget {
 }
 
 class _IncludeTypePickerState extends State<_IncludeTypePicker> {
-  late bool _newChats;
-  late bool _existingChats;
   late bool _contacts;
   late bool _nonContacts;
   late bool _groups;
@@ -3816,8 +4086,6 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
   @override
   void initState() {
     super.initState();
-    _newChats = widget.newChats;
-    _existingChats = widget.existingChats;
     _contacts = widget.contacts;
     _nonContacts = widget.nonContacts;
     _groups = widget.groups;
@@ -3849,10 +4117,6 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
         padding: const EdgeInsets.symmetric(horizontal: 22),
         child: Text('Chat types', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: searchBarFg)),
       ));
-      if (widget.isChatList) {
-        typeRows.add(_TypeToggleRow(label: 'New Chats', icon: Icons.fiber_new, color: const Color(0xFF7bc862), value: _newChats, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _newChats = v)));
-        typeRows.add(_TypeToggleRow(label: 'Existing Chats', icon: Icons.chat_bubble, color: const Color(0xFF40a7e3), value: _existingChats, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _existingChats = v)));
-      }
       typeRows.add(_TypeToggleRow(label: 'Contacts', icon: Icons.person, color: const Color(0xFF7bc862), value: _contacts, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _contacts = v)));
       typeRows.add(_TypeToggleRow(label: 'Non-Contacts', icon: Icons.person_outline, color: const Color(0xFF6ec9cb), value: _nonContacts, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _nonContacts = v)));
       typeRows.add(_TypeToggleRow(label: 'Groups', icon: Icons.group, color: const Color(0xFF7bc862), value: _groups, isDark: widget.isDark, textColor: textColor, onChanged: (v) => setState(() => _groups = v)));
@@ -3980,8 +4244,6 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
                     const SizedBox(width: 8),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(<String, dynamic>{
-                        'newChats': _newChats,
-                        'existingChats': _existingChats,
                         'contacts': _contacts,
                         'nonContacts': _nonContacts,
                         'groups': _groups,

@@ -11324,6 +11324,135 @@ func (t *TelegramCore) CreateFolderWithFlags(name string, chatIDs []string, cont
 	}, nil
 }
 
+// UpdateDialogFilterFull creates or edits a chat folder with the COMPLETE filter
+// definition, mirroring AyuGram's collect()+save() (edit_filter_box.cpp:821-1003):
+// it serializes the full ChatFilter — include/exclude peers + every type/exclude
+// flag + tag color + emoticon + static title — and sends it verbatim via
+// messages.updateDialogFilter. filterID <= 0 creates a new filter (fresh id); any
+// other id overwrites the existing one (edit). isChatList preserves a shared
+// (chatlist) folder's type via DialogFilterChatlist (which has no exclude/type
+// rules — only an explicit include list + color + emoticon). colorIndex < 0 (or
+// > 6) means "no tag color".
+func (t *TelegramCore) UpdateDialogFilterFull(
+	filterID int,
+	isChatList bool,
+	name string,
+	includeIDs, excludeIDs, pinnedIDs []string,
+	contacts, nonContacts, groups, channels, bots bool,
+	excludeMuted, excludeRead, excludeArchived bool,
+	colorIndex int,
+	emoticon string,
+	staticTitle bool,
+) (*Folder, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	resolve := func(ids []string) []tg.InputPeerClass {
+		peers := make([]tg.InputPeerClass, 0, len(ids))
+		for _, cid := range ids {
+			peer, err := t.resolvePeer(cid)
+			if err != nil {
+				continue
+			}
+			inputPeer, err := t.toInputPeer(peer)
+			if err != nil {
+				continue
+			}
+			peers = append(peers, inputPeer)
+		}
+		return peers
+	}
+	includePeers := resolve(includeIDs)
+	excludePeers := resolve(excludeIDs)
+	pinnedPeers := resolve(pinnedIDs)
+	if pinnedPeers == nil {
+		pinnedPeers = []tg.InputPeerClass{}
+	}
+
+	if filterID <= 0 {
+		filterID = int(time.Now().Unix()%200) + 20
+	}
+
+	// Telegram folder titles are max 12 UTF-8 chars.
+	titleRunes := []rune(name)
+	if len(titleRunes) > 12 {
+		titleRunes = titleRunes[:12]
+	}
+	title := tg.TextWithEntities{Text: string(titleRunes), Entities: []tg.MessageEntityClass{}}
+
+	var filter tg.DialogFilterClass
+	if isChatList {
+		f := &tg.DialogFilterChatlist{
+			ID:           filterID,
+			Title:        title,
+			Emoticon:     emoticon,
+			IncludePeers: includePeers,
+			PinnedPeers:  pinnedPeers,
+		}
+		if colorIndex >= 0 && colorIndex <= 6 {
+			f.SetColor(colorIndex)
+		}
+		if staticTitle {
+			f.SetTitleNoanimate(true)
+		}
+		f.SetFlags()
+		filter = f
+	} else {
+		f := &tg.DialogFilter{
+			ID:              filterID,
+			Title:           title,
+			Contacts:        contacts,
+			NonContacts:     nonContacts,
+			Groups:          groups,
+			Broadcasts:      channels,
+			Bots:            bots,
+			ExcludeMuted:    excludeMuted,
+			ExcludeRead:     excludeRead,
+			ExcludeArchived: excludeArchived,
+			Emoticon:        emoticon,
+			IncludePeers:    includePeers,
+			ExcludePeers:    excludePeers,
+			PinnedPeers:     pinnedPeers,
+		}
+		if colorIndex >= 0 && colorIndex <= 6 {
+			f.SetColor(colorIndex)
+		}
+		if staticTitle {
+			f.SetTitleNoanimate(true)
+		}
+		f.SetFlags()
+		filter = f
+	}
+
+	if _, err := t.api.MessagesUpdateDialogFilter(t.ctx, &tg.MessagesUpdateDialogFilterRequest{
+		ID:     filterID,
+		Filter: filter,
+	}); err != nil {
+		return nil, fmt.Errorf("save folder: %w", err)
+	}
+
+	return &Folder{
+		ID:              strconv.Itoa(filterID),
+		Name:            name,
+		ChatIDs:         includeIDs,
+		ExcludeChatIDs:  excludeIDs,
+		PinnedChatIDs:   pinnedIDs,
+		Contacts:        contacts,
+		NonContacts:     nonContacts,
+		Groups:          groups,
+		Channels:        channels,
+		Bots:            bots,
+		ExcludeMuted:    excludeMuted,
+		ExcludeRead:     excludeRead,
+		ExcludeArchived: excludeArchived,
+		IsChatList:      isChatList,
+		Emoticon:        emoticon,
+	}, nil
+}
+
 // OnUpdate registers a callback to receive real-time updates from Telegram.
 func (t *TelegramCore) OnUpdate(handler func(Update)) {
 	t.updateMu.Lock()
@@ -23576,8 +23705,10 @@ func (t *TelegramCore) GetFolderInviteLinks(folderID int) ([]ChatlistInviteLink,
 	return links, nil
 }
 
-// EditChatlistInvite modifies which peers are included in a chatlist invite link.
-func (t *TelegramCore) EditChatlistInvite(folderID int, slug string, peerIDs []string) (ChatlistInviteLink, error) {
+// EditChatlistInvite modifies the peers and/or custom title of a chatlist invite
+// link. A non-empty title renames the link (chatlists.editExportedInvite f_title),
+// matching AyuGram's "Name Link" action (edit_filter_links.cpp:623-626).
+func (t *TelegramCore) EditChatlistInvite(folderID int, slug string, peerIDs []string, title string) (ChatlistInviteLink, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ChatlistInviteLink{}, ErrAuth }
 	var peers []tg.InputPeerClass
@@ -23587,11 +23718,15 @@ func (t *TelegramCore) EditChatlistInvite(folderID int, slug string, peerIDs []s
 		ip, _ := t.toInputPeer(peer)
 		peers = append(peers, ip)
 	}
-	result, err := t.api.ChatlistsEditExportedInvite(t.ctx, &tg.ChatlistsEditExportedInviteRequest{
+	req := &tg.ChatlistsEditExportedInviteRequest{
 		Chatlist: tg.InputChatlistDialogFilter{FilterID: folderID},
 		Slug:     slug,
 		Peers:    peers,
-	})
+	}
+	if title != "" {
+		req.SetTitle(title)
+	}
+	result, err := t.api.ChatlistsEditExportedInvite(t.ctx, req)
 	if err != nil { return ChatlistInviteLink{}, err }
 	outPeerIDs := make([]string, 0, len(result.Peers))
 	for _, p := range result.Peers {

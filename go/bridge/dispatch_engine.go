@@ -1496,26 +1496,90 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "CreateFolder":
 		var params struct {
-			AccountID   string   `json:"account_id"`
-			Name        string   `json:"name"`
-			ChatIDs     []string `json:"chat_ids"`
-			Contacts    bool     `json:"contacts"`
-			NonContacts bool     `json:"non_contacts"`
-			Groups      bool     `json:"groups"`
-			Channels    bool     `json:"channels"`
-			Bots        bool     `json:"bots"`
+			AccountID       string   `json:"account_id"`
+			Name            string   `json:"name"`
+			ChatIDs         []string `json:"chat_ids"`
+			Contacts        bool     `json:"contacts"`
+			NonContacts     bool     `json:"non_contacts"`
+			Groups          bool     `json:"groups"`
+			Channels        bool     `json:"channels"`
+			Bots            bool     `json:"bots"`
+			ExcludeMuted    bool     `json:"exclude_muted"`
+			ExcludeRead     bool     `json:"exclude_read"`
+			ExcludeArchived bool     `json:"exclude_archived"`
+			ExcludeChatIDs  []string `json:"exclude_chat_ids"`
+			PinnedChatIDs   []string `json:"pinned_chat_ids"`
+			ColorIndex      int      `json:"color_index"`
+			Emoticon        string   `json:"emoticon"`
+			StaticTitle     bool     `json:"static_title"`
 		}
+		params.ColorIndex = -1
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
 		opts := &engine.CreateFolderOpts{
-			Contacts:    params.Contacts,
-			NonContacts: params.NonContacts,
-			Groups:      params.Groups,
-			Channels:    params.Channels,
-			Bots:        params.Bots,
+			Contacts:        params.Contacts,
+			NonContacts:     params.NonContacts,
+			Groups:          params.Groups,
+			Channels:        params.Channels,
+			Bots:            params.Bots,
+			ExcludeMuted:    params.ExcludeMuted,
+			ExcludeRead:     params.ExcludeRead,
+			ExcludeArchived: params.ExcludeArchived,
+			ExcludeChatIDs:  params.ExcludeChatIDs,
+			PinnedChatIDs:   params.PinnedChatIDs,
+			ColorIndex:      params.ColorIndex,
+			Emoticon:        params.Emoticon,
+			StaticTitle:     params.StaticTitle,
 		}
 		fi, err := e.CreateFolder(params.AccountID, params.Name, params.ChatIDs, opts)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(fi)
+
+	case "EditFolder":
+		var params struct {
+			AccountID       string   `json:"account_id"`
+			FolderID        string   `json:"folder_id"`
+			Name            string   `json:"name"`
+			ChatIDs         []string `json:"chat_ids"`
+			Contacts        bool     `json:"contacts"`
+			NonContacts     bool     `json:"non_contacts"`
+			Groups          bool     `json:"groups"`
+			Channels        bool     `json:"channels"`
+			Bots            bool     `json:"bots"`
+			ExcludeMuted    bool     `json:"exclude_muted"`
+			ExcludeRead     bool     `json:"exclude_read"`
+			ExcludeArchived bool     `json:"exclude_archived"`
+			ExcludeChatIDs  []string `json:"exclude_chat_ids"`
+			PinnedChatIDs   []string `json:"pinned_chat_ids"`
+			IsChatList      bool     `json:"is_chat_list"`
+			ColorIndex      int      `json:"color_index"`
+			Emoticon        string   `json:"emoticon"`
+			StaticTitle     bool     `json:"static_title"`
+		}
+		params.ColorIndex = -1
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		opts := &engine.CreateFolderOpts{
+			Contacts:        params.Contacts,
+			NonContacts:     params.NonContacts,
+			Groups:          params.Groups,
+			Channels:        params.Channels,
+			Bots:            params.Bots,
+			ExcludeMuted:    params.ExcludeMuted,
+			ExcludeRead:     params.ExcludeRead,
+			ExcludeArchived: params.ExcludeArchived,
+			ExcludeChatIDs:  params.ExcludeChatIDs,
+			PinnedChatIDs:   params.PinnedChatIDs,
+			IsChatList:      params.IsChatList,
+			ColorIndex:      params.ColorIndex,
+			Emoticon:        params.Emoticon,
+			StaticTitle:     params.StaticTitle,
+		}
+		fi, err := e.EditFolder(params.AccountID, params.FolderID, params.Name, params.ChatIDs, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -1582,11 +1646,12 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			FolderID  int      `json:"folder_id"`
 			Slug      string   `json:"slug"`
 			PeerIDs   []string `json:"peer_ids"`
+			Title     string   `json:"title"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		link, err := e.EditFolderInviteLink(params.AccountID, params.FolderID, params.Slug, params.PeerIDs)
+		link, err := e.EditFolderInviteLink(params.AccountID, params.FolderID, params.Slug, params.PeerIDs, params.Title)
 		if err != nil {
 			return nil, err
 		}
