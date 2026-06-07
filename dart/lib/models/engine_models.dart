@@ -3284,7 +3284,14 @@ class CustomEmojiThumbData {
 class CustomEmojiFileData {
   final String mimeType;
   final Uint8List fileData;
-  const CustomEmojiFileData({required this.mimeType, required this.fileData});
+  /// Monochrome ("text-color") emoji — the renderer must tint every frame to the
+  /// row/name color (AyuGram: `DocumentData::emojiUsesTextColor()`).
+  final bool usesTextColor;
+  const CustomEmojiFileData({
+    required this.mimeType,
+    required this.fileData,
+    this.usesTextColor = false,
+  });
 
   bool get isTgs => mimeType == 'application/x-tgsticker';
   bool get isWebm => mimeType == 'video/webm';

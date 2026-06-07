@@ -1664,6 +1664,7 @@ class EngineService {
         for (final f in resp.files) f.documentId.toInt(): CustomEmojiFileData(
           mimeType: f.mimeType,
           fileData: Uint8List.fromList(f.fileData),
+          usesTextColor: f.usesTextColor,
         ),
       };
     } catch (e) {

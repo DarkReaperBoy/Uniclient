@@ -3268,9 +3268,10 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		resp := &pb.EngineGetCustomEmojiFilesResponse{}
 		for _, f := range files {
 			resp.Files = append(resp.Files, &pb.EngineCustomEmojiFile{
-				DocumentId: f.DocumentID,
-				MimeType:   f.MimeType,
-				FileData:   f.FileData,
+				DocumentId:    f.DocumentID,
+				MimeType:      f.MimeType,
+				FileData:      f.FileData,
+				UsesTextColor: f.UsesTextColor,
 			})
 		}
 		return proto.Marshal(resp)

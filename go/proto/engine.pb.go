@@ -13698,6 +13698,7 @@ type EngineCustomEmojiFile struct {
 	DocumentId    int64                  `protobuf:"varint,1,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
 	MimeType      string                 `protobuf:"bytes,2,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"` // application/x-tgsticker, video/webm, image/webp
 	FileData      []byte                 `protobuf:"bytes,3,opt,name=file_data,json=fileData,proto3" json:"file_data,omitempty"`
+	UsesTextColor bool                   `protobuf:"varint,4,opt,name=uses_text_color,json=usesTextColor,proto3" json:"uses_text_color,omitempty"` // monochrome ("text-color") emoji — tint to row/name color
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -13751,6 +13752,13 @@ func (x *EngineCustomEmojiFile) GetFileData() []byte {
 		return x.FileData
 	}
 	return nil
+}
+
+func (x *EngineCustomEmojiFile) GetUsesTextColor() bool {
+	if x != nil {
+		return x.UsesTextColor
+	}
+	return false
 }
 
 type EngineGetCustomEmojiFilesResponse struct {
@@ -15955,12 +15963,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	" EngineGetCustomEmojiFilesRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
-	"\fdocument_ids\x18\x02 \x03(\x03R\vdocumentIds\"r\n" +
+	"\fdocument_ids\x18\x02 \x03(\x03R\vdocumentIds\"\x9a\x01\n" +
 	"\x15EngineCustomEmojiFile\x12\x1f\n" +
 	"\vdocument_id\x18\x01 \x01(\x03R\n" +
 	"documentId\x12\x1b\n" +
 	"\tmime_type\x18\x02 \x01(\tR\bmimeType\x12\x1b\n" +
-	"\tfile_data\x18\x03 \x01(\fR\bfileData\"[\n" +
+	"\tfile_data\x18\x03 \x01(\fR\bfileData\x12&\n" +
+	"\x0fuses_text_color\x18\x04 \x01(\bR\rusesTextColor\"[\n" +
 	"!EngineGetCustomEmojiFilesResponse\x126\n" +
 	"\x05files\x18\x01 \x03(\v2 .uniclient.EngineCustomEmojiFileR\x05files\"`\n" +
 	"\x1cEngineGetStickerFilesRequest\x12\x1d\n" +

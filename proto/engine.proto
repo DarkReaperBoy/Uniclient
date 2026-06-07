@@ -1616,6 +1616,7 @@ message EngineCustomEmojiFile {
   int64  document_id = 1;
   string mime_type   = 2; // application/x-tgsticker, video/webm, image/webp
   bytes  file_data   = 3;
+  bool   uses_text_color = 4; // monochrome ("text-color") emoji — tint to row/name color
 }
 
 message EngineGetCustomEmojiFilesResponse {

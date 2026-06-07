@@ -18067,6 +18067,7 @@ class EngineCustomEmojiFile extends $pb.GeneratedMessage {
     $fixnum.Int64? documentId,
     $core.String? mimeType,
     $core.List<$core.int>? fileData,
+    $core.bool? usesTextColor,
   }) {
     final $result = create();
     if (documentId != null) {
@@ -18078,6 +18079,9 @@ class EngineCustomEmojiFile extends $pb.GeneratedMessage {
     if (fileData != null) {
       $result.fileData = fileData;
     }
+    if (usesTextColor != null) {
+      $result.usesTextColor = usesTextColor;
+    }
     return $result;
   }
   EngineCustomEmojiFile._() : super();
@@ -18088,6 +18092,7 @@ class EngineCustomEmojiFile extends $pb.GeneratedMessage {
     ..aInt64(1, _omitFieldNames ? '' : 'documentId')
     ..aOS(2, _omitFieldNames ? '' : 'mimeType')
     ..a<$core.List<$core.int>>(3, _omitFieldNames ? '' : 'fileData', $pb.PbFieldType.OY)
+    ..aOB(4, _omitFieldNames ? '' : 'usesTextColor')
     ..hasRequiredFields = false
   ;
 
@@ -18138,6 +18143,15 @@ class EngineCustomEmojiFile extends $pb.GeneratedMessage {
   $core.bool hasFileData() => $_has(2);
   @$pb.TagNumber(3)
   void clearFileData() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.bool get usesTextColor => $_getBF(3);
+  @$pb.TagNumber(4)
+  set usesTextColor($core.bool v) { $_setBool(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasUsesTextColor() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearUsesTextColor() => clearField(4);
 }
 
 class EngineGetCustomEmojiFilesResponse extends $pb.GeneratedMessage {

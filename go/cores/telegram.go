@@ -15531,10 +15531,20 @@ func (t *TelegramCore) GetCustomEmojiFiles(documentIDs []int64) ([]CustomEmojiFi
 		if err != nil || len(buf) == 0 {
 			continue
 		}
+		// Monochrome ("text-color") custom emoji carry the text_color flag on their
+		// DocumentAttributeCustomEmoji; the UI tints these to the row/name color.
+		usesTextColor := false
+		for _, attr := range d.Attributes {
+			if ce, ok := attr.(*tg.DocumentAttributeCustomEmoji); ok {
+				usesTextColor = ce.TextColor
+				break
+			}
+		}
 		result = append(result, CustomEmojiFile{
-			DocumentID: d.ID,
-			MimeType:   d.MimeType,
-			FileData:   buf,
+			DocumentID:    d.ID,
+			MimeType:      d.MimeType,
+			FileData:      buf,
+			UsesTextColor: usesTextColor,
 		})
 	}
 	return result, nil

@@ -6025,6 +6025,11 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
                           generalContext: widget.isActive
                               ? GeneralIconContext.active
                               : GeneralIconContext.normal,
+                          // Monochrome custom icons tint to the row name color
+                          // (AyuGram: dialogsNameFg*), matching the General icon.
+                          customIconColor: widget.isActive
+                              ? palette.dialogsNameFgActive
+                              : palette.dialogsNameFg,
                         ),
                       ),
                       Positioned(

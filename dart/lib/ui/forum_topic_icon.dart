@@ -23,6 +23,9 @@ class TopicIconPalette {
   final double fillY2Frac;
   final double strokeY1Frac;
   final double strokeY2Frac;
+  /// `false` → blue/gray bubble geometry (`blue.svg`/`gray.svg`, stroke 2.94736842).
+  /// `true` → the yellow/violet/green/rose/red bubble geometry (stroke 2.84210526).
+  final bool altBubble;
   const TopicIconPalette({
     required this.fillTop,
     required this.fillBottom,
@@ -33,6 +36,7 @@ class TopicIconPalette {
     this.fillY2Frac = 1.0,
     this.strokeY1Frac = 0.0,
     this.strokeY2Frac = 1.0,
+    this.altBubble = false,
   });
 }
 
@@ -50,6 +54,7 @@ const topicIconPalettes = <int, TopicIconPalette>{
     strokeTop: Color(0xFFF2A807), strokeBottom: Color(0xFFD93A00),
     highlight: Color(0xFFF9FF71),
     strokeY2Frac: 0.990141482,
+    altBubble: true,
   ),
   0xCB86DB: TopicIconPalette(
     fillTop: Color(0xFFE57AFF), fillBottom: Color(0xFFA438BB),
@@ -57,6 +62,7 @@ const topicIconPalettes = <int, TopicIconPalette>{
     highlight: Color(0xFFF5BDFF),
     fillY2Frac: 0.997635421,
     strokeY2Frac: 0.9939588,
+    altBubble: true,
   ),
   0x8EEE98: TopicIconPalette(
     fillTop: Color(0xFF97E334), fillBottom: Color(0xFF11B411),
@@ -64,6 +70,7 @@ const topicIconPalettes = <int, TopicIconPalette>{
     highlight: Color(0xFFC2FF71),
     fillY2Frac: 0.997635421,
     strokeY2Frac: 0.989250576,
+    altBubble: true,
   ),
   0xFF93B2: TopicIconPalette(
     fillTop: Color(0xFFFF7999), fillBottom: Color(0xFFE4215A),
@@ -72,12 +79,14 @@ const topicIconPalettes = <int, TopicIconPalette>{
     fillY1Frac: 0.0431422203,
     fillY2Frac: 0.996023762,
     strokeY2Frac: 0.964024371,
+    altBubble: true,
   ),
   0xFB6F5F: TopicIconPalette(
     fillTop: Color(0xFFFF714C), fillBottom: Color(0xFFC61505),
     strokeTop: Color(0xFFE12F1F), strokeBottom: Color(0xFFB40101),
     highlight: Color(0xFFFFB47D),
     strokeY2Frac: 0.986056043,
+    altBubble: true,
   ),
   0x9AABAB: TopicIconPalette(
     fillTop: Color(0xFFA5A5A5), fillBottom: Color(0xFF616161),
@@ -140,13 +149,38 @@ class ForumTopicIcon extends StatelessWidget {
 /// Spec §22.2.2: extract first non-emoji letter or digit from title.
 /// Handles non-BMP characters (CJK Extension B, historic scripts) via
 /// full Unicode codepoint checking, matching AyuGram's UCS-4 approach.
+///
+/// AyuGram (`ExtractNonEmojiLetter`) calls `Ui::Emoji::Find` first and skips any
+/// emoji sequence BEFORE testing `isLetterOrNumber`. We mirror that so keycap
+/// emoji (0️⃣–9️⃣) aren't mistaken for the bubble letter: a title like "1️⃣ Daily"
+/// must skip the keycap and render "D", not the digit inside the emoji.
 String extractTopicLetter(String title) {
   if (title.isEmpty) return '';
   final letterDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
   for (final char in title.characters) {
+    if (_isEmojiGrapheme(char)) continue;
     if (letterDigit.hasMatch(char)) return char;
   }
   return '';
+}
+
+/// Whether a grapheme cluster is (part of) an emoji sequence. Catches the cases
+/// AyuGram's `Ui::Emoji::Find` would — the only ones where a `\p{L}`/`\p{N}`
+/// codepoint becomes part of an emoji are keycaps (digit + U+FE0F? + U+20E3),
+/// but we skip the full emoji blocks too to match the "skip emoji first" intent.
+bool _isEmojiGrapheme(String grapheme) {
+  for (final r in grapheme.runes) {
+    if (r == 0xFE0F || r == 0x20E3 || r == 0x200D) return true; // VS16, keycap, ZWJ
+    if (r >= 0x1F1E6 && r <= 0x1F1FF) return true; // regional indicators (flags)
+    if (r >= 0x1F000 && r <= 0x1FAFF) return true; // SMP emoji blocks
+    if (r >= 0x2600 && r <= 0x27BF) return true; // misc symbols + dingbats
+    if (r >= 0x2B00 && r <= 0x2BFF) return true; // misc symbols & arrows
+    if (r >= 0x2300 && r <= 0x23FF) return true; // misc technical (⌚⏰⏩…)
+    if (r == 0x303D || r == 0x3030 || r == 0x00A9 || r == 0x00AE || r == 0x2122) {
+      return true; // 〽 〰 © ® ™
+    }
+  }
+  return false;
 }
 
 // --- SVG path data (84×84 viewBox) ---
@@ -171,6 +205,27 @@ const _bubblePathD =
     'C7.79678435,58.4429296 3.47368421,49.6037286 3.47368421,39.8304382 '
     'C3.47368421,30.0798831 7.77669379,21.2590526 14.713943,14.8715044 '
     'C21.6970539,8.44172846 31.3464884,4.47368421 42,4.47368421 Z';
+
+// Bubble geometry for yellow/violet/green/rose/red.svg — a slightly different
+// path (starts M42,4.42105263) paired with stroke-width 2.84210526.
+const _bubblePathAltD =
+    'M42,4.42105263 C52.6675181,4.42105263 62.3294728,8.39460913 '
+    '69.3217075,14.8327858 C76.2697184,21.230243 80.5789474,30.0648871 '
+    '80.5789474,39.8304382 C80.5789474,49.5959894 76.2697184,58.4306335 '
+    '69.3217075,64.8280906 C62.3294728,71.2662674 52.6675181,75.2398239 '
+    '42,75.2398239 C37.5210466,75.2398239 33.2197662,74.5394876 '
+    '29.2186919,73.2502137 C29.0098956,73.1829329 28.8013719,73.1138726 '
+    '28.5929684,73.0432995 C28.4083865,73.1602808 28.2206704,73.2783974 '
+    '28.0298198,73.3976517 C26.2065565,74.5369301 24.6020235,75.4646079 '
+    '23.2143446,76.1800123 C19.9826132,77.8461004 15.8972513,78.9467661 '
+    '10.9744394,79.5096334 L10.3380323,79.5793501 '
+    'C12.3422829,75.5502987 13.657562,72.8305079 14.1788292,71.2323391 '
+    'C14.7640488,69.4380965 15.0573738,67.6622454 15.1838316,66.0287479 '
+    'C15.2017691,65.7970433 15.21683,65.561992 15.2283048,65.3228731 '
+    'C15.0601712,65.1741519 14.8932645,65.0238038 14.727607,64.8718496 '
+    'C7.75040024,58.4718025 3.42105263,49.6187586 3.42105263,39.8304382 '
+    'C3.42105263,30.0648871 7.7302816,21.230243 14.6782925,14.8327858 '
+    'C21.6705272,8.39460913 31.3324819,4.42105263 42,4.42105263 Z';
 
 const _highlightPathD =
     'M9.68078613,24.6137047 C9.8721537,24.8136848 10.1894036,24.8206666 '
@@ -262,9 +317,11 @@ class _BubbleIconPainter extends CustomPainter {
   final double fontSize;
   final double textTop;
 
-  static Path? _rawBubble;
+  static Path? _rawBubbleMain;
+  static Path? _rawBubbleAlt;
   static Path? _rawHighlight;
-  static final _scaledPaths = <double, (Path, Path)>{};
+  static final _scaledBubbles = <(double, bool), Path>{};
+  static final _scaledHighlights = <double, Path>{};
   static final _textCache = <(String, double), TextPainter>{};
   static final _paintCache = <(double, TopicIconPalette), (Paint, Paint, Paint)>{};
 
@@ -278,18 +335,28 @@ class _BubbleIconPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    _rawBubble ??= _parseSvgPath(_bubblePathD);
+    _rawBubbleMain ??= _parseSvgPath(_bubblePathD);
+    _rawBubbleAlt ??= _parseSvgPath(_bubblePathAltD);
     _rawHighlight ??= _parseSvgPath(_highlightPathD);
 
     final s = targetSize / 84.0;
-    final (bubble, highlight) = _scaledPaths.putIfAbsent(s, () {
+    final bubble = _scaledBubbles.putIfAbsent((s, palette.altBubble), () {
       final mat = Float64List.fromList([
         s, 0, 0, 0,
         0, s, 0, 0,
         0, 0, 1, 0,
         0, 0, 0, 1,
       ]);
-      return (_rawBubble!.transform(mat), _rawHighlight!.transform(mat));
+      return (palette.altBubble ? _rawBubbleAlt! : _rawBubbleMain!).transform(mat);
+    });
+    final highlight = _scaledHighlights.putIfAbsent(s, () {
+      final mat = Float64List.fromList([
+        s, 0, 0, 0,
+        0, s, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+      ]);
+      return _rawHighlight!.transform(mat);
     });
 
     final (fillPaint, strokePaint, highlightPaint) =
@@ -308,7 +375,7 @@ class _BubbleIconPainter extends CustomPainter {
               [palette.strokeTop, palette.strokeBottom],
             )
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.94736842 * s,
+            ..strokeWidth = (palette.altBubble ? 2.84210526 : 2.94736842) * s,
           Paint()
             ..color = palette.highlight.withValues(alpha: 0.375)
             ..style = PaintingStyle.fill,
@@ -383,8 +450,11 @@ class GeneralForumTopicIcon extends StatelessWidget {
       isDark ? const Color(0xFF91A3B5) : const Color(0xFF919191),
     GeneralIconContext.active =>
       const Color(0xFFFFFFFF),
+    // Profile cover + edit-topic preview colorize the General icon with
+    // st::windowSubTextFg (AyuGram: TopicIconView default ctor / GeneralIconPreview),
+    // which is #708499 in dark and #999999 in light — NOT dialogsTextFg.
     GeneralIconContext.profile =>
-      isDark ? const Color(0xFF7F91A4) : const Color(0xFF999999),
+      isDark ? const Color(0xFF708499) : const Color(0xFF999999),
   };
 }
 
@@ -464,6 +534,10 @@ class CustomEmojiTopicIcon extends StatefulWidget {
   final String accountId;
   final EngineService engine;
   final double size;
+  /// Tint for monochrome ("text-color") emoji — the row/name color in the chat
+  /// list, windowFg in the profile cover. When null, falls back to the theme's
+  /// onSurface (windowFg). Ignored for full-color emoji.
+  final Color? textColor;
 
   const CustomEmojiTopicIcon({
     super.key,
@@ -471,6 +545,7 @@ class CustomEmojiTopicIcon extends StatefulWidget {
     required this.accountId,
     required this.engine,
     this.size = ForumTopicIcon.defaultSize,
+    this.textColor,
   });
 
   @override
@@ -485,6 +560,7 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   Player? _webmPlayer;
   VideoController? _webmController;
   File? _webmTempFile;
+  StreamSubscription<bool>? _webmCompletedSub;
   Uint8List? _decodedThumb;
   String? _decodedThumbB64;
 
@@ -520,6 +596,8 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   }
 
   void _disposeWebm() {
+    _webmCompletedSub?.cancel();
+    _webmCompletedSub = null;
     _webmPlayer?.dispose();
     _webmPlayer = null;
     _webmController = null;
@@ -584,12 +662,21 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
     final player = Player();
     final controller = VideoController(player);
     await player.open(Media(tempFile.path), play: true);
-    await player.setPlaylistMode(PlaylistMode.loop);
+    // AyuGram plays topic icons LimitedLoopsEmoji(kUserpicLoopsCount = 1): one
+    // loop, then freeze on the first frame. Don't loop; on completion seek back
+    // to the start and pause so the icon holds its first frame.
+    await player.setPlaylistMode(PlaylistMode.none);
     if (!mounted) {
       await player.dispose();
       tempFile.delete().ignore();
       return;
     }
+    _webmCompletedSub = player.stream.completed.listen((completed) {
+      if (completed) {
+        player.seek(Duration.zero);
+        player.pause();
+      }
+    });
     setState(() {
       _webmPlayer = player;
       _webmController = controller;
@@ -599,16 +686,40 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
   void _onLottieLoaded(LottieComposition composition) {
     setState(() {
       _lottieController?.dispose();
-      _lottieController = AnimationController(
+      final controller = AnimationController(
         vsync: this,
         duration: composition.duration,
       );
-      _lottieController!.repeat();
+      // AyuGram wraps topic icons in LimitedLoopsEmoji(kUserpicLoopsCount = 1):
+      // play exactly one loop, then freeze on the first frame (stopOnLast=false).
+      controller.addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          controller.value = 0.0;
+        }
+      });
+      _lottieController = controller;
+      controller.forward(from: 0.0);
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final content = _buildContent(context);
+    final file = _customEmojiFileCache[widget.documentId];
+    if (file != null && file.usesTextColor) {
+      // Monochrome ("text-color") emoji: AyuGram recolors every frame to the
+      // row/name color (dialogsNameFg* in the list, windowFg/textColor in the
+      // cover). srcIn replaces the rendered pixels with the tint, keeping alpha.
+      final tint = widget.textColor ?? Theme.of(context).colorScheme.onSurface;
+      return ColorFiltered(
+        colorFilter: ColorFilter.mode(tint, BlendMode.srcIn),
+        child: content,
+      );
+    }
+    return content;
+  }
+
+  Widget _buildContent(BuildContext context) {
     final s = widget.size;
     final lottieBytes = _customEmojiLottieCache[widget.documentId];
     if (lottieBytes != null) {
@@ -692,6 +803,9 @@ class TopicIconWidget extends StatelessWidget {
   final String accountId;
   final EngineService engine;
   final GeneralIconContext generalContext;
+  /// Tint for monochrome ("text-color") custom-emoji icons (dialogsNameFg* in
+  /// the chat list). Null falls back to the theme's onSurface (windowFg).
+  final Color? customIconColor;
 
   const TopicIconWidget({
     super.key,
@@ -700,6 +814,7 @@ class TopicIconWidget extends StatelessWidget {
     required this.engine,
     this.size = ForumTopicIcon.defaultSize,
     this.generalContext = GeneralIconContext.normal,
+    this.customIconColor,
   });
 
   @override
@@ -716,6 +831,7 @@ class TopicIconWidget extends StatelessWidget {
         accountId: accountId,
         engine: engine,
         size: size,
+        textColor: customIconColor,
       );
     }
     return ForumTopicIcon(

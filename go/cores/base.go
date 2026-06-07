@@ -403,9 +403,10 @@ type CustomEmojiThumb struct {
 
 // CustomEmojiFile holds a document ID, its MIME type, and the full file data.
 type CustomEmojiFile struct {
-	DocumentID int64  `json:"document_id"`
-	MimeType   string `json:"mime_type"`
-	FileData   []byte `json:"file_data"`
+	DocumentID    int64  `json:"document_id"`
+	MimeType      string `json:"mime_type"`
+	FileData      []byte `json:"file_data"`
+	UsesTextColor bool   `json:"uses_text_color"`
 }
 
 type BotCallbackResult struct {
