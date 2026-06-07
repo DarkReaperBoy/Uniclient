@@ -670,26 +670,6 @@ fixed 274px component that renders identically at both sizes), no crash:
   subscriber" channels — all the member-only groups/channels in the chat list were correctly
   excluded. Matches `window_main_menu_helpers.cpp:206-232`. — `hamburger_drawer.dart:754-780`
 
-# my_profile_page — Edit Profile / My Account settings page (§14.5)
-
-Implements the self-profile settings page: photo, bio, name/phone/username rows,
-birthday, personal channel, name color box, and the multi-account list. Maps to
-AyuGram `settings/sections/settings_information.cpp` (`Information` section),
-`boxes/peers/edit_peer_color_box.cpp`, and `ui/controls/userpic_button.cpp`.
-
-Overall the page is well wired to the engine (bio save/load, name, birthday,
-personal channel, color save, photo upload/remove, accounts, add account all hit
-real bridge calls). The issues below are data-flow gaps, a degraded sub-feature,
-and layout/menu deviations — no empty-callback stubs or mock data were found.
-
-- [ ] [MAJOR] Name-color box never loads the current background emoji, profile color, or profile background emoji — only the name `colorId` is fetched, so re-opening the box always shows "Off" for the background emoji and resets the Profile tab to the name color regardless of the user's real settings. `getSelfColorAndChannel` returns only `color_id`/`channel_name`, and `_selectedEmojiId`/`_profileColorId`/`_profileEmojiId` are initialized to defaults (0 / name color) and never populated from the server. AyuGram seeds the box from four distinct current values: `peer->colorIndex()`, `peer->colorProfileIndex()`, `peer->backgroundEmojiId()`, and `peer->profileBackgroundEmojiId()`. — `my_profile_page.dart:1867-1873` (+ `dart/lib/bridge/engine_service.dart:4609-4612`) ← `AyuGram/boxes/peers/edit_peer_color_box.cpp:501-506`
-
-- [ ] [MAJOR] Birthday section is ordered before Personal Channel + Your Color, but AyuGram lays out Personal Channel and the color button first, then Birthday. The Dart build list emits `_BirthdayRow` (line 461) ahead of `_PersonalChannelRow` (line 544) and `_YourColorRow` (line 551), whereas AyuGram calls `SetupPersonalChannel` (channel + `AddPeerColorButton`) before `SetupBirthday`. — `my_profile_page.dart:461` ← `AyuGram/settings/sections/settings_information.cpp:1288-1289`
-
-- [ ] [MAJOR] Custom-emoji suggestions in the bio field are misleading: the autocomplete popup renders custom-emoji thumbnails from installed packs, but selecting one inserts the plain fallback Unicode emoji (`insertText` returns `customEmoji?.emoji`), not the animated custom emoji — the underlying widget is a plain `TextField` that cannot hold custom-emoji entities. AyuGram's bio is a `Ui::InputField` wired through `Ui::Emoji::SuggestionsController::Init`, which inserts real custom-emoji entities (DocumentId-backed). — `my_profile_page.dart:727` (+ `my_profile_page.dart:979`) ← `AyuGram/settings/sections/settings_information.cpp:744-747`
-
-- [ ] [MAJOR] Avatar/upload menu is missing the "Set Public Photo" privacy action. For the self user, AyuGram's ChoosePhoto sub-button menu adds `lng_edit_privacy_profile_photo_public_set`, which opens the profile-photo `EditPrivacyBox` wired to `Api::UserPrivacy::Key::ProfilePhoto`. The Dart menu only offers View / Upload / From Clipboard / Set Emoji / Remove and has no public-photo privacy entry. — `my_profile_page.dart:1226-1267` ← `AyuGram/ui/controls/userpic_button.cpp:448-467`
-
 # strings — Centralised translatable string table (mirror of Telegram/AyuGram lang pack)
 
 `TrStrings` is a static table of hardcoded English strings mirroring AyuGram/Telegram
