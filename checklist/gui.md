@@ -617,15 +617,6 @@ verified end-to-end:
   `maxQueryLength = max(legacyLimit, modernLimit)` cutoff
   (`emoji_suggestions_widget.cpp:959`). All match.
 
-Two behavioral deviations from the C++ authority remain (both make the Dart
-*stricter to intent* than the shipped C++, so they read as improvements — but
-they are reproducible divergences in suggestion output, flagged per the
-"C++ is the only authority" rule):
-
-- [ ] [MAJOR] Exact-match suggestions are floated to the top, but the C++ authority's exact-match boost is dead code and never reorders — so legacy/built-in suggestion ORDER diverges. Dart computes `isExact = (rawKw == q)` and `_legacyRankKey` makes `exact` the most-dominant bucket (`exact << 3`), pushing an exact built-in keyword (e.g. `:key:` → 🔑) ahead of equal-rank prefix matches (e.g. `keyboard` → ⌨️). In C++, `Completer::prepareResult`'s 4th `stable_partition` calls `isExactMatch(replacement)`, which is size-gated: it requires `replacement.size() == _initialQuery.size() + 1`, comparing the colon-wrapped baked replacement (`":key:"`, the `^:[\+\-a-z0-9_]+:$` codegen form) against the colon-stripped query (`"key"`, stripped at `emoji_suggestions_widget.cpp:326`). `keyword_len+2 == keyword_len+1` is never true, so the exact partition is a no-op and C++ keeps declaration order for same-rank results. — `emoji_data.dart:3307` (`rawKw == q`) + `emoji_data.dart:2894`/`2898` (`exact` bucket) ← `AyuGram/lib_ui/emoji_suggestions/emoji_suggestions.cpp:322` (`isExactMatch` size gate) + `:391-393` (the no-op partition)
-
-- [ ] [MAJOR] Uppercase shortcodes (e.g. `:TM`) return built-in suggestions in Dart but NOTHING from the legacy path in C++ — different result set. Dart lowercases the query first (`q = query.toLowerCase()`) and the legacy search runs on that lowercased `q`, so `:TM` → `q="tm"` → 🅣🅜 ™️ is suggested. C++ passes the RAW (un-lowercased) query to the legacy completer (`AppendLegacySuggestions(result, query)` uses the original arg, not `normalized`), and `Completer::NormalizeQuery` keeps only chars where `IsLetterOrNumber` is true — and `IsLetterOrNumber` accepts only lowercase `'a'..'z'`. An all-uppercase query therefore normalizes to empty and `resolve()` returns `{}` (server packs key on `tm` shortcodes, not on the built-in `tm`→™️ entry, so the user sees an empty box). — `emoji_data.dart:3195` (`toLowerCase`) + `emoji_data.dart:2760` (lowercase-only `isLetter`, fed already-lowercased `q`) ← `AyuGram/SourceFiles/chat_helpers/emoji_keywords.cpp:639` (raw query to legacy) + `AyuGram/lib_ui/emoji_suggestions/emoji_suggestions.cpp:101-103` (`IsLetterOrNumber` is lowercase-only) + `:225-227` (empty normalized query → no results)
-
 Non-blocking (not flagged): the legacy search iterates every entry in
 `_legacyCandidates` per keystroke (`emoji_data.dart:3285`) instead of using a
 first-char index like C++ `GetReplacements(first)`
