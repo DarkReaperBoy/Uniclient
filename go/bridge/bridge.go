@@ -178,10 +178,17 @@ func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
 			if v := os.Getenv("TG_API_HASH"); v != "" {
 				apiHash = v
 			}
+			// Test-server accounts (AyuGram Environment::Test) connect to the
+			// test datacenter. Flag is persisted in the vault entry at creation.
+			testMode := false
+			if entry, err := vault.GetAccount(accountID); err == nil && entry != nil {
+				testMode = entry.TestMode
+			}
 			return cores.NewTelegramCore(cores.TelegramConfig{
 				APIID:          apiID,
 				APIHash:        apiHash,
 				SessionStorage: &uniConfigSessionStorage{store: store},
+				UseTestDC:      testMode,
 			}), nil
 		case "bale":
 			return cores.NewBaleCore(store), nil

@@ -249,6 +249,7 @@ class ChatInfo {
   final bool joinRequest;
   final bool canPost;
   final bool isAdmin;
+  final bool isCreator;
   final bool noForwards;
   final bool isSelf;
   final String username;
@@ -311,6 +312,7 @@ class ChatInfo {
     this.joinRequest = false,
     this.canPost = false,
     this.isAdmin = false,
+    this.isCreator = false,
     this.noForwards = false,
     this.isSelf = false,
     this.username = '',
@@ -374,6 +376,7 @@ class ChatInfo {
     joinRequest: j['join_request'] as bool? ?? false,
     canPost: j['can_post'] as bool? ?? false,
     isAdmin: j['is_admin'] as bool? ?? false,
+    isCreator: j['is_creator'] as bool? ?? false,
     noForwards: j['no_forwards'] as bool? ?? false,
     isSelf: j['is_self'] as bool? ?? false,
     username: j['username'] as String? ?? '',

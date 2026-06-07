@@ -219,6 +219,7 @@ type Dialog struct {
 	JoinRequest         bool   `json:"join_request,omitempty"`
 	CanPost             bool   `json:"can_post,omitempty"`
 	IsAdmin             bool   `json:"is_admin,omitempty"`
+	IsCreator           bool   `json:"is_creator,omitempty"` // current user is the chat/channel creator (amCreator)
 	NoForwards          bool   `json:"no_forwards,omitempty"`
 	Username            string `json:"username,omitempty"`
 	HasActiveCall       bool   `json:"has_active_call,omitempty"` // group/livestream call with participants (MTProto call_not_empty)

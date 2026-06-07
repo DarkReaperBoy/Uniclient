@@ -161,7 +161,7 @@ func (e *Engine) ListAccounts() []AccountInfo {
 // AddAccount creates a new account entry for the given platform.
 // Returns the generated account ID. The account is NOT connected yet —
 // call StartAuth() to begin the authentication flow.
-func (e *Engine) AddAccount(platform string) (string, error) {
+func (e *Engine) AddAccount(platform string, testMode bool) (string, error) {
 	id := generateAccountID(platform)
 	now := time.Now().UnixMilli()
 
@@ -180,6 +180,7 @@ func (e *Engine) AddAccount(platform string) (string, error) {
 		Platform:  platform,
 		SortOrder: maxOrder,
 		CreatedAt: now,
+		TestMode:  testMode,
 	}
 	if err := e.vault.PutAccount(id, entry); err != nil {
 		return "", fmt.Errorf("vault put account: %w", err)

@@ -125,8 +125,11 @@ class EngineService {
     return resp.accounts.map(_accountInfoFromProto).toList();
   }
 
-  String addAccount(String platform) {
+  String addAccount(String platform, {bool testMode = false}) {
     final req = epb.EngineAddAccountRequest()..platform = platform;
+    if (testMode) {
+      req.testMode = true;
+    }
     final respBytes = _callRaw('__engine', 'AddAccount', req.writeToBuffer());
     final resp = epb.EngineAddAccountResponse.fromBuffer(respBytes);
     return resp.accountId;
@@ -6940,6 +6943,7 @@ class EngineService {
     isSelf: p.isSelf,
     isAdmin: p.isAdmin,
     hasActiveCall: p.hasActiveCall,
+    isCreator: p.isCreator,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {

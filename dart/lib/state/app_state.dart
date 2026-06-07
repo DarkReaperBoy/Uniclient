@@ -3798,16 +3798,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _cachedActiveAccount = _accounts.first;
   }
 
-  String addAccount(String platform) {
+  String addAccount(String platform, {bool testMode = false}) {
     // Spec §3.2: enforce max accounts limit.
     if (!canAddAccount) {
       final limit = maxAccountLimit;
       Debug.log('APP', 'Cannot add account: at limit ($limit)');
       throw StateError('Maximum account limit reached ($limit)');
     }
-    Debug.log('APP', 'Adding account: $platform');
+    Debug.log('APP', 'Adding account: $platform${testMode ? ' (test server)' : ''}');
     try {
-      final id = _engine.addAccount(platform);
+      final id = _engine.addAccount(platform, testMode: testMode);
       _accounts = _engine.listAccounts();
       _rebuildAccountLookup();
       _ensureActiveAccount();

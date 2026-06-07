@@ -499,10 +499,14 @@ class EngineListAccountsResponse extends $pb.GeneratedMessage {
 class EngineAddAccountRequest extends $pb.GeneratedMessage {
   factory EngineAddAccountRequest({
     $core.String? platform,
+    $core.bool? testMode,
   }) {
     final $result = create();
     if (platform != null) {
       $result.platform = platform;
+    }
+    if (testMode != null) {
+      $result.testMode = testMode;
     }
     return $result;
   }
@@ -512,6 +516,7 @@ class EngineAddAccountRequest extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineAddAccountRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'platform')
+    ..aOB(2, _omitFieldNames ? '' : 'testMode')
     ..hasRequiredFields = false
   ;
 
@@ -544,6 +549,15 @@ class EngineAddAccountRequest extends $pb.GeneratedMessage {
   $core.bool hasPlatform() => $_has(0);
   @$pb.TagNumber(1)
   void clearPlatform() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get testMode => $_getBF(1);
+  @$pb.TagNumber(2)
+  set testMode($core.bool v) { $_setBool(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasTestMode() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTestMode() => clearField(2);
 }
 
 class EngineAddAccountResponse extends $pb.GeneratedMessage {
@@ -1470,6 +1484,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.bool? isSelf,
     $core.bool? isAdmin,
     $core.bool? hasActiveCall,
+    $core.bool? isCreator,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1580,6 +1595,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (hasActiveCall != null) {
       $result.hasActiveCall = hasActiveCall;
     }
+    if (isCreator != null) {
+      $result.isCreator = isCreator;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1623,6 +1641,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..aOB(34, _omitFieldNames ? '' : 'isSelf')
     ..aOB(35, _omitFieldNames ? '' : 'isAdmin')
     ..aOB(36, _omitFieldNames ? '' : 'hasActiveCall')
+    ..aOB(37, _omitFieldNames ? '' : 'isCreator')
     ..hasRequiredFields = false
   ;
 
@@ -1970,6 +1989,15 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasHasActiveCall() => $_has(35);
   @$pb.TagNumber(36)
   void clearHasActiveCall() => clearField(36);
+
+  @$pb.TagNumber(37)
+  $core.bool get isCreator => $_getBF(36);
+  @$pb.TagNumber(37)
+  set isCreator($core.bool v) { $_setBool(36, v); }
+  @$pb.TagNumber(37)
+  $core.bool hasIsCreator() => $_has(36);
+  @$pb.TagNumber(37)
+  void clearIsCreator() => clearField(37);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {

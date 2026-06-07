@@ -62,6 +62,7 @@ message EngineListAccountsResponse {
 
 message EngineAddAccountRequest {
   string platform = 1;
+  bool   test_mode = 2;
 }
 
 message EngineAddAccountResponse {
@@ -187,6 +188,7 @@ message EngineChatInfo {
   bool   is_self                  = 34;
   bool   is_admin                = 35;
   bool   has_active_call          = 36;
+  bool   is_creator               = 37;
 }
 
 message EngineGetChatListRequest {

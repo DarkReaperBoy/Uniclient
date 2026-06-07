@@ -143,6 +143,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV40,
 	migrateV41,
 	migrateV42,
+	migrateV43,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -842,5 +843,16 @@ func migrateV42(tx *sql.Tx) error {
 		return nil
 	}
 	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN has_active_call INTEGER NOT NULL DEFAULT 0`)
+	return err
+}
+
+// migrateV43 adds is_creator column to chats table (MTProto channel/chat
+// creator flag, amCreator) so the "My Groups"/"My Channels" drawer popups can
+// filter to only chats the current user created, matching AyuGram AddMyChannelsBox.
+func migrateV43(tx *sql.Tx) error {
+	if columnExists(tx, "chats", "is_creator") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN is_creator INTEGER NOT NULL DEFAULT 0`)
 	return err
 }

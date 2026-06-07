@@ -23,6 +23,7 @@ import 'info_panel.dart';
 import 'popup_menu.dart';
 import 'chat_settings_screen.dart' show ArchiveSettingsBox;
 import 'settings_screen.dart';
+import 'ayugram_settings_screen.dart' show AyuGramSettingsScreen;
 import 'shell.dart';
 import 'web_app_panel.dart';
 import 'settings_style.dart' show settingsPageRoute;
@@ -154,6 +155,48 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                             : const SizedBox.shrink(),
                       ),
                     ),
+                    // §3.3: Archive row — AyuGram setupArchive() runs BEFORE
+                    // setupMenu() and both append to _menu, so the Archive button
+                    // (with a PlainShadow divider directly below) renders at the TOP
+                    // of the menu, above My Profile (window_main_menu.cpp:358,550-564).
+                    // Shown only when the user has archived chats AND archiveInMainMenu.
+                    if (context.watch<ChatState>().hasArchivedChats && appState.archiveInMainMenu)
+                      GestureDetector(
+                        onSecondaryTapUp: (details) {
+                          _showArchiveContextMenu(context, details.globalPosition, appState);
+                        },
+                        child: _MenuRow(
+                          icon: Icons.archive,
+                          label: 'Archived Chats',
+                          onTap: () {
+                            final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
+                                .any((k) =>
+                                    k == LogicalKeyboardKey.controlLeft ||
+                                    k == LogicalKeyboardKey.controlRight);
+                            if (ctrlHeld) {
+                              Process.start(
+                                Platform.resolvedExecutable,
+                                ['--archive'],
+                                mode: ProcessStartMode.detached,
+                              );
+                            } else {
+                              Navigator.of(context).pop();
+                              appState.requestShowArchive();
+                            }
+                          },
+                        ),
+                      ),
+                    // PlainShadow divider directly below the Archive button, with
+                    // 6px mainMenuSkip padding (window_main_menu.cpp:562-564). Toggles
+                    // with the Archive row so no stray separator shows when hidden.
+                    if (context.watch<ChatState>().hasArchivedChats && appState.archiveInMainMenu)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Container(
+                          height: 1,
+                          color: context.palette.shadowFg,
+                        ),
+                      ),
                     // §3.3 Menu Items — My Profile row (§54.8: gated).
                     if (appState.showMyProfileInDrawer)
                     _MenuRow(
@@ -224,7 +267,11 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         ),
                       ),
                     // §3.3: PlainShadow divider below My Profile/Bots block
-                    // with 6px mainMenuSkip padding top and bottom.
+                    // with 6px mainMenuSkip padding top and bottom. AyuGram gates
+                    // this on showMyProfileInDrawer() || showBotsInDrawer()
+                    // (window_main_menu.cpp:720-723), so when BOTH rows are hidden
+                    // no stray separator appears at the top of the menu.
+                    if (appState.showMyProfileInDrawer || appState.showBotsInDrawer)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Container(
@@ -299,6 +346,60 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           chatState.openChat(saved);
                         } else {
                           await engine.openSavedMessages(accountId);
+                        }
+                      },
+                    ),
+                    // §51.5: LRead — one-shot "mark all chats read without receipts".
+                    // AyuGram order: immediately after Saved Messages, before
+                    // Settings/Night Mode/Ghost (window_main_menu.cpp:767-782).
+                    if (appState.showLReadToggleInDrawer)
+                    _MenuRow(
+                      icon: Icons.mark_email_read,
+                      label: 'Mark All Read (Silent)',
+                      onTap: () async {
+                        final engine = context.read<EngineService>();
+                        final accountId = appState.activeAccount?.id ?? '';
+                        final origVal = appState.sendReadMessages;
+                        appState.setSendReadMessages(false);
+                        try {
+                          await engine.markAllChatsRead(accountId);
+                        } finally {
+                          appState.setSendReadMessages(origVal);
+                        }
+                        if (context.mounted) {
+                          showTelegramToast(context, 'All chats marked as read.');
+                        }
+                      },
+                    ),
+                    // §51.5: SRead — mark all stories as viewed (sends read receipts
+                    // even when ghost mode suppresses them). AyuGram order: right
+                    // after LRead, before Settings (window_main_menu.cpp:784-813).
+                    if (appState.showSReadToggleInDrawer)
+                    _MenuRow(
+                      icon: Icons.auto_stories,
+                      label: 'Mark Stories as Viewed',
+                      onTap: () async {
+                        bool userConfirmed = false;
+                        await showConfirmBox(
+                          context,
+                          title: 'Mark All Stories as Viewed',
+                          text: 'This will mark all stories as viewed by sending read receipts. Continue?',
+                          confirmText: 'Mark as Viewed',
+                          onConfirm: () => userConfirmed = true,
+                        );
+                        if (!userConfirmed || !context.mounted) return;
+                        final engine = context.read<EngineService>();
+                        final accountId = appState.activeAccount?.id ?? '';
+                        final origVal = appState.sendReadMessages;
+                        appState.setSendReadMessages(true);
+                        try {
+                          await engine.markAllChatsRead(accountId);
+                          await Future<void>.delayed(const Duration(milliseconds: 200));
+                        } finally {
+                          appState.setSendReadMessages(origVal);
+                        }
+                        if (context.mounted) {
+                          showTelegramToast(context, 'All stories marked as viewed.');
                         }
                       },
                     ),
@@ -406,57 +507,6 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         }
                       },
                     ),
-                    // §51.5: LRead — one-shot "mark all chats read without receipts".
-                    if (appState.showLReadToggleInDrawer)
-                    _MenuRow(
-                      icon: Icons.mark_email_read,
-                      label: 'Mark All Read (Silent)',
-                      onTap: () async {
-                        final engine = context.read<EngineService>();
-                        final accountId = appState.activeAccount?.id ?? '';
-                        final origVal = appState.sendReadMessages;
-                        appState.setSendReadMessages(false);
-                        try {
-                          await engine.markAllChatsRead(accountId);
-                        } finally {
-                          appState.setSendReadMessages(origVal);
-                        }
-                        if (context.mounted) {
-                          showTelegramToast(context, 'All chats marked as read.');
-                        }
-                      },
-                    ),
-                    // §51.5: SRead — mark all stories as viewed (sends read receipts
-                    // even when ghost mode suppresses them).
-                    if (appState.showSReadToggleInDrawer)
-                    _MenuRow(
-                      icon: Icons.auto_stories,
-                      label: 'Mark Stories as Viewed',
-                      onTap: () async {
-                        bool userConfirmed = false;
-                        await showConfirmBox(
-                          context,
-                          title: 'Mark All Stories as Viewed',
-                          text: 'This will mark all stories as viewed by sending read receipts. Continue?',
-                          confirmText: 'Mark as Viewed',
-                          onConfirm: () => userConfirmed = true,
-                        );
-                        if (!userConfirmed || !context.mounted) return;
-                        final engine = context.read<EngineService>();
-                        final accountId = appState.activeAccount?.id ?? '';
-                        final origVal = appState.sendReadMessages;
-                        appState.setSendReadMessages(true);
-                        try {
-                          await engine.markAllChatsRead(accountId);
-                          await Future<void>.delayed(const Duration(milliseconds: 200));
-                        } finally {
-                          appState.setSendReadMessages(origVal);
-                        }
-                        if (context.mounted) {
-                          showTelegramToast(context, 'All stories marked as viewed.');
-                        }
-                      },
-                    ),
                     // §50.2–50.3: Streamer Mode toggle (gated, default hidden).
                     if (appState.showStreamerToggleInDrawer)
                     Tooltip(
@@ -473,33 +523,6 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         onTap: () => appState.setStreamerModeEnabled(!appState.streamerModeEnabled),
                       ),
                     ),
-                    // §3.3: Archive row — shown when user has archived chats AND archiveInMainMenu is true.
-                    if (context.watch<ChatState>().hasArchivedChats && appState.archiveInMainMenu)
-                      GestureDetector(
-                        onSecondaryTapUp: (details) {
-                          _showArchiveContextMenu(context, details.globalPosition, appState);
-                        },
-                        child: _MenuRow(
-                          icon: Icons.archive,
-                          label: 'Archived Chats',
-                          onTap: () {
-                            final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
-                                .any((k) =>
-                                    k == LogicalKeyboardKey.controlLeft ||
-                                    k == LogicalKeyboardKey.controlRight);
-                            if (ctrlHeld) {
-                              Process.start(
-                                Platform.resolvedExecutable,
-                                ['--archive'],
-                                mode: ProcessStartMode.detached,
-                              );
-                            } else {
-                              Navigator.of(context).pop();
-                              appState.requestShowArchive();
-                            }
-                          },
-                        ),
-                      ),
                     // §3.6: Footer — product name + version/about links.
                     const _FooterSection(),
                     ];
@@ -733,8 +756,13 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
     final appState = context.read<AppState>();
     final accountId = appState.activeAccount?.id ?? '';
     final targetType = isGroup ? ChatType.group : ChatType.channel;
+    // AyuGram's AddMyChannelsBox lists only chats the user CREATED, filtering
+    // with amCreator() (groups: (c||g)->amCreator(); broadcasts:
+    // channel->amCreator()) — not every group/channel the user is in
+    // (window_main_menu_helpers.cpp:206-232). isCreator is the engine's
+    // amCreator (tg.Chat/tg.Channel Creator flag).
     final chats = chatState.chatsForAccount(accountId)
-        .where((c) => c.type == targetType)
+        .where((c) => c.type == targetType && c.isCreator)
         .toList();
     final title = isGroup ? 'Groups' : 'Channels';
     Navigator.of(context).pop();
@@ -780,7 +808,10 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
               onPressed: () {
                 Navigator.of(ctx).pop();
                 Navigator.of(context).pop(); // close drawer
-                final id = appState.addAccount(p.$1);
+                // AyuGram's "Test Server" calls add(Environment::Test); pass the
+                // testMode flag so the account connects to the test datacenter
+                // (settings_information.cpp:1046-1048).
+                final id = appState.addAccount(p.$1, testMode: testMode);
                 authState.startAuth(id);
               },
             ),
@@ -1063,35 +1094,29 @@ class _ProfileCover extends StatelessWidget {
     );
   }
 
+  /// §3 cover status line at mainMenuCoverStatusTop (103px). AyuGram's
+  /// `_setEmojiStatus` renders the localized link text "AyuGram Preferences"
+  /// (`tr::ayu_AyuPreferences()`) and its click handler opens the AyuGram
+  /// settings page (`controller->showSettings(Settings::AyuMain::Id())`) — NOT
+  /// @username / phone / platform-label or the generic Settings screen
+  /// (window_main_menu.cpp:111-116, :314, :667-671).
   Widget _buildStatusLine(BuildContext context, AccountInfo? account) {
     if (account == null) return const SizedBox.shrink();
     return GestureDetector(
       onTap: () {
         final appState = context.read<AppState>();
-        final chatSt = context.read<ChatState>();
-        final authSt = context.read<AuthState>();
         Navigator.of(context).pop();
         Navigator.of(context).push(
           settingsPageRoute(
             ChangeNotifierProvider.value(
               value: appState,
-              child: ChangeNotifierProvider.value(
-                value: chatSt,
-                child: ChangeNotifierProvider.value(
-                  value: authSt,
-                  child: const SettingsScreen(),
-                ),
-              ),
+              child: const AyuGramSettingsScreen(),
             ),
           ),
         );
       },
       child: Text(
-        account.username.isNotEmpty
-            ? '@${account.username}'
-            : account.phone.isNotEmpty
-                ? account.phone
-                : _platformLabel(account.platform),
+        'AyuGram Preferences',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(

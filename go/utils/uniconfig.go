@@ -21,6 +21,9 @@ type VaultAccountEntry struct {
 	SortOrder   int             `json:"sort_order"`
 	CreatedAt   int64           `json:"created_at"`
 	Credentials json.RawMessage `json:"credentials,omitempty"`
+	// TestMode connects this account to the platform's test datacenter
+	// (Telegram Environment::Test) instead of production. Set at creation.
+	TestMode bool `json:"test_mode,omitempty"`
 }
 
 // --- Vault extension methods for config + sessions ---

@@ -383,6 +383,7 @@ func (x *EngineListAccountsResponse) GetAccounts() []*AccountInfo {
 type EngineAddAccountRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Platform      string                 `protobuf:"bytes,1,opt,name=platform,proto3" json:"platform,omitempty"`
+	TestMode      bool                   `protobuf:"varint,2,opt,name=test_mode,json=testMode,proto3" json:"test_mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -422,6 +423,13 @@ func (x *EngineAddAccountRequest) GetPlatform() string {
 		return x.Platform
 	}
 	return ""
+}
+
+func (x *EngineAddAccountRequest) GetTestMode() bool {
+	if x != nil {
+		return x.TestMode
+	}
+	return false
 }
 
 type EngineAddAccountResponse struct {
@@ -1158,6 +1166,7 @@ type EngineChatInfo struct {
 	IsSelf               bool                   `protobuf:"varint,34,opt,name=is_self,json=isSelf,proto3" json:"is_self,omitempty"`
 	IsAdmin              bool                   `protobuf:"varint,35,opt,name=is_admin,json=isAdmin,proto3" json:"is_admin,omitempty"`
 	HasActiveCall        bool                   `protobuf:"varint,36,opt,name=has_active_call,json=hasActiveCall,proto3" json:"has_active_call,omitempty"`
+	IsCreator            bool                   `protobuf:"varint,37,opt,name=is_creator,json=isCreator,proto3" json:"is_creator,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1440,6 +1449,13 @@ func (x *EngineChatInfo) GetIsAdmin() bool {
 func (x *EngineChatInfo) GetHasActiveCall() bool {
 	if x != nil {
 		return x.HasActiveCall
+	}
+	return false
+}
+
+func (x *EngineChatInfo) GetIsCreator() bool {
+	if x != nil {
+		return x.IsCreator
 	}
 	return false
 }
@@ -14765,9 +14781,10 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"P\n" +
 	"\x1aEngineListAccountsResponse\x122\n" +
-	"\baccounts\x18\x01 \x03(\v2\x16.uniclient.AccountInfoR\baccounts\"5\n" +
+	"\baccounts\x18\x01 \x03(\v2\x16.uniclient.AccountInfoR\baccounts\"R\n" +
 	"\x17EngineAddAccountRequest\x12\x1a\n" +
-	"\bplatform\x18\x01 \x01(\tR\bplatform\"9\n" +
+	"\bplatform\x18\x01 \x01(\tR\bplatform\x12\x1b\n" +
+	"\ttest_mode\x18\x02 \x01(\bR\btestMode\"9\n" +
 	"\x18EngineAddAccountResponse\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\";\n" +
@@ -14827,7 +14844,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\v2\x1a.uniclient.EngineAuthStateR\x05state\"8\n" +
 	"\x17EngineCancelAuthRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xda\t\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\xf9\t\n" +
 	"\x0eEngineChatInfo\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -14874,7 +14891,9 @@ const file_proto_engine_proto_rawDesc = "" +
 	"noForwards\x12\x17\n" +
 	"\ais_self\x18\" \x01(\bR\x06isSelf\x12\x19\n" +
 	"\bis_admin\x18# \x01(\bR\aisAdmin\x12&\n" +
-	"\x0fhas_active_call\x18$ \x01(\bR\rhasActiveCall\"\x83\x01\n" +
+	"\x0fhas_active_call\x18$ \x01(\bR\rhasActiveCall\x12\x1d\n" +
+	"\n" +
+	"is_creator\x18% \x01(\bR\tisCreator\"\x83\x01\n" +
 	"\x18EngineGetChatListRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1a\n" +

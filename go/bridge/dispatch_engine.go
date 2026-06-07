@@ -94,7 +94,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		id, err := e.AddAccount(req.Platform)
+		id, err := e.AddAccount(req.Platform, req.TestMode)
 		if err != nil {
 			return nil, err
 		}
@@ -7485,6 +7485,7 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		IsSelf:               c.IsSelf,
 		IsAdmin:              c.IsAdmin,
 		HasActiveCall:        c.HasActiveCall,
+		IsCreator:            c.IsCreator,
 	}
 }
 

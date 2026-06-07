@@ -13163,6 +13163,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					}
 					dialog.NoForwards = c.Noforwards
 					dialog.HasActiveCall = c.CallNotEmpty
+					dialog.IsCreator = c.Creator
 					if c.Creator {
 						dialog.IsAdmin = true
 					}
@@ -13210,6 +13211,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					if c.Creator || hasAdmin {
 						dialog.IsAdmin = true
 					}
+					dialog.IsCreator = c.Creator
 					if c.Broadcast {
 						dialog.Type = ChatTypeChannel
 						if c.Creator || (hasAdmin && adminRights.PostMessages) {
