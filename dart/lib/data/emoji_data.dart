@@ -2740,18 +2740,25 @@ class _LegacyCandidate {
 }
 
 /// A ranked built-in match (one per emoji), carrying the keys AyuGram's
-/// `Completer::prepareResult` uses to order suggestions.
+/// `Completer::prepareResult` uses to order suggestions. There is deliberately
+/// NO `isExact` field: C++'s 4th `stable_partition` (the exact-match boost) is
+/// dead code that never reorders — see `_legacyRankKey`.
 class _LegacyResult {
   final EmojiEntry entry;
   final int wordsUsed;
   final bool firstCharGood;
-  final bool isExact;
-  const _LegacyResult(this.entry, this.wordsUsed, this.firstCharGood, this.isExact);
+  const _LegacyResult(this.entry, this.wordsUsed, this.firstCharGood);
 }
 
 /// Mirrors `Completer::NormalizeQuery` (emoji_suggestions.cpp:193): drop every
 /// char that is not a letter or number, keeping '-'/'+' only when followed by a
-/// number or at the end. The query is already lowercased by `search()`.
+/// number or at the end. Fed the RAW (un-lowercased) query, exactly as C++
+/// `AppendLegacySuggestions(result, query)` passes the original arg, NOT the
+/// lowercased `normalized` the lang packs use (emoji_keywords.cpp:639). The
+/// letter test is intentionally lowercase-only (`'a'..'z'`), mirroring C++
+/// `IsLetterOrNumber` (emoji_suggestions.cpp:101-103): an all-uppercase shortcode
+/// (`:TM`) therefore normalizes to EMPTY and yields no built-in suggestion —
+/// the empty-query early-out in `resolve()` (emoji_suggestions.cpp:225-227).
 String _normalizeLegacyQuery(String q) {
   final sb = StringBuffer();
   for (int i = 0; i < q.length; i++) {
@@ -2888,14 +2895,25 @@ int _legacyEqualChars(String q, int position, String word) {
 }
 
 /// Lower = higher priority, mirroring the stacked `stable_partition`s in
-/// `Completer::prepareResult` (emoji_suggestions.cpp:373): exact match, then
-/// words-used < 3, then < 2, then shortcode-first-char == query-first-char.
+/// `Completer::prepareResult` (emoji_suggestions.cpp:373-393). C++ applies four
+/// partitions; the LAST applied is the most dominant sort key. The 4th (most
+/// dominant) partition would boost `isExactMatch`, but it is DEAD CODE: it is
+/// size-gated `replacement.size() == _initialQuery.size() + 1`
+/// (emoji_suggestions.cpp:322), comparing the colon-wrapped baked replacement
+/// (`":key:"`, the `^:[\+\-a-z0-9_]+:$` codegen form, length keyword+2) against
+/// the leading-colon-stripped query (`"key"`, length keyword, stripped at
+/// emoji_suggestions_widget.cpp:326). `keyword+2 == keyword+1` is never true, so
+/// that partition never reorders and C++ keeps declaration order for same-rank
+/// results. We therefore do NOT boost exact matches — an exact built-in keyword
+/// (`:key:`→🔑) must not float ahead of an equal-rank prefix match
+/// (`keyboard`→⌨️). Only the three real partitions apply: words-used < 3, then
+/// < 2, then shortcode-first-char == query-first-char (least dominant, applied
+/// first in C++).
 int _legacyRankKey(_LegacyResult r) {
-  final exact = r.isExact ? 0 : 1;
   final w3 = r.wordsUsed < 3 ? 0 : 1;
   final w2 = r.wordsUsed < 2 ? 0 : 1;
   final fc = r.firstCharGood ? 0 : 1;
-  return (exact << 3) | (w3 << 2) | (w2 << 1) | fc;
+  return (w3 << 2) | (w2 << 1) | fc;
 }
 
 /// Manages emoji keyword data from server language packs with local fallback.
@@ -3204,6 +3222,15 @@ class EmojiKeywords {
     // bucketing across sources — a built-in/legacy EXACT match must NOT float
     // ahead of a server-pack PREFIX match. Each pack's own query already orders
     // exact-key emoji before prefix-key emoji via lexicographic key iteration.
+    //
+    // CASE HANDLING (matches C++ exactly): lang packs are queried on the
+    // lowercased `q` (C++ `normalized = NormalizeQuery(query) = query.toLower()`,
+    // emoji_keywords.cpp:611+168-170), but the legacy/built-in fallback is
+    // queried on the RAW (un-lowercased) `query` (C++ `AppendLegacySuggestions(
+    // result, query)`, :639 — the original arg, not `normalized`). Because the
+    // legacy normalize drops every non-lowercase-letter char, an all-uppercase
+    // shortcode (`:TM`) yields NO built-in match — only a server pack keyed on
+    // `tm` can answer it.
     final result = <EmojiEntry>[];
     final seen = <String>{};
 
@@ -3212,7 +3239,7 @@ class EmojiKeywords {
     }
 
     if (!exact) {
-      _searchLegacyData(q, seen, result);
+      _searchLegacyData(query, seen, result);
     }
 
     final prioritized = _prioritizeRecent(result);
@@ -3267,13 +3294,19 @@ class EmojiKeywords {
     }
   }
 
+  /// Built-in/legacy completer fallback. [rawQuery] is the RAW (un-lowercased)
+  /// query, mirroring C++ `AppendLegacySuggestions(result, query)`
+  /// (emoji_keywords.cpp:639) — the original arg, NOT the lowercased form the
+  /// lang packs use. `_normalizeLegacyQuery` keeps only lowercase letters/digits
+  /// (C++ `IsLetterOrNumber`, emoji_suggestions.cpp:101-103), so an all-uppercase
+  /// shortcode normalizes to empty and produces no suggestion here.
   void _searchLegacyData(
-    String q,
+    String rawQuery,
     Set<String> seen,
     List<EmojiEntry> result,
   ) {
-    if (_badSuggestionChar.hasMatch(q)) return;
-    final normalized = _normalizeLegacyQuery(q);
+    if (_badSuggestionChar.hasMatch(rawQuery)) return;
+    final normalized = _normalizeLegacyQuery(rawQuery);
     if (normalized.isEmpty) return;
     final querySize = normalized.length;
     final firstChar = normalized.codeUnitAt(0);
@@ -3304,7 +3337,6 @@ class EmojiKeywords {
           cand.entry,
           wordsUsed,
           rawKw.isNotEmpty && rawKw.codeUnitAt(0) == firstChar,
-          rawKw == q,
         );
         final key = _legacyRankKey(candidate);
         if (best == null || key < bestKey) {
@@ -3322,8 +3354,9 @@ class EmojiKeywords {
     // Stable-sort by rank key; original (declaration) order breaks ties, exactly
     // as the stacked stable_partitions in prepareResult preserve relative order.
     // The whole legacy block is appended AFTER all language-pack results
-    // (AppendLegacySuggestions), and within it rank order already puts exact
-    // matches first — so there is no global exact/prefix re-bucketing.
+    // (AppendLegacySuggestions). C++'s 4th partition would boost exact matches
+    // but is dead code (see `_legacyRankKey`), so an exact built-in keyword does
+    // NOT float ahead of an equal-rank prefix match — declaration order is kept.
     final order = List<int>.generate(results.length, (i) => i);
     order.sort((a, b) {
       final ka = _legacyRankKey(results[a]);
