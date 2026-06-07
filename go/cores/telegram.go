@@ -19641,25 +19641,40 @@ func (t *TelegramCore) UpdateBio(bio string) error {
 	_, err := t.api.AccountUpdateProfile(t.ctx, req); return err
 }
 
-func (t *TelegramCore) GetSelfColorAndChannel() (int, string, error) {
+// GetSelfColorAndChannel returns the self user's name colorID, personal channel
+// title, name background-emoji DocumentId, profile colorID, and profile
+// background-emoji DocumentId. AyuGram seeds the EditPeerColorBox from these
+// four distinct current values: peer->colorIndex(), peer->backgroundEmojiId(),
+// peer->colorProfileIndex(), peer->profileBackgroundEmojiId()
+// (edit_peer_color_box.cpp:501-506). profileColorID is -1 when the user has no
+// profile color set (AyuGram's kUnsetColorIndex).
+func (t *TelegramCore) GetSelfColorAndChannel() (colorID int, channelName string, bgEmojiID int64, profileColorID int, profileBgEmojiID int64, err error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
-	if !t.authed || t.api == nil { return -1, "", ErrAuth }
+	if !t.authed || t.api == nil { return -1, "", 0, -1, 0, ErrAuth }
 	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: t.selfID, AccessHash: 0})
-	if err != nil { return -1, "", err }
+	if err != nil { return -1, "", 0, -1, 0, err }
 
-	colorID := -1
+	colorID = -1
+	profileColorID = -1
 	for _, u := range result.Users {
 		user, ok := u.(*tg.User)
 		if !ok || user.ID != t.selfID { continue }
 		if pc, ok := user.GetColor(); ok {
 			if c, ok := pc.(*tg.PeerColor); ok {
-				colorID = c.Color
+				if v, ok := c.GetColor(); ok { colorID = v }
+				if v, ok := c.GetBackgroundEmojiID(); ok { bgEmojiID = v }
+			}
+		}
+		if pc, ok := user.GetProfileColor(); ok {
+			if c, ok := pc.(*tg.PeerColor); ok {
+				if v, ok := c.GetColor(); ok { profileColorID = v }
+				if v, ok := c.GetBackgroundEmojiID(); ok { profileBgEmojiID = v }
 			}
 		}
 		break
 	}
 
-	channelName := ""
+	channelName = ""
 	if chID, ok := result.FullUser.GetPersonalChannelID(); ok && chID != 0 {
 		for _, ch := range result.Chats {
 			if channel, ok := ch.(*tg.Channel); ok && channel.ID == chID {
@@ -19668,7 +19683,7 @@ func (t *TelegramCore) GetSelfColorAndChannel() (int, string, error) {
 			}
 		}
 	}
-	return colorID, channelName, nil
+	return colorID, channelName, bgEmojiID, profileColorID, profileBgEmojiID, nil
 }
 
 func (t *TelegramCore) UpdateNameColor(colorID int, backgroundEmojiID int64, forProfile bool) error {

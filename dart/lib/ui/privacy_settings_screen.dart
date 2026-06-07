@@ -1954,6 +1954,44 @@ class _PrivacyRow extends StatelessWidget {
   }
 }
 
+/// Opens the Profile Photo privacy editor directly — the self-avatar
+/// "Set Public Photo" menu action (AyuGram `userpic_button.cpp:448-467`, which
+/// shows an `EditPrivacyBox` wired to `Api::UserPrivacy::Key::ProfilePhoto`).
+/// Mirrors `_openPrivacyEditor('profile_photo', …)` so the box looks and behaves
+/// identically whether reached from the avatar menu or the Privacy settings list.
+Future<void> showProfilePhotoPrivacyBox(BuildContext context) async {
+  final engine = context.read<EngineService>();
+  final appState = context.read<AppState>();
+  final accountId = appState.activeAccountId;
+  if (accountId.isEmpty) return;
+
+  const options = ['everyone', 'contacts', 'close_friends', 'nobody'];
+  final detail = await engine.getPrivacySetting(accountId, 'profile_photo');
+  final currentOption = detail?['option'] as String? ?? 'everyone';
+  final alwaysUsers = (detail?['always_users'] as List<dynamic>?)?.cast<String>() ?? <String>[];
+  final neverUsers = (detail?['never_users'] as List<dynamic>?)?.cast<String>() ?? <String>[];
+  final hasFallbackPhoto = await engine.hasFallbackPhoto(accountId);
+  if (!context.mounted) return;
+
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => _EditPrivacyBox(
+      title: 'Profile Photo',
+      privacyKey: 'profile_photo',
+      options: options,
+      currentOption: currentOption,
+      accountId: accountId,
+      engine: engine,
+      userName: appState.activeAccount?.displayName ?? '',
+      isPremium: appState.effectivePremium,
+      initialHasFallbackPhoto: hasFallbackPhoto,
+      initialAlwaysUsers: alwaysUsers,
+      initialNeverUsers: neverUsers,
+      onSaved: (newOption, {String? addedByPhone, String? callsP2P, List<String>? alwaysUserIds, List<String>? neverUserIds, bool? allowPremium}) {},
+    ),
+  );
+}
+
 // ── EditPrivacyBox Dialog ──
 
 class _EditPrivacyBox extends StatefulWidget {

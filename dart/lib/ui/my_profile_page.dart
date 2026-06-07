@@ -16,7 +16,9 @@ import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import 'birthday_picker.dart';
 import 'clipboard_image.dart';
+import 'compose_entities.dart';
 import 'confirm_box.dart';
+import 'forum_topic_icon.dart';
 import 'input_dialogs.dart';
 import 'media_viewer.dart';
 import 'photo_crop_editor.dart';
@@ -37,13 +39,19 @@ class MyProfilePage extends StatefulWidget {
 }
 
 class _MyProfilePageState extends State<MyProfilePage> {
-  final _bioController = TextEditingController();
+  final _bioController = RichTextEditingController();
   Timer? _debounceTimer;
   Timer? _statusRefreshTimer;
   StreamSubscription? _statusSub;
   String _savedBio = '';
   bool _bioLoaded = false;
   int _selfColorId = -1;
+  // Four distinct current color values seeded into the EditPeerColorBox, mirroring
+  // AyuGram's edit_peer_color_box.cpp:501-506 (name color / name background emoji /
+  // profile color / profile background emoji). _selfProfileColorId is -1 when unset.
+  int _selfBgEmojiId = 0;
+  int _selfProfileColorId = -1;
+  int _selfProfileEmojiId = 0;
   String _personalChannelName = '';
   bool _colorChannelLoaded = false;
   int _birthdayDay = 0;
@@ -59,6 +67,23 @@ class _MyProfilePageState extends State<MyProfilePage> {
   @override
   void initState() {
     super.initState();
+    // The bio is a rich field so custom-emoji suggestions insert real
+    // DocumentId-backed entities that render inline (mirroring AyuGram's
+    // Ui::InputField + Ui::Emoji::SuggestionsController — settings_information.cpp:744),
+    // not a flattened fallback glyph. On save the entities collapse back to their
+    // alt text (account.updateProfile carries no entities — apiwrap.cpp:4997).
+    final engine = context.read<EngineService>();
+    _bioController.accountId = context.read<AppState>().activeAccount?.id ?? '';
+    _bioController.customEmojiBuilder = (docId, accId, altText, segStart) => WidgetSpan(
+      alignment: PlaceholderAlignment.middle,
+      child: CustomEmojiTopicIcon(
+        key: ValueKey('bio_ce_${docId}_$segStart'),
+        documentId: docId,
+        accountId: accId,
+        engine: engine,
+        size: 18,
+      ),
+    );
     _loadBio();
     _loadColorAndChannel();
     _loadBirthday();
@@ -126,7 +151,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
       if (!mounted) return;
       setState(() {
         _savedBio = bio;
-        _bioController.text = bio;
+        _bioController.setTextWithEntities(bio, '');
         _bioLoaded = true;
       });
     });
@@ -141,6 +166,9 @@ class _MyProfilePageState extends State<MyProfilePage> {
       if (!mounted) return;
       setState(() {
         _selfColorId = result.colorId;
+        _selfBgEmojiId = result.backgroundEmojiId;
+        _selfProfileColorId = result.profileColorId;
+        _selfProfileEmojiId = result.profileEmojiId;
         _personalChannelName = result.channelName;
         _colorChannelLoaded = true;
       });
@@ -327,11 +355,31 @@ class _MyProfilePageState extends State<MyProfilePage> {
     }
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 1000), () {
-      _saveBio(_bioController.text);
+      _saveBio();
     });
   }
 
-  void _saveBio(String value) {
+  /// Flattens custom-emoji entities to their fallback alt text, mirroring
+  /// AyuGram's `bio->getLastText()` which represents an inserted custom emoji by
+  /// its base emoji when saving — `account.updateProfile` carries no entities
+  /// (apiwrap.cpp:4997, settings_information.cpp:693-695). With no custom emoji
+  /// this is identical to the raw field text.
+  String _flattenBio() {
+    var text = _bioController.text;
+    final emojiEnts = _bioController.entities
+        .where((e) => e.type == FormatType.customEmoji)
+        .toList()
+      ..sort((a, b) => b.offset.compareTo(a.offset));
+    for (final e in emojiEnts) {
+      if (e.offset < 0 || e.offset + e.length > text.length) continue;
+      final alt = e.altText ?? '';
+      text = text.substring(0, e.offset) + alt + text.substring(e.offset + e.length);
+    }
+    return text;
+  }
+
+  void _saveBio() {
+    final value = _flattenBio();
     if (value == _savedBio) return;
     final bioLimit = _isPremium ? 140 : 70;
     if (value.length > bioLimit) return;
@@ -347,7 +395,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
   void _flushBio() {
     if (_debounceTimer?.isActive ?? false) {
       _debounceTimer!.cancel();
-      _saveBio(_bioController.text);
+      _saveBio();
     }
   }
 
@@ -402,7 +450,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
             onChanged: _onBioChanged,
             onSubmitted: () {
               _debounceTimer?.cancel();
-              _saveBio(_bioController.text);
+              _saveBio();
             },
           ),
           Container(height: 8, color: dividerColor),
@@ -454,6 +502,36 @@ class _MyProfilePageState extends State<MyProfilePage> {
             padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
             child: Text(
               'People can message you using your username without knowing your phone number.',
+              style: TextStyle(fontSize: 13, color: subtextColor),
+            ),
+          ),
+          // AyuGram lays out Personal Channel + the name-color button
+          // (SetupPersonalChannel) BEFORE the birthday (SetupBirthday) —
+          // settings_information.cpp:1288-1289.
+          Container(height: 8, color: dividerColor),
+          _PersonalChannelRow(
+            channelName: _personalChannelName,
+            isDark: isDark,
+            loaded: _colorChannelLoaded,
+            onChannelChanged: (name) => setState(() => _personalChannelName = name),
+          ),
+          _rowDivider(isDark),
+          _YourColorRow(
+            colorId: _selfColorId,
+            bgEmojiId: _selfBgEmojiId,
+            profileColorId: _selfProfileColorId,
+            profileEmojiId: _selfProfileEmojiId,
+            isDark: isDark,
+            loaded: _colorChannelLoaded,
+            accountId: account?.id,
+            onColorChanged: (newColorId) {
+              setState(() => _selfColorId = newColorId);
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
+            child: Text(
+              'Choose your name color that will be seen by others in chats.',
               style: TextStyle(fontSize: 13, color: subtextColor),
             ),
           ),
@@ -538,30 +616,6 @@ class _MyProfilePageState extends State<MyProfilePage> {
                   ),
                 ],
               ),
-            ),
-          ),
-          Container(height: 8, color: dividerColor),
-          _PersonalChannelRow(
-            channelName: _personalChannelName,
-            isDark: isDark,
-            loaded: _colorChannelLoaded,
-            onChannelChanged: (name) => setState(() => _personalChannelName = name),
-          ),
-          _rowDivider(isDark),
-          _YourColorRow(
-            colorId: _selfColorId,
-            isDark: isDark,
-            loaded: _colorChannelLoaded,
-            accountId: account?.id,
-            onColorChanged: (newColorId) {
-              setState(() => _selfColorId = newColorId);
-            },
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
-            child: Text(
-              'Choose your name color that will be seen by others in chats.',
-              style: TextStyle(fontSize: 13, color: subtextColor),
             ),
           ),
           Container(height: 8, color: dividerColor),
@@ -698,7 +752,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
 /// 32px min height, character counter (grey ≥0 / red <0), 70-char limit
 /// (140 Premium), debounced 1000ms auto-save, footer text.
 class _BioInput extends StatefulWidget {
-  final TextEditingController controller;
+  final RichTextEditingController controller;
   final bool isDark;
   final bool isPremium;
   final bool bioLoaded;
@@ -901,16 +955,32 @@ class _BioInputState extends State<_BioInput> {
     final sel = widget.controller.selection;
     if (!sel.isValid) return;
     final cursor = sel.baseOffset;
-    final text = widget.controller.text;
-    final insertText = suggestion.insertText;
-    final newText = text.substring(0, _emojiTriggerOffset) +
-        insertText +
-        text.substring(cursor);
-    widget.controller.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(
-          offset: _emojiTriggerOffset + insertText.length),
-    );
+    if (suggestion.isCustom && (suggestion.customDocId ?? 0) != 0) {
+      // Select the ":query" trigger, then replace it with a real DocumentId-backed
+      // custom-emoji entity that renders inline — matching AyuGram's
+      // SuggestionsController, which inserts the animated custom emoji, not the
+      // fallback glyph (settings_information.cpp:744). The entity flattens back to
+      // its alt text on save (see _flattenBio).
+      widget.controller.selection = TextSelection(
+        baseOffset: _emojiTriggerOffset,
+        extentOffset: cursor,
+      );
+      widget.controller.insertCustomEmoji(
+        suggestion.customDocId!,
+        suggestion.customEmoji?.emoji ?? '',
+      );
+    } else {
+      final text = widget.controller.text;
+      final insertText = suggestion.insertText;
+      final newText = text.substring(0, _emojiTriggerOffset) +
+          insertText +
+          text.substring(cursor);
+      widget.controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(
+            offset: _emojiTriggerOffset + insertText.length),
+      );
+    }
     setState(() => _emojiSuggestions = []);
     _dismissOverlay();
     widget.onChanged(widget.controller.text);
@@ -1253,6 +1323,19 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
             ],
           ),
         ),
+        // Self-user "Set Public Photo" privacy action — opens the profile-photo
+        // EditPrivacyBox (ProfilePhoto privacy key), matching AyuGram's ChoosePhoto
+        // sub-button menu (userpic_button.cpp:448-467).
+        const PopupMenuItem<String>(
+          value: 'public',
+          child: Row(
+            children: [
+              Icon(Icons.person_outline, size: 20),
+              SizedBox(width: 12),
+              Text('Set Public Photo'),
+            ],
+          ),
+        ),
         if (hasAvatar)
           const PopupMenuItem<String>(
             value: 'remove',
@@ -1276,6 +1359,8 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
         _pastePhotoFromClipboard(context);
       } else if (value == 'emoji') {
         _openEmojiBuilder(context);
+      } else if (value == 'public') {
+        if (mounted) showProfilePhotoPrivacyBox(context);
       } else if (value == 'remove') {
         _removeProfilePhoto(context);
       }
@@ -1723,6 +1808,9 @@ class _PersonalChannelRow extends StatelessWidget {
 /// §14.5.4: Your Color row — shows name color swatch, opens EditPeerColorBox.
 class _YourColorRow extends StatelessWidget {
   final int colorId;
+  final int bgEmojiId;
+  final int profileColorId;
+  final int profileEmojiId;
   final bool isDark;
   final bool loaded;
   final String? accountId;
@@ -1730,6 +1818,9 @@ class _YourColorRow extends StatelessWidget {
 
   const _YourColorRow({
     required this.colorId,
+    required this.bgEmojiId,
+    required this.profileColorId,
+    required this.profileEmojiId,
     required this.isDark,
     required this.loaded,
     required this.accountId,
@@ -1829,6 +1920,9 @@ class _YourColorRow extends StatelessWidget {
         return _EditPeerColorBox(
           isDark: isDark,
           currentColorId: colorId >= 0 ? colorId : (acctId.hashCode.abs() % 7),
+          currentBgEmojiId: bgEmojiId,
+          currentProfileColorId: profileColorId,
+          currentProfileEmojiId: profileEmojiId,
           accountId: acctId,
           userName: displayName,
           onColorSaved: onColorChanged,
@@ -1843,6 +1937,9 @@ class _YourColorRow extends StatelessWidget {
 class _EditPeerColorBox extends StatefulWidget {
   final bool isDark;
   final int currentColorId;
+  final int currentBgEmojiId;
+  final int currentProfileColorId;
+  final int currentProfileEmojiId;
   final String accountId;
   final String userName;
   final ValueChanged<int> onColorSaved;
@@ -1850,6 +1947,9 @@ class _EditPeerColorBox extends StatefulWidget {
   const _EditPeerColorBox({
     required this.isDark,
     required this.currentColorId,
+    required this.currentBgEmojiId,
+    required this.currentProfileColorId,
+    required this.currentProfileEmojiId,
     required this.accountId,
     required this.userName,
     required this.onColorSaved,
@@ -1881,8 +1981,15 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> with SingleTickerP
   @override
   void initState() {
     super.initState();
+    // Seed each tab from the four distinct current server values rather than
+    // collapsing everything onto the name color — AyuGram seeds the box from
+    // colorIndex / backgroundEmojiId / colorProfileIndex / profileBackgroundEmojiId
+    // (edit_peer_color_box.cpp:501-506). _profileColorId stays -1 (unset) when the
+    // user has no profile color set, so the Profile tab does not snap to the name color.
     _selected = widget.currentColorId;
-    _profileColorId = widget.currentColorId;
+    _selectedEmojiId = widget.currentBgEmojiId;
+    _profileColorId = widget.currentProfileColorId;
+    _profileEmojiId = widget.currentProfileEmojiId;
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) setState(() {});
@@ -1917,9 +2024,16 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> with SingleTickerP
       final engine = context.read<EngineService>();
       final ids = await engine.getBackgroundEmojiList(widget.accountId);
       if (!mounted) return;
-      _backgroundEmojiIds = ids;
-      if (ids.isNotEmpty) {
-        final thumbs = await engine.getCustomEmojiThumbs(widget.accountId, ids.take(50).toList());
+      // Make sure the user's current name/profile background emoji are present so
+      // the picker highlights the real selection even when it isn't one of the
+      // default suggestions returned by getBackgroundEmojiList.
+      final seeded = <int>[
+        for (final id in [_selectedEmojiId, _profileEmojiId])
+          if (id != 0 && !ids.contains(id)) id,
+      ];
+      _backgroundEmojiIds = [...seeded, ...ids];
+      if (_backgroundEmojiIds.isNotEmpty) {
+        final thumbs = await engine.getCustomEmojiThumbs(widget.accountId, _backgroundEmojiIds.take(50).toList());
         if (mounted) {
           setState(() {
             _emojiThumbs = thumbs;
@@ -2407,7 +2521,11 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> with SingleTickerP
     try {
       final engine = context.read<EngineService>();
       await engine.updateNameColor(widget.accountId, _selected, backgroundEmojiId: _selectedEmojiId);
-      if (_profileColorId != widget.currentColorId || _profileEmojiId != 0) {
+      // Only push the profile color when it actually changed from the seeded
+      // server values, and never send an unset (-1) profile color.
+      final profileChanged = _profileColorId != widget.currentProfileColorId ||
+          _profileEmojiId != widget.currentProfileEmojiId;
+      if (profileChanged && _profileColorId >= 0) {
         await engine.updateNameColor(widget.accountId, _profileColorId, backgroundEmojiId: _profileEmojiId, forProfile: true);
       }
       widget.onColorSaved(_selected);

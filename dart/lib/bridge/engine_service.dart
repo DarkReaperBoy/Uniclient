@@ -4849,21 +4849,24 @@ class EngineService {
     await _callAsync('__engine', 'UpdateBirthday', Uint8List.fromList(payload));
   }
 
-  Future<({int colorId, String channelName})> getSelfColorAndChannel(String accountId) async {
+  Future<({int colorId, String channelName, int backgroundEmojiId, int profileColorId, int profileEmojiId})> getSelfColorAndChannel(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
     }));
     try {
       final respBytes = await _callAsync('__engine', 'GetSelfColorAndChannel', Uint8List.fromList(payload));
-      if (respBytes.isEmpty) return (colorId: -1, channelName: '');
+      if (respBytes.isEmpty) return (colorId: -1, channelName: '', backgroundEmojiId: 0, profileColorId: -1, profileEmojiId: 0);
       final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
       return (
         colorId: data['color_id'] as int? ?? -1,
         channelName: data['channel_name'] as String? ?? '',
+        backgroundEmojiId: (data['background_emoji_id'] as num?)?.toInt() ?? 0,
+        profileColorId: data['profile_color_id'] as int? ?? -1,
+        profileEmojiId: (data['profile_emoji_id'] as num?)?.toInt() ?? 0,
       );
     } catch (e) {
       Debug.error('ENGINE', 'getSelfColorAndChannel failed', e);
-      return (colorId: -1, channelName: '');
+      return (colorId: -1, channelName: '', backgroundEmojiId: 0, profileColorId: -1, profileEmojiId: 0);
     }
   }
 

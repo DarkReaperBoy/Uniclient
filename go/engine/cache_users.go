@@ -1325,17 +1325,17 @@ func (e *Engine) GetPeerColors(accountID string) ([]cores.PeerColorEntry, error)
 }
 
 type selfColorChannelGetter interface {
-	GetSelfColorAndChannel() (colorID int, personalChannelName string, err error)
+	GetSelfColorAndChannel() (colorID int, personalChannelName string, bgEmojiID int64, profileColorID int, profileBgEmojiID int64, err error)
 }
 
-func (e *Engine) GetSelfColorAndChannel(accountID string) (int, string, error) {
+func (e *Engine) GetSelfColorAndChannel(accountID string) (int, string, int64, int, int64, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
-		return -1, "", fmt.Errorf("account %q not connected", accountID)
+		return -1, "", 0, -1, 0, fmt.Errorf("account %q not connected", accountID)
 	}
 	g, ok := acc.Core.(selfColorChannelGetter)
 	if !ok {
-		return -1, "", fmt.Errorf("platform does not support color/channel info")
+		return -1, "", 0, -1, 0, fmt.Errorf("platform does not support color/channel info")
 	}
 	return g.GetSelfColorAndChannel()
 }

@@ -3971,13 +3971,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		colorID, channelName, err := e.GetSelfColorAndChannel(params.AccountID)
+		colorID, channelName, bgEmojiID, profileColorID, profileBgEmojiID, err := e.GetSelfColorAndChannel(params.AccountID)
 		if err != nil {
 			return nil, err
 		}
 		return json.Marshal(map[string]interface{}{
-			"color_id":     colorID,
-			"channel_name": channelName,
+			"color_id":            colorID,
+			"channel_name":        channelName,
+			"background_emoji_id": bgEmojiID,
+			"profile_color_id":    profileColorID,
+			"profile_emoji_id":    profileBgEmojiID,
 		})
 
 	case "UpdateNameColor":
