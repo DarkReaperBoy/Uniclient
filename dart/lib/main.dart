@@ -2734,7 +2734,10 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
 
   Widget _buildBox(BuildContext context) {
     final p = context.palette;
-    final accentColor = p.windowActiveTextFg;
+    // Both the Keep and Revert buttons are st::defaultBoxButton, whose textFg is
+    // lightButtonFg (RoundButton(defaultLightButton)). ← window_theme_warning.cpp:32-33,
+    // lib_ui/ui/layers/layers.style:44.
+    final accentColor = p.lightButtonFg;
     // Integer truncation to match AyuGram's C++ `_secondsLeft` (init
     // kWaitBeforeRevertMs / 1000 == 15, recomputed by truncation each tick), not
     // ceil() which would show 16. ← window_theme_warning.cpp:31,96.
@@ -2789,7 +2792,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
                   TextButton(
                     onPressed: _revert,
                     style: TextButton.styleFrom(
-                      foregroundColor: p.boxTextFg,
+                      foregroundColor: accentColor,
                       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                     ),
                     child: Text(TrStrings.lngThemeRevert()),
@@ -3067,10 +3070,16 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     // ← window_lock_widgets.cpp:123-128.
     final domainStarted = context.watch<AppState>().domainStarted;
     final palette = context.palette;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = palette.windowBg;
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    // Header + input text paint with st::windowFg, the field placeholder + the
+    // cold-start system-unlock info label with windowSubTextFg — so a custom
+    // palette or accent-colorized theme renders them correctly (the old
+    // brightness-keyed literals were also simply wrong for the dark themes:
+    // windowSubTextFg is 0xFF708499 for night / 0xFF82868A for nightGreen).
+    // ← window_lock_widgets.cpp:249 (windowFg), boxes.style:319-322
+    //   (passcodeSystemUnlockLater textFg: windowSubTextFg).
+    final textColor = palette.windowFg;
+    final subtextColor = palette.windowSubTextFg;
     final accentColor = palette.windowBgActive;
     final errorColor = palette.boxTextFgError;
 
@@ -3293,7 +3302,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                         ),
                         buttons: [
                           TelegramBoxButton(
-                            text: 'Cancel',
+                            text: TrStrings.lngCancel(),
                             onPressed: _dismissLogoutConfirm,
                           ),
                           TelegramBoxButton(
