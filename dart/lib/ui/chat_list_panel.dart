@@ -20,7 +20,7 @@ import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
 import 'popup_menu.dart';
 import 'confirm_box.dart';
-import 'contacts_screen.dart' show showContactsBox;
+import 'input_dialogs.dart' show showAddContactBox;
 import 'edit_forum_topic_box.dart';
 import 'folders_settings_screen.dart' show showEditFolderBox, FoldersSettingsScreen;
 import 'settings_style.dart';
@@ -3660,8 +3660,8 @@ class _StoryAvatar extends StatelessWidget {
             hasUnread: hasUnread,
             photoRadius: size / 2,
             lineWidth: ringWidth,
-            unreadColor1: palette.premiumButtonBg1,
-            unreadColor2: palette.premiumButtonBg2,
+            unreadColor1: palette.groupCallLive1,
+            unreadColor2: palette.groupCallMuted1,
             readColor: isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb),
           ),
           child: Center(
@@ -4140,14 +4140,18 @@ class _SearchTabsStrip extends StatefulWidget {
   // null-icon tabs (chat_search_in.cpp:321). "Public Posts" needs a hashtag/
   // cashtag query; "This Peer" needs an active peer/sublist scope; "This Topic"
   // needs an open forum topic. "My Messages" is always present.
+  //
+  // Order follows AyuGram's possible-tab list (most-specific scope first):
+  // This Topic → This Peer → My Messages → Public Posts
+  // (dialogs_inner_widget.cpp:4632-4637).
   List<({_SearchTab tab, String label})> get tabs => [
+    if (showThisTopic)
+      (tab: _SearchTab.thisTopic, label: 'This Topic'),
+    if (showThisPeer)
+      (tab: _SearchTab.thisPeer, label: thisPeerLabel),
     (tab: _SearchTab.myMessages, label: 'My Messages'),
     if (showPublicPosts)
       (tab: _SearchTab.publicPosts, label: 'Public Posts'),
-    if (showThisPeer)
-      (tab: _SearchTab.thisPeer, label: thisPeerLabel),
-    if (showThisTopic)
-      (tab: _SearchTab.thisTopic, label: 'This Topic'),
   ];
 
   @override
@@ -4467,21 +4471,21 @@ class _SearchFromRow extends StatelessWidget {
     final subColor = palette.windowSubTextFg;
     if (from == null) {
       return Text(
-        'Search from a member',
+        'From: ',
         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: subColor),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       );
     }
     final name = from.displayName.isNotEmpty ? from.displayName : from.username;
-    // "Search from {user}" — the user name in semibold (lng_dlg_search_from).
+    // "From: {user}" — the user name in semibold (lng_dlg_search_from).
     return RichText(
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       text: TextSpan(
         style: TextStyle(fontSize: 13, color: subColor),
         children: [
-          const TextSpan(text: 'Search from '),
+          const TextSpan(text: 'From: '),
           TextSpan(
             text: name,
             style: TextStyle(fontWeight: FontWeight.w600, color: palette.windowBoldFg),
@@ -4715,25 +4719,14 @@ class _ArchivedChatsRowState extends State<_ArchivedChatsRow> {
   }
 
   Widget _buildWide(Color nameFg, Color mutedBadgeBg) {
-    final palette = context.palette;
+    // PaintCollapsedRow wide branch: the folder name is plain semibold
+    // dialogsNameFg text at dialogsTopBarLeftPadding (18px) with NO leading
+    // icon — the userpic is drawn only in the narrow branch.
+    // (dialogs_layout.cpp:1356-1367, dialogs.style:887)
     return Padding(
-      padding: const EdgeInsets.only(left: 10, right: 10),
+      padding: const EdgeInsets.only(left: 18, right: 10),
       child: Row(
         children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: palette.dialogsBgOver,
-            ),
-            child: Icon(
-              Icons.archive_outlined,
-              size: 16,
-              color: palette.historyPeerUserpicFg,
-            ),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Archived Chats',
@@ -5325,8 +5318,12 @@ class _EmptyState extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
+                      // EmptyState::NoContacts — lng_no_chats phrase plus a
+                      // "\n\n"-separated lng_add_contact_button text link whose
+                      // handler is showAddContact() (the add-contact form).
+                      // (dialogs_inner_widget.cpp:4402-4438)
                       Text(
-                        'You have no\nconversations yet.',
+                        'Your chats will be here',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 14,
@@ -5334,26 +5331,18 @@ class _EmptyState extends StatelessWidget {
                           color: theme.textTheme.bodyLarge?.color,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Your contacts on Telegram',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: subColor,
+                      const SizedBox(height: 16),
+                      GestureDetector(
+                        onTap: () => showAddContactBox(context),
+                        child: Text(
+                          'New contact',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(
-                    bottom: 12, left: 16, right: 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () => showContactsBox(context),
-                    child: const Text('New Message'),
                   ),
                 ),
               ),
