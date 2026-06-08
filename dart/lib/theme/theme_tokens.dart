@@ -157,8 +157,19 @@ abstract final class TgTokens {
   // (23 == kMaxAvatarCorners → ayu_userpic.cpp:35), so min(16, 16) = 16 — a
   // full pill, not a rounded-rect. (Was 8 — a 50% under-rounding.)
   static const double defaultMultiSelectRadius = 16;
-  static const double defaultRoundShadowBlur = 8;
-  static const Offset defaultRoundShadowOffset = Offset(0, 2);
+  // defaultRoundShadow (widgets.style:911-922) is an icon-based 9-slice Shadow:
+  // 8 pre-rendered "round_shadow_*" icon slices + fallback windowShadowFgFallback.
+  // It is NOT a Gaussian blur/offset shadow — there is no `blur` or `offset`
+  // field in the source. Its ONLY scalar literal is the `extend` margin; the icon
+  // slices themselves are non-scalar assets (analogous to the unresolved
+  // localStorageLimitSlider/MediaSlider object, §56.13). The previous
+  // defaultRoundShadowBlur=8 / defaultRoundShadowOffset=Offset(0,2) were
+  // fabricated (no such fields exist) and overshot the real 3/2/3/4 extend, so
+  // they are replaced here by the one genuine scalar — the extend margins —
+  // exactly as defaultInputFieldHeight/defaultRadioSize pull a single real scalar
+  // out of their parent widget-style objects.
+  static const EdgeInsets defaultRoundShadowExtend =
+      EdgeInsets.fromLTRB(3, 2, 3, 4); // widgets.style:920 defaultRoundShadow.extend margins(3px,2px,3px,4px)
   // menuIconSize removed: invented/unsourced — no such token exists anywhere in
   // AyuGram (menu item icons are sized by their icon assets, not a scalar token).
   static const double radialSize = 50; // basic.style:118 radialSize size(50px,50px)
@@ -201,7 +212,9 @@ abstract final class TgTokens {
   //   • OS/native dialogs (no .style literal): biometricPromptTitle,
   //     biometricPromptDescription, platformTitleFont
   //   • non-scalar widget-style objects (not a single literal): localStorageLimitSlider
-  //     (MediaSlider, boxes.style:223)
+  //     (MediaSlider, boxes.style:223); defaultRoundShadow's 8 round_shadow_* icon
+  //     slices + windowShadowFgFallback (widgets.style:911-922) — its one scalar,
+  //     the `extend` margin, IS resolved above as defaultRoundShadowExtend
   //   • palette colors → live in TelegramPalette, not as scalar tokens here:
   //     themeEditorNameFg
   //   • no matching definition in any .style file (no such token name exists in
