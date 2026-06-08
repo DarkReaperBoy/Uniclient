@@ -88,10 +88,13 @@ class AyuFiltersPage extends StatelessWidget {
           if (status.isNotEmpty) status.write(', ');
           status.write('$exclCount excluded');
         }
+        // dialogName feeds the per-dialog list *screen title* only (its
+        // "Filters (<id>)" fallback is correct per AyuFiltersList::title,
+        // settings_filters_list.cpp:59). The row itself self-resolves its name
+        // (with an "UNKNOWN (ID: <id>)" fallback) — see _PerDialogFilterRow.
         final dialogName = _resolveDialogName(chatState, dId);
         b.addWidget(_PerDialogFilterRow(
           dialogId: dId,
-          name: dialogName,
           status: status.toString(),
           isDark: isDark,
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -534,19 +537,18 @@ class _NavigationButton extends StatelessWidget {
 // the app's userpic rows use the same table.
 const _kUserpicColorRemap = <int>[0, 7, 4, 1, 6, 3, 5];
 
-/// Per-dialog filter row showing the dialog's userpic — mirrors AyuGram's
-/// PerDialogFiltersListRow (per_dialog_filter.cpp:43-58), which paints the real
-/// peer avatar when the dialog is known and a colored "U" circle otherwise.
+/// Per-dialog filter row showing the dialog's userpic + name — mirrors AyuGram's
+/// PerDialogFiltersListRow (per_dialog_filter.cpp:35-58). When the peer resolves
+/// it paints the real avatar/name; otherwise it shows a colored "U" circle and
+/// the "UNKNOWN (ID: <id>)" fallback name.
 class _PerDialogFilterRow extends StatefulWidget {
   final String dialogId;
-  final String name;
   final String status;
   final bool isDark;
   final VoidCallback onTap;
 
   const _PerDialogFilterRow({
     required this.dialogId,
-    required this.name,
     required this.status,
     required this.isDark,
     required this.onTap,
@@ -557,22 +559,56 @@ class _PerDialogFilterRow extends StatefulWidget {
 }
 
 class _PerDialogFilterRowState extends State<_PerDialogFilterRow> {
+  String? _resolvedName;
   String? _avatarPath;
   bool _avatarExists = false;
 
   @override
   void initState() {
     super.initState();
-    _resolveAvatar();
+    _resolvePeerInfo();
   }
 
-  void _resolveAvatar() {
+  /// Resolve the dialog's name + userpic. Mirrors AyuGram's
+  /// PerDialogFiltersListRow::generateName / generatePaintUserpicCallback
+  /// (per_dialog_filter.cpp:35-58), which resolve the peer via getPeerFromDialogId
+  /// (any loaded user/channel/chat peer, broader than the dialog list). We first
+  /// scan the loaded dialogs, then fall back to the engine — the same
+  /// getUserProfile + downloadSingleAvatar pattern the sibling _ShadowBanRow uses
+  /// — so a per-dialog filter on a peer not yet in the dialog list (e.g. right
+  /// after an import) still renders a real name/avatar instead of a generic
+  /// colored letter.
+  void _resolvePeerInfo() {
     final chatState = context.read<ChatState>();
     for (final chat in chatState.chats) {
-      if (chat.chatId == widget.dialogId && chat.avatarPath.isNotEmpty) {
-        _updateAvatarExists(chat.avatarPath);
+      if (chat.chatId == widget.dialogId) {
+        _resolvedName = chat.title;
+        if (chat.avatarPath.isNotEmpty) {
+          _updateAvatarExists(chat.avatarPath);
+        }
         return;
       }
+    }
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+    // resolvePeer (telegram.go:11719, used by DownloadSingleAvatar) accepts the
+    // full signed dialog id for every peer type; getUserProfile resolves only
+    // users (positive id), so the userpic still loads for groups/channels even
+    // when the title can't be fetched.
+    engine.downloadSingleAvatar(accountId, widget.dialogId).then((path) {
+      if (mounted && path != null && path.isNotEmpty) {
+        _updateAvatarExists(path);
+      }
+    });
+    if (!widget.dialogId.startsWith('-')) {
+      engine.getUserProfile(accountId, widget.dialogId).then((profile) {
+        if (!mounted) return;
+        final name = profile?.displayName;
+        if (name != null && name.isNotEmpty) {
+          setState(() => _resolvedName = name);
+        }
+      });
     }
   }
 
@@ -586,16 +622,33 @@ class _PerDialogFilterRowState extends State<_PerDialogFilterRow> {
     }
   }
 
+  /// Bare numeric id (no -100 / - prefix) — matches AyuGram's
+  /// `peerId.value & PeerId::kChatTypeMask`, used both as the userpic color seed
+  /// and inside the "UNKNOWN (ID: <id>)" fallback name.
+  String get _bareId => widget.dialogId
+      .replaceFirst(RegExp(r'^-100'), '')
+      .replaceFirst('-', '');
+
   int get _colorIndex {
-    final raw = widget.dialogId
-        .replaceFirst(RegExp(r'^-100'), '')
-        .replaceFirst('-', '');
-    final id = int.tryParse(raw) ?? 0;
+    final id = int.tryParse(_bareId) ?? 0;
     return _kUserpicColorRemap[id.abs() % 7];
   }
 
-  String get _letter =>
-      widget.name.isNotEmpty ? widget.name[0].toUpperCase() : 'U';
+  /// Real peer name when known, else "UNKNOWN (ID: <id>)" — matches AyuGram's
+  /// PerDialogFiltersListRow::generateName (per_dialog_filter.cpp:40). The
+  /// "Filters (<id>)" string is AyuGram's *screen-title* fallback only, never the
+  /// row name.
+  String get _displayName {
+    final n = _resolvedName;
+    if (n != null && n.isNotEmpty) return n;
+    return 'UNKNOWN (ID: $_bareId)';
+  }
+
+  String get _letter {
+    final n = _resolvedName;
+    if (n != null && n.isNotEmpty) return n[0].toUpperCase();
+    return 'U'; // U - Unknown (per_dialog_filter.cpp:55)
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -622,7 +675,7 @@ class _PerDialogFilterRowState extends State<_PerDialogFilterRow> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.name,
+                Text(_displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
