@@ -2,30 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# engine_models — Dart model/DTO layer mirroring Go engine types (chats, messages, scheduling, business bots, forum topics, web previews, calls, stories)
-
-Scope note: this file is the pure data/model layer (DTOs with `fromJson`/`copyWith`/computed
-getters), not UI. There are **no** placeholders, empty callbacks, TODO/FIXME, mock data, or
-unwired bridge calls — every `fromJson` is real. The audit therefore targeted the places that
-port real AyuGram **logic/constants**. The following were verified **correct** against AyuGram
-and are NOT issues: the `ScheduledMessages` constants (`kMinimalScheduleSeconds=10`,
-`kScheduledUntilOnlineTimestamp=0x7FFFFFFE`, `_kServerMaxMsgId=1<<56`,
-`_kScheduledMaxMsgId=ServerMaxMsgId+(1<<32)`, `isScheduledMsgId`, `defaultScheduleTime=now+600`)
-← `data/data_msg_id.h:80-81`, `data/components/scheduled_messages.cpp:112-113`,
-`api/api_common.h:20`, `ui/boxes/choose_date_time.cpp:28,111`; the 8 `repeatOptions`
-(0/86400/604800/1209600/2592000/7862400/15724800/31536000) ← `ui/boxes/choose_date_time.cpp:254-269`;
-the 5-bit `_decodeWaveform` unpack ← `data/data_document.cpp:1333-1364`;
-`WebPagePreview.defaultSmallMedia`/`_typeKind` ← `data/data_web_page.cpp:125-189,423-449`;
-the 6 `ForumTopic.colorNames` entries ← `data/data_forum_topic.cpp:52-57`.
-
-The three confirmed deviations:
-
-- [ ] [MAJOR] `ConnectedBotInfo.appliesTo` exclude-selected branch returns `!userIds.contains(peerId)` and ignores the `existingChats`/`contacts`/`nonContacts` category flags. Per AyuGram, when `exclude_selected` is set those category flags define the **excluded** set (`allButExcluded ? result.excluded : result.included; chats.types = categories`), so a chat matching an excluded category must NOT match — e.g. a bot configured "manage all chats except my contacts" should skip contact chats, but the Dart logic applies the bot to them. This is **live** code: `chat_state.dart:2583` uses it to set `_connectedBot` (drives the in-chat connected-bot management/pause UI). The Go engine serializes those category bools unconditionally (`telegram.go:31770-31774`), so the data is present and being dropped. — `engine_models.dart:2386` ← `data/business/data_business_common.cpp:135-150`
-
-- [ ] [MAJOR] `ScheduledMessages.canScheduleUntilOnline` returns `peer.type == ChatType.dm` for **every** DM, whereas AyuGram's `CanScheduleUntilOnline` additionally requires `!isSelf && !isBot && !lastseen().isHidden() && !starsPerMessageChecked() && !isNotificationsUser()`. As written it would offer "Send when online" for Saved Messages, bots, hidden-last-seen users, and stars-per-message users where AyuGram hides it. `ChatInfo` already carries `isSelf`, `isBot`, and `starsToSend` (lines 254/227/241) but none are checked. (Currently an unused helper — latent until wired into a schedule menu.) — `engine_models.dart:3800` ← `history/view/history_view_schedule_box.cpp:75-84`
-
-- [ ] [MAJOR] `ForumTopic.colorName` falls back to `'blue'` for an unknown/default `colorId`, but AyuGram's default forum-topic icon color is `'gray'` (`ForumTopicDefaultIcon()`), used for the General topic and any topic without one of the 6 palette colors. The wrong fallback would render the default/General topic icon blue instead of gray. (Currently the `colorName` getter is unused in the UI — latent.) — `engine_models.dart:476` ← `data/data_forum_topic.cpp:70-72`
-
 # notification_manager_default — custom in-app notification popup controller (AyuGram `Default::Manager`)
 
 This Dart file is the controller half of AyuGram's `Window::Notifications::Default::Manager`
