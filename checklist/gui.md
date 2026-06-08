@@ -515,9 +515,7 @@ there are no stubs/placeholders/fake data, `hasActiveCall` is wired end-to-end
 at (0,8); `createCallListItem` 52px/40px; `callArrowPosition` (-2,1); `callArrowSkip` 4px),
 the `LevelMeter` matches `defaultLevelMeter` (44 lines, 3px width, 5px spacing, 18px height,
 mediaPlayer active/inactive colors), the contact sort matches `SortMode::Alphabet`, and the
-labels match the lang pack. Two data-flow defects found.
-
-- [ ] [MAJOR] Per-contact video selection is dropped for multi-select / conference calls: the row exposes an audio vs. video toggle and stores it in `_selectedVideo`, but the conference invite passes only user IDs (`inviteToConferenceCall(accountId, result.callId, _selectedIds.toList())`), so every conference invitee is invited audio-only regardless of the video icon the user picked. The video flag is honored only on the single-contact 1:1 path (`startCall(..., video: video)` at `calls_screen.dart:1126`). AyuGram preserves the per-user flag through `ConfInviteController::requests()` which builds `InviteRequest{ user, _withVideo.contains(user) }` and passes it via `.invite` into `startOrJoinConferenceCall` / `inviteUsers`. — `calls_screen.dart:1145` ← `AyuGram/Telegram/SourceFiles/calls/group/calls_group_invite_controller.cpp:504`
+labels match the lang pack. One data-flow defect remains (the per-contact conference-invite video flag was fixed and verified 2026-06-08).
 
 - [ ] [MAJOR] Call-history "Delete" ignores the "delete for everyone" (revoke) choice: the context-menu delete opens `showDeleteConfirmBox` in `singleMessage`/`bulkMessages` mode, which renders the revoke checkbox and returns `confirmResult.revoke`, but the handler only reads `confirmResult.confirmed` and calls `engine.deleteMessage(accountId, peerId, msgId)` (no revoke parameter), so the user's "also delete for the other participant" choice has no effect and call-log entries are never revoked for the peer. AyuGram routes the same delete through `Box<DeleteMessagesBox>(session, ids)`, whose revoke checkbox is applied to the delete request. — `calls_screen.dart:2127` ← `AyuGram/Telegram/SourceFiles/calls/calls_box_controller.cpp:585`
 
