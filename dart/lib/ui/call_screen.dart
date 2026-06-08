@@ -118,6 +118,21 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   // pure UI state, no server call.
   String? _pinnedVideoKey;
 
+  // ── Chat-admin awareness for the participant context menu ──
+  // AyuGram's canKick (calls_group_members.cpp:1521-1545) and muteAction
+  // (:1656-1678) gate on the underlying chat's admin rights — the creator and
+  // co-admins can't be kicked (unless restrictable), and an Inactive co-admin
+  // can't be server-muted while you canManage. None of that rides on
+  // GroupCallParticipant, so we fetch it once from getChatMembersByRole('admins')
+  // (creator + admins + per-row canRestrict == AyuGram canRestrictParticipant)
+  // and key it by userId. _callAdminIds mirrors IsGroupCallAdmin's admin/owner
+  // set (calls_group_call.cpp:252-275).
+  Set<String> _callAdminIds = {};
+  String _callOwnerId = '';
+  Map<String, bool> _adminCanRestrict = {};
+  bool _chatAdminsLoaded = false;
+  bool _chatAdminsLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -130,7 +145,95 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startAudioLevelPolling();
       _subscribeToCallState();
+      _ensureChatAdminsLoaded();
     });
+  }
+
+  /// Loads the underlying chat's admins/owner so the participant context menu
+  /// can gate Mute / Remove exactly like AyuGram (canKick / muteAction). Primary
+  /// source is getChatMembersByRole('admins'): it works for supergroups/channels
+  /// (where group calls live) and surfaces the per-admin canRestrict flag the Go
+  /// core computes as the canRestrictParticipant equivalent (telegram.go:18436).
+  /// Basic group chats can't be queried by role, so we fall back to the paged
+  /// member list and read roles there — canRestrict isn't surfaced for that path,
+  /// so only the creator may kick co-admins, matching the AyuGram chat branch
+  /// `chat->amCreator() || (canBanMembers() && !admins.contains(user))`.
+  Future<void> _ensureChatAdminsLoaded() async {
+    if (_chatAdminsLoaded || _chatAdminsLoading) return;
+    final chatId = widget.info.chatId;
+    if (chatId.isEmpty) {
+      // Conference / no underlying chat: kick is gated by isConference+canManage
+      // and there are no co-admins to suppress. Mark loaded with empty data.
+      if (mounted) setState(() => _chatAdminsLoaded = true);
+      return;
+    }
+    _chatAdminsLoading = true;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    final adminIds = <String>{};
+    var ownerId = '';
+    final canRestrict = <String, bool>{};
+    try {
+      final res =
+          await engine.getChatMembersByRole(accountId, chatId, role: 'admins');
+      for (final m in res.members) {
+        adminIds.add(m.userId);
+        canRestrict[m.userId] = m.canRestrict;
+        if (m.isCreator || m.role == 'creator' || m.role == 'owner') {
+          ownerId = m.userId;
+        }
+      }
+    } catch (_) {
+      // Basic group chat — role query is channel-only. Fall back to the member
+      // list and derive admins/creator from roles.
+      try {
+        final members =
+            await engine.getChatMembers(accountId, chatId, limit: 200);
+        final selfId = appState.activeAccount?.selfUserId ?? '';
+        final selfIsOwner = members.any((m) =>
+            m.userId == selfId && (m.role == 'creator' || m.role == 'owner'));
+        for (final m in members) {
+          if (m.role == 'creator' || m.role == 'owner') {
+            ownerId = m.userId;
+            adminIds.add(m.userId);
+          } else if (m.role == 'admin') {
+            adminIds.add(m.userId);
+            canRestrict[m.userId] = selfIsOwner;
+          }
+        }
+      } catch (e) {
+        Debug.log('call_screen', 'ensureChatAdminsLoaded fallback failed: $e');
+      }
+    }
+    if (!mounted) {
+      _chatAdminsLoading = false;
+      return;
+    }
+    setState(() {
+      _callAdminIds = adminIds;
+      _callOwnerId = ownerId;
+      _adminCanRestrict = canRestrict;
+      _chatAdminsLoaded = true;
+    });
+    _chatAdminsLoading = false;
+  }
+
+  /// Whether "Remove from call" may be offered for [p]. Mirrors AyuGram canKick
+  /// (calls_group_members.cpp:1521-1545): never for invited/calling rows; always
+  /// for a conference you manage; otherwise (chat/channel) excludes the creator
+  /// and any co-admin you can't restrict. Hidden until the admin data is known,
+  /// so we never offer a kick the server would reject.
+  bool _canKickParticipant(GroupCallParticipant p, bool isSelf) {
+    if (p.isInvited) return false; // Row::State::Invited / Calling
+    if (widget.isConference && widget.isCanManage) return true;
+    if (!widget.isCanManage || isSelf) return false;
+    if (!_chatAdminsLoaded) return false; // don't offer until we know
+    if (p.userId == _callOwnerId) return false; // creator is never kickable
+    if (_callAdminIds.contains(p.userId)) {
+      return _adminCanRestrict[p.userId] ?? false; // co-admin → only if restrictable
+    }
+    return true; // regular member
   }
 
   @override
@@ -570,6 +673,10 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     final selfUserId = appState.activeAccount?.selfUserId ?? '';
     final callId = widget.info.callId;
     if (callId.isEmpty) return;
+    // Retry the admin-data fetch if the eager init load hasn't landed yet, so
+    // the mute/kick gating below reflects real chat-admin rights (no-op once
+    // loaded). Fire-and-forget — this menu builds from the current snapshot.
+    _ensureChatAdminsLoaded();
     final isSelf = p.userId == selfUserId;
     // Invited/calling conference rows aren't joined participants yet: no
     // pin/mute/volume/kick — only Stop ringing / Cancel invite / profile.
@@ -633,9 +740,23 @@ class _GroupCallPanelState extends State<GroupCallPanel>
       // Admin server-side mute/unmute. AyuGram's muteAction (calls_group_members
       // .cpp:1656-1678) returns no action for self (isMe), rtmp, or a participant
       // with no live ssrc; the label flips to "Unmute" only when already muted.
-      // (Co-admin protection — Inactive && participantIsCallAdmin && canManage →
-      // no action — needs per-participant admin data the engine doesn't surface.)
-      if (widget.isCanManage && !isSelf && !widget.isRtmp && p.ssrc != 0) {
+      // It ALSO drops the item for an Inactive co-admin while you canManage:
+      //   (state == Inactive && participantIsCallAdmin && canManage) → no action.
+      // Inactive == server-muted but can self-unmute and not currently sounding
+      // (calls_group_members_row.cpp:165-192): active = !muted ||
+      // (sounding && ssrc != 0) || additionalSounding; Inactive = !active &&
+      // canSelfUnmute. participantIsCallAdmin == membership in the chat's
+      // admin/owner set (== IsGroupCallAdmin, calls_group_call.cpp:252-275).
+      final pActive = !p.isMuted ||
+          (p.sounding && p.ssrc != 0) ||
+          p.additionalSounding;
+      final pInactive = !pActive && p.canSelfUnmute;
+      final pIsCallAdmin = _callAdminIds.contains(p.userId);
+      if (widget.isCanManage &&
+          !isSelf &&
+          !widget.isRtmp &&
+          p.ssrc != 0 &&
+          !(pInactive && pIsCallAdmin)) {
         final muted = p.isMuted;
         items.add(PopupMenuItem(
           value: muted ? 'unmute' : 'mute',
@@ -657,11 +778,11 @@ class _GroupCallPanelState extends State<GroupCallPanel>
         ));
       }
 
-      // Remove from call (kick). AyuGram's canKick additionally excludes the
-      // chat creator and co-admins via ban-rights (calls_group_members.cpp:1521-
-      // 1545); that per-participant admin data isn't in the engine pipeline, so
-      // this matches the conference case (canManage only) and the self exclusion.
-      if (widget.isCanManage && !isSelf) {
+      // Remove from call (kick). AyuGram's canKick (calls_group_members.cpp:1521-
+      // 1545) excludes the chat creator and any co-admin you can't restrict, so
+      // we gate on the loaded admin/owner lookup (see _canKickParticipant) rather
+      // than offering Remove on every non-self participant.
+      if (_canKickParticipant(p, isSelf)) {
         items.add(const PopupMenuDivider());
         items.add(const PopupMenuItem(
           value: 'kick',
