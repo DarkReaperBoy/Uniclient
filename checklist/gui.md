@@ -2,33 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# bridge_ffi — native Dart↔Go FFI bridge (no AyuGram counterpart)
-
-**Scope note (read first).** `bridge_ffi.dart` is the native FFI bridge: it loads the
-Go shared library (`libcores.so`/`cores.dll`/`libcores.dylib`), marshals every backend
-call across the FFI boundary (`call`/`callAsync`), and runs a dedicated isolate that
-blocks on `BridgeNextEvent` to forward Go events back to the UI isolate. This is
-uniclient-specific architecture (Go backend + Flutter frontend joined by `dart:ffi`).
-
-AyuGram Desktop is a native C++ client with **no equivalent layer** — verified: no
-`DynamicLibrary`/`dlopen`/`BridgeNextEvent`/`Isolate.run` marshalling exists anywhere in
-`AyuGram/Telegram/SourceFiles/` (only a vendored `ayu/libs/sqlite/sqlite3.c`, unrelated).
-The audit's visual/behavioral/dimension comparison therefore has no C++ authority to cite
-for this file, and the items below cannot cite an AyuGram line because none exists.
-
-**Stub/placeholder/wiring check: CLEAN.** No empty callbacks, no TODO/FIXME, no mock/fake
-data, no "coming soon", no not-implemented throws. The file is fully functional and is
-itself the real wiring through which all of `engine_service.dart` (~hundreds of methods,
-e.g. `engine_service.dart:6646`) reaches the Go core. Memory management in `_doCall`
-(`bridge_ffi.dart:158-181`) and `_eventLoop` (`bridge_ffi.dart:215-227`) correctly frees
-both Dart-allocated buffers and Go-pinned result pointers — no leaks found.
-
-## Genuine engineering findings (no AyuGram authority — flagged for human review)
-
-- [ ] [MAJOR] `dispose()` permanently closes the top-level `_globalEventController`, so the bridge cannot be re-initialized: a later `init()` spawns a fresh event isolate whose forwarded events are silently dropped by the `!isClosed` guard, and `get events` returns an already-closed stream (new `.listen()` fires `onDone` immediately). The event controller is a process-global singleton (`bridge_ffi.dart:197`) but is torn down per-instance in `dispose()` (`bridge_ffi.dart:121`), with the drop-guard at `bridge_ffi.dart:82` and the dead getter at `bridge_ffi.dart:50`. Latent today (Engine*Service holds one long-lived `Bridge`, disposed only at shutdown) but breaks any dispose→re-init cycle (e.g. hot-restart of the engine, multi-account teardown). Fix: make the controller an instance field recreated in `init()`, or don't `close()` it in `dispose()`. — `bridge_ffi.dart:111-122` ← no AyuGram counterpart (FFI lifecycle is uniclient-only)
-
-- [ ] [MAJOR] `callAsync` spawns a brand-new isolate via `Isolate.run` on **every** backend call, and every engine method routes through it (`engine_service.dart:6646` → `bridge.dart:30` → `bridge_ffi.dart:108`). Each call pays isolate-spawn cost plus a double copy of request+response bytes across the isolate boundary, on the app's universal RPC hot path (presence, read receipts, history pagination, etc.). The design deliberately avoids head-of-line blocking (one isolate per blocking Go call), so a single shared worker isolate would be *worse*; the correct optimization is a bounded worker-isolate pool with a request/response queue, reusing the already-cached `DynamicLibrary` handle (`bridge_ffi.dart:186-194`). Currently correct, but suboptimal under call volume/concurrency. — `bridge_ffi.dart:103-109` ← no AyuGram counterpart (native C++ has no isolate/FFI marshalling)
-
 # chat_state — Chat list / active chat / messages / folders / forum / saved sublists state (ChangeNotifier)
 
 This is a pure state-management file (no widgets). It is well-wired to the engine — every
