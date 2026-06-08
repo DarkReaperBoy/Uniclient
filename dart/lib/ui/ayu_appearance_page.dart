@@ -21,6 +21,15 @@ class AyuAppearancePage extends StatelessWidget {
     final appState = context.watch<AppState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // Mirror AyuGram's HasDrawerBots(controller) live query (settings_appearance.cpp:291):
+    // pull the active account's main-menu bots so the "Bots" drawer toggle below
+    // (gated on appState.menuBots.isNotEmpty) appears when the account has one.
+    // Idempotent + post-frame so it never mutates state mid-build.
+    final activeAccountId = appState.activeAccountId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      appState.ensureMenuBotsLoaded(activeAccountId);
+    });
+
     final b = AyuSectionBuilder(
         isDark: isDark, useMaterial: appState.materialSwitches);
 

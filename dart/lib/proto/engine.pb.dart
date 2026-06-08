@@ -12830,6 +12830,7 @@ class EngineAttachMenuBotInfo extends $pb.GeneratedMessage {
     $fixnum.Int64? botId,
     $core.String? shortName,
     $core.bool? inactive,
+    $core.String? username,
   }) {
     final $result = create();
     if (botId != null) {
@@ -12841,6 +12842,9 @@ class EngineAttachMenuBotInfo extends $pb.GeneratedMessage {
     if (inactive != null) {
       $result.inactive = inactive;
     }
+    if (username != null) {
+      $result.username = username;
+    }
     return $result;
   }
   EngineAttachMenuBotInfo._() : super();
@@ -12851,6 +12855,7 @@ class EngineAttachMenuBotInfo extends $pb.GeneratedMessage {
     ..aInt64(1, _omitFieldNames ? '' : 'botId')
     ..aOS(2, _omitFieldNames ? '' : 'shortName')
     ..aOB(3, _omitFieldNames ? '' : 'inactive')
+    ..aOS(4, _omitFieldNames ? '' : 'username')
     ..hasRequiredFields = false
   ;
 
@@ -12901,6 +12906,15 @@ class EngineAttachMenuBotInfo extends $pb.GeneratedMessage {
   $core.bool hasInactive() => $_has(2);
   @$pb.TagNumber(3)
   void clearInactive() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get username => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set username($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasUsername() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearUsername() => clearField(4);
 }
 
 class EngineGetAttachMenuBotsResponse extends $pb.GeneratedMessage {

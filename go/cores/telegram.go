@@ -27155,6 +27155,60 @@ func (t *TelegramCore) GetAttachMenuBots() ([]AttachMenuBotInfo, error) {
 	return out, nil
 }
 
+// GetMainMenuBots returns the bots that should appear in the hamburger/side
+// "drawer" menu. This mirrors AyuGram's HasDrawerBots gate
+// (bot_attach_web_view.cpp:41-51 / settings_appearance.cpp:291): a bot qualifies
+// when it has the show_in_side_menu flag (inMainMenu) AND a "default_static"
+// side-menu icon (the `media` field set by ParseAttachBot, :161/:170). The bot's
+// @username is resolved from the response's Users vector so the web-view panel can
+// title itself correctly.
+func (t *TelegramCore) GetMainMenuBots() ([]AttachMenuBotInfo, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.MessagesGetAttachMenuBots(t.ctx, 0)
+	if err != nil { return nil, err }
+	bots, ok := result.(*tg.AttachMenuBots)
+	if !ok { return nil, nil }
+	usernames := make(map[int64]string, len(bots.Users))
+	for _, u := range bots.Users {
+		user, ok := u.(*tg.User)
+		if !ok { continue }
+		if uname, ok := user.GetUsername(); ok && uname != "" {
+			usernames[user.ID] = uname
+			continue
+		}
+		if list, ok := user.GetUsernames(); ok {
+			for _, un := range list {
+				if un.Active && un.Username != "" {
+					usernames[user.ID] = un.Username
+					break
+				}
+			}
+		}
+	}
+	var out []AttachMenuBotInfo
+	for _, b := range bots.Bots {
+		// inMainMenu == show_in_side_menu.
+		if !b.ShowInSideMenu { continue }
+		// media != nullptr == has a "default_static" side-menu icon.
+		hasMedia := false
+		for _, icon := range b.Icons {
+			if icon.Name == "default_static" {
+				hasMedia = true
+				break
+			}
+		}
+		if !hasMedia { continue }
+		out = append(out, AttachMenuBotInfo{
+			BotID:     b.BotID,
+			ShortName: b.ShortName,
+			Inactive:  b.Inactive,
+			Username:  usernames[b.BotID],
+		})
+	}
+	return out, nil
+}
+
 // MessagesGetAvailableEffects returns available message effects.
 func (t *TelegramCore) MessagesGetAvailableEffects(hash int) (tg.MessagesAvailableEffectsClass, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

@@ -2242,13 +2242,15 @@ const EngineAttachMenuBotInfo$json = {
     {'1': 'bot_id', '3': 1, '4': 1, '5': 3, '10': 'botId'},
     {'1': 'short_name', '3': 2, '4': 1, '5': 9, '10': 'shortName'},
     {'1': 'inactive', '3': 3, '4': 1, '5': 8, '10': 'inactive'},
+    {'1': 'username', '3': 4, '4': 1, '5': 9, '10': 'username'},
   ],
 };
 
 /// Descriptor for `EngineAttachMenuBotInfo`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List engineAttachMenuBotInfoDescriptor = $convert.base64Decode(
-    'ChdFbmdpbmVBdHRhY2hNZW51Qm90SW5mbxIVCgZib3RfaWQYASABKANSBWJvdElkEh0KCnNob3'
-    'J0X25hbWUYAiABKAlSCXNob3J0TmFtZRIaCghpbmFjdGl2ZRgDIAEoCFIIaW5hY3RpdmU=');
+    'ChdFbmdpbmVBdHRhY2hNZW51Qm90SW5mbxIVCgZib3RfaWQYASABKANSBWJvdElkEh0KCnNob3J0'
+    'X25hbWUYAiABKAlSCXNob3J0TmFtZRIaCghpbmFjdGl2ZRgDIAEoCFIIaW5hY3RpdmUSGgoIdXNl'
+    'cm5hbWUYBCABKAlSCHVzZXJuYW1l');
 
 @$core.Deprecated('Use engineGetAttachMenuBotsResponseDescriptor instead')
 const EngineGetAttachMenuBotsResponse$json = {

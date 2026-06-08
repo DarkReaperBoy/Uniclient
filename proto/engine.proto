@@ -1119,6 +1119,7 @@ message EngineAttachMenuBotInfo {
   int64  bot_id     = 1;
   string short_name = 2;  // display name in attach menu
   bool   inactive   = 3;
+  string username   = 4;  // bot @username (empty if unknown) — for the main-menu web-view panel
 }
 
 message EngineGetAttachMenuBotsResponse {

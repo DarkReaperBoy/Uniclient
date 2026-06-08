@@ -9532,6 +9532,7 @@ type EngineAttachMenuBotInfo struct {
 	BotId         int64                  `protobuf:"varint,1,opt,name=bot_id,json=botId,proto3" json:"bot_id,omitempty"`
 	ShortName     string                 `protobuf:"bytes,2,opt,name=short_name,json=shortName,proto3" json:"short_name,omitempty"` // display name in attach menu
 	Inactive      bool                   `protobuf:"varint,3,opt,name=inactive,proto3" json:"inactive,omitempty"`
+	Username      string                 `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"` // bot @username (empty if unknown) — for the main-menu web-view panel
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9585,6 +9586,13 @@ func (x *EngineAttachMenuBotInfo) GetInactive() bool {
 		return x.Inactive
 	}
 	return false
+}
+
+func (x *EngineAttachMenuBotInfo) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
 }
 
 type EngineGetAttachMenuBotsResponse struct {
@@ -15652,12 +15660,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x04text\x18\x03 \x01(\tR\x04text\"?\n" +
 	"\x1eEngineGetAttachMenuBotsRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"k\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\x87\x01\n" +
 	"\x17EngineAttachMenuBotInfo\x12\x15\n" +
 	"\x06bot_id\x18\x01 \x01(\x03R\x05botId\x12\x1d\n" +
 	"\n" +
 	"short_name\x18\x02 \x01(\tR\tshortName\x12\x1a\n" +
-	"\binactive\x18\x03 \x01(\bR\binactive\"Y\n" +
+	"\binactive\x18\x03 \x01(\bR\binactive\x12\x1a\n" +
+	"\busername\x18\x04 \x01(\tR\busername\"Y\n" +
 	"\x1fEngineGetAttachMenuBotsResponse\x126\n" +
 	"\x04bots\x18\x01 \x03(\v2\".uniclient.EngineAttachMenuBotInfoR\x04bots\"Q\n" +
 	"\x1eEngineGetWebPagePreviewRequest\x12\x1d\n" +

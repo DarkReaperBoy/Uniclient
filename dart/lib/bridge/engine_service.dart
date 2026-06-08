@@ -2319,10 +2319,32 @@ class EngineService {
         botId: b.botId.toInt(),
         shortName: b.shortName,
         inactive: b.inactive,
+        username: b.username,
       )).toList();
     } catch (e) {
       Debug.error('ENGINE', 'getAttachMenuBots failed', e);
       return [];
+    }
+  }
+
+  /// Side-menu ("drawer") bots for the account — AyuGram's HasDrawerBots gate
+  /// (show_in_side_menu + a default_static icon). Returns `null` on engine error
+  /// (e.g. account not yet connected) so the caller can retry later; an empty
+  /// list means the account genuinely has no main-menu bots.
+  Future<List<MenuBotInfo>?> getMainMenuBots(String accountId) async {
+    final req = epb.EngineGetAttachMenuBotsRequest()..accountId = accountId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetMainMenuBots', req.writeToBuffer());
+      if (respBytes.isEmpty) return const [];
+      final resp = epb.EngineGetAttachMenuBotsResponse.fromBuffer(respBytes);
+      return resp.bots.map((b) => MenuBotInfo(
+        id: b.botId.toString(),
+        name: b.shortName,
+        username: b.username,
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getMainMenuBots failed', e);
+      return null;
     }
   }
 

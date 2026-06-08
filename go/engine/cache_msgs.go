@@ -1960,6 +1960,27 @@ func (e *Engine) GetAttachMenuBots(accountID string) ([]cores.AttachMenuBotInfo,
 	return fetcher.GetAttachMenuBots()
 }
 
+type MainMenuBotsFetcher interface {
+	GetMainMenuBots() ([]cores.AttachMenuBotInfo, error)
+}
+
+// GetMainMenuBots returns the side-menu (drawer) bots for the account — the
+// gate AyuGram uses to decide whether the "Bots" drawer toggle is shown.
+func (e *Engine) GetMainMenuBots(accountID string) ([]cores.AttachMenuBotInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(MainMenuBotsFetcher)
+	if !ok {
+		return nil, nil
+	}
+	return fetcher.GetMainMenuBots()
+}
+
 type BotCallbackAnswerer interface {
 	GetBotCallbackAnswer(chatID string, msgID string, data []byte, isGame bool) (cores.BotCallbackResult, error)
 }

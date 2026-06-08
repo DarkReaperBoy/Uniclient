@@ -400,6 +400,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// inMainMenu + bot.media). Keyed by account ID.
   final Map<String, List<MenuBotInfo>> _menuBots = {};
 
+  /// Accounts whose main-menu bots have been fetched at least once this session
+  /// (success — even an empty result counts), and those with a fetch in flight.
+  /// Lets [ensureMenuBotsLoaded] dedupe without re-hitting the network on every
+  /// drawer/settings rebuild, while still retrying when the account wasn't
+  /// connected yet (those fetches return null and are NOT marked loaded).
+  final Set<String> _menuBotsLoaded = {};
+  final Set<String> _menuBotsLoading = {};
+
   /// Spec §2.7: Configurable swipe action for chat list rows.
   /// Values: "mute", "pin", "read", "archive", "delete". Default: "archive".
   String _swipeAction = 'archive';
@@ -3036,10 +3044,48 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   List<MenuBotInfo> get menuBots =>
       _menuBots[_activeAccountId] ?? const [];
 
-  /// Update menu bots for an account (called by engine event handler).
+  /// Update menu bots for an account.
   void setMenuBots(String accountId, List<MenuBotInfo> bots) {
     _menuBots[accountId] = bots;
     notifyListeners();
+  }
+
+  /// Fetch the account's main-menu (drawer) bots from the engine and publish
+  /// them via [setMenuBots]. This is the Dart equivalent of AyuGram querying
+  /// `attachWebView().attachBots()` live when the drawer/appearance settings are
+  /// built (settings_appearance.cpp:291 HasDrawerBots) — it's what makes the
+  /// "Bots" drawer toggle appear for accounts that have a main-menu bot.
+  ///
+  /// Idempotent: once a fetch succeeds for an account it is not repeated this
+  /// session. A fetch that fails because the account isn't connected yet returns
+  /// null and is NOT marked loaded, so a later call (e.g. the next time the
+  /// drawer opens) retries. Safe to call from a widget build via a post-frame
+  /// callback — when nothing changes it does no work and fires no notifications.
+  Future<void> ensureMenuBotsLoaded(String accountId) async {
+    if (accountId.isEmpty) return;
+    if (_menuBotsLoaded.contains(accountId)) return;
+    if (_menuBotsLoading.contains(accountId)) return;
+    _menuBotsLoading.add(accountId);
+    try {
+      final bots = await _engine.getMainMenuBots(accountId);
+      if (bots == null) return; // not connected yet — allow a later retry
+      _menuBotsLoaded.add(accountId);
+      // Only notify if the published list actually changed.
+      final existing = _menuBots[accountId];
+      final changed = existing == null ||
+          existing.length != bots.length ||
+          !_sameBots(existing, bots);
+      if (changed) setMenuBots(accountId, bots);
+    } finally {
+      _menuBotsLoading.remove(accountId);
+    }
+  }
+
+  bool _sameBots(List<MenuBotInfo> a, List<MenuBotInfo> b) {
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) return false;
+    }
+    return true;
   }
 
   String get swipeAction => _swipeAction;

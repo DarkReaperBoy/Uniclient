@@ -50,6 +50,14 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
     final isDark = theme.brightness == Brightness.dark;
     final accountsExpanded = appState.mainMenuAccountsShown;
 
+    // Ensure the active account's main-menu bots are loaded so the gated bot rows
+    // below (appState.showBotsInDrawer && appState.menuBots) populate — AyuGram's
+    // window_main_menu queries the live attachBots() list. Idempotent + post-frame.
+    final activeAccountId = appState.activeAccountId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      appState.ensureMenuBotsLoaded(activeAccountId);
+    });
+
     return Container(
       width: 274,
       color: theme.colorScheme.surface,

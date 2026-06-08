@@ -3690,6 +3690,26 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetMainMenuBots":
+		var req pb.EngineGetAttachMenuBotsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		bots, err := e.GetMainMenuBots(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetAttachMenuBotsResponse{}
+		for _, b := range bots {
+			resp.Bots = append(resp.Bots, &pb.EngineAttachMenuBotInfo{
+				BotId:     b.BotID,
+				ShortName: b.ShortName,
+				Inactive:  b.Inactive,
+				Username:  b.Username,
+			})
+		}
+		return proto.Marshal(resp)
+
 	case "GetWebPagePreview":
 		var req pb.EngineGetWebPagePreviewRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

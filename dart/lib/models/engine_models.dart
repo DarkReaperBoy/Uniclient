@@ -3214,11 +3214,13 @@ class AttachMenuBotInfo {
   final int botId;
   final String shortName;
   final bool inactive;
+  final String username;
 
   const AttachMenuBotInfo({
     this.botId = 0,
     this.shortName = '',
     this.inactive = false,
+    this.username = '',
   });
 }
 

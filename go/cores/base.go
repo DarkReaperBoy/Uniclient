@@ -468,6 +468,7 @@ type AttachMenuBotInfo struct {
 	BotID     int64  `json:"bot_id"`
 	ShortName string `json:"short_name"`
 	Inactive  bool   `json:"inactive"`
+	Username  string `json:"username"` // bot @username — populated for main-menu (drawer) bots
 }
 
 type ReportOption struct {
