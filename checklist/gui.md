@@ -2,22 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# audio_service — In-app audio playback engine (voice/music/round-video timeline, order/repeat/shuffle, pause-on-call, ducking, listen reporting, resume positions)
-
-Verdict: a faithful, well-documented port of AyuGram's `media_player_instance.cpp` +
-`media_player_listen_tracker.cpp`. All engine wiring is real (no stubs/placeholders):
-`readMessageContents` (mark voice/video read on play), `reportMusicListen` +
-`refreshDocumentFileRef` (with FILE_REFERENCE_ retry), and call-state subscriptions
-are all wired to the real bridge. Settings (speed/repeat/order/autoplay/volume) sync
-reactively from AppState (`main.dart:377-391`). Constants verified: `kRememberShuffledOrderItems=16`,
-`kMinLengthForSavePositionMusic=20*60`, `kDefaultVolume=0.9`, `kReportDurationSecondsMin=3`,
-60s pause-timeout. Shuffle/order/repeat-all delta direction correctly flipped for the
-newest-first Dart playlist. Two real behavioral deviations below.
-
-- [ ] [MAJOR] Power-save blocker not implemented. AyuGram blocks OS app-suspension while ANY audio plays (`PreventAppSuspension`) and blocks display-sleep while a round-video message plays (`PreventDisplaySleep`), toggled on every state update. AudioService never toggles a wakelock when playback starts/stops, so on a laptop a sleeping system silently stops music playback (and the screen can sleep mid round-video). No `wakelock`/power-save code exists anywhere in `dart/lib/`. — `audio_service.dart:587` (playing-state listener — the point AyuGram toggles the blocker) ← `AyuGram/Telegram/SourceFiles/media/player/media_player_instance.cpp:634` (`updatePowerSaveBlocker`, invoked from `emitUpdate` at `:1284`)
-
-- [ ] [MAJOR] Listen-time accumulator not cleared on the 60s pause-timeout when below the 3s report threshold. AyuGram's `report()` does `base::take(_listenedMs)` (always resets to 0) BEFORE the `duration < kReportDurationSecondsMin` check, so a pause-timeout always ends the listen session. The Dart returns at `if (_accumulatedMs < _minListenMs) return;` WITHOUT resetting `_accumulatedMs`, so a sub-3s segment + 60s+ pause + resume accumulates across the pause and can send an inflated/spurious `reportMusicListen` duration that AyuGram would have discarded. — `audio_service.dart:763` ← `AyuGram/Telegram/SourceFiles/media/player/media_player_listen_tracker.cpp:70` (`report()` :67-73 always takes `_listenedMs`; `pauseTimedOut` :98-100)
-
 # bridge_ffi — native Dart↔Go FFI bridge (no AyuGram counterpart)
 
 **Scope note (read first).** `bridge_ffi.dart` is the native FFI bridge: it loads the
