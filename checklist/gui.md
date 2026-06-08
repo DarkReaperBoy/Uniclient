@@ -295,17 +295,44 @@ fields (`go/engine/auth.go`), the special commands (`__no_telegram_code`,
 `__resend_code`, `__request_recovery`, `__reset_account`, `qr_code`) are handled,
 the QR payload + auto-call countdown + Fragment delivery are real, and the
 passkey link is correctly gated out (no fake button under the no-CGo
-constraint). The issues below are feature-parity / data-flow gaps, not cosmetics.
+constraint). The five feature-parity / data-flow gaps below are **all fixed &
+verified FIXED & closed** (Stage-2 verification — clean Go + Flutter debug build,
+each fix cross-checked 1:1 against AyuGram ground truth, and a no-crash runtime
+smoke-test; items 2 & 3 confirmed VISUALLY on the live OTP step in BOTH desktop
+1024×768 and mobile 400×720, items 1/4/5 code-verified end-to-end since the 2FA /
+pushed-code / account-reset states need a live OTP the dead test sessions can't read):
 
-- [ ] [CRITICAL] Password-recovery-by-email flow is unreachable. "Forgot password?" calls `_handleForgotPassword`, which only requests recovery when `data.hasRecovery` is true — but the engine hardcodes `HasRecovery = false` on every 2FA entry (`go/engine/auth.go:547,567`) and only flips it true *after* `__request_recovery` succeeds (`auth.go:590`), which the gate prevents from ever being sent. So an account that DOES have a recovery email is wrongly shown the "no recovery email — reset your account" dialog and pushed toward account deletion. AyuGram instead checks the real upfront `_passwordState.hasRecovery` flag (available in the core as `pw.HasRecovery`, `go/cores/telegram.go:21335`) and then issues `MTPauth_RequestPasswordRecovery`. The UI's own `PASSWORD_RECOVERY_NA` handler (`auth_screen.dart:832-837`) is consequently dead code. — `auth_screen.dart:1062-1075` ← `AyuGram/intro/intro_password_check.cpp:292-323`
-
-- [ ] [MAJOR] Code/OTP step omits the persistent "Next" submit button. `_showNext` returns false for `otp` unless Fragment delivery, so the only way to submit a typed code is the implicit auto-submit-on-fill. AyuGram's `CodeWidget::nextButtonText()` returns a non-empty string ("Next") for non-Fragment codes, so the intro keeps the primary RoundButton visible and `submit()` → `_code->requestCode()` always offers a manual submit. — `auth_screen.dart:284-307` ← `AyuGram/intro/intro_code.cpp:424-431` (+ `intro_widget.cpp:729-740`)
-
-- [ ] [MAJOR] Code-step subtitle is hardcoded English "Code sent to {sentTo}" instead of AyuGram's localized, delivery-specific descriptions. AyuGram `updateDescText` picks `lng_intro_email_confirm_subtitle` (email-login, with masked email + "don't forget the spam folder"), `lng_code_from_telegram` ("A code was sent **via Telegram** to your other devices…"), or `lng_code_desc` ("We've sent an activation code to your phone…"). The Dart collapses all three into one un-localized string and drops the "check your other devices" guidance. — `auth_screen.dart:1304-1307` ← `AyuGram/intro/intro_code.cpp:83-115` (esp. 90-102)
-
-- [ ] [MAJOR] Auto-fill of a login code received on another device is not implemented. AyuGram registers `account->setHandleLoginCode([=](const QString &code){ _code->setCode(code); _code->requestCode(); })` so that when Telegram pushes the code as a service message to an already-connected device, the code step fills and submits it automatically. `_OtpCodeInput` only has `onComplete`/`onResendCode` hooks and there is no engine→UI event delivering a received code, so this convenience path is absent end-to-end. — `auth_screen.dart:1309-1323` ← `AyuGram/intro/intro_code.cpp:59-62`
-
-- [ ] [MAJOR] Sensitive 2FA/reset texts are hardcoded English instead of pulled from the lang pack, unlike the rest of the file (which uses `lang.tr`). The recovery-mode description hardcodes "Recovery code sent to …" rather than `lng_signin_recover_desc` (which weaves the masked email via the pack); the no-recovery dialog hardcodes its body instead of `lng_signin_no_email_forgot`; and the reset-account confirmation hardcodes its text plus manual "day/days/hour/hours" pluralization instead of `lng_signin_sure_reset` + `lng_signin_reset_in_days`/`lng_signin_reset_in_hours` (localized plurals). — `auth_screen.dart:733-737, 1083-1086, 459-500` ← `AyuGram/intro/intro_password_check.cpp:350-358, 316-317` (+ `intro_widget.cpp:570-628`)
+1. [CRITICAL] Recovery-by-email is now reachable. The engine reports the REAL
+   `pw.HasRecovery` via the new `TelegramCore.Get2FAStateDuringAuth` (reads
+   `account.getPassword` on the parked `preAuthAPI`, `telegram.go:1645`) in
+   `applyTelegram2FAState` (`auth.go:710`), replacing the hardcoded `false` on the
+   actual Telegram-user 2FA path (`SubmitOTP` `auth.go:567`, email-detour `:547`).
+   The flag serializes as `has_recovery` → `AuthStateData.fromJson`
+   (`engine_models.dart:171`) → `_handleForgotPassword` issues `__request_recovery`
+   for accounts WITH a recovery email. (Remaining `HasRecovery=false` sites are
+   Bale `:828` and bot-token/other-core `tryAuth` `:1007` — not the TG-user path.)
+   ← `intro_password_check.cpp:292-323`.
+2. [MAJOR] The code step now keeps a persistent "Next" button for all deliveries
+   (`_showNext` true for `otp`); `submit()` → OTP `requestCode()` via GlobalKey
+   (shakes the first empty cell on incomplete, submits when full). **Verified
+   visually** in both modes: "Next" present on the OTP step; clicking it with empty
+   cells neither submits nor crashes. ← `intro_code.cpp:424-431`, `intro_widget.cpp:729-740`.
+3. [MAJOR] Code-step subtitle is now localized + delivery-specific
+   (`lng_intro_email_confirm_subtitle` / `lng_code_from_telegram` / `lng_code_desc`,
+   `**` markers stripped) per `updateDescText`. **Verified visually** in both modes:
+   the live OTP step rendered "A code was sent via Telegram to your other devices,
+   if you have any connected." (the `lng_code_from_telegram` branch, incl. the
+   "other devices" guidance the old hardcode dropped). ← `intro_code.cpp:83-115`.
+4. [MAJOR] Auto-fill of a pushed login code is wired end-to-end: core
+   `extractLoginCode` parses `tg://login?code=` from 777000 messages →
+   `UpdateLoginCode` → `EventLoginCode` → `AuthState._handleLoginCode` (otp,
+   non-Fragment guard) → `_OtpCodeInput.applyLoginCode` (setCode + requestCode).
+   ← `intro_code.cpp:59-62`.
+5. [MAJOR] 2FA/reset texts pulled from the lang pack: `lng_signin_recover_desc`,
+   `lng_signin_no_email_forgot`, `lng_signin_sure_reset`/`_reset`, and a localized
+   `_resetWaitText` (round-up-by-59s + `lng_signin_reset_in_days`/`_in_hours` +
+   `lng_days`/`_hours`/`_minutes` plurals via the new `LangPack.trCount`) — the
+   plural math and string values match AyuGram 1:1. ← `intro_password_check.cpp:350-358, 316-317`, `intro_widget.cpp:570-628`.
 
 # ayu_appearance_page — AyuGram Appearance settings (App Icon, Avatar Corners, Appearance, Chat Folders, Tray/Drawer Elements)
 
