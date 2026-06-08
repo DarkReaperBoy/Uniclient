@@ -384,21 +384,6 @@ filter risk was instead ruled out by the field-semantic verification above.)
 `telegram.go` `GetMainMenuBots` ← `settings_appearance.cpp:291` + `:41-51`
 (`HasDrawerBots`) + `bot_attach_web_view.cpp:113` (`ResolveIcon`).
 
-# ayu_filters_page — Regex Filters settings (main page, shared/shadow-ban/per-dialog lists, edit box, import/export)
-
-Overall this file is a faithful, fully-wired port of AyuGram's filter UI. All toggles
-call `filterEngine.rebuildCache()` (mirroring `FiltersCacheController::rebuildCache`),
-the top-bar `+`/exclude icons match `info_wrap_widget.cpp:467-513`, the shadow-ban
-picker restricts to Bot|User, the edit box / import / export / clear-all flows match
-their C++ counterparts, and the engine import/export logic in `ayu_filter.dart` is a
-genuine port (version check, override-only-if-different, cascade deletes, dpaste publish).
-No placeholders, stubs, fake data, or dead callbacks were found. Two real deviations
-remain, both in the per-dialog row's handling of peers not present in the local chat list.
-
-- [ ] [MAJOR] Per-dialog filter row shows the wrong unknown-peer name. AyuGram's `PerDialogFiltersListRow::generateName()` returns `"UNKNOWN (ID: <id>)"` for an unresolved peer; the Dart instead reuses the screen-title fallback `"Filters (<dialogId>)"` for the row label. (AyuGram only uses `"Filters (<id>)"` as the *screen title* fallback — `ayu_RegexFiltersHeader`="Filters" — never as the row name.) Reachable right after an import, when per-dialog filters reference dialogs still being resolved and not yet in `chatState.chats`. — `ayu_filters_page.dart:145` (used as the row name via `:91`/`:94`) ← `ayu/ui/settings/filters/per_dialog_filter.cpp:40`
-
-- [ ] [MAJOR] Per-dialog filter row never asks the engine to resolve a peer that isn't already in `chatState.chats`. `_PerDialogFilterRow._resolveAvatar()` (and the parent's `_resolveDialogName`) only scan the loaded dialog list, so a per-dialog filter on a peer not in that list renders with no real name and a generic colored letter. AyuGram resolves via `getPeerFromDialogId` (any loaded `userLoaded`/`channelLoaded`/`chatLoaded` peer, broader than the dialog list), and the sibling `_ShadowBanRow` in this very file demonstrates the available fallback (`engine.getUserProfile` + `engine.downloadSingleAvatar`) — the per-dialog row should use the same pattern. — `ayu_filters_page.dart:569-577` (cf. richer resolution at `:1188-1206`) ← `ayu/ui/settings/filters/per_dialog_filter.cpp:35-58`
-
 # ayu_general_page — AyuGram "General" settings page (translation provider, QoL toggles, webview, confirmations)
 
 Compared against `ayu/ui/settings/settings_general.cpp` (`BuildQoLToggles`/`BuildTranslator`/`BuildShowPeerId`) and `ayu/ui/settings/settings_ayu_utils.cpp` (`ShowRestartPrompt`/`AddBetaBadge`).
@@ -992,4 +977,3 @@ against the C++ and found **correct**, so they are NOT issues:
 ## Findings
 
 - [ ] [MAJOR] Language packs are iterated in insertion order, but C++ iterates them in **sorted language-code order**. `_langPacks` is a plain insertion-ordered `Map` (`final Map<String, _LangPack> _langPacks = {};`) and `search()` walks it as-is (`for (final pack in _langPacks.entries)`). In C++ the pack container is `base::flat_map<QString, std::unique_ptr<LangPack>> _data;` (sorted by key) and `EmojiKeywords::query` iterates it sorted (`for (const auto &[language, item] : _data)`). Because cross-pack de-duplication keeps the **first** pack's emoji and concatenates packs in iteration order, a multi-language user (the common case — `_fetchEmojiKeywordsForLangs` loads `{selectedLanguageCode, systemLocale, 'en'}` plus any server-expanded langs, inserted in server-return order) gets a different suggestion order and a different duplicate-winner than AyuGram. Fix: iterate `_langPacks` keys sorted (e.g. `for (final key in _langPacks.keys.toList()..sort())`). — `emoji_data.dart:3237` (decl `emoji_data.dart:2924`) ← `AyuGram/SourceFiles/chat_helpers/emoji_keywords.cpp:616` (decl `AyuGram/SourceFiles/chat_helpers/emoji_keywords.h:75`)
-
