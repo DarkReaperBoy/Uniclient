@@ -1243,6 +1243,46 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "SearchSavedMessagesByReaction":
+		// JSON request → reuse the full-message proto response (EngineGetMessagesResponse)
+		// so tagged results render as real message bubbles. Server-side reaction-tag
+		// search for Saved Messages (AyuGram messages.search + saved_reaction).
+		var req struct {
+			AccountID   string   `json:"account_id"`
+			ChatID      string   `json:"chat_id"`
+			SavedPeerID string   `json:"saved_peer_id"`
+			Reactions   []string `json:"reactions"`
+			OffsetID    int      `json:"offset_id"`
+			Limit       int      `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		msgs, err := e.SearchSavedMessagesByReaction(req.AccountID, req.ChatID, req.SavedPeerID, req.Reactions, req.OffsetID, req.Limit)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetMessagesResponse{}
+		for i := range msgs {
+			resp.Messages = append(resp.Messages, cachedMsgToProto(&msgs[i]))
+		}
+		return proto.Marshal(resp)
+
+	case "GetUserAvatarThumb":
+		// JSON in/out: lazy single-sender avatar thumbnail (replaces bulk member fetch).
+		var req struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		b64, err := e.GetUserAvatarThumb(req.AccountID, req.UserID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"avatar_b64": b64})
+
 	case "SearchChats":
 		var req pb.EngineSearchChatsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

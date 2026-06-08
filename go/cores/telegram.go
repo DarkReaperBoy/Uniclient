@@ -2869,6 +2869,41 @@ func (t *TelegramCore) getUserAvatarB64(userID int64) string {
 	return base64.StdEncoding.EncodeToString(data)
 }
 
+// GetUserAvatarThumb returns the small stripped-thumbnail avatar (base64 JPEG)
+// for a single user, for LAZY per-sender avatar loading in group/channel message
+// lists. Mirrors AyuGram loading only the userpics of the senders that actually
+// paint (Message::displayFromPhoto → loadUserpic, history_view_message.cpp:1878)
+// instead of bulk-fetching every participant. Cheap: users.getUsers returns the
+// inline stripped thumb, no profile-photo download. Empty string if the user has
+// no photo. Falls back to a full-photo download only when no thumb is inline.
+func (t *TelegramCore) GetUserAvatarThumb(userID string) (string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return "", ErrAuth
+	}
+	id, err := tgUserID(userID)
+	if err != nil {
+		return "", err
+	}
+	inputUser := &tg.InputUser{UserID: id, AccessHash: t.getCachedUserHash(id)}
+	users, err := t.api.UsersGetUsers(t.ctx, []tg.InputUserClass{inputUser})
+	if err != nil {
+		return "", err
+	}
+	for _, u := range users {
+		if user, ok := u.(*tg.User); ok && user.ID == id {
+			cu := t.convertUser(user)
+			if cu.AvatarB64 != "" {
+				return cu.AvatarB64, nil
+			}
+			break
+		}
+	}
+	// No inline stripped thumb — fall back to a one-off photo download.
+	return t.getUserAvatarB64(id), nil
+}
+
 // SendImageBase64 sends a base64-encoded image as a photo message.
 func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
 	t.mu.RLock()
@@ -30387,6 +30422,70 @@ func (t *TelegramCore) SearchMessages(chatID string, query string, opts Paginati
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search: %w", err)
+	}
+	return t.convertMessages(result), nil
+}
+
+// parseSavedReaction maps a uniclient reaction string ("custom_<docID>" for a
+// custom emoji, otherwise a raw emoticon) to a tg.ReactionClass — the same
+// convention used by SendReaction (telegram.go) and GetSavedReactionTags.
+func parseSavedReaction(s string) tg.ReactionClass {
+	if strings.HasPrefix(s, "custom_") {
+		if docID, err := strconv.ParseInt(s[len("custom_"):], 10, 64); err == nil {
+			return &tg.ReactionCustomEmoji{DocumentID: docID}
+		}
+	}
+	return &tg.ReactionEmoji{Emoticon: s}
+}
+
+// SearchSavedMessagesByReaction performs a SERVER-SIDE search of the user's
+// Saved Messages for messages tagged with the given reaction(s), optionally
+// restricted to a single saved sublist peer. Mirrors Telegram Desktop /
+// AyuGram reaction-tag filtering (SearchTagFromQuery → searchMessages →
+// messages.search with saved_reaction + saved_peer_id, history_view_chat_section.cpp:3245),
+// returning only tagged messages, properly paginated — instead of paging the
+// entire Saved Messages history and filtering client-side.
+func (t *TelegramCore) SearchSavedMessagesByReaction(savedPeerID string, reactions []string, offsetID, limit int) ([]Message, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	if limit <= 0 {
+		limit = 30
+	}
+
+	req := &tg.MessagesSearchRequest{
+		Peer:     &tg.InputPeerSelf{}, // Saved Messages live in the self peer.
+		Q:        "",
+		Filter:   &tg.InputMessagesFilterEmpty{},
+		Limit:    limit,
+		OffsetID: offsetID,
+	}
+
+	var savedReactions []tg.ReactionClass
+	for _, r := range reactions {
+		if r == "" {
+			continue
+		}
+		savedReactions = append(savedReactions, parseSavedReaction(r))
+	}
+	if len(savedReactions) > 0 {
+		req.SetSavedReaction(savedReactions)
+	}
+
+	// Restrict to a specific saved sublist peer when one is open.
+	if savedPeerID != "" {
+		if peer, err := t.resolvePeer(savedPeerID); err == nil {
+			if inputPeer, err := t.toInputPeer(peer); err == nil {
+				req.SetSavedPeerID(inputPeer)
+			}
+		}
+	}
+
+	result, err := t.api.MessagesSearch(t.ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("search saved by reaction: %w", err)
 	}
 	return t.convertMessages(result), nil
 }

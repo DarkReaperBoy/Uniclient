@@ -36,12 +36,18 @@ class ChatState extends ChangeNotifier {
   bool _hasMoreMessagesDown = false;
   bool _isFirstLoad = true;
   DateTime? _jumpedUntil; // suppress polling refresh until this time
-  final Map<String, ({String name, String action})> _typingUsers = {}; // chatId → (name, action)
+  // chatId → live typing/send-action entries, ONE per user (deduped, ordered by
+  // arrival). Mirrors AyuGram's SendActionPainter keeping a per-history set of
+  // typers (`_typing.emplace_or_assign(user, …)`, history_view_send_action.cpp:83)
+  // so a group can render "N people are typing" / "A and B are typing" instead of
+  // collapsing every event to the single last sender.
+  final Map<String, List<_TypingEntry>> _typingUsers = {};
   final Map<String, bool> _onlineUsers = {}; // "accountId:chatId" → isOnline (DMs only)
   // "accountId:userId" → (kind, lastSeenMs) for DM subtitle text.
   final Map<String, ({String kind, int lastSeenMs})> _userLastSeen = {};
   final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
   final Map<String, Map<String, String>> _avatarCache = {}; // "accountId:chatId" → {senderId → b64}
+  final Set<String> _senderAvatarsFetching = {}; // senderIds with an in-flight lazy avatar fetch
   final Map<String, String> _altQualityPaths = {}; // "msgId:seq" → local path
   final Map<String, DownloadProgressEvent> _downloadProgress = {}; // msgId → latest progress
   // ── Media-player playlist (auto-advance, next/previous) ──
@@ -168,6 +174,16 @@ class ChatState extends ChangeNotifier {
   bool _savedReactionTagsLoading = false;
   final Set<String> _selectedReactionTagIds = {};
 
+  // §31.7: Server-side reaction-tag search results. When ≥1 tag is selected the
+  // message list shows these (fetched via messages.search with saved_reaction —
+  // AyuGram SearchTagFromQuery → searchMessages) instead of client-filtering the
+  // loaded history. Paginated by the last result's msgId.
+  List<CachedMessage> _taggedMessages = [];
+  bool _taggedSearchLoading = false;
+  bool _taggedHasMore = true;
+  int _taggedOffsetId = 0;
+  int _taggedSearchSeq = 0; // bumped on every tag change to drop stale responses
+
   // §24.5: Recently opened chats for Ctrl+Tab switcher overlay.
   final List<String> _chatOpenHistory = []; // chatId list, most-recent first
   static const _maxChatOpenHistory = 50; // AyuGram kMaxChatEntryHistorySize (window_session_controller.cpp:138)
@@ -272,16 +288,11 @@ class ChatState extends ChangeNotifier {
   }
   int get openedUnreadCount => _openedUnreadCount;
   List<CachedMessage> get messages {
+    // With a reaction tag selected, show the server-search results (only tagged
+    // messages, properly paginated) — not a client-side filter of the loaded
+    // window. Mirrors AyuGram converting the tag into a messages.search query.
     if (_selectedReactionTagIds.isEmpty) return _messages;
-    return _messages.where((msg) {
-      for (final r in msg.reactions) {
-        final key = r.isCustomEmoji
-            ? 'custom:${r.documentId}'
-            : 'emoji:${r.emoji}';
-        if (_selectedReactionTagIds.contains(key)) return true;
-      }
-      return false;
-    }).toList();
+    return _taggedMessages;
   }
   List<CachedMessage> get pinnedMessages => _pinnedMessages;
   GroupCallInfo? get activeGroupCall => _activeGroupCall;
@@ -297,8 +308,10 @@ class ChatState extends ChangeNotifier {
   }
   ConnectedBotInfo? get connectedBot => _connectedBot;
   bool get connectedBotPaused => _connectedBotPaused;
-  bool get loadingMessages => _loadingMessages;
-  bool get hasMoreMessages => _hasMoreMessages;
+  bool get loadingMessages =>
+      _selectedReactionTagIds.isEmpty ? _loadingMessages : _taggedSearchLoading;
+  bool get hasMoreMessages =>
+      _selectedReactionTagIds.isEmpty ? _hasMoreMessages : _taggedHasMore;
   bool get hasMoreMessagesDown => _hasMoreMessagesDown;
   bool get hasArchivedChats => _hasArchivedChats;
 
@@ -315,8 +328,96 @@ class ChatState extends ChangeNotifier {
   /// Active channel/topic within a topic-type group. Null = default/all.
   String? get activeChannelId => _activeChannelId;
 
-  String? typingUserFor(String chatId) => _typingUsers[chatId]?.name;
-  String typingActionFor(String chatId) => _typingUsers[chatId]?.action ?? 'typing';
+  /// Display subject for a chat's typing/send-action state — now the FULL
+  /// aggregated text (not just one name), so the existing typing widgets render
+  /// "N people are typing" / "A and B are typing" verbatim. Null when idle.
+  String? typingUserFor(String chatId) =>
+      typingSummaryFor(chatId, isGroup: _isGroupChat(chatId))?.text;
+
+  /// Effective send-action for a chat (drives the typing-dots vs record/upload/
+  /// sticker animation). 'typing' whenever ≥1 plain typer is active.
+  String typingActionFor(String chatId) =>
+      typingSummaryFor(chatId, isGroup: _isGroupChat(chatId))?.action ?? 'typing';
+
+  /// Aggregated typing / send-action summary for a chat, mirroring AyuGram's
+  /// SendActionPainter::updateNeedsAnimating (history_view_send_action.cpp:246-264):
+  /// >2 plain typers → "N people are typing" (lng_many_typing); exactly 2 →
+  /// "A and B are typing" (lng_users_typing); 1 → "A is typing" (group,
+  /// lng_user_typing) or "typing" (DM, lng_typing); otherwise the first
+  /// non-typing send action ("A is sending a photo" / "sending a photo").
+  /// Plain typers take precedence over other send actions, exactly like AyuGram
+  /// keeping `_typing` separate from `_sendActions`. Returns null when idle.
+  ({String text, String action})? typingSummaryFor(String chatId, {required bool isGroup}) {
+    _pruneTyping(chatId);
+    final list = _typingUsers[chatId];
+    if (list == null || list.isEmpty) return null;
+    final typers = list.where((e) => e.action == 'typing').toList();
+    if (typers.length > 2) {
+      return (text: '${typers.length} people are typing', action: 'typing');
+    } else if (typers.length == 2) {
+      return (
+        text: '${_firstName(typers[0].name)} and ${_firstName(typers[1].name)} are typing',
+        action: 'typing',
+      );
+    } else if (typers.length == 1) {
+      return isGroup
+          ? (text: '${_firstName(typers[0].name)} is typing', action: 'typing')
+          : (text: 'typing', action: 'typing');
+    }
+    // No plain typers — show the first ongoing non-typing send action.
+    final a = list.first;
+    final label = _sendActionLabel(a.action);
+    return isGroup
+        ? (text: '${_firstName(a.name)} is $label', action: a.action)
+        : (text: label, action: a.action);
+  }
+
+  /// Whether [chatId] belongs to a group/channel/topic (drives whether the
+  /// typing string includes the sender's name, like AyuGram's `peer->isUser()`).
+  bool _isGroupChat(String chatId) {
+    final c = _chats.where((c) => c.chatId == chatId).firstOrNull;
+    return c != null && c.type != ChatType.dm;
+  }
+
+  /// First whitespace-delimited token of a name (≈ AyuGram's `user->firstName`).
+  static String _firstName(String name) {
+    final t = name.trim();
+    if (t.isEmpty) return name;
+    final sp = t.indexOf(' ');
+    return sp > 0 ? t.substring(0, sp) : t;
+  }
+
+  /// Verb phrase for a non-typing send action (matches the labels used by the
+  /// typing widgets, ← AyuGram lng_user_action_* strings).
+  static String _sendActionLabel(String action) {
+    switch (action) {
+      case 'record_video': return 'recording video';
+      case 'upload_video': return 'sending video';
+      case 'record_audio': return 'recording voice';
+      case 'upload_audio': return 'sending audio';
+      case 'upload_photo': return 'sending photo';
+      case 'upload_document': return 'sending file';
+      case 'geo_location': return 'choosing location';
+      case 'choose_contact': return 'choosing contact';
+      case 'game_play': return 'playing game';
+      case 'record_round': return 'recording video message';
+      case 'upload_round': return 'sending video message';
+      case 'choose_sticker': return 'choosing sticker';
+      default: return 'typing';
+    }
+  }
+
+  /// Drop expired typing entries for a chat; returns true if anything changed.
+  /// Entries expire 6s after their last event (AyuGram kStatusShowClientsideTyping).
+  bool _pruneTyping(String chatId) {
+    final list = _typingUsers[chatId];
+    if (list == null) return false;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final before = list.length;
+    list.removeWhere((e) => e.expiresAt <= now);
+    if (list.isEmpty) _typingUsers.remove(chatId);
+    return list.length != before;
+  }
 
   ReplyKeyboardData? get activeReplyKeyboard {
     for (int i = _messages.length - 1; i >= 0; i--) {
@@ -448,22 +549,81 @@ class ChatState extends ChangeNotifier {
         _selectedReactionTagIds.add(key);
       }
     }
+    // A tag change restarts the server search from scratch (or cancels it).
+    _taggedMessages = [];
+    _taggedHasMore = true;
+    _taggedOffsetId = 0;
+    _taggedSearchSeq++; // invalidate any in-flight response
     notifyListeners();
     if (_selectedReactionTagIds.isNotEmpty) {
-      _ensureEnoughTaggedMessages();
+      _runTaggedSearch();
     }
   }
 
-  void _ensureEnoughTaggedMessages() {
-    if (!_hasMoreMessages) return;
-    if (messages.length < 20) {
-      _loadMessages();
+  /// Selected tags as core reaction strings: 'custom_<docId>' for a custom
+  /// emoji, otherwise the raw emoji (the `_selectedReactionTagIds` keys are
+  /// 'custom:<id>' / 'emoji:<e>'; see [_reactionTagKey]).
+  List<String> _selectedReactionStrings() {
+    return _selectedReactionTagIds.map((key) {
+      if (key.startsWith('custom:')) return 'custom_${key.substring('custom:'.length)}';
+      if (key.startsWith('emoji:')) return key.substring('emoji:'.length);
+      return key;
+    }).toList();
+  }
+
+  /// Run (or paginate) the server-side reaction-tag search for Saved Messages.
+  /// Replaces the old whole-history client-side paging: only tagged messages are
+  /// fetched, scoped to the open sublist when there is one.
+  Future<void> _runTaggedSearch({bool more = false}) async {
+    final accountId = _savedSublistsAccountId;
+    final chat = _activeChat;
+    if (accountId.isEmpty || chat == null || _selectedReactionTagIds.isEmpty) return;
+    if (_taggedSearchLoading) return;
+    if (more && !_taggedHasMore) return;
+
+    _taggedSearchLoading = true;
+    final seq = ++_taggedSearchSeq;
+    final savedPeerId = _activeSublist?.peerId ?? '';
+    final reactions = _selectedReactionStrings();
+    final offsetId = more ? _taggedOffsetId : 0;
+    notifyListeners();
+
+    try {
+      final results = await _engine.searchSavedMessagesByReaction(
+        accountId,
+        chatId: chat.chatId,
+        savedPeerId: savedPeerId,
+        reactions: reactions,
+        offsetId: offsetId,
+        limit: 30,
+      );
+      if (_disposed || seq != _taggedSearchSeq) return; // superseded by a newer change
+      if (more) {
+        _taggedMessages.addAll(results);
+      } else {
+        _taggedMessages = results;
+      }
+      _taggedHasMore = results.length >= 30;
+      if (_taggedMessages.isNotEmpty) {
+        _taggedOffsetId = int.tryParse(_taggedMessages.last.msgId) ?? 0;
+      }
+    } catch (e) {
+      Debug.log('chat_state', 'searchSavedMessagesByReaction: $e');
+    } finally {
+      if (seq == _taggedSearchSeq) {
+        _taggedSearchLoading = false;
+        notifyListeners();
+      }
     }
   }
 
   void clearReactionTagSelection() {
     if (_selectedReactionTagIds.isNotEmpty) {
       _selectedReactionTagIds.clear();
+      _taggedMessages = [];
+      _taggedHasMore = true;
+      _taggedOffsetId = 0;
+      _taggedSearchSeq++; // cancel any in-flight search
       notifyListeners();
     }
   }
@@ -1252,11 +1412,15 @@ class ChatState extends ChangeNotifier {
     _loadScheduledCount(chat.accountId, chat.chatId);
     final cacheKey = '${chat.accountId}:${chat.chatId}';
     _senderAvatars.clear();
+    _senderAvatarsFetching.clear();
     if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
+      // Restore previously-fetched sender thumbnails for this chat; avatars for
+      // senders not yet seen are fetched lazily per-message in
+      // _ensureSenderAvatars as their messages load — AyuGram loads only the
+      // userpics that actually paint (Message::displayFromPhoto), never a bulk
+      // participant fetch.
       if (_avatarCache.containsKey(cacheKey)) {
         _senderAvatars.addAll(_avatarCache[cacheKey]!);
-      } else {
-        _loadMemberAvatars(chat.accountId, chat.chatId);
       }
       _loadOnlineCount(chat.accountId, chat.chatId);
       _loadGroupCall(chat.accountId, chat.chatId);
@@ -1550,6 +1714,10 @@ class ChatState extends ChangeNotifier {
   void openSavedSublist(SavedSublistInfo sublist) {
     _activeSublist = sublist;
     _selectedReactionTagIds.clear();
+    _taggedMessages = [];
+    _taggedHasMore = true;
+    _taggedOffsetId = 0;
+    _taggedSearchSeq++;
     notifyListeners();
   }
 
@@ -1621,6 +1789,10 @@ class ChatState extends ChangeNotifier {
     _savedReactionTags = [];
     _savedReactionTagsLoading = false;
     _selectedReactionTagIds.clear();
+    _taggedMessages = [];
+    _taggedHasMore = true;
+    _taggedOffsetId = 0;
+    _taggedSearchSeq++;
     notifyListeners();
   }
 
@@ -1713,7 +1885,13 @@ class ChatState extends ChangeNotifier {
 
   /// Load more messages (pagination).
   void loadMoreMessages() {
-    if (_loadingMessages || !_hasMoreMessages || _activeChat == null) return;
+    if (_activeChat == null) return;
+    // Reaction-tag filter active → paginate the server search, not the history.
+    if (_selectedReactionTagIds.isNotEmpty) {
+      _runTaggedSearch(more: true);
+      return;
+    }
+    if (_loadingMessages || !_hasMoreMessages) return;
     if (_isScheduledView) return;
     if (_isEditHistoryView) {
       _loadMoreEditRevisions();
@@ -2413,10 +2591,8 @@ class ChatState extends ChangeNotifier {
     _loadingMessages = false;
     _preloadCustomEmoji(newMsgs, chat.accountId);
     _autoDownloadMedia(newMsgs);
+    _ensureSenderAvatars(newMsgs);
     notifyListeners();
-    if (_selectedReactionTagIds.isNotEmpty) {
-      _ensureEnoughTaggedMessages();
-    }
   }
 
   void _preloadCustomEmoji(List<CachedMessage> msgs, String accountId) {
@@ -2440,29 +2616,47 @@ class ChatState extends ChangeNotifier {
     }
   }
 
-  /// Fetch chat members and cache their avatar thumbnails for sender display.
-  /// Paginates through all members to cover large groups.
-  Future<void> _loadMemberAvatars(String accountId, String chatId) async {
-    try {
-      const batchSize = 200;
-      var offset = 0;
-      var fetched = 0;
-      do {
-        final members = await _engine.getChatMembers(accountId, chatId, limit: batchSize, offset: offset);
-        fetched = members.length;
-        for (final m in members) {
-          if (m.avatarB64.isNotEmpty) {
-            _senderAvatars[m.userId] = m.avatarB64;
-          }
+  /// Lazily fetch sender avatar thumbnails for the senders that actually appear
+  /// in [msgs] (one cheap stripped-thumb request per new sender), instead of
+  /// bulk-fetching up to 1000 group/channel members on chat open. Mirrors
+  /// AyuGram loading only each painted message's own sender userpic
+  /// (Message::displayFromPhoto → loadUserpic, history_view_message.cpp:1878).
+  /// Results are cached per chat in [_avatarCache] so reopening is instant.
+  void _ensureSenderAvatars(List<CachedMessage> msgs) {
+    final chat = _activeChat;
+    if (chat == null) return;
+    if (chat.type != ChatType.group &&
+        chat.type != ChatType.channel &&
+        chat.type != ChatType.topic) {
+      return;
+    }
+    final accountId = chat.accountId;
+    final cacheKey = '$accountId:${chat.chatId}';
+    final toFetch = <String>{};
+    for (final m in msgs) {
+      final sid = m.senderId;
+      if (sid.isEmpty || m.isOutgoing || m.isService) continue;
+      if (_senderAvatars.containsKey(sid)) continue;
+      if (_senderAvatarsFetching.contains(sid)) continue;
+      toFetch.add(sid);
+    }
+    if (toFetch.isEmpty) return;
+    for (final sid in toFetch) {
+      _senderAvatarsFetching.add(sid);
+      _engine.getUserAvatarThumb(accountId, sid).then((b64) {
+        if (_disposed) return;
+        _senderAvatarsFetching.remove(sid);
+        if (b64 == null || b64.isEmpty) return;
+        // Always cache for this chat (used on reopen). Only push into the live
+        // map + repaint if the user is still viewing the same chat.
+        (_avatarCache[cacheKey] ??= {})[sid] = b64;
+        if (_activeChat?.accountId == accountId && _activeChat?.chatId == chat.chatId) {
+          _senderAvatars[sid] = b64;
+          notifyListeners();
         }
-        offset += fetched;
-      } while (fetched >= batchSize && offset < 1000);
-      if (_senderAvatars.isNotEmpty) {
-        _avatarCache['$accountId:$chatId'] = Map.of(_senderAvatars);
-        notifyListeners();
-      }
-    } catch (e) {
-      Debug.log('chat_state', 'const batchSize = 200: $e');
+      }).catchError((_) {
+        _senderAvatarsFetching.remove(sid);
+      });
     }
   }
 
@@ -2743,6 +2937,7 @@ class ChatState extends ChangeNotifier {
       if (!exists) {
         _messages.insert(0, event.message);
         onNewActiveMessage?.call(event.message);
+        _ensureSenderAvatars([event.message]);
         notifyListeners();
       }
     } else if (onNotification != null && !event.message.isSent) {
@@ -3027,16 +3222,19 @@ class ChatState extends ChangeNotifier {
       if (uid != null && _appState.isShadowBanned(uid)) return;
     }
     final name = event.userName.isNotEmpty ? event.userName : event.userId;
-    _typingUsers[event.chatId] = (name: name, action: event.action);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // Upsert this user's entry (dedup by userId, refresh action + 6s expiry),
+    // keeping every OTHER typer — AyuGram `_typing.emplace_or_assign(user, …)`.
+    final list = _typingUsers.putIfAbsent(event.chatId, () => <_TypingEntry>[]);
+    list.removeWhere((e) => e.userId == event.userId);
+    list.add(_TypingEntry(event.userId, name, event.action, now + 6000));
     notifyListeners();
 
-    // Clear typing after 6s (guard against notifyListeners after dispose).
+    // Re-evaluate after the 6s client-side window; prune only expired entries so
+    // other still-active typers are preserved (guard notify after dispose).
     Future.delayed(const Duration(seconds: 6), () {
       if (_disposed) return;
-      if (_typingUsers[event.chatId]?.name == name) {
-        _typingUsers.remove(event.chatId);
-        notifyListeners();
-      }
+      if (_pruneTyping(event.chatId)) notifyListeners();
     });
   }
 
@@ -3381,4 +3579,15 @@ class ChatState extends ChangeNotifier {
       return text;
     }
   }
+}
+
+/// One live typing / send-action entry for a chat — a single user with their
+/// current action and a client-side expiry (AyuGram's per-user `_typing` /
+/// `_sendActions` flat-map entries, history_view_send_action.cpp).
+class _TypingEntry {
+  final String userId;
+  final String name;
+  final String action;
+  final int expiresAt; // epoch ms; entry is dropped once now ≥ expiresAt
+  const _TypingEntry(this.userId, this.name, this.action, this.expiresAt);
 }

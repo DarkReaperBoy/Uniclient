@@ -4728,6 +4728,26 @@ class EngineService {
     }
   }
 
+  /// Fetch a single user's small base64 avatar thumbnail (stripped thumb, no
+  /// photo download). Used for lazy per-sender avatar loading in group/channel
+  /// message lists — replaces bulk member-avatar fetching. Returns null when the
+  /// user has no photo or the fetch fails.
+  Future<String?> getUserAvatarThumb(String accountId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetUserAvatarThumb', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      final b64 = data['avatar_b64'] as String?;
+      return (b64 != null && b64.isNotEmpty) ? b64 : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<UserProfile?> getUserProfile(String accountId, String userId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -5728,6 +5748,34 @@ class EngineService {
     final respBytes = await _callAsync('__engine', 'SearchChats', req.writeToBuffer());
     final resp = epb.EngineSearchChatsResponse.fromBuffer(respBytes);
     return resp.chats.map(_chatInfoFromProto).toList();
+  }
+
+  /// Server-side reaction-tag search of Saved Messages (AyuGram messages.search
+  /// with saved_reaction + saved_peer_id). Returns ONLY messages tagged with one
+  /// of [reactions] (each "custom_<docId>" for a custom emoji, else a raw emoji),
+  /// paginated by [offsetId] (the last result's msgId). [chatId] is the active
+  /// Saved Messages chat (used to cache results); [savedPeerId] scopes to a
+  /// sublist when one is open. Replaces client-side filtering of loaded messages.
+  Future<List<CachedMessage>> searchSavedMessagesByReaction(
+    String accountId, {
+    required String chatId,
+    String savedPeerId = '',
+    required List<String> reactions,
+    int offsetId = 0,
+    int limit = 30,
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'saved_peer_id': savedPeerId,
+      'reactions': reactions,
+      'offset_id': offsetId,
+      'limit': limit,
+    }));
+    final respBytes = await _callAsync('__engine', 'SearchSavedMessagesByReaction', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return [];
+    final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
+    return resp.messages.map(_cachedMsgFromProto).toList();
   }
 
   int countMessagesFrom(String accountId, String chatId, String senderId) {

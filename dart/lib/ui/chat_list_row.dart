@@ -1407,37 +1407,6 @@ class _TypingDotsIndicator extends StatefulWidget {
 
   const _TypingDotsIndicator({required this.userName, this.action = 'typing', required this.color});
 
-  static String _actionLabel(String action) {
-    switch (action) {
-      case 'record_video':
-        return 'recording video';
-      case 'upload_video':
-        return 'sending video';
-      case 'record_audio':
-        return 'recording voice';
-      case 'upload_audio':
-        return 'sending audio';
-      case 'upload_photo':
-        return 'sending photo';
-      case 'upload_document':
-        return 'sending file';
-      case 'geo_location':
-        return 'sending location';
-      case 'choose_contact':
-        return 'sending contact';
-      case 'game_play':
-        return 'playing game';
-      case 'record_round':
-        return 'recording video message';
-      case 'upload_round':
-        return 'sending video message';
-      case 'choose_sticker':
-        return 'choosing sticker';
-      default:
-        return 'typing';
-    }
-  }
-
   @override
   State<_TypingDotsIndicator> createState() => _TypingDotsIndicatorState();
 }
@@ -1475,7 +1444,8 @@ class _TypingDotsIndicatorState extends State<_TypingDotsIndicator>
       children: [
         Flexible(
           child: Text(
-            '${widget.userName} ${_TypingDotsIndicator._actionLabel(widget.action)}',
+            // Pre-aggregated by ChatState.typingSummaryFor (handles multi-typer).
+            widget.userName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

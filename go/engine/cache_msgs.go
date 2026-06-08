@@ -170,6 +170,33 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 	return msgs, nil
 }
 
+// SearchSavedMessagesByReaction performs a server-side reaction-tag search of the
+// account's Saved Messages (optionally scoped to a sublist peer) and returns the
+// matching messages, caching them under chatID (the Saved Messages chat) so they
+// render with full media/reply metadata. Mirrors AyuGram converting the selected
+// tag into a messages.search query instead of filtering loaded messages client-side.
+func (e *Engine) SearchSavedMessagesByReaction(accountID, chatID, savedPeerID string, reactions []string, offsetID, limit int) ([]CachedMessage, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found or not connected: %s", accountID)
+	}
+	searcher, ok := acc.Core.(interface {
+		SearchSavedMessagesByReaction(savedPeerID string, reactions []string, offsetID, limit int) ([]cores.Message, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("platform does not support saved reaction search")
+	}
+	msgs, err := searcher.SearchSavedMessagesByReaction(savedPeerID, reactions, offsetID, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]CachedMessage, 0, len(msgs))
+	for i := range msgs {
+		result = append(result, e.cacheMessage(accountID, chatID, &msgs[i]))
+	}
+	return result, nil
+}
+
 // GetPinnedMessages returns all pinned messages for a chat, ordered by timestamp descending.
 // Falls back to fetching from the core if the cache has none.
 func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, error) {
