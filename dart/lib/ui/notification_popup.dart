@@ -1,12 +1,11 @@
 import 'dart:async';
-import 'dart:ffi' as ffi;
 import 'dart:io';
 
-import 'package:ffi/ffi.dart' as pkg_ffi;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../notifications/notification_system.dart';
+import '../notifications/system_idle.dart';
 import '../theme/telegram_palette.dart';
 
 const _notifyWidth = 320.0;
@@ -34,39 +33,6 @@ const _fastHideDuration = Duration(milliseconds: 150);
 const _shiftDuration = Duration(milliseconds: 150);
 const _actionsFadeDuration = Duration(milliseconds: 200);
 const _waitBeforeHide = Duration(milliseconds: 3000);
-
-/// Win32 GetLastInputInfo for detecting system-wide user activity on Windows.
-bool _winHasRecentInput() {
-  if (!Platform.isWindows) return true;
-  try {
-    final user32 = ffi.DynamicLibrary.open('user32.dll');
-    final kernel32 = ffi.DynamicLibrary.open('kernel32.dll');
-    final getLastInputInfo = user32.lookupFunction<
-        ffi.Int32 Function(ffi.Pointer<_LASTINPUTINFO>),
-        int Function(ffi.Pointer<_LASTINPUTINFO>)>('GetLastInputInfo');
-    final getTickCount = kernel32
-        .lookupFunction<ffi.Uint32 Function(), int Function()>('GetTickCount');
-    final info = pkg_ffi.calloc<_LASTINPUTINFO>();
-    info.ref.cbSize = ffi.sizeOf<_LASTINPUTINFO>();
-    final ok = getLastInputInfo(info);
-    if (ok == 0) {
-      pkg_ffi.calloc.free(info);
-      return true;
-    }
-    final idleMs = getTickCount() - info.ref.dwTime;
-    pkg_ffi.calloc.free(info);
-    return idleMs < 5000;
-  } catch (_) {
-    return true;
-  }
-}
-
-final class _LASTINPUTINFO extends ffi.Struct {
-  @ffi.Uint32()
-  external int cbSize;
-  @ffi.Uint32()
-  external int dwTime;
-}
 
 class _PopupState {
   final String id;
@@ -257,28 +223,48 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     widget.manager.onUserInput();
   }
 
+  // Wait until the user is active before starting the auto-dismiss countdown —
+  // the view half of AyuGram's Notification::checkLastInput wait-for-input gate
+  // (notifications_manager_default.cpp:767-785). A popup that arrives while the
+  // user is away from the machine stays on screen until input arrives AFTER it
+  // appeared. The signal is the GLOBAL OS idle source (SystemIdle, every
+  // platform — not Windows-only) folded with the app-local pointer signal
+  // (_hasReceivedInput, set by pointer events over the popup). Mirrors the
+  // controller's _checkLastInput so the two parallel countdowns agree.
   void _startHideCountdown(_PopupState popup) {
     popup.hideWaitTimer?.cancel();
-    if (!_hasReceivedInput) {
-      if (!Platform.isWindows) {
-        _hasReceivedInput = true;
-        _scheduleHideAfterWait(popup);
-      } else {
-        popup.hideWaitTimer = Timer.periodic(
-          const Duration(milliseconds: 300),
-          (timer) {
-            if (!mounted) { timer.cancel(); return; }
-            if (_hasReceivedInput || _winHasRecentInput()) {
-              timer.cancel();
-              _hasReceivedInput = true;
-              _scheduleHideAfterWait(popup);
-            }
-          },
-        );
-      }
-    } else {
+    if (_hasReceivedInput || _globalInputAfter(popup.item.shownAt)) {
+      _hasReceivedInput = true;
       _scheduleHideAfterWait(popup);
+      return;
     }
+    popup.hideWaitTimer = Timer.periodic(
+      const Duration(milliseconds: 300),
+      (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        if (_hasReceivedInput || _globalInputAfter(popup.item.shownAt)) {
+          timer.cancel();
+          _hasReceivedInput = true;
+          _scheduleHideAfterWait(popup);
+        }
+      },
+    );
+  }
+
+  /// Whether a GLOBAL system input event happened after [shownAt] — the view's
+  /// mirror of `*lastInputTime > _started` (lastInput == now - idle, so input
+  /// after shownAt ⇔ elapsed-since-shown > idle). The idle source is SystemIdle
+  /// (`base::Platform::LastUserInputTime()`); when unsupported it returns false
+  /// so we keep waiting on the app-local pointer signal instead.
+  bool _globalInputAfter(DateTime shownAt) {
+    final idleMs = SystemIdle.idleMillis();
+    if (idleMs == null) return false;
+    final elapsed =
+        DateTime.now().millisecondsSinceEpoch - shownAt.millisecondsSinceEpoch;
+    return elapsed > idleMs;
   }
 
   void _scheduleHideAfterWait(_PopupState popup) {

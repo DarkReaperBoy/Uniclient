@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import 'notification_manager.dart';
 import 'notification_types.dart';
+import 'system_idle.dart';
 
 typedef NotificationTapCallback = void Function(
     String accountId, String chatId);
@@ -38,11 +39,15 @@ class DefaultManager extends NotificationManager {
   final Queue<DefaultNotificationItem> _queue = Queue();
   final Map<String, Timer> _dismissTimers = {};
   Timer? _inputCheckTimer;
+  // App-local "last user input" instant — AyuGram's in-app fallback
+  // (base::LastUserInputTime()'s Qt event-filter over the app window), fed from
+  // main.dart's window-level Listener via onUserInput(). Folded together with
+  // the GLOBAL OS idle source (SystemIdle) in _effectiveLastInput(), mirroring
+  // Core::App().lastNonIdleTime() == max(Platform::LastUserInputTime, app-local).
   DateTime _lastUserInputTime = DateTime.now();
   int _nextId = 0;
   int _maxVisible = 3;
   NotificationCorner _corner = NotificationCorner.bottomRight;
-  bool _lastInputTimeSupported = false;
 
   NotificationTapCallback? onTap;
   NotificationDisplayCallback? onShow;
@@ -67,8 +72,22 @@ class DefaultManager extends NotificationManager {
   NotificationCorner get corner => _corner;
 
   void onUserInput() {
-    _lastInputTimeSupported = true;
     _lastUserInputTime = DateTime.now();
+  }
+
+  /// Effective "last user input" instant — the later of the GLOBAL OS idle
+  /// source (SystemIdle, the mirror of base::Platform::LastUserInputTime()) and
+  /// the app-local pointer signal, exactly like AyuGram's
+  /// Core::App().lastNonIdleTime() == std::max(Platform::LastUserInputTime(),
+  /// _lastNonIdleTime) (notifications_manager_default.cpp:189-191 →
+  /// application.cpp:1283-1287). The app-local time is always available on
+  /// native desktop, so this never returns null there — when no OS idle source
+  /// exists we still gate on real pointer activity rather than dismissing at
+  /// once.
+  DateTime _effectiveLastInput() {
+    final global = SystemIdle.lastInputTime();
+    if (global == null) return _lastUserInputTime;
+    return global.isAfter(_lastUserInputTime) ? global : _lastUserInputTime;
   }
 
   @override
@@ -98,25 +117,25 @@ class DefaultManager extends NotificationManager {
     _checkLastInput();
   }
 
+  // Faithful port of Manager::checkLastInput (notifications_manager_default.cpp
+  // :186-200) + Notification::checkLastInput (:767-785). Each waiting popup is
+  // gated on the GLOBAL last-input time: while the last user input is at/before
+  // when the popup appeared (user idle / away from the machine) it keeps
+  // waiting on screen; only once there is input AFTER it appeared (user active
+  // again) does the notifyWaitLongHide (3 s) auto-dismiss countdown start.
+  // WaitForInputForCustom() is true on every desktop platform, so the wait is
+  // always armed. Re-polls every 300 ms while any popup is still waiting
+  // (AyuGram's _inputCheckTimer.callOnce(300)).
   void _checkLastInput() {
     final hasReplying =
         _active.any((n) => isStickyCheck != null && isStickyCheck!(n.id));
-
-    if (!_lastInputTimeSupported) {
-      for (final item in _active) {
-        if (!item.waitingForInput) continue;
-        item.waitingForInput = false;
-        if (!hasReplying) {
-          _startDismissTimer(item.id);
-        }
-      }
-      return;
-    }
+    final lastInput = _effectiveLastInput();
 
     var anyWaiting = false;
     for (final item in _active) {
       if (!item.waitingForInput) continue;
-      if (_lastUserInputTime.isAfter(item.shownAt)) {
+      // waitForUserInput == (lastInput <= shownAt): no input since it appeared.
+      if (lastInput.isAfter(item.shownAt)) {
         item.waitingForInput = false;
         if (!hasReplying) {
           _startDismissTimer(item.id);
