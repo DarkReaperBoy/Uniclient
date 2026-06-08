@@ -13,6 +13,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../utils/spell_service.dart';
+import 'box_content_divider.dart';
 import 'chat_export.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
@@ -967,7 +968,9 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       _SubsectionTitle(title: 'Performance', color: accentColor),
       _AdvancedIconButtonRow(
         icon: Icons.battery_saver,
-        label: 'Power Saving',
+        // AyuGram row uses tr::lng_settings_power_menu() = "Battery and Animations"
+        // (settings_advanced.cpp:838).
+        label: 'Battery and Animations',
         textColor: textColor,
         subtextColor: subtextColor,
         iconColor: iconColor,
@@ -2727,7 +2730,9 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
               child: Text(
-                'Power Saving',
+                // AyuGram setTitle(tr::lng_settings_power_title()) = "Power Usage"
+                // (settings_power_saving.cpp:35).
+                'Power Usage',
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
@@ -2735,16 +2740,15 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
             Flexible(
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (_hasBattery) ...[
-                      _autoToggle(textColor, accentColor),
-                      const SizedBox(height: 8),
-                    ],
+                    // Subtitle "Power saving options" right below the title —
+                    // AyuGram AddSubsectionTitle(tr::lng_settings_power_subtitle())
+                    // (settings_power_saving.cpp:46-49).
+                    _header('Power saving options', headerColor),
                     Stack(
                       children: [
                         Column(
@@ -2792,6 +2796,18 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
                           ),
                       ],
                     ),
+                    // Auto-toggle BELOW the checkboxes — AyuGram places it after
+                    // AddSkip+AddDivider+AddSkip, then follows it with the
+                    // explanatory AddDividerText(tr::lng_settings_power_auto_about())
+                    // (settings_power_saving.cpp:69-80).
+                    if (_hasBattery) ...[
+                      const SizedBox(height: 8), // Ui::AddSkip
+                      const BoxContentDivider(), // Ui::AddDivider
+                      const SizedBox(height: 8), // Ui::AddSkip
+                      _autoToggle(textColor, accentColor),
+                      const SizedBox(height: 8), // Ui::AddSkip
+                      _powerAutoAbout(), // Ui::AddDividerText
+                    ],
                   ],
                 ),
               ),
@@ -2849,7 +2865,9 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
         child: Row(
           children: [
             Expanded(
-              child: Text('Automatic Power Saving',
+              // AyuGram lng_settings_power_auto = "Save Power on Low Battery"
+              // (settings_power_saving.cpp:76, lang.strings:944).
+              child: Text('Save Power on Low Battery',
                   style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor)),
             ),
             Switch(
@@ -2860,6 +2878,24 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // AyuGram Ui::AddDividerText(tr::lng_settings_power_auto_about()): the
+  // explanatory label sits ON a boxDividerBg band (DividerLabel,
+  // defaultBoxDividerLabelPadding = margins(22,8,22,16), windowSubTextFg 14px) —
+  // settings_power_saving.cpp:80, vertical_list.cpp:50-67.
+  Widget _powerAutoAbout() {
+    final p = context.palette;
+    return Container(
+      width: double.infinity,
+      color: p.boxDividerBg,
+      padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
+      child: Text(
+        'Automatically disable all animations when your laptop is in a '
+        'battery saving mode.',
+        style: TextStyle(fontSize: 14, color: p.windowSubTextFg),
       ),
     );
   }
