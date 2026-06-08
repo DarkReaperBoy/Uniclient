@@ -7259,6 +7259,9 @@ class _RoundListItem extends StatelessWidget {
       audio.playVoice(item.localPath, item.msgId,
         chatId: chatId,
         accountId: accountId,
+        // Round-video shared-media tab — always a round-video message, so it
+        // engages the display-sleep power-save blocker while it plays.
+        isRoundVideo: true,
       );
     } else if (accountId.isNotEmpty && chatId.isNotEmpty) {
       final engine = context.read<EngineService>();

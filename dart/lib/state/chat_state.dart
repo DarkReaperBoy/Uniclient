@@ -3234,6 +3234,9 @@ class ChatState extends ChangeNotifier {
       accessHash: accessHash,
       fileRef: fileRef,
       isSong: isSong,
+      // mediaType 5 = round-video message (chat_state.dart:3083) — drives the
+      // display-sleep power-save blocker while it plays.
+      isRoundVideo: msg.mediaType == 5,
     );
   }
 

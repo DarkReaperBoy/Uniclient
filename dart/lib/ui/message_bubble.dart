@@ -4359,6 +4359,7 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
       msgTimestamp: msg.timestamp,
       accountId: msg.accountId,
       docId: msg.mediaRemoteRef,
+      isRoundVideo: msg.mediaType == 5,
     );
   }
 
@@ -4375,6 +4376,7 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
         msgTimestamp: msg.timestamp,
         accountId: msg.accountId,
         docId: msg.mediaRemoteRef,
+        isRoundVideo: msg.mediaType == 5,
       ).then((_) {
         Future.delayed(const Duration(milliseconds: 100), () {
           audio.seek(localX / totalWidth);

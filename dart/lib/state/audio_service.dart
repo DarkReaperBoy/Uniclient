@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 
 import '../bridge/engine_service.dart';
+import '../utils/power_save_blocker.dart';
 import 'package:uniclient/utils/debug.dart';
 
 /// Playlist repeat mode for the media player (mirrors AyuGram RepeatMode:
@@ -41,7 +42,23 @@ class AudioService extends ChangeNotifier {
   int _currentAccessHash = 0;
   List<int> _currentFileRef = const [];
   bool _isSong = false;
+  // Whether the current track is a round-video message (mediaType 5). Selects
+  // the display-sleep blocker, mirroring AyuGram's
+  // `data->current.audio()->isVideoMessage()` gate (media_player_instance.cpp:640-641).
+  bool _isRoundVideo = false;
   final List<StreamSubscription> _subs = [];
+
+  // ── OS power-save blockers (AyuGram Instance::updatePowerSaveBlocker,
+  // media_player_instance.cpp:634-658, toggled from emitUpdate :1284 on every
+  // state update). App-suspension is blocked while ANY track plays so a
+  // sleeping laptop never silently stops playback; display-sleep is blocked
+  // only while a round-video message plays so the screen stays awake for it.
+  // The blockers hold an XDG Desktop Portal inhibition (Linux); no-op
+  // elsewhere. ──
+  final PowerSaveBlocker _appSuspendBlocker = PowerSaveBlocker(
+      PowerSaveBlockType.preventAppSuspension, 'Audio playback is active');
+  final PowerSaveBlocker _displaySleepBlocker = PowerSaveBlocker(
+      PowerSaveBlockType.preventDisplaySleep, 'Video playback is active');
 
   // ── Pause-on-call (AyuGram Instance subscribes to currentCallValue +
   // currentGroupCallValue and pauses/resumes the player for the call's
@@ -530,6 +547,22 @@ class AudioService extends ChangeNotifier {
     _player?.play();
   }
 
+  /// Toggle the OS power-save blockers from the current playback state — a port
+  /// of AyuGram Instance::updatePowerSaveBlocker (media_player_instance.cpp:634-658),
+  /// which it invokes on every state update from emitUpdate (:1284). App
+  /// suspension is blocked while ANY track is actively playing (`block`);
+  /// display sleep is additionally blocked only while the playing track is a
+  /// round-video message (`blockVideo`, AyuGram's `isVideoMessage()` gate).
+  /// Both calls are idempotent — the blocker only acts on a real transition —
+  /// and run fire-and-forget (the underlying portal call is async, matching
+  /// AyuGram's crl::on_main dispatch).
+  void _updatePowerSaveBlocker() {
+    final block = _playing;
+    final blockVideo = block && _isRoundVideo;
+    _appSuspendBlocker.update(block);
+    _displaySleepBlocker.update(blockVideo);
+  }
+
   Future<void> playVoice(String filePath, String msgId, {
     String chatId = '',
     String performer = '',
@@ -540,6 +573,7 @@ class AudioService extends ChangeNotifier {
     int accessHash = 0,
     List<int> fileRef = const [],
     bool isSong = false,
+    bool isRoundVideo = false,
   }) async {
     if (_currentMsgId == msgId && _player != null) {
       togglePlayback();
@@ -563,6 +597,7 @@ class AudioService extends ChangeNotifier {
     _currentAccessHash = accessHash;
     _currentFileRef = fileRef;
     _isSong = isSong;
+    _isRoundVideo = isRoundVideo;
     _position = Duration.zero;
     _duration = Duration.zero;
     _playing = false;
@@ -595,6 +630,9 @@ class AudioService extends ChangeNotifier {
         _accumulateListenTime();
         _startPauseTimer();
       }
+      // AyuGram toggles the power-save blockers on every state update
+      // (emitUpdate -> updatePowerSaveBlocker, media_player_instance.cpp:1284).
+      _updatePowerSaveBlocker();
       notifyListeners();
     }));
     _subs.add(player.stream.position.listen((v) {
@@ -614,6 +652,7 @@ class AudioService extends ChangeNotifier {
       _accumulatedMs = 0;
       _playing = false;
       _position = Duration.zero;
+      _updatePowerSaveBlocker();
       notifyListeners();
       // Auto-advance on completion — mirrors AyuGram StoppedAtEnd handling
       // (media_player_instance.cpp:1300-1310):
@@ -715,11 +754,16 @@ class AudioService extends ChangeNotifier {
     _currentAccessHash = 0;
     _currentFileRef = const [];
     _isSong = false;
+    _isRoundVideo = false;
     _playing = false;
     _position = Duration.zero;
     _duration = Duration.zero;
     // The track is gone — nothing left for a call-end to resume.
     _resumeAfterCall = false;
+    // Subscriptions are cancelled above, so the playing-state listener won't
+    // fire — release the power-save blockers explicitly (AyuGram releases them
+    // via emitUpdate's Stopped state; here stop() is that terminal state).
+    _updatePowerSaveBlocker();
     if (old != null) {
       await old.dispose();
     }
@@ -760,15 +804,24 @@ class AudioService extends ChangeNotifier {
       _accumulatedMs = 0;
       return;
     }
-    if (_accumulatedMs < _minListenMs) return;
+    // AyuGram report() does `base::take(_listenedMs)` (always resets to 0)
+    // BEFORE the `duration < kReportDurationSecondsMin` check
+    // (media_player_listen_tracker.cpp:70-72). report() is the end of a listen
+    // session (stop / track change / 60s pause-timeout), so the accumulator
+    // must always reset here — even for a sub-threshold segment. Returning
+    // without resetting would let a <3s segment carry across a 60s+ pause and
+    // resume, inflating a later reportMusicListen duration that AyuGram would
+    // have discarded.
+    final accumulated = _accumulatedMs;
+    _accumulatedMs = 0;
+    if (accumulated < _minListenMs) return;
     if (_currentAccountId.isEmpty || _currentDocId.isEmpty) return;
     if (_currentAccessHash == 0 && _currentFileRef.isEmpty) return;
 
     final docIdInt = int.tryParse(_currentDocId);
     if (docIdInt == null) return;
 
-    final duration = (_accumulatedMs / 1000).round();
-    _accumulatedMs = 0;
+    final duration = (accumulated / 1000).round();
 
     final accountId = _currentAccountId;
     final accessHash = _currentAccessHash;
@@ -834,6 +887,9 @@ class AudioService extends ChangeNotifier {
     final old = _player;
     _player = null;
     _playing = false;
+    // Release any held power-save inhibition and close its D-Bus connection.
+    _appSuspendBlocker.dispose().catchError((_) {});
+    _displaySleepBlocker.dispose().catchError((_) {});
     if (old != null) {
       old.dispose().catchError((_) {});
     }
