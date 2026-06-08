@@ -263,16 +263,27 @@ engine or persists via AppState (`SetProxy`, `SetAutoDownload`, `SetLocalStorage
 GitHub update download). The auto-download `SizeLimitByIndex` curve, local-storage
 ladders, cache-tag order, power-saving bit flags, CloseBehavior enum values, and
 MTPROTO secret/proxy-link parsing all match AyuGram exactly. No stubs, empty callbacks,
-mock data, or "coming soon" placeholders found. The deviations below are all in the
-PowerSavingBox structure/labels.
+mock data, or "coming soon" placeholders found.
 
-- [ ] [MAJOR] PowerSavingBox renders the "Automatic" toggle ABOVE the feature checkboxes; AyuGram places it BELOW them after a `AddSkip`+`AddDivider`+`AddSkip`, and follows it with the explanatory `lng_settings_power_auto_about` divider-text ("Automatically disable all animations when your laptop is in a battery saving mode.") — that trailing text is entirely omitted. — `dart/lib/ui/advanced_settings_screen.dart:2744` ← `AyuGram/Telegram/SourceFiles/settings/settings_power_saving.cpp:71`
+Four PowerSavingBox structure/label deviations were found and **all four are now fixed &
+verified** (each cross-checked against AyuGram ground truth — `lang.strings:927-945`,
+`settings_power_saving.cpp:31-130`, `settings_advanced.cpp:838` — plus a clean Flutter build
+and a no-crash runtime smoke-test in BOTH desktop 1024×768 and mobile 400×720):
 
-- [ ] [MAJOR] PowerSavingBox is missing the subtitle shown under the title. AyuGram adds `AddSubsectionTitle(container, tr::lng_settings_power_subtitle())` = "Power saving options" right below the title; the Dart jumps straight from the title to the (mis-placed) auto-toggle / "Stickers" header with no subtitle. — `dart/lib/ui/advanced_settings_screen.dart:2727` ← `AyuGram/Telegram/SourceFiles/settings/settings_power_saving.cpp:46`
-
-- [ ] [MAJOR] PowerSavingBox title text is wrong: Dart shows "Power Saving"; AyuGram `setTitle(tr::lng_settings_power_title())` = "Power Usage". The auto-toggle label is also wrong: Dart "Automatic Power Saving" vs AyuGram `lng_settings_power_auto` = "Save Power on Low Battery". — `dart/lib/ui/advanced_settings_screen.dart:2730` ← `AyuGram/Telegram/Resources/langs/lang.strings:928`
-
-- [ ] [MAJOR] Performance-section button that opens the box is mislabeled "Power Saving"; AyuGram's row uses `tr::lng_settings_power_menu()` = "Battery and Animations" (the icon also differs, but the label is the user-facing key). — `dart/lib/ui/advanced_settings_screen.dart:970` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_advanced.cpp:838`
+1. [MAJOR] The "Save Power on Low Battery" auto-toggle now sits BELOW the feature checkboxes
+   (after `AddSkip`+`AddDivider`+`AddSkip`: an 8px gap, a `BoxContentDivider`, another 8px gap)
+   and is followed by the explanatory `lng_settings_power_auto_about` divider-text on a
+   `boxDividerBg` band ("Automatically disable all animations when your laptop is in a battery
+   saving mode.") — mirroring `settings_power_saving.cpp:69-80`. **Verified visually** in both
+   modes: the toggle renders after Calls / Interface Animations, about-text band directly below it.
+2. [MAJOR] The "Power saving options" subtitle (`AddSubsectionTitle(lng_settings_power_subtitle)`)
+   now renders right below the title — `settings_power_saving.cpp:46`. Verified visible in both modes.
+3. [MAJOR] Title fixed "Power Saving" → "Power Usage" (`lng_settings_power_title`) and the
+   auto-toggle label fixed "Automatic Power Saving" → "Save Power on Low Battery"
+   (`lng_settings_power_auto`) — `lang.strings:928`/`:944`. Both verified on screen in both modes.
+4. [MAJOR] The Performance-section row that opens the box is relabeled "Power Saving" →
+   "Battery and Animations" (`lng_settings_power_menu`) — `settings_advanced.cpp:838`,
+   `lang.strings:927`. Verified in both modes.
 
 # auth_screen — Telegram intro/login flow (phone, code, 2FA, signup, email, QR)
 
