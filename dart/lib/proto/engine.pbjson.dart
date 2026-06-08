@@ -823,13 +823,15 @@ const EngineDeleteMessageRequest$json = {
     {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
     {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
     {'1': 'msg_id', '3': 3, '4': 1, '5': 9, '10': 'msgId'},
+    {'1': 'revoke', '3': 4, '4': 1, '5': 8, '10': 'revoke'},
   ],
 };
 
 /// Descriptor for `EngineDeleteMessageRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List engineDeleteMessageRequestDescriptor = $convert.base64Decode(
-    'ChpFbmdpbmVEZWxldGVNZXNzYWdlUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW'
-    '50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhUKBm1zZ19pZBgDIAEoCVIFbXNnSWQ=');
+    'ChpFbmdpbmVEZWxldGVNZXNzYWdlUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2Nvd'
+    'W50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhUKBm1zZ19pZBgDIAEoCVIFbXNnSWQSFg'
+    'oGcmV2b2tlGAQgASgIUgZyZXZva2U=');
 
 @$core.Deprecated('Use engineJoinChatRequestDescriptor instead')
 const EngineJoinChatRequest$json = {

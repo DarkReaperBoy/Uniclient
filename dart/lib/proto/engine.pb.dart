@@ -4650,6 +4650,7 @@ class EngineDeleteMessageRequest extends $pb.GeneratedMessage {
     $core.String? accountId,
     $core.String? chatId,
     $core.String? msgId,
+    $core.bool? revoke,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -4661,6 +4662,9 @@ class EngineDeleteMessageRequest extends $pb.GeneratedMessage {
     if (msgId != null) {
       $result.msgId = msgId;
     }
+    if (revoke != null) {
+      $result.revoke = revoke;
+    }
     return $result;
   }
   EngineDeleteMessageRequest._() : super();
@@ -4671,6 +4675,7 @@ class EngineDeleteMessageRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'accountId')
     ..aOS(2, _omitFieldNames ? '' : 'chatId')
     ..aOS(3, _omitFieldNames ? '' : 'msgId')
+    ..aOB(4, _omitFieldNames ? '' : 'revoke')
     ..hasRequiredFields = false
   ;
 
@@ -4721,6 +4726,15 @@ class EngineDeleteMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasMsgId() => $_has(2);
   @$pb.TagNumber(3)
   void clearMsgId() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.bool get revoke => $_getBF(3);
+  @$pb.TagNumber(4)
+  set revoke($core.bool v) { $_setBool(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasRevoke() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRevoke() => clearField(4);
 }
 
 class EngineJoinChatRequest extends $pb.GeneratedMessage {

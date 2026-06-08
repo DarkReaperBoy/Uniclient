@@ -2832,11 +2832,18 @@ class EngineService {
     }
   }
 
-  Future<void> inviteToConferenceCall(String accountId, String callId, List<String> userIds) async {
+  /// Invites users to a conference call. [videoUserIds] is the subset of
+  /// [userIds] that the host chose to invite with video on (AyuGram preserves
+  /// the per-user flag via `ConfInviteController::requests()` →
+  /// `InviteRequest{ user, _withVideo.contains(user) }` →
+  /// phone.inviteConferenceCallParticipant `video:`).
+  Future<void> inviteToConferenceCall(String accountId, String callId, List<String> userIds,
+      {List<String> videoUserIds = const []}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'call_id': callId,
       'user_ids': userIds,
+      'video_user_ids': videoUserIds,
     }));
     try {
       await _callAsync('__engine', 'InviteToConferenceCall', Uint8List.fromList(payload));
@@ -3425,11 +3432,16 @@ class EngineService {
     await _callAsync('__engine', 'EditMessage', req.writeToBuffer());
   }
 
-  Future<void> deleteMessage(String accountId, String chatId, String msgId) async {
+  /// Deletes a message. [revoke] also deletes it for the other participant(s)
+  /// ("delete for everyone"); defaults to true to preserve the historical
+  /// always-revoke behaviour for callers that don't surface the choice.
+  Future<void> deleteMessage(String accountId, String chatId, String msgId,
+      {bool revoke = true}) async {
     final req = epb.EngineDeleteMessageRequest()
       ..accountId = accountId
       ..chatId = chatId
-      ..msgId = msgId;
+      ..msgId = msgId
+      ..revoke = revoke;
     await _callAsync('__engine', 'DeleteMessage', req.writeToBuffer());
   }
 

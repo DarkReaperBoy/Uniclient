@@ -61,7 +61,8 @@ type editPayload struct {
 
 // deletePayload is the serialized payload for a "delete" action.
 type deletePayload struct {
-	MsgID string `json:"msg_id"`
+	MsgID  string `json:"msg_id"`
+	Revoke bool   `json:"revoke"` // also delete for the other participant(s)
 }
 
 // reactPayload is the serialized payload for a "react" action.
@@ -378,12 +379,13 @@ func (e *Engine) EditMessage(accountID, chatID, msgID, newText, entitiesJSON str
 	return nil
 }
 
-// DeleteMessage queues a message deletion.
-func (e *Engine) DeleteMessage(accountID, chatID, msgID string) error {
+// DeleteMessage queues a message delete. revoke also deletes the message for
+// the other participant(s) ("delete for everyone").
+func (e *Engine) DeleteMessage(accountID, chatID, msgID string, revoke bool) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
 
-	payload, _ := json.Marshal(deletePayload{MsgID: msgID})
+	payload, _ := json.Marshal(deletePayload{MsgID: msgID, Revoke: revoke})
 
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
@@ -717,7 +719,14 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 	case ActionDelete:
 		var p deletePayload
 		json.Unmarshal(payload, &p)
-		err := acc.Core.DeleteMessage(chatID, p.MsgID)
+		// Honor the "delete for everyone" (revoke) choice when the core supports
+		// it; otherwise fall back to the platform's default delete semantics.
+		var err error
+		if rd, ok := acc.Core.(cores.RevokableMessageDeleter); ok {
+			err = rd.DeleteMessageRevoke(chatID, p.MsgID, p.Revoke)
+		} else {
+			err = acc.Core.DeleteMessage(chatID, p.MsgID)
+		}
 		if err != nil {
 			return err
 		}

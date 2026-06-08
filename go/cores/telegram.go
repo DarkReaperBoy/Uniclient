@@ -2184,6 +2184,16 @@ func (t *TelegramCore) EditMessageWithEntities(chatID string, msgID string, text
 
 // DeleteMessage removes one or more messages from a chat.
 func (t *TelegramCore) DeleteMessage(chatID string, msgID string) error {
+	// Base interface keeps the historical always-revoke ("delete for everyone")
+	// behaviour for private/basic chats.
+	return t.DeleteMessageRevoke(chatID, msgID, true)
+}
+
+// DeleteMessageRevoke deletes a message, honoring the caller's "delete for
+// everyone" (revoke) choice for private/basic chats. AyuGram applies the same
+// revoke flag from DeleteMessagesBox's checkbox to messages.deleteMessages.
+// Channel/supergroup deletes are always for everyone, so revoke is moot there.
+func (t *TelegramCore) DeleteMessageRevoke(chatID string, msgID string, revoke bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -2211,7 +2221,7 @@ func (t *TelegramCore) DeleteMessage(chatID string, msgID string) error {
 	default:
 		_, err = t.api.MessagesDeleteMessages(t.ctx, &tg.MessagesDeleteMessagesRequest{
 			ID:     []int{id},
-			Revoke: true,
+			Revoke: revoke,
 		})
 	}
 	return err
@@ -28651,7 +28661,7 @@ func (t *TelegramCore) fireConfCallParticipants(callID int64) {
 // can later have its ring stopped (phone.declineConferenceCallInvite) or be
 // cancelled (the message deleted). The invited users surface as invited/calling
 // participant rows until they join.
-func (t *TelegramCore) InviteToConferenceCall(callID string, userIDs []string) error {
+func (t *TelegramCore) InviteToConferenceCall(callID string, userIDs, videoUserIDs []string) error {
 	t.mu.RLock()
 	authed := t.authed && t.api != nil
 	t.mu.RUnlock()
@@ -28669,6 +28679,14 @@ func (t *TelegramCore) InviteToConferenceCall(callID string, userIDs []string) e
 		return fmt.Errorf("no access hash for conference call %s", callID)
 	}
 
+	// AyuGram carries the per-user video toggle into the invite via
+	// InviteRequest.video → phone.inviteConferenceCallParticipant `video:`
+	// (calls_group_invite_controller.cpp:498-507). Mirror it with a set lookup.
+	withVideo := make(map[string]bool, len(videoUserIDs))
+	for _, v := range videoUserIDs {
+		withVideo[v] = true
+	}
+
 	var firstErr error
 	invited := 0
 	for _, uid := range userIDs {
@@ -28682,6 +28700,7 @@ func (t *TelegramCore) InviteToConferenceCall(callID string, userIDs []string) e
 		updates, ierr := t.api.PhoneInviteConferenceCallParticipant(t.ctx, &tg.PhoneInviteConferenceCallParticipantRequest{
 			Call:   &tg.InputGroupCall{ID: cid, AccessHash: hash},
 			UserID: &tg.InputUser{UserID: id, AccessHash: uHash},
+			Video:  withVideo[uid],
 		})
 		if ierr != nil {
 			if firstErr == nil {

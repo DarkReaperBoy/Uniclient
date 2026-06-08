@@ -859,6 +859,12 @@ type ForwardWithOptionsSupporter interface {
 	ForwardMessageWithOptions(fromChatID, msgID, toChatID string, opts ForwardOptions) (*Message, error)
 }
 
+// RevokableMessageDeleter deletes a message with an explicit "delete for
+// everyone" (revoke) flag, instead of the platform's default delete semantics.
+type RevokableMessageDeleter interface {
+	DeleteMessageRevoke(chatID, msgID string, revoke bool) error
+}
+
 // UploadOptions provides extra control over media uploads for the resend pipeline.
 type UploadOptions struct {
 	Caption         string

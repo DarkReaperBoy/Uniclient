@@ -846,7 +846,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.DeleteMessage(req.AccountId, req.ChatId, req.MsgId)
+		return nil, e.DeleteMessage(req.AccountId, req.ChatId, req.MsgId, req.Revoke)
 
 	case "JoinChat":
 		var req pb.EngineJoinChatRequest
@@ -5911,14 +5911,15 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "InviteToConferenceCall":
 		var params struct {
-			AccountID string   `json:"account_id"`
-			CallID    string   `json:"call_id"`
-			UserIDs   []string `json:"user_ids"`
+			AccountID    string   `json:"account_id"`
+			CallID       string   `json:"call_id"`
+			UserIDs      []string `json:"user_ids"`
+			VideoUserIDs []string `json:"video_user_ids"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		if err := e.InviteToConferenceCall(params.AccountID, params.CallID, params.UserIDs); err != nil {
+		if err := e.InviteToConferenceCall(params.AccountID, params.CallID, params.UserIDs, params.VideoUserIDs); err != nil {
 			return nil, err
 		}
 		return nil, nil

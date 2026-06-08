@@ -3342,6 +3342,7 @@ type EngineDeleteMessageRequest struct {
 	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
 	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	Revoke        bool                   `protobuf:"varint,4,opt,name=revoke,proto3" json:"revoke,omitempty"` // also delete for the other participant(s)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3395,6 +3396,13 @@ func (x *EngineDeleteMessageRequest) GetMsgId() string {
 		return x.MsgId
 	}
 	return ""
+}
+
+func (x *EngineDeleteMessageRequest) GetRevoke() bool {
+	if x != nil {
+		return x.Revoke
+	}
+	return false
 }
 
 type EngineJoinChatRequest struct {
@@ -15088,12 +15096,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
 	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x19\n" +
 	"\bnew_text\x18\x04 \x01(\tR\anewText\x12#\n" +
-	"\rentities_json\x18\x05 \x01(\tR\fentitiesJson\"k\n" +
+	"\rentities_json\x18\x05 \x01(\tR\fentitiesJson\"\x83\x01\n" +
 	"\x1aEngineDeleteMessageRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
-	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\"Y\n" +
+	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x16\n" +
+	"\x06revoke\x18\x04 \x01(\bR\x06revoke\"Y\n" +
 	"\x15EngineJoinChatRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +

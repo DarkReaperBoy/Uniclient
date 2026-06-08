@@ -1141,8 +1141,15 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
           return;
         }
         await engine.joinGroupCall(accountId, result.callId);
-        await engine.inviteToConferenceCall(
-            accountId, result.callId, _selectedIds.toList());
+        // AyuGram preserves the per-contact video toggle: ConfInviteController::
+        // requests() builds InviteRequest{ user, _withVideo.contains(user) }
+        // (calls_group_invite_controller.cpp:498-507). Carry that flag through
+        // so video-selected invitees are invited with video, not audio-only.
+        final ids = _selectedIds.toList();
+        final videoIds =
+            ids.where((id) => _selectedVideo[id] == true).toList();
+        await engine.inviteToConferenceCall(accountId, result.callId, ids,
+            videoUserIds: videoIds);
         final info = await engine.getGroupCall(accountId, result.callId);
         if (mounted) {
           Navigator.of(context).pop(true);
@@ -2122,10 +2129,15 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
         );
         if (!mounted || !confirmResult.confirmed) return;
         final engine = context.read<EngineService>();
+        // AyuGram routes this delete through Box<DeleteMessagesBox>, whose
+        // revoke checkbox is applied to the delete request
+        // (calls_box_controller.cpp:585). Honor the user's "also delete for
+        // the other participant" choice instead of always revoking.
         for (final entry in group.entries) {
           try {
             await engine.deleteMessage(
-                widget.accountId, group.peerId, entry.msgId);
+                widget.accountId, group.peerId, entry.msgId,
+                revoke: confirmResult.revoke);
           } catch (e) {
             Debug.log('calls_screen', 'await engine.deleteMessage(: $e');
           }

@@ -407,6 +407,7 @@ message EngineDeleteMessageRequest {
   string account_id = 1;
   string chat_id    = 2;
   string msg_id     = 3;
+  bool   revoke     = 4;  // also delete for the other participant(s)
 }
 
 message EngineJoinChatRequest {

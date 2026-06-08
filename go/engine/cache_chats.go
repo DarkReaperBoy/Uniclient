@@ -1801,7 +1801,11 @@ func (e *Engine) CreateConferenceCall(accountID string) (string, string, error) 
 	return cc.CreateConferenceCall()
 }
 
-func (e *Engine) InviteToConferenceCall(accountID, callID string, userIDs []string) error {
+// InviteToConferenceCall invites users to a conference call. videoUserIDs is
+// the subset of userIDs the host chose to invite with video on; AyuGram carries
+// the same per-user flag via ConfInviteController::requests() →
+// InviteRequest{ user, _withVideo.contains(user) }.
+func (e *Engine) InviteToConferenceCall(accountID, callID string, userIDs, videoUserIDs []string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return fmt.Errorf("account not found: %s", accountID)
@@ -1810,13 +1814,13 @@ func (e *Engine) InviteToConferenceCall(accountID, callID string, userIDs []stri
 		return fmt.Errorf("account not connected: %s", accountID)
 	}
 	type confInviter interface {
-		InviteToConferenceCall(callID string, userIDs []string) error
+		InviteToConferenceCall(callID string, userIDs, videoUserIDs []string) error
 	}
 	ci, ok := acc.Core.(confInviter)
 	if !ok {
 		return fmt.Errorf("conference call invites not supported by this platform")
 	}
-	return ci.InviteToConferenceCall(callID, userIDs)
+	return ci.InviteToConferenceCall(callID, userIDs, videoUserIDs)
 }
 
 // DeclineOutgoingConferenceInvite cancels an outgoing conference-call invite:
