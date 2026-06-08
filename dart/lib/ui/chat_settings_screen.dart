@@ -289,7 +289,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       bytes = await File(file.path!).readAsBytes();
     }
     if (bytes == null || !mounted) return;
-    final processed = encodeWallpaperJpeg(bytes);
+    // Decode + crop + downscale + JPEG re-encode off the UI thread so a
+    // multi-megapixel photo doesn't freeze the UI for ~1-2 s (the gradient path
+    // already runs off-thread via compute()). Re-check `mounted` after the await
+    // before touching `context`.
+    final processed = await encodeWallpaperJpegAsync(bytes);
+    if (!mounted) return;
     final confirmed = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => _BackgroundPreviewBox(

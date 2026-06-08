@@ -2978,6 +2978,23 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _wallpaper = data;
     _saveWallpaper();
     notifyListeners();
+    _ensureWallpaperAverageColor();
+  }
+
+  /// Computes an image wallpaper's average colour off the UI thread and, once
+  /// it lands, rebuilds so the service-message colours adapt to the background
+  /// ([adjustServiceColorsForWallpaper]). No-op for gradient/solid wallpapers
+  /// (their average is a cheap synchronous mean) and when the value is already
+  /// cached. Mirrors AyuGram preparing the background — `CountAverageColor`
+  /// included — off-thread and refreshing the chat theme when it arrives
+  /// (chat_theme.cpp:880, dispatched via `crl::async` :705).
+  void _ensureWallpaperAverageColor() {
+    final wp = _wallpaper;
+    if (wp.imageBytes == null || wp.averageColor != null) return;
+    wp.ensureAverageColor().then((_) {
+      // Skip if a newer wallpaper has superseded this one in the meantime.
+      if (identical(_wallpaper, wp)) notifyListeners();
+    });
   }
 
   /// Spec §3.4: when true, theme auto-follows system dark mode changes.
@@ -4827,6 +4844,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         patternBytes: patternBytes,
       );
     }
+    // Kick the off-thread average-colour computation for an image wallpaper
+    // restored from prefs, so the service colours adapt once it lands (see
+    // [_ensureWallpaperAverageColor]).
+    _ensureWallpaperAverageColor();
   }
 
   static String _platformLabel(String platform) => switch (platform.toLowerCase()) {

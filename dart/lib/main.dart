@@ -187,6 +187,7 @@ class _UniClientAppState extends State<UniClientApp>
   TelegramPalette? _cachedPaletteCustom;
   String _cachedPaletteAccentHex = '';
   WallpaperData? _cachedPaletteWallpaper;
+  Color? _cachedPaletteWallpaperAvg;
   TelegramPalette? _cachedPalette;
 
   @override
@@ -2438,13 +2439,19 @@ class _UniClientAppState extends State<UniClientApp>
     final curCustom = appState.customPalette;
     final curAccent = appState.accentColorHex;
     final curWallpaper = appState.wallpaper;
+    // An image wallpaper's average colour lands asynchronously (computed
+    // off-thread by AppState, then cached on the wallpaper bytes). Fold it into
+    // the cache key so the service-colour-adjusted palette is recomputed once it
+    // becomes available — not only when the wallpaper object changes identity.
+    final curWallpaperAvg = curWallpaper.averageColor;
 
     TelegramPalette palette;
     if (_cachedPalette != null &&
         identical(curCustom, _cachedPaletteCustom) &&
         curThemeId == _cachedPaletteThemeId &&
         curAccent == _cachedPaletteAccentHex &&
-        identical(curWallpaper, _cachedPaletteWallpaper)) {
+        identical(curWallpaper, _cachedPaletteWallpaper) &&
+        curWallpaperAvg == _cachedPaletteWallpaperAvg) {
       palette = _cachedPalette!;
     } else {
       palette = curCustom ?? switch (curThemeId) {
@@ -2470,6 +2477,7 @@ class _UniClientAppState extends State<UniClientApp>
       _cachedPaletteCustom = curCustom;
       _cachedPaletteAccentHex = curAccent;
       _cachedPaletteWallpaper = curWallpaper;
+      _cachedPaletteWallpaperAvg = curWallpaperAvg;
       _cachedPalette = palette;
     }
 

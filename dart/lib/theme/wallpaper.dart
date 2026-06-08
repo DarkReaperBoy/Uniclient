@@ -272,6 +272,24 @@ class WallpaperData {
         .join(sep);
   }
 
+  /// Dark-mode dimming percentage — the strength of the black overlay drawn over
+  /// a (non-pattern) image background while the active theme is dark. Port of
+  /// AyuGram's `darkModeDimming` (window/window_session_controller.cpp:3695-3697):
+  /// for an image wallpaper it is `clamp(patternIntensity, 0, 100)`, which is the
+  /// default 50 (→ ~50% dim) for a freshly-applied photo. The dimming overlay is
+  /// only ever applied to non-pattern images (chat_theme.cpp:1228-1231), so this
+  /// value is meaningful only for [isImage].
+  int get darkModeDimming => patternIntensity.clamp(0, 100);
+
+  /// The wallpaper's average colour, used to tint service-message bubbles toward
+  /// the background (`adjustServiceColorsForWallpaper`). For gradient/solid
+  /// wallpapers this is a cheap synchronous mean of the few background colours.
+  /// For an **image** wallpaper it is the value computed off-thread by
+  /// [ensureAverageColor] and cached — `null` until that completes — so this
+  /// getter never decodes a multi-megapixel image on the UI thread. Mirrors
+  /// AyuGram, which sums an already-decoded `QImage` produced off-thread and
+  /// caches the result instead of re-decoding from bytes per frame
+  /// (ui/chat/chat_theme.cpp:880 `CountAverageColor`).
   Color? get averageColor {
     if (backgroundColors.isNotEmpty) {
       int r = 0, g = 0, b = 0;
@@ -283,10 +301,31 @@ class WallpaperData {
       final n = backgroundColors.length;
       return Color.fromARGB(255, r ~/ n, g ~/ n, b ~/ n);
     }
-    if (imageBytes != null) {
-      return computeAverageColor(imageBytes!);
+    final bytes = imageBytes;
+    if (bytes != null) {
+      return _wallpaperAverageColorCache[bytes];
     }
     return null;
+  }
+
+  /// Ensures [averageColor] is available for an image wallpaper, computing it on
+  /// a background isolate via [compute] (the pure-Dart decode + per-pixel sample
+  /// in [computeAverageColor] is a ~0.5-1 s UI hitch if run inline) and caching
+  /// it keyed on the image-bytes instance. Returns immediately for gradient/solid
+  /// wallpapers (cheap synchronous average) and when the value is already cached.
+  /// Mirrors AyuGram running the background preparation — `CountAverageColor`
+  /// included — off the main thread via `crl::async` (chat_theme.cpp:705) and
+  /// refreshing the chat theme once it lands.
+  Future<Color?> ensureAverageColor() async {
+    if (backgroundColors.isNotEmpty) return averageColor;
+    final bytes = imageBytes;
+    if (bytes == null) return null;
+    final cached = _wallpaperAverageColorCache[bytes];
+    if (cached != null) return cached;
+    final value = await compute(_averageColorValueIsolate, bytes);
+    final color = Color(value);
+    _wallpaperAverageColorCache[bytes] = color;
+    return color;
   }
 
   /// Mirrors AyuGram `WallPaper::withUrlParams` rotation handling
@@ -332,7 +371,12 @@ class ChatWallpaper extends StatelessWidget {
     return switch (wallpaper.type) {
       WallpaperType.solid => _buildSolid(),
       WallpaperType.gradient => _buildGradient(),
-      WallpaperType.image => _buildImage(),
+      // The dark-mode dimming overlay needs the active theme's brightness, which
+      // mirrors AyuGram's `forDarkMode = theme.basedOnDark`
+      // (window_session_controller.cpp:3710). `AppTheme.fromPalette` sets the
+      // Flutter brightness from `TelegramPalette.isDark`, so this is equivalent.
+      WallpaperType.image =>
+        _buildImage(Theme.of(context).brightness == Brightness.dark),
       WallpaperType.pattern => _buildPattern(),
     };
   }
@@ -358,32 +402,55 @@ class ChatWallpaper extends StatelessWidget {
     );
   }
 
-  Widget _buildImage() {
+  Widget _buildImage(bool isDark) {
     if (wallpaper.imageBytes == null) return ColoredBox(color: fallbackColor);
 
+    Widget image;
     // Tiled images repeat a small bitmap; the tile painter must keep every tile
     // at native resolution, so it is never downscaled.
     if (wallpaper.tiled) {
       final Widget tiled = _TiledImage(imageBytes: wallpaper.imageBytes!);
-      if (wallpaper.blurred) {
-        return ImageFiltered(
-          imageFilter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: tiled,
-        );
-      }
-      return tiled;
+      image = wallpaper.blurred
+          ? ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+              child: tiled,
+            )
+          : tiled;
+    } else {
+      // Full-screen cover image: decode (and optionally pre-blur) at the actual
+      // fill resolution instead of holding the stored full-size (≤2960px) source
+      // and GPU-blurring it on every composite. Mirrors AyuGram scaling the
+      // prepared image down to the chat-background rect (chat_theme.cpp:233-237)
+      // and `PrepareBlurredBackground` pre-blurring a ≤900px copy once
+      // (chat_theme.cpp:1173-1184).
+      image = _ScaledWallpaperImage(
+        imageBytes: wallpaper.imageBytes!,
+        blurred: wallpaper.blurred,
+      );
     }
 
-    // Full-screen cover image: decode (and optionally pre-blur) at the actual
-    // fill resolution instead of holding the stored full-size (≤2960px) source
-    // and GPU-blurring it on every composite. Mirrors AyuGram scaling the
-    // prepared image down to the chat-background rect (chat_theme.cpp:233-237)
-    // and `PrepareBlurredBackground` pre-blurring a ≤900px copy once
-    // (chat_theme.cpp:1173-1184).
-    return _ScaledWallpaperImage(
-      imageBytes: wallpaper.imageBytes!,
-      blurred: wallpaper.blurred,
-    );
+    // Dark-mode dimming: AyuGram fills a black rect at `255 * darkModeDimming /
+    // 100` alpha over a NON-pattern image background whenever the active theme is
+    // dark (chat_theme.cpp:1228-1237). `darkModeDimming` defaults to
+    // `clamp(patternIntensity, 0, 100) = 50` for image wallpapers
+    // (window_session_controller.cpp:3695-3697), so a custom photo is dimmed ~50%
+    // in every dark theme to keep the dark UI readable. A spatially-uniform black
+    // overlay commutes with the blur above (blur is linear, the overlay is a
+    // constant), so stacking it on top of the prepared/blurred image is identical
+    // to AyuGram baking it into the QImage before blurring/tiling.
+    final dimming = wallpaper.darkModeDimming;
+    if (isDark && dimming > 0) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          image,
+          IgnorePointer(
+            child: ColoredBox(color: Color.fromARGB(255 * dimming ~/ 100, 0, 0, 0)),
+          ),
+        ],
+      );
+    }
+    return image;
   }
 
   Widget _buildPattern() {
@@ -1922,6 +1989,22 @@ class _PatternTiling {
   });
 }
 
+/// Per-image cache of the off-thread-computed average colour, keyed on the
+/// image-bytes instance and populated by [WallpaperData.ensureAverageColor]. An
+/// [Expando] attaches the value to the bytes object itself, so the entry is
+/// dropped automatically when the wallpaper bytes are GC'd and never needs
+/// manual eviction. Mirrors AyuGram caching the once-computed `CountAverageColor`
+/// rather than re-deriving it from the encoded bytes per frame.
+final Expando<Color> _wallpaperAverageColorCache =
+    Expando<Color>('wallpaperAvgColor');
+
+/// [compute] entry point for [WallpaperData.ensureAverageColor]: decodes and
+/// samples the image on a background isolate and returns the packed ARGB int (a
+/// plain int crosses the isolate boundary trivially, mirroring the int-passing
+/// the gradient isolate already uses in [_generateGradientBytesAsync]).
+int _averageColorValueIsolate(Uint8List imageBytes) =>
+    computeAverageColor(imageBytes).value;
+
 Color computeAverageColor(Uint8List imageBytes) {
   final decoded = img.decodeImage(imageBytes);
   if (decoded == null) return const Color(0xFF527C41);
@@ -1997,6 +2080,17 @@ Uint8List encodeWallpaperJpeg(Uint8List imageBytes) {
 
   return Uint8List.fromList(img.encodeJpg(image, quality: _kJpegQuality));
 }
+
+/// Off-thread variant of [encodeWallpaperJpeg]: runs the heavy pure-Dart decode
+/// + center-crop + downscale + JPEG re-encode on a background isolate via
+/// [compute], so applying a multi-megapixel phone photo as a custom wallpaper
+/// never freezes the UI thread for the ~1-2 s the synchronous codec takes.
+/// Mirrors AyuGram preparing background images off the main thread
+/// (`PreprocessBackgroundImage`, chat_theme.cpp:941, dispatched via `crl::async`
+/// :705). On web (no isolate support) [compute] transparently falls back to a
+/// synchronous call, so behaviour is preserved there.
+Future<Uint8List> encodeWallpaperJpegAsync(Uint8List imageBytes) =>
+    compute(encodeWallpaperJpeg, imageBytes);
 
 Uint8List generateWallpaperThumb(Uint8List imageBytes) {
   final decoded = img.decodeImage(imageBytes);
