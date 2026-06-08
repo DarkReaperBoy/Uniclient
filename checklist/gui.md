@@ -2,21 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_manager_default — custom in-app notification popup controller (AyuGram `Default::Manager`)
-
-This Dart file is the controller half of AyuGram's `Window::Notifications::Default::Manager`
-(the view half — row painting, HideAll button, shift/opacity animation — lives in
-`ui/notification_popup.dart`). It is overall a faithful, fully-wired port: the show/queue/
-promote lifecycle, the five scoped clears (`_clearScoped` → chat/item/topic/sublist/account)
-with queue-erase-before-promote ordering, fast vs slow vs wait timings (150 ms `notifyFastAnim`
-/ 4000 ms `notifySlowHide` / 3000 ms `notifyWaitLongHide`), `clamp(1, 5)` count
-(`kMaxNotificationsCount = 5`), oldest-first over-limit eviction, demo-dim master opacity
-(delegated to the view's `demoDimmed`), corner reposition, and sound (`handlesSound == false`
-→ played by `NotificationSystem`) all match AyuGram. Callbacks are bound in
-`notification_popup.dart:165-175`. One real behavioral deviation found.
-
-- [ ] [MAJOR] "Wait until the user is active before starting the auto-dismiss countdown" is not faithfully ported. AyuGram gates each notification's hide timer on the **global** system idle time (`base::Platform::LastUserInputTimeSupported()` + `Core::App().lastNonIdleTime()`, sourced from XCB/Mutter D-Bus on Linux, and `WaitForInputForCustom()` returns `true` on Linux) — so a notification that arrives while the user is away from the machine stays on screen until they return. The Dart controller instead gates on `_lastInputTimeSupported` which **starts `false`** and only flips `true` after an in-app pointer event (`onUserInput`, fed solely by `main.dart:2506-2508` `onPointerDown/Move/Signal` over the app window, not global OS activity). While `false`, `_checkLastInput` takes the "not-supported" branch and starts the 3 s dismiss countdown **immediately** on arrival. The view's parallel countdown only polls global idle on Windows (`_winHasRecentInput()` → `GetLastInputInfo`); on Linux (the project's primary platform) and macOS it sets `_hasReceivedInput = true` at once. Net result: on Linux/macOS a popup that arrives while you are away counts down 3 s + fades 4 s and is gone in ~7 s, so it is missed — the deliberate Telegram "don't auto-hide while idle" behavior is lost. — `notification_manager_default.dart:45` (`_lastInputTimeSupported = false`), `notification_manager_default.dart:69-72` (`onUserInput`, app-local), `notification_manager_default.dart:105-114` (immediate-start branch) ← `AyuGram/Telegram/SourceFiles/window/notifications_manager_default.cpp:189-191` (`Manager::checkLastInput` global idle) + `:767-785` (`Notification::checkLastInput`)
-
 # notification_manager_native — Linux native (D-Bus / Flatpak portal) notification manager
 
 Port of AyuGram's `platform/linux/notifications_manager_linux.cpp` +
