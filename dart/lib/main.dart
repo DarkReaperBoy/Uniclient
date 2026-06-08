@@ -163,6 +163,11 @@ class _UniClientAppState extends State<UniClientApp>
   // available (AyuGram Export::View::SuggestStart, scheduled engine-side).
   StreamSubscription<ExportSuggestEvent>? _exportSuggestSub;
   bool _exportSuggestBoxOpen = false;
+  // Opens the incoming-call panel (Answer/Decline) when a real incoming call
+  // arrives — AyuGram opens it from createCall(user, Incoming) in
+  // handleCallUpdate. Without this, only the debug command ever showed it.
+  StreamSubscription<CallStateEvent>? _incomingCallSub;
+  final Set<String> _shownIncomingCallIds = {};
   String _lastAppIcon = '';
   AppState? _appStateRef;
   ChatState? _chatStateRef;
@@ -728,6 +733,37 @@ class _UniClientAppState extends State<UniClientApp>
       _exportSuggestBoxOpen = true;
       showExportSuggestBox(navCtx, accountId: event.accountId)
           .whenComplete(() => _exportSuggestBoxOpen = false);
+    });
+
+    // Incoming 1:1 calls — open the panel (Answer/Decline) for a real incoming
+    // call. The engine flags these with meta[incoming]=true on the first ringing
+    // push and carries the caller's peer id as chat_id, so we resolve the
+    // caller's name/avatar from the chat list and open the panel exactly once
+    // per call (AyuGram: createCall(user, Call::Type::Incoming) in
+    // handleCallUpdate). Subsequent state changes flow through the panel's own
+    // onCallState subscription.
+    _incomingCallSub = engine.onCallState.listen((event) {
+      final call = event.call;
+      if (call.meta['incoming'] != 'true' || call.id.isEmpty) return;
+      final state = _parseCallPanelState(call.state);
+      if (state != CallPanelState.ringing &&
+          state != CallPanelState.incoming) {
+        return;
+      }
+      if (_shownIncomingCallIds.contains(call.id)) return;
+      final navCtx = _navigatorKey.currentContext;
+      if (navCtx == null) return;
+      _shownIncomingCallIds.add(call.id);
+      final chat =
+          chatState.chats.where((c) => c.chatId == call.chatId).firstOrNull;
+      startIncomingCall(
+        navCtx,
+        callId: call.id,
+        callerId: call.chatId,
+        callerName: chat?.title ?? '',
+        avatarPath: chat?.avatarPath ?? '',
+        isVideo: call.isVideo,
+      );
     });
 
     // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
@@ -2370,6 +2406,7 @@ class _UniClientAppState extends State<UniClientApp>
     _notifSystem.dispose();
     _notifServerConfigSub?.cancel();
     _exportSuggestSub?.cancel();
+    _incomingCallSub?.cancel();
     _debugCmdTimer?.cancel();
     _waitForTextTimer?.cancel();
     if (_unreadListener != null && _chatStateRef != null) {

@@ -550,8 +550,13 @@ func (t *TelegramCore) initClient() {
 				Platform: tgPlatform,
 				Call: &CallSession{
 					ID:      strconv.FormatInt(c.ID, 10),
+					// Caller peer id so the panel can resolve their name/avatar,
+					// and meta[incoming] so a global listener can open the
+					// incoming-call panel (AyuGram: createCall(user, Incoming)).
+					ChatID:  strconv.FormatInt(c.AdminID, 10),
 					IsVideo: c.Video,
 					State:   CallStateRinging,
+					Meta:    map[string]string{"incoming": "true"},
 				},
 			})
 		}
@@ -3039,6 +3044,14 @@ type tgCall struct {
 	p2pAllowed bool // from PhoneCall response — controls ICE transport policy
 	conferenceSupported bool // from PhoneCall response — server allows upgrading this 1:1 call to a conference
 
+	// 1:1 call status surfaced to the panel. AyuGram binds the call panel to
+	// getKeyShaForFingerprint() / getDurationMs() / signalBarCountValue(); these
+	// fields carry the same data through the call_state meta map (guarded by mu).
+	fpValues      [4]uint64 // emoji-fingerprint indices = ComputeEmojiIndex(SHA256(authKey+g_a)), filled at DH
+	fpReady       bool      // true once the encryption key (and so the emoji) is ready
+	connectedAtMs int64     // authoritative connect time (Unix ms), set when state first becomes active
+	signalBars    int       // signal-bar count 0..4 (>0 once connected), mirrors tgcalls signalBarsUpdated
+
 	// lastParticipants caches the most recent SERVER participant snapshot (before
 	// client-side conference invites are merged) so InviteToConferenceCall /
 	// DeclineOutgoingConferenceInvite can re-emit the list with invited/calling
@@ -3290,6 +3303,11 @@ func (t *TelegramCore) applyRemoteMediaState(call *tgCall, ms tgMediaState) {
 		"remote_low_battery":     strconv.FormatBool(ms.LowBattery),
 		"conference_supported":   strconv.FormatBool(call.conferenceSupported),
 	}
+	// Ride the live status (fingerprint emoji / connect time / signal bars) on
+	// every recurring media-state push so the panel keeps them up to date.
+	for k, v := range call.callStatusMeta() {
+		meta[k] = v
+	}
 	t.fireUpdate(Update{
 		Type:     UpdateCallState,
 		Platform: tgPlatform,
@@ -3299,6 +3317,75 @@ func (t *TelegramCore) applyRemoteMediaState(call *tgCall, ms tgMediaState) {
 			Meta:  meta,
 		},
 	})
+}
+
+// callStatusMeta returns the live status meta the 1:1 call panel binds to —
+// the encryption-fingerprint emoji indices (AyuGram getKeyShaForFingerprint),
+// the authoritative connect time (getDurationMs) and the signal-bar count
+// (signalBarCountValue). Each entry is omitted until it becomes meaningful so
+// the panel only shows the badge/bars/duration once they are real. Safe to call
+// without holding c.mu.
+func (c *tgCall) callStatusMeta() map[string]string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	m := make(map[string]string, 3)
+	if c.fpReady {
+		m["fingerprint"] = fmt.Sprintf("%d,%d,%d,%d",
+			c.fpValues[0], c.fpValues[1], c.fpValues[2], c.fpValues[3])
+	}
+	if c.connectedAtMs > 0 {
+		m["connect_time_ms"] = strconv.FormatInt(c.connectedAtMs, 10)
+	}
+	if c.signalBars > 0 {
+		m["signal_bars"] = strconv.Itoa(c.signalBars)
+	}
+	return m
+}
+
+// markCallConnected stamps the authoritative connect time once (AyuGram sets
+// _startTime = crl::now() on the first transition to Established) and raises the
+// signal bars to full — connectivity is by definition established at this point.
+// Must be called while holding c.mu.
+func (c *tgCall) markCallConnected() {
+	if c.connectedAtMs == 0 {
+		c.connectedAtMs = time.Now().UnixMilli()
+	}
+	c.signalBars = tgCallSignalBarCount
+}
+
+// tgCallSignalBarCount mirrors Calls::Call::kSignalBarCount (calls_call.h:212).
+const tgCallSignalBarCount = 4
+
+// computeEmojiFingerprintValues reproduces AyuGram's call security-emoji math
+// (calls_emoji_fingerprint.cpp): SHA256(authKey ++ g_a) split into four 8-byte
+// big-endian values with the top bit of each cleared (ComputeEmojiIndex). The
+// panel maps each value modulo the 333-emoji table to one verification emoji.
+// authKey and gA are conventionally 256 bytes; gA is left-padded to 256 to match
+// the caller's on-the-wire representation so both peers derive the same emoji.
+func computeEmojiFingerprintValues(authKey, gA []byte) [4]uint64 {
+	ga := gA
+	if len(ga) < 256 {
+		padded := make([]byte, 256)
+		copy(padded[256-len(ga):], ga)
+		ga = padded
+	}
+	h := sha256.New()
+	h.Write(authKey)
+	h.Write(ga)
+	sum := h.Sum(nil) // 32 bytes
+	var vals [4]uint64
+	for i := 0; i < 4; i++ {
+		b := sum[i*8 : i*8+8]
+		vals[i] = (uint64(b[0]&0x7f) << 56) |
+			(uint64(b[1]) << 48) |
+			(uint64(b[2]) << 40) |
+			(uint64(b[3]) << 32) |
+			(uint64(b[4]) << 24) |
+			(uint64(b[5]) << 16) |
+			(uint64(b[6]) << 8) |
+			uint64(b[7])
+	}
+	return vals
 }
 
 // isV2ImplVersion returns true if the negotiated version uses InstanceV2Impl signaling
@@ -4115,11 +4202,12 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 		// Mark call as active
 		call.mu.Lock()
 		call.state = CallStateActive
+		call.markCallConnected()
 		call.mu.Unlock()
 		t.fireUpdate(Update{
 			Type:     UpdateCallState,
 			Platform: tgPlatform,
-			Call:     &CallSession{ID: strconv.FormatInt(call.id, 10), State: CallStateActive},
+			Call:     &CallSession{ID: strconv.FormatInt(call.id, 10), State: CallStateActive, Meta: call.callStatusMeta()},
 		})
 
 		// Send initial signaling messages now that ICE is connected
@@ -5830,6 +5918,13 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 	fingerprint := int64(binary.LittleEndian.Uint64(sha1Hash[12:20]))
 	fmt.Printf("[tg-call] DH done (+%dms): fp=%d\n", time.Since(t0).Milliseconds(), fingerprint)
 
+	// The verification emoji are now derivable (auth key ready). We are the
+	// caller, so the fingerprint uses our own g_a (dh.gA).
+	call.mu.Lock()
+	call.fpValues = computeEmojiFingerprintValues(call.authKey[:], dh.gA)
+	call.fpReady = true
+	call.mu.Unlock()
+
 	t.mu.Lock()
 	delete(t.pendingDH, callID)
 	call.state = CallStateConnecting
@@ -6124,15 +6219,17 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		switch state {
 		case webrtc.ICEConnectionStateConnected:
 			call.state = CallStateActive
+			call.markCallConnected()
 		case webrtc.ICEConnectionStateFailed, webrtc.ICEConnectionStateClosed:
 			call.state = CallStateEnded
 		}
+		newCallState := call.state
 		call.mu.Unlock()
 		if state == webrtc.ICEConnectionStateConnected || state == webrtc.ICEConnectionStateFailed {
 			t.fireUpdate(Update{
 				Type:     UpdateCallState,
 				Platform: tgPlatform,
-				Call:     &CallSession{ID: strconv.FormatInt(call.id, 10), State: call.state},
+				Call:     &CallSession{ID: strconv.FormatInt(call.id, 10), State: newCallState, Meta: call.callStatusMeta()},
 			})
 		}
 	})
@@ -6385,6 +6482,13 @@ func (t *TelegramCore) handleIncomingCallConfirmed(pc *tg.PhoneCall) error {
 	copy(authKeyBytes[256-len(akBuf):], akBuf)
 	copy(call.authKey[:], authKeyBytes)
 
+	// The verification emoji are now derivable. The remote is the caller, so the
+	// fingerprint uses the received caller g_a.
+	call.mu.Lock()
+	call.fpValues = computeEmojiFingerprintValues(call.authKey[:], gA)
+	call.fpReady = true
+	call.mu.Unlock()
+
 	// Verify fingerprint matches
 	sha1Hash := sha1.Sum(authKeyBytes)
 	fingerprint := int64(binary.LittleEndian.Uint64(sha1Hash[12:20]))
@@ -6628,15 +6732,17 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 		switch state {
 		case webrtc.ICEConnectionStateConnected:
 			call.state = CallStateActive
+			call.markCallConnected()
 		case webrtc.ICEConnectionStateFailed, webrtc.ICEConnectionStateClosed:
 			call.state = CallStateEnded
 		}
+		newCallState := call.state
 		call.mu.Unlock()
 		if state == webrtc.ICEConnectionStateConnected || state == webrtc.ICEConnectionStateFailed {
 			t.fireUpdate(Update{
 				Type:     UpdateCallState,
 				Platform: tgPlatform,
-				Call:     &CallSession{ID: strconv.FormatInt(call.id, 10), State: call.state},
+				Call:     &CallSession{ID: strconv.FormatInt(call.id, 10), State: newCallState, Meta: call.callStatusMeta()},
 			})
 		}
 	})
@@ -9731,10 +9837,20 @@ func (t *TelegramCore) SetGroupCallMessagesEnabled(callID string, enabled bool) 
 // stream kind ("camera" or "screen") as RGBA8888 bytes plus its dimensions.
 // Returns (nil, 0, 0, nil) when no frame is available yet — the UI then shows
 // the participant's avatar tile (AyuGram's no-frame / paused state).
+//
+// Resolves both group calls and 1:1 calls: a 1:1 video call caches its incoming
+// frames through the same storeIncomingFrame path, so the 1:1 call panel reuses
+// this getter for the remote-video surface (AyuGram's _call->videoIncoming()).
 func (t *TelegramCore) GetGroupCallVideoFrame(callID, endpoint string) ([]byte, int, int, error) {
-	_, call, err := t.resolveActiveGroupCall(callID)
+	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, fmt.Errorf("invalid call ID: %w", err)
+	}
+	t.mu.RLock()
+	call := t.activeCalls[cid]
+	t.mu.RUnlock()
+	if call == nil {
+		return nil, 0, 0, fmt.Errorf("no active call %s", callID)
 	}
 	call.incomingFrameMu.Lock()
 	var yuv []byte

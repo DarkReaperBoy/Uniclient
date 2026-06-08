@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -67,6 +68,7 @@ class CallPanelInfo {
   final bool isScreenSharing;
   final bool isMuted;
   final bool isCameraOn;
+  final bool isRemoteVideoActive;
   final int signalQuality;
   final List<String> fingerprintEmoji;
   final String callId;
@@ -89,6 +91,7 @@ class CallPanelInfo {
     this.isScreenSharing = false,
     this.isMuted = false,
     this.isCameraOn = false,
+    this.isRemoteVideoActive = false,
     this.signalQuality = -1,
     this.fingerprintEmoji = const [],
     this.callId = '',
@@ -875,26 +878,28 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   }
 
   Widget _buildRemotePills() {
-    final pills = <Widget>[];
+    // AyuGram positions the "microphone off" and "battery low" labels in the
+    // same slot and hides the low-battery label whenever the mute label is shown
+    // (Panel::showRemoteLowBattery: setVisible(!_remoteAudioMute
+    // || _remoteAudioMute->isHidden())), so mute takes priority and the two are
+    // never displayed together. — calls_panel.cpp:965.
+    final Widget pill;
     if (widget.info.isRemoteMuted) {
-      pills.add(_RemoteStatusPill(
+      pill = _RemoteStatusPill(
         icon: Icons.mic_off,
         text: "$_callerShortName's microphone is off",
-      ));
-    }
-    if (widget.info.isRemoteLowBattery) {
-      pills.add(_RemoteStatusPill(
+      );
+    } else if (widget.info.isRemoteLowBattery) {
+      pill = _RemoteStatusPill(
         icon: Icons.battery_alert,
         text: "$_callerShortName's battery level is low",
-      ));
+      );
+    } else {
+      return const SizedBox.shrink();
     }
-    if (pills.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: pills,
-      ),
+      child: pill,
     );
   }
 
@@ -2486,6 +2491,96 @@ class _OutgoingPreview extends StatelessWidget {
   }
 }
 
+/// Renders the remote peer's live 1:1 call video. Polls the engine for the
+/// latest decoded incoming frame (the same getter group-call tiles use — the Go
+/// side resolves 1:1 calls too) and paints it cover-fit, mirroring AyuGram
+/// binding the panel to `_call->videoIncoming()`. The panel only mounts this
+/// while the remote video track is active, so a real video call — or the peer
+/// turning on their camera mid-call — now displays instead of just the avatar.
+/// Until the first frame arrives it shows the dark call background (the userpic
+/// + name overlay painted by the panel sits on top), the same no-frame state the
+/// group-call tiles use.
+class _CallVideoView extends StatefulWidget {
+  final String callId;
+  final String kind; // "camera" or "screen"
+
+  const _CallVideoView({super.key, required this.callId, this.kind = 'camera'});
+
+  @override
+  State<_CallVideoView> createState() => _CallVideoViewState();
+}
+
+class _CallVideoViewState extends State<_CallVideoView> {
+  Timer? _timer;
+  ui.Image? _frame;
+  bool _decoding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // ~12fps poll — enough for a smooth surface without flooding the FFI bridge
+    // (matches the group-call tile cadence).
+    _timer = Timer.periodic(const Duration(milliseconds: 80), (_) => _poll());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _poll());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _frame?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _poll() async {
+    if (!mounted || _decoding || widget.callId.isEmpty) return;
+    try {
+      final engine = context.read<EngineService>();
+      final accountId = context.read<AppState>().activeAccountId;
+      final f = await engine.getGroupCallVideoFrame(accountId, widget.callId, widget.kind);
+      if (!mounted) return;
+      if (f == null) {
+        if (_frame != null) {
+          final old = _frame;
+          setState(() => _frame = null);
+          old?.dispose();
+        }
+        return;
+      }
+      _decoding = true;
+      ui.decodeImageFromPixels(
+          f.rgba, f.width, f.height, ui.PixelFormat.rgba8888, (img) {
+        _decoding = false;
+        if (!mounted) {
+          img.dispose();
+          return;
+        }
+        final old = _frame;
+        setState(() => _frame = img);
+        old?.dispose();
+      });
+    } catch (e) {
+      _decoding = false;
+      Debug.log('call_panel', '_CallVideoView poll: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final frame = _frame;
+    return ColoredBox(
+      color: const Color(0xFF15202B),
+      child: frame == null
+          ? const SizedBox.expand()
+          : RawImage(
+              image: frame,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+    );
+  }
+}
+
 /// Maps an engine call-state string to a [CallPanelState]. Mirrors the parser
 /// used for incoming calls (main.dart) so outgoing calls report the same
 /// requesting → ringing → exchanging-keys → active → ended progression.
@@ -2504,6 +2599,42 @@ CallPanelState parseCallPanelState(String state) => switch (state) {
     CallPanelState.waitingUserConfirmation,
   _ => CallPanelState.incoming,
 };
+
+/// Resolves the engine's `meta['fingerprint']` (the four ComputeEmojiIndex
+/// values of SHA256(authKey ++ g_a), comma-joined) into the four verification
+/// emoji. Each value is taken modulo the canonical 333-emoji table, exactly like
+/// AyuGram `ComputeEmojiFingerprint` (calls_emoji_fingerprint.cpp:156-168 →
+/// `value % kEmojiCount`). Returns `const []` until the key — and therefore the
+/// fingerprint — is ready, so the badge only appears for a real, keyed call.
+List<String> callFingerprintEmojiFromMeta(Map<String, String> meta) {
+  final raw = meta['fingerprint'];
+  if (raw == null || raw.isEmpty) return const [];
+  final parts = raw.split(',');
+  if (parts.length != 4) return const [];
+  const table = _EncryptionFingerprintState._kEmojiTable;
+  final out = <String>[];
+  for (final p in parts) {
+    final v = int.tryParse(p.trim());
+    if (v == null) return const [];
+    out.add(table[(v % table.length).abs()]);
+  }
+  return out;
+}
+
+/// Resolves the engine's `meta['signal_bars']` (0..4 once connected) into the
+/// panel's `signalQuality`. Defaults to -1 (bars hidden) until the engine
+/// reports connectivity — mirrors AyuGram binding to `signalBarCountValue()`.
+int callSignalQualityFromMeta(Map<String, String> meta) =>
+    int.tryParse(meta['signal_bars'] ?? '') ?? -1;
+
+/// Resolves the engine's authoritative connect time (`meta['connect_time_ms']`,
+/// stamped when the call instance first reaches active) so the duration clock
+/// counts from the true connect moment — AyuGram displays `getDurationMs()`,
+/// not the moment the client first observed the active state.
+DateTime? callConnectTimeFromMeta(Map<String, String> meta) {
+  final ms = int.tryParse(meta['connect_time_ms'] ?? '');
+  return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+}
 
 /// Places a real outgoing 1:1 call and shows the live call panel bound to it.
 ///
@@ -2567,6 +2698,11 @@ void startOutgoingCall(
       conferenceSupported: conferenceSupported,
       isRemoteMuted: meta['remote_muted'] == 'true',
       isRemoteLowBattery: meta['remote_low_battery'] == 'true',
+      // Live status from the engine — the same data AyuGram's Panel binds to.
+      fingerprintEmoji: callFingerprintEmojiFromMeta(meta),
+      signalQuality: callSignalQualityFromMeta(meta),
+      callStartTime: callConnectTimeFromMeta(meta),
+      isRemoteVideoActive: meta['remote_video_state'] == 'active',
     ));
     if (newState == CallPanelState.ended ||
         newState == CallPanelState.failed ||
@@ -2600,6 +2736,82 @@ void startOutgoingCall(
       teardown();
     }
   });
+}
+
+/// Shows the incoming 1:1 call panel for a real incoming call and binds it to
+/// the live call state (`engine.onCallState`). Mirrors AyuGram opening the panel
+/// from `createCall(user, Call::Type::Incoming, …)` in `handleCallUpdate`
+/// (calls_instance.cpp:707). Before this, the panel's incoming state — and so
+/// the Answer button — only ever rendered from the debug command; a real
+/// incoming call never displayed it. The panel's onAccept/onDecline drive
+/// `engine.acceptCall` / `engine.declineCall` on the real call.
+void startIncomingCall(
+  BuildContext context, {
+  required String callId,
+  required String callerId,
+  required String callerName,
+  required String avatarPath,
+  required bool isVideo,
+}) {
+  final engine = context.read<EngineService>();
+
+  final infoController = StreamController<CallPanelInfo>.broadcast();
+  var conferenceSupported = false;
+  StreamSubscription<CallStateEvent>? sub;
+
+  void teardown() {
+    sub?.cancel();
+    sub = null;
+    if (!infoController.isClosed) infoController.close();
+  }
+
+  sub = engine.onCallState.listen((event) {
+    final call = event.call;
+    if (call.id != callId) return;
+    final meta = call.meta;
+    if (meta['conference_supported'] == 'true') conferenceSupported = true;
+    var newState = parseCallPanelState(call.state);
+    // While still ringing (not yet accepted), keep showing the incoming state
+    // (Answer/Decline) rather than the outgoing "ringing…" view. Once we accept,
+    // the engine advances past ringing (connecting → active) on its own.
+    if (newState == CallPanelState.ringing) {
+      newState = CallPanelState.incoming;
+    }
+    infoController.add(CallPanelInfo(
+      callerId: callerId,
+      callerName: callerName,
+      callerAvatarUrl: avatarPath,
+      isVideo: isVideo || call.isVideo,
+      state: newState,
+      callId: call.id,
+      conferenceSupported: conferenceSupported,
+      isRemoteMuted: meta['remote_muted'] == 'true',
+      isRemoteLowBattery: meta['remote_low_battery'] == 'true',
+      fingerprintEmoji: callFingerprintEmojiFromMeta(meta),
+      signalQuality: callSignalQualityFromMeta(meta),
+      callStartTime: callConnectTimeFromMeta(meta),
+      isRemoteVideoActive: meta['remote_video_state'] == 'active',
+    ));
+    if (newState == CallPanelState.ended ||
+        newState == CallPanelState.failed ||
+        newState == CallPanelState.busy) {
+      teardown();
+    }
+  });
+
+  showCallPanel(
+    context,
+    CallPanelInfo(
+      callerId: callerId,
+      callerName: callerName,
+      callerAvatarUrl: avatarPath,
+      isVideo: isVideo,
+      state: CallPanelState.incoming,
+      callId: callId,
+    ),
+    callId: callId,
+    infoStream: infoController.stream,
+  );
 }
 
 void showCallPanel(
@@ -2658,6 +2870,24 @@ class _LiveCallPanelDialogState extends State<_LiveCallPanelDialog> {
   String get _liveCallId => widget.effectiveCallId.isNotEmpty
       ? widget.effectiveCallId
       : _currentInfo.callId;
+
+  // The video tracks aren't known when the panel opens for a real call, so the
+  // remote-video surface is built from the LIVE call state rather than passed
+  // once at construction — AyuGram switches to the video layout when
+  // `_call->videoIncoming()` activates. An explicitly-supplied widget (the
+  // flutter_interact debug command) still takes precedence.
+  Widget? get _remoteVideo {
+    if (widget.remoteVideoWidget != null) return widget.remoteVideoWidget;
+    if (_currentInfo.state == CallPanelState.active &&
+        _currentInfo.isRemoteVideoActive &&
+        _liveCallId.isNotEmpty) {
+      return _CallVideoView(
+        key: ValueKey('remote_video_$_liveCallId'),
+        callId: _liveCallId,
+      );
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -2737,7 +2967,12 @@ class _LiveCallPanelDialogState extends State<_LiveCallPanelDialog> {
                 engine.startCall(accountId, chatId, video: video);
               }
             },
-            remoteVideoWidget: widget.remoteVideoWidget,
+            remoteVideoWidget: _remoteVideo,
+            // Self-view (outgoing camera / screen) is only supplied when a real
+            // capture source feeds frames to the engine. The app has no 1:1
+            // camera/screen capture pipeline yet (no frames are pushed via
+            // SendVideoFrameYUV), so wiring an always-empty self-view would be a
+            // non-functional placeholder — it stays unset until capture exists.
             selfVideoWidget: widget.selfVideoWidget,
           ),
         ),
