@@ -2,30 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# app_state — central settings store (AyuGram ayu_settings + Telegram core_settings)
-
-`app_state.dart` is a ~4900-line `ChangeNotifier` settings store, not a widget. It mirrors
-AyuGram's `AyuSettings`/`GhostModeAccountSettings`/`MessageShotSettings` (`ayu/ayu_settings.cpp/.h`)
-and Telegram's `core_settings` (proxy, auto-download, notifications, power-saving, playback).
-
-Audited thoroughly and the port is faithful:
-- No stubs/placeholders/TODO markers; no empty callbacks; every setter persists.
-- Engine wiring intact — `setCallAudioDevice`, `setAntiRecallSettings`, `clearAccountGhostOverrides`,
-  `markAsOnline`, `saveLocalNotifyConfig`, `updateDefaultNotifySettings`, `getPasscodeConfig`,
-  `clearPasscode`, `callGeneric`, `updateConfig` all exist in `engine_service.dart`.
-- Ghost-mode active/lock/sendWithoutSound logic matches `ayu_settings.cpp:62-66,112-122,137-152`.
-- MessageShot setEmbeddedTheme/setCloudTheme/clearTheme match `ayu_settings.cpp:278-320`.
-- `validate()` clamps (peerId/channelBottomButton/contextMenu enums 0-2, translationProvider 0-3 +
-  Native availability, bubbleRadius 0-16, wideMultiplier 0.5-4.0, recentStickersCount 1-200,
-  avatarCorners 0-23, embeddedThemeType -1|0-3) match `ayu_settings.cpp:481-533`.
-- Passcode retry escalation (5/10/15/20/25/30s) matches Telegram `settings.h:116-127`; account-limit
-  `min(premiumCount+100, 200)` matches `main_domain.cpp:510` (kMaxAccounts=100, kPremium=200).
-- markReadAfterAction/useScheduledMessages mutual exclusion matches `settings_ayu.cpp:461-463,494-496`.
-
-One real defect found:
-
-- [ ] [MAJOR] `editedMark` setting data does not flow to message rendering — the getter mirrors AyuGram's `_editedMark` and is persisted with a settings UI + live preview, but the message bottom-info renderer hardcodes `Text('edited')` (`message_bubble.dart:1436`) instead of reading `appState.editedMark`. The sibling `deletedMark` IS consumed in the SAME function (`message_bubble.dart:1430`), confirming this is an oversight, so the "Edited Mark" customization is a no-op on actual messages. AyuGram renders `settings.editedMark() + ' '`. — `app_state.dart:1071` (getter; setter `setEditedMark` at `:1734`) ← `AyuGram/Telegram/SourceFiles/history/view/history_view_bottom_info.cpp:464`
-
 # audio_service — In-app audio playback engine (voice/music/round-video timeline, order/repeat/shuffle, pause-on-call, ducking, listen reporting, resume positions)
 
 Verdict: a faithful, well-documented port of AyuGram's `media_player_instance.cpp` +
