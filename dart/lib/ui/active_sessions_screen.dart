@@ -553,7 +553,11 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   String _formatActiveDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return '';
     try {
-      final date = DateTime.parse(dateStr);
+      // AyuGram renders local time via base::unixtime::parse
+      // (api_authorizations.cpp:258-269); Dart's DateTime.parse yields a UTC
+      // DateTime for any offset/Z string, so .toLocal() is required or every
+      // timestamp is shifted by the user's UTC offset.
+      final date = DateTime.parse(dateStr).toLocal();
       final now = DateTime.now();
       final nowDate = DateTime(now.year, now.month, now.day);
       final lastDate = DateTime(date.year, date.month, date.day);
@@ -839,7 +843,9 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   String _formatFullDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return '';
     try {
-      final date = DateTime.parse(dateStr);
+      // .toLocal() — see _formatActiveDate; AyuGram's langDateTimeFull renders
+      // the info-box "active" line in local time (settings_active_sessions.cpp:443).
+      final date = DateTime.parse(dateStr).toLocal();
       final localizations = MaterialLocalizations.of(context);
       final dateFormatted = localizations.formatFullDate(date);
       final timeFormatted = localizations.formatTimeOfDay(

@@ -30895,6 +30895,56 @@ func (t *TelegramCore) SendStickerWithCaption(chatID string, stickerID string, c
 }
 
 // GetSessions returns active sessions for the authenticated account.
+// Telegram api-ids that AyuGram's Api::ParseEntry treats as the desktop
+// client (api_authorizations.cpp:23-25). Desktop sessions get a synthetic
+// "Telegram Desktop" app name and a packed-integer version display.
+const (
+	tgTestApiID    = 17349
+	tgSnapApiID    = 611335
+	tgDesktopApiID = 2040
+)
+
+// formatVersionDisplay mirrors AyuGram's Core::FormatVersionDisplay
+// (changelogs.cpp:150-156): a packed integer build id (e.g. 4017004) becomes a
+// dotted version string ("4.17.4"); the patch component is dropped when zero.
+func formatVersionDisplay(version int) string {
+	s := strconv.Itoa(version/1000000) + "." + strconv.Itoa((version%1000000)/1000)
+	if version%1000 != 0 {
+		s += "." + strconv.Itoa(version%1000)
+	}
+	return s
+}
+
+// normalizeSessionApp mirrors the app-name/version normalization in AyuGram's
+// Api::ParseEntry (api_authorizations.cpp:41-57). Desktop api-ids render as
+// "Telegram Desktop" (plus " (GitHub)" for the test build) with a packed
+// integer version expanded via FormatVersionDisplay; other apps keep their
+// name but have any parenthesized build trimmed down to just "(build)".
+func normalizeSessionApp(apiID int, appName, appVersion string) (string, string) {
+	isTest := apiID == tgTestApiID
+	isDesktop := apiID == tgDesktopApiID || apiID == tgSnapApiID || isTest
+
+	name := appName
+	if isDesktop {
+		name = "Telegram Desktop"
+		if isTest {
+			name += " (GitHub)"
+		}
+	}
+
+	ver := appVersion
+	if isDesktop {
+		// Only expand when the whole string is a canonical decimal integer,
+		// matching Qt's `version == QString::number(version.toInt())` guard.
+		if n, err := strconv.Atoi(appVersion); err == nil && strconv.Itoa(n) == appVersion {
+			ver = formatVersionDisplay(n)
+		}
+	} else if idx := strings.IndexByte(appVersion, '('); idx >= 0 {
+		ver = appVersion[idx:]
+	}
+	return name, ver
+}
+
 func (t *TelegramCore) GetSessions() ([]Session, error) {
 	sessions, err := t.GetActiveSessions()
 	if err != nil {
@@ -30902,16 +30952,24 @@ func (t *TelegramCore) GetSessions() ([]Session, error) {
 	}
 	var result []Session
 	for _, s := range sessions {
+		appName, appVersion := normalizeSessionApp(s.ApiID, s.AppName, s.AppVersion)
+		// Fall back to date_created when date_active is 0 (incomplete login
+		// attempts), so the UI shows the creation time instead of the Unix
+		// epoch — mirrors AyuGram ParseEntry (api_authorizations.cpp:72-74).
+		activeTime := s.DateActive
+		if activeTime == 0 {
+			activeTime = s.DateCreated
+		}
 		result = append(result, Session{
 			ID:              strconv.FormatInt(s.Hash, 10),
 			Device:          s.Device,
 			Platform:        s.Platform,
 			System:          s.SystemName,
-			AppName:         s.AppName,
-			AppVersion:      s.AppVersion,
+			AppName:         appName,
+			AppVersion:      appVersion,
 			IP:              s.IP,
 			Location:        s.Country,
-			LastActive:      time.Unix(int64(s.DateActive), 0),
+			LastActive:      time.Unix(int64(activeTime), 0),
 			IsCurrent:       s.IsCurrent,
 			PasswordPending: s.PasswordPending,
 			ApiID:           s.ApiID,
