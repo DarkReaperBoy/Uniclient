@@ -2124,6 +2124,18 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
           mode: group.count > 1
               ? DeleteBoxMode.bulkMessages
               : DeleteBoxMode.singleMessage,
+          // Call-log entries live in the 1:1 chat with the peer (Telegram
+          // calls are always user-to-user), so they are revokable DM
+          // messages. AyuGram routes this delete through
+          // Box<DeleteMessagesBox>, whose revokeText(peer) auto-shows the
+          // "Also delete for <user>" checkbox for DM users
+          // (delete_messages_box.cpp:397-445, canRevokeAll path). Pass
+          // canRevoke/chatType so that checkbox actually renders and the
+          // user's "delete for everyone" choice is offered, not just the
+          // remembered global default.
+          chatType: ChatType.dm,
+          canRevoke: true,
+          peerAvatarPath: group.avatarPath,
           messageCount: group.count,
           peerName: group.peerName,
         );
