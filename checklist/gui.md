@@ -500,28 +500,6 @@ on `_VerticalDrumPicker`; cross-checked 1:1 vs AyuGram source.)
   `lang_pack.dart` keys+baseline ← `edit_birthday_box.cpp:119-124`). Live screenshot shows
   January/February/March/… localized on the wheel.
 
-# call_panel — 1:1 call panel (incoming / connecting / active / busy / ended), answer button, controls, encryption fingerprint, signal bars, self-view bubble, conference invite, call rating
-
-The widget tree is a faithful visual port of AyuGram's `Calls::Panel` (button order,
-body layout, fingerprint badge geometry, signal-bars metrics, self-view snap-to-corner,
-outgoing-preview interpolation all match the `.style` values). The problems are all in
-the **data path** — the production entry point (`startOutgoingCall` / `showCallPanel`,
-both in this file) never feeds the panel the live call data that AyuGram's `Panel`
-binds to, so several core call features render only when fed mock data from the
-`flutter_interact.sh` debug command (`main.dart:1287`), never in a real call.
-
-- [ ] [CRITICAL] Encryption fingerprint (the security-verification emoji — a core E2E call feature) is never wired to a real call. `startOutgoingCall`'s `onCallState` handler builds `CallPanelInfo` without `fingerprintEmoji`, so it stays `const []` → `_buildFingerprintBadge`'s `hasFingerprint` is always false and the emoji badge never appears for any real outgoing call. The engine's call `meta` (telegram.go:3214-3221) carries no emoji key either. AyuGram creates the badge from the real auth-key SHA once `isKeyShaForFingerprintReady()`. — `call_panel.dart:2560` (and `:968`) ← `AyuGram/calls/calls_panel.cpp:1448` / `calls_call.h:238`
-
-- [ ] [CRITICAL] Signal-strength bars are never wired to a real call. The same `onCallState` handler never sets `signalQuality`, so it defaults to `-1` → `_buildFingerprintBadge`'s `hasSignal` is always false and `_SignalBars` never renders for a real call (only the debug command at `main.dart:1269` injects a value). AyuGram's `SignalBars` binds live to `call->signalBarCountValue()`. — `call_panel.dart:2560` (and `:969`, `:2195`) ← `AyuGram/calls/calls_signal_bars.cpp:26` / `calls_call.h:213`
-
-- [ ] [CRITICAL] 1:1 call video is never displayed. `startOutgoingCall` calls `showCallPanel` without `remoteVideoWidget`/`selfVideoWidget`, and those are one-time constructor args of `_LiveCallPanelDialog` (not part of the streamed `CallPanelInfo`), so there is no channel to ever supply them. Result: `_buildActiveVideoState` (guarded by `remoteVideoWidget != null`, line 1150) and `_SelfViewBubble`/`_OutgoingPreview` (guarded by `selfVideoWidget != null`, lines 1138/1195/845) are unreachable in production — a video call, or enabling the camera mid-call, shows only avatars. AyuGram wires `_call->videoIncoming()`/`videoOutgoing()` to live tracks. — `call_panel.dart:2582` (and `:1150`, `:1138`) ← `AyuGram/calls/calls_panel.cpp:685`
-
-- [ ] [MAJOR] Incoming calls and conference invites have no production trigger. This file exposes only `startOutgoingCall`; the generic `showCallPanel` is called for incoming calls solely by the debug command (`main.dart:1223 'showCallPanel'`), and the engine's `onIncomingCall` stream (engine_service.dart:80) has no listener anywhere. So `_buildIncomingState`, `_AnswerButton`, and `_buildConferenceParticipantsRow` never display for a real incoming call. AyuGram opens the panel from `createCall(user, Call::Type::Incoming, …)` in `handleCallUpdate`. — `call_panel.dart:2605` (and `:760`, `:683`) ← `AyuGram/calls/calls_instance.cpp:707`
-
-- [ ] [MAJOR] Call duration is clocked client-side instead of from the engine. `_startDurationTimer` uses `DateTime.now()` because `startOutgoingCall` never sets `callStartTime` on the streamed `CallPanelInfo` (it builds with `callId`/`state` only), so the timer starts whenever the client first sees `active` rather than the call's true connect time. AyuGram displays `_call->getDurationMs()` — the authoritative duration from the call instance. — `call_panel.dart:327` (and `:2560`) ← `AyuGram/calls/calls_panel.cpp:1482` / `calls_call.h:228`
-
-- [ ] [MAJOR] Remote "microphone off" and "battery low" tooltips are shown together; AyuGram shows only one. `_buildRemotePills` stacks both pills in a Column when both flags are set. AyuGram positions both labels in the same slot and `showRemoteLowBattery()` hides the low-battery label whenever the mute label is visible (`setVisible(!_remoteAudioMute || _remoteAudioMute->isHidden())`) — mute takes priority, never both at once. — `call_panel.dart:877` ← `AyuGram/calls/calls_panel.cpp:965`
-
 # call_screen — group call panel + minimised call bar (AyuGram `Calls::Group::Panel` + `Calls::TopBar`)
 
 Audited `dart/lib/ui/call_screen.dart` (4521 lines) against AyuGram `calls/group/*` + `calls/calls_top_bar.cpp` + `ui/controls/call_mute_button.cpp`. The file is genuinely wired to the engine throughout (no placeholder snackbars / mock data). Findings are deviations in colour-state, layout button-set, menu conditions, and a dead screen-share wiring.
