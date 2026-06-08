@@ -473,7 +473,9 @@ class ForumTopic {
     0xFB6F5F: 'red',
   };
 
-  String get colorName => colorNames[colorId] ?? 'blue';
+  // Default/General topic and any topic without one of the 6 palette colors use
+  // gray, matching AyuGram's ForumTopicDefaultIcon() (data/data_forum_topic.cpp:70-72).
+  String get colorName => colorNames[colorId] ?? 'gray';
 }
 
 class VideoQuality {
@@ -2385,7 +2387,15 @@ class ConnectedBotInfo {
 
   bool appliesTo(String peerId, {required bool isContact}) {
     if (excludeSelected) {
-      return !userIds.contains(peerId);
+      // exclude_selected: the category flags + user list define the EXCLUDED
+      // set. AyuGram stores them in `result.excluded` and the bot applies to
+      // "all but excluded" (data/business/data_business_common.cpp:135-150),
+      // so a chat matching any excluded category/user must NOT match.
+      if (userIds.contains(peerId)) return false;
+      if (existingChats) return false;
+      if (contacts && isContact) return false;
+      if (nonContacts && !isContact) return false;
+      return true;
     }
     if (userIds.contains(peerId)) return true;
     if (existingChats) return true;
@@ -3798,7 +3808,19 @@ class ScheduledMessages {
   static const int _kScheduledMaxMsgId = _kServerMaxMsgId + (1 << 32);
 
   static bool canScheduleUntilOnline(ChatInfo peer) {
-    return peer.type == ChatType.dm;
+    // Mirrors AyuGram's CanScheduleUntilOnline
+    // (history/view/history_view_schedule_box.cpp:75-84): "Send when online" is
+    // offered only for a plain user DM that is not self, not a bot, not the
+    // service-notifications user (333000/777000), and has no stars-per-message
+    // (paid-message) requirement. AyuGram also requires !lastseen().isHidden(),
+    // but ChatInfo carries no last-seen visibility flag, so that one condition
+    // cannot be evaluated here.
+    if (peer.type != ChatType.dm) return false;
+    if (peer.isSelf) return false;
+    if (peer.isBot) return false;
+    if (peer.starsToSend > 0) return false;
+    if (peer.chatId == '333000' || peer.chatId == '777000') return false;
+    return true;
   }
 
   static SendMenuType menuTypeForChat(ChatInfo chat, String selfId) {
