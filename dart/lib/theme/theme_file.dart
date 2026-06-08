@@ -525,8 +525,20 @@ ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
   }
 
   if (paletteFile == null) return null;
+  // AyuGram's readCurrentFileContent reads fileInfo.uncompressed_size from the zip
+  // directory and bails BEFORE openCurrentFile when it exceeds the limit
+  // (zlib_help.h:258-263; the palette is loaded through this kThemeSchemeSizeLimit-
+  // bounded path at window_theme.cpp:302-306). Mirror that here: check the
+  // directory-recorded uncompressed size (.size — populated from zf.uncompressedSize
+  // during decode; archive 4.0.9 only decompresses lazily on .content) BEFORE
+  // touching .content, so a zip-bomb (tiny compressed, huge uncompressed) can't be
+  // fully expanded into memory before being rejected. Same guard as the background
+  // path below (line ~541).
+  if (paletteFile.size > _maxPaletteFileSize) {
+    debugPrint('THEME: palette too large (${paletteFile.size} bytes) — theme rejected');
+    return null;
+  }
   final paletteBytes = paletteFile.content as List<int>;
-  if (paletteBytes.length > _maxPaletteFileSize) return null;
 
   final text = utf8.decode(paletteBytes, allowMalformed: true);
   final result = parsePaletteText(text, fallback: fallback);
