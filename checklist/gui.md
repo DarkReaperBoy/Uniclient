@@ -2,52 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_system — Notification scheduling/dedup/grouping engine (port of Window::Notifications::System)
-
-Overall this file is a faithful, well-wired port of AyuGram's `window/notifications_manager.cpp`
-`System` class. All callbacks are connected to real backend state in `main.dart` (onNewMessage ←
-`chatState.onNotification`, onQueryMuteState ← `chatState.chats[].isMuted`, onFlashBounce ←
-`_tray.flashWindow()`, onQuerySessionOnline/onQueryLastSetOnlineMs ← AppState, onRefreshChatData ←
-chat cache, checkDelayed ← `chatState.onMuteStateMaybeResolved`). The managers, sound player and
-content composer are real implementations (no stubs). Constants, the online-aware `_countTiming`,
-the muted-chat/mention bypass, the mark-as-read hide logic and the DND/handlesSound gating all match
-C++. No CRITICAL placeholder/wiring issues found. The following are genuine behavioral deviations.
-
-- [ ] [MAJOR] Flash-bounce throttle is defeated for native daemons that play sound. The per-thread
-  alert-cooldown record `_lastAlertPerThread[threadKey]` is written ONLY inside the sound branch
-  (`if (!_manager.handlesSound && alertAllowed && !forceSilent)`), so when the native manager
-  handles sound (`handlesSound == true`) the branch is skipped and the record is never set. The
-  flash check below it then sees `alertAllowed == true` on every dispatch (record stays null),
-  firing the taskbar flash on every message with no `kMinimalAlertDelay` throttle. In C++ both the
-  flash and the sound are gated by the same `alertThread`, which is produced by the shared
-  `_whenAlerts` coalescing (`erase` of every alert within `ms + kMinimalAlertDelay`), so flash is
-  throttled to one per 500ms per thread regardless of whether the daemon owns the sound. The
-  `_lastAlertPerThread` update must happen whenever an alert is allowed (covering the flash path),
-  not only when this process plays the sound itself. — `notification_system.dart:643` (write inside
-  `notification_system.dart:632` block) + flash at `notification_system.dart:651` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:732` (shared coalescing) + `notifications_manager.cpp:747`
-
-- [ ] [MAJOR] `checkDelayed` drops a deferred scheduled-outgoing message in a muted chat instead of
-  showing it silently. When a notification was parked with `muteStateUnknown` and later resolves to
-  muted, `checkDelayed` drops it unless it personally mentions me:
-  `if (data.isMuted && !(data.mentionsMe && !data.isSenderMuted)) continue;`. This omits the
-  scheduled-outgoing bypass that the live path in `onNewMessage` honors
-  (`if (data.isScheduled && data.isOutgoing) effectiveData = data.copyWith(isSilent: true)` —
-  shown, not dropped). C++ `computeSkipState` (used by both the live `schedule` and the deferred
-  `checkDelayed`) computes `showForMuted = messageType && item->out() && item->isFromScheduled()`
-  and returns `withSilent(showForMuted ? DontSkip : Skip, showForMuted)`, i.e. a scheduled-outgoing
-  message in a muted chat resolves to DontSkip(silent) — it is promoted and shown, not skipped. The
-  Dart deferred path therefore diverges from both C++ and its own live path for this case.
-  — `notification_system.dart:700` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:334` (showForMuted) + `notifications_manager.cpp:360`
-
-- [ ] [MAJOR] Forward/album grouping uses a wider date window than C++. The grouping merge condition
-  compares `(n.timestamp - existing.last.timestamp).abs() <= 2`, and `_isSameGroup` similarly uses
-  `(a.timestamp - b.timestamp).abs() <= 2`, whereas C++ groups consecutive items only when
-  `qAbs(int64(nextItem->date()) - int64(groupedItem->date())) < 2`. For integer-second timestamps
-  this means Dart groups messages up to 2 seconds apart while C++ groups only those strictly less
-  than 2 seconds apart (0–1s), so messages exactly 2s apart are merged into one
-  "Forwarded N messages"/"Album" toast in Dart but shown separately in AyuGram.
-  — `notification_system.dart:504` (and `notification_system.dart:465`) ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:897`
-
 # notification_types — Notification content composition (title/subtitle/body/entities) vs AyuGram
 
 This file is a pure logic library (no widgets) that mirrors AyuGram's notification
