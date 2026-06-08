@@ -537,18 +537,21 @@ read 1.0px, readOpacity 0.6 — `dialogs.style:716-745`; topPeers item 66px / st
 / avatar 46px — `dialogs.style:746-750`; search-tabs slider 33px/barTop 30/barStroke 6/
 barRadius 2/labelTop 7/strictSkip 18 — `dialogs.style:799-817`; drag thresholds
 30/30/75 — `dialogs_inner_widget.cpp:106-108`; archive bar 37px = dialogsImportantBarHeight;
-`_colorRemap` value 7 is valid against the 8-colour `peerUserpicBg`). The findings below
-are the genuine deviations.
-
-- [ ] [MAJOR] Unread story ring uses the **premium** gradient (`premiumButtonBg1`→`premiumButtonBg2`, blue `#55a5ff`→purple `#a767ff`) instead of AyuGram's stories gradient (`groupCallLive1`→`groupCallMuted1`, green `#0dcc39`→blue `#0992ef`). `UnreadStoryOutlineGradient` is the only source AyuGram uses for the unread story outline. Both colours already exist in the Dart palette (`telegram_palette.dart:570,572`), so the ring renders the wrong hue — purple rather than the iconic green-blue Telegram story ring. — `chat_list_panel.dart:3663` ← `AyuGram/ui/effects/outline_segments.cpp:110-111`
-
-- [ ] [MAJOR] Search-tab order is wrong. Dart `_SearchTabsStrip.tabs` renders `[My Messages, Public Posts, This Peer, This Topic]`, but AyuGram builds the possible-tab list (and thus the on-screen order, null-icon tabs skipped) as `[This Topic, This Peer, My Messages, Public Posts]` — most-specific scope first, My Messages third, Public Posts last. (Note: AyuGram presents these via the `ChatSearchIn` dropdown, not a slider; the order is still observable.) — `chat_list_panel.dart:4143-4151` ← `AyuGram/dialogs/dialogs_inner_widget.cpp:4632-4637`
-
-- [ ] [MAJOR] "Search from" label text does not match the source string. Dart shows `"Search from <name>"` (chosen) and `"Search from a member"` (empty affordance); AyuGram's `_from` section uses `lng_dlg_search_from` = `"From: {user}"`. — `chat_list_panel.dart:4470` & `chat_list_panel.dart:4484` ← `AyuGram/dialogs/ui/chat_search_in.cpp:288` (`Resources/langs/lang.strings:475` `"From: {user}"`)
-
-- [ ] [MAJOR] No-chats empty state has wrong text and wrong action. Dart shows `"You have no\nconversations yet."` + subtitle `"Your contacts on Telegram"` + a `FilledButton("New Message")` that calls `showContactsBox` (the contact picker). AyuGram's `EmptyState::NoContacts` shows `lng_no_chats` = `"Your chats will be here"` + a text link `lng_add_contact_button` = `"New contact"` whose handler is `showAddContact()` (the add-contact form). Different copy and a different destination. — `chat_list_panel.dart:5328-5356` ← `AyuGram/dialogs/dialogs_inner_widget.cpp:4402-4438` (`lang.strings:461`, `lang.strings:5514`)
-
-- [ ] [MAJOR] Archived-chats collapsed row (wide mode) adds a 26px circular archive-icon userpic on the left and pushes the label to ~48px. AyuGram's `PaintCollapsedRow` wide branch draws the folder name as plain text at `st::dialogsTopBarLeftPadding` (18px), semibold `dialogsNameFg`, with **no** leading icon (the userpic is drawn only in the narrow branch). — `chat_list_panel.dart:4723-4746` ← `AyuGram/dialogs/ui/dialogs_layout.cpp:1356-1367`
+`_colorRemap` value 7 is valid against the 8-colour `peerUserpicBg`). The 5 deviations
+previously listed here were all fixed and verified 2026-06-09 (commit cf3c070a): the unread
+story ring now uses AyuGram's `UnreadStoryOutlineGradient` colours (`groupCallLive1` #0dcc39
+green → `groupCallMuted1` #0992ef blue) drawn topRight→bottomLeft, matching `outline_segments.cpp:110-111`;
+the search-tab order is now most-specific-first (`This Topic`→`This Peer`→`My Messages`→`Public Posts`,
+matching the `_searchIn->apply` order at `dialogs_inner_widget.cpp:4632-4637`); the search-from
+label reads `"From: {user}"` / `"From: "` (`lng_dlg_search_from`); the no-chats empty state shows
+`"Your chats will be here"` (`lng_no_chats`) + a `"New contact"` (`lng_add_contact_button`) text
+link to the add-contact form (`showAddContactBox`); and the wide-mode collapsed archive row is
+plain semibold `dialogsNameFg` text at `dialogsTopBarLeftPadding` (18px) with no leading userpic
+(`dialogs_layout.cpp:1356-1367`). Confirmed live in desktop + mobile — the search-tab order
+(This Group < My Messages < Public Posts), the `From:` row, and the icon-less archive row were
+visually verified; the story-ring gradient and empty-state copy/handler were code-verified
+against exact palette/lang-pack values (their live states are unreachable on the test account:
+no contact stories, 315 chats).
 
 # chat_list_row — sidebar chat-list row (normal + forum), avatar/stories ring, swipe quick actions, badges
 
