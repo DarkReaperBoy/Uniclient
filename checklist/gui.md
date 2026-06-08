@@ -413,49 +413,27 @@ host page (`web/index.html`).
 
 ## Findings
 
-- [ ] [CRITICAL] Web bridge init races the async WASM load — `window.bridgeReady` is created and
-  resolved in the host page but **never awaited anywhere in Dart**, so `init()` can call
-  `bridgeSetEventCallback`/`bridgeCall` before the Go WASM module has registered them on
-  `globalThis`, throwing `TypeError: bridgeSetEventCallback is not a function`. In `index.html` the
-  WASM module is instantiated asynchronously (`WebAssembly.instantiateStreaming(fetch("cores.wasm"))
-  .then(... go.run(...); bridgeReadyResolve())`), and Flutter is bootstrapped independently via
-  `<script src="flutter_bootstrap.js" async>` — there is **no ordering guarantee** that Go `main()`
-  has run before Flutter's Dart `_initEngine` reaches the bridge. The whole chain
-  `main.dart _initEngine() → AppState.initialize() (app_state.dart:3542) → EngineService.init()
-  (engine_service.dart:102) → BridgeImpl.init()` runs synchronously with no readiness gate, and
-  `engine_service.dart:111` then immediately fires a `bridgeCall` for `Init`. A multi-MB
-  `cores.wasm` will commonly finish loading *after* Flutter starts, making this a live race, not a
-  theoretical one. `grep -rn bridgeReady` over `dart/` returns only the comment on
-  `bridge_web.dart:3` and the three lines in `index.html` — nothing reads/awaits the promise. The
-  native sibling has no such gap: `bridge_ffi.dart:59` opens the shared library synchronously inside
-  `init()`, so the exports are guaranteed present before the first `call()`. Fix belongs here: gate
-  on `window.bridgeReady` before touching the JS functions (this also requires the `init()` contract
-  to expose async readiness on web — see `bridge.dart:23`, currently `void init`). —
-  `bridge_web.dart:33-39` (`init` → `_jsBridgeSetEventCallback` at :37) & `bridge_web.dart:47`
-  (`_jsBridgeCall`) ← `dart/web/index.html:21-27` (async load + `bridgeReadyResolve()` never
-  awaited) / `go/cmd/bridge/main_js.go:38-39` (functions only registered after `go.run`) /
-  `bridge_ffi.dart:59` (native guarantees readiness synchronously)
+Both findings were fixed & verified — no open items remain.
 
-- [ ] [MAJOR] `callAsync` does not honor the `Bridge.callAsync` contract on web — it runs the Go
-  call on the **main UI thread**, blocking it for the full duration of any network/auth operation.
-  The public contract at `bridge.dart:28-30` states: *"Async call — runs the FFI call on a
-  background isolate. Use for any operation that might block (network calls, auth, etc)."* The
-  native impl honors this via `Isolate.run` (`bridge_ffi.dart:103-109`). The web impl instead does
-  `Future.microtask(() => call(requestBytes))` (`bridge_web.dart:54-55`), which executes the
-  blocking `call()` on the single JS thread — so any UI animation/frame is frozen while the engine
-  does network I/O. `EngineService` routes blocking ops (auth, sends, history fetches) through
-  `callAsync`, so on web those will jank/freeze the UI. Additionally, the doc-comment on
-  `bridge_web.dart:51-53` is technically wrong about Dart scheduling: it claims wrapping in
-  `Future.microtask` "ensures pending microtasks **and I/O callbacks** are processed before the
-  blocking call starts," but microtasks have strictly higher priority than the event queue in Dart —
-  queued I/O/timer callbacks run *after* the microtask, not before. To actually yield to pending I/O
-  it would need `Future(() => call(...))` / `Future.delayed(Duration.zero, ...)` (event-queue task),
-  and to be genuinely non-blocking it would need a Web Worker (true off-main-thread execution, which
-  WASM-on-main-thread cannot provide here). At minimum the misleading comment and the false
-  "background isolate" promise for the web path should be corrected. —
-  `bridge_web.dart:51-55` (`callAsync` via `Future.microtask`) ← `bridge.dart:28-30` (contract:
-  "background isolate", "operation that might block") / `bridge_ffi.dart:103-109` (native honors it
-  with `Isolate.run`)
+(1) [CRITICAL] **Init race closed.** `bridge_web.dart` now binds `@JS('bridgeReady')` and `init()`
+`await`s `window.bridgeReady` before touching the JS exports. The gate is real: `index.html:21`
+creates the Promise and resolves it at `:26` *after* `go.run()`, and `main_js.go:34-44` registers
+`bridgeCall`/`bridgeSetEventCallback` synchronously inside `main()` before `go.run()` yields — so by
+the time the Promise resolves the exports are guaranteed present. The `init()` contract is now
+`Future<void>` across `bridge.dart`/`bridge_ffi.dart`/`bridge_stub.dart`, and
+`engine_service.dart:111` `await`s it before firing the `Init` call. The native `bridge_ffi.dart`
+body stays await-free, so it still completes synchronously and preserves the exports-ready
+guarantee — confirmed by the non-awaiting `bridge_test.dart:51` FFI test still passing and the
+desktop app reaching `__engine.Init OK` and rendering in both desktop+mobile modes with no crash.
+
+(2) [MAJOR] **`callAsync` corrected.** Switched `Future.microtask(() => call(...))` →
+`Future(() => call(...))` (event-queue task) so the loop drains pending microtasks *and* queued
+I/O/frame callbacks before the blocking Go call. The `bridge_web.dart` and `bridge.dart` doc-comments
+now state the true per-platform behavior (native = worker isolate, non-blocking; web = single JS
+thread, still blocks, would need a Web Worker for genuine off-main-thread). `flutter analyze
+lib/bridge/` is clean for all four bridge files; `bridge_web.dart` compiles for web (dart2js CFE
+reports no js_interop errors — the only web-build failure is the pre-existing app-wide `dart:ffi`
+use in the notification system, untouched by this chapter).
 
 ## Verified OK (no finding)
 
