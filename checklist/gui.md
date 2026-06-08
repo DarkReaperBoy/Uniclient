@@ -21,16 +21,6 @@ embedded `.tdesktop-theme` files, the two `*-custom-base.tdesktop-theme` files, 
 
 ## Findings
 
-- [ ] [MAJOR] `colorize()` recolors **day-base-only** keys in DARK themes — uses `s()` (colorize for every theme type) where AyuGram only loads/colorizes them via `day-custom-base` (absent from `night-custom-base`, so untouched under a Night/NightGreen accent). Verified visible (color hue within the 15° threshold of the night/night-green accent, so `s()` actually shifts them): `overviewCheckBgActive`, `historyPeerSavedMessagesBg`, `historyPeerArchiveUserpicBg`, `dialogsScamFgActive` — should be `sl()` — `telegram_palette.dart:1824,1762,1763,1724` ← `AyuGram/Telegram/SourceFiles/window/themes/window_themes_embedded.cpp:360` (LoadFromFile colorizes only base-file keys; these keys exist only in `Resources/day-custom-base.tdesktop-theme`)
-
-- [ ] [MAJOR] `colorize()` recolors **night-base-only** keys in LIGHT themes — uses `s()` where AyuGram only colorizes them via `night-custom-base` (absent from `day-custom-base`). Verified visible under a day accent: `mediaviewTextLinkFg` (FF4DB8FF, blue link), `toastBg` (E52C3033) — should be `sd()` — `telegram_palette.dart:1850,1813` ← `window_themes_embedded.cpp:360` (keys exist only in `Resources/night-custom-base.tdesktop-theme`)
-
-- [ ] [MAJOR] `colorize()` recolors keys absent from **both** base files — uses `s()` where AyuGram never colorizes them (they keep compiled defaults). Verified visible: `dialogsMentionIconFg` (FF40A7E3, all themes), `stickerPanPremium2` (FF45B9F3), `stickerPanPremium1` (FF5A99FF, night), `boxDividerBg` (night FF232E3C) — should be raw (passthrough) — `telegram_palette.dart:1725,1740,1739,1570` ← `window_themes_embedded.cpp:360` (+ neither `day-custom-base` nor `night-custom-base` defines these keys). NB: the file's own comment at `telegram_palette.dart:1375-1380` states the intended rule is base-file membership, so these 3 items contradict the author's documented design, not just AyuGram.
-
-- [ ] [MAJOR] `night` & `nightGreen` `menuBgOver` deviate — Dart uses dark (0xFF2B3744 / 0xFF353B40); AyuGram night/night-green define `menuBgOver: #ffffff` (opaque white). Large value mismatch (appears to be a deliberate fix of an upstream quirk, but diverges from the authority) — `telegram_palette.dart:3883,5070` ← `AyuGram/Telegram/Resources/night.tdesktop-theme`→`colors.tdesktop-theme:43` (same in `night-custom-base` and `night-green.tdesktop-theme`)
-
-- [ ] [MAJOR] `night` & `nightGreen` `emojiPanHeaderBg` deviate — Dart uses semi-transparent dark (0xF217212B / 0xF2282E33); AyuGram defines `emojiPanHeaderBg: #fffffff2` → 0xF2FFFFFF (semi-transparent white). — `telegram_palette.dart:4038,5217` ← `AyuGram/Telegram/Resources/night.tdesktop-theme`→`colors.tdesktop-theme:185` (same in `night-custom-base` and `night-green`)
-
 ## Skipped (COSMETIC, <1% deviation — noted for completeness, not actioned)
 - `night.dialogsDateFgOver` FF8696A8 vs AyuGram #8495a9, and `night.filterInputInactiveBg` FF232E3C
   vs #242f3d: the Dart resolved these via the base reference (windowSubTextFgOver / windowBgOver)
