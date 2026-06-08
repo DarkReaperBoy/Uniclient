@@ -85,9 +85,10 @@ source? I verified all ~95 tokens against the ground-truth `.style` files. The
 file is remarkably accurate — every numeric value, font, duration, size, and
 margin traces to a real AyuGram literal **except one**, documented below.
 
-## Finding
+## Finding — verified FIXED & closed
 
-- [ ] [MAJOR] `defaultRoundShadowBlur = 8` / `defaultRoundShadowOffset = Offset(0, 2)` are fabricated scalars with no AyuGram source. AyuGram's `defaultRoundShadow` is an **icon-based 9-slice `Shadow`** (8 pre-rendered `round_shadow_*` icon slices) whose only scalar is `extend: margins(3px, 2px, 3px, 4px)` — there is no `blur` or `offset` field anywhere. A blur of 8 / down-offset of 2 overshoots the actual 3/2/3/4 extend (~100% larger than the 4px bottom extend) and is unsourced. Either derive from the real `extend` margins or list it as unresolved (the file already does exactly this for the other non-scalar widget-style object, `localStorageLimitSlider`/MediaSlider, in `unresolvedTokens`). — `theme_tokens.dart:160` ← `AyuGram/Telegram/lib_ui/ui/widgets/widgets.style:911` (and `:920` `extend: margins(3px, 2px, 3px, 4px)`)
+The single MAJOR finding was verified FIXED & closed (Stage-2 verification — built the Flutter debug bundle, launched, and confirmed a clean render in BOTH desktop 1024×768 and mobile 400×720 with no crashes/render exceptions in the log; cross-checked the token against AyuGram ground truth `lib_ui/ui/widgets/widgets.style:911-922`):
+- Fabricated `defaultRoundShadowBlur = 8` / `defaultRoundShadowOffset = Offset(0, 2)` removed (grep confirms no remaining code references — only the explanatory comment mentions the old names). AyuGram's `defaultRoundShadow` is an icon-based 9-slice `Shadow` (8 `round_shadow_*` icon slices + `fallback: windowShadowFgFallback`) with NO `blur`/`offset` field — confirmed against source. Its only scalar literal, `extend: margins(3px, 2px, 3px, 4px)` (`widgets.style:920`), is now resolved as `defaultRoundShadowExtend = EdgeInsets.fromLTRB(3, 2, 3, 4)` (Telegram `margins(L,T,R,B)` → Flutter `fromLTRB`, the same convention `localStorageRowPadding`/`themeEditorMargin` follow — 0% deviation). The non-scalar icon-slice asset part is documented as unresolved in the §56.13 notes alongside `localStorageLimitSlider`/MediaSlider — i.e. the fix did BOTH options the finding offered. — `theme_tokens.dart:171` ✓ `widgets.style:911-922`
 
 ## Verified accurate (no action — recorded for traceability)
 
