@@ -85,6 +85,17 @@ class _AuthScreenState extends State<AuthScreen>
   Uint8List? _signupAvatarBytes;
   bool _termsAccepted = false;
 
+  // Imperative handle to the OTP cells so the persistent "Next" button and the
+  // pushed-login-code auto-fill can drive setCode/requestCode, mirroring
+  // AyuGram CodeWidget holding a `_code` pointer (intro_code.cpp:367,60). The
+  // key is recreated when the delivery signature changes — doubling as the
+  // recreation trigger the old ValueKey provided.
+  GlobalKey<_OtpCodeInputState>? _otpKey;
+  String _otpKeySig = '';
+  // Last login-code sequence consumed from AuthState, so a pushed code fills the
+  // cells exactly once (intro_code.cpp:59 setHandleLoginCode).
+  int _lastLoginCodeSeq = 0;
+
   @override
   void initState() {
     super.initState();
@@ -154,10 +165,16 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _submit(AuthState authState) {
     final data = authState.currentAuth;
-    // Fragment delivery: the primary button opens the Fragment URL where the
-    // code can be read, rather than submitting a typed code (intro_code.cpp:367).
-    if (data?.state == 'otp' && (data?.codeByFragmentUrl.isNotEmpty ?? false)) {
-      _openFragmentUrl(data!.codeByFragmentUrl);
+    // Code step: Fragment delivery opens the Fragment URL where the code can be
+    // read; every other delivery collects+submits the typed code via the OTP
+    // cells, mirroring CodeWidget::submit → _code->requestCode()
+    // (intro_code.cpp:367-373).
+    if (data?.state == 'otp') {
+      if (data!.codeByFragmentUrl.isNotEmpty) {
+        _openFragmentUrl(data.codeByFragmentUrl);
+      } else {
+        _otpKey?.currentState?.requestCode();
+      }
       return;
     }
     if (data?.state == 'email') {
@@ -283,11 +300,14 @@ class _AuthScreenState extends State<AuthScreen>
 
   bool _showNext(AuthStateData? data) {
     if (data == null) return false;
-    // Fragment delivery: the code step gets a bottom button that opens the
-    // Fragment URL instead of accepting a typed code (intro_code.cpp:367-373).
-    if (data.state == 'otp' && data.codeByFragmentUrl.isNotEmpty) return true;
+    // The code step keeps a persistent submit button for ALL deliveries:
+    // Fragment opens the Fragment URL, every other delivery submits the typed
+    // code. AyuGram CodeWidget::nextButtonText returns a non-empty string
+    // ("Next") for non-Fragment codes, so the primary RoundButton stays visible
+    // and submit() → _code->requestCode() always offers a manual submit
+    // (intro_code.cpp:424-431, intro_widget.cpp:729-740).
     return switch (data.state) {
-      'input' || '2fa' || 'signup' || 'email' => true,
+      'input' || 'otp' || '2fa' || 'signup' || 'email' => true,
       _ => false,
     };
   }
@@ -335,6 +355,19 @@ class _AuthScreenState extends State<AuthScreen>
     }
     if (currentStep.isNotEmpty) {
       _prevStep = currentStep;
+    }
+
+    // A login code Telegram pushed to a connected session fills the OTP cells
+    // and submits, mirroring AyuGram setHandleLoginCode → _code->setCode(code);
+    // _code->requestCode() (intro_code.cpp:59-62).
+    if (authState.loginCodeSeq != _lastLoginCodeSeq) {
+      _lastLoginCodeSeq = authState.loginCodeSeq;
+      final pushedCode = authState.pendingLoginCode;
+      if (pushedCode != null && pushedCode.isNotEmpty && currentStep == 'otp') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _otpKey?.currentState?.applyLoginCode(pushedCode);
+        });
+      }
     }
 
     final err = authState.error;
@@ -453,15 +486,14 @@ class _AuthScreenState extends State<AuthScreen>
   void _showResetAccountDialog(BuildContext context) {
     final theme = Theme.of(context);
     final authState = context.read<AuthState>();
+    final lang = context.read<LangPack>();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Reset Account'),
         content: Text(
-          'Since this account has no recovery email, you can reset it. '
-          'This will delete your account after a 7-day waiting period. '
-          'Your chats, messages, and contacts will be permanently lost.\n\n'
-          'Are you sure you want to proceed?',
+          // lng_signin_sure_reset (intro_widget.cpp:626).
+          lang.tr('lng_signin_sure_reset'),
           style: theme.textTheme.bodyMedium,
         ),
         actions: [
@@ -478,14 +510,7 @@ class _AuthScreenState extends State<AuthScreen>
               if (err != null && err.contains('2FA_CONFIRM_WAIT_')) {
                 final match = RegExp(r'2FA_CONFIRM_WAIT_(\d+)').firstMatch(err);
                 final waitSecs = match != null ? int.parse(match.group(1)!) : 0;
-                final days = waitSecs ~/ 86400;
-                final hours = (waitSecs % 86400) ~/ 3600;
-                final timeStr = days > 0
-                    ? '$days day${days == 1 ? '' : 's'}${hours > 0 ? ' $hours hour${hours == 1 ? '' : 's'}' : ''}'
-                    : '$hours hour${hours == 1 ? '' : 's'}';
-                _showResetConfirmation(context,
-                    'You can reset your account in $timeStr. '
-                    'After this period, your password will be removed.');
+                _showResetConfirmation(context, _resetWaitText(lang, waitSecs));
               } else {
                 final msg = authState.currentAuth?.message ?? '';
                 if (msg == 'password_reset_requested') {
@@ -502,11 +527,38 @@ class _AuthScreenState extends State<AuthScreen>
             style: TextButton.styleFrom(
               foregroundColor: theme.colorScheme.error,
             ),
-            child: const Text('Reset Account'),
+            // lng_signin_reset (intro_widget.cpp:628).
+            child: Text(lang.tr('lng_signin_reset')),
           ),
         ],
       ),
     );
+  }
+
+  /// Localized "you can reset in …" wait message, mirroring AyuGram
+  /// intro_widget.cpp:570-628: round up by 59s, build a day/hour/minute string
+  /// from the lang pack's plural forms, then weave it into lng_signin_reset_wait.
+  String _resetWaitText(LangPack lang, int seconds) {
+    final days = (seconds + 59) ~/ 86400;
+    final hours = ((seconds + 59) % 86400) ~/ 3600;
+    final minutes = ((seconds + 59) % 3600) ~/ 60;
+    var when = lang.trCount('lng_minutes', minutes);
+    if (days > 0) {
+      when = lang.trf('lng_signin_reset_in_days', {
+        'days_count': lang.trCount('lng_days', days),
+        'hours_count': lang.trCount('lng_hours', hours),
+        'minutes_count': when,
+      });
+    } else if (hours > 0) {
+      when = lang.trf('lng_signin_reset_in_hours', {
+        'hours_count': lang.trCount('lng_hours', hours),
+        'minutes_count': when,
+      });
+    }
+    return lang.trf('lng_signin_reset_wait', {
+      'phone_number': _otpPhone,
+      'when': when,
+    });
   }
 
   void _showResetConfirmation(BuildContext context, String message) {
@@ -732,7 +784,9 @@ class _AuthScreenState extends State<AuthScreen>
             right: 0,
             child: Text(
               _isRecoveryMode
-                  ? 'Recovery code sent to ${data.sentTo.isNotEmpty ? data.sentTo : "your email"}.'
+                  // lng_signin_recover_desc weaves the masked email via the lang
+                  // pack (intro_password_check.cpp:350-353).
+                  ? lang.trf('lng_signin_recover_desc', {'email': data.sentTo})
                   // lng_signin_desc (intro_password_check.cpp:358).
                   : lang.tr('lng_signin_desc'),
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -1076,13 +1130,14 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _showNoRecoveryDialog(BuildContext context) {
     final theme = Theme.of(context);
+    final lang = context.read<LangPack>();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Forgot Password'),
         content: Text(
-          'Since you haven\'t provided a recovery email when setting up your password, '
-          'your remaining options are either to remember your password or to reset your account.',
+          // lng_signin_no_email_forgot (intro_password_check.cpp:316-317).
+          lang.tr('lng_signin_no_email_forgot'),
           style: theme.textTheme.bodyMedium,
         ),
         actions: [
@@ -1284,6 +1339,36 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
+  /// Delivery-specific code-step subtitle, mirroring AyuGram
+  /// CodeWidget::updateDescText (intro_code.cpp:83-102): a login-email confirm
+  /// line with the masked email, the "code sent via Telegram to your other
+  /// devices" guidance, or the plain phone-code line.
+  String _codeSubtitle(AuthStateData data, LangPack lang) {
+    if (data.emailPatternSetup.isNotEmpty) {
+      return lang.trf(
+          'lng_intro_email_confirm_subtitle', {'email': data.emailPatternSetup});
+    }
+    if (data.codeByTelegram) {
+      // Strip Telegram's `**bold**` markers — the intro renders plain text.
+      return lang.tr('lng_code_from_telegram').replaceAll('**', '');
+    }
+    return lang.tr('lng_code_desc');
+  }
+
+  /// A GlobalKey for the OTP cells, recreated whenever the code-delivery
+  /// signature changes so the widget is rebuilt fresh (the role the old ValueKey
+  /// played) while still exposing an imperative handle for the Next button and
+  /// pushed-login-code auto-fill.
+  GlobalKey<_OtpCodeInputState> _otpKeyFor(AuthStateData data) {
+    final sig =
+        'otp_${data.codeByTelegram}_${data.codeByFragmentUrl.isNotEmpty}_${data.emailPatternSetup.isNotEmpty}';
+    if (_otpKey == null || _otpKeySig != sig) {
+      _otpKeySig = sig;
+      _otpKey = GlobalKey<_OtpCodeInputState>();
+    }
+    return _otpKey!;
+  }
+
   Widget _buildInput(AuthStateData data, AuthState authState, ThemeData theme,
       LangPack lang) {
     final isOtp = data.state == 'otp';
@@ -1301,15 +1386,21 @@ class _AuthScreenState extends State<AuthScreen>
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
-        ] else if (data.sentTo.isNotEmpty) ...[
-          Text('Code sent to ${data.sentTo}',
-              style: theme.textTheme.bodySmall),
+        ] else if (isOtp) ...[
+          // AyuGram CodeWidget::updateDescText (intro_code.cpp:83-102): the
+          // delivery-specific, localized subtitle — email-confirm (masked email
+          // + spam-folder reminder), "code sent via Telegram to your other
+          // devices", or the plain "we've sent an activation code to your phone".
+          Text(
+            _codeSubtitle(data, lang),
+            style: theme.textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 12),
         ],
         if (isOtp)
           _OtpCodeInput(
-            key: ValueKey(
-                'otp_${data.codeByTelegram}_${data.codeByFragmentUrl.isNotEmpty}_${data.emailPatternSetup.isNotEmpty}'),
+            key: _otpKeyFor(data),
             digitCount: data.codeLength > 0 ? data.codeLength : 5,
             hasError: _showErrorBorder,
             onComplete: (code) {
@@ -1960,6 +2051,42 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
       _submitted = true;
       widget.onComplete(code);
     }
+  }
+
+  /// AyuGram CodeInput::requestCode (intro_code_input.cpp:220): submit the typed
+  /// code if every cell is filled, otherwise shake the first empty cell. Driven
+  /// by the persistent "Next" button (CodeWidget::submit → _code->requestCode()).
+  void requestCode() {
+    if (_submitted) return;
+    final filled = _digits.where((d) => d.isNotEmpty).length;
+    if (filled == widget.digitCount) {
+      _checkComplete();
+    } else {
+      _focusedIndex = _digits.indexWhere((d) => d.isEmpty);
+      if (_focusedIndex < 0) _focusedIndex = widget.digitCount - 1;
+      _shakeController.forward(from: 0);
+      setState(() {});
+    }
+  }
+
+  /// AyuGram setHandleLoginCode callback (intro_code.cpp:60): fill the cells with
+  /// a code Telegram pushed to a connected session, then submit
+  /// (CodeInput::setCode + requestCode).
+  void applyLoginCode(String code) {
+    if (_submitted) return;
+    final digits = code.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return;
+    setState(() {
+      for (var i = 0; i < widget.digitCount; i++) {
+        if (i < digits.length) {
+          _digits[i] = digits[i];
+          _isDeleting[i] = false;
+          _digitAnimControllers[i].forward(from: 0);
+        }
+      }
+      _focusedIndex = min(digits.length, widget.digitCount - 1);
+    });
+    requestCode();
   }
 
   void _pasteCode() async {

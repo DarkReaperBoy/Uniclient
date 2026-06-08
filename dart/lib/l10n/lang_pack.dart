@@ -40,13 +40,29 @@ class LangPack extends ChangeNotifier {
     'lng_intro_next',
     'lng_intro_finish',
     // Code step (intro_code.cpp): the "send via SMS" link shown when the code
-    // arrived via the Telegram app, the Fragment title/instruction.
+    // arrived via the Telegram app, the Fragment title/instruction, and the
+    // three delivery-specific subtitles updateDescText picks between
+    // (intro_code.cpp:83-115).
     'lng_code_no_telegram',
     'lng_intro_fragment_title',
     'lng_intro_fragment_about',
-    // 2FA / cloud-password step (intro_password_check.cpp:55,358).
+    'lng_code_desc',
+    'lng_code_from_telegram',
+    'lng_intro_email_confirm_subtitle',
+    // 2FA / cloud-password step (intro_password_check.cpp:55,358) + recovery /
+    // account-reset texts (intro_password_check.cpp:316,350; intro_widget.cpp:570-628).
     'lng_signin_title',
     'lng_signin_desc',
+    'lng_signin_recover_desc',
+    'lng_signin_no_email_forgot',
+    'lng_signin_sure_reset',
+    'lng_signin_reset',
+    'lng_signin_reset_in_days',
+    'lng_signin_reset_in_hours',
+    'lng_signin_reset_wait',
+    'lng_days',
+    'lng_hours',
+    'lng_minutes',
     // Signup step (intro_signup.cpp:53-54): title, description, field labels,
     // and the name-ordering probe string.
     'lng_signup_title',
@@ -64,8 +80,10 @@ class LangPack extends ChangeNotifier {
   ];
 
   /// Embedded English baseline (Telegram Desktop `lang.strings`). Kept in sync
-  /// with [keys]; all entries are plain text (no markdown/newlines) since the
-  /// intro renders them directly.
+  /// with [keys]. Most entries are plain text; the code/2FA/reset descriptions
+  /// carry `\n` line breaks and `lng_code_from_telegram` keeps Telegram's `**`
+  /// bold markers — callers that render these strip `**` (the intro has no
+  /// rich-text label), so the raw values stay 1:1 with `lang.strings`.
   static const Map<String, String> _en = {
     'lng_phone_title': 'Your Phone Number',
     'lng_intro_qr_title': 'Scan From Mobile Telegram',
@@ -84,8 +102,38 @@ class LangPack extends ChangeNotifier {
     'lng_intro_fragment_about':
         'Get the code for {phone_number} in the Anonymous Numbers section on '
         'Fragment.',
+    'lng_code_desc':
+        'We\'ve sent an activation code to your phone.\nPlease enter it below.',
+    'lng_code_from_telegram':
+        'A code was sent **via Telegram** to your other\ndevices, if you have '
+        'any connected.',
+    'lng_intro_email_confirm_subtitle':
+        'Please check your email {email} (don\'t forget the spam folder) and '
+        'enter the code we just sent you.',
     'lng_signin_title': 'Cloud password check',
     'lng_signin_desc': 'Please enter your cloud password.',
+    'lng_signin_recover_desc': 'Please enter the code from the email\n{email}',
+    'lng_signin_no_email_forgot':
+        'Since you didn\'t provide a recovery email when setting up your '
+        'password, your remaining options are either to remember your password '
+        'or to reset your account.',
+    'lng_signin_sure_reset':
+        'You will lose all your Telegram chats, messages, media and files if '
+        'you proceed.\n\nDo you want to reset your account?',
+    'lng_signin_reset': 'Reset',
+    'lng_signin_reset_in_days': '{days_count} {hours_count} {minutes_count}',
+    'lng_signin_reset_in_hours': '{hours_count} {minutes_count}',
+    'lng_signin_reset_wait':
+        'Since the account {phone_number} is active and protected by a '
+        'password, it will be deleted in 1 week. This delay is required for '
+        'security purposes. You can cancel this process anytime.\n\nYou\'ll be '
+        'able to reset your account in:\n{when}',
+    'lng_days#one': '{count} day',
+    'lng_days#other': '{count} days',
+    'lng_hours#one': '{count} hour',
+    'lng_hours#other': '{count} hours',
+    'lng_minutes#one': '{count} minute',
+    'lng_minutes#other': '{count} minutes',
     'lng_signup_title': 'Your Info',
     'lng_signup_desc': 'Please enter your name and\nupload a photo.',
     'lng_signup_firstname': 'First name',
@@ -107,6 +155,21 @@ class LangPack extends ChangeNotifier {
     var s = tr(key);
     params.forEach((k, v) => s = s.replaceAll('{$k}', v));
     return s;
+  }
+
+  /// Pluralized string for [count] with `{count}` substituted. Resolves the
+  /// English-rule form (`1` → `#one`, else `#other`); cloud languages expose
+  /// only the `#other` value (the engine's `langpack.getStrings` bridge
+  /// collapses pluralized strings to `other_value`), so non-English falls back
+  /// to that bare-key overlay. Mirrors AyuGram `tr::lng_days(lt_count, n)` etc.
+  String trCount(String key, int count) {
+    final form = count == 1 ? 'one' : 'other';
+    final v = _overlay['$key#$form'] ??
+        _overlay[key] ??
+        _en['$key#$form'] ??
+        _en[key] ??
+        key;
+    return v.replaceAll('{count}', '$count');
   }
 
   /// Whether the active language orders the family name *before* the given

@@ -60,6 +60,10 @@ class EngineService {
   final _exportCompleteController = StreamController<ExportCompleteEvent>.broadcast();
   final _exportSuggestController = StreamController<ExportSuggestEvent>.broadcast();
   final _notifySettingsController = StreamController<NotifySettingsEvent>.broadcast();
+  // Login codes pushed by Telegram to a connected session (a `tg://login?code=`
+  // service message). Account-agnostic — the value is the code; the in-progress
+  // login UI fills+submits it. Mirrors AyuGram Account::handleLoginCode.
+  final _loginCodeController = StreamController<String>.broadcast();
   StreamSubscription<Uint8List>? _bridgeEventSub;
 
   Stream<AuthStateEvent> get onAuthState => _authStateController.stream;
@@ -86,6 +90,8 @@ class EngineService {
   Stream<ExportCompleteEvent> get onExportComplete => _exportCompleteController.stream;
   Stream<ExportSuggestEvent> get onExportSuggest => _exportSuggestController.stream;
   Stream<NotifySettingsEvent> get onNotifySettings => _notifySettingsController.stream;
+  /// Login code pushed by Telegram to a connected session (the code string).
+  Stream<String> get onLoginCode => _loginCodeController.stream;
 
   bool get isInitialized => _initialized;
 
@@ -6661,6 +6667,7 @@ class EngineService {
     _exportSuggestController.close();
     _msgReactionsUpdatedController.close();
     _notifySettingsController.close();
+    _loginCodeController.close();
   }
 
   // ── Internal ──
@@ -6925,6 +6932,12 @@ class EngineService {
             peerId: (data['peer_id'] as num?)?.toInt() ?? 0,
             muted: data['muted'] as bool? ?? false,
           ));
+        }
+
+      case 'login_code':
+        if (data is Map<String, dynamic>) {
+          final code = data['code'] as String? ?? '';
+          if (code.isNotEmpty) _loginCodeController.add(code);
         }
 
       default:

@@ -18,10 +18,16 @@ class AuthState extends ChangeNotifier {
   String? _error;
 
   StreamSubscription<AuthStateEvent>? _sub;
+  StreamSubscription<String>? _loginCodeSub;
   Timer? _autoPollTimer;
   bool _autoInputBusy = false;
 
   Timer? _qrExpiryTimer;
+
+  // A login code pushed by Telegram to a connected session (intro_code.cpp:59).
+  // The auth screen watches [loginCodeSeq] to detect a fresh code and fills it.
+  String? _pendingLoginCode;
+  int _loginCodeSeq = 0;
 
   /// File path for CLI automation input.
   /// Write JSON to this file to control auth flow:
@@ -32,6 +38,7 @@ class AuthState extends ChangeNotifier {
 
   AuthState(this._engine) {
     _sub = _engine.onAuthState.listen(_handleAuthEvent);
+    _loginCodeSub = _engine.onLoginCode.listen(_handleLoginCode);
   }
 
   // ── Getters ──
@@ -40,6 +47,14 @@ class AuthState extends ChangeNotifier {
   bool get submitting => _submitting;
   String? get error => _error;
   bool get hasActiveFlow => _currentAuth != null;
+
+  /// A login code Telegram pushed to a connected session, pending auto-fill on
+  /// the code step (null once consumed). Read together with [loginCodeSeq].
+  String? get pendingLoginCode => _pendingLoginCode;
+
+  /// Bumped every time a fresh [pendingLoginCode] arrives; the auth screen
+  /// compares it against its last-seen value to fill+submit exactly once.
+  int get loginCodeSeq => _loginCodeSeq;
 
   /// Whether the current state needs user input.
   bool get needsInput => _currentAuth != null && switch (_currentAuth!.state) {
@@ -162,6 +177,21 @@ class AuthState extends ChangeNotifier {
   }
 
   // ── Internal ──
+
+  /// Apply a Telegram-pushed login code to the in-progress flow. Account-
+  /// agnostic, mirroring AyuGram's `domain.active().handleLoginCode(code)`
+  /// (local_url_handlers.cpp:1446): the code is delivered to whichever account
+  /// received the service message but applied to the active login flow. Only
+  /// acts on the code step (not Fragment, which reads the code off the URL).
+  void _handleLoginCode(String code) {
+    final auth = _currentAuth;
+    if (code.isEmpty || auth == null || auth.state != 'otp') return;
+    if (auth.codeByFragmentUrl.isNotEmpty) return;
+    Debug.log('AUTH', 'pushed login code received (len=${code.length})');
+    _pendingLoginCode = code;
+    _loginCodeSeq++;
+    notifyListeners();
+  }
 
   void _handleAuthEvent(AuthStateEvent event) {
     Debug.log('AUTH', 'event: account=${event.accountId} state=${event.state} error=${event.error}');
@@ -324,6 +354,7 @@ class AuthState extends ChangeNotifier {
     _stopAutoPoll();
     _qrExpiryTimer?.cancel();
     _sub?.cancel();
+    _loginCodeSub?.cancel();
     super.dispose();
   }
 }

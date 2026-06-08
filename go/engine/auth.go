@@ -544,7 +544,7 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			if err.Error() == "2fa_required" {
 				base.State = AuthState2FA
 				base.Label = "Two-Factor Password"
-				base.HasRecovery = false
+				applyTelegram2FAState(tc, base)
 				return base, nil
 			}
 			if err.Error() == "signup_required" {
@@ -564,7 +564,7 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			if err.Error() == "2fa_required" {
 				base.State = AuthState2FA
 				base.Label = "Two-Factor Password"
-				base.HasRecovery = false
+				applyTelegram2FAState(tc, base)
 				return base, nil
 			}
 			if err.Error() == "signup_required" {
@@ -697,6 +697,26 @@ func telegramReadyState(flow *authFlow, base *AuthState) *AuthState {
 		base.AvatarB64 = profile.AvatarB64
 	}
 	return base
+}
+
+// applyTelegram2FAState fills the real cloud-password recovery flag (and hint)
+// onto a 2FA auth state by reading the live password state on the in-progress
+// connection, so the login UI offers recovery-by-email exactly when the account
+// has a recovery address — instead of always pushing toward account reset. The
+// engine used to hardcode HasRecovery=false here and only flip it true after a
+// recovery request, which the UI's own gate then prevented from ever being sent.
+// Mirrors AyuGram CodeWidget::gotPassword → pwdState.hasRecovery
+// (intro_code.cpp:341-358). Falls back to no-recovery if the state can't be read.
+func applyTelegram2FAState(tc *cores.TelegramCore, base *AuthState) {
+	hasRecovery, hint, err := tc.Get2FAStateDuringAuth()
+	if err != nil {
+		base.HasRecovery = false
+		return
+	}
+	base.HasRecovery = hasRecovery
+	if hint != "" && base.Hint == "" {
+		base.Hint = hint
+	}
 }
 
 // telegramOTPState builds the OTP step from the code-delivery details captured by

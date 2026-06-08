@@ -35,6 +35,11 @@ const (
 	EventExportComplete  = "export_complete"
 	EventExportSuggest   = "export_suggest"
 	EventNotifySettings  = "notify_settings"
+	// EventLoginCode is broadcast when any connected account receives a
+	// Telegram-pushed login code (a `tg://login?code=` service message); the
+	// login UI fills+submits it on the in-progress flow, mirroring AyuGram
+	// Account::handleLoginCode (intro_code.cpp:59-62).
+	EventLoginCode       = "login_code"
 )
 
 // EngineEvent is the envelope for all events pushed to Dart.
@@ -260,6 +265,13 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 			// Ephemeral group-call message from any participant — forwarded
 			// straight to the open call panel (NOT cached as chat history).
 			e.emitEvent(EventGroupCallMessage, accountID, u.GroupCallMessage)
+		}
+
+	case cores.UpdateLoginCode:
+		// A login code arrived on a connected account; forward it to the login
+		// UI (account-agnostic, like AyuGram's domain.active().handleLoginCode).
+		if u.LoginCode != "" {
+			e.emitEvent(EventLoginCode, accountID, map[string]string{"code": u.LoginCode})
 		}
 
 	case cores.UpdateConnectivity:

@@ -64,6 +64,11 @@ const (
 	UpdateVerification    UpdateType = "verification"
 	UpdateConnectivity    UpdateType = "connectivity"
 	UpdateNotifySettings  UpdateType = "notify_settings"
+	// UpdateLoginCode carries a login code pushed by Telegram as a service
+	// message to an already-connected session (a `tg://login?code=NNNNN` link).
+	// Mirrors AyuGram Account::handleLoginCode → CodeWidget auto-fill+submit
+	// (intro_code.cpp:59-62, core/local_url_handlers.cpp:1437-1456).
+	UpdateLoginCode       UpdateType = "login_code"
 )
 
 // CallState represents the current phase of a voice or video call.
@@ -633,6 +638,7 @@ type Update struct {
 	ConnState    string            `json:"conn_state,omitempty"` // "connected", "disconnected", "reconnecting"
 	NotifySettings *NotifySettingsUpdate `json:"notify_settings,omitempty"`
 	GroupCallMessage *GroupCallMessageUpdate `json:"group_call_message,omitempty"`
+	LoginCode    string            `json:"login_code,omitempty"` // login_code update: the pushed login code
 	Platform     string            `json:"platform"`
 }
 

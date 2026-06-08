@@ -335,6 +335,16 @@ func (t *TelegramCore) initClient() {
 		switch msg := u.Message.(type) {
 		case *tg.Message:
 			converted = t.convertMessage(msg)
+			// A login code pushed by Telegram (777000) to this already-connected
+			// session auto-fills+submits the in-progress login on another account,
+			// mirroring AyuGram Account::handleLoginCode (intro_code.cpp:59-62).
+			if code := extractLoginCode(msg); code != "" {
+				t.fireUpdate(Update{
+					Type:      UpdateLoginCode,
+					LoginCode: code,
+					Platform:  tgPlatform,
+				})
+			}
 		case *tg.MessageService:
 			if _, ok := msg.Action.(*tg.MessageActionEmpty); ok {
 				return nil
@@ -1621,6 +1631,32 @@ func (t *TelegramCore) Submit2FAAfterEmail(password string) error {
 	}
 	t.finishEmailAuth(a)
 	return nil
+}
+
+// Get2FAStateDuringAuth fetches the live cloud-password state on the in-progress
+// (pre-auth) connection so the login UI can decide whether to offer
+// recovery-by-email. gotd's UserAuthenticator.Password callback doesn't surface
+// the account.Password it fetches, so we read it ourselves — the flow is parked
+// awaiting the password, so the connection is idle and this extra
+// account.getPassword is safe (gotd fetches its own fresh SRP params when we
+// later submit). Mirrors AyuGram CodeWidget::gotPassword parsing
+// `pwdState.hasRecovery`/`hint` (intro_code.cpp:341-358) before the 2FA step.
+// Returns (hasRecovery, hint).
+func (t *TelegramCore) Get2FAStateDuringAuth() (bool, string, error) {
+	t.mu.RLock()
+	api := t.api
+	if api == nil {
+		api = t.preAuthAPI
+	}
+	t.mu.RUnlock()
+	if api == nil {
+		return false, "", fmt.Errorf("no auth flow in progress")
+	}
+	pw, err := api.AccountGetPassword(t.ctx)
+	if err != nil {
+		return false, "", err
+	}
+	return pw.HasRecovery, pw.Hint, nil
 }
 
 // RequestRecoveryDuringAuth requests password recovery email during 2FA auth step.
@@ -11515,6 +11551,57 @@ func (t *TelegramCore) Close() error {
 }
 
 // --- Internal helpers ---
+
+// telegramServiceUserID is Telegram's official "Telegram" service-notifications
+// account (777000), which delivers login-code push messages to existing
+// sessions when the user signs in on a new device.
+const telegramServiceUserID = 777000
+
+// extractLoginCode returns the login code from an incoming service message that
+// Telegram (777000) pushed for a sign-in elsewhere, when it carries a
+// `tg://login?code=NNNNN` link — the same link AyuGram's ResolveLoginCode parses
+// (regex `^login/?(\?code=([0-9]+))`, core/local_url_handlers.cpp:1454) to drive
+// Account::handleLoginCode → CodeWidget auto-fill+submit (intro_code.cpp:59-62).
+// Returns "" when the message isn't such a push.
+func extractLoginCode(msg *tg.Message) string {
+	if msg.Out {
+		return ""
+	}
+	pu, ok := msg.PeerID.(*tg.PeerUser)
+	if !ok || pu.UserID != telegramServiceUserID {
+		return ""
+	}
+	// Text-URL entities are the canonical carrier of the login link.
+	for _, ent := range msg.Entities {
+		if tu, ok := ent.(*tg.MessageEntityTextURL); ok {
+			if code := loginCodeFromURL(tu.URL); code != "" {
+				return code
+			}
+		}
+	}
+	// Fall back to an inline link in the raw text.
+	return loginCodeFromURL(msg.Message)
+}
+
+// loginCodeFromURL extracts the digits from a `tg://login?code=NNNNN` URL,
+// matching AyuGram's `^login/?(\?code=([0-9]+))` capture without a regexp dep.
+func loginCodeFromURL(s string) string {
+	for _, marker := range []string{"login?code=", "login/?code="} {
+		i := strings.Index(s, marker)
+		if i < 0 {
+			continue
+		}
+		rest := s[i+len(marker):]
+		end := 0
+		for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+			end++
+		}
+		if end > 0 {
+			return rest[:end]
+		}
+	}
+	return ""
+}
 
 func (t *TelegramCore) fireUpdate(u Update) {
 	t.updateMu.RLock()
