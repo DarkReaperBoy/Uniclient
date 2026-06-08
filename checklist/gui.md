@@ -471,15 +471,34 @@ All three findings were fixed & verified PASS — no open items remain. (Stage-2
 
 Scope note: the numeric port is faithful — max-date clamping (`edit_birthday_box.cpp:55-66`), leap-year/month/day counts (`:108,146-154`), year index/"—" handling (`:63-66,104-107`), column widths quarter|half|quarter and order day|month|year (`:92-99`), selection-band lines (`:181-187`), the yScale squish + opacity fade (`vertical_drum_picker.cpp:40-47`), and the result mapping (`:201-206`) all match. Both callers (`my_profile_page.dart:305 updateBirthday`, `contacts_screen.dart:1763 suggestBirthday`) wire the returned record to the engine, so there is no stub/broken-wiring issue. The findings below are missing/wrong interaction behaviors.
 
-- [ ] [MAJOR] Tap/click-to-select is missing. In AyuGram, clicking a non-centered item scrolls it to the center (`toOffset = centerOffset - clickY/itemHeight` then animated `jumpToOffset`), so mouse users select by clicking any visible row. The Dart `_VerticalDrumPicker` only wires `onVerticalDragUpdate`/`onVerticalDragEnd` and a scroll `Listener` — there is no `onTapUp`/tap handler, so tapping a row does nothing. — `birthday_picker.dart:430-441` ← `AyuGram/ui/widgets/vertical_drum_picker.cpp:248-257`
-
-- [ ] [MAJOR] Keyboard navigation is missing. AyuGram installs a box-level event filter that forwards every KeyPress to `years->handleKeyEvent`, and `handleKeyEvent` maps Up/Left → previous, Down/Right → next, PageUp/PageDown → jump a page. The Dart dialog has no `Focus`/`KeyboardListener`/`Shortcuts` and `_VerticalDrumPicker` handles no key events, so arrow/PageUp/PageDown keys do nothing. — `birthday_picker.dart:419-441` (no keyboard handling) ← `AyuGram/ui/boxes/edit_birthday_box.cpp:190-195` + `AyuGram/ui/widgets/vertical_drum_picker.cpp:224-234`
-
-- [ ] [MAJOR] Mouse-wheel scrolling has the wrong granularity. AyuGram advances exactly one item per wheel notch via an animated `jumpToOffset(direction)` (`handleWheelEvent`). The Dart code instead adds the raw `event.scrollDelta.dy` straight onto `_scrollOffset` and then snaps, so a single wheel notch can skip multiple items (and jumps instantly before the snap) rather than stepping one item per notch. — `birthday_picker.dart:420-428` ← `AyuGram/ui/widgets/vertical_drum_picker.cpp:197-222`
-
-- [ ] [MAJOR] Snap animation uses the wrong easing. The Dart snap interpolates `_scrollOffset` with `Curves.easeOutCubic` over 200 ms. AyuGram's `PickerAnimation::jumpToOffset` calls `Animations::Simple::start(..., st::fadeWrapDuration)` with the default transition `anim::linear` and `anim::interpolateF` (linear) — the easeOutCubic in AyuGram is used *only* for the per-item yScale squish in the paint callback, not for the scroll snap. Duration matches (200 ms = `fadeWrapDuration`); the easing curve is the deviation, and because the snap drives the fade/squish it also alters their timeline. — `birthday_picker.dart:350` ← `AyuGram/ui/widgets/vertical_drum_picker.cpp:83-87` (default `anim::linear`, `animations.h:67`)
-
-- [ ] [MAJOR] Month-wheel labels are hardcoded English instead of localized. AyuGram paints month names via `Lang::Month(index + 1)(tr::now)` (locale-aware). The Dart picker uses a hardcoded English `_monthNames` array, so the wheel never localizes. (Note: a project-wide pattern — `lang_pack.dart` has no month strings and other date widgets hardcode them too — but it is still a deviation from the AyuGram source authority.) — `birthday_picker.dart:52-55,221` ← `AyuGram/ui/boxes/edit_birthday_box.cpp:119-124`
+All five [MAJOR] findings were fixed & verified PASS — no open items remain.
+(Stage-2: built + launched, opened the picker live via Settings → My Account →
+Date of Birth, exercised it in the running app, plus a render/timing widget test
+on `_VerticalDrumPicker`; cross-checked 1:1 vs AyuGram source.)
+- Tap-to-select: `onTapUp` maps `i = floor((clickY − topBase + scrollOffset)/itemHeight)`
+  and animates that row to the centre band (`birthday_picker.dart:541-547` ←
+  `vertical_drum_picker.cpp:252-256`). Live: tapping the off-centre "February" row
+  brought it to the centre (cy 426→386, "January" pushed up one 40px item); test taps
+  day "3" two slots down → it centres.
+- Keyboard nav: dialog-level `Focus(autofocus, onKeyEvent)` forwards arrow/PageUp/
+  PageDown to the year wheel only via a GlobalKey (`birthday_picker.dart:169-193,218-220`
+  ← `edit_birthday_box.cpp:190-195` + `vertical_drum_picker.cpp:224-234`); Up/Left=prev,
+  Down/Right=next, Page=ceil(200/40)=5 items, PageUp/Down skip auto-repeat. Widget test
+  (`sendKeyEvent` routes through Focus — which the debug harness's HardwareKeyboard
+  injection cannot): Down→1877 centres, Up→back, Right/Left mirror, PageDown→1881, PageUp→back.
+- Wheel granularity: `onPointerSignal` steps one item per notch by the SIGN of
+  `scrollDelta.dy` via animated `jumpByItems(±1)` (`birthday_picker.dart:513-522` ←
+  `vertical_drum_picker.cpp:197-201`). Live + test: a single 200px-delta notch moved
+  exactly one year (1876⇄1877), both directions — never the old ~5-item raw-delta skip.
+- Snap easing: the snap interpolates `_scrollOffset` LINEARLY off a raw
+  `AnimationController.value` over the 200ms `fadeWrapDuration`; easeOutCubic stays only
+  on the per-item yScale squish in paint (`birthday_picker.dart:409-418,486` ←
+  `vertical_drum_picker.cpp:83-87`, `anim::linear`). Timing test: at 50% of the snap a
+  one-item move is ~20px in (linear), refuting easeOutCubic's ~35px.
+- Month localization: the month wheel paints `lang.tr('lng_monthN')` from the cloud
+  LangPack with an English baseline (`birthday_picker.dart:274`; `lng_month1..12` added to
+  `lang_pack.dart` keys+baseline ← `edit_birthday_box.cpp:119-124`). Live screenshot shows
+  January/February/March/… localized on the wheel.
 
 # call_panel — 1:1 call panel (incoming / connecting / active / busy / ended), answer button, controls, encryption fingerprint, signal bars, self-view bubble, conference invite, call rating
 
