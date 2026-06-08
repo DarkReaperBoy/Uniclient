@@ -105,7 +105,10 @@ class EngineService {
   }) async {
     if (_initialized) return;
 
-    _bridge.init(libraryPath: libraryPath);
+    // Awaited: on web this blocks until the Go WASM module has registered its
+    // exports (window.bridgeReady), so the _callRaw('Init') below cannot race
+    // the async WASM load. On native it completes synchronously.
+    await _bridge.init(libraryPath: libraryPath);
     _bridgeEventSub = _bridge.events.listen(_handleBridgeEvent);
 
     final req = epb.EngineInitRequest()

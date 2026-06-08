@@ -9,7 +9,7 @@ class BridgeImpl {
   Stream<Uint8List> get events => const Stream.empty();
   bool get isInitialized => false;
 
-  void init({String? libraryPath}) {
+  Future<void> init({String? libraryPath}) {
     throw UnsupportedError('No bridge implementation available for this platform');
   }
 

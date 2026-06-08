@@ -66,7 +66,12 @@ class BridgeImpl {
   bool _initialized = false;
   bool get isInitialized => _initialized;
 
-  void init({String? libraryPath}) {
+  // Async to satisfy the Bridge.init contract (web awaits WASM readiness). The
+  // native body runs synchronously to completion — there is no `await` — so the
+  // shared library is opened and the Go exports are resolved before the returned
+  // future completes, preserving the "exports ready before first call()"
+  // guarantee callers rely on.
+  Future<void> init({String? libraryPath}) async {
     if (_initialized) return;
 
     // A previous dispose() closed the event stream; give callers a live one.
