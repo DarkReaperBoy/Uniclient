@@ -517,8 +517,6 @@ the `LevelMeter` matches `defaultLevelMeter` (44 lines, 3px width, 5px spacing, 
 mediaPlayer active/inactive colors), the contact sort matches `SortMode::Alphabet`, and the
 labels match the lang pack. One data-flow defect remains (the per-contact conference-invite video flag was fixed and verified 2026-06-08).
 
-- [ ] [MAJOR] Call-history "Delete" ignores the "delete for everyone" (revoke) choice: the context-menu delete opens `showDeleteConfirmBox` in `singleMessage`/`bulkMessages` mode, which renders the revoke checkbox and returns `confirmResult.revoke`, but the handler only reads `confirmResult.confirmed` and calls `engine.deleteMessage(accountId, peerId, msgId)` (no revoke parameter), so the user's "also delete for the other participant" choice has no effect and call-log entries are never revoked for the peer. AyuGram routes the same delete through `Box<DeleteMessagesBox>(session, ids)`, whose revoke checkbox is applied to the delete request. — `calls_screen.dart:2127` ← `AyuGram/Telegram/SourceFiles/calls/calls_box_controller.cpp:585`
-
 # chat_export — Telegram data-export panel (settings / progress / error, single-peer + full)
 
 Engine wiring is complete and real — `startExport`, `onExportProgress/Error/Complete`,
