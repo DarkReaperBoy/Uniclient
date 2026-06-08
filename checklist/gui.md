@@ -357,9 +357,32 @@ Overall this is a high-fidelity port. Verified to MATCH AyuGram ground truth:
 - All toggles (Appearance, Chat Folders, Tray, Drawer) present in the same order with persisting
   setters; lang strings (`MD3 Switch Style`, descriptions, etc.) match `lang.strings:8039-8105`.
 
-One genuine backend-wiring gap:
+The one backend-wiring gap below is now **FIXED & verified closed** (Stage-2:
+clean Go + Flutter debug build; live `GetMainMenuBots` engine round-trip returned
+OK; Drawer Elements section rendered correctly in BOTH desktop 1024×768 and mobile
+400×720; no crash):
 
-- [ ] [CRITICAL] "Bots" drawer-element toggle is dead — it only renders when `appState.menuBots.isNotEmpty`, but `menuBots` is never populated: `AppState.setMenuBots` has ZERO callers anywhere in the Dart tree (its own doc-comment claims it's "called by engine event handler", but no such handler exists, and `EngineService.getAttachMenuBots` returns a different `AttachMenuBotInfo` type that is never converted/forwarded into `setMenuBots`). So `menuBots` is permanently empty and the Bots toggle can never appear. In AyuGram the equivalent gate queries live data — `HasDrawerBots(controller)` iterates `controller->session().attachWebView()->attachBots()` checking `bot.inMainMenu && bot.media` — so the toggle shows for accounts that have main-menu bots. Feature is not wired to the backend. — `ayu_appearance_page.dart:138` (root cause `dart/lib/state/app_state.dart:3023` — never-called `setMenuBots`) ← `AyuGram/ayu/ui/settings/settings_appearance.cpp:291` (gate) + `settings_appearance.cpp:41-51` (`HasDrawerBots`)
+[CRITICAL] FIXED — the "Bots" drawer-element toggle is now wired to live backend
+data. `AppState.setMenuBots` previously had zero callers (so `menuBots` was
+permanently empty and the toggle could never appear); it is now fed by the new
+`AppState.ensureMenuBotsLoaded`, triggered post-frame from BOTH
+`ayu_appearance_page.dart` and `hamburger_drawer.dart` (idempotent, dedup +
+retry-on-not-connected). That calls `EngineService.getMainMenuBots` → bridge
+`GetMainMenuBots` → `Engine.GetMainMenuBots` → `TelegramCore.GetMainMenuBots`,
+which filters `MessagesGetAttachMenuBots` by `ShowInSideMenu` (gotd flag bit 4 =
+`show_in_side_menu`) AND a `default_static` icon — an exact mirror of AyuGram's
+`HasDrawerBots` gate (`bot.inMainMenu && bot.media`; `ResolveIcon` keys on
+`"default_static"` to set `media`), with field semantics confirmed 1:1 against the
+gotd/td schema (rules out a false-negative filter). Verified at runtime: the engine
+round-trip returned OK live; the connected test account has no `show_in_side_menu`
+bot, so the toggle is correctly hidden (Drawer Elements shows My Profile → New
+Group adjacent, no Bots row) in BOTH modes — exactly AyuGram's `HasDrawerBots →
+false` behavior. (The positive visual case — toggle visible — could not be directly
+shown because no available test account has a side-menu bot; the false-negative
+filter risk was instead ruled out by the field-semantic verification above.)
+— `ayu_appearance_page.dart`, `app_state.dart` `ensureMenuBotsLoaded`,
+`telegram.go` `GetMainMenuBots` ← `settings_appearance.cpp:291` + `:41-51`
+(`HasDrawerBots`) + `bot_attach_web_view.cpp:113` (`ResolveIcon`).
 
 # ayu_filters_page — Regex Filters settings (main page, shared/shadow-ban/per-dialog lists, edit box, import/export)
 
