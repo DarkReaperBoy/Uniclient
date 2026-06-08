@@ -556,17 +556,25 @@ class _DonateInfoBox extends StatefulWidget {
   }
 
   static void _applyRcData(Map<String, dynamic> data) {
-    if (data.containsKey('donateAmountUsd')) {
-      _donateAmountUsd = data['donateAmountUsd'].toString();
+    // Mirror C++ `RCManager::applyResponse` (rc_manager.cpp:187-206): only
+    // overwrite a donate field when the JSON value is a *string* AND non-empty,
+    // otherwise keep the compiled-in default. A JSON number (e.g. 5.0), an
+    // empty string, or `null` must NOT leak through as "5.0" / "" / "null".
+    final usd = data['donateAmountUsd'];
+    if (usd is String && usd.isNotEmpty) {
+      _donateAmountUsd = usd;
     }
-    if (data.containsKey('donateAmountTon')) {
-      _donateAmountTon = data['donateAmountTon'].toString();
+    final ton = data['donateAmountTon'];
+    if (ton is String && ton.isNotEmpty) {
+      _donateAmountTon = ton;
     }
-    if (data.containsKey('donateAmountRub')) {
-      _donateAmountRub = data['donateAmountRub'].toString();
+    final rub = data['donateAmountRub'];
+    if (rub is String && rub.isNotEmpty) {
+      _donateAmountRub = rub;
     }
-    if (data.containsKey('donateUsername')) {
-      var username = data['donateUsername'].toString();
+    final usernameValue = data['donateUsername'];
+    if (usernameValue is String && usernameValue.isNotEmpty) {
+      var username = usernameValue;
       if (username.startsWith('@')) username = username.substring(1);
       _donateUsername = username;
     }
@@ -640,121 +648,128 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
     return Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SvgPicture.asset(
-                  'assets/icons/ayu/donates/support_logo.svg',
-                  width: 96,
-                  height: 96,
-                ),
-                const SizedBox(height: 16),
-                Text('Support Development',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: textColor)),
-                const SizedBox(height: 12),
-                Text(
-                  'By supporting the project, you not only contribute to its '
-                  'development but also get a unique badge.',
-                  style: TextStyle(fontSize: 13, color: subtextColor),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                _DonateInfoRow(
-                  icon: Icons.monetization_on,
-                  title: 'Make a Donation',
-                  descriptionSpan: TextSpan(
-                    children: [
-                      TextSpan(
-                          text: 'Transfer an amount of '
-                              '\$${_DonateInfoBox._donateAmountUsd} ('),
-                      WidgetSpan(
-                        alignment: PlaceholderAlignment.middle,
-                        child: SvgPicture.asset(
-                          'assets/icons/ayu/donates/ton.svg',
-                          width: 13,
-                          height: 13,
+      // AyuGram pins the box to int(aboutWidth * 1.1) = int(390 * 1.1) = 429
+      // (donate_info_box.cpp:134, boxes.style aboutWidth: 390px). Without it
+      // the Material Dialog stretches to nearly the full settings-window
+      // width; the cap still shrinks to fit narrow (mobile) screens.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 429),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SvgPicture.asset(
+                    'assets/icons/ayu/donates/support_logo.svg',
+                    width: 96,
+                    height: 96,
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Support Development',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: textColor)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'By supporting the project, you not only contribute to its '
+                    'development but also get a unique badge.',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  _DonateInfoRow(
+                    icon: Icons.monetization_on,
+                    title: 'Make a Donation',
+                    descriptionSpan: TextSpan(
+                      children: [
+                        TextSpan(
+                            text: 'Transfer an amount of '
+                                '\$${_DonateInfoBox._donateAmountUsd} ('),
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: SvgPicture.asset(
+                            'assets/icons/ayu/donates/ton.svg',
+                            width: 13,
+                            height: 13,
+                          ),
                         ),
-                      ),
-                      TextSpan(
-                          text: '${_DonateInfoBox._donateAmountTon}, '
-                              '${_DonateInfoBox._donateAmountRub}₽) to any of '
-                              "the project's payment details. These can be "
-                              'found in the '),
-                      const TextSpan(
-                          text: 'Other',
-                          style: TextStyle(fontWeight: FontWeight.w600)),
-                      const TextSpan(text: ' section of the app settings.'),
-                    ],
+                        TextSpan(
+                            text: '${_DonateInfoBox._donateAmountTon}, '
+                                '${_DonateInfoBox._donateAmountRub}₽) to any of '
+                                "the project's payment details. These can be "
+                                'found in the '),
+                        const TextSpan(
+                            text: 'Other',
+                            style: TextStyle(fontWeight: FontWeight.w600)),
+                        const TextSpan(text: ' section of the app settings.'),
+                      ],
+                    ),
+                    textColor: textColor,
+                    subtextColor: subtextColor,
                   ),
-                  textColor: textColor,
-                  subtextColor: subtextColor,
-                ),
-                const SizedBox(height: 12),
-                _DonateInfoRow(
-                  icon: Icons.photo_camera,
-                  title: 'Send Proof of Payment',
-                  descriptionSpan: TextSpan(
-                    children: [
-                      const TextSpan(
-                          text: 'Send a photo of the payment confirmation '
-                              'to '),
-                      TextSpan(
-                        text: '@${_DonateInfoBox._donateUsername}',
-                        style: TextStyle(
-                            color: accentColor,
-                            fontWeight: FontWeight.w600),
-                        recognizer: _usernameRecognizer,
-                      ),
-                      const TextSpan(
-                          text: '. Make sure the photo clearly shows the '
-                              'amount, date, and time of the transfer.'),
-                    ],
+                  const SizedBox(height: 12),
+                  _DonateInfoRow(
+                    icon: Icons.photo_camera,
+                    title: 'Send Proof of Payment',
+                    descriptionSpan: TextSpan(
+                      children: [
+                        const TextSpan(
+                            text: 'Send a photo of the payment confirmation '
+                                'to '),
+                        TextSpan(
+                          text: '@${_DonateInfoBox._donateUsername}',
+                          style: TextStyle(
+                              color: accentColor,
+                              fontWeight: FontWeight.w600),
+                          recognizer: _usernameRecognizer,
+                        ),
+                        const TextSpan(
+                            text: '. Make sure the photo clearly shows the '
+                                'amount, date, and time of the transfer.'),
+                      ],
+                    ),
+                    textColor: textColor,
+                    subtextColor: subtextColor,
                   ),
-                  textColor: textColor,
-                  subtextColor: subtextColor,
-                ),
-                const SizedBox(height: 12),
-                _DonateInfoRow(
-                  icon: Icons.verified,
-                  title: 'Receive Your Badge',
-                  description:
-                      'After payment verification, you will receive a unique '
-                      'badge that will be displayed on your profile and '
-                      'visible to other users.',
-                  textColor: textColor,
-                  subtextColor: subtextColor,
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child:
-                        Text('Close', style: TextStyle(color: accentColor)),
+                  const SizedBox(height: 12),
+                  _DonateInfoRow(
+                    icon: Icons.verified,
+                    title: 'Receive Your Badge',
+                    description:
+                        'After payment verification, you will receive a unique '
+                        'badge that will be displayed on your profile and '
+                        'visible to other users.',
+                    textColor: textColor,
+                    subtextColor: subtextColor,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child:
+                          Text('Close', style: TextStyle(color: accentColor)),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          // Top-right close button — mirrors AyuGram
-          // `box->addTopButton(st::boxTitleClose, ...)`
-          // (donate_info_box.cpp:137), in addition to the bottom Close button.
-          Positioned(
-            top: 8,
-            right: 8,
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Icon(Icons.close, size: 20, color: subtextColor),
+            // Top-right close button — mirrors AyuGram
+            // `box->addTopButton(st::boxTitleClose, ...)`
+            // (donate_info_box.cpp:137), in addition to the bottom Close button.
+            Positioned(
+              top: 8,
+              right: 8,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Icon(Icons.close, size: 20, color: subtextColor),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
