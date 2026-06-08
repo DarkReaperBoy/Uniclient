@@ -500,17 +500,6 @@ on `_VerticalDrumPicker`; cross-checked 1:1 vs AyuGram source.)
   `lang_pack.dart` keys+baseline ← `edit_birthday_box.cpp:119-124`). Live screenshot shows
   January/February/March/… localized on the wheel.
 
-# call_screen — group call panel + minimised call bar (AyuGram `Calls::Group::Panel` + `Calls::TopBar`)
-
-Audited `dart/lib/ui/call_screen.dart` (4521 lines) against AyuGram `calls/group/*` + `calls/calls_top_bar.cpp` + `ui/controls/call_mute_button.cpp`. The file is genuinely wired to the engine throughout (no placeholder snackbars / mock data). Findings are deviations in colour-state, layout button-set, menu conditions, and a dead screen-share wiring.
-
-## Participant context menu (`_showParticipantMenu`)
-
-AyuGram builds this in `createRowContextMenu` + `addMuteActionsToContextMenu` (`calls_group_members.cpp:1325-1699`).
-
-- [ ] [MAJOR] "Mute"/"Unmute" is offered on the SELF row (admin) and on fellow admins; AyuGram suppresses the mute action for `isMe`, requires a live ssrc, and protects co-admins (`Inactive && participantIsCallAdmin && canManage` → no action). The Dart gates only on `!p.isMuted && widget.isCanManage` with no self/admin/ssrc check. — `call_screen.dart:634-638` ← `AyuGram/.../calls_group_members.cpp:1662-1678`
-- [ ] [MAJOR] "Remove from call" (kick) is offered for any non-self participant when `canManage`; AyuGram's `canKick` excludes the chat creator and other admins (ban-rights / `canRestrictParticipant` logic). The Dart can offer Remove on a co-admin or the creator. — `call_screen.dart:655-661` ← `AyuGram/.../calls_group_members.cpp:1521-1545`
-
 # calls_screen — Calls box, conference create/invite, call history, level meter
 
 Audited `dart/lib/ui/calls_screen.dart` against AyuGram's `calls_box_controller.cpp`,
