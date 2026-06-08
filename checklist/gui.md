@@ -220,20 +220,40 @@ Scope: `dart/lib/ui/admin_tools.dart` (14,893 lines) vs AyuGram `boxes/peers/*`,
 **Overall:** This is a faithful, fully-wired reimplementation. Every screen calls real engine methods
 (no `onTap: () {}`, no TODO/FIXME/HACK, no "coming soon", no mock/hardcoded data) — confirmed by grep.
 Charts parse real `StatsGraph` JSON and load async graphs via `loadStatsGraph`; withdraw flows do the
-2FA password round-trip; member/invite/boost/tx lists paginate against real APIs. The findings below are
-behavioural/structural deviations, not stubs.
+2FA password round-trip; member/invite/boost/tx lists paginate against real APIs.
 
-## Findings
+Five behavioural/structural deviations were found and **all five are now fixed & verified**
+(every fix cross-checked line-by-line against the AyuGram ground truth — exact lang strings,
+count semantics, and RPC field flags — plus a clean Go+Flutter build and a no-crash runtime):
 
-- [ ] [MAJOR] EditAdminBox renders the channel "Manage Messages" (Post/Edit/Delete Messages) and "Manage Stories" (Post/Edit/Delete Stories) admin rights as FLAT toggle rows; AyuGram nests each set inside an expandable `SlideWrap` group with a parent "Manage Messages"/"Manage Stories" checkbox that toggles all children at once. The Dart `_buildRightsSection` even takes a `sectionLabel` arg but ignores it (renders only the toggles). — `admin_tools.dart:5553-5576` & `admin_tools.dart:5743-5755` ← `Telegram/SourceFiles/boxes/peers/edit_peer_permissions_box.cpp:119-186` (`NestedAdminRightLabels` → `lng_rights_channel_manage` / `lng_rights_channel_manage_stories`) & `:724-753` (nested `SlideWrap` + outer toggle render)
-
-- [ ] [MAJOR] The Edit-Peer manage-section rows for **Reactions**, **Permissions** and **Invite Links** pass `value: ''`, so they never display the current-state count AyuGram shows on the right of each `CreateButton` (Reactions → allowed-count / "All" / "Off"; Permissions → "X/Total" restrictions; Invite Links → link count). Administrators/Members rows DO show counts, so the omission is inconsistent and hides live state. — `admin_tools.dart:2402-2438` ← `Telegram/SourceFiles/boxes/peers/edit_peer_info_box.cpp:1523-1534` (reactions count), `:1549-1556` (permissions `X/Total`), `:1581-1593` (invite-links count)
-
-- [ ] [MAJOR] The "Aggressive Anti-Spam" toggle shown above the member-list **Admins** tab is never gated by member count — `_antiSpamHeader` hardcodes `belowThreshold = false` with the comment "membership count not tracked here; show toggle", and `_antispamMin` is loaded but never compared. AyuGram disables the toggle below `appConfig telegram_antispam_group_size_min`, so here a small megagroup shows it enabled and `toggleAntiSpam` fails server-side. (The correct gating exists only in `_buildAntiSpamSection`, which is dead code — never called.) — `admin_tools.dart:9379-9415` (live header) & `admin_tools.dart:2545-2585` (unused correct version) ← `Telegram/SourceFiles/boxes/peers/edit_participants_box.cpp:1350-1356` (AntiSpam validator as the Admins list "above" widget, gated on the group-size-min app config)
-
-- [ ] [MAJOR] Color & Emoji changes are saved only when `colorId >= 0`: `if (colorId >= 0) { await engine.updateChannelColor(... backgroundEmojiId: bgEmojiId, statusEmojiId: statusId); }`. When the channel has no name color set (`peer_color_id` resolves to `-1`) and the admin changes ONLY the background emoji or emoji status, the "changed" guard passes but no RPC fires and no error is shown — the change is silently dropped. AyuGram's color box persists color, background-emoji and emoji-status independently. — `admin_tools.dart:1698-1745` (esp. `:1738`) ← `Telegram/SourceFiles/boxes/peers/edit_peer_color_box.cpp` (`EditPeerColorBox` saves colorIndex, backgroundEmojiId and emojiStatus as separate, independently-applied fields)
-
-- [ ] [MAJOR] The Recent-Actions rights-diff label maps are incomplete, so genuinely-changed rights render no `+`/`−` line in the log. `_adminLabels` omits `manage_direct` ("Manage direct messages") and `manage_ranks` ("Edit member tags"); `_bannedLabels` omits `edit_rank`. A `participant_admin`/`change_default_rights` event that flips one of these shows the headline ("promoted X") but the affected right is invisible in the diff. — `admin_tools.dart:6838-6858` ← `Telegram/SourceFiles/history/admin_log/history_admin_log_item.cpp` (`GenerateParticipantChangeText` / `GenerateAdminChangeText` enumerate every `ChatAdminRight` incl. `ManageDirect`, `ManageRanks`, and every `ChatRestriction` incl. `EditRank`)
+1. [MAJOR] EditAdminBox now nests the channel "Manage messages" (Post/Edit/Delete Messages) and
+   "Manage stories" (Post/Edit/Delete Stories) admin-right sets in expandable groups with a parent
+   master toggle (= any-child-checked), a bold "checked/total" count, and a 180° arrow
+   (`_NestedRightsGroup`); `_buildRightsSection` now takes & honors a `nestingLabel` (channel → flat /
+   Manage-messages / Manage-stories / flat; group → flat / Manage-stories / flat), mirroring
+   `NestedAdminRightLabels` + `AddInnerToggle` (`edit_peer_permissions_box.cpp:119-189`, `:366-472`,
+   `:724-763`). Lang strings "Manage messages" / "Manage stories" verbatim.
+2. [MAJOR] The Edit-Peer Reactions / Permissions / Invite-Links rows now show live counts —
+   `_reactionsCountLabel` (All / count / 1 / Off), `_permissionsCountLabel` (allowed/total via
+   `getDefaultBannedRights`, matching `RestrictionsCountValue` = `list.size()-count` over the 14/15-key
+   restriction list with keys aligned to the Go struct), and the admin's invite-link count — mirroring
+   `edit_peer_info_box.cpp:1523-1593`. **Verified visually**: group shows Off / 13/14 / 1, broadcast
+   channel shows All / (permissions hidden) / 8, in both desktop & mobile; engine
+   `GetExportedChatInvites` + `GetDefaultBannedRights` succeed in logs.
+3. [MAJOR] The live `_antiSpamHeader` now gates on `belowThreshold = _memberCount < _antispamMin`
+   (member count forwarded from Go `fc.ParticipantsCount` via `GetChatPermissionFlags`); below threshold
+   the toggle is locked + greyed and tapping shows the "not enough members" toast — mirroring
+   `menu_antispam_validator.cpp:86-90`. Toast & about lang strings verbatim.
+4. [MAJOR] Color/emoji save now fires `channels.updateColor` whenever color OR background-emoji changed
+   (color omitted when `colorId < 0`, background-emoji always carried) and a separate
+   `channels.updateEmojiStatus`, so bg-emoji / status changes are no longer silently dropped when no name
+   color is set — mirroring `edit_peer_color_box.cpp:598-617` (Go `UpdateChannelColorEx` +
+   `UpdateChannelEmojiStatus`; Dart `colorChanged`/`bgChanged`/`statusChanged` guards). Confirmed the
+   no-color (`colorId < 0`) scenario exists on the test channel and the dialog opens correctly.
+5. [MAJOR] The Recent-Actions rights-diff label maps add `manage_direct` ("Manage direct messages"),
+   `manage_ranks` ("Edit member tags") and `edit_rank` ("Edit own tags") in both the Dart label tables and
+   the Go right-maps (`ManageDirectMessages` / `ManageRanks` / `EditRank`), so those flips now render a
+   `+`/`−` diff line — labels verbatim from AyuGram lang strings.
 
 # advanced_settings_screen — Advanced settings page (§14.7) + sub-dialogs (proxy, local storage, auto-download, power saving, dictionaries, recent downloads, experimental)
 
