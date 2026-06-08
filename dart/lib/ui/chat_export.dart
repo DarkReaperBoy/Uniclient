@@ -74,7 +74,9 @@ class _ExportTopBarState extends State<ExportTopBar>
               child: Row(
                 children: [
                   Text(
-                    'Exporting Data \u2014 ',
+                    // AyuGram top bar: lng_export_progress_title (bold) + ' ' +
+                    // QChar(0x2013) en-dash (export_view_top_bar.cpp:89-91).
+                    'Exporting your data \u2013 ',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -479,8 +481,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   String get _title {
     switch (_phase) {
       case ExportPhase.processing:
-        return _exportDone ? widget.target.settingsTitle : 'Exporting Data...';
+        // AyuGram: progress state title is lng_export_progress_title; once the
+        // export reaches FinishedState the panel title is reset to
+        // lng_export_title ("Export Your Data") regardless of single-peer/topic
+        // mode (export_view_panel_controller.cpp:306,408-410).
+        return _exportDone ? 'Export Your Data' : 'Exporting your data';
       case ExportPhase.completed:
+        return 'Export Your Data';
       case ExportPhase.error:
         return widget.target.settingsTitle;
       case ExportPhase.settings:
@@ -1462,32 +1469,32 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 final _lvKids = <Widget>[
                   // §29.3.1 Account Data (no header)
                   _buildOptionWithAbout(
-                    'Personal information',
-                    'Exports profile photos, name, bio, etc.',
+                    'Account information',
+                    'Your chosen display name, username, phone number and profile photos.',
                     _personalInfo,
                     (v) => _updateSetting(() => _personalInfo = v!),
                     textColor,
                     subtextColor,
                   ),
                   _buildOptionWithAbout(
-                    'Contact list',
-                    'Exports names and phone numbers.',
+                    'Contacts list',
+                    'If you allow access, contacts are continuously synced with Telegram. You can adjust this in Settings > Privacy & Security on mobile devices.',
                     _contacts,
                     (v) => _updateSetting(() => _contacts = v!),
                     textColor,
                     subtextColor,
                   ),
                   _buildOptionWithAbout(
-                    'Stories',
-                    'Exports your stories.',
+                    'Story archive',
+                    'All stories you posted from Telegram mobile apps.',
                     _stories,
                     (v) => _updateSetting(() => _stories = v!),
                     textColor,
                     subtextColor,
                   ),
                   _buildOptionWithAbout(
-                    'Profile music',
-                    'Exports your profile music.',
+                    'Music on Profiles',
+                    'All tracks you saved to your playlist.',
                     _profileMusic,
                     (v) => _updateSetting(() => _profileMusic = v!),
                     textColor,
@@ -1571,15 +1578,15 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   _buildSectionHeader('Other', headerColor),
                   _buildOptionWithAbout(
                     'Active sessions',
-                    'Exports device and login info.',
+                    'We may store this to display your connected devices in Settings > Privacy & Security > Show all sessions.',
                     _sessions,
                     (v) => _updateSetting(() => _sessions = v!),
                     textColor,
                     subtextColor,
                   ),
                   _buildOptionWithAbout(
-                    'Other data',
-                    'Exports web login tokens, contacts block list, etc.',
+                    'Miscellaneous data',
+                    'Other types of data not mentioned above (beta).',
                     _otherData,
                     (v) => _updateSetting(() => _otherData = v!),
                     textColor,
@@ -1587,14 +1594,14 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   ),
 
                   // §29.3.5 Output Format section
-                  _buildSectionHeader('Format', headerColor),
+                  _buildSectionHeader('Location and format', headerColor),
                   _buildLocationLabel(accentColor, subtextColor),
                   _buildFormatRadio(
                       'Human-readable HTML', _ExportFormat.html, textColor),
                   _buildFormatRadio(
                       'Machine-readable JSON', _ExportFormat.json, textColor),
                   _buildFormatRadio(
-                      'HTML and JSON', _ExportFormat.htmlAndJson, textColor),
+                      'Both', _ExportFormat.htmlAndJson, textColor),
                   const SizedBox(height: 8),
                 ];
                 return ListView.builder(
@@ -1795,7 +1802,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         _buildSectionHeader('Media export settings', headerColor),
         _buildMediaCheckbox('Photos', _mediaPhotos,
             (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
-        _buildMediaCheckbox('Video files', _mediaVideo,
+        _buildMediaCheckbox('Videos', _mediaVideo,
             (v) => _updateSetting(() => _mediaVideo = v!), textColor),
         _buildMediaCheckbox('Voice messages', _mediaVoice,
             (v) => _updateSetting(() => _mediaVoice = v!), textColor),
@@ -1990,7 +1997,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   // path (export_view_settings.cpp:218-223).
                   _buildMediaCheckbox('Photos', _mediaPhotos,
                       (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
-                  _buildMediaCheckbox('Video files', _mediaVideo,
+                  _buildMediaCheckbox('Videos', _mediaVideo,
                       (v) => _updateSetting(() => _mediaVideo = v!), textColor),
                   _buildMediaCheckbox('Voice messages', _mediaVoice,
                       (v) => _updateSetting(() => _mediaVoice = v!), textColor),
@@ -2083,16 +2090,20 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   Widget _buildCombinedFormatLocation(Color accentColor, Color subtextColor) {
+    // AyuGram combined label: lng_export_option_format_location =
+    // "Format: {format}, Path: {path}" (lang.strings:6858). The format name is
+    // "HTML"/"JSON"/lng_export_option_html_and_json ("Both")
+    // (export_view_settings.cpp:366-370).
     final formatName = switch (_format) {
       _ExportFormat.html => 'HTML',
       _ExportFormat.json => 'JSON',
-      _ExportFormat.htmlAndJson => 'HTML and JSON',
+      _ExportFormat.htmlAndJson => 'Both',
     };
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 8, 22, 8),
       child: Wrap(
         children: [
-          Text('Export data in ',
+          Text('Format: ',
               style: TextStyle(fontSize: 13, color: subtextColor)),
           GestureDetector(
             onTap: () async {
@@ -2109,7 +2120,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
               ),
             ),
           ),
-          Text(' to ', style: TextStyle(fontSize: 13, color: subtextColor)),
+          Text(', Path: ', style: TextStyle(fontSize: 13, color: subtextColor)),
           GestureDetector(
             onTap: _pickExportFolder,
             child: MouseRegion(
@@ -2130,12 +2141,35 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     );
   }
 
+  // AyuGram langDayOfMonthFull (lang_keys.cpp:92-105): full month name, with the
+  // year shown only when the date is not "near" the current year
+  // (langDateMaybeWithYear, lang_keys.cpp:21-52). lng_month_day_year =
+  // "{month} {day}, {year}", lng_month_day = "{month} {day}".
   String _formatDateLabel(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
     ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    final month = months[date.month - 1];
+    return _dateNeedsYear(date)
+        ? '$month ${date.day}, ${date.year}'
+        : '$month ${date.day}';
+  }
+
+  bool _dateNeedsYear(DateTime date) {
+    final now = DateTime.now();
+    final year = date.year;
+    final month = date.month;
+    final currentYear = now.year;
+    final currentMonth = now.month;
+    if (year == currentYear) return false;
+    bool yearMuchGreater(int y, int o) => y > o + 1;
+    bool monthMuchGreater(int y, int m, int oy, int om) =>
+        (y == oy + 1) && (m + 12 > om + 3);
+    return yearMuchGreater(year, currentYear) ||
+        yearMuchGreater(currentYear, year) ||
+        monthMuchGreater(year, month, currentYear, currentMonth) ||
+        monthMuchGreater(currentYear, currentMonth, year, month);
   }
 
   String _formatTimeLabel(int seconds) {
@@ -2149,12 +2183,33 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         (timeSeconds % 3600) ~/ 60);
   }
 
-  void _enforceOffset() {
+  // AyuGram applies the kOffset (600s) clamp to the field being edited, not
+  // always to `till` (export_view_settings.cpp:527-588):
+  //  - editing the from-time: if the new `from` lands at/after `till`, move
+  //    `from` BACKWARD to `till - kOffset` (singlePeerFrom = singlePeerTill - kOffset).
+  //  - editing the till-date / till-time: if the new `till` lands at/before
+  //    `from`, move `till` FORWARD to `from + kOffset`.
+  //  - editing the from-date applies no clamp: the calendar maxDate already
+  //    bounds from-date <= till-date, and a date pick resets the time to
+  //    start-of-day (date.startOfDay()), so `from <= till` always holds.
+  // Each clamp only runs when the opposite endpoint is set (non-null), mirroring
+  // the `&& singlePeerTill` / `&& singlePeerFrom` guards.
+  void _enforceFromTimeOffset() {
     if (_fromDate == null || _tillDate == null) return;
     final from = _combineDateAndTime(_fromDate!, _fromTimeSeconds);
     final till = _combineDateAndTime(_tillDate!, _tillTimeSeconds);
-    final diff = till.difference(from).inSeconds;
-    if (diff < _kOffset) {
+    if (from.difference(till).inSeconds >= 0) {
+      final adjusted = till.subtract(const Duration(seconds: _kOffset));
+      _fromDate = DateTime(adjusted.year, adjusted.month, adjusted.day);
+      _fromTimeSeconds = adjusted.hour * 3600 + adjusted.minute * 60;
+    }
+  }
+
+  void _enforceTillOffset() {
+    if (_fromDate == null || _tillDate == null) return;
+    final from = _combineDateAndTime(_fromDate!, _fromTimeSeconds);
+    final till = _combineDateAndTime(_tillDate!, _tillTimeSeconds);
+    if (till.difference(from).inSeconds <= 0) {
       final adjusted = from.add(const Duration(seconds: _kOffset));
       _tillDate = DateTime(adjusted.year, adjusted.month, adjusted.day);
       _tillTimeSeconds = adjusted.hour * 3600 + adjusted.minute * 60;
@@ -2166,26 +2221,31 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
       child: Wrap(
         children: [
-          Text('From ', style: TextStyle(fontSize: 13, color: subtextColor)),
+          Text('From: ', style: TextStyle(fontSize: 13, color: subtextColor)),
           GestureDetector(
             onTap: () async {
               final picked = await _showCalendarBox(
                 initialDate: _fromDate,
                 minDate: _telegramLaunchDate,
                 maxDate: _tillDate ?? DateTime.now(),
-                resetLabel: 'From the beginning',
+                resetLabel: 'Reset',
               );
               if (picked != null) {
                 setState(() {
-                  _fromDate = picked.isReset ? null : picked.date;
-                  _enforceOffset();
+                  if (picked.isReset) {
+                    _fromDate = null;
+                  } else {
+                    // AyuGram date pick = date.startOfDay(); no offset clamp.
+                    _fromDate = picked.date;
+                    _fromTimeSeconds = 0;
+                  }
                 });
               }
             },
             child: Text(
               _fromDate != null
                   ? _formatDateLabel(_fromDate!)
-                  : 'the beginning',
+                  : 'the oldest message',
               style: TextStyle(
                 fontSize: 13,
                 color: accentColor,
@@ -2202,7 +2262,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 if (seconds != null) {
                   setState(() {
                     _fromTimeSeconds = seconds;
-                    _enforceOffset();
+                    _enforceFromTimeOffset();
                   });
                 }
               },
@@ -2217,24 +2277,30 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
               ),
             ),
           ],
-          Text(' till ', style: TextStyle(fontSize: 13, color: subtextColor)),
+          Text(', to: ', style: TextStyle(fontSize: 13, color: subtextColor)),
           GestureDetector(
             onTap: () async {
               final picked = await _showCalendarBox(
                 initialDate: _tillDate,
                 minDate: _fromDate ?? _telegramLaunchDate,
                 maxDate: DateTime.now(),
-                resetLabel: 'Till now',
+                resetLabel: 'Reset',
               );
               if (picked != null) {
                 setState(() {
-                  _tillDate = picked.isReset ? null : picked.date;
-                  _enforceOffset();
+                  if (picked.isReset) {
+                    _tillDate = null;
+                  } else {
+                    // AyuGram date pick = date.startOfDay(), then clamp till forward.
+                    _tillDate = picked.date;
+                    _tillTimeSeconds = 0;
+                    _enforceTillOffset();
+                  }
                 });
               }
             },
             child: Text(
-              _tillDate != null ? _formatDateLabel(_tillDate!) : 'now',
+              _tillDate != null ? _formatDateLabel(_tillDate!) : 'present',
               style: TextStyle(
                 fontSize: 13,
                 color: accentColor,
@@ -2251,7 +2317,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 if (seconds != null) {
                   setState(() {
                     _tillTimeSeconds = seconds;
-                    _enforceOffset();
+                    _enforceTillOffset();
                   });
                 }
               },
@@ -2493,7 +2559,9 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       return [
         const _ProgressRow(label: 'Data export completed.', progress: 1.0),
         _ProgressRow(
-            label: 'Total files: ${_formatFileCount(_totalFiles)}',
+            // AyuGram lng_export_total_amount fills {amount} with a plain
+            // QString::number — no thousands grouping (export_view_content.cpp:181).
+            label: 'Total files: $_totalFiles',
             progress: 1.0),
         _ProgressRow(
             label: 'Total size: ${_formatSize(_totalSizeBytes)}',
@@ -2645,26 +2713,19 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     return '$readyStr / $totalStr $unit';
   }
 
-  String _formatFileCount(int count) {
-    if (count < 1000) return count.toString();
-    final s = count.toString();
-    final buf = StringBuffer();
-    for (var i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
-      buf.write(s[i]);
-    }
-    return buf.toString();
-  }
-
+  // AyuGram FormatSizeText (format_values.cpp:54-68): no GB tier — anything
+  // >= 1 MB renders as "X.Y MB" (a 2 GB export becomes "2048.0 MB") — and the
+  // tenths are truncated via integer math, never rounded.
   String _formatSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes >= 1024 * 1024) {
+      final tenthMb = bytes * 10 ~/ (1024 * 1024);
+      return '${tenthMb ~/ 10}.${tenthMb % 10} MB';
     }
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes >= 1024) {
+      final tenthKb = bytes * 10 ~/ 1024;
+      return '${tenthKb ~/ 10}.${tenthKb % 10} KB';
     }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+    return '$bytes B';
   }
 
   Widget _buildErrorPlaceholder(Color subtextColor) {
@@ -3067,7 +3128,9 @@ class _ChooseTimeBoxState extends State<_ChooseTimeBox> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 16, 22, 12),
                 child: Text(
-                  'Choose Time',
+                  // AyuGram reuses lng_settings_ttl_after_custom for the custom
+                  // time box title (export_view_settings.cpp:508).
+                  'Set Custom Time',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -3220,7 +3283,8 @@ class _ChooseFormatBoxState extends State<_ChooseFormatBox> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 16, 22, 4),
                 child: Text(
-                  'Export Format',
+                  // AyuGram lng_export_option_choose_format (lang.strings:6859).
+                  'Choose export format',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -3233,7 +3297,7 @@ class _ChooseFormatBoxState extends State<_ChooseFormatBox> {
               _buildRadio(
                   'Machine-readable JSON', _ExportFormat.json, textColor),
               _buildRadio(
-                  'HTML and JSON', _ExportFormat.htmlAndJson, textColor),
+                  'Both', _ExportFormat.htmlAndJson, textColor),
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 4, 14, 12),
                 child: Row(
