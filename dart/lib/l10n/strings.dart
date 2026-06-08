@@ -120,6 +120,8 @@ class TrStrings {
       '$emoji to your contact $name';
   static String lngNotifReactedToContactPlain(String emoji) =>
       '$emoji to your contact';
+  static String lngNotifReactedToGame(String emoji) =>
+      '$emoji to your game';
   static String lngNotifReactedToInvoice(String emoji) =>
       '$emoji to your invoice';
   static String lngNotifReactedToText(String emoji, String text) =>

@@ -713,8 +713,33 @@ String _composeReactionText(NotificationData data, {required bool hideMessageTex
       return TrStrings.lngNotifReactedToContactPlain(emoji);
     case 12: return TrStrings.lngNotifReactedToInvoice(emoji);
     default:
-      if (data.text.isNotEmpty) {
-        return TrStrings.lngNotifReactedToText(emoji, data.text);
+      // MediaGame carries no media-type int, so the engine leaves reactedToType
+      // at 0 (the comment at _messageTextForType:502-510) and a game reaction
+      // lands in this default branch. AyuGram's ComposeReactionNotification
+      // matches `media->game()` → lng_reaction_game ("{reaction} to your game")
+      // before the text() fallback; a game is identified solely by its title,
+      // exactly as _messageTextForType:511 does. Checked BEFORE the text branch
+      // because a game's body text is empty — otherwise it falls through to the
+      // bare emoji. (notifications_manager.cpp:1214-1215)
+      if (data.gameTitle.isNotEmpty) {
+        return TrStrings.lngNotifReactedToGame(emoji);
+      }
+      // lng_reaction_text embeds item->notificationText(): the reacted-to
+      // message's text with spoiler entities masked (▚) and truncated to 255
+      // (+ ellipsis via Ui::Text::Mid), the whole composed reaction string then
+      // re-wrapped in TextWithPermanentSpoiler. The message text must therefore
+      // be masked & capped here — exactly like the regular (non-reaction) body
+      // at composeNotificationContent:479-483 — not inserted raw, or a spoiler
+      // would leak. notificationText() is called with DEFAULT options, so
+      // spoilerLoginCode masking does NOT apply to reactions. _maskSpoilers is
+      // length-preserving, so mask-then-truncate equals AyuGram's
+      // truncate-then-mask. (notifications_manager.cpp:1151-1158,1601-1605;
+      // history_item.cpp:4325-4329)
+      final text = _truncateNotification(
+        _maskSpoilers(data.text, data.contentRich),
+      );
+      if (text.isNotEmpty) {
+        return TrStrings.lngNotifReactedToText(emoji, text);
       }
       return emoji;
   }
