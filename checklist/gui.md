@@ -2,23 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# chat_state — Chat list / active chat / messages / folders / forum / saved sublists state (ChangeNotifier)
-
-This is a pure state-management file (no widgets). It is well-wired to the engine — every
-action delegates to `_engine.*`, and there are **no stubs, TODOs, fake data, or empty
-callbacks**. Pagination constants are faithfully mirrored from AyuGram (verified:
-`kMessagesPerPageFirst=30`/`kMessagesPerPage=50`, `kListFirstPerPage=20`/`kListPerPage=100`,
-`kLoadedSublistsMinCount=20`, `kMaxChatEntryHistorySize=50`, `kTopicsFirstLoad=20`/
-`kTopicsPerPage=500`, `kShowTopicNamesCount=8`, `kShowSublistNamesCount=5`). The folder
-filter precedence (never > always > type+exclusions) matches `ChatFilter::contains`. The
-findings below are behavioral/perf deviations, not stubs.
-
-- [ ] [MAJOR] Group "typing" only ever shows ONE typer. `_typingUsers` is `Map<chatId, single (name,action)>` and `_handleTyping` overwrites the chat's entry on every event, so the last sender wins. AyuGram keeps a *set* of typing users per history (`_typing`) and renders `lng_many_typing` ("N people are typing", >2 users), `lng_users_typing` ("Alice and Bob are typing", 2 users) or `lng_user_typing` (1 user). uniclient can never render "N people are typing" / "A and B are typing" in a group — multi-typer data is collapsed to one and lost. — `chat_state.dart:39` (map decl), `chat_state.dart:3030` (overwrite), `chat_state.dart:318-319` (single-value getters) ← `AyuGram/Telegram/SourceFiles/history/view/history_view_send_action.cpp:248-264` (typingCount → lng_many_typing/lng_users_typing/lng_user_typing) + `history_view_send_action.cpp:83` (`_typing.emplace_or_assign(user, …)` per-user set)
-
-- [ ] [MAJOR] Saved-Messages reaction-tag filtering is done CLIENT-SIDE over already-loaded messages instead of a server search. The `messages` getter filters `_messages` by the selected tag(s) (`.where(...).toList()` on every access), and `_ensureEnoughTaggedMessages` repeatedly pages the *entire* history 50-at-a-time until 20 tagged messages are found or `_hasMoreMessages` is exhausted. AyuGram instead converts the selected tag into a server search query (`SearchTagFromQuery` → `controller()->searchMessages(query, sublist)` → `messages.search`), which returns only tagged messages, properly paginated. Consequences: tagged messages outside the loaded window don't appear until the whole chat is paged in; `_messages` grows unbounded while a tag is selected; and the filter `.where()` re-runs on every `chatState.messages` access (consumed many times per build in `chat_view.dart`). — `chat_state.dart:274-285` (client-side filter getter), `chat_state.dart:457-462` (`_ensureEnoughTaggedMessages` whole-history paging), `chat_state.dart:435-455` (`toggleReactionTag`) ← `AyuGram/Telegram/SourceFiles/history/view/history_view_chat_section.cpp:3245-3248` (`SearchTagFromQuery` → `searchMessages`) + `data/data_search_controller.cpp` (server `messages.search`)
-
-- [ ] [MAJOR] Eager over-fetch of group/channel member avatars on every chat open. `_loadMemberAvatars` paginates up to 1000 members (batches of 200 → up to 5 API round-trips) purely to populate sender-avatar thumbnails, on first open of every group/channel/topic. AyuGram never bulk-fetches participants for this: each message element loads only its own sender's userpic lazily as it paints (`Message::displayFromPhoto()` → `item->displayFrom()->loadUserpic()`), so only the handful of visible senders' avatars are ever requested. This downloads ~1000 member records (with avatar b64) to display avatars for ~10 visible senders. (It is cached in `_avatarCache` per chat, so the cost is once per chat per session, but the over-fetch itself remains.) — `chat_state.dart:2445-2467` (`_loadMemberAvatars`, `batchSize=200`, loop to `offset < 1000`) ← `AyuGram/Telegram/SourceFiles/history/view/history_view_message.cpp:1878-1889` (`Message::drawUserpic`/`displayFromPhoto` lazy per-element userpic load)
-
 # telegram_palette — Telegram color palette (4 embedded themes + accent colorizer)
 
 Port of Telegram/AyuGram's theme system: 4 static palettes (classicDay, dayBlue, night,
