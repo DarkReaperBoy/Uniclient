@@ -4074,18 +4074,32 @@ class EngineService {
     await _callAsync('__engine', 'SetChatReactionsMode', Uint8List.fromList(payload));
   }
 
+  /// Sets a channel's name color and background emoji in one RPC. colorIndex < 0
+  /// leaves the name color unchanged (no peer color set) while the background
+  /// emoji is always applied — so bg-emoji can change independently of the color
+  /// (mirrors AyuGram channels.updateColor, edit_peer_color_box.cpp:600-609).
   Future<void> updateChannelColor(String accountId, String chatId, int colorIndex, {
     int backgroundEmojiId = 0,
-    int statusEmojiId = 0,
   }) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'color_index': colorIndex,
       'background_emoji_id': backgroundEmojiId,
-      'status_emoji_id': statusEmojiId,
     }));
     await _callAsync('__engine', 'UpdateChannelColor', Uint8List.fromList(payload));
+  }
+
+  /// Sets (statusEmojiId != 0) or clears (statusEmojiId == 0) a channel's emoji
+  /// status, applied independently of the name color & background emoji (mirrors
+  /// AyuGram channels.updateEmojiStatus, edit_peer_color_box.cpp:611-617).
+  Future<void> updateChannelEmojiStatus(String accountId, String chatId, int statusEmojiId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'status_emoji_id': statusEmojiId,
+    }));
+    await _callAsync('__engine', 'UpdateChannelEmojiStatus', Uint8List.fromList(payload));
   }
 
   Future<void> setBoostsUnrestrict(String accountId, String chatId, int boosts) async {

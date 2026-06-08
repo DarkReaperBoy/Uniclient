@@ -2653,12 +2653,22 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			ChatID            string `json:"chat_id"`
 			ColorIndex        int    `json:"color_index"`
 			BackgroundEmojiID int64  `json:"background_emoji_id"`
-			StatusEmojiID     int64  `json:"status_emoji_id"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return nil, e.UpdateChannelColor(params.AccountID, params.ChatID, params.ColorIndex)
+		return nil, e.UpdateChannelColor(params.AccountID, params.ChatID, params.ColorIndex, params.BackgroundEmojiID)
+
+	case "UpdateChannelEmojiStatus":
+		var params struct {
+			AccountID     string `json:"account_id"`
+			ChatID        string `json:"chat_id"`
+			StatusEmojiID int64  `json:"status_emoji_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UpdateChannelEmojiStatus(params.AccountID, params.ChatID, params.StatusEmojiID)
 
 	case "SetBoostsUnrestrict":
 		var params struct {

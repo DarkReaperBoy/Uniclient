@@ -14758,6 +14758,7 @@ func adminLogBannedRightsMap(br *tg.ChatBannedRights) map[string]bool {
 		"manage_topics":    br.ManageTopics,
 		"pin_messages":     br.PinMessages,
 		"change_info":      br.ChangeInfo,
+		"edit_rank":        br.EditRank,
 	}
 }
 
@@ -14779,6 +14780,8 @@ func adminLogAdminRightsMap(ar *tg.ChatAdminRights) map[string]bool {
 		"add_admins":      ar.AddAdmins,
 		"anonymous":       ar.Anonymous,
 		"manage_call":     ar.ManageCall,
+		"manage_direct":   ar.ManageDirectMessages,
+		"manage_ranks":    ar.ManageRanks,
 		"post_stories":    ar.PostStories,
 		"edit_stories":    ar.EditStories,
 		"delete_stories":  ar.DeleteStories,
@@ -17372,6 +17375,9 @@ type ChatPermissionFlags struct {
 	// Minimum group size for the aggressive anti-spam toggle, from the server
 	// appConfig telegram_antispam_group_size_min (menu_antispam_validator.cpp:37).
 	AntispamGroupSizeMin int      `json:"antispam_group_size_min"`
+	// Participant count (channel->membersCount()), used to gate the anti-spam
+	// toggle below the size threshold (menu_antispam_validator.cpp:86-90).
+	MemberCount          int      `json:"member_count"`
 }
 
 type DefaultBannedRights struct {
@@ -17621,6 +17627,7 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 	t.cacheEntities(result.Users, result.Chats)
 	flags := &ChatPermissionFlags{AutoTranslateMinLevel: 3}
 	if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
+		flags.MemberCount = fc.ParticipantsCount
 		flags.SlowmodeSeconds = fc.SlowmodeSeconds
 		flags.CanViewStats = fc.CanViewStats
 		flags.Antispam = fc.Antispam
@@ -21998,6 +22005,54 @@ func (t *TelegramCore) UpdateChannelColor(chatID string, colorIndex int) error {
 	_, err = t.api.ChannelsUpdateColor(t.ctx, &tg.ChannelsUpdateColorRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}, Color: colorIndex,
 	}); return err
+}
+
+// UpdateChannelColorEx sets a channel's name color and background emoji together
+// in one channels.updateColor RPC. colorIndex < 0 leaves the name color unchanged
+// (f_color omitted, mirroring AyuGram's kUnsetColorIndex=0xFF), while the background
+// emoji is ALWAYS applied so it can be set or cleared independently of the color
+// (edit_peer_color_box.cpp:600-609, which always passes Flag::f_background_emoji_id
+// for channels). backgroundEmojiID of 0 clears the background emoji.
+func (t *TelegramCore) UpdateChannelColorEx(chatID string, colorIndex int, backgroundEmojiID int64) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	req := &tg.ChannelsUpdateColorRequest{
+		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+	}
+	if colorIndex >= 0 {
+		req.SetColor(colorIndex)
+	}
+	// Always carry background_emoji_id (the gotd helper sets the flag even for 0,
+	// and Encode's SetFlags only adds — never clears — so a 0 value still serializes
+	// to clear the emoji), matching AyuGram's unconditional f_background_emoji_id.
+	req.SetBackgroundEmojiID(backgroundEmojiID)
+	_, err = t.api.ChannelsUpdateColor(t.ctx, req)
+	return err
+}
+
+// UpdateChannelEmojiStatus sets (documentID != 0) or clears (documentID == 0) a
+// channel's emoji status, applied independently of the name color & background
+// emoji (edit_peer_color_box.cpp:611-617, emojiStatuses().set on the channel).
+func (t *TelegramCore) UpdateChannelEmojiStatus(chatID string, documentID int64) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	var status tg.EmojiStatusClass
+	if documentID == 0 {
+		status = &tg.EmojiStatusEmpty{}
+	} else {
+		status = &tg.EmojiStatus{DocumentID: documentID}
+	}
+	_, err = t.api.ChannelsUpdateEmojiStatus(t.ctx, &tg.ChannelsUpdateEmojiStatusRequest{
+		Channel:     &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		EmojiStatus: status,
+	})
+	return err
 }
 
 // DeleteProfilePhotos removes one or more profile photos.

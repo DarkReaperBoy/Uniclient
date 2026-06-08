@@ -1700,6 +1700,17 @@ type ChatPermissionFlags struct {
 	CanSetStickers        bool   `json:"can_set_stickers"`
 	AutoTranslateMinLevel int    `json:"auto_translate_min_level"`
 	MigratedFromChatID    string `json:"migrated_from_chat_id"`
+	// Reactions state for the Edit-Peer "Reactions" manage-row count label
+	// (edit_peer_info_box.cpp:1523-1534): mode is "all"/"some"/"none", the list
+	// carries the allowed reactions when mode == "some", and paidEnabled gates
+	// the "1" fallback.
+	ReactionsMode         string   `json:"reactions_mode"`
+	ReactionsAllowed      []string `json:"reactions_allowed"`
+	PaidReactionsEnabled  bool     `json:"paid_reactions_enabled"`
+	// Aggressive anti-spam gating (menu_antispam_validator.cpp:86-90): the toggle
+	// is locked while MemberCount < AntispamGroupSizeMin.
+	AntispamGroupSizeMin  int      `json:"antispam_group_size_min"`
+	MemberCount           int      `json:"member_count"`
 }
 
 func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissionFlags, error) {
@@ -1742,6 +1753,11 @@ func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissi
 		CanSetStickers:        cf.CanSetStickers,
 		AutoTranslateMinLevel: cf.AutoTranslateMinLevel,
 		MigratedFromChatID:    cf.MigratedFromChatID,
+		ReactionsMode:         cf.ReactionsMode,
+		ReactionsAllowed:      cf.ReactionsAllowed,
+		PaidReactionsEnabled:  cf.PaidReactionsEnabled,
+		AntispamGroupSizeMin:  cf.AntispamGroupSizeMin,
+		MemberCount:           cf.MemberCount,
 	}, nil
 }
 
@@ -2156,18 +2172,32 @@ func (e *Engine) SendLocation(accountID, chatID string, lat, lon float64) error 
 	return err
 }
 
-func (e *Engine) UpdateChannelColor(accountID, chatID string, colorIndex int) error {
+func (e *Engine) UpdateChannelColor(accountID, chatID string, colorIndex int, backgroundEmojiID int64) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type colorUpdater interface {
-		UpdateChannelColor(chatID string, colorIndex int) error
+		UpdateChannelColorEx(chatID string, colorIndex int, backgroundEmojiID int64) error
 	}
 	if cu, ok := acc.Core.(colorUpdater); ok {
-		return cu.UpdateChannelColor(chatID, colorIndex)
+		return cu.UpdateChannelColorEx(chatID, colorIndex, backgroundEmojiID)
 	}
 	return fmt.Errorf("platform does not support channel color update")
+}
+
+func (e *Engine) UpdateChannelEmojiStatus(accountID, chatID string, documentID int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type emojiStatusUpdater interface {
+		UpdateChannelEmojiStatus(chatID string, documentID int64) error
+	}
+	if su, ok := acc.Core.(emojiStatusUpdater); ok {
+		return su.UpdateChannelEmojiStatus(chatID, documentID)
+	}
+	return fmt.Errorf("platform does not support channel emoji status update")
 }
 
 func (e *Engine) UpdatePaidMessagesPrice(accountID, chatID string, stars int64, broadcastEnabled bool) error {

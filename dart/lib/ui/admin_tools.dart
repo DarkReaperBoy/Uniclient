@@ -215,6 +215,12 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   int _reactionsUniqMax = 11;
   int _reactionsMaxCount = 0;
   bool _paidReactionsEnabled = false;
+  // Live counts shown on the right of the manage-section rows (the count labels
+  // AyuGram renders via CreateButton/AddButtonWithCount, edit_peer_info_box.cpp).
+  // _defaultBannedRights stays null until loaded so the Permissions row hides its
+  // count rather than showing a wrong "all allowed" while the RPC is in flight.
+  Map<String, dynamic>? _defaultBannedRights;
+  int _inviteLinksCount = 0;
 
   // Channel sub-type & admin capability flags (from GetChatPermissionFlags),
   // mirroring AyuGram ChannelData::* used by edit_peer_info_box fillManageSection.
@@ -287,7 +293,34 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     _forumEnabled = widget.chat.isForum;
     _loadDescription();
     _loadChatFullInfo();
-    if (_isBot) _loadBotManageInfo();
+    if (_isBot) {
+      _loadBotManageInfo();
+    } else {
+      _loadManageCounts();
+    }
+  }
+
+  /// Loads the live counts shown on the Reactions / Permissions / Invite-Links
+  /// manage rows. Reactions is already covered by GetChatPermissionFlags; this
+  /// fetches the admin's own invite-link count (AyuGram requestMyLinks(peer)->count,
+  /// edit_peer_info_box.cpp:1581) and the chat's default restrictions for the
+  /// Permissions "allowed/total" count (RestrictionsCountValue, :1549).
+  Future<void> _loadManageCounts() async {
+    final engine = context.read<EngineService>();
+    try {
+      final links = await engine.getExportedChatInvites(
+          widget.chat.accountId, widget.chat.chatId);
+      if (mounted) setState(() => _inviteLinksCount = links.length);
+    } catch (e) {
+      Debug.log('admin_tools', 'getExportedChatInvites (count): $e');
+    }
+    try {
+      final banned = await engine.getDefaultBannedRights(
+          widget.chat.accountId, widget.chat.chatId);
+      if (mounted) setState(() => _defaultBannedRights = banned);
+    } catch (e) {
+      Debug.log('admin_tools', 'getDefaultBannedRights (count): $e');
+    }
   }
 
   /// Loads bot edit/manage gating info so currency/credits/affiliate/verify rows
@@ -1735,9 +1768,18 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     }
 
     try {
-      if (colorId >= 0) {
+      // AyuGram persists the name color, background emoji and emoji status as
+      // independent fields (edit_peer_color_box.cpp:Set). The name color and
+      // background emoji ride one channels.updateColor RPC (which carries both,
+      // with the color omitted when unset, colorId < 0), so it must fire whenever
+      // EITHER changed — not only when a color is set. The emoji status is a
+      // separate channels.updateEmojiStatus RPC.
+      if (colorChanged || bgChanged) {
         await engine.updateChannelColor(widget.chat.accountId, widget.chat.chatId, colorId,
-          backgroundEmojiId: bgEmojiId, statusEmojiId: statusId);
+          backgroundEmojiId: bgEmojiId);
+      }
+      if (statusChanged) {
+        await engine.updateChannelEmojiStatus(widget.chat.accountId, widget.chat.chatId, statusId);
       }
       if (mounted) showTelegramToast(context, 'Color & emoji updated');
     } catch (e) {
@@ -2388,6 +2430,38 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     );
   }
 
+  // Reactions count label, mirroring AyuGram (edit_peer_info_box.cpp:1523-1534):
+  // "All" when reactions aren't restricted to a specific set, otherwise the
+  // allowed-count, else "1" for paid-only, else "Off".
+  String _reactionsCountLabel() {
+    if (_reactionsMode == 'all') return 'All';
+    final some = _reactionsAllowed.length;
+    if (some > 0) return '$some';
+    if (_paidReactionsEnabled) return '1';
+    return 'Off';
+  }
+
+  // Permissions "allowed/total" count, mirroring RestrictionsCountValue +
+  // ListOfRestrictions().size() (edit_peer_info_box.cpp:1549-1556). Returns the
+  // number of NOT-restricted rights over the total. Empty until loaded, and only
+  // meaningful for groups (a broadcast channel has no member restrictions).
+  String _permissionsCountLabel() {
+    if (_isBroadcastFlag) return '';
+    final banned = _defaultBannedRights;
+    if (banned == null) return '';
+    // The flattened restriction list (data_chat_participant_status RestrictionLabels):
+    // 14 entries, +1 (CreateTopics→manage_topics) for forums.
+    const baseKeys = [
+      'send_plain', 'send_photos', 'send_videos', 'send_roundvideos',
+      'send_audios', 'send_voices', 'send_docs', 'send_stickers',
+      'embed_links', 'send_polls', 'invite_users', 'pin_messages',
+      'edit_rank', 'change_info',
+    ];
+    final keys = [...baseKeys, if (widget.chat.isForum) 'manage_topics'];
+    final restricted = keys.where((k) => banned[k] == true).length;
+    return '${keys.length - restricted}/${keys.length}';
+  }
+
   Widget _buildAdminControlsSection(Color textColor, Color subTextColor) {
     final memberCount = widget.chat.memberCount;
     final adminCount =
@@ -2402,7 +2476,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         _EditRow(
           icon: Icons.emoji_emotions_outlined,
           label: 'Reactions',
-          value: '',
+          value: _reactionsCountLabel(),
           textColor: textColor,
           subTextColor: subTextColor,
           onTap: () => _showReactionsDialog(textColor, subTextColor),
@@ -2410,7 +2484,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         _EditRow(
           icon: Icons.security,
           label: 'Permissions',
-          value: '',
+          value: _permissionsCountLabel(),
           textColor: textColor,
           subTextColor: subTextColor,
           onTap: () => showEditPeerPermissionsBox(
@@ -2431,7 +2505,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         _EditRow(
           icon: Icons.link,
           label: 'Invite Links',
-          value: '',
+          // Admin's own link count (incl. the primary link); empty when none,
+          // matching AyuGram ToPositiveNumberString (edit_peer_info_box.cpp:1581-1593).
+          value: _inviteLinksCount > 0 ? '$_inviteLinksCount' : '',
           textColor: textColor,
           subTextColor: subTextColor,
           onTap: () => _showInviteLink(),
@@ -4974,6 +5050,161 @@ class _AdminFlag {
   _AdminFlag({required this.key, required this.label, this.enabled = true});
 }
 
+/// An expandable group of admin-right toggles ("Manage messages" / "Manage
+/// stories") with a parent master toggle and a "checked/total" count, mirroring
+/// AyuGram's nested SlideWrap + AddInnerToggle (edit_peer_permissions_box.cpp:
+/// 366-548, 724-763). Collapsed initially; the header row expands/collapses the
+/// children, and the master toggle on the right flips every child at once.
+class _NestedRightsGroup extends StatefulWidget {
+  final String label;
+  final List<_AdminFlag> flags;
+  final Color accentColor;
+  final Color textColor;
+  final VoidCallback onChanged;
+
+  const _NestedRightsGroup({
+    required this.label,
+    required this.flags,
+    required this.accentColor,
+    required this.textColor,
+    required this.onChanged,
+  });
+
+  @override
+  State<_NestedRightsGroup> createState() => _NestedRightsGroupState();
+}
+
+class _NestedRightsGroupState extends State<_NestedRightsGroup> {
+  // AyuGram hides the wrap on build (raw->hide(anim::type::instant), :745).
+  bool _expanded = false;
+
+  int get _checkedCount => widget.flags.where((f) => f.enabled).length;
+  // Master toggle reflects "any child checked" (AyuGram setChecked(count > 0), :453).
+  bool get _anyChecked => _checkedCount > 0;
+
+  void _toggleAll() {
+    // AyuGram toggleButton: checked = !checkView->checked(); set all children (:540).
+    final next = !_anyChecked;
+    setState(() {
+      for (final f in widget.flags) {
+        f.enabled = next;
+      }
+    });
+    widget.onChanged();
+  }
+
+  void _toggleChild(_AdminFlag flag, bool value) {
+    setState(() => flag.enabled = value);
+    widget.onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.accentColor;
+    final text = widget.textColor;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            // Tapping the label area expands/collapses (AyuGram button->clicks, :530).
+            Expanded(
+              child: InkWell(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text.rich(
+                          TextSpan(children: [
+                            TextSpan(
+                              text: widget.label,
+                              style: TextStyle(fontSize: 14, color: text),
+                            ),
+                            // Bold "checked/total" count, AyuGram tr::bold (:467).
+                            TextSpan(
+                              text: '  $_checkedCount/${widget.flags.length}',
+                              style: TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w600, color: text),
+                            ),
+                          ]),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // Arrow rotates 180° when expanded (AyuGram :490 / :511-519).
+                      AnimatedRotation(
+                        turns: _expanded ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 150),
+                        curve: Curves.easeOutCubic,
+                        child: Icon(Icons.keyboard_arrow_down,
+                            size: 18, color: text.withValues(alpha: 0.5)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Vertical separator + master toggle (AyuGram's rightsButtonToggleWidth
+            // area with a separator line, :413-434).
+            Container(width: 1, height: 22, color: text.withValues(alpha: 0.12)),
+            Padding(
+              padding: const EdgeInsets.only(left: 8, right: 16),
+              child: SizedBox(
+                height: 24,
+                child: Switch(
+                  value: _anyChecked,
+                  onChanged: (_) => _toggleAll(),
+                  activeColor: accent,
+                ),
+              ),
+            ),
+          ],
+        ),
+        // SlideWrap equivalent: children shown only when expanded.
+        AnimatedSize(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _expanded
+              ? Column(
+                  children: [
+                    for (final flag in widget.flags)
+                      InkWell(
+                        onTap: () => _toggleChild(flag, !flag.enabled),
+                        child: Padding(
+                          // Children indented under the group header.
+                          padding: const EdgeInsets.only(
+                              left: 38, top: 8, right: 22, bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(flag.label,
+                                    style: TextStyle(fontSize: 14, color: text)),
+                              ),
+                              const SizedBox(width: 20),
+                              SizedBox(
+                                height: 24,
+                                child: Switch(
+                                  value: flag.enabled,
+                                  onChanged: (v) => _toggleChild(flag, v),
+                                  activeColor: accent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                )
+              : const SizedBox(width: double.infinity, height: 0),
+        ),
+      ],
+    );
+  }
+}
+
 class _EditAdminBox extends StatefulWidget {
   final String accountId;
   final String chatId;
@@ -5550,29 +5781,34 @@ class _EditAdminBoxState extends State<_EditAdminBox>
                           headerColor,
                         ),
                         const SizedBox(height: 4),
+                        // §1 (first): flat — ChangeInfo (channel) / core group rights.
                         _buildRightsSection(
-                          widget.isChannel ? 'Info' : 'Core',
+                          null,
                           _section1,
                           accentColor,
                           textColor,
                         ),
                         Divider(height: 1, indent: 22, endIndent: 22, color: dividerColor),
+                        // §2: nested. Channel → "Manage messages" (Post/Edit/Delete
+                        // Messages); group → "Manage stories" (NestedAdminRightLabels).
                         _buildRightsSection(
-                          widget.isChannel ? 'Messages' : 'Stories',
+                          widget.isChannel ? 'Manage messages' : 'Manage stories',
                           _section2,
                           accentColor,
                           textColor,
                         ),
                         Divider(height: 1, indent: 22, endIndent: 22, color: dividerColor),
+                        // §3: channel → nested "Manage stories"; group → flat (second).
                         _buildRightsSection(
-                          widget.isChannel ? 'Stories' : 'Meta',
+                          widget.isChannel ? 'Manage stories' : null,
                           _section3,
                           accentColor,
                           textColor,
                         ),
                         if (widget.isChannel && _section4.isNotEmpty) ...[
                           Divider(height: 1, indent: 22, endIndent: 22, color: dividerColor),
-                          _buildRightsSection('Meta', _section4, accentColor, textColor),
+                          // §4 (channel second): flat.
+                          _buildRightsSection(null, _section4, accentColor, textColor),
                         ],
                         if (_hasRank) ...[
                           Divider(height: 1, color: dividerColor),
@@ -5740,17 +5976,32 @@ class _EditAdminBoxState extends State<_EditAdminBox>
     );
   }
 
+  // A flag section. When [nestingLabel] is null the flags render as flat toggle
+  // rows; when set, they nest inside an expandable group with a parent master
+  // toggle + "checked/total" count, mirroring AyuGram's SlideWrap + AddInnerToggle
+  // for "Manage messages"/"Manage stories" (edit_peer_permissions_box.cpp:724-753).
   Widget _buildRightsSection(
-    String sectionLabel,
+    String? nestingLabel,
     List<_AdminFlag> flags,
     Color accentColor,
     Color textColor,
   ) {
-    return Column(
-      children: [
-        for (final flag in flags)
-          _buildRightToggle(flag, accentColor, textColor),
-      ],
+    if (nestingLabel == null) {
+      return Column(
+        children: [
+          for (final flag in flags)
+            _buildRightToggle(flag, accentColor, textColor),
+        ],
+      );
+    }
+    return _NestedRightsGroup(
+      label: nestingLabel,
+      flags: flags,
+      accentColor: accentColor,
+      textColor: textColor,
+      // Bubble child changes up so the owner-transfer button gating
+      // (_allOwnerTransferRightsSelected) recomputes on the parent.
+      onChanged: () => setState(() {}),
     );
   }
 
@@ -6845,7 +7096,7 @@ class _AdminLogEventTile extends StatelessWidget {
     'embed_links': 'Embed links', 'send_polls': 'Send polls',
     'invite_users': 'Add members', 'manage_topics': 'Manage topics',
     'pin_messages': 'Pin messages', 'change_info': 'Change info',
-    'view_messages': 'Read messages',
+    'view_messages': 'Read messages', 'edit_rank': 'Edit own tags',
   };
   static const _adminLabels = {
     'change_info': 'Change info', 'post_messages': 'Post messages',
@@ -6855,6 +7106,7 @@ class _AdminLogEventTile extends StatelessWidget {
     'add_admins': 'Add admins', 'anonymous': 'Remain anonymous',
     'manage_call': 'Manage video chats', 'post_stories': 'Post stories',
     'edit_stories': 'Edit stories', 'delete_stories': 'Delete stories',
+    'manage_direct': 'Manage direct messages', 'manage_ranks': 'Edit member tags',
   };
 
   // Returns the (added, removed) right labels between two bool maps.
@@ -9319,6 +9571,9 @@ class _MemberListScreenState extends State<_MemberListScreen>
   bool _antispamLoaded = false;
   bool _isMegagroup = false;
   int _antispamMin = 100;
+  // Participant count, used to gate the anti-spam toggle below the size threshold
+  // (AyuGram: channel->membersCount() < min, menu_antispam_validator.cpp:86-90).
+  int _memberCount = 0;
 
   static const _firstPageCount = 16;
   static const _pageSize = 200;
@@ -9365,6 +9620,7 @@ class _MemberListScreenState extends State<_MemberListScreen>
           _isMegagroup = flags['is_megagroup'] == true;
           _antispamEnabled = flags['antispam'] == true;
           _antispamMin = (flags['antispam_group_size_min'] as num?)?.toInt() ?? 100;
+          _memberCount = (flags['member_count'] as num?)?.toInt() ?? 0;
           _antispamLoaded = true;
         });
       }
@@ -9382,7 +9638,12 @@ class _MemberListScreenState extends State<_MemberListScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
-    final belowThreshold = false; // membership count not tracked here; show toggle
+    // AyuGram disables the toggle below appConfig telegram_antispam_group_size_min
+    // (menu_antispam_validator.cpp:86-90): channel->membersCount() < min → locked,
+    // and a tap fires lng_manage_peer_antispam_not_enough.
+    final belowThreshold = _memberCount < _antispamMin;
+    final notEnoughMsg = 'Aggressive filtering can be enabled only in groups with '
+        'more than $_antispamMin ${_antispamMin == 1 ? 'member' : 'members'}.';
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
       child: Column(
@@ -9392,20 +9653,31 @@ class _MemberListScreenState extends State<_MemberListScreen>
             children: [
               Expanded(
                 child: Text('Aggressive Anti-Spam',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: belowThreshold ? subTextColor : textColor)),
               ),
-              Switch(
-                value: _antispamEnabled,
-                activeColor: palette.windowBgActive,
-                onChanged: belowThreshold ? null : _toggleAntiSpam,
+              // Below threshold the toggle is locked (greyed); tapping it surfaces
+              // the "not enough members" toast rather than silently failing server-side.
+              GestureDetector(
+                onTap: belowThreshold ? () => showTelegramToast(context, notEnoughMsg) : null,
+                child: Opacity(
+                  opacity: belowThreshold ? 0.45 : 1.0,
+                  child: Switch(
+                    value: _antispamEnabled,
+                    activeColor: palette.windowBgActive,
+                    onChanged: belowThreshold ? null : _toggleAntiSpam,
+                  ),
+                ),
               ),
             ],
           ),
           Padding(
             padding: const EdgeInsets.only(right: 8, top: 2),
             child: Text(
-              'Telegram will filter out more spam, but may occasionally affect ordinary messages. '
-              'Available for groups with more than $_antispamMin members.',
+              'Telegram will filter more spam but may occasionally affect ordinary messages. '
+              'You can report False Positives in Recent Actions.',
               style: TextStyle(fontSize: 12, color: subTextColor),
             ),
           ),
