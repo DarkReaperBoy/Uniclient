@@ -57,9 +57,7 @@ Audited the full 2199-line file against AyuGram's `window_theme.cpp`, `window_th
 - Hex serialization `#rrggbb` / `#rrggbbaa` round-trips correctly with `setColorSchemeValue` (window_theme.cpp:178-194).
 - No stubs, placeholders, TODOs, empty callbacks, or mock data. `getCrc32` resolves (archive barrel export, standard CRC-32).
 
-**Finding:**
-
-- [ ] [MAJOR] Palette entry is decompressed into memory *before* the size guard, so a zip-bomb `colors.tdesktop-theme`/`.tdesktop-palette` (tiny compressed, huge uncompressed) is fully expanded before being rejected — a DoS vector on untrusted theme archives. AyuGram's `readCurrentFileContent` reads `fileInfo.uncompressed_size` from the zip directory and bails *before* `openCurrentFile` when it exceeds the limit. The fix is trivial and already applied to the background path in the same function (`if (bgFile.size > …) return null;` at theme_file.dart:541, with an explicit zip-bomb comment): the palette path should likewise check `paletteFile.size > _maxPaletteFileSize` before reading `.content`. (`archive` 4.0.9 decompresses lazily on `.content`, confirmed archive_file.dart:174-189, so `.size` is available pre-decompression.) — `theme_file.dart:528-529` ← `AyuGram/Telegram/lib_base/base/zlib_help.h:258-263` (cf. window_theme.cpp:302-306 which reads the palette via this `kThemeSchemeSizeLimit`-bounded path)
+**Finding:** none open — the zip-bomb guard (palette `.size > _maxPaletteFileSize` check before `.content`, theme_file.dart:537-541) was verified and closed: matches AyuGram `readCurrentFileContent` (zlib_help.h, reads `uncompressed_size` before `openCurrentFile`, kThemeSchemeSizeLimit=1MB), and `archive` 4.0.9 sets `.size` from the central-directory `uncompressedSize` while decompressing lazily on `.content` (proven by a throwaway test: `.size`≈2MiB while `isCompressed==true`, parseThemeFile→null).
 
 # theme_preview — Telegram Desktop theme-preview thumbnail renderer (port of `window_theme_preview.cpp`)
 
