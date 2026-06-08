@@ -194,8 +194,16 @@ button reaches the engine). Verified-correct against the C++ ground truth:
 - `_isoWeekNumber` reproduces AyuGram's calendar-year + ISO-week test exactly
   (`:564` ↔ `api_authorizations.cpp:265-266`).
 
-Three real deviations follow. **Finding 1 is in this Dart file and hits nearly every
-user; findings 2–3 are engine parity gaps that surface as wrong output on this screen.**
+Three real deviations were found and **all three are now fixed & verified**: (1)
+timestamps render in local time via `DateTime.parse(...).toLocal()` in
+`_formatActiveDate`/`_formatFullDate` (mirrors `base::unixtime::parse`); (2)
+`telegram.go GetSessions` normalizes app name/version through `normalizeSessionApp` +
+`formatVersionDisplay`, mirroring `Api::ParseEntry`/`Core::FormatVersionDisplay`; (3)
+`GetSessions` falls back to `date_created` when `date_active == 0`. Verified empirically
+(Dart `DateTime.parse("…+04:00")` → UTC hour, `.toLocal()` → local hour; Go unit test of
+`normalizeSessionApp`/`formatVersionDisplay`/fallback; runtime screenshots desktop+mobile
+showing local times and normalized "Telegram Desktop" / preserved third-party app names,
+no `1970` epoch dates).
 
 Not flagged (MINOR/cosmetic, consistent with this repo's audit calibration): ~22
 hard-coded English UI strings (`'Active Sessions'`, `'This device'`, `'Active Devices'`,
@@ -203,12 +211,6 @@ section footers, info-box labels, etc., `:654-1188`) where AyuGram uses `tr::lng
 text is correct, just not routed through `TrStrings`; and the locale format of
 `_formatActiveDate` (24h `HH:mm`, `dd.MM.yyyy`, English weekday names vs AyuGram's
 `QLocale::ShortFormat`/`langDayOfWeek`).
-
-- [ ] [MAJOR] Session active date/time is rendered in **UTC, not the user's local time** — every timestamp on this screen is shifted by the user's UTC offset. `_formatActiveDate` and `_formatFullDate` call `DateTime.parse()` on the engine's `last_active` and then read `.hour`/`.minute`/`.year`/`.month`/`.day` (and build `TimeOfDay.fromDateTime`) **without `.toLocal()`**. The engine marshals `last_active` as Go `time.Time` (`json.Marshal` of `cores.Session`, `dispatch_engine.go:5214`; value built `time.Unix(...)` → local → RFC3339 *with* offset, e.g. `…+05:30` / `…Z`). Verified empirically: Dart `DateTime.parse` returns a **UTC** `DateTime` (`isUtc=true`) for any offset/`Z` string, so `.hour` is the UTC hour. AyuGram renders **local** time via `base::unixtime::parse` (`langDateTimeFull(base::unixtime::parse(data.activeTime))` and `ActiveDateString`). Net: a session active at 20:00 local shows "14:30" for a +05:30 user, in both the row date and the info-box "active" line; the "is it today / this week" branch also mis-buckets near local midnight since it compares UTC `date` against local `DateTime.now()`. Fix: `DateTime.parse(dateStr).toLocal()` in both functions (the sort helper `_lastActive:231` correctly uses `.toUtc()` and is unaffected). — `active_sessions_screen.dart:556` (and `557-567`), `active_sessions_screen.dart:842` (and `844-848`) ← `AyuGram/Telegram/SourceFiles/api/api_authorizations.cpp:258-269` + `AyuGram/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:443`
-
-- [ ] [MAJOR] App version is shown **raw**, not normalized like AyuGram's `ParseEntry`. The row status line (`appName + ' ' + appVersion`) and the info-box "Application" row (`appStr = '$appName $appVersion'`) display `app_version` verbatim. AyuGram formats it before the UI ever sees it: for desktop api-ids a pure-integer version is run through `FormatVersionDisplay` (`4017004` → `4.17.4`; `changelogs.cpp:150-156`), and for non-desktop apps a parenthesized build is trimmed to just `(build)`. The uniclient engine (`telegram.go:14118-14119` `GetActiveSessions`, passed through `GetSessions:30811-30812`) copies `a.AppName`/`a.AppVersion` straight from the MTProto authorization with no normalization, so e.g. a snap/GitHub/legacy desktop session whose `app_version` is a numeric build id renders as a meaningless integer instead of a dotted version (and the desktop "Telegram Desktop"/" (GitHub)" app-name override is absent). Fix belongs in `telegram.go` to mirror `ParseEntry`. — `active_sessions_screen.dart:1235` (and `:592`) ← `AyuGram/Telegram/SourceFiles/api/api_authorizations.cpp:44-57` (and `:75-77`)
-
-- [ ] [MAJOR] `last_active` has no `date_created` fallback, so a session with `date_active == 0` renders as the Unix epoch (`01.01.1970` in the row, "January 1, 1970" in the info box). AyuGram sets `activeTime = date_active ? date_active : date_created` (defensively guarding the zero case, which occurs for some authorizations e.g. incomplete login attempts). The engine builds `LastActive: time.Unix(int64(s.DateActive), 0)` using `DateActive` only — no fallback (`telegram.go:30815`; `DateCreated` is parsed into `ActiveSession` at `:14122` but dropped on the way to `cores.Session`). When `DateActive` is 0 the Dart faithfully displays epoch instead of the creation date AyuGram would show. Fix belongs in `telegram.go GetSessions`. — `active_sessions_screen.dart:586` (and `:596`, `:1230`) ← `AyuGram/Telegram/SourceFiles/api/api_authorizations.cpp:72-74`
 
 # admin_tools — Channel/group admin management (Edit Peer Info, Permissions, Admin/Restricted editors, Recent Actions log, Invite Links, Member list, Statistics, Boosts, Monetization, Star-ref)
 
