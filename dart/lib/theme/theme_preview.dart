@@ -578,20 +578,43 @@ class _ThemePreviewPainter extends CustomPainter {
       bubbleX = panelLeft + 16;
     }
 
-    // Bubble shape
+    // Bubble shape — BubbleRounding (message_bubble.cpp:835-859): every corner
+    // starts Large(16); attachToTop/Bottom downgrades a corner to Small(4); a
+    // tail downgrades the bottom corner on the message's own side to a Tail,
+    // which Ui::PaintBubble renders as a SHARP corner (radius 0) plus a drawn
+    // tail pointer (message_bubble.cpp:59-64, 153-158).
     final bubbleRect = Rect.fromLTWH(bubbleX, y, bubbleW, contentH);
-    final topL = attachToTop && !isOut ? const Radius.circular(4) : const Radius.circular(16);
-    final topR = attachToTop && isOut ? const Radius.circular(4) : const Radius.circular(16);
-    final botL = !isOut && !attachToBottom && tail
-        ? const Radius.circular(4)
-        : (attachToBottom && !isOut ? const Radius.circular(4) : const Radius.circular(16));
-    final botR = isOut && !attachToBottom && tail
-        ? const Radius.circular(4)
-        : (attachToBottom && isOut ? const Radius.circular(4) : const Radius.circular(16));
+    const large = Radius.circular(16);
+    const small = Radius.circular(4);
+    var topL = large, topR = large, botL = large, botR = large;
+    var tailLeft = false, tailRight = false;
+    if (isOut) {
+      if (attachToTop) topR = small;
+      if (attachToBottom) {
+        botR = small;
+      } else if (tail) {
+        botR = Radius.zero;
+        tailRight = true;
+      }
+    } else {
+      if (attachToTop) topL = small;
+      if (attachToBottom) {
+        botL = small;
+      } else if (tail) {
+        botL = Radius.zero;
+        tailLeft = true;
+      }
+    }
     final rrect = RRect.fromRectAndCorners(
       bubbleRect, topLeft: topL, topRight: topR, bottomLeft: botL, bottomRight: botR,
     );
     canvas.drawRRect(rrect, Paint()..color = bubbleBg);
+    if (tailLeft) {
+      _drawBubbleTail(canvas, bubbleX, y + contentH, bubbleBg, right: false);
+    }
+    if (tailRight) {
+      _drawBubbleTail(canvas, bubbleX + bubbleW, y + contentH, bubbleBg, right: true);
+    }
 
     double cy = y + 8;
 
@@ -620,10 +643,14 @@ class _ThemePreviewPainter extends CustomPainter {
         ),
         Paint()..color = replyBarColor,
       );
+      // Reply sender name → msgInServiceFg/msgOutServiceFg (= windowActiveTextFg
+      // accent), NOT the reply-bar colour; reply text → full-opacity
+      // historyTextInFg/historyTextOutFg (window_theme_preview.cpp:907-911).
+      final replyNameFg = isOut ? palette.msgOutServiceFg : palette.msgInServiceFg;
       _drawText(canvas, replyName, bubbleX + padding + 10, cy + 3,
-          12, replyBarColor, FontWeight.w600);
+          12, replyNameFg, FontWeight.w600);
       _drawText(canvas, replyText ?? '', bubbleX + padding + 10, cy + 18,
-          12, textFg.withValues(alpha: 0.7), FontWeight.normal);
+          12, textFg, FontWeight.normal);
       cy += 38;
     }
 
@@ -681,17 +708,20 @@ class _ThemePreviewPainter extends CustomPainter {
     final bubbleX = panelLeft + chatWidth - bubbleW - 16;
     final y = bottom - bubbleH;
 
-    // Bubble background
+    // Bubble background — outgoing, standalone: bottom-right is a Tail, drawn as
+    // a sharp corner plus a tail pointer (message_bubble.cpp:847-849, 153-158).
     canvas.drawRRect(
       RRect.fromRectAndCorners(
         Rect.fromLTWH(bubbleX, y, bubbleW, bubbleH),
         topLeft: const Radius.circular(16),
         topRight: const Radius.circular(16),
         bottomLeft: const Radius.circular(16),
-        bottomRight: const Radius.circular(4),
+        bottomRight: Radius.zero,
       ),
       Paint()..color = palette.msgOutBg,
     );
+    _drawBubbleTail(canvas, bubbleX + bubbleW, y + bubbleH, palette.msgOutBg,
+        right: true);
 
     // Play button circle
     final circleCx = bubbleX + thumbLeft + thumbSize / 2;
@@ -722,14 +752,22 @@ class _ThemePreviewPainter extends CustomPainter {
     // waveActive indexes the 67-element wavedata array (the DATA index up to
     // which the message has been "played"), NOT the downsampled bar index.
     const waveActive = 33;
-    const barWidth = 2.0;
+    const barWidth = 2.0; // msgWaveformBar (chat.style:557)
     // msgWaveformSkip = 1px (chat.style:558) → 3px pitch with the 2px bar.
     const barSpacing = 1.0;
-    const maxBarHeight = 16.0;
-    const minBarHeight = 2.0;
+    // AyuGram waveform amplitude range (chat.style:559-560): each bar is bottom-
+    // anchored at waveBottom + msgWaveformMin and grows upward by bar_value in
+    // [0, msgWaveformMax - msgWaveformMin] (window_theme_preview.cpp:947,961-963).
+    const msgWaveformMin = 3.0;
+    const msgWaveformMax = 17.0;
+    const maxDelta = msgWaveformMax - msgWaveformMin;
     const normValue = 31;
+    // statusTop (chat.style:511) — duration text top within the file layout.
+    const statusTop = 34.0;
     final waveLeft = bubbleX + thumbLeft + thumbSize + 11;
-    final waveBottom = y + thumbTop + thumbSize / 2 + maxBarHeight / 2;
+    // wave_bottom = y + padding.top + msgWaveformMax (window_theme_preview.cpp:948),
+    // so bars occupy the upper "name" row, not the play-button centre line.
+    final waveBottom = y + thumbTop + msgWaveformMax;
     final waveRight = bubbleX + bubbleW - 50;
     final availW = waveRight - waveLeft;
     final barCount = math.min((availW / (barWidth + barSpacing)).floor(), wavedata.length);
@@ -737,7 +775,9 @@ class _ThemePreviewPainter extends CustomPainter {
     for (int i = 0; i < barCount; i++) {
       final dataIdx = (i * wavedata.length / barCount).floor();
       final value = wavedata[math.min(dataIdx, wavedata.length - 1)];
-      final barH = minBarHeight + (value / normValue) * (maxBarHeight - minBarHeight);
+      // bar_value ∈ [0, maxDelta]; rect top = wave_bottom - bar_value, height =
+      // msgWaveformMin + bar_value (window_theme_preview.cpp:961-963).
+      final barValue = (value / normValue) * maxDelta;
       final barX = waveLeft + i * (barWidth + barSpacing);
       // AyuGram colors a bar "played" by the DATA index it samples, not the bar
       // index (window_theme_preview.cpp:960 `if (i >= bubble.waveactive)`, where
@@ -748,15 +788,16 @@ class _ThemePreviewPainter extends CustomPainter {
           : palette.msgWaveformOutInactive;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(barX, waveBottom - barH, barWidth, barH + minBarHeight),
+          Rect.fromLTWH(barX, waveBottom - barValue, barWidth, msgWaveformMin + barValue),
           const Radius.circular(1),
         ),
         Paint()..color = barColor,
       );
     }
 
-    // Duration text
-    _drawText(canvas, '0:07', waveLeft, y + thumbTop + thumbSize - 4, 11,
+    // Duration text ("0:07") at (nameleft, statusTop) = (waveLeft, y+34) —
+    // above the timestamp, not at the bubble's bottom edge (cpp:925,982).
+    _drawText(canvas, '0:07', waveLeft, y + statusTop, 11,
         palette.mediaOutFg, FontWeight.normal);
 
     // Timestamp + check
@@ -791,17 +832,19 @@ class _ThemePreviewPainter extends CustomPainter {
     final bubbleX = panelLeft + 16;
     final y = bottom - totalH;
 
-    // Bubble background
+    // Bubble background — incoming, standalone: bottom-left is a Tail, drawn as
+    // a sharp corner plus a tail pointer (message_bubble.cpp:856-857, 153-158).
     canvas.drawRRect(
       RRect.fromRectAndCorners(
         Rect.fromLTWH(bubbleX, y, bubbleW, totalH),
         topLeft: const Radius.circular(16),
         topRight: const Radius.circular(16),
-        bottomLeft: const Radius.circular(4),
+        bottomLeft: Radius.zero,
         bottomRight: const Radius.circular(16),
       ),
       Paint()..color = palette.msgInBg,
     );
+    _drawBubbleTail(canvas, bubbleX, y + totalH, palette.msgInBg, right: false);
 
     // Caption and time drawn BEFORE photo (AyuGram draws photo last, on top)
     _drawText(canvas, 'To reach a port, we must sail. \u{1f978}',
@@ -894,12 +937,37 @@ class _ThemePreviewPainter extends CustomPainter {
       Paint()..color = palette.historyComposeAreaBg,
     );
 
-    // AyuGram: lng_message_ph = "Message" (localized placeholder)
+    // AyuGram: lng_message_ph = "Message" (localized placeholder). Colour =
+    // historyComposeField.placeholderFg = placeholderFg = windowSubTextFg
+    // (colors.palette:73, window_theme_preview.cpp:616) — the same token used by
+    // the dialogs search placeholder above, NOT windowFg@50%.
     _drawText(canvas, 'Message', left + attachWidth + 12, composeY + 14, 13,
-        palette.historyComposeAreaFg.withValues(alpha: 0.5), FontWeight.normal);
+        palette.windowSubTextFg, FontWeight.normal);
   }
 
   // ── Icon Drawing Helpers ──
+
+  // AyuGram message-bubble tail (chat.style:439-446 `bubble_tail` icon, colorized
+  // with msgInBg/msgOutBg; message_bubble.cpp:153-158). A Corner::Tail bottom
+  // corner is drawn sharp and this 6×10 pointer is painted just outside it, in
+  // the bubble's own bg colour. Mask shape (Resources/icons/bubble_tail.png) is a
+  // right triangle whose right angle sits at the bubble's bottom corner, tapering
+  // ~6px outward and ~8px up. [right]=true mirrors it for outgoing bubbles.
+  void _drawBubbleTail(Canvas canvas, double x, double bottom, Color color,
+      {required bool right}) {
+    final path = Path()
+      ..moveTo(x, bottom - 8)
+      ..lineTo(x, bottom)
+      ..lineTo(x + (right ? 6 : -6), bottom)
+      ..close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true,
+    );
+  }
 
   // AyuGram dialogsChatIcon (Row::Type::Group) — a compact two-person glyph
   // (~16x10) painted before group-row names in the dialogs list.
