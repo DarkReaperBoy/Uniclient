@@ -123,15 +123,37 @@ prefs + persisted bytes, `ChatBackgroundRotator.rotate()` fired on outgoing-mess
 No stubs, no placeholders, no mock data, no empty callbacks. Findings below are the
 genuine deviations.
 
-## Missing feature
+## Findings — all verified FIXED & closed
 
-- [ ] [CRITICAL] Dark-mode dimming of image wallpapers is entirely absent. AyuGram overlays a black rect at `255 * darkModeDimming / 100` alpha over a non-pattern image background whenever the active theme is dark — and `darkModeDimming` defaults to `clamp(patternIntensity,0,100) = 50` for image wallpapers, so a custom image background is dimmed ~50% in every dark theme. The Dart renderer has no theme/brightness awareness at all: `_buildImage` → `_ScaledWallpaperImage`/`_TiledImage` paint the raw image, and the mount point `_ChatBackground` (chat_view.dart:20856-20879) adds no overlay. Result: image wallpapers render at full brightness under dark themes (>25% luminance deviation, readability of the dark UI suffers). — `wallpaper.dart:361` (`_buildImage`, no dimming) ← `AyuGram/SourceFiles/ui/chat/chat_theme.cpp:1228` (dimming applied; default set at `AyuGram/SourceFiles/window/window_session_controller.cpp:3695` + `forDarkMode` :3710)
+All three findings were verified FIXED & closed (Stage-2 verification — built the Flutter
+debug bundle, injected a bright test image wallpaper via prefs, launched, opened a chat, and
+measured the rendered chat-background in BOTH desktop 1024×768 and mobile 400×720, cross-checked
+the code against AyuGram ground truth):
 
-## Performance — heavy image work on the UI thread
+- [CRITICAL] Dark-mode dimming of image wallpapers now applied. `_buildImage(bool isDark)` stacks
+  a `ColoredBox(Color.fromARGB(255 * darkModeDimming ~/ 100, 0,0,0))` over a non-pattern image
+  background while the active theme is dark; `darkModeDimming = patternIntensity.clamp(0,100)` = 50
+  default → alpha 127. Brightness read via `Theme.of(context).brightness` (= `TelegramPalette.isDark`
+  via `AppTheme.fromPalette`, ≡ AyuGram `forDarkMode = theme.basedOnDark`). Measured A/B on the same
+  bright (~lum 200) test image: light-theme chat-bg luminance 205.3, dark-theme 102.7 → **ratio
+  exactly 0.500** (50% dim, gated correctly — present in dark, absent in light); mobile dark-theme
+  luminance 94.9 (dimmed) too. — `wallpaper.dart:374,408-453` ✓ `chat_theme.cpp:1228-1237` (alpha
+  `255*darkModeDimming/100`), default `window_session_controller.cpp:3695-3697` + `forDarkMode` :3710.
 
-- [ ] [MAJOR] `encodeWallpaperJpeg` does a full synchronous pure-Dart decode + crop + resize + JPEG-encode (`package:image`) and is invoked inline on the UI thread when applying a custom wallpaper (chat_settings_screen.dart:292, not awaited / not isolated). For a typical multi-megapixel phone photo this freezes the UI for ~1–2 s. The same file already proves the correct pattern by running the (lighter) gradient generation off-thread via `compute()` (`_generateGradientBytesAsync`, `wallpaper.dart:673`); AyuGram likewise prepares background images off the main thread. — `wallpaper.dart:1968` ← `AyuGram/SourceFiles/ui/chat/chat_theme.cpp:941` (`PreprocessBackgroundImage`; background prep dispatched via `crl::async` at :705)
+- [MAJOR] `encodeWallpaperJpeg` now runs off the UI thread. `encodeWallpaperJpegAsync` =
+  `compute(encodeWallpaperJpeg, bytes)`; `chat_settings_screen` `_pickFromFile` now `await`s it with a
+  `mounted` recheck before touching `context` (no inline freeze). Grep confirms the sync function has
+  ZERO UI-thread callers (only the isolate body). — `wallpaper.dart:2092` + `chat_settings_screen.dart:296`
+  ✓ `chat_theme.cpp:941` (`PreprocessBackgroundImage`, dispatched via `crl::async` :705).
 
-- [ ] [MAJOR] `computeAverageColor` fully decodes the wallpaper image synchronously on the UI thread (`img.decodeImage`, slow pure-Dart codec) before sampling, with no `compute()`/isolate. It runs on the UI thread on every switch to an image wallpaper via `WallpaperData.averageColor` → `adjustServiceColorsForWallpaper` (telegram_palette.dart:1983 → main.dart:2467) — a ~0.5–1 s hitch (the result is cached afterward, so it is once-per-change rather than per-frame). AyuGram's `CountAverageColor` sums an already-decoded `QImage` produced off-thread, never re-decoding from bytes on the UI thread. — `wallpaper.dart:1925` ← `AyuGram/SourceFiles/ui/chat/chat_theme.cpp:880` (`CountAverageColor`)
+- [MAJOR] `computeAverageColor` moved off the UI thread. `averageColor` getter now returns an
+  Expando-cached value (`null` until ready — never a sync decode); `ensureAverageColor()` computes it
+  via `compute(_averageColorValueIsolate, bytes)`; `AppState._ensureWallpaperAverageColor` kicks it on
+  `setWallpaper`/`_loadWallpaper` and `notifyListeners()` once it lands; `main.dart` folds the avg into
+  the palette cache key so service colours adapt; `adjustServiceColorsForWallpaper` returns `this` when
+  avg is null. Exercised at startup (image wallpaper restored from prefs) with no freeze; grep confirms
+  the sync `computeAverageColor` has only the isolate caller. — `wallpaper.dart:296-327,2001-2006` +
+  `app_state.dart:2987-2997,4847` + `main.dart:2446,2480` ✓ `chat_theme.cpp:880` (`CountAverageColor`).
 
 # active_sessions_screen — Active Sessions / device management screen (AyuGram `Settings::Sessions` + `SessionsContent`)
 
