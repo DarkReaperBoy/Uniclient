@@ -12,6 +12,7 @@ import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, KeyDownEvent, LogicalKeyboardKey;
 
 import '../data/emoji_data.dart';
+import '../l10n/strings.dart';
 import 'custom_emoji_cache.dart';
 import 'gesture_utils.dart';
 import 'info_panel.dart';
@@ -1433,7 +1434,12 @@ class _MessageBubbleState extends State<MessageBubble> {
       if (message.isEdited)
         widgets.add(Padding(
           padding: const EdgeInsets.only(right: 4),
-          child: Text('edited',
+          // AyuGram renders settings.editedMark() (history_view_bottom_info.cpp:464).
+          // Dart convention: empty editedMark = localized default "edited".
+          child: Text(
+              appState.editedMark.isNotEmpty
+                  ? appState.editedMark
+                  : TrStrings.lngEdited(),
               style: TextStyle(fontSize: 13, color: color)),
         ));
     }
