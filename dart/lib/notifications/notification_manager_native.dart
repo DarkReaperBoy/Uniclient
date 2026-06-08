@@ -384,8 +384,10 @@ class NativeManager extends NotificationManager {
 
   // Port of EmptyUserpic::fillString (ui/empty_userpic.cpp:613-672): derives one
   // or two initials from a PEER NAME, iterating Unicode CODE POINTS (not UTF-16
-  // code units), skipping emoji + non-BMP scraps, and preferring a second letter
-  // after a space (level 0) over one after a hyphen (level 1). Returns '' when
+  // code units), skipping emoji + non-BMP scraps. A SECOND initial is taken ONLY
+  // after a space (which resets letterFound); a hyphen bumps level to 1 but keeps
+  // letterFound set, so its level-1 capture is dead code (matching AyuGram) and a
+  // hyphenated-only name like "Anna-Maria" yields a single "A". Returns '' when
   // the name has no usable letter — AyuGram then draws a bare gradient circle.
   static String _getInitials(String name) {
     final runes = name.runes.toList(growable: false);
@@ -421,8 +423,15 @@ class NativeManager extends NotificationManager {
           level = 0;
           letterFound = false;
         } else if (letterFound && r == 0x2D) {
+          // AyuGram keeps letterFound = true here (empty_userpic.cpp:650). That
+          // makes the post-hyphen capture UNREACHABLE: the only reset of
+          // letterFound is a space (which also zeroes level), so no letter is
+          // ever taken while level == 1 — the level-1 branch is dead code. A
+          // hyphenated-only name therefore yields a SINGLE initial: "Anna-Maria"
+          // → "A" (not "AM"). Setting this to false would capture a second
+          // initial after the hyphen and diverge from AyuGram.
           level = 1;
-          letterFound = false;
+          letterFound = true;
         }
         i++;
       }
