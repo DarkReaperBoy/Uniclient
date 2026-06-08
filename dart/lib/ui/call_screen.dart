@@ -630,28 +630,37 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     // participant — AyuGram suppresses them for Invited/Calling rows (no ssrc,
     // canKick==false). Skip them entirely for invited rows.
     if (!isInvited) {
-      // Admin server-side mute/unmute.
-      if (!p.isMuted && widget.isCanManage) {
-        items.add(const PopupMenuItem(value: 'mute', child: Text('Mute')));
-      } else if (p.isMuted && widget.isCanManage) {
-        items.add(const PopupMenuItem(value: 'unmute', child: Text('Unmute')));
-      }
-
-      // Local "Mute for me" / "Unmute for me" — available to EVERY user, driven
-      // by mutedByMe (AyuGram mute_for_me). Implemented via per-listener volume.
-      if (!isSelf) {
-        final mutedForMe = p.mutedByMe || p.volume == 0;
+      // Admin server-side mute/unmute. AyuGram's muteAction (calls_group_members
+      // .cpp:1656-1678) returns no action for self (isMe), rtmp, or a participant
+      // with no live ssrc; the label flips to "Unmute" only when already muted.
+      // (Co-admin protection — Inactive && participantIsCallAdmin && canManage →
+      // no action — needs per-participant admin data the engine doesn't surface.)
+      if (widget.isCanManage && !isSelf && !widget.isRtmp && p.ssrc != 0) {
+        final muted = p.isMuted;
         items.add(PopupMenuItem(
-          value: mutedForMe ? 'unmute_for_me' : 'mute_for_me',
-          child: Text(mutedForMe ? 'Unmute for me' : 'Mute for me'),
+          value: muted ? 'unmute' : 'mute',
+          child: Text(muted ? 'Unmute' : 'Mute'),
         ));
       }
 
-      items.add(PopupMenuItem(
-        value: 'volume',
-        child: Text('Volume: ${(p.volume / 100).round()}%'),
-      ));
+      // Inline volume slider carrying a local mute-for-me toggle — AyuGram embeds
+      // a live MenuVolumeItem directly in the popup (calls_group_members.cpp:1600-
+      // 1647), with the speaker glyph doubling as the mute-for-me control.
+      // Replaces the old separate "Mute for me" item + "Volume: X%" AlertDialog.
+      // Shown for OTHER joined participants (you don't adjust your own volume).
+      if (!isSelf) {
+        items.add(_VolumeMenuItem(
+          participant: p,
+          callId: callId,
+          accountId: accountId,
+          engine: engine,
+        ));
+      }
 
+      // Remove from call (kick). AyuGram's canKick additionally excludes the
+      // chat creator and co-admins via ban-rights (calls_group_members.cpp:1521-
+      // 1545); that per-participant admin data isn't in the engine pipeline, so
+      // this matches the conference case (canManage only) and the self exclusion.
       if (widget.isCanManage && !isSelf) {
         items.add(const PopupMenuDivider());
         items.add(const PopupMenuItem(
@@ -685,12 +694,6 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           engine.muteGroupCallParticipant(accountId, callId, p.userId, true);
         case 'unmute':
           engine.muteGroupCallParticipant(accountId, callId, p.userId, false);
-        case 'mute_for_me':
-          engine.setGroupCallParticipantVolume(accountId, callId, p.userId, 0);
-        case 'unmute_for_me':
-          engine.setGroupCallParticipantVolume(accountId, callId, p.userId, 10000);
-        case 'volume':
-          _showVolumeSlider(context, p, callId: callId);
         case 'kick':
           engine.kickGroupCallParticipant(accountId, callId, p.userId);
         case 'pin_camera':
@@ -711,48 +714,6 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           engine.declineOutgoingConferenceInvite(accountId, callId, p.userId, true);
       }
     });
-  }
-
-  void _showVolumeSlider(BuildContext context, GroupCallParticipant p, {required String callId}) {
-    final engine = context.read<EngineService>();
-    final accountId = context.read<AppState>().activeAccountId;
-    var volume = p.volume.clamp(0, 20000).toDouble();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx2, setDlgState) => AlertDialog(
-          backgroundColor: const Color(0xFF1E2530),
-          title: Text(p.displayName, style: const TextStyle(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('${(volume / 100).round()}%',
-                style: const TextStyle(color: Colors.white70, fontSize: 14)),
-              Slider(
-                value: volume,
-                min: 0,
-                max: 20000,
-                divisions: 200,
-                activeColor: const Color(0xFF3390EC),
-                onChanged: (v) => setDlgState(() => volume = v),
-                onChangeEnd: (v) {
-                  engine.setGroupCallParticipantVolume(
-                    accountId, callId, p.userId, v.round(),
-                  );
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx2),
-              child: const Text('Done'),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildChatPanel({bool wide = false}) {
@@ -964,15 +925,90 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   }
 
   Widget _buildBottomControls({bool wide = false}) {
-    // Narrow mode is a fixed 380px panel. The 5 buttons (68px each) plus 6 even
-    // gaps must span the full width with NO horizontal inset — matching AyuGram's
-    // narrow 5-button layout (calls_group_panel.cpp updateButtonsGeometry, the
-    // `five` branch: fullWidth = groupCallWidth = 380px,
-    // buttonSkip = (380 - 5*68) / 6 ≈ 6.67px), which spaceEvenly reproduces as its
-    // 6 equal gaps. A 24px side inset would make 5*68 + 48 = 388px > 380px and
-    // paint the RenderFlex overflow stripe over the mute button (hiding the
-    // transient "Connecting…" label). Wide mode lives in the wider video column,
-    // so it keeps the 24px inset.
+    // AyuGram computes the control set conditionally in updateButtonsGeometry
+    // (calls_group_panel.cpp:2514-2660) — it is NOT a fixed 5-button row.
+    //   messagesEnabled = server flag (in-call live messages enabled).
+    //   showVideoButton = videoButtonInNarrowMode() = video available && !mutedByAdmin.
+    final messagesEnabled = widget.info.messagesEnabled;
+    final rtmp = widget.isRtmp;
+    final showVideoButton = !rtmp && !widget.isForceMuted;
+
+    final video = _GroupCallControlButton(
+      icon: Icons.videocam_outlined,
+      label: 'Video',
+      isActive: widget.isVideoActive,
+      onTap: widget.onToggleVideo,
+    );
+    final settings = _GroupCallControlButton(
+      icon: Icons.settings_outlined,
+      label: 'Settings',
+      onTap: widget.onOpenSettings,
+    );
+    // _screenShare — a PRIMARY wide-mode button (default layout), never narrow.
+    final screenShare = _GroupCallControlButton(
+      icon: Icons.screen_share_outlined,
+      label: 'Screen',
+      isActive: widget.isScreenShareActive,
+      onTap: widget.onToggleScreenShare,
+    );
+    // _message — the in-call live-messages control, gated on messagesEnabled.
+    final message = _GroupCallControlButton(
+      icon: Icons.chat_bubble_outline,
+      label: 'Chat',
+      isActive: widget.isMessagesVisible,
+      onTap: widget.onToggleMessages,
+    );
+    final mute = _BigMuteButton(
+      state: _muteState,
+      onTap: widget.onToggleMute,
+      scheduleDate: widget.scheduleDate,
+      isCanManage: widget.isCanManage,
+      scheduleStartSubscribed: widget.scheduleStartSubscribed,
+    );
+    final hangup = _GroupCallActionButton(
+      icon: Icons.call_end,
+      backgroundColor: const Color(0xFFE53935),
+      onTap: widget.onLeave,
+    );
+
+    final buttons = <Widget>[];
+    if (wide) {
+      // Wide bottom bar (calls_group_panel.cpp:2514-2552). Left slot:
+      // _screenShare when (!rtmp && !messagesEnabled), else _settings. Right of
+      // mute: _message when messagesEnabled, else _settings. (The "…" menu is
+      // reachable from the sidebar title bar, so settings stays a gear here.)
+      if (!rtmp && !messagesEnabled) {
+        buttons.add(screenShare);
+      } else {
+        buttons.add(settings);
+      }
+      if (!rtmp) buttons.add(video);
+      buttons.add(mute);
+      if (!rtmp && messagesEnabled) {
+        buttons.add(message);
+      } else {
+        buttons.add(settings);
+      }
+      buttons.add(hangup);
+    } else {
+      // Narrow bar (calls_group_panel.cpp:2570-2653). Default (messages off) is
+      // [Video, Mute(center), Hangup] — _settings + _screenShare are OFF the bar
+      // (toggle(_screenShare,false)). Settings appears only when `five` (messages
+      // on + video) or `!showVideoButton`. _message only when messagesEnabled.
+      final four = !showVideoButton && messagesEnabled;
+      final five = !four && messagesEnabled;
+      if (showVideoButton) buttons.add(video);
+      if (five || !showVideoButton) buttons.add(settings);
+      buttons.add(mute);
+      if (messagesEnabled) buttons.add(message);
+      buttons.add(hangup);
+    }
+
+    // Narrow mode is a fixed 380px panel with NO horizontal inset, so the widest
+    // (5-button) layout — 5*68 + 6 even gaps — spans exactly groupCallWidth.
+    // A 24px inset would push 5*68 + 48 = 388px > 380px and paint a RenderFlex
+    // overflow stripe over the mute button. Wide mode lives in the wider video
+    // column, so it keeps the 24px inset.
     final hPad = wide ? 24.0 : 0.0;
     return Container(
       padding: EdgeInsets.fromLTRB(hPad, 16, hPad, wide ? 108 : 113),
@@ -981,44 +1017,9 @@ class _GroupCallPanelState extends State<GroupCallPanel>
           top: BorderSide(color: Color(0x20FFFFFF), width: 1),
         ),
       ),
-      // AyuGram narrow 5-button layout (calls_group_panel.cpp:2602-2653):
-      // [Video, Settings, Mute(dead-center), Chat, Hangup]. The big Mute button
-      // is the middle (3rd) child so spaceEvenly centers it. Screen-share is
-      // EXPLICITLY hidden in narrow mode (toggle(_screenShare,false)) — it lives
-      // only in the "…" menu. Settings (gear) is a primary control here.
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _GroupCallControlButton(
-            icon: Icons.videocam_outlined,
-            label: 'Video',
-            isActive: widget.isVideoActive,
-            onTap: widget.onToggleVideo,
-          ),
-          _GroupCallControlButton(
-            icon: Icons.settings_outlined,
-            label: 'Settings',
-            onTap: widget.onOpenSettings,
-          ),
-          _BigMuteButton(
-            state: _muteState,
-            onTap: widget.onToggleMute,
-            scheduleDate: widget.scheduleDate,
-            isCanManage: widget.isCanManage,
-            scheduleStartSubscribed: widget.scheduleStartSubscribed,
-          ),
-          _GroupCallControlButton(
-            icon: Icons.chat_bubble_outline,
-            label: 'Chat',
-            isActive: widget.isMessagesVisible,
-            onTap: widget.onToggleMessages,
-          ),
-          _GroupCallActionButton(
-            icon: Icons.call_end,
-            backgroundColor: const Color(0xFFE53935),
-            onTap: widget.onLeave,
-          ),
-        ],
+        children: buttons,
       ),
     );
   }
@@ -1904,6 +1905,106 @@ class _TitleBarButton extends StatelessWidget {
   }
 }
 
+/// Inline volume slider + mute-for-me toggle embedded directly in a participant
+/// popup menu — a port of AyuGram's `MenuVolumeItem` (calls_group_members.cpp:
+/// 1600-1647). The leading speaker glyph toggles "mute for me"; the slider sets
+/// the per-listener volume (0–20000 = 0–200%, Telegram `Group::kMaxVolume`).
+/// As a [PopupMenuEntry] whose [represents] is always false, dragging it never
+/// dismisses the surrounding menu.
+class _VolumeMenuItem extends PopupMenuEntry<String> {
+  final GroupCallParticipant participant;
+  final String callId;
+  final String accountId;
+  final EngineService engine;
+
+  const _VolumeMenuItem({
+    required this.participant,
+    required this.callId,
+    required this.accountId,
+    required this.engine,
+  });
+
+  @override
+  double get height => 48;
+
+  @override
+  bool represents(String? value) => false;
+
+  @override
+  State<_VolumeMenuItem> createState() => _VolumeMenuItemState();
+}
+
+class _VolumeMenuItemState extends State<_VolumeMenuItem> {
+  static const _maxVolume = 20000.0; // Telegram Group::kMaxVolume (200%)
+  late double _volume;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.participant;
+    _volume = (p.mutedByMe ? 0 : p.volume).clamp(0, _maxVolume).toDouble();
+  }
+
+  bool get _mutedForMe => _volume <= 0;
+
+  void _setVolume(double v, {bool commit = false}) {
+    setState(() => _volume = v);
+    if (commit) {
+      widget.engine.setGroupCallParticipantVolume(
+          widget.accountId, widget.callId, widget.participant.userId, v.round());
+    }
+  }
+
+  void _toggleMuteForMe() {
+    // Speaker glyph mirrors AyuGram toggleMuteLocally: mute-for-me ⇄ restore 100%.
+    _setVolume(_mutedForMe ? 10000 : 0, commit: true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            icon: Icon(_mutedForMe ? Icons.volume_off : Icons.volume_up,
+                color: _mutedForMe ? Colors.redAccent : Colors.white70, size: 20),
+            onPressed: _toggleMuteForMe,
+          ),
+          // Fixed width (NOT Expanded): popup menus measure items under an
+          // IntrinsicWidth, which can't size a flex child.
+          SizedBox(
+            width: 168,
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 3,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              ),
+              child: Slider(
+                value: _volume,
+                max: _maxVolume,
+                activeColor: const Color(0xFF3390EC),
+                inactiveColor: const Color(0x33FFFFFF),
+                onChanged: (v) => _setVolume(v),
+                onChangeEnd: (v) => _setVolume(v, commit: true),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 44,
+            child: Text('${(_volume / 100).round()}%',
+                textAlign: TextAlign.end,
+                style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BigMuteButton extends StatefulWidget {
   final MuteButtonState state;
   final VoidCallback? onTap;
@@ -1933,9 +2034,15 @@ class _BigMuteButtonState extends State<_BigMuteButton>
   static const _majorBlobMaxRadius = 77.0;
   static const _pulsePeriodMs = 430;
 
-  static const _greenColor = Color(0xFF4DC920);
-  static const _grayColor = Color(0xFF808B94);
-  static const _purpleColor = Color(0xFF7B5EBF);
+  // AyuGram CallMuteButton Colors() (call_mute_button.cpp:138-170): every state
+  // maps to a gradient over the groupCall* palette (colors.palette:557,582-591).
+  // The circle fill AND the blobs both paint with this gradient.
+  static const _liveColors = [Color(0xFF0DCC39), Color(0xFF0BB6BD)]; // groupCallLive1/2 green→teal
+  static const _mutedColors = [Color(0xFF0992EF), Color(0xFF16CCFB)]; // groupCallMuted1/2 blue→cyan
+  static const _connectingColors = [Color(0x1FFFFFFF)]; // callIconBg translucent white
+  // groupCallForceMuted3/2/1 — 3-stop red→purple→blue ramp at .0/.5/1.
+  static const _forceMutedColors = [Color(0xFFEB5353), Color(0xFF9B52E9), Color(0xFF4F9CFF)];
+  static const _forceMutedStops = [0.0, 0.5, 1.0];
   static const _hideBlobsDuration = Duration(milliseconds: 500);
 
   late AnimationController _ticker;
@@ -2003,22 +2110,38 @@ class _BigMuteButtonState extends State<_BigMuteButton>
     return 0.35 + 0.35 * math.sin(elapsed * 2 * math.pi / _pulsePeriodMs);
   }
 
-  Color get _stateColor {
-    if (_isScheduled) {
-      return widget.isCanManage ? _greenColor : _purpleColor;
-    }
+  /// Gradient stops for the current state (AyuGram CallMuteButton Colors()).
+  List<Color> get _stateColors {
+    // Scheduled states (CanStart/Notify/Silent) are ALL in AyuGram's
+    // forceMutedTypes (call_mute_button.cpp:158-168) → the red/purple/blue ramp,
+    // regardless of whether you can manage. No green "start" tint.
+    if (_isScheduled) return _forceMutedColors;
     switch (widget.state) {
       case MuteButtonState.connecting:
-        return _grayColor;
+        // Translucent white (callIconBg) — distinct from Muted's blue→cyan.
+        return _connectingColors;
       case MuteButtonState.unmuted:
-        return _greenColor;
+        return _liveColors;
       case MuteButtonState.muted:
-        return _grayColor;
+        // "You muted yourself" — blue→cyan, NOT the connecting gray.
+        return _mutedColors;
       case MuteButtonState.forceMuted:
       case MuteButtonState.raisedHand:
-        // Both share AyuGram's purple blob (RaisedHand maps to ForceMuted's
+        // Both share AyuGram's force-muted ramp (RaisedHand maps to ForceMuted's
         // gradient — call_mute_button.cpp:79-82); they differ by icon + label.
-        return _purpleColor;
+        return _forceMutedColors;
+    }
+  }
+
+  /// Gradient stop positions for the 3-stop force-muted ramp; null = even spread.
+  List<double>? get _stateStops {
+    if (_isScheduled) return _forceMutedStops;
+    switch (widget.state) {
+      case MuteButtonState.forceMuted:
+      case MuteButtonState.raisedHand:
+        return _forceMutedStops;
+      default:
+        return null;
     }
   }
 
@@ -2057,10 +2180,11 @@ class _BigMuteButtonState extends State<_BigMuteButton>
   }
 
   IconData get _icon {
-    if (_isScheduled) {
-      if (widget.isCanManage) return Icons.play_arrow;
-      return widget.scheduleStartSubscribed ? Icons.notifications_active : Icons.notifications_outlined;
-    }
+    // AyuGram renders the "hands" Lottie for EVERY scheduled state (they're all
+    // forceMutedTypes) — no play_arrow for managers, no bell for subscribers.
+    // The label ("Start Now" / "Set Reminder" / "Cancel Reminder") carries the
+    // distinction instead.
+    if (_isScheduled) return Icons.back_hand_outlined;
     switch (widget.state) {
       case MuteButtonState.connecting:
         return Icons.mic_none;
@@ -2077,7 +2201,19 @@ class _BigMuteButtonState extends State<_BigMuteButton>
 
   @override
   Widget build(BuildContext context) {
-    final color = _stateColor;
+    final colors = _stateColors;
+    final stops = _stateStops;
+    // ≥2 stops paint as a vertical gradient (AyuGram's QLinearGradient); the
+    // single-colour connecting state (callIconBg) falls back to a solid fill.
+    final gradient = colors.length >= 2
+        ? LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: colors,
+            stops: stops,
+          )
+        : null;
+    final solidColor = gradient == null ? colors.first : null;
     final blobSize = _majorBlobMaxRadius * 2 + 8;
     final level = _pulseLevel * _blobFadeOut;
     final showBlob = level > 0.001;
@@ -2108,7 +2244,8 @@ class _BigMuteButtonState extends State<_BigMuteButton>
                             (_minorBlobMaxRadius - _minorBlobMinRadius) * level,
                         majorRadius: _majorBlobMinRadius +
                             (_majorBlobMaxRadius - _majorBlobMinRadius) * level,
-                        color: color,
+                        colors: colors,
+                        stops: stops,
                         level: level,
                       ),
                     ),
@@ -2117,7 +2254,8 @@ class _BigMuteButtonState extends State<_BigMuteButton>
                   width: _circleSize,
                   height: _circleSize,
                   decoration: BoxDecoration(
-                    color: color,
+                    color: solidColor,
+                    gradient: gradient,
                     shape: BoxShape.circle,
                   ),
                   child: AnimatedSwitcher(
@@ -2173,7 +2311,8 @@ class _BigMuteBlobPainter extends CustomPainter {
   final _BlobState minorBlob;
   final double minorRadius;
   final double majorRadius;
-  final Color color;
+  final List<Color> colors;
+  final List<double>? stops;
   final double level;
 
   _BigMuteBlobPainter({
@@ -2181,9 +2320,23 @@ class _BigMuteBlobPainter extends CustomPainter {
     required this.minorBlob,
     required this.minorRadius,
     required this.majorRadius,
-    required this.color,
+    required this.colors,
+    required this.stops,
     required this.level,
   });
+
+  // A vertical gradient shader fading every stop down to [maxAlpha] (the blob's
+  // soft glow), matching the circle's gradient. AyuGram paints the blobs with
+  // the same gradient brush as the button (setBlobBrush).
+  Shader _shader(double cx, double cy, int maxAlpha) {
+    final faded = [for (final c in colors) c.withAlpha(c.alpha * maxAlpha ~/ 255)];
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: majorRadius);
+    if (faded.length == 1) {
+      return ui.Gradient.linear(
+          rect.topCenter, rect.bottomCenter, [faded.first, faded.first]);
+    }
+    return ui.Gradient.linear(rect.topCenter, rect.bottomCenter, faded, stops);
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2194,13 +2347,13 @@ class _BigMuteBlobPainter extends CustomPainter {
     final alpha = (level * 180).round().clamp(0, 180);
 
     final majorPaint = Paint()
-      ..color = color.withAlpha(alpha ~/ 2)
+      ..shader = _shader(cx, cy, alpha ~/ 2)
       ..style = PaintingStyle.fill;
     final majorVerts = majorBlob.getVertices(majorRadius, cx, cy);
     canvas.drawPath(_smoothPath(majorVerts), majorPaint);
 
     final minorPaint = Paint()
-      ..color = color.withAlpha(alpha)
+      ..shader = _shader(cx, cy, alpha)
       ..style = PaintingStyle.fill;
     final minorVerts = minorBlob.getVertices(minorRadius, cx, cy);
     canvas.drawPath(_smoothPath(minorVerts), minorPaint);
@@ -2229,7 +2382,10 @@ class _BigMuteBlobPainter extends CustomPainter {
       old.level != level ||
       old.minorRadius != minorRadius ||
       old.majorRadius != majorRadius ||
-      old.color != color;
+      // colors/stops are the same `static const` list instance for a given
+      // state, so identity comparison flips exactly when the state changes.
+      old.colors != colors ||
+      old.stops != stops;
 }
 
 class _GroupCallControlButton extends StatelessWidget {
@@ -2622,6 +2778,8 @@ void showGroupCallPanel(
                       isRecording: recording,
                       isCanManage: isCanManage,
                       isLivestream: info.isRtmp,
+                      isConference: conference,
+                      scheduleDate: info.scheduleDate,
                       currentTitle: info.title,
                       onRecordingChanged: (v) {
                         recording = v;
@@ -2632,6 +2790,8 @@ void showGroupCallPanel(
                   onOpenSettings: () {
                     _showCallSettingsFromMenu(ctx,
                       callId: info.callId,
+                      chatId: info.chatId,
+                      isConference: conference,
                       isCanManage: isCanManage,
                       muteNewParticipants: false,
                       messagesEnabled: info.messagesEnabled);
@@ -2901,7 +3061,7 @@ class _OrientationChoice extends StatelessWidget {
   }
 }
 
-void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId = '', bool isRecording = false, bool isCanManage = false, bool isLivestream = false, String currentTitle = '', ValueChanged<bool>? onRecordingChanged}) {
+void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId = '', bool isRecording = false, bool isCanManage = false, bool isLivestream = false, bool isConference = false, int scheduleDate = 0, String currentTitle = '', ValueChanged<bool>? onRecordingChanged}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF1E2530),
@@ -2919,15 +3079,18 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ListTile(
-                  leading: const Icon(Icons.person_outline, color: Colors.white70),
-                  title: const Text('Join As...',
-                      style: TextStyle(color: Colors.white)),
-                  onTap: () {
-                    Navigator.pop(ctx2);
-                    _showJoinAsChooser(context, chatId: chatId, callId: callId);
-                  },
-                ),
+                // Join As — AyuGram gates on showChooseJoinAs() (calls_group_menu
+                // .cpp:511): never for rtmp livestreams or E2E conference calls.
+                if (!isLivestream && !isConference)
+                  ListTile(
+                    leading: const Icon(Icons.person_outline, color: Colors.white70),
+                    title: const Text('Join As...',
+                        style: TextStyle(color: Colors.white)),
+                    onTap: () {
+                      Navigator.pop(ctx2);
+                      _showJoinAsChooser(context, chatId: chatId, callId: callId);
+                    },
+                  ),
                 // Manager-only "Edit title" (rename the voice chat / livestream),
                 // AyuGram calls_group_menu.cpp:525-544.
                 if (isCanManage)
@@ -2945,15 +3108,18 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId
                           isLivestream: isLivestream);
                     },
                   ),
-                ListTile(
-                  leading: Icon(
-                    recording ? Icons.stop_circle : Icons.fiber_manual_record,
-                    color: Colors.redAccent,
-                  ),
-                  title: Text(
-                    recording ? 'Stop Recording' : 'Start Recording',
-                    style: const TextStyle(color: Colors.white),
-                  ),
+                // Start/Stop Recording — AyuGram addEditRecording (calls_group_menu
+                // .cpp:513-515): managers only, never for conferences or scheduled.
+                if (!isConference && isCanManage && scheduleDate == 0)
+                  ListTile(
+                    leading: Icon(
+                      recording ? Icons.stop_circle : Icons.fiber_manual_record,
+                      color: Colors.redAccent,
+                    ),
+                    title: Text(
+                      recording ? 'Stop Recording' : 'Start Recording',
+                      style: const TextStyle(color: Colors.white),
+                    ),
                   onTap: () async {
                     Navigator.pop(ctx2);
                     if (callId.isEmpty) return;
@@ -2992,13 +3158,17 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId
                     }
                   },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.screen_share, color: Colors.white70),
-                  title: const Text('Share Screen',
-                      style: TextStyle(color: Colors.white)),
-                  onTap: () async {
-                    Navigator.pop(ctx2);
-                    final result = await showScreenShareChooser(context);
+                // Share Screen — AyuGram addScreenCast (calls_group_menu.cpp:516):
+                // videoIsWorking() && !scheduleDate (no screencast for a livestream
+                // viewer or a not-yet-started scheduled call).
+                if (!isLivestream && scheduleDate == 0)
+                  ListTile(
+                    leading: const Icon(Icons.screen_share, color: Colors.white70),
+                    title: const Text('Share Screen',
+                        style: TextStyle(color: Colors.white)),
+                    onTap: () async {
+                      Navigator.pop(ctx2);
+                      final result = await showScreenShareChooser(context);
                     if (result != null && context.mounted) {
                       if (callId.isNotEmpty) {
                         await engine.toggleScreenSharing(accountId, callId, true,
@@ -3023,20 +3193,47 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId
                       style: TextStyle(color: Colors.white)),
                   onTap: () {
                     Navigator.pop(ctx2);
-                    _showCallSettingsFromMenu(context, callId: callId);
+                    _showCallSettingsFromMenu(context,
+                        callId: callId,
+                        chatId: chatId,
+                        isConference: isConference,
+                        isCanManage: isCanManage);
                   },
                 ),
                 const Divider(color: Color(0xFF2C3640), height: 1),
+                // Leave/End — AyuGram (calls_group_menu.cpp:605-626): a manager
+                // sees "End"/"Cancel" (livestream variants) and routes through
+                // LeaveBox (leave-for-self vs end-for-everyone); a normal member
+                // just leaves.
                 ListTile(
                   leading: const Icon(Icons.call_end, color: Colors.redAccent),
-                  title: const Text('Leave Call',
-                      style: TextStyle(color: Colors.redAccent)),
+                  title: Text(
+                    !isCanManage
+                        ? 'Leave Call'
+                        : scheduleDate != 0
+                            ? (isLivestream ? 'Cancel Live Stream' : 'Cancel')
+                            : (isLivestream ? 'End Live Stream' : 'End Call'),
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
                   onTap: () {
                     Navigator.pop(ctx2);
-                    if (callId.isNotEmpty) {
+                    if (callId.isEmpty) return;
+                    if (isCanManage) {
+                      _showLeaveOrEndDialog(
+                        context,
+                        onLeave: () {
+                          engine.leaveGroupCall(accountId, callId);
+                          Navigator.of(context).pop();
+                        },
+                        onEndForAll: () async {
+                          await engine.endGroupCall(accountId, callId);
+                          if (context.mounted) Navigator.of(context).pop();
+                        },
+                      );
+                    } else {
                       engine.leaveGroupCall(accountId, callId);
+                      Navigator.of(context).pop();
                     }
-                    Navigator.of(context).pop();
                   },
                 ),
               ],
@@ -3294,7 +3491,7 @@ Future<void> _showInviteMembersFromMenu(BuildContext context, {String callId = '
   }
 }
 
-void _showCallSettingsFromMenu(BuildContext context, {String callId = '', bool isCanManage = false, bool muteNewParticipants = false, bool messagesEnabled = false}) {
+void _showCallSettingsFromMenu(BuildContext context, {String callId = '', String chatId = '', bool isCanManage = false, bool isConference = false, bool muteNewParticipants = false, bool messagesEnabled = false}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF1E2530),
@@ -3304,6 +3501,8 @@ void _showCallSettingsFromMenu(BuildContext context, {String callId = '', bool i
     ),
     builder: (ctx) => _CallSettingsSheet(
       callId: callId,
+      chatId: chatId,
+      isConference: isConference,
       isCanManage: isCanManage,
       initialMuteNewParticipants: muteNewParticipants,
       initialMessagesEnabled: messagesEnabled,
@@ -3317,11 +3516,15 @@ void _showCallSettingsFromMenu(BuildContext context, {String callId = '', bool i
 /// `calls_group_settings.cpp` (manager toggles + microphone + LevelMeter + PTT).
 class _CallSettingsSheet extends StatefulWidget {
   final String callId;
+  final String chatId;
+  final bool isConference;
   final bool isCanManage;
   final bool initialMuteNewParticipants;
   final bool initialMessagesEnabled;
   const _CallSettingsSheet({
     this.callId = '',
+    this.chatId = '',
+    this.isConference = false,
     this.isCanManage = false,
     this.initialMuteNewParticipants = false,
     this.initialMessagesEnabled = false,
@@ -3448,6 +3651,35 @@ class _CallSettingsSheetState extends State<_CallSettingsSheet> {
               ),
               const Divider(color: Color(0xFF2C3640), height: 1),
             ],
+            // Share invite link — AyuGram's SettingsBox primary control for normal
+            // group/channel calls (calls_group_settings.cpp:674-680): copies the
+            // chat's invite link to the clipboard. Absent for E2E conferences
+            // (their own invite mechanism) and chats with no link.
+            if (!widget.isConference && widget.chatId.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.link, color: Colors.white70),
+                title: const Text('Share invite link',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  final engine = context.read<EngineService>();
+                  final link = await engine.getInviteLink(
+                      appState.activeAccountId, widget.chatId);
+                  if (!context.mounted) return;
+                  if (link.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No invite link available')),
+                    );
+                    return;
+                  }
+                  await Clipboard.setData(ClipboardData(text: link));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Invite link copied to clipboard')),
+                    );
+                  }
+                },
+              ),
             SwitchListTile(
               title: const Text('Noise Suppression',
                   style: TextStyle(color: Colors.white)),
@@ -3823,6 +4055,9 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
 
   void _startDurationTimer() {
     _durationTimer?.cancel();
+    // Only personal 1:1 calls render a duration (AyuGram updateDurationText
+    // early-returns for group calls), so the group bar needs no per-second tick.
+    if (!widget.isPersonalCall) return;
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && widget.callStartTime != null) {
         setState(() {
@@ -3997,20 +4232,11 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
                     },
                   ),
                 ),
-                if (!isPersonal &&
-                    widget.callStartTime != null &&
-                    !widget.isConnecting) ...[
-                  Text(
-                    _formatDuration(_durationSeconds),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      height: 1.0,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                ],
+                // A GROUP bar never shows a call duration: AyuGram builds
+                // _durationLabel/_signalBars only when _call is non-null (personal
+                // 1:1 calls) and updateDurationText early-returns for group calls
+                // (calls_top_bar.cpp:259-264,733-734). The group bar carries the
+                // info/participants label (above) instead.
                 if (isPersonal) ...[
                   Padding(
                     padding: const EdgeInsets.only(top: 10),
