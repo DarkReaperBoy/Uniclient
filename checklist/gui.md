@@ -2,23 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_types — Notification content composition (title/subtitle/body/entities) vs AyuGram
-
-This file is a pure logic library (no widgets) that mirrors AyuGram's notification
-text pipeline (`notifications_manager.cpp`, `history_item.cpp`, `data_media_types.cpp`).
-It is fully wired: `composeNotificationContent` is consumed by `notification_popup.dart:724`
-and `notification_system.dart:598`; `shouldHideReplyButton` by `notification_popup.dart:570`
-and `notification_manager_native.dart:1077`. No placeholders, stubs, TODO/FIXME, or fake
-data. The translation is exceptionally faithful — caption format `"Type, caption"`
-(`lng_dialogs_text_media` = `"{media_part} {caption}"` + `lng_dialogs_text_media_wrapped`
-= `"{media},"`), all glyphs (➡️ U+27A1+FE0F, ➜ U+279C, 🎮 U+1F3AE, 📊 U+1F4CA), spoiler
-masking (▚ U+259A), login-code regex, 255-char truncation, and the reply-button gate all
-match. Two genuine behavioral deviations exist, both in the reaction path.
-
-- [ ] [MAJOR] Reaction notification body inserts the reacted-to message text RAW — spoiler entities are NOT masked and the text is NOT capped at 255. AyuGram wraps the whole reaction string in `TextWithPermanentSpoiler(...)` and embeds `item->notificationText()` (which masks spoilers and truncates to 255 via `Ui::Text::Mid`). A reaction to a message whose text contains a spoiler entity (raw text e.g. `"code is 12345"` + spoiler entity 8..13) renders `"👍 to your \"code is 12345\""` in UniClient but `"👍 to your \"code is ▚▚▚▚▚\""` in AyuGram — the spoiler leaks. Regular (non-reaction) message bodies DO mask via `_messageTextForType`→`_maskSpoilers`, so the behavior is inconsistent. — `notification_types.dart:716-717` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:1601-1605` (`TextWithPermanentSpoiler(ComposeReactionNotification(...))`) + `:1151-1158` (`lng_reaction_text` uses `item->notificationText()`) + `AyuGram/Telegram/SourceFiles/history/history_item.cpp:4325-4329` (255 truncation)
-
-- [ ] [MAJOR] Reaction to a GAME message has no case — `_composeReactionText`'s switch covers `reactedToType` 1–12 only, and game carries no media-type int (stays 0, per the comment at `:504-510`), so a game reaction hits the `default` branch. With an empty game text it returns the bare emoji (e.g. `"👍"`) instead of AyuGram's `lng_reaction_game` = `"{reaction} to your game"`. (Edge case: requires the engine to surface a reaction-to-game notification, and `reactedToType` cannot currently encode game.) — `notification_types.dart:715-720` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:1214-1215` (`media->game() → tr::lng_reaction_game`)
-
 # app_state — central settings store (AyuGram ayu_settings + Telegram core_settings)
 
 `app_state.dart` is a ~4900-line `ChangeNotifier` settings store, not a widget. It mirrors
