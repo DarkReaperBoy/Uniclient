@@ -461,8 +461,13 @@ class NotificationSystem {
       return a.groupedId == b.groupedId;
     }
     if (a.forwardFrom.isNotEmpty && b.forwardFrom.isNotEmpty) {
+      // C++ groups consecutive items only when their dates differ by STRICTLY
+      // less than 2 seconds: qAbs(int64(nextItem->date()) -
+      // int64(groupedItem->date())) < 2 (notifications_manager.cpp:897). For
+      // integer-second timestamps that's a 0–1s window; `<= 2` would wrongly
+      // merge messages exactly 2s apart that AyuGram shows separately.
       return a.senderId == b.senderId &&
-          (a.timestamp - b.timestamp).abs() <= 2;
+          (a.timestamp - b.timestamp).abs() < 2;
     }
     return false;
   }
@@ -499,9 +504,11 @@ class NotificationSystem {
         } else if (n.forwardFrom.isNotEmpty && n.forwardCount <= 1) {
           final fwdKey = n.senderId;
           final existing = forwardGroups[fwdKey];
+          // Strict `< 2` to match C++ (notifications_manager.cpp:897) — see
+          // _isSameGroup; integer-second dates 2s apart are shown separately.
           if (existing != null &&
               existing.isNotEmpty &&
-              (n.timestamp - existing.last.timestamp).abs() <= 2) {
+              (n.timestamp - existing.last.timestamp).abs() < 2) {
             existing.add(n);
           } else if (existing == null) {
             forwardGroups[fwdKey] = [n];
@@ -629,17 +636,33 @@ class NotificationSystem {
     final alertAllowed =
         lastAlert == null || now.difference(lastAlert.time) >= _kMinimalAlertDelay;
 
-    if (!_manager.handlesSound && alertAllowed && !forceSilent) {
-      final chatRingtone = lastAlert?.ringtonePath ?? '';
-      final soundPath = effectiveData.soundDocumentPath.isNotEmpty
-          ? effectiveData.soundDocumentPath
-          : chatRingtone;
-      _soundPlayer.play(
-        settings: _settings,
-        data: soundPath.isNotEmpty
-            ? effectiveData.copyWith(soundDocumentPath: soundPath)
-            : effectiveData,
-      );
+    // An alert (sound and/or taskbar flash) fires for this thread when the
+    // per-thread cooldown allows it and the message isn't silent. In C++ the
+    // flash and the sound share ONE coalesced `alertThread`, produced by the
+    // `_whenAlerts` erase of every alert within `ms + kMinimalAlertDelay`
+    // (notifications_manager.cpp:732), and BOTH the flash (:747) and the sound
+    // (:761) are then gated by that same `alertThread`. So the throttle applies
+    // to the flash regardless of whether the daemon owns the sound. The cooldown
+    // record must therefore be stamped whenever an alert is ALLOWED — not only
+    // when THIS process plays the sound itself. Previously the stamp lived inside
+    // the `!handlesSound` sound branch, so a native daemon that handles sound
+    // (handlesSound == true) never wrote the record, leaving `alertAllowed` true
+    // on every dispatch and firing the taskbar flash unthrottled on every
+    // message. Stamp first (covering the flash path), play the sound only when
+    // this process owns it.
+    if (alertAllowed && !forceSilent) {
+      if (!_manager.handlesSound) {
+        final chatRingtone = lastAlert?.ringtonePath ?? '';
+        final soundPath = effectiveData.soundDocumentPath.isNotEmpty
+            ? effectiveData.soundDocumentPath
+            : chatRingtone;
+        _soundPlayer.play(
+          settings: _settings,
+          data: soundPath.isNotEmpty
+              ? effectiveData.copyWith(soundDocumentPath: soundPath)
+              : effectiveData,
+        );
+      }
       _lastAlertPerThread[threadKey] = _AlertRecord(
         time: now,
         ringtonePath: effectiveData.soundDocumentPath.isNotEmpty
@@ -695,10 +718,23 @@ class NotificationSystem {
           // deferred in onNewMessage while the chat was uncached.
           if (!_shouldNotifyForType(data)) continue;
         }
-        // Resolved muted with no mention bypass → drop, mirroring the live
-        // muted-chat handling in onNewMessage.
-        if (data.isMuted && !(data.mentionsMe && !data.isSenderMuted)) {
-          continue;
+        // Apply the resolved muted-chat handling now — mirroring BOTH the live
+        // path in onNewMessage AND C++ computeSkipState (which backs the live
+        // schedule() and the deferred checkDelayed() alike). A scheduled-outgoing
+        // message in a muted chat is `showForMuted`
+        // (messageType && item->out() && item->isFromScheduled(),
+        // notifications_manager.cpp:334) → its muted branch resolves to
+        // DontSkip(silent) (:360-363/:371-374), i.e. it is PROMOTED and shown
+        // SILENTLY, not dropped. A personal mention from a non-muted sender
+        // pierces the mute (shown with sound). Anything else is dropped.
+        if (data.isMuted) {
+          if (data.isScheduled && data.isOutgoing) {
+            data = data.copyWith(isSilent: true);
+          } else if (data.mentionsMe && !data.isSenderMuted) {
+            // Mention from a non-muted sender pierces the muted chat.
+          } else {
+            continue;
+          }
         }
         promoted.add(data);
       }
