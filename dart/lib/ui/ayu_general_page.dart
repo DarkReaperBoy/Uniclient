@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import 'ayu_section_builder.dart';
 import 'confirm_box.dart';
+import 'telegram_toast.dart';
 
 class AyuGeneralPage extends StatelessWidget {
   const AyuGeneralPage({super.key});
@@ -48,7 +49,25 @@ class AyuGeneralPage extends StatelessWidget {
         if (nativeProviderName != null && appState.nativeTranslateAvailable)
           3: nativeProviderName,
       },
-      onChanged: (v) => appState.setTranslationProvider(v),
+      onChanged: (v) {
+        appState.setTranslationProvider(v);
+        // macOS native-translation guidance toast — when the Native provider
+        // (index 3 == TranslationProvider::Native, labelled "macOS" on a Mac) is
+        // chosen, AyuGram pops a 6s toast warning that on-device translation
+        // silently fails until the user downloads local language packs in System
+        // Settings. The C++ guards it with `if constexpr (Platform::IsMac())`, so
+        // it fires on macOS only (settings_general.cpp:94-101 /
+        // lang.strings:6914 lng_translate_settings_use_platform_mac_about).
+        if (Platform.isMacOS && v == 3) {
+          showTelegramToast(
+            context,
+            "Translation on macOS won't work until you download local "
+            'language packs in System Settings.',
+            duration: const Duration(seconds: 6),
+            multiline: true,
+          );
+        }
+      },
     );
     // Beta badge on the provider button — ayu.addBetaBadge(button)
     // (settings_general.cpp:114); badge text "BETA" (settings_ayu_utils.cpp:52).
@@ -149,8 +168,12 @@ class AyuGeneralPage extends StatelessWidget {
     b.addSectionDivider();
     b.addSectionTitle('Webview');
 
+    // AyuGram's `ayu_SettingsSpoofWebviewAsAndroid` string is "Spoof Client as
+    // Android" — the toggle spoofs the whole client UA, not just the webview
+    // (settings_general.cpp:254 / lang.strings:8129). The subsection header above
+    // stays "Webview" to match the C++ subsection title.
     b.addSettingToggle(
-      label: 'Spoof Webview as Android',
+      label: 'Spoof Client as Android',
       value: appState.spoofWebviewAsAndroid,
       onChanged: (v) => appState.setSpoofWebviewAsAndroid(v),
     );
