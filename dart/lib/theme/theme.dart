@@ -23,12 +23,22 @@ class AppTheme {
       colorScheme: isDark
           ? ColorScheme.dark(
               primary: p.windowBgActive,
+              // Material-3 FilledButton/ElevatedButton use colorScheme.onPrimary for
+              // their label + icon color. AyuGram's defaultActiveButton.textFg is
+              // activeButtonFg (= windowFgActive), white in every built-in theme
+              // (widgets.style:728, colors.palette:35). ColorScheme.dark() otherwise
+              // defaults onPrimary to Colors.black, which rendered black labels on the
+              // #5288C1 blue accent in the default night theme.
+              onPrimary: p.activeButtonFg,
               surface: p.windowBg,
               onSurface: p.windowFg,
               error: p.attentionButtonFg,
             )
           : ColorScheme.light(
               primary: p.windowBgActive,
+              // ColorScheme.light() happens to default onPrimary to white, but map it
+              // to activeButtonFg explicitly so imported themes follow their own token.
+              onPrimary: p.activeButtonFg,
               surface: p.windowBg,
               onSurface: p.windowFg,
               error: p.attentionButtonFg,
@@ -88,15 +98,39 @@ class AppTheme {
   static ThemeData get dark => fromPalette(TelegramPalette.night);
   static ThemeData get light => fromPalette(TelegramPalette.dayBlue);
 
+  // AyuGram's TextStyle struct has no letterSpacing field (basic.style:39-45) → zero
+  // tracking, and defaultTextStyle.lineHeight: 0px (basic.style:84) → natural font
+  // metrics. ThemeData composes the text theme as defaultTextTheme.merge(textTheme),
+  // and TextStyle.merge keeps the base's non-overridden fields — so unless we pin them
+  // here, Material-3 englishLike2021 leaks its letterSpacing (bodyLarge 0.5 … labelSmall
+  // 0.5), loose line-heights (1.25–1.50) and leadingDistribution.even into all 177
+  // textTheme.* call-sites, rendering body/dialog/message text looser and wider-tracked
+  // than Telegram. We override all three on every slot. height 1.2 ≈ the intrinsic
+  // ascent+descent of the default Inter font (what lineHeight:0 resolves to);
+  // leadingDistribution.proportional matches natural metrics, not Material's even split.
+  static TextStyle _slot(double size, FontWeight weight, Color color) => TextStyle(
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    letterSpacing: 0,
+    height: 1.2,
+    leadingDistribution: TextLeadingDistribution.proportional,
+  );
+
   static TextTheme _textTheme(Color primary, Color secondary) => TextTheme(
-    headlineLarge: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: primary),
-    headlineMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: primary),
-    titleLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: primary),
-    titleMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: primary),
-    bodyLarge: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: primary),
-    bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: primary),
-    bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: secondary),
-    labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: primary),
-    labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: secondary),
+    headlineLarge: _slot(24, FontWeight.w700, primary),
+    headlineMedium: _slot(20, FontWeight.w600, primary),
+    titleLarge: _slot(16, FontWeight.w600, primary),
+    titleMedium: _slot(14, FontWeight.w600, primary),
+    // titleSmall was previously undefined → it fell back to the full Material default
+    // (14px/w500/0.1 spacing/1.43 height). Both consumers (hamburger_drawer.dart:2350,
+    // info_panel.dart:8290) already override the weight to w600 over a 14px label, so
+    // define it to match while stopping the Material letterSpacing/line-height leak.
+    titleSmall: _slot(14, FontWeight.w600, primary),
+    bodyLarge: _slot(15, FontWeight.w400, primary),
+    bodyMedium: _slot(14, FontWeight.w400, primary),
+    bodySmall: _slot(12, FontWeight.w400, secondary),
+    labelLarge: _slot(14, FontWeight.w500, primary),
+    labelSmall: _slot(11, FontWeight.w500, secondary),
   );
 }
