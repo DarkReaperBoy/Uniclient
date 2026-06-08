@@ -2,39 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_manager_native — Linux native (D-Bus / Flatpak portal) notification manager
-
-Port of AyuGram's `platform/linux/notifications_manager_linux.cpp` +
-`window/notifications_utilities.cpp` (`GenerateUserpic`/`CachedUserpics`) +
-`ui/empty_userpic.cpp` (initials / Saved-Messages / Replies glyphs).
-
-This is an unusually faithful port. Everything below verified to MATCH AyuGram and
-is recorded only so the next auditor doesn't re-check it:
-
-- All 8 userpic gradient pairs are byte-exact with `lib_ui/ui/colors.palette:290-324`
-  (`historyPeer1..8UserpicBg`/`Bg2`).
-- `_paletteMap = [0,7,4,1,6,3,5]` == `ColorIndexToPaletteIndex` map `{0,7,4,1,6,3,5}`
-  (`chat_style.cpp:1202-1206`); `colorIndex = id % 7` == `DecideColorIndex`/
-  `kSimpleColorIndexCount = 7` (`chat_style.cpp:1198-1200`, `chat_style.h:37`).
-- Saved-Messages + Replies use palette slot 3 (`historyPeerSavedMessagesBg` =
-  `historyPeer4UserpicBg`, palette `:313`/`:324`); bookmark geometry constants
-  (0.055/0.15/0.19/0.064) match `PaintSavedMessagesInner` (`empty_userpic.cpp:63-67`).
-- Image size 64 == `st::notifyMacPhotoSize`; image-data hint struct
-  (w,h,rowstride=w*4,has_alpha,8,4,bytes) matches `notifications_manager_linux.cpp:696-709`.
-- Body build (`<b>sub</b>\nmsg` markup vs `"sub: msg"`) matches `:776-792`; the
-  `"{from}: {msg}"` form correctly fuses `lng_dialogs_text_with_from`("{from_part} {message}")
-  + `lng_dialogs_text_from_wrapped`("{from}:") (`lang.strings:4779-4780`).
-- Image key spec-version mapping (1.2→image-data / 1.1→image_data / else icon_data)
-  matches `GetImageKey` (`:124-132`); `byDefault` matches `ByDefault` (`:213-233`);
-  `handlesSound = HasCapability("sound")` correctly gates own-sound playback
-  (negation of `VolumeSupported`, `:235-237`; consumed at notification_system.dart:632).
-- Close-reason handling (drop only on reason==2) matches `:511-515`; all six clear
-  paths (chat/item/topic/sublist/account/all) issue real CloseNotification /
-  RemoveNotification and match `clearFrom*` (`:805-871`). No stubs, no placeholders,
-  no empty callbacks — every action/reply/closed signal is wired to onAction/onReply.
-
-- [ ] [MAJOR] Initials algorithm diverges on hyphens: Dart resets `letterFound = false` after a `-`, so it captures a SECOND initial after the hyphen (level 1). AyuGram sets `letterFound = true`, which makes the post-hyphen capture unreachable (the only reset of `letterFound` is a space, which also resets `level` to 0), so its level-1 branch is dead and a hyphenated-only name yields a SINGLE initial. Result: "Anna-Maria" → Dart renders "AM", AyuGram renders "A" on the notification userpic (names with an intervening space agree). — `notification_manager_native.dart:424` ← `AyuGram/Telegram/SourceFiles/ui/empty_userpic.cpp:650`
-
 # notification_system — Notification scheduling/dedup/grouping engine (port of Window::Notifications::System)
 
 Overall this file is a faithful, well-wired port of AyuGram's `window/notifications_manager.cpp`
