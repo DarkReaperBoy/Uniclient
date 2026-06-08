@@ -1,6 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
+import '../l10n/lang_pack.dart';
 import '../theme/telegram_palette.dart';
 
 /// Telegram-styled birthday drum picker (day / month / year wheel scrollers),
@@ -49,10 +52,6 @@ class _BirthdayDrumPickerDialogState extends State<BirthdayDrumPickerDialog> {
   static const double _itemHeight = 40;
   // st::defaultInputField.borderActive (widgets.style:1063).
   static const double _bandBorder = 2;
-  static const _monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
 
   // The maximum selectable birthday: `current.year() ? max(now, current) : now`
   // (edit_birthday_box.cpp:55-61). Birthdays compare as (year, month, day) tuples
@@ -67,6 +66,12 @@ class _BirthdayDrumPickerDialogState extends State<BirthdayDrumPickerDialog> {
   late int _selectedYearIndex;
   late int _monthsCount;
   late int _daysCount;
+
+  // Keyboard navigation targets the year wheel only — AyuGram's box-level event
+  // filter forwards every KeyPress to `years->handleKeyEvent`
+  // (edit_birthday_box.cpp:190-195). A GlobalKey lets [_handleKey] reach the
+  // year picker's state to step/page it.
+  final _yearKey = GlobalKey<_VerticalDrumPickerState>();
 
   @override
   void initState() {
@@ -151,8 +156,45 @@ class _BirthdayDrumPickerDialogState extends State<BirthdayDrumPickerDialog> {
     setState(() => _selectedDay = index + 1);
   }
 
+  // _itemsVisible.count = ceil(viewport / itemHeight) (vertical_drum_picker.cpp:115);
+  // PageUp/PageDown jump a whole page = that many items (cpp:228,232).
+  int get _pageItems => (_viewportHeight / _itemHeight).ceil();
+
+  /// Box-level key handler, porting AyuGram's `install_event_filter` on the box
+  /// that forwards every KeyPress to `years->handleKeyEvent`
+  /// (edit_birthday_box.cpp:190-195 + vertical_drum_picker.cpp:224-234). Only the
+  /// year wheel is keyboard-driven, exactly as in AyuGram. Up/Left → previous
+  /// (earlier year), Down/Right → next, PageUp/PageDown → jump a page. PageUp/Down
+  /// ignore auto-repeat (`!e->isAutoRepeat()`); arrows repeat while held.
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final year = _yearKey.currentState;
+    if (year == null) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final initialPress = event is KeyDownEvent; // not auto-repeat
+    if (key == LogicalKeyboardKey.arrowUp ||
+        key == LogicalKeyboardKey.arrowLeft) {
+      year.jumpByItems(-1);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.arrowRight) {
+      year.jumpByItems(1);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.pageUp && initialPress) {
+      year.jumpByItems(-_pageItems);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.pageDown && initialPress) {
+      year.jumpByItems(_pageItems);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final lang = context.watch<LangPack>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
@@ -169,7 +211,14 @@ class _BirthdayDrumPickerDialogState extends State<BirthdayDrumPickerDialog> {
     );
     final bandColor = context.palette.activeLineFg;
 
-    return Dialog(
+    // Box-level keyboard capture: autofocus so arrow/PageUp/PageDown reach
+    // [_handleKey] as soon as the dialog opens, mirroring AyuGram installing an
+    // event filter on the whole box (edit_birthday_box.cpp:190-195). Unhandled
+    // keys return `ignored`, so Tab/Enter still drive the buttons normally.
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _handleKey,
+      child: Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: ConstrainedBox(
@@ -218,13 +267,18 @@ class _BirthdayDrumPickerDialogState extends State<BirthdayDrumPickerDialog> {
                             viewportHeight: _viewportHeight,
                             itemHeight: _itemHeight,
                             textStyle: itemStyle,
-                            labelBuilder: (i) => _monthNames[i],
+                            // Localized month names — AyuGram paints
+                            // `Lang::Month(index + 1)(tr::now)`
+                            // (edit_birthday_box.cpp:119-124), i.e. the cloud
+                            // pack's `lng_month1..12` with an English baseline.
+                            labelBuilder: (i) => lang.tr('lng_month${i + 1}'),
                             onChanged: _onMonthChanged,
                           ),
                         ),
                         Flexible(
                           flex: 1,
                           child: _VerticalDrumPicker(
+                            key: _yearKey,
                             itemCount: _yearCount,
                             initialIndex: _selectedYearIndex,
                             viewportHeight: _viewportHeight,
@@ -291,6 +345,7 @@ class _BirthdayDrumPickerDialogState extends State<BirthdayDrumPickerDialog> {
           ),
         ),
       ),
+      ),
     );
   }
 }
@@ -332,22 +387,32 @@ class _VerticalDrumPickerState extends State<_VerticalDrumPicker>
 
   late double _scrollOffset;
   late int _selectedIndex;
+  // All movement — drag-end snap, tap-to-select, wheel notch, keyboard step —
+  // funnels through this single controller, which interpolates _scrollOffset
+  // *linearly* from _animFrom to _animTo over `fadeWrapDuration` (200 ms). This
+  // mirrors AyuGram's `PickerAnimation::jumpToOffset`, animated with the default
+  // transition `anim::linear` + `anim::interpolateF` (vertical_drum_picker.cpp:
+  // 83-87, animations.h:67). The easeOutCubic curve is reserved for the per-item
+  // yScale squish in paint (DefaultPaintCallback), NOT the scroll snap.
   late AnimationController _snapController;
-  double _snapFrom = 0;
-  double _snapTo = 0;
+  double _animFrom = 0;
+  double _animTo = 0;
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex.clamp(0, widget.itemCount - 1);
     _scrollOffset = _selectedIndex * widget.itemHeight;
+    // st::fadeWrapDuration = 200 ms (vertical_drum_picker.cpp:87). The controller
+    // value advances linearly and we interpolate linearly — AyuGram's snap is
+    // `anim::linear`, not eased (the squish easing lives in paint, below).
     _snapController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
     )..addListener(() {
         setState(() {
-          _scrollOffset = _snapFrom +
-              (_snapTo - _snapFrom) * Curves.easeOutCubic.transform(_snapController.value);
+          _scrollOffset =
+              _animFrom + (_animTo - _animFrom) * _snapController.value;
           _updateSelected();
         });
       });
@@ -370,11 +435,35 @@ class _VerticalDrumPickerState extends State<_VerticalDrumPicker>
     }
   }
 
-  void _snapToNearest() {
-    final target = (_scrollOffset / widget.itemHeight).round() * widget.itemHeight;
-    _snapFrom = _scrollOffset;
-    _snapTo = target.clamp(0.0, _maxOffset);
+  /// Animate _scrollOffset to [targetOffset] (clamped) over 200 ms, linearly —
+  /// the Dart-side equivalent of `PickerAnimation::jumpToOffset`.
+  void _animateTo(double targetOffset) {
+    _snapController.stop();
+    _animFrom = _scrollOffset;
+    _animTo = targetOffset.clamp(0.0, _maxOffset);
     _snapController.forward(from: 0);
+  }
+
+  /// Snap the nearest item to the centre band after a free drag
+  /// (vertical_drum_picker.cpp:250-251 — `animationDataFromIndex` + jumpToOffset(0)).
+  void _snapToNearest() {
+    final nearest = (_scrollOffset / widget.itemHeight).round();
+    _animateTo(nearest * widget.itemHeight);
+  }
+
+  /// Step the wheel by [delta] items (positive = toward higher indices / "next"),
+  /// one decisive animated jump. Used by the mouse wheel (one item per notch) and
+  /// the box keyboard handler. Like AyuGram's `jumpToOffset`, repeated jumps
+  /// accumulate onto the in-flight destination rather than restarting from the
+  /// live offset, so a fast wheel-spin or held arrow key lands cleanly
+  /// (vertical_drum_picker.cpp:54-57,200,226-232).
+  void jumpByItems(int delta) {
+    if (delta == 0 || widget.itemCount <= 1) return;
+    final base = _snapController.isAnimating
+        ? (_animTo / widget.itemHeight).round()
+        : (_scrollOffset / widget.itemHeight).round();
+    final target = (base + delta).clamp(0, widget.itemCount - 1);
+    _animateTo(target * widget.itemHeight);
   }
 
   @override
@@ -417,14 +506,18 @@ class _VerticalDrumPickerState extends State<_VerticalDrumPicker>
     return SizedBox(
       height: viewportHeight,
       child: Listener(
+        // One item per wheel notch, animated — AyuGram's `handleWheelEvent` calls
+        // `jumpToOffset(direction)` with the discrete `Ui::WheelDirection`, never
+        // the raw pixel delta (vertical_drum_picker.cpp:197-201). Using the sign
+        // (not the magnitude) of scrollDelta keeps a single notch to one step.
         onPointerSignal: (event) {
           if (event is PointerScrollEvent) {
-            _snapController.stop();
-            setState(() {
-              _scrollOffset = (_scrollOffset + event.scrollDelta.dy).clamp(0.0, _maxOffset);
-              _updateSelected();
-            });
-            _snapToNearest();
+            final dy = event.scrollDelta.dy;
+            if (dy > 0) {
+              jumpByItems(1);
+            } else if (dy < 0) {
+              jumpByItems(-1);
+            }
           }
         },
         child: GestureDetector(
@@ -437,6 +530,21 @@ class _VerticalDrumPickerState extends State<_VerticalDrumPicker>
             });
           },
           onVerticalDragEnd: (_) => _snapToNearest(),
+          // Click any visible row to bring it to the centre band. AyuGram's
+          // `handleMouseEvent` release-without-drag computes
+          // `toOffset = centerOffset - clickY/itemHeight` and animates to it
+          // (vertical_drum_picker.cpp:252-256); the item under the cursor here is
+          // `floor((clickY - topBase + scrollOffset) / itemHeight)`, the same
+          // target expressed in the Dart scroll model. A drag wins the gesture
+          // arena instead, so onTapUp fires only for genuine clicks (AyuGram's
+          // `_mouse.clickDisabled` guard).
+          onTapUp: (details) {
+            final i = ((details.localPosition.dy - topBase + _scrollOffset) /
+                    itemHeight)
+                .floor()
+                .clamp(0, widget.itemCount - 1);
+            _animateTo(i * itemHeight);
+          },
           child: ClipRect(child: Stack(children: items)),
         ),
       ),

@@ -77,6 +77,12 @@ class LangPack extends ChangeNotifier {
     // shown in a collapsed forum dialog row when it has no recent topics.
     'lng_filters_no_chats',
     'lng_contacts_loading',
+    // Full month names for date wheels (birthday drum picker, info dates).
+    // AyuGram `Lang::Month(n)` → `tr::lng_month1..12` (lang_keys.cpp:205-222,
+    // lang.strings:37-48).
+    'lng_month1', 'lng_month2', 'lng_month3', 'lng_month4',
+    'lng_month5', 'lng_month6', 'lng_month7', 'lng_month8',
+    'lng_month9', 'lng_month10', 'lng_month11', 'lng_month12',
   ];
 
   /// Embedded English baseline (Telegram Desktop `lang.strings`). Kept in sync
@@ -145,6 +151,19 @@ class LangPack extends ChangeNotifier {
         'enter an email address to which you have access.',
     'lng_filters_no_chats': 'No chats',
     'lng_contacts_loading': 'Loading...',
+    // Full month names — AyuGram `Lang::Month(n)` baseline (lang.strings:37-48).
+    'lng_month1': 'January',
+    'lng_month2': 'February',
+    'lng_month3': 'March',
+    'lng_month4': 'April',
+    'lng_month5': 'May',
+    'lng_month6': 'June',
+    'lng_month7': 'July',
+    'lng_month8': 'August',
+    'lng_month9': 'September',
+    'lng_month10': 'October',
+    'lng_month11': 'November',
+    'lng_month12': 'December',
   };
 
   /// Localized string: server overlay → English baseline → raw key.
