@@ -504,48 +504,12 @@ on `_VerticalDrumPicker`; cross-checked 1:1 vs AyuGram source.)
 
 Audited `dart/lib/ui/call_screen.dart` (4521 lines) against AyuGram `calls/group/*` + `calls/calls_top_bar.cpp` + `ui/controls/call_mute_button.cpp`. The file is genuinely wired to the engine throughout (no placeholder snackbars / mock data). Findings are deviations in colour-state, layout button-set, menu conditions, and a dead screen-share wiring.
 
-## Big mute button — colours/states (`_BigMuteButton`)
-
-AyuGram's `Colors()` map (`call_mute_button.cpp:146-168`) gives every state a specific palette gradient. The Dart uses three flat colours (`_greenColor 0xFF4DC920`, `_grayColor 0xFF808B94`, `_purpleColor 0xFF7B5EBF`, `call_screen.dart:1936-1938`).
-
-- [ ] [CRITICAL] "Muted" (you muted yourself) renders flat GRAY `0xFF808B94` — identical to the "Connecting…" gray — instead of AyuGram's blue→cyan gradient `#0992ef`→`#16ccfb`. Two distinct states are visually indistinguishable. Connecting should also differ: translucent white `callIconBg #ffffff1f`, not gray. — `call_screen.dart:2011-2016` (`_stateColor` connecting+muted → `_grayColor`) ← `AyuGram/Telegram/SourceFiles/ui/controls/call_mute_button.cpp:147-152` (Muted=`groupCallMuted1/2`, Connecting=`callIconBg`) + `AyuGram/Telegram/lib_ui/ui/colors.palette:557,584-585`
-- [ ] [MAJOR] "Active / You are Live" is flat green `0xFF4DC920`; AyuGram is a green→teal gradient `#0dcc39`→`#0bb6bd` (`groupCallLive1/2`). Wrong hex and missing the second stop. — `call_screen.dart:2013-2014` ← `AyuGram/.../call_mute_button.cpp:143` + `colors.palette:582-583`
-- [ ] [MAJOR] "ForceMuted"/"RaisedHand" is flat purple `0xFF7B5EBF`; AyuGram is a 3-stop ramp red→purple→blue `#eb5353`→`#9b52e9`→`#4f9cff` (`groupCallForceMuted3/2/1`). — `call_screen.dart:2017-2021` ← `AyuGram/.../call_mute_button.cpp:154-157` + `colors.palette:589-591`
-- [ ] [MAJOR] Scheduled "Start Now" uses green + a `play_arrow` icon; AyuGram's scheduled states (`ScheduledCanStart/Notify/Silent`) all reuse the force-muted red/purple/blue ramp with the hands Lottie — there is no green and no play glyph. — `call_screen.dart:2007-2009,2061` (`_stateColor`/`_icon` scheduled) ← `AyuGram/.../call_mute_button.cpp:158-168` (forceMutedTypes includes all scheduled) + `call_mute_button.h:36-46` (enum)
-
-## Bottom control bar (`_buildBottomControls`)
-
-The Dart renders a fixed 5-button `spaceEvenly` row `[Video, Settings, Mute, Chat, Hangup]` in BOTH narrow and wide mode (`call_screen.dart:989-1022`). AyuGram computes the set conditionally (`updateButtonsGeometry`).
-
-- [ ] [CRITICAL] Screen-share button is MISSING from wide mode, and `onToggleScreenShare`/`isScreenShareActive` are passed into `GroupCallPanel` but never invoked by any widget (dead wiring — screen-share is only reachable via the "…" menu). AyuGram makes `_screenShare` a PRIMARY wide-mode bottom button (shown when `!rtmp && !messagesEnabled`). — `call_screen.dart:42,49,76,2606` (callback defined+passed, never used in `build`) ← `AyuGram/Telegram/SourceFiles/calls/group/calls_group_panel.cpp:2514-2518`
-- [ ] [MAJOR] Narrow mode hardcodes 5 buttons; AyuGram's narrow DEFAULT (messages off) is 3 buttons `[Video, Mute(center), Hangup]` with `_settings` and `_screenShare` OFF the bar (`toggle(_screenShare,false)`; settings only when `five || !showVideoButton`). The 5-button row only exists when `messagesEnabled`. — `call_screen.dart:989-1022` ← `AyuGram/.../calls_group_panel.cpp:2570-2582,2630,2641`
-- [ ] [MAJOR] The 4th button is a generic "Chat" toggle shown unconditionally and wired to a local message-panel toggle; AyuGram's 4th slot is `_message`, gated on the server flag `messagesEnabled` (`toggle(_message, !_callShare && messagesEnabled)`), and is the typing/live-messages control — absent entirely when messages aren't enabled. — `call_screen.dart:1010-1015` ← `AyuGram/.../calls_group_panel.cpp:2647-2650`
-
-## "…" menu (`_showGroupCallMenu`)
-
-AyuGram's `FillMenu` (`calls_group_menu.cpp:488-627`) gates every item; the Dart shows most unconditionally.
-
-- [ ] [MAJOR] "Start/Stop Recording" is shown to ALL users; AyuGram gates it on `addEditRecording = !conference && canManage() && !scheduleDate()`. A non-admin sees an admin action that fails server-side. — `call_screen.dart:2948-2957` ← `AyuGram/.../calls_group_menu.cpp:513-515`
-- [ ] [MAJOR] "Share Screen" and "Join As…" are shown unconditionally; AyuGram gates Share Screen on `videoIsWorking() && !scheduleDate()` and Join As on `showChooseJoinAs()`. — `call_screen.dart:2922-2930,2995-2999` ← `AyuGram/.../calls_group_menu.cpp:511,516-517`
-- [ ] [MAJOR] "Leave Call" always calls plain `leaveGroupCall` with a fixed label; for a manager AyuGram shows "End"/"Cancel" variants and routes through `LeaveBox` (the "also end the call for everyone" choice / `discard` vs `hangup`). The Dart's leave-or-end dialog exists (`_showLeaveOrEndDialog`) but is NOT used by this menu item, so a manager cannot end-for-all from here. — `call_screen.dart:3030-3040` ← `AyuGram/.../calls_group_menu.cpp:605-626`
-
-(Note: Dart adds an "Invite Members" item that AyuGram's `FillMenu` does not have — extra but functional, so not scored.)
-
-## Call settings sheet (`_CallSettingsSheet`)
-
-- [ ] [MAJOR] Missing the "Share invite link" button — a primary control in AyuGram's `SettingsBox` for normal group/channel calls. The Dart sheet has no link-sharing row at all. — `call_screen.dart:3404-3545` (no share row) ← `AyuGram/Telegram/SourceFiles/calls/group/calls_group_settings.cpp:674-680`
-
 ## Participant context menu (`_showParticipantMenu`)
 
 AyuGram builds this in `createRowContextMenu` + `addMuteActionsToContextMenu` (`calls_group_members.cpp:1325-1699`).
 
 - [ ] [MAJOR] "Mute"/"Unmute" is offered on the SELF row (admin) and on fellow admins; AyuGram suppresses the mute action for `isMe`, requires a live ssrc, and protects co-admins (`Inactive && participantIsCallAdmin && canManage` → no action). The Dart gates only on `!p.isMuted && widget.isCanManage` with no self/admin/ssrc check. — `call_screen.dart:634-638` ← `AyuGram/.../calls_group_members.cpp:1662-1678`
 - [ ] [MAJOR] "Remove from call" (kick) is offered for any non-self participant when `canManage`; AyuGram's `canKick` excludes the chat creator and other admins (ban-rights / `canRestrictParticipant` logic). The Dart can offer Remove on a co-admin or the creator. — `call_screen.dart:655-661` ← `AyuGram/.../calls_group_members.cpp:1521-1545`
-- [ ] [MAJOR] Volume is a plain "Volume: X%" item that opens a separate `AlertDialog` slider; AyuGram embeds a live inline `MenuVolumeItem` slider directly in the popup (which also carries the local mute-for-me toggle). Different interaction model. — `call_screen.dart:650-653,716-756` (`_showVolumeSlider`) ← `AyuGram/.../calls_group_members.cpp:1600-1647`
-
-## Minimised call bar (`MinimisedCallBar`)
-
-- [ ] [MAJOR] The minimised bar renders a running call-duration label for GROUP calls; AyuGram constructs `_durationLabel`/`_signalBars` only when `_call` is non-null (personal 1:1 calls) and `updateDurationText` early-returns for group calls — a group bar shows the info/participants label, never a duration. — `call_screen.dart:4000-4013` ← `AyuGram/Telegram/SourceFiles/calls/calls_top_bar.cpp:259-264,733-734`
 
 # calls_screen — Calls box, conference create/invite, call history, level meter
 
