@@ -258,15 +258,16 @@ class AudioService extends ChangeNotifier {
 
   /// Apply the song playback volume (0..1) to the active player. Mirrors
   /// AyuGram's mixer()->setSongVolume (media_player_volume_controller.cpp:78-83).
-  /// While a notification sound ducks the audio (volume forced to 0), the new
-  /// level is stored but not applied — the duck-restore picks it up.
+  /// While a notification sound ducks the audio, the new level is applied
+  /// pre-multiplied by the suppression ratio so the dip tracks the user's live
+  /// volume — AyuGram recomputes ComputeVolume = VolumeMultiplierAll * songVolume
+  /// on songVolumeChanged() (media_audio.cpp:255,1156-1161,1333). The duck-restore
+  /// then lifts it back to the full stored level.
   void setSongVolume(double v) {
     final vol = v.clamp(0.0, 1.0).toDouble();
     if (_songVolume == vol) return;
     _songVolume = vol;
-    if (!_ducking) {
-      _player?.setVolume(vol * 100);
-    }
+    _player?.setVolume(vol * 100 * (_ducking ? _kSuppressRatioAll : 1.0));
     notifyListeners();
   }
 
@@ -470,6 +471,16 @@ class AudioService extends ChangeNotifier {
   Timer? _duckTimer;
   bool _ducking = false;
 
+  /// Suppression ratio applied to all in-app audio while a notification alert
+  /// sound plays — dips other tracks to 20% of their CURRENT volume, NOT to
+  /// silence, so the beep is foregrounded while the underlying music/voice
+  /// stays faintly audible ("duck without interrupting"). Faithful mirror of
+  /// AyuGram's `kSuppressRatioAll`: its fader drives `VolumeMultiplierAll` down
+  /// to this value and `ComputeVolume()` multiplies it into the live song
+  /// volume (`VolumeMultiplierAll * getSongVolume()`), so it is a multiplier of
+  /// the user's current level, not an absolute. (media_audio.cpp:35,255,1127)
+  static const _kSuppressRatioAll = 0.2;
+
   /// Suppress in-app media playback for [length] while a notification sound
   /// plays, then restore full volume. No-op when nothing is playing (there is
   /// nothing to suppress). Overlapping calls extend the suppression window.
@@ -479,9 +490,13 @@ class AudioService extends ChangeNotifier {
     if (!_ducking) {
       _ducking = true;
       try {
-        await p.setVolume(0);
+        // Dip to 20% of the current song volume (AyuGram kSuppressRatioAll),
+        // not to 0 — the underlying track keeps playing faintly under the beep
+        // rather than cutting out. Mirrors ComputeVolume = VolumeMultiplierAll
+        // (0.2 while suppressed) * getSongVolume(). (media_audio.cpp:35,255,1329)
+        await p.setVolume(_songVolume * 100 * _kSuppressRatioAll);
       } catch (e) {
-        Debug.log('audio_service', 'await p.setVolume(0): $e');
+        Debug.log('audio_service', 'duck setVolume: $e');
       }
     }
     _duckTimer?.cancel();
@@ -489,7 +504,8 @@ class AudioService extends ChangeNotifier {
       _ducking = false;
       try {
         // Restore to the user's song volume, not hard 100% — the bar's volume
-        // slider / mute toggle may have set a lower level.
+        // slider / mute toggle may have set a lower level. Equivalent to the
+        // fader lifting VolumeMultiplierAll back to 1.0 (media_audio.cpp:1114-1117).
         await _player?.setVolume(_songVolume * 100);
       } catch (e) {
         Debug.log('audio_service', 'await _player?.setVolume: $e');
