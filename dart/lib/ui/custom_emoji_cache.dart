@@ -253,7 +253,17 @@ class CustomEmojiCache {
     try {
       final basePath = '$_diskCacheDir/$documentId';
       await File('$basePath.dat').writeAsBytes(data.fileData, flush: true);
-      await File('$basePath.mime').writeAsString(data.mimeType, flush: true);
+      // Fold the monochrome "text-color" tint flag into the .mime sidecar as a
+      // second line so it survives the disk round-trip. AyuGram persists the
+      // same bit on the document itself (Flag::UseTextColor, data_document.cpp
+      // :803-811); without it a text-color emoji loses its tint after eviction
+      // or cold start and renders in its original color. Legacy single-line
+      // .mime files load back as usesTextColor=false (the correct default), and
+      // the line is always rewritten so a true→false flip is honoured too.
+      await File('$basePath.mime').writeAsString(
+        '${data.mimeType}\n${data.usesTextColor ? '1' : '0'}',
+        flush: true,
+      );
       _diskIndex.add(documentId);
     } catch (e) {
       Debug.log('custom_emoji_cache', 'final basePath = \'\$_diskCacheDir/\$documentId\': $e');
@@ -288,10 +298,14 @@ class CustomEmojiCache {
       final mimeFile = File('$_diskCacheDir/$documentId.mime');
       if (await datFile.exists() && await mimeFile.exists()) {
         final fileData = await datFile.readAsBytes();
-        final mimeType = await mimeFile.readAsString();
+        // .mime is "<mimeType>" (legacy) or "<mimeType>\n<0|1>" where the
+        // second line is the persisted usesTextColor flag (see _writeToDisk).
+        final mimeRaw = await mimeFile.readAsString();
+        final mimeLines = mimeRaw.split('\n');
         _files[documentId] = CustomEmojiFileData(
-          mimeType: mimeType.trim(),
+          mimeType: mimeLines[0].trim(),
           fileData: fileData,
+          usesTextColor: mimeLines.length > 1 && mimeLines[1].trim() == '1',
         );
       }
       if (!_thumbs.containsKey(documentId)) {
