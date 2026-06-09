@@ -2,24 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# system_idle — OS-level global user-input idle source (port of `base::Platform::LastUserInputTime()`)
-
-Scope: `dart/lib/notifications/system_idle.dart` provides the per-platform global
-idle source consumed by the custom notification manager's wait-for-input gate
-(`notification_manager_default.dart:88` via `_effectiveLastInput`, and
-`notification_popup.dart:263` via `_globalInputAfter`). Both consumers null-check
-the API and fall back to the app-local pointer signal, so `SystemIdle.supported`
-(static handle-open check, diverging from AyuGram's dynamic
-`LastUserInputTimeSupported() = LastUserInputTime().has_value()`) is never read and
-is not flagged. macOS uses `CGEventSourceSecondsSinceLastEventType(HIDSystemState=1,
-kCGAnyInputEventType=0xFFFFFFFF)` — a documented, functionally-equivalent substitute
-for AyuGram's IOKit `HIDIdleTime` read (correct constants, correct ns/s→ms scaling);
-verified equivalent, not a defect.
-
-- [ ] [CRITICAL] Linux backend implements ONLY the XCB MIT-SCREEN-SAVER path (`libX11`/`libXss` → `XScreenSaverQueryInfo`) and omits AyuGram's second Linux backend, the Mutter D-Bus `org.gnome.Mutter.IdleMonitor` fallback. AyuGram's `LastUserInputTime()` tries XCB first and falls back to `MutterDBusLastUserInputTime()` precisely because `XScreenSaverQueryInfo` does NOT report real global idle under Wayland (no X server, or XWayland only sees X11-client input, not native-Wayland/compositor input). On the now-default Wayland sessions of major distros (Fedora, Ubuntu, GNOME), the Dart version therefore returns null (or stale/zero idle) and the whole "stay on screen until the away user returns" feature this file exists to provide silently reverts to the app-local pointer signal — the exact "missing half" the docstring claims to restore. An entire AyuGram backend (>25% of the Linux code path) is absent. — `system_idle.dart:167` (`_LinuxIdle.tryOpen`, XCB/XScreenSaver only) ← `AyuGram/Telegram/lib_base/base/platform/linux/base_last_input_linux.cpp:58` (`MutterDBusLastUserInputTime`) + dispatcher fallback `base_last_input_linux.cpp:88`
-
-- [ ] [MAJOR] Windows idle is computed as a naive `GetTickCount() - dwTime`, dropping AyuGram's `GetTickCount64()` reading, its `good = (|ticks32 - ticks64| <= 1000) && (elapsed >= 0)` sanity check, and the 32-bit-overrun fallback (LastTrackedInput/LastTrackedWhen + delayed re-check). `GetTickCount` wraps every ~49.7 days; AyuGram added `GetTickCount64` specifically to stay correct across that wrap. In Dart the two `Uint32` reads are promoted to signed 64-bit, so once the tick counter has wrapped while `dwTime` still holds a pre-wrap value, `GetTickCount() - dwTime` goes NEGATIVE and `SystemIdle.idleMillis()` clamps it to 0 (`ms < 0 ? 0 : ms`, line 71) — reporting "user just active" for a genuinely long-idle/away user until their next input overwrites `dwTime`. During that window a notification gates as if the user were present and auto-dismisses instead of waiting, the opposite of intended behavior. — `system_idle.dart:124` (`return _getTickCount() - _info.ref.dwTime;`) ← `AyuGram/Telegram/lib_base/base/platform/win/base_last_input_win.cpp:32` (GetTickCount64 + good check, overrun logic through `:68`)
-
 # app_state — top-level app/settings state (port of AyuGram core_settings + core_settings_proxy + ayu_settings + main_domain/passcode)
 
 Audited `dart/lib/state/app_state.dart` (4970 lines) against AyuGram C++ ground truth:
