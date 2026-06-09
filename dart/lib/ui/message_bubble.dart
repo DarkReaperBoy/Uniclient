@@ -4567,12 +4567,12 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
         isRoundVideo: msg.mediaType == 5,
       ).then((_) {
         Future.delayed(const Duration(milliseconds: 100), () {
-          audio.seek(localX / totalWidth);
+          audio.seek(localX / totalWidth, msgId: msg.msgId);
         });
       });
       return;
     }
-    audio.seek(localX / totalWidth);
+    audio.seek(localX / totalWidth, msgId: msg.msgId);
   }
 
   void _onTranscribe() async {
@@ -4624,7 +4624,12 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
     final audio = context.watch<AudioService>();
     final isActive = audio.isActiveMsg(widget.message.msgId);
     final isPlaying = audio.isPlayingMsg(widget.message.msgId);
-    final progress = isActive ? audio.progress : 0.0;
+    // Resolve position/duration/progress per-msgId, not from the bar's displayed
+    // track — a voice and a song can both be loaded, so this bubble must read
+    // its own track even when the bar is showing the other one.
+    final progress = audio.progressFor(widget.message.msgId);
+    final audioPosition = audio.positionFor(widget.message.msgId);
+    final audioDuration = audio.durationFor(widget.message.msgId);
     final downloading = widget.message.mediaDownloadState == 1;
     final dlProgress = context.watch<ChatState>().getDownloadProgress(widget.message.msgId);
     final accentColor = widget.theme.colorScheme.primary;
@@ -4701,7 +4706,8 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
                                 },
                                 onHorizontalDragUpdate: (details) {
                                   if (isActive) {
-                                    audio.seek(details.localPosition.dx / width);
+                                    audio.seek(details.localPosition.dx / width,
+                                        msgId: widget.message.msgId);
                                   }
                                 },
                                 child: CustomPaint(
@@ -4743,16 +4749,16 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
                           )
                         else ...[
                           Text(
-                            isActive && audio.duration.inMilliseconds > 0
-                                ? _formatDurationMs(audio.position)
+                            isActive && audioDuration.inMilliseconds > 0
+                                ? _formatDurationMs(audioPosition)
                                 : widget.message.mediaDuration > 0
                                     ? _VisualMedia._formatDuration(widget.message.mediaDuration)
                                     : '',
                             style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
                           ),
-                          if (isActive && audio.duration.inMilliseconds > 0) ...[
+                          if (isActive && audioDuration.inMilliseconds > 0) ...[
                             Text(
-                              ' / ${_formatDurationMs(audio.duration)}',
+                              ' / ${_formatDurationMs(audioDuration)}',
                               style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
                             ),
                           ] else if (widget.message.mediaDuration > 0 && widget.message.mediaSizeLabel.isNotEmpty) ...[
@@ -4977,6 +4983,9 @@ class _AudioIndicatorState extends State<_AudioIndicator> {
       accessHash: accessHash,
       fileRef: fileRef,
       isSong: true,
+      // A music file < 1 minute always plays at 1.0× (AyuGram
+      // changeablePlaybackSpeed gate, data_audio_msg_id.cpp:28-30).
+      durationSeconds: message.mediaDuration,
     );
   }
 
@@ -5010,8 +5019,10 @@ class _AudioIndicatorState extends State<_AudioIndicator> {
 
     String statusText;
     if (isActive) {
-      final played = _formatDurationMs(audio.position);
-      final total = _formatDurationMs(audio.duration);
+      // Per-msgId, not the bar's displayed track — a song and a voice may both
+      // be loaded at once.
+      final played = _formatDurationMs(audio.positionFor(message.msgId));
+      final total = _formatDurationMs(audio.durationFor(message.msgId));
       statusText = '$played / $total';
     } else if (isFailed) {
       statusText = 'Failed';

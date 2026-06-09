@@ -6941,6 +6941,9 @@ class _AudioListItem extends StatelessWidget {
         title: _extractTitle(item.fileName),
         accountId: accountId,
         isSong: true,
+        // A music file < 1 minute always plays at 1.0× (AyuGram
+        // changeablePlaybackSpeed gate, data_audio_msg_id.cpp:28-30).
+        durationSeconds: item.duration,
       );
     } else if (accountId.isNotEmpty && chatId.isNotEmpty) {
       final engine = context.read<EngineService>();

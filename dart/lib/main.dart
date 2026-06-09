@@ -374,12 +374,14 @@ class _UniClientAppState extends State<UniClientApp>
     // Wire media-player playlist navigation. next()/previous() and completion
     // auto-advance walk the active chat's audio playlist through ChatState,
     // mirroring AyuGram moveInPlaylist(data, ±1, …) (media_player_instance.cpp).
-    // AudioService.previous() keeps its own "restart if >3s in" guard and only
-    // calls onPreviousTrack when it actually needs to change tracks.
+    // The callback carries the finishing/displayed track's own context
+    // (chatId, msgId, isSong) so a song advances its music playlist and a voice
+    // advances the voice+round playlist independently, and returns whether a
+    // neighbour existed (false → the track stays loaded & finished).
     chatState.setAudioService(audioService);
-    audioService.onNextTrack = () => chatState.moveAudioInPlaylist(audioService, 1);
-    audioService.onPreviousTrack =
-        () => chatState.moveAudioInPlaylist(audioService, -1);
+    audioService.onResolveNeighbour = (chatId, msgId, isSong, delta) =>
+        chatState.moveAudioInPlaylist(
+            audioService, chatId, msgId, isSong, delta);
     void applyAudioSettings() {
       audioService.setPlaybackSpeeds(
         voice: appState.voicePlaybackSpeed,

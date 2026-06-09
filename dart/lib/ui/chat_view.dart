@@ -1612,7 +1612,7 @@ class _ChatViewState extends State<ChatView>
         if (msg.contentText.isNotEmpty)
           const TelegramMenuItem(value: 'quote_reply', icon: Icon(Icons.format_quote), label: 'Quote and Reply'),
         if (isVoicePlaying)
-          TelegramMenuItem(value: 'voice_timecode', icon: const Icon(Icons.access_time), label: 'at ${_formatTimecode(audioService.position)}'),
+          TelegramMenuItem(value: 'voice_timecode', icon: const Icon(Icons.access_time), label: 'at ${_formatTimecode(audioService.positionFor(msg.msgId))}'),
         if (selectedText.isNotEmpty)
           const TelegramMenuItem(value: 'copy_selected', icon: Icon(Icons.copy), label: 'Copy Selected Text'),
         if (msg.contentText.isNotEmpty)
@@ -2113,7 +2113,7 @@ class _ChatViewState extends State<ChatView>
 
   void _insertVoiceTimecode(CachedMessage msg) {
     final audioService = context.read<AudioService>();
-    final timecode = _formatTimecode(audioService.position);
+    final timecode = _formatTimecode(audioService.positionFor(msg.msgId));
     setState(() {
       _replyToId = msg.msgId;
       _composeController.text = timecode;

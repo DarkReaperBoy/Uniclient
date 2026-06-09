@@ -148,11 +148,17 @@ class _PlayerBarContentState extends State<_PlayerBarContent> {
           if (isSong)
             _OrderButton(
                 appState: appState, activeFg: activeFg, inactiveFg: inactiveFg),
-          _SpeedControl(
-              appState: appState,
-              isSong: isSong,
-              activeFg: activeFg,
-              palette: palette),
+          // Speed control is hidden when the track isn't speed-changeable — a
+          // music file < 1 minute always plays at 1.0×, so showing a speed
+          // control that does nothing would be misleading (AyuGram
+          // hasPlaybackSpeedControl → `_speedToggle->setVisible`,
+          // media_player_widget.cpp:606-614).
+          if (audio.currentChangeableSpeed)
+            _SpeedControl(
+                appState: appState,
+                isSong: isSong,
+                activeFg: activeFg,
+                palette: palette),
           if (isSong) _moreButton(context, appState, palette),
         ];
 

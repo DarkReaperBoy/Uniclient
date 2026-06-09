@@ -3402,32 +3402,35 @@ class ChatState extends ChangeNotifier {
     return items;
   }
 
-  /// Step [delta] within the current track's playlist and play the neighbour
-  /// (delta +1 = next, -1 = previous). The actual target is chosen by
-  /// [AudioService.nextInPlaylist], which applies the order (default/reverse/
-  /// shuffle) and repeat-all (modulo wrap) rules. Leaves playback stopped when
-  /// it returns null (no neighbour — matches AyuGram moveInPlaylist returning
-  /// false → StoppedAtEnd stays finished). If the chosen neighbour isn't cached
-  /// yet it is downloaded first, then played on arrival (AyuGram streams it; we
-  /// play once the file is local).
-  void moveAudioInPlaylist(AudioService audio, int delta) {
-    if (_disposed) return;
+  /// Step [delta] within [curMsgId]'s playlist and play the neighbour
+  /// (delta +1 = next, -1 = previous). [chatId]/[curMsgId]/[isSong] are the
+  /// finishing or displayed track's own context (not necessarily the bar's), so
+  /// a song advances the music overview and a voice advances the voice+round
+  /// overview independently even when both are loaded. The actual target is
+  /// chosen by [AudioService.nextInPlaylist], which applies the order
+  /// (default/reverse/shuffle) and repeat-all (modulo wrap) rules. Returns true
+  /// if a neighbour was found (now playing or queued for download), false if
+  /// none — matching AyuGram moveInPlaylist returning false → StoppedAtEnd stays
+  /// finished. If the chosen neighbour isn't cached yet it is downloaded first,
+  /// then played on arrival (AyuGram streams it; we play once the file is local).
+  bool moveAudioInPlaylist(
+      AudioService audio, String chatId, String curMsgId, bool isSong, int delta) {
+    if (_disposed) return false;
     _audioServiceRef = audio;
-    final chatId = audio.currentChatId;
-    final curMsgId = audio.currentMsgId;
-    if (chatId.isEmpty || curMsgId.isEmpty) return;
-    final playlist = _audioPlaylist(chatId, audio.currentIsSong);
-    if (playlist.isEmpty) return;
+    if (chatId.isEmpty || curMsgId.isEmpty) return false;
+    final playlist = _audioPlaylist(chatId, isSong);
+    if (playlist.isEmpty) return false;
     final targetMsgId = audio.nextInPlaylist(
       playlist: [for (final m in playlist) m.msgId],
       currentMsgId: curMsgId,
       delta: delta,
-      isSong: audio.currentIsSong,
+      isSong: isSong,
     );
-    if (targetMsgId == null) return; // no neighbour → playback stays stopped
+    if (targetMsgId == null) return false; // no neighbour → track stays finished
     final targetIdx = playlist.indexWhere((m) => m.msgId == targetMsgId);
-    if (targetIdx < 0) return; // not in the loaded playlist (shouldn't happen)
+    if (targetIdx < 0) return false; // not in the loaded playlist (shouldn't happen)
     _playAudioMessage(audio, playlist[targetIdx], fromMsgId: curMsgId);
+    return true;
   }
 
   /// Play [msg] as the active audio track. Downloads first if not cached,
@@ -3474,6 +3477,10 @@ class ChatState extends ChangeNotifier {
       accessHash: accessHash,
       fileRef: fileRef,
       isSong: isSong,
+      // Document duration (seconds) gates the changeable-playback-speed rule:
+      // a music file < 1 minute always plays at 1.0× (AyuGram
+      // kMinLengthForChangeablePlaybackSpeed, data_audio_msg_id.cpp:14,28-30).
+      durationSeconds: msg.mediaDuration,
       // mediaType 5 = round-video message (chat_state.dart:3083) — drives the
       // display-sleep power-save blocker while it plays.
       isRoundVideo: msg.mediaType == 5,
@@ -3485,8 +3492,12 @@ class ChatState extends ChangeNotifier {
   void _maybeAutoplayDownloaded(CachedMessage msg) {
     final audio = _audioServiceRef;
     if (audio == null || _pendingAutoplayMsgId != msg.msgId) return;
-    // Abort if the user started a different track while we were downloading.
-    if (audio.currentMsgId != _pendingAutoplayFromMsgId) {
+    // Abort if the track we were advancing FROM is no longer loaded (the user
+    // started something else). With two coexisting tracks the "from" track may
+    // be the song or the voice, so check whether it is still active in either —
+    // a finished track stays loaded until its neighbour replaces it.
+    final fromMsgId = _pendingAutoplayFromMsgId;
+    if (fromMsgId == null || !audio.isActiveMsg(fromMsgId)) {
       _pendingAutoplayMsgId = null;
       _pendingAutoplayFromMsgId = null;
       return;
