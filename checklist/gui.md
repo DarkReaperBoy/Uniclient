@@ -671,19 +671,6 @@ checkbox is on and vanish when off (differential ON→OFF→ON verified, persist
 message reactions re-render in Twemoji) and persists; the sensitive-content string matches.
 Both modes render with zero RenderFlex overflow and zero widget exceptions.
 
-# clipboard_image — System clipboard → PNG bytes for "Photo from clipboard" avatar feature
-
-Utility `getClipboardImage()` backing the "From Clipboard" photo-menu action
-(callers: `my_profile_page.dart:1431`, `contacts_screen.dart:1662`). It is a real,
-fully-wired implementation — no stubs, placeholders, TODOs, mock data, or empty
-callbacks. Mirrors AyuGram's `addFromClipboard` path in
-`ui/controls/userpic_button.cpp:382-399`. Findings below are behavioral deviations
-from that Qt path, both Linux-specific.
-
-- [ ] [MAJOR] Linux retrieval is hardcoded to `image/png` only — `wl-paste --type image/png` and `xclip -t image/png` return nothing when the source app offers the image only as `image/jpeg`/`image/bmp`/`image/tiff` (common from browsers, screenshot tools, GIMP), so the avatar-from-clipboard feature silently fails for valid clipboard images. AyuGram tests `data->hasImage()` and reads `qvariant_cast<QImage>(data->imageData())`, which Qt converts to QImage from ANY clipboard image format. (Note: the Windows `Clipboard.GetImage()` and macOS `«class PNGf»` paths DO coerce any format, so this gap is Linux-only.) — `clipboard_image.dart:12,19-20` ← `AyuGram/SourceFiles/ui/controls/userpic_button.cpp:384,391`
-
-- [ ] [MAJOR] Empty `catch (_) {}` on the Linux branches conflates "clipboard tool missing" with "no image present" — if neither `wl-paste` (wl-clipboard) nor `xclip` is installed/on PATH, both `Process.run` calls throw, the errors are swallowed, and the function returns `null`, indistinguishable from an empty clipboard; the caller then shows "No image in clipboard" even when an image IS present, leaving the feature dead with no diagnostic. AyuGram reads the clipboard natively via `QGuiApplication::clipboard()->mimeData()` with no external-binary dependency, so this failure mode cannot occur. — `clipboard_image.dart:17,25` ← `AyuGram/SourceFiles/ui/controls/userpic_button.cpp:383-384`
-
 # color_picker_box — AyuGram ColorEditor (ui/widgets/color_editor.cpp) port
 
 Scope: `color_picker_box.dart` mirrors AyuGram's `ColorEditor` (RGBA + HSL modes).
