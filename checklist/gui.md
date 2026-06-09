@@ -2,19 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_manager_native — Linux native (freedesktop DBus) + Flatpak portal notification manager
-
-Audited against AyuGram's `platform/linux/notifications_manager_linux.cpp`,
-`window/notifications_utilities.cpp`, `ui/empty_userpic.cpp`, and
-`ui/chat/chat_style.cpp`. The DBus-direct path, userpic glyph generation,
-gradient colours (all 8 pairs byte-exact vs `lib_ui/ui/colors.palette`), palette
-map `{0,7,4,1,6,3,5}`, initials `fillString` port, Saved-Messages / Replies
-glyphs, body-markup building, sound LRU cache, image-key selection, and every
-clear* method are faithful to AyuGram. One genuine wiring bug found in the
-Flatpak portal action path.
-
-- [ ] [CRITICAL] Flatpak portal action handler recovers `accountId`/`chatId` by `notifId.split('_')[0]`/`[1]`, but engine account IDs are minted as `prefix + "_" + hex(4 bytes)` (e.g. `tele_a1b2c3d4`, see `go/engine/accounts.go:40`), so the account ID itself contains an underscore. The notifId `${accountId}_${chatId}_${messageId}` therefore becomes `tele_a1b2c3d4_<chatId>_<messageId>`, and the split yields `parts[0]='tele'`, `parts[1]='a1b2c3d4'` — neither is the real accountId/chatId. Tapping a Flatpak notification (`default`/`app.notification-activate`) or its mark-as-read button calls `onAction` with these garbage IDs, so `_onNotifTap`/`markChatRead` target a non-existent chat and the action silently no-ops. AyuGram never string-splits: it passes a typed variant dict with separate `session`/`peer`/`topic`/`monoforumpeer`/`msgid` fields and reads them back in `dictToNotificationId`. The correct values are already available here in the signal's target parameter (`signal.values[2]`, the `av` array set as `default-action-target`/button `target` at `notification_manager_native.dart:1325-1330`) and in `_portalNotifData[contextKey][notifId]` — use one of those instead of parsing the string. — `notification_manager_native.dart:1287` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:371`
-
 # notification_sound — notification alert-sound player (bundled default-sound extraction, per-chat ringtone volume, audio ducking)
 
 Faithful port of AyuGram's `System` sound path (`notifications_manager.cpp:761-778`,
