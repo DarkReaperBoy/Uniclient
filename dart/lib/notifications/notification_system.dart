@@ -94,6 +94,15 @@ class NotificationSystem {
   static const _kMinimalAlertDelay = Duration(milliseconds: 500);
   static const _kWaitingForAllGroupedDelay = Duration(milliseconds: 1000);
   static const _kReactionNotificationEach = Duration(hours: 1);
+  // Forward/album grouping window. C++ groups consecutive forwarded items whose
+  // dates differ by STRICTLY less than 2 (notifications_manager.cpp:897), where
+  // HistoryItem::date() is a TimeId in SECONDS. NotificationData.timestamp is in
+  // MILLISECONDS (CachedMessage.timestamp comes straight from the Go cores'
+  // time.UnixMilli(), engine_models.dart:1117 / chat_state.dart:2999 — no s
+  // conversion), so the equivalent 2-second window is 2000 ms. The original
+  // literal `< 2` meant "within 2 ms" — two distinct forwards are realistically
+  // never that close, so forward grouping ("Forwarded N messages") never fired.
+  static const int _kGroupingWindowMs = 2000;
   Duration _cloudDelay = const Duration(seconds: 30);
   Duration _defaultDelay = const Duration(milliseconds: 1500);
   int _onlineCloudTimeoutSec = 300;
@@ -463,11 +472,13 @@ class NotificationSystem {
     if (a.forwardFrom.isNotEmpty && b.forwardFrom.isNotEmpty) {
       // C++ groups consecutive items only when their dates differ by STRICTLY
       // less than 2 seconds: qAbs(int64(nextItem->date()) -
-      // int64(groupedItem->date())) < 2 (notifications_manager.cpp:897). For
-      // integer-second timestamps that's a 0–1s window; `<= 2` would wrongly
-      // merge messages exactly 2s apart that AyuGram shows separately.
+      // int64(groupedItem->date())) < 2 (notifications_manager.cpp:897), where
+      // date() is a TimeId in SECONDS. Our timestamps are MILLISECONDS, so the
+      // 2-second window is `< _kGroupingWindowMs` (2000). The old `< 2` compared
+      // milliseconds against 2 ms, so the 1000 ms grouping wait was defeated and
+      // each new forward force-flushed the prior one as a separate notification.
       return a.senderId == b.senderId &&
-          (a.timestamp - b.timestamp).abs() < 2;
+          (a.timestamp - b.timestamp).abs() < _kGroupingWindowMs;
     }
     return false;
   }
@@ -504,11 +515,15 @@ class NotificationSystem {
         } else if (n.forwardFrom.isNotEmpty && n.forwardCount <= 1) {
           final fwdKey = n.senderId;
           final existing = forwardGroups[fwdKey];
-          // Strict `< 2` to match C++ (notifications_manager.cpp:897) — see
-          // _isSameGroup; integer-second dates 2s apart are shown separately.
+          // 2-second grouping window — see _isSameGroup. C++ compares
+          // second-granularity dates with `< 2` (notifications_manager.cpp:897);
+          // our timestamps are MILLISECONDS, so the window is 2000 ms. With the
+          // old `< 2` (ms) this branch never matched, so multi-forward
+          // "Forwarded N messages" grouping could never trigger.
           if (existing != null &&
               existing.isNotEmpty &&
-              (n.timestamp - existing.last.timestamp).abs() < 2) {
+              (n.timestamp - existing.last.timestamp).abs() <
+                  _kGroupingWindowMs) {
             existing.add(n);
           } else if (existing == null) {
             forwardGroups[fwdKey] = [n];
@@ -805,6 +820,63 @@ class NotificationSystem {
     }
     _groupedBuffer.removeWhere(
         (n) => n.accountId == accountId && n.chatId == chatId);
+    if (_groupedBuffer.isEmpty) {
+      _groupedTimer?.cancel();
+      _groupedTimer = null;
+    }
+  }
+
+  // Full clear of ONE forum topic — the per-thread analog of clearForChat and a
+  // direct port of C++ System::clearFromTopic (notifications_manager.cpp:508):
+  // dismiss the topic's on-screen toasts via the manager, then drop only that
+  // topic thread's dedup map, alert cooldown, pending mute-waiters, scheduled
+  // timers and buffered grouped items. Crucially this leaves the forum's SIBLING
+  // topics untouched, unlike clearForChat whose `_keyInChat` prefix match wipes
+  // every `chatKey:` sub-thread. Wired to chat activation/read so opening one
+  // topic no longer clears the rest of the forum.
+  void clearForTopic(String accountId, String chatId, String topicRootId) {
+    _manager.clearForTopic(accountId, chatId, topicRootId);
+    _clearThreadState(
+      _threadKeyOf(accountId, chatId, topicRootId, ''),
+      (n) =>
+          n.accountId == accountId &&
+          n.chatId == chatId &&
+          n.topicRootId == topicRootId &&
+          n.sublistPeerId.isEmpty,
+    );
+  }
+
+  // Full clear of ONE monoforum sublist — port of C++ System::clearFromSublist
+  // (notifications_manager.cpp:525). Same single-thread semantics as
+  // clearForTopic, keyed by sublistPeerId instead of topicRootId.
+  void clearForSublist(String accountId, String chatId, String sublistPeerId) {
+    _manager.clearForSublist(accountId, chatId, sublistPeerId);
+    _clearThreadState(
+      _threadKeyOf(accountId, chatId, '', sublistPeerId),
+      (n) =>
+          n.accountId == accountId &&
+          n.chatId == chatId &&
+          n.sublistPeerId == sublistPeerId &&
+          n.topicRootId.isEmpty,
+    );
+  }
+
+  // Drop all internal scheduling/dedup state for the single thread identified by
+  // [threadKey] (the four per-thread maps all key on the full thread key), cancel
+  // its pending dispatch timers, and remove its buffered grouped items
+  // ([inThread] selects them). Shared by clearForTopic/clearForSublist.
+  void _clearThreadState(
+      String threadKey, bool Function(NotificationData) inThread) {
+    _whenMaps.remove(threadKey);
+    _lastAlertPerThread.remove(threadKey);
+    _settingWaiters.remove(threadKey);
+    final timers = _pendingTimers.remove(threadKey);
+    if (timers != null) {
+      for (final t in timers) {
+        t.cancel();
+      }
+    }
+    _groupedBuffer.removeWhere(inThread);
     if (_groupedBuffer.isEmpty) {
       _groupedTimer?.cancel();
       _groupedTimer = null;

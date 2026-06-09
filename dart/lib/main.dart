@@ -658,14 +658,30 @@ class _UniClientAppState extends State<UniClientApp>
       _notifSystem.updateAvatarForPeer(accountId, chatId, avatarPath);
     };
     // §37: reading a chat's inbox dismisses its incoming notifications, and
-    // opening a chat clears all of that chat's notifications (every topic /
-    // sublist) — AyuGram inboxRead→clearIncomingFromHistory and
-    // chat-activation→clearFromHistory.
-    chatState.onChatRead = (accountId, chatId) {
-      _notifSystem.clearIncomingFromChat(accountId, chatId);
+    // opening a chat/thread clears that thread's notifications. ChatState routes
+    // a forum topic or monoforum sublist to its own sub-thread (non-empty
+    // topicRootId / sublistPeerId) so only that sub-thread is cleared — AyuGram
+    // clearFromTopic/clearFromSublist (notifications_manager.cpp:1354-1356) and
+    // clearIncomingFromTopic/Sublist (:610-625). Both empty → the whole history
+    // (clearFromHistory / clearIncomingFromHistory). This stops opening one forum
+    // topic from wiping its sibling topics' notifications.
+    chatState.onChatRead = (accountId, chatId, topicRootId, sublistPeerId) {
+      if (topicRootId.isNotEmpty) {
+        _notifSystem.clearIncomingFromTopic(accountId, chatId, topicRootId);
+      } else if (sublistPeerId.isNotEmpty) {
+        _notifSystem.clearIncomingFromSublist(accountId, chatId, sublistPeerId);
+      } else {
+        _notifSystem.clearIncomingFromChat(accountId, chatId);
+      }
     };
-    chatState.onChatActivated = (accountId, chatId) {
-      _notifSystem.clearForChat(accountId, chatId);
+    chatState.onChatActivated = (accountId, chatId, topicRootId, sublistPeerId) {
+      if (topicRootId.isNotEmpty) {
+        _notifSystem.clearForTopic(accountId, chatId, topicRootId);
+      } else if (sublistPeerId.isNotEmpty) {
+        _notifSystem.clearForSublist(accountId, chatId, sublistPeerId);
+      } else {
+        _notifSystem.clearForChat(accountId, chatId);
+      }
     };
     // §37: a deleted/unsent message must have its on-screen notification pulled —
     // AyuGram History::destroyMessage → System::clearFromItem (history.cpp:630).

@@ -105,16 +105,24 @@ class ChatState extends ChangeNotifier {
       onPeerAvatarUpdated;
 
   /// Fired when a chat's inbox is read (markRead/markChatRead), so the
-  /// notification system dismisses that chat's already-shown incoming
-  /// notifications. Mirrors AyuGram's History::inboxRead → clearIncomingFromHistory
-  /// (history/history.cpp:2105).
-  void Function(String accountId, String chatId)? onChatRead;
+  /// notification system dismisses that thread's already-shown incoming
+  /// notifications. When a forum topic or monoforum sublist is the read thread,
+  /// [topicRootId]/[sublistPeerId] are non-empty so ONLY that sub-thread is
+  /// cleared (AyuGram clearIncomingFromTopic/clearIncomingFromSublist); both
+  /// empty means the whole chat (clearIncomingFromHistory). Mirrors AyuGram's
+  /// History::inboxRead path (history/history.cpp:2105).
+  void Function(String accountId, String chatId, String topicRootId,
+      String sublistPeerId)? onChatRead;
 
-  /// Fired when a chat is opened/activated, so the notification system clears
-  /// that whole chat's notifications (all topics/sublists). Mirrors AyuGram
-  /// calling clearFromHistory(_history) on chat activation
-  /// (history/history_widget.cpp:4086).
-  void Function(String accountId, String chatId)? onChatActivated;
+  /// Fired when a chat/thread is opened/activated, so the notification system
+  /// clears that thread's notifications. For a forum topic or sublist
+  /// [topicRootId]/[sublistPeerId] are non-empty so ONLY that sub-thread is
+  /// cleared (AyuGram clearFromTopic/clearFromSublist, called from
+  /// openNotificationMessage, notifications_manager.cpp:1354-1356); both empty
+  /// clears the whole history (clearFromHistory). This is what keeps opening one
+  /// forum topic from wiping its sibling topics.
+  void Function(String accountId, String chatId, String topicRootId,
+      String sublistPeerId)? onChatActivated;
 
   /// Fired when a message is deleted/unsent in ANY chat (not just the active
   /// one), so the notification system dismisses that message's on-screen popup.
@@ -1379,9 +1387,15 @@ class ChatState extends ChangeNotifier {
     }
     SpoilerRevealManager.instance.hideAll();
     _activeChat = chat;
-    // Opening a chat dismisses all of its on-screen notifications (every
-    // topic/sublist), like AyuGram's clearFromHistory on chat activation.
-    onChatActivated?.call(chat.accountId, chat.chatId);
+    // Opening a chat dismisses its on-screen notifications. A forum TOPIC clears
+    // only itself (AyuGram clearFromTopic), keyed by the parent forum chat id +
+    // topic root id — NOT the whole forum, which would wipe every sibling topic.
+    // A normal chat (or forum CONTAINER) clears its whole history.
+    if (chat.type == ChatType.topic && chat.parentId.isNotEmpty) {
+      onChatActivated?.call(chat.accountId, chat.parentId, chat.chatId, '');
+    } else {
+      onChatActivated?.call(chat.accountId, chat.chatId, '', '');
+    }
     _openedUnreadCount = chat.unreadCount;
     _messages = [];
     _pinnedMessages = [];
@@ -1713,6 +1727,13 @@ class ChatState extends ChangeNotifier {
 
   void openSavedSublist(SavedSublistInfo sublist) {
     _activeSublist = sublist;
+    // Opening a saved-messages sublist dismisses only that sublist's
+    // notifications (AyuGram clearFromSublist), like opening a chat clears its
+    // history. The host chat is the Saved Messages (self) chat being viewed.
+    final host = _activeChat;
+    if (host != null) {
+      onChatActivated?.call(host.accountId, host.chatId, '', sublist.peerId);
+    }
     _selectedReactionTagIds.clear();
     _taggedMessages = [];
     _taggedHasMore = true;
@@ -2261,7 +2282,16 @@ class ChatState extends ChangeNotifier {
     final chat = _activeChat;
     if (chat == null || _messages.isEmpty) return;
     _engine.markChatRead(chat.accountId, chat.chatId, _messages.first.msgId);
-    onChatRead?.call(chat.accountId, chat.chatId);
+    // Dismiss only the read thread's incoming notifications: a forum topic or
+    // saved sublist clears itself (AyuGram clearIncomingFromTopic/Sublist), not
+    // the whole forum / Saved Messages.
+    if (chat.type == ChatType.topic && chat.parentId.isNotEmpty) {
+      onChatRead?.call(chat.accountId, chat.parentId, chat.chatId, '');
+    } else if (_isViewingSavedSublists && _activeSublist != null) {
+      onChatRead?.call(chat.accountId, chat.chatId, '', _activeSublist!.peerId);
+    } else {
+      onChatRead?.call(chat.accountId, chat.chatId, '', '');
+    }
   }
 
   // ── Chat operations ──
@@ -2481,7 +2511,8 @@ class ChatState extends ChangeNotifier {
     final upToId = chatMsgs.isNotEmpty ? chatMsgs.first.msgId : '';
     // Engine always resets unread count in DB; only calls core.MarkAsRead if upToId is non-empty.
     _engine.markChatRead(accountId, chatId, upToId);
-    onChatRead?.call(accountId, chatId);
+    // Generic whole-chat read (no specific topic/sublist context here).
+    onChatRead?.call(accountId, chatId, '', '');
     loadChats();
   }
 
