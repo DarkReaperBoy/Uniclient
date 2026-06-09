@@ -569,37 +569,55 @@ disabled/toggle resolution, unread-story gradient colors (#0dcc39→#0992ef = gr
 groupCallMuted1), forum row 80px / topics 21px, outline-segment arc math, forum radius ×0.3,
 online badge 12px/3px, gesture→`onAction`/`onTopicTap`/`onStoryTap` wiring (all real, no stubs).
 
-## Forum rows (ForumChatListRow / topic jump bubble)
+The 11 deviations previously listed here (forum rows, stories ring, send-state
+icon, message preview, swipe quick actions) were all fixed and verified
+2026-06-09 (commit f97bce9d):
 
-- [ ] [CRITICAL] Forum row omits the last-message preview line entirely. AyuGram's forum row is three stacked lines — name/date, topics (21px), then the last-message preview (`sender` + mini-thumbs + `_textCache`) drawn below the topics in the remaining height. The Dart `ForumChatListRow` Column is only name → `_TopicsPreview` → optional jump bubble, with no message-preview row at all, so a forum chat shows no "what was last said" text. — `chat_list_row.dart:2323-2426` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_message_view.cpp:423-522` (paint topics, advance by `topicsHeight`, then draw sender/images/text) + `dialogs/dialogs.style:107-112` (forumDialogRow 80px, topicsHeight 21px)
+**Forum rows** — `ForumChatListRow` now renders AyuGram's three-line layout
+(name/date → topics 21px → last-message preview) via a new `_ForumPreviewRow`
+(sender + 16px `dialogsMiniPreview` thumb + text) drawn below the topics in the
+remaining height (`dialogs_message_view.cpp:423-522`). The topic-jump region
+background is the subtle grey hover band `dialogsBgOver` (not the blue unread
+pill); its area2 is the preview text with the `→` arrow appended (`width2 =
+countWidth + forumDialogJumpArrowSkip`, :541,548-550); the front topic is drawn
+exactly once (the duplicate `_TopicJumpBubble` is gone, dialogs_topics_view.cpp:
+101-112/:221-240); and the 14px `topicsSkipBig` gap follows the front topic when
+the jump region is active (`skipBig = _jumpToTopic && !active`, :210,235-239 —
+`topicsSkip 8px`, `topicsSkipBig 14px`, `topicsHeight 21px` per dialogs.style).
 
-- [ ] [MAJOR] Topic jump bubble uses the wrong background color. AyuGram fills the jump-to-last region with a subtle grey hover background `st::dialogsBgOver` (or `st::dialogsRippleBg` when selected). The Dart paints it with the blue unread-badge color `dialogsUnreadBg`/`dialogsUnreadBgActive`, making it read as a notification pill rather than a tappable hover band. — `chat_list_row.dart:2542-2550` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_message_view.cpp:548-550` (`.bg = context.selected ? st::dialogsRippleBg : st::dialogsBgOver`)
+**Stories ring** — the live-stream ring is a single round-capped
+`attentionButtonFg` (#d14e4e) outline segment through the segment painter
+(`PaintOutlineSegments`; `_drawSegments` count==1 → full round-capped ring) plus
+a `LIVE` pill (`PaintLiveBadge`), not a hardcoded #e53935 filled circle
+(dialogs_row.cpp:448-450,483-485). Read segments use the muted palette token
+`dialogsUnreadBgMuted` (#bbbbbb light / #3e546a dark) — or
+`dialogsUnreadBgMutedActive` when active — at full opacity; the hardcoded colour
+and 0.6 dimming are gone (:460-462).
 
-- [ ] [MAJOR] Jump bubble second area is arrow-only; AyuGram's area2 is the last-message preview text with the arrow appended at its end (`width2 = countWidth() + forumDialogJumpArrowSkip`). The Dart bubble shows topic-title (area1) + a bare `keyboard_arrow_right` (area2) and never renders the message preview inside the bubble. — `chat_list_row.dart:2593-2597` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_message_view.cpp:541` (`width2 = countWidth() + ...`) + `:523-528` (arrow at end of preview area)
+**Send-state icon** — `delivered` (and `sent`) now map to the single check
+(`dialogsSentIcon`); only `read` shows the double check (`dialogsReceivedIcon`),
+matching `item->unread(thread)` (dialogs_layout.cpp:782-794). The Go→Dart status
+enum chain is consistent (Delivered=3, Read=4).
 
-- [ ] [MAJOR] Front (jump) topic is duplicated. AyuGram rotates the front topic to position 0 of `_titles`, draws the whole topic list once, and the jump bubble is a background that wraps that already-drawn front topic (area1) plus the preview (area2) — the front topic is rendered once. The Dart renders `recentTopics.first` both inside `_TopicsPreview` (which draws all `recentTopics`) and again inside the separate `_TopicJumpBubble`, so the front topic name appears twice. — `chat_list_row.dart:2410-2424` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_topics_view.cpp:101-112` (rotate front) + `:221-240` (single draw loop)
+**Message preview** — the invented per-media-type Material glyphs and
+`_stripMediaEmoji` are removed; the only graphic is the real 16px thumbnail, and
+the media indicator is the emoji baked into the server text
+(dialogs_message_view.cpp:473-503).
 
-- [ ] [MAJOR] `topicsSkipBig` (14px) is not implemented. When the jump bubble is active and the row is not the active chat, AyuGram inserts a larger 14px gap after the front topic (`skipBig = _jumpToTopic && !active`), reverting to the normal 8px `topicsSkip` for subsequent topics. The Dart always uses a fixed 8px `_topicsSkip` between every topic. — `chat_list_row.dart:2467,2498` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_topics_view.cpp:210,235-239` + `dialogs/dialogs.style:111` (`topicsSkipBig: 14px`)
+**Swipe quick actions** — a touch drag tracks the finger 1:1 (`offset -
+delta.dx`; the 0.2 `kSwipeSlow` slowdown applies only to the wheel branch,
+swipe_handler.cpp:361), clamped to `kMaxRatio` ≈ 75px; spring-back is
+`min(1,ratio) * slideWrapDuration` (150ms) for both commit and abort (:168).
 
-## Stories ring (`_StoriesRingPainter`)
-
-- [ ] [MAJOR] Live-stream ring uses the wrong color and wrong render path. AyuGram does NOT draw a solid circle for a video-stream peer: it pushes a single outline segment brushed with `st::attentionButtonFg` (#d14e4e) through the normal round-capped `PaintOutlineSegments`, then overlays a "LIVE" pill via `PaintLiveBadge`. The Dart calls `canvas.drawCircle` with a hardcoded `0xFFe53935` (wrong red), bypassing the segment painter and omitting the LIVE badge entirely. — `chat_list_row.dart:1306-1314` ← `AyuGram/Telegram/SourceFiles/dialogs/dialogs_row.cpp:448-450,483-485` (segment `st::attentionButtonFg->b` + `PaintLiveBadge`) + `lib_ui/ui/colors.palette:48` (`attentionButtonFg: #d14e4e`)
-
-- [ ] [MAJOR] Read-story segment color is fabricated and incorrectly dimmed. AyuGram brushes already-seen story segments with the single palette token `st::dialogsUnreadBgMuted` (#bbbbbb) at full opacity (`dialogsUnreadBgMutedActive` when the row is active). The Dart hardcodes a separate dark-mode color `#3e546a` (which does not exist in the AyuGram dialog-row path) and applies a `readOpacity = 0.6` alpha to both themes — the 0.6 opacity belongs to the stories-list strip style, not the dialog-row outline. — `chat_list_row.dart:1326-1328,1282` ← `AyuGram/Telegram/SourceFiles/dialogs/dialogs_row.cpp:460-462` + `lib_ui/ui/colors.palette:195` (`dialogsUnreadBgMuted: #bbbbbb`)
-
-## Send-state icon (`_SendStateIcon`)
-
-- [ ] [MAJOR] `MsgStatus.delivered` is mapped to the double-check (`Icons.done_all`), but AyuGram shows the double-check (`dialogsReceivedIcon`) ONLY once the recipient has read the message (`!item->unread(thread)`). Any outgoing message still unread by the recipient — i.e. sent/delivered-but-unread — gets the single check (`dialogsSentIcon`). The Dart therefore renders a "read" double-tick for merely-delivered messages. Map `delivered` to the single check and reserve `done_all` for `read`. — `chat_list_row.dart:1803-1809` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_layout.cpp:782-794` (`item->unread(thread)` → `dialogsSentIcon` single ✓ else `dialogsReceivedIcon` double ✓✓)
-
-## Message preview (`_buildPreview` / `_mediaTypeIcon`)
-
-- [ ] [MAJOR] `_mediaTypeIcon` invents Material media glyphs (photo_camera/videocam/music_note/mic/gif_box/attach_file…) drawn as a 16px leading icon before the preview text when no thumbnail is present. AyuGram's chat-list row has no per-media-type icon: the media indicator is the emoji baked into the server-side preview text, and the only graphical element is the real 16px image thumbnail (`dialogsMiniPreview`). The `_stripMediaEmoji` + Material-icon substitution diverges from the 1:1 source. — `chat_list_row.dart:489-518` ← `AyuGram/Telegram/SourceFiles/dialogs/ui/dialogs_message_view.cpp:473-503` (mini-preview path draws the real image only; no icon glyph)
-
-## Swipe quick actions (`_SwipeableChatRowState`)
-
-- [ ] [MAJOR] `kSwipeSlow` (0.2) is applied to the wrong input path. In AyuGram the 0.2 slowdown is applied ONLY to wheel/trackpad deltas (`state->delta + delta * kSwipeSlow`, inside `case QEvent::Wheel`); a touch drag tracks the finger 1:1 and is simply clamped to `kMaxRatio` (1.5× threshold ≈ 75px). The Dart instead multiplies the touch-drag delta by 0.2 once past the 50px threshold, producing a rubberband lag in the 50–75px range that AyuGram does not have for touch. — `chat_list_row.dart:800-802` ← `AyuGram/Telegram/SourceFiles/ui/controls/swipe_handler.cpp:361` (kSwipeSlow used only in the wheel branch) + `:341,28`
-
-- [ ] [MAJOR] Below-threshold spring-back duration is wrong. AyuGram always animates the reset over `std::min(1., ratio) * st::slideWrapDuration` (150ms) for both commit and abort, so an aborted swipe snaps back in proportion to how far it traveled (ratio 0.5 → 75ms). The Dart uses a fixed 200ms for every below-threshold cancel/release and only scales the commit case. — `chat_list_row.dart:838-842,855` ← `AyuGram/Telegram/SourceFiles/ui/controls/swipe_handler.cpp:168` (`std::min(1., ratio) * st::slideWrapDuration`)
+Confirmed live in desktop + mobile: the forum three-line layout (Mahsa Net —
+topics → grey jump band with `vless://…` preview + `→` arrow; MasterDnsVPN —
+`sender: text` preview), the single-check send state on outgoing 1:1 messages,
+and media previews rendering the emoji-in-text with no Material glyph were
+visually verified. The live-stream / read-story ring colours and the swipe
+tracking/spring-back physics were code-verified against the exact AyuGram
+constants and palette tokens (their live states are unreachable on the test
+account: no stories/live-streams; swipe timing is not observable in static
+screenshots). Build clean; no render exceptions in either mode.
 
 # chat_settings_screen — Settings::Chat (themes, background, quick-action, stickers/emoji, messages, sensitive, archive)
 
