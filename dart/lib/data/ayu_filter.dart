@@ -134,6 +134,16 @@ class ImportChanges {
     this.peersToBeResolved = const [],
   });
 
+  // Ports AyuGram's HasChanges (filters_utils.cpp:61-68) — but DELIBERATELY omits
+  // `peersToBeResolved` from the OR-chain, which AyuGram includes. AyuGram's
+  // peersToBeResolved holds only peers that still need resolving; ours can't, because the
+  // data layer has no view of which chats are already loaded — previewImport fills
+  // [peersToBeResolved] with EVERY non-empty peer hint from the backup. Counting those
+  // here would treat a backup whose peers are all already loaded (and which changes no
+  // filters) as importable, popping a confirm dialog that does nothing. The import UI
+  // owns the peer-resolution decision: it computes the genuinely-unresolved set against
+  // ChatState and gates on `!changes.hasChanges && peersToResolve.isEmpty`
+  // (ayu_filters_page.dart), which is the faithful equivalent of AyuGram's HasChanges.
   bool get hasChanges =>
       filtersToAdd.isNotEmpty ||
       filtersToUpdate.isNotEmpty ||
@@ -718,29 +728,6 @@ class AyuFilterEngine extends ChangeNotifier {
     }
   }
 
-  Future<({ImportChanges? changes, String? error})> importFromLink(String url) async {
-    final client = HttpClient();
-    try {
-      client.connectionTimeout = const Duration(seconds: 10);
-      final request = await client.getUrl(Uri.parse(url));
-      final response = await request.close();
-      final body = await response.transform(utf8.decoder).join();
-      final parsed = jsonDecode(body);
-      if (parsed is! Map<String, dynamic>) {
-        return (changes: null, error: 'Failed to import filters');
-      }
-      final changes = previewImport(parsed);
-      if (!changes.hasChanges) return (changes: null, error: 'No changes to import');
-      return (changes: changes, error: null);
-    } on FormatException {
-      return (changes: null, error: 'Failed to import filters');
-    } catch (e) {
-      return (changes: null, error: 'Failed to fetch filters');
-    } finally {
-      client.close();
-    }
-  }
-
   Future<({String? url, String? error})> publishFilters({Map<String, String> peers = const {}}) async {
     final data = exportFilters(peers: peers);
     final jsonText = const JsonEncoder.withIndent('  ').convert(data);
@@ -932,7 +919,7 @@ class AyuFilterEngine extends ChangeNotifier {
     if (dialogPats != null) {
       for (final p in dialogPats) {
         if (p.matches(blob)) {
-          _cacheResult(cacheKey, true);
+          _putFiltered(dialogId, msg.msgId, true, groupMessages);
           return true;
         }
       }
@@ -942,13 +929,37 @@ class AyuFilterEngine extends ChangeNotifier {
     for (final p in _sharedPatterns) {
       if (excl != null && excl.contains(p.filter.id)) continue;
       if (p.matches(blob)) {
-        _cacheResult(cacheKey, true);
+        _putFiltered(dialogId, msg.msgId, true, groupMessages);
         return true;
       }
     }
 
-    _cacheResult(cacheKey, false);
+    _putFiltered(dialogId, msg.msgId, false, groupMessages);
     return false;
+  }
+
+  // Mirrors AyuGram's FiltersCacheController::putFiltered (filters_cache_controller.cpp:
+  // 182-199): caches the regex verdict for [msgId], and — when the verdict is POSITIVE
+  // and the message belongs to an album/group — marks EVERY sibling filtered too
+  // (`filteredMessages[...][groupItem->id.bare] = true` for all group->items). Without
+  // this, a type-/button-specific filter (e.g. `.*<type>1</type>`) matches only the one
+  // album tile whose per-member blob carries that tag (extractAllText/extractMatchBlob
+  // append the *single* item's <type>/<button>) and leaves the rest of the album visible
+  // — a broken partial album. The UI evaluates each member independently
+  // (chat_view.dart `.where()` → isFiltered(m, …, groupMessages: group)), so the shared
+  // verdict must live in the cache for the siblings to pick it up on render. A NEGATIVE
+  // verdict caches only the single item (AyuGram's `if (group && res)` gates the group
+  // loop on res), so a non-matching member stays independently re-evaluable until a
+  // matching sibling overrides it. ← filters_cache_controller.cpp:194-198
+  void _putFiltered(
+      String dialogId, String msgId, bool res, List<CachedMessage>? groupMessages) {
+    _cacheResult('$dialogId:$msgId', res);
+    if (res && groupMessages != null && groupMessages.length > 1) {
+      for (final gMsg in groupMessages) {
+        if (gMsg.msgId == msgId) continue;
+        _cacheResult('$dialogId:${gMsg.msgId}', true);
+      }
+    }
   }
 
   // AyuGram's filterBlocked()/isBlocked() (filters_controller.cpp:30-37,95-136): the
@@ -960,12 +971,28 @@ class AyuFilterEngine extends ChangeNotifier {
   // no explicit from_id (exactly the DM/channel-post case, where from()==peer), so
   // "sender is the peer" is `senderId == null || senderId == chatId`. A shadowbanned
   // sender always hides the message; a *blocked* sender hides only when hideFromBlocked
-  // is on. filtersEnabled is already guaranteed true by the caller. Not cached.
+  // is on — and, exactly like AyuGram's isBlocked() lambda, a blocked direct sender
+  // SHORT-CIRCUITS the whole check: the lambda `return`s before the forwarded-origin
+  // branch, so the forward is never inspected once the direct sender is blocked.
+  // filtersEnabled is already guaranteed true by the caller. Not cached.
   bool _filterBlocked(CachedMessage msg, AppState appState) {
     final senderId = _parseSenderId(msg.senderId);
     if (senderId == null || msg.senderId == msg.chatId) return false;
+    // (1) Direct sender shadow-banned → always hide (shadowBanMatched forces the outer
+    //     `(shadowBanMatched || hideFromBlocked)` gate true). ← filters_controller.cpp:107-111
     if (appState.isShadowBanned(senderId)) return true;
-    if (appState.hideFromBlocked && appState.isBlocked(senderId)) return true;
+    // (2) Direct sender is a blocked user → AyuGram's isBlocked() lambda RETURNS here
+    //     (`return from->id != peer->id`, always true since sender != peer is guaranteed
+    //     above) and NEVER reaches the forwarded-origin branch. The verdict is therefore
+    //     hideFromBlocked alone (shadowBanMatched stays false on this path). Return that
+    //     directly instead of falling through to the forward check — otherwise a message
+    //     from a blocked user that is *forwarded from a shadow-banned user* would be
+    //     wrongly hidden with hideFromBlocked off (the bug this fixes).
+    //     ← filters_controller.cpp:113-117
+    if (appState.isBlocked(senderId)) return appState.hideFromBlocked;
+    // (3) Direct sender neither shadow-banned nor blocked → forwarded-origin branch: an
+    //     original shadow-banned sender hides unconditionally; an original *blocked*
+    //     sender hides only with hideFromBlocked on. ← filters_controller.cpp:119-129
     final fwdId = _parseForwardSenderId(msg.forwardFrom);
     if (fwdId != null) {
       if (appState.isShadowBanned(fwdId)) return true;
@@ -975,7 +1002,16 @@ class AyuFilterEngine extends ChangeNotifier {
   }
 
   void _cacheResult(String key, bool value) {
-    if (_messageCache.length >= _maxCacheSize) {
+    final prev = _messageCache[key];
+    // Idempotent re-write: putFiltered's group propagation can re-cache a sibling that is
+    // already present (e.g. a member cached `false` earlier in the same render pass, now
+    // overridden to `true` by a matching sibling). Only touch _chatFilteredCount on an
+    // actual transition so the count stays == the number of `true` entries (otherwise a
+    // re-write would inflate it and leave a phantom "N filtered messages" bar after
+    // invalidation). In the single-message path _cacheResult only ever runs on a cache
+    // miss (prev == null), so this is a no-op there.
+    if (prev == value) return;
+    if (prev == null && _messageCache.length >= _maxCacheSize) {
       final evictCount = _maxCacheSize ~/ 10;
       final keys = _messageCache.keys.take(evictCount).toList();
       for (final k in keys) {
@@ -983,9 +1019,18 @@ class AyuFilterEngine extends ChangeNotifier {
       }
     }
     _messageCache[key] = value;
+    final chatId = key.substring(0, key.indexOf(':'));
     if (value) {
-      final chatId = key.substring(0, key.indexOf(':'));
+      // false/absent → true
       _chatFilteredCount[chatId] = (_chatFilteredCount[chatId] ?? 0) + 1;
+    } else if (prev == true) {
+      // true → false
+      final count = (_chatFilteredCount[chatId] ?? 1) - 1;
+      if (count <= 0) {
+        _chatFilteredCount.remove(chatId);
+      } else {
+        _chatFilteredCount[chatId] = count;
+      }
     }
   }
 
