@@ -671,28 +671,6 @@ checkbox is on and vanish when off (differential ON→OFF→ON verified, persist
 message reactions re-render in Twemoji) and persists; the sensitive-content string matches.
 Both modes render with zero RenderFlex overflow and zero widget exceptions.
 
-# create_channel_screen — Orphaned wrapper screen; delegated channel flow itself is real
-
-`create_channel_screen.dart` is a 35-line `StatefulWidget` that, on first frame, pops
-itself and calls `showCreateChannelWizard(context)` (implemented in
-`create_group_wizard.dart`). The delegated wizard flow (InfoBox → `createChannel` →
-SetupChannelBox → member picker) faithfully mirrors AyuGram's
-`GroupInfoBox::createChannel` → `channelReady()` → `Box<SetupChannelBox>` chain
-(`add_contact_box.cpp:825`, `:931`, `:939`) and is wired to real engine calls
-(`createChannel`, `checkChannelUsername`, `updateChannelUsername`, `getInviteLink`,
-`addMembers`, `editChannelPhoto`). So the channel-creation **feature** is genuinely
-implemented — but it lives entirely in `create_group_wizard.dart` (separate chunk),
-not in this file. This file's own problems:
-
-- [ ] [MAJOR] `CreateChannelScreen` is dead/orphaned code — never imported, instantiated, or registered in any route table (verified: zero references outside its own definition). The real "New Channel" entry point already calls `showCreateChannelWizard(context)` directly from the hamburger drawer (`dart/lib/ui/hamburger_drawer.dart:308`), exactly mirroring AyuGram, which shows its box directly via `_window->show(Box<GroupInfoBox>(this, GroupInfoBox::Type::Channel))` with no intermediate screen. This whole widget is leftover scaffolding that duplicates the entry point and should be removed (or be the actual entry). — `create_channel_screen.dart:11` ← `AyuGram/Telegram/SourceFiles/window/window_session_controller.cpp:3185`
-
-- [ ] [MAJOR] Fragile pop-then-reopen pattern in `initState`: the post-frame callback calls `Navigator.of(context).pop()` and then immediately `showCreateChannelWizard(context)` using the *same* (just-popped) `context`. AyuGram never pops-then-reopens — `GroupInfoBox` is pushed once as a layer and stays until the flow completes (`window_session_controller.cpp:3185` → `add_contact_box.cpp:931` keeps the same box stack). This redirect-via-route-pop is a Dart-specific anti-pattern with no AyuGram counterpart; it only happens not to misbehave because the widget is never reached (see above). If this screen were ever wired into navigation, popping its own route before reading providers / pushing the dialog from the defunct context is a latent crash/visual-flash risk (a full-screen `Scaffold` spinner at `create_channel_screen.dart:30` would also flash for one frame). — `create_channel_screen.dart:22` ← `AyuGram/Telegram/SourceFiles/window/window_session_controller.cpp:3185`
-
-Note: The channel-creation logic, dimensions, public/private setup, username checking,
-invite-link, and member-picker steps all reside in `create_group_wizard.dart` and are
-out of scope for this file — audit them under that file's chunk. No placeholder/stub or
-broken backend wiring exists in the delegated flow itself.
-
 # create_giveaway_box — Channel giveaway creation box (Premium / Stars / Prepaid + Award)
 
 Audited `dart/lib/ui/create_giveaway_box.dart` against AyuGram's
