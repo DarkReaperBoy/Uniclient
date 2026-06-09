@@ -2,22 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_sound — notification alert-sound player (bundled default-sound extraction, per-chat ringtone volume, audio ducking)
-
-Faithful port of AyuGram's `System` sound path (`notifications_manager.cpp:761-778`,
-`ensureSoundCreated`/`lookupSound` `:1006-1038`). Verified fully wired, no stubs:
-the bundled asset `assets/sounds/msg_incoming.mp3` exists and is declared in pubspec
-and extracted to temp (mirrors `getSoundPath("msg_incoming")` → `:/sounds/msg_incoming.mp3`,
-`core_settings.cpp:1245-1251`); `play()` is invoked from `notification_system.dart:659`;
-`onDuck`/`onDefaultSoundReady` are wired in `main.dart:563` / `notification_system.dart:141`;
-the per-chat volume select `perChatVolume>0 ? perChatVolume : settings.volume` correctly
-mirrors `AL_GAIN = (volumeOverride>0) ? volumeOverride : notificationsVolume()/100`
-(`media_audio_track.cpp:155-160`), and the 2-tier `ringtoneVolume` feeding `perChatVolume`
-is genuinely wired (`app_state.dart:3194-3198` → `chat_state.dart:3093`). Only one
-behavioral deviation found.
-
-- [ ] [MAJOR] Notification ducking fully MUTES other in-app audio instead of AyuGram's duck-to-20%. `notification_sound.dart` passes the sound's real length to `onDuck` and documents it as a faithful mirror of `Media::Player::mixer()->suppressAll(track->getLengthMs())`, but the wired consumer `AudioService.duckFor` sets the music/voice player volume to **0** (`audio_service.dart:482`). AyuGram's fader suppresses ALL mixer audio to `kSuppressRatioAll = 0.2` — i.e. 20%, still faintly audible under the beep — not to silence (`media_audio.cpp:1329` `_suppressVolumeAll.start(kSuppressRatioAll)`, `:1126-1128` `VolumeMultiplierAll = _suppressVolumeAll.current()`, ratio defined `:35`). Net effect: a playing track goes completely silent for ~1.8 s on every notification instead of dipping to 20%, the opposite of "duck without interrupting". (Secondary, cosmetic — skipped: AyuGram also fades the suppression in over `kMediaPlayerSuppressDuration`=150 ms and back out over `kFadeDuration` (`media_audio.cpp:1105,1115-1124`); the Dart hard-cuts and hard-restores.) — `notification_sound.dart:116` (impl `audio_service.dart:482`) ← `AyuGram/Telegram/SourceFiles/media/audio/media_audio.cpp:1329,35`
-
 # notification_system — Notifications coordinator (port of `Window::Notifications::System`)
 
 Port of AyuGram `Window::Notifications::System` (`notifications_manager.cpp`): manager
