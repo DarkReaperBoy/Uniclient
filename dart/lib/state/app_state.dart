@@ -578,6 +578,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // to 0 and restores to rememberedSongVolume; the slider updates both.
   double _songVolume = 0.9;
   double _rememberedSongVolume = 0.9;
+  // Video playback volume 0..1, mirroring AyuGram core_settings videoVolume
+  // (declared core_settings.h:1077, serialized core_settings.cpp:284, restored
+  // :975; default kDefaultVolume = 0.9). Unlike song volume there is no
+  // "remembered" sibling — the media viewer holds the mute-restore value in a
+  // transient local field (_lastPositiveVolume, media_view_overlay_widget.cpp:611).
+  // Persisted globally so a user-set video volume survives viewer reopen / restart.
+  double _videoVolume = 0.9;
 
   // §54.14: AyuGram General settings.
   int _translationProvider = 0; // 0=Telegram, 1=Google, 2=Yandex, 3=Native
@@ -1033,6 +1040,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get disableAutoplayNext => _disableAutoplayNext;
   double get songVolume => _songVolume;
   double get rememberedSongVolume => _rememberedSongVolume;
+  double get videoVolume => _videoVolume;
 
   // §54.14: AyuGram General settings getters.
   int get translationProvider => _translationProvider;
@@ -1828,6 +1836,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _disableAutoplayNext = false;
     _songVolume = 0.9;
     _rememberedSongVolume = 0.9;
+    _videoVolume = 0.9;
     _translationProvider = 0;
     _disableStories = false;
     _disableOpenLinkWarning = false;
@@ -2044,6 +2053,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final vol = v.clamp(0.0, 1.0).toDouble();
     if (vol <= 0 || _rememberedSongVolume == vol) return;
     _rememberedSongVolume = vol;
+    _saveWindowPrefs();
+  }
+
+  /// Set the video playback volume (0..1). Mirrors AyuGram setVideoVolume
+  /// (core_settings.h:186, called from media_view_overlay_widget.cpp:5218 on
+  /// every volume change) — a single persisted field with no remembered
+  /// sibling; the media viewer keeps its mute-restore value locally. Save only,
+  /// no notifyListeners: nothing in the tree rebuilds on this and it fires
+  /// rapidly during a slider drag (the 500ms-debounced save coalesces writes).
+  void setVideoVolume(double v) {
+    final vol = v.clamp(0.0, 1.0).toDouble();
+    if (_videoVolume == vol) return;
+    _videoVolume = vol;
     _saveWindowPrefs();
   }
 
@@ -4459,6 +4481,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           ((data['songVolume'] as num?)?.toDouble() ?? 0.9).clamp(0.0, 1.0).toDouble();
       _rememberedSongVolume =
           ((data['rememberedSongVolume'] as num?)?.toDouble() ?? 0.9).clamp(0.0, 1.0).toDouble();
+      _videoVolume =
+          ((data['videoVolume'] as num?)?.toDouble() ?? 0.9).clamp(0.0, 1.0).toDouble();
       // §54.14: AyuGram General settings.
       final rawTp = data['translationProvider'];
       if (rawTp is String) {
@@ -4765,6 +4789,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'disableAutoplayNext': _disableAutoplayNext,
         'songVolume': _songVolume,
         'rememberedSongVolume': _rememberedSongVolume,
+        'videoVolume': _videoVolume,
         'translationProvider': const ['telegram', 'google', 'yandex', 'native'][_translationProvider.clamp(0, 3)],
         'disableStories': _disableStories,
         'disableOpenLinkWarning': _disableOpenLinkWarning,

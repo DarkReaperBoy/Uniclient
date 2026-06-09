@@ -498,6 +498,13 @@ class _MediaViewerState extends State<MediaViewer>
           Process.run('xdg-open', [_saveToastPath]);
         }
       };
+    // Restore the persisted video volume before the player is created so it
+    // opens at the user's remembered level (AyuGram: videoVolume() is the live
+    // source of truth, media_view_overlay_widget.cpp:5223). _lastVolume mirrors
+    // _lastPositiveVolume — the value to restore on un-mute (overlay :611).
+    final appState = context.read<AppState>();
+    _volume = appState.videoVolume.clamp(0.0, 1.0).toDouble();
+    _lastVolume = _volume > 0 ? _volume : 0.9;
     _loadViewerPrefs();
     _initVideoIfNeeded();
     _scheduleAutoHide();
@@ -2170,6 +2177,9 @@ class _MediaViewerState extends State<MediaViewer>
       }
       _player?.setVolume(_volume * 100.0);
     });
+    // Persist globally, mirroring AyuGram's setVideoVolume on mute toggle
+    // (media_view_overlay_widget.cpp:5228 → :5218).
+    context.read<AppState>().setVideoVolume(_volume);
   }
 
   void _setVolume(double v) {
@@ -2178,6 +2188,9 @@ class _MediaViewerState extends State<MediaViewer>
       if (_volume > 0) _lastVolume = _volume;
       _player?.setVolume(_volume * 100.0);
     });
+    // Persist globally so the level survives viewer reopen / app restart
+    // (AyuGram playbackControlsVolumeChanged → setVideoVolume, overlay :5218).
+    context.read<AppState>().setVideoVolume(_volume);
   }
 
   void _setSpeed(double speed) {
