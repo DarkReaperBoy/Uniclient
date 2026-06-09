@@ -3029,6 +3029,12 @@ class ChatState extends ChangeNotifier {
         isSilent: msg.isSilent,
         timestamp: msg.timestamp,
         messageType: msg.mediaType,
+        // One-time (view-once) voice/video → "One-time …" notification variant.
+        // Media-level self-destruct TTL (messageMediaDocument.ttl_seconds), the
+        // signal AyuGram's MediaFile::notificationText() keys on via
+        // media->ttlSeconds() (data_media_types.cpp:1273-1286); only the voice(4)
+        // and videonote(5) bodies consume it.
+        isOneTime: msg.mediaTtlSeconds > 0,
         isScheduled: msg.scheduleDate > 0,
         // Saved Messages / self chat. Distinguishes a fired self-reminder
         // ("📅 Reminder") from a scheduled message sent to another chat
@@ -3069,6 +3075,11 @@ class ChatState extends ChangeNotifier {
         isQuiz: msg.pollQuiz,
         gameTitle: msg.gameTitle,
         invoiceTitle: msg.invoiceTitle,
+        // Paid-media invoice (messageMediaPaidMedia) → notification body renders
+        // "Photo"/"Video"[, caption] instead of the title; firstVideo selects
+        // which (AyuGram MediaInvoice::notificationText, data_media_types.cpp:2185-2193).
+        invoiceIsPaidMedia: msg.invoiceIsPaidMedia,
+        invoiceFirstVideo: msg.invoiceFirstVideo,
         contactName: msg.contactFirstName.isNotEmpty
             ? '${msg.contactFirstName} ${msg.contactLastName}'.trim()
             : '',

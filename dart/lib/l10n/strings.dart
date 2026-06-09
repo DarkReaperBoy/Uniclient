@@ -79,6 +79,12 @@ class TrStrings {
   static String lngNotifAudioFile() => 'Audio file';
   static String lngNotifVoiceMessage() => 'Voice message';
   static String lngNotifVideoMessage() => 'Video message';
+  // One-time (self-destruct / view-once, media->ttlSeconds() set) voice & video
+  // messages. lng_in_dlg_voice_message_ttl / lng_in_dlg_video_message_ttl
+  // (lang.strings:4554-4555), chosen by MediaFile::notificationText() over the
+  // plain variants (data_media_types.cpp:1273-1286).
+  static String lngNotifVoiceMessageTtl() => 'One-time Voice Message';
+  static String lngNotifVideoMessageTtl() => 'One-time Video Message';
   static String lngNotifSticker() => 'Sticker';
   static String lngNotifGif() => 'GIF';
   static String lngNotifFile() => 'File';

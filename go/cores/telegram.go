@@ -12430,6 +12430,16 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				}
 				m.Extra["media_spoiler"] = true
 			}
+			// Media-level self-destruct TTL (one-time / view-once voice & video).
+			// Distinct from the message-level ttl_period above; this is what
+			// AyuGram's MediaFile::notificationText() reads via media->ttlSeconds()
+			// to pick the "One-time …" notification variant (data_media_types.cpp:1273-1286).
+			if ttl, ok := md.GetTTLSeconds(); ok && ttl > 0 {
+				if m.Extra == nil {
+					m.Extra = make(map[string]interface{})
+				}
+				m.Extra["media_ttl_seconds"] = ttl
+			}
 		case *tg.MessageMediaPhoto:
 			if p, ok := md.Photo.(*tg.Photo); ok {
 				ref := FileRef{
@@ -12613,6 +12623,19 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				m.Text = "💳 " + md.Title
 			}
 			m.Attachments = []FileRef{{MimeType: "application/x-invoice", Name: "invoice"}}
+		case *tg.MessageMediaPaidMedia:
+			// Paid media (channel paid post). AyuGram represents messageMediaPaidMedia
+			// as a MediaInvoice with isPaidMedia=true (data_media_types.cpp:465-469);
+			// its notificationText() renders "Photo"/"Video"[, caption] instead of an
+			// invoice title (data_media_types.cpp:2185-2193). Classify it as an invoice
+			// attachment (→ media_type 12) and carry the paid-media flag + the
+			// first-item video/photo selector (IsFirstVideo, data_media_types.cpp:592-599).
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			m.Extra["invoice_is_paid_media"] = true
+			m.Extra["invoice_first_video"] = paidMediaFirstVideo(md.ExtendedMedia)
+			m.Attachments = []FileRef{{MimeType: "application/x-invoice", Name: "paid_media"}}
 		case *tg.MessageMediaGame:
 			if m.Extra == nil {
 				m.Extra = make(map[string]interface{})
@@ -13284,6 +13307,27 @@ func tgStrippedToJPEG(data []byte) []byte {
 	result = append(result, data[3:]...)
 	result = append(result, footer...)
 	return result
+}
+
+// paidMediaFirstVideo reports whether the first extended-media item of a paid
+// media post (messageMediaPaidMedia) is a video, mirroring AyuGram's
+// IsFirstVideo(invoice) (data_media_types.cpp:592-599): an unpurchased preview
+// is a video when it carries a video_duration; fully-revealed media is a video
+// when it is not a photo. Selects lng_in_dlg_video over lng_in_dlg_photo for the
+// notification body.
+func paidMediaFirstVideo(media []tg.MessageExtendedMediaClass) bool {
+	if len(media) == 0 {
+		return false
+	}
+	switch em := media[0].(type) {
+	case *tg.MessageExtendedMediaPreview:
+		_, ok := em.GetVideoDuration()
+		return ok
+	case *tg.MessageExtendedMedia:
+		_, isPhoto := em.Media.(*tg.MessageMediaPhoto)
+		return !isPhoto
+	}
+	return false
 }
 
 func extractMessageMediaSummary(msg *tg.Message) (mediaType int, thumbB64 string) {

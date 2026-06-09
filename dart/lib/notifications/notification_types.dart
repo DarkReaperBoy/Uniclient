@@ -125,6 +125,22 @@ class NotificationData {
   // AyuGram's isPostHidingAuthor() gate in notificationHeader()
   // (history_item.cpp:2772, :3952-3959). Never set for megagroups (not posts).
   final bool isPostHidingAuthor;
+  // One-time (self-destruct / view-once) voice or video message — the media
+  // carries a TTL (messageMediaDocument.ttl_seconds). AyuGram's
+  // MediaFile::notificationText() swaps "Voice message"/"Video message" for the
+  // "One-time …" variants when `parent()->media()->ttlSeconds()` is set
+  // (data_media_types.cpp:1273-1286). Only consumed by the voice (4) and
+  // videonote (5) branches of _messageTextForType.
+  final bool isOneTime;
+  // Paid-media invoice (channel paid post, messageMediaPaidMedia). AyuGram maps
+  // it to MediaInvoice with isPaidMedia=true (data_media_types.cpp:465-469); its
+  // notificationText() then renders "Photo"/"Video"[, caption] instead of the
+  // invoice title (data_media_types.cpp:2185-2193).
+  final bool invoiceIsPaidMedia;
+  // Whether the FIRST extended-media item of a paid-media invoice is a video,
+  // selecting lng_in_dlg_video over lng_in_dlg_photo. Mirrors AyuGram's
+  // IsFirstVideo(invoice) (data_media_types.cpp:592-599,2188-2190).
+  final bool invoiceFirstVideo;
 
   const NotificationData({
     required this.accountId,
@@ -190,6 +206,9 @@ class NotificationData {
     this.venueTitle = '',
     this.isService = false,
     this.isPostHidingAuthor = false,
+    this.isOneTime = false,
+    this.invoiceIsPaidMedia = false,
+    this.invoiceFirstVideo = false,
   });
 
   NotificationData copyWith({
@@ -256,6 +275,9 @@ class NotificationData {
     String? venueTitle,
     bool? isService,
     bool? isPostHidingAuthor,
+    bool? isOneTime,
+    bool? invoiceIsPaidMedia,
+    bool? invoiceFirstVideo,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -321,6 +343,9 @@ class NotificationData {
       venueTitle: venueTitle ?? this.venueTitle,
       isService: isService ?? this.isService,
       isPostHidingAuthor: isPostHidingAuthor ?? this.isPostHidingAuthor,
+      isOneTime: isOneTime ?? this.isOneTime,
+      invoiceIsPaidMedia: invoiceIsPaidMedia ?? this.invoiceIsPaidMedia,
+      invoiceFirstVideo: invoiceFirstVideo ?? this.invoiceFirstVideo,
     );
   }
 }
@@ -420,7 +445,19 @@ String _composeTitle(NotificationData data, NotificationSettings settings) {
 String _composeSubtitle(NotificationData data, NotificationSettings settings) {
   if (!settings.previewName) return '';
 
-  if ((data.isReaction || data.isPollVote) && data.reactorName.isNotEmpty) {
+  // Reaction / poll-vote subtitle is TERMINAL — gated solely on the reaction
+  // existing (reactionFrom != nullptr), exactly like AyuGram, which short-
+  // circuits BEFORE ever computing notificationHeader():
+  //   reactionFrom
+  //     ? ((!hideReactionSender && reactionFrom != peer) ? reactionFrom->name()
+  //                                                       : QString())
+  //     : hideNameAndPhoto ? QString() : item->notificationHeader()
+  // (notifications_manager.cpp:1589-1595). A reaction NEVER falls through to the
+  // message-header branches, so the `reactorName.isNotEmpty` check lives INSIDE
+  // this always-returning block — never on the outer gate. Returning the
+  // (possibly empty) reactorName matches reactionFrom->name(); an empty name only
+  // arises when the sender is genuinely nameless, and AyuGram shows it blank too.
+  if (data.isReaction || data.isPollVote) {
     final hideReactionSender = !settings.reactionsShowPreview;
     if (!hideReactionSender && !data.isReactorPeer) {
       return data.reactorName;
@@ -529,9 +566,22 @@ String _messageTextForType(NotificationData data) {
         data,
       );
     case 4: // voice
-      return _withCaption(TrStrings.lngNotifVoiceMessage(), data);
+      // A one-time (view-once) voice message reads "One-time Voice Message".
+      // AyuGram's MediaFile::notificationText() swaps the type string when
+      // parent()->media()->ttlSeconds() is set, still appending the caption via
+      // WithCaptionNotificationText (data_media_types.cpp:1282-1294).
+      return _withCaption(
+        data.isOneTime
+            ? TrStrings.lngNotifVoiceMessageTtl()
+            : TrStrings.lngNotifVoiceMessage(),
+        data,
+      );
     case 5: // videonote
-      return TrStrings.lngNotifVideoMessage();
+      // A one-time (view-once) round video reads "One-time Video Message"
+      // (data_media_types.cpp:1273-1277).
+      return data.isOneTime
+          ? TrStrings.lngNotifVideoMessageTtl()
+          : TrStrings.lngNotifVideoMessage();
     case 6: // sticker
       if (data.stickerEmoji.isNotEmpty) {
         return '${data.stickerEmoji} ${TrStrings.lngNotifSticker()}';
@@ -573,6 +623,21 @@ String _messageTextForType(NotificationData data) {
       // (data_media_types.cpp:1591-1593).
       return TrStrings.lngNotifContact();
     case 12: // invoice
+      // Paid media (channel paid post → messageMediaPaidMedia, which AyuGram maps
+      // to a MediaInvoice with isPaidMedia=true) renders "Photo"/"Video"[, caption]
+      // — NOT the invoice title. MediaInvoice::notificationText() checks
+      // `_invoice.isPaidMedia && !_invoice.extendedMedia.empty()` first and returns
+      // WithCaptionNotificationText(IsFirstVideo ? lng_in_dlg_video : lng_in_dlg_photo,
+      // originalText), falling back to the title only for a non-paid-media invoice
+      // (data_media_types.cpp:2185-2193). The "Invoice" default guards an absent title.
+      if (data.invoiceIsPaidMedia) {
+        return _withCaption(
+          data.invoiceFirstVideo
+              ? TrStrings.lngNotifVideo()
+              : TrStrings.lngNotifPhoto(),
+          data,
+        );
+      }
       return data.invoiceTitle.isNotEmpty ? data.invoiceTitle : TrStrings.lngNotifInvoice();
     default:
       return _maskSpoilers(data.text, data.contentRich);

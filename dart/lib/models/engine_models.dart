@@ -538,6 +538,12 @@ class CachedMessage {
   // TTL media metadata (self-destructing media not yet viewed).
   final bool mediaUnread;
   final int ttlSeconds;
+  // Media-level self-destruct TTL — messageMediaDocument.ttl_seconds, set for
+  // one-time (view-once) voice/video messages. Distinct from [ttlSeconds] above,
+  // which carries the message-level auto-delete ttl_period. Drives the
+  // notification "One-time Voice/Video Message" variant (AyuGram's
+  // media->ttlSeconds(), data_media_types.cpp:1273-1286).
+  final int mediaTtlSeconds;
 
   // Whether this message personally mentions me (Telegram's `mentioned` flag —
   // @mention or reply to my message). Used by the notification system to let a
@@ -646,6 +652,11 @@ class CachedMessage {
   final int invoiceReceiptMsgId;
   final String invoicePhotoUrl;
   final bool invoiceShippingRequested;
+  // Paid media (channel paid post → messageMediaPaidMedia). isPaidMedia gates the
+  // notification body's "Photo"/"Video" rendering over the invoice title;
+  // firstVideo picks which (AyuGram IsFirstVideo, data_media_types.cpp:2185-2193).
+  final bool invoiceIsPaidMedia;
+  final bool invoiceFirstVideo;
 
   // Thread/replies data (extracted from contentRaw extra fields).
   final int repliesCount;
@@ -750,6 +761,7 @@ class CachedMessage {
     this.deletedAt = 0,
     this.mediaUnread = false,
     this.ttlSeconds = 0,
+    this.mediaTtlSeconds = 0,
     this.mentionsMe = false,
     this.topicId = '',
     this.topicName = '',
@@ -817,6 +829,8 @@ class CachedMessage {
     this.invoiceReceiptMsgId = 0,
     this.invoicePhotoUrl = '',
     this.invoiceShippingRequested = false,
+    this.invoiceIsPaidMedia = false,
+    this.invoiceFirstVideo = false,
     this.repliesCount = 0,
     this.repliesChannelId = '',
     this.repliesIsComments = false,
@@ -958,6 +972,8 @@ class CachedMessage {
       invoiceReceiptMsgId: _safeInt(extra['invoice_receipt_msg_id']),
       invoicePhotoUrl: extra['invoice_photo_url'] as String? ?? '',
       invoiceShippingRequested: extra['invoice_shipping_requested'] as bool? ?? false,
+      invoiceIsPaidMedia: extra['invoice_is_paid_media'] as bool? ?? false,
+      invoiceFirstVideo: extra['invoice_first_video'] as bool? ?? false,
       audioTitle: extra['audio_title'] as String? ?? '',
       audioPerformer: extra['audio_performer'] as String? ?? '',
       repliesCount: _safeInt(extra['replies_count']),
@@ -973,6 +989,7 @@ class CachedMessage {
       stickerPremium: extra['sticker_premium'] as bool? ?? false,
       mediaUnread: extra['media_unread'] as bool? ?? false,
       ttlSeconds: _safeInt(extra['ttl_seconds']),
+      mediaTtlSeconds: _safeInt(extra['media_ttl_seconds']),
       mentionsMe: extra['mentioned'] as bool? ?? false,
       views: _safeInt(rawMsg['views']),
       forwards: _safeInt(rawMsg['forwards']),
@@ -1260,6 +1277,8 @@ class CachedMessage {
     int? invoiceReceiptMsgId,
     String? invoicePhotoUrl,
     bool? invoiceShippingRequested,
+    bool? invoiceIsPaidMedia,
+    bool? invoiceFirstVideo,
     int? repliesCount,
     String? repliesChannelId,
     bool? repliesIsComments,
@@ -1274,6 +1293,7 @@ class CachedMessage {
     int? scheduleRepeatPeriod,
     bool? mediaUnread,
     int? ttlSeconds,
+    int? mediaTtlSeconds,
     bool? mentionsMe,
     bool? isReaction,
     String? reactionEmoji,
@@ -1402,6 +1422,8 @@ class CachedMessage {
     invoiceReceiptMsgId: invoiceReceiptMsgId ?? this.invoiceReceiptMsgId,
     invoicePhotoUrl: invoicePhotoUrl ?? this.invoicePhotoUrl,
     invoiceShippingRequested: invoiceShippingRequested ?? this.invoiceShippingRequested,
+    invoiceIsPaidMedia: invoiceIsPaidMedia ?? this.invoiceIsPaidMedia,
+    invoiceFirstVideo: invoiceFirstVideo ?? this.invoiceFirstVideo,
     repliesCount: repliesCount ?? this.repliesCount,
     repliesChannelId: repliesChannelId ?? this.repliesChannelId,
     repliesIsComments: repliesIsComments ?? this.repliesIsComments,
@@ -1416,6 +1438,7 @@ class CachedMessage {
     scheduleRepeatPeriod: scheduleRepeatPeriod ?? this.scheduleRepeatPeriod,
     mediaUnread: mediaUnread ?? this.mediaUnread,
     ttlSeconds: ttlSeconds ?? this.ttlSeconds,
+    mediaTtlSeconds: mediaTtlSeconds ?? this.mediaTtlSeconds,
     mentionsMe: mentionsMe ?? this.mentionsMe,
     isReaction: isReaction ?? this.isReaction,
     reactionEmoji: reactionEmoji ?? this.reactionEmoji,
