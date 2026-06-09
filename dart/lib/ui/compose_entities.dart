@@ -215,13 +215,40 @@ class RichTextEditingController extends TextEditingController {
     notifyListeners();
   }
 
+  /// Clears character formatting ONLY within the selection, mirroring AyuGram's
+  /// `clearSelectionMarkdown` → `RemoveDocumentTags(_st, document(), from, till)`
+  /// (`input_field.cpp:5014,978-1008`): the char format is reset solely on
+  /// `[start, end]` via `cursor.mergeCharFormat`, so a tag extending past the
+  /// selection keeps its formatting on the outside — the tag is split at the
+  /// boundary, not nuked wholesale. This matches the sibling `toggleFormat`'s
+  /// removal branch instead of removing every overlapping entity.
   void clearFormatting() {
     final sel = selection;
     if (!sel.isValid || sel.isCollapsed) return;
     final start = sel.start;
     final end = sel.end;
-    entities.removeWhere((e) =>
-      e.offset < end && e.offset + e.length > start);
+    for (var i = entities.length - 1; i >= 0; i--) {
+      final e = entities[i];
+      final eEnd = e.offset + e.length;
+      if (eEnd <= start || e.offset >= end) continue; // outside selection — keep
+
+      if (e.offset >= start && eEnd <= end) {
+        entities.removeAt(i);
+      } else if (e.offset < start && eEnd > end) {
+        // Selection sits inside the tag: keep the trailing piece, clip the head.
+        entities.add(ComposeEntity(
+          offset: end, length: eEnd - end, type: e.type,
+          url: e.url, language: e.language,
+          documentId: e.documentId, altText: e.altText,
+          timestamp: e.timestamp, dateFlags: e.dateFlags));
+        e.length = start - e.offset;
+      } else if (e.offset < start) {
+        e.length = start - e.offset;
+      } else {
+        e.offset = end;
+        e.length = eEnd - end;
+      }
+    }
     notifyListeners();
   }
 
@@ -393,6 +420,68 @@ class RichTextEditingController extends TextEditingController {
 
   static final RegExp _languagePattern = RegExp(r'^[A-Za-z0-9+#._-]+$');
 
+  // ── Markdown separator guards ──────────────────────────────────────────────
+  // A faithful port of AyuGram's `Separators()` (text_entity.cpp:48-57) plus
+  // `Quotes()` (text_entity.cpp:39-41): the set of characters that may legally
+  // border a markdown delimiter. It is whitespace, punctuation, the Qt frame /
+  // paragraph / line separators, and typographic quotes — deliberately NO
+  // alphanumerics, so `config__settings__backup`, `a**b**`, and other
+  // snake_case / emphasis-less prose stay verbatim instead of being mangled.
+  static const String _mdSeparatorsBase =
+      ' \x10\n\r\t.,:;<>|\'"[]{}!?%^()-+='
+      '\uFDD0\uFDD1\u2029\u2028' // QTextBeginning/EndOfFrame, Paragraph/Line sep
+      '\u00AB\u00BB\u201C\u201D\u2018\u2019\u2026';
+
+  // Per-tag GoodBefore/GoodAfter sets = base + the tag-specific additions from
+  // SeparatorsBold/Italic/Mono/Spoiler (text_entity.cpp:59-77). The extra
+  // delimiter chars (`` ` ``, `*`, `~`, `/`, `|`) let adjacent markdown nest
+  // (e.g. `**__bold italic__**`).
+  static final String _mdSepBold = _mdSeparatorsBase + '`~/';
+  static final String _mdSepItalic = _mdSeparatorsBase + '`*~/'; // also strike-out
+  static final String _mdSepMono = _mdSeparatorsBase + '*~/'; // code + pre
+  static final String _mdSepSpoiler = _mdSeparatorsBase + '|*~/';
+
+  /// Mirrors AyuGram's `TagSearchItem::check` (`input_field.cpp:508-527`): tests
+  /// whether a markdown delimiter occupying `[pos, pos+delimLen)` is a valid OPEN
+  /// (`isOpen` true) or CLOSE edge. The OUTER border (the char before an open /
+  /// the char after a close) must be a separator drawn from [goodBefore] /
+  /// [goodAfter] (an empty set ⇒ always good — the StrikeOut close case); the
+  /// INNER border (the char after an open / the char before a close) must NOT be
+  /// in the rejection set [bad] (`badAfter` / `badBefore`). [isPre] additionally
+  /// enforces the `kTagPre` rule that the char before the fence be a newline
+  /// (`input_field.cpp:511`), anchoring fenced blocks to line starts at BOTH
+  /// edges.
+  static bool _markdownEdgeOk({
+    required String src,
+    required int pos,
+    required int delimLen,
+    required bool isOpen,
+    required String goodBefore,
+    required String goodAfter,
+    required String bad,
+    required bool isPre,
+  }) {
+    if (pos > 0) {
+      final before = src[pos - 1];
+      if (isPre && before != '\n' && before != '\r') return false;
+      if (isOpen) {
+        if (goodBefore.isNotEmpty && !goodBefore.contains(before)) return false;
+      } else {
+        if (bad.contains(before)) return false;
+      }
+    }
+    final afterPos = pos + delimLen;
+    if (afterPos < src.length) {
+      final after = src[afterPos];
+      if (isOpen) {
+        if (bad.contains(after)) return false;
+      } else {
+        if (goodAfter.isNotEmpty && !goodAfter.contains(after)) return false;
+      }
+    }
+    return true;
+  }
+
   /// Pure extractor — mirrors AyuGram's `const InputField::getTextWithAppliedMarkdown()`
   /// (`input_field.cpp:3775`): it NEVER mutates [text] or the live [entities]
   /// list. It trims the text, re-bases a working copy of the entities by the
@@ -459,13 +548,18 @@ class RichTextEditingController extends TextEditingController {
       urlRanges.add((start: m.start, end: m.end));
     }
 
-    final mdDelimiters = <({String delim, FormatType type, bool isBlock})>[
-      (delim: '```', type: FormatType.pre, isBlock: true),
-      (delim: '**', type: FormatType.bold, isBlock: false),
-      (delim: '__', type: FormatType.italic, isBlock: false),
-      (delim: '~~', type: FormatType.strike, isBlock: false),
-      (delim: '||', type: FormatType.spoiler, isBlock: false),
-      (delim: '`', type: FormatType.code, isBlock: false),
+    // Each tag carries its AyuGram TagStartExpression guard sets: goodBefore /
+    // goodAfter (separators that may border the OUTER edges) and bad (the
+    // badAfter/badBefore rejection chars at the INNER edges). StrikeOut's
+    // goodAfter is empty (always good), matching `TagStartExpressions()`
+    // (input_field.cpp:567-618).
+    final mdDelimiters = <({String delim, FormatType type, bool isBlock, String goodBefore, String goodAfter, String bad, bool isPre})>[
+      (delim: '```', type: FormatType.pre, isBlock: true, goodBefore: _mdSepMono, goodAfter: _mdSepMono, bad: '`', isPre: true),
+      (delim: '**', type: FormatType.bold, isBlock: false, goodBefore: _mdSepBold, goodAfter: _mdSepBold, bad: '*', isPre: false),
+      (delim: '__', type: FormatType.italic, isBlock: false, goodBefore: _mdSepItalic, goodAfter: _mdSepItalic, bad: '_', isPre: false),
+      (delim: '~~', type: FormatType.strike, isBlock: false, goodBefore: _mdSepItalic, goodAfter: '', bad: '~', isPre: false),
+      (delim: '||', type: FormatType.spoiler, isBlock: false, goodBefore: _mdSepSpoiler, goodAfter: _mdSepSpoiler, bad: '|', isPre: false),
+      (delim: '`', type: FormatType.code, isBlock: false, goodBefore: _mdSepMono, goodAfter: _mdSepMono, bad: '`\n\r', isPre: false),
     ];
 
     final strips = <({int start, int delimLen, int contentStart, int contentEnd, FormatType type, String? language})>[];
@@ -474,30 +568,59 @@ class RichTextEditingController extends TextEditingController {
     for (final md in mdDelimiters) {
       final d = md.delim;
       final dLen = d.length;
+      // Inline code never spans a newline (DoesTagFinishByNewline == kTagCode).
+      final finishesByNewline = md.type == FormatType.code;
       var searchFrom = 0;
       while (searchFrom < src.length) {
         final openIdx = src.indexOf(d, searchFrom);
         if (openIdx < 0 || openIdx + dLen >= src.length) break;
         if (used[openIdx]) { searchFrom = openIdx + 1; continue; }
 
-        var contentStart = openIdx + dLen;
-        int closeIdx;
-        if (md.isBlock) {
-          closeIdx = src.indexOf(d, contentStart);
-        } else if (d == '`') {
-          final nl = src.indexOf('\n', contentStart);
-          final tick = src.indexOf('`', contentStart);
-          if (tick < 0) break;
-          if (nl >= 0 && nl < tick) { searchFrom = nl + 1; continue; }
-          closeIdx = tick;
-        } else {
-          closeIdx = src.indexOf(d, contentStart);
-        }
-        if (closeIdx < 0 || closeIdx == contentStart) {
-          searchFrom = contentStart;
+        // OPEN-edge separator guard (AyuGram TagSearchItem::check, Edge::Open):
+        // the char before the opening delimiter must be a separator (or start of
+        // text) and the char after must not be a rejection char — so
+        // `config__settings`, `a**b`, snake_case, and filenames stay verbatim
+        // instead of being mangled into formatting.
+        if (!_markdownEdgeOk(
+            src: src, pos: openIdx, delimLen: dLen, isOpen: true,
+            goodBefore: md.goodBefore, goodAfter: md.goodAfter,
+            bad: md.bad, isPre: md.isPre)) {
+          searchFrom = openIdx + 1;
           continue;
         }
 
+        final contentStart0 = openIdx + dLen;
+        final firstNewline =
+            finishesByNewline ? src.indexOf('\n', contentStart0) : -1;
+
+        // Find the first CLOSE delimiter that also passes the close-edge guard
+        // (Edge::Close: char after must be a separator, char before must not be
+        // a rejection char). A delimiter that fails the guard is skipped, so the
+        // scan keeps looking for a legitimate closer.
+        var closeIdx = -1;
+        var probe = contentStart0;
+        while (true) {
+          final c = src.indexOf(d, probe);
+          if (c < 0) break;
+          if (firstNewline >= 0 && firstNewline < c) break; // newline-terminated
+          if (used[c]) { probe = c + dLen; continue; }
+          if (c == contentStart0) break; // empty content — no valid pair
+          if (!_markdownEdgeOk(
+              src: src, pos: c, delimLen: dLen, isOpen: false,
+              goodBefore: md.goodBefore, goodAfter: md.goodAfter,
+              bad: md.bad, isPre: md.isPre)) {
+            probe = c + dLen;
+            continue;
+          }
+          closeIdx = c;
+          break;
+        }
+        if (closeIdx < 0) {
+          searchFrom = contentStart0;
+          continue;
+        }
+
+        var contentStart = contentStart0;
         final tagEnd = closeIdx + dLen;
         final overlapsUrl = urlRanges.any((u) =>
             u.start < tagEnd && u.end > openIdx &&
