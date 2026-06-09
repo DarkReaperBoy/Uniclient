@@ -671,30 +671,6 @@ checkbox is on and vanish when off (differential ON→OFF→ON verified, persist
 message reactions re-render in Twemoji) and persists; the sensitive-content string matches.
 Both modes render with zero RenderFlex overflow and zero widget exceptions.
 
-# engine_service — FFI bridge/service layer (proto/JSON ↔ Go backend)
-
-Overall: this file is a faithful, fully-wired RPC layer. Every public method
-forwards to the Go engine via `_callRaw`/`_callAsync` — no stubs, no mock data,
-no empty callbacks, no fabricated lists, no "coming soon" returns. All literal
-`return []`/`{}`/`0`/`false` are legitimate empty-response or catch fallbacks.
-The waveform decoder (`_decode5BitWaveform`, `engine_service.dart:7266`) matches
-AyuGram `documentWaveformDecode` (`data/data_document.cpp:1333`) exactly.
-
-The only genuine deviation class: the file documents `_safeStr` as "the single
-choke point where AyuGram's Filter Zalgo strip is applied" (`engine_service.dart:16-20`,
-mirroring `filterZalgo` at `ayu/utils/telegram_helpers.cpp:1260`, applied in
-AyuGram to peer names `data/data_user.cpp:365`, `data/data_channel.cpp:143`,
-`data/data_chat.cpp:122`, and message text `history/history_item.cpp:4157`).
-Several manual model-construction paths bypass that choke point, while their
-sibling proto converters apply it — proving the omission is unintentional. When
-the user enables Filter Zalgo, these paths render unfiltered names/text.
-
-- [ ] [MAJOR] `getDeletedMessages` builds `CachedMessage` with raw `sender_name` and `content_text` (also `reply_preview`, `forward_from`), bypassing `_safeStr` — the sibling `_cachedMsgFromProto` applies `_safeStr` to the exact same fields (`senderName` `:6974`, `contentText` `:6977`, `replyPreview` `:6984`, `forwardFrom` `:6985`). The deleted/anti-recall message viewer therefore shows zalgo-unfiltered text & sender names, unlike the live message view — `engine_service.dart:3331-3332` ← `AyuGram/Telegram/SourceFiles/history/history_item.cpp:4157` (message text) + `AyuGram/Telegram/SourceFiles/data/data_user.cpp:365` (names)
-
-- [ ] [MAJOR] `getChatMembersByRole` builds `MemberInfo` with raw `display_name`, `username`, `custom_rank`, `promoted_by`, bypassing `_safeStr` — the sibling `_memberInfoFromProto` applies `_safeStr` to those same fields (`username` `:7190`, `displayName` `:7191`, `customRank` `:7196`, `promotedBy` `:7197`). The participants/admins/banned lists in the group profile render zalgo-unfiltered member names — `engine_service.dart:1206-1215` ← `AyuGram/Telegram/SourceFiles/data/data_user.cpp:365`
-
-- [ ] [MAJOR] Peer/participant display names bypass `_safeStr` in four more converters that build display models directly, while every other proto→model converter in this file applies it: `_savedSublistFromProto.peerName` (`engine_service.dart:223`, Saved Messages sublist authors), `getSendAs` participant `displayName` (`engine_service.dart:2335`, send-as picker), `getGroupCall` participant `displayName` (`engine_service.dart:2406`, group-call participant list), `getMessageReactorsList` `peerName` (`engine_service.dart:4325`, "who reacted" list). AyuGram renders all of these via the zalgo-filtered `peer->name()` — `engine_service.dart:223,2335,2406,4325` ← `AyuGram/Telegram/SourceFiles/data/data_user.cpp:365` + `AyuGram/Telegram/SourceFiles/data/data_channel.cpp:143`
-
 # chat_switch_overlay — Ctrl+Tab "alt-tab" chat switcher overlay (AyuGram ChatSwitchProcess port)
 
 Audited against `window/window_chat_switch_process.cpp` + `window/window.style`. The
