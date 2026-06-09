@@ -671,24 +671,6 @@ checkbox is on and vanish when off (differential ON→OFF→ON verified, persist
 message reactions re-render in Twemoji) and persists; the sensitive-content string matches.
 Both modes render with zero RenderFlex overflow and zero widget exceptions.
 
-# create_giveaway_box — Channel giveaway creation box (Premium / Stars / Prepaid + Award)
-
-Audited `dart/lib/ui/create_giveaway_box.dart` against AyuGram's
-`info/channel_statistics/boosts/create_giveaway_box.cpp` (+ `giveaway_type_row.cpp`,
-`select_countries_box.cpp`, `lang.strings`). The implementation is genuinely wired:
-all nine engine calls (`getGiftCodeOptions`, `getStarsGiveawayOptions`,
-`getGiveawayConfig`, `launchRandomGiveaway`, `launchCreditsGiveaway`,
-`launchPrepaidGiveaway`, `awardPremiumGiveaway`, `getChatsToSend`,
-`getChatMembersByRole`) are real FFI bridge calls (verified in
-`engine_service.dart:7364-7504`), no empty callbacks, no mock data, no TODO/stub
-markers. Findings below are correctness / missing-element deviations.
-
-- [ ] [MAJOR] Prepaid **Stars/credits** giveaways are rendered as Premium. The prepaid section reads only `g['months']`/`g['quantity']` and hardcodes `'$qty × $months months Premium'` + `'$boosts boosts for your channel'`, never inspecting `g['credits']`. For a credits prepaid giveaway (`credits > 0`, `months == 0`) this displays the false text "N × 0 months Premium". AyuGram branches on `prepaid->credits` to show a `PrepaidCredits` row with `lng_boosts_prepaid_giveaway_credits_status` ("{amount} among {count} winners"). Note `info_panel.dart:9529-9540` already handles both variants, so the data path is real — only this box mishandles it. — `create_giveaway_box.dart:863-911` (title `:894`, subtitle `:901`) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:365-391`
-
-- [ ] [MAJOR] Missing the Premium **terms / "review features" link**. AyuGram adds a `DividerLabel` with `lng_premium_gift_terms` ("You can review the list of features and more details about Telegram Premium {link}") under the duration gift-options (and inside the prepaid date container), whose link calls `Settings::ShowPremium`. The Dart box has no terms text or link anywhere (grep for `terms`/`ShowPremium`/`features` in the file returns nothing). — `create_giveaway_box.dart:981-1015` (duration section, no terms appended) ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:1019-1035, 1074-1079`
-
-- [ ] [MAJOR] The **"Telegram Stars" type tile is shown unconditionally**, even when the channel has zero stars-giveaway options. AyuGram's `fillCreditsTypeWrap` returns early (`if (state->apiCreditsOptions.options().empty()) return;`) so the Credits row is never created in that case; the Dart always renders the tile and tapping it dead-ends on a "No star giveaway options available." message instead of hiding the option. — `create_giveaway_box.dart:834-841` ← `AyuGram/info/channel_statistics/boosts/create_giveaway_box.cpp:474-491`
-
 # ayu_filter — AyuGram regex message filters (data layer)
 
 Audited `dart/lib/data/ayu_filter.dart` against AyuGram's `ayu/features/filters/*`
