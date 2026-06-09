@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../l10n/strings.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
@@ -1313,6 +1314,7 @@ class _AccentColorPalette extends StatelessWidget {
     final result = await showColorPickerBox(
       context: context,
       initialColor: currentColor,
+      title: TrStrings.lngSettingsThemeAccentTitle(),
       mode: ColorEditorMode.hsl,
       lightnessMin: lightnessMin,
       lightnessMax: lightnessMax,

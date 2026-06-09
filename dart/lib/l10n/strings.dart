@@ -166,6 +166,12 @@ class TrStrings {
   // Common dialog buttons (edit_mark_box.cpp:44-58, layers.style)
   static String lngSettingsSave() => 'Save';
   static String lngAyuBoxActionReset() => 'Reset';
+  // Photo-editor brush color box positive button (color_picker.cpp:759,
+  // lang.strings:126)
+  static String lngBoxDone() => 'Done';
+
+  // Chat-accent color picker box title (settings_chat.cpp:395, lang.strings:858)
+  static String lngSettingsThemeAccentTitle() => 'Choose accent color';
 
   // Auto-delete timer box (auto_delete_settings.cpp, lang.strings:2162-2175)
   static String lngManageMessagesTtlTitle() => 'Auto-delete messages';

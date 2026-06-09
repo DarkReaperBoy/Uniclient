@@ -12,6 +12,7 @@ import 'package:lottie/lottie.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
+import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../models/engine_models.dart';
 import 'color_picker_box.dart';
@@ -1421,7 +1422,10 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                                   final c = await showColorPickerBox(
                                     context: context,
                                     initialColor: _brushColor,
-                                    title: 'Choose Color',
+                                    // No title — AyuGram's photo-editor brush
+                                    // box never calls box->setTitle; positive
+                                    // button is "Done" (tr::lng_box_done).
+                                    positiveLabel: TrStrings.lngBoxDone(),
                                     mode: ColorEditorMode.hsl,
                                   );
                                   if (c != null) _setBrushColor(c);

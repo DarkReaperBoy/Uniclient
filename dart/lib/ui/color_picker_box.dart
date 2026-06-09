@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatf
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
+import '../l10n/strings.dart';
 import '../theme/telegram_palette.dart';
 import 'confirm_box.dart';
 
@@ -31,7 +32,16 @@ enum ColorEditorMode { rgba, hsl }
 Future<Color?> showColorPickerBox({
   required BuildContext context,
   required Color initialColor,
-  String title = 'Choose Color',
+  // Title is caller-supplied per context — AyuGram never uses a generic
+  // "Choose Color" title: the theme editor passes the palette token name
+  // (`box->setTitle(name)`), the chat-accent picker passes
+  // `tr::lng_settings_theme_accent_title()`, and the photo-editor brush box
+  // sets no title at all. When null/empty no title bar is drawn.
+  String? title,
+  // Positive button label. Defaults to "Save" (`tr::lng_settings_save()`, used
+  // by the theme editor + chat-accent boxes); the photo-editor brush box passes
+  // "Done" (`tr::lng_box_done()`).
+  String? positiveLabel,
   bool showOpacity = false,
   ColorEditorMode mode = ColorEditorMode.rgba,
   double? lightnessMin,
@@ -42,6 +52,7 @@ Future<Color?> showColorPickerBox({
     builder: (ctx) => _ColorPickerBox(
       initialColor: initialColor,
       title: title,
+      positiveLabel: positiveLabel ?? TrStrings.lngSettingsSave(),
       showOpacity: showOpacity,
       mode: mode,
       lightnessMin: lightnessMin,
@@ -52,7 +63,8 @@ Future<Color?> showColorPickerBox({
 
 class _ColorPickerBox extends StatefulWidget {
   final Color initialColor;
-  final String title;
+  final String? title;
+  final String positiveLabel;
   final bool showOpacity;
   final ColorEditorMode mode;
   final double? lightnessMin;
@@ -60,7 +72,8 @@ class _ColorPickerBox extends StatefulWidget {
 
   const _ColorPickerBox({
     required this.initialColor,
-    required this.title,
+    this.title,
+    required this.positiveLabel,
     this.showOpacity = false,
     this.mode = ColorEditorMode.rgba,
     this.lightnessMin,
@@ -451,7 +464,13 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _TitleBar(title: widget.title, fg: p.boxTitleFg),
+              // Titleless when no title is supplied (matches AyuGram's
+              // photo-editor brush box, which never calls `box->setTitle`); a
+              // small top inset keeps the picker off the rounded top corner.
+              if (widget.title != null && widget.title!.isNotEmpty)
+                _TitleBar(title: widget.title!, fg: p.boxTitleFg)
+              else
+                SizedBox(height: kBoxPadding.top),
               Padding(
                 padding: EdgeInsets.fromLTRB(
                     kBoxPadding.left, 0, kBoxPadding.right, 0),
@@ -578,6 +597,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
               const SizedBox(height: 8),
               _ButtonRow(
                 accentFg: accentFg,
+                applyLabel: widget.positiveLabel,
                 onCancel: () => Navigator.of(context).pop(),
                 onApply: _submit,
               ),
@@ -834,10 +854,12 @@ class _TitleBar extends StatelessWidget {
 
 class _ButtonRow extends StatelessWidget {
   final Color accentFg;
+  final String applyLabel;
   final VoidCallback onCancel;
   final VoidCallback onApply;
   const _ButtonRow(
       {required this.accentFg,
+      required this.applyLabel,
       required this.onCancel,
       required this.onApply});
 
@@ -850,12 +872,12 @@ class _ButtonRow extends StatelessWidget {
         children: [
           TextButton(
               onPressed: onCancel,
-              child: Text('Cancel',
+              child: Text(TrStrings.lngCancel(),
                   style: TextStyle(color: accentFg, fontSize: 14))),
           const SizedBox(width: 8),
           TextButton(
               onPressed: onApply,
-              child: Text('Apply',
+              child: Text(applyLabel,
                   style: TextStyle(color: accentFg, fontSize: 14))),
         ],
       ),
