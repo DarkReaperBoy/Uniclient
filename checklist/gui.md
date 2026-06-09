@@ -671,27 +671,6 @@ checkbox is on and vanish when off (differential ON→OFF→ON verified, persist
 message reactions re-render in Twemoji) and persists; the sensitive-content string matches.
 Both modes render with zero RenderFlex overflow and zero widget exceptions.
 
-# chat_switch_overlay — Ctrl+Tab "alt-tab" chat switcher overlay (AyuGram ChatSwitchProcess port)
-
-Audited against `window/window_chat_switch_process.cpp` + `window/window.style`. The
-overlay is a remarkably faithful port: every dimension matches the style table
-(cell 72×104, userpic 56/40/24, top 8, nameSkip 6, selectLine 3, margins 16,
-padding 12, radius `boxRadius`=6, maxPerRow 7, maxRows 3), the selection color is
-`defaultRoundCheckbox.bgActive`=`windowBgActive` with the 150ms `slideWrapDuration`,
-the row/column layout algorithm (`layout()` cpp:420-457) is reproduced line-for-line,
-keyboard nav (Tab/Backtab/arrows/Q/Esc/Enter + Ctrl-release confirm), the initiating
-Tab/Backtab step, tap-outside-to-close vs panel-absorb (the `onTap: () {}` at :371 is
-the deliberate `e->accept()` absorber from cpp:415, NOT a stub), and the backend wiring
-(`collectChatOpenHistory`→`onChosen`/`openChat`, `onRemove`/`removeChatFromOpenHistory`,
-Ctrl+Tab trigger via keyboard_shortcuts.dart) are all correct and fully connected.
-
-Two avatar-rendering deviations from the codebase's own canonical userpic renderer
-(`chat_list_row.dart`) and from AyuGram's `Ui::UserpicButton`:
-
-- [ ] [MAJOR] Avatar `Image.file`/`Image.memory` decode at full source resolution — no `cacheWidth`/`cacheHeight`. The canonical userpic renderer caps decode at `photoSize*2`, and AyuGram's `Ui::UserpicButton` rasterizes only at the fixed `photoSize` (56/40/24px); here a 640px avatar file is decoded at full res for a 56px (or 20px badge) display, ~30× the needed pixels, across up to 21 cells. Affects all four image calls (`:509`, `:518`, `:592`, `:598`). — `chat_switch_overlay.dart:518` ← `AyuGram/Telegram/SourceFiles/window/window.style:356` (`photoSize: 56px`); canonical in-repo pattern: `chat_list_row.dart:1134` (`cacheWidth: (photoSize * 2).toInt()`)
-
-- [ ] [MAJOR] Avatar images have no `errorBuilder` fallback — a missing/corrupt avatar file renders Flutter's default broken-image glyph instead of the initials/empty-userpic fallback. The initials fallback (`_buildBaseUserpic` :524-541) is only reached when `avatarPath.isEmpty`; a non-empty path that fails to load is unhandled. AyuGram's `Ui::UserpicButton` always renders a valid userpic via the empty-userpic system and never shows a broken image; the canonical renderer wires `errorBuilder → _fallback(...)`. Affects `:509`, `:518`, `:592`, `:598`. — `chat_switch_overlay.dart:518` ← `AyuGram/Telegram/SourceFiles/window/window_chat_switch_process.cpp:129` (`Ui::CreateChild<Ui::UserpicButton>` always-valid userpic); canonical in-repo pattern: `chat_list_row.dart:1137` (`errorBuilder: (_, __, ___) => _fallback(...)`)
-
 # choose_datetime_box — Calendar / ChooseDateTime / MonthYearPicker / TimePicker boxes
 
 Audited `dart/lib/ui/choose_datetime_box.dart` (CalendarBox, ChooseDateTimeBox,
