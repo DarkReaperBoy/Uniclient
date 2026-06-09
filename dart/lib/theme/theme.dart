@@ -14,12 +14,18 @@ export 'wallpaper.dart';
 // it is correct for every built-in and imported theme, not just day/night.
 
 class AppTheme {
-  static ThemeData fromPalette(TelegramPalette p, {String fontFamily = 'Inter'}) {
+  static ThemeData fromPalette(TelegramPalette p,
+      {String fontFamily = 'Inter', List<String>? emojiFontFallback}) {
     final isDark = p.isDark;
     return ThemeData(
       useMaterial3: true,
       brightness: isDark ? Brightness.dark : Brightness.light,
       fontFamily: fontFamily,
+      // Emoji rendering set (AyuGram Ui::Emoji::ManageSetsBox). Inter has no
+      // emoji glyphs, so unicode emoji fall through to this chain; when the
+      // user picks a bundled set (e.g. Twemoji) every theme-derived Text widget
+      // renders emoji from it instead of the platform default font.
+      fontFamilyFallback: emojiFontFallback,
       colorScheme: isDark
           ? ColorScheme.dark(
               primary: p.windowBgActive,

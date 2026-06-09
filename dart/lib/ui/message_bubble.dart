@@ -215,6 +215,19 @@ class _MessageBubbleState extends State<MessageBubble> {
   Timer? _showTimer;
   Timer? _hideTimer;
 
+  // Double-click quick action (AyuGram ListWidget::mouseDoubleClickEvent,
+  // history_view_list_widget.cpp:2873). Detected with a raw Listener rather than
+  // a DoubleTapGestureRecognizer because the message body's SelectableText would
+  // otherwise win the gesture arena for the second tap (word selection).
+  // The cross-tap timestamp is STATIC: the message list can rebuild (recreating
+  // this State) between a user's two physical clicks, so per-instance state would
+  // never bridge them. Keyed by msgId so two clicks on different messages don't
+  // register as one double-click.
+  static int _lastClickMs = 0;
+  static String _lastClickMsgId = '';
+  Offset _downPos = Offset.zero;
+  bool _downPrimary = false;
+
   static const _maxCachedAccounts = 10;
   static final Map<String, List<String>> _cachedReactions = {};
   static final Map<String, bool> _loadingReactions = {};
@@ -285,6 +298,52 @@ class _MessageBubbleState extends State<MessageBubble> {
     // `recentEmoji()` from every source (emoji_keywords.cpp:650-654).
     if (emoji.isNotEmpty) {
       EmojiKeywords.instance.recordRecent(emoji);
+    }
+  }
+
+  void _onBubblePointerDown(PointerDownEvent e) {
+    _downPos = e.position;
+    // Touch/stylus presses are always "primary"; for a mouse, only the left
+    // button arms a double-click (right-click opens the context menu instead).
+    _downPrimary = (e.kind == PointerDeviceKind.mouse)
+        ? (e.buttons & kPrimaryButton) != 0
+        : true;
+  }
+
+  void _onBubblePointerUp(PointerUpEvent e) {
+    if (!_downPrimary || widget.inSelectionMode) {
+      _lastClickMs = 0;
+      return;
+    }
+    // A press that moved is a drag (scroll / text-selection), never a click.
+    if ((e.position - _downPos).distance > 12) {
+      _lastClickMs = 0;
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastClickMs <= 350 && _lastClickMsgId == widget.message.msgId) {
+      _lastClickMs = 0;
+      _lastClickMsgId = '';
+      _onDoubleClickQuickAction();
+    } else {
+      _lastClickMs = now;
+      _lastClickMsgId = widget.message.msgId;
+    }
+  }
+
+  // Mirrors ListWidget::mouseDoubleClickEvent: reply to, or toggle the favorite
+  // reaction on, the message under the cursor, per Settings::Chat quick action.
+  void _onDoubleClickQuickAction() {
+    if (widget.inSelectionMode) return;
+    final appState = context.read<AppState>();
+    if (appState.chatDoubleClickAction == 'react') {
+      // AyuGram toggleFavoriteReaction(_overElement) — the favorite reaction is
+      // the one chosen in the React-radio reaction chooser (chatDoubleClickReaction).
+      final fav = appState.chatDoubleClickReaction;
+      if (fav.isNotEmpty) _onReactionTap(fav);
+    } else {
+      // DoubleClickQuickAction::Reply — replyToMessageRequestNotify.
+      widget.onReply?.call();
     }
   }
 
@@ -632,6 +691,16 @@ class _MessageBubbleState extends State<MessageBubble> {
     final onSenderContextMenu = widget.onSenderContextMenu;
     final onReplyTap = widget.onReplyTap;
 
+    // Settings::Chat hover affordances (AyuGram cornerReply / cornerReaction,
+    // settings_chat.cpp:1776/1795). watch() so toggling them live-updates every
+    // bubble. The corner reaction button shows the favorite reaction chosen in
+    // the React-radio chooser (chatDoubleClickReaction), matching AyuGram reading
+    // it back from reactions().favoriteId() rather than a hardcoded emoji.
+    final appState = context.watch<AppState>();
+    final showReplyButton = appState.chatShowReplyButton;
+    final showReactionButton = appState.chatShowReactionButton;
+    final favoriteReaction = appState.chatDoubleClickReaction;
+
     final currentReactionKeys = message.reactions.map((r) => r.isCustomEmoji ? 'custom_${r.documentId}' : r.emoji).toSet();
     _reactionKeys.removeWhere((key, _) => !currentReactionKeys.contains(key));
     for (final r in message.reactions) {
@@ -782,6 +851,9 @@ class _MessageBubbleState extends State<MessageBubble> {
     Widget bubble = MouseRegion(
       onEnter: (_) => _onHoverEnter(),
       onExit: (_) => _onHoverExit(),
+      child: Listener(
+      onPointerDown: _onBubblePointerDown,
+      onPointerUp: _onBubblePointerUp,
       child: Padding(
       padding: EdgeInsets.only(
         left: 16.0,
@@ -838,7 +910,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-              if (_hovered && !inSelectionMode)
+              if (_hovered && !inSelectionMode && showReactionButton)
                 Align(
                   alignment: isOutgoing ? Alignment.centerRight : Alignment.centerLeft,
                   child: Padding(
@@ -1191,15 +1263,34 @@ class _MessageBubbleState extends State<MessageBubble> {
                     checked: isSelected,
                   ),
                 ),
-              if (_hovered && !inSelectionMode)
+              if (_hovered &&
+                  !inSelectionMode &&
+                  ((showReplyButton && onReply != null) || showReactionButton))
                 Positioned(
                   top: -9,
                   right: isOutgoing ? null : 7,
                   left: isOutgoing ? 7 : null,
-                  child: _ReactionCornerButton(
-                    isDark: isDark,
-                    emoji: _availableReactions.first,
-                    onTap: () => _onReactionTap(_availableReactions.first),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (showReplyButton && onReply != null) ...[
+                        _ReplyCornerButton(
+                          isDark: isDark,
+                          onTap: onReply,
+                        ),
+                        if (showReactionButton) const SizedBox(width: 4),
+                      ],
+                      if (showReactionButton)
+                        _ReactionCornerButton(
+                          isDark: isDark,
+                          emoji: favoriteReaction.isNotEmpty
+                              ? favoriteReaction
+                              : _availableReactions.first,
+                          onTap: () => _onReactionTap(favoriteReaction.isNotEmpty
+                              ? favoriteReaction
+                              : _availableReactions.first),
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -1220,6 +1311,7 @@ class _MessageBubbleState extends State<MessageBubble> {
           ),
         ],
       ),
+    ),
     ),
     );
 
@@ -1584,6 +1676,102 @@ class _ReactionCornerButtonState extends State<_ReactionCornerButton>
               ),
               child: Center(
                 child: Text(widget.emoji, style: const TextStyle(fontSize: 18)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Hover corner reply button (AyuGram cornerReply, settings_chat.cpp:1776 →
+/// _replyButtonManager). Same round chip as the corner reaction button but with
+/// a reply glyph; tapping starts a reply to the message.
+class _ReplyCornerButton extends StatefulWidget {
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _ReplyCornerButton({
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_ReplyCornerButton> createState() => _ReplyCornerButtonState();
+}
+
+class _ReplyCornerButtonState extends State<_ReplyCornerButton>
+    with TickerProviderStateMixin {
+  late final AnimationController _toggleController;
+  late final Animation<double> _fadeScale;
+  late final AnimationController _activateController;
+  late final Animation<double> _activateScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _toggleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    _fadeScale = CurvedAnimation(parent: _toggleController, curve: Curves.easeOut);
+    _toggleController.forward();
+    _activateController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _activateScale = Tween<double>(begin: 1.0, end: 0.85).animate(
+      CurvedAnimation(parent: _activateController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _toggleController.dispose();
+    _activateController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.isDark ? const Color(0xFF2B3640) : Colors.white;
+    final fg = widget.isDark ? const Color(0xFFAAB6C2) : const Color(0xFF707579);
+    return FadeTransition(
+      opacity: _fadeScale,
+      child: ScaleTransition(
+        scale: _fadeScale,
+        alignment: Alignment.bottomCenter,
+        child: AnimatedBuilder(
+          animation: _activateScale,
+          builder: (context, child) => Transform.scale(
+            scale: _activateScale.value,
+            child: child,
+          ),
+          child: GestureDetector(
+            onTapDown: (_) => _activateController.forward(),
+            onTapUp: (_) {
+              _activateController.reverse();
+              widget.onTap();
+            },
+            onTapCancel: () => _activateController.reverse(),
+            child: Container(
+              width: 36,
+              height: 32,
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 8,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Icon(Icons.reply, size: 18, color: fg),
               ),
             ),
           ),

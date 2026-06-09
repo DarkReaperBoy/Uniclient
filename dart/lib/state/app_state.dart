@@ -509,6 +509,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String _chatDoubleClickReaction = '❤️';
   bool _chatShowReplyButton = true;
   bool _chatShowReactionButton = true;
+  // Emoji rendering set (AyuGram Ui::Emoji::ManageSetsBox). 'system' = the
+  // platform's native color-emoji font; 'twemoji' = the bundled Twemoji set.
+  String _emojiSet = 'system';
   bool _useSystemAccent = false;
   bool _adaptiveForWide = true;
   String _customFontFamily = 'Inter';
@@ -3389,6 +3392,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   set chatShowReplyButton(bool v) { if (_chatShowReplyButton != v) { _chatShowReplyButton = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get chatShowReactionButton => _chatShowReactionButton;
   set chatShowReactionButton(bool v) { if (_chatShowReactionButton != v) { _chatShowReactionButton = v; _saveWindowPrefs(); notifyListeners(); } }
+  String get emojiSet => _emojiSet;
+  set emojiSet(String v) { if (_emojiSet != v) { _emojiSet = v; _saveWindowPrefs(); notifyListeners(); } }
+  /// Font-family fallback chain for the chosen emoji rendering set, applied
+  /// app-wide so plain-unicode emoji render from the selected font. Returns
+  /// null for 'system' (use the platform default emoji font).
+  List<String>? get emojiFontFallback =>
+      _emojiSet == 'twemoji' ? const ['Twemoji'] : null;
   bool get useSystemAccent => _useSystemAccent;
   set useSystemAccent(bool v) { if (_useSystemAccent != v) { _useSystemAccent = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get adaptiveForWide => _adaptiveForWide;
@@ -4367,6 +4377,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _chatDoubleClickReaction = data['chatDoubleClickReaction'] as String? ?? '❤️';
       _chatShowReplyButton = data['chatShowReplyButton'] as bool? ?? true;
       _chatShowReactionButton = data['chatShowReactionButton'] as bool? ?? true;
+      _emojiSet = data['emojiSet'] as String? ?? 'system';
       _useSystemAccent = data['useSystemAccent'] as bool? ?? false;
       _adaptiveForWide = data['adaptiveForWide'] as bool? ?? true;
       _customFontFamily = data['customFontFamily'] as String? ?? 'Inter';
@@ -4708,6 +4719,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'chatDoubleClickReaction': _chatDoubleClickReaction,
         'chatShowReplyButton': _chatShowReplyButton,
         'chatShowReactionButton': _chatShowReactionButton,
+        'emojiSet': _emojiSet,
         'useSystemAccent': _useSystemAccent,
         'adaptiveForWide': _adaptiveForWide,
         'customFontFamily': _customFontFamily,

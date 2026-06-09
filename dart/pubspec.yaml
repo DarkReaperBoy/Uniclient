@@ -56,6 +56,11 @@ flutter:
           weight: 600
         - asset: assets/fonts/Inter-Bold.ttf
           weight: 700
+    # Twemoji (COLR/CPAL vector color-emoji font) — selectable emoji rendering
+    # set, mirrors AyuGram's Ui::Emoji::ManageSetsBox "Twemoji" option.
+    - family: Twemoji
+      fonts:
+        - asset: assets/fonts/Twemoji.ttf
   assets:
     - assets/sounds/msg_incoming.mp3
     - assets/icon/icon_256.png

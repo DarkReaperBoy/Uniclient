@@ -3914,11 +3914,14 @@ class _StickersEmojiSection extends StatelessWidget {
           isDark: isDark,
           onTap: () => _showInstalledPacks(context, isDark, 'stickers'),
         ),
+        // AyuGram lng_emoji_manage_sets → Ui::Emoji::ManageSetsBox: the emoji
+        // *rendering-set* picker (switch the font emoji are drawn with), NOT the
+        // custom-emoji sticker-pack manager. settings_chat.cpp:1570-1577.
         _StickerNavButton(
           icon: Icons.emoji_emotions_outlined,
           label: 'Choose emoji set',
           isDark: isDark,
-          onTap: () => _showInstalledPacks(context, isDark, 'emoji'),
+          onTap: () => _showEmojiSetPicker(context, isDark),
         ),
       ],
     );
@@ -3984,6 +3987,151 @@ class _StickerCheckbox extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// AyuGram Ui::Emoji::ManageSetsBox (chat_helpers/emoji_sets_manager.cpp:45):
+// pick the emoji *rendering set* — the font emoji glyphs are drawn with — and
+// apply it app-wide. Unlike Telegram Desktop's downloadable bitmap atlases, this
+// switches between bundled color-emoji fonts via the theme's fontFamilyFallback.
+void _showEmojiSetPicker(BuildContext context, bool isDark) {
+  final appState = context.read<AppState>();
+  final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+  final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+  final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+  final accentColor = context.palette.windowBgActive;
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: bgColor,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+    ),
+    builder: (ctx) => _EmojiSetPicker(
+      appState: appState,
+      isDark: isDark,
+      textColor: textColor,
+      subtextColor: subtextColor,
+      accentColor: accentColor,
+    ),
+  );
+}
+
+class _EmojiSetPicker extends StatelessWidget {
+  final AppState appState;
+  final bool isDark;
+  final Color textColor;
+  final Color subtextColor;
+  final Color accentColor;
+
+  const _EmojiSetPicker({
+    required this.appState,
+    required this.isDark,
+    required this.textColor,
+    required this.subtextColor,
+    required this.accentColor,
+  });
+
+  // (id, display name, font family to render emoji with — null = platform default).
+  // Only sets whose font is actually bundled appear here: fabricating Apple /
+  // JoyPixels rows we can't render would be a placebo.
+  static const List<(String, String, String?)> _sets = [
+    ('system', 'System', null),
+    ('twemoji', 'Twemoji', 'Twemoji'),
+  ];
+  static const String _previewEmoji = '😀  😍  👍  ❤️  🎉  🔥  😎  🥳';
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: appState,
+      builder: (context, _) {
+        final current = appState.emojiSet;
+        return SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 8, bottom: 6),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: subtextColor.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 6, 22, 2),
+                child: Text(
+                  'Choose emoji set',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+                child: Text(
+                  'Choose how emoji are displayed throughout the app.',
+                  style: TextStyle(fontSize: 13, color: subtextColor),
+                ),
+              ),
+              for (final set in _sets)
+                InkWell(
+                  onTap: () => appState.emojiSet = set.$1,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                set.$2,
+                                style: TextStyle(fontSize: 15, color: textColor),
+                              ),
+                              const SizedBox(height: 6),
+                              // Preview each set in its OWN font, independent of the
+                              // currently-active set. The 'system' row forces an empty
+                              // fallback so it always shows the platform emoji even
+                              // when Twemoji is the active app-wide set.
+                              Text(
+                                _previewEmoji,
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontFamily: set.$3,
+                                  fontFamilyFallback:
+                                      set.$3 == null ? const [] : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        if (current == set.$1)
+                          Icon(Icons.check, color: accentColor, size: 22)
+                        else
+                          Icon(Icons.circle_outlined,
+                              color: subtextColor, size: 22),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -5181,7 +5329,7 @@ class _SensitiveContentSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(left: 22, right: 22, bottom: 4),
           child: Text(
-            'Display sensitive media in public channels on all your Telegram devices.',
+            'Do not hide media that contains content suitable only for adults.',
             style: TextStyle(fontSize: 13, color: subtextColor),
           ),
         ),
