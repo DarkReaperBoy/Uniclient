@@ -168,6 +168,22 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		e.CancelAuth(req.AccountId)
 		return nil, nil
 
+	case "GoBackAuth":
+		// Step the auth flow back one step within the live flow. Reuses the
+		// account-id request and the auth-state response shapes (no dedicated
+		// proto message needed): an absent State in the response signals "already
+		// at the first step", on which the Dart side fully cancels.
+		var req pb.EngineCancelAuthRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		state, stepped := e.GoBackAuth(req.AccountId)
+		resp := &pb.EngineSubmitAuthInputResponse{}
+		if stepped {
+			resp.State = authStateToProto(state)
+		}
+		return proto.Marshal(resp)
+
 	// ── Chat list ──
 
 	case "GetChatList":

@@ -62,6 +62,7 @@ type authFlow struct {
 	state     *AuthState
 	collected map[string]string // accumulated inputs
 	core      cores.Core        // core being authenticated
+	history   []*AuthState      // prior steps for back-navigation (intro _stepHistory)
 }
 
 var (
@@ -122,6 +123,8 @@ func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 		return nil, fmt.Errorf("account %q not found", accountID)
 	}
 
+	prevState := flow.state.State
+	prevCollected := len(flow.collected)
 	next, err := advanceAuth(acc.Platform, flow, input)
 	if err != nil {
 		// Return error state.
@@ -137,6 +140,19 @@ func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 		return errState, nil
 	}
 
+	// Record the step we are leaving onto the back-navigation history, but only
+	// for a genuine FORWARD step: either the step name changed (choose→input,
+	// input→otp, otp→2fa) or a new input was collected (multi-`input` platforms
+	// like Matrix, where homeserver→username→password are all "input"). Skip
+	// in-place refreshes that re-emit the same step without collecting anything
+	// new (otp→otp resend, qr→qr poll, 2fa→2fa recovery) and terminal states
+	// (ready/error), so back returns to the previous real step rather than
+	// toggling a refresh. Mirrors AyuGram appendStep pushing onto _stepHistory
+	// only when moving to a new Step (intro_widget.cpp:465-466).
+	forward := next.State != prevState || len(flow.collected) > prevCollected
+	if forward && next.State != AuthStateReady && next.State != AuthStateError {
+		flow.history = append(flow.history, flow.state)
+	}
 	flow.state = next
 
 	// Entering QR: install the push-refresh callback so an updateLoginToken
@@ -215,6 +231,40 @@ func (e *Engine) CancelAuth(accountID string) {
 		delete(authFlows, accountID)
 	}
 	authFlowsMu.Unlock()
+}
+
+// GoBackAuth steps the auth flow back to the previous step WITHIN the same live
+// flow: the MTProto connection and all collected inputs are preserved (so the
+// phone number survives and can be edited & re-submitted — which re-sends a fresh
+// code), unlike CancelAuth which closes the core and discards the whole flow. It
+// pops the step recorded by SubmitAuthInput and re-emits it. Returns (prev, true)
+// on a successful step-back, or (nil, false) when already at the first step (no
+// prior step to pop) — the caller then fully exits via CancelAuth. Mirrors
+// AyuGram Widget::backRequested → historyMove(StackAction::Back), which pops
+// _stepHistory and re-shows the previous Step, only fully exiting intro when
+// already at the first step (intro_widget.cpp:888-900, 373-385).
+func (e *Engine) GoBackAuth(accountID string) (*AuthState, bool) {
+	authFlowsMu.Lock()
+	flow, ok := authFlows[accountID]
+	authFlowsMu.Unlock()
+	if !ok {
+		return nil, false
+	}
+
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+
+	if len(flow.history) == 0 {
+		// Already at the first step — nothing to pop.
+		return nil, false
+	}
+
+	prev := flow.history[len(flow.history)-1]
+	flow.history = flow.history[:len(flow.history)-1]
+	flow.state = prev
+
+	e.emitEvent(EventAuthState, accountID, prev)
+	return prev, true
 }
 
 // finalizeAuth saves credentials, attaches core, and starts connection.

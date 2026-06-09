@@ -150,6 +150,37 @@ class AuthState extends ChangeNotifier {
     }
   }
 
+  /// Step back to the previous auth step within the same live flow, mirroring
+  /// AyuGram's intro back arrow → Widget::backRequested → historyMove(Back)
+  /// (intro_widget.cpp:888). Unlike [cancelAuth] this does NOT tear the flow
+  /// down: the engine keeps the MTProto connection and the collected phone/code,
+  /// pops the last step and re-emits the previous one, so the user returns to the
+  /// prior step with the number preserved (editable & resendable). When already
+  /// at the first step the engine has no prior step to pop (returns null), so we
+  /// fall through to a full exit ([cancelAuth]) — matching AyuGram exiting intro
+  /// only at the first step. (The engine also emits an auth-state event for the
+  /// restored step, which refreshes auto-poll/QR timers via [_handleAuthEvent].)
+  Future<void> goBack() async {
+    final auth = _currentAuth;
+    if (auth == null) return;
+    try {
+      final result = await _engine.goBackAuth(auth.accountId);
+      if (result == null) {
+        // First step — no prior step to return to; exit the flow entirely.
+        cancelAuth();
+        return;
+      }
+      _currentAuth = result;
+      _submitting = false;
+      _error = null;
+      Debug.log('AUTH', 'goBack → state=${result.state} label=${result.label}');
+    } catch (e, stack) {
+      _error = e.toString();
+      Debug.error('AUTH', 'goBack failed', e, stack);
+    }
+    notifyListeners();
+  }
+
   /// Cancel the current auth flow.
   void cancelAuth() {
     final auth = _currentAuth;

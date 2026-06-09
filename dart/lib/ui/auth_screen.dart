@@ -292,8 +292,12 @@ class _AuthScreenState extends State<AuthScreen>
 
   bool _canGoBack(AuthStateData? data) {
     if (data == null) return false;
+    // 'choose' is the first step (Telegram/Bale method picker). Its back arrow
+    // is the flow's exit: goBack finds no prior step and falls through to
+    // cancelAuth, matching AyuGram exiting intro only at the first step. The
+    // other steps step back one within the live flow.
     return switch (data.state) {
-      'input' || 'otp' || '2fa' || 'qr' || 'email' => true,
+      'choose' || 'input' || 'otp' || '2fa' || 'qr' || 'email' => true,
       _ => false,
     };
   }
@@ -474,7 +478,7 @@ class _AuthScreenState extends State<AuthScreen>
         canGoBack: _canGoBack(data),
         showResetAccount: _showResetAccount(data),
         onNext: () => _submit(authState),
-        onBack: () => authState.cancelAuth(),
+        onBack: () => authState.goBack(),
         onSettings: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const SettingsScreen()),
         ),

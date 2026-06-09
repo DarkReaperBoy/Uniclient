@@ -191,6 +191,18 @@ class EngineService {
     _callRaw('__engine', 'CancelAuth', req.writeToBuffer());
   }
 
+  /// Step the auth flow back to the previous step within the same live flow,
+  /// preserving the connection and collected inputs. Returns the restored prior
+  /// state, or null when already at the first step (the caller should then fully
+  /// cancel). Reuses the account-id request and the auth-state response shapes —
+  /// an absent state means "at first step".
+  Future<AuthStateData?> goBackAuth(String accountId) async {
+    final req = epb.EngineCancelAuthRequest()..accountId = accountId;
+    final respBytes = await _callAsync('__engine', 'GoBackAuth', req.writeToBuffer());
+    final resp = epb.EngineSubmitAuthInputResponse.fromBuffer(respBytes);
+    return resp.hasState() ? _authStateFromProto(resp.state) : null;
+  }
+
   // ── Chat list ──
 
   List<ChatInfo> getChatList({String accountId = '', bool archived = false, int limit = 50, int offset = 0}) {
