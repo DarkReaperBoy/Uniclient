@@ -3234,8 +3234,18 @@ class EmojiKeywords {
     final result = <EmojiEntry>[];
     final seen = <String>{};
 
-    for (final pack in _langPacks.entries) {
-      _searchLangPack(pack.key, pack.value, q, exact, seen, result);
+    // Iterate packs in SORTED language-code order, not insertion order. C++'s
+    // pack container is `base::flat_map<QString, std::unique_ptr<LangPack>> _data`
+    // (key-sorted) and `EmojiKeywords::query` walks it sorted
+    // (`for (const auto &[language, item] : _data)`, emoji_keywords.cpp:616).
+    // Cross-pack de-duplication (the `seen` set) keeps the FIRST pack's emoji and
+    // packs are concatenated in iteration order, so a multi-language user (the
+    // common case — packs are inserted in server-return order, not sorted) must
+    // see the same suggestion order AND the same duplicate-winner as AyuGram.
+    // Dart's default `String.compareTo` matches `QString`'s code-unit ordering
+    // for lang codes (lowercase ASCII + hyphens, e.g. "en" / "pt-br" / "zh-hans").
+    for (final langCode in _langPacks.keys.toList()..sort()) {
+      _searchLangPack(langCode, _langPacks[langCode]!, q, exact, seen, result);
     }
 
     if (!exact) {
