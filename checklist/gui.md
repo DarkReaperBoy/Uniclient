@@ -632,20 +632,44 @@ auto-night, font, wallpaper, chat-list quick action (`swipeAction` is consumed
 in `chat_list_panel.dart:1029`) and the emoji/sticker toggles are all wired and
 persisted.
 
-The problems are concentrated in the **Messages** section: four controls there
-are placebos — they persist to `window_prefs.json` but **nothing in the app
-ever reads them**, so toggling them has zero observable effect. In AyuGram each
-is a working feature consumed by the message list.
+The five Messages / Stickers-Emoji / Sensitive findings previously listed here
+(double-click quick action, corner reply button, corner reaction button, emoji-set
+picker, sensitive-content text) were all fixed and verified 2026-06-09 (commit
+4b695588):
 
-- [ ] [CRITICAL] Double-click quick-action radios (`Reply` / `React`) + reaction chooser are a placebo — `chatDoubleClickAction`/`chatDoubleClickReaction` are written (chat_settings_screen.dart:679-680, set in app_state.dart:3322/3324) but there is **no `onDoubleTap` handler anywhere in `chat_view.dart`** (grep: zero double-tap on messages) and no reader of the value. In AyuGram these radios drive `Core::App().settings().chatQuickAction()`, consumed when double-clicking a message to reply/react. Building the React radio also sets the favorite reaction; here `setDefaultReaction` is called server-side but the default reaction is never read back by the local reaction UI either (`message_bubble.dart:1850` uses `availableReactions`/a hardcoded list). — `chat_settings_screen.dart:4438-4458` ← `AyuGram/Telegram/SourceFiles/history/view/history_view_list_widget.cpp:2888` (setting built at `settings_chat.cpp:1653-1668`)
+**Double-click quick action** — `message_bubble.dart` now detects a double-click with
+a raw `Listener` (static cross-tap state keyed by msgId so a list rebuild between the
+two clicks can't drop it) and runs `_onDoubleClickQuickAction`, which reads
+`chatDoubleClickAction`: Reply mode calls `onReply` (opens a reply draft); React mode
+toggles the favorite reaction `chatDoubleClickReaction` via `engine.reactToMessage`
+(history_view_list_widget.cpp:2873). A `Listener` is used because a
+`DoubleTapGestureRecognizer` would lose the arena to the body's SelectableText.
 
-- [ ] [CRITICAL] "Reply button on messages" checkbox is a placebo — `chatShowReplyButton` is stored/persisted (chat_settings_screen.dart:681, app_state.dart:3326) but no message bubble renders a corner reply button from it (only references are the storage + this settings screen). In AyuGram `cornerReply` is consumed to draw the hover/corner reply button on messages. — `chat_settings_screen.dart:4465-4470` ← `AyuGram/Telegram/SourceFiles/history/view/history_view_list_widget.cpp:586` (setting built at `settings_chat.cpp:1776`)
+**Corner reply button** — new `_ReplyCornerButton` renders on hover, gated on
+`chatShowReplyButton` (watch()), and starts a reply (settings_chat.cpp:1776).
 
-- [ ] [CRITICAL] "Reaction button on messages" checkbox is a placebo — `chatShowReactionButton` is stored/persisted (chat_settings_screen.dart:682, app_state.dart:3328) but no message bubble renders a corner reaction button from it. In AyuGram `cornerReaction` is consumed to draw the hover/corner reaction button on messages. — `chat_settings_screen.dart:4471-4476` ← `AyuGram/Telegram/SourceFiles/history/view/history_view_list_widget.cpp:576` (setting built at `settings_chat.cpp:1795`)
+**Corner reaction button** — the hover reaction strip + corner button are gated on
+`chatShowReactionButton`; the corner button now shows the favorite reaction
+(`chatDoubleClickReaction`) instead of a hardcoded first emoji (settings_chat.cpp:1795).
 
-- [ ] [MAJOR] "Choose emoji set" opens the wrong manager — it opens `_StickerPackManager(type:'emoji')` which lists/searches/removes installed **custom emoji sticker packs** via `getInstalledEmojiSets`. AyuGram's `lng_emoji_manage_sets` button opens `Ui::Emoji::ManageSetsBox`, the emoji **rendering-set** picker (download/switch Twemoji, JoyPixels, …). The rendering-set feature is absent; the button does a different thing than the source intends. — `chat_settings_screen.dart:3912-3917` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_chat.cpp:1570-1577` (box defined at `chat_helpers/emoji_sets_manager.cpp:45`)
+**Choose emoji set** — the button now opens a real emoji *rendering-set* picker
+(`_EmojiSetPicker`: System / bundled Twemoji COLR font) applied app-wide via the theme's
+`fontFamilyFallback` and a persisted `emojiSet`, matching `Ui::Emoji::ManageSetsBox`'s
+intent rather than the custom-emoji sticker-pack manager (settings_chat.cpp:1570-1577).
+Only bundled sets are offered (System + Twemoji); fabricating Apple/JoyPixels rows that
+can't be rendered would be a placebo.
 
-- [ ] [MAJOR] Sensitive-content description text does not match the source — Dart shows "Display sensitive media in public channels on all your Telegram devices." (an older Telegram string), but AyuGram's `lng_settings_sensitive_about` is "Do not hide media that contains content suitable only for adults." — `chat_settings_screen.dart:5179` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_privacy_security.cpp:311` (string at `Resources/langs/lang.strings:894`)
+**Sensitive-content text** — now reads exactly "Do not hide media that contains content
+suitable only for adults." (lng_settings_sensitive_about,
+settings_privacy_security.cpp:311).
+
+Confirmed live in desktop + mobile (commit verified 2026-06-09): double-click in Reply
+mode opens a reply draft; in React mode it fires `ReactToMessage` and the ❤️ reaction
+renders on the message; the corner reply/reaction buttons appear on hover only when their
+checkbox is on and vanish when off (differential ON→OFF→ON verified, persisted to
+`window_prefs.json`); the emoji-set picker switches rendering app-wide (reaction chips and
+message reactions re-render in Twemoji) and persists; the sensitive-content string matches.
+Both modes render with zero RenderFlex overflow and zero widget exceptions.
 
 # engine_service — FFI bridge/service layer (proto/JSON ↔ Go backend)
 
