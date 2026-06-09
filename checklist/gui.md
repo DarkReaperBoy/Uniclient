@@ -695,20 +695,6 @@ One real persistence bug was found and fixed (verified): `usesTextColor` is now 
 - Dead global-listener path: `_globalListeners` / `addListener` / `removeListener` (`custom_emoji_cache.dart:104,143-144,520-522`) are unreachable in practice — every `_notifyListeners` call site passes a non-empty `changedDocIds` set, which `return`s before the global-listener loop (`:508-519`), and no consumer registers a global listener (all use `addListenerForDoc`). Harmless today (no feature depends on it) but a latent trap if anyone later calls `addListener`.
 - In-flight fetch after eviction: if a doc's refcount hits 0 (→ `_evictFromMemory`) while a `_fetchThumbBatch`/`_fetchFileBatch` `await` is outstanding, the completing fetch re-populates `_thumbs`/`_files` for a now-unreferenced doc; it won't be evicted again until some later release. Minor, bounded memory edge case.
 
-# edit_forum_topic_box — New/Edit forum topic & bot thread dialog (icon + color picker)
-
-Overall the component is faithfully wired: create/edit paths call real engine
-methods (`createForumTopic`/`editForumTopic`), the icon grid renders real
-engine-backed custom emoji (`CustomEmojiTopicIcon` → Lottie/WebM/image), premium
-gating + StickerToast + fly animation are all present, color IDs (0x6FB9F0…
-0xFB6F5F) match `ForumTopicIcons()` exactly, and key dimensions match
-(`editTopicMaxHeight 408`, title margin left=70, `searchMargin 1,10,2,6`). Two
-behavioral deviations from the C++ source:
-
-- [ ] [MAJOR] Colored-letter topic-icon preview does NOT update live while typing the title. `_onTitleChanged` only calls `setState` when *clearing* an error, so normal keystrokes never rebuild the dialog and the icon (and the grid's default reset cell) keep showing a stale first-letter until some other `setState` fires. AyuGram wires `title->changes()` → `state->defaultIcon = {title, colorId}`, which repaints the icon with the new first letter on every keystroke. — `edit_forum_topic_box.dart:176-178` (also preview `:511-515`, default cell `:1168-1172`) ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:488-494`
-
-- [ ] [MAJOR] Wrong dialog title for the *create-a-bot-thread* case: Dart shows "New Thread" (`isBot && !isEditing`), but AyuGram always uses `tr::lng_forum_topic_new()` = "New Topic" when `creating`, regardless of `bot` — there is no `lng_bot_thread_new` string (the bot variant only exists for *edit*: `lng_bot_thread_edit` = "Edit Thread"). — `edit_forum_topic_box.dart:411-416` ← `AyuGram/boxes/peers/edit_forum_topic_box.cpp:415-419` (lang.strings:7317-7322)
-
 # emoji_data — emoji keyword/suggestion engine (port of Telegram/AyuGram `EmojiKeywords` + `Completer`)
 
 Audited `dart/lib/data/emoji_data.dart` against the three C++ sources it ports:
