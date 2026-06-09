@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -1428,7 +1429,13 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
   }
 
   void _pastePhotoFromClipboard(BuildContext context) async {
-    final imageBytes = await getClipboardImage();
+    final Uint8List? imageBytes;
+    try {
+      imageBytes = await getClipboardImage();
+    } on ClipboardToolMissingException catch (e) {
+      if (mounted) showTelegramToast(context, e.message);
+      return;
+    }
     if (imageBytes == null) {
       if (mounted) showTelegramToast(context, 'No image in clipboard');
       return;

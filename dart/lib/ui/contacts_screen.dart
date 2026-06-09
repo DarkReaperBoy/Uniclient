@@ -1659,7 +1659,13 @@ class _EditContactBoxState extends State<_EditContactBox> {
   }
 
   Future<void> _choosePhotoFromClipboard(bool suggest) async {
-    final bytes = await getClipboardImage();
+    final Uint8List? bytes;
+    try {
+      bytes = await getClipboardImage();
+    } on ClipboardToolMissingException catch (e) {
+      if (mounted) showTelegramToast(context, e.message);
+      return;
+    }
     if (bytes == null) {
       if (mounted) showTelegramToast(context, 'No image in clipboard');
       return;
