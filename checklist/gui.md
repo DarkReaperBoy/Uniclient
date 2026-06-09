@@ -688,9 +688,7 @@ flush (matches `crl::on_main` request scheduling), and accurate frame sizes
 stubs, no placeholders, no mock data, no TODO/FIXME, no fake feedback. Base64
 thumb decode is correctly off-loaded to an isolate via `compute`.
 
-One real persistence bug was found.
-
-- [ ] [MAJOR] `usesTextColor` (monochrome / "text-color" emoji tint flag) is silently dropped on the disk-cache round-trip. `_writeToDisk` persists only `.dat` (fileData) and `.mime` (mimeType) and never serializes `data.usesTextColor`; `_loadFromDisk` then rebuilds `CustomEmojiFileData(mimeType:…, fileData:…)` with no `usesTextColor`, so it defaults to `false` (`engine_models.dart:3299`). The flag is fetched correctly live from the engine, but after any disk round-trip — cold app start (disk-cache hit via `initDiskCache` scan) OR scroll-away→evict→re-acquire→`_loadFromDisk` — a text-color emoji loses its flag and renders in its original color instead of being tinted to the row/name/text color. AyuGram persists this on the document itself (`Flag::UseTextColor`, `data_document.cpp:393` + `:803-811`) and drives tinting from it via `fillColoredFlags`→`setColored` (`data_custom_emoji.cpp:799-806`), so the tint survives across sessions. Fix: write a `.txc` (or fold a flag byte into `.mime`) in `_writeToDisk` and restore it in `_loadFromDisk`. — `custom_emoji_cache.dart:255-256` (write path) + `custom_emoji_cache.dart:292-295` (read path) ← `AyuGram/data/stickers/data_custom_emoji.cpp:799-806` + `AyuGram/data/data_document.cpp:803-811`
+One real persistence bug was found and fixed (verified): `usesTextColor` is now persisted into the `.mime` sidecar (second line `0|1`) by `_writeToDisk` and restored by `_loadFromDisk`, surviving the disk-cache round-trip (cold start + evict→re-acquire); legacy single-line `.mime` files default to `false`.
 
 ## Notes (below CRITICAL/MAJOR threshold — logged per project rule, not actionable as audit items)
 
