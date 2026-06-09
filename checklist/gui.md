@@ -2,37 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_types — notification content composition (title/subtitle/body) port of AyuGram's native notification pipeline
-
-This is a pure logic/data file (no widgets, no callbacks, no UI). It models AyuGram's
-**native** notification composition: `NativeManager::doShowNotification`
-(`notifications_manager.cpp:1552-1665`) → `HistoryItem::notificationText`/
-`notificationHeader` (`history_item.cpp`) → per-media `Media::notificationText`
-(`data_media_types.cpp`). It is verified faithful on the following: spoiler mask char
-`▚`/U+259A (`:329` ← `notifications_manager.cpp:93`), forwarded glyph U+27A1 U+FE0F
-(`:336` ← `notifications_manager.cpp:84`), scheduled prefix 📅 (`:339` ←
-`notifications_manager.cpp:1674`), login-code regex (`:344` ← `history_item.cpp:106-107`),
-255-char truncation (`:332,652` ← `history_item.cpp:86,4325-4329`), the body ternary
-ordering pollVote→reaction→hideText→fwd>1→album→fwdChar (`:457-489` ←
-`notifications_manager.cpp:1596-1616`), `notificationHeader()` service/you/group logic
-(`:431-451` ← `history_item.cpp:2767-2776`), `WithCaptionNotificationText` "{type}, {caption}"
-format (`:496-499` ← `data_media_types.cpp:103-134` + `lang.strings:4781-4782`), the
-game/poll emoji prefixes (`:511-512,553-554` ← `data_media_types.cpp:2069-2081,2356-2362`),
-and all reaction/poll-vote/forward lang strings (`strings.dart:69-128` ←
-`lang.strings:621-639,5309-5310`). Composition is genuinely wired:
-`composeNotificationContent` is consumed by `notification_system.dart:605` and
-`notification_popup.dart:710`; `NotificationData` is built from real engine
-message/chat data at `chat_state.dart:2972-3101`. No placeholders, stubs, fake data,
-or dead callbacks exist.
-
-The findings below are real behavioral divergences from the C++ source.
-
-- [ ] [MAJOR] One-time (self-destruct, TTL) voice/video messages render the generic type string instead of the "One-time …" variant. `_messageTextForType` case 4 (voice) always returns `lngNotifVoiceMessage()` ("Voice message") and case 5 (videonote) always returns `lngNotifVideoMessage()` ("Video message"). AyuGram's `MediaFile::notificationText()` returns `lng_in_dlg_voice_message_ttl` ("One-time Voice Message") / `lng_in_dlg_video_message_ttl` ("One-time Video Message") when `media->ttlSeconds()` is set. `NotificationData` has no field carrying the TTL/one-time flag, so this data cannot flow at all. — `notification_types.dart:531-534` ← `data/data_media_types.cpp:1273-1286`
-
-- [ ] [MAJOR] Reaction/poll-vote subtitle falls through to the message-header branches when the reactor name is empty, producing a wrong subtitle. `_composeSubtitle` gates the reaction branch on `(data.isReaction || data.isPollVote) && data.reactorName.isNotEmpty`; when a reaction/poll-vote arrives with an empty `reactorName`, control falls through to the `notificationHeader()` logic and a group/channel reaction then returns the ORIGINAL message sender's name (`return data.senderName`) as the subtitle. In AyuGram the reaction subtitle is terminal: `reactionFrom ? ((!hideReactionSender && reactionFrom != peer) ? reactionFrom->name() : QString()) : … notificationHeader()` — a reaction NEVER computes `notificationHeader()`. The `&& data.reactorName.isNotEmpty` guard should sit inside a reaction block that always returns, not break the dispatch. — `notification_types.dart:423,447-449` ← `window/notifications_manager.cpp:1589-1595`
-
-- [ ] [MAJOR] Invoice body omits AyuGram's paid-media sub-branch. `_messageTextForType` case 12 only ever yields `data.invoiceTitle` (or the "Invoice" fallback). AyuGram's `MediaInvoice::notificationText()` first checks `_invoice.isPaidMedia && !_invoice.extendedMedia.empty()` and renders `WithCaptionNotificationText(IsFirstVideo ? lng_in_dlg_video : lng_in_dlg_photo, originalText)` — i.e. "Photo"/"Video"[, caption] — falling back to the title only for a non-paid-media invoice. A paid-media post (paid channel media) that reaches the invoice type therefore shows the wrong body. — `notification_types.dart:575-576` ← `data/data_media_types.cpp:2185-2193`
-
 # system_idle — OS-level global user-input idle source (port of `base::Platform::LastUserInputTime()`)
 
 Scope: `dart/lib/notifications/system_idle.dart` provides the per-platform global
