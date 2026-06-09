@@ -174,7 +174,15 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   }
 
   void _onTitleChanged() {
-    if (_titleError) setState(() => _titleError = false);
+    // AyuGram wires `title->changes()` → `state->defaultIcon = {title, colorId}`
+    // (edit_forum_topic_box.cpp:488-494), repainting the colored-letter icon — the
+    // top preview button AND the grid's default reset cell, both keyed off
+    // `_titleController.text` — with the new first letter on EVERY keystroke.
+    // setState unconditionally so the icon tracks the title live; clearing the
+    // title error (when one is showing) is folded into the same rebuild.
+    setState(() {
+      if (_titleError) _titleError = false;
+    });
   }
 
   void _onSearchChanged() {
@@ -408,11 +416,16 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     final boxBg = context.palette.boxBg;
     final engine = _getEngine();
 
+    // AyuGram (edit_forum_topic_box.cpp:415-419):
+    //   creating ? lng_forum_topic_new      // "New Topic" — ALWAYS, even for a bot
+    //            : bot ? lng_bot_thread_edit // "Edit Thread"
+    //                  : lng_forum_topic_edit; // "Edit Topic"
+    // There is no `lng_bot_thread_new` — the create case is always "New Topic".
     final String dialogTitle;
     if (widget.isEditing) {
       dialogTitle = widget.isBot ? 'Edit Thread' : 'Edit Topic';
     } else {
-      dialogTitle = widget.isBot ? 'New Thread' : 'New Topic';
+      dialogTitle = 'New Topic';
     }
 
     final bool canCycleColor = _iconEmojiId == 0 && (!widget.isEditing || widget.isCreating) && !widget.isGeneral;
