@@ -1284,10 +1284,43 @@ class NativeManager extends NotificationManager {
       if (signal.values.length < 3) return;
       final notifId = signal.values[0].asString();
       final action = signal.values[1].asString();
-      final parts = notifId.split('_');
-      if (parts.length < 3) return;
-      final accountId = parts[0];
-      final chatId = parts[1];
+      // Recover the real (accountId, chatId) the way AyuGram's
+      // dictToNotificationId does (notifications_manager_linux.cpp:371): read the
+      // typed values carried IN the notification, NEVER by string-splitting the
+      // id. Engine account ids contain an underscore (e.g. "tele_a1b2c3d4",
+      // go/engine/accounts.go:40), so splitting "${accountId}_${chatId}_${messageId}"
+      // yields garbage (parts[0]='tele', parts[1]='a1b2c3d4'). Primary source: the
+      // action target — signal.values[2], the `av` we set as default-action-target
+      // / button target below. Fallback: the cached NotificationData keyed by
+      // notifId in _portalNotifData (mirrors the native path's _nativeIdToData
+      // lookup in _onActionInvoked).
+      String? accountId;
+      String? chatId;
+      try {
+        final params = signal.values[2].asVariantArray().toList();
+        if (params.isNotEmpty) {
+          final target = params.first.asStringArray().toList();
+          if (target.length >= 2) {
+            accountId = target[0];
+            chatId = target[1];
+          }
+        }
+      } catch (e) {
+        Debug.log('notification_manager_native',
+            'portal action target parse failed: $e');
+      }
+      if (accountId == null || chatId == null) {
+        final data = _findPortalData(notifId);
+        if (data != null) {
+          accountId = data.accountId;
+          chatId = data.chatId;
+        }
+      }
+      if (accountId == null || chatId == null) {
+        Debug.log('NOTIF',
+            'Portal ActionInvoked: cannot resolve target for $notifId');
+        return;
+      }
       Debug.log('NOTIF', 'Portal ActionInvoked: $action for $notifId');
       switch (action) {
         case 'default':
@@ -1297,6 +1330,18 @@ class NativeManager extends NotificationManager {
           onAction?.call(accountId, chatId, 'markRead');
       }
     });
+  }
+
+  /// Locate the NotificationData backing a portal notification by its unique
+  /// notifId, scanning every context bucket. Fallback for when the action
+  /// target variant is missing/malformed — mirrors the native DBus path which
+  /// resolves data via _nativeIdToData rather than parsing the id string.
+  NotificationData? _findPortalData(String notifId) {
+    for (final contextMap in _portalNotifData.values) {
+      final data = contextMap[notifId];
+      if (data != null) return data;
+    }
+    return null;
   }
 
   Future<void> _showFlatpakPortalNotification(
