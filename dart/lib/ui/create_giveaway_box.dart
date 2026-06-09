@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -92,6 +93,11 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   final _prizeController = TextEditingController();
   bool _showAdditionalPrize = false;
 
+  // Tap handler for the "here" link in the Premium terms label
+  // (lng_premium_gift_terms). Shared across the random-duration and prepaid
+  // placements — only one terms label is ever mounted at a time.
+  late final TapGestureRecognizer _termsRecognizer;
+
   final List<String> _selectedCountries = [];
   final List<String> _additionalChannelIds = [];
   final List<String> _additionalChannelNames = [];
@@ -112,6 +118,7 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   @override
   void initState() {
     super.initState();
+    _termsRecognizer = TapGestureRecognizer()..onTap = _openPremiumTerms;
     _loadOptions();
     if (widget.prepaidGiveaways.isNotEmpty) {
       _type = _GiveawayType.prepaid;
@@ -123,7 +130,43 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
   @override
   void dispose() {
     _prizeController.dispose();
+    _termsRecognizer.dispose();
     super.dispose();
+  }
+
+  // Opens the Premium subscription page from the terms "here" link. AyuGram
+  // closes the giveaway box first, then Settings::ShowPremium navigates to the
+  // Premium features page (create_giveaway_box.cpp:1030-1033).
+  void _openPremiumTerms() {
+    final engine = Provider.of<AppState>(context, listen: false).engine;
+    Navigator.of(context).maybePop();
+    engine.openPremiumSubscription(widget.accountId, ref: 'giveaway');
+  }
+
+  // The "review features" terms label shown under the Premium gift-duration
+  // options and inside the prepaid date container (lng_premium_gift_terms with
+  // the {link} → ShowPremium; create_giveaway_box.cpp:1019-1035, 1074-1079).
+  Widget _buildTermsLabel(Color primary, Color subColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text.rich(
+        TextSpan(
+          style: TextStyle(fontSize: 11, color: subColor, height: 1.3),
+          children: [
+            const TextSpan(
+              text: 'You can review the list of features and more details '
+                  'about Telegram Premium ',
+            ),
+            TextSpan(
+              text: 'here',
+              style: TextStyle(color: primary),
+              recognizer: _termsRecognizer,
+            ),
+            const TextSpan(text: '.'),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _loadOptions() async {
@@ -830,15 +873,20 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
           theme: widget.theme,
           onTap: _openAwardPicker,
         ),
-        const SizedBox(height: 4),
-        _TypeRadioTile(
-          title: 'Telegram Stars',
-          subtitle: 'Give stars to random subscribers',
-          icon: Icons.star_outline,
-          selected: _type == _GiveawayType.credits,
-          theme: widget.theme,
-          onTap: () => setState(() => _type = _GiveawayType.credits),
-        ),
+        // AyuGram's fillCreditsTypeWrap returns early when there are zero
+        // stars-giveaway options (create_giveaway_box.cpp:474-491), so the
+        // "Telegram Stars" type row is never created in that case.
+        if (_creditsOptions.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          _TypeRadioTile(
+            title: 'Telegram Stars',
+            subtitle: 'Give stars to random subscribers',
+            icon: Icons.star_outline,
+            selected: _type == _GiveawayType.credits,
+            theme: widget.theme,
+            onTap: () => setState(() => _type = _GiveawayType.credits),
+          ),
+        ],
         if (widget.prepaidGiveaways.isNotEmpty) ...[
           const SizedBox(height: 4),
           _TypeRadioTile(
@@ -862,9 +910,20 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
       const SizedBox(height: 8),
       ...List.generate(widget.prepaidGiveaways.length, (i) {
         final g = widget.prepaidGiveaways[i];
+        final credits = (g['credits'] as num?)?.toInt() ?? 0;
         final months = g['months'] as int? ?? 0;
         final qty = g['quantity'] as int? ?? 0;
         final boosts = g['boosts'] as int? ?? (qty * _boostsPerPremium);
+        // Stars (credits>0, months==0) render as a PrepaidCredits row
+        // ("{credits} Stars among {qty} winners") rather than the Premium row,
+        // matching AyuGram's prepaid->credits branch (create_giveaway_box.cpp:365-391).
+        final isStars = credits > 0;
+        final title = isStars
+            ? 'Prepaid giveaway'
+            : '$qty × $months months Premium';
+        final subtitle = isStars
+            ? '$credits Stars among $qty winner${qty == 1 ? '' : 's'}'
+            : '$boosts boosts for your channel';
         final selected = _selectedPrepaidIndex == i;
         return Padding(
           padding: const EdgeInsets.only(bottom: 4),
@@ -891,14 +950,14 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '$qty × $months months Premium',
+                        title,
                         style: TextStyle(
                           fontSize: 14, fontWeight: FontWeight.w500,
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
                       Text(
-                        '$boosts boosts for your channel',
+                        subtitle,
                         style: TextStyle(fontSize: 12, color: subColor),
                       ),
                     ],
@@ -1011,6 +1070,10 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
           ],
         ),
       ),
+
+      // Premium terms / "review features" link under the gift-duration options
+      // (AyuGram rebuildListOptions DividerLabel, create_giveaway_box.cpp:1074-1079).
+      _buildTermsLabel(primary, subColor),
     ];
   }
 
@@ -1616,6 +1679,10 @@ class _CreateGiveawayBoxState extends State<_CreateGiveawayBox> {
         ),
       ),
       const SizedBox(height: 8),
+      // For prepaid giveaways AyuGram appends the Premium terms link inside the
+      // date container (create_giveaway_box.cpp:1292-1308); the duration section
+      // (which carries the link otherwise) is not shown in the prepaid flow.
+      if (_type == _GiveawayType.prepaid) _buildTermsLabel(primary, subColor),
     ];
   }
 
