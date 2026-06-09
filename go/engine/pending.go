@@ -481,12 +481,14 @@ func (e *Engine) ResendAsOwn(accountID, sourceChatID, msgID, toChatID string, si
 		return err
 	}
 
+	// Run synchronously so the caller's await reflects the genuine
+	// download+upload duration. AyuGram's resend is a blocking per-message send
+	// (AyuSync::*Sync, gated on a TimedCountDownLatch); mirroring that here makes
+	// the "Forwarding i/N" progress bar advance on real send completion rather
+	// than on enqueue. The pending row still provides retry + crash recovery.
 	e.wg.Add(1)
-	go func() {
-		defer e.wg.Done()
-		e.processPendingItem(accountID, toChatID, localID, ActionResendAsOwn, payload)
-	}()
-	return nil
+	defer e.wg.Done()
+	return e.processPendingItem(accountID, toChatID, localID, ActionResendAsOwn, payload)
 }
 
 // ResendAlbumAsOwn downloads a group of messages (album) and resends them as
@@ -508,11 +510,83 @@ func (e *Engine) ResendAlbumAsOwn(accountID, sourceChatID string, msgIDs []strin
 		return err
 	}
 
+	// Run synchronously (see ResendAsOwn): the await tracks the real album
+	// download+upload so the forward progress bar advances on genuine send
+	// completion, matching AyuGram's blocking send loop.
 	e.wg.Add(1)
-	go func() {
-		defer e.wg.Done()
-		e.processPendingItem(accountID, toChatID, localID, ActionResendAlbum, payload)
-	}()
+	defer e.wg.Done()
+	return e.processPendingItem(accountID, toChatID, localID, ActionResendAlbum, payload)
+}
+
+// PreloadResendMedia synchronously downloads the media of the given source
+// messages into the shared resend temp dir, so a subsequent ResendAsOwn /
+// ResendAlbumAsOwn uploads from the cached file instead of re-downloading.
+//
+// This mirrors AyuGram's up-front, blocking AyuSync::loadDocuments call
+// (ayu_sync.cpp:86-130): the entire download happens before any send, so the
+// AyuForward "Loading media" (Downloading) phase stays visible for the whole
+// real download duration. Stickers are skipped (the resend path sends them by
+// reference, not from a file). Per-item download failures are logged but
+// non-fatal — the send path re-downloads or falls back, matching AyuGram's
+// best-effort loadDocuments. Runs on the caller's worker isolate (it is invoked
+// via the async FFI bridge), so blocking here does not stall the UI.
+func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+
+	e.wg.Add(1)
+	defer e.wg.Done()
+
+	tmpDir := filepath.Join(os.TempDir(), "uniclient_resend")
+	os.MkdirAll(tmpDir, 0o755)
+
+	for _, msgID := range msgIDs {
+		var remoteRef, fileName, mimeType, extraStr sql.NullString
+		var mediaType int
+		var expectedSize int64
+		err := e.db.QueryRow(
+			`SELECT media_type, remote_ref, file_name, mime_type, extra, file_size
+			 FROM media
+			 WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
+			acc.ID, sourceChatID, msgID,
+		).Scan(&mediaType, &remoteRef, &fileName, &mimeType, &extraStr, &expectedSize)
+		if err != nil || remoteRef.String == "" {
+			continue
+		}
+		// Skip media the resend path never loads from a file: non-downloadable
+		// types (poll/location/contact/invoice) and stickers (sent by reference).
+		if !isMediaDownloadable(mediaType) || mediaType == MediaSticker {
+			continue
+		}
+
+		ext := filepath.Ext(fileName.String)
+		if ext == "" {
+			ext = ".bin"
+		}
+		tmpPath := filepath.Join(tmpDir, msgID+ext)
+
+		if info, statErr := os.Stat(tmpPath); statErr == nil {
+			if expectedSize <= 0 || info.Size() >= expectedSize {
+				continue // a complete copy is already present (idempotent)
+			}
+			// Partial leftover from an aborted download — start clean.
+			os.Remove(tmpPath)
+		}
+
+		ref := cores.FileRef{
+			ID:       remoteRef.String,
+			Name:     fileName.String,
+			MimeType: mimeType.String,
+			Extra:    extraStr.String,
+			Size:     expectedSize,
+		}
+		if err := acc.Core.DownloadFile(ref, tmpPath, nil); err != nil {
+			log.Printf("preload resend media: download %s failed (non-fatal): %v", msgID, err)
+			continue
+		}
+	}
 	return nil
 }
 
@@ -568,8 +642,12 @@ func (e *Engine) PinMessage(accountID, chatID, msgID string, pinned bool) error 
 	return err
 }
 
-// processPendingItem executes a pending operation with retry logic.
-func (e *Engine) processPendingItem(accountID, chatID, localID, action string, payload []byte) {
+// processPendingItem executes a pending operation with retry logic. It returns
+// nil on success and the terminal error on permanent failure, so synchronous
+// callers (resend-as-own) can surface genuine send completion/failure to the
+// awaiting UI. Fire-and-forget callers invoke it in a goroutine and ignore the
+// return.
+func (e *Engine) processPendingItem(accountID, chatID, localID, action string, payload []byte) error {
 	// Acquire per-chat lock for ordering (sends only).
 	if action == ActionSend || action == ActionForward || action == ActionForwardBatch || action == ActionResendAsOwn || action == ActionResendAlbum {
 		lock := getChatLock(accountID, chatID)
@@ -586,7 +664,7 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 		if action == ActionSend {
 			e.FailMessage(accountID, chatID, localID)
 		}
-		return
+		return fmt.Errorf("account %q not connected", accountID)
 	}
 
 	var err error
@@ -608,7 +686,7 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 		if err == nil {
 			// Success — remove from pending.
 			e.db.Exec("DELETE FROM pending WHERE local_id = ?", localID)
-			return
+			return nil
 		}
 
 		// Check if retryable.
@@ -626,6 +704,7 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 	if action == ActionSend {
 		e.FailMessage(accountID, chatID, localID)
 	}
+	return err
 }
 
 // executePending dispatches the actual core call.
@@ -951,12 +1030,20 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 			Extra:    extraStr.String,
 			Size:     expectedSize,
 		}
-		if err := acc.Core.DownloadFile(ref, tmpPath, nil); err != nil {
-			log.Printf("resend download failed (skipping media): %v", err)
-			if text != "" {
-				return e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
+		// Reuse a copy already fetched by PreloadResendMedia (the Downloading
+		// phase) so the Sending phase only uploads — no double download.
+		alreadyDownloaded := false
+		if info, statErr := os.Stat(tmpPath); statErr == nil && (expectedSize <= 0 || info.Size() >= expectedSize) {
+			alreadyDownloaded = true
+		}
+		if !alreadyDownloaded {
+			if err := acc.Core.DownloadFile(ref, tmpPath, nil); err != nil {
+				log.Printf("resend download failed (skipping media): %v", err)
+				if text != "" {
+					return e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
+				}
+				return nil
 			}
-			return nil
 		}
 
 		info, err := os.Stat(tmpPath)
@@ -1115,9 +1202,16 @@ func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 			ID: remoteRef.String, Name: fName.String,
 			MimeType: mime.String, Extra: extra.String, Size: expSize,
 		}
-		if err := acc.Core.DownloadFile(ref, tmpPath, nil); err != nil {
-			log.Printf("resend album: download %s failed, skipping: %v", msgID, err)
-			continue
+		// Reuse a copy already fetched by PreloadResendMedia (Downloading phase).
+		alreadyDownloaded := false
+		if info, statErr := os.Stat(tmpPath); statErr == nil && (expSize <= 0 || info.Size() >= expSize) {
+			alreadyDownloaded = true
+		}
+		if !alreadyDownloaded {
+			if err := acc.Core.DownloadFile(ref, tmpPath, nil); err != nil {
+				log.Printf("resend album: download %s failed, skipping: %v", msgID, err)
+				continue
+			}
 		}
 
 		info, err := os.Stat(tmpPath)

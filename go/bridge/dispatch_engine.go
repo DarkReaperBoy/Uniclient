@@ -1002,6 +1002,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ResendAlbumAsOwn(req.AccountId, req.SourceChatId, req.MsgIds, req.ToChatId, req.Silent, req.ScheduleDate, req.DropCaptions)
 
+	case "PreloadResendMedia":
+		// JSON-dispatched (no protobuf message): pre-downloads a chunk's media
+		// up front so the AyuForward Downloading phase reflects a real download.
+		var params struct {
+			AccountID    string   `json:"account_id"`
+			SourceChatID string   `json:"source_chat_id"`
+			MsgIDs       []string `json:"msg_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.PreloadResendMedia(params.AccountID, params.SourceChatID, params.MsgIDs)
+
 	case "SendScheduledNow":
 		var req pb.EngineSendScheduledNowRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

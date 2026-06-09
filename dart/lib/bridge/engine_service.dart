@@ -4335,6 +4335,24 @@ class EngineService {
     await _callAsync('__engine', 'ResendAlbumAsOwn', req.writeToBuffer());
   }
 
+  /// Pre-downloads the media of [msgIds] from [sourceChatId] into the engine's
+  /// resend temp cache, so a following [resendAsOwn] / [resendAlbumAsOwn]
+  /// uploads from the cached file instead of re-downloading. Blocks (on a worker
+  /// isolate) until every file is fetched — mirrors AyuGram's up-front
+  /// AyuSync::loadDocuments — so the caller can hold the "Loading media" phase
+  /// for the genuine download duration.
+  Future<void> preloadResendMedia(
+      String accountId, String sourceChatId, List<String> msgIds) async {
+    if (msgIds.isEmpty) return;
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'source_chat_id': sourceChatId,
+      'msg_ids': msgIds,
+    }));
+    await _callAsync(
+        '__engine', 'PreloadResendMedia', Uint8List.fromList(payload));
+  }
+
   Future<void> sendContact(String accountId, String toChatId, String phone, String firstName, String lastName, {String userId = ''}) async {
     final req = epb.EngineSendContactRequest()
       ..accountId = accountId

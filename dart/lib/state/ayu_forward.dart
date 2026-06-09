@@ -233,6 +233,27 @@ class AyuForward {
     return groups;
   }
 
+  /// True when any message in [msgs] carries media that the resend path actually
+  /// downloads to a file — i.e. downloadable media except stickers (re-sent by
+  /// reference, not from a file; mirrors engine `isMediaDownloadable` excluding
+  /// poll/location/contact/invoice). Gates the up-front Downloading phase so a
+  /// text-only / sticker-only chunk does not flash "Loading media" — AyuGram
+  /// enters Downloading only when its `toBeDownloaded` list is non-empty
+  /// (ayu_forward.cpp:356).
+  static bool _chunkHasDownloadableMedia(List<CachedMessage> msgs) {
+    for (final m in msgs) {
+      if (m.hasMedia &&
+          !m.isSticker &&
+          !m.isPoll &&
+          !m.isLocation &&
+          !m.isContact &&
+          !m.isInvoice) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   static Future<void> intelligentForward({
     required EngineService engine,
     required String accountId,
@@ -265,21 +286,17 @@ class AyuForward {
         if (progress?.isCancelled == true) break;
         final chunk = chunks[i];
 
-        final phase = chunk.method == ForwardMethod.resendAsOwn
-            ? AyuForwardPhase.downloading
-            : AyuForwardPhase.sending;
-        // Reset progress for this chunk: total = this chunk's size, sent = 0
-        // (mirrors state->totalMessages = chunk.items.size(); sentMessages = 0).
-        progress?.update(
-          phase: phase,
-          chunk: i + 1,
-          total: chunk.messages.length,
-          sent: 0,
-        );
-
         switch (chunk.method) {
           case ForwardMethod.native:
-            progress?.update(phase: AyuForwardPhase.sending);
+            // Reset per-chunk counters (mirrors state->totalMessages =
+            // chunk.items.size(); sentMessages = 0). A native batch forward is a
+            // single server-side call, so the bar moves to N/N when it returns.
+            progress?.update(
+              phase: AyuForwardPhase.sending,
+              chunk: i + 1,
+              total: chunk.messages.length,
+              sent: 0,
+            );
             final msgIds = chunk.messages.map((m) => m.msgId).toList();
             await engine.forwardMessages(
               accountId, sourceChatId, msgIds, toChatId,
@@ -291,41 +308,73 @@ class AyuForward {
             // Chunk finished: sent = total (state->sentMessages = totalMessages).
             progress?.update(sent: chunk.messages.length);
           case ForwardMethod.resendAsOwn:
-            final albumGroups = _groupByAlbum(chunk.messages);
-            int sentInChunk = 0;
-            // AyuGram downloads the ENTIRE chunk's media up front in ONE
-            // Downloading phase (`loadDocuments`), then runs the send loop once —
-            // showing "Loading media" exactly once, followed by a live, continuous
-            // "Forwarding 1/N…N/N" (ayu_forward.cpp:356-441). Our engine's
-            // resendAsOwn/resendAlbumAsOwn download+reupload atomically, so we
-            // can't physically pre-download, but we mirror the DISPLAY: the
-            // per-chunk reset above already set phase=downloading once, and we do
-            // NOT flip back to downloading per group. Each completed group only
-            // advances the sent count while staying in the Sending phase, so the
-            // status no longer oscillates "Loading media"↔"Forwarding".
-            for (final group in albumGroups) {
-              if (progress?.isCancelled == true) break;
+            // Reset per-chunk counters; phase is set explicitly by the
+            // download/send sub-phases below.
+            progress?.update(
+              chunk: i + 1,
+              total: chunk.messages.length,
+              sent: 0,
+            );
 
-              if (group.length > 1) {
-                await engine.resendAlbumAsOwn(
+            // ── Downloading phase ──────────────────────────────────────────
+            // AyuGram downloads the ENTIRE chunk's media up front in ONE
+            // blocking AyuSync::loadDocuments call and shows "Loading media" for
+            // that whole duration (ayu_forward.cpp:355-360, ayu_sync.cpp:86-130).
+            // preloadResendMedia blocks on a worker isolate until every file is
+            // fetched, so the Downloading phase now stays visible for the real
+            // download — before any send. Gated on actual downloadable media so a
+            // text-only chunk does not flash "Loading media" (AyuGram only enters
+            // Downloading when toBeDownloaded is non-empty).
+            if (_chunkHasDownloadableMedia(chunk.messages)) {
+              progress?.update(phase: AyuForwardPhase.downloading);
+              try {
+                await engine.preloadResendMedia(
                   accountId,
                   sourceChatId,
-                  group.map((m) => m.msgId).toList(),
-                  toChatId,
-                  silent: silent,
-                  scheduleDate: scheduleDate,
-                  dropCaptions: dropCaptions,
+                  chunk.messages.map((m) => m.msgId).toList(),
                 );
-                sentInChunk += group.length;
-              } else {
-                await engine.resendAsOwn(
-                  accountId, sourceChatId, group.first.msgId, toChatId,
-                  silent: silent,
-                  scheduleDate: scheduleDate,
-                  dropCaptions: dropCaptions,
-                );
-                sentInChunk++;
+              } catch (e) {
+                // Best-effort prefetch: on failure the send path re-downloads.
+                debugPrint('AyuForward preload failed (continuing): $e');
               }
+            }
+
+            // ── Sending phase ──────────────────────────────────────────────
+            // The engine resend calls are now synchronous (they block until the
+            // message is genuinely sent), so sentInChunk advances on real send
+            // completion — matching AyuGram's state->sentMessages = i + 1 after
+            // each blocking per-message send (ayu_forward.cpp:439). The bar no
+            // longer jumps to N/N on enqueue while uploads run in the background.
+            progress?.update(phase: AyuForwardPhase.sending, sent: 0);
+            final albumGroups = _groupByAlbum(chunk.messages);
+            int sentInChunk = 0;
+            for (final group in albumGroups) {
+              if (progress?.isCancelled == true) break;
+              try {
+                if (group.length > 1) {
+                  await engine.resendAlbumAsOwn(
+                    accountId,
+                    sourceChatId,
+                    group.map((m) => m.msgId).toList(),
+                    toChatId,
+                    silent: silent,
+                    scheduleDate: scheduleDate,
+                    dropCaptions: dropCaptions,
+                  );
+                } else {
+                  await engine.resendAsOwn(
+                    accountId, sourceChatId, group.first.msgId, toChatId,
+                    silent: silent,
+                    scheduleDate: scheduleDate,
+                    dropCaptions: dropCaptions,
+                  );
+                }
+              } catch (e) {
+                // AyuGram's send loop advances the counter and continues even
+                // when an individual synchronous send fails; mirror that.
+                debugPrint('AyuForward resend group failed (continuing): $e');
+              }
+              sentInChunk += group.length;
               progress?.update(
                 phase: AyuForwardPhase.sending,
                 sent: sentInChunk,
