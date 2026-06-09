@@ -671,34 +671,6 @@ checkbox is on and vanish when off (differential ON→OFF→ON verified, persist
 message reactions re-render in Twemoji) and persists; the sensitive-content string matches.
 Both modes render with zero RenderFlex overflow and zero widget exceptions.
 
-# choose_datetime_box — Calendar / ChooseDateTime / MonthYearPicker / TimePicker boxes
-
-Audited `dart/lib/ui/choose_datetime_box.dart` (CalendarBox, ChooseDateTimeBox,
-MonthYearPicker, TimePickerBox) against AyuGram `ui/boxes/calendar_box.cpp`,
-`ui/boxes/choose_date_time.cpp`, `ui/boxes/time_picker_box.cpp`,
-`ui/widgets/vertical_drum_picker.cpp`, `lib_ui/ui/widgets/time_input.cpp` and
-`history/view/history_view_schedule_box.cpp`.
-
-The file is broadly faithful: dimensions (cell 48×40, cellInner 34, scheduleHeight
-95, scheduleDateWidth 136, scheduleTimeWidth 72, scheduleAtSkip 24, drum 200/40px
-= 5 items) all match the `.style` files; the schedule result (`silent`,
-`repeatPeriod`, `sendWhenOnline`) is wired to real engine/navigation callers;
-`openPremiumSubscription` is a real bridge call; the repeat-row `showRepeat`
-gating matches AyuGram (repeat only on the message-schedule path); `looped=false`
-matches the drum default; title strings match the lang pack exactly; calendar
-keyboard/jump/selection/floating-date behaviour mirrors `calendar_box.cpp`. No
-stubs, placeholders, mock data, or dead callbacks were found.
-
-The following are genuine deviations from the AyuGram source:
-
-- [ ] [MAJOR] Time field has NO underline, unlike AyuGram. AyuGram's `TimeInput` paints its border from the **date-field** style (`_stDateField` = `scheduleDateField`, which inherits `border: 1px` / `borderActive: 2px` from `defaultInputField`), so the time field shows a static 1px underline plus an animated 2px focus/error underline — visually matching the date field. The Dart `_TimeInputField` renders a borderless `SizedBox` with no underline at all, leaving the date field (which DOES draw a bottom border at `choose_datetime_box.dart:1760-1765`) and the time field visually asymmetric — `choose_datetime_box.dart:2272` ← `lib_ui/ui/widgets/time_input.cpp:234-237`
-
-- [ ] [MAJOR] Validation error flashes the wrong element. AyuGram's error animation tints the time field's **border** red (`anim::brush(_st.borderFgActive, _st.borderFgError, errorDegree)` on the underline; the digits keep their colour). The Dart instead lerps the **digit/separator text** to red (`Color.lerp(titleFg, errorBorder, t)` / `Color.lerp(separatorFg, errorBorder, t)`) because it assumed the field is borderless — so the error feedback appears on the digits rather than on the (missing) underline — `choose_datetime_box.dart:1800-1804` ← `lib_ui/ui/widgets/time_input.cpp:247-249`
-
-- [ ] [MAJOR] MonthYearPicker drum (`_DrumColumn`) is rendered flat — missing the cylinder scale + opacity effect. AyuGram's `VerticalDrumPicker::DefaultPaintCallback` scales each row vertically (`yScale = 0.2 + 0.8 * easeOutCubic(1 - |distanceFromCenter|)`) and fades it (`p.setOpacity(1 - |distanceFromCenter|)`) so the drum reads as a rotating cylinder. The Dart positions every item at full size/opacity and only dims non-selected rows by colour, so the picker looks like a flat scrolling list — `choose_datetime_box.dart:1128` ← `ui/widgets/vertical_drum_picker.cpp:40-44`
-
-- [ ] [MAJOR] TimePickerBox drum (`_TimePickerBoxWidget`) is rendered flat — same missing cylinder scale/opacity effect as the MonthYearPicker. Items are drawn at constant size with colour-only dimming instead of AyuGram's per-row `yScale` (min 0.2) and `opacity = 1 - |distanceFromCenter|`, so the auto-delete-timer wheel does not curve/fade toward its edges — `choose_datetime_box.dart:2158` ← `ui/widgets/vertical_drum_picker.cpp:40-44`
-
 # clipboard_image — System clipboard → PNG bytes for "Photo from clipboard" avatar feature
 
 Utility `getClipboardImage()` backing the "From Clipboard" photo-menu action
