@@ -718,6 +718,21 @@ against the C++ and found **correct**, so they are NOT issues:
   chat_view.dart:4403, message_bubble.dart:286), so `_prioritizeRecent` /
   `applyVariant` are not dead features.
 
-## Findings
+## Findings — all verified FIXED & closed
 
-- [ ] [MAJOR] Language packs are iterated in insertion order, but C++ iterates them in **sorted language-code order**. `_langPacks` is a plain insertion-ordered `Map` (`final Map<String, _LangPack> _langPacks = {};`) and `search()` walks it as-is (`for (final pack in _langPacks.entries)`). In C++ the pack container is `base::flat_map<QString, std::unique_ptr<LangPack>> _data;` (sorted by key) and `EmojiKeywords::query` iterates it sorted (`for (const auto &[language, item] : _data)`). Because cross-pack de-duplication keeps the **first** pack's emoji and concatenates packs in iteration order, a multi-language user (the common case — `_fetchEmojiKeywordsForLangs` loads `{selectedLanguageCode, systemLocale, 'en'}` plus any server-expanded langs, inserted in server-return order) gets a different suggestion order and a different duplicate-winner than AyuGram. Fix: iterate `_langPacks` keys sorted (e.g. `for (final key in _langPacks.keys.toList()..sort())`). — `emoji_data.dart:3237` (decl `emoji_data.dart:2924`) ← `AyuGram/SourceFiles/chat_helpers/emoji_keywords.cpp:616` (decl `AyuGram/SourceFiles/chat_helpers/emoji_keywords.h:75`)
+The single MAJOR finding was verified FIXED & closed (Stage-2 verification — built the Flutter
+debug bundle, launched with a live multi-account session (319 chats, no emoji-related crashes),
+cross-checked the fix against AyuGram ground truth, and ran a deterministic test exercising the
+production `search()` path the message composer calls via `searchEmoji` / `chat_view.dart:3857`):
+
+- [MAJOR] Language packs now iterate in **sorted language-code order**, not insertion order.
+  `search()` walks `for (final langCode in _langPacks.keys.toList()..sort())`
+  (`emoji_data.dart:3247`), mirroring AyuGram's key-sorted `base::flat_map<QString,
+  std::unique_ptr<LangPack>> _data` (`emoji_keywords.h:75`, confirmed in source) and its sorted
+  `EmojiKeywords::query` loop `for (const auto &[language, item] : _data)` (`emoji_keywords.cpp:616`,
+  confirmed). Verified behaviorally: injected packs in insertion order fr→en→de and confirmed
+  `search()` returns them sorted de→en→fr, with the cross-pack duplicate-winner being the
+  sorted-first pack (de) — a result that FAILS under the old `for (final pack in _langPacks.entries)`
+  loop. Dart `String.compareTo` (code-unit order) matches `QString`'s default comparator for ASCII
+  lang codes (`en` / `pt-br` / `zh-hans`). — `emoji_data.dart:3247` ✓ `emoji_keywords.cpp:616`
+  (decl `emoji_keywords.h:75`).
