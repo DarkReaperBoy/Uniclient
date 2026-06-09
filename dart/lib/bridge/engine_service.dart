@@ -229,7 +229,7 @@ class EngineService {
   static SavedSublistInfo _savedSublistFromProto(epb.EngineSavedSublist s) {
     return SavedSublistInfo(
       peerId: s.peerId,
-      peerName: s.peerName,
+      peerName: _safeStr(s.peerName),
       avatarPath: s.avatarPath,
       type: s.type,
       isPinned: s.isPinned,
@@ -1212,16 +1212,16 @@ class EngineService {
       final map = m as Map<String, dynamic>;
       return MemberInfo(
         userId: map['user_id'] as String? ?? '',
-        username: map['username'] as String? ?? '',
-        displayName: map['display_name'] as String? ?? '',
+        username: _safeStr(map['username'] as String? ?? ''),
+        displayName: _safeStr(map['display_name'] as String? ?? ''),
         avatarB64: map['avatar_b64'] as String? ?? '',
         isBot: map['is_bot'] as bool? ?? false,
         isOnline: map['is_online'] as bool? ?? false,
         role: map['role'] as String? ?? 'member',
         lastSeenKind: map['last_seen_kind'] as String? ?? '',
         lastSeenTs: (map['last_seen'] as num?)?.toInt() ?? 0,
-        customRank: map['custom_rank'] as String? ?? '',
-        promotedBy: map['promoted_by'] as String? ?? '',
+        customRank: _safeStr(map['custom_rank'] as String? ?? ''),
+        promotedBy: _safeStr(map['promoted_by'] as String? ?? ''),
         promotedByID: map['promoted_by_id'] as String? ?? '',
         promotedDate: map['promoted_date'] as int? ?? 0,
         isSelf: map['is_self'] as bool? ?? false,
@@ -2363,7 +2363,7 @@ class EngineService {
       final resp = epb.EngineGetSendAsResponse.fromBuffer(respBytes);
       return resp.peers.map((p) => SendAsPeerInfo(
         peerId: p.peerId,
-        displayName: p.displayName,
+        displayName: _safeStr(p.displayName),
         avatarPath: p.avatarPath,
         isChannel: p.isChannel,
       )).toList();
@@ -2434,7 +2434,7 @@ class EngineService {
       participantsCount: gc.participantsCount,
       participants: gc.participants.map((p) => GroupCallParticipant(
         userId: p.userId,
-        displayName: p.displayName,
+        displayName: _safeStr(p.displayName),
         isMuted: p.isMuted,
         isSpeaking: p.isSpeaking,
         hasVideo: p.hasVideo,
@@ -3366,18 +3366,18 @@ class EngineService {
         chatId: map['chat_id'] as String? ?? '',
         msgId: map['msg_id'] as String? ?? '',
         senderId: map['sender_id'] as String? ?? '',
-        senderName: map['sender_name'] as String? ?? '',
-        contentText: map['content_text'] as String? ?? '',
+        senderName: _safeStr(map['sender_name'] as String? ?? ''),
+        contentText: _safeStr(map['content_text'] as String? ?? ''),
         timestamp: map['timestamp'] as int? ?? 0,
         editedAt: map['edited_at'] as int? ?? 0,
         status: MsgStatus.read,
         isOutgoing: map['is_outgoing'] == true || map['is_outgoing'] == 1,
         isDeleted: true,
         deletedAt: map['deleted_at'] as int? ?? 0,
-        forwardFrom: map['forward_from'] as String? ?? '',
+        forwardFrom: _safeStr(map['forward_from'] as String? ?? ''),
         forwardFromId: map['forward_from_id'] as String? ?? '',
         replyToId: map['reply_to_id'] as String? ?? '',
-        replyPreview: map['reply_preview'] as String? ?? '',
+        replyPreview: _safeStr(map['reply_preview'] as String? ?? ''),
         hasMedia: map['has_media'] == true || map['has_media'] == 1,
         senderColorId: map['sender_color_id'] as int? ?? -1,
       );
@@ -4379,7 +4379,7 @@ class EngineService {
         emoji: (e['emoji'] as String?) ?? '',
         documentId: (e['document_id'] as num?)?.toInt() ?? 0,
         peerId: (e['peer_id'] as String?) ?? '',
-        peerName: (e['peer_name'] as String?) ?? '',
+        peerName: _safeStr((e['peer_name'] as String?) ?? ''),
         date: (e['date'] as num?)?.toInt() ?? 0,
         avatarB64: (e['avatar_b64'] as String?) ?? '',
       )).toList();
