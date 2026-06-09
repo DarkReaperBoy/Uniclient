@@ -500,14 +500,46 @@ class _ChatSwitchCell extends StatelessWidget {
   }
 
   Widget _buildBaseUserpic(TelegramPalette palette, double size) {
+    // Initials fallback — used when there's no avatar path AND when a present
+    // avatar file/bytes fail to decode. AyuGram's Ui::UserpicButton always
+    // renders a valid userpic via the empty-userpic system, never a broken-image
+    // glyph (window_chat_switch_process.cpp:129).
+    Widget baseFallback() {
+      final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+      final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
+      final initials = _initials(chat.title);
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        alignment: Alignment.center,
+        child: Text(
+          initials,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: size * 0.32,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+
     if (chat.avatarPath.isNotEmpty) {
+      // Cap decode at 2× the display size — AyuGram rasterizes the userpic only
+      // at the fixed photoSize (56/40px, window.style:356); a 640px avatar file
+      // decoded at full res for a 56px cell wastes ~30× the needed pixels across
+      // up to 21 cells. Canonical: chat_list_row.dart:1092.
+      final cache = (size * 2).toInt();
       if (decodedAvatar != null) {
         return ClipOval(
           child: SizedBox(
             width: size,
             height: size,
             child: Image.memory(decodedAvatar!,
-                width: size, height: size, fit: BoxFit.cover),
+                width: size, height: size,
+                cacheWidth: cache, cacheHeight: cache,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => baseFallback()),
           ),
         );
       }
@@ -516,29 +548,15 @@ class _ChatSwitchCell extends StatelessWidget {
           width: size,
           height: size,
           child: Image.file(File(chat.avatarPath),
-              width: size, height: size, fit: BoxFit.cover),
+              width: size, height: size,
+              cacheWidth: cache, cacheHeight: cache,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => baseFallback()),
         ),
       );
     }
 
-    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
-    final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
-    final initials = _initials(chat.title);
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: size * 0.32,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
+    return baseFallback();
   }
 
   Widget _buildAvatar(BuildContext context, TelegramPalette palette) {
@@ -586,26 +604,16 @@ class _ChatSwitchCell extends StatelessWidget {
           : null;
 
       Widget parentBadge;
-      if (parentChat != null && parentChat.avatarPath.isNotEmpty) {
-        if (!parentChat.avatarPath.startsWith('/')) {
-          parentBadge = ClipOval(
-            child: Image.memory(
-                decodedParentAvatar ?? base64Decode(parentChat.avatarPath),
-                width: 20, height: 20, fit: BoxFit.cover),
-          );
-        } else {
-          parentBadge = ClipOval(
-            child: Image.file(File(parentChat.avatarPath),
-                width: 20, height: 20, fit: BoxFit.cover),
-          );
-        }
-      } else {
+      // Single-initial fallback for the parent badge — shown when there's no
+      // avatar path AND when a present avatar fails to decode (never a broken
+      // image, mirroring Ui::UserpicButton).
+      Widget parentFallback() {
         final pTitle = parentChat?.title ?? '';
         final numId = parentChat != null
             ? (int.tryParse(parentChat.chatId) ?? parentChat.chatId.hashCode.abs())
             : 0;
         final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
-        parentBadge = Container(
+        return Container(
           width: 20,
           height: 20,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
@@ -617,6 +625,30 @@ class _ChatSwitchCell extends StatelessWidget {
             ),
           ),
         );
+      }
+
+      if (parentChat != null && parentChat.avatarPath.isNotEmpty) {
+        // 20px badge → cap decode at 40px (2× for HiDPI; chat_list_row.dart:1092).
+        if (!parentChat.avatarPath.startsWith('/')) {
+          parentBadge = ClipOval(
+            child: Image.memory(
+                decodedParentAvatar ?? base64Decode(parentChat.avatarPath),
+                width: 20, height: 20,
+                cacheWidth: 40, cacheHeight: 40,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => parentFallback()),
+          );
+        } else {
+          parentBadge = ClipOval(
+            child: Image.file(File(parentChat.avatarPath),
+                width: 20, height: 20,
+                cacheWidth: 40, cacheHeight: 40,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => parentFallback()),
+          );
+        }
+      } else {
+        parentBadge = parentFallback();
       }
 
       return SizedBox(
