@@ -348,13 +348,16 @@ class ChatState extends ChangeNotifier {
       typingSummaryFor(chatId, isGroup: _isGroupChat(chatId))?.action ?? 'typing';
 
   /// Aggregated typing / send-action summary for a chat, mirroring AyuGram's
-  /// SendActionPainter::updateNeedsAnimating (history_view_send_action.cpp:246-264):
+  /// SendActionPainter::updateNeedsAnimating (history_view_send_action.cpp:245-369):
   /// >2 plain typers → "N people are typing" (lng_many_typing); exactly 2 →
   /// "A and B are typing" (lng_users_typing); 1 → "A is typing" (group,
-  /// lng_user_typing) or "typing" (DM, lng_typing); otherwise the first
-  /// non-typing send action ("A is sending a photo" / "sending a photo").
-  /// Plain typers take precedence over other send actions, exactly like AyuGram
-  /// keeping `_typing` separate from `_sendActions`. Returns null when idle.
+  /// lng_user_typing) or "typing" (DM, lng_typing); else the first non-game send
+  /// action ("A is sending a photo" / "sending a photo"); and when EVERY active
+  /// action is PlayGame, the aggregated "N people are playing a game" /
+  /// "A and B are playing a game" / "A is playing a game" / "playing a game"
+  /// (lng_*_playing_game). Plain typers take precedence over other send actions,
+  /// exactly like AyuGram keeping `_typing` separate from `_sendActions`.
+  /// Returns null when idle.
   ({String text, String action})? typingSummaryFor(String chatId, {required bool isGroup}) {
     _pruneTyping(chatId);
     final list = _typingUsers[chatId];
@@ -372,12 +375,31 @@ class ChatState extends ChangeNotifier {
           ? (text: '${_firstName(typers[0].name)} is typing', action: 'typing')
           : (text: 'typing', action: 'typing');
     }
-    // No plain typers — show the first ongoing non-typing send action.
-    final a = list.first;
-    final label = _sendActionLabel(a.action);
+    // No plain typers — AyuGram shows the FIRST non-game send action (PlayGame
+    // yields an empty string in its switch, so it is skipped); if EVERY active
+    // action is PlayGame it aggregates them instead
+    // (history_view_send_action.cpp:265-369).
+    final nonGame = list.where((e) => e.action != 'game_play').toList();
+    if (nonGame.isNotEmpty) {
+      final a = nonGame.first;
+      final label = _sendActionLabel(a.action);
+      return isGroup
+          ? (text: '${_firstName(a.name)} is $label', action: a.action)
+          : (text: label, action: a.action);
+    }
+    // Everyone is playing a game → lng_(many|users|user)_playing_game /
+    // lng_playing_game (history_view_send_action.cpp:345-368).
+    if (list.length > 2) {
+      return (text: '${list.length} people are playing a game', action: 'game_play');
+    } else if (list.length == 2) {
+      return (
+        text: '${_firstName(list[0].name)} and ${_firstName(list[1].name)} are playing a game',
+        action: 'game_play',
+      );
+    }
     return isGroup
-        ? (text: '${_firstName(a.name)} is $label', action: a.action)
-        : (text: label, action: a.action);
+        ? (text: '${_firstName(list.first.name)} is playing a game', action: 'game_play')
+        : (text: 'playing a game', action: 'game_play');
   }
 
   /// Whether [chatId] belongs to a group/channel/topic (drives whether the
@@ -405,9 +427,15 @@ class ChatState extends ChangeNotifier {
       case 'upload_audio': return 'sending audio';
       case 'upload_photo': return 'sending photo';
       case 'upload_document': return 'sending file';
-      case 'geo_location': return 'choosing location';
-      case 'choose_contact': return 'choosing contact';
-      case 'game_play': return 'playing game';
+      // AyuGram maps ChooseLocation/ChooseContact to lng_typing / lng_user_typing
+      // — plain "typing" / "X is typing", no distinct strings
+      // (history_view_send_action.cpp:296-299).
+      case 'geo_location':
+      case 'choose_contact':
+        return 'typing';
+      // Singular game label (lng_playing_game); multi-player aggregation is
+      // handled in typingSummaryFor.
+      case 'game_play': return 'playing a game';
       case 'record_round': return 'recording video message';
       case 'upload_round': return 'sending video message';
       case 'choose_sticker': return 'choosing sticker';
@@ -416,7 +444,8 @@ class ChatState extends ChangeNotifier {
   }
 
   /// Drop expired typing entries for a chat; returns true if anything changed.
-  /// Entries expire 6s after their last event (AyuGram kStatusShowClientsideTyping).
+  /// Each entry carries its own expiry (6s for most actions, 10s for PlayGame —
+  /// AyuGram kStatusShowClientside* in history_view_send_action.cpp:31-43).
   bool _pruneTyping(String chatId) {
     final list = _typingUsers[chatId];
     if (list == null) return false;
@@ -2355,7 +2384,11 @@ class ChatState extends ChangeNotifier {
   ChatThemeData? getActiveThemeData(String chatId) {
     final emoticon = _selectedThemeEmoticon ?? _chatThemeEmoticons[chatId];
     if (emoticon == null || emoticon.isEmpty) return null;
-    final isDark = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
+    // AyuGram picks the emoticon theme's day/night variant from the app's
+    // CURRENT theme (IsNightMode()), never the OS brightness — a forced
+    // light/night theme must override the system setting
+    // (data_cloud_themes.cpp:234, window_theme.cpp:1411).
+    final isDark = _appState.isNightMode;
     return _availableChatThemes.cast<ChatThemeData?>().firstWhere(
       (t) => t!.emoticon == emoticon && t.isDark == isDark,
       orElse: () => _availableChatThemes.cast<ChatThemeData?>().firstWhere(
@@ -3265,16 +3298,33 @@ class ChatState extends ChangeNotifier {
     }
     final name = event.userName.isNotEmpty ? event.userName : event.userId;
     final now = DateTime.now().millisecondsSinceEpoch;
-    // Upsert this user's entry (dedup by userId, refresh action + 6s expiry),
-    // keeping every OTHER typer — AyuGram `_typing.emplace_or_assign(user, …)`.
     final list = _typingUsers.putIfAbsent(event.chatId, () => <_TypingEntry>[]);
+    // Per-action client-side window: PlayGame lingers 10s
+    // (kStatusShowClientsidePlayGame), every other action 6s
+    // (history_view_send_action.cpp:31-43).
+    final isGame = event.action == 'game_play';
+    final ttlMs = isGame ? 10000 : 6000;
+    if (isGame) {
+      // AyuGram (re-)emplaces PlayGame only when the user has no current action,
+      // already has PlayGame, or the prior action has expired — a live non-game
+      // send-action is never overridden by a game event
+      // (history_view_send_action.cpp:123-129).
+      final existing = list.where((e) => e.userId == event.userId).firstOrNull;
+      if (existing != null &&
+          existing.action != 'game_play' &&
+          existing.expiresAt > now) {
+        return;
+      }
+    }
+    // Upsert this user's entry (dedup by userId), keeping every OTHER typer —
+    // AyuGram `_typing` / `_sendActions` `emplace_or_assign(user, …)`.
     list.removeWhere((e) => e.userId == event.userId);
-    list.add(_TypingEntry(event.userId, name, event.action, now + 6000));
+    list.add(_TypingEntry(event.userId, name, event.action, now + ttlMs));
     notifyListeners();
 
-    // Re-evaluate after the 6s client-side window; prune only expired entries so
-    // other still-active typers are preserved (guard notify after dispose).
-    Future.delayed(const Duration(seconds: 6), () {
+    // Re-evaluate after THIS entry's own client-side window; prune only expired
+    // entries so other still-active typers are preserved (guard after dispose).
+    Future.delayed(Duration(milliseconds: ttlMs), () {
       if (_disposed) return;
       if (_pruneTyping(event.chatId)) notifyListeners();
     });

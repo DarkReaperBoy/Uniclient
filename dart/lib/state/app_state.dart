@@ -3597,6 +3597,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _ => ThemeMode.dark,
   };
 
+  /// Mirrors AyuGram `Window::Theme::IsNightMode()` (window_theme.cpp:1411): the
+  /// app's CURRENT theme background lightness. A forced light/night theme wins;
+  /// only `ThemeMode.system` defers to the OS brightness. Used to pick the
+  /// day/night variant of a per-chat emoticon theme (data_cloud_themes.cpp:234),
+  /// which must follow the app's theme, never the raw OS setting.
+  bool get isNightMode => switch (themeMode) {
+    ThemeMode.dark => true,
+    ThemeMode.light => false,
+    ThemeMode.system => WidgetsBinding
+        .instance.platformDispatcher.platformBrightness == Brightness.dark,
+  };
+
   String get themeId => switch (_config.theme) {
     'classic_day' => 'classic_day',
     'day_blue' || 'light' => 'day_blue',
