@@ -994,7 +994,6 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
                     offset: _monthOffset,
                     maxOffset: _monthMaxOffset,
                     itemCount: _validMonthCount,
-                    selectedIndex: _selectedMonth - _minMonth,
                     labelBuilder: (i) => _monthNames[i + _minMonth - 1],
                     textFg: textFg,
                     dimFg: dimFg,
@@ -1017,7 +1016,6 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
                     offset: _yearOffset,
                     maxOffset: _yearMaxOffset,
                     itemCount: years.length,
-                    selectedIndex: _yearIndex,
                     labelBuilder: (i) => '${years[i]}',
                     textFg: textFg,
                     dimFg: dimFg,
@@ -1073,11 +1071,22 @@ class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog>
   }
 }
 
+// ── VerticalDrumPicker cylinder effect (vertical_drum_picker.cpp:18-49) ──
+// Each drum row is scaled vertically and faded by its distance from the drum's
+// vertical centre, so the column reads as a rotating cylinder rather than a
+// flat list. yScale floors at kMinYScale (0.2); opacity = 1 - |distance|.
+const double _kDrumMinYScale = 0.2;
+
+// anim::easeOutCubic(1., t) == (t - 1)^3 + 1 (animation_value.cpp:94-104).
+double _drumEaseOutCubic(double t) {
+  final x = t - 1.0;
+  return x * x * x + 1.0;
+}
+
 class _DrumColumn extends StatelessWidget {
   final double offset;
   final double maxOffset;
   final int itemCount;
-  final int selectedIndex;
   final String Function(int) labelBuilder;
   final Color textFg;
   final Color dimFg;
@@ -1093,7 +1102,6 @@ class _DrumColumn extends StatelessWidget {
     required this.offset,
     required this.maxOffset,
     required this.itemCount,
-    required this.selectedIndex,
     required this.labelBuilder,
     required this.textFg,
     required this.dimFg,
@@ -1118,28 +1126,45 @@ class _DrumColumn extends StatelessWidget {
         child: ClipRect(
           child: Stack(
             children: [
-              for (int i = 0; i < itemCount; i++)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: _centerY + (i * _itemHeight) - offset,
-                  height: _itemHeight,
-                  child: Center(
-                    child: Text(
-                      labelBuilder(i),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: i == selectedIndex
-                            ? FontWeight.w500
-                            : FontWeight.normal,
-                        color: (isDisabled != null && isDisabled!(i))
-                            ? dimFg.withValues(alpha: 0.4)
-                            : (i == selectedIndex ? textFg : dimFg),
-                      ),
-                    ),
-                  ),
-                ),
+              for (int i = 0; i < itemCount; i++) _buildRow(i),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Matches VerticalDrumPicker::DefaultPaintCallback: uniform text colour, the
+  // cylinder read coming from per-row vertical scale + opacity, not colour
+  // (vertical_drum_picker.cpp:29-49). Disabled rows are greyed (out-of-range
+  // months); the centred row ends up crisp/full-opacity and is framed by the
+  // selection band.
+  Widget _buildRow(int i) {
+    final top = _centerY + (i * _itemHeight) - offset;
+    final distance =
+        ((top + _itemHeight / 2) - _drumHeight / 2) / (_drumHeight / 2);
+    final progress = distance.abs().clamp(0.0, 1.0);
+    final revProgress = 1.0 - progress;
+    final yScale = _kDrumMinYScale +
+        (1 - _kDrumMinYScale) * _drumEaseOutCubic(revProgress);
+    final color = (isDisabled != null && isDisabled!(i))
+        ? dimFg.withValues(alpha: 0.4)
+        : textFg;
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: top,
+      height: _itemHeight,
+      child: Opacity(
+        opacity: revProgress,
+        child: Transform.scale(
+          scaleY: yScale,
+          alignment: Alignment.center,
+          child: Center(
+            child: Text(
+              labelBuilder(i),
+              style: TextStyle(fontSize: 15, color: color),
+            ),
           ),
         ),
       ),
@@ -1416,7 +1441,9 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   late FocusNode _dateFocus;
   int _repeatPeriod = 0;
   bool _timeError = false;
+  bool _timeFocused = false;
   late AnimationController _errorBorderController;
+  late AnimationController _focusBorderController;
   late AnimationController _premiumToastController;
   Timer? _premiumToastTimer;
   late final double _cachedAtWidth;
@@ -1436,9 +1463,17 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     _minuteFocus = FocusNode();
     _dateFocus = FocusNode();
     _dateFocus.addListener(_onDateFocusChanged);
+    _hourFocus.addListener(_onTimeFocusChanged);
+    _minuteFocus.addListener(_onTimeFocusChanged);
 
     _errorBorderController = AnimationController(
       duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    // Active (2px) underline fade — matches _stDateField.duration (150ms,
+    // defaultInputField; time_input.cpp:359-373).
+    _focusBorderController = AnimationController(
+      duration: const Duration(milliseconds: 150),
       vsync: this,
     );
     _premiumToastController = AnimationController(
@@ -1456,11 +1491,14 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   void dispose() {
     _hourController.dispose();
     _minuteController.dispose();
+    _hourFocus.removeListener(_onTimeFocusChanged);
+    _minuteFocus.removeListener(_onTimeFocusChanged);
     _hourFocus.dispose();
     _minuteFocus.dispose();
     _dateFocus.removeListener(_onDateFocusChanged);
     _dateFocus.dispose();
     _errorBorderController.dispose();
+    _focusBorderController.dispose();
     _premiumToastTimer?.cancel();
     _premiumToastController.dispose();
     super.dispose();
@@ -1469,6 +1507,19 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   void _onDateFocusChanged() {
     if (_dateFocus.hasFocus) {
       _openCalendar();
+    }
+  }
+
+  // TimeInput shows its active (2px) underline whenever either time part is
+  // focused — borderVisible = (_error || _focused) (time_input.cpp:347-374).
+  void _onTimeFocusChanged() {
+    final focused = _hourFocus.hasFocus || _minuteFocus.hasFocus;
+    if (focused == _timeFocused) return;
+    _timeFocused = focused;
+    if (focused) {
+      _focusBorderController.forward();
+    } else {
+      _focusBorderController.reverse();
     }
   }
 
@@ -1671,7 +1722,12 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     // the bottom line uses the field border color.
     final fieldBorder =
         isDark ? const Color(0xFF2B3845) : const Color(0xFFDADADA);
-    const errorBorder = Color(0xFFE53935);
+    // TimeInput underline colours: static 1px = date-field border (fieldBorder);
+    // the animated 2px active line uses borderFgActive(activeLineFg) lerping to
+    // borderFgError(activeLineFgError) on error (time_input.cpp:234-249,
+    // defaultInputField borders in widgets.style).
+    final activeLine = context.palette.activeLineFg;
+    final errorLine = context.palette.activeLineFgError;
     final separatorFg =
         isDark ? const Color(0xFF8B95A5) : const Color(0xFF999999);
 
@@ -1791,26 +1847,51 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
                           _scheduleAtSkip,
                       top: _scheduleDateTop,
                       child: AnimatedBuilder(
-                        animation: _errorBorderController,
+                        animation: Listenable.merge(
+                            [_errorBorderController, _focusBorderController]),
                         builder: (context, child) {
-                          // scheduleTimeField is borderless (border:0,
-                          // borderActive:0, no fill — boxes.style:899), so the
-                          // validation error flashes the digits red instead of
-                          // a (non-existent) border.
-                          final t =
+                          // TimeInput paints its underline from the DATE-field
+                          // style: a static 1px line plus an animated 2px active
+                          // line that grows on focus and tints red on error via
+                          // anim::brush(borderFgActive, borderFgError,
+                          // errorDegree). The digits keep their colour — only the
+                          // border reacts (time_input.cpp:234-251).
+                          final errorDegree =
                               _timeError ? _errorBorderController.value : 0.0;
-                          final textCol = Color.lerp(titleFg, errorBorder, t)!;
-                          final sepCol =
-                              Color.lerp(separatorFg, errorBorder, t)!;
-                          return _TimeInputField(
-                            hourController: _hourController,
-                            minuteController: _minuteController,
-                            hourFocus: _hourFocus,
-                            minuteFocus: _minuteFocus,
-                            width: _scheduleTimeWidth,
-                            textColor: textCol,
-                            separatorColor: sepCol,
-                            onSubmit: _submitWithCtrl,
+                          final focusFade = _focusBorderController.value;
+                          // borderVisible = (_error || _focused).
+                          final shown = focusFade > errorDegree
+                              ? focusFade
+                              : errorDegree;
+                          final activeColor =
+                              Color.lerp(activeLine, errorLine, errorDegree)!;
+                          return Stack(
+                            children: [
+                              _TimeInputField(
+                                hourController: _hourController,
+                                minuteController: _minuteController,
+                                hourFocus: _hourFocus,
+                                minuteFocus: _minuteFocus,
+                                width: _scheduleTimeWidth,
+                                textColor: titleFg,
+                                separatorColor: separatorFg,
+                                onSubmit: _submitWithCtrl,
+                              ),
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                child: CustomPaint(
+                                  size: const Size(_scheduleTimeWidth, 2),
+                                  painter: _TimeFieldUnderlinePainter(
+                                    staticColor: fieldBorder,
+                                    activeColor: activeColor,
+                                    shownDegree: shown,
+                                    opacity: shown,
+                                  ),
+                                ),
+                              ),
+                            ],
                           );
                         },
                       ),
@@ -2104,11 +2185,42 @@ class _TimePickerBoxWidgetState extends State<_TimePickerBoxWidget>
     return max;
   }
 
+  // VerticalDrumPicker::DefaultPaintCallback — uniform colour, cylinder read
+  // from per-row vertical scale + opacity by distance from centre, not colour
+  // dimming (vertical_drum_picker.cpp:29-49).
+  Widget _buildDrumRow(int i, double centerY, Color color) {
+    final top = centerY + (i * _drumItemHeight) - _scrollOffset;
+    final distance =
+        ((top + _drumItemHeight / 2) - _drumHeight / 2) / (_drumHeight / 2);
+    final progress = distance.abs().clamp(0.0, 1.0);
+    final revProgress = 1.0 - progress;
+    final yScale = _kDrumMinYScale +
+        (1 - _kDrumMinYScale) * _drumEaseOutCubic(revProgress);
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: top,
+      height: _drumItemHeight,
+      child: Opacity(
+        opacity: revProgress,
+        child: Transform.scale(
+          scaleY: yScale,
+          alignment: Alignment.center,
+          child: Center(
+            child: Text(
+              widget.labels[i],
+              style: TextStyle(fontSize: 14, color: color),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final dimFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     // Selection band lines use activeLineFg (time_picker_box.cpp:109), not windowBgActive.
     final bandColor = context.palette.activeLineFg;
     final centerY = (_drumHeight - _drumItemHeight) / 2;
@@ -2149,22 +2261,7 @@ class _TimePickerBoxWidgetState extends State<_TimePickerBoxWidget>
                 child: Stack(
                   children: [
                     for (int i = 0; i < widget.labels.length; i++)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        top: centerY + (i * _drumItemHeight) - _scrollOffset,
-                        height: _drumItemHeight,
-                        child: Center(
-                          child: Text(
-                            widget.labels[i],
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: i == _selectedIndex ? textFg : dimFg,
-                              fontWeight: i == _selectedIndex ? FontWeight.w500 : FontWeight.normal,
-                            ),
-                          ),
-                        ),
-                      ),
+                      _buildDrumRow(i, centerY, textFg),
                     Positioned(
                       left: 0,
                       right: 0,
@@ -2267,8 +2364,9 @@ class _TimeInputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // scheduleTimeField: borderless, no fill (border:0, borderActive:0 —
-    // boxes.style:899).
+    // scheduleTimeField text inputs are borderless (border:0, borderActive:0 —
+    // boxes.style:899); the underline is painted from the date-field style by
+    // _TimeFieldUnderlinePainter in the parent (time_input.cpp:234-251).
     return SizedBox(
       width: width,
       height: 30,
@@ -2341,6 +2439,54 @@ class _TimeInputField extends StatelessWidget {
       ),
     );
   }
+}
+
+// Underline for the schedule time field. AyuGram's TimeInput borrows the
+// date-field style to paint a static 1px bottom line plus an animated 2px
+// active line that grows from the focus point and tints red on error
+// (time_input.cpp:234-251). The active line grows symmetrically from centre
+// here (the field is only 72px wide with two sub-inputs).
+class _TimeFieldUnderlinePainter extends CustomPainter {
+  final Color staticColor;
+  final Color activeColor;
+  final double shownDegree;
+  final double opacity;
+
+  _TimeFieldUnderlinePainter({
+    required this.staticColor,
+    required this.activeColor,
+    required this.shownDegree,
+    required this.opacity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Static 1px line (_st.border, time_input.cpp:236-238).
+    canvas.drawRect(
+      Rect.fromLTWH(0, size.height - 1, size.width, 1),
+      Paint()..color = staticColor,
+    );
+    // Animated 2px active line (_st.borderActive, time_input.cpp:242-251).
+    if (opacity > 0 && shownDegree > 0) {
+      final start = size.width / 2; // _borderAnimationStart ≈ centre
+      final from = start * (1 - shownDegree);
+      final to = start + (size.width - start) * shownDegree;
+      if (to > from) {
+        canvas.drawRect(
+          Rect.fromLTWH(from, size.height - 2, to - from, 2),
+          Paint()
+            ..color = activeColor.withValues(alpha: activeColor.a * opacity),
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TimeFieldUnderlinePainter old) =>
+      old.staticColor != staticColor ||
+      old.activeColor != activeColor ||
+      old.shownDegree != shownDegree ||
+      old.opacity != opacity;
 }
 
 class _TriangleArrowPainter extends CustomPainter {
