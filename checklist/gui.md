@@ -671,27 +671,6 @@ checkbox is on and vanish when off (differential ON→OFF→ON verified, persist
 message reactions re-render in Twemoji) and persists; the sensitive-content string matches.
 Both modes render with zero RenderFlex overflow and zero widget exceptions.
 
-# ayu_filter — AyuGram regex message filters (data layer)
-
-Audited `dart/lib/data/ayu_filter.dart` against AyuGram's `ayu/features/filters/*`
-(`filters_controller.cpp`, `filters_cache_controller.cpp`, `filters_utils.cpp`,
-`entities.h`). The port is overall faithful and well-implemented — no stubs, no
-placeholders, no mock data. Verified-correct: filter-id wire format
-(`generateFilterId`/`_formatFilterIdForWire` ↔ `ParseFilterId`/`exportFilters`),
-ICU→Dart regex translation (`compileFilterPattern`/`_translateIcuPattern`),
-media/service type mapping (`_mediaTypeNames`/`_resolveFilterType`/`_serviceMessageType`
-↔ `typeOfMessage`, with engine constants confirmed in `go/engine/db.go:372-384` and
-`go/cores/telegram.go:12639-12664`), the match-blob builder (`extractMatchBlob` ↔
-`extractAllText`/`extractSingle`), `_isEnabledForChat` ↔ `isEnabled` (channel==broadcast
-confirmed `telegram.go:13222-13230`), and the `previewImport`/`exportFilters` diff logic.
-The three findings below are real behavioral deviations.
-
-- [ ] [MAJOR] Album/group filter verdict is not propagated to the other group members, so a type- or button-specific filter on a mixed-media album hides only the matching tiles instead of the whole album. AyuGram's `putFiltered` marks **every** item in the group as filtered when any one matches (`filteredMessages[...][groupItem->id.bare] = true` for all `group->items`). The Dart caches only the single message it was asked about; `isFiltered` builds `_groupIndex` for invalidation but never writes a verdict for the siblings. Because the UI filters each album member independently (`chat_view.dart:3221` calls `isFiltered(m, …, groupMessages: group)` inside a `.where()`), and each member's blob carries its own per-member `<type>`/`<button>` tag (`extractMatchBlob` appends `_resolveFilterType(msg)`/`msg.inlineKeyboard` of the specific msg), a filter like `.*<type>1</type>` matches only the photo member and leaves the video member visible — a broken partial album. (Text/keyword filters are unaffected: they match the shared concatenated text blob for every member.) — `ayu_filter.dart:977-990` (and `924-952`) ← `AyuGram/ayu/features/filters/filters_cache_controller.cpp:194-198`
-
-- [ ] [MAJOR] `_filterBlocked` over-hides forwarded messages: a blocked direct sender does not short-circuit the forwarded-origin check the way AyuGram does. In AyuGram's `isBlocked(item)`, once the direct sender is found to be a blocked user the lambda **returns** `from()->id != peer->id` and never reaches the forwarded-origin branch. The Dart only returns early for a blocked sender when `hideFromBlocked` is on (`if (appState.hideFromBlocked && appState.isBlocked(senderId)) return true;`); with `hideFromBlocked` off it falls through and still evaluates `forwardFrom`. Consequence: a message **from a blocked user** (in a group, `hideFromBlocked` off) that is **forwarded from a shadow-banned user** is hidden by the Dart but shown by AyuGram (AyuGram's blocked-user branch already returned, so the shadow-ban-on-forward path never runs). Narrow but a genuine wrong-hide in the core block/shadow-ban logic. — `ayu_filter.dart:964-975` ← `AyuGram/ayu/features/filters/filters_controller.cpp:113-129`
-
-- [ ] [MAJOR] `importFromLink` (lines 721-742) is dead/duplicate code — it faithfully mirrors AyuGram's `FilterUtils::importFromLink` (the live entry point there) but is never called anywhere in the Dart tree; the UI reimplements link-import inline with its own `HttpClient` + `previewImport` (`ayu_filters_page.dart:1633-1669`). The dead method also carries a latent divergence: it gates on `ImportChanges.hasChanges`, which omits `peersToBeResolved` from its OR-chain, whereas AyuGram's `HasChanges` includes `!changes.peersToBeResolved.empty()`. So a peers-only backup (resolve hints, no filter changes) that AyuGram treats as importable would be rejected as "No changes to import" by this path. The live UI compensates for the `hasChanges` gap (`ayu_filters_page.dart:1703` also checks its own `peersToResolve`), so the user-facing import works — this is dead-code/duplicate cleanup, not a functional break. — `ayu_filter.dart:721-742` (and `137-142`) ← `AyuGram/ayu/features/filters/filters_utils.cpp:292-342` (and `61-68`)
-
 # custom_emoji_cache — singleton cache for custom-emoji thumbs / vector paths / animated files (refcount + disk cache + batched engine fetch)
 
 Audited `custom_emoji_cache.dart` against AyuGram's `CustomEmojiManager`
