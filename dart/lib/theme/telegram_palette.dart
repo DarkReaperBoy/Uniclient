@@ -1564,10 +1564,14 @@ class TelegramPalette {
       boxTitleFg: s(boxTitleFg),
       boxSearchBg: s(boxSearchBg),
       boxTitleAdditionalFg: s(boxTitleAdditionalFg),
-      // §25.4.3 Exclusion: good/error text
+      // boxDividerBg: windowBgOver (colors.palette:146) references a COLORIZED
+      // key (windowBgOver is not an ignoreKey), so C++'s reference branch copies
+      // windowBgOver's colorized value — the box/layer divider tracks the accent.
+      // (Sibling boxDividerFg is s()-colorized too.)
+      boxDividerBg: s(boxDividerBg),
+      // §25.4.3 Exclusion: good/error text (both are ignoreKeys → raw)
       boxTextFgGood: boxTextFgGood,
       boxTextFgError: boxTextFgError,
-      boxDividerBg: boxDividerBg,
       profileStatusFgOver: s(profileStatusFgOver),
       profileVerifiedCheckBg: s(profileVerifiedCheckBg),
       profileVerifiedCheckFg: s(profileVerifiedCheckFg),
@@ -1759,9 +1763,18 @@ class TelegramPalette {
       historyForwardChooseBg: s(historyForwardChooseBg),
       historyForwardChooseFg: s(historyForwardChooseFg),
       historyPeerUserpicFg: s(historyPeerUserpicFg),
-      historyPeerSavedMessagesBg: sl(historyPeerSavedMessagesBg),
+      // historyPeerSavedMessagesBg: historyPeer4UserpicBg (colors.palette:313)
+      // references an ignoreKey, and C++'s reference branch (window_theme.cpp:195)
+      // copies the referent's RAW value (historyPeer4UserpicBg is never colorized
+      // — window_themes_embedded.cpp:48), so this stays raw in every theme.
+      historyPeerSavedMessagesBg: historyPeerSavedMessagesBg,
       historyPeerArchiveUserpicBg: sl(historyPeerArchiveUserpicBg),
-      historyPeerSavedMessagesBg2: s(historyPeerSavedMessagesBg2),
+      // historyPeerSavedMessagesBg2: historyPeer4UserpicBg2 (colors.palette:324)
+      // references an ignoreKey, and C++'s reference branch copies the referent's
+      // RAW value (historyPeer4UserpicBg2 is never colorized —
+      // window_themes_embedded.cpp:64), keeping the Saved Messages cloud-avatar
+      // gradient accent-independent. Raw passthrough.
+      historyPeerSavedMessagesBg2: historyPeerSavedMessagesBg2,
       settingsIconFg: settingsIconFg,
       msgInServiceFgSelected: s(msgInServiceFgSelected),
       msgOutServiceFgSelected: s(msgOutServiceFgSelected),
@@ -1965,7 +1978,12 @@ class TelegramPalette {
       currencyFg: currencyFg,
       rankAdminFg: rankAdminFg,
       rankOwnerFg: rankOwnerFg,
-      rankUserFg: rankUserFg,
+      // rankUserFg: windowSubTextFg (colors.palette:688) references a COLORIZED
+      // key (windowSubTextFg is not an ignoreKey), so C++'s reference branch
+      // copies windowSubTextFg's colorized value — the member-rank badge text
+      // tracks the accent. (rankAdminFg/rankOwnerFg are hex literals, far from the
+      // accent hue, so they stay raw.)
+      rankUserFg: s(rankUserFg),
 
     );
 
