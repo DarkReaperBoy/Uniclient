@@ -20,10 +20,6 @@ This is an **exceptionally faithful** port. Verified as MATCHING (no finding):
 - Auto-lock `kAutoLockTimeoutLateMs=3000` and engine wiring (`SetProxy`/`SetAutoDownload`/`SetLocalStorageLimits`/`SetPowerSaving` all exist in `go/bridge/dispatch_engine.go:1401-1501`; all `engine_service.dart` methods exist).
 - Proxy default mode divergence (Dart `disabled`(0) vs C++ `System`) is functionally INVISIBLE — `go/engine/engine.go:313` treats mode 1 (system) identically to mode 0 (direct), so NOT a finding.
 
-## Findings
-
-- [ ] [MAJOR] Video-player volume is never persisted, so it resets to 0.9 on every media-viewer open / app restart. AppState mirrors `core_settings` `_songVolume`/`_rememberedSongVolume` (persisted in `_buildPrefsMap`/`_loadWindowPrefs`) but OMITS the sibling `_videoVolume`, which AyuGram persists right next to song volume (serialized `core_settings.cpp:284`, restored `core_settings.cpp:975`, default `kDefaultVolume`, declared `core_settings.h:1077`). The media viewer therefore keeps volume in a transient local field (`media_viewer.dart:393` `double _volume = 0.9;`) and its `_saveViewerPrefs()` writes only mode/width/height/x/y — never volume (`media_viewer.dart:679-685`), and `_loadViewerPrefs()` never reads it (`media_viewer.dart:660-668`). Result: in AyuGram a user-set video volume is remembered globally; in uniclient it is forgotten the moment the viewer is recreated. Fix: add a persisted `videoVolume` (mirroring `_songVolume` at `app_state.dart:579`) and have the media viewer read/write it. — `app_state.dart:579` ← `core/core_settings.cpp:284`
-
 # audio_service — media player engine (port of AyuGram `Media::Player::Instance`)
 
 The file is a faithful, fully-wired port of `Media::Player::Instance`: shuffle
