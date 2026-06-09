@@ -433,16 +433,14 @@ class ChatListRow extends StatelessWidget {
     final showSender = chat.lastMsgSender.isNotEmpty &&
         chat.type == ChatType.group;
 
-    // Spec §2.3: Mini media previews — 16px thumbnail or media-type icon
-    // before preview text. Strip the engine's emoji prefix when showing a
-    // visual indicator (thumbnail image or icon) to avoid redundancy.
-    final hasMedia = chat.lastMsgMediaType > 0;
-    final hasThumb = hasMedia && chat.lastMsgThumbB64.isNotEmpty;
-
-    // Strip leading emoji prefix from engine text when we show a visual indicator.
-    final previewText = hasMedia
-        ? _stripMediaEmoji(chat.lastMsgText)
-        : chat.lastMsgText;
+    // AyuGram dialogs_message_view.cpp:473-522: the only graphical element in a
+    // chat-list preview is the real 16px image thumbnail (dialogsMiniPreview).
+    // There is NO per-media-type icon glyph — for thumbnail-less media
+    // (voice/file/music/…) the media indicator is the emoji the engine bakes
+    // into the preview text, which we keep verbatim (no stripping, no Material
+    // icon substitution).
+    final hasThumb =
+        chat.lastMsgMediaType > 0 && chat.lastMsgThumbB64.isNotEmpty;
 
     final textWidget = Text.rich(
       TextSpan(children: [
@@ -457,7 +455,7 @@ class ChatListRow extends StatelessWidget {
             ),
           ),
         TextSpan(
-          text: previewText,
+          text: chat.lastMsgText,
           style: TextStyle(fontSize: 13, color: mutedColor),
         ),
       ]),
@@ -465,7 +463,8 @@ class ChatListRow extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
     );
 
-    // Case 1: base64 thumbnail available — show 16px image.
+    // 16px mini-thumbnail (dialogsMiniPreview, radius dialogsMiniPreviewRadius=2)
+    // when the engine provides one; otherwise plain preview text.
     if (hasThumb) {
       return Row(
         children: [
@@ -485,49 +484,7 @@ class ChatListRow extends StatelessWidget {
       );
     }
 
-    // Case 2: media type known but no thumbnail — show 16px media-type icon.
-    final iconData = _mediaTypeIcon(chat.lastMsgMediaType);
-    if (iconData != null) {
-      return Row(
-        children: [
-          Icon(iconData, size: 16, color: mutedColor),
-          const SizedBox(width: 2),
-          Expanded(child: textWidget),
-        ],
-      );
-    }
-
-    // Case 3: plain text message.
     return textWidget;
-  }
-
-  /// Spec §2.3: Media-type icon for chat list preview when no thumbnail.
-  /// Maps engine media type int (go/engine/db.go) to Material icon.
-  static IconData? _mediaTypeIcon(int mediaType) {
-    return switch (mediaType) {
-      1 => Icons.photo_camera,    // MediaImage
-      2 => Icons.videocam,        // MediaVideo
-      3 => Icons.music_note,      // MediaAudio
-      4 => Icons.mic,             // MediaVoice
-      5 => Icons.videocam,        // MediaVideoNote
-      6 => Icons.emoji_emotions,  // MediaSticker
-      7 => Icons.gif_box,         // MediaGIF
-      8 => Icons.attach_file,     // MediaFile
-      _ => null,
-    };
-  }
-
-  /// Strip leading emoji + space prefix that the engine prepends
-  /// (e.g. "📷 Photo" → "Photo", "🎙 Voice message" → "Voice message").
-  /// Only strips if the first rune is outside ASCII (i.e. an emoji)
-  /// and is followed by a space.
-  static String _stripMediaEmoji(String text) {
-    if (text.isEmpty) return text;
-    final runes = text.runes.toList();
-    if (runes.length >= 2 && runes[0] > 0xFF && runes[1] == 0x20) {
-      return String.fromCharCodes(runes.sublist(2));
-    }
-    return text;
   }
 
   IconData? get _typeIcon {
@@ -683,11 +640,12 @@ class SwipeableChatRow extends StatefulWidget {
   static const kThresholdWidth = 50.0;
 
   /// Spec §2.7: Max clamped ratio — swipe commits after kThresholdWidth * kMaxRatio (~75px).
+  /// AyuGram swipe_handler.cpp:64 (kMaxRatio=1.5), clamped in processEnd():157.
+  /// A finger drag tracks the touch 1:1 and is simply clamped to this ratio; the
+  /// kSwipeSlow (0.2) slowdown applies ONLY to wheel/trackpad deltas (Wheel
+  /// branch, :361), which this touch-only GestureDetector never receives — so it
+  /// has no place here.
   static const kMaxRatio = 1.5;
-
-  /// Spec §2.7: Slowdown factor past threshold — drag visually lags at 1/5
-  /// actual speed, giving a rubberband feel.
-  static const kSwipeSlow = 0.2;
 
   @override
   State<SwipeableChatRow> createState() => _SwipeableChatRowState();
@@ -796,11 +754,12 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     }
     final prevOffset = _swipeOffset;
     setState(() {
-      final rawDx = -details.delta.dx;
-      final dx = _swipeOffset >= SwipeableChatRow.kThresholdWidth
-          ? rawDx * SwipeableChatRow.kSwipeSlow
-          : rawDx;
-      _swipeOffset = (_swipeOffset + dx).clamp(0.0, _maxSwipeOffset);
+      // AyuGram swipe_handler.cpp:332 — a finger drag tracks the touch 1:1
+      // (state->delta = startAt - touchPos), with NO kSwipeSlow slowdown; it is
+      // only bounded by the kMaxRatio clamp (1.5× threshold ≈ 75px) below. The
+      // 50–75px range therefore moves at full speed, not the rubberbanded 1/5.
+      _swipeOffset =
+          (_swipeOffset - details.delta.dx).clamp(0.0, _maxSwipeOffset);
     });
     const double kStartAnimateThreshold = 0.32;
     const double kResetAnimateThreshold = 0.24;
@@ -833,14 +792,12 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     _thresholdCrossed = false;
     _lottieStarted = false;
     _resetFrom = _swipeOffset;
-    // AyuGram swipe_handler.cpp:164-168: committed = min(1, ratio) * slideWrapDuration (150ms).
-    final int durationMs;
-    if (pastThreshold) {
-      durationMs = (math.min(1.0, _swipeProgress) * 150).round().clamp(50, 150);
-    } else {
-      durationMs = 200;
-    }
-    _resetController.duration = Duration(milliseconds: durationMs);
+    // AyuGram swipe_handler.cpp:164-168: the reset ALWAYS animates over
+    // min(1, ratio) * slideWrapDuration (150ms) — identically for commit and
+    // abort — so an aborted swipe snaps back in proportion to how far it
+    // travelled (ratio 0.5 → 75ms). _swipeProgress == min(1, offset/threshold).
+    final durationMs = (_swipeProgress * 150).round();
+    _resetController.duration = Duration(milliseconds: math.max(1, durationMs));
     _resetController.forward(from: 0.0);
   }
 
@@ -851,8 +808,10 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     _lottieStarted = false;
     if (_swipeOffset > 0) {
       _resetFrom = _swipeOffset;
-      // Spec §2.7: Cancel is always below-threshold — fixed ~200ms spring-back.
-      _resetController.duration = const Duration(milliseconds: 200);
+      // AyuGram swipe_handler.cpp:168: spring-back is proportional to travel —
+      // min(1, ratio) * slideWrapDuration (150ms), never a fixed 200ms.
+      final durationMs = (_swipeProgress * 150).round();
+      _resetController.duration = Duration(milliseconds: math.max(1, durationMs));
       _resetController.forward(from: 0.0);
     }
   }
@@ -1100,7 +1059,6 @@ class _ChatAvatar extends StatelessWidget {
     final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
     final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final initials = _initials(chat.title);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final storyPhotoSize = minified ? _storyPhotoSizeSmall : _storyPhotoSizeFull;
     final photoSize = _hasStories ? storyPhotoSize : size;
@@ -1162,7 +1120,13 @@ class _ChatAvatar extends StatelessWidget {
                     storyCount: chat.storyCount,
                     unreadCount: _effectiveStoriesUnread(chat),
                     isLiveStream: chat.isLiveStream,
-                    isDark: isDark,
+                    // AyuGram dialogs_row.cpp:460-462: read segments use
+                    // dialogsUnreadBgMuted, or dialogsUnreadBgMutedActive when
+                    // this row is the active chat. Live ring → attentionButtonFg.
+                    readColor: isActive
+                        ? palette.dialogsUnreadBgMutedActive
+                        : palette.dialogsUnreadBgMuted,
+                    liveColor: palette.attentionButtonFg,
                     minified: minified,
                   ),
                 ),
@@ -1269,17 +1233,26 @@ class _StoriesRingPainter extends CustomPainter {
   final int storyCount;
   final int unreadCount;
   final bool isLiveStream;
-  final bool isDark;
   final bool minified;
-  final double readOpacity;
+
+  /// AyuGram dialogs_row.cpp:460-462: already-seen (read) story segments are
+  /// brushed with the single palette token dialogsUnreadBgMuted (#bbbbbb) — or
+  /// dialogsUnreadBgMutedActive when the row is the active chat — at FULL
+  /// opacity. There is no separate dark-mode color and no 0.6 dimming in the
+  /// dialog-row outline path (that opacity belongs to the stories-list strip).
+  final Color readColor;
+
+  /// AyuGram dialogs_row.cpp:449 + colors.palette:48: a live video-stream peer's
+  /// ring is a single outline segment brushed with attentionButtonFg (#d14e4e).
+  final Color liveColor;
 
   _StoriesRingPainter({
     required this.storyCount,
     required this.unreadCount,
     required this.isLiveStream,
-    required this.isDark,
+    required this.readColor,
+    required this.liveColor,
     this.minified = false,
-    this.readOpacity = 0.6,
   });
 
   double get _unreadLine => minified
@@ -1302,14 +1275,18 @@ class _StoriesRingPainter extends CustomPainter {
     final ringRadius = photoRadius + 1.5 * _unreadLine;
     final ringRect = Rect.fromCircle(center: center, radius: ringRadius);
 
-    // Live stream → single solid red ring (AyuGram storiesHasVideoStream branch).
+    // Live stream (AyuGram dialogs_row.cpp:448-450,483-485): NOT a solid filled
+    // circle — a single round-capped outline segment brushed with
+    // attentionButtonFg (#d14e4e) pushed through the normal PaintOutlineSegments
+    // (count==1 → full round-capped ellipse outline), then a "LIVE" pill overlay.
     if (isLiveStream) {
-      final paint = Paint()
+      final seg = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = _unreadLine
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFe53935);
-      canvas.drawCircle(center, ringRadius, paint);
+        ..color = liveColor;
+      _drawSegments(canvas, ringRect, [seg]);
+      _paintLiveBadge(canvas, center, photoRadius);
       return;
     }
 
@@ -1322,10 +1299,8 @@ class _StoriesRingPainter extends CustomPainter {
       end: Alignment.bottomLeft,
       colors: [Color(0xFF0dcc39), Color(0xFF0992ef)],
     ).createShader(ringRect);
-    // Read segments → solid muted (dialogsUnreadBgMuted), dimmed by readOpacity.
-    final readColor =
-        (isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb))
-            .withValues(alpha: readOpacity);
+    // Read segments → the muted palette token (readColor) at full opacity —
+    // dialogsUnreadBgMuted, or dialogsUnreadBgMutedActive when active.
 
     Paint segPaint(double width, {Shader? shader, Color? color}) {
       final p = Paint()
@@ -1388,14 +1363,50 @@ class _StoriesRingPainter extends CustomPainter {
     }
   }
 
+  /// Port of `Ui::PaintLiveBadge` (round_checkbox.cpp:558-598): a small red
+  /// "LIVE" pill (groupCallMessageBadge — textBg attentionButtonFg, height 11px,
+  /// radius 5px, 8px-semibold white text) centred along the bottom edge of the
+  /// avatar photo. AyuGram passes the photo origin (0,0); here the photo box is
+  /// centred in the painter, so its bottom edge is center.dy + photoRadius.
+  void _paintLiveBadge(Canvas canvas, Offset center, double photoRadius) {
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: 'LIVE',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 8,
+          fontWeight: FontWeight.w600,
+          height: 1.0,
+          letterSpacing: 0.2,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    const badgeH = 11.0; // groupCallMessageBadge.height
+    final badgeW = tp.width + 6.0; // st.width = -6px → text width + 6
+    final left = center.dx - badgeW / 2;
+    final top = (center.dy + photoRadius) - badgeH;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(left, top, badgeW, badgeH),
+        const Radius.circular(5), // groupCallMessageBadge.radius
+      ),
+      Paint()..color = liveColor, // textBg = attentionButtonFg
+    );
+    tp.paint(
+      canvas,
+      Offset(left + (badgeW - tp.width) / 2, top + (badgeH - tp.height) / 2),
+    );
+  }
+
   @override
   bool shouldRepaint(_StoriesRingPainter oldDelegate) =>
       storyCount != oldDelegate.storyCount ||
       unreadCount != oldDelegate.unreadCount ||
       isLiveStream != oldDelegate.isLiveStream ||
-      isDark != oldDelegate.isDark ||
       minified != oldDelegate.minified ||
-      readOpacity != oldDelegate.readOpacity;
+      readColor != oldDelegate.readColor ||
+      liveColor != oldDelegate.liveColor;
 }
 
 /// Animated typing indicator: "UserName typing" + bouncing dots.
@@ -1770,10 +1781,15 @@ class _SendStateIcon extends StatelessWidget {
       case MsgStatus.failed:
         icon = Icons.access_time;
         iconSize = 11;
+      // AyuGram dialogs_layout.cpp:782-794: a needCheck outgoing message that is
+      // NOT sending/failed shows the single check (dialogsSentIcon) while it is
+      // still unread by the recipient (item->unread(thread)), and the double
+      // check (dialogsReceivedIcon) only once read. So sent AND delivered-but-
+      // unread both map to the single check; only read gets done_all.
       case MsgStatus.sent:
+      case MsgStatus.delivered:
         icon = Icons.check;
         iconSize = 13;
-      case MsgStatus.delivered:
       case MsgStatus.read:
         icon = Icons.done_all;
         iconSize = 14;
@@ -2261,6 +2277,16 @@ class ForumChatListRow extends StatelessWidget {
     }
 
     final unreadFrontTopic = _findUnreadFrontTopic();
+    // AyuGram dialogs_message_view.cpp:415-416 (`checkJump = withTopic &&
+    // !context.active`) + dialogs_topics_view.cpp:104-112: the topic-jump region
+    // appears only when the row is NOT the active chat and the front topic is
+    // unread. Its background is the subtle grey hover band dialogsBgOver
+    // (:548-550), never the blue unread pill.
+    final jumpActive = !isActive && unreadFrontTopic != null;
+    final jumpBg = jumpActive ? palette.dialogsBgOver : null;
+    final onJump = (jumpActive && onTopicTap != null)
+        ? () => onTopicTap!(unreadFrontTopic!)
+        : null;
 
     return Container(
       color: rowBg,
@@ -2377,21 +2403,33 @@ class ForumChatListRow extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 4),
+                        // Topics row (21px / topicsHeight). The front topic is
+                        // rendered exactly ONCE here; when the jump region is
+                        // active it carries the grey area1 background and is
+                        // followed by the larger 14px topicsSkipBig gap — there
+                        // is no separate duplicate front-topic chip.
                         SizedBox(
                           height: _topicsHeight,
                           child: _TopicsPreview(
                             topics: recentTopics,
                             isActive: isActive,
                             loaded: topicsLoaded,
+                            frontHighlight: jumpBg,
+                            bigGapAfterFirst: jumpActive,
+                            onFrontTap: onJump,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        if (unreadFrontTopic != null)
-                          _TopicJumpBubble(
-                            topic: unreadFrontTopic,
-                            isActive: isActive,
-                            onTap: onTopicTap != null ? () => onTopicTap!(unreadFrontTopic) : null,
-                          ),
+                        // Last-message preview line (sender + 16px mini-thumb +
+                        // text), drawn below the topics in the remaining row
+                        // height (AyuGram dialogs_message_view.cpp:423-522). When
+                        // the jump region is active this is area2 — the preview
+                        // with the → arrow appended, on the grey hover band.
+                        _ForumPreviewRow(
+                          chat: chat,
+                          isActive: isActive,
+                          jumpBg: jumpBg,
+                          onJumpTap: onJump,
+                        ),
                       ],
                     ),
                   ),
@@ -2421,20 +2459,72 @@ class ForumChatListRow extends StatelessWidget {
 
 }
 
-/// §22.4: Horizontal row of up to 8 recent topic names. Unread topics bold.
-/// AyuGram dialogs_topics_view.cpp:221-239: per-topic spacing with topicsSkip=8px.
+/// §22.4: Horizontal row of recent topic names. Unread topics bold.
+/// AyuGram dialogs_topics_view.cpp:221-240: each topic drawn ONCE, separated by
+/// topicsSkip (8px) — or topicsSkipBig (14px) for the gap right after the front
+/// (jump) topic when the jump region is active. The front topic, when the jump
+/// region is active, also carries the grey area1 background here (it is NOT
+/// re-rendered by any jump bubble).
 class _TopicsPreview extends StatelessWidget {
   final List<ForumTopic> topics;
   final bool isActive;
   final bool loaded;
 
+  /// Grey hover background for the front (jump) topic — area1 of the topic-jump
+  /// region (AyuGram dialogs_message_view.cpp:548-550 → dialogsBgOver). Null
+  /// when the jump region is inactive (active chat, or front topic read).
+  final Color? frontHighlight;
+
+  /// AyuGram dialogs_topics_view.cpp:210,235-239: insert the larger 14px
+  /// topicsSkipBig gap after the front topic when the jump region is active,
+  /// reverting to 8px topicsSkip for every subsequent gap.
+  final bool bigGapAfterFirst;
+
+  /// Tap handler for the highlighted front topic (jump to its last message).
+  final VoidCallback? onFrontTap;
+
   const _TopicsPreview({
     required this.topics,
     required this.isActive,
     required this.loaded,
+    this.frontHighlight,
+    this.bigGapAfterFirst = false,
+    this.onFrontTap,
   });
 
   static const _topicsSkip = 8.0;
+  static const _topicsSkipBig = 14.0;
+
+  Widget _chip(BuildContext context, ForumTopic topic) {
+    final palette = context.palette;
+    final hasUnread = topic.unreadCount > 0;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        topic.isGeneral
+            ? const GeneralForumTopicIcon(size: ForumTopicIcon.defaultSize)
+            : ForumTopicIcon(
+                colorId: topic.colorId,
+                title: topic.title,
+                size: ForumTopicIcon.defaultSize,
+              ),
+        const SizedBox(width: 3),
+        Text(
+          topic.isGeneral ? '# ${topic.title}' : topic.title,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.clip,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+            color: isActive
+                ? palette.dialogsTextFgActive
+                : (hasUnread ? palette.dialogsNameFg : palette.dialogsTextFg),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2460,112 +2550,138 @@ class _TopicsPreview extends StatelessWidget {
       );
     }
 
-    final children = <InlineSpan>[];
+    final children = <Widget>[];
     for (var i = 0; i < topics.length; i++) {
-      final topic = topics[i];
-      final hasUnread = topic.unreadCount > 0;
       if (i > 0) {
-        children.add(const WidgetSpan(child: SizedBox(width: _topicsSkip)));
+        children.add(SizedBox(
+          width: (i == 1 && bigGapAfterFirst) ? _topicsSkipBig : _topicsSkip,
+        ));
       }
-      children.add(WidgetSpan(
-        alignment: PlaceholderAlignment.middle,
-        child: topic.isGeneral
-            ? const GeneralForumTopicIcon(size: ForumTopicIcon.defaultSize)
-            : ForumTopicIcon(
-                colorId: topic.colorId,
-                title: topic.title,
-                size: ForumTopicIcon.defaultSize,
-              ),
-      ));
-      children.add(const WidgetSpan(child: SizedBox(width: 3)));
-      children.add(TextSpan(
-        text: topic.isGeneral ? '# ${topic.title}' : topic.title,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
-          color: isActive
-              ? palette.dialogsTextFgActive
-              : (hasUnread ? palette.dialogsNameFg : palette.dialogsTextFg),
-        ),
-      ));
+      Widget chip = _chip(context, topics[i]);
+      if (i == 0 && frontHighlight != null) {
+        // area1: grey rounded band wrapping the front topic, rounded along its
+        // top so it merges into the area2 preview band directly below.
+        chip = GestureDetector(
+          onTap: onFrontTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: frontHighlight,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+            ),
+            child: chip,
+          ),
+        );
+      }
+      children.add(chip);
     }
-    return Text.rich(
-      TextSpan(children: children),
-      maxLines: 1,
-      overflow: TextOverflow.clip,
+    // Clip a too-wide topic list on the right (AyuGram draws topics until the
+    // width runs out, dialogs_topics_view.cpp:221-222). A horizontal viewport
+    // with disabled scrolling clips gracefully without a RenderFlex overflow
+    // assertion — the previous Text.rich used TextOverflow.clip for the same.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const NeverScrollableScrollPhysics(),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
+      ),
     );
   }
 }
 
-/// §22.4: Topic jump bubble — two-area rounded bubble for unread front topic.
-/// AyuGram dialogs_topics_view.cpp:323-370: area1 (topic icon+title) + area2 (arrow).
-class _TopicJumpBubble extends StatelessWidget {
-  final ForumTopic topic;
+/// Last-message preview line for a forum row — AyuGram
+/// dialogs_message_view.cpp:423-529. Drawn below the topics row in the row's
+/// remaining height: the dialog's latest message (optional sender prefix + 16px
+/// mini-thumbnail + preview text). When the topic-jump region is active this is
+/// "area2": the same preview wrapped in the grey hover band (dialogsBgOver) with
+/// the forumDialogJumpArrow (→) appended at its end (AyuGram width2 = countWidth
+/// + forumDialogJumpArrowSkip), rounded along its bottom so it merges into the
+/// area1 front-topic band directly above.
+class _ForumPreviewRow extends StatelessWidget {
+  final ChatInfo chat;
   final bool isActive;
-  final VoidCallback? onTap;
 
-  const _TopicJumpBubble({required this.topic, required this.isActive, this.onTap});
+  /// Grey area2 background; null when the jump region is inactive (plain line).
+  final Color? jumpBg;
+  final VoidCallback? onJumpTap;
+
+  const _ForumPreviewRow({
+    required this.chat,
+    required this.isActive,
+    this.jumpBg,
+    this.onJumpTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final bg = isActive
-        ? palette.dialogsUnreadBgActive
-        : palette.dialogsUnreadBg;
-    final fg = isActive
-        ? palette.dialogsUnreadFgActive
-        : palette.dialogsUnreadFg;
-    final bgDimmed = isActive
-        ? palette.dialogsUnreadBgActive.withValues(alpha: 0.8)
-        : palette.dialogsUnreadBg.withValues(alpha: 0.8);
+    final mutedColor =
+        isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg;
+    final senderColor =
+        isActive ? palette.dialogsTextFgActive : palette.dialogsTextFgService;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(11),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
-              color: bg,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: topic.isGeneral
-                        ? const GeneralForumTopicIcon(size: 14)
-                        : ForumTopicIcon(
-                            colorId: topic.colorId,
-                            title: topic.title,
-                            size: 14,
-                          ),
-                  ),
-                  const SizedBox(width: 3),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 120),
-                    child: Text(
-                      topic.title,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: fg,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
+    final hasThumb =
+        chat.lastMsgMediaType > 0 && chat.lastMsgThumbB64.isNotEmpty;
+    final showSender = chat.lastMsgSender.isNotEmpty;
+
+    final text = Text.rich(
+      TextSpan(children: [
+        if (showSender)
+          TextSpan(
+            text: '${chat.lastMsgSender}: ',
+            style: TextStyle(fontSize: 13, color: senderColor),
+          ),
+        TextSpan(
+          text: chat.lastMsgText,
+          style: TextStyle(fontSize: 13, color: mutedColor),
+        ),
+      ]),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+
+    final previewRow = Row(
+      mainAxisSize: jumpBg != null ? MainAxisSize.min : MainAxisSize.max,
+      children: [
+        if (hasThumb) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2), // dialogsMiniPreviewRadius
+            child: Image.memory(
+              _cachedThumbDecode(chat.lastMsgThumbB64),
+              width: 16,
+              height: 16,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  const SizedBox(width: 16, height: 16),
             ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
-              color: bgDimmed,
-              child: Icon(Icons.keyboard_arrow_right, size: 14, color: fg),
-            ),
-          ],
+          ),
+          const SizedBox(width: 2),
+        ],
+        Flexible(child: text),
+        if (jumpBg != null) ...[
+          const SizedBox(width: 8), // forumDialogJumpArrowSkip
+          Icon(Icons.keyboard_arrow_right, size: 16, color: mutedColor),
+        ],
+      ],
+    );
+
+    if (jumpBg == null) {
+      return previewRow;
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: GestureDetector(
+        onTap: onJumpTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(8, 3, 8, 3), // forumDialogJumpPadding
+          decoration: BoxDecoration(
+            color: jumpBg,
+            borderRadius:
+                const BorderRadius.vertical(bottom: Radius.circular(11)),
+          ),
+          child: previewRow,
         ),
       ),
     );
