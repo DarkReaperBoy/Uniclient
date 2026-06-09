@@ -671,25 +671,6 @@ checkbox is on and vanish when off (differential ON→OFF→ON verified, persist
 message reactions re-render in Twemoji) and persists; the sensitive-content string matches.
 Both modes render with zero RenderFlex overflow and zero widget exceptions.
 
-# color_picker_box — AyuGram ColorEditor (ui/widgets/color_editor.cpp) port
-
-Scope: `color_picker_box.dart` mirrors AyuGram's `ColorEditor` (RGBA + HSL modes).
-The core widget is a faithful, fully-wired port — picker square (RGBA sat×bri /
-HSL hue×sat palettes), vertical hue slider, horizontal opacity & lightness
-sliders, H/S/B(L)/R/G/B numeric fields, hex result field, new/current swatches
-with click-to-revert, crosshair + cursor ring, keyboard nav (arrows/enter/wheel),
-lightness limits, and `setInnerFocus`→hex-field-select-all all match AyuGram's
-math and behavior. All color math is local (same as AyuGram — no engine/bridge
-wiring is required for this widget). No stubs, no mock data, no dead callbacks.
-Dimensional constants match `boxes.style:509-526` (256 picker, 19 slider,
-8 slider-skip, 10 edit-skip, 6 mark-radius, 60×34 sample, 13 field-skip). The
-only deviations are user-visible text that bypasses the project's `TrStrings`
-lang pack and disagrees with AyuGram's per-context labels.
-
-- [ ] [MAJOR] Action buttons use hardcoded English literals `'Cancel'` / `'Apply'` instead of the project's localized `TrStrings` (sibling boxes use `TrStrings.lngCancel()` etc.), and the positive label `'Apply'` matches none of AyuGram's per-context labels: AyuGram uses `tr::lng_settings_save()` ("Save") for the theme-editor (RGBA) and chat-accent (HSL) boxes and `tr::lng_box_done()` ("Done") for the photo-editor brush box, always paired with `tr::lng_cancel()`. Should be `TrStrings.lngCancel()` + `TrStrings.lngSettingsSave()` (and ideally a caller-supplied positive label so the photo editor can say "Done"). — `color_picker_box.dart:853,858` ← `AyuGram/window/themes/window_theme_editor_block.cpp:347-348` (+ `editor/color_picker.cpp:759,769`, `settings/sections/settings_chat.cpp:393-394`)
-
-- [ ] [MAJOR] Box title defaults to the hardcoded English literal `'Choose Color'` rather than a localized `TrStrings` key, so it bypasses the lang pack and produces the wrong title for the chat-accent picker. AyuGram never uses a generic "Choose Color" title: the theme editor titles the box with the palette token name (`box->setTitle(name)`) and the chat-accent picker uses `tr::lng_settings_theme_accent_title()`; the chat-settings Dart caller passes no title and therefore falls back to this hardcoded default instead of the accent title. — `color_picker_box.dart:34` ← `AyuGram/settings/sections/settings_chat.cpp:395` (+ `window/themes/window_theme_editor_block.cpp:349`)
-
 # compose_entities — rich-text compose controller (markdown parsing, entity tracking, in-field formatting render)
 
 Scope: `RichTextEditingController` mirrors AyuGram's `Ui::InputField` markdown/entity engine. Wiring is solid end-to-end — `toJson`/`entitiesJson`/`getTextWithAppliedMarkdown` feed `req.entitiesJson` → Go `dispatch_engine.go:766` → `telegram.go:1810-1837` builds real `tg.MessageEntity*` (bold/italic/spoiler/text_url/custom_emoji/blockquote/pre + `MessageEntityFormattedDate` with all date flags). No stubs, no placeholders, no dead callbacks. The findings below are behavioral parser/editor deviations from AyuGram's `check()` rules.
