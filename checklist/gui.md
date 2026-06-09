@@ -2,51 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_system — Notifications coordinator (port of `Window::Notifications::System`)
-
-Port of AyuGram `Window::Notifications::System` (`notifications_manager.cpp`): manager
-selection (native/default/dummy), per-type/account/mute filtering, dedup, forward/album
-grouping, online-aware delay (`countTiming`), alert (sound/flash) cooldown, and per-thread
-clears. Managers it delegates to (`DefaultManager`/`NativeManager`/`DummyManager`) are real,
-non-stub implementations (441 / 1607 / no-op lines) and the System is fully wired to the
-engine via callbacks in `main.dart:560-724`. Findings below are behavioral deviations.
-
-## Forward-grouping timestamp unit bug (seconds vs milliseconds)
-
-AyuGram groups consecutive forwarded/album items only when their dates differ by `< 2`,
-where `HistoryItem::date()` is a `TimeId` (Unix time in **seconds**) — so the window is
-~2 seconds (`notifications_manager.cpp:897`). The Dart port copies the literal `< 2` but the
-data is **milliseconds**: `NotificationData.timestamp` is set straight from
-`CachedMessage.timestamp` (`chat_state.dart:2999`, no conversion), and `CachedMessage`'s own
-`dateTime` getter is `DateTime.fromMillisecondsSinceEpoch(timestamp)`
-(`engine_models.dart:1117`), confirmed by the Go cores emitting `time.UnixMilli()`. So `< 2`
-means "within 2 **milliseconds**" — two distinct forwards are realistically never that close,
-so the entire forward-grouping path is dead and "Forwarded N messages" never collapses; each
-forward shows as its own toast. (Albums are unaffected — they group by `groupedId`, not time.)
-The inline comment at `notification_system.dart:464-471` explicitly assumes "integer-second
-timestamps", which is the wrong mental model for this codebase. Correct value is `< 2000`.
-
-- [ ] [CRITICAL] Forward grouping in `_flushGroupedBuffer` compares millisecond timestamps with `< 2` (treats ms as seconds); should be `< 2000`, so multi-forward "Forwarded N messages" grouping can never trigger — `notification_system.dart:511` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:897`
-- [ ] [CRITICAL] Same ms-vs-s `< 2` bug in `_isSameGroup`'s forward branch (the buffer-flush "same group?" decision), so the 1000 ms grouping wait is also defeated for forwards — each new forward force-flushes the prior one as a separate notification — `notification_system.dart:470` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:897`
-
-## Per-topic / per-sublist clearing not wired (forum topics & monoforum sublists)
-
-AyuGram clears notifications at thread granularity: opening/tapping a topic notification calls
-`System::clearFromTopic(topic)` and a sublist calls `clearFromSublist(sublist)`, each wiping
-only that one sub-thread's `_whenMaps`/`_whenAlerts`/`_waiters`/`_settingWaiters`
-(`notifications_manager.cpp:508-540`, invoked from `openNotificationMessage` at :1354-1356 and
-on topic/sublist destruction at :411-420). The Dart port has no full `clearFromTopic`/
-`clearFromSublist` equivalent, and the two thread-scoped clears it *does* define —
-`clearIncomingFromTopic` / `clearIncomingFromSublist` — are dead code (never referenced
-anywhere in `dart/`). The only activation/read clears wired in `main.dart:664-669`
-(`onChatActivated`→`clearForChat`, `onChatRead`→`clearIncomingFromChat`) operate at whole-chat
-granularity: `clearForChat` uses `_keyInChat` to match every `chatKey:` sub-thread, so opening
-a single forum topic wipes the notifications of *all* its sibling topics. Notifications are
-created per-topic (the threadKey carries `topicRootId`/`sublistPeerId`) but can only be cleared
-per-chat — an asymmetry AyuGram does not have.
-
-- [ ] [MAJOR] No per-topic/per-sublist full clear; `clearIncomingFromTopic`/`clearIncomingFromSublist` are implemented but never called, and `onChatActivated`→`clearForChat` over-clears every topic of a forum when one topic is opened — `notification_system.dart:787` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:508`
-
 # notification_types — notification content composition (title/subtitle/body) port of AyuGram's native notification pipeline
 
 This is a pure logic/data file (no widgets, no callbacks, no UI). It models AyuGram's
