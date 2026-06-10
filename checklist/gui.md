@@ -72,26 +72,11 @@ Scope: `theme.dart` is a Flutter `ThemeData` builder that maps `TelegramPalette`
 onto Material-3 theming. It is NOT a 1:1 widget port; it adapts AyuGram's `.style`
 dimensions/colors into Flutter's theme slots. Nearly every value was verified against
 AyuGram ground truth and is accurate — see "Verified accurate" below. One real
-behavioral divergence was found.
-
-## Findings
-
-- [ ] [MAJOR] Dark-theme detection uses the wrong AyuGram formula. `theme.dart:19` branches
-  on `p.isDark` to pick `Brightness.dark/light` (`theme.dart:22`) and `ColorScheme.dark()`
-  vs `ColorScheme.light()` (`theme.dart:29`/`:43`). AyuGram's authoritative dark check is
-  `IsThemeDarkValue()` = `st::dialogsBg->c.valueF() < kDarkValueThreshold` with
-  `kDarkValueThreshold = 0.5` — i.e. the **plain HSV value** of `dialogsBg` (`window_theme.cpp:1506`,
-  threshold at `window_theme.cpp:58`). The Dart `isDark` instead reuses the **colorizer
-  lightness** `v − v·s/511 < 128` (`telegram_palette.dart:1231` → `_cppLightness` at
-  `telegram_palette.dart:1224`). That formula is correct for the *contrast* port
-  (`_enforceContrast`, `telegram_palette.dart:2535`, matching `style_palette_colorizer.cpp:120`
-  + threshold 64 at `:12`/`:126`) but is the wrong function for dark detection: it agrees
-  with `valueF() < 0.5` only for desaturated colors. For a saturated `dialogsBg` it inverts
-  — a bright fully-saturated color (V=1.0, S=1.0) yields `_cppLightness ≈ 127.8 < 128` →
-  classified **dark**, whereas AyuGram's `valueF()=1.0 < 0.5` → **light**. Any imported/
-  accent-colorized theme with a saturated chat-list background therefore gets the opposite
-  brightness flag and the wrong `ColorScheme` base. Faithful port: `HSVColor.fromColor(dialogsBg).value < 0.5`.
-  — `theme.dart:19` (impl `telegram_palette.dart:1231`) ← `AyuGram/Telegram/SourceFiles/window/themes/window_theme.cpp:1506` (threshold `:58`)
+behavioral divergence was found and is now fixed & verified: dark-theme detection
+(`isDark`) uses AyuGram's authoritative `IsThemeDarkValue()` formula —
+`HSVColor.fromColor(dialogsBg).value < 0.5` (= Qt `st::dialogsBg->c.valueF() <
+kDarkValueThreshold`, 0.5; window_theme.cpp:1506/:58), not the colorizer-lightness
+metric (`telegram_palette.dart:1240`; `_cppLightness` retained for the contrast port).
 
 ## Verified accurate (no action — recorded so this isn't re-audited)
 
