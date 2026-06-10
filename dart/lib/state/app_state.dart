@@ -1829,14 +1829,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _showMessageDetailsInContextMenu = 2;
     _showAddFilterInContextMenu = 1;
     _showMessageSeconds = false;
-    _voicePlaybackSpeed = 1.0;
-    _audioPlaybackSpeed = 1.0;
-    _playerRepeatMode = 0;
-    _playerOrderMode = 0;
-    _disableAutoplayNext = false;
-    _songVolume = 0.9;
-    _rememberedSongVolume = 0.9;
-    _videoVolume = 0.9;
+    // Voice/audio playback speed, player repeat/order mode, autoplay-next and
+    // song/video volume are Core::Settings, not AyuSettings (core_settings.h:1076-1077).
+    // AyuGram's AyuSettings::reset() reconstructs only the AyuSettings singleton
+    // (ayu_settings.cpp:428-431), so "Reset AyuGram settings" must NOT clobber the
+    // user's playback speed and music/video volume — leave these untouched.
     _translationProvider = 0;
     _disableStories = false;
     _disableOpenLinkWarning = false;
@@ -1890,7 +1887,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _typingExclusions = {};
     notifyListeners();
     _saveWindowPrefs();
+    // Direct field assignment above skips the engine/global re-pushes the
+    // individual setters perform, so the reset would otherwise only take effect
+    // on next launch (when _loadWindowPrefs re-seeds these). Replay them now:
+    //  - anti-recall config → Go engine (setSaveDeletedMessages, :1714-1717)
+    //  - gFilterZalgo global the display choke point reads (setFilterZalgo, :2196)
+    //  - Debug.crashReportingEnabled mirror (setCrashReporting, :1784)
     _syncGhostToEngine();
+    _syncAntiRecallSettings();
+    gFilterZalgo = _filterZalgo;
+    Debug.crashReportingEnabled = _crashReporting;
   }
 
   void _syncGhostToEngine() {
