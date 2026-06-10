@@ -1228,7 +1228,16 @@ class TelegramPalette {
     return v - (v * s) / 511;
   }
 
-  bool get isDark => _cppLightness(dialogsBg) < 128;
+  // AyuGram's authoritative dark-theme check is `IsThemeDarkValue()` =
+  // `st::dialogsBg->c.valueF() < kDarkValueThreshold` with `kDarkValueThreshold
+  // = 0.5` (window_theme.cpp:1506, threshold :58) — i.e. the *plain HSV value*
+  // of dialogsBg. Qt's QColor::valueF() maps exactly to HSVColor.value here.
+  // Do NOT reuse the colorizer-lightness `v - v*s/511` (`_cppLightness`): that
+  // is the *contrast* metric (style_palette_colorizer.cpp:120, used by
+  // _enforceContrast/fix at threshold 64) and only agrees with valueF() for
+  // desaturated colors — for a saturated dialogsBg it inverts (e.g. V=1,S=1
+  // gives _cppLightness≈127.8 < 128 → "dark", but valueF()=1.0 ≥ 0.5 → light).
+  bool get isDark => HSVColor.fromColor(dialogsBg).value < 0.5;
 
   // ── §57.11 Derived / alias tokens ──
   Color get dialogsChatBgOver => dialogsBgOver;
