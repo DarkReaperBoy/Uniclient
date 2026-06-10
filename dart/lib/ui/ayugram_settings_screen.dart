@@ -335,11 +335,9 @@ class _FlatCategoryButton extends StatelessWidget {
                       fontSize: SettingsStyle.buttonFontSize,
                       color: textColor)),
             ),
-            Icon(Icons.chevron_right,
-                size: 20,
-                color: isDark
-                    ? const Color(0xFF5A6A78)
-                    : const Color(0xFFCBCBCB)),
+            // AyuGram's st::settingsButton (base infoProfileButton) renders no
+            // disclosure arrow — only style/padding/iconLeft + a toggle slot
+            // used solely for switches (settings.style:13, settings_main.cpp:103).
           ],
         ),
       ),
@@ -372,7 +370,9 @@ class _LinkButton extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: SettingsStyle.iconRowPadding,
+        // Right label sits st::settingsButtonRightSkip (23px) from the right
+        // edge via CreateRightLabel (settings_common.cpp:446); no chevron after.
+        padding: const EdgeInsets.fromLTRB(20, 10, 23, 10),
         child: Row(
           children: [
             Icon(icon, size: 22, color: iconColor),
@@ -385,12 +385,6 @@ class _LinkButton extends StatelessWidget {
             ),
             Text(rightLabel,
                 style: TextStyle(fontSize: 13, color: accentColor)),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right,
-                size: 20,
-                color: isDark
-                    ? const Color(0xFF5A6A78)
-                    : const Color(0xFFCBCBCB)),
           ],
         ),
       ),
