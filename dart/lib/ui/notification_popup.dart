@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../notifications/notification_system.dart';
-import '../notifications/system_idle.dart';
 import '../theme/telegram_palette.dart';
 
 const _notifyWidth = 320.0;
@@ -32,7 +31,6 @@ const _slowHideDuration = Duration(milliseconds: 4000);
 const _fastHideDuration = Duration(milliseconds: 150);
 const _shiftDuration = Duration(milliseconds: 150);
 const _actionsFadeDuration = Duration(milliseconds: 200);
-const _waitBeforeHide = Duration(milliseconds: 3000);
 
 class _PopupState {
   final String id;
@@ -45,7 +43,6 @@ class _PopupState {
   bool hovered;
   bool replyOpen;
   double replyHeight;
-  Timer? hideWaitTimer;
   Timer? hideAnimTimer;
   final TextEditingController replyController = TextEditingController();
 
@@ -79,7 +76,6 @@ class _PopupState {
   }
 
   void dispose() {
-    hideWaitTimer?.cancel();
     hideAnimTimer?.cancel();
     replyController.dispose();
   }
@@ -122,7 +118,6 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   double _hideAllOpacity = 1.0;
   bool _hideAllHiding = false;
   bool _hideAllFastHiding = false;
-  bool _hasReceivedInput = false;
   bool _updateDisplayScheduled = false;
 
   @override
@@ -168,7 +163,6 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   void _onShow(DefaultNotificationItem item) {
     if (_popups.any((p) => p.id == item.id)) return;
     final popup = _PopupState(id: item.id, item: item);
-    _hasReceivedInput = false;
     setState(() {
       _popups.add(popup);
       // A freshly shown notification re-activates the stack, so the HideAll
@@ -179,10 +173,20 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       _hideAllOpacity = 1.0;
       _recalcPositions();
     });
+    // The auto-dismiss countdown — INCLUDING the wait-for-input gate — is owned
+    // solely by the controller: DefaultNotificationManager._displayItem (the one
+    // path every show/promote routes through) calls _checkLastInput, which arms
+    // _startDismissTimer (notifyWaitLongHide = 3 s) once its three-condition gate
+    // clears and then fires onStartHiding → _onStartHiding → _startSlowHide. The
+    // view runs NO parallel countdown of its own, so the two can never disagree
+    // on idle-unsupported (KDE/Wayland, sway, headless) or Windows QUNS_BUSY
+    // platforms. This also mirrors AyuGram's structure, where the single
+    // auto-hide timer (Notification::_hideTimer) is owned by the manager's
+    // checkLastInput, not by a second view-side timer.
+    // ← notifications_manager_default.cpp:186-200 + :767-785
     Future.delayed(const Duration(milliseconds: 16), () {
       if (!mounted) return;
       setState(() => popup.opacity = 1.0);
-      _startHideCountdown(popup);
     });
   }
 
@@ -216,64 +220,14 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     }
   }
 
+  // Forward app-local pointer input over a popup to the controller, which folds
+  // it into its global-idle reading (DefaultNotificationManager._lastNonIdleTime
+  // = max(SystemIdle.lastInputTime(), _lastUserInputTime), the std::max of
+  // application.cpp:1283-1287) so its wait-for-input gate sees the user as
+  // active. The view keeps no separate input flag — the controller's gate is the
+  // single source of truth.
   void _onUserInput() {
-    if (!_hasReceivedInput) {
-      _hasReceivedInput = true;
-    }
     widget.manager.onUserInput();
-  }
-
-  // Wait until the user is active before starting the auto-dismiss countdown —
-  // the view half of AyuGram's Notification::checkLastInput wait-for-input gate
-  // (notifications_manager_default.cpp:767-785). A popup that arrives while the
-  // user is away from the machine stays on screen until input arrives AFTER it
-  // appeared. The signal is the GLOBAL OS idle source (SystemIdle, every
-  // platform — not Windows-only) folded with the app-local pointer signal
-  // (_hasReceivedInput, set by pointer events over the popup). Mirrors the
-  // controller's _checkLastInput so the two parallel countdowns agree.
-  void _startHideCountdown(_PopupState popup) {
-    popup.hideWaitTimer?.cancel();
-    if (_hasReceivedInput || _globalInputAfter(popup.item.shownAt)) {
-      _hasReceivedInput = true;
-      _scheduleHideAfterWait(popup);
-      return;
-    }
-    popup.hideWaitTimer = Timer.periodic(
-      const Duration(milliseconds: 300),
-      (timer) {
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-        if (_hasReceivedInput || _globalInputAfter(popup.item.shownAt)) {
-          timer.cancel();
-          _hasReceivedInput = true;
-          _scheduleHideAfterWait(popup);
-        }
-      },
-    );
-  }
-
-  /// Whether a GLOBAL system input event happened after [shownAt] — the view's
-  /// mirror of `*lastInputTime > _started` (lastInput == now - idle, so input
-  /// after shownAt ⇔ elapsed-since-shown > idle). The idle source is SystemIdle
-  /// (`base::Platform::LastUserInputTime()`); when unsupported it returns false
-  /// so we keep waiting on the app-local pointer signal instead.
-  bool _globalInputAfter(DateTime shownAt) {
-    final idleMs = SystemIdle.idleMillis();
-    if (idleMs == null) return false;
-    final elapsed =
-        DateTime.now().millisecondsSinceEpoch - shownAt.millisecondsSinceEpoch;
-    return elapsed > idleMs;
-  }
-
-  void _scheduleHideAfterWait(_PopupState popup) {
-    popup.hideWaitTimer?.cancel();
-    popup.hideWaitTimer = Timer(_waitBeforeHide, () {
-      if (!mounted || popup.hovered || popup.replyOpen) return;
-      if (_anyReplyOpen()) return;
-      _startSlowHide(popup);
-    });
   }
 
   void _startSlowHide(_PopupState popup) {
@@ -384,7 +338,6 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     popup.hovered = true;
     widget.manager.stopAllHiding();
     for (final p in _popups) {
-      p.hideWaitTimer?.cancel();
       if (p.hiding && !p.replyOpen) {
         p.hiding = false;
         p.fastHiding = false;
@@ -436,11 +389,9 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   void _onReplyClick(_PopupState popup) {
     setState(() {
       popup.replyOpen = true;
-      popup.hideWaitTimer?.cancel();
       popup.hiding = false;
       popup.hideAnimTimer?.cancel();
       for (final p in _popups) {
-        p.hideWaitTimer?.cancel();
         if (p.hiding) {
           p.hiding = false;
           p.hideAnimTimer?.cancel();
