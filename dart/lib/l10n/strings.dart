@@ -214,6 +214,48 @@ class TrStrings {
       "If you don't come online from a specific session at least once within "
       'this period, it will be terminated.';
 
+  // Active Sessions screen — section/row labels & about paragraphs, resolved
+  // 1:1 from lang.strings so the screen localizes instead of shipping inline
+  // English literals (settings_active_sessions.cpp + api_authorizations.cpp).
+  static String lngSettingsSessionsTitle() => 'Active sessions'; // lang.strings:865
+  static String lngSessionsHeader() => 'This device'; // :1370
+  static String lngSettingsRenameDevice() => 'Rename'; // :1288
+  static String lngSettingsRenameDeviceTitle() => 'Rename current device'; // :1290
+  static String lngSettingsDeviceName() => 'Device name'; // :1289
+  static String lngSessionsTerminateAll() =>
+      'Terminate all other sessions'; // :1373
+  static String lngSessionsTerminateAllAbout() =>
+      'Logs out all devices except for this one.'; // :1374
+  static String lngSessionsIncomplete() => 'Incomplete login attempts'; // :1375
+  static String lngSessionsIncompleteAbout() =>
+      'The devices above have no access to your messages. The code was '
+      'entered correctly, but no correct password was given.'; // :1376
+  static String lngSessionsOtherHeader() => 'Active Devices'; // :1371
+  static String lngSessionsAboutApps() =>
+      'The official Telegram app is available for Android, iPhone, iPad, '
+      'Windows, macOS and Linux.'; // :1385
+  static String lngSessionsOtherDesc() =>
+      'You can log in to Telegram from other mobile, tablet and desktop '
+      'devices, using the same phone number. All your data will be '
+      'instantly synchronized.'; // :1372
+  static String lngSettingsTerminateTitle() => 'Terminate old sessions'; // :1283
+  static String lngSettingsTerminateIf() => 'If inactive for...'; // :1284
+  // Session info box (settings_active_sessions.cpp:451-486).
+  static String lngSessionsInfo() => 'Info'; // :1377
+  static String lngSessionsApplication() => 'Application'; // :1379
+  static String lngSessionsSystem() => 'System version'; // :1380
+  static String ayuSessionInfoOfficialApp() => 'Official app'; // :8373
+  static String lngBoxYes() => 'Yes'; // :127
+  static String lngBoxNo() => 'No'; // :128
+  static String lngSessionsIp() => 'IP address'; // :1382
+  static String lngSessionsLocation() => 'Location'; // :1383
+  static String lngSessionsLocationAbout() =>
+      'This location estimate is based on the IP address and may not always '
+      'be accurate.'; // :1384
+  static String lngSessionsTerminate() => 'Terminate Session'; // :1378
+  static String lngAboutDone() => 'Done'; // :5582
+  static String lngContactsLoading() => 'Loading...'; // :467
+
   // AyuForward status strings (ayu_forward.cpp:64-89)
   static String lngAyuForwardStatusPreparing() => 'Forwarding messages';
   static String lngAyuForwardStatusForwarding() => 'Forwarding messages';

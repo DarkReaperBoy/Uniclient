@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
@@ -590,11 +591,6 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     return ((thursday.difference(jan1).inDays) ~/ 7) + 1;
   }
 
-  static const _weekdayNames = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-    'Friday', 'Saturday', 'Sunday',
-  ];
-
   String _formatActiveDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return '';
     try {
@@ -606,14 +602,21 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
       final now = DateTime.now();
       final nowDate = DateTime(now.year, now.month, now.day);
       final lastDate = DateTime(date.year, date.month, date.day);
-
+      // Locale-aware, mirroring Authorizations::ActiveDateString
+      // (api_authorizations.cpp:258-269): same day → QLocale ShortFormat time,
+      // same ISO week → langDayOfWeek (localized weekday), else QLocale
+      // ShortFormat date. DateFormat is keyed to the active MaterialApp locale
+      // (Localizations.localeOf) — whose date symbols GlobalMaterialLocalizations
+      // has already loaded — so a US user sees "2:30 PM" / "Monday" / "6/10/2026"
+      // while a German user sees "14:30" / "Montag" / "10.06.2026".
+      final localeName = Localizations.localeOf(context).toString();
       if (lastDate == nowDate) {
-        return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+        return DateFormat.jm(localeName).format(date);
       }
       if (date.year == now.year && _isoWeekNumber(date) == _isoWeekNumber(now)) {
-        return _weekdayNames[date.weekday - 1];
+        return DateFormat.EEEE(localeName).format(date);
       }
-      return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
+      return DateFormat.yMd(localeName).format(date);
     } catch (_) {
       return '';
     }
@@ -703,7 +706,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 20, bottom: 8),
                   child: Text(
-                    'Info',
+                    TrStrings.lngSessionsInfo(),
                     style: TextStyle(
                       color: sectionTitleColor,
                       fontSize: 14,
@@ -716,7 +719,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 _SessionInfoRow(
                   icon: Icons.devices,
                   iconColor: iconColor,
-                  label: 'Application',
+                  label: TrStrings.lngSessionsApplication(),
                   value: appStr,
                   textColor: textColor,
                   subtextColor: subtextColor,
@@ -725,7 +728,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 _SessionInfoRow(
                   icon: Icons.info_outline,
                   iconColor: iconColor,
-                  label: 'System version',
+                  label: TrStrings.lngSessionsSystem(),
                   value: systemStr,
                   textColor: textColor,
                   subtextColor: subtextColor,
@@ -733,8 +736,8 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
               _SessionInfoRow(
                 icon: Icons.info_outline,
                 iconColor: iconColor,
-                label: 'Official App',
-                value: officialApp ? 'Yes' : 'No',
+                label: TrStrings.ayuSessionInfoOfficialApp(),
+                value: officialApp ? TrStrings.lngBoxYes() : TrStrings.lngBoxNo(),
                 textColor: textColor,
                 subtextColor: subtextColor,
               ),
@@ -742,7 +745,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 _SessionInfoRow(
                   icon: Icons.language,
                   iconColor: iconColor,
-                  label: 'IP Address',
+                  label: TrStrings.lngSessionsIp(),
                   value: ip,
                   textColor: textColor,
                   subtextColor: subtextColor,
@@ -751,7 +754,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 _SessionInfoRow(
                   icon: Icons.location_on_outlined,
                   iconColor: iconColor,
-                  label: 'Location',
+                  label: TrStrings.lngSessionsLocation(),
                   value: location,
                   textColor: textColor,
                   subtextColor: subtextColor,
@@ -762,7 +765,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                   child: Text(
-                    'This location estimate is based on the IP address and may not always be accurate.',
+                    TrStrings.lngSessionsLocationAbout(),
                     style: TextStyle(color: subtextColor, fontSize: 12, height: 1.4),
                   ),
                 ),
@@ -784,9 +787,9 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                               session['id'] as String? ?? '',
                             );
                           },
-                          child: const Text(
-                            'Terminate Session',
-                            style: TextStyle(fontWeight: FontWeight.w500),
+                          child: Text(
+                            TrStrings.lngSessionsTerminate(),
+                            style: const TextStyle(fontWeight: FontWeight.w500),
                           ),
                         ),
                       ),
@@ -798,9 +801,9 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text(
-                          'Done',
-                          style: TextStyle(fontWeight: FontWeight.w500),
+                        child: Text(
+                          TrStrings.lngAboutDone(),
+                          style: const TextStyle(fontWeight: FontWeight.w500),
                         ),
                       ),
                     ),
@@ -827,33 +830,53 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: palette.boxBg,
         title: Text(
-          'Rename current device',
+          TrStrings.lngSettingsRenameDeviceTitle(),
           style: TextStyle(
             color: palette.boxTextFg,
             fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
         ),
-        content: TextField(
-          controller: controller,
-          maxLength: 32,
-          autofocus: true,
-          style: TextStyle(
-            color: palette.boxTextFg,
-            fontSize: 14,
-          ),
-          decoration: InputDecoration(
-            hintText: currentDevice,
-            hintStyle: TextStyle(
-              color: palette.windowSubTextFg,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // AyuGram's RenameBox renders a subsection title above the input
+            // (FlatLabel(tr::lng_settings_device_name, st::defaultSubsectionTitle),
+            // settings_active_sessions.cpp:127-132).
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                TrStrings.lngSettingsDeviceName(),
+                style: TextStyle(
+                  color: palette.windowActiveTextFg,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-            border: InputBorder.none,
-            counterStyle: TextStyle(
-              color: palette.windowSubTextFg,
-              fontSize: 12,
+            TextField(
+              controller: controller,
+              maxLength: 32,
+              autofocus: true,
+              style: TextStyle(
+                color: palette.boxTextFg,
+                fontSize: 14,
+              ),
+              decoration: InputDecoration(
+                hintText: currentDevice,
+                hintStyle: TextStyle(
+                  color: palette.windowSubTextFg,
+                ),
+                border: InputBorder.none,
+                counterStyle: TextStyle(
+                  color: palette.windowSubTextFg,
+                  fontSize: 12,
+                ),
+                constraints: const BoxConstraints(minHeight: 29),
+              ),
             ),
-            constraints: const BoxConstraints(minHeight: 29),
-          ),
+          ],
         ),
         actions: [
           TextButton(
@@ -929,7 +952,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   CircularProgressIndicator(color: accentColor),
                   const SizedBox(height: 16),
                   Text(
-                    'Loading...',
+                    TrStrings.lngContactsLoading(),
                     style: TextStyle(color: subtextColor, fontSize: 14),
                   ),
                 ],
@@ -1023,7 +1046,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Active Sessions',
+          TrStrings.lngSettingsSessionsTitle(),
           style: TextStyle(
             color: textColor,
             fontSize: 17,
@@ -1051,7 +1074,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           child: Row(
             children: [
               Text(
-                'This device',
+                TrStrings.lngSessionsHeader(),
                 style: TextStyle(
                   color: accentColor,
                   fontSize: 14,
@@ -1064,7 +1087,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: Text(
-                    'Rename',
+                    TrStrings.lngSettingsRenameDevice(),
                     style: TextStyle(
                       color: accentColor,
                       fontSize: 14,
@@ -1123,7 +1146,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Terminate All Other Sessions',
+                      TrStrings.lngSessionsTerminateAll(),
                       style: TextStyle(color: attentionColor, fontSize: 14),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1139,7 +1162,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
           child: Text(
-            'Logs out all devices except for this one.',
+            TrStrings.lngSessionsTerminateAllAbout(),
             style: TextStyle(color: subtextColor, fontSize: 13),
           ),
         ),
@@ -1151,7 +1174,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
       child: Text(
-        'Incomplete Login Attempts',
+        TrStrings.lngSessionsIncomplete(),
         style: TextStyle(
           color: accentColor,
           fontSize: 14,
@@ -1169,7 +1192,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
           child: Text(
-            'The devices above have no access to your messages. The code was entered correctly, but no correct password was given.',
+            TrStrings.lngSessionsIncompleteAbout(),
             style: TextStyle(color: subtextColor, fontSize: 13),
           ),
         ),
@@ -1181,7 +1204,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
       child: Text(
-        'Active Devices',
+        TrStrings.lngSessionsOtherHeader(),
         style: TextStyle(
           color: accentColor,
           fontSize: 14,
@@ -1199,7 +1222,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
           child: Text(
-            'The official Telegram app is available for Android, iPhone, iPad, Windows, macOS and Linux.',
+            TrStrings.lngSessionsAboutApps(),
             style: TextStyle(color: subtextColor, fontSize: 13),
           ),
         ),
@@ -1222,7 +1245,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         Padding(
           padding: const EdgeInsets.only(left: 22, bottom: 8),
           child: Text(
-            'Terminate old sessions',
+            TrStrings.lngSettingsTerminateTitle(),
             style: TextStyle(
               color: accentColor,
               fontSize: 14,
@@ -1238,7 +1261,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    'If Inactive For',
+                    TrStrings.lngSettingsTerminateIf(),
                     style: TextStyle(color: textColor, fontSize: 14),
                   ),
                 ),
@@ -1259,7 +1282,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
       child: Text(
-        'You can log in to Telegram from other mobile, tablet and desktop devices, using the same phone number. All your data will be instantly synchronized.',
+        TrStrings.lngSessionsOtherDesc(),
         style: TextStyle(color: subtextColor, fontSize: 13),
       ),
     );
