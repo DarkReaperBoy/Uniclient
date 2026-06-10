@@ -649,19 +649,19 @@ class _AuthScreenState extends State<AuthScreen>
     if (state == 'email') {
       return _buildEmail(data!, authState, theme, lang);
     }
-    final hasCover = _hasCover(state);
+    if (state == 'qr') {
+      // QrWidget is a self-contained step: the QR graphic sits at the very top,
+      // the title BELOW it, then the numbered steps and the phone link — there is
+      // no leading icon and no title above the code (intro_qr.cpp:285-362,
+      // intro.style:179 introQrTop / :196 introQrTitleTop / :199 introQrStepsTop).
+      return _buildQR(data!, authState, theme, lang);
+    }
     return Column(
       key: ValueKey(state),
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (!hasCover) ...[
-          Icon(
-            Icons.lock_outlined,
-            size: 48,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(height: 16),
-        ],
+        // No leading icon: AyuGram's PhoneWidget/CodeWidget show only the title
+        // and description (intro_phone.cpp:92-93, intro_code.cpp:30-69).
         Text(
           _title(data, lang),
           style: theme.textTheme.headlineMedium,
@@ -701,8 +701,6 @@ class _AuthScreenState extends State<AuthScreen>
         ],
         if (data?.state == 'choose' && data!.options.isNotEmpty)
           ..._buildChoices(data.options, authState, theme),
-        if (data?.state == 'qr')
-          _buildQR(data, authState, theme, lang),
         if (data?.state == 'input' || data?.state == 'otp')
           _buildInput(data!, authState, theme, lang),
       ],
@@ -811,7 +809,12 @@ class _AuthScreenState extends State<AuthScreen>
                 authState: authState,
                 theme: theme,
                 obscure: !_isRecoveryMode,
-                label: _isRecoveryMode ? 'Recovery Code' : 'Password',
+                // Field placeholders from the lang pack so they translate with
+                // the rest of the intro (intro_password_check.cpp:35,37):
+                // lng_signin_password / lng_signin_code.
+                label: _isRecoveryMode
+                    ? lang.tr('lng_signin_code')
+                    : lang.tr('lng_signin_password'),
                 keyboardType:
                     _isRecoveryMode ? TextInputType.number : null,
               ),
@@ -847,7 +850,12 @@ class _AuthScreenState extends State<AuthScreen>
                     ? () => _handleTryPassword()
                     : () => _handleForgotPassword(data, authState),
                 child: Text(
-                  _isRecoveryMode ? 'Try password' : 'Forgot password?',
+                  // Recovery links from the lang pack (intro_password_check.cpp:38-39):
+                  // lng_signin_recover ("Forgot password?") in password mode,
+                  // lng_signin_try_password in recovery mode.
+                  _isRecoveryMode
+                      ? lang.tr('lng_signin_try_password')
+                      : lang.tr('lng_signin_recover'),
                   style: TextStyle(fontSize: 14, color: theme.colorScheme.primary),
                 ),
               ),
@@ -1093,8 +1101,10 @@ class _AuthScreenState extends State<AuthScreen>
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submit(authState),
-            decoration: const InputDecoration(
-              labelText: 'Enter Login Email', // lng_settings_cloud_login_email_placeholder
+            decoration: InputDecoration(
+              // lng_settings_cloud_login_email_placeholder from the lang pack so
+              // it translates with the rest of the intro (intro_email.cpp:74).
+              labelText: lang.tr('lng_settings_cloud_login_email_placeholder'),
             ),
           ),
         ),
@@ -1195,6 +1205,8 @@ class _AuthScreenState extends State<AuthScreen>
     const logoSize = 44.0;
 
     return Column(
+      key: const ValueKey('qr'),
+      mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
           width: cardSize,
@@ -1268,6 +1280,16 @@ class _AuthScreenState extends State<AuthScreen>
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 16),
+        // Title BELOW the QR graphic, then the numbered steps — matching
+        // AyuGram's QrWidget order (QR at introQrTop, title at introQrTitleTop:196,
+        // steps at introQrStepsTop:232). introQrTitle = font(20px semibold),
+        // textFg introTitleFg (intro.style:186-192).
+        Text(
+          lang.tr('lng_intro_qr_title'),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
         _buildInstruction(1, lang.tr('lng_intro_qr_step1'), theme),
@@ -1348,9 +1370,16 @@ class _AuthScreenState extends State<AuthScreen>
   /// line with the masked email, the "code sent via Telegram to your other
   /// devices" guidance, or the plain phone-code line.
   String _codeSubtitle(AuthStateData data, LangPack lang) {
-    if (data.emailPatternSetup.isNotEmpty) {
+    // AyuGram picks emailPatternSetup (login-email setup detour) OR
+    // emailPatternLogin (the auth.sentCodeTypeEmailCode case — the account
+    // already has a login email), then shows the masked-email confirm subtitle
+    // (intro_code.cpp:87-102).
+    final emailPattern = data.emailPatternSetup.isNotEmpty
+        ? data.emailPatternSetup
+        : data.emailPatternLogin;
+    if (emailPattern.isNotEmpty) {
       return lang.trf(
-          'lng_intro_email_confirm_subtitle', {'email': data.emailPatternSetup});
+          'lng_intro_email_confirm_subtitle', {'email': emailPattern});
     }
     if (data.codeByTelegram) {
       // Strip Telegram's `**bold**` markers — the intro renders plain text.
@@ -1365,7 +1394,7 @@ class _AuthScreenState extends State<AuthScreen>
   /// pushed-login-code auto-fill.
   GlobalKey<_OtpCodeInputState> _otpKeyFor(AuthStateData data) {
     final sig =
-        'otp_${data.codeByTelegram}_${data.codeByFragmentUrl.isNotEmpty}_${data.emailPatternSetup.isNotEmpty}';
+        'otp_${data.codeByTelegram}_${data.codeByFragmentUrl.isNotEmpty}_${data.emailPatternSetup.isNotEmpty}_${data.emailPatternLogin.isNotEmpty}';
     if (_otpKey == null || _otpKeySig != sig) {
       _otpKeySig = sig;
       _otpKey = GlobalKey<_OtpCodeInputState>();
@@ -1429,7 +1458,7 @@ class _AuthScreenState extends State<AuthScreen>
               );
             },
             child: isPhone
-                ? _buildPhoneFields(authState, theme)
+                ? _buildPhoneFields(authState, theme, lang)
                 : SizedBox(
                     width: double.infinity,
                     child: TextField(
@@ -1464,7 +1493,7 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  Widget _buildPhoneFields(AuthState authState, ThemeData theme) {
+  Widget _buildPhoneFields(AuthState authState, ThemeData theme, LangPack lang) {
     final errBorder = _showErrorBorder
         ? BorderSide(color: theme.colorScheme.error, width: 2)
         : null;
@@ -1597,7 +1626,9 @@ class _AuthScreenState extends State<AuthScreen>
         TextButton(
           onPressed: () => authState.switchToMethod('qr_code'),
           child: Text(
-            'Quick log in using QR code',
+            // lng_phone_to_qr from the lang pack so it translates with the rest
+            // of the intro (intro_phone.cpp:114).
+            lang.tr('lng_phone_to_qr'),
             style: TextStyle(
               fontSize: 14,
               color: context.palette.windowBgActive,

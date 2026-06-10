@@ -126,6 +126,7 @@ class AuthStateData {
   final String codeByFragmentUrl;
   final String email;
   final String emailPatternSetup;
+  final String emailPatternLogin;
   final String tosText;
   final List<AuthOption> options;
 
@@ -152,6 +153,7 @@ class AuthStateData {
     this.codeByFragmentUrl = '',
     this.email = '',
     this.emailPatternSetup = '',
+    this.emailPatternLogin = '',
     this.tosText = '',
     this.options = const [],
   });
@@ -179,6 +181,7 @@ class AuthStateData {
     codeByFragmentUrl: j['code_by_fragment_url'] as String? ?? '',
     email: j['email'] as String? ?? '',
     emailPatternSetup: j['email_pattern_setup'] as String? ?? '',
+    emailPatternLogin: j['email_pattern_login'] as String? ?? '',
     tosText: j['tos_text'] as String? ?? '',
     options: (j['options'] as List<dynamic>?)
         ?.map((o) => AuthOption.fromJson(o as Map<String, dynamic>))

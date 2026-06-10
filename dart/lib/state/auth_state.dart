@@ -263,6 +263,7 @@ class AuthState extends ChangeNotifier {
         codeByFragmentUrl: existing?.codeByFragmentUrl ?? '',
         email: existing?.email ?? '',
         emailPatternSetup: existing?.emailPatternSetup ?? '',
+        emailPatternLogin: existing?.emailPatternLogin ?? '',
         tosText: existing?.tosText ?? '',
         options: existing?.options ?? const [],
       );

@@ -28,6 +28,9 @@ class LangPack extends ChangeNotifier {
   /// AyuGram pulls from `tr::lng_*` on the phone/QR/code steps.
   static const List<String> keys = [
     'lng_phone_title',
+    // Persistent "Quick log in using QR code" link on the phone step
+    // (intro_phone.cpp:114).
+    'lng_phone_to_qr',
     'lng_intro_qr_title',
     'lng_intro_qr_step1',
     'lng_intro_qr_step2',
@@ -53,6 +56,13 @@ class LangPack extends ChangeNotifier {
     // account-reset texts (intro_password_check.cpp:316,350; intro_widget.cpp:570-628).
     'lng_signin_title',
     'lng_signin_desc',
+    // 2FA field labels + recovery links (intro_password_check.cpp:35-39):
+    // password / recovery-code field placeholders and the forgot/try-password
+    // links shown below the field.
+    'lng_signin_password',
+    'lng_signin_code',
+    'lng_signin_recover',
+    'lng_signin_try_password',
     'lng_signin_recover_desc',
     'lng_signin_no_email_forgot',
     'lng_signin_sure_reset',
@@ -70,9 +80,10 @@ class LangPack extends ChangeNotifier {
     'lng_signup_firstname',
     'lng_signup_lastname',
     'lng_full_name',
-    // Login-email setup step (intro_email.cpp:45,53).
+    // Login-email setup step (intro_email.cpp:45,53,74).
     'lng_intro_email_setup_title',
     'lng_settings_cloud_login_email_about',
+    'lng_settings_cloud_login_email_placeholder',
     // Forum row topics-preview empty state (dialogs_topics_view.cpp:212-214):
     // shown in a collapsed forum dialog row when it has no recent topics.
     'lng_filters_no_chats',
@@ -92,6 +103,7 @@ class LangPack extends ChangeNotifier {
   /// rich-text label), so the raw values stay 1:1 with `lang.strings`.
   static const Map<String, String> _en = {
     'lng_phone_title': 'Your Phone Number',
+    'lng_phone_to_qr': 'Quick log in using QR code',
     'lng_intro_qr_title': 'Scan From Mobile Telegram',
     'lng_intro_qr_step1': 'Open Telegram on your phone',
     'lng_intro_qr_step2': 'Go to Settings > Devices > Link Desktop Device',
@@ -118,6 +130,10 @@ class LangPack extends ChangeNotifier {
         'enter the code we just sent you.',
     'lng_signin_title': 'Cloud password check',
     'lng_signin_desc': 'Please enter your cloud password.',
+    'lng_signin_password': 'Your cloud password',
+    'lng_signin_code': 'Code from the email',
+    'lng_signin_recover': 'Forgot password?',
+    'lng_signin_try_password': 'Unable to access your email?',
     'lng_signin_recover_desc': 'Please enter the code from the email\n{email}',
     'lng_signin_no_email_forgot':
         'Since you didn\'t provide a recovery email when setting up your '
@@ -149,6 +165,7 @@ class LangPack extends ChangeNotifier {
     'lng_settings_cloud_login_email_about':
         'You will receive Telegram login codes via email and not SMS. Please '
         'enter an email address to which you have access.',
+    'lng_settings_cloud_login_email_placeholder': 'Enter Login Email',
     'lng_filters_no_chats': 'No chats',
     'lng_contacts_loading': 'Loading...',
     // Full month names — AyuGram `Lang::Month(n)` baseline (lang.strings:37-48).

@@ -49,6 +49,7 @@ type AuthState struct {
 	CodeByFragmentUrl string    `json:"code_by_fragment_url,omitempty"` // otp state: open this URL instead of typing a code
 	Email             string    `json:"email,omitempty"`                // email state: prefilled address
 	EmailPatternSetup string    `json:"email_pattern_setup,omitempty"`  // otp state: masked email the verify code went to
+	EmailPatternLogin string    `json:"email_pattern_login,omitempty"`  // otp state: masked login email the login code went to
 }
 
 type AuthOption struct {
@@ -555,7 +556,7 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			if err := tc.ResendOTPCode(); err != nil {
 				return nil, fmt.Errorf("resend code: %w", err)
 			}
-			byTg, fragURL, timeout, length := tc.AuthCodeInfo()
+			byTg, fragURL, emailPattern, timeout, length := tc.AuthCodeInfo()
 			if length <= 0 {
 				length = 5
 			}
@@ -565,6 +566,7 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			base.TimeoutSecs = timeout
 			base.CodeByTelegram = byTg
 			base.CodeByFragmentUrl = fragURL
+			base.EmailPatternLogin = emailPattern
 			base.CanResend = true
 			return base, nil
 		}
@@ -772,7 +774,7 @@ func applyTelegram2FAState(tc *cores.TelegramCore, base *AuthState) {
 // telegramOTPState builds the OTP step from the code-delivery details captured by
 // the core (Telegram-app code, Fragment URL, SMS) — AyuGram updateDescText.
 func telegramOTPState(tc *cores.TelegramCore, base *AuthState) *AuthState {
-	byTg, fragURL, timeout, length := tc.AuthCodeInfo()
+	byTg, fragURL, emailPattern, timeout, length := tc.AuthCodeInfo()
 	if length <= 0 {
 		length = 5
 	}
@@ -784,7 +786,10 @@ func telegramOTPState(tc *cores.TelegramCore, base *AuthState) *AuthState {
 	base.TimeoutSecs = timeout
 	base.CodeByTelegram = byTg
 	base.CodeByFragmentUrl = fragURL
+	base.EmailPatternLogin = emailPattern
 	switch {
+	case emailPattern != "":
+		base.SentTo = "Email"
 	case fragURL != "":
 		base.SentTo = "Fragment"
 	case byTg:

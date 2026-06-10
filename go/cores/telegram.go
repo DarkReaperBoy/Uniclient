@@ -139,10 +139,11 @@ type TelegramCore struct {
 	// Captured sent-code delivery info — read by the engine after Authenticate
 	// returns "otp_required" so the OTP step shows the correct delivery mode.
 	// Mirrors AyuGram's getData()->codeByTelegram / codeByFragmentUrl / callTimeout.
-	authCodeByTelegram  bool   // sentCode.Type == AuthSentCodeTypeApp (code shown in Telegram app)
-	authCodeFragmentURL string // sentCode.Type == AuthSentCodeTypeFragmentSMS → URL to open
-	authCodeTimeout     int    // sentCode.Timeout (seconds until the call countdown fires)
-	authCodeLength      int    // expected code length for the current sent code
+	authCodeByTelegram   bool   // sentCode.Type == AuthSentCodeTypeApp (code shown in Telegram app)
+	authCodeFragmentURL  string // sentCode.Type == AuthSentCodeTypeFragmentSMS → URL to open
+	authCodeEmailPattern string // sentCode.Type == AuthSentCodeTypeEmailCode → masked login email
+	authCodeTimeout      int    // sentCode.Timeout (seconds until the call countdown fires)
+	authCodeLength       int    // expected code length for the current sent code
 
 	// Email-setup-required interactive flow (EmailStatus::SetupRequired).
 	// Closed when the sent code requires a login email to be set up first.
@@ -1410,11 +1411,12 @@ func (t *TelegramCore) ResendOTPCode() error {
 
 // AuthCodeInfo returns the delivery details captured from the last sent code so
 // the engine can render the OTP step correctly (Telegram-app code, Fragment URL,
-// call countdown, length). Mirrors AyuGram getData()->codeBy*/callTimeout.
-func (t *TelegramCore) AuthCodeInfo() (codeByTelegram bool, fragmentURL string, timeout, length int) {
+// login-email pattern, call countdown, length). Mirrors AyuGram
+// getData()->codeBy*/emailPatternLogin/callTimeout.
+func (t *TelegramCore) AuthCodeInfo() (codeByTelegram bool, fragmentURL, emailPatternLogin string, timeout, length int) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.authCodeByTelegram, t.authCodeFragmentURL, t.authCodeTimeout, t.authCodeLength
+	return t.authCodeByTelegram, t.authCodeFragmentURL, t.authCodeEmailPattern, t.authCodeTimeout, t.authCodeLength
 }
 
 // EmailSetupRequired reports whether the current auth flow is parked waiting for
@@ -14154,6 +14156,7 @@ func (f *telegramAuthFlow) Code(ctx context.Context, sentCode *tg.AuthSentCode) 
 		f.core.authCodeTimeout = sentCode.Timeout
 		f.core.authCodeByTelegram = false
 		f.core.authCodeFragmentURL = ""
+		f.core.authCodeEmailPattern = ""
 		// Classify the delivery type (AyuGram CodeWidget::updateDescText).
 		switch ct := sentCode.Type.(type) {
 		case *tg.AuthSentCodeTypeApp:
@@ -14161,6 +14164,14 @@ func (f *telegramAuthFlow) Code(ctx context.Context, sentCode *tg.AuthSentCode) 
 			f.core.authCodeLength = ct.Length
 		case *tg.AuthSentCodeTypeFragmentSMS:
 			f.core.authCodeFragmentURL = ct.URL
+			if ct.Length > 0 {
+				f.core.authCodeLength = ct.Length
+			}
+		case *tg.AuthSentCodeTypeEmailCode:
+			// Login code delivered to the account's login email (the user already
+			// set one up). Capture the masked pattern for the code-step subtitle.
+			// Mirrors intro_step.cpp:381-383 (emailPatternLogin = email_pattern).
+			f.core.authCodeEmailPattern = ct.EmailPattern
 			if ct.Length > 0 {
 				f.core.authCodeLength = ct.Length
 			}
