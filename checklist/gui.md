@@ -299,9 +299,33 @@ no-credential auth startup warnings, all unrelated to this change).
 > `_onEventFromGo` → `_eventController` → `events` stream. No stubs, no empty
 > callbacks, no fake/mock data, no "coming soon" placeholders.
 
-- [ ] [CRITICAL] `_eventController` is declared `final` (`bridge_web.dart:38`) and `dispose()` closes it (`bridge_web.dart:95`), but `init()` (`bridge_web.dart:40-61`) never recreates it — so it CANNOT support a `dispose()`→`init()` re-initialization cycle. The native bridge deliberately makes this field non-`final` and recreates it when a prior `dispose()` closed it, with comments naming the exact scenarios ("engine hot-restart, multi-account teardown"). On web, after re-init the `events` stream is permanently dead (returns the already-closed stream, new listeners get only `done`) AND `init()` re-registers `_onEventFromGo` against the closed controller, so every subsequent Go event throws "Bad state: Cannot add event after closing." The entire async event channel (new messages, edits, deletes, typing, presence, read receipts, auth-state changes) silently dies and spams exceptions. `EngineService.dispose()` calls `_bridge.dispose()` (`engine_service.dart:6682`) and `EngineService.init()` re-subscribes to `_bridge.events` (`engine_service.dart:111-112`), so the re-init path is real, not hypothetical. — `bridge_web.dart:38,40-61,92-97` ← `bridge_ffi.dart:41-42,56-57,77-80`
+Verified & closed (2026-06-10) — both items (fixed by commit 9e28c77a) re-verified against the
+native sibling `bridge_ffi.dart` (the ground-truth `Bridge` contract; there is no AyuGram C++
+counterpart for a WASM transport). `dart analyze lib/bridge/` is clean on `bridge_web.dart` (0 issues —
+the only 2 remaining are pre-existing `info` lints in `engine_service.dart`, unrelated). The shared
+event-stream lifecycle was runtime-proven on the native sibling: a `dispose()`→`init()` cycle yields a
+fresh LIVE (non-`done`) `events` stream and a functional `call()` afterward (focused temp test passed,
+then pruned per policy). Chrome is absent in-harness so the WASM front-end can't be launched, and
+`bridge_web.dart` cannot load in the Dart VM (it is `dart:js_interop`-only; the conditional import in
+`bridge.dart` selects it on web alone) — so the native sibling, a 1:1 textual mirror of the changed
+lines, is the runnable proxy.
+- [1] [CRITICAL] `_eventController` is no longer `final`: declared `StreamController<Uint8List>
+  _eventController = ...` (`bridge_web.dart:42-43`) and recreated by `init()` when a prior `dispose()`
+  closed it (`if (_eventController.isClosed) { _eventController = StreamController...broadcast(); }`,
+  `bridge_web.dart:52-54`, placed right after the `_initialized` guard and BEFORE the
+  `_jsBridgeSetEventCallback(_onEventFromGo.toJS)` re-registration at `:72`). A `dispose()`→`init()`
+  cycle now leaves `events` (`:33`) pointing at a fresh OPEN stream and the re-registered `_onEventFromGo`
+  adds to an open controller — no more permanently-dead stream / "Cannot add event after closing" spam.
+  1:1 with `bridge_ffi.dart:56-57` (non-final field) + `78-80` (recreate block). Re-init path is real:
+  `EngineService.dispose()`→`_bridge.dispose()` (`engine_service.dart:6727`); `EngineService.init()`
+  re-subscribes `_bridge.events` (`engine_service.dart:111-112`).
 
-- [ ] [MAJOR] `_onEventFromGo` adds to `_eventController` with no `!_eventController.isClosed` guard, unlike the native event forwarder which checks `msg is Uint8List && !_eventController.isClosed` before adding. Without the guard, any event delivered to a closed controller (e.g. after the re-init bug above, or a JS callback that fires during/after teardown) throws instead of being silently dropped. The native side treats a closed controller as a normal, defensively-handled state; the web side does not. — `bridge_web.dart:99-101` ← `bridge_ffi.dart:106-110`
+- [2] [MAJOR] `_onEventFromGo` now guards `if (_eventController.isClosed) return;` (`bridge_web.dart:117`)
+  before `_eventController.add(data.toDart)` (`:118`), mirroring the native forwarder's
+  `!_eventController.isClosed` check (`bridge_ffi.dart:107`). An event delivered to a closed controller
+  (during/after teardown, or a JS callback firing before `init()` recreated it) is now a silent,
+  defensively-handled drop, not a thrown exception. The native `msg is Uint8List` half is N/A — the
+  callback param is statically typed `JSUint8Array`.
 
 # engine_service — FFI/RPC wrapper around the Go engine bridge (~7861 lines, ~497 bridge calls)
 
