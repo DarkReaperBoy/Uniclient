@@ -6556,7 +6556,12 @@ class EngineService {
       'zoom': zoom,
     }));
     try {
-      final respBytes = await _callAsync(accountId.isEmpty ? '__engine' : accountId, 'GetMapTile', Uint8List.fromList(payload));
+      // GetMapTile is registered ONLY on the engine layer (dispatch_engine.go);
+      // route to '__engine' unconditionally — the per-account id travels in the
+      // payload's account_id, which the engine uses to find the right core.
+      // Routing to a non-empty accountId would hit dispatchTelegram's default
+      // ("unknown method GetMapTile for telegram") and fail every real fetch.
+      final respBytes = await _callAsync('__engine', 'GetMapTile', Uint8List.fromList(payload));
       if (respBytes.isEmpty) return null;
       return respBytes;
     } catch (e) {
