@@ -110,8 +110,24 @@ class NotificationSystem {
   // §37.6.3 dedup: threadKey → { (messageId, type) → lastTime }
   final Map<String, Map<_NotificationKey, DateTime>> _whenMaps = {};
 
-  // §37.6.1 sound/flash alert cooldown per thread, with per-chat ringtone
+  // §37.6.1 sound/flash alert cooldown per thread, with per-chat ringtone. This
+  // per-thread 500 ms cooldown replicates AyuGram's per-thread `_whenAlerts`
+  // erase throttle (notifications_manager.cpp:732): successive messages in the
+  // SAME thread within 500 ms collapse to one alert. It gates whether a thread is
+  // ALLOWED to alert — the actual fire is coalesced across the batch below.
   final Map<String, _AlertRecord> _lastAlertPerThread = {};
+
+  // §37.6.1 Coalesced alert flush. Where the per-thread cooldown above decides
+  // whether a thread is ALLOWED to alert, the actual flash+sound FIRE is
+  // coalesced across the whole dispatch batch: AyuGram's showNext walks every
+  // due thread in _whenAlerts but keeps a SINGLE `alertThread` (last wins) and
+  // fires exactly one flash and one sound per pass (notifications_manager.cpp:
+  // 721-780). The flush runs at the end of the current event-loop turn so a
+  // burst over multiple chats plays ONE alert, not one per chat;
+  // `_pendingAlertSound` is last-wins on the ringtone.
+  Timer? _alertFlushTimer;
+  bool _pendingAlert = false;
+  NotificationData? _pendingAlertSound;
 
   // §37.6.2 forward/album grouping buffer
   Timer? _groupedTimer;
@@ -582,13 +598,21 @@ class NotificationSystem {
     // (notifications_manager.cpp:1563-1565). `reactionFrom` is non-null for BOTH
     // reactions and poll votes (the type is Reaction/PollVote only when a reactor
     // exists), and hideNameAndPhoto == !previewName. effectiveSettings already
-    // forces previewName off under a passcode lock (above), so this single guard
-    // covers both the previewName-off setting and the locked case. Without it a
-    // reaction would leak the message text ("reacted 👍 to «…»") with previewName
-    // off, or surface "reacted 👍 to your message" with title "UniClient" under
-    // lock — AyuGram shows nothing in either case. Reactions are already forced
-    // silent upstream, so no sound/flash is lost by returning here.
-    if ((data.isReaction || data.isPollVote) &&
+    // forces previewName off under a passcode lock (above), so this condition
+    // covers both the previewName-off setting and the locked case.
+    //
+    // CRUCIALLY this guard is NATIVE-ONLY. In AyuGram the `return` lives solely
+    // in NativeManager::doShowNotification; the custom Default (in-app popup)
+    // manager's Manager::doShowNotification has no such guard — it queues the
+    // notification unconditionally (notifications_manager_default.cpp:370) and
+    // renders a content-hidden popup (app-name title, no photo, empty subtitle,
+    // body only where composeText permits, :952-953). So under the custom-popup
+    // fallback with name-preview off, a reaction AyuGram WOULD display must not be
+    // dropped here. Reactions are forced silent upstream, so no sound/flash is
+    // lost when the native manager returns.
+    final isNative = _manager is NativeManager;
+    if (isNative &&
+        (data.isReaction || data.isPollVote) &&
         !effectiveSettings.previewName) {
       return;
     }
@@ -629,7 +653,7 @@ class NotificationSystem {
     // DND: DefaultManager (custom toast) is NEVER suppressed by DND on Linux.
     // NativeManager handles DND internally per-call via Inhibited property.
     // Use fresh inhibited value from NativeManager, not stale 30s poll.
-    final isNative = _manager is NativeManager;
+    // (`isNative` computed once above at the native-only reaction guard.)
     final dnd = isNative ? (nativeManager!.inhibited) : false;
 
     // Only the visual toast is gated by desktopNotify — the sound/flash alert
@@ -651,43 +675,42 @@ class NotificationSystem {
     final alertAllowed =
         lastAlert == null || now.difference(lastAlert.time) >= _kMinimalAlertDelay;
 
-    // An alert (sound and/or taskbar flash) fires for this thread when the
-    // per-thread cooldown allows it and the message isn't silent. In C++ the
-    // flash and the sound share ONE coalesced `alertThread`, produced by the
-    // `_whenAlerts` erase of every alert within `ms + kMinimalAlertDelay`
-    // (notifications_manager.cpp:732), and BOTH the flash (:747) and the sound
-    // (:761) are then gated by that same `alertThread`. So the throttle applies
-    // to the flash regardless of whether the daemon owns the sound. The cooldown
-    // record must therefore be stamped whenever an alert is ALLOWED — not only
-    // when THIS process plays the sound itself. Previously the stamp lived inside
-    // the `!handlesSound` sound branch, so a native daemon that handles sound
-    // (handlesSound == true) never wrote the record, leaving `alertAllowed` true
-    // on every dispatch and firing the taskbar flash unthrottled on every
-    // message. Stamp first (covering the flash path), play the sound only when
-    // this process owns it.
+    // An alert is ALLOWED for this thread when its per-thread cooldown has
+    // elapsed and the message isn't silent. The cooldown is stamped whenever an
+    // alert is allowed (not only when THIS process plays the sound), so the flash
+    // is throttled per-thread even when a native daemon owns the sound — matching
+    // AyuGram's per-thread `_whenAlerts` 500 ms erase (notifications_manager.cpp:
+    // 732), which gates BOTH the flash (:747) and the sound (:761).
+    //
+    // The FIRE itself is COALESCED across the dispatch batch, not fired per
+    // thread: AyuGram's showNext keeps a SINGLE `alertThread` (last wins) over
+    // every due thread and emits exactly one flash and one sound per pass
+    // (notifications_manager.cpp:721-780). So we register the allowed alert into
+    // a coalescing batch (_requestAlert) that flushes once at the end of the
+    // current event-loop turn — a burst across multiple chats (several flushed
+    // together in _flushGroupedBuffer, or non-grouped messages with near-equal
+    // countTiming delays firing together) plays ONE alert, not one per chat.
     if (alertAllowed && !forceSilent) {
-      if (!_manager.handlesSound) {
-        final chatRingtone = lastAlert?.ringtonePath ?? '';
-        final soundPath = effectiveData.soundDocumentPath.isNotEmpty
-            ? effectiveData.soundDocumentPath
-            : chatRingtone;
-        _soundPlayer.play(
-          settings: _settings,
-          data: soundPath.isNotEmpty
-              ? effectiveData.copyWith(soundDocumentPath: soundPath)
-              : effectiveData,
-        );
-      }
-      _lastAlertPerThread[threadKey] = _AlertRecord(
-        time: now,
-        ringtonePath: effectiveData.soundDocumentPath.isNotEmpty
-            ? effectiveData.soundDocumentPath
-            : (lastAlert?.ringtonePath ?? ''),
-      );
-    }
+      // Resolve this thread's ringtone: the message's own ringtone path if any,
+      // else the thread's last-known ringtone — AyuGram always plays the thread's
+      // configured sound (owner->notifySettings().sound(alertThread)).
+      final chatRingtone = lastAlert?.ringtonePath ?? '';
+      final soundPath = effectiveData.soundDocumentPath.isNotEmpty
+          ? effectiveData.soundDocumentPath
+          : chatRingtone;
+      _lastAlertPerThread[threadKey] =
+          _AlertRecord(time: now, ringtonePath: soundPath);
 
-    if (_settings.flashBounce && alertAllowed && !forceSilent) {
-      onFlashBounce?.call();
+      // A native daemon that owns the sound (handlesSound) plays it per-toast
+      // inside showNotification, so the coalesced sound is suppressed here (null)
+      // and only the single flash coalesces — mirroring AyuGram's no-op
+      // maybePlaySound on such managers (notifications_manager.cpp:1546-1550).
+      final soundData = _manager.handlesSound
+          ? null
+          : (soundPath.isNotEmpty
+              ? effectiveData.copyWith(soundDocumentPath: soundPath)
+              : effectiveData);
+      _requestAlert(soundData);
     }
 
     Debug.log('NOTIF',
@@ -695,6 +718,48 @@ class NotificationSystem {
         '${forceSilent ? " (silent)" : ""}'
         '${dnd ? " (DND)" : ""}'
         '${_passcodeLocked ? " (locked)" : ""}');
+  }
+
+  // Register an allowed alert into the coalescing batch. Every thread alerting in
+  // the same pass collapses to ONE flash + ONE sound (last wins on the ringtone),
+  // mirroring AyuGram's single `alertThread` per showNext pass
+  // (notifications_manager.cpp:721-780). [soundData] is null when the active
+  // manager owns the sound (it plays per-toast), leaving only the flash to
+  // coalesce. The flush is a zero-delay timer so synchronous bursts
+  // (_flushGroupedBuffer) and same-tick dispatch timers (equal countTiming
+  // delays) all fold into one alert; genuinely separate alerts (later passes)
+  // fire on their own subsequent flush, exactly as AyuGram reschedules `_waitTimer`
+  // for the next not-yet-due alert.
+  void _requestAlert(NotificationData? soundData) {
+    _pendingAlert = true;
+    if (soundData != null) _pendingAlertSound = soundData; // last wins
+    _alertFlushTimer ??= Timer(Duration.zero, _flushAlert);
+  }
+
+  // Fire the single coalesced alert for the batch. AyuGram gates the flash on
+  // settings.flashBounceNotify() and the sound on settings.soundNotify() inside
+  // showNext; the sound gate lives in NotificationSoundPlayer.play() here, so we
+  // only gate the flash, read live to match showNext.
+  void _flushAlert() {
+    _alertFlushTimer = null;
+    final active = _pendingAlert;
+    final soundData = _pendingAlertSound;
+    _pendingAlert = false;
+    _pendingAlertSound = null;
+    if (!active) return;
+    if (soundData != null) {
+      _soundPlayer.play(settings: _settings, data: soundData);
+    }
+    if (_settings.flashBounce) {
+      onFlashBounce?.call();
+    }
+  }
+
+  void _cancelPendingAlert() {
+    _alertFlushTimer?.cancel();
+    _alertFlushTimer = null;
+    _pendingAlert = false;
+    _pendingAlertSound = null;
   }
 
   void checkDelayed() {
@@ -945,6 +1010,7 @@ class NotificationSystem {
     _manager.clearAll();
     _whenMaps.clear();
     _lastAlertPerThread.clear();
+    _cancelPendingAlert();
     _settingWaiters.clear();
     for (final timers in _pendingTimers.values) {
       for (final t in timers) {
@@ -966,6 +1032,7 @@ class NotificationSystem {
     _pendingTimers.clear();
     _groupedTimer?.cancel();
     _groupedBuffer.clear();
+    _cancelPendingAlert();
     _settingWaiters.clear();
     _whenMaps.clear();
     _lastAlertPerThread.clear();
