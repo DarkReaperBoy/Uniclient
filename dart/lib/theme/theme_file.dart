@@ -393,8 +393,26 @@ bool _looksLikeZip(Uint8List bytes) =>
     bytes[2] == 0x03 &&
     bytes[3] == 0x04;
 
-bool _isValidBackgroundImage(Uint8List bytes) {
-  if (bytes.length < 4) return false;
+/// Decodes a theme background, enforces AyuGram's pixel-size limit, and forces
+/// it OPAQUE — returning the bytes to store/cache, or null when the image can't
+/// be decoded or exceeds kBackgroundSizeLimit (25 Mpx). AyuGram treats either
+/// failure as "reject the whole theme" (window_theme.cpp:331-342).
+///
+/// Mirrors AyuGram's `Images::Read({.content=…, .forceOpaque=true})`
+/// (window_theme.cpp:336-339): a decoded image carrying an alpha channel is
+/// composited over an opaque WHITE background (Ui::Images::Opaque,
+/// image_prepare.cpp:1214-1233 — guarded by `if (image.hasAlphaChannel())`), so
+/// a transparent PNG no longer renders see-through. AyuGram then caches the
+/// flattened result as a BMP; we re-encode it as PNG instead (lossless, far
+/// smaller than an uncompressed BMP) so the stored/cached bytes carry NO alpha.
+///
+/// When the source has no alpha channel (JPEG, opaque PNG/WebP, …) the original
+/// bytes are already opaque — exactly the case AyuGram's forceOpaque skips
+/// (`result.format != "jpeg"` guard at image_prepare.cpp:506 + Opaque's
+/// hasAlphaChannel guard) — so they are returned verbatim, avoiding a pointless
+/// decode→re-encode round-trip and the cache bloat it would cause.
+Uint8List? _decodeOpaqueBackground(Uint8List bytes) {
+  if (bytes.length < 4) return null;
   // AyuGram reads the background by FILENAME only and decodes it FORMAT-AGNOSTICALLY
   // (QImageReader::size() bound check, then Images::Read({.forceOpaque=true}),
   // window_theme.cpp:328-343) — it does NOT gate on JPEG/PNG magic bytes. So a
@@ -409,7 +427,7 @@ bool _isValidBackgroundImage(Uint8List bytes) {
   final dims = _readImageDimensions(bytes);
   if (dims != null) {
     final (w, h) = dims;
-    if (w <= 0 || h <= 0 || w * h > _kBackgroundMaxPixels) return false;
+    if (w <= 0 || h <= 0 || w * h > _kBackgroundMaxPixels) return null;
   }
   // Full format-agnostic decode ≡ Images::Read: package:image decodes PNG/JPEG/
   // WebP/BMP/GIF/TIFF, matching Qt's broad support. A null/throwing decode is
@@ -420,14 +438,32 @@ bool _isValidBackgroundImage(Uint8List bytes) {
   try {
     decoded = img.decodeImage(bytes);
   } catch (_) {
-    return false;
+    return null;
   }
-  if (decoded == null) return false;
+  if (decoded == null) return null;
   // Authoritative size check for formats _readImageDimensions can't measure
   // (size.isEmpty() / > kBackgroundSizeLimit, window_theme.cpp:331-334).
   final w = decoded.width, h = decoded.height;
-  if (w <= 0 || h <= 0 || w * h > _kBackgroundMaxPixels) return false;
-  return true;
+  if (w <= 0 || h <= 0 || w * h > _kBackgroundMaxPixels) return null;
+
+  // forceOpaque: only images WITH an alpha channel need flattening — matching
+  // both Read's `result.format != "jpeg"` guard and Opaque's
+  // `if (image.hasAlphaChannel())` guard (image_prepare.cpp:506,1215).
+  // Image.hasAlpha is true for RGBA (4ch) AND grayscale+alpha (2ch).
+  if (!decoded.hasAlpha) return bytes;
+
+  // Composite every pixel over opaque WHITE, exactly like Ui::Images::Opaque:
+  // out_rgb = src_rgb·srcA + white·(1−srcA), out_a = 1. compositeImage's default
+  // BlendMode.alpha is standard source-over, and a 3-channel white canvas keeps
+  // the result strictly opaque (no residual alpha channel survives the encode).
+  final opaque = img.Image(width: w, height: h, numChannels: 3);
+  img.fill(opaque, color: img.ColorRgb8(255, 255, 255));
+  img.compositeImage(opaque, decoded);
+  try {
+    return img.encodePng(opaque);
+  } catch (_) {
+    return null;
+  }
 }
 
 (int, int)? _readImageDimensions(Uint8List bytes) {
@@ -558,11 +594,19 @@ ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
       return null;
     }
     final raw = Uint8List.fromList(bgFile.content as List<int>);
-    if (!_isValidBackgroundImage(raw)) {
+    // Decode + size-check + force opaque (AyuGram: QImageReader::size() →
+    // Images::Read({.forceOpaque=true}) → cache the decoded image as a BMP,
+    // window_theme.cpp:328-355). The returned bytes are guaranteed opaque, so
+    // storing AND caching them strips any alpha exactly as AyuGram does — a
+    // transparent-PNG wallpaper no longer renders see-through. null means the
+    // decode failed or the bitmap exceeded kBackgroundSizeLimit → reject the
+    // whole theme.
+    final opaque = _decodeOpaqueBackground(raw);
+    if (opaque == null) {
       debugPrint('THEME: background image invalid/oversized — theme rejected');
       return null;
     }
-    bgBytes = raw;
+    bgBytes = opaque;
   }
 
   return ThemeFileData(
@@ -2172,8 +2216,18 @@ ThemeCacheData? loadThemeCache(String configDir) {
     Uint8List? bgBytes;
     final bgFile = File('$configDir/theme_cache_bg.dat');
     if (bgFile.existsSync()) {
-      final raw = bgFile.readAsBytesSync();
-      if (_isValidBackgroundImage(raw)) bgBytes = raw;
+      // Trust the cache — do NOT re-decode. These bytes were already decoded,
+      // size-checked and forced opaque by _decodeOpaqueBackground when the cache
+      // was written (applyCustomTheme → buildThemeCache → saveThemeCache), so a
+      // full re-decode here would only validate-then-discard. Worse, it would do
+      // so SYNCHRONOUSLY on the UI thread: _loadCustomThemeFromCache runs inside
+      // _loadWindowPrefs at startup, where a multi-megapixel pure-Dart
+      // img.decodeImage blocks for hundreds of ms. AyuGram likewise reads its
+      // cached background straight back via QImageReader without re-running the
+      // QImageReader::size() / forceOpaque checks (window_theme.cpp:392-400,
+      // loadFromCache). The real decode-for-render happens later, off the UI
+      // thread, via Flutter's own image codec.
+      bgBytes = bgFile.readAsBytesSync();
     }
 
     CloudThemeMeta? cloudMeta;
