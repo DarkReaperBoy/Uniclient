@@ -235,13 +235,15 @@ class AyuGeneralPage extends StatelessWidget {
 }
 
 // Faithful port of AyuGram's ShowRestartPrompt (settings_ayu_utils.cpp:36-45):
-// apply-then-prompt with "Restart Now" (Core::Restart) / "Later".
+// a titleless Ui::MakeConfirmBox — body lng_settings_need_restart, confirm
+// lng_settings_restart_now ("Restart" → Core::Restart), cancel
+// lng_settings_restart_later ("Later") (lang.strings:1305-1307).
 void _showRestartPrompt(BuildContext context) {
   showConfirmBox(
     context,
-    title: 'Restart Required',
-    text: 'Some settings will be applied after restarting.',
-    confirmText: 'Restart Now',
+    text: 'You need to restart for applying some of the new settings. '
+        'Restart now?',
+    confirmText: 'Restart',
     cancelText: 'Later',
     onConfirm: () {
       context.read<AppState>().flushSettingsSync();
