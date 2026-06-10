@@ -23,15 +23,35 @@ faithful, fully-wired port — verified working end-to-end:
   documented queue-filter-first ordering), `updateAll`, `updateSettings` (Corner/MaxCount;
   Demo opacity correctly delegated to the view), and the oldest-first MaxCount eviction.
 
-One genuine fidelity gap remains:
+The controller-half wait-for-input gate was VERIFIED FIXED and closed (audit cycle 5):
+`_lastInputTime()` now returns null when `SystemIdle.supported == false` (mirroring
+`LastUserInputTimeSupported() ? make_optional(lastNonIdleTime()) : nullopt`), and
+`_checkLastInput` gates on `PlatformNotifications.waitForInputForCustom()` (new
+`platform_notifications.dart` — Linux/macOS true, Windows `SHQueryUserNotificationState()
+!= QUNS_BUSY` via real shell32 FFI) — full three-condition parity with
+`notifications_manager_default.cpp:773-775` + `:189-191`. The wrong "true on every desktop
+platform" comment is gone. Verified by code review vs AyuGram ground truth + 27 live
+notification dispatches through the gate with zero crashes (desktop + mobile).
 
-- [ ] [MAJOR] Wait-for-input gate omits AyuGram's two "don't wait" conditions, so the popup keeps waiting (never auto-dismisses) in cases where AyuGram starts its 3s auto-hide. AyuGram only arms the wait when `WaitForInputForCustom() && lastInputTime.has_value() && (*lastInputTime <= _started)`, and passes `nullopt` for the time whenever `base::Platform::LastUserInputTimeSupported()` is false — i.e. on a platform with no OS idle source it does **not** wait and the 3s hide starts immediately. The Dart `_effectiveLastInput()` instead **always** falls back to the app-local pointer time and never returns null, and `_checkLastInput` has no analog of `WaitForInputForCustom()`. Result: on idle-unsupported platforms (KDE/Wayland — the dev target — sway, headless) and on Windows busy/presentation mode (`WaitForInputForCustom()` returns `UserNotificationState != QUNS_BUSY`), the Dart popup stays on screen waiting for pointer input where AyuGram would have auto-dismissed. The in-code claim that "`WaitForInputForCustom()` is true on every desktop platform" (`notification_manager_default.dart:126-127`) is factually wrong for Windows. — `notification_manager_default.dart:87-91` (`_effectiveLastInput` never null) + `notification_manager_default.dart:129-152` (no `WaitForInputForCustom`/`Supported` gate) ← `Telegram/SourceFiles/window/notifications_manager_default.cpp:189-191` (`LastUserInputTimeSupported() ? ... : nullopt`) + `:773-775` (`waitForUserInput = WaitForInputForCustom() && lastInputTime.has_value() && ...`) + `Telegram/SourceFiles/platform/win/notifications_manager_win.cpp:398-401` (`WaitForInputForCustom` = `!QUNS_BUSY`)
+One related gap remains in the VIEW half (`notification_popup.dart`):
 
-Note: the idle-unsupported fallback is documented and intentional (the author argues
-app-local gating is preferable to dismissing-at-once), and only manifests off the
-primary supported platforms; the Windows busy-mode sub-case is an unguarded oversight
-(the comment's incorrect premise hides it). Flagged for fidelity; may be accepted as a
-deliberate divergence.
+- [ ] [MINOR] The view's parallel wait-for-input countdown is an incomplete mirror of the
+  (now-fixed) controller gate. `_globalInputAfter()` returns false when
+  `SystemIdle.idleMillis()` is null (idle-unsupported platforms — KDE/Wayland dev target,
+  sway, headless), so the view KEEPS waiting on the app-local pointer signal — the exact
+  OPPOSITE of the controller's "don't wait → start the 3s hide"; and it has NO
+  `WaitForInputForCustom()` analog at all (Windows QUNS_BUSY busy-mode unhandled view-side).
+  This contradicts the view's own comment that it "Mirrors the controller's _checkLastInput
+  so the two parallel countdowns agree". CURRENTLY MASKED (no user-visible symptom): the
+  controller's fixed `onStartHiding` fires at `_dismissDuration` (3s) and drives
+  `_startSlowHide` regardless, so the popup still auto-dismisses; the view's stuck countdown
+  can only fire earlier or be redundant, never extend the hang. Fix for consistency: give
+  `_globalInputAfter`/`_startHideCountdown` the same null + `waitForInputForCustom()`
+  handling as the controller, or drop the view's independent countdown and rely solely on
+  the controller's `onStartHiding`. — `notification_popup.dart:234-268`
+  (`_startHideCountdown`/`_globalInputAfter`, no null/WaitForInputForCustom gate) ←
+  `Telegram/SourceFiles/window/notifications_manager_default.cpp:767-785`
+  (`Notification::checkLastInput`) + `:189-191`
 
 # notification_system — Window::Notifications::System port (schedule/dedup/group/alert/clear orchestration)
 
