@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -14,6 +12,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../theme/telegram_palette.dart';
+import '../utils/rc_manager.dart';
 import 'ayu_section_builder.dart';
 import 'telegram_toast.dart';
 import 'package:uniclient/utils/debug.dart';
@@ -95,7 +95,10 @@ class AyuOtherPage extends StatelessWidget {
     b.addSkip();
 
     if (!const bool.fromEnvironment('TDESKTOP_DISABLE_AUTOUPDATE')) {
-      b.addSectionDivider();
+      // No separate divider band here — the support description above is itself
+      // the boxDividerBg band (AddDividerText), so AyuGram flows straight from it
+      // (via the single addSkip above, == BuildCrashReporting's opening addSkip)
+      // into the "Other" subsection title (settings_other.cpp:159-182).
       b.addSectionTitle('Other');
       b.addSettingToggle(
         label: 'Crash Reporting',
@@ -359,17 +362,17 @@ class _DonateButton extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
+            // Flat row: icon + label only. AyuGram builds these with
+            // AddButtonWithIcon(..., st::settingsButton), whose style defines no
+            // right arrow/chevron (settings.style:13-17) — they open a URL or a
+            // QR modal, not a drill-down, so no chevron is drawn
+            // (settings_other.cpp:124-129). Matches the sibling _ActionButton.
             Expanded(
               child: Text(label,
                   style: TextStyle(
                       fontSize: 14,
                       color: isDark ? Colors.white : Colors.black87)),
             ),
-            Icon(Icons.chevron_right,
-                size: 20,
-                color: isDark
-                    ? const Color(0xFF6D7F8F)
-                    : const Color(0xFF999999)),
           ],
         ),
       ),
@@ -453,15 +456,24 @@ class _SupportDescriptionState extends State<_SupportDescription> {
 
   @override
   Widget build(BuildContext context) {
-    final subtextColor =
-        widget.isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+    final p = context.palette;
+    // AyuGram builds this with Ui::AddDividerText -> DividerLabel: the label
+    // sits ON a full-bleed boxDividerBg band using the 14px defaultTextStyle,
+    // windowSubTextFg, defaultBoxDividerLabelPadding = margins(22,8,22,16)
+    // (settings_other.cpp:161-167, vertical_list.cpp:50-67, widgets.style:687-703)
+    // — NOT a 12px label in a plain Padding. The "Support Development" portion is
+    // a tg://support link opening the donate-info box (ayu_SupportDescription2 =
+    // "{item} and get an unique badge!", ayu_SupportDescription1 =
+    // "Support Development").
     final linkColor =
         widget.isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+    return Container(
+      width: double.infinity,
+      color: p.boxDividerBg,
+      padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
       child: RichText(
         text: TextSpan(
-          style: TextStyle(fontSize: 12, color: subtextColor),
+          style: TextStyle(fontSize: 14, color: p.windowSubTextFg),
           children: [
             TextSpan(
               text: 'Support Development',
@@ -479,106 +491,13 @@ class _SupportDescriptionState extends State<_SupportDescription> {
 class _DonateInfoBox extends StatefulWidget {
   final bool isDark;
 
-  static String _donateAmountUsd = '5.00';
-  static String _donateAmountTon = '3.50';
-  static String _donateAmountRub = '386';
-  static String _donateUsername = 'ayugramOwner';
-
-  // RC-config endpoints — primary AyuGram CDN, then the exteraGram fallback
-  // (mirrors RCManager kPrimaryUrl / kExteraUrl, rc_manager.cpp:15-16).
-  static const String _rcPrimaryUrl =
-      'https://update.ayugram.one/rc/current/desktop2';
-  static const String _rcFallbackUrl =
-      'https://api.exteragram.app/api/v1/profiles/compact';
-
-  static Timer? _rcRefreshTimer;
-  static Future<void>? _rcInFlight;
-
-  /// Mirrors AyuGram `RCManager::start()` (`ayu/utils/rc_manager.cpp:33-42`):
-  /// fetch the RC config immediately, then refresh it every hour via a
-  /// repeating timer (`_timer->start(60 * 60 * 1000)`). Previously the config
-  /// was fetched once and then stayed stale for the entire session, so donate
-  /// amounts/username never updated. Safe to call repeatedly — the timer is
-  /// created only once.
-  static void _startRcManager() {
-    _makeRcRequest();
-    _rcRefreshTimer ??= Timer.periodic(
-      const Duration(hours: 1),
-      (_) => _makeRcRequest(),
-    );
-  }
-
-  /// Cancels the hourly RC refresh timer — AyuGram `RCManager::stop()`
-  /// (`ayu/utils/rc_manager.cpp`), invoked on shutdown. The timer is otherwise
-  /// app-lifetime, refreshing the RC config every hour for the whole session like
-  /// the C++ manager, so this is the single teardown path for it.
-  static void stopRcManager() {
-    _rcRefreshTimer?.cancel();
-    _rcRefreshTimer = null;
-  }
-
-  /// One RC round-trip, deduplicated so concurrent callers share the in-flight
-  /// request (analogue of C++ `clearSentRequest()` keeping a single live reply).
-  static Future<void> _makeRcRequest() {
-    return _rcInFlight ??= _sendRcRequest();
-  }
-
-  static Future<void> _sendRcRequest() async {
-    try {
-      final data = await _tryFetchRcFrom(_rcPrimaryUrl) ??
-          await _tryFetchRcFrom(_rcFallbackUrl);
-      if (data != null) {
-        _applyRcData(data);
-      }
-    } catch (e) {
-      Debug.log('ayu_other_page', 'final data = await _tryFetchRcFrom(_rcPrimaryUrl) ??: $e');
-    } finally {
-      _rcInFlight = null;
-    }
-  }
-
-  static Future<Map<String, dynamic>?> _tryFetchRcFrom(String url) async {
-    try {
-      final client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 10);
-      final request = await client.getUrl(Uri.parse(url));
-      final response = await request.close();
-      if (response.statusCode == 200) {
-        final body = await response.transform(utf8.decoder).join();
-        client.close();
-        return jsonDecode(body) as Map<String, dynamic>;
-      }
-      client.close();
-    } catch (e) {
-      Debug.log('ayu_other_page', 'final client = HttpClient(): $e');
-    }
-    return null;
-  }
-
-  static void _applyRcData(Map<String, dynamic> data) {
-    // Mirror C++ `RCManager::applyResponse` (rc_manager.cpp:187-206): only
-    // overwrite a donate field when the JSON value is a *string* AND non-empty,
-    // otherwise keep the compiled-in default. A JSON number (e.g. 5.0), an
-    // empty string, or `null` must NOT leak through as "5.0" / "" / "null".
-    final usd = data['donateAmountUsd'];
-    if (usd is String && usd.isNotEmpty) {
-      _donateAmountUsd = usd;
-    }
-    final ton = data['donateAmountTon'];
-    if (ton is String && ton.isNotEmpty) {
-      _donateAmountTon = ton;
-    }
-    final rub = data['donateAmountRub'];
-    if (rub is String && rub.isNotEmpty) {
-      _donateAmountRub = rub;
-    }
-    final usernameValue = data['donateUsername'];
-    if (usernameValue is String && usernameValue.isNotEmpty) {
-      var username = usernameValue;
-      if (username.startsWith('@')) username = username.substring(1);
-      _donateUsername = username;
-    }
-  }
+  // All RC-config fetch/parse/storage now lives in the app-wide [RcManager]
+  // (utils/rc_manager.dart), a faithful 1:1 port of AyuGram's RCManager started
+  // at app startup (main.dart, == ayu_infra.cpp initRCManager()). The donate box
+  // is just one consumer — it reads the donate amounts/username from the manager
+  // and triggers a refresh on open. The manager additionally parses the
+  // developers/officialChannels/supporters/supporterChannels/customBadges sets
+  // (previously dropped) that source AyuGram's developer/supporter/custom badges.
 
   const _DonateInfoBox({required this.isDark});
 
@@ -592,15 +511,19 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
   @override
   void initState() {
     super.initState();
-    // Kick off the immediate fetch + hourly refresh, and rebuild once the
-    // current request lands so the freshest donate amounts/username show.
-    _DonateInfoBox._startRcManager();
-    _DonateInfoBox._makeRcRequest().then((_) {
+    // The RcManager is already started at app startup; trigger (or join) a
+    // refresh and rebuild once it lands so the freshest donate amounts/username
+    // show. makeRequest() dedups, so this never double-fetches.
+    RcManager.instance.makeRequest().then((_) {
       if (mounted) setState(() {});
     });
     _usernameRecognizer = TapGestureRecognizer()
       ..onTap = () {
-        final username = _DonateInfoBox._donateUsername;
+        // AyuGram navigates to the trimmed (no '@') username while showing the
+        // raw one (donate_info_box.cpp:203-208). Read live so a post-fetch
+        // update is honored.
+        final raw = RcManager.instance.donateUsername;
+        final username = raw.startsWith('@') ? raw.substring(1) : raw;
         _navigateToUsername(username);
       };
   }
@@ -687,7 +610,7 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
                       children: [
                         TextSpan(
                             text: 'Transfer an amount of '
-                                '\$${_DonateInfoBox._donateAmountUsd} ('),
+                                '\$${RcManager.instance.donateAmountUsd} ('),
                         WidgetSpan(
                           alignment: PlaceholderAlignment.middle,
                           child: SvgPicture.asset(
@@ -697,8 +620,8 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
                           ),
                         ),
                         TextSpan(
-                            text: '${_DonateInfoBox._donateAmountTon}, '
-                                '${_DonateInfoBox._donateAmountRub}₽) to any of '
+                            text: '${RcManager.instance.donateAmountTon}, '
+                                '${RcManager.instance.donateAmountRub}₽) to any of '
                                 "the project's payment details. These can be "
                                 'found in the '),
                         const TextSpan(
@@ -720,7 +643,10 @@ class _DonateInfoBoxState extends State<_DonateInfoBox> {
                             text: 'Send a photo of the payment confirmation '
                                 'to '),
                         TextSpan(
-                          text: '@${_DonateInfoBox._donateUsername}',
+                          // Raw username as shown by AyuGram (donate_info_box.cpp:208
+                          // uses the un-trimmed value as the link text); the default
+                          // "@ayugramOwner" already carries the '@'.
+                          text: RcManager.instance.donateUsername,
                           style: TextStyle(
                               color: accentColor,
                               fontWeight: FontWeight.w600),

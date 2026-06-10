@@ -40,6 +40,7 @@ import 'theme/wallpaper.dart';
 import 'ui/confirm_box.dart' show showConfirmBox, TelegramBox, TelegramBoxButton, kBoxPadding, kBoxDuration;
 import 'ui/titlebar.dart';
 import 'utils/debug.dart';
+import 'utils/rc_manager.dart';
 import 'utils/spell_service.dart';
 import 'utils/system_tray.dart';
 import 'utils/system_unlock.dart';
@@ -329,6 +330,13 @@ class _UniClientAppState extends State<UniClientApp>
 
     await CustomEmojiCache.instance.initDiskCache(cacheDir);
     SpoilerAnimationManager.setCacheDir(cacheDir);
+
+    // Start AyuGram's remote-config manager (== ayu_infra.cpp initRCManager() →
+    // RCManager::start()): fetches donate amounts/username AND the developer /
+    // official-channel / supporter / supporter-channel / custom-badge sets at
+    // startup, then refreshes hourly. App-wide singleton, not tied to the donate
+    // box, so the badge data source exists everywhere. No-op on web.
+    RcManager.instance.start();
 
     if (!kIsWeb && configDir.isNotEmpty) {
       try {
