@@ -129,11 +129,29 @@ Audited `dart/lib/theme/theme_file.dart` (2214 lines) against AyuGram's
   match AyuGram's pipeline. `getCrc32` is correctly exported by `package:archive`.
 - No stubs, TODOs, placeholders, empty callbacks, or fake data anywhere.
 
-The two findings below are genuine deviations, not stubs.
+The two findings below were genuine deviations and are now both **fixed & verified**:
 
-- [ ] [MAJOR] Theme-background image is decoded **synchronously with pure-Dart `package:image` on the main isolate** — no `Isolate.run`/`compute`. At startup `_loadWindowPrefs` runs synchronously past its only `await` (app_state.dart:4246) into `_loadCustomThemeFromCache` → `loadThemeCache` → `_isValidBackgroundImage` → `img.decodeImage`, so restoring a cached custom theme with a background up to 4 MB blocks the UI thread (pure-Dart JPEG/PNG decode of a multi-megapixel image can take hundreds of ms–seconds). The decode in `loadThemeCache` is also redundant — those bytes were already validated when the cache was written, yet they are fully re-decoded only to be discarded. AyuGram does the size check + decode with native Qt (`QImageReader::size()` then `Images::Read`), which is orders of magnitude faster. — `theme_file.dart:421` (and called at `theme_file.dart:561,2176`) ← `AyuGram/SourceFiles/window/themes/window_theme.cpp:329-343`
+- Background is **forced opaque at parse time** (was item 2). `_parseZipTheme` runs the
+  decoded background through `_decodeOpaqueBackground` (`theme_file.dart:414`), which
+  composites any alpha-bearing image over opaque **white** and re-encodes it with no
+  alpha — mirroring AyuGram's `Images::Read({.forceOpaque=true})` → `Ui::Images::Opaque`
+  (composite over `QColor(Qt::white)`, guarded by `hasAlphaChannel()`;
+  `image_prepare.cpp:1214-1233`, skip-for-jpeg at `:506`). Opaque/JPEG inputs pass
+  through verbatim. The opaque bytes flow into `parsed.backgroundImage` → `buildThemeCache`
+  → cache, so a transparent-PNG wallpaper no longer renders see-through.
+  ← `window_theme.cpp:336-339`.
+- The **redundant synchronous UI-thread decode on startup** is gone (was item 1).
+  `loadThemeCache` (`theme_file.dart:2216-2231`) now reads the cached background bytes
+  straight back without `img.decodeImage` — they were already decoded, size-checked and
+  forced opaque when the cache was written, so re-decoding only validated-then-discarded
+  while blocking `_loadWindowPrefs` at boot. Matches AyuGram's `InitializeFromCache`,
+  which re-reads its cached background via `QImageReader` without re-running the
+  size/forceOpaque checks. ← `window_theme.cpp:392-400`.
 
-- [ ] [MAJOR] Background alpha is **not forced opaque** as AyuGram does. AyuGram reads the background via `Images::Read({.content=..., .forceOpaque=true})`, producing an opaque image that is then applied and cached as a BMP. The Dart parser decodes the background **only to validate it** (the decoded `img.Image` is discarded) and then stores/caches the **raw encoded bytes** verbatim (`bgBytes = raw`; cache writes `cache.backgroundImage` unchanged), preserving any alpha channel. A theme whose background is a transparent PNG therefore keeps transparency that AyuGram strips, so it would render differently (see-through wallpaper) unless a downstream renderer re-imposes opacity — and no opaque-forcing step exists in this file or in the cache round-trip. — `theme_file.dart:560-565` (and `theme_file.dart:2136`) ← `AyuGram/SourceFiles/window/themes/window_theme.cpp:336-339`
+Verified (ralph Stage 2): behavioral tests confirmed transparent→white opaque output,
+`hasAlpha==false` stored bytes, opaque pass-through, and a byte-identical cache
+round-trip with no decode on load; app boots & renders in desktop+mobile with no THEME
+errors. White composite target confirmed against `image_prepare.cpp:1219` (`QColor(Qt::white)`).
 
 # wallpaper — chat-background renderer (solid/gradient/pattern/image, gift patterns)
 
