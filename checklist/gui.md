@@ -161,9 +161,21 @@ Verified line-by-line against AyuGram C++ ground truth. Color/URL parsing
 color, pattern inversion, dark-mode dimming, blur, and JPEG preprocessing
 (`chat_theme.cpp`) are all faithful ports. Default colors, dither tiers, URL
 share params, and the complex-gradient rotation math all match exactly. No
-stubs, placeholders, TODOs, fake data, or empty callbacks. One behavioral gap:
+stubs, placeholders, TODOs, fake data, or empty callbacks.
 
-- [ ] [MAJOR] Pattern wallpapers with a complex (3+ color) gradient never rotate their underlying gradient on outgoing-message send. `_PatternWallpaperState` only calls `_generateGradient()`/`_decodePattern()` and never subscribes to `ChatBackgroundRotator`, and `_generateGradient` regenerates with the static `widget.gradientRotation`. AyuGram's `generateNextBackgroundRotation` rotates the gradient of ANY wallpaper whose `colors.size() >= 3` — the gate is only on color count, NOT on `isPattern` — so a pattern's gradient steps one 45° phase (with the 200ms cross-fade) on every revealed outgoing message. Only `_RasterGradient` (standalone non-pattern gradients) listens to the rotator here. This also affects the **default** wallpaper, which is a 4-color pattern (`WallPaper::ConstructDefault`), so the signature "background shifts when you send" animation is absent under the default/pattern wallpapers. — `wallpaper.dart:1376` (no `ChatBackgroundRotator.instance.addListener` in `_PatternWallpaperState`; cf. `wallpaper.dart:923` where `_RasterGradientState` does) and `wallpaper.dart:1424` (static rotation) ← `AyuGram/Telegram/SourceFiles/ui/chat/chat_theme.cpp:638` (`generateNextBackgroundRotation`, gate at `chat_theme.cpp:643` is `background().colors.size() < 3` only; rotation applied at `chat_theme.cpp:663-665`, `rotateComplexGradientBackground` at `chat_theme.cpp:822`)
+Verified (ralph Stage 2): the one behavioral gap — complex (3+ colour) pattern
+wallpapers not rotating their underlying gradient on outgoing-message send — is
+now FIXED and confirmed. `_PatternWallpaperState` mirrors `_RasterGradientState`:
+subscribes to `ChatBackgroundRotator` when `backgroundColors.length >= 3`,
+advances a doubled accumulator by `kAddRotationDoubled` (720-45), derives
+rotation/progress via `ComputeRealRotation`/`ComputeRealProgress`, and cross-fades
+the new phase in over 200ms (`kBackgroundFadeDuration`) under the static pattern
+tile — values match AyuGram `chat_theme.cpp:30,40-57,643,646` exactly. Empirically
+confirmed in BOTH desktop (1024×768) and mobile (400×720) with the default
+4-colour pattern wallpaper (`background.tgv` + `kDefaultWallpaperColors`):
+static-at-rest frame diff = 0.0, and on each outgoing send the entire fixed
+background gradient shifts (broad smooth orange→magenta diff with the doodle
+swirls visible inside it, bubbles/chat-list unchanged). No crashes or render errors.
 
 # active_sessions_screen — Telegram "Active Sessions" settings (port of AyuGram `Settings::Sessions` + `SessionInfoBox` + `SelfDestructionBox`)
 
