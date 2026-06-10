@@ -178,29 +178,25 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
 
   String _connectionTypeLabel(AppState appState) {
-    final activeId = appState.activeAccountId;
-    final connState = appState.connStateFor(activeId);
-    if (appState.proxyMode == 1) {
-      return connState == ConnState.connected
-          ? 'Connected via system proxy'
-          : 'Using system proxy';
+    // AyuGram derives this label from proxy().isEnabled() + the real MTProto
+    // transport string (settings_advanced.cpp:106-117), NOT a multi-state
+    // connection enum. isEnabled() is true only for the custom (Enabled) proxy
+    // mode — System proxy still reports the "Default" label. Our Go (gotd)
+    // backend speaks MTProto over TCP, so the transport string is "TCP" once a
+    // DC connection exists and empty (→ "connecting") while still negotiating.
+    final connState = appState.connStateFor(appState.activeAccountId);
+    final hasTransport =
+        connState == ConnState.connected || connState == ConnState.unstable;
+    final transport = hasTransport ? 'TCP' : '';
+    final proxyEnabled = appState.proxyMode == 2;
+    if (!proxyEnabled) {
+      return transport.isEmpty
+          ? 'Default (connecting...)' // lng_connection_auto_connecting
+          : 'Default ($transport used)'; // lng_connection_auto
     }
-    if (appState.proxyMode == 2) {
-      final type = appState.selectedProxyType;
-      if (connState == ConnState.connected) {
-        return type.isNotEmpty ? 'Connected via $type proxy' : 'Connected via proxy';
-      }
-      if (connState == ConnState.connecting) {
-        return type.isNotEmpty ? 'Connecting via $type proxy...' : 'Connecting via proxy...';
-      }
-      return type.isNotEmpty ? 'Proxy: $type' : 'Using proxy';
-    }
-    return switch (connState) {
-      ConnState.connected => 'Connected via TCP',
-      ConnState.connecting => 'Connecting...',
-      ConnState.unstable => 'Connection unstable',
-      ConnState.disconnected => 'Waiting for network...',
-    };
+    return transport.isEmpty
+        ? 'Connecting through proxy...' // lng_connection_proxy_connecting
+        : '$transport with proxy'; // lng_connection_proxy
   }
 
   static const _angleBackendLabels = [
@@ -1946,7 +1942,9 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
     '1 week', '2 weeks', '3 weeks',
     '1 month', '2 months', '3 months', '4 months', '5 months',
     '6 months', '7 months', '8 months', '9 months', '10 months',
-    '11 months', '12 months', 'Forever',
+    // AyuGram TimeLimitText shows lng_local_storage_limit_never = "Never" for
+    // the no-time-limit (max) slider position (local_storage_box.cpp:103-112).
+    '11 months', '12 months', 'Never',
   ];
 
   static const _tagNames = [
@@ -2601,6 +2599,24 @@ class _DictAvailable {
   _DictAvailable({required this.code, required this.label});
 }
 
+// One leaf power-saving toggle inside a group (AyuGram EditFlagsLabel<Flags>).
+class _PsChild {
+  final String label;
+  final int flag;
+  const _PsChild(this.label, this.flag);
+}
+
+// A power-saving group (AyuGram PowerSavingLabels, settings_power_saving.cpp:
+// 138-190). A group with a [nestingLabel] renders as a collapsible parent toggle
+// (AddInnerToggle); a group with a null nestingLabel renders as a single flat
+// toggle. [icon] is the first child's icon (AyuGram nested.front().icon).
+class _PsGroup {
+  final String? nestingLabel;
+  final IconData icon;
+  final List<_PsChild> children;
+  const _PsGroup(this.nestingLabel, this.icon, this.children);
+}
+
 class PowerSavingBox extends StatefulWidget {
   const PowerSavingBox();
 
@@ -2614,6 +2630,38 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
   bool _hasBattery = false;
   bool _osPowerSaver = false;
   final GlobalKey _controlsKey = GlobalKey();
+
+  // Indices of the collapsible groups currently expanded. AyuGram starts every
+  // SlideWrap hidden (edit_peer_permissions_box.cpp:745 raw->hide(instant)).
+  final Set<int> _expandedGroups = <int>{};
+
+  // AyuGram PowerSavingLabels (settings_power_saving.cpp:138-190), in order:
+  // three nested (collapsible) groups, then two flat single-toggle groups. The
+  // labels below are the exact lang.strings (lng_settings_power_*).
+  static const _psGroups = <_PsGroup>[
+    _PsGroup('Animated Stickers', Icons.sticky_note_2, [
+      _PsChild('Autoplay in panel', AppState.kPowerSavingStickersPanel),
+      _PsChild('Autoplay in chat', AppState.kPowerSavingStickersChat),
+    ]),
+    _PsGroup('Animated Emoji', Icons.emoji_emotions, [
+      _PsChild('Autoplay in panel', AppState.kPowerSavingEmojiPanel),
+      _PsChild('Autoplay in reactions menu', AppState.kPowerSavingEmojiReactions),
+      _PsChild('Autoplay in messages', AppState.kPowerSavingEmojiChat),
+      _PsChild('Autoplay in premium status', AppState.kPowerSavingEmojiStatus),
+    ]),
+    _PsGroup('Animations in Chats', Icons.chat_bubble_outline, [
+      _PsChild('Wallpaper rotation', AppState.kPowerSavingChatBackground),
+      _PsChild('Animated spoiler effect', AppState.kPowerSavingChatSpoiler),
+      _PsChild('Effects in messages', AppState.kPowerSavingChatEffects),
+    ]),
+    // Groups without a nestingLabel render flat (no parent toggle / arrow).
+    _PsGroup(null, Icons.phone, [
+      _PsChild('Animations in Calls', AppState.kPowerSavingCalls),
+    ]),
+    _PsGroup(null, Icons.play_circle_outline, [
+      _PsChild('Interface Animations', AppState.kPowerSavingAnimations),
+    ]),
+  ];
 
   @override
   void initState() {
@@ -2755,34 +2803,19 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
                           key: _controlsKey,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _header('Stickers', headerColor),
-                            _iconToggle('Stickers in Panel', Icons.sticky_note_2,
-                                AppState.kPowerSavingStickersPanel, textColor, iconColor, accentColor),
-                            _plainToggle('Stickers in Messages',
-                                AppState.kPowerSavingStickersChat, textColor, accentColor),
-                            const SizedBox(height: 8),
-                            _header('Emoji', headerColor),
-                            _iconToggle('Emoji in Panel', Icons.emoji_emotions,
-                                AppState.kPowerSavingEmojiPanel, textColor, iconColor, accentColor),
-                            _plainToggle('Emoji Reactions',
-                                AppState.kPowerSavingEmojiReactions, textColor, accentColor),
-                            _plainToggle('Emoji in Messages',
-                                AppState.kPowerSavingEmojiChat, textColor, accentColor),
-                            _plainToggle('Emoji Status',
-                                AppState.kPowerSavingEmojiStatus, textColor, accentColor),
-                            const SizedBox(height: 8),
-                            _header('Chat', headerColor),
-                            _iconToggle('Chat Background', Icons.chat_bubble_outline,
-                                AppState.kPowerSavingChatBackground, textColor, iconColor, accentColor),
-                            _plainToggle('Spoiler Effect',
-                                AppState.kPowerSavingChatSpoiler, textColor, accentColor),
-                            _plainToggle('Message Effects',
-                                AppState.kPowerSavingChatEffects, textColor, accentColor),
-                            const SizedBox(height: 8),
-                            _iconToggle('Calls', Icons.phone,
-                                AppState.kPowerSavingCalls, textColor, iconColor, accentColor),
-                            _iconToggle('Interface Animations', Icons.play_circle_outline,
-                                AppState.kPowerSavingAnimations, textColor, iconColor, accentColor),
+                            // AyuGram CreateEditFlags: groups with a nestingLabel
+                            // become collapsible parent toggles (AddInnerToggle);
+                            // groups without one render as a single flat toggle.
+                            for (var gi = 0; gi < _psGroups.length; gi++)
+                              if (_psGroups[gi].nestingLabel == null)
+                                _iconToggle(
+                                    _psGroups[gi].children.first.label,
+                                    _psGroups[gi].icon,
+                                    _psGroups[gi].children.first.flag,
+                                    textColor, iconColor, accentColor)
+                              else
+                                _psGroupToggle(gi, _psGroups[gi],
+                                    textColor, iconColor, accentColor),
                             const SizedBox(height: 8),
                           ],
                         ),
@@ -2917,6 +2950,9 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
   static const _psIconPad = EdgeInsets.fromLTRB(20, 8, 22, 8);
   static const double _psIconGap = 13;
   static const _psPlainPad = EdgeInsets.fromLTRB(22, 8, 22, 8);
+  // Nested-group child checkboxes align with the parent button's content start
+  // (AyuGram inner checkboxes use st.padding — no extra indent).
+  static const _psChildPad = EdgeInsets.fromLTRB(22, 6, 22, 6);
 
   Widget _iconToggle(String label, IconData icon, int flag,
       Color textColor, Color iconColor, Color accentColor) {
@@ -2945,28 +2981,148 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
     );
   }
 
-  Widget _plainToggle(String label, int flag, Color textColor, Color accentColor) {
-    final on = !_flag(flag);
+  // Collapsible parent toggle for a nested group (AyuGram AddInnerToggle,
+  // edit_peer_permissions_box.cpp:366-548). The row carries the group icon, the
+  // group label with a bold "checked/total" count badge, an expand/collapse
+  // arrow that rotates 180° when open, and a master switch reflecting "any child
+  // checked". Tapping the row toggles the SlideWrap of child checkboxes; tapping
+  // the master switch checks/unchecks every child at once.
+  Widget _psGroupToggle(int groupIndex, _PsGroup g, Color textColor,
+      Color iconColor, Color accentColor) {
+    final total = g.children.length;
+    // A child is "checked" (animation enabled) when its power-saving bit is NOT
+    // set — _flags stores the disabled features.
+    final checked = g.children.where((c) => !_flag(c.flag)).length;
+    final anyChecked = checked > 0;
+    final expanded = _expandedGroups.contains(groupIndex);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => setState(() {
+            if (expanded) {
+              _expandedGroups.remove(groupIndex);
+            } else {
+              _expandedGroups.add(groupIndex);
+            }
+          }),
+          child: Padding(
+            padding: _psIconPad,
+            child: Row(
+              children: [
+                Icon(g.icon, size: 24, color: iconColor),
+                const SizedBox(width: _psIconGap),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text.rich(
+                          TextSpan(
+                            style: TextStyle(
+                                fontSize: SettingsStyle.buttonFontSize,
+                                color: textColor),
+                            children: [
+                              TextSpan(text: g.nestingLabel),
+                              // Bold "checked/total" badge — AyuGram tr::bold("
+                              // {checked}/{total}") appended to the label.
+                              TextSpan(
+                                text: '  $checked/$total',
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      AnimatedRotation(
+                        turns: expanded ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 150),
+                        child: Icon(Icons.keyboard_arrow_down,
+                            size: 20, color: iconColor),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Switch(
+                  value: anyChecked,
+                  onChanged: (_) => _toggleGroup(g, anyChecked),
+                  activeColor: accentColor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Children live in a collapsible region, hidden until the group is
+        // expanded (AyuGram SlideWrap). They render as checkboxes, not switches.
+        ClipRect(
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: expanded
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final c in g.children)
+                        _psChildCheckbox(c, textColor, accentColor),
+                    ],
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // A nested-group leaf, rendered as a checkbox row (AyuGram inner Ui::Checkbox).
+  Widget _psChildCheckbox(_PsChild c, Color textColor, Color accentColor) {
+    final checked = !_flag(c.flag);
     return InkWell(
-      onTap: () => _toggle(flag),
+      onTap: () => _toggle(c.flag),
       child: Padding(
-        padding: _psPlainPad,
+        padding: _psChildPad,
         child: Row(
           children: [
-            Expanded(
-              child: Text(label,
-                  style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor)),
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: Checkbox(
+                value: checked,
+                onChanged: (_) => _toggle(c.flag),
+                activeColor: accentColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
             ),
-            Switch(
-              value: on,
-              onChanged: (_) => _toggle(flag),
-              activeColor: accentColor,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(c.label,
+                  style: TextStyle(
+                      fontSize: SettingsStyle.buttonFontSize, color: textColor)),
             ),
           ],
         ),
       ),
     );
+  }
+
+  // Master switch behaviour (AyuGram AddInnerToggle toggleButton click): set
+  // every child to !anyChecked — checking all when none are on, unchecking all
+  // otherwise.
+  void _toggleGroup(_PsGroup g, bool anyChecked) {
+    setState(() {
+      for (final c in g.children) {
+        if (anyChecked) {
+          _flags |= c.flag; // uncheck → disable feature (set the bit)
+        } else {
+          _flags &= ~c.flag; // check → enable feature (clear the bit)
+        }
+      }
+    });
   }
 }
 
@@ -3088,68 +3244,13 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     if (_proxies.isNotEmpty && _mode == _ProxyMode.custom) {
       _selectedIndex = 0;
     }
-    // Pinging a proxy reveals the user's IP to its admin, so AyuGram gates the
-    // connectivity check behind a one-time confirmation (connection_box.cpp:
-    // 1824-1842). Deferred so the dialog has a stable context.
+    // AyuGram pings every list row unconditionally on open (refreshChecker →
+    // MTP::StartProxyCheck, connection_box.cpp:1647-1649) — no IP-exposure
+    // confirmation. The checkIpWarningShown() gate lives only in the separate
+    // apply-from-link flow (ShowApplyConfirmation, :1826), not the list.
+    // Deferred so the dialog has a stable context.
     WidgetsBinding.instance
-        .addPostFrameCallback((_) => _maybeStartProxyChecks());
-  }
-
-  void _maybeStartProxyChecks() {
-    if (!mounted || !_proxies.any((p) => !p.deleted)) return;
-    final appState = context.read<AppState>();
-    if (appState.proxyCheckIpWarningShown) {
-      _checkAllProxies();
-      return;
-    }
-    showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Warning'),
-        content: const Text(
-            'This will expose your IP address to the admin of the proxy server.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Proceed'),
-          ),
-        ],
-      ),
-    ).then((proceed) {
-      if (!mounted) return;
-      if (proceed == true) {
-        context.read<AppState>().setProxyCheckIpWarningShown(true);
-        _checkAllProxies();
-      } else {
-        // Declined — don't reveal the IP; leave proxies unmeasured.
-        setState(() {
-          for (final p in _proxies) {
-            if (!p.deleted) {
-              p.status = _ProxyStatus.available;
-              p.pingMs = 0;
-            }
-          }
-        });
-      }
-    });
-  }
-
-  // Pings only once the user has accepted the IP-exposure warning; otherwise
-  // leaves the proxy unmeasured (neutral "Available").
-  void _maybeCheckProxy(int index) {
-    if (index < 0 || index >= _proxies.length) return;
-    if (context.read<AppState>().proxyCheckIpWarningShown) {
-      _checkProxy(index);
-    } else {
-      setState(() {
-        _proxies[index].status = _ProxyStatus.available;
-        _proxies[index].pingMs = 0;
-      });
-    }
+        .addPostFrameCallback((_) => _checkAllProxies());
   }
 
   void _syncToAppState() {
@@ -3189,6 +3290,9 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
   Future<void> _checkProxy(int index) async {
     if (index < 0 || index >= _proxies.length) return;
     final proxy = _proxies[index];
+    // AyuGram refreshChecker sets the row to Checking before the ping starts
+    // (connection_box.cpp:1895), so the row shows "checking…" while it runs.
+    if (mounted) setState(() => proxy.status = _ProxyStatus.checking);
     try {
       final appState = context.read<AppState>();
       final result = await appState.engine.callGeneric(
@@ -3303,7 +3407,9 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Connection type',
+                      // AyuGram setTitle(tr::lng_proxy_settings) = "Proxy settings"
+                      // (connection_box.cpp:978).
+                      'Proxy settings',
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w600,
@@ -3320,7 +3426,9 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                     itemBuilder: (_) => [
                       PopupMenuItem(
                         value: 'import',
-                        child: Text('Import from clipboard',
+                        // AyuGram lng_proxy_add_from_clipboard = "Add proxy from
+                        // clipboard" (connection_box.cpp:1015).
+                        child: Text('Add proxy from clipboard',
                             style: TextStyle(fontSize: 14, color: textColor)),
                       ),
                       PopupMenuItem(
@@ -3372,11 +3480,13 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
               ),
             ),
 
-            // Radio group: Disabled / System / Custom
-            _proxyRadio('Disabled', _ProxyMode.disabled, textColor, accentColor,
-                hoverBg),
-            _proxyRadio('Use system settings', _ProxyMode.system, textColor,
+            // Radio group: Disable proxy / Use system proxy settings / Use
+            // custom proxy (AyuGram lng_proxy_disable / _use_system_settings /
+            // _use_custom, connection_box.cpp:1058,1065,1072).
+            _proxyRadio('Disable proxy', _ProxyMode.disabled, textColor,
                 accentColor, hoverBg),
+            _proxyRadio('Use system proxy settings', _ProxyMode.system,
+                textColor, accentColor, hoverBg),
             _proxyRadio('Use custom proxy', _ProxyMode.custom, textColor,
                 accentColor, hoverBg),
 
@@ -3398,7 +3508,9 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text('Rotate proxies', style: TextStyle(fontSize: 14, color: textColor)),
+                        // AyuGram lng_proxy_auto_switch = "Auto-switch proxies"
+                        // (connection_box.cpp:1096).
+                        child: Text('Auto-switch proxies', style: TextStyle(fontSize: 14, color: textColor)),
                       ),
                       Switch(
                         value: _rotationEnabled,
@@ -3413,7 +3525,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                   ),
                 ),
               ),
-              if (_rotationEnabled)
+              if (_rotationEnabled) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
                   child: Row(
@@ -3437,6 +3549,18 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                     ],
                   ),
                 ),
+                // AyuGram lng_proxy_auto_switch_about — explanatory label below
+                // the timeout slider, inside the rotation-options SlideWrap
+                // (connection_box.cpp:1126-1131).
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+                  child: Text(
+                    'You can choose how quickly the app should auto-connect to '
+                    'the nearest active proxy if the current one stops working.',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  ),
+                ),
+              ],
             ],
 
             // Divider text
@@ -3479,7 +3603,9 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                     const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
                 child: Center(
                   child: Text(
-                    'You have no saved proxies yet.',
+                    // AyuGram lng_proxy_description = "Your saved proxy list will
+                    // be here." (connection_box.cpp:1307).
+                    'Your saved proxy list will be here.',
                     style: TextStyle(fontSize: 14, color: subtextColor),
                   ),
                 ),
@@ -3604,12 +3730,15 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
       _ProxyStatus.checking => subtextColor,
       _ProxyStatus.unavailable => theme.colorScheme.error,
     };
+    // AyuGram ProxyRow status strings (connection_box.cpp:787-804): lowercase,
+    // ellipsis char, and the Available row reads "available (ping: {ping} ms)".
     final statusText = switch (displayStatus) {
-      _ProxyStatus.online => 'Online',
-      _ProxyStatus.connecting => 'Connecting...',
-      _ProxyStatus.available => proxy.pingMs > 0 ? '${proxy.pingMs} ms' : 'Available',
-      _ProxyStatus.checking => 'Checking...',
-      _ProxyStatus.unavailable => 'Unavailable',
+      _ProxyStatus.online => 'online', // lng_proxy_online
+      _ProxyStatus.connecting => 'connecting…', // lng_proxy_connecting
+      _ProxyStatus.available =>
+        'available (ping: ${proxy.pingMs} ms)', // lng_proxy_available
+      _ProxyStatus.checking => 'checking…', // lng_proxy_checking
+      _ProxyStatus.unavailable => 'not available', // lng_proxy_unavailable
     };
 
     final isSelected = _mode == _ProxyMode.custom && _selectedIndex == index;
@@ -3874,7 +4003,9 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         _mode = _ProxyMode.custom;
       });
       _syncToAppState();
-      _maybeCheckProxy(_proxies.length - 1);
+      // AyuGram pings the new row immediately (addNewItem → refreshChecker,
+      // connection_box.cpp:2164), no confirmation.
+      _checkProxy(_proxies.length - 1);
     }
   }
 
@@ -3886,7 +4017,9 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     if (result != null && mounted) {
       setState(() => _proxies[index] = result);
       _syncToAppState();
-      _maybeCheckProxy(index);
+      // AyuGram re-pings on edit (replaceItemValue → refreshChecker,
+      // connection_box.cpp:2127), no confirmation.
+      _checkProxy(index);
     }
   }
 
@@ -4176,18 +4309,57 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
   void _save() {
     final host = _hostCtrl.text.trim();
     final port = int.tryParse(_portCtrl.text.trim()) ?? 0;
-    if (host.isEmpty || port <= 0 || port > 65535) {
-      showTelegramToast(context, 'Please enter a valid host and port');
+    final user = _userCtrl.text.trim();
+    final password = _passCtrl.text.trim();
+    final secret = _secretCtrl.text.trim();
+    // AyuGram ProxyBox::collectData (connection_box.cpp:1439-1465): validate
+    // host, then port, then type-specific credentials before accepting. The
+    // MTPROTO secret must satisfy ProxyData::valid(); HTTP/SOCKS5 reject a
+    // password supplied without a username.
+    if (host.isEmpty) {
+      showTelegramToast(context, 'Please enter a valid host');
+      return;
+    }
+    if (port <= 0 || port > 65535) {
+      showTelegramToast(context, 'Please enter a valid port');
+      return;
+    }
+    if ((_type == _ProxyType.http || _type == _ProxyType.socks5) &&
+        password.isNotEmpty &&
+        user.isEmpty) {
+      showTelegramToast(context, 'Please enter a username for the password');
+      return;
+    }
+    if (_type == _ProxyType.mtproto &&
+        _ProxiesBoxState._mtprotoSecretStatus(secret) != 'valid') {
+      showTelegramToast(context, 'Please enter a valid secret');
       return;
     }
     Navigator.of(context).pop(_ProxyEntry(
       type: _type,
       host: host,
       port: port,
-      username: _userCtrl.text.trim(),
-      password: _passCtrl.text.trim(),
-      secret: _secretCtrl.text.trim(),
+      username: user,
+      password: password,
+      secret: secret,
     ));
+  }
+
+  // AyuGram ProxyBox::addLabel (connection_box.cpp:1612-1621): a section title
+  // above each input group, styled st::proxyEditTitle (15px semibold, boxTitleFg)
+  // with margins(22, 16, 22, 0).
+  Widget _sectionLabel(String text, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 16, 22, 6),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+        ),
+      ),
+    );
   }
 
   @override
@@ -4235,7 +4407,10 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
                 hoverBg),
             _typeRadio(
                 'HTTP', _ProxyType.http, textColor, accentColor, hoverBg),
-            const SizedBox(height: 8),
+
+            // AyuGram addLabel(lng_proxy_address_label) = "Socket address" above
+            // the host/port row (connection_box.cpp:1494).
+            _sectionLabel('Socket address', textColor),
 
             // Host + Port row
             Padding(
@@ -4289,16 +4464,18 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-
             // Credentials (HTTP/SOCKS5) or Secret (MTPROTO)
             if (_type != _ProxyType.mtproto) ...[
+              // AyuGram addLabel(lng_proxy_credentials_optional) = "Credentials
+              // (optional)" above the user+password fields; the fields keep
+              // plain placeholders (connection_box.cpp:1527,1532,1540).
+              _sectionLabel('Credentials (optional)', textColor),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: TextField(
                   controller: _userCtrl,
                   decoration: InputDecoration(
-                    hintText: 'Username (optional)',
+                    hintText: 'Username',
                     hintStyle: TextStyle(color: subtextColor, fontSize: 14),
                     filled: true,
                     fillColor: fieldBg,
@@ -4320,7 +4497,7 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
                   controller: _passCtrl,
                   obscureText: true,
                   decoration: InputDecoration(
-                    hintText: 'Password (optional)',
+                    hintText: 'Password',
                     hintStyle: TextStyle(color: subtextColor, fontSize: 14),
                     filled: true,
                     fillColor: fieldBg,
@@ -4336,6 +4513,9 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
                 ),
               ),
             ] else ...[
+              // AyuGram addLabel(lng_proxy_credentials) = "Credentials" above the
+              // MTPROTO secret (connection_box.cpp:1560).
+              _sectionLabel('Credentials', textColor),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: TextField(
@@ -4865,8 +5045,9 @@ const _experimentalFlagDefs = <_ExpFlag>[
       'Hide reply button in notifications.', false),
   _ExpFlag('custom-notification', 'Force non-native notifications availability',
       'Allow to disable native notifications even if custom notifications are broken on this platform', true),
+  // AyuGram OptionGNotification.restartRequired = true (notifications_manager.cpp:174).
   _ExpFlag('gnotification', 'GNotification',
-      "Force enable GLib's GNotification. When disabled, autodetect is used.", false),
+      "Force enable GLib's GNotification. When disabled, autodetect is used.", true),
   _ExpFlag('freetype', 'FreeType font engine',
       'Use the font engine from Linux instead of the system one.', true),
   _ExpFlag('skip-url-scheme-register', 'Skip URL scheme register',
@@ -4881,7 +5062,8 @@ const _experimentalFlagDefs = <_ExpFlag>[
       'Prefer IPv6 if it is available. Require "Try connecting through IPv6" to be enabled', false),
   _ExpFlag('fast-buttons-mode', 'Fast buttons mode',
       'Trigger inline keyboard buttons by 1-9 keyboard keys.', false),
-  _ExpFlag('touchbar-disabled', 'Disable Touch Bar (macOS only).', '', false),
+  // AyuGram OptionDisableTouchbar.restartRequired = true (main_window.cpp:99).
+  _ExpFlag('touchbar-disabled', 'Disable Touch Bar (macOS only).', '', true),
   _ExpFlag('alternative-scroll-processing', 'Use legacy scroll processing in profiles.', '', false),
   _ExpFlag('moderate-common-groups', 'Ban users from several groups at once.', '', false),
   _ExpFlag('force-compose-search-one-column', 'Force embedded search in chats',
@@ -4915,6 +5097,42 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
 
   bool _flag(String key) => _flags[key] == true;
 
+  static bool _isWayland() {
+    final env = Platform.environment;
+    return (env['WAYLAND_DISPLAY']?.isNotEmpty ?? false) ||
+        (env['XDG_SESSION_TYPE']?.toLowerCase() == 'wayland');
+  }
+
+  // AyuGram base::options scope / relevant() (settings_experimental.cpp:190-219):
+  // each option's base::options::toggle has a `.scope` predicate; options not
+  // relevant to the current platform are greyed out and revert on toggle. The
+  // few platform-scoped options below mirror each option's `.scope` exactly;
+  // every other flag is relevant everywhere (default scope = all platforms).
+  bool _isFlagRelevant(String id) {
+    switch (id) {
+      case 'webview-legacy-edge': // .scope = windows
+        return Platform.isWindows;
+      case 'touchbar-disabled': // .scope = Q_OS_MAC
+        return Platform.isMacOS;
+      case 'freetype': // .scope = windows | macos
+        return Platform.isWindows || Platform.isMacOS;
+      case 'fractional-scaling-enabled': // .scope = windows | linux
+        return Platform.isWindows || Platform.isLinux;
+      case 'high-dpi-downscale': // .scope = !macos (&& Qt >= 6.4)
+        return !Platform.isMacOS;
+      case 'gnotification': // .scope = GIO available → Linux desktop
+        return Platform.isLinux;
+      case 'custom-notification': // .scope = Platform::Notifications::Enforced()
+        // Windows → false; macOS → Supported() (true); Linux → Wayland, or GIO
+        // present with GNotification on (notifications_manager_*.cpp Enforced()).
+        if (Platform.isWindows) return false;
+        if (Platform.isMacOS) return true;
+        return _isWayland() || _flag('gnotification');
+      default:
+        return true;
+    }
+  }
+
   // AyuGram only registers the fast-buttons-mode toggle when its value is
   // already true (settings_experimental.cpp:306:
   // `if (lookup<bool>(kOptionFastButtonsMode).value()) addToggle(...)`), so a
@@ -4933,6 +5151,13 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
   }
 
   void _toggle(String key) {
+    // AyuGram: toggling a platform-irrelevant option reverts to its default and
+    // shows lng_settings_experimental_irrelevant (settings_experimental.cpp:
+    // 213-219). Our defaults are all false, so we simply refuse the change.
+    if (!_isFlagRelevant(key)) {
+      _toast("This option isn't relevant for your system.");
+      return;
+    }
     setState(() {
       if (_flags[key] == true) {
         _flags.remove(key);
@@ -5136,6 +5361,10 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
   ) {
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    // AyuGram renders a platform-irrelevant option with st::settingsOptionDisabled
+    // (greyed) and reverts any change (settings_experimental.cpp:190-219). We dim
+    // the whole row to match; _toggle refuses the change and toasts.
+    final relevant = _isFlagRelevant(f.id);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -5145,23 +5374,26 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
           splashColor: hoverBg.withValues(alpha: 0.5),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(22, 8, 22, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    f.name,
-                    style: TextStyle(
-                      fontSize: SettingsStyle.buttonFontSize,
-                      color: textColor,
+            child: Opacity(
+              opacity: relevant ? 1.0 : 0.45,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      f.name,
+                      style: TextStyle(
+                        fontSize: SettingsStyle.buttonFontSize,
+                        color: textColor,
+                      ),
                     ),
                   ),
-                ),
-                Switch(
-                  value: _flag(f.id),
-                  onChanged: (_) => _toggle(f.id),
-                  activeColor: accentColor,
-                ),
-              ],
+                  Switch(
+                    value: _flag(f.id),
+                    onChanged: (_) => _toggle(f.id),
+                    activeColor: accentColor,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
