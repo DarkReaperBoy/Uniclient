@@ -191,27 +191,22 @@ section gating (`(incomplete+list)>0`, `list>0`, `list==0`), TTL options `[7,30,
 + `DaysLabel`, box widths (info 364 = `boxWideWidth`, dialog 320 = `boxWidth`), row dims
 (h84 / photo(21,10,42) / name(78,11) / status(78,32) / location top54 / terminate(34×34,
 right11,top8)) and the info-box full date (`_formatFullDate` via MaterialLocalizations, shown
-for the current session too) are all faithful. The findings below are localization/format
+for the current session too) are all faithful. The findings below were localization/format
 deviations from the lang.strings ground truth — flagged MAJOR per the bar set in
 `audit_chunk_9.md`.
 
-- [ ] [MAJOR] ~24 user-facing strings are hardcoded English literals directly in the widget tree, bypassing BOTH `TrStrings` and `LangPack`, so the entire screen stays English in any other language — whereas AyuGram resolves every one through `tr::lng_*` → `Lang::Instance::getValue`. Affected (English text matches, but won't localize): "This device" (`:1054`←`settings_active_sessions.cpp:931` lng_sessions_header), "Rename" (`:1067`←`:934`), "Logs out all devices except for this one." (`:1142`←`:968`), incomplete-about para (`:1172`←`:979`), "Active Devices" (`:1184`←`:987`), about-apps para (`:1202`←`:990`), "Terminate old sessions" (`:1225`←`:998`), other-desc para (`:1262`←`:1019`), "Info" (`:706`←`:451`), "Application" (`:719`←`:455`), "System version" (`:728`←`:460`), "Location" (`:753`←`:475`), location-about para (`:765`←`:481`), "Terminate Session" (`:788`←`:486`), "Done" (`:802`←`:484`), "Loading..." (`:932`←`:811`), "Rename current device" (`:830`←`:124`), "Yes"/"No" (`:737`←`:466`). The same file already uses `TrStrings.lngCancel()`/`lngSettingsSave()`/`lngSelfDestructSessionsTitle()` etc., proving the omission is an oversight. — `active_sessions_screen.dart:1054` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:931`
-
-- [ ] [MAJOR] App-bar title hardcoded "Active Sessions" but `lng_settings_sessions_title` = "Active sessions" (lowercase "sessions"); AyuGram sets it via `Sessions::title()` → `tr::lng_settings_sessions_title` (`settings_active_sessions.cpp:1238`). — `active_sessions_screen.dart:1026` ← `AyuGram/Telegram/Resources/langs/lang.strings:865`
-
-- [ ] [MAJOR] Terminate-all label hardcoded "Terminate All Other Sessions" but `lng_sessions_terminate_all` = "Terminate all other sessions" (sentence case). — `active_sessions_screen.dart:1126` ← `AyuGram/Telegram/Resources/langs/lang.strings:1373`
-
-- [ ] [MAJOR] Incomplete-section header hardcoded "Incomplete Login Attempts" but `lng_sessions_incomplete` = "Incomplete login attempts" (sentence case). — `active_sessions_screen.dart:1154` ← `AyuGram/Telegram/Resources/langs/lang.strings:1375`
-
-- [ ] [MAJOR] Info-box IP row label hardcoded "IP Address" but `lng_sessions_ip` = "IP address" (lowercase "address"). — `active_sessions_screen.dart:745` ← `AyuGram/Telegram/Resources/langs/lang.strings:1382`
-
-- [ ] [MAJOR] Auto-terminate row label hardcoded "If Inactive For" but `lng_settings_terminate_if` = "If inactive for..." — wrong casing AND missing the trailing ellipsis. — `active_sessions_screen.dart:1241` ← `AyuGram/Telegram/Resources/langs/lang.strings:1284`
-
-- [ ] [MAJOR] Info-box "Official App" row label hardcoded "Official App" but `ayu_SessionInfoOfficialApp` = "Official app" (lowercase "app"). — `active_sessions_screen.dart:736` ← `AyuGram/Telegram/Resources/langs/lang.strings:8373`
-
-- [ ] [MAJOR] Rename box is missing the "Device name" subsection label that AyuGram renders above the input (`RenameBox` adds a `FlatLabel(tr::lng_settings_device_name)` before the `InputField`). The Dart dialog jumps straight to the `TextField` with only a hint, so the field is unlabeled. — `active_sessions_screen.dart:837` ← `AyuGram/Telegram/SourceFiles/settings/sections/settings_active_sessions.cpp:127`
-
-- [ ] [MAJOR] Session-row date/time formatting ignores the user locale, diverging from `Authorizations::ActiveDateString`. AyuGram renders same-day time and the fallback date via `QLocale().toString(..., QLocale::ShortFormat)` and the weekday via `langDayOfWeek` (localized) — so a US user sees "2:30 PM" / "6/10/26". The Dart port hardcodes 24-hour `HH:mm` (`:611`), English-only weekday names (`_weekdayNames` `:593-596`, used `:614`) and European `dd.MM.yyyy` (`:616`), producing "14:30" / "Monday" / "10.06.2026" regardless of locale. (Note: the info-box full date at `:897-902` correctly uses MaterialLocalizations — the row path is the inconsistent one.) — `active_sessions_screen.dart:611` ← `AyuGram/Telegram/SourceFiles/api/api_authorizations.cpp:258`
+Verified (ralph Stage 2): all 9 MAJOR localization/format deviations are now FIXED
+and confirmed. Every affected literal is routed through `TrStrings` (the file's
+existing centralised-string layer) with values matching `lang.strings` 1:1 — app-bar
+"Active sessions", "Terminate all other sessions", "Incomplete login attempts",
+"IP address", "If inactive for..." (casing + ellipsis), "Official app", and all
+section/row/about labels. `RenameBox` now renders the `lng_settings_device_name`
+("Device name") subsection label above the input, and session-row dates use
+locale-aware `DateFormat` (faithful port of `Authorizations::ActiveDateString`).
+Confirmed live in BOTH desktop (1024×768) and mobile (400×720) under a Deutsch
+locale: rows render "Mittwoch"/"Dienstag" + German short dates (16.5.2026), the
+info box shows "Official app" and "Samstag, 16. Mai 2026", and the rename dialog
+shows the "Device name" label. No crashes or render errors.
 
 # admin_tools — channel/group/bot admin management (edit info & permissions, restrict/promote members, ownership transfer, admin log, invite links, member browser, statistics, boosts, monetization, affiliate programs)
 
