@@ -720,6 +720,16 @@ class CachedMessage {
   final bool pollOpenAnswers;
   final bool pollHideResultsUntilClose;
 
+  // Monoforum / saved-messages sublist peer (message.saved_peer_id). Set by the
+  // engine for messages in a channel's "Direct Messages" monoforum (the admin's
+  // inbox sublist) and in the user's own Saved Messages. For a channel monoforum
+  // it drives the notification title "{sublistPeerName} ({channel})" — AyuGram's
+  // HistoryItem::savedSublist() + sublistPeer()->shortName()
+  // (notifications_manager.cpp:1576-1578). [sublistPeerName] is that peer's short
+  // name (first name for users). Empty for a regular message.
+  final String sublistPeerId;
+  final String sublistPeerName;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -865,6 +875,8 @@ class CachedMessage {
     this.pollRevotingDisabled = false,
     this.pollOpenAnswers = false,
     this.pollHideResultsUntilClose = false,
+    this.sublistPeerId = '',
+    this.sublistPeerName = '',
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) {
@@ -1020,6 +1032,8 @@ class CachedMessage {
       pollRevotingDisabled: extra['poll_revoting_disabled'] as bool? ?? false,
       pollOpenAnswers: extra['poll_open_answers'] as bool? ?? false,
       pollHideResultsUntilClose: extra['poll_hide_results_until_close'] as bool? ?? false,
+      sublistPeerId: extra['sublist_peer_id'] as String? ?? '',
+      sublistPeerName: extra['sublist_peer_name'] as String? ?? '',
     );
   }
 
@@ -1317,6 +1331,8 @@ class CachedMessage {
     bool? pollRevotingDisabled,
     bool? pollOpenAnswers,
     bool? pollHideResultsUntilClose,
+    String? sublistPeerId,
+    String? sublistPeerName,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -1462,6 +1478,8 @@ class CachedMessage {
     pollRevotingDisabled: pollRevotingDisabled ?? this.pollRevotingDisabled,
     pollOpenAnswers: pollOpenAnswers ?? this.pollOpenAnswers,
     pollHideResultsUntilClose: pollHideResultsUntilClose ?? this.pollHideResultsUntilClose,
+    sublistPeerId: sublistPeerId ?? this.sublistPeerId,
+    sublistPeerName: sublistPeerName ?? this.sublistPeerName,
   );
 
   bool get hasReplyToStory => replyToStoryId != 0;

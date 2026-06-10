@@ -346,6 +346,7 @@ func (t *TelegramCore) initClient() {
 		switch msg := u.Message.(type) {
 		case *tg.Message:
 			converted = t.convertMessage(msg)
+			t.attachSublistInfo(converted, msg, e)
 			// A login code pushed by Telegram (777000) to this already-connected
 			// session auto-fills+submits the in-progress login on another account,
 			// mirroring AyuGram Account::handleLoginCode (intro_code.cpp:59-62).
@@ -422,6 +423,7 @@ func (t *TelegramCore) initClient() {
 		switch msg := u.Message.(type) {
 		case *tg.Message:
 			converted = t.convertMessage(msg)
+			t.attachSublistInfo(converted, msg, e)
 		case *tg.MessageService:
 			if _, ok := msg.Action.(*tg.MessageActionEmpty); ok {
 				return nil
@@ -13752,6 +13754,67 @@ func (t *TelegramCore) resolveCallMemberName(e tg.Entities, gcID int64, userID s
 		return t.selfName
 	}
 	return ""
+}
+
+// resolveShortName returns a peer's short name — the first name for a user,
+// the full title for a chat/channel — mirroring AyuGram PeerData::shortName()
+// (data_peer.cpp). It reads the update's inline entities first (always present
+// on a live message), then falls back to the cached name stores.
+func (t *TelegramCore) resolveShortName(peer tg.PeerClass, e tg.Entities) string {
+	switch p := peer.(type) {
+	case *tg.PeerUser:
+		if u, ok := e.Users[p.UserID]; ok {
+			if fn := strings.TrimSpace(u.FirstName); fn != "" {
+				return fn
+			}
+			if full := strings.TrimSpace(u.FirstName + " " + u.LastName); full != "" {
+				return full
+			}
+			if u.Username != "" {
+				return u.Username
+			}
+		}
+		if p.UserID == t.selfID && t.selfName != "" {
+			return t.selfName
+		}
+		return t.getCachedUserName(p.UserID)
+	case *tg.PeerChannel:
+		if c, ok := e.Channels[p.ChannelID]; ok && c.Title != "" {
+			return c.Title
+		}
+		return t.getCachedChannelName(p.ChannelID)
+	case *tg.PeerChat:
+		if c, ok := e.Chats[p.ChatID]; ok && c.Title != "" {
+			return c.Title
+		}
+		return ""
+	}
+	return ""
+}
+
+// attachSublistInfo records a message's saved/monoforum sublist peer
+// (message.saved_peer_id) into the Extra map. For a channel "Direct Messages"
+// monoforum the Dart notification layer turns this into the title
+// "{sublistPeer shortName} ({channel})" — mirrors AyuGram
+// HistoryItem::savedSublist() + notifications_manager.cpp:1576-1578. Present on
+// both monoforum messages and the user's own Saved Messages; the Dart producer
+// distinguishes the two (a self chat keeps the plain title).
+func (t *TelegramCore) attachSublistInfo(m *Message, msg *tg.Message, e tg.Entities) {
+	saved, ok := msg.GetSavedPeerID()
+	if !ok || saved == nil {
+		return
+	}
+	id := peerToID(saved)
+	if id == "" {
+		return
+	}
+	if m.Extra == nil {
+		m.Extra = make(map[string]interface{})
+	}
+	m.Extra["sublist_peer_id"] = id
+	if name := t.resolveShortName(saved, e); name != "" {
+		m.Extra["sublist_peer_name"] = name
+	}
 }
 
 func peerToID(peer tg.PeerClass) string {

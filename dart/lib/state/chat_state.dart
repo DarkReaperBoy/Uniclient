@@ -3091,6 +3091,19 @@ class ChatState extends ChangeNotifier {
         isReplies: chat?.isReplies ?? false,
         isForumTopic: msg.topicId.isNotEmpty,
         topicTitle: msg.topicName,
+        // Monoforum (channel "Direct Messages") sublist title. A message carrying a
+        // saved_peer_id whose chat is NOT the user's own Saved Messages is a
+        // monoforum sublist — AyuGram's savedSublist() with a non-null parentChat()
+        // (history_item.cpp:4255-4264). The title then becomes
+        // "{sublistPeer shortName} ({channel})" (notifications_manager.cpp:1576-1578).
+        // Requiring a cached chat (the channel) both supplies the parenthesised name
+        // and rules out the self Saved-Messages sublist (parentChat()==null), which
+        // keeps the plain title. sublistPeerId is forwarded too so NotificationSystem
+        // can clear/dedup this thread per-sublist (main.dart clearIncomingFromSublist).
+        isMonoforumSublist:
+            chat != null && !chat.isSelf && msg.sublistPeerId.isNotEmpty,
+        sublistPeerName: msg.sublistPeerName,
+        sublistPeerId: msg.sublistPeerId,
         forwardFrom: msg.forwardFrom,
         // Per-message count is 0/1 (matches AyuGram's `isForwarded ? 1 : 0`).
         // NotificationSystem groups consecutive forwards from the same sender
@@ -3103,9 +3116,14 @@ class ChatState extends ChangeNotifier {
         // MediaFile::notificationText(), which appends originalText for all these
         // document types via WithCaptionNotificationText (data_media_types.cpp).
         // Sticker(6) carries its emoji in contentText, not a caption, so it is
-        // excluded; poll/location/contact/invoice have their own text.
-        caption: (msg.contentText.isNotEmpty &&
-                const {1, 2, 3, 4, 7, 8}.contains(msg.mediaType))
+        // excluded; poll/location/contact have their own text. A PAID-MEDIA invoice
+        // (type 12) is the lone invoice exception: MediaInvoice::notificationText()
+        // appends parent()->originalText() as the caption ("Photo, {caption}") when
+        // _invoice.isPaidMedia, while a plain invoice shows only its title
+        // (data_media_types.cpp:2185-2193).
+        caption: ((const {1, 2, 3, 4, 7, 8}.contains(msg.mediaType) ||
+                    (msg.mediaType == 12 && msg.invoiceIsPaidMedia)) &&
+                msg.contentText.isNotEmpty)
             ? msg.contentText
             : '',
         // Document/audio filename — MediaFile::notificationText() shows it in
