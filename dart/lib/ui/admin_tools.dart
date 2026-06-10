@@ -18,8 +18,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../theme/telegram_palette.dart';
 import 'choose_datetime_box.dart';
+import 'confirm_box.dart' show showConfirmBox;
 import 'create_giveaway_box.dart' show showCreateGiveawayBox;
-import 'create_group_wizard.dart' show showEditPeerTypeBox;
+import 'create_group_wizard.dart' show showEditPeerTypeBox, showCreateMegagroupWizard;
 import 'info_panel.dart';
 import 'telegram_toast.dart';
 import 'package:uniclient/utils/debug.dart';
@@ -230,10 +231,20 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   bool _hasAdminRights = false;
   bool _adminCanChangeInfo = false;
   bool _canSetStickers = false;
+  // Per-row capability bits for the Manage section (edit_peer_info_box.cpp:1446-1456).
+  bool _canBanUsers = false;
+  bool _canInviteUsers = false;
+  bool _canViewParticipants = false;
+  bool _participantsHidden = false;
   String _migratedFromChatId = '';
 
   // Bot manage gating (from GetBotManageInfo + revenue stats).
   bool _botHasVerifierSettings = false;
+  // Verify-Accounts: whether the bot may modify the verification description, the
+  // saved default description, and the UTF-8 length limit (verify_peers_box.cpp:115,120).
+  bool _verifierCanModifyDescription = false;
+  String _verifierCustomDescription = '';
+  int _verifyDescLimit = 70;
   bool _botStarRefAllowed = false;
   bool _botHasCurrencyBalance = false;
   bool _botHasCreditsBalance = false;
@@ -259,6 +270,22 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
       _isChannelOrSuper && (_isMegagroupFlag ? (_isBroadcastFlag || _isGigagroupFlag) : true);
   // hasRecentActions = isChannel && (hasAdminRights || amCreator).
   bool get _hasRecentActions => _isChannelOrSuper && (_hasAdminRights || _amCreator);
+  // ── Per-row Manage-section gates (edit_peer_info_box.cpp:1446-1456) ──
+  // Legacy basic groups can't load these flags (GetChatPermissionFlags is
+  // channel-only), so they fall through permissively — AyuGram shows the rows for
+  // the basic-group creator/admin who opened this screen.
+  // canEditReactions = amCreator || (adminRights & ChangeInfo) (edit_peer_info_box.cpp:853).
+  bool get _canEditReactions => !_isChannelOrSuper || _amCreator || _adminCanChangeInfo;
+  // canEditPermissions (megagroup) = isMegagroup && !isGigagroup && ((adminRights & BanUsers) || amCreator) (data_channel.cpp:748).
+  bool get _canEditPermissions =>
+      !_isChannelOrSuper || (_isMegagroupFlag && !_isGigagroupFlag && (_canBanUsers || _amCreator));
+  // canHaveInviteLink = amCreator || (adminRights & InviteByLinkOrAdd) (data_channel.cpp:291).
+  bool get _canHaveInviteLink => !_isChannelOrSuper || _amCreator || _canInviteUsers;
+  // canViewAdmins = isMegagroup || hasAdminRights || amCreator (data_channel.cpp:734).
+  bool get _canViewAdmins => !_isChannelOrSuper || _isMegagroupFlag || _hasAdminRights || _amCreator;
+  // canViewMembers = CanViewParticipants && (!ParticipantsHidden || amCreator || hasAdminRights) (data_channel.cpp:727).
+  bool get _canViewMembers => !_isChannelOrSuper ||
+      (_canViewParticipants && (!_participantsHidden || _amCreator || _hasAdminRights));
   // canEditStickers() = (flags & CanSetStickers); box requires isChannel.
   bool get _canEditStickers => _isChannelOrSuper && _canSetStickers;
   // canDelete() = amCreator(); box: canDeleteChannel = isChannel && canDelete().
@@ -327,6 +354,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   Future<void> _loadBotManageInfo() async {
     final engine = context.read<EngineService>();
     bool verifier = false;
+    bool canModifyDesc = false;
+    String customDesc = '';
+    int descLimit = 70;
     bool starRefAllowed = false;
     bool hasCurrency = false;
     bool hasCredits = false;
@@ -336,6 +366,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         widget.chat.chatId,
       );
       verifier = info['has_verifier_settings'] == true;
+      canModifyDesc = info['verifier_can_modify_description'] == true;
+      customDesc = (info['verifier_custom_description'] as String?) ?? '';
+      descLimit = (info['bot_verification_description_length_limit'] as num?)?.toInt() ?? 70;
       starRefAllowed = info['starref_allowed'] == true;
     } catch (e) {
       Debug.log('admin_tools', 'final info = await engine.getBotManageInfo(: $e');
@@ -372,6 +405,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     if (mounted) {
       setState(() {
         _botHasVerifierSettings = verifier;
+        _verifierCanModifyDescription = canModifyDesc;
+        _verifierCustomDescription = customDesc;
+        _verifyDescLimit = descLimit > 0 ? descLimit : 70;
         _botStarRefAllowed = starRefAllowed;
         _botHasCurrencyBalance = hasCurrency;
         _botHasCreditsBalance = hasCredits;
@@ -452,6 +488,10 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           _amCreator = flags['am_creator'] == true;
           _hasAdminRights = flags['has_admin_rights'] == true;
           _adminCanChangeInfo = flags['admin_can_change_info'] == true;
+          _canBanUsers = flags['can_ban_users'] == true;
+          _canInviteUsers = flags['can_invite_users'] == true;
+          _canViewParticipants = flags['can_view_participants'] == true;
+          _participantsHidden = flags['participants_hidden'] == true;
           _canSetStickers = flags['can_set_stickers'] == true;
           _migratedFromChatId = (flags['migrated_from_chat_id'] as String?) ?? '';
           _directMessagesEnabled = flags['direct_messages_enabled'] == true;
@@ -1196,34 +1236,34 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   /// `lng_manage_discussion_group_create` GroupInfoBox flow
   /// (edit_discussion_link_box.cpp:277).
   Future<void> _createDiscussionGroup() async {
-    final engine = context.read<EngineService>();
-    final name = '${widget.chat.title} Chat';
-    try {
-      final result = await engine.createMegagroup(
-        widget.chat.accountId,
-        name,
-        '',
-      );
-      if (!mounted) return;
-      final newId = (result['chat_id'] as String?) ?? '';
-      if (newId.isEmpty) {
-        showTelegramToast(context, 'Failed to create group');
-        return;
-      }
-      setState(() {
-        _linkedChatId = newId;
-        _linkedChatTitle = name;
-        _linkedChatUsername = '';
-      });
-      showTelegramToast(context, 'Group created — tap Save to link it');
-    } catch (e) {
-      if (mounted) showTelegramToast(context, 'Failed to create group: $e');
-    }
+    // AyuGram opens the full create-group wizard (Box<GroupInfoBox>,
+    // Type::Megagroup, default name "<channel> Chat") so the user can edit
+    // title/description/photo; its creation callback then stages the new group as
+    // the discussion link (edit_discussion_link_box.cpp:272). The wizard skips the
+    // username / member-picker steps when onCreated is supplied.
+    await showCreateMegagroupWizard(
+      context,
+      defaultTitle: '${widget.chat.title} Chat',
+      onCreated: (chatId, title, username) {
+        if (!mounted || chatId.isEmpty) return;
+        setState(() {
+          _linkedChatId = chatId;
+          _linkedChatTitle = title;
+          _linkedChatUsername = username;
+        });
+        showTelegramToast(context, 'Group created — tap Save to link it');
+      },
+    );
   }
 
   void _showHistoryVisibilityDialog(Color textColor, Color subTextColor, Color accentColor) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    // isLegacy = _peer->isChat() — a legacy basic group (not a tg.Channel). Only
+    // the legacy group uses the "…100 previous messages." string; supergroups use
+    // lng_manage_history_visibility_hidden_about ("New members won't see earlier
+    // messages.") (edit_peer_history_visibility_box.cpp:101).
+    final isLegacy = !_isChannelOrSuper;
     // The dialog edits a local copy; only Save commits it to the deferred
     // pipeline. Cancel with changes prompts a discard confirmation
     // (edit_peer_history_visibility_box.cpp:40).
@@ -1292,7 +1332,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   radio(false, 'Visible', 'New members will see messages that were sent before they joined.'),
-                  radio(true, 'Hidden', 'New members won\'t see more than 100 previous messages.'),
+                  radio(true, 'Hidden', isLegacy
+                      ? 'New members won\'t see more than 100 previous messages.'
+                      : 'New members won\'t see earlier messages.'),
                 ],
               ),
             ),
@@ -1495,10 +1537,23 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     // defaulting to "all" (edit_peer_info_box.cpp:1512).
     String mode = _reactionsMode.isNotEmpty ? _reactionsMode : 'all';
     final selectedEmojis = <String>{..._reactionsAllowed};
-    // Broadcast-only extras mirroring EditAllowedReactionsBox: a per-message
-    // max-count slider (1..reactions_uniq_max) and a paid-reactions toggle. For
-    // megagroups AyuGram omits these (they live under `if (!isGroup)`).
+    // EditAllowedReactionsBox shows the All/Some/None radios ONLY for groups
+    // (addOption early-returns when !isGroup) and a single enable-reactions toggle
+    // for broadcast channels; the max-count slider + paid toggle live under the
+    // broadcast branch (edit_peer_reactions.cpp:705,817). `_isChannel` is
+    // broadcast-only here, so isGroup is its negation.
+    final isGroup = !_isChannel;
     final showBroadcastExtras = _isChannel;
+    // Broadcast enable toggle — initial = current mode is not "none". When a
+    // channel enables reactions, the selector pre-selects all available reactions
+    // (all = !isGroup) unless it already restricts to a subset (changed()/collect,
+    // edit_peer_reactions.cpp:782).
+    bool reactionsEnabled = mode != 'none';
+    if (!isGroup && mode != 'some') {
+      selectedEmojis
+        ..clear()
+        ..addAll(availableReactions);
+    }
     final maxLimit = _reactionsUniqMax < 1 ? 11 : _reactionsUniqMax;
     int maxCount = _reactionsMaxCount > 0
         ? _reactionsMaxCount.clamp(1, maxLimit)
@@ -1518,16 +1573,31 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final opt in [('all', 'All Reactions'), ('some', 'Some Reactions'), ('none', 'No Reactions')])
-                    RadioListTile<String>(
-                      value: opt.$1,
-                      groupValue: mode,
-                      title: Text(opt.$2, style: TextStyle(color: textColor, fontSize: 14)),
+                  // Groups: All/Some/None radios. Broadcast: a single
+                  // enable-reactions toggle (edit_peer_reactions.cpp:685,705).
+                  if (isGroup)
+                    for (final opt in [('all', 'All Reactions'), ('some', 'Some Reactions'), ('none', 'No Reactions')])
+                      RadioListTile<String>(
+                        value: opt.$1,
+                        groupValue: mode,
+                        title: Text(opt.$2, style: TextStyle(color: textColor, fontSize: 14)),
+                        activeColor: accentColor,
+                        onChanged: (v) => setDialogState(() => mode = v!),
+                        dense: true,
+                      )
+                  else
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('Enable Reactions',
+                          style: TextStyle(color: textColor, fontSize: 14)),
+                      value: reactionsEnabled,
                       activeColor: accentColor,
-                      onChanged: (v) => setDialogState(() => mode = v!),
-                      dense: true,
+                      onChanged: (v) => setDialogState(() => reactionsEnabled = v),
                     ),
-                  if (mode == 'some' && availableReactions.isNotEmpty) ...[
+                  // Reaction selector: groups when mode == 'some'; broadcast when
+                  // reactions are enabled.
+                  if (((isGroup && mode == 'some') || (!isGroup && reactionsEnabled)) &&
+                      availableReactions.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
                       'Select allowed reactions:',
@@ -1569,8 +1639,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                       ),
                     ),
                   ],
-                  // Max-count slider + paid toggle (broadcast, reactions enabled).
-                  if (showBroadcastExtras && mode != 'none') ...[
+                  // Max-count slider + paid toggle: broadcast branch only, shown
+                  // when reactions are enabled (edit_peer_reactions.cpp:817).
+                  if (!isGroup && reactionsEnabled) ...[
                     const SizedBox(height: 8),
                     const Divider(),
                     Text('Maximum Reactions',
@@ -1616,11 +1687,36 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: subTextColor))),
             TextButton(
               onPressed: () {
-                if (mode == 'some' && selectedEmojis.isEmpty) {
-                  showTelegramToast(ctx, 'Select at least one reaction');
-                  return;
+                String resultMode;
+                List<String> resultEmojis;
+                if (isGroup) {
+                  if (mode == 'some' && selectedEmojis.isEmpty) {
+                    showTelegramToast(ctx, 'Select at least one reaction');
+                    return;
+                  }
+                  resultMode = mode;
+                  resultEmojis = mode == 'some' ? selectedEmojis.toList() : const [];
+                } else {
+                  // Broadcast collect(): disabled → none; enabled with all
+                  // available selected → all (Default), a subset → some
+                  // (edit_peer_reactions.cpp:964).
+                  if (!reactionsEnabled) {
+                    resultMode = 'none';
+                    resultEmojis = const [];
+                  } else {
+                    final allSelected = availableReactions.isNotEmpty &&
+                        selectedEmojis.length >= availableReactions.length &&
+                        availableReactions.every(selectedEmojis.contains);
+                    if (allSelected || selectedEmojis.isEmpty) {
+                      resultMode = 'all';
+                      resultEmojis = const [];
+                    } else {
+                      resultMode = 'some';
+                      resultEmojis = selectedEmojis.toList();
+                    }
+                  }
                 }
-                Navigator.pop(ctx, (mode, selectedEmojis.toList(), maxCount, paidEnabled));
+                Navigator.pop(ctx, (resultMode, resultEmojis, maxCount, paidEnabled));
               },
               child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
             ),
@@ -2294,7 +2390,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
 
     String formatAmount(int stars) {
       if (isCurrency && usdRate > 0) {
-        final usd = stars * usdRate / 1000;
+        // AyuGram ToUsd: value() * rate, where value() for stars is the whole
+        // star count — NO /1000 (earn_format.cpp:81, api_credits.cpp:301).
+        final usd = stars * usdRate;
         return '${stars.toString()} ≈ \$${usd.toStringAsFixed(2)}';
       }
       return '$stars Stars';
@@ -2460,15 +2558,39 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
 
   Future<void> _showVerifyAccountsDialog(Color textColor, Color subTextColor) async {
     final engine = context.read<EngineService>();
+    final chatState = context.read<ChatState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final accentColor = PaletteProvider.of(context).windowBgActive;
 
-    List<ContactInfo> contacts = [];
+    // AyuGram's ChatsListBoxController lists ALL chats; createRow keeps users +
+    // channels (peer->isUser() || peer->isChannel()), so non-contact users and
+    // channels are verifiable too (verify_peers_box.cpp:231). Merge the dialog
+    // list (users + channels + supergroups) with the contact list (for users not
+    // currently in an open dialog), deduped by id.
+    final candidates = <({String id, String name, String username})>[];
+    final seen = <String>{};
+    void addCandidate(String id, String name, String username) {
+      if (id.isEmpty || id == '0' || seen.contains(id)) return;
+      seen.add(id);
+      candidates.add((id: id, name: name, username: username));
+    }
+    for (final c in chatState.chatsForAccount(widget.chat.accountId)) {
+      if (c.chatId == widget.chat.chatId) continue; // exclude the bot itself
+      if (c.type == ChatType.dm ||
+          c.type == ChatType.channel ||
+          c.type == ChatType.group) {
+        addCandidate(c.chatId, c.title, c.username);
+      }
+    }
     try {
-      contacts = await engine.getContacts(widget.chat.accountId);
+      final contacts = await engine.getContacts(widget.chat.accountId);
+      for (final c in contacts) {
+        addCandidate(c.userId,
+            c.displayName.isNotEmpty ? c.displayName : c.username, c.username);
+      }
     } catch (e) {
-      Debug.log('admin_tools', 'contacts = await engine.getContacts(widget.chat.accountId): $e');
+      Debug.log('admin_tools', 'verify accounts getContacts: $e');
     }
     if (!mounted) return;
 
@@ -2477,25 +2599,25 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     showDialog(
       context: context,
       builder: (ctx) {
-        var filtered = List<ContactInfo>.from(contacts);
+        var filtered = [...candidates];
         // Real per-bot verify state, lazily fetched per visible row and cached
-        // from UserFull.bot_verification.bot_id (verify_peers_box.cpp:92). A
-        // userId absent from the map is still loading.
+        // from the peer's bot_verification (verify_peers_box.cpp:92). An id absent
+        // from the map is still loading.
         final verifyCache = <String, bool>{};
         final pending = <String>{};
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
-            void ensureState(String userId) {
-              if (verifyCache.containsKey(userId) || pending.contains(userId)) return;
-              pending.add(userId);
+            void ensureState(String id) {
+              if (verifyCache.containsKey(id) || pending.contains(id)) return;
+              pending.add(id);
               engine
-                  .getBotVerifyState(widget.chat.accountId, widget.chat.chatId, userId)
+                  .getBotVerifyState(widget.chat.accountId, widget.chat.chatId, id)
                   .then((v) {
-                pending.remove(userId);
-                if (ctx.mounted) setDialogState(() => verifyCache[userId] = v);
+                pending.remove(id);
+                if (ctx.mounted) setDialogState(() => verifyCache[id] = v);
               }).catchError((_) {
-                pending.remove(userId);
-                if (ctx.mounted) setDialogState(() => verifyCache[userId] = false);
+                pending.remove(id);
+                if (ctx.mounted) setDialogState(() => verifyCache[id] = false);
               });
             }
             return AlertDialog(
@@ -2507,7 +2629,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
               child: Column(
                 children: [
                   Text(
-                    'Select accounts to grant or revoke custom verification badge from this bot.',
+                    'Select accounts to grant or revoke a custom verification badge from this bot.',
                     style: TextStyle(color: subTextColor, fontSize: 13),
                   ),
                   const SizedBox(height: 12),
@@ -2515,7 +2637,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                     controller: searchCtrl,
                     style: TextStyle(color: textColor),
                     decoration: InputDecoration(
-                      hintText: 'Search users...',
+                      hintText: 'Search...',
                       hintStyle: TextStyle(color: subTextColor.withValues(alpha: 0.5)),
                       prefixIcon: Icon(Icons.search, color: subTextColor),
                       isDense: true,
@@ -2525,8 +2647,8 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                     onChanged: (q) {
                       setDialogState(() {
                         final ql = q.toLowerCase();
-                        filtered = contacts.where((c) =>
-                          c.displayName.toLowerCase().contains(ql) ||
+                        filtered = candidates.where((c) =>
+                          c.name.toLowerCase().contains(ql) ||
                           c.username.toLowerCase().contains(ql)
                         ).toList();
                       });
@@ -2535,16 +2657,16 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                   const SizedBox(height: 8),
                   Expanded(
                     child: filtered.isEmpty
-                        ? Center(child: Text('No contacts found', style: TextStyle(color: subTextColor)))
+                        ? Center(child: Text('No accounts found', style: TextStyle(color: subTextColor)))
                         : ListView.builder(
                             itemCount: filtered.length,
                             itemBuilder: (ctx, i) {
                               final c = filtered[i];
                               // Kick off the real per-bot state fetch for this
                               // (visible) row; reflect it once known.
-                              ensureState(c.userId);
-                              final known = verifyCache.containsKey(c.userId);
-                              final verified = verifyCache[c.userId] ?? false;
+                              ensureState(c.id);
+                              final known = verifyCache.containsKey(c.id);
+                              final verified = verifyCache[c.id] ?? false;
                               return ListTile(
                                 dense: true,
                                 leading: !known
@@ -2562,35 +2684,24 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                                         size: 20,
                                       ),
                                 title: Text(
-                                  c.displayName.isNotEmpty ? c.displayName : c.username.isNotEmpty ? '@${c.username}' : c.userId,
+                                  c.name.isNotEmpty ? c.name : c.username.isNotEmpty ? '@${c.username}' : c.id,
                                   style: TextStyle(color: textColor, fontSize: 14),
                                 ),
                                 subtitle: c.username.isNotEmpty
                                     ? Text('@${c.username}', style: TextStyle(color: subTextColor, fontSize: 12))
                                     : null,
                                 // Disabled until the real state is known, so the
-                                // tap sends the correct Setup vs Remove action.
+                                // confirm routes to the correct Setup vs Remove.
                                 onTap: !known
                                     ? null
-                                    : () async {
-                                        try {
-                                          await engine.callGeneric(
-                                            widget.chat.accountId,
-                                            'BotsSetCustomVerification',
-                                            {
-                                              'bot_id': widget.chat.chatId,
-                                              'peer_id': c.userId,
-                                              'enabled': !verified,
-                                            },
-                                          );
-                                          if (ctx.mounted) {
-                                            setDialogState(() => verifyCache[c.userId] = !verified);
-                                            showTelegramToast(ctx, verified ? 'Verification removed' : 'Verification added');
-                                          }
-                                        } catch (e) {
-                                          if (ctx.mounted) showTelegramToast(ctx, 'Failed: $e');
-                                        }
-                                      },
+                                    : () => _confirmVerifyAccount(
+                                          c.id, c.name, c.username, verified,
+                                          (v) {
+                                            if (ctx.mounted) {
+                                              setDialogState(() => verifyCache[c.id] = v);
+                                            }
+                                          },
+                                        ),
                               );
                             },
                           ),
@@ -2609,6 +2720,116 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         );
       },
     );
+  }
+
+  /// Routes a Verify-Accounts row tap through a confirm box — Remove for a peer
+  /// already verified by this bot, otherwise an Add box with an optional editable
+  /// custom-description field when the bot's verifier settings allow it. Mirrors
+  /// AyuGram confirmAdd/confirmRemove → bots.setCustomVerification
+  /// (verify_peers_box.cpp:103,198).
+  Future<void> _confirmVerifyAccount(
+    String id,
+    String name,
+    String username,
+    bool verified,
+    void Function(bool) onChanged,
+  ) async {
+    final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subTextColor = isDark ? Colors.white70 : Colors.black54;
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+    final display = name.isNotEmpty ? name : (username.isNotEmpty ? '@$username' : id);
+
+    if (verified) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (c2) => AlertDialog(
+          backgroundColor: bgColor,
+          title: Text('Remove verification',
+              style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+          content: Text(
+            '"$display" is already verified by you. Do you want to remove verification?',
+            style: TextStyle(color: textColor, fontSize: 14),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c2, false),
+                child: Text('Cancel', style: TextStyle(color: subTextColor))),
+            TextButton(onPressed: () => Navigator.pop(c2, true),
+                child: Text('Remove', style: TextStyle(color: Colors.red.shade400))),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      try {
+        await engine.setBotCustomVerification(
+            widget.chat.accountId, widget.chat.chatId, id, enabled: false);
+        onChanged(false);
+        if (mounted) showTelegramToast(context, 'Verification removed');
+      } catch (e) {
+        if (mounted) showTelegramToast(context, 'Failed: $e');
+      }
+      return;
+    }
+
+    // confirmAdd — editable custom description only when canModifyDescription.
+    final descCtrl = TextEditingController(
+        text: _verifierCanModifyDescription ? _verifierCustomDescription : '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c2) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Verify Account',
+            style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Do you want to verify "$display" with your verification mark and description?',
+              style: TextStyle(color: textColor, fontSize: 14),
+            ),
+            if (_verifierCanModifyDescription) ...[
+              const SizedBox(height: 14),
+              Text('Description', style: TextStyle(color: subTextColor, fontSize: 12)),
+              TextField(
+                controller: descCtrl,
+                style: TextStyle(color: textColor),
+                maxLength: _verifyDescLimit,
+                minLines: 1,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: const OutlineInputBorder(),
+                  counterStyle: TextStyle(color: subTextColor),
+                ),
+              ),
+              Text('You can customize your description for each account.',
+                  style: TextStyle(color: subTextColor, fontSize: 12)),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c2, false),
+              child: Text('Cancel', style: TextStyle(color: subTextColor))),
+          TextButton(onPressed: () => Navigator.pop(c2, true),
+              child: Text('Verify', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+    final desc = _verifierCanModifyDescription ? descCtrl.text.trim() : '';
+    descCtrl.dispose();
+    if (ok != true) return;
+    try {
+      await engine.setBotCustomVerification(
+          widget.chat.accountId, widget.chat.chatId, id,
+          enabled: true, customDescription: desc);
+      onChanged(true);
+      if (mounted) showTelegramToast(context, 'Verification added');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: $e');
+    }
   }
 
   // Reactions count label, mirroring AyuGram (edit_peer_info_box.cpp:1523-1534):
@@ -2654,14 +2875,16 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
 
     return Column(
       children: [
-        _EditRow(
-          icon: Icons.emoji_emotions_outlined,
-          label: 'Reactions',
-          value: _reactionsCountLabel(),
-          textColor: textColor,
-          subTextColor: subTextColor,
-          onTap: () => _showReactionsDialog(textColor, subTextColor),
-        ),
+        if (_canEditReactions)
+          _EditRow(
+            icon: Icons.emoji_emotions_outlined,
+            label: 'Reactions',
+            value: _reactionsCountLabel(),
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => _showReactionsDialog(textColor, subTextColor),
+          ),
+        if (_canEditPermissions)
         _EditRow(
           icon: Icons.security,
           label: 'Permissions',
@@ -2683,6 +2906,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             hasDiscussionLink: _linkedChatId.isNotEmpty,
           ),
         ),
+        if (_canHaveInviteLink)
         _EditRow(
           icon: Icons.link,
           label: 'Invite Links',
@@ -2693,6 +2917,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           subTextColor: subTextColor,
           onTap: () => _showInviteLink(),
         ),
+        if (_canViewAdmins)
         _EditRow(
           icon: Icons.admin_panel_settings_outlined,
           label: 'Administrators',
@@ -2708,6 +2933,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             initialTab: _MemberTab.admins,
           ),
         ),
+        if (_canViewMembers)
         _EditRow(
           icon: Icons.people_outline,
           label: _isChannel ? 'Subscribers' : 'Members',
@@ -3695,7 +3921,11 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
                 SizedBox(
                   height: 24,
                   child: Switch(
-                    value: allowedCount == total,
+                    // AyuGram's group toggle is checked when ANY sub-flag is
+                    // allowed (checkView->setChecked(count > 0)); a click inverts
+                    // that and applies to all inner flags — so 3/9 reads ON and a
+                    // click bans all (edit_peer_permissions_box.cpp:453,540).
+                    value: allowedCount > 0,
                     onChanged: (val) {
                       setState(() {
                         for (final f in _mediaFlags) {
@@ -4260,7 +4490,13 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
   // Durations in months; 999 == forever (info_bot_starref_setup_widget.cpp:681).
   static const _durations = [1, 3, 6, 12, 24, 36, 999];
   int _durationMonths = 12;
+  // exists = (commission > 0) && !endDate (info_bot_starref_setup_widget.cpp:109).
   bool _hasProgram = false;
+  // Unix epoch (seconds) when an ended program's links stop working; 0 = active or
+  // never existed. While > now, the Start button is disabled with a live countdown
+  // (info_bot_starref_setup_widget.cpp:529).
+  int _endDate = 0;
+  Timer? _cooldownTimer;
   bool _loading = true;
   bool _saving = false;
   // When a program already exists, AyuGram passes _state.exists as
@@ -4276,6 +4512,49 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _cooldownTimer?.cancel();
+    super.dispose();
+  }
+
+  // Seconds remaining on the ended-program cooldown (0 once it elapses).
+  int get _cooldownLeft {
+    if (_endDate <= 0) return 0;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return _endDate > now ? _endDate - now : 0;
+  }
+
+  // While a cooldown is active, AyuGram re-renders the countdown each tick and
+  // re-enables the button when it hits zero (info_bot_starref_setup_widget.cpp:534).
+  void _scheduleCooldownTick() {
+    _cooldownTimer?.cancel();
+    if (_cooldownLeft <= 0) return;
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_cooldownLeft <= 0) {
+        t.cancel();
+      }
+      setState(() {});
+    });
+  }
+
+  // FormatTimeLeft: "H:MM:SS" with hours, else "M:SS"
+  // (info_bot_starref_setup_widget.cpp:428).
+  String _formatTimeLeft(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    final ss = secs.toString().padLeft(2, '0');
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}:$ss';
+    }
+    return '$minutes:$ss';
+  }
+
   Future<void> _load() async {
     final engine = context.read<EngineService>();
     try {
@@ -4283,16 +4562,28 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
       final cmin = (info['starref_commission_min'] as num?)?.toInt() ?? 10;
       final cmax = (info['starref_commission_max'] as num?)?.toInt() ?? 900;
       final cur = (info['starref_commission'] as num?)?.toInt() ?? 0;
-      Map<String, dynamic> program = {};
-      try {
-        final full = await engine.getFullChatInfo(widget.accountId, widget.chatId);
-        program = full['star_ref_program'] as Map<String, dynamic>? ?? {};
-      } catch (_) {}
+      // The program block (commission/duration/end_date) comes from
+      // GetBotManageInfo now (info_bot_starref_common.cpp:95 ValueForDurationMonths);
+      // fall back to the old getFullChatInfo location for safety.
+      Map<String, dynamic> program =
+          info['star_ref_program'] as Map<String, dynamic>? ?? {};
+      if (program.isEmpty) {
+        try {
+          final full = await engine.getFullChatInfo(widget.accountId, widget.chatId);
+          program = full['star_ref_program'] as Map<String, dynamic>? ?? {};
+        } catch (_) {}
+      }
       if (!mounted) return;
+      final endDate = (program['end_date'] as num?)?.toInt() ?? 0;
+      final hasAnyProgram = program.isNotEmpty || cur > 0;
       setState(() {
         _commissionMin = cmin > 0 ? cmin : 10;
         _commissionMax = cmax > _commissionMin ? cmax : 900;
-        _hasProgram = program.isNotEmpty || cur > 0;
+        _endDate = endDate;
+        // exists = (commission > 0) && !endDate — an ended program (end_date set)
+        // is NOT "exists", so it shows Start (with cooldown) not Update, and no
+        // irreversibility floor (info_bot_starref_setup_widget.cpp:109).
+        _hasProgram = hasAnyProgram && endDate == 0;
         _commissionPermille = (program['commission_permille'] as num?)?.toInt() ??
             (cur > 0 ? cur : 200);
         _commissionPermille = _commissionPermille.clamp(_commissionMin, _commissionMax);
@@ -4304,6 +4595,7 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
         _origDurationMonths = _hasProgram ? _durationMonths : _durations.first;
         _loading = false;
       });
+      _scheduleCooldownTick();
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -4569,14 +4861,31 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: accent),
-                    onPressed: _saving ? null : _save,
-                    child: Text(_saving ? 'Saving…' : (_hasProgram ? 'Update Program' : 'Start Program')),
-                  ),
-                ),
+                Builder(builder: (_) {
+                  // MakeStartButton: while endDate > now the button is disabled with
+                  // a live "Available in {time}" sublabel; otherwise the label is
+                  // Update (exists) or Start (info_bot_starref_setup_widget.cpp:529).
+                  final cooldown = _cooldownLeft;
+                  final onCooldown = cooldown > 0;
+                  final label = _hasProgram ? 'Update Program' : 'Start Program';
+                  return SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(backgroundColor: accent),
+                      onPressed: (_saving || onCooldown) ? null : _save,
+                      child: onCooldown
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(label),
+                                Text('Available in ${_formatTimeLeft(cooldown)}',
+                                    style: const TextStyle(fontSize: 11)),
+                              ],
+                            )
+                          : Text(_saving ? 'Saving…' : label),
+                    ),
+                  );
+                }),
                 if (_hasProgram)
                   TextButton(
                     onPressed: _end,
@@ -4686,8 +4995,9 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
       if (widget.isForum) _PermFlag(key: 'manage_topics', label: 'Create topics'),
       _PermFlag(key: 'pin_messages', label: 'Pin messages'),
       // EditRank: user-specific restriction box → lng_rights_group_edit_rank_single
-      // = "Edit own tag"; always locked.
-      _PermFlag(key: 'edit_rank', label: 'Edit own tag', locked: true),
+      // = "Edit own tag". A normal toggleable restriction in the per-user list and
+      // part of the serialized NegateRestrictions set (edit_peer_permissions_box.cpp:99).
+      _PermFlag(key: 'edit_rank', label: 'Edit own tag'),
       _PermFlag(key: 'change_info', label: 'Change group info'),
     ];
     _loadDefaults();
@@ -5182,7 +5492,11 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
                 SizedBox(
                   height: 24,
                   child: Switch(
-                    value: allowedCount == total,
+                    // AyuGram's group toggle is checked when ANY sub-flag is
+                    // allowed (checkView->setChecked(count > 0)); a click inverts
+                    // that and applies to all inner flags — so 3/9 reads ON and a
+                    // click bans all (edit_peer_permissions_box.cpp:453,540).
+                    value: allowedCount > 0,
                     onChanged: (val) {
                       setState(() {
                         for (final f in _mediaFlags) {
@@ -8574,27 +8888,51 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
   }
 
   Future<void> _revokeLink(_InviteLinkData link) async {
-    final engine = context.read<EngineService>();
-    try {
-      await engine.revokeChatInviteLink(widget.accountId, widget.chatId, link.link);
-      _loadAll();
-    } catch (e) {
-      if (mounted) {
-        showTelegramToast(context, 'Failed: $e');
-      }
-    }
+    // AyuGram routes every revoke through RevokeLinkBox → MakeConfirmBox; a
+    // permanent link regenerates (invalidating the old URL for everyone), so it
+    // gets the "previous link will be deactivated" text, regular links the
+    // generic revoke confirmation (edit_peer_invite_link.cpp:449,1651).
+    await showConfirmBox(
+      context,
+      text: link.permanent
+          ? "Your previous link will be deactivated and we'll generate a new invite link for you."
+          : 'Are you sure you want to revoke this invite link?',
+      confirmText: 'Revoke',
+      isDestructive: true,
+      onConfirm: () async {
+        final engine = context.read<EngineService>();
+        try {
+          await engine.revokeChatInviteLink(widget.accountId, widget.chatId, link.link);
+          _loadAll();
+        } catch (e) {
+          if (mounted) {
+            showTelegramToast(context, 'Failed: $e');
+          }
+        }
+      },
+    );
   }
 
   Future<void> _deleteLink(_InviteLinkData link) async {
-    final engine = context.read<EngineService>();
-    try {
-      await engine.deleteRevokedChatInviteLink(widget.accountId, widget.chatId, link.link);
-      _loadAll();
-    } catch (e) {
-      if (mounted) {
-        showTelegramToast(context, 'Failed: $e');
-      }
-    }
+    // AyuGram routes single-delete through DeleteLinkBox → MakeConfirmBox
+    // ({ lng_group_invite_delete_sure }) (edit_peer_invite_link.cpp:457,1673).
+    await showConfirmBox(
+      context,
+      text: 'Are you sure you want to delete this revoked link?',
+      confirmText: 'Delete',
+      isDestructive: true,
+      onConfirm: () async {
+        final engine = context.read<EngineService>();
+        try {
+          await engine.deleteRevokedChatInviteLink(widget.accountId, widget.chatId, link.link);
+          _loadAll();
+        } catch (e) {
+          if (mounted) {
+            showTelegramToast(context, 'Failed: $e');
+          }
+        }
+      },
+    );
   }
 
   Future<void> _deleteAllRevoked() async {
@@ -14328,10 +14666,12 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     );
   }
 
-  // usd_rate is the value of 1000 Stars in USD (matches _showRevenueStats).
+  // AyuGram ToUsd: value() * rate, where CreditsAmount::value() for stars is the
+  // whole star count — so USD = stars * usd_rate, NO /1000 (earn_format.cpp:81,
+  // api_credits.cpp:301; the same raw TL usd_rate flows through telegram.go).
   static String _fmtUsd(int stars, double usdRate) {
     if (usdRate <= 0) return '';
-    final usd = stars * usdRate / 1000;
+    final usd = stars * usdRate;
     return '≈ \$${usd.toStringAsFixed(2)}';
   }
 

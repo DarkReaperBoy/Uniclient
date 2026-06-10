@@ -1823,6 +1823,21 @@ func (e *Engine) GetBotVerifyState(accountID, botID, userID string) (bool, error
 	return g.GetBotVerifyState(botID, userID)
 }
 
+func (e *Engine) SetBotCustomVerification(accountID, botID, peerID string, enabled bool, customDescription string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type setter interface {
+		SetBotCustomVerification(botID, peerID string, enabled bool, customDescription string) (bool, error)
+	}
+	g, ok := acc.Core.(setter)
+	if !ok {
+		return false, fmt.Errorf("platform does not support bot custom verification")
+	}
+	return g.SetBotCustomVerification(botID, peerID, enabled, customDescription)
+}
+
 func (e *Engine) GetInviteImportersList(accountID, chatID, link string, requested bool, limit int, offsetUserID int64, offsetDate int) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

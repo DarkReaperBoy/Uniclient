@@ -46,15 +46,31 @@ Future<void> showCreateChannelWizard(BuildContext context) {
   return _showWizard(context, _WizardType.channel);
 }
 
-Future<void> showCreateMegagroupWizard(BuildContext context) {
-  return _showWizard(context, _WizardType.megagroup);
+/// Opens the interactive create-megagroup wizard. When [onCreated] is provided
+/// (e.g. the discussion-link flow), the wizard skips the public-username /
+/// member-picker steps and, on creation, closes and hands the new group's
+/// (chatId, title, username) back — mirroring AyuGram's GroupInfoBox with a
+/// channelReady callback (add_contact_box.cpp:931). [defaultTitle] pre-fills the
+/// name field (channel->name() + " Chat").
+Future<void> showCreateMegagroupWizard(
+  BuildContext context, {
+  String? defaultTitle,
+  void Function(String chatId, String title, String username)? onCreated,
+}) {
+  return _showWizard(context, _WizardType.megagroup,
+      defaultTitle: defaultTitle, onCreated: onCreated);
 }
 
 Future<void> showCreateForumWizard(BuildContext context) {
   return _showWizard(context, _WizardType.forum);
 }
 
-Future<void> _showWizard(BuildContext context, _WizardType type) {
+Future<void> _showWizard(
+  BuildContext context,
+  _WizardType type, {
+  String? defaultTitle,
+  void Function(String chatId, String title, String username)? onCreated,
+}) {
   final appState = context.read<AppState>();
   final chatState = context.read<ChatState>();
   final engine = context.read<EngineService>();
@@ -67,7 +83,8 @@ Future<void> _showWizard(BuildContext context, _WizardType type) {
         value: chatState,
         child: Provider<EngineService>.value(
           value: engine,
-          child: _WizardDialog(type: type),
+          child: _WizardDialog(
+              type: type, defaultTitle: defaultTitle, onCreated: onCreated),
         ),
       ),
     ),
@@ -76,7 +93,9 @@ Future<void> _showWizard(BuildContext context, _WizardType type) {
 
 class _WizardDialog extends StatefulWidget {
   final _WizardType type;
-  const _WizardDialog({required this.type});
+  final String? defaultTitle;
+  final void Function(String chatId, String title, String username)? onCreated;
+  const _WizardDialog({required this.type, this.defaultTitle, this.onCreated});
 
   @override
   State<_WizardDialog> createState() => _WizardDialogState();
@@ -148,6 +167,11 @@ class _WizardDialogState extends State<_WizardDialog>
   void initState() {
     super.initState();
     _step = _WizardStep.info;
+    // Pre-fill the title (e.g. "<channel> Chat" for the discussion-link flow,
+    // add_contact_box.cpp:282).
+    if (widget.defaultTitle != null && widget.defaultTitle!.isNotEmpty) {
+      _nameController.text = widget.defaultTitle!;
+    }
     _shakeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -839,6 +863,17 @@ class _WizardDialogState extends State<_WizardDialog>
           }
         }
         if (!mounted) return;
+        // Discussion-link flow: GroupInfoBox channelReady() with a _done callback
+        // (and not mustBePublic) skips SetupChannelBox / the member picker — close
+        // and hand the new group back so the caller can link it
+        // (add_contact_box.cpp:931).
+        if (widget.onCreated != null && _createdChatId.isNotEmpty) {
+          final cb = widget.onCreated!;
+          final createdId = _createdChatId;
+          Navigator.of(context).pop();
+          cb(createdId, name, '');
+          return;
+        }
         _loadInviteLink();
         _probeUsernameAvailability();
         setState(() {

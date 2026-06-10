@@ -14698,6 +14698,9 @@ func (t *TelegramCore) PromoteAdminWithRights(chatID, userID string, rights map[
 		ManageCall:     rights["manage_call"],
 		AddAdmins:      rights["add_admins"],
 		Anonymous:      rights["anonymous"],
+		// ManageRanks ("Edit member tags"): part of the megagroup defaultRights()
+		// and saved bitmask (edit_participant_box.cpp:327). Previously dropped.
+		ManageRanks:          rights["manage_ranks"],
 		ManageDirectMessages: rights["manage_direct"],
 		// AyuGram always forces ChatAdminRight::Other into the saved bitmask
 		// (edit_participant_box.cpp:590) — without it the server can reject a
@@ -17778,6 +17781,8 @@ type ChatPermissionFlags struct {
 	CanAddAdmins          bool   `json:"can_add_admins"`
 	CanBanUsers           bool   `json:"can_ban_users"`
 	CanInviteUsers        bool   `json:"can_invite_users"`
+	CanViewParticipants   bool   `json:"can_view_participants"`
+	ParticipantsHidden    bool   `json:"participants_hidden"`
 	CanSetStickers        bool   `json:"can_set_stickers"`
 	AutoTranslateMinLevel int    `json:"auto_translate_min_level"`
 	MigratedFromChatID    string `json:"migrated_from_chat_id"`
@@ -18082,6 +18087,10 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 		flags.NoTranslations = fc.TranslationsDisabled
 		flags.PendingRequestsCount = fc.RequestsPending
 		flags.CanSetStickers = fc.CanSetStickers
+		// canViewMembers() = CanViewParticipants && (!ParticipantsHidden ||
+		// amCreator || hasAdminRights) (data_channel.cpp:727).
+		flags.CanViewParticipants = fc.CanViewParticipants
+		flags.ParticipantsHidden = fc.ParticipantsHidden
 		if stars, ok := fc.GetSendPaidMessagesStars(); ok {
 			flags.DirectMessagesStars = stars
 		}
@@ -18260,12 +18269,33 @@ func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, 
 		"starref_commission_max": t.appConfigIntNoLock("starref_max_commission_permille", 900),
 	}
 	if bi, ok := result.FullUser.GetBotInfo(); ok {
-		if _, ok := bi.GetVerifierSettings(); ok {
+		if vs, ok := bi.GetVerifierSettings(); ok {
 			out["has_verifier_settings"] = true
+			// canModifyDescription gates the editable custom-description field in
+			// the Verify-Accounts confirm box (verify_peers_box.cpp:115); the saved
+			// description pre-fills it.
+			out["verifier_can_modify_description"] = vs.CanModifyCustomDescription
+			if desc, ok := vs.GetCustomDescription(); ok {
+				out["verifier_custom_description"] = desc
+			}
 		}
 	}
+	// UTF-8 length limit for the verification custom description (verify_peers_box.cpp:120).
+	out["bot_verification_description_length_limit"] = t.appConfigIntNoLock("bot_verification_description_length_limit", 70)
 	if srp, ok := result.FullUser.GetStarrefProgram(); ok {
 		out["starref_commission"] = srp.CommissionPermille
+		// Full program block so the setup screen pre-fills duration (and detects an
+		// ended program via end_date for the 24h cooldown). duration_months == 0
+		// means "forever" (FormatProgramDuration, info_bot_starref_common.cpp:226);
+		// end_date is only set once the program has been ended.
+		program := map[string]interface{}{
+			"commission_permille": srp.CommissionPermille,
+			"duration_months":     srp.DurationMonths,
+		}
+		if ed, ok := srp.GetEndDate(); ok {
+			program["end_date"] = ed
+		}
+		out["star_ref_program"] = program
 	}
 	return out, nil
 }
@@ -18297,6 +18327,39 @@ func (t *TelegramCore) GetBotVerifyState(botID, userID string) (bool, error) {
 		return bv.BotID == bid, nil
 	}
 	return false, nil
+}
+
+// SetBotCustomVerification grants (enabled) or revokes (else) the bot's custom
+// verification badge for a peer — a user OR a channel (verify_peers_box.cpp:234
+// createRow allows both). Mirrors AyuGram's Setup/Remove: enabling sets the
+// f_bot|f_enabled flags (plus f_custom_description when a description is given),
+// while removing sends f_bot only (verify_peers_box.cpp:52,72). A JSON-map
+// generic dispatch can't build the typed request, so this is a dedicated method.
+func (t *TelegramCore) SetBotCustomVerification(botID, peerID string, enabled bool, customDescription string) (bool, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return false, ErrAuth
+	}
+	bid, err := tgUserID(botID)
+	if err != nil {
+		return false, err
+	}
+	peer, err := t.resolvePeer(peerID)
+	if err != nil {
+		return false, err
+	}
+	inputPeer := t.peerToInputPeer(peer)
+	req := &tg.BotsSetCustomVerificationRequest{Peer: inputPeer}
+	// f_bot — required when invoked by a user (must be an owned bot).
+	req.SetBot(&tg.InputUser{UserID: bid, AccessHash: t.getCachedUserHash(bid)})
+	if enabled {
+		req.SetEnabled(true)
+		if customDescription != "" {
+			req.SetCustomDescription(customDescription)
+		}
+	}
+	return t.api.BotsSetCustomVerification(t.ctx, req)
 }
 
 // ── Star-ref (affiliate program) JOIN flow ──
@@ -19234,6 +19297,8 @@ func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset str
 	if nextOff, ok := list.GetNextOffset(); ok {
 		out["next_offset"] = nextOff
 	}
+	// Cache booster users so getUserAvatarB64 can resolve their photo + access hash.
+	t.cacheEntities(list.Users, nil)
 	var boosters []map[string]interface{}
 	userMap := map[int64]tg.UserClass{}
 	for _, u := range list.Users {
@@ -19258,6 +19323,12 @@ func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset str
 					if usr.LastName != "" { name += " " + usr.LastName }
 					row["user_name"] = name
 				}
+			}
+			// Real-user booster userpic so the row renders the actual avatar
+			// instead of the letter placeholder (generatePaintUserpicCallback,
+			// info_statistics_list_controllers.cpp:507).
+			if av := t.getUserAvatarB64(uid); av != "" {
+				row["avatar_b64"] = av
 			}
 		}
 		if mult, ok := b.GetMultiplier(); ok {

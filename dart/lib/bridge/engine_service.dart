@@ -1332,6 +1332,30 @@ class EngineService {
     return m['verified'] == true;
   }
 
+  /// Grants (enabled) or revokes a bot's custom verification badge for a peer
+  /// (user or channel). Mirrors AyuGram's Setup/Remove via bots.setCustomVerification
+  /// (verify_peers_box.cpp:52,72). [customDescription] is only sent when granting
+  /// and the bot's verifier settings allow modifying it.
+  Future<bool> setBotCustomVerification(
+    String accountId,
+    String botId,
+    String peerId, {
+    required bool enabled,
+    String customDescription = '',
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'bot_id': botId,
+      'peer_id': peerId,
+      'enabled': enabled,
+      'custom_description': customDescription,
+    }));
+    final resp = await _callAsync('__engine', 'SetBotCustomVerification', Uint8List.fromList(payload));
+    if (resp.isEmpty) return false;
+    final m = json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+    return m['ok'] == true;
+  }
+
   // ── Star-ref (affiliate program) JOIN flow ──
   // A broadcast channel can only JOIN other bots' affiliate programs to
   // advertise them (info_bot_starref_join_widget.cpp); it cannot own one.

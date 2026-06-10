@@ -2599,6 +2599,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]bool{"verified": verified})
 
+	case "SetBotCustomVerification":
+		var params struct {
+			AccountID         string `json:"account_id"`
+			BotID             string `json:"bot_id"`
+			PeerID            string `json:"peer_id"`
+			Enabled           bool   `json:"enabled"`
+			CustomDescription string `json:"custom_description"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ok, err := e.SetBotCustomVerification(params.AccountID, params.BotID, params.PeerID, params.Enabled, params.CustomDescription)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": ok})
+
 	case "GetInviteImportersList":
 		var params struct {
 			AccountID    string `json:"account_id"`
