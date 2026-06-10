@@ -319,13 +319,15 @@ class _AuthScreenState extends State<AuthScreen>
   String _nextButtonText(AuthStateData? data, LangPack lang) {
     if (data == null) return lang.tr('lng_intro_next');
     if (data.state == 'otp' && data.codeByFragmentUrl.isNotEmpty) {
-      return 'Open Fragment'; // lng_intro_fragment_button
+      // Fragment delivery: CodeWidget::nextButtonText → lng_intro_fragment_button
+      // from the cloud pack (intro_code.cpp:428).
+      return lang.tr('lng_intro_fragment_button');
     }
     return switch (data.state) {
       'signup' => lang.tr('lng_intro_finish'),
       // PasswordCheckWidget overrides next-button text to lng_intro_submit
-      // = "Submit" for the password step (intro_password_check.cpp:405-407).
-      '2fa' => TrStrings.lngIntroSubmit(),
+      // from the cloud pack (intro_password_check.cpp:405-407).
+      '2fa' => lang.tr('lng_intro_submit'),
       _ => lang.tr('lng_intro_next'),
     };
   }
@@ -831,7 +833,9 @@ class _AuthScreenState extends State<AuthScreen>
                   child: Padding(
                     padding: const EdgeInsets.only(left: 6),
                     child: Text(
-                      'Hint: ${data.hint}',
+                      // lng_signin_hint from the cloud pack so the hint label
+                      // localizes (intro_password_check.cpp:61-64).
+                      lang.trf('lng_signin_hint', {'password_hint': data.hint}),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.textTheme.bodyMedium?.color,
                       ),
@@ -870,7 +874,7 @@ class _AuthScreenState extends State<AuthScreen>
                 child: SizedBox(
                   width: double.infinity,
                   child: Text(
-                    _mapAuthError(authState.error!),
+                    _mapAuthError(authState.error!, lang),
                     style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
@@ -882,16 +886,19 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  String _mapAuthError(String raw) {
+  String _mapAuthError(String raw, LangPack lang) {
     if (raw.contains('PASSWORD_HASH_INVALID') || raw.contains('SRP_PASSWORD_CHANGED')) {
-      return 'Wrong password, try again.';
+      // lng_signin_bad_password (intro_password_check.cpp:151).
+      return lang.tr('lng_signin_bad_password');
     }
     if (raw.contains('PASSWORD_EMPTY') || raw.contains('AUTH_KEY_UNREGISTERED')) {
       return '';
     }
     if (raw.contains('SRP_ID_INVALID')) return 'Session expired, retrying...';
-    if (raw.contains('FLOOD_WAIT')) return 'Too many attempts. Please try again later.';
-    if (raw.contains('CODE_INVALID')) return 'Invalid code. Please try again.';
+    // lng_flood_error (intro_password_check.cpp:142).
+    if (raw.contains('FLOOD_WAIT')) return lang.tr('lng_flood_error');
+    // lng_signin_wrong_code — recovery-code error (intro_password_check.cpp:264).
+    if (raw.contains('CODE_INVALID')) return lang.tr('lng_signin_wrong_code');
     if (raw.contains('EMAIL_HASH_EXPIRED')) return 'Email confirmation expired.';
     if (raw.contains('EMAIL_NOT_ALLOWED')) return 'This email address is not allowed.';
     if (raw.contains('EMAIL_INVALID')) return 'Please enter a valid email address.';
@@ -1085,7 +1092,7 @@ class _AuthScreenState extends State<AuthScreen>
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                _mapEmailError(authState.error!),
+                _mapEmailError(authState.error!, lang),
                 style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
@@ -1112,17 +1119,22 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  String _mapEmailError(String raw) {
+  String _mapEmailError(String raw, LangPack lang) {
     final upper = raw.toUpperCase();
+    // Email-setup errors from the cloud pack, mirroring intro_email.cpp:111-122.
     if (upper.contains('EMAIL_NOT_ALLOWED')) {
-      return 'This email address is not allowed.';
+      return lang.tr('lng_settings_error_email_not_alowed');
     }
     if (upper.contains('EMAIL_INVALID')) {
-      return 'Please enter a valid email address.';
+      return lang.tr('lng_cloud_password_bad_email');
     }
-    if (upper.contains('EMAIL_HASH_EXPIRED')) return 'Email confirmation expired.';
+    // EMAIL_HASH_EXPIRED uses the non-localized Lang::Hard string by design
+    // (intro_email.cpp:119, lang_hardcoded.h:65).
+    if (upper.contains('EMAIL_HASH_EXPIRED')) {
+      return TrStrings.lngHardEmailConfirmationExpired();
+    }
     if (upper.contains('FLOOD')) {
-      return 'Too many attempts. Please try again later.';
+      return lang.tr('lng_flood_error');
     }
     return raw;
   }
@@ -1589,7 +1601,8 @@ class _AuthScreenState extends State<AuthScreen>
           SizedBox(
             width: double.infinity,
             child: Text(
-              'Invalid phone number. Please check and try again.',
+              // lng_bad_phone from the cloud pack (intro_phone.cpp:178,271).
+              lang.tr('lng_bad_phone'),
               style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
             ),
           ),
@@ -1605,9 +1618,11 @@ class _AuthScreenState extends State<AuthScreen>
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
+                    // lng_flood_error from the cloud pack (intro_phone.cpp:271);
+                    // the remaining-time countdown is appended as a value-add.
                     _floodSecondsLeft > 0
-                        ? 'Too many attempts. Try again in ${_formatFloodTime(_floodSecondsLeft)}.'
-                        : 'Too many attempts. Please try again later.',
+                        ? '${lang.tr('lng_flood_error')} (${_formatFloodTime(_floodSecondsLeft)})'
+                        : lang.tr('lng_flood_error'),
                     style:
                         TextStyle(color: theme.colorScheme.error, fontSize: 13),
                   ),
@@ -1684,42 +1699,52 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _showBannedDialog(BuildContext context, String error) {
     final theme = Theme.of(context);
+    final lang = context.read<LangPack>();
+    // Mirror Ui::ShowPhoneBannedError (intro_phone.cpp:283, phone_banned_box.cpp):
+    // a confirm box with the localized lng_signin_banned_text and two actions —
+    // "Help" (lng_signin_banned_help, opens the prefilled mailto to Telegram
+    // support) and "OK" (lng_box_ok, closes).
+    final phone = _otpPhone.isNotEmpty ? _otpPhone : error;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Phone Number Banned'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'This phone number has been banned from Telegram.',
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'If you think this is a mistake, please contact Telegram support:',
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 8),
-            SelectableText(
-              'login@stel.com',
-              style: TextStyle(
-                color: theme.colorScheme.primary,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+        content: Text(
+          lang.tr('lng_signin_banned_text'),
+          style: theme.textTheme.bodyMedium,
         ),
         actions: [
           TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _sendBannedHelp(phone);
+            },
+            child: Text(lang.tr('lng_signin_banned_help')),
+          ),
+          TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
+            child: Text(lang.tr('lng_box_ok')),
           ),
         ],
       ),
     );
+  }
+
+  /// Opens a prefilled support email for a banned number, mirroring AyuGram's
+  /// SendToBannedHelp (phone_banned_box.cpp:21-46): mailto login@stel.com with
+  /// the banned phone in the subject/body plus OS + locale diagnostics.
+  void _sendBannedHelp(String phone) {
+    final subject = 'Banned phone number: $phone';
+    final body = "I'm trying to use my mobile phone number: $phone\n"
+        "But Telegram says it's banned. Please help.\n\n"
+        'OS version: ${Platform.operatingSystemVersion}\n'
+        'Locale: ${Platform.localeName}';
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'login@stel.com',
+      query: 'subject=${Uri.encodeComponent(subject)}'
+          '&body=${Uri.encodeComponent(body)}',
+    );
+    launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   void _onCodeChanged(String val) {
@@ -1954,6 +1979,10 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
         ),
       );
       _inputConnection!.show();
+      // Seed the platform buffer with the current committed digits so the very
+      // first soft-keyboard update is a clean delta (never-called before — the
+      // bug that let the IME buffer drift; intro_code_input.cpp:363-371).
+      _syncEditingState();
     } else {
       _inputConnection?.close();
       _inputConnection = null;
@@ -1969,9 +1998,13 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
       _submitted = false;
       for (var i = 0; i < widget.digitCount; i++) {
         _digits[i] = '';
+        _isDeleting[i] = false;
         _digitAnimControllers[i].value = 0.0;
       }
       _focusedIndex = 0;
+      // Cells cleared on error — re-pin the platform buffer to empty so the
+      // retry starts from a clean delta instead of the stale wrong code.
+      _syncEditingState();
     }
     if (widget.digitCount != old.digitCount) {
       _rebuildDigits();
@@ -2055,6 +2088,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
         _focusedIndex++;
       }
     });
+    _syncEditingState();
     _checkComplete();
   }
 
@@ -2068,6 +2102,9 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
       setState(() {
         _isDeleting[idx] = true;
       });
+      // _isDeleting excludes this cell from _committedDigits() immediately, so
+      // the platform buffer re-pins to the shorter length right away.
+      _syncEditingState();
       _digitAnimControllers[idx].reverse().then((_) {
         if (mounted) {
           setState(() {
@@ -2122,6 +2159,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
       }
       _focusedIndex = min(digits.length, widget.digitCount - 1);
     });
+    _syncEditingState();
     requestCode();
   }
 
@@ -2138,6 +2176,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
       }
       _focusedIndex = min(digits.length, widget.digitCount - 1);
     });
+    _syncEditingState();
     _checkComplete();
   }
 
@@ -2173,21 +2212,62 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
   // ── TextInputClient implementation ──
 
   @override
-  TextEditingValue? get currentTextEditingValue => TextEditingValue(
-        text: _digits.join(),
-        selection: TextSelection.collapsed(offset: _focusedIndex),
-      );
+  TextEditingValue? get currentTextEditingValue => _committedEditingValue();
 
   @override
   AutofillScope? get currentAutofillScope => null;
 
+  // The committed code = the filled cells, excluding any cell mid-delete
+  // animation (so the synced length matches the logical content immediately).
+  String _committedDigits() {
+    final sb = StringBuffer();
+    for (var i = 0; i < widget.digitCount; i++) {
+      if (_digits[i].isNotEmpty && !_isDeleting[i]) sb.write(_digits[i]);
+    }
+    return sb.toString();
+  }
+
+  TextEditingValue _committedEditingValue() {
+    final text = _committedDigits();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  /// Pin the platform IME buffer to the committed digits. Without this resync
+  /// the soft keyboard keeps accumulating its own buffer ("1"→"12"→"123") and
+  /// updateEditingValue re-inserts every digit on each update — producing the
+  /// duplicated/out-of-order code that auto-submitted wrong. Mirrors AyuGram
+  /// keeping the IME in sync so inputMethodEvent only ever sees the just-typed
+  /// commitString (intro_code_input.cpp:363-371).
+  void _syncEditingState() {
+    _inputConnection?.setEditingState(_committedEditingValue());
+  }
+
   @override
   void updateEditingValue(TextEditingValue value) {
     if (_submitted) return;
-    final newDigits = value.text.replaceAll(RegExp(r'\D'), '');
-    if (newDigits.isEmpty) return;
-    for (final char in newDigits.characters) {
-      _insertDigit(char);
+    final incoming = value.text.replaceAll(RegExp(r'\D'), '');
+    final current = _committedDigits();
+    final delta = incoming.length - current.length;
+    if (delta > 0) {
+      // Process only the freshly-committed suffix — one _insertDigit per new
+      // char, exactly like AyuGram's inputMethodEvent over e->commitString()
+      // (intro_code_input.cpp:363-371). _insertDigit re-pins the platform.
+      for (final ch
+          in incoming.substring(incoming.length - delta).characters) {
+        _insertDigit(ch);
+      }
+    } else if (delta < 0) {
+      // Soft-keyboard backspace shrinks the buffer — delete the difference
+      // (mobile has no hardware backspace key event for this widget).
+      for (var i = 0; i < -delta; i++) {
+        _deleteDigit();
+      }
+    } else {
+      // Same length (e.g. a setEditingState echo) — re-pin and ignore.
+      _syncEditingState();
     }
   }
 
@@ -2510,6 +2590,9 @@ class _AuthBottomBarState extends State<_AuthBottomBar>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Watch the lang pack so the language-switcher label localizes with the
+    // rest of the intro (intro_widget.cpp:267-308).
+    final lang = context.watch<LangPack>();
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -2579,7 +2662,10 @@ class _AuthBottomBarState extends State<_AuthBottomBar>
                 TextButton(
                   onPressed: () => _showLanguageDialog(context),
                   child: Text(
-                    'Change Language',
+                    // lng_languages from the cloud pack, not a literal — the
+                    // switcher localizes like AyuGram's intro switch link
+                    // (intro_widget.cpp:267-308).
+                    lang.tr('lng_languages'),
                     style: TextStyle(
                       fontSize: 13,
                       color: theme.colorScheme.primary,
@@ -2617,7 +2703,11 @@ class _LanguagePickerDialog extends StatefulWidget {
 }
 
 class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
-  static const _languages = [
+  // Embedded fallback, used only when the cloud language list is unavailable
+  // (no connection yet / offline) so the picker is never empty. The live list
+  // comes from langpack.getLanguages, which serves ~60+ languages pre-auth
+  // (intro_widget.cpp:267-308) — far more than this baseline subset.
+  static const _fallbackLanguages = [
     ('en', 'English', 'English'),
     ('ar', 'العربية', 'Arabic'),
     ('de', 'Deutsch', 'German'),
@@ -2639,6 +2729,9 @@ class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
     ('zh-hant', '繁體中文', 'Chinese (Traditional)'),
   ];
 
+  // (code, native name, English name). Populated from the cloud on open.
+  List<(String, String, String)> _languages = const [];
+  bool _loading = true;
   late String _selected;
   final _searchCtrl = TextEditingController();
   String _query = '';
@@ -2647,6 +2740,35 @@ class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
   void initState() {
     super.initState();
     _selected = context.read<AppState>().selectedLanguageCode;
+    _loadLanguages();
+  }
+
+  /// Fetch the full cloud language list (langpack.getLanguages, served pre-auth)
+  /// via the in-progress account's connection. Falls back to the embedded
+  /// subset when no connection exists yet so the picker is never empty.
+  Future<void> _loadLanguages() async {
+    final accountId = context.read<AuthState>().currentAuth?.accountId ?? '';
+    var langs = <(String, String, String)>[];
+    if (accountId.isNotEmpty) {
+      try {
+        final raw = await context.read<EngineService>().getLanguages(accountId);
+        langs = [
+          for (final m in raw)
+            (
+              (m['lang_code'] as String? ?? ''),
+              (m['native_name'] as String? ?? ''),
+              (m['name'] as String? ?? ''),
+            ),
+        ].where((l) => l.$1.isNotEmpty).toList();
+      } catch (e) {
+        Debug.log('auth_screen', 'getLanguages failed: $e');
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _languages = langs.isNotEmpty ? langs : _fallbackLanguages;
+      _loading = false;
+    });
   }
 
   @override
@@ -2658,6 +2780,7 @@ class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final lang = context.read<LangPack>();
     final filtered = _query.isEmpty
         ? _languages
         : _languages
@@ -2675,7 +2798,7 @@ class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-              child: Text('Choose Language',
+              child: Text(lang.tr('lng_languages'),
                   style: theme.textTheme.titleLarge),
             ),
             Padding(
@@ -2690,41 +2813,51 @@ class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
                 onChanged: (v) => setState(() => _query = v.toLowerCase()),
               ),
             ),
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: filtered.length,
-                itemBuilder: (ctx, i) {
-                  final (code, native, english) = filtered[i];
-                  return RadioListTile<String>(
-                    title: Text(native),
-                    subtitle: code != 'en' ? Text(english, style: theme.textTheme.bodySmall) : null,
-                    value: code,
-                    groupValue: _selected,
-                    dense: true,
-                    onChanged: (val) {
-                      context.read<AppState>().addRecentLanguage(val!);
-                      try {
-                        context.read<EngineService>().updateConfig(language: val);
-                      } catch (e) {
-                        Debug.log('auth_screen', 'context.read<EngineService>().updateConfig(language: val): $e');
-                      }
-                      // Re-render the intro in the chosen language: fetch the
-                      // cloud pack via the in-progress account's connection
-                      // (served pre-auth), mirroring AyuGram rebuilding the
-                      // intro from the lang pack on language change.
-                      final accountId =
-                          context.read<AuthState>().currentAuth?.accountId;
-                      context
-                          .read<LangPack>()
-                          .setLanguage(val, accountId: accountId);
-                      setState(() => _selected = val);
-                      Navigator.of(ctx).pop();
-                    },
-                  );
-                },
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: filtered.length,
+                  itemBuilder: (ctx, i) {
+                    final (code, native, english) = filtered[i];
+                    return RadioListTile<String>(
+                      title: Text(native),
+                      subtitle: code != 'en' ? Text(english, style: theme.textTheme.bodySmall) : null,
+                      value: code,
+                      groupValue: _selected,
+                      dense: true,
+                      onChanged: (val) {
+                        context.read<AppState>().addRecentLanguage(val!);
+                        try {
+                          context.read<EngineService>().updateConfig(language: val);
+                        } catch (e) {
+                          Debug.log('auth_screen', 'context.read<EngineService>().updateConfig(language: val): $e');
+                        }
+                        // Re-render the intro in the chosen language: fetch the
+                        // cloud pack via the in-progress account's connection
+                        // (served pre-auth), mirroring AyuGram rebuilding the
+                        // intro from the lang pack on language change.
+                        final accountId =
+                            context.read<AuthState>().currentAuth?.accountId;
+                        context
+                            .read<LangPack>()
+                            .setLanguage(val, accountId: accountId);
+                        setState(() => _selected = val);
+                        Navigator.of(ctx).pop();
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
           ],
         ),
       ),

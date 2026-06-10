@@ -85,6 +85,26 @@ class LangPack extends ChangeNotifier {
     'lng_intro_email_setup_title',
     'lng_settings_cloud_login_email_about',
     'lng_settings_cloud_login_email_placeholder',
+    // Intro/login error + button strings, sourced from the cloud pack so the
+    // whole flow localizes instead of mixing English error text into a
+    // non-English session. 2FA errors + hint (intro_password_check.cpp:142,151,
+    // 264,61-64), email-setup errors (intro_email.cpp:111-122), phone errors +
+    // banned box (intro_phone.cpp:178,271,283 → phone_banned_box.cpp),
+    // next-button labels (intro_code.cpp:428, intro_password_check.cpp:405-407),
+    // and the language-switcher label (intro_widget.cpp:267-308).
+    'lng_signin_bad_password',
+    'lng_signin_wrong_code',
+    'lng_flood_error',
+    'lng_signin_hint',
+    'lng_settings_error_email_not_alowed',
+    'lng_cloud_password_bad_email',
+    'lng_bad_phone',
+    'lng_signin_banned_text',
+    'lng_signin_banned_help',
+    'lng_box_ok',
+    'lng_intro_fragment_button',
+    'lng_intro_submit',
+    'lng_languages',
     // Forum row topics-preview empty state (dialogs_topics_view.cpp:212-214):
     // shown in a collapsed forum dialog row when it has no recent topics.
     'lng_filters_no_chats',
@@ -167,6 +187,20 @@ class LangPack extends ChangeNotifier {
         'You will receive Telegram login codes via email and not SMS. Please '
         'enter an email address to which you have access.',
     'lng_settings_cloud_login_email_placeholder': 'Enter Login Email',
+    // Intro/login error + button strings (English baseline = lang.strings).
+    'lng_signin_bad_password': 'You have entered a wrong password.',
+    'lng_signin_wrong_code': 'You have entered an invalid code.',
+    'lng_flood_error': 'Too many tries. Please try again later.',
+    'lng_signin_hint': 'Hint: {password_hint}',
+    'lng_settings_error_email_not_alowed': 'Sorry, this email is not allowed',
+    'lng_cloud_password_bad_email': 'Invalid email',
+    'lng_bad_phone': 'Invalid phone number. Please try again.',
+    'lng_signin_banned_text': 'This phone number is banned.',
+    'lng_signin_banned_help': 'Help',
+    'lng_box_ok': 'OK',
+    'lng_intro_fragment_button': 'Open Fragment',
+    'lng_intro_submit': 'Submit',
+    'lng_languages': 'Language',
     'lng_filters_no_chats': 'No chats',
     'lng_contacts_loading': 'Loading...',
     // Full month names — AyuGram `Lang::Month(n)` baseline (lang.strings:37-48).

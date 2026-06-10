@@ -8,6 +8,12 @@ class TrStrings {
   static String lngIntroFinish() => 'Sign Up';
   static String lngIntroNext() => 'Next';
   static String lngIntroSubmit() => 'Submit';
+  // Login-email setup: EMAIL_HASH_EXPIRED. AyuGram intentionally uses the
+  // non-localized Lang::Hard::EmailConfirmationExpired() here (lang_hardcoded.h:65,
+  // intro_email.cpp:119), so this stays hardcoded English by design.
+  static String lngHardEmailConfirmationExpired() =>
+      'This email confirmation has expired. Please setup two-step verification '
+      'once again.';
   static String lngSigninCantEmailForgot() =>
       "If you can't restore access to your email, your remaining options are "
       "either to remember your password or to reset your account.";

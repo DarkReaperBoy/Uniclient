@@ -27173,11 +27173,22 @@ func (t *TelegramCore) LangpackGetLanguage(request *tg.LangpackGetLanguageReques
 	return t.api.LangpackGetLanguage(t.ctx, request)
 }
 
-// LangpackGetLanguages returns available languages.
+// LangpackGetLanguages returns available languages. langpack.getLanguages is an
+// unauthorized MTProto method, so it works DURING the login flow too: when the
+// session is not yet authed it falls back to the live preAuthAPI client (same as
+// LangpackGetStringsMap). This lets the intro language switcher list every cloud
+// language pre-auth instead of an embedded fallback, mirroring AyuGram building
+// the intro switch link from langpack.getLanguages (intro_widget.cpp:267-308).
 func (t *TelegramCore) LangpackGetLanguages(langpack string) ([]tg.LangPackLanguage, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
-	if !t.authed || t.api == nil { return nil, ErrAuth }
-	return t.api.LangpackGetLanguages(t.ctx, langpack)
+	api := t.api
+	if api == nil {
+		api = t.preAuthAPI
+	}
+	if api == nil {
+		return nil, ErrAuth
+	}
+	return api.LangpackGetLanguages(t.ctx, langpack)
 }
 
 // LangpackGetStrings returns specific localization strings by key.
