@@ -781,8 +781,11 @@ class _MessageBubbleState extends State<MessageBubble> {
 
     // §25.15: dynamic bubble radius from AyuGram prefs.
     final ayuState = context.watch<AppState>();
-    final radiusLarge = ayuState.experimentalFlag('large_bubble_radius', defaultValue: false)
-        ? 20.0
+    // §14.7 "Use small message bubble radius" experimental toggle
+    // (use-small-msg-bubble-radius, default OFF) → square-ish 6px
+    // (bubbleRadiusSmall = roundRadiusLarge), else the configured bubble radius.
+    final radiusLarge = ayuState.experimentalFlag('use-small-msg-bubble-radius', defaultValue: false)
+        ? 6.0
         : ayuState.bubbleRadius.toDouble();
     final radiusSmall = ayuState.removeTail
         ? radiusLarge
@@ -6924,9 +6927,9 @@ class _WebmEmojiPlayerState extends State<_WebmEmojiPlayer> {
       }
       final player = Player();
       final controller = VideoController(player);
-      final shouldAutoplay = context.read<AppState>().experimentalFlags['autoplay_gifs'] != false;
-      await player.open(Media(file.path), play: shouldAutoplay);
-      if (shouldAutoplay) await player.setPlaylistMode(PlaylistMode.loop);
+      // Animated media autoplays & loops by default (no AyuGram experimental toggle for this).
+      await player.open(Media(file.path), play: true);
+      await player.setPlaylistMode(PlaylistMode.loop);
       if (!mounted) {
         await player.dispose();
         return;

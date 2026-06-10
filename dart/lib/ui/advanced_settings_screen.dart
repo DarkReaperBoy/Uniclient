@@ -4360,7 +4360,7 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
                 child: Text(
-                  'This proxy may display a sponsored channel in your chat list. This is done by the proxy provider, not by Telegram.',
+                  'This proxy may display a sponsored channel in your chat list. This doesn\'t reveal any of your Telegram traffic.',
                   style: TextStyle(fontSize: 13, color: subtextColor),
                 ),
               ),
@@ -4820,38 +4820,76 @@ class _DownloadPathOption extends StatelessWidget {
   }
 }
 
+// One AyuGram experimental option: persisted flag id, display name, the
+// description rendered as a divider-text block under the toggle, and whether
+// changing it needs an app restart. Ported 1:1 from each option's
+// base::options::toggle definition.
+class _ExpFlag {
+  final String id;
+  final String name;
+  final String description;
+  final bool restartRequired;
+  const _ExpFlag(this.id, this.name, this.description, this.restartRequired);
+}
+
 // Full set of AyuGram Desktop experimental options, in the exact registration
 // order of settings_experimental.cpp:284-314 (SetupExperimental addToggle list).
-const _experimentalFlagDefs = <(String, String)>[
-  ('tabbed-panel-show-on-click', 'Show tabbed panel by click'),
-  ('forum-hide-chats-list', 'Hide chat list in forums'),
-  ('dialogs-mute-icon', 'Mute icon in dialogs'),
-  ('fractional-scaling-enabled', 'Enable precise High DPI scaling'),
-  ('high-dpi-downscale', 'High DPI downscale'),
-  ('view-profile-in-chats-list-context-menu', 'Add "View Profile" to context menu'),
-  ('show-peer-id-below-about', 'Show Peer IDs in Profile'),
-  ('show-channel-joined-below-about', 'Show Channel Joined Date in Profile'),
-  ('use-small-msg-bubble-radius', 'Use small message bubble radius'),
-  ('disable-autoplay-next', 'Disable auto-play of the next track'),
-  ('webview-debug-enabled', 'Enable webview debugging'),
-  ('webview-legacy-edge', 'Force legacy Edge WebView'),
-  ('auto-scroll-inactive-chat', 'Mark as read of inactive chat'),
-  ('hide-reply-button', 'Hide reply button in notifications'),
-  ('custom-notification', 'Force non-native notifications availability'),
-  ('gnotification', 'GNotification'),
-  ('freetype', 'FreeType font engine'),
-  ('skip-url-scheme-register', 'Skip URL scheme register'),
-  ('deadlock-detector', 'Deadlock Detector'),
-  ('external-media-viewer', 'External media viewer'),
-  ('new-windows-size-as-first', 'Adjust size of new chat windows'),
-  ('prefer-ipv6', 'Prefer IPv6 connections'),
-  ('fast-buttons-mode', 'Fast buttons mode'),
-  ('touchbar-disabled', 'Disable Touch Bar (macOS only).'),
-  ('alternative-scroll-processing', 'Use legacy scroll processing in profiles.'),
-  ('moderate-common-groups', 'Ban users from several groups at once.'),
-  ('force-compose-search-one-column', 'Force embedded search in chats'),
-  ('unlimited-recent-stickers', 'Unlimited recent stickers'),
-  ('hide-ai-button', 'Hide AI button'),
+const _experimentalFlagDefs = <_ExpFlag>[
+  _ExpFlag('tabbed-panel-show-on-click', 'Show tabbed panel by click',
+      'Show Emoji / Stickers / GIFs panel only after a click.', false),
+  _ExpFlag('forum-hide-chats-list', 'Hide chat list in forums',
+      "Don't keep a narrow column of chat list.", false),
+  _ExpFlag('dialogs-mute-icon', 'Mute icon in dialogs',
+      'Show a small mute icon next to the chat name for muted chats.', false),
+  _ExpFlag('fractional-scaling-enabled', 'Enable precise High DPI scaling',
+      'Follow system interface scale settings exactly.', true),
+  _ExpFlag('high-dpi-downscale', 'High DPI downscale',
+      'Follow system interface scale settings exactly (another approach, likely better quality).', true),
+  _ExpFlag('view-profile-in-chats-list-context-menu', 'Add "View Profile"',
+      'Add "View Profile" to context menu in chat list', false),
+  _ExpFlag('show-peer-id-below-about', 'Show Peer IDs in Profile',
+      'Show peer IDs from API below their Bio / Description. Add contact IDs to exported data.', false),
+  _ExpFlag('show-channel-joined-below-about', 'Show Channel Joined Date in Profile',
+      'Show when you join Channel under its Description.', false),
+  _ExpFlag('use-small-msg-bubble-radius', 'Use small message bubble radius',
+      'Makes most message bubbles square-ish.', true),
+  _ExpFlag('disable-autoplay-next', 'Disable auto-play of the next track',
+      'Disable auto-play of the next Audio file / Voice Message / Video message.', false),
+  _ExpFlag('webview-debug-enabled', 'Enable webview inspecting',
+      'Right click and choose Inspect in the webview windows. (on macOS launch Safari, open from Develop menu)', false),
+  _ExpFlag('webview-legacy-edge', 'Force legacy Edge WebView',
+      'Skip modern CoreWebView2 check and force using legacy Edge WebView on Windows.', true),
+  _ExpFlag('auto-scroll-inactive-chat', 'Mark as read of inactive chat',
+      'Mark new messages as read and scroll the chat even when the window is not in focus.', false),
+  _ExpFlag('hide-reply-button', 'Hide reply button',
+      'Hide reply button in notifications.', false),
+  _ExpFlag('custom-notification', 'Force non-native notifications availability',
+      'Allow to disable native notifications even if custom notifications are broken on this platform', true),
+  _ExpFlag('gnotification', 'GNotification',
+      "Force enable GLib's GNotification. When disabled, autodetect is used.", false),
+  _ExpFlag('freetype', 'FreeType font engine',
+      'Use the font engine from Linux instead of the system one.', true),
+  _ExpFlag('skip-url-scheme-register', 'Skip URL scheme register',
+      "Don't re-register tg:// URL scheme on autoupdate.", false),
+  _ExpFlag('deadlock-detector', 'Deadlock Detector',
+      'Check once every 30 seconds that main thread is still responsive.', true),
+  _ExpFlag('external-media-viewer', 'External media viewer',
+      'Use system media viewer instead of the internal one.', false),
+  _ExpFlag('new-windows-size-as-first', 'Adjust size of new chat windows',
+      'Open new windows with a size of the main window.', false),
+  _ExpFlag('prefer-ipv6', 'Prefer IPv6',
+      'Prefer IPv6 if it is available. Require "Try connecting through IPv6" to be enabled', false),
+  _ExpFlag('fast-buttons-mode', 'Fast buttons mode',
+      'Trigger inline keyboard buttons by 1-9 keyboard keys.', false),
+  _ExpFlag('touchbar-disabled', 'Disable Touch Bar (macOS only).', '', false),
+  _ExpFlag('alternative-scroll-processing', 'Use legacy scroll processing in profiles.', '', false),
+  _ExpFlag('moderate-common-groups', 'Ban users from several groups at once.', '', false),
+  _ExpFlag('force-compose-search-one-column', 'Force embedded search in chats',
+      'Force in one-column mode the embedded search in chats.', false),
+  _ExpFlag('unlimited-recent-stickers', 'Unlimited recent stickers',
+      'Display as much recent stickers as the server provides', false),
+  _ExpFlag('hide-ai-button', 'Hide AI button',
+      'Hide the AI Tools button in message compose fields.', false),
 ];
 
 const _flagsPrefix = 'tdesktop-flags:';
@@ -4877,9 +4915,19 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
 
   bool _flag(String key) => _flags[key] == true;
 
+  // AyuGram only registers the fast-buttons-mode toggle when its value is
+  // already true (settings_experimental.cpp:306:
+  // `if (lookup<bool>(kOptionFastButtonsMode).value()) addToggle(...)`), so a
+  // normal user never sees this control. We gate on the box-open value.
+  List<_ExpFlag> get _visibleFlagDefs => _experimentalFlagDefs
+      .where((f) =>
+          f.id != 'fast-buttons-mode' ||
+          _originalFlags['fast-buttons-mode'] == true)
+      .toList();
+
   bool get _changed {
-    for (final (key, _) in _experimentalFlagDefs) {
-      if ((_flags[key] == true) != (_originalFlags[key] == true)) return true;
+    for (final f in _experimentalFlagDefs) {
+      if ((_flags[f.id] == true) != (_originalFlags[f.id] == true)) return true;
     }
     return false;
   }
@@ -4900,8 +4948,8 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
 
   void _export() {
     final nonDefault = <String, bool>{};
-    for (final (key, _) in _experimentalFlagDefs) {
-      if (_flag(key)) nonDefault[key] = true;
+    for (final f in _experimentalFlagDefs) {
+      if (_flag(f.id)) nonDefault[f.id] = true;
     }
     if (nonDefault.isEmpty) {
       _toast('No flags changed from default.');
@@ -5007,8 +5055,8 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    for (final (key, label) in _experimentalFlagDefs)
-                      _flagToggle(key, label, textColor, accentColor, isDark),
+                    for (final f in _visibleFlagDefs)
+                      _flagToggle(f, textColor, accentColor, subtextColor, isDark),
                   ],
                 ),
               ),
@@ -5045,17 +5093,25 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
                     onPressed: () {
                       final appState = context.read<AppState>();
                       appState.setExperimentalFlags(_flags);
-                      for (final (key, _) in _experimentalFlagDefs) {
-                        final value = _flags[key] == true;
-                        if (value != (_originalFlags[key] == true)) {
+                      var needsRestart = false;
+                      for (final f in _experimentalFlagDefs) {
+                        final value = _flags[f.id] == true;
+                        if (value != (_originalFlags[f.id] == true)) {
+                          if (f.restartRequired) needsRestart = true;
                           appState.engine.callGeneric(
                             '__engine',
                             'SetExperimentalFlag',
-                            {'id': key, 'value': value},
+                            {'id': f.id, 'value': value},
                           ).catchError((_) {});
                         }
                       }
-                      Navigator.of(context).pop();
+                      // AyuGram arms a restart timer + "need restart" confirm box
+                      // for restart-required options (settings_experimental.cpp:196).
+                      if (needsRestart) {
+                        _showRestartConfirm(isDark);
+                      } else {
+                        Navigator.of(context).pop();
+                      }
                     },
                     child: Text(
                       'Save',
@@ -5072,39 +5128,134 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
   }
 
   Widget _flagToggle(
-    String key,
-    String label,
+    _ExpFlag f,
     Color textColor,
     Color accentColor,
+    Color subtextColor,
     bool isDark,
   ) {
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
-    return InkWell(
-      onTap: () => _toggle(key),
-      hoverColor: hoverBg,
-      splashColor: hoverBg.withValues(alpha: 0.5),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 8, 22, 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: SettingsStyle.buttonFontSize,
-                  color: textColor,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => _toggle(f.id),
+          hoverColor: hoverBg,
+          splashColor: hoverBg.withValues(alpha: 0.5),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    f.name,
+                    style: TextStyle(
+                      fontSize: SettingsStyle.buttonFontSize,
+                      color: textColor,
+                    ),
+                  ),
                 ),
-              ),
+                Switch(
+                  value: _flag(f.id),
+                  onChanged: (_) => _toggle(f.id),
+                  activeColor: accentColor,
+                ),
+              ],
             ),
-            Switch(
-              value: _flag(key),
-              onChanged: (_) => _toggle(key),
-              activeColor: accentColor,
+          ),
+        ),
+        // AyuGram renders each option's .description() as an AddDividerText block
+        // directly under its toggle (settings_experimental.cpp:227-231).
+        if (f.description.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
+            child: Text(
+              f.description,
+              style: TextStyle(fontSize: 13, color: subtextColor, height: 1.3),
             ),
-          ],
+          ),
+      ],
+    );
+  }
+
+  // AyuGram's restart-required options arm a Timer that shows MakeConfirmBox
+  // with lng_settings_need_restart / restart_now / restart_later
+  // (settings_experimental.cpp:202-209). We surface the same confirm on Save.
+  void _showRestartConfirm(bool isDark) {
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = context.palette.windowBgActive;
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  // lng_settings_need_restart
+                  'You need to restart for applying some of the new settings. Restart now?',
+                  style: TextStyle(fontSize: 15, color: textColor),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      // lng_settings_restart_later
+                      onPressed: () {
+                        Navigator.of(dialogCtx).pop();
+                        Navigator.of(context).pop();
+                      },
+                      child: Text('Later',
+                          style: TextStyle(color: accentColor, fontSize: 14)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      // lng_settings_restart_now
+                      onPressed: _restartApp,
+                      child: Text('Restart',
+                          style: TextStyle(color: accentColor, fontSize: 14)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
+  }
+
+  void _restartApp() {
+    final exe = Platform.resolvedExecutable;
+    final args = Platform.executableArguments;
+    final appState = context.read<AppState>();
+    final env = Map<String, String>.from(Platform.environment);
+    if (appState.openGlDisabled) {
+      env['LIBGL_ALWAYS_SOFTWARE'] = '1';
+    } else {
+      env.remove('LIBGL_ALWAYS_SOFTWARE');
+    }
+    if (!appState.hardwareAccelVideo) {
+      env['UNICLIENT_NO_HW_VIDEO'] = '1';
+    } else {
+      env.remove('UNICLIENT_NO_HW_VIDEO');
+    }
+    Process.start(exe, args,
+            mode: ProcessStartMode.detached, environment: env)
+        .then((_) {
+      exit(0);
+    }).catchError((_) {
+      exit(0);
+    });
   }
 }

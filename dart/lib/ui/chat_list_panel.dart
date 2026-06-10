@@ -1036,7 +1036,10 @@ class _ChatListPanelState extends State<ChatListPanel>
                             // During active reorder: skip SwipeableChatRow wrapper for pinned items.
                             Widget row;
                             Widget buildChatRow() {
-                              if (chat.isForum && context.read<AppState>().experimentalFlags['forum_chat_list'] != false) {
+                              // §14.7 "Hide chat list in forums" experimental toggle
+                              // (forum-hide-chats-list, default OFF) — when ON, render the
+                              // forum as a normal row instead of the inline topic list.
+                              if (chat.isForum && !context.read<AppState>().experimentalFlag('forum-hide-chats-list', defaultValue: false)) {
                                 return ForumChatListRow(
                                   chat: chat,
                                   isActive: isActive,

@@ -120,8 +120,12 @@ class ChatListRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final hidePremiumStatuses = context.select((AppState s) => s.hidePremiumStatuses);
-    final showMuteIcon = context.select((AppState s) => s.experimentalFlags['dialogs_mute_icon']) != false;
-    final showDrafts = context.select((AppState s) => s.experimentalFlags['message_draft_visible']) != false;
+    // §14.7 experimental "Mute icon in dialogs" toggle (dialogs-mute-icon),
+    // default OFF — mirrors AyuGram DialogsMuteIcon.value() (dialogs_layout.cpp:891).
+    final showMuteIcon = context.select(
+        (AppState s) => s.experimentalFlag('dialogs-mute-icon', defaultValue: false));
+    // AyuGram always renders the draft preview in the dialog list (no toggle).
+    const showDrafts = true;
 
     final nameColor = isActive ? palette.dialogsNameFgActive : palette.dialogsNameFg;
     final mutedColor = isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg;
