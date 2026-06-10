@@ -406,8 +406,9 @@ Audited `dart/lib/data/emoji_data.dart` against `chat_helpers/emoji_keywords.cpp
 `lib_ui/emoji_suggestions/emoji_suggestions.cpp`, `codegen/emoji/replaces.cpp`, and
 `core/core_settings.cpp`.
 
-The port is, with one exception, faithful and well-documented (comments cite exact
-C++ line numbers). Verified equivalent and NOT flagged:
+The port is faithful and well-documented (comments cite exact C++ line numbers); the one
+prior divergence (recent-emoji ordering) is now fixed & verified — see Findings below.
+Verified equivalent and NOT flagged:
 
 - Lang-pack `query`: `lower_bound` + `take_while(startsWith/==)` and per-source dedup
   match `EmojiKeywords::LangPack::query` / `AppendFoundEmoji` (emoji_keywords.cpp:473,176).
@@ -431,28 +432,21 @@ C++ line numbers). Verified equivalent and NOT flagged:
 
 ## Findings
 
-- [ ] [MAJOR] Recent-emoji prioritization uses **LRU recency** ordering instead of
-  AyuGram's **frequency-rating** ordering, so the wrong emoji floats to the top of
-  inline suggestions. `recordRecent` does a plain move-to-front (`remove` + `insert(0)`)
-  and `_prioritizeRecent` iterates `_recentEmojis` in that most-recently-used-first
-  order — `emoji_data.dart:3132` (`recordRecent`), `:2926` (`_recentEmojis`), `:3382`
-  (`_prioritizeRecent`) ← `core/core_settings.cpp:1411`. In AyuGram
-  `incrementRecentEmoji` bubbles each emoji by its `rating` (use count), so
-  `recentEmoji()` (core_settings.cpp:1360) returns a vector ordered by **frequency**
-  (descending), and `PrioritizeRecent` (emoji_keywords.cpp:650) rotates matches to the
-  front in that frequency order. Result: for a query matching several recents (e.g.
-  `:sm` → smile/smirk/small), AyuGram surfaces the **most-used** recent first while this
-  port surfaces the **most-recently-used** one — a different primary suggestion.
-  Two contributing deviations, both ← the same C++ recent subsystem:
-    - Ordering model: LRU vs rating (the visible one, described above).
-    - Population source: `recordRecentFromText` records only **sent** message text plus
-      panel/autocomplete picks (`emoji_data.dart:3156`, wired at `chat_view.dart:4403`),
-      whereas AyuGram records on **every** emoji render — including received messages —
-      because `UiIntegration::defaultEmojiVariant` calls `incrementRecentEmoji` for any
-      emoji passing through the text engine (`core/ui_integration.cpp:471`). The port's
-      narrowing is documented as deliberate at `emoji_data.dart:3147`, but it compounds
-      the divergence from AyuGram's recent set. The cap also differs (`_maxRecent = 50`,
-      `emoji_data.dart:2927`, vs `kRecentEmojiLimit = 54`, `core_settings.h:74`).
+Verified & closed (2026-06-10) — fixed by commit b6fecfdf. Recent-emoji prioritization
+now uses AyuGram's **frequency-rating** ordering, not LRU. `recordRecent` is a 1:1 port of
+`Settings::incrementRecentEmoji` (core_settings.cpp:1411): find→`++rating`→`0x8000`
+halve-guard→bubble; new→push→bubble→trim, with `_bubbleRecentToFront` mirroring the
+equal-rating recency tiebreak (core_settings.cpp:1424). `_prioritizeRecent` walks
+`recentEmoji()` in rating-descending order (`PrioritizeRecent`, emoji_keywords.cpp:651),
+population is broadened to incoming messages too (`UiIntegration::defaultEmojiVariant`,
+ui_integration.cpp:471, via chat_state `_handleMsgReceived`, incoming-only to avoid
+double-counting sent echoes), and the cap is now `kRecentEmojiLimit = 54`
+(core_settings.h:74). Confirmed by a focused unit test driving the real
+`recordRecent`→`searchEmoji`/`_prioritizeRecent` path — the decisive case (record 👎×3
+then 👍×1 ⇒ `:thumb` surfaces 👎 before 👍, i.e. most-USED not most-recent) plus the
+recency tiebreak, 54-cap, and legacy bare-string back-compat all pass — alongside a clean
+debug build, crash-free launch, and the live inline `:keyword` popup rendering thumb
+suggestions in-app (picking a suggestion records it as recent).
 
 # lang_pack — intro/login cloud-pack localization (port of AyuGram `Lang::` + `lang.strings`)
 
