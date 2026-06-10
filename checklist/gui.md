@@ -2,25 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_types — notification title/subtitle/body text composition (port of AyuGram NativeManager::doShowNotification + notificationHeader + Media::notificationText)
-
-Verified line-by-line against AyuGram `notifications_manager.cpp`, `history/history_item.cpp`,
-`data/data_media_types.cpp`, and `Resources/langs/lang.strings`. The core composition is an
-exceptionally faithful 1:1 port: title (scheduled/reminder/forum/account-suffix/📅-prefix),
-subtitle (`notificationHeader()` — service/“You”/group-channel-sender), body ternary order
-(pollvote→reaction→hideText→fwd>1→album→media), all 12 media-type strings, reaction & poll-vote
-variants, `TextWithPermanentSpoiler` (▚ U+259A), `SpoilerLoginCode` (regex + intersection guard,
-exact match), 255-char truncation, `TextWithForwardedChar` (➡️ U+27A1+FE0F), account separator
-(` ➜ ` U+279C), and `WrapFromScheduled` (📅 U+1F4C5) all match. Lang strings match `lang.strings`.
-Composition is genuinely wired (`composeNotificationContent`/`shouldHideReplyButton` consumed by
-`notification_popup.dart`, `notification_system.dart`, `notification_manager_native.dart`) and fed
-real engine event data (`chat_state.dart:3046`). Service-user IDs {333000,777000,489000} for
-login-code masking are correct. No placeholders/stubs/TODOs. Only two wiring gaps found — both
-upstream "data never reaches a handled branch" cases:
-
-- [ ] [MAJOR] Monoforum-sublist title branch is dead code — `isMonoforumSublist`/`sublistPeerName` are declared (`notification_types.dart:75-76`) and the title branch `'${sublistPeerName} (${chatTitle})'` exists (`notification_types.dart:421-422`), but NO producer ever sets `isMonoforumSublist` (the real construction at `chat_state.dart:3046-3186` omits it → always `false`/`''`; there is no `ChatType.monoforum`). So monoforum (channel direct-message) notifications fall through to the plain `chatTitle` instead of AyuGram's `sublistPeer()->shortName() + " (" + name + ")"` — `notification_types.dart:421` ← `AyuGram/Telegram/SourceFiles/window/notifications_manager.cpp:1576-1578`
-- [ ] [MAJOR] Paid-media invoice caption never reaches the body — case 12 calls `_withCaption(Photo/Video, data)` for `invoiceIsPaidMedia` (`notification_types.dart:633-639`), but the producer excludes mediaType 12 from the caption set `{1,2,3,4,7,8}` (`chat_state.dart:3107-3110`), so `data.caption` is always `''` and a paid post with text renders just "Photo"/"Video" instead of AyuGram's "Photo, {caption}" (`WithCaptionNotificationText(..., parent()->originalText())`) — `notification_types.dart:634` ← `AyuGram/Telegram/SourceFiles/data/data_media_types.cpp:2187-2191`
-
 # app_state — top-level settings/state port (`core_settings` + `ayu/ayu_settings` + domain/passcode/proxy/notify)
 
 Scope: `app_state.dart` ports AyuGram's `AyuSettings` (`ayu/ayu_settings.{h,cpp}`), Telegram `Core::Settings` fragments
