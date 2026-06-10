@@ -212,54 +212,32 @@ shows the "Device name" label. No crashes or render errors.
 
 15,794-line file spanning ~14 distinct admin screens/boxes, each diffed against its
 AyuGram Desktop C++ counterpart. The overwhelming majority is faithfully ported and
-fully engine-wired; the findings below are the verified CRITICAL/MAJOR deviations.
-Several MAJOR items are UI elements wired to a Go-engine method that silently drops
-or never emits the needed field — the Dart looks functional but the feature is dead;
-per the audit rubric these are counted as broken-wiring defects (root cause in
-`go/cores/telegram.go` is noted inline).
+fully engine-wired; the findings below were the verified CRITICAL/MAJOR deviations —
+all now FIXED and closed (see the Stage 2 verification summary that follows).
+Several MAJOR items were UI elements wired to a Go-engine method that silently dropped
+or never emitted the needed field — the Dart looked functional but the feature was dead;
+per the audit rubric these were counted as broken-wiring defects (root cause in
+`go/cores/telegram.go` was noted inline and fixed).
 
-## EditPeerInfo box (structure, type / linked-discussion / history / topics dialogs)
+Verified (ralph Stage 2): all 16 CRITICAL/MAJOR items are now FIXED and confirmed —
+checked 1:1 against the cited AyuGram sources (exact `lang.strings` matches, full
+FFI-stack wiring traced end-to-end, and live UI testing of every reachable screen in
+BOTH desktop 1024×768 and mobile 400×720). Closed fixes:
 
-- [ ] [MAJOR] History-visibility "Hidden" sub-text is hardcoded to the **legacy basic-group** string and never switches to the supergroup string. The Dart always shows "New members won't see more than 100 previous messages." (the legacy text), but AyuGram passes `isLegacy = _peer->isChat()` and uses `lng_manage_history_visibility_hidden_about` ("New members won't see earlier messages.") for supergroups, reserving the "…100 previous messages." string for legacy basic groups only. Since the Visible-History row is gated to non-broadcast peers (predominantly supergroups), the misleading text shows in the common case — `admin_tools.dart:1295` ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_peer_history_visibility_box.cpp:101`
-- [ ] [MAJOR] "Create a new group" (discussion link) silently creates a megagroup with a hardcoded name instead of opening the interactive create-group box. `_createDiscussionGroup` directly calls `engine.createMegagroup(accountId, "<title> Chat", '')` with no UI, so the user cannot edit title/description/photo before creation. AyuGram opens `Box<GroupInfoBox>(navigation, Type::Megagroup, channel->name() + " Chat", …)` — the full create-group wizard whose creation callback then links the new group — `admin_tools.dart:1198` (invoked at `admin_tools.dart:1064`) ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_discussion_link_box.cpp:272`
+- History-visibility "Hidden" sub-text is now legacy-aware — legacy basic groups keep `lng_manage_history_visibility_hidden_legacy` ("…won't see more than 100 previous messages."), supergroups use `lng_manage_history_visibility_hidden_about` ("…won't see earlier messages."). Confirmed live on the legacy group.
+- Discussion-link "Create a new group" now opens the interactive create-megagroup wizard (title pre-filled "<channel> Chat", editable description/photo) whose creation callback stages the link. Confirmed live: the "New Group" wizard opens pre-filled "Test Channel Flow Chat" — no silent `createMegagroup`.
+- Verify Accounts wired through a new typed `SetBotCustomVerification` across telegram.go / engine.go / dispatch_engine.go / engine_service.dart (f_bot | f_enabled | f_custom_description, matching Setup/Remove); tap now routes through a confirm box with an editable custom-description field gated by `canModifyDescription`; candidate list spans users + channels + supergroups (not just mutual contacts). No more `unknown engine method`.
+- Reactions box: groups get the All/Some/None radios; broadcast channels get the single enable-reactions toggle + max slider + paid toggle (matching `addOption`'s `!isGroup` early-return). Group radios confirmed live.
+- Manage-section rows gated per-row by canEditReactions / canEditPermissions / canHaveInviteLink / canViewAdmins / canViewMembers (new can_ban / can_invite / can_view_participants flags from the Go core, matching `data_channel.cpp`). Confirmed live: a broadcast channel now hides Permissions and shows Sign Messages/Profiles.
+- Media master-toggle now ON when ANY sub-flag is allowed (`allowedCount > 0`) and a click bans all (matching `setChecked(count > 0)` + invert-all-inner); fixed at both instances.
+- `edit_rank` ("Edit own tag") is now a normal toggleable restriction, serialized through `RestrictMemberWithRights` → `ChatBannedRights.EditRank`.
+- ManageRanks ("Edit member tags") admin right now saved — `ManageRanks: rights["manage_ranks"]` added to the Go `ChatAdminRights` builder.
+- Star-ref setup: existing program duration pre-filled from `GetBotManageInfo.star_ref_program.duration_months` (0 → forever/999), with the irreversibility floor set from it; ended-program 24h cooldown disables the Start button with a live "Available in {time}" countdown (`end_date` now emitted + a 1s tick timer).
+- Invite-link revoke and single-delete now route through confirm boxes with exact AyuGram text (`lng_group_invite_about_new` permanent / `lng_group_invite_revoke_about` regular / `lng_group_invite_delete_sure`). Revoke confirm with the exact permanent-link string confirmed live.
+- Real-user booster rows now emit `avatar_b64` (engine caches `list.Users`) so the actual userpic renders instead of the letter placeholder.
+- Stars→USD now `stars * usd_rate` (removed the extra `/1000`) at both conversion sites (`formatAmount`, `_fmtUsd`), matching AyuGram `ToUsd` = `value() * rate`.
 
-## EditPeerInfo box (reactions / color / paid-messages dialogs + bot rows)
-
-- [ ] [CRITICAL] Verify Accounts dialog is not wired to any backend — tapping a user calls `engine.callGeneric(accountId, 'BotsSetCustomVerification', {bot_id, peer_id, enabled})`, but the bridge has no generic-dispatch handler for that method (`bridge/dispatch_gen.go:19258` explicitly `// Skipped: BotsSetCustomVerification (complex external types)`; the typed `TelegramCore.BotsSetCustomVerification` at `telegram.go:25841` needs a pre-serialized `tg.BotsSetCustomVerificationRequest`, unreachable from a JSON map). Every tap falls through to `unknown engine method` (`bridge/dispatch_engine.go:7393`) and throws — the dialog renders rows, checkmarks and optimistic state but can never grant/revoke verification — `admin_tools.dart:2577` (row at `admin_tools.dart:2135`) ← `AyuGram/Telegram/SourceFiles/boxes/peers/verify_peers_box.cpp:58`
-- [ ] [MAJOR] Verify Accounts sends the action immediately on row tap with no confirmation and no custom-description input. AyuGram routes every tap through a `ConfirmBox` (`confirmAdd`/`confirmRemove`) and, when `verifierSettings->canModifyDescription`, shows an editable description field passed as `custom_description` to Setup — the Dart omits both — `admin_tools.dart:2573` ← `AyuGram/Telegram/SourceFiles/boxes/peers/verify_peers_box.cpp:103`
-- [ ] [MAJOR] Verify Accounts candidate list is the wrong scope — populated from `engine.getContacts(...)` (mutual user contacts only), but AyuGram lists ALL chats including channels (`createRow`: `peer->isUser() || peer->isChannel()`) via `ChatsListBoxController`, so non-contact users and channels (which are verifiable) cannot be selected — `admin_tools.dart:2467` ← `AyuGram/Telegram/SourceFiles/boxes/peers/verify_peers_box.cpp:231`
-- [ ] [MAJOR] Reactions dialog uses an inverted group/broadcast control structure. AyuGram's `EditAllowedReactionsBox` shows the All/Some/None radios ONLY for groups (`addOption` early-returns when `!isGroup`) and a single enable-reactions toggle for broadcast channels; the max-count slider + paid toggle live under the broadcast branch. The Dart renders the 3 radios for ALL peer types and conditions only the slider/paid extras on `_isChannel`, so a broadcast channel gets radios it shouldn't and a group's layout diverges from AyuGram — `admin_tools.dart:1521` ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_peer_reactions.cpp:705`
-
-## EditPeerInfo box (group/channel manage rows)
-
-- [ ] [MAJOR] Manage-section rows are not gated by AyuGram's per-row capability checks. `_buildAdminControlsSection` renders Reactions, Permissions, Invite Links, Administrators and Members/Subscribers unconditionally, whereas AyuGram gates each: Reactions by `canEditReactions()`, Permissions by `canEditPermissions`, Invite Links by `canHaveInviteLink()`, Administrators by `canViewAdmins()`, Members by `canViewMembers()`. An admin with a partial right set (e.g. BanUsers-only) sees rows they cannot use. The needed flags (`_amCreator`, `_hasAdminRights`, `_adminCanChangeInfo`) are already loaded but unused for these rows — `admin_tools.dart:2657` ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_peer_info_box.cpp:1512`
-
-## EditRestricted box (ban / restrict member)
-
-- [ ] [MAJOR] Media master-toggle has inverted display and click behavior in the partial state. AyuGram sets the group toggle ON when **any** sub-flag is allowed (`checkView->setChecked(count > 0)`) and a click inverts that and applies to all inner flags — so 3/9 allowed reads ON and a click bans all. The Dart sets it ON only when **all** are allowed (`value: allowedCount == total`) and on click does `f.banned = !val`, so 3/9 allowed reads OFF and a click *allows* all — opposite display and opposite bulk action — `admin_tools.dart:5185` ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_peer_permissions_box.cpp:453`
-- [ ] [MAJOR] The `edit_rank` ("Edit own tag") restriction is hardcoded `locked: true`, so the user can never toggle it and it is always sent as unbanned. In AyuGram this is a normal toggleable restriction checkbox in the user-specific restriction list (`{ Flag::EditRank, lng_rights_group_edit_rank_single }`) and is part of the serialized set (`NegateRestrictions` includes `Flag::EditRank`) — `admin_tools.dart:4690` ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_peer_permissions_box.cpp:99`
-
-## EditAdmin box (promote admin + transfer ownership)
-
-- [ ] [MAJOR] The "Edit member tags" / Manage-Ranks admin right is non-functional on save. The toggle (`_AdminFlag(key: 'manage_ranks')`) sends `rights['manage_ranks']` through the whole stack (engine_service → dispatch_engine → engine.AdminRights → cache_users), but the Telegram core's `PromoteAdminWithRights` builds `tg.ChatAdminRights{…}` without ever reading `rights["manage_ranks"]`, so the `ManageRanks` bit (which exists on `tg.ChatAdminRights`) is silently dropped. AyuGram includes ManageRanks in the megagroup `defaultRights()` and saved bitmask — `admin_tools.dart:5773` (save at `admin_tools.dart:5859`) ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_participant_box.cpp:327` (root cause `go/cores/telegram.go:14562`)
-
-## BotStarRefSetup screen (affiliate program setup)
-
-- [ ] [MAJOR] An existing program's **duration is never pre-filled** — `_load()` reads `_durationMonths` from `getFullChatInfo()['star_ref_program']['duration_months']`, but the Go core emits no `star_ref_program` field anywhere (`GetBotManageInfo` returns only `starref_commission`, no duration). So for a bot that already has a program the duration slider always initializes to the hardcoded default 12 months, and because the irreversibility floor `_origDurationMonths` is then also 12, a longer/forever program can be silently *shortened* to 12 — violating the "can only increase duration" rule. AyuGram loads it from `state.program.durationMonths` via `ValueForDurationMonths` — `admin_tools.dart:4299` ← `AyuGram/Telegram/SourceFiles/info/bot/starref/info_bot_starref_setup_widget.cpp:679` (`info_bot_starref_common.cpp:95`)
-- [ ] [MAJOR] Ended-program 24h-cooldown state missing. AyuGram defines `exists = (commission>0) && !endDate` and `MakeStartButton` renders the Start button **disabled with a live "available in {time}" countdown sublabel** while `endDate > now`. The Dart Start/Update button is only disabled while `_saving`, has no `endDate`/cooldown handling and no sublabel (the Go core never exposes `end_date`), so after ending a program the screen offers "Start Program" as immediately clickable — `admin_tools.dart:4572` ← `AyuGram/Telegram/SourceFiles/info/bot/starref/info_bot_starref_setup_widget.cpp:529`
-
-## InviteLinks (manage box, link info, create/edit form, QR)
-
-- [ ] [MAJOR] Revoking a link skips the confirmation dialog AyuGram always shows. `_revokeLink` calls `engine.revokeChatInviteLink` directly from all three entry points (regular-row menu, permanent-link menu, info-box Revoke button). AyuGram routes every revoke through `RevokeLinkBox` → `Ui::MakeConfirmBox` (permanent links regenerate, invalidating the old URL for everyone), so the missing confirm is a real destructive-action gap — `admin_tools.dart:8576` (also invoked at `:8657`, `:8713`, `:8887`) ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_peer_invite_link.cpp:449`
-- [ ] [MAJOR] Deleting a single revoked link skips its confirmation dialog. `_deleteLink` calls `engine.deleteRevokedChatInviteLink` directly from the revoked-row menu, the info-box Delete button, and `_showLinkInfo`. AyuGram routes single-delete through `DeleteLinkBox` → `Ui::MakeConfirmBox({ lng_group_invite_delete_sure })`. (The separate Delete-All path *does* confirm — an internal inconsistency too.) — `admin_tools.dart:8588` (also invoked at `:8659`, `:8715`) ← `AyuGram/Telegram/SourceFiles/boxes/peers/edit_peer_invite_link.cpp:457`
-
-## MessageStats + Boosts screens
-
-- [ ] [MAJOR] Real-user booster avatars never render their actual profile photo — the engine `GetBoostsListJSON` never emits an `avatar_b64` for booster rows (only name/user_id/date/expires/flags), so `_BoosterRow` always falls through to the letter-placeholder `_emptyUserpic`. AyuGram renders the real peer userpic for non-special boosters via `generatePaintUserpicCallback`, so booster avatar attribution is broken for real users — `admin_tools.dart:13872` ← `AyuGram/Telegram/SourceFiles/info/statistics/info_statistics_list_controllers.cpp:507` (root cause `go/cores/telegram.go:19113`)
-
-## Monetization screen (channel/bot earn — TON + stars)
-
-- [ ] [MAJOR] Stars→USD conversion divides by an extra 1000, understating every Stars USD figure ~1000×. AyuGram converts credits to USD as `value() * rate` where `CreditsAmount::value()` for stars = the whole star count (`_whole + _nano/1e9`), i.e. `stars * usd_rate` with NO `/1000`. Both AyuGram (`api_credits.cpp:301`) and the Go engine (`telegram.go:22775`) carry the SAME raw TL `usd_rate`. The Dart `_fmtUsd` instead computes `stars * usdRate / 1000`, so every Stars USD figure (overview rows, Stars transaction context) is 1000× too small. (The TON path at `admin_tools.dart:14141`, `(nanotons/1e9) * rate`, is correct.) — `admin_tools.dart:14334` ← `AyuGram/Telegram/SourceFiles/info/channel_statistics/earn/earn_format.cpp:81` (used at `info_channel_earn_list.cpp:407`)
+Go + Flutter both rebuilt clean (the fresh `libcores.so` was synced into the bundle); app launches and runs in both desktop and mobile modes with no crashes, no Dart exceptions from the changed files, and no `unknown engine method`.
 
 ## Sections audited — no CRITICAL/MAJOR issues
 
