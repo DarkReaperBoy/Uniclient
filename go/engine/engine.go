@@ -1912,9 +1912,11 @@ type DefaultBannedRights struct {
 	InviteUsers       bool `json:"invite_users"`
 	ManageTopics      bool `json:"manage_topics"`
 	PinMessages       bool `json:"pin_messages"`
-	EditRank          bool `json:"edit_rank"`
-	ChangeInfo        bool `json:"change_info"`
-	SlowmodeSeconds   int  `json:"slowmode_seconds"`
+	EditRank          bool  `json:"edit_rank"`
+	ChangeInfo        bool  `json:"change_info"`
+	SlowmodeSeconds   int   `json:"slowmode_seconds"`
+	BoostsUnrestrict  int   `json:"boosts_unrestrict"`
+	ChargeStars       int64 `json:"charge_stars"`
 }
 
 func (e *Engine) GetDefaultBannedRights(accountID, chatID string) (*DefaultBannedRights, error) {
@@ -1946,10 +1948,12 @@ func (e *Engine) GetDefaultBannedRights(accountID, chatID string) (*DefaultBanne
 		SendPolls:       cr.SendPolls,
 		InviteUsers:     cr.InviteUsers,
 		ManageTopics:    cr.ManageTopics,
-		PinMessages:     cr.PinMessages,
-		EditRank:        cr.EditRank,
-		ChangeInfo:      cr.ChangeInfo,
-		SlowmodeSeconds: cr.SlowmodeSeconds,
+		PinMessages:      cr.PinMessages,
+		EditRank:         cr.EditRank,
+		ChangeInfo:       cr.ChangeInfo,
+		SlowmodeSeconds:  cr.SlowmodeSeconds,
+		BoostsUnrestrict: cr.BoostsUnrestrict,
+		ChargeStars:      cr.ChargeStars,
 	}, nil
 }
 

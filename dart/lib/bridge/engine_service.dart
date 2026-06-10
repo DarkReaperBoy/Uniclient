@@ -722,6 +722,21 @@ class EngineService {
     return list.map((e) => ChatInfo.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// Real people search (contacts.Search) returning matching users by name or
+  /// username — used by the member picker (add_participants_box.cpp:1894).
+  Future<List<Map<String, dynamic>>> searchGlobalUsers(String accountId, String query, {int limit = 20}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'query': query,
+      'limit': limit,
+    }));
+    final respBytes = await _callAsync('__engine', 'SearchGlobalUsers', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return [];
+    final decoded = json.decode(utf8.decode(respBytes));
+    if (decoded is List) return decoded.cast<Map<String, dynamic>>();
+    return [];
+  }
+
   Future<List<ChatInfo>> searchGlobalPosts(String accountId, String query, {int limit = 20}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

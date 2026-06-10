@@ -181,6 +181,9 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   bool _forumTabs = true;
   String _linkedChatId = '';
   String _linkedChatTitle = '';
+  // Linked peer's @username (empty → private), for the discussion-link row's
+  // status line (edit_discussion_link_box.cpp:104).
+  String _linkedChatUsername = '';
   bool _hasLocation = false;
   bool _hasPublicUsername = false;
   // Deferred-save originals (AyuGram queues all setting changes into one Save
@@ -199,12 +202,8 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   int _pendingRequestsCount = 0;
   int _boostLevel = 0;
   int _forumMinMembers = 200;
-  bool _noForwards = false;
-  bool _joinToSend = false;
-  bool _joinRequest = false;
-  bool _origNoForwards = false;
-  bool _origJoinToSend = false;
-  bool _origJoinRequest = false;
+  // no_forwards / join_to_send / join_request are owned by EditPeerTypeBox, not
+  // this manage section — no local state for them here (edit_peer_info_box.cpp:881).
   // Direct-messages (monoforum) current state, for the "Direct Messages" box.
   bool _directMessagesEnabled = false;
   int _directMessagesStars = 0;
@@ -445,12 +444,6 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           _pendingRequestsCount = (flags['pending_requests_count'] as int?) ?? 0;
           _boostLevel = (flags['boost_level'] as int?) ?? 0;
           _forumMinMembers = (flags['forum_upgrade_participants_min'] as int?) ?? 200;
-          _noForwards = flags['no_forwards'] == true;
-          _joinToSend = flags['join_to_send'] == true;
-          _joinRequest = flags['join_request'] == true;
-          _origNoForwards = _noForwards;
-          _origJoinToSend = _joinToSend;
-          _origJoinRequest = _joinRequest;
           _antispamEnabled = flags['antispam'] == true;
           _antispamLoaded = true;
           _isMegagroupFlag = flags['is_megagroup'] == true;
@@ -492,7 +485,13 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     try {
       final info = await engine.getFullChatInfo(widget.chat.accountId, id);
       final title = info['title'] as String? ?? '';
-      if (title.isNotEmpty && mounted) setState(() => _linkedChatTitle = title);
+      final username = info['username'] as String? ?? '';
+      if (mounted) {
+        setState(() {
+          if (title.isNotEmpty) _linkedChatTitle = title;
+          _linkedChatUsername = username;
+        });
+      }
     } catch (_) {/* keep fallback label */}
   }
 
@@ -849,18 +848,26 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
               }
             },
           ),
-        _EditRow(
-          icon: _isChannel ? Icons.forum_outlined : Icons.groups_outlined,
-          label: _isChannel ? 'Discussion Group' : 'Linked Channel',
-          // Reactively show the linked peer's actual name; fall back to the
-          // add/restore label when nothing is linked (edit_peer_info_box.cpp:1068).
-          value: _linkedChatId.isNotEmpty
-              ? (_linkedChatTitle.isNotEmpty ? _linkedChatTitle : 'Linked')
-              : (_isChannel ? 'Add' : 'Add'),
-          textColor: textColor,
-          subTextColor: subTextColor,
-          onTap: () => _showLinkedChatDialog(),
-        ),
+        // canViewOrEditDiscussionLink = isChannel && (discussionLink ||
+        // (isBroadcast && canEditInformation)) — never shown for legacy basic
+        // groups, nor for a broadcast admin without edit rights and no existing
+        // link, nor for a megagroup that has no linked broadcast
+        // (edit_peer_info_box.cpp:1470).
+        if (_isChannelOrSuper
+            && (_linkedChatId.isNotEmpty
+                || (_isBroadcastFlag && _canEditInformation)))
+          _EditRow(
+            icon: _isChannel ? Icons.forum_outlined : Icons.groups_outlined,
+            label: _isChannel ? 'Discussion Group' : 'Linked Channel',
+            // Reactively show the linked peer's actual name; fall back to the
+            // add/restore label when nothing is linked (edit_peer_info_box.cpp:1068).
+            value: _linkedChatId.isNotEmpty
+                ? (_linkedChatTitle.isNotEmpty ? _linkedChatTitle : 'Linked')
+                : 'Add',
+            textColor: textColor,
+            subTextColor: subTextColor,
+            onTap: () => _showLinkedChatDialog(),
+          ),
         if (_canEditColorIndex)
           _EditRow(
             icon: Icons.palette_outlined,
@@ -900,41 +907,14 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                   : () => _toggleTopics(),
             ),
         ],
-        _EditRow(
-          icon: Icons.block,
-          label: 'Restrict Saving Content',
-          value: '',
-          textColor: textColor,
-          subTextColor: subTextColor,
-          isToggle: true,
-          toggleValue: _noForwards,
-          onTap: () => setState(() => _noForwards = !_noForwards),
-        ),
-        // Join-to-send / approve-members are megagroup-only (AyuGram gates these
-        // on _peer->isMegagroup() in fillPrivacyTypeButton); regular chats and
-        // broadcast channels don't expose them.
-        if (_isMegagroupFlag) ...[
-          _EditRow(
-            icon: Icons.login,
-            label: 'Members Must Join to Send',
-            value: '',
-            textColor: textColor,
-            subTextColor: subTextColor,
-            isToggle: true,
-            toggleValue: _joinToSend,
-            onTap: () => setState(() => _joinToSend = !_joinToSend),
-          ),
-          _EditRow(
-            icon: Icons.person_add_alt_1,
-            label: 'Approve New Members',
-            value: '',
-            textColor: textColor,
-            subTextColor: subTextColor,
-            isToggle: true,
-            toggleValue: _joinRequest,
-            onTap: () => setState(() => _joinRequest = !_joinRequest),
-          ),
-        ],
+        // NOTE: "Restrict Saving Content" (no_forwards), "Members Must Join to
+        // Send" (join_to_send) and "Approve New Members" (join_request) are NOT
+        // standalone manage-section rows. AyuGram's fillManageSection has none of
+        // them — they live exclusively inside EditPeerTypeBox, which reports
+        // noForwards back through the privacy-type callback
+        // (edit_peer_info_box.cpp:881). The Dart type box (create_group_wizard's
+        // showEditPeerTypeBox) already owns and commits all three; duplicating
+        // them here POSTed divergent values to the backend.
         if (_isChannel) ...[
           // canEditAutoTranslate = isBroadcast && canEditInformation.
           if (_canEditAutoTranslate)
@@ -1010,15 +990,34 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
       );
       if (!mounted) return;
 
+      // Render the linked peer with its real name + username/"private" status
+      // line instead of the raw chat-id (edit_discussion_link_box.cpp:97-108).
+      String linkedTitle = _linkedChatTitle;
+      String linkedUsername = _linkedChatUsername;
+      if (linkedId.isNotEmpty && linkedTitle.isEmpty) {
+        try {
+          final info = await engine.getFullChatInfo(widget.chat.accountId, linkedId);
+          linkedTitle = (info['title'] as String?) ?? '';
+          linkedUsername = (info['username'] as String?) ?? '';
+        } catch (_) {/* keep fallbacks */}
+      }
+      if (!mounted) return;
+
       List<Map<String, dynamic>> groups = [];
       if (_isChannel) {
         try {
           groups = await engine.getDiscussionGroups(widget.chat.accountId);
         } catch (e) {
-          Debug.log('admin_tools', 'groups = await engine.getDiscussionGroups(widget.chat.acc...: $e');
+          Debug.log('admin_tools', 'getDiscussionGroups: $e');
         }
       }
       if (!mounted) return;
+
+      // A broadcast admin with edit rights and no linked chat can spawn a brand
+      // new megagroup and link it — the only way to attach a fresh group
+      // (edit_discussion_link_box.cpp:268).
+      final canCreateGroup = _isChannel && _isBroadcastFlag
+          && _canEditInformation && linkedId.isEmpty;
 
       showDialog(
         context: context,
@@ -1038,12 +1037,34 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                   if (linkedId.isNotEmpty) ...[
                     Text('Currently linked:', style: TextStyle(color: subTextColor, fontSize: 13)),
                     const SizedBox(height: 4),
-                    Text(linkedId, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500)),
+                    Text(
+                      linkedTitle.isNotEmpty ? linkedTitle : 'Linked',
+                      style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      linkedUsername.isNotEmpty
+                          ? '@$linkedUsername'
+                          : (_isChannel ? 'private group' : 'private channel'),
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
                     const SizedBox(height: 12),
                   ] else
                     Text(
                       'No ${_isChannel ? "discussion group" : "channel"} linked.',
                       style: TextStyle(color: subTextColor, fontSize: 14),
+                    ),
+                  if (canCreateGroup)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.group_add, color: accentColor, size: 22),
+                      title: Text('Create a new group',
+                          style: TextStyle(color: accentColor, fontSize: 14, fontWeight: FontWeight.w500)),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _createDiscussionGroup();
+                      },
                     ),
                   if (_isChannel && groups.isNotEmpty) ...[
                     const SizedBox(height: 12),
@@ -1058,22 +1079,25 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                           final g = groups[i];
                           final gId = g['id'] as String? ?? '';
                           final gTitle = g['title'] as String? ?? 'Untitled';
+                          final gUsername = g['username'] as String? ?? '';
                           final isLinked = gId == linkedId;
                           return ListTile(
                             dense: true,
                             title: Text(gTitle, style: TextStyle(color: textColor, fontSize: 14)),
+                            subtitle: Text(
+                              gUsername.isNotEmpty ? '@$gUsername' : 'private group',
+                              style: TextStyle(color: subTextColor, fontSize: 12),
+                            ),
                             trailing: isLinked
                                 ? Icon(Icons.check_circle, color: accentColor, size: 20)
                                 : null,
                             onTap: () {
-                              // Deferred: stage the choice; saveDiscussionLink
-                              // applies it in the Save pipeline
-                              // (edit_peer_info_box.cpp:2373).
                               Navigator.pop(ctx);
-                              setState(() {
-                                _linkedChatId = gId;
-                                _linkedChatTitle = gTitle;
-                              });
+                              // Route the selection through a confirm box carrying
+                              // the private-channel / hidden-pre-history warnings
+                              // before staging the link
+                              // (edit_discussion_link_box.cpp:141).
+                              _confirmLinkDiscussionGroup(gId, gTitle, gUsername);
                             },
                           );
                         },
@@ -1092,9 +1116,13 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                     setState(() {
                       _linkedChatId = '';
                       _linkedChatTitle = '';
+                      _linkedChatUsername = '';
                     });
                   },
-                  child: Text('Unlink', style: TextStyle(color: Colors.red.shade400)),
+                  child: Text(
+                    _isChannel ? 'Unlink group' : 'Unlink channel',
+                    style: TextStyle(color: Colors.red.shade400),
+                  ),
                 ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
@@ -1106,6 +1134,90 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
       );
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed to load: $e');
+    }
+  }
+
+  /// Confirm box mirroring `EditDiscussionLinkBox::Controller::choose`: the
+  /// "make X the discussion board for Y" question plus the private-channel and
+  /// (for a private group) hidden-pre-history warnings; only stages the link on
+  /// confirm (edit_discussion_link_box.cpp:141).
+  Future<void> _confirmLinkDiscussionGroup(
+      String gId, String gTitle, String gUsername) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subTextColor = isDark ? Colors.white70 : Colors.black54;
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+    final groupIsPublic = gUsername.isNotEmpty;
+
+    final buf = StringBuffer();
+    buf.write('Do you want to make "$gTitle" the discussion board for '
+        '"${widget.chat.title}"?');
+    if (!_hasPublicUsername) {
+      buf.write('\n\nAny member of this group will be able to see messages '
+          'in the channel.');
+    }
+    if (!groupIsPublic) {
+      buf.write('\n\nAnyone from the channel will be able to see messages '
+          'in this group.');
+      buf.write('\n\n"Chat history for new members" will be switched to Visible.');
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        content: Text(buf.toString(),
+            style: TextStyle(color: textColor, fontSize: 14, height: 1.35)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: TextStyle(color: subTextColor)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Link group',
+                style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      setState(() {
+        _linkedChatId = gId;
+        _linkedChatTitle = gTitle;
+        _linkedChatUsername = gUsername;
+      });
+    }
+  }
+
+  /// Creates a brand-new megagroup named "<channel> Chat" and stages it as the
+  /// discussion link (committed on Save), mirroring AyuGram's
+  /// `lng_manage_discussion_group_create` GroupInfoBox flow
+  /// (edit_discussion_link_box.cpp:277).
+  Future<void> _createDiscussionGroup() async {
+    final engine = context.read<EngineService>();
+    final name = '${widget.chat.title} Chat';
+    try {
+      final result = await engine.createMegagroup(
+        widget.chat.accountId,
+        name,
+        '',
+      );
+      if (!mounted) return;
+      final newId = (result['chat_id'] as String?) ?? '';
+      if (newId.isEmpty) {
+        showTelegramToast(context, 'Failed to create group');
+        return;
+      }
+      setState(() {
+        _linkedChatId = newId;
+        _linkedChatTitle = name;
+        _linkedChatUsername = '';
+      });
+      showTelegramToast(context, 'Group created — tap Save to link it');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed to create group: $e');
     }
   }
 
@@ -1791,83 +1903,152 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     final engine = context.read<EngineService>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final priceCtrl = TextEditingController(
-      text: _directMessagesStars > 0 ? '$_directMessagesStars' : '',
-    );
 
-    // AyuGram's EditDirectMessagesPriceBox: an "Allow direct messages" toggle
-    // that, when off, sends a disabled value (no broadcast_messages_allowed flag);
-    // when on, the per-message Stars price (0 = free but still enabled)
-    // (edit_privacy_box.cpp:1314).
+    // Server-driven bounds + commission/withdraw rate (appConfig), exactly like
+    // AyuGram's SetupChargeSlider (edit_privacy_box.cpp:1198). maxStars caps the
+    // slider so an out-of-range price can never be sent.
+    var maxStars = 10000;
+    var commissionPermille = 150;
+    var withdrawRate = 0.013;
+    try {
+      final cfg = await engine.getPaidMessagesConfig(widget.chat.accountId);
+      if (cfg.maxStars > 0) maxStars = cfg.maxStars;
+      commissionPermille = cfg.commissionPermille;
+      withdrawRate = cfg.withdrawRate;
+    } catch (_) {/* fall back to defaults */}
+    if (!mounted) return;
+
+    // Stars value curve (allowZero: 0 = free but still enabled), bounded by
+    // maxStars — mirrors SetupChargeSlider's value ladder.
+    final values = <int>[0];
+    for (var i = 1; i < 100 && i <= maxStars; i++) values.add(i);
+    for (var i = 100; i < 1000 && i <= maxStars; i += 10) values.add(i);
+    for (var i = 1000; i <= maxStars; i += 100) values.add(i);
+
+    // Seed with the existing price; for a not-yet-enabled channel seed with the
+    // channel default (AyuGram's paidMessageChannelStarsDefault, fallback 10).
+    final seed = _directMessagesEnabled ? _directMessagesStars : 10;
+    int closestIndex(int v) {
+      var best = 0;
+      var bestDist = (v - values[0]).abs();
+      for (var i = 1; i < values.length; i++) {
+        final d = (v - values[i]).abs();
+        if (d < bestDist) { bestDist = d; best = i; }
+      }
+      return best;
+    }
+
+    // paidMessageCommission is the creator's permille share; show it as a percent
+    // and the ≈ USD value from starsWithdrawRate.
+    final commissionPct = (1000 - commissionPermille) / 10.0;
+    String usd(int stars) {
+      final u = stars * withdrawRate;
+      if (u <= 0) return '\$0.00';
+      if (u < 0.01) return '\$0.01';
+      return '\$${u.toStringAsFixed(2)}';
+    }
+
     final result = await showDialog<(bool, int)>(
       context: context,
       builder: (ctx) {
         bool allow = _directMessagesEnabled;
+        int sliderIndex = closestIndex(seed.clamp(0, values.last));
         return StatefulBuilder(
-          builder: (ctx, setLocalState) => AlertDialog(
-            backgroundColor: bgColor,
-            title: Text('Direct Messages', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Allow direct messages',
-                      style: TextStyle(color: textColor, fontSize: 14)),
-                  value: allow,
-                  activeColor: accentColor,
-                  onChanged: (v) => setLocalState(() => allow = v),
-                ),
-                if (allow) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Set a price in Telegram Stars for users to send direct messages to this channel.',
-                    style: TextStyle(color: subTextColor, fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: priceCtrl,
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(color: textColor, fontSize: 14),
-                    decoration: InputDecoration(
-                      labelText: 'Stars per message (0 = free)',
-                      hintText: '0',
-                      hintStyle: TextStyle(color: subTextColor),
-                      border: const UnderlineInputBorder(),
+          builder: (ctx, setLocalState) {
+            final stars = values[sliderIndex];
+            return AlertDialog(
+              backgroundColor: bgColor,
+              title: Text('Direct Messages',
+                  style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+              content: SizedBox(
+                width: 320,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('Allow direct messages',
+                          style: TextStyle(color: textColor, fontSize: 14)),
+                      value: allow,
+                      activeColor: accentColor,
+                      onChanged: (v) => setLocalState(() => allow = v),
                     ),
-                  ),
-                ] else
-                  Text(
-                    'Subscribers will not be able to send direct messages to this channel.',
-                    style: TextStyle(color: subTextColor, fontSize: 13),
-                  ),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: subTextColor))),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, (allow, int.tryParse(priceCtrl.text) ?? 0)),
-                child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
+                    if (allow) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Set a price in Telegram Stars for users to send direct messages to this channel.',
+                        style: TextStyle(color: subTextColor, fontSize: 13),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.star, color: Color(0xFFE8AC00), size: 18),
+                          const SizedBox(width: 4),
+                          Text('$stars',
+                              style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                      SliderTheme(
+                        data: SliderThemeData(
+                          activeTrackColor: accentColor,
+                          inactiveTrackColor: accentColor.withValues(alpha: 0.3),
+                          thumbColor: accentColor,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+                          trackHeight: 3,
+                        ),
+                        child: Slider(
+                          value: sliderIndex.toDouble(),
+                          min: 0,
+                          max: (values.length - 1).toDouble(),
+                          divisions: values.length - 1,
+                          onChanged: (v) => setLocalState(() => sliderIndex = v.round()),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        stars == 0
+                            ? 'Direct messages will be free.'
+                            : 'You receive ${commissionPct.toStringAsFixed(0)}% — ≈ ${usd(stars)} per message.',
+                        style: TextStyle(color: subTextColor, fontSize: 12),
+                      ),
+                    ] else
+                      Text(
+                        'Subscribers will not be able to send direct messages to this channel.',
+                        style: TextStyle(color: subTextColor, fontSize: 13),
+                      ),
+                  ],
+                ),
               ),
-            ],
-          ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx),
+                    child: Text('Cancel', style: TextStyle(color: subTextColor))),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, (allow, allow ? values[sliderIndex] : 0)),
+                  child: Text('Save', style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            );
+          },
         );
       },
     );
     if (result == null || !mounted) return;
     final (allow, price) = result;
+    // Defensive clamp to the server max even though the slider is already bounded.
+    final clamped = price.clamp(0, maxStars);
     try {
       await engine.updatePaidMessagesPrice(
         widget.chat.accountId,
         widget.chat.chatId,
-        allow ? price : 0,
+        allow ? clamped : 0,
         broadcastEnabled: allow,
       );
       if (mounted) {
         setState(() {
           _directMessagesEnabled = allow;
-          _directMessagesStars = allow ? price : 0;
+          _directMessagesStars = allow ? clamped : 0;
         });
         showTelegramToast(context, allow ? 'Direct messages updated' : 'Direct messages disabled');
       }
@@ -2927,27 +3108,8 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           isVideo: _avatarIsVideo,
         );
       }
-      if (_noForwards != _origNoForwards) {
-        await engine.toggleNoForwards(
-          widget.chat.accountId,
-          widget.chat.chatId,
-          _noForwards,
-        );
-      }
-      if (_joinToSend != _origJoinToSend) {
-        await engine.toggleJoinToSend(
-          widget.chat.accountId,
-          widget.chat.chatId,
-          _joinToSend,
-        );
-      }
-      if (_joinRequest != _origJoinRequest) {
-        await engine.toggleJoinRequest(
-          widget.chat.accountId,
-          widget.chat.chatId,
-          _joinRequest,
-        );
-      }
+      // no_forwards / join_to_send / join_request are committed by
+      // EditPeerTypeBox (create_group_wizard), not here — see manage-section note.
       // ── Deferred setting changes, queued from their dialogs (AyuGram's
       // validateXxx → saveXxx pipeline). Each skips its RPC when unchanged. ──
       if (_linkedChatId != _origLinkedChatId) {
@@ -3099,6 +3261,10 @@ class _PermFlag {
   // Always-disabled flags (rendered but never editable), mirroring AyuGram's
   // `disabledMessages` lock for EditRank in CreateEditRestrictions.
   final bool locked;
+  // Per-participant boxes only: the chat forbids this flag for ALL members
+  // (defaultRestrictions). Rendered locked-off with a "Forbidden for all members"
+  // affordance; a master toggle must never flip it (edit_participant_box.cpp:746).
+  bool defaultBanned = false;
 
   _PermFlag({required this.key, required this.label, this.banned = false, this.locked = false});
 }
@@ -3187,9 +3353,10 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
       _PermFlag(key: 'invite_users', label: 'Add members'),
       if (widget.isForum) _PermFlag(key: 'manage_topics', label: 'Create topics'),
       _PermFlag(key: 'pin_messages', label: 'Pin messages', locked: lockInfoPin),
-      // EditRank is rendered but always locked (NestedRestrictionLabelsList →
-      // disabledMessages); lng_rights_group_edit_rank = "Edit own tags".
-      _PermFlag(key: 'edit_rank', label: 'Edit own tags', locked: true),
+      // EditRank is a normal editable checkbox — it lives in
+      // NestedRestrictionLabelsList and is NOT in the disabledMessages lock map,
+      // and the Go backend round-trips edit_rank (edit_peer_permissions_box.cpp:99).
+      _PermFlag(key: 'edit_rank', label: 'Edit own tags'),
       _PermFlag(key: 'change_info', label: 'Change group info', locked: lockInfoPin),
     ];
     _loadRights();
@@ -3532,6 +3699,11 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
                     onChanged: (val) {
                       setState(() {
                         for (final f in _mediaFlags) {
+                          // Never flip a flag forbidden for all members or
+                          // otherwise locked — AyuGram disables those checkboxes
+                          // so the master toggle can't override a chat-wide
+                          // restriction (edit_participant_box.cpp:746).
+                          if (f.locked || f.defaultBanned) continue;
                           f.banned = !val;
                         }
                       });
@@ -3565,8 +3737,27 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
 
   Widget _buildMediaCheckbox(_PermFlag flag, Color accentColor, Color attentionColor, Color textColor) {
     final allowed = !flag.banned;
-    return InkWell(
-      onTap: () => _toggleFlag(flag),
+    final dependencyLocked = flag.key == 'embed_links' && _sendPlain.banned;
+    // Forbidden for all members (defaultRestrictions): render a lock + a
+    // "Forbidden for all members" subtext, surface a toast on tap, and wrap in a
+    // tooltip — AyuGram renders the locked state on every nested restriction
+    // checkbox (edit_participant_box.cpp:758).
+    final defaultLocked = flag.defaultBanned;
+    final isLocked = flag.locked || dependencyLocked || defaultLocked;
+
+    final row = InkWell(
+      onTap: () {
+        if (defaultLocked) {
+          showTelegramToast(context, 'This permission is forbidden for all members.');
+          return;
+        }
+        if (flag.locked) {
+          showTelegramToast(context, 'You cannot change this permission.');
+          return;
+        }
+        if (dependencyLocked) return;
+        _toggleFlag(flag);
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
         child: Row(
@@ -3574,21 +3765,36 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
             SizedBox(
               width: 20,
               height: 20,
-              child: Checkbox(
-                value: allowed,
-                onChanged: (_) => _toggleFlag(flag),
-                activeColor: accentColor,
-                side: BorderSide(color: allowed ? accentColor : attentionColor, width: 2),
-              ),
+              child: isLocked
+                  ? Icon(Icons.lock, size: 18,
+                      color: defaultLocked ? attentionColor : accentColor)
+                  : Checkbox(
+                      value: allowed,
+                      onChanged: (_) => _toggleFlag(flag),
+                      activeColor: accentColor,
+                      side: BorderSide(color: allowed ? accentColor : attentionColor, width: 2),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(flag.label, style: TextStyle(fontSize: 14, color: textColor)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(flag.label, style: TextStyle(fontSize: 14, color: textColor)),
+                  if (defaultLocked)
+                    Text('Forbidden for all members',
+                        style: TextStyle(fontSize: 11, color: attentionColor)),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
+    return defaultLocked
+        ? Tooltip(message: 'Forbidden for all members', child: row)
+        : row;
   }
 
   Widget _buildSlowmodeSlider(Color accentColor, Color textColor, Color subTextColor) {
@@ -4057,6 +4263,12 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
   bool _hasProgram = false;
   bool _loading = true;
   bool _saving = false;
+  // When a program already exists, AyuGram passes _state.exists as
+  // forbidLessThanValue to both sliders so commission/duration can only INCREASE
+  // (info_bot_starref_setup_widget.cpp:667). These hold the existing values used
+  // as the slider lower bounds.
+  int _origCommissionPermille = 0;
+  int _origDurationMonths = 0;
 
   @override
   void initState() {
@@ -4087,6 +4299,9 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
         final dm = (program['duration_months'] as num?)?.toInt() ?? 12;
         _durationMonths = dm == 0 ? 999 : dm;
         if (!_durations.contains(_durationMonths)) _durationMonths = 12;
+        // Lower bounds for an existing program — can only be increased.
+        _origCommissionPermille = _hasProgram ? _commissionPermille : _commissionMin;
+        _origDurationMonths = _hasProgram ? _durationMonths : _durations.first;
         _loading = false;
       });
     } catch (_) {
@@ -4103,8 +4318,69 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
       ? 'Forever'
       : (m % 12 == 0 ? '${m ~/ 12} year${m == 12 ? '' : 's'}' : '$m months');
 
+  /// ConfirmUpdate gate (info_bot_starref_common.cpp:906): an irreversible-change
+  /// warning + a Commission/Duration summary table; only commits on confirm.
+  Future<bool> _confirmUpdate() async {
+    final palette = PaletteProvider.of(context);
+    final accent = palette.windowBgActive;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subText = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+
+    final warning = _hasProgram
+        ? "This change is irreversible. You won't be able to reduce commission "
+            "or duration. You can only increase these parameters or end the "
+            "program, which will disable all previously shared referral links."
+        : "Once you start the affiliate program, you won't be able to decrease "
+            "its commission or duration. You can only increase these parameters "
+            "or end the program, which will disable all previously distributed "
+            "referral links.";
+
+    Widget row(String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: TextStyle(color: subText, fontSize: 14)),
+              Text(value, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500)),
+            ],
+          ),
+        );
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Warning', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(warning, style: TextStyle(color: textColor, fontSize: 14, height: 1.35)),
+            const SizedBox(height: 16),
+            row('Commission', _commissionLabel(_commissionPermille)),
+            row('Duration', _durationLabel(_durationMonths)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancel', style: TextStyle(color: subText))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(_hasProgram ? 'Update' : 'Start',
+                style: TextStyle(color: accent, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _save() async {
     if (_saving) return;
+    final confirmed = await _confirmUpdate();
+    if (!confirmed || !mounted) return;
     setState(() => _saving = true);
     final engine = context.read<EngineService>();
     try {
@@ -4126,7 +4402,59 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
     }
   }
 
+  /// ConfirmEndBox gate (info_bot_starref_common.cpp:701): "Warning" + three
+  /// bullet points + "End Anyway"/"Cancel"; only ends on confirm.
+  Future<bool> _confirmEnd() async {
+    final palette = PaletteProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subText = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+
+    Widget bullet(String text) => Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('•  ', style: TextStyle(color: textColor, fontSize: 14)),
+              Expanded(child: Text(text, style: TextStyle(color: textColor, fontSize: 14, height: 1.3))),
+            ],
+          ),
+        );
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Warning', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('If you end your affiliate program:',
+                style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500)),
+            bullet('Any referral links already shared will be disabled in 24 hours.'),
+            bullet('All participating affiliates will be notified.'),
+            bullet('You will be able to start a new affiliate program only in 24 hours.'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancel', style: TextStyle(color: subText))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('End Anyway',
+                style: TextStyle(color: palette.attentionButtonFg, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _end() async {
+    final confirmed = await _confirmEnd();
+    if (!confirmed || !mounted) return;
     final engine = context.read<EngineService>();
     try {
       // commissionPermille==0 ends/removes the program (bots.updateStarRefProgram).
@@ -4141,13 +4469,29 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
     }
   }
 
+  // Tiny duration tick label (lng_months_tiny/lng_years_tiny + "∞").
+  String _durationTiny(int m) {
+    if (m >= 999) return '∞';
+    if (m < 12) return '${m}m';
+    return '${m ~/ 12}y';
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
     final accent = palette.windowBgActive;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final subText = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
-    final divisions = ((_commissionMax - _commissionMin) ~/ 10).clamp(1, 1000);
+    // Lower-bound lock: an existing program's commission/duration can only be
+    // increased (info_bot_starref_setup_widget.cpp:667).
+    final commissionFloor = (_hasProgram ? _origCommissionPermille : _commissionMin)
+        .clamp(_commissionMin, _commissionMax);
+    final divisions = ((_commissionMax - commissionFloor) ~/ 10).clamp(1, 1000);
+    final durIdx = _durations.indexOf(_durationMonths).clamp(0, _durations.length - 1);
+    final durFloorIdx = (_hasProgram
+            ? _durations.indexOf(_origDurationMonths)
+            : 0)
+        .clamp(0, _durations.length - 1);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Affiliate Program', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600))),
@@ -4162,31 +4506,68 @@ class _BotStarRefSetupScreenState extends State<_BotStarRefSetupScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(_commissionLabel(_commissionMin), style: TextStyle(color: subText, fontSize: 12)),
+                    Text(_commissionLabel(commissionFloor), style: TextStyle(color: subText, fontSize: 12)),
                     Text(_commissionLabel(_commissionPermille),
                         style: TextStyle(color: accent, fontSize: 15, fontWeight: FontWeight.w600)),
                     Text(_commissionLabel(_commissionMax), style: TextStyle(color: subText, fontSize: 12)),
                   ],
                 ),
                 Slider(
-                  value: _commissionPermille.toDouble().clamp(_commissionMin.toDouble(), _commissionMax.toDouble()),
-                  min: _commissionMin.toDouble(),
+                  value: _commissionPermille.toDouble().clamp(commissionFloor.toDouble(), _commissionMax.toDouble()),
+                  min: commissionFloor.toDouble(),
                   max: _commissionMax.toDouble(),
                   divisions: divisions,
                   activeColor: accent,
                   label: _commissionLabel(_commissionPermille),
-                  onChanged: (v) => setState(() => _commissionPermille = (v / 10).round() * 10),
+                  onChanged: (v) => setState(() =>
+                      _commissionPermille = ((v / 10).round() * 10).clamp(commissionFloor, _commissionMax)),
                 ),
                 const SizedBox(height: 8),
                 Text('DURATION', style: TextStyle(color: subText, fontSize: 12, fontWeight: FontWeight.w600)),
-                ..._durations.map((m) => RadioListTile<int>(
-                      value: m,
-                      groupValue: _durationMonths,
-                      activeColor: accent,
-                      dense: true,
-                      title: Text(_durationLabel(m)),
-                      onChanged: (v) => setState(() => _durationMonths = v!),
-                    )),
+                const SizedBox(height: 4),
+                // Slider with tiny top-labels (months/years/∞) instead of a radio
+                // list; mirrors MakeSliderWithTopLabels and expresses the
+                // lower-bound lock for an existing program
+                // (info_bot_starref_setup_widget.cpp:700).
+                Text(_durationLabel(_durationMonths),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: accent, fontSize: 15, fontWeight: FontWeight.w600)),
+                SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: accent,
+                    inactiveTrackColor: accent.withValues(alpha: 0.3),
+                    thumbColor: accent,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+                    trackHeight: 3,
+                  ),
+                  child: Slider(
+                    value: durIdx.toDouble().clamp(durFloorIdx.toDouble(), (_durations.length - 1).toDouble()),
+                    min: durFloorIdx.toDouble(),
+                    max: (_durations.length - 1).toDouble(),
+                    divisions: (_durations.length - 1 - durFloorIdx).clamp(1, _durations.length - 1),
+                    onChanged: (v) => setState(() =>
+                        _durationMonths = _durations[v.round().clamp(durFloorIdx, _durations.length - 1)]),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      for (int i = 0; i < _durations.length; i++)
+                        Text(
+                          _durationTiny(_durations[i]),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: i < durFloorIdx
+                                ? subText.withValues(alpha: 0.4)
+                                : (i == durIdx ? accent : subText),
+                            fontWeight: i == durIdx ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
@@ -4367,7 +4748,8 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
           ..addAll([for (final f in _allFlags) if (defaults[f.key] == true) f.key]);
         for (final f in _allFlags) {
           // A flag banned for everyone is force-banned & locked.
-          f.banned = rights[f.key] == true || _defaultBannedKeys.contains(f.key);
+          f.defaultBanned = _defaultBannedKeys.contains(f.key);
+          f.banned = rights[f.key] == true || f.defaultBanned;
         }
         // Seed the "Banned until" selector from the member's existing expiry
         // (AyuGram: _until = prepareRights.until; createUntilVariants adds the
@@ -4804,6 +5186,11 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
                     onChanged: (val) {
                       setState(() {
                         for (final f in _mediaFlags) {
+                          // Never flip a flag forbidden for all members or
+                          // otherwise locked — AyuGram disables those checkboxes
+                          // so the master toggle can't override a chat-wide
+                          // restriction (edit_participant_box.cpp:746).
+                          if (f.locked || f.defaultBanned) continue;
                           f.banned = !val;
                         }
                       });
@@ -4837,8 +5224,27 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
 
   Widget _buildMediaCheckbox(_PermFlag flag, Color accentColor, Color attentionColor, Color textColor) {
     final allowed = !flag.banned;
-    return InkWell(
-      onTap: () => _toggleFlag(flag),
+    final dependencyLocked = flag.key == 'embed_links' && _sendPlain.banned;
+    // Forbidden for all members (defaultRestrictions): render a lock + a
+    // "Forbidden for all members" subtext, surface a toast on tap, and wrap in a
+    // tooltip — AyuGram renders the locked state on every nested restriction
+    // checkbox (edit_participant_box.cpp:758).
+    final defaultLocked = flag.defaultBanned;
+    final isLocked = flag.locked || dependencyLocked || defaultLocked;
+
+    final row = InkWell(
+      onTap: () {
+        if (defaultLocked) {
+          showTelegramToast(context, 'This permission is forbidden for all members.');
+          return;
+        }
+        if (flag.locked) {
+          showTelegramToast(context, 'You cannot change this permission.');
+          return;
+        }
+        if (dependencyLocked) return;
+        _toggleFlag(flag);
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
         child: Row(
@@ -4846,21 +5252,36 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
             SizedBox(
               width: 20,
               height: 20,
-              child: Checkbox(
-                value: allowed,
-                onChanged: (_) => _toggleFlag(flag),
-                activeColor: accentColor,
-                side: BorderSide(color: allowed ? accentColor : attentionColor, width: 2),
-              ),
+              child: isLocked
+                  ? Icon(Icons.lock, size: 18,
+                      color: defaultLocked ? attentionColor : accentColor)
+                  : Checkbox(
+                      value: allowed,
+                      onChanged: (_) => _toggleFlag(flag),
+                      activeColor: accentColor,
+                      side: BorderSide(color: allowed ? accentColor : attentionColor, width: 2),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(flag.label, style: TextStyle(fontSize: 14, color: textColor)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(flag.label, style: TextStyle(fontSize: 14, color: textColor)),
+                  if (defaultLocked)
+                    Text('Forbidden for all members',
+                        style: TextStyle(fontSize: 11, color: attentionColor)),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
+    return defaultLocked
+        ? Tooltip(message: 'Forbidden for all members', child: row)
+        : row;
   }
 
   Widget _buildDurationPicker(Color accentColor, Color textColor, Color subTextColor) {
@@ -5324,7 +5745,9 @@ class _EditAdminBoxState extends State<_EditAdminBox>
         _AdminFlag(key: 'invite_users', label: 'Invite users via link'),
         _AdminFlag(key: 'manage_call', label: 'Manage voice chats'),
         _AdminFlag(key: 'manage_direct', label: 'Manage direct messages'),
-        _AdminFlag(key: 'add_admins', label: 'Add new admins'),
+        // defaultRights() for a broadcast omits AddAdmins — granting it by
+        // default is a security-relevant deviation (edit_participant_box.cpp:311).
+        _AdminFlag(key: 'add_admins', label: 'Add new admins', enabled: false),
         _AdminFlag(key: 'ban_users', label: 'Ban users'),
       ];
     } else {
@@ -5348,8 +5771,10 @@ class _EditAdminBoxState extends State<_EditAdminBox>
         // ManageRanks sits between Manage calls and Remain anonymous for groups
         // (edit_peer_permissions_box.cpp:142); lng_rights_group_manage_ranks.
         _AdminFlag(key: 'manage_ranks', label: 'Edit member tags'),
-        _AdminFlag(key: 'anonymous', label: 'Remain anonymous'),
-        _AdminFlag(key: 'add_admins', label: 'Add new admins'),
+        // defaultRights() for a megagroup omits Anonymous + AddAdmins — leaving
+        // them OFF for a freshly-promoted member (edit_participant_box.cpp:311).
+        _AdminFlag(key: 'anonymous', label: 'Remain anonymous', enabled: false),
+        _AdminFlag(key: 'add_admins', label: 'Add new admins', enabled: false),
       ];
       _section4 = [];
     }
@@ -9702,9 +10127,10 @@ class _MemberListScreenState extends State<_MemberListScreen>
   bool _canAddForTab(_MemberTab tab) {
     switch (tab) {
       case _MemberTab.members:
-        // "Add Members" — only for groups (you don't add subscribers to a
-        // broadcast channel from here) and only with invite rights.
-        return !widget.isChannel && _canInviteUsers;
+        // "Add Members" (groups) / "Add Subscribers" (broadcast) — shown whenever
+        // the user can add members. AyuGram also offers it on a broadcast's
+        // subscribers list, gated on canAddMembers (edit_participants_box.cpp:1090).
+        return _canInviteUsers;
       case _MemberTab.admins:
         return _canAddAdmins;
       case _MemberTab.restricted:
@@ -9969,7 +10395,7 @@ class _MemberTabBody extends StatelessWidget {
     _MemberTab.kicked => 'Add to Banned',
     _MemberTab.restricted => 'Add Exception',
     _MemberTab.admins => 'Add Admin',
-    _ => 'Add Member',
+    _ => isChannel ? 'Add Subscribers' : 'Add Member',
   };
 
   IconData get _addButtonIcon => switch (tab) {
@@ -10089,7 +10515,7 @@ class _MemberTabBody extends StatelessWidget {
       _MemberTab.kicked => 'Ban User',
       _MemberTab.admins => 'Add Admin',
       _MemberTab.restricted => 'Add Exception',
-      _ => 'Add Members',
+      _ => isChannel ? 'Add Subscribers' : 'Add Members',
     };
     // Add Member is a multi-select contact picker (ContactsBoxController);
     // Add Admin/Exception/Banned is a single-select searchable participant/
@@ -10106,6 +10532,10 @@ class _MemberTabBody extends StatelessWidget {
         includeMembers: !isMembersTab,
         isDark: isDark,
         accentColor: accentColor,
+        // "Add Members via Link" — AyuGram renders this at the top of the
+        // contacts picker when the chat can have invite links
+        // (add_participants_box.cpp:912).
+        onAddViaLink: isMembersTab ? () => _openInviteLinks(ctx) : null,
       ),
     );
     if (selected == null || selected.isEmpty) return;
@@ -10123,6 +10553,17 @@ class _MemberTabBody extends StatelessWidget {
     }
     final entry = selected.first;
     if (tab == _MemberTab.kicked) {
+      // kickUser confirmation (add_participants_box.cpp:1653): confirm before
+      // banning, with an extra "this user is an admin" warning if applicable.
+      final status = await _preflightStatus(engine, entry.id);
+      if (!ctx.mounted) return;
+      final isAdmin = status == 'admin' || status == 'creator';
+      final msg = isAdmin
+          ? 'This user is an admin. Are you sure you want to go ahead and restrict them?'
+          : 'Remove ${entry.name.isNotEmpty ? entry.name : "this user"} from the '
+              '${isChannel ? "channel" : "group"}?';
+      if (!await _confirmAdd(ctx, msg)) return;
+      if (!ctx.mounted) return;
       try {
         await engine.banMember(accountId, chatId, entry.id);
         onRefresh();
@@ -10207,6 +10648,19 @@ class _MemberTabBody extends StatelessWidget {
     );
     return ok == true;
   }
+
+  // Opens the invite-links manager so members can be added via a shared link
+  // (the "Add Members via Link" affordance, add_participants_box.cpp:912).
+  void _openInviteLinks(BuildContext ctx) {
+    showDialog(
+      context: ctx,
+      builder: (_) => _InviteLinksBox(
+        accountId: accountId,
+        chatId: chatId,
+        isChannel: isChannel,
+      ),
+    );
+  }
 }
 
 // Searchable participant/contact picker that replaces the old free-text
@@ -10228,6 +10682,9 @@ class _MemberPickerDialog extends StatefulWidget {
   final bool includeMembers;
   final bool isDark;
   final Color accentColor;
+  // When non-null, an "Add Members via Link" row is rendered at the top of the
+  // picker (add_participants_box.cpp:912).
+  final VoidCallback? onAddViaLink;
   const _MemberPickerDialog({
     required this.accountId,
     required this.chatId,
@@ -10236,6 +10693,7 @@ class _MemberPickerDialog extends StatefulWidget {
     required this.includeMembers,
     required this.isDark,
     required this.accentColor,
+    this.onAddViaLink,
   });
 
   @override
@@ -10363,6 +10821,25 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
         byId.putIfAbsent(c.id, () => c);
       }
     }
+    // 3. Global people search (contacts.Search) — append ALL matching users by
+    // name/username automatically, not just one exact @username resolve
+    // (AddSpecialBoxSearchController::requestGlobal, add_participants_box.cpp:1894).
+    try {
+      final globals = await engine.searchGlobalUsers(widget.accountId, q, limit: 30);
+      for (final g in globals) {
+        final id = g['id'] as String? ?? '';
+        if (id.isEmpty) continue;
+        byId.putIfAbsent(id, () => _PickerEntry(
+              id,
+              (g['name'] as String?) ?? '',
+              (g['username'] as String?) ?? '',
+              '',
+            ));
+      }
+    } catch (e) {
+      Debug.log('admin_tools', '_runSearch global: $e');
+    }
+    if (!mounted || q != _query) return;
     final results = byId.values.toList();
     _remember(results);
     setState(() {
@@ -10458,6 +10935,21 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
               child: _searching ? const LinearProgressIndicator(minHeight: 2) : null,
             ),
             const SizedBox(height: 6),
+            // "Add Members via Link" — only with no active query, matching
+            // AyuGram's invite-link row at the top of the contacts picker
+            // (add_participants_box.cpp:912).
+            if (widget.onAddViaLink != null && _query.isEmpty)
+              ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                leading: Icon(Icons.link, color: widget.accentColor),
+                title: Text('Add Members via Link',
+                    style: TextStyle(color: widget.accentColor, fontSize: 14, fontWeight: FontWeight.w500)),
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onAddViaLink!();
+                },
+              ),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
@@ -10589,16 +11081,20 @@ class _MemberRow extends StatelessWidget {
 
   String _statusText() {
     if (tab == _MemberTab.requests) return _requestedStatus();
-    if (member.customRank.isNotEmpty) return member.customRank;
+    // refreshCustomStatus: the always-visible subtitle is the attribution line
+    // ("promoted by X" / "restricted by X" / "removed by X"), not a static role
+    // label. The custom rank is rendered separately as the badge (_buildBadge)
+    // (edit_participants_box.cpp:2421).
+    final by = member.promotedBy;
     switch (member.role) {
       case 'creator':
         return 'owner';
       case 'admin':
-        return 'admin';
+        return by.isNotEmpty ? 'promoted by $by' : 'admin';
       case 'restricted':
-        return 'restricted';
+        return by.isNotEmpty ? 'restricted by $by' : 'restricted';
       case 'banned':
-        return 'banned';
+        return by.isNotEmpty ? 'removed by $by' : 'banned';
       default:
         if (member.isBot) return 'bot';
         if (member.isOnline) return 'online';
@@ -10988,9 +11484,10 @@ class _MemberRow extends StatelessWidget {
 
     return InkWell(
       // rowClicked: opens the short-info / admin / restricted editor depending
-      // on the tab (edit_participants_box.cpp:1753). Previously only right-click
-      // and long-press were wired.
-      onTap: isRequest ? null : () => _rowClicked(context),
+      // on the tab (edit_participants_box.cpp:1753). For a join-request row it
+      // opens the requester's profile (RequestsBoxController::rowClicked,
+      // edit_peer_requests_box.cpp:409) — _rowClicked's default branch does this.
+      onTap: () => _rowClicked(context),
       onSecondaryTapDown: (d) => _showContextMenu(context, d.globalPosition),
       onLongPress: () {
         final box = context.findRenderObject() as RenderBox;
@@ -12642,9 +13139,15 @@ class _MessageStatsScreenState extends State<_MessageStatsScreen> {
       final charts = (data['charts'] as List?) ?? const [];
       final publicForwards = data['public_forwards_count'] as int? ?? 0;
       final publicList = (data['public_forwards'] as List?) ?? const [];
+      // Live view/reaction/forward counters re-fetched via channels.GetMessages
+      // (api_statistics.cpp:405); fall back to the recent-post snapshot only if
+      // the engine didn't return them.
+      final views = (data['views'] as int?) ?? widget.views;
+      final reactions = (data['reactions'] as int?) ?? widget.reactions;
+      final totalForwards = (data['forwards'] as int?) ?? widget.forwards;
       // Private forwards = total forwards − public forwards (the rest are to DMs
       // / private groups).
-      final privateForwards = (widget.forwards - publicForwards).clamp(0, 1 << 31);
+      final privateForwards = (totalForwards - publicForwards).clamp(0, 1 << 31);
       Widget overviewCard(String label, int value) => Container(
             width: (MediaQuery.of(context).size.width - 24 - 8) / 2,
             padding: const EdgeInsets.all(14),
@@ -12666,9 +13169,11 @@ class _MessageStatsScreenState extends State<_MessageStatsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
             child: Wrap(spacing: 8, runSpacing: 8, children: [
-              if (widget.views > 0) overviewCard('Views', widget.views),
+              // Views & Reactions always render (value >= 0) now that they are
+              // re-fetched live, instead of being hidden when the snapshot was 0.
+              overviewCard('Views', views),
               overviewCard('Public Shares', publicForwards),
-              if (widget.reactions > 0) overviewCard('Reactions', widget.reactions),
+              overviewCard('Reactions', reactions),
               if (privateForwards > 0) overviewCard('Private Shares', privateForwards),
             ]),
           ),
@@ -12709,7 +13214,7 @@ class _MessageStatsScreenState extends State<_MessageStatsScreen> {
               );
             }),
           ],
-          if (charts.isEmpty && publicForwards == 0 && widget.views == 0)
+          if (charts.isEmpty && publicForwards == 0 && views == 0 && reactions == 0)
             Padding(
               padding: const EdgeInsets.all(32),
               child: Center(child: Text('No statistics for this message.',
@@ -12917,21 +13422,21 @@ class _BoostsScreenState extends State<_BoostsScreen> {
                         style: TextStyle(color: subTextColor, fontSize: 14), textAlign: TextAlign.center),
                   ),
                 )
-              : NotificationListener<ScrollNotification>(
-                  onNotification: (n) {
-                    if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
-                      if (_showGifts) {
-                        _loadMoreGifts();
-                      } else {
-                        _loadMoreBoosters();
-                      }
-                    }
-                    return false;
-                  },
-                  child: Builder(builder: (_) {
-                    final premiumCount = (premiumAudience['premium'] as num?)?.toInt() ??
-                        (premiumAudience['premium_count'] as num?)?.toInt() ?? 0;
-                    final premiumPart = (premiumAudience['part'] as num?)?.toDouble() ?? 0;
+              // Explicit "Show N More" button drives pagination (AddShowMoreButton),
+              // not silent scroll-to-bottom auto-loading
+              // (info_statistics_list_controllers.cpp:1457).
+              : Builder(builder: (_) {
+                    // premium_audience is a statsPercentValue: part = the premium
+                    // member COUNT, total = total audience (api_statistics.cpp:547).
+                    final premiumCount =
+                        (((premiumAudience['part'] as num?)?.toDouble() ?? 0).round())
+                            .clamp(0, 1 << 31);
+                    final premiumTotalRaw =
+                        ((premiumAudience['total'] as num?)?.toDouble() ?? 0).round();
+                    final premiumDenom =
+                        premiumTotalRaw > premiumCount ? premiumTotalRaw : premiumCount;
+                    final premiumPart =
+                        premiumDenom > 0 ? (100.0 * premiumCount / premiumDenom) : 0.0;
                     final boostsToNext = (nextLevelBoosts - boosts).clamp(0, 1 << 31);
                     final _lvKids = <Widget>[
                       // FillBoostLimit bubble + limit-row bar before the overview
@@ -12996,7 +13501,9 @@ class _BoostsScreenState extends State<_BoostsScreen> {
                           _boostStatCell('$level', 'Level',
                               cardColor, textColor, subTextColor, accentColor),
                           _boostStatCell(
-                              premiumPart > 0 ? '${premiumPart.toStringAsFixed(premiumPart >= 10 ? 0 : 1)}%' : '$premiumCount',
+                              premiumPart > 0
+                                  ? '$premiumCount · ${premiumPart.toStringAsFixed(premiumPart >= 10 ? 0 : 1)}%'
+                                  : '$premiumCount',
                               'Premium audience',
                               cardColor, textColor, subTextColor, accentColor),
                           _boostStatCell('$boosts', 'Existing boosts',
@@ -13039,6 +13546,13 @@ class _BoostsScreenState extends State<_BoostsScreen> {
                             )),
                         if (_loadingGifts)
                           const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
+                        if (_giftsHasMore && !_loadingGifts && _gifts.isNotEmpty)
+                          _showMoreButton(
+                            (_giftsTotal - _gifts.length) > 0
+                                ? 'Show ${_giftsTotal - _gifts.length} More Gifts'
+                                : 'Show More Gifts',
+                            _loadMoreGifts,
+                            accentColor),
                       ] else ...[
                         if (_boosters.isEmpty && !_loadingMore)
                           Padding(
@@ -13055,6 +13569,13 @@ class _BoostsScreenState extends State<_BoostsScreen> {
                             )),
                         if (_loadingMore)
                           const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
+                        if (_hasMore && !_loadingMore && _boosters.isNotEmpty)
+                          _showMoreButton(
+                            (_total - _boosters.length) > 0
+                                ? 'Show ${_total - _boosters.length} More Boosts'
+                                : 'Show More Boosts',
+                            _loadMoreBoosters,
+                            accentColor),
                       ],
                       // Create-giveaway button, gated behind
                       // giveawayGiftsPurchaseAvailable() (info_boosts_inner_widget.cpp:232).
@@ -13067,7 +13588,21 @@ class _BoostsScreenState extends State<_BoostsScreen> {
                       itemBuilder: (_, _lvI) => _lvKids[_lvI],
                     );
                   }),
-                ),
+    );
+  }
+
+  // "Show N More Boosts/Gifts" button (AddShowMoreButton, lng_boosts_show_more_*).
+  Widget _showMoreButton(String label, VoidCallback onTap, Color accentColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: SizedBox(
+        width: double.infinity,
+        child: TextButton(
+          onPressed: onTap,
+          child: Text(label,
+              style: TextStyle(color: accentColor, fontWeight: FontWeight.w600)),
+        ),
+      ),
     );
   }
 
@@ -13296,25 +13831,27 @@ class _BoosterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = (booster['user_name'] as String?)?.trim();
-    final userId = booster['user_id'] as String? ?? '';
+    // user_id arrives as a raw int64 from the engine (go/cores/telegram.go:19001),
+    // unlike other call sites that stringify it — read tolerantly so a real
+    // booster row doesn't throw a TypeError. 0 == no associated user.
+    final rawUserId = booster['user_id'];
+    final userId = (rawUserId == null || rawUserId == 0 || rawUserId == '0')
+        ? ''
+        : rawUserId.toString();
     final avatarB64 = booster['avatar_b64'] as String? ?? '';
     final isGiveaway = booster['giveaway'] == true;
     final isGift = booster['gift'] == true;
     final isUnclaimed = booster['unclaimed'] == true;
-    final isCredits = booster['credits'] == true;
-    final creditsAmount = (booster['stars'] as num?)?.toInt() ?? 0;
     final multiplier = booster['multiplier'] as int? ?? 0;
     // Localized special-booster names instead of hardcoded strings
     // (info_statistics_list_controllers.cpp:557).
     final displayName = (name != null && name.isNotEmpty)
         ? name
-        : isCredits
-            ? '$creditsAmount Stars'
-            : isUnclaimed
-                ? 'Unclaimed boost'
-                : isGiveaway
-                    ? 'To be distributed'
-                    : 'Unknown user';
+        : isUnclaimed
+            ? 'Unclaimed boost'
+            : isGiveaway
+                ? 'To be distributed'
+                : 'Unknown user';
     final letter = displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
 
     // Status text varies by booster type: real/credits show the expiry; unclaimed
@@ -13337,15 +13874,21 @@ class _BoosterRow extends StatelessWidget {
     }
 
     return InkWell(
-      // Booster rows open peer info / gift-code resolution depending on type
-      // (info_boosts_inner_widget.cpp:402). We open the booster's profile.
-      onTap: userId.isEmpty
-          ? null
-          : () {
-              if (InfoPanel.pushUserProfileRequest != null) {
-                InfoPanel.pushUserProfileRequest!(MemberInfo(userId: userId, displayName: displayName));
-              }
-            },
+      // boostClicked dispatches by booster type (info_boosts_inner_widget.cpp:402):
+      // a real user opens their profile; unclaimed / giveaway / gift boosts (no
+      // associated user) surface their pending state instead of silently no-op.
+      onTap: () {
+        if (userId.isNotEmpty) {
+          InfoPanel.pushUserProfileRequest
+              ?.call(MemberInfo(userId: userId, displayName: displayName));
+        } else if (isUnclaimed) {
+          showTelegramToast(context, 'This boost has not been claimed yet.');
+        } else if (isGiveaway) {
+          showTelegramToast(context, 'This boost will be distributed to giveaway winners.');
+        } else if (isGift) {
+          showTelegramToast(context, 'This is a gifted boost.');
+        }
+      },
       child: Container(
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -13845,31 +14388,89 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     );
   }
 
+  // Receipt-style Stars transaction detail, mirroring ReceiptCreditsBox: a star
+  // bubble + title header, a large signed amount, status chips
+  // (refund/pending/failed/gift/subscription) and the detail rows
+  // (info_channel_earn_list.cpp:1351).
   void _showTxDetails(Map<String, dynamic> tx, String label, int amount, int date) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
-    Widget row(String k, String v) => Padding(
+    const starColor = Color(0xFFE8AC00);
+
+    final refund = tx['refund'] == true;
+    final pending = tx['pending'] == true;
+    final failed = tx['failed'] == true;
+    final gift = tx['gift'] == true;
+    final subPeriod = (tx['subscription_period'] as num?)?.toInt() ?? 0;
+    final desc = (tx['description'] as String?)?.trim() ?? '';
+    final id = (tx['id'] as String?) ?? '';
+    final incoming = amount >= 0;
+    final amountColor = (refund || pending)
+        ? subTextColor
+        : failed
+            ? const Color(0xFFE53935)
+            : (incoming ? const Color(0xFF4FAD2D) : const Color(0xFFE53935));
+
+    final chips = <String>[
+      if (refund) 'Refund',
+      if (pending) 'Pending',
+      if (failed) 'Failed',
+      if (gift) 'Gift',
+      if (subPeriod > 0) 'Subscription · ${(subPeriod / 86400).round()} days',
+    ];
+
+    Widget row(String k, String v, {bool mono = false}) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text(k, style: TextStyle(color: subTextColor, fontSize: 13)),
+            const SizedBox(width: 12),
             Flexible(child: Text(v, textAlign: TextAlign.right,
-                style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500))),
+                style: TextStyle(
+                    color: textColor, fontSize: 13, fontWeight: FontWeight.w500,
+                    fontFamily: mono ? 'monospace' : null))),
           ]),
         );
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: bgColor,
-        title: Text(label, style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w600)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          row('Amount', '$amount Stars'),
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: starColor.withValues(alpha: 0.15),
+            child: const Icon(Icons.star, color: starColor, size: 28),
+          ),
+          const SizedBox(height: 10),
+          Text(label, textAlign: TextAlign.center,
+              style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Text('${incoming ? '+' : ''}$amount',
+                style: TextStyle(color: amountColor, fontSize: 22, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 4),
+            const Icon(Icons.star, color: starColor, size: 20),
+          ]),
+          if (chips.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, alignment: WrapAlignment.center, children: [
+              for (final c in chips)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: subTextColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(c, style: TextStyle(color: textColor, fontSize: 11, fontWeight: FontWeight.w600)),
+                ),
+            ]),
+          ],
+          const SizedBox(height: 14),
+          if (desc.isNotEmpty) row('Description', desc),
           if (date > 0) row('Date', _txDate(date)),
-          if ((tx['description'] as String?)?.isNotEmpty ?? false)
-            row('Description', tx['description'] as String),
-          if ((tx['id'] as String?)?.isNotEmpty ?? false)
-            row('Transaction ID', tx['id'] as String),
+          if (id.isNotEmpty) row('Transaction ID', id, mono: true),
         ]),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
       ),
@@ -13958,15 +14559,22 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
     final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
     final accentColor = PaletteProvider.of(context).windowBgActive;
     final url = (tx['transaction_url'] as String?) ?? '';
-    final recipient = (tx['recipient'] as String?) ?? (tx['address'] as String?) ?? '';
+    // entry.provider is the withdrawal recipient (Fragment / Telegram Ads / …),
+    // rendered as a code-wrapped row by AddRecipient
+    // (info_channel_earn_list.cpp:1084).
+    final recipient = (tx['provider'] as String?) ?? '';
     final usd = _fmtUsdTon(amount, usdRate);
-    Widget row(String k, String v) => Padding(
+    Widget row(String k, String v, {bool mono = false}) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text(k, style: TextStyle(color: subTextColor, fontSize: 13)),
             const SizedBox(width: 12),
             Flexible(child: Text(v, textAlign: TextAlign.right,
-                style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500))),
+                style: TextStyle(
+                    color: textColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    fontFamily: mono ? 'monospace' : null))),
           ]),
         );
     showDialog(
@@ -13984,7 +14592,7 @@ class _MonetizationScreenState extends State<_MonetizationScreen> {
           if (date > 0) row('Date', _txDate(date)),
           if ((tx['description'] as String?)?.isNotEmpty ?? false)
             row('Description', tx['description'] as String),
-          if (recipient.isNotEmpty) row('Recipient', recipient),
+          if (recipient.isNotEmpty) row('Recipient', recipient, mono: true),
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
@@ -14648,14 +15256,35 @@ class _StarRefJoinScreenState extends State<_StarRefJoinScreen> {
   // connecting — commission/duration, recipient, ToS (info_bot_starref_join_widget.cpp:545).
   Future<void> _confirmJoin(Map<String, dynamic> bot) async {
     final botName = bot['bot_name'] as String? ?? bot['name'] as String? ?? 'this bot';
+    // Estimated daily revenue per user (program.revenuePerUser) — the
+    // "≈ X / day" line JoinStarRefBox shows (info_bot_starref_common.cpp:569).
+    final dailyRevenue = (bot['daily_revenue'] as num?)?.toInt() ?? 0;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Join Affiliate Program'),
-        content: Text(
-          'Join $botName\'s affiliate program and earn ${_commission(bot)} commission '
-          '(${_duration(bot)}) for every user you refer.\n\n'
-          'By joining, you agree to the Affiliate Program Terms.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Join $botName\'s affiliate program and earn ${_commission(bot)} commission '
+              '(${_duration(bot)}) for every user you refer.',
+            ),
+            if (dailyRevenue > 0) ...[
+              const SizedBox(height: 10),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.star, size: 16, color: Color(0xFFE8AC00)),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text('Daily revenue per user: ≈ $dailyRevenue / day',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ]),
+            ],
+            const SizedBox(height: 10),
+            const Text('By joining, you agree to the Affiliate Program Terms.'),
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),

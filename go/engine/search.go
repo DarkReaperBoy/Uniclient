@@ -213,6 +213,29 @@ func (e *Engine) SearchGlobalChats(accountID, query string, limit int) ([]ChatIn
 	return result, nil
 }
 
+// SearchGlobalUsers returns contacts.Search USER results (id/name/username) for
+// the member picker's people search (add_participants_box.cpp:1894).
+func (e *Engine) SearchGlobalUsers(accountID, query string, limit int) ([]map[string]interface{}, error) {
+	if query == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	type userSearcher interface {
+		SearchGlobalUsers(query string, limit int) ([]map[string]interface{}, error)
+	}
+	us, ok := acc.Core.(userSearcher)
+	if !ok {
+		return nil, nil
+	}
+	return us.SearchGlobalUsers(query, limit)
+}
+
 func (e *Engine) SearchGlobalPosts(accountID, query string, limit int) ([]ChatInfo, error) {
 	if query == "" {
 		return nil, nil

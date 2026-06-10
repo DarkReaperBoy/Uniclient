@@ -13244,6 +13244,24 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 	return u
 }
 
+// userAvatarStrippedB64 returns a user's inline stripped-thumbnail avatar as
+// base64 (no API call), mirroring convertUser's avatar extraction. Used to give
+// star-ref bot rows a real userpic instead of a colored letter-tile
+// (info_bot_starref_join_widget.cpp:199).
+func userAvatarStrippedB64(u *tg.User) string {
+	if u == nil {
+		return ""
+	}
+	if photo, ok := u.Photo.(*tg.UserProfilePhoto); ok {
+		if thumb, ok := photo.GetStrippedThumb(); ok && len(thumb) > 0 {
+			if jpg := tgStrippedToJPEG(thumb); len(jpg) > 0 {
+				return base64.StdEncoding.EncodeToString(jpg)
+			}
+		}
+	}
+	return ""
+}
+
 // extractStrippedThumbB64 walks a []PhotoSizeClass looking for a PhotoStrippedSize
 // entry (tiny ~100-byte JPEG thumbnail delivered inline with the message). When
 // found, it inflates it to a valid JPEG and returns the base64 encoding. Works
@@ -17677,6 +17695,11 @@ type DefaultBannedRights struct {
 	EditRank          bool `json:"edit_rank"`
 	ChangeInfo        bool `json:"change_info"`
 	SlowmodeSeconds   int  `json:"slowmode_seconds"`
+	// Existing boosts-to-unrestrict threshold (channel->boostsUnrestrict) and
+	// per-message Stars charge (commonStarsPerMessage), so the permissions box
+	// opens pre-seeded instead of always 0 (edit_peer_permissions_box.cpp:954,1184).
+	BoostsUnrestrict  int   `json:"boosts_unrestrict"`
+	ChargeStars       int64 `json:"charge_stars"`
 }
 
 // computeWriteRestriction determines restriction type and text from ChatBannedRights.
@@ -17817,6 +17840,15 @@ func (t *TelegramCore) GetDefaultBannedRights(chatID string) (*DefaultBannedRigh
 		t.cacheEntities(result.Users, result.Chats)
 		if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
 			rights.SlowmodeSeconds = fc.SlowmodeSeconds
+			// Seed the boosts-to-unrestrict threshold and per-message Stars charge
+			// so the toggles open ON when already set (and Save round-trips them
+			// instead of silently clearing) (edit_peer_permissions_box.cpp:954,1184).
+			if bu, ok := fc.GetBoostsUnrestrict(); ok {
+				rights.BoostsUnrestrict = bu
+			}
+			if stars, ok := fc.GetSendPaidMessagesStars(); ok {
+				rights.ChargeStars = stars
+			}
 		}
 		for _, c := range result.Chats {
 			if cc, ok := c.(*tg.Channel); ok && cc.ID == p.ChannelID {
@@ -18087,6 +18119,10 @@ func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, 
 		"has_verifier_settings": false,
 		"starref_allowed":       t.appConfigBoolNoLock("starref_program_allowed", false),
 		"starref_commission":    0,
+		// Server-driven commission bounds for the setup slider, mirroring
+		// appConfig.starrefCommissionMin/Max (info_bot_starref_setup_widget.cpp:626).
+		"starref_commission_min": t.appConfigIntNoLock("starref_min_commission_permille", 1),
+		"starref_commission_max": t.appConfigIntNoLock("starref_max_commission_permille", 900),
 	}
 	if bi, ok := result.FullUser.GetBotInfo(); ok {
 		if _, ok := bi.GetVerifierSettings(); ok {
@@ -18136,15 +18172,17 @@ func (t *TelegramCore) GetBotVerifyState(botID, userID string) (bool, error) {
 func connectedStarRefBotsToMaps(users map[int64]*tg.User, bots []tg.ConnectedBotStarRef) []map[string]interface{} {
 	out := make([]map[string]interface{}, 0, len(bots))
 	for _, b := range bots {
-		name, uname := "", ""
+		name, uname, avatar := "", "", ""
 		if u, ok := users[b.BotID]; ok {
 			name = userDisplayName(u)
 			uname = u.Username
+			avatar = userAvatarStrippedB64(u)
 		}
 		out = append(out, map[string]interface{}{
 			"bot_id":              strconv.FormatInt(b.BotID, 10),
 			"bot_name":            name,
 			"bot_username":        uname,
+			"avatar_b64":          avatar,
 			"url":                 b.URL,
 			"commission_permille": b.CommissionPermille,
 			"duration_months":     b.DurationMonths,
@@ -18191,18 +18229,26 @@ func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int,
 	}
 	bots := make([]map[string]interface{}, 0, len(res.SuggestedBots))
 	for _, p := range res.SuggestedBots {
-		name, uname := "", ""
+		name, uname, avatar := "", "", ""
 		if u, ok := users[p.BotID]; ok {
 			name = userDisplayName(u)
 			uname = u.Username
+			avatar = userAvatarStrippedB64(u)
 		}
-		bots = append(bots, map[string]interface{}{
+		m := map[string]interface{}{
 			"bot_id":              strconv.FormatInt(p.BotID, 10),
 			"bot_name":            name,
 			"bot_username":        uname,
+			"avatar_b64":          avatar,
 			"commission_permille": p.CommissionPermille,
 			"duration_months":     p.DurationMonths,
-		})
+		}
+		// Estimated daily revenue per user for the JoinStarRefBox "≈ X / day" line
+		// (program.revenuePerUser, info_bot_starref_common.cpp:569).
+		if dr, ok := p.GetDailyRevenuePerUser(); ok && dr != nil {
+			m["daily_revenue"] = dr.GetAmount()
+		}
+		bots = append(bots, m)
 	}
 	return map[string]interface{}{
 		"count":       res.Count,
@@ -18863,14 +18909,19 @@ func (t *TelegramCore) GetDiscussionGroups() ([]map[string]interface{}, error) {
 	for _, chat := range chats {
 		switch c := chat.(type) {
 		case *tg.Channel:
+			// username drives the public/private status line + confirm warning
+			// in the discussion-link box (edit_discussion_link_box.cpp:104).
 			groups = append(groups, map[string]interface{}{
-				"id":    fmt.Sprintf("-100%d", c.ID),
-				"title": c.Title,
+				"id":       fmt.Sprintf("-100%d", c.ID),
+				"title":    c.Title,
+				"username": c.Username,
 			})
 		case *tg.Chat:
+			// Legacy basic groups have no username — always private.
 			groups = append(groups, map[string]interface{}{
-				"id":    fmt.Sprintf("-%d", c.ID),
-				"title": c.Title,
+				"id":       fmt.Sprintf("-%d", c.ID),
+				"title":    c.Title,
+				"username": "",
 			})
 		}
 	}
@@ -22122,8 +22173,15 @@ func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) 
 			switch pp := result.Participant.(type) {
 			case *tg.ChannelParticipantCreator:
 				cu.Role = "creator"
+				cu.AdminRights = adminLogAdminRightsMap(&pp.AdminRights)
+				cu.Rank = pp.Rank
 			case *tg.ChannelParticipantAdmin:
 				cu.Role = "admin"
+				// Seed the EditAdminBox from the participant's REAL saved rights +
+				// rank (_oldRights/_oldRank), not the all-on defaults
+				// (edit_participant_box.cpp:304).
+				cu.AdminRights = adminLogAdminRightsMap(&pp.AdminRights)
+				cu.Rank = pp.Rank
 			case *tg.ChannelParticipantBanned:
 				if pp.BannedRights.ViewMessages {
 					cu.Role = "kicked"
@@ -22755,6 +22813,15 @@ func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, fi
 			"refund":      tx.Refund,
 			"title":       tx.Title,
 			"description": tx.Description,
+			// Receipt detail for the fuller ReceiptCreditsBox-style detail box
+			// (info_channel_earn_list.cpp:1351): pending/failed/gift status and
+			// the subscription period.
+			"pending": tx.Pending,
+			"failed":  tx.Failed,
+			"gift":    tx.Gift,
+		}
+		if sp, ok := tx.GetSubscriptionPeriod(); ok && sp != 0 {
+			m["subscription_period"] = sp
 		}
 		txns = append(txns, m)
 	}
@@ -22981,6 +23048,23 @@ func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, li
 		}
 		if td, ok := tx.GetTransactionDate(); ok && td != 0 {
 			m["transaction_date"] = td
+		}
+		// Recipient/provider for the details box's AddRecipient row
+		// (entry.provider, info_channel_earn_list.cpp:1084) — derived from the
+		// withdrawal peer type.
+		switch tx.Peer.(type) {
+		case *tg.StarsTransactionPeerFragment:
+			m["provider"] = "Fragment"
+		case *tg.StarsTransactionPeerAds:
+			m["provider"] = "Telegram Ads"
+		case *tg.StarsTransactionPeerAppStore:
+			m["provider"] = "App Store"
+		case *tg.StarsTransactionPeerPlayMarket:
+			m["provider"] = "Google Play"
+		case *tg.StarsTransactionPeerPremiumBot:
+			m["provider"] = "Telegram"
+		case *tg.StarsTransactionPeerAPI:
+			m["provider"] = "Telegram API"
 		}
 		txns = append(txns, m)
 	}
@@ -29226,6 +29310,42 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 		}
 	}
 
+	// Re-fetch the live view / forward / reaction counters via channels.GetMessages
+	// so the overview shows fresh numbers, not a recent-post snapshot, and the
+	// cards render whenever the value is present (api_statistics.cpp:405).
+	if msgs, mErr := t.api.ChannelsGetMessages(t.ctx, &tg.ChannelsGetMessagesRequest{
+		Channel: inputCh,
+		ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: msgID}},
+	}); mErr == nil {
+		var list []tg.MessageClass
+		switch m := msgs.(type) {
+		case *tg.MessagesChannelMessages:
+			list = m.Messages
+		case *tg.MessagesMessages:
+			list = m.Messages
+		}
+		for _, mc := range list {
+			msg, ok := mc.(*tg.Message)
+			if !ok || msg.ID != msgID {
+				continue
+			}
+			if v, ok := msg.GetViews(); ok {
+				out["views"] = v
+			}
+			if f, ok := msg.GetForwards(); ok {
+				out["forwards"] = f
+			}
+			if r, ok := msg.GetReactions(); ok {
+				total := 0
+				for _, rc := range r.Results {
+					total += rc.Count
+				}
+				out["reactions"] = total
+			}
+			break
+		}
+	}
+
 	return out, nil
 }
 
@@ -30975,6 +31095,42 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 		}
 	}
 	return dialogs, nil
+}
+
+// SearchGlobalUsers runs contacts.Search and returns every matching USER (by
+// name or username) — the people-search the member picker needs, mirroring
+// AddSpecialBoxSearchController::requestGlobal which appends all contacts.Search
+// user results rather than a single exact-username resolve
+// (add_participants_box.cpp:1894).
+func (t *TelegramCore) SearchGlobalUsers(query string, limit int) ([]map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	result, err := t.api.ContactsSearch(t.ctx, &tg.ContactsSearchRequest{Q: query, Limit: limit})
+	if err != nil {
+		return nil, fmt.Errorf("global user search: %w", err)
+	}
+	t.cacheEntities(result.Users, result.Chats)
+	seen := make(map[int64]bool)
+	out := make([]map[string]interface{}, 0, len(result.Users))
+	for _, u := range result.Users {
+		user, ok := u.(*tg.User)
+		if !ok || user.Self || user.Deleted || seen[user.ID] {
+			continue
+		}
+		seen[user.ID] = true
+		out = append(out, map[string]interface{}{
+			"id":       strconv.FormatInt(user.ID, 10),
+			"name":     userDisplayName(user),
+			"username": user.Username,
+		})
+	}
+	return out, nil
 }
 
 // SearchGlobalPosts searches for public channel posts matching a query.

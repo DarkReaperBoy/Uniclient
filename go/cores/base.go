@@ -180,6 +180,11 @@ type User struct {
 	NoteEntities           string `json:"note_entities,omitempty"`
 	BusinessHours          string `json:"business_hours,omitempty"`
 	BannedRights           map[string]bool `json:"banned_rights,omitempty"`
+	// Saved admin rights + custom rank for an admin/creator participant, so the
+	// EditAdminBox opens seeded from _oldRights/_oldRank instead of all-on
+	// defaults (edit_participant_box.cpp:304).
+	AdminRights            map[string]bool `json:"admin_rights,omitempty"`
+	Rank                   string          `json:"rank,omitempty"`
 	BannedUntil            int             `json:"banned_until,omitempty"`
 	// Attribution for the "Restricted/Banned by X on DATE" footer
 	// (edit_participant_box.cpp:816): the admin who applied the ban + when.
