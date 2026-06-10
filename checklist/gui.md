@@ -372,35 +372,26 @@ block/shadowban verdict (all 6 cases), blob extraction, ICU→Dart pattern
 translation, import/export round-trip, and the dpaste publish flow all match the
 C++ ground truth and are correctly wired to real engine data (verified the Go
 engine emits every `service_action` tag, the `channel` gift flag, and
-`media_type` 1–12 that this file consumes). One genuine behavioral divergence:
+`media_type` 1–12 that this file consumes). One genuine behavioral divergence — now fixed & verified:
 
-- [ ] [MAJOR] `filteredMessagesShown()` returns `false` instead of `null` once a chat has been toggled even once, so the "Show/Hide filtered messages" context-menu item persists forever (and reveals nothing) where AyuGram omits it — `ayu_filter.dart:856-859` ← `AyuGram/ayu/features/filters/filters_controller.cpp:197-204`
-
-  Root cause: `_filteredMessagesShown` is a `Map<String,bool>` and
-  `toggleFilteredMessagesShown` only flips the bool (`ayu_filter.dart:856-859`) —
-  it **never removes the key**. AyuGram's `showingFilteredMessages` is a
-  `std::unordered_set` that **erases** the entry on toggle-off
-  (`filters_controller.cpp:198-202`). Because of this, the guard in
-  `filteredMessagesShown` (`ayu_filter.dart:843-849`,
-  `if (!_filteredMessagesShown.containsKey(chatId) && !_hasFilteredMessages(chatId)) return null;`)
-  can never reach the `null` branch for a chat that was toggled, since
-  `containsKey` stays `true` permanently — diverging from
-  `filters_controller.cpp:189-195` whose `!showingFilteredMessages.contains(...)`
-  goes back to `true` after toggle-off.
-
-  Observable effect: open a chat with N regex-hidden messages → context menu shows
-  "Show filtered messages" → tap (reveal) → tap again (hide) → then the hidden
-  messages disappear (deleted, filter removed, or cache evicted) so
-  `_hasFilteredMessages` is now false. AyuGram returns `nullopt` →
-  `context_menu.cpp:258-259 if (filteredToggleShown)` omits the menu item. The Dart
-  returns `false` (non-null) → `chat_list_panel.dart:1718 if (filteredShown != null)`
-  keeps adding a "Show filtered messages" item that reveals nothing. Wrong state
-  vs. ground truth. ← `AyuGram/ayu/ui/context_menu/context_menu.cpp:258-271`
-
-  Fix: make toggle remove the key when flipping to `false`
-  (`if (currently true) _filteredMessagesShown.remove(chatId); else _filteredMessagesShown[chatId] = true;`),
-  or change the `null` guard to `(_filteredMessagesShown[chatId] != true)` so an
-  un-shown chat with no filtered messages reports `null` exactly like the C++ set.
+Verified & closed (2026-06-10) — fixed by commit 02387469. `toggleFilteredMessagesShown`
+now mirrors AyuGram's `std::unordered_set`: toggle-off **erases** the key instead of
+flipping it to `false` (`ayu_filter.dart:864-868`), so the map only ever holds `true`
+entries and `containsKey(chatId) == showingFilteredMessages.contains(peer)`. The
+`filteredMessagesShown` guard (`ayu_filter.dart:843-849`, unchanged) therefore goes back
+to `null` after toggle-off for a chat with no filtered messages — a 1:1 model of
+`filters_controller.cpp:188-205`. Confirmed by a focused engine unit test exercising the
+full state machine (never-toggled→`null`; toggle-on→`true`; toggle-off→`null`, **not**
+`false`; and a repeated on/off cycle that never sticks at `false` — all 5 cases pass; the
+pre-fix code returned `false` and would have failed the toggle-off case). The UI consumes
+the value as a thin `if (filteredShown != null)` with no transformation
+(`chat_list_panel.dart:1721`), so the engine result maps 1:1 to menu-item presence: clean
+debug build, crash-free launch (desktop + mobile), and a live context menu correctly
+**omits** the item for a chat with no filtered messages.
+- [1] [MAJOR] `toggleFilteredMessagesShown` removes the key on toggle-off (set semantics) so
+  `filteredMessagesShown()` returns `null` again — the "Show/Hide filtered messages" item is
+  omitted exactly like AyuGram instead of persisting forever revealing nothing. —
+  `ayu_filter.dart:856-870` ← `AyuGram/ayu/features/filters/filters_controller.cpp:188-205`
 
 ## Verified faithful (no action needed)
 
