@@ -494,7 +494,6 @@ ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
     return null;
   }
 
-  ArchiveFile? paletteFile;
   ArchiveFile? bgFile;
   bool tiled = false;
 
@@ -502,11 +501,15 @@ ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
   for (final file in archive) {
     final name = file.name.toLowerCase();
     entries.putIfAbsent(name, () => file);
-    if (paletteFile == null &&
-        (name == 'colors.tdesktop-theme' || name == 'colors.tdesktop-palette')) {
-      paletteFile = file;
-    }
   }
+  // AyuGram (window_theme.cpp:300-307) reads 'colors.tdesktop-theme' FIRST and only
+  // falls back to 'colors.tdesktop-palette' when the former is absent — a strict
+  // priority, NOT archive iteration order. A zip carrying BOTH (with the palette
+  // listed first in the directory) must still load the -theme scheme. entries keeps
+  // the first occurrence of each name, so this honors AyuGram's ordering regardless
+  // of how the two files are laid out in the zip.
+  final ArchiveFile? paletteFile =
+      entries['colors.tdesktop-theme'] ?? entries['colors.tdesktop-palette'];
   // AyuGram (window_theme.cpp:262-275) probes backgrounds in a FIXED priority
   // order rather than archive iteration order, marking tiled=true only for the
   // tiled.* names: background.jpg > background.png > tiled.jpg > tiled.png.
