@@ -150,29 +150,7 @@ Minor follow-ups (do NOT block close): `gnotification` should be restartRequired
 
 # auth_screen — Telegram intro/login flow (phone, code, 2FA, QR, signup, email)
 
-Audited `dart/lib/ui/auth_screen.dart` against AyuGram's `intro/` step widgets
-(`intro_phone.cpp`, `intro_code.cpp`, `intro_code_input.cpp`,
-`intro_password_check.cpp`, `intro_signup.cpp`, `intro_email.cpp`,
-`intro_qr.cpp`, `intro_step.cpp`, `intro_widget.cpp`, `intro.style`).
-
-Overall the FSM wiring is real: phone/code/2FA/signup/email/QR all submit
-through `AuthState.submitInput`/`switchToMethod` to the engine, the OTP cells
-(40×50, 4px border, 10px gap, 20px font, windowBgOver fill, theme borders),
-the auto-call countdown (`__resend_code`), the "no telegram code" resend
-(`__no_telegram_code`), pushed login-code auto-fill, recovery/reset flows, and
-2FA absolute layout (top 1/34/74/151/220 ↔ introTitleTop/DescriptionTop/
-PasswordTop/PasswordHintTop/ErrorBelowLinkTop) are faithfully ported. The
-passkey link is correctly gated out (`WebAuthn.isSupported()==false`), matching
-AyuGram's Linux build, so the no-op `_loginWithPasskey` is unreachable dead code
-rather than a visible placeholder. The issues below are real deviations.
-
-- [ ] [MAJOR] Code-step subtitle ignores login-email delivery (`emailPatternLogin`): the masked email is never shown and the subtitle falls through to the generic phone text. AyuGram picks `emailPatternSetup` *or* `emailPatternLogin` (the `auth.sentCodeTypeEmailCode` case) and shows `lng_intro_email_confirm_subtitle` with the masked address. The Dart `AuthStateData` has no `emailPatternLogin` field at all, so the data never reaches the UI — `auth_screen.dart:1346-1356` (+ missing field `dart/lib/models/engine_models.dart:128`) ← `AyuGram/Telegram/SourceFiles/intro/intro_code.cpp:87-90` (and `intro_step.cpp:381-383`).
-
-- [ ] [MAJOR] QR step renders the title (and a lock icon) ABOVE the QR graphic; AyuGram puts the QR graphic at the very top, the title BELOW it, then the 3 numbered steps, then the phone link. `_buildStepContent` builds `[icon, title, label, hint, _buildQR]` so the focal QR code is pushed below a big centered heading — `auth_screen.dart:648-705,700-701` ← `AyuGram/Telegram/SourceFiles/intro/intro_qr.cpp:285-362` with `intro.style:179` (`introQrTop:-18px`), `intro.style:195` (`introQrTitleTop:196px`), `intro.style:199` (`introQrStepsTop:232px`).
-
-- [ ] [MAJOR] Spurious 48px `Icons.lock_outlined` injected at the top of the phone, code, and QR steps. None of AyuGram's `PhoneWidget`/`CodeWidget`/`QrWidget` have a leading icon — the phone/code steps show only title + description, and the QR step shows the QR graphic. The invented icon changes the visual structure of all three steps — `auth_screen.dart:653-660` ← `AyuGram/Telegram/SourceFiles/intro/intro_phone.cpp:92-93`, `intro_code.cpp:30-69`, `intro_qr.cpp:285-362`.
-
-- [ ] [MAJOR] Hardcoded English strings defeat the screen's own live-localization (it watches `LangPack` and re-renders on language change, `auth_screen.dart:338-340`), so these labels stay English in every other language while the rest of the intro translates. AyuGram pulls each from the lang pack: 2FA field labels `'Password'`/`'Recovery Code'` (`auth_screen.dart:810`) ← `lng_signin_password`/`lng_signin_code` (`intro_password_check.cpp:35,37`); `'Forgot password?'`/`'Try password'` (`auth_screen.dart:846`) ← `lng_signin_recover`/`lng_signin_try_password` (`intro_password_check.cpp:38-39`); `'Quick log in using QR code'` (`auth_screen.dart:1596`) ← `lng_phone_to_qr` (`intro_phone.cpp:114`); `'Enter Login Email'` (`auth_screen.dart:1093`, comment even names the key) ← `lng_settings_cloud_login_email_placeholder` (`intro_email.cpp:74`).
+Verified & closed (2026-06-10) — all 4 MAJOR items (fixed by commit cddb8863) re-verified against AyuGram C++ ground truth, the current Dart/Go source, AND the running app (Go libcores.so + Flutter debug build clean; the intro flow was walked live — phone/code/QR steps in BOTH desktop 1024×768 and mobile 400×720 — with zero Dart exceptions / RenderFlex / layout overflow, only the pre-existing tray `MissingPluginException` + one non-active-account folder-limits auth warning). [1] Code-step subtitle now honors login-email delivery: the Go core captures `auth.sentCodeTypeEmailCode`'s `email_pattern` (`telegram.go` `authCodeEmailPattern`), the engine surfaces it as `email_pattern_login` (`auth.go`), `AuthStateData.emailPatternLogin` carries it (`engine_models.dart`), and `_codeSubtitle` picks `emailPatternSetup` OR `emailPatternLogin` → `lng_intro_email_confirm_subtitle` with the masked address — the exact `CodeWidget::updateDescText` logic of `intro_code.cpp:84-90` + `intro_step.cpp:381-383`; confirmed running live on the code step (it correctly fell through to the `codeByTelegram` branch for the non-login-email test account, no crash). [2] QR step reordered to AyuGram's `QrWidget` layout — QR graphic at the very top, title BELOW it, then the 3 numbered steps, then the phone link (`intro_qr.cpp:285-362`; `introQrTop:-18` / `introQrTitleTop:196` / `introQrStepsTop:232`, title `font(20px semibold)`); visually confirmed top-to-bottom order in BOTH modes. [3] The spurious 48px `Icons.lock_outlined` is gone from the phone, code AND QR steps — none of AyuGram's `PhoneWidget`/`CodeWidget`/`QrWidget` have a leading icon; visually confirmed absent on all three steps in both modes. [4] Hardcoded English → lang pack so the whole intro localizes: `lng_signin_password`/`lng_signin_code` (2FA field labels), `lng_signin_recover`/`lng_signin_try_password` (recovery links), `lng_phone_to_qr` (phone→QR link), `lng_settings_cloud_login_email_placeholder` (login-email field) — all added to the pack with English baselines byte-exact vs AyuGram `lang.strings`; `lng_phone_to_qr` (itself a key newly added in this same commit) was proven rendering live from the pack on the phone step in both modes, which validates the identical `lang.tr()` path for the 2FA/email keys (`intro_password_check.cpp:35-39`, `intro_phone.cpp:114`, `intro_email.cpp:74`).
 
 # ayu_general_page — AyuGram General (QoL) settings page
 
