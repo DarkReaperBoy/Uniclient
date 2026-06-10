@@ -252,13 +252,35 @@ real QR dialog, the crash-reporting toggle persists via `AppState.setCrashReport
 writes real desktop/registry entries per-platform, Reset runs `AppState.resetAyuSettings`, the support
 link opens the donate-info box (matches `tg://support` → `HandleSupport` → `FillDonateInfoBox`), the
 donate-username link resolves via `engine.resolveUsername`, and donate amounts/username are fetched
-from the live RC endpoints. Lang text matches the strings file. The issues below are deviations, not stubs.
+from the live RC endpoints. Lang text matches the strings file. The issues below were deviations, now fixed.
 
-- [ ] [MAJOR] RC config response is only partially consumed — the badge/developer/supporter data the C++ `RCManager` loads is silently dropped. `_applyRcData` reads ONLY `donateAmountUsd/Ton/Rub` + `donateUsername`, whereas `applyResponse` also parses `developers`, `officialChannels`, `supporters`, `supporterChannels`, and `customBadges` (the source of AyuGram's developer/supporter/custom profile badges). No other Dart file fetches this config, so the entire badge data source is missing; the donate-amount path is the only thing wired. — `ayu_other_page.dart:558-581` ← `AyuGram/ayu/utils/rc_manager.cpp:125-185`
-
-- [ ] [MAJOR] Support description renders with the wrong font size and not on a divider band. AyuGram builds it with `AddDividerText(...)` → label sits ON a full-bleed `boxDividerBg` band using the 14px `defaultTextStyle` (the project's own `addDividerText`/`addDescription` helpers document 14px). The Dart `_SupportDescription` widget uses `fontSize: 12` (~14% smaller) inside a plain `Padding(22,4,22,4)` with no band; the band is instead emitted later as a separate `addSectionDivider()`. — `ayu_other_page.dart:460-464` ← `AyuGram/ayu/ui/settings/settings_other.cpp:161-167`
-
-- [ ] [MAJOR] Donate rows render a trailing `Icons.chevron_right` that AyuGram does not draw. The crypto/Boosty buttons are built from `AddButtonWithIcon(..., st::settingsButton)`, whose style defines no right arrow/chevron — they are flat rows (icon + label). The added chevron also wrongly implies drill-down navigation (these open a URL or a modal QR dialog) and is inconsistent with the sibling `_ActionButton` in this same file, which correctly has no chevron. Repeated across all 6 donate rows. — `ayu_other_page.dart:368-372` ← `AyuGram/ayu/ui/settings/settings_other.cpp:124-129` + `AyuGram/Telegram/SourceFiles/settings/settings.style:13-17`
+Verified & closed (2026-06-10) — all three MAJOR items (fixed by commit a036d90e) re-verified
+against AyuGram C++ ground truth AND the running app (Flutter debug build clean; the "Other" page
+renders crash-free in desktop 1024×768 + mobile 400×720; `flutter_audit` = 0 Flutter exceptions /
+0 Dart errors / 0 RenderFlex-overflow — only pre-existing tray `MissingPluginException` /
+no-credential auth startup warnings, all unrelated to this change).
+- [1] RC config now FULLY consumed — new `dart/lib/utils/rc_manager.dart` is a 1:1 port of
+  AyuGram `RCManager` (rc_manager.{h,cpp}) + the `telegram_helpers` peer predicates. `_applyResponse`
+  parses ALL nine response fields (`developers`/`officialChannels`/`supporters`/`supporterChannels`/
+  `customBadges` — previously dropped — plus the four donate fields), with the exact
+  `default_developers`/`default_channels` fallback sets and accessors (`isExteraPeer`/`isSupporterPeer`/
+  `isCustomBadgePeer`/`getCustomBadge`/`badgeType`/`bareIdFromChatId`). Started app-wide at init in
+  `main.dart` (== `ayu_infra.cpp` `initRCManager()`), not tied to the donate box. Runtime-proven against
+  the LIVE endpoint — log: "Loaded 22 developers, 23 official channels, 5835 supporters, 111 supporter
+  channels, 51 custom badges"; the donate-info box reads live amounts ($5.0 / TON 2.39 / 367₽ /
+  @ayugramOwner) from the manager. (Cross-file badge RENDERING is a separate chapter.)
+  `rc_manager.dart:209-285` + `main.dart` ← `rc_manager.cpp:111-214`.
+- [2] Support description now renders on a full-bleed `boxDividerBg` band at 14px `windowSubTextFg`
+  with padding `fromLTRB(22,8,22,16)` (== `Ui::AddDividerText` / `defaultBoxDividerLabelPadding`),
+  not a 12px plain `Padding`; the redundant separate `addSectionDivider()` it stood in for is removed.
+  Confirmed visually in BOTH modes — the band spans the full column width and the text matches the size
+  of the crash-reporting description below it. `ayu_other_page.dart:470-487` ← `settings_other.cpp:161-167`.
+- [3] Donate rows are now flat icon+label rows with NO `Icons.chevron_right`, matching
+  `AddButtonWithIcon(st::settingsButton)` whose style (`settings.style:13-17`) defines no arrow/chevron.
+  Confirmed in BOTH modes — all 6 rows (Boosty/TON/Bitcoin/Ethereum/Solana/Tron) have an empty right edge;
+  rows correctly open a URL (Boosty) or a modal QR dialog (crypto — Tron QR box verified opening and
+  fitting the 400px mobile screen), not a drill-down. `ayu_other_page.dart:343-380` ←
+  `settings_other.cpp:124-129` + `settings.style:13-17`.
 
 # bridge_web — Web (WASM) JS-interop bridge to the Go backend
 
