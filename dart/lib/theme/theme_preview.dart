@@ -764,12 +764,19 @@ class _ThemePreviewPainter extends CustomPainter {
     const normValue = 31;
     // statusTop (chat.style:511) — duration text top within the file layout.
     const statusTop = 34.0;
+    // nameleft = x + padding.left + thumbSize + thumbSkip = x + 12 + 44 + 11
+    // (window_theme_preview.cpp:923, chat.style:509,512-513).
     final waveLeft = bubbleX + thumbLeft + thumbSize + 11;
     // wave_bottom = y + padding.top + msgWaveformMax (window_theme_preview.cpp:948),
     // so bars occupy the upper "name" row, not the play-button centre line.
     final waveBottom = y + thumbTop + msgWaveformMax;
-    final waveRight = bubbleX + bubbleW - 50;
-    final availW = waveRight - waveLeft;
+    // AyuGram reserves only nameright = msgFileLayout.padding.right() (10px) on the
+    // right (window_theme_preview.cpp:924), NOT a fixed band — the waveform fills to
+    // within ~10px of the bubble's right edge. namewidth = x + bubble.width -
+    // nameleft - nameright (cpp:938); availw = namewidth + msgWaveformSkip (cpp:944).
+    const nameRight = 10.0; // msgFileLayout.padding.right() (chat.style:509)
+    final nameWidth = bubbleX + bubbleW - waveLeft - nameRight;
+    final availW = nameWidth + barSpacing;
     final barCount = math.min((availW / (barWidth + barSpacing)).floor(), wavedata.length);
 
     for (int i = 0; i < barCount; i++) {
