@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import 'notification_manager.dart';
 import 'notification_types.dart';
+import 'platform_notifications.dart';
 import 'system_idle.dart';
 
 typedef NotificationTapCallback = void Function(
@@ -42,7 +43,7 @@ class DefaultManager extends NotificationManager {
   // App-local "last user input" instant — AyuGram's in-app fallback
   // (base::LastUserInputTime()'s Qt event-filter over the app window), fed from
   // main.dart's window-level Listener via onUserInput(). Folded together with
-  // the GLOBAL OS idle source (SystemIdle) in _effectiveLastInput(), mirroring
+  // the GLOBAL OS idle source (SystemIdle) in _lastNonIdleTime(), mirroring
   // Core::App().lastNonIdleTime() == max(Platform::LastUserInputTime, app-local).
   DateTime _lastUserInputTime = DateTime.now();
   int _nextId = 0;
@@ -75,16 +76,32 @@ class DefaultManager extends NotificationManager {
     _lastUserInputTime = DateTime.now();
   }
 
-  /// Effective "last user input" instant — the later of the GLOBAL OS idle
-  /// source (SystemIdle, the mirror of base::Platform::LastUserInputTime()) and
-  /// the app-local pointer signal, exactly like AyuGram's
-  /// Core::App().lastNonIdleTime() == std::max(Platform::LastUserInputTime(),
-  /// _lastNonIdleTime) (notifications_manager_default.cpp:189-191 →
-  /// application.cpp:1283-1287). The app-local time is always available on
-  /// native desktop, so this never returns null there — when no OS idle source
-  /// exists we still gate on real pointer activity rather than dismissing at
-  /// once.
-  DateTime _effectiveLastInput() {
+  /// The "last user input" instant fed to the wait-for-input gate, or `null`
+  /// when this platform exposes NO OS-level idle source — the exact mirror of
+  /// AyuGram's
+  ///   lastInputTime = base::Platform::LastUserInputTimeSupported()
+  ///       ? std::make_optional(Core::App().lastNonIdleTime())
+  ///       : std::nullopt;
+  /// (notifications_manager_default.cpp:189-191). The null branch is
+  /// load-bearing: it is the `lastInputTime.has_value()` half of AyuGram's gate.
+  /// On a platform with no idle source (SystemIdle.supported == false:
+  /// KDE/Wayland — the dev target — sway, headless, web) AyuGram does NOT wait
+  /// for input, so this returns null and the 3s auto-hide starts immediately
+  /// rather than the popup hanging on screen forever waiting for pointer input.
+  /// `LastUserInputTimeSupported()` ⟺ `SystemIdle.supported`.
+  DateTime? _lastInputTime() {
+    if (!SystemIdle.supported) return null;
+    return _lastNonIdleTime();
+  }
+
+  /// max(GLOBAL OS idle source, app-local pointer signal) — the mirror of
+  /// Core::App().lastNonIdleTime() == std::max(
+  ///     base::Platform::LastUserInputTime().value_or(0), _lastNonIdleTime)
+  /// (application.cpp:1283-1287). Only reached when `SystemIdle.supported`, but
+  /// the per-poll reading can still be transiently null, so it falls back to the
+  /// always-present app-local time (the `.value_or(0)` arm — the app-local
+  /// `_lastUserInputTime` always dominates 0).
+  DateTime _lastNonIdleTime() {
     final global = SystemIdle.lastInputTime();
     if (global == null) return _lastUserInputTime;
     return global.isAfter(_lastUserInputTime) ? global : _lastUserInputTime;
@@ -118,24 +135,41 @@ class DefaultManager extends NotificationManager {
   }
 
   // Faithful port of Manager::checkLastInput (notifications_manager_default.cpp
-  // :186-200) + Notification::checkLastInput (:767-785). Each waiting popup is
-  // gated on the GLOBAL last-input time: while the last user input is at/before
-  // when the popup appeared (user idle / away from the machine) it keeps
-  // waiting on screen; only once there is input AFTER it appeared (user active
-  // again) does the notifyWaitLongHide (3 s) auto-dismiss countdown start.
-  // WaitForInputForCustom() is true on every desktop platform, so the wait is
-  // always armed. Re-polls every 300 ms while any popup is still waiting
+  // :186-200) + Notification::checkLastInput (:767-785). A waiting popup keeps
+  // its auto-dismiss countdown armed only while ALL THREE of AyuGram's
+  // conditions hold:
+  //   waitForUserInput = WaitForInputForCustom()    // platform allows waiting
+  //       && lastInputTime.has_value()              // OS idle source exists
+  //       && (*lastInputTime <= _started);          // no input since it appeared
+  // The moment any is false, the popup STOPS waiting and (unless a reply box is
+  // open) starts the notifyWaitLongHide (3 s) auto-hide — i.e. AyuGram begins
+  // hiding immediately in these cases, NOT "waits forever for pointer input":
+  //   - WaitForInputForCustom() is false on Windows in QUNS_BUSY (full-screen /
+  //     presentation mode) — see platform_notifications.dart. It is true on
+  //     Linux/macOS.
+  //   - lastInputTime has NO value on idle-unsupported platforms
+  //     (SystemIdle.supported == false: KDE/Wayland — the dev target — sway,
+  //     headless, web), so the 3 s hide starts at once instead of hanging.
+  //   - otherwise it waits while the user is idle/away (last input at/before the
+  //     popup's shownAt) and arms the 3 s hide once they are active again.
+  // Re-polls every 300 ms while any popup is still waiting
   // (AyuGram's _inputCheckTimer.callOnce(300)).
   void _checkLastInput() {
     final hasReplying =
         _active.any((n) => isStickyCheck != null && isStickyCheck!(n.id));
-    final lastInput = _effectiveLastInput();
+    final waitForCustom = PlatformNotifications.waitForInputForCustom();
+    final lastInput = _lastInputTime();
 
     var anyWaiting = false;
     for (final item in _active) {
       if (!item.waitingForInput) continue;
-      // waitForUserInput == (lastInput <= shownAt): no input since it appeared.
-      if (lastInput.isAfter(item.shownAt)) {
+      // waitForUserInput = WaitForInputForCustom() && lastInputTime.has_value()
+      //     && (*lastInputTime <= _started). The `<= _started` arm is
+      //     `!lastInput.isAfter(shownAt)` (still waiting while idle since shown).
+      final waitForUserInput = waitForCustom &&
+          lastInput != null &&
+          !lastInput.isAfter(item.shownAt);
+      if (!waitForUserInput) {
         item.waitingForInput = false;
         if (!hasReplying) {
           _startDismissTimer(item.id);
