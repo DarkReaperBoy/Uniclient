@@ -82,7 +82,22 @@ class AppTheme {
         // AyuGram scrollbar thumb width = width − 2·deltax = 4px (defaultScrollArea
         // 10−2·3, defaultSolidScroll 14−2·5; scroll_area.cpp:166); round 2px
         // (defaultScrollArea.round, widgets.style:822).
-        thumbColor: WidgetStateProperty.all(p.scrollBarBg),
+        //
+        // The thumb animates between two palette colors:
+        //   anim::color(barBg, barBgOver, (_overbar || _moving) ? 1. : 0.)
+        // (scroll_area.cpp:289) — it brightens to barBgOver=scrollBarBgOver while the
+        // pointer is over the thumb (_overbar) OR it is being dragged (_moving), and
+        // rests at barBg=scrollBarBg otherwise (defaultScrollArea.barBg/barBgOver,
+        // widgets.style:819-820). The two differ substantially — scrollBarBg #00000053
+        // (≈33% opacity) vs scrollBarBgOver #0000007a (≈48%, colors.palette:62-63) —
+        // so a grabbed/hovered thumb is visibly brighter. resolveWith reproduces that;
+        // a single flat color (WidgetStateProperty.all) would also actively suppress
+        // Flutter's own built-in hover affordance.
+        thumbColor: WidgetStateProperty.resolveWith((states) =>
+            (states.contains(WidgetState.hovered) ||
+                    states.contains(WidgetState.dragged))
+                ? p.scrollBarBgOver
+                : p.scrollBarBg),
         radius: const Radius.circular(2),
         thickness: WidgetStateProperty.all(4),
       ),
