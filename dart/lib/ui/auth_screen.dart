@@ -1619,10 +1619,11 @@ class _AuthScreenState extends State<AuthScreen>
         const SizedBox(height: 8),
         // PhoneWidget always shows a persistent "Quick log in using QR code"
         // link that jumps straight to the QR step (intro_phone.cpp:111-131,
-        // lng_phone_to_qr). switchToMethod('qr_code') restarts auth and selects
-        // the QR option at the choose step, mirroring the reverse QR→phone link.
-        // The engine's QR option id is 'qr_code' (engine/auth.go:279); 'qr' is
-        // only the resulting state name (AuthStateQR), not a valid option id.
+        // lng_phone_to_qr). switchToMethod('qr_code') swaps the step IN PLACE on
+        // the same live connection (engine SwitchAuthMethod, no reconnect),
+        // mirroring goReplace<QrWidget> and the reverse QR→phone link. The
+        // engine's QR option id is 'qr_code' (engine/auth.go:279); 'qr' is only
+        // the resulting state name (AuthStateQR), not a valid option id.
         TextButton(
           onPressed: () => authState.switchToMethod('qr_code'),
           child: Text(

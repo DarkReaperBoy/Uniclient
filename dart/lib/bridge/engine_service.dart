@@ -203,6 +203,21 @@ class EngineService {
     return resp.hasState() ? _authStateFromProto(resp.state) : null;
   }
 
+  /// Switch the login method (phone↔qr_code) IN PLACE within the same live auth
+  /// flow, preserving the MTProto connection. The engine rewinds to the choose
+  /// decision point on the SAME core and re-runs the transition for [method],
+  /// returning the target step directly — no reconnect, no transient no-flow
+  /// state. Mirrors AyuGram goReplace<PhoneWidget>/<QrWidget>(Animate::Forward).
+  /// Reuses the submit request/response shapes (the method travels in `input`).
+  Future<AuthStateData?> switchAuthMethod(String accountId, String method) async {
+    final req = epb.EngineSubmitAuthInputRequest()
+      ..accountId = accountId
+      ..input = method;
+    final respBytes = await _callAsync('__engine', 'SwitchAuthMethod', req.writeToBuffer());
+    final resp = epb.EngineSubmitAuthInputResponse.fromBuffer(respBytes);
+    return resp.hasState() ? _authStateFromProto(resp.state) : null;
+  }
+
   // ── Chat list ──
 
   List<ChatInfo> getChatList({String accountId = '', bool archived = false, int limit = 50, int offset = 0}) {

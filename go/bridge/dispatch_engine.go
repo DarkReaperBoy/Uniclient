@@ -184,6 +184,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "SwitchAuthMethod":
+		// Swap the login method (phone↔qr_code) in place within the live flow,
+		// preserving the MTProto connection (no cancel + reconnect). Reuses the
+		// submit request (the method travels in `Input`) and the auth-state
+		// response — no dedicated proto message needed, same as GoBackAuth.
+		var req pb.EngineSubmitAuthInputRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		state, err := e.SwitchAuthMethod(req.AccountId, req.Input)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineSubmitAuthInputResponse{
+			State: authStateToProto(state),
+		})
+
 	// ── Chat list ──
 
 	case "GetChatList":

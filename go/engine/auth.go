@@ -268,6 +268,91 @@ func (e *Engine) GoBackAuth(accountID string) (*AuthState, bool) {
 	return prev, true
 }
 
+// SwitchAuthMethod swaps the login method (e.g. phone↔qr_code) IN PLACE within the
+// SAME live auth flow, preserving the MTProto connection. Mirrors AyuGram's
+// QrWidget "log in by phone" link → goReplace<PhoneWidget>(Animate::Forward)
+// (intro_qr.cpp:274) and PhoneWidget "QR" link → goReplace<QrWidget>(Animate::Forward)
+// (intro_phone.cpp:129): goReplace constructs the new Step with the SAME _account
+// (live connection) and _data, swapping only the visible Step — no reconnect, no
+// empty/no-flow state (intro_step.h:139-142). Unlike CancelAuth+StartAuth, flow.core
+// is never Closed and never recreated, so the existing MTProto session keeps running.
+//
+// The flow is rewound to its choose decision point on the same core (fresh _data),
+// then the choose-transition for the new method is run immediately, so the caller
+// receives the target step (phone input / QR) DIRECTLY with no intermediate choose
+// state surfacing to the UI. History is left as [choose] — identical to picking the
+// method from the choose screen — so a later back-press behaves normally.
+func (e *Engine) SwitchAuthMethod(accountID, method string) (*AuthState, error) {
+	authFlowsMu.Lock()
+	flow, ok := authFlows[accountID]
+	authFlowsMu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("no auth flow for %q", accountID)
+	}
+
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account %q not found", accountID)
+	}
+
+	// Rewind to the choose decision point on the SAME core (= AyuGram's preserved
+	// _account / live connection); drop the previous method's collected inputs so
+	// the new step starts fresh (= goReplace's fresh _data-derived Step). flow.core
+	// is deliberately untouched — no Close, no recreate, no reconnect.
+	chooseState := initialAuthState(acc.Platform, accountID)
+	flow.state = chooseState
+	flow.collected = make(map[string]string)
+	flow.history = nil
+
+	// Run the choose-transition for the requested method on the same core, yielding
+	// the target step directly (phone input / QR / bot token). Errors surface as an
+	// error state, exactly like SubmitAuthInput.
+	next, err := advanceAuth(acc.Platform, flow, method)
+	if err != nil {
+		errState := &AuthState{
+			AccountID:   accountID,
+			Platform:    acc.Platform,
+			State:       AuthStateError,
+			Message:     err.Error(),
+			Recoverable: true,
+		}
+		flow.state = errState
+		e.emitEvent(EventAuthState, accountID, errState)
+		return errState, nil
+	}
+
+	// Record the choose step on the back-history so a later back-press returns to
+	// the picker, exactly as a fresh choose→method pick would (SubmitAuthInput's
+	// forward rule). Skip for terminal states (an already-valid session can finish
+	// immediately, e.g. StartQRAuth returning ready).
+	if next.State != AuthStateReady && next.State != AuthStateError {
+		flow.history = append(flow.history, chooseState)
+	}
+	flow.state = next
+
+	// Entering QR: re-install the push-refresh callback so an updateLoginToken
+	// (phone scanned the code) re-exports the token immediately — same as
+	// SubmitAuthInput. (The callback no-ops while flow.state isn't QR, so the stale
+	// one left from the previous QR step is already inert after a switch away.)
+	if next.State == AuthStateQR {
+		if tc, ok := flow.core.(*cores.TelegramCore); ok {
+			tc.SetQRRefreshCallback(func() { go e.onQRTokenUpdate(accountID) })
+		}
+	}
+
+	// A switch can immediately complete if the session was already valid — finalize
+	// just like SubmitAuthInput.
+	if next.State == AuthStateReady {
+		e.finalizeAuth(accountID, acc, flow)
+	}
+
+	e.emitEvent(EventAuthState, accountID, next)
+	return next, nil
+}
+
 // finalizeAuth saves credentials, attaches core, and starts connection.
 func (e *Engine) finalizeAuth(accountID string, acc *Account, flow *authFlow) {
 	// Build auth config from collected inputs.

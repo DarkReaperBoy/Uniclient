@@ -1072,6 +1072,14 @@ func tgReactionEmoji(r tg.ReactionClass) string {
 
 // Authenticate connects to Telegram and authenticates as a bot or user.
 func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
+	// Clear any prior in-place auth attempt on this core (e.g. a QR token export from
+	// an intro phone↔QR toggle handled by the engine's SwitchAuthMethod) before
+	// bootstrapping the phone/bot flow, so the one-shot authSetupDone channel isn't
+	// double-closed ("close of closed channel") and the previous client.Run goroutine
+	// doesn't leak. No-op on a fresh core. The phone/bot flow then opens its own
+	// client.Run — it can't drive the auth flow over the QR connection's idle Run.
+	t.teardownPriorAuthAttempt()
+
 	// Setup phase — exclusive access
 	t.mu.Lock()
 
@@ -11697,6 +11705,42 @@ func (t *TelegramCore) Close() error {
 	return nil
 }
 
+// teardownPriorAuthAttempt cleans up a previous in-flight auth/connection bootstrap
+// so this core can bootstrap a DIFFERENT login method again on the SAME instance —
+// needed when the intro login method is switched in place (phone↔QR) via the
+// engine's SwitchAuthMethod, instead of the core being Closed and recreated. It
+// cancels the prior client.Run goroutine, waits for it to exit, and re-arms the
+// one-shot authSetupDone channel that the prior bootstrap closed. No-op on a fresh
+// core (nothing bootstrapped yet). Runs WITHOUT t.mu held — it waits on the
+// goroutine, which itself takes t.mu — mirroring Close()'s cancel-then-wait order
+// to avoid deadlock. (The auth flow's Code/Password waits select on ctx.Done, so the
+// cancel unblocks them; only the single auth goroutine is ever tracked by t.wg here.)
+func (t *TelegramCore) teardownPriorAuthAttempt() {
+	t.mu.Lock()
+	cancel := t.cancel
+	t.mu.Unlock()
+	if cancel == nil {
+		return // fresh core — nothing bootstrapped
+	}
+	cancel()
+	t.wg.Wait()
+
+	t.mu.Lock()
+	t.cancel = nil
+	t.api = nil
+	t.sender = nil
+	t.preAuthAPI = nil
+	t.authed = false
+	// Re-arm the one-shot setup channel if the prior bootstrap closed it, so the next
+	// Authenticate/StartQRAuth can close it again without a "close of closed channel".
+	select {
+	case <-t.authSetupDone:
+		t.authSetupDone = make(chan struct{})
+	default:
+	}
+	t.mu.Unlock()
+}
+
 // --- Internal helpers ---
 
 // telegramServiceUserID is Telegram's official "Telegram" service-notifications
@@ -14023,6 +14067,23 @@ func (t *TelegramCore) AuthPasswordRequested() <-chan struct{} {
 // and exports the first login token. The returned URL should be displayed
 // as a QR code. Call RefreshQRToken periodically to check acceptance.
 func (t *TelegramCore) StartQRAuth() (tokenURL string, expiresSecs int, err error) {
+	// Re-entry from an in-place login-method toggle (intro phone↔QR via the engine's
+	// SwitchAuthMethod): if a prior QR bootstrap on this SAME core already brought up
+	// the MTProto connection, reuse it and just re-export a fresh login token — like
+	// AyuGram re-creating QrWidget over the SAME _account, no reconnect. (This is the
+	// same call RefreshQRToken makes every ~30s on the live connection.) Without it a
+	// second StartQRAuth would re-close the one-shot authSetupDone channel ("close of
+	// closed channel" panic) and spawn a duplicate client.Run goroutine.
+	t.mu.Lock()
+	live := t.api != nil
+	t.mu.Unlock()
+	if live {
+		return t.exportQRLoginToken()
+	}
+	// Not connected yet: clear any prior failed/idle attempt (e.g. a phone auth that
+	// errored before connecting) so this bootstrap starts from a clean slate.
+	t.teardownPriorAuthAttempt()
+
 	t.mu.Lock()
 	t.initClient()
 	t.ctx, t.cancel = context.WithCancel(context.Background())

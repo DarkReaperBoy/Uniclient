@@ -134,20 +134,47 @@ class AuthState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Switch the login method (phone↔qr_code) WITHOUT tearing the flow down.
+  ///
+  /// The engine swaps the visible step IN PLACE on the SAME live MTProto
+  /// connection: it rewinds to the choose decision point on the existing core and
+  /// re-runs the transition for [method], returning the target step directly. So
+  /// there is NO `cancelAuth`/`core.Close()` (the connection survives), NO
+  /// `_currentAuth = null` transient (which would flash the AuthScreen), and NO
+  /// reconnect/re-fetch-the-picker/re-submit dance. Mirrors AyuGram's QrWidget
+  /// "log in by phone" link → goReplace<PhoneWidget>(Animate::Forward)
+  /// (intro_qr.cpp:274) and PhoneWidget "QR" link → goReplace<QrWidget>(Animate::Forward)
+  /// (intro_phone.cpp:129), where goReplace builds the new Step with the same
+  /// _account (connection) and _data (intro_step.h:139-142) — a step swap, not a
+  /// cancel + reconnect. The engine also emits an auth-state event for the new
+  /// step, which refreshes the auto-poll/QR timers via [_handleAuthEvent].
   Future<void> switchToMethod(String method) async {
     final auth = _currentAuth;
     if (auth == null) return;
-    final accountId = auth.accountId;
-    _engine.cancelAuth(accountId);
-    _currentAuth = null;
-    _submitting = false;
+    // Show progress on the CURRENT step (QR/phone stays visible — currentAuth is
+    // never nulled), e.g. while the QR direction's StartQRAuth round-trips.
+    _submitting = true;
     _error = null;
-    _stopAutoPoll();
     notifyListeners();
-    await startAuth(accountId);
-    if (_currentAuth?.state == 'choose') {
-      await submitInput(method);
+    try {
+      final result = await _engine.switchAuthMethod(auth.accountId, method);
+      if (result != null) _currentAuth = result;
+      _submitting = false;
+      if (result?.state == 'error') {
+        final rawError = result!.error.isNotEmpty ? result.error : result.message;
+        _error = _finalizeAuthError(rawError);
+      }
+      Debug.log('AUTH', 'switchToMethod($method) → state=${result?.state} label=${result?.label}');
+      // Start/stop the auto-poll (phone input) and QR-expiry timers for the new
+      // step. Idempotent with the engine's auth-state event for the same step.
+      _updateAutoPoll();
+      _updateQrExpiryTimer();
+    } catch (e, stack) {
+      _submitting = false;
+      _error = e.toString();
+      Debug.error('AUTH', 'switchToMethod($method) failed', e, stack);
     }
+    notifyListeners();
   }
 
   /// Step back to the previous auth step within the same live flow, mirroring
