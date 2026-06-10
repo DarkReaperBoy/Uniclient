@@ -233,17 +233,23 @@ class AyuForward {
     return groups;
   }
 
-  /// True when any message in [msgs] carries media that the resend path actually
-  /// downloads to a file — i.e. downloadable media except stickers (re-sent by
-  /// reference, not from a file; mirrors engine `isMediaDownloadable` excluding
-  /// poll/location/contact/invoice). Gates the up-front Downloading phase so a
-  /// text-only / sticker-only chunk does not flash "Loading media" — AyuGram
-  /// enters Downloading only when its `toBeDownloaded` list is non-empty
-  /// (ayu_forward.cpp:356).
+  /// True when any message in [msgs] carries media that AyuGram's
+  /// `mediaDownloadable` pushes to `toBeDownloaded` — i.e. downloadable media
+  /// INCLUDING stickers. AyuGram's `mediaDownloadable`
+  /// (telegram_helpers.cpp:1012-1022) has NO sticker exclusion; it rejects only
+  /// webpage / poll / game / invoice / location / paper / giveaway /
+  /// sharedContact / call. Stickers are documents, so they ARE pushed to
+  /// `toBeDownloaded` and downloaded by `loadDocuments` (ayu_sync.cpp:86-100)
+  /// during the Downloading phase before `sendStickerSync` re-sends them by
+  /// reference (ayu_forward.cpp:158-161). Gates the up-front Downloading phase so
+  /// a text-only / poll-only / location-only chunk does not flash "Loading
+  /// media" — AyuGram enters Downloading only when its `toBeDownloaded` list is
+  /// non-empty (ayu_forward.cpp:356). Mirrors engine `isMediaDownloadable`
+  /// (pending.go:949), which excludes poll/location/contact/invoice and likewise
+  /// keeps stickers downloadable.
   static bool _chunkHasDownloadableMedia(List<CachedMessage> msgs) {
     for (final m in msgs) {
       if (m.hasMedia &&
-          !m.isSticker &&
           !m.isPoll &&
           !m.isLocation &&
           !m.isContact &&

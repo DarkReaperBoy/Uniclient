@@ -525,8 +525,10 @@ func (e *Engine) ResendAlbumAsOwn(accountID, sourceChatID string, msgIDs []strin
 // This mirrors AyuGram's up-front, blocking AyuSync::loadDocuments call
 // (ayu_sync.cpp:86-130): the entire download happens before any send, so the
 // AyuForward "Loading media" (Downloading) phase stays visible for the whole
-// real download duration. Stickers are skipped (the resend path sends them by
-// reference, not from a file). Per-item download failures are logged but
+// real download duration. Stickers ARE downloaded here too — AyuGram's
+// mediaDownloadable has no sticker exclusion, so loadDocuments fetches the
+// sticker during the Downloading phase even though executeResendAsOwn later
+// re-sends it by reference. Per-item download failures are logged but
 // non-fatal — the send path re-downloads or falls back, matching AyuGram's
 // best-effort loadDocuments. Runs on the caller's worker isolate (it is invoked
 // via the async FFI bridge), so blocking here does not stall the UI.
@@ -555,9 +557,12 @@ func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []str
 		if err != nil || remoteRef.String == "" {
 			continue
 		}
-		// Skip media the resend path never loads from a file: non-downloadable
-		// types (poll/location/contact/invoice) and stickers (sent by reference).
-		if !isMediaDownloadable(mediaType) || mediaType == MediaSticker {
+		// Skip only the non-downloadable types (poll/location/contact/invoice).
+		// Stickers ARE downloaded here: AyuGram's mediaDownloadable has no
+		// sticker exclusion, so loadDocuments fetches the sticker during the
+		// Downloading phase (ayu_sync.cpp:86-100, telegram_helpers.cpp:1012-1022)
+		// even though executeResendAsOwn ultimately re-sends it by reference.
+		if !isMediaDownloadable(mediaType) {
 			continue
 		}
 
@@ -1003,6 +1008,14 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 		if err != nil {
 			log.Printf("resend sticker fallback to download: %v", err)
 		} else {
+			// The Downloading phase (PreloadResendMedia) fetches the sticker to
+			// mirror AyuGram's loadDocuments, but the send above is by reference,
+			// so drop the now-unused preloaded copy from the scratch dir.
+			stickerExt := filepath.Ext(fileName.String)
+			if stickerExt == "" {
+				stickerExt = ".bin"
+			}
+			os.Remove(filepath.Join(os.TempDir(), "uniclient_resend", p.MsgID+stickerExt))
 			if sentMsg != nil {
 				e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
 			}
