@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -2387,7 +2388,22 @@ func (e *Engine) SetCustomDeviceModel(accountID, model string) error {
 	if !ok {
 		return fmt.Errorf("not supported")
 	}
+	// Apply to the live core (takes effect on the next reconnect's initConnection).
 	s.SetCustomDeviceModel(model)
+	// Persist with the account credentials so the rename survives restarts and is
+	// re-applied to a fresh core on every connect — TelegramCore.Authenticate reads
+	// it back from cfg.Extra["device_model"] and feeds it to initConnection. This
+	// mirrors AyuGram persisting customDeviceModel() in settings and propagating it
+	// on reconnect (api_authorizations.cpp:59-61).
+	if creds, err := e.LoadCredentials(accountID); err == nil {
+		if creds.Extra == nil {
+			creds.Extra = map[string]string{}
+		}
+		creds.Extra["device_model"] = model
+		if saveErr := e.SaveCredentials(accountID, *creds); saveErr != nil {
+			log.Printf("[engine] SetCustomDeviceModel(%s): persist failed: %v", accountID, saveErr)
+		}
+	}
 	return nil
 }
 

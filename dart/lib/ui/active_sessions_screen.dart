@@ -181,6 +181,51 @@ _DeviceInfo _classifyDevice(String device, String platform, String appName, {int
   return make(_DeviceType.other);
 }
 
+// Port of Core::FormatVersionDisplay (AyuGram core/changelogs.cpp:150-156):
+// packs an integer build into a dotted version — 4016008 → "4.16.8",
+// 4016000 → "4.16" (the patch segment is dropped when zero).
+String _formatVersionDisplay(int version) {
+  final major = version ~/ 1000000;
+  final minor = (version % 1000000) ~/ 1000;
+  final patch = version % 1000;
+  return patch != 0 ? '$major.$minor.$patch' : '$major.$minor';
+}
+
+// Port of AyuGram Api::ParseEntry's app name/version normalization
+// (api/api_authorizations.cpp:36-57,75-77) — the single source for the
+// "Application" string shown in both the session row and the info box.
+// Desktop api_ids (2040 DesktopApiId / 611335 SnapApiId / 17349 TestApiId)
+// force the name to "Telegram Desktop" (+ " (GitHub)" for the test id) and
+// reformat an integer app_version via FormatVersionDisplay (e.g. 4016008 →
+// 4.16.8); non-desktop sessions reduce the version to its parenthetical build
+// segment ("10.2.0 (12345)" → "(12345)"). Returns the joined "AppName AppVer".
+String _formatApplication(String appName, String appVersion, int? apiId) {
+  const desktopApiId = 2040;
+  const snapApiId = 611335;
+  const testApiId = 17349;
+  final isTest = apiId == testApiId;
+  final isDesktop = apiId == desktopApiId || apiId == snapApiId || isTest;
+
+  final name = isDesktop
+      ? 'Telegram Desktop${isTest ? ' (GitHub)' : ''}'
+      : appName;
+
+  final String ver;
+  if (isDesktop) {
+    // Desktop versions arrive as a packed integer; reformat only when the whole
+    // string parses back to that integer (matches AyuGram's version == number(verInt)).
+    final verInt = int.tryParse(appVersion);
+    ver = (verInt != null && appVersion == verInt.toString())
+        ? _formatVersionDisplay(verInt)
+        : appVersion;
+  } else {
+    final idx = appVersion.indexOf('(');
+    ver = idx >= 0 ? appVersion.substring(idx) : appVersion;
+  }
+
+  return ver.isEmpty ? name : '$name $ver';
+}
+
 class ActiveSessionsScreen extends StatefulWidget {
   final bool embedded;
   const ActiveSessionsScreen({super.key, this.embedded = false});
@@ -352,11 +397,11 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   }
 
   void _showAutoTerminateDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
-    final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
-    final accentColor = context.palette.windowBgActive;
+    final palette = context.palette;
+    final bgColor = palette.boxBg;
+    final textColor = palette.boxTextFg;
+    final subtextColor = palette.windowSubTextFg;
+    final accentColor = palette.windowBgActive;
 
     final options = [7, 30, 90, 180, 365];
     int selected = _autoTerminateDays;
@@ -488,14 +533,14 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   // (st::attentionBoxButton / lng_settings_reset_button) and a Cancel button
   // (settings_active_sessions.cpp:829-848).
   void _showResetConfirmBox(String message, VoidCallback onConfirmed) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
-    final accentColor = context.palette.windowBgActive;
-    final attentionColor = context.palette.attentionButtonFg;
+    final palette = context.palette;
+    final textColor = palette.boxTextFg;
+    final accentColor = palette.windowBgActive;
+    final attentionColor = palette.attentionButtonFg;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+        backgroundColor: palette.boxBg,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         content: Text(
           message,
@@ -575,7 +620,6 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   }
 
   void _showSessionInfoBox(Map<String, dynamic> session) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isCurrent = session['is_current'] == true;
     final rawDevice = session['device'] as String? ?? 'Unknown';
     final appState = context.read<AppState>();
@@ -593,19 +637,23 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final officialApp = session['official_app'] == true;
     final info = _classifyDevice(rawDevice, platform, appName, apiId: apiId, system: systemStr);
 
-    final appStr = appVersion.isNotEmpty ? '$appName $appVersion' : appName;
+    final appStr = _formatApplication(appName, appVersion, apiId);
     // AyuGram's SessionInfoBox shows langDateTimeFull(unixtime::parse(activeTime))
     // for EVERY session including the current one (settings_active_sessions.cpp:443) —
     // activeTime is delivered for the current session too — not a literal "online".
     final fullDate = _formatFullDate(lastActive);
 
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
-    final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
-    final iconColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
-    final accentColor = context.palette.windowBgActive;
-    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE6E6E6);
-    final sectionTitleColor = context.palette.windowActiveTextFg;
+    // Token-driven colors — AyuGram's session info box is fully theme-bound
+    // (e.g. sessionInfoFg: windowSubTextFg, settings/settings.style:359). Boxes
+    // use boxBg/boxTextFg; the thin separators use shadowFg.
+    final palette = context.palette;
+    final bgColor = palette.boxBg;
+    final textColor = palette.boxTextFg;
+    final subtextColor = palette.windowSubTextFg;
+    final iconColor = palette.windowSubTextFg;
+    final accentColor = palette.windowBgActive;
+    final dividerColor = palette.shadowFg;
+    final sectionTitleColor = palette.windowActiveTextFg;
 
     final useLottie = info.type != _DeviceType.web && info.type != _DeviceType.other;
 
@@ -727,7 +775,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                       Expanded(
                         child: TextButton(
                           style: TextButton.styleFrom(
-                            foregroundColor: Colors.red,
+                            foregroundColor: palette.attentionButtonFg,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           onPressed: () {
@@ -772,16 +820,16 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final appState = context.read<AppState>();
     final engine = context.read<EngineService>();
     final controller = TextEditingController(text: appState.customDeviceModel);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = context.palette;
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+        backgroundColor: palette.boxBg,
         title: Text(
           'Rename current device',
           style: TextStyle(
-            color: isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222),
+            color: palette.boxTextFg,
             fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
@@ -791,17 +839,17 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           maxLength: 32,
           autofocus: true,
           style: TextStyle(
-            color: isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222),
+            color: palette.boxTextFg,
             fontSize: 14,
           ),
           decoration: InputDecoration(
             hintText: currentDevice,
             hintStyle: TextStyle(
-              color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999),
+              color: palette.windowSubTextFg,
             ),
             border: InputBorder.none,
             counterStyle: TextStyle(
-              color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999),
+              color: palette.windowSubTextFg,
               fontSize: 12,
             ),
             constraints: const BoxConstraints(minHeight: 29),
@@ -860,12 +908,15 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
-    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
-    final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
-    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE6E6E6);
-    final accentColor = context.palette.windowBgActive;
+    // Token-driven colors so this screen tracks every app theme (incl. the
+    // second dark theme, windowBg 0xFF282E33) instead of inlined hex pairs.
+    // AyuGram is fully token-bound (sessionInfoFg: windowSubTextFg, etc.).
+    final palette = context.palette;
+    final bgColor = palette.windowBg;
+    final textColor = palette.windowFg;
+    final subtextColor = palette.windowSubTextFg;
+    final dividerColor = palette.shadowFg;
+    final accentColor = palette.windowBgActive;
 
     final otherSessions = _cachedOtherSessions;
     final incompleteSessions = _cachedIncompleteSessions;
@@ -1041,25 +1092,42 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   }
 
   Widget _buildTerminateAllButton(Color dividerColor, Color subtextColor) {
+    // AyuGram renders this as a standard full-width settings button —
+    // CreateButtonWithIcon(..., st::infoBlockButton, {.icon=&st::infoIconBlock})
+    // — left-aligned: block icon at iconLeft 22px, attention-red label at
+    // padding.left 79px (info/info.style:731-735,754), NOT a centered row.
+    final attentionColor = context.palette.attentionButtonFg;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 8),
         InkWell(
           onTap: _showTerminateAllConfirmation,
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+          child: SizedBox(
+            height: 44,
+            child: Stack(
               children: [
-                Icon(Icons.block, color: Colors.red, size: 22),
-                SizedBox(width: 16),
-                Text(
-                  'Terminate All Other Sessions',
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                Positioned(
+                  left: 22,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Icon(Icons.block, color: attentionColor, size: 22),
+                  ),
+                ),
+                Positioned(
+                  left: 79,
+                  right: 8,
+                  top: 0,
+                  bottom: 0,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Terminate All Other Sessions',
+                      style: TextStyle(color: attentionColor, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
               ],
@@ -1236,10 +1304,11 @@ class _SessionRow extends StatelessWidget {
     final lastActive = session['last_active'] as String? ?? '';
     final info = deviceInfo;
 
-    final statusParts = <String>[];
-    if (appName.isNotEmpty) statusParts.add(appName);
-    if (appVersion.isNotEmpty) statusParts.add(appVersion);
-    final status = statusParts.join(' ');
+    // AyuGram ParseEntry normalization (see _formatApplication): forces the
+    // "Telegram Desktop" name + dotted version for desktop api_ids and trims
+    // mobile/web versions to their build segment, instead of the raw concat.
+    final status = _formatApplication(
+        appName, appVersion, session['api_id'] as int?);
 
     final locationOrIp = location.isNotEmpty ? location : ip;
     final locationParts = <String>[];
@@ -1250,8 +1319,7 @@ class _SessionRow extends StatelessWidget {
     }
     final locationLine = locationParts.join(' • ');
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final hoverBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final hoverBg = context.palette.windowBgOver;
 
     return InkWell(
       hoverColor: hoverBg,

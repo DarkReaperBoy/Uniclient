@@ -300,6 +300,16 @@ func (t *TelegramCore) initClient() {
 		UpdateHandler:  dispatcher,
 	}
 
+	// Custom device model set via SetCustomDeviceModel (persisted in the account
+	// credentials and re-applied on every connect by Authenticate). Sent as
+	// initConnection.device_model so a "Rename current device" propagates to
+	// Telegram — and to other clients — on (re)connect, mirroring AyuGram's
+	// deviceModel() → initConnection flow (api_authorizations.cpp:59-61). Called
+	// under t.mu (held by Authenticate/StartQRAuth), so reading the field is safe.
+	if t.customDeviceModel != "" {
+		opts.Device.DeviceModel = t.customDeviceModel
+	}
+
 	// Custom resolver for proxy support. A live ProxyConfig (installed by the
 	// engine from the user's Settings→Proxy) takes precedence and builds the
 	// right resolver (SOCKS5/HTTP tunnel or obfuscated MTProto). The legacy
@@ -1073,6 +1083,13 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 	}
 	if v, ok := cfg.Extra["test_server"]; ok && v == "true" {
 		t.useTestDC = true
+	}
+	// Persisted custom device model (saved with the credentials by the engine's
+	// SetCustomDeviceModel). Applied to initConnection.device_model in initClient
+	// so the rename survives restarts and is re-applied to a fresh core on every
+	// connect — AyuGram propagates deviceModel() the same way, on reconnect.
+	if v, ok := cfg.Extra["device_model"]; ok && v != "" {
+		t.customDeviceModel = v
 	}
 	t.initClient()
 	t.ctx, t.cancel = context.WithCancel(context.Background())
@@ -14445,8 +14462,14 @@ func (t *TelegramCore) SetSessionAutoTerminateDays(days int) error {
 	return err
 }
 
-// SetCustomDeviceModel stores a custom device model name and triggers
-// a help.getConfig call to propagate it via initConnection.
+// SetCustomDeviceModel sets the device model name reported to Telegram via
+// initConnection.device_model. The stored value is read back in initClient when
+// the gotd client is (re)built, so the rename propagates to Telegram — and to
+// other clients — on the next (re)connect, mirroring AyuGram's deviceModel() →
+// initConnection flow (api_authorizations.cpp:59-61). The engine persists the
+// value with the account credentials so it survives restarts and is re-applied
+// on every connect (Authenticate reads cfg.Extra["device_model"]); the live
+// current-session name updates reactively in the UI.
 func (t *TelegramCore) SetCustomDeviceModel(model string) {
 	t.mu.Lock()
 	t.customDeviceModel = model
