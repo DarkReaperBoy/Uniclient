@@ -489,10 +489,13 @@ class ChatWallpaper extends StatelessWidget {
 // timer; for 3+-color (complex) gradients it advances one 45° step with a 200ms
 // fade each time an outgoing message is revealed (chat_theme.cpp:638-669 +
 // rotateComplexGradientBackground :822, triggered on `item->out() || isSelf()`).
-// We reproduce that here: [_RasterGradient] listens to [ChatBackgroundRotator]
-// and cross-fades to the next rotation on each pulse; the resting state is a
-// static dithered raster. 2-color/linear gradients never rotate (the gate is
-// `colors.size() >= 3`).
+// We reproduce that here: both [_RasterGradient] (standalone gradients) and
+// [_PatternWallpaper] (pattern tile over a gradient) listen to
+// [ChatBackgroundRotator] and cross-fade their underlying gradient to the next
+// rotation on each pulse; the resting state is a static dithered raster. The
+// gate is purely on colour count (`colors.size() >= 3`), NOT on `isPattern`
+// (chat_theme.cpp:643) — so the 4-colour default/pattern wallpapers rotate too,
+// while 2-color/linear gradients never do.
 // ===========================================================================
 
 // Complex gradient native size. AyuGram generates at 64px and smooth-upscales;
@@ -1365,26 +1368,71 @@ class _PatternWallpaper extends StatefulWidget {
   State<_PatternWallpaper> createState() => _PatternWallpaperState();
 }
 
-class _PatternWallpaperState extends State<_PatternWallpaper> {
-  ui.Image? _gradientImage;
+class _PatternWallpaperState extends State<_PatternWallpaper>
+    with SingleTickerProviderStateMixin {
+  ui.Image? _gradientImage; // current rotation — fades IN on top
+  ui.Image? _prevGradientImage; // previous rotation — held under during the fade
   ui.Image? _patternImage;
   ui.Image? _giftFrameImage;
   int _gradToken = 0;
   int _patToken = 0;
+  int _doubled = 0; // doubled rotation accumulator in [0,720) (complex only)
+  late final AnimationController _fade;
+
+  // AyuGram `kBackgroundFadeDuration` (ui/chat/chat_theme.cpp:30).
+  static const _kFadeDuration = Duration(milliseconds: 200);
+  // AyuGram `kAddRotationDoubled` (chat_theme.cpp:646): one 45° step per send.
+  static const _kAddRotationDoubled = 720 - 45;
+
+  // The default chat wallpaper and most cloud "pattern" wallpapers carry a 3-4
+  // colour complex gradient under the pattern tile. AyuGram rotates the gradient
+  // of ANY background whose `colors.size() >= 3` on outgoing-send — the gate is
+  // on colour count, NOT on `isPattern` (chat_theme.cpp:643) — so the pattern's
+  // underlying gradient steps one 45° phase per revealed outgoing message,
+  // exactly like a standalone complex gradient ([_RasterGradient]).
+  bool get _isComplex => widget.backgroundColors.length >= 3;
 
   @override
   void initState() {
     super.initState();
-    _generateGradient();
+    _fade = AnimationController(
+      vsync: this,
+      duration: _kFadeDuration,
+      value: 1.0,
+    )..addStatusListener(_onFadeStatus);
+    if (_isComplex) {
+      ChatBackgroundRotator.instance.addListener(_onRotate);
+    }
+    _generateGradient(crossFade: false);
     _decodePattern();
+  }
+
+  void _onFadeStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed && _prevGradientImage != null) {
+      setState(() {
+        _prevGradientImage?.dispose();
+        _prevGradientImage = null;
+      });
+    }
   }
 
   @override
   void didUpdateWidget(_PatternWallpaper old) {
     super.didUpdateWidget(old);
+    final wasComplex = old.backgroundColors.length >= 3;
+    if (wasComplex != _isComplex) {
+      if (_isComplex) {
+        ChatBackgroundRotator.instance.addListener(_onRotate);
+      } else {
+        ChatBackgroundRotator.instance.removeListener(_onRotate);
+      }
+    }
     if (old.gradientRotation != widget.gradientRotation ||
         !_sameColors(old.backgroundColors, widget.backgroundColors)) {
-      _generateGradient();
+      // A genuine wallpaper change: snap back to the resting rotation and swap
+      // without the send-style cross-fade.
+      _doubled = 0;
+      _generateGradient(crossFade: false);
     }
     if (!identical(old.patternBytes, widget.patternBytes) ||
         !identical(old.giftSymbols, widget.giftSymbols) ||
@@ -1395,21 +1443,36 @@ class _PatternWallpaperState extends State<_PatternWallpaper> {
 
   @override
   void dispose() {
+    ChatBackgroundRotator.instance.removeListener(_onRotate);
+    _fade.dispose();
     _gradientImage?.dispose();
+    _prevGradientImage?.dispose();
     _patternImage?.dispose();
     _giftFrameImage?.dispose();
     super.dispose();
   }
 
-  void _generateGradient() {
+  /// One outgoing-message reveal → advance the complex gradient by one 45° step
+  /// (mirrors `ChatTheme::rotateComplexGradientBackground`, chat_theme.cpp:822,
+  /// stepping `gradientRotation` by `kAddRotationDoubled` mod 720, :663-665).
+  void _onRotate() {
+    if (!mounted || !_isComplex) return;
+    _doubled = (_doubled + _kAddRotationDoubled) % 720;
+    _generateGradient(crossFade: true);
+  }
+
+  void _generateGradient({required bool crossFade}) {
     final colors = List<Color>.from(widget.backgroundColors);
     if (colors.length < 2) {
       final token = ++_gradToken;
       // No multi-stop gradient needed; painter fills solid / fallback.
-      if (_gradientImage != null) {
+      if (_gradientImage != null || _prevGradientImage != null) {
         setState(() {
           _gradientImage?.dispose();
           _gradientImage = null;
+          _prevGradientImage?.dispose();
+          _prevGradientImage = null;
+          _fade.value = 1.0;
         });
       }
       _gradToken = token;
@@ -1417,11 +1480,30 @@ class _PatternWallpaperState extends State<_PatternWallpaper> {
     }
     final size =
         colors.length > 2 ? _kComplexGradientSize : _kLinearGradientSize;
+
+    // For complex (3+ colour) gradients the displayed rotation + progress are
+    // derived from the doubled accumulator advanced on each send, mirroring
+    // `ComputeRealRotation`/`ComputeRealProgress` (chat_theme.cpp:40-57); 2-colour
+    // gradients keep their static linear direction. (`effectiveGradientRotation`
+    // already returns 0 for 3+ colours, so before this the pattern's underlying
+    // gradient was generated once at rotation 0 and never rotated — the bug.)
+    final int rotation;
+    final double progress;
+    if (_isComplex) {
+      final doubled = _doubled % 720;
+      final odd = doubled.isOdd;
+      rotation = ((odd ? (doubled - 45) : doubled) ~/ 2) % 360;
+      progress = odd ? 0.5 : 1.0;
+    } else {
+      rotation = widget.gradientRotation;
+      progress = 1.0;
+    }
+
     final token = ++_gradToken;
     // Off-thread gradient + dither generation (chat_theme.cpp:704-728), so the
     // pattern's underlying gradient never janks the UI thread on a wallpaper
-    // change.
-    _generateGradientBytesAsync(colors, widget.gradientRotation, size)
+    // change or a send-triggered rotation.
+    _generateGradientBytesAsync(colors, rotation, size, progress: progress)
         .then((bytes) {
       if (!mounted || token != _gradToken) return;
       ui.decodeImageFromPixels(bytes, size, size, ui.PixelFormat.rgba8888,
@@ -1431,8 +1513,20 @@ class _PatternWallpaperState extends State<_PatternWallpaper> {
           return;
         }
         setState(() {
-          _gradientImage?.dispose();
-          _gradientImage = image;
+          if (crossFade && _gradientImage != null) {
+            // Send-triggered rotation: hold the old phase underneath and fade the
+            // new one in over 200ms (chat_theme.cpp:30 kBackgroundFadeDuration).
+            _prevGradientImage?.dispose();
+            _prevGradientImage = _gradientImage;
+            _gradientImage = image;
+            _fade.forward(from: 0.0);
+          } else {
+            _prevGradientImage?.dispose();
+            _prevGradientImage = null;
+            _gradientImage?.dispose();
+            _gradientImage = image;
+            _fade.value = 1.0;
+          }
         });
       });
     });
@@ -1471,6 +1565,8 @@ class _PatternWallpaperState extends State<_PatternWallpaper> {
       painter: _PatternWallpaperPainter(
         colors: widget.backgroundColors,
         gradientImage: _gradientImage,
+        prevGradientImage: _prevGradientImage,
+        fade: _fade,
         patternImage: _patternImage,
         intensity: widget.intensity,
         opacity: widget.opacity,
@@ -1749,6 +1845,8 @@ ui.Image? _cropSymbolFrame(ui.Image full, Rect normArea) {
 class _PatternWallpaperPainter extends CustomPainter {
   final List<Color> colors;
   final ui.Image? gradientImage;
+  final ui.Image? prevGradientImage;
+  final Animation<double> fade;
   final ui.Image? patternImage;
   final int intensity;
   final double opacity;
@@ -1759,13 +1857,15 @@ class _PatternWallpaperPainter extends CustomPainter {
   _PatternWallpaperPainter({
     required this.colors,
     required this.gradientImage,
+    required this.prevGradientImage,
+    required this.fade,
     required this.patternImage,
     required this.intensity,
     required this.opacity,
     required this.fallbackColor,
     this.giftSymbols = const [],
     this.giftFrame,
-  });
+  }) : super(repaint: fade);
 
   static const _invertColorFilter = ColorFilter.matrix(<double>[
     0, 0, 0, 1, 0,
@@ -1834,19 +1934,36 @@ class _PatternWallpaperPainter extends CustomPainter {
     final rect = Offset.zero & size;
     final gradient = gradientImage;
     if (gradient != null) {
-      final src = Rect.fromLTWH(
-          0, 0, gradient.width.toDouble(), gradient.height.toDouble());
-      canvas.drawImageRect(
-        gradient,
-        src,
-        rect,
-        Paint()..filterQuality = FilterQuality.high,
-      );
+      // During a send-triggered rotation hold the previous phase underneath
+      // (opaque) and fade the new phase in on top, mirroring AyuGram drawing
+      // `_backgroundState.was` then `now` at the fade opacity (chat_theme.cpp).
+      // The static pattern tile is composited on top of the resolved gradient,
+      // so only the gradient morphs — exactly as the rotation rotates only the
+      // gradient under the fixed pattern.
+      final prev = prevGradientImage;
+      final shown = fade.value;
+      if (prev != null && shown < 1.0) {
+        _drawGradientImage(canvas, rect, prev, 1.0);
+        _drawGradientImage(canvas, rect, gradient, shown);
+      } else {
+        _drawGradientImage(canvas, rect, gradient, 1.0);
+      }
     } else if (colors.length == 1) {
       canvas.drawRect(rect, Paint()..color = colors.first);
     } else {
       canvas.drawRect(rect, Paint()..color = fallbackColor);
     }
+  }
+
+  void _drawGradientImage(
+      Canvas canvas, Rect rect, ui.Image image, double opacity) {
+    final src =
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+    final paint = Paint()..filterQuality = FilterQuality.high;
+    if (opacity < 1.0) {
+      paint.color = Color.fromRGBO(0, 0, 0, opacity.clamp(0.0, 1.0));
+    }
+    canvas.drawImageRect(image, src, rect, paint);
   }
 
   /// Pattern tile geometry (`chat_theme.cpp:122-185`): the pattern scaled
@@ -1962,6 +2079,8 @@ class _PatternWallpaperPainter extends CustomPainter {
   @override
   bool shouldRepaint(_PatternWallpaperPainter old) =>
       !identical(old.gradientImage, gradientImage) ||
+      !identical(old.prevGradientImage, prevGradientImage) ||
+      !identical(old.fade, fade) ||
       !identical(old.patternImage, patternImage) ||
       !identical(old.giftFrame, giftFrame) ||
       !identical(old.giftSymbols, giftSymbols) ||
