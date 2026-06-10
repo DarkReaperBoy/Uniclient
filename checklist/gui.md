@@ -192,15 +192,19 @@ Verified clean (no findings):
 
 ## Findings
 
-- [ ] [MAJOR] Restart-prompt strings diverge from AyuGram's `ShowRestartPrompt`. AyuGram uses
-  `Ui::MakeConfirmBox` with **no title**, body = `lng_settings_need_restart` ("You need to
-  restart for applying some of the new settings. Restart now?") and confirm button =
-  `lng_settings_restart_now` ("Restart"). The Dart port adds a title "Restart Required",
-  rewords the body to "Some settings will be applied after restarting.", and labels the
-  confirm button "Restart Now" — three user-visible strings that don't match the authority
-  (the in-code comment even mis-states confirmText as "Restart Now"). Cancel button "Later"
-  is correct. Behavior (apply→prompt→restart-on-confirm) is faithful; only the text differs.
-  — `ayu_general_page.dart:242-244` ← `settings_ayu_utils.cpp:38-43` / `lang.strings:1305-1306`
+Verified & closed (2026-06-10) — the one MAJOR restart-prompt string deviation (fixed by commit
+acc0de10) re-verified against AyuGram `ShowRestartPrompt` ground truth (`settings_ayu_utils.cpp:36-45`
++ `lang.strings:1305-1307`) AND the running app. `_showRestartPrompt` (`ayu_general_page.dart:241-261`)
+now calls a **titleless** `showConfirmBox` (no title arg → `confirm_box.dart:182` skips the title bar)
+with body = `lng_settings_need_restart` ("You need to restart for applying some of the new settings.
+Restart now?"), confirm = `lng_settings_restart_now` ("Restart") and cancel = `lng_settings_restart_later`
+("Later") — byte-exact vs AyuGram; the invented title "Restart Required", the reworded body, and the
+wrong "Restart Now" confirm label are all gone, and the misleading in-code comment is corrected.
+Confirmed live in BOTH desktop 1024×768 and mobile 400×720: toggling Disable Stories (desktop) /
+Filter Zalgo (mobile) applies the setting first then pops the corrected titleless box; "Later" dismisses
+without restarting (app PID stable, VM-service start count = 1 → never restarted). No Dart exceptions
+tied to the dialog — only pre-existing settings-page Scrollbar warnings + startup tray/folder warnings,
+all unrelated to this string-only change.
 
 # ayugram_settings_screen — AyuGram main settings landing page (logo, version, category & link buttons)
 
