@@ -340,9 +340,27 @@ converters are correctly wired. `Isolate.run` is used for heavy proto parsing
 and correct** — the Go `ReadMentions` case unmarshals into that exact type
 (`dispatch_engine.go:613-617`, proto fields `account_id=1`/`chat_id=2`).
 
-One genuine wiring defect found:
+One genuine wiring defect found — now fixed & verified:
 
-- [ ] [CRITICAL] `getMapTile` routes the engine call to the per-account core id (`accountId`) instead of `'__engine'`, so the static-map fetch **always fails** and Instant-View location blocks never render their map. `GetMapTile` is registered ONLY on the engine layer (`go/bridge/dispatch_engine.go:5428`), and the bridge forwards only `coreId == "__engine"` to `dispatchEngine` (`go/bridge/bridge.go:88`). With a **non-empty** `accountId` — the actual runtime path: `openInstantView` → `InstantViewPage` → `_IvBlock` → `_StaticMapImage` → `getMapTile` (`dart/lib/ui/instant_view.dart:2721`, accountId always real) — the bridge looks the id up as a per-account core and routes to `dispatchTelegram`, whose `default` returns `"unknown method GetMapTile for telegram"` (`go/bridge/dispatch_gen.go:21912`); the `catch` then returns `null` → `_failed = true` → placeholder, never the map. Every other one of the ~497 bridge calls in this file routes to `'__engine'` with `account_id` carried in the payload (which `getMapTile` already does at line 6505), so the fix is to make the coreId `'__engine'` unconditionally. — `engine_service.dart:6514` ← `AyuGram/Telegram/SourceFiles/data/data_location.cpp:69` (`ComputeLocation` builds the static-map request params: lat/lon/w/h/zoom that `getMapTile` mirrors)
+Verified & closed (2026-06-10) — fixed by commit 1b6ec05e. Confirmed by static analysis
+(conclusive for a dispatcher-routing change) plus a clean debug build and crash-free launch
+of the running app. `GetMapTile` is registered ONLY on the engine dispatcher
+(`grep GetMapTile go/bridge/` matches solely `dispatch_engine.go:5457`); the telegram
+dispatcher has no such case — its `default` returns `"unknown method GetMapTile for telegram"`
+(`dispatch_gen.go:21912`) — and `bridge.go:88` forwards only `coreId == "__engine"` to
+`dispatchEngine`. The engine handler reads `account_id` from the payload to select the
+per-account core (`dispatch_engine.go:5457-5470`), so per-account context is preserved. Live
+end-to-end IV-map render could not be exercised in-app: Telegram resolves `cached_page`/IV
+lazily, so freshly-sent Wikipedia/Wikivoyage geo-article previews expose no "INSTANT VIEW"
+button (tried both, waited, scrolled), and `pageBlockMap` blocks are rare — both orthogonal to
+the routing fix. App logs showed no `getMapTile`/"unknown method" errors and no crashes.
+- [1] [CRITICAL] `getMapTile` now routes to `'__engine'` unconditionally
+  (`engine_service.dart:6564`), not `accountId.isEmpty ? '__engine' : accountId`. The per-account
+  id still travels in the payload's `account_id` (`:6550`), which the engine reads to find the
+  right core — matching every other ~497 bridge call in the file. The sole caller,
+  `_StaticMapImage` (`instant_view.dart:2721`), passes a real `accountId` — the exact condition
+  that previously routed to `dispatchTelegram`'s `default` and forced the placeholder instead of
+  the map. — `engine_service.dart:6564` ← `AyuGram/Telegram/SourceFiles/data/data_location.cpp:69`
 
 # ayu_filter — regex/shadowban message-filter engine (port of AyuGram FiltersController + FiltersCacheController + FilterUtils)
 
