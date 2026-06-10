@@ -126,8 +126,6 @@ compose-field bg `historyComposeAreaBg` and placeholder `windowSubTextFg`
 (chat_helpers.style:1197-1199, colors.palette:73). Widget is wired to the live edited palette
 (theme_editor.dart:811) and has an identity-based `shouldRepaint`.
 
-- [ ] [MAJOR] Audio waveform is drawn ~22–25% too narrow: the Dart reserves a fixed 50px on the right (`waveRight = bubbleX + bubbleW - 50`), so the bars span `bubbleW-117` and stop ~52px short of the bubble's right edge with empty space after them. AyuGram reserves only `nameright = msgFileLayout.padding.right()` (10px) and the waveform spans `bubble.width - 77 + msgWaveformSkip`, filling to within ~10px of the right edge (≈64 bars vs the Dart's ≈47). The right band the Dart reserves is unused — the duration "0:07" is on the left (`waveLeft`, both impls) and the timestamp sits on a lower row, so there is nothing to clear. — `theme_preview.dart:771` ← `AyuGram/window/themes/window_theme_preview.cpp:938`
-
 # active_sessions_screen — Active Sessions screen (Privacy & Security → Devices)
 
 Scope: `dart/lib/ui/active_sessions_screen.dart` vs AyuGram `settings/sections/settings_active_sessions.cpp`, `api/api_authorizations.cpp`, `boxes/self_destruction_box.cpp`, and `settings/settings.style` / `info/info.style`.
