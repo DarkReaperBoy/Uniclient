@@ -477,19 +477,20 @@ remarkably faithful port — the findings below are the only deviation.
 
 ## Findings
 
-- [ ] [MAJOR] Non-English pluralized strings always collapse to the **"other"**
-  grammatical form. `trCount` resolves the form with the English rule
-  `count == 1 ? 'one' : 'other'`, then for cloud languages the overlay only ever
-  holds the bare key (no `key#one`/`key#other`) because the Go bridge keeps only
-  `OtherValue` and drops the server's zero/one/two/few/many plural values — so
-  the lookup lands on `_overlay[key]` (the "other" value) for every count. AyuGram
-  instead applies full CLDR plural rules per active language via `lt_count`. Net
-  effect: on the 2FA account-reset-wait countdown, languages with rich plural
-  rules (ru/ar/pl/cs…) render grammatically wrong plurals for days/hours/minutes
-  (e.g. Russian "2 дней" instead of "2 дня"). Narrow (one screen, non-English
-  only, the number itself is correct) and documented in-code, but it is backend
-  plural data deliberately dropped at the bridge. English is unaffected (correct
-  one/other). — `lang_pack.dart:184-192` (root cause: bridge collapse
-  `go/cores/telegram.go:26863-26866`) ← `intro_widget.cpp:577-599` (`tr::lng_days(
-  tr::now, lt_count, days)` etc.) / `lang_keys.cpp:59` (CLDR `tr::` plural system)
+Verified & closed (2026-06-10) — fixed by commit a1e1d155. Non-English pluralized
+strings no longer collapse to the **"other"** grammatical form. Two root causes fixed
+end-to-end: the Go bridge (`LangpackGetStringsMap`, telegram.go) now emits every plural
+form the server sends under a `key#form` suffix (zero/one/two/few/many/other) instead of
+keeping only `OtherValue`; and Dart `trCount` (`lang_pack.dart:210-219`) resolves the form
+via the active language's full CLDR rule through the new `lang_plural.dart` — a 1:1 port of
+AyuGram `lang/lang_tag.cpp` (all 35 `ChoosePlural*` functions + `GeneratePluralRulesMap` +
+`UpdatePluralRules` parent-fallback). Verified line-by-line against lang_tag.cpp (rule
+functions + language→rule map + `pt_PT`/`sr_Latn`/`ro_MD` normalization + parent lookup all
+match) and by a focused unit test driving the real `pluralForm`/`trCount` path: ru 2→few /
+5→many / 100→many (integers never "other"), pl 2→few/5→many, cs 2→few/5→other, ar + cy all
+six categories, pt-BR→pt parent fallback, unknown→other-only, case/underscore normalization,
+plus the `trCount` English wiring + `{count}` substitution + fallback chain — all 15 cases
+pass. Consumer `_resetWaitText` (`auth_screen.dart:545`) is a 1:1 port of
+`intro_widget.cpp:577-599`. Clean Go + Flutter debug build; crash-free launch in desktop
+(1024×768) and mobile (400×720), zero lang_pack/lang_plural errors in the log.
 
