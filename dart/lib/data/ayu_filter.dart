@@ -854,7 +854,18 @@ class AyuFilterEngine extends ChangeNotifier {
   }
 
   void toggleFilteredMessagesShown(String chatId) {
-    _filteredMessagesShown[chatId] = !(_filteredMessagesShown[chatId] ?? false);
+    // AyuGram's showingFilteredMessages is a std::unordered_set: toggle-on inserts,
+    // toggle-off ERASES the entry — it never keeps a "false" marker. Mirror that here
+    // by removing the key (instead of flipping it to false) so the map only ever holds
+    // "true" entries and containsKey(chatId) == showingFilteredMessages.contains(peer).
+    // Without the erase, filteredMessagesShown() could never return null again for a
+    // chat that was toggled even once, so the context-menu item would persist forever
+    // and reveal nothing. ← filters_controller.cpp:197-204
+    if (_filteredMessagesShown[chatId] == true) {
+      _filteredMessagesShown.remove(chatId);
+    } else {
+      _filteredMessagesShown[chatId] = true;
+    }
     notifyListeners();
   }
 
