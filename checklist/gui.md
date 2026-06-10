@@ -2,23 +2,6 @@
 
 ## Code Comparison (Dart vs AyuGram)
 
-# notification_system — Window::Notifications::System port (schedule/dedup/group/alert/clear orchestration)
-
-Reviewed `dart/lib/notifications/notification_system.dart` against AyuGram's
-`window/notifications_manager.cpp` (the `System` class) plus the native/default
-manager sources. The file is a faithful, fully-wired port: every method is
-implemented (no stubs/placeholders/fake data/TODOs), all callbacks are wired in
-`main.dart:576-699` (`onNewMessage`, `checkDelayed`, clear methods, mute/online
-queries, flash, manager-swap), sound is correctly gated by `allowSound`
-(`notification_sound.dart:59`) and flash by `flashBounce`, the
-forward-grouping-window fix (ms vs s) is correct, and dedup / `hideMarkAsRead` /
-`countTiming` / per-thread vs chat-wide clears all match C++. Two genuine
-behavioral deviations remain:
-
-- [ ] [MAJOR] Sound/flash alert is throttled **per-thread** (`_lastAlertPerThread`, 500 ms cooldown keyed by `threadKey`) instead of coalesced across the whole dispatch batch. AyuGram's `showNext` walks every thread in `_whenAlerts` but keeps a single `alertThread` (last wins) and fires exactly **one** flash and **one** sound per pass — so a burst of messages across multiple chats (e.g. several chats flushed together in `_flushGroupedBuffer`, or non-grouped messages with near-equal `countTiming` delays firing together) plays one alert in AyuGram but N overlapping alerts (one per chat) here. — `notification_system.dart:648-691` ← `AyuGram/window/notifications_manager.cpp:721-780`
-
-- [ ] [MAJOR] The reaction/poll-vote "hide when name-preview is off" guard is applied in the shared `_dispatch` (before either manager), so it suppresses the notification for the **custom Default (in-app popup) manager** too. In AyuGram this `return` lives only in `NativeManager::doShowNotification`; the Default manager's `doShowNotification` has no such guard and still shows a (content-hidden) popup. With the custom-popup fallback active + name-preview off, a reaction that AyuGram would display is dropped here. (The code comment at `:587-590` claiming "AyuGram shows nothing in either case" is incorrect for the Default manager.) — `notification_system.dart:591-594` ← `AyuGram/window/notifications_manager.cpp:1563-1565` (guard is native-only; Default manager queues unconditionally at `AyuGram/window/notifications_manager_default.cpp:370` and renders at `:952-953`)
-
 # notification_types — notification title/subtitle/body text composition (port of AyuGram NativeManager::doShowNotification + notificationHeader + Media::notificationText)
 
 Verified line-by-line against AyuGram `notifications_manager.cpp`, `history/history_item.cpp`,
