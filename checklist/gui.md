@@ -216,11 +216,31 @@ right-labels) match exactly; fonts match (`boxTitle` 16px semibold, subsection
 all six category buttons navigate to the correct sub-pages and all four link
 buttons are wired to real engine/URL handlers (`engine.resolveUsername` →
 `openChatById` with t.me fallback; `launchUrl`). No placeholders, no broken
-wiring. The only real deviations are invented trailing chevrons.
+wiring. The only real deviations were invented trailing chevrons, now removed.
 
-- [ ] [MAJOR] `_FlatCategoryButton` paints a trailing `Icons.chevron_right` disclosure arrow on every category row, but AyuGram's section buttons are built with `st::settingsButton` (base `infoProfileButton`), whose style has only `style`/`padding`/`iconLeft` plus a `toggle` slot used solely for boolean switches — there is NO arrow/chevron. The disclosure arrow is an element AyuGram never renders. — `ayugram_settings_screen.dart:338` ← `settings/settings.style:13` (settingsButton, no arrow) + `info/info.style` infoProfileButton / `ayu/ui/settings/settings_main.cpp:103-132`
-
-- [ ] [MAJOR] `_LinkButton` renders BOTH the right-side text label AND a trailing `Icons.chevron_right`. In AyuGram the link rows (`addButton` with `.label`) draw only the right text label via `CreateRightLabel`, positioned `st::settingsButtonRightSkip` (23px) from the right edge, with no chevron after it. The extra arrow is not in the source. — `ayugram_settings_screen.dart:389` ← `settings/settings_common.cpp:420-468` (CreateRightLabel, no arrow) / `ayu/ui/settings/settings_main.cpp:144-185`
+Verified & closed (2026-06-10) — both MAJOR chevron items (fixed by commit 0ca7ddea)
+re-verified against AyuGram C++ ground truth AND the running app (Flutter debug build
+clean; the AyuGram landing page renders crash-free in desktop 1024×768 + mobile 400×720;
+`flutter_audit.sh diagnose` = APP HEALTHY with 0 Flutter exceptions / 0 Dart errors /
+0 RenderFlex-overflow — only pre-existing settings-page "Scrollbar cannot be painted"
+paint warnings + tray `MissingPluginException` / no-credential auth startup warnings,
+all unrelated to this change). Definitive ground truth: the `SettingsButton` style struct
+(`lib_ui/ui/widgets/widgets.style:553-571`) has NO arrow/chevron field whatsoever — only
+`textFg/Bg`, `style`, `rightLabel`, `height/padding/iconLeft`, `toggle/toggleOver/toggleSkip`,
+`ripple`.
+- [1] `_FlatCategoryButton`'s trailing `Icons.chevron_right` is removed; category rows
+  (built from `st::settingsButton` = base `infoProfileButton`→`defaultSettingsButton`→
+  `SettingsButton`, exposing only style/padding/iconLeft + the boolean-switch toggle slot)
+  now render icon + label only — the right edge of all six rows confirmed EMPTY via crop in
+  BOTH modes. `ayugram_settings_screen.dart:332-345` ← `settings.style:13` /
+  `settings_main.cpp:103-132`.
+- [2] `_LinkButton`'s trailing `Icons.chevron_right` + its 4px gap are removed; link rows
+  draw only the right text label (the `rightLabel` FlatLabel via `CreateRightLabel`,
+  `settings_common.cpp:420-468`) positioned `st::settingsButtonRightSkip` (23px, confirmed
+  `settings.style:59`) from the right edge — confirmed showing only @ayugram / @ayugramchat /
+  Crowdin / docs.ayugram.one with NO chevron after, in BOTH modes; right padding bumped
+  22→23 to match the skip exactly. `ayugram_settings_screen.dart:370-391` ←
+  `settings_common.cpp:420-468` / `settings_main.cpp:144-185`.
 
 # ayu_other_page — AyuGram "Other" settings page (donations, crash reporting, URL-scheme register, reset)
 
