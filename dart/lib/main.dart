@@ -21,6 +21,7 @@ import 'state/app_state.dart';
 import 'state/chat_state.dart';
 import 'state/audio_service.dart';
 import 'state/auth_state.dart';
+import 'state/support_templates.dart';
 import 'theme/theme.dart';
 import 'ui/call_panel.dart';
 import 'ui/chat_export.dart';
@@ -371,6 +372,9 @@ class _UniClientAppState extends State<UniClientApp>
 
     if (!kIsWeb && configDir.isNotEmpty) {
       context.read<AudioService>().setConfigDir(configDir);
+      // == AyuGram cWorkingDir(): the SupportReloadTemplates shortcut reads
+      // tl_*.txt files from `<configDir>/TEMPLATES`.
+      SupportTemplates.instance.setWorkingDir(configDir);
     }
 
     // Sync media-player playback settings (speed / repeat / autoplay) from

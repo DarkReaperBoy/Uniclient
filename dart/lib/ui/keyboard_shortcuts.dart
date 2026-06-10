@@ -15,6 +15,7 @@ import 'compose_entities.dart';
 import 'contacts_screen.dart';
 import 'media_viewer.dart';
 import 'shell.dart';
+import 'telegram_toast.dart';
 import '../state/app_state.dart';
 import '../state/audio_service.dart';
 import '../state/auth_state.dart';
@@ -1374,7 +1375,20 @@ class _ShortcutListenerState extends State<ShortcutListener>
 
     sys.registerHandler(ShortcutCommand.supportReloadTemplates, () {
       final chatState = context.read<ChatState>();
-      chatState.reloadSupportTemplates();
+      // Re-read tl_*.txt support templates from disk, then toast the result —
+      // mirrors Templates::reload() showing Ui::Toast::Show on the errors
+      // stream (support_templates.cpp:464-470).
+      chatState.reloadSupportTemplates().then((errors) {
+        if (!mounted) return;
+        showTelegramToast(
+          context,
+          errors.isEmpty
+              ? 'Templates reloaded!'
+              : 'Errors:\n\n${errors.join('\n\n')}',
+          multiline: errors.isNotEmpty,
+          duration: Duration(milliseconds: errors.isEmpty ? 1500 : 4000),
+        );
+      });
       return true;
     });
     sys.registerHandler(ShortcutCommand.supportToggleMuted, () {

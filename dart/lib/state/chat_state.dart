@@ -11,6 +11,7 @@ import '../notifications/notification_types.dart';
 import '../state/app_state.dart';
 import '../state/audio_service.dart';
 import '../state/ayu_forward.dart';
+import '../state/support_templates.dart';
 import '../data/emoji_data.dart';
 import '../ui/custom_emoji_cache.dart';
 import '../ui/message_bubble.dart';
@@ -999,7 +1000,18 @@ class ChatState extends ChangeNotifier {
       if (includeSet.contains(c.chatId)) return true;
 
       if (folder.excludeMuted && c.isMuted && c.unreadMentionCount == 0) return false;
-      if (folder.excludeRead && c.unreadCount == 0 && c.unreadMentionCount == 0) return false;
+      // AyuGram ChatFilter::contains keeps any history whose badge state.unread
+      // is set (data_chat_filters.cpp:379-385: the NoRead clause passes on
+      // `state.unread || state.mention`). A manually marked-unread chat HAS
+      // state.unread == true even with zero unread messages, so excludeRead
+      // must NOT drop it — hence the `!c.isUnreadMark` guard. (folderUnreadBadge
+      // already counts such chats as `marks`; this keeps the list consistent.)
+      if (folder.excludeRead &&
+          c.unreadCount == 0 &&
+          c.unreadMentionCount == 0 &&
+          !c.isUnreadMark) {
+        return false;
+      }
       if (folder.excludeArchived && c.isArchived) return false;
 
       if (folder.hasTypeFilters) {
@@ -1381,8 +1393,14 @@ class ChatState extends ChangeNotifier {
     return true;
   }
 
-  void reloadSupportTemplates() {
-    loadChats();
+  /// Re-read the local support-template files (`tl_*.txt` under the working-dir
+  /// `TEMPLATES` folder) and return the parse / IO errors (empty == success).
+  /// Port of `Support::Templates::reload()` (support_templates.cpp:464), bound
+  /// to the `SupportReloadTemplates` shortcut. The shortcut handler toasts the
+  /// result, mirroring AyuGram's `Ui::Toast::Show` (cpp:465-470). Previously
+  /// this wrongly reloaded the dialog list (`loadChats()`).
+  Future<List<String>> reloadSupportTemplates() {
+    return SupportTemplates.instance.reload();
   }
 
   void openChat(ChatInfo chat) {
@@ -1573,11 +1591,23 @@ class ChatState extends ChangeNotifier {
       );
       if (chat == _forumParentChat) {
         final existingIds = _forumTopics.map((t) => t.id).toSet();
+        var added = 0;
         for (final t in topics) {
-          if (!existingIds.contains(t.id)) _forumTopics.add(t);
+          if (!existingIds.contains(t.id)) {
+            _forumTopics.add(t);
+            added++;
+          }
         }
         _sortTopics(_forumTopics);
-        _forumHasMore = topics.length >= 500;
+        // AyuGram (data_forum.cpp:171-184) keeps paging while a page comes back
+        // non-empty AND the offset advances — it stops only on an empty page
+        // or a stalled offset (`_offset == previousOffset`), NOT when a page is
+        // shorter than kTopicsPerPage. The engine requests 500/page but
+        // Telegram caps each response well below that, so the old
+        // `topics.length >= 500` test flipped hasMore false after the first
+        // short page and stalled forums past ~40 topics. `added > 0` is the
+        // Dart analog of the offset advancing (new topics arrived).
+        _forumHasMore = topics.isNotEmpty && added > 0;
       }
     } catch (e) {
       Debug.log('chat_state', 'int offsetDate = 0: $e');
