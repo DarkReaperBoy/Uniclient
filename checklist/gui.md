@@ -108,10 +108,6 @@ This file is an exceptionally faithful port. Verified IDENTICAL/correct:
   bytes (window_theme.h:42), 1 MB scheme bytes (window_theme.h:41). Zip-bomb guards present.
 - No stubs / TODOs / placeholders / fake data. Wired into theme.dart, theme_editor.dart, app_state.dart.
 
-## Findings
-
-- [ ] [MAJOR] Palette-file selection inside a zip uses first-match in archive iteration order across BOTH `colors.tdesktop-theme` and `colors.tdesktop-palette`, instead of AyuGram's strict priority (try `colors.tdesktop-theme` first, fall back to `colors.tdesktop-palette` only if absent). If a zip contains both and `colors.tdesktop-palette` appears first, the wrong palette is loaded. The fix is trivial and the data is already on hand — the `entries` map built two lines above is used to give backgrounds their correct fixed priority (`theme_file.dart:513-525`) but is not used for the palette; `entries['colors.tdesktop-theme'] ?? entries['colors.tdesktop-palette']` would restore AyuGram's ordering. (Edge case — standard Telegram themes ship only `colors.tdesktop-theme` — but a genuine behavioral divergence from the authority.) — `theme_file.dart:505-508` ← `AyuGram/window/themes/window_theme.cpp:302-307`
-
 # theme_preview — static theme-preview image (dialogs list + chat panel), port of `window_theme_preview.cpp`
 
 Overall this is an exceptionally faithful port. Verified-correct against AyuGram (no findings needed):
