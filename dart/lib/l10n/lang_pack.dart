@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../bridge/engine_service.dart';
 import '../utils/debug.dart';
+import 'lang_plural.dart';
 
 /// App localization backed by Telegram's cloud language pack.
 ///
@@ -193,16 +194,25 @@ class LangPack extends ChangeNotifier {
     return s;
   }
 
-  /// Pluralized string for [count] with `{count}` substituted. Resolves the
-  /// English-rule form (`1` → `#one`, else `#other`); cloud languages expose
-  /// only the `#other` value (the engine's `langpack.getStrings` bridge
-  /// collapses pluralized strings to `other_value`), so non-English falls back
-  /// to that bare-key overlay. Mirrors AyuGram `tr::lng_days(lt_count, n)` etc.
+  /// Pluralized string for [count] with `{count}` substituted, applying the
+  /// active language's full CLDR plural rule (zero/one/two/few/many/other) to
+  /// pick the grammatical form — mirroring AyuGram `tr::lng_days(lt_count, n)`
+  /// → `Lang::Plural()` → `ChoosePlural` (lang_tag.cpp). The engine's
+  /// `langpack.getStrings` bridge now emits every form the server sent under a
+  /// `key#form` suffix, so e.g. Russian `2` resolves `#few` ("2 дня") instead of
+  /// always collapsing to `#other` ("2 дней").
+  ///
+  /// Fallback chain: the computed form in the server overlay → the overlay's
+  /// `#other` (always present from the server, so a fetched language never falls
+  /// through to English) → the English baseline's form → English `#other` →
+  /// bare English → the raw key. English itself uses the embedded baseline (the
+  /// `en` rule yields one/other, both present in [_en]).
   String trCount(String key, int count) {
-    final form = count == 1 ? 'one' : 'other';
+    final form = pluralForm(_code, count);
     final v = _overlay['$key#$form'] ??
-        _overlay[key] ??
+        _overlay['$key#other'] ??
         _en['$key#$form'] ??
+        _en['$key#other'] ??
         _en[key] ??
         key;
     return v.replaceAll('{count}', '$count');

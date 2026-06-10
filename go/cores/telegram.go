@@ -26998,8 +26998,10 @@ func (t *TelegramCore) LangpackGetStrings(request *tg.LangpackGetStringsRequest)
 // not yet authed it falls back to the live preAuthAPI client. Used by the
 // intro/login screen so picking a language re-renders it in that language,
 // matching AyuGram building the intro from the cloud pack (intro_phone.cpp:92).
-// Pluralized strings collapse to their "other" form; deleted keys are omitted
-// so callers fall back to their bundled English baseline.
+// Pluralized strings are emitted per CLDR form under a "key#form" suffix
+// (zero/one/two/few/many/other) so the client can apply the active language's
+// plural rule (lang_tag.cpp ChoosePlural*); deleted keys are omitted so callers
+// fall back to their bundled English baseline.
 func (t *TelegramCore) LangpackGetStringsMap(langCode string, keys []string) (map[string]string, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	api := t.api
@@ -27023,8 +27025,31 @@ func (t *TelegramCore) LangpackGetStringsMap(langCode string, keys []string) (ma
 		case *tg.LangPackString:
 			out[v.Key] = v.Value
 		case *tg.LangPackStringPluralized:
+			// Emit every CLDR plural form the server sent under a
+			// "key#form" suffix so the client picks the grammatically
+			// correct one for the count via the active language's rule.
+			// Only other_value is guaranteed present (it is required in
+			// the TL schema); zero/one/two/few/many are flag-gated and
+			// stay "" when the language lacks that form. (Was: collapse
+			// to other_value only, which forced every count to the
+			// "other" form for non-English languages.)
+			if v.ZeroValue != "" {
+				out[v.Key+"#zero"] = v.ZeroValue
+			}
+			if v.OneValue != "" {
+				out[v.Key+"#one"] = v.OneValue
+			}
+			if v.TwoValue != "" {
+				out[v.Key+"#two"] = v.TwoValue
+			}
+			if v.FewValue != "" {
+				out[v.Key+"#few"] = v.FewValue
+			}
+			if v.ManyValue != "" {
+				out[v.Key+"#many"] = v.ManyValue
+			}
 			if v.OtherValue != "" {
-				out[v.Key] = v.OtherValue
+				out[v.Key+"#other"] = v.OtherValue
 			}
 		}
 	}
