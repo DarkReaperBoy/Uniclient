@@ -35,10 +35,23 @@ class BridgeImpl {
   bool _initialized = false;
   bool get isInitialized => _initialized;
 
-  final _eventController = StreamController<Uint8List>.broadcast();
+  // Per-instance event stream. Not `final`: recreated by init() when a prior
+  // dispose() closed it (engine hot-restart, multi-account teardown), so the
+  // bridge can be re-initialized without leaving `events` pointing at a dead
+  // (already-closed) stream. Mirrors the native bridge (bridge_ffi.dart:56-57).
+  StreamController<Uint8List> _eventController =
+      StreamController<Uint8List>.broadcast();
 
   Future<void> init({String? libraryPath}) async {
     if (_initialized) return;
+
+    // A previous dispose() closed the event stream; give callers a live one so
+    // a dispose()→init() re-init cycle leaves `events` pointing at a fresh
+    // stream and the callback registered below adds to an open controller
+    // (mirrors the native bridge, bridge_ffi.dart:77-80).
+    if (_eventController.isClosed) {
+      _eventController = StreamController<Uint8List>.broadcast();
+    }
 
     // The Go WASM module is fetched + instantiated asynchronously by
     // web/index.html, and Flutter bootstraps independently (its async
@@ -97,6 +110,11 @@ class BridgeImpl {
   }
 
   void _onEventFromGo(JSUint8Array data) {
+    // Mirror the native event forwarder's guard (bridge_ffi.dart:107): a closed
+    // controller — an event delivered during/after dispose(), or a JS callback
+    // that fires before init() recreated it — is a normal, defensively-handled
+    // state. Drop the event rather than throw "Cannot add event after closing".
+    if (_eventController.isClosed) return;
     _eventController.add(data.toDart);
   }
 }
