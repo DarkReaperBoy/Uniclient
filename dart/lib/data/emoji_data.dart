@@ -2916,6 +2916,17 @@ int _legacyRankKey(_LegacyResult r) {
   return (w3 << 2) | (w2 << 1) | fc;
 }
 
+/// One recent-emoji entry: the emoji plus its use-count `rating`, a port of
+/// AyuGram's `RecentEmoji { RecentEmojiId id; ushort rating }`
+/// (core_settings.h:93). The recent list is kept ordered by `rating`
+/// DESCENDING (recency only breaks ties), so the most-USED recent — not the
+/// most-recently-used — floats to the top of inline suggestions.
+class _RecentEmoji {
+  _RecentEmoji(this.emoji, this.rating);
+  final String emoji;
+  int rating;
+}
+
 /// Manages emoji keyword data from server language packs with local fallback.
 class EmojiKeywords {
   EmojiKeywords._();
@@ -2923,8 +2934,11 @@ class EmojiKeywords {
 
   final Map<String, _LangPack> _langPacks = {};
 
-  final List<String> _recentEmojis = [];
-  static const _maxRecent = 50;
+  /// Recent emoji ordered by use-count (rating) DESCENDING — NOT LRU. See
+  /// [recordRecent] (the `incrementRecentEmoji` port) for the exact ordering.
+  final List<_RecentEmoji> _recentEmojis = [];
+  // kRecentEmojiLimit (core_settings.h:74).
+  static const _maxRecent = 54;
 
   final Map<String, String> _variantPrefs = {};
 
@@ -3129,13 +3143,48 @@ class EmojiKeywords {
     _refreshTimer = null;
   }
 
+  /// Records one *use* of [emoji], bumping its rating and re-sorting the recent
+  /// list by rating (descending) — a 1:1 port of `Settings::incrementRecentEmoji`
+  /// (core_settings.cpp:1411). This is NOT a move-to-front: a frequently-used
+  /// emoji outranks a once-used recent one, so [_prioritizeRecent] surfaces the
+  /// most-USED match first (e.g. for `:sm`, the smile you pick most), exactly
+  /// like AyuGram — instead of the most-recently-typed one.
   void recordRecent(String emoji) {
-    _recentEmojis.remove(emoji);
-    _recentEmojis.insert(0, emoji);
-    if (_recentEmojis.length > _maxRecent) {
-      _recentEmojis.removeLast();
+    if (emoji.isEmpty) return;
+    var i = _recentEmojis.indexWhere((e) => e.emoji == emoji);
+    if (i >= 0) {
+      final entry = _recentEmojis[i];
+      entry.rating++;
+      // ushort guard: once any rating crosses 0x8000, halve them all (floor 1)
+      // — keeps the relative order while bounding counts (core_settings.cpp:1416).
+      if (entry.rating > 0x8000) {
+        for (final e in _recentEmojis) {
+          e.rating = e.rating > 1 ? e.rating ~/ 2 : 1;
+        }
+      }
+      _bubbleRecentToFront(i);
+    } else {
+      _recentEmojis.add(_RecentEmoji(emoji, 1));
+      _bubbleRecentToFront(_recentEmojis.length - 1);
+      // New-entry trim, matching the `while (size >= kRecentEmojiLimit) pop_back`
+      // in the push branch (core_settings.cpp:1450).
+      while (_recentEmojis.length >= _maxRecent) {
+        _recentEmojis.removeLast();
+      }
     }
     _scheduleSave();
+  }
+
+  /// Bubbles the entry at [i] toward the front while the entry before it is NOT
+  /// strictly higher-rated — equal ratings let the just-used one move ahead,
+  /// giving a rating-primary, recency-secondary order (core_settings.cpp:1424).
+  void _bubbleRecentToFront(int i) {
+    while (i > 0 && _recentEmojis[i - 1].rating <= _recentEmojis[i].rating) {
+      final tmp = _recentEmojis[i];
+      _recentEmojis[i] = _recentEmojis[i - 1];
+      _recentEmojis[i - 1] = tmp;
+      i--;
+    }
   }
 
   /// The set of every built-in emoji (default/yellow form), used to detect
@@ -3144,15 +3193,17 @@ class EmojiKeywords {
     for (final e in kEmojiSuggestions) e.emoji,
   };
 
-  /// Records every standard emoji found in [text] as recent. AyuGram's
-  /// `recentEmoji()` is the single global list `PrioritizeRecent` reads, and it
-  /// is updated whenever an emoji passes through the text engine — including
-  /// message text — via `UiIntegration::defaultEmojiVariant`
-  /// (ui_integration.cpp:471). Wiring this into the send path keeps inline
-  /// suggestion ordering in sync with what the user actually sends, instead of
-  /// only with accepted autocomplete picks. Skin-tone variants are recorded as
-  /// used (their base is a known emoji); `_prioritizeRecent` strips the tone
-  /// when matching against suggestions.
+  /// Records every standard emoji found in [text] as recent (one [recordRecent]
+  /// per emoji occurrence). AyuGram's `recentEmoji()` is the single global list
+  /// `PrioritizeRecent` reads, and it is updated whenever an emoji passes
+  /// through the text engine — for ANY message it renders, sent OR received —
+  /// via `UiIntegration::defaultEmojiVariant` (ui_integration.cpp:471). This is
+  /// wired into BOTH the send path (chat_view) and the live-receive path
+  /// (chat_state `_handleMsgReceived`, incoming messages only — outgoing echoes
+  /// are already counted at send time), so inline suggestion ordering tracks
+  /// every emoji the user actually sees, not just accepted autocomplete picks.
+  /// Skin-tone variants are recorded as used (their base is a known emoji);
+  /// `_prioritizeRecent` strips the tone when matching against suggestions.
   void recordRecentFromText(String text) {
     if (text.isEmpty) return;
     for (final cluster in text.characters) {
@@ -3167,7 +3218,8 @@ class EmojiKeywords {
     }
   }
 
-  List<String> get recentEmojis => List.unmodifiable(_recentEmojis);
+  List<String> get recentEmojis =>
+      List.unmodifiable(_recentEmojis.map((e) => e.emoji));
 
   /// Resolves an emoji to the user's chosen skin-tone variant for inline
   /// suggestions. Wired by the emoji panel — the single source of truth for
@@ -3194,7 +3246,21 @@ class EmojiKeywords {
     final recent = data['recent'] as List<dynamic>?;
     if (recent != null) {
       _recentEmojis.clear();
-      _recentEmojis.addAll(recent.cast<String>().take(_maxRecent));
+      // Stored newest-first; the persisted order already encodes rating
+      // descending (saveState writes it sorted), so a plain take()+add keeps it.
+      for (final item in recent.take(_maxRecent)) {
+        if (item is Map) {
+          final emoji = item['e'] as String?;
+          if (emoji != null && emoji.isNotEmpty) {
+            final rating = (item['r'] as int?) ?? 1;
+            _recentEmojis.add(_RecentEmoji(emoji, rating < 1 ? 1 : rating));
+          }
+        } else if (item is String && item.isNotEmpty) {
+          // Legacy LRU format (bare emoji strings, no ratings): preserve the
+          // stored order with equal ratings; future uses re-sort by frequency.
+          _recentEmojis.add(_RecentEmoji(item, 1));
+        }
+      }
     }
     final variants = data['variants'] as Map<String, dynamic>?;
     if (variants != null) {
@@ -3204,7 +3270,9 @@ class EmojiKeywords {
   }
 
   Map<String, dynamic> saveState() => {
-    'recent': _recentEmojis,
+    'recent': [
+      for (final e in _recentEmojis) {'e': e.emoji, 'r': e.rating},
+    ],
     'variants': _variantPrefs,
   };
 
@@ -3382,14 +3450,17 @@ class EmojiKeywords {
   List<EmojiEntry> _prioritizeRecent(List<EmojiEntry> list) {
     if (_recentEmojis.isEmpty || list.isEmpty) return list;
     final result = List<EmojiEntry>.from(list);
-    // Mirrors AyuGram PrioritizeRecent (emoji_keywords.cpp:650-672): for each
-    // recent, search the whole list from the start and rotate the match to the
-    // frontier ONLY when it sits strictly past it (`it > lastRecent`). A match
+    // Mirrors AyuGram PrioritizeRecent (emoji_keywords.cpp:650-672): walk the
+    // recents in `recentEmoji()` order — which is rating (use-count) DESCENDING,
+    // NOT LRU (see [recordRecent]) — and for each, search the whole list from
+    // the start and rotate the match to the frontier ONLY when it sits strictly
+    // past it (`it > lastRecent`). Because the walk is in frequency order, the
+    // most-USED matching recent lands at the front (the visible fix). A match
     // already at (or before) the frontier does not advance it — so equal-front
     // recents get leapfrogged, e.g. list [A,B] + recent [A,B] → [B,A].
     var lastRecent = 0;
     for (final recent in _recentEmojis) {
-      final base = _stripSkinTone(recent);
+      final base = _stripSkinTone(recent.emoji);
       final idx = result.indexWhere((e) => _stripSkinTone(e.emoji) == base);
       if (idx > lastRecent) {
         final item = result.removeAt(idx);

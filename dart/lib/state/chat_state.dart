@@ -11,6 +11,7 @@ import '../notifications/notification_types.dart';
 import '../state/app_state.dart';
 import '../state/audio_service.dart';
 import '../state/ayu_forward.dart';
+import '../data/emoji_data.dart';
 import '../ui/custom_emoji_cache.dart';
 import '../ui/message_bubble.dart';
 import '../ui/spoiler_animation.dart';
@@ -3000,6 +3001,15 @@ class ChatState extends ChangeNotifier {
         (event.message.localId.isNotEmpty && m.localId == event.message.localId));
       if (!exists) {
         _messages.insert(0, event.message);
+        // Feed emoji from freshly-arrived INCOMING messages into the global
+        // recent list that inline suggestions prioritize. AyuGram increments
+        // recentEmoji() for every emoji the text engine renders — sent OR
+        // received (UiIntegration::defaultEmojiVariant, ui_integration.cpp:471).
+        // Outgoing echoes are skipped here: they were already counted at send
+        // time (chat_view), so counting them again would double-rate them.
+        if (!event.message.isOutgoing && event.message.contentText.isNotEmpty) {
+          EmojiKeywords.instance.recordRecentFromText(event.message.contentText);
+        }
         onNewActiveMessage?.call(event.message);
         _ensureSenderAvatars([event.message]);
         notifyListeners();
