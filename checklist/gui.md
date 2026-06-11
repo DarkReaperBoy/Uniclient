@@ -249,24 +249,6 @@ These components were diffed against their AyuGram sources end-to-end (UI → en
 - **Statistics screen** (overview + charts + recent posts) — real MTProto data (no fakes), all 12 channel / 8 group charts, series toggle, crosshair tooltip, draggable range-footer, server zoom, growth-badge formula, `ListView.builder` + `RepaintBoundary` (`info_statistics_inner_widget.cpp`, `chart_widget.cpp`, `api_statistics.cpp`).
 - **StarRefJoin screen** (join other bots' programs) — connected + suggested lists fetched & paginated, 3 sort orders, join-confirmation box before connect, revoke/leave, copy/share, commission/duration from data, `ListView.builder` (`info_bot_starref_join_widget.cpp`, `info_bot_starref_common.cpp`).
 
-# ayu_filters_page — AyuGram regex/shadow-ban filters settings page
-
-Audited against AyuGram `ayu/ui/settings/settings_filters.cpp`, `ayu/ui/settings/filters/{settings_filters_list,edit_filter,per_dialog_filter}.cpp`, `ayu/ui/boxes/import_filters_box.cpp`, `ayu/features/filters/filters_utils.cpp`, and `info/info_wrap_widget.cpp`. The page is overwhelmingly faithful and fully wired to the real `AyuFilterEngine` + `AppState` (toggles call `rebuildCache()` + persist; CRUD/import/export/publish/regex-validation all hit real backend code, matching the C++ 1:1). One genuine data-flow gap found.
-
-- [ ] [MAJOR] Export `peers` hint map omits group/channel dialogs. `_resolvePeerUsernames` finds the target chat in the already-loaded `chatState.chats` but then **discards `chat.username`** and instead calls the users-only `getUserProfile(accountId, dId)`. `engine.GetUserProfile` resolves only users/bots via `GetFullUser`/`GetOrFetchUser` (`go/engine/cache_users.go:7519-7534`), so for group/channel dialog ids (negative — the predominant Select-Chat targets, which exclude user DMs) it returns null and the peer is left out of the exported `peers` object. AyuGram's `exportFilters` resolves **every** loaded peer via `LoadedPeerFromDialogId` (user *and* channel *and* chat) and writes `peer->username()`, so a per-dialog filter on a public channel/group exports its username for cross-device re-resolution. The Dart already has that username in hand (`ChatInfo.username`, populated for channels at `go/cores/telegram.go:18719` and persisted at `go/engine/cache_chats.go:69,263,365`) — it just routes through the wrong resolver. Result: per-dialog filters on groups/channels export with no peer hint, so they don't auto-resolve their target on import to another device. — `ayu_filters_page.dart:1938` (ignored field at `:1934-1935`) ← `AyuGram/ayu/features/filters/filters_utils.cpp:511-524` (LoadedPeerFromDialogId `:517`, `peer->username()` `:518`)
-
-## Verified correct (no action)
-
-- Toggles (Enable / Enable Shared in Chats / Hide from Blocked) → `setFiltersEnabled` etc. each do `rebuildCache()` + `notifyListeners()` + persist, matching `FiltersCacheController::rebuildCache()`+`fireUpdate()` (`settings_filters.cpp:52-102`, `app_state.dart:2256-2276`).
-- "…" menu order Select Chat → sep → Import → (Export iff `hasFilters`) → sep → Clear All matches `fillTopBarMenu` (`settings_filters.cpp:193-258`).
-- App-bar icons: Add (+) on every list screen → shadow-ban Select-Chat (Bot|User) vs `RegexEditBox(null,null,dialogId)`; Exclude icon only in per-dialog main view (`showExclude==true`). Matches `info_wrap_widget.cpp:467-513`.
-- Filter row context menu (Edit / Enable-Disable / Delete), exclusion row (Delete only), pick-exclude tap→add exclusion, all match `settings_filters_list.cpp:97-200`. `deleteFilter` also drops exclusions-by-filter-id (`ayu_filter.dart:790-795`) per `:132-133`.
-- RegexEditBox: title Add/Edit, checkbox defaults (enabled/caseInsensitive=true, reversed=false) + order, empty-text no-op, dialogId scoping `if (!showToast && dialogId)`, no settings-flow toast — match `edit_filter.cpp:127-261`. UUID id format matches `generate_uuid_bytes`/`ParseFilterId`.
-- Import/Export box: clipboard-URL autodetect, URL field import-only, change-summary order (new→removed→updated filters, new→removed exclusions, dialogs) + confirm dialog, `publishFilters` dpaste POST (content/syntax/title, no-redirect, Location+".txt"), preview/apply diff logic — match `import_filters_box.cpp` + `filters_utils.cpp:61-138,344-433,701-910`.
-- Per-dialog status text ("{n} filter[s]", "{n} excluded"), "UNKNOWN (ID: …)" fallback, userpic-color remap — match `per_dialog_filter.cpp:35-117` + `lang.strings:8147-8150`.
-
-Skipped (minor/cosmetic): Select-Chat picker also lists forum topics (C++ Bot|Group|Broadcast only); empty-state and Clear-All wording differ from `ayu_RegexFiltersListEmpty`/`ayu_FiltersClearPopupText`.
-
 # ayu_other_page — AyuGram "Other" settings (donations, support box, crash reporting, reset)
 
 Scope checked: §Support donations (Boosty + 5 crypto QR), support/donate-info box,
