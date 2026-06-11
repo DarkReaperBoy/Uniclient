@@ -367,23 +367,6 @@ AyuGram source (commit `5ed5c52d`):
   (pinned/deleted ≤ ~20-30) and there is no AyuGram C++ line to cite against
   (different threading model), so it is not reported as a both-files finding.
 
-# ayu_filter — regex/shadowban message-filter engine (FiltersController + FiltersCacheController + FilterUtils port)
-
-Audited `dart/lib/data/ayu_filter.dart` against AyuGram's
-`ayu/features/filters/{filters_controller,filters_cache_controller,filters_utils}.cpp`,
-`ayu/data/entities.h`, and `ayu/ui/settings/filters/per_dialog_filter.cpp`.
-
-The vast majority of the port is faithful and well-documented (import/export round-trip
-incl. UUID wire format + dialogId null handling, ICU→Dart regex translation, media/service
-`<type>` maps, album/group cache propagation, exclusions, the direct-sender block/shadowban
-short-circuit, `broadcast==channel` enablement, dpaste publish). The engine is genuinely
-wired into the UI (`chat_state.dart:3022`, `chat_view.dart:3221`, `chat_list_panel.dart:1680/1816`).
-One real defect found.
-
-- [ ] [CRITICAL] Forwarded-origin block/shadowban hiding never fires — the forward branch parses the numeric origin ID out of `msg.forwardFrom`, but that field carries a **display name**, not an ID. AyuGram hides a message whose forwarded *original* sender is blocked/shadowbanned, keyed on the original sender's real peer ID (`isShadowBanned(originalSender)` / `originalSender->asUser()->isBlocked()`). The Dart calls `_parseForwardSenderId(msg.forwardFrom)` — `ayu_filter.dart:1007` ← `AyuGram/ayu/features/filters/filters_controller.cpp:119-129`. The Go engine populates `forwardFrom` with `GetFromName()` → cached user/channel name → and only as a last-resort fallback the `"User <id>"`/`"Channel <id>"`/`"Chat <id>"` string (`cores/telegram.go:12254-12281`); the numeric ID lives in the separate `forwardFromID` field. `_parseForwardSenderId` (`ayu_filter.dart:1073-1080`, regex `_forwardIdPattern` at `:1071` = `(?:User|Channel|Chat) (\d+)$`) therefore returns `null` for any forward whose origin has a known/cached name — which is the normal case for a user you have actually blocked or shadow-banned (they're cached precisely because you've interacted with them). Result: the entire forwarded-origin half of `_filterBlocked` (`ayu_filter.dart:1004-1011`) is dead in practice, while the direct-sender path (`:990-1003`, which reads the real numeric `msg.senderId`) works. The fix must read the numeric origin ID (`msg.forwardFromId`), not `msg.forwardFrom`.
-
-  Fix caveat (out-of-file, but the fix is incomplete without it): `msg.forwardFromId` is itself empty on messages built through the proto bridge. The Go engine marshals `forward_from_id` as a **top-level** key of `content_raw` (`json.Marshal(msg)` over `cores.Message`, `engine/cache_msgs.go:436` + `cores/base.go:308`), but `engine_service.dart:7148` sources it via `_strFromExtra(extra, 'forward_from_id')`, which only looks inside `content_raw['extra']` (`lib/bridge/engine_service.dart` `_strFromExtra`). The proto `EngineCachedMessage` has no `forward_from_id` field (`go/proto/engine.pb.go:2659` — only `forward_from`), so `cachedMsgToProto` (`go/bridge/dispatch_engine.go:7663-7681`) drops `m.ForwardFromID` entirely. So fully fixing the forwarded-origin hide requires (a) using `forwardFromId` in `_filterBlocked`, and (b) actually plumbing `forward_from_id` to Dart (add the proto field, or have the bridge read the top-level key instead of `extra`).
-
 # emoji_data — emoji keyword/suggestion engine (port of `EmojiKeywords` + `Completer` + built-in replacement data)
 
 Audited `dart/lib/data/emoji_data.dart` against AyuGram's `emoji_keywords.cpp`
