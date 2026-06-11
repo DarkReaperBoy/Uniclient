@@ -249,24 +249,6 @@ These components were diffed against their AyuGram sources end-to-end (UI → en
 - **Statistics screen** (overview + charts + recent posts) — real MTProto data (no fakes), all 12 channel / 8 group charts, series toggle, crosshair tooltip, draggable range-footer, server zoom, growth-badge formula, `ListView.builder` + `RepaintBoundary` (`info_statistics_inner_widget.cpp`, `chart_widget.cpp`, `api_statistics.cpp`).
 - **StarRefJoin screen** (join other bots' programs) — connected + suggested lists fetched & paginated, 3 sort orders, join-confirmation box before connect, revoke/leave, copy/share, commission/duration from data, `ListView.builder` (`info_bot_starref_join_widget.cpp`, `info_bot_starref_common.cpp`).
 
-# birthday_picker — Telegram day/month/year drum-wheel birthday dialog (port of `EditBirthdayBox` + `VerticalDrumPicker`)
-
-Overall this is a faithful, well-wired port. Verified correct against AyuGram source:
-dimensions (`viewportHeight 200` / `itemHeight 40` ← `settings.style:681-682`, `bandBorder 2` ←
-`defaultInputField.borderActive 2px` widgets.style:1064, `minYear 1875` ← `data_birthday.h:33`,
-`fadeWrapDuration 200ms` ← `basic.style:97`, item font 14px ← `boxTextFont`); item text color
-(`windowFg` ← `defaultFlatLabel.textFg`) and band color (`activeLineFg`); wheel/keyboard/drag
-directions, snap-to-nearest, jump accumulation, leap-year/month-cap/day-cap data logic, max-birthday
-serialize comparison, Save result mapping, Remove-button visibility; all button labels match the
-English baseline exactly (`Cancel`/`Save`/`Remove`/`Suggest`); month names localized via
-`lng_month{n}` (← `Lang::Month`). Both callers (`my_profile_page.dart:296,306`,
-`contacts_screen.dart:1769`) are wired to `engine.updateBirthday` / `engine.suggestBirthday`. No
-stubs, empty callbacks, TODOs, or fake data. The findings below are color/theming only.
-
-- [ ] [MAJOR] Dialog chrome colors are hardcoded hex instead of `context.palette.*`, so the dialog ignores the user's theme — and several literals don't even match the app's own default palette: dark background `0xFF1E2C3A` ≠ `windowBg 0xFF17212B`, dark subtext `0xFF6C7883` ≠ `windowSubTextFg 0xFF708499`, light accent `0xFF3390EC` ≠ `windowActiveTextFg 0xFF168ACD`. The SAME widget already reads `context.palette.windowFg` (items, line 210) and `context.palette.activeLineFg` (band, line 212), so this is an internal inconsistency. AyuGram derives the box surface from the theme (`boxBg: windowBg`), so on any non-default theme the wheel items render themed while the dialog background/title/buttons stay fixed — a mismatched surface. — `birthday_picker.dart:199-202` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:135` (`boxBg: windowBg`; app's `windowBg` = `0xFF17212B`, telegram_palette.dart:3673)
-
-- [ ] [MAJOR] Cancel and Remove buttons use the wrong color family. The Dart paints Cancel in subtext gray (`subtextColor`, line 330) and Remove in red (`Colors.red[400]`, line 325). In AyuGram all three buttons — confirm (`box->addButton`), cancel (`box->addButton(tr::lng_cancel())`) and the left reset (`box->addLeftButton(tr::lng_settings_birthday_reset())`) — are created with the box's default button style `getDelegate()->style().button` (blue `lightButtonFg`); no attention/destructive style is passed for the reset button, so it is NOT red. Save is correctly blue, but Cancel should be blue (not gray) and Remove should be blue (not red). — `birthday_picker.dart:325,330` ← `AyuGram/Telegram/SourceFiles/ui/boxes/edit_birthday_box.cpp:200,210,214` (+ `lib_ui/ui/layers/box_content.cpp:128-168` — all buttons default to `style().button` = `lightButtonFg`)
-
 # call_panel — 1:1 voice/video call panel (port of AyuGram `Calls::Panel`)
 
 Overall this is a faithful, fully-wired port: signal-bars (`callPanelSignalBars`
