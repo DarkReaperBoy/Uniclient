@@ -1894,7 +1894,7 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
 
   Future<void> _doExport(AppState appState, ScaffoldMessengerState messenger) async {
     final engine = appState.filterEngine;
-    final peers = await _resolvePeerUsernames(appState, engine);
+    final peers = _resolvePeerUsernames(engine);
 
     if (_useUrl) {
       final result = await engine.publishFilters(peers: peers);
@@ -1915,8 +1915,23 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
     }
   }
 
-  Future<Map<String, String>> _resolvePeerUsernames(
-      AppState appState, AyuFilterEngine engine) async {
+  /// Builds the `peers` hint map exported alongside the filters: dialogId →
+  /// username, so a per-dialog filter on a public peer re-resolves its target
+  /// when the export is imported on another device.
+  ///
+  /// Mirrors AyuGram `exportFilters` (filters_utils.cpp:511-524): it walks every
+  /// filter that has a dialogId, resolves the loaded peer via
+  /// `LoadedPeerFromDialogId` — user (positive id) AND channel AND chat
+  /// (negative id, filters_utils.cpp:215-227) — and writes `peer->username()`
+  /// whenever it is non-empty. The loaded `ChatInfo` already carries that
+  /// username for every peer type (channels populated at telegram.go:18719,
+  /// persisted at cache_chats.go:69/263/365), so we read `chat.username`
+  /// directly. The previous code routed through the users-only
+  /// `getUserProfile`, which resolves only users/bots and returns null for
+  /// negative (group/channel) dialog ids — the predominant per-dialog filter
+  /// target — silently dropping them from the export so they never
+  /// auto-resolved on import.
+  Map<String, String> _resolvePeerUsernames(AyuFilterEngine engine) {
     final dialogIds = <String>{};
     for (final f in engine.filters) {
       if (f.dialogId != null && f.dialogId!.isNotEmpty) {
@@ -1927,27 +1942,14 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
     if (dialogIds.isEmpty) return peers;
 
     final chatState = context.read<ChatState>();
-    final engineSvc = context.read<EngineService>();
-    final accountId = appState.activeAccountId;
     for (final dId in dialogIds) {
-      String? username;
       for (final chat in chatState.chats) {
         if (chat.chatId == dId) {
-          if (accountId.isNotEmpty) {
-            try {
-              final profile = await engineSvc.getUserProfile(accountId, dId);
-              if (profile != null && profile.username.isNotEmpty) {
-                username = profile.username;
-              }
-            } catch (e) {
-              Debug.log('ayu_filters_page', 'final profile = await engineSvc.getUserProfile(accountId,...: $e');
-            }
+          if (chat.username.isNotEmpty) {
+            peers[dId] = chat.username;
           }
           break;
         }
-      }
-      if (username != null && username.isNotEmpty) {
-        peers[dId] = username;
       }
     }
     return peers;
