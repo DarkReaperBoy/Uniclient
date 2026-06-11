@@ -249,24 +249,6 @@ These components were diffed against their AyuGram sources end-to-end (UI → en
 - **Statistics screen** (overview + charts + recent posts) — real MTProto data (no fakes), all 12 channel / 8 group charts, series toggle, crosshair tooltip, draggable range-footer, server zoom, growth-badge formula, `ListView.builder` + `RepaintBoundary` (`info_statistics_inner_widget.cpp`, `chart_widget.cpp`, `api_statistics.cpp`).
 - **StarRefJoin screen** (join other bots' programs) — connected + suggested lists fetched & paginated, 3 sort orders, join-confirmation box before connect, revoke/leave, copy/share, commission/duration from data, `ListView.builder` (`info_bot_starref_join_widget.cpp`, `info_bot_starref_common.cpp`).
 
-# ayu_appearance_page — AyuGram Appearance settings (icon picker, avatar corners, mono font, tray/drawer elements)
-
-Overall this is a faithful, fully-wired port of `settings_appearance.cpp`. Verified correct:
-section order & elements all present; icon picker (4 cols, 64px icon, 68px selected box,
-12px rounding, 200ms easeOutCubic, live apply via native `updateAppIcon` channel) matches
-`icon_picker.cpp`; avatar radius formula `corners/23 * size/2` is linear and matches
-`ayu_userpic.cpp:37` exactly with `kMaxAvatarCorners=23` and default 23 (circle); preview loads
-the real @AyuGramReleases avatar via `resolveUsername`+`downloadSingleAvatar` with a shape-aware
-empty fallback (`EmptyUserpic::paintCircle`→`AyuUserpic::PaintShape`, empty_userpic.cpp:341-349);
-preview indent 22/name 80/height 62/top-margin 2 match `defaultDialogRow`+`settingsButtonNoIcon`;
-mono-font loads real system fonts and persists with a restart prompt matching `ShowRestartPrompt`;
-all toggles call real `AppState` setters that persist via `_saveWindowPrefs()`; the Bots drawer
-toggle is gated on a real `getMainMenuBots` engine call (mirrors `HasDrawerBots`). Findings below.
-
-- [ ] [MAJOR] Font-selector keyboard navigation + Enter-to-activate are dead in the normal flow: the search `TextField` has `autofocus: true` so it holds primary focus, but the `_onKeyEvent` handler is attached to a `Focus` that wraps only the sibling `ListView`, so Arrow/PageUp/PageDown keys fire on the search field and never reach `_onKeyEvent` (the nav code at lines 717-750 is unreachable while searching), and the field has no `onSubmitted` so Enter never selects. AyuGram handles Up/Down/PageUp/PageDown and submit globally regardless of search focus. — `ayu_appearance_page.dart:982` (+943, +717-750) ← `AyuGram/ayu/ui/boxes/font_selector.cpp:967` (keyPressEvent) & `:928` (setSubmittedCallback→activateBySubmit)
-
-- [ ] [MAJOR] Every toggle renders an invented two-line `subtitle:` description that AyuGram does not have, roughly doubling each row's height and changing the page's information density vs the 1:1 source. In AyuGram the appearance/folder/tray/drawer toggles use only `.title` (descriptions exist solely as separate `addDividerText` blocks for `hideNotificationBadge` and `singleCornerRadius`). Affects ~15 rows (appearance group lines 76/83/90; folders 107/113; tray 124/131; drawer 142/150/157/164/171/178/185/192/199/206/213/221). Likely an app-wide design choice — flagged as a deviation from ground truth for the paper trail. — `ayu_appearance_page.dart:76` ← `AyuGram/ayu/ui/settings/settings_appearance.cpp:193` (materialSwitches toggle, title-only) ; `ayu_appearance_page.dart:142` ← `AyuGram/ayu/ui/settings/settings_appearance.cpp:282` (drawer toggles, title+icon only, no subtitle)
-
 # ayu_filters_page — AyuGram regex/shadow-ban filters settings page
 
 Audited against AyuGram `ayu/ui/settings/settings_filters.cpp`, `ayu/ui/settings/filters/{settings_filters_list,edit_filter,per_dialog_filter}.cpp`, `ayu/ui/boxes/import_filters_box.cpp`, `ayu/features/filters/filters_utils.cpp`, and `info/info_wrap_widget.cpp`. The page is overwhelmingly faithful and fully wired to the real `AyuFilterEngine` + `AppState` (toggles call `rebuildCache()` + persist; CRUD/import/export/publish/regex-validation all hit real backend code, matching the C++ 1:1). One genuine data-flow gap found.
