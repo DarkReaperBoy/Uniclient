@@ -367,43 +367,6 @@ AyuGram source (commit `5ed5c52d`):
   (pinned/deleted ≤ ~20-30) and there is no AyuGram C++ line to cite against
   (different threading model), so it is not reported as a both-files finding.
 
-# emoji_data — emoji keyword/suggestion engine (port of `EmojiKeywords` + `Completer` + built-in replacement data)
-
-Audited `dart/lib/data/emoji_data.dart` against AyuGram's `emoji_keywords.cpp`
-(server lang-pack manager), `emoji_suggestions.cpp` (`Completer` legacy
-fallback), `core_settings.cpp` (`incrementRecentEmoji` recent ordering), the
-`emoji_suggestions_widget.cpp` query path, and the `replaces.cpp` codegen that
-bakes the built-in replacement list from `emoji_autocomplete.json`.
-
-The LOGIC is an exceptionally faithful 1:1 port — verified against source:
-- `recordRecent`/`_bubbleRecentToFront` == `Settings::incrementRecentEmoji`
-  (rating-descending, 0x8000 halving, 54-cap) — core_settings.cpp:1411-1466.
-- `_prioritizeRecent` == `PrioritizeRecent` rotate-to-frontier — emoji_keywords.cpp:650-672.
-- `_searchLangPack` lower_bound + take_while + cross-pack dedup, sorted lang-code
-  iteration == `LangPack::query`/`EmojiKeywords::query` — emoji_keywords.cpp:473-496,608-642.
-- `_searchLegacyData`/`_matchLegacyWords`/`_legacyRankKey` == `Completer` (single-char
-  fast path, interior-word match, the 4-`stable_partition` ranking with the dead
-  `isExactMatch` 4th partition correctly identified as never-reordering) —
-  emoji_suggestions.cpp:267-404. Confirmed dead-code: replacements are `:keyword:`
-  (len+2) vs colon-stripped query (len), so the size gate is never true.
-- `maxQueryLength` folds `legacyLimit`+`modernLimit` (widget did `max(...)`) —
-  emoji_suggestions_widget.cpp:959; the off-by-2 vs `GetSuggestionMaxLength` never
-  changes output (no keyword lives in the gap).
-- Backend wiring is REAL: chat_view fetches `GetEmojiKeywordsLanguages` →
-  `GetEmojiKeywords`/`...Difference` → `loadServerKeywords`/`Diff` with version
-  tracking + hourly auto-refresh (chat_view.dart:3944-4005); recent recorded on
-  send, on incoming receive (chat_state.dart:3010), and on pick (emoji_panel);
-  skin-tone resolver wired (emoji_panel.dart:60). No placeholders, no stubs, no
-  empty callbacks, no mock data.
-
-The only deviations are in the baked built-in replacement DATA (`kEmojiSuggestions`):
-a keyword-multiset diff vs the JSON + codegen showed 4030 of 4034 keywords match
-EXACTLY (including duplicate counts); the 5 below are the entire delta.
-
-- [ ] [MAJOR] The 4 hardcoded codegen-added built-in replacements are MISSING from `kEmojiSuggestions`. AyuGram appends `:like:`→👍, `:dislike:`→👎, `:hmm:`→🤔, `:party:`→🥳 *after* parsing the JSON. Effect in the Dart legacy completer: typing `:like`/`:dislike`/`:hmm` yields no built-in suggestion (👍/👎/🤔 exist but lack the alias). Worst case: 🥳 (`1f973`) is NOT in `emoji_autocomplete.json` at all — it exists ONLY via the `:party:` extra — so the Dart never suggests 🥳 via the built-in fallback. — `emoji_data.dart:477` (👍 `['thumbsup','+1','thumbup']`, no `like`), `emoji_data.dart:478` (👎, no `dislike`), `emoji_data.dart:1717` (🤔, no `hmm`), 🥳 absent entirely ← `Telegram/codegen/codegen/emoji/replaces.cpp:281-292`
-
-- [ ] [MAJOR] Extra `shrug` keyword on 🤷 that AyuGram deliberately strips. The codegen removes `:shrug:` from the alias list via the `Exceptions = { ":shrug:" }` filter, so AyuGram's 🤷 carries only `person_shrugging`. The Dart entry keeps `shrug`, so typing `:shrug` suggests 🤷 in the Dart where AyuGram intentionally suppresses it. — `emoji_data.dart:346` (`EmojiEntry('🤷', ['person_shrugging', 'shrug'])`) ← `Telegram/codegen/codegen/emoji/replaces.cpp:220-226`
-
 # strings — TrStrings static lang-pack table (port of AyuGram `tr::lng_*` / `lang.strings`)
 
 `strings.dart` is the embedded English string table (`TrStrings`). It maps ~100
