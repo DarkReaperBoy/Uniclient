@@ -249,28 +249,6 @@ These components were diffed against their AyuGram sources end-to-end (UI → en
 - **Statistics screen** (overview + charts + recent posts) — real MTProto data (no fakes), all 12 channel / 8 group charts, series toggle, crosshair tooltip, draggable range-footer, server zoom, growth-badge formula, `ListView.builder` + `RepaintBoundary` (`info_statistics_inner_widget.cpp`, `chart_widget.cpp`, `api_statistics.cpp`).
 - **StarRefJoin screen** (join other bots' programs) — connected + suggested lists fetched & paginated, 3 sort orders, join-confirmation box before connect, revoke/leave, copy/share, commission/duration from data, `ListView.builder` (`info_bot_starref_join_widget.cpp`, `info_bot_starref_common.cpp`).
 
-# call_panel — 1:1 voice/video call panel (port of AyuGram `Calls::Panel`)
-
-Overall this is a faithful, fully-wired port: signal-bars (`callPanelSignalBars`
-width/skip/min/max/radius/inactiveOpacity), fingerprint padding, preview sizes
-(`callOutgoingPreviewMin/Default/Max`/`callOutgoingDefaultSize`), the 333-emoji
-fingerprint table + `% kEmojiCount`, the answer-button outer ripple (100ms /
-`kSoundSampleMs`, `outerRadius:12px`), the rating dialog, the conference-upgrade
-flow, and the contact picker are all dimensionally accurate and wired to real
-engine methods. No placeholders/stubs/mock-data/empty callbacks. The findings
-below are state-binding / missing-control gaps, not fake UI. (Note: AyuGram's
-post-call rating box is intentionally disabled — `if (false && data.is_need_rating()…)`
-at `calls_call.cpp:809` — so the unused `needRating`/`_closeAndRate` path matches
-AyuGram and is NOT a defect.)
-
-- [ ] [MAJOR] Outgoing call-setup states (connecting / ringing / exchangingKeys / waiting / requesting) render ONLY an "End Call" button; AyuGram keeps Mute + Camera + Screencast (+ Add People) visible throughout these states (`toggleButton(_mute, !isWaitingUser)`, `toggleButton(_screencast, !(isBusy||isWaitingUser||incomingWaiting))`, `_camera->setVisible(!_startVideo)`), so during a ringing outgoing call the user cannot mute/enable camera/screencast — `call_panel.dart:857-862` (single button in `_buildConnectingState`, routed at `call_panel.dart:1361-1366`) ← `AyuGram/Telegram/SourceFiles/calls/calls_panel.cpp:1407-1425`
-
-- [ ] [MAJOR] Incoming-call screen shows only Decline + Answer; AyuGram also shows the pre-answer Mute and Camera toggles on the incoming screen (mute toggled visible when `!isWaitingUser`, camera visible when `!_startVideo` even while `incomingWaiting`) — `call_panel.dart:792-807` (`_buildIncomingState`) ← `AyuGram/Telegram/SourceFiles/calls/calls_panel.cpp:1407,1421`
-
-- [ ] [MAJOR] Outgoing self-video preview is never wired for real calls — AyuGram always creates `_outgoingVideoBubble` from `_call->videoOutgoing()` and shows the local camera/screen-share preview (snap-to-corner bubble in active state, in-body preview during setup), but `showCallPanel`/`_LiveCallPanelDialog` only ever pass the always-null `widget.selfVideoWidget` (a self-view is supplied solely by the `flutter_interact` debug command), so toggling the camera/screencast in a real call produces no local preview — `call_panel.dart:2970-2976` (and `showCallPanel` calls omit it at `call_panel.dart:2718,2802`) ← `AyuGram/Telegram/SourceFiles/calls/calls_panel.cpp:685-687,1264-1274`
-
-- [ ] [MAJOR] Call media state (mute / camera / screen-share) is not sourced from the engine: the live `CallPanelInfo` stream populates fingerprint/signal/remote-mute/remote-battery/remote-video but never `isMuted`/`isCameraOn`/`isScreenSharing` (always default false). Consequence — the screencast button can never show its active/"Stop" state and `_onScreenShareTap`'s stop-branch (`if (widget.info.isScreenSharing)`) is permanently dead, so tapping it always re-opens the start chooser with no way to stop sharing; mute/camera are client-side optimistic only and won't reflect engine truth (e.g. mute from another device). AyuGram binds these to `_call->isSharingScreen()` / `mutedValue()` / `isSharingCamera()` — `call_panel.dart:2691-2706,2780-2794` (stream omits media state), `call_panel.dart:353-356` (dead stop-branch), `call_panel.dart:911-916` (button reads `widget.info.isScreenSharing`) ← `AyuGram/Telegram/SourceFiles/calls/calls_panel.cpp:739-768`
-
 # call_screen — group-call panel, big mute button, settings, menus & minimised call bar
 
 Audited `dart/lib/ui/call_screen.dart` against AyuGram `calls/group/*` + `calls/*`. The
