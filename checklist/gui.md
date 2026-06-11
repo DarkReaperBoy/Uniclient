@@ -249,36 +249,6 @@ These components were diffed against their AyuGram sources end-to-end (UI → en
 - **Statistics screen** (overview + charts + recent posts) — real MTProto data (no fakes), all 12 channel / 8 group charts, series toggle, crosshair tooltip, draggable range-footer, server zoom, growth-badge formula, `ListView.builder` + `RepaintBoundary` (`info_statistics_inner_widget.cpp`, `chart_widget.cpp`, `api_statistics.cpp`).
 - **StarRefJoin screen** (join other bots' programs) — connected + suggested lists fetched & paginated, 3 sort orders, join-confirmation box before connect, revoke/leave, copy/share, commission/duration from data, `ListView.builder` (`info_bot_starref_join_widget.cpp`, `info_bot_starref_common.cpp`).
 
-# ayu_other_page — AyuGram "Other" settings (donations, support box, crash reporting, reset)
-
-Scope checked: §Support donations (Boosty + 5 crypto QR), support/donate-info box,
-crash-reporting toggle, register-URL-scheme + reset-settings actions, donate QR box.
-
-Backend wiring verified **REAL** — no stubs/placeholders/fake feedback:
-- Crypto buttons → real `_DonateQrBox` (`QrImageView`) and `_showDonateInfoBox`; Boosty → real `launchUrl`.
-- Crash toggle → `appState.setCrashReporting` → `Debug.crashReportingEnabled`, which genuinely
-  gates crash-log file writing (`utils/debug.dart:23`) — not a dead bool.
-- Reset → `appState.resetAyuSettings()` (resets dozens of real fields).
-- Donate amounts/username → `RcManager` (real live HTTP fetch, AyuGram's exact endpoints + defaults).
-- Username link → `engine.resolveUsername` (real FFI), with external-link fallback.
-- URL-scheme registration → real per-platform `Process.run`/`.desktop`/`reg` writes.
-
-Text verified 1:1 against `Telegram/Resources/langs/lang.strings` (support-box strings,
-reset confirmation, `lng_chat_link_copy`="Copy", `lng_group_invite_context_qr`="Get QR Code",
-`lng_text_copied`). Dimensions faithfully ported (429=aboutWidth×1.1, 487=aboutWidth×1.25,
-kCenterRatio 0.20, icon-bg 0xEEEEEE/0x242B2C).
-
-- [ ] [MAJOR] Crash-reporting description loses its divider-text band. AyuGram renders the
-  description text **on** a full-bleed `boxDividerBg` band via `builder.addDividerText(...)`
-  (→ `Ui::AddDividerText`/`DividerLabel`) and then opens the actions block with a plain
-  `builder.addSkip()` — **no** separate divider. The Dart instead renders the text with
-  `b.addDescription(...)` (plain `Padding`+`Text`, transparent bg — see `ayu_section_builder.dart:178`)
-  and then inserts an **extra** empty `b.addSectionDivider()` (6px skip + 8px band + 6px skip).
-  Net result: the gray band is empty and sits *below* the text instead of containing it, and an
-  8px band exists that AyuGram has nowhere here. This is also internally inconsistent — the sibling
-  Support description directly above (`_SupportDescription`, line 91/470) *is* correctly on a
-  `boxDividerBg` band, matching `AddDividerText`. — `ayu_other_page.dart:110-115` ← `ayu/ui/settings/settings_other.cpp:192,199`
-
 # birthday_picker — Telegram day/month/year drum-wheel birthday dialog (port of `EditBirthdayBox` + `VerticalDrumPicker`)
 
 Overall this is a faithful, well-wired port. Verified correct against AyuGram source:
