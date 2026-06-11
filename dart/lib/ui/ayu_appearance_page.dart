@@ -73,21 +73,18 @@ class AyuAppearancePage extends StatelessWidget {
 
     b.addSettingToggle(
       label: 'MD3 Switch Style',
-      subtitle: 'Use Material-style toggle switches throughout',
       value: appState.materialSwitches,
       onChanged: (v) => appState.setMaterialSwitches(v),
     );
 
     b.addSettingToggle(
       label: 'Disable custom backgrounds',
-      subtitle: 'Force global wallpaper on all chats',
       value: appState.disableCustomBackgrounds,
       onChanged: (v) => appState.setDisableCustomBackgrounds(v),
     );
 
     b.addSettingToggle(
       label: 'Hide premium statuses',
-      subtitle: 'Hide emoji status badges next to usernames',
       value: appState.hidePremiumStatuses,
       onChanged: (v) => appState.setHidePremiumStatuses(v),
     );
@@ -104,13 +101,11 @@ class AyuAppearancePage extends StatelessWidget {
     b.addSectionTitle('Chat Folders');
     b.addSettingToggle(
       label: 'Hide notification counters',
-      subtitle: 'Hide unread count badges on folder tabs',
       value: appState.hideNotificationCounters,
       onChanged: (v) => appState.setHideNotificationCounters(v),
     );
     b.addSettingToggle(
       label: 'Hide "All Chats" tab',
-      subtitle: 'Remove the All Chats folder tab from the folder bar',
       value: appState.hideAllChatsFolder,
       onChanged: (v) => appState.setHideAllChatsFolder(v),
     );
@@ -121,14 +116,12 @@ class AyuAppearancePage extends StatelessWidget {
     b.addSectionTitle('Tray Elements');
     b.addSettingToggle(
       label: 'Ghost Mode',
-      subtitle: 'Show Ghost Mode toggle in system tray menu',
       value: appState.showGhostToggleInTray,
       onChanged: (v) => appState.setShowGhostToggleInTray(v),
     );
     if (Platform.isWindows || Platform.isMacOS)
       b.addSettingToggle(
         label: 'Streamer Mode',
-        subtitle: 'Show Streamer Mode toggle in system tray menu',
         value: appState.showStreamerToggleInTray,
         onChanged: (v) => appState.setShowStreamerToggleInTray(v),
       );
@@ -139,7 +132,6 @@ class AyuAppearancePage extends StatelessWidget {
     b.addSectionTitle('Drawer Elements');
     b.addSettingToggle(
       label: 'My Profile',
-      subtitle: 'Show My Profile in drawer',
       value: appState.showMyProfileInDrawer,
       onChanged: (v) => appState.setShowMyProfileInDrawer(v),
       icon: Icons.person_outline,
@@ -147,70 +139,60 @@ class AyuAppearancePage extends StatelessWidget {
     if (appState.menuBots.isNotEmpty)
       b.addSettingToggle(
         label: 'Bots',
-        subtitle: 'Show menu bots in drawer',
         value: appState.showBotsInDrawer,
         onChanged: (v) => appState.setShowBotsInDrawer(v),
         icon: Icons.smart_toy_outlined,
       );
     b.addSettingToggle(
       label: 'New Group',
-      subtitle: 'Show New Group in drawer',
       value: appState.showNewGroupInDrawer,
       onChanged: (v) => appState.setShowNewGroupInDrawer(v),
       icon: Icons.group_outlined,
     );
     b.addSettingToggle(
       label: 'New Channel',
-      subtitle: 'Show New Channel in drawer',
       value: appState.showNewChannelInDrawer,
       onChanged: (v) => appState.setShowNewChannelInDrawer(v),
       icon: Icons.campaign_outlined,
     );
     b.addSettingToggle(
       label: 'Contacts',
-      subtitle: 'Show Contacts in drawer',
       value: appState.showContactsInDrawer,
       onChanged: (v) => appState.setShowContactsInDrawer(v),
       icon: Icons.person_add_outlined,
     );
     b.addSettingToggle(
       label: 'Calls',
-      subtitle: 'Show Calls in drawer',
       value: appState.showCallsInDrawer,
       onChanged: (v) => appState.setShowCallsInDrawer(v),
       icon: Icons.phone_outlined,
     );
     b.addSettingToggle(
       label: 'Saved Messages',
-      subtitle: 'Show Saved Messages in drawer',
       value: appState.showSavedMessagesInDrawer,
       onChanged: (v) => appState.setShowSavedMessagesInDrawer(v),
       icon: Icons.bookmark_outline,
     );
     b.addSettingToggle(
       label: 'Read on Local',
-      subtitle: 'Show Read on Local toggle in drawer',
       value: appState.showLReadToggleInDrawer,
       onChanged: (v) => appState.setShowLReadToggleInDrawer(v),
       icon: Icons.done_all,
     );
     b.addSettingToggle(
       label: 'Read on Server',
-      subtitle: 'Show Read on Server toggle in drawer',
       value: appState.showSReadToggleInDrawer,
       onChanged: (v) => appState.setShowSReadToggleInDrawer(v),
       icon: Icons.cloud_done_outlined,
     );
     b.addSettingToggle(
       label: 'Night Mode',
-      subtitle: 'Show Night Mode toggle in drawer',
       value: appState.showNightModeToggleInDrawer,
       onChanged: (v) => appState.setShowNightModeToggleInDrawer(v),
       icon: Icons.dark_mode_outlined,
     );
     b.addSettingToggle(
       label: 'Ghost Mode',
-      subtitle: 'Show Ghost Mode toggle in drawer',
       value: appState.showGhostToggleInDrawer,
       onChanged: (v) => appState.setShowGhostToggleInDrawer(v),
       icon: Icons.visibility_off_outlined,
@@ -218,7 +200,6 @@ class AyuAppearancePage extends StatelessWidget {
     if (Platform.isWindows || Platform.isMacOS)
       b.addSettingToggle(
         label: 'Streamer Mode',
-        subtitle: 'Show Streamer Mode toggle in drawer',
         value: appState.showStreamerToggleInDrawer,
         onChanged: (v) => appState.setShowStreamerToggleInDrawer(v),
         icon: Icons.live_tv_outlined,
@@ -698,7 +679,6 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
   late final TextEditingController _controller;
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
-  final _listFocusNode = FocusNode();
   String _searchQuery = '';
   List<String> _systemFonts = [];
   bool _loadingFonts = true;
@@ -739,14 +719,54 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
         _selectedFont = fonts[newIdx];
         _controller.text = _selectedFont;
       });
-      final offset = newIdx * 32.0;
+      _scrollToIndex(newIdx);
+    }
+    return KeyEventResult.handled;
+  }
+
+  // Enter selects the highlighted font. AyuGram wires the search field's submit
+  // to Content::activateBySubmit (font_selector.cpp:928 → :816): if nothing is
+  // selected it jumps to the first row, then activates it — setting the pending
+  // font (committed only on Save/OK). It does NOT close the box.
+  void _activateBySubmit() {
+    final fonts = _filteredFonts;
+    if (fonts.isEmpty) return;
+    var idx = fonts.indexOf(_selectedFont);
+    if (idx < 0) idx = 0; // jump(1): first row when the selection isn't in view
+    if (_selectedFont != fonts[idx]) {
+      setState(() {
+        _selectedFont = fonts[idx];
+        _controller.text = _selectedFont;
+      });
+    }
+    _scrollToIndex(idx);
+  }
+
+  // Minimal scroll to keep the selected row visible, mirroring AyuGram's
+  // scrollToY(ymin, ymax) which scrolls only when the row is off-screen
+  // (font_selector.cpp:986-988) rather than snapping it to the top.
+  void _scrollToIndex(int index) {
+    if (!_scrollController.hasClients) return;
+    const rowHeight = 32.0;
+    final itemTop = index * rowHeight;
+    final itemBottom = itemTop + rowHeight;
+    final pos = _scrollController.position;
+    final current = pos.pixels;
+    final viewport = pos.viewportDimension;
+    double target = current;
+    if (itemTop < current) {
+      target = itemTop;
+    } else if (itemBottom > current + viewport) {
+      target = itemBottom - viewport;
+    }
+    target = target.clamp(0.0, pos.maxScrollExtent);
+    if ((target - current).abs() > 0.5) {
       _scrollController.animateTo(
-        offset,
+        target,
         duration: const Duration(milliseconds: 100),
         curve: Curves.easeOut,
       );
     }
-    return KeyEventResult.handled;
   }
 
   Future<void> _loadSystemFonts() async {
@@ -888,7 +908,6 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
     _controller.dispose();
     _searchController.dispose();
     _scrollController.dispose();
-    _listFocusNode.dispose();
     super.dispose();
   }
 
@@ -928,7 +947,16 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
         width: 320,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-          child: Column(
+          // Global key interceptor: AyuGram's keyPressEvent is on the BOX
+          // (font_selector.cpp:967), so arrow/page navigation works even while
+          // the autofocus search field holds primary focus — the field doesn't
+          // consume arrow/page keys, so they bubble up to this non-focusable
+          // ancestor Focus. The old Focus wrapped only the ListView and never
+          // saw a key while the field was focused, so _onKeyEvent was dead.
+          child: Focus(
+            canRequestFocus: false,
+            onKeyEvent: _onKeyEvent,
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -960,6 +988,9 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
                   ),
                 ),
                 onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
+                // Enter activates the highlighted font (AyuGram MultiSelect
+                // setSubmittedCallback → activateBySubmit, font_selector.cpp:928).
+                onSubmitted: (_) => _activateBySubmit(),
               ),
               const SizedBox(height: 12),
               if (_loadingFonts)
@@ -979,10 +1010,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
                   ),
                 )
               else
-                Focus(
-                  focusNode: _listFocusNode,
-                  onKeyEvent: _onKeyEvent,
-                  child: ConstrainedBox(
+                ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 300),
                   child: ListView.builder(
                     controller: _scrollController,
@@ -1024,7 +1052,6 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
                     },
                   ),
                 ),
-                ),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -1051,6 +1078,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
                 ],
               ),
             ],
+          ),
           ),
         ),
       ),
