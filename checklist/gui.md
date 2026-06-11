@@ -367,19 +367,6 @@ AyuGram source (commit `5ed5c52d`):
   (pinned/deleted ≤ ~20-30) and there is no AyuGram C++ line to cite against
   (different threading model), so it is not reported as a both-files finding.
 
-# clipboard_image — clipboard→PNG reader for the "Photo from clipboard" avatar action (port of `userpic_button.cpp` `addFromClipboard`)
-
-The utility itself is a faithful, fully-wired implementation: it reads the OS
-clipboard via platform tools (Flutter's `Clipboard` is text-only), accepts ANY
-`image/*` type and coerces to PNG to mirror Qt's
-`qvariant_cast<QImage>(data->imageData())`, returns null for "no image", and
-throws `ClipboardToolMissingException` to distinguish "no clipboard tool" from
-"no image". No stubs, no placeholders, no mock data; the result flows through
-`my_profile_page.dart:1431-1471` into `PhotoCropEditor` → `engine.uploadProfilePhoto`.
-One behavioral deviation from AyuGram is noted below.
-
-- [ ] [MAJOR] AyuGram adds the "Photo from clipboard" menu action ONLY when the clipboard actually holds an image (`if (const auto data = ...mimeData()) { if (data->hasImage()) { _menu->addAction(...); } }`); the Dart consumer shows the "From Clipboard" item unconditionally and only discovers the clipboard is empty after the user taps it, then shows a "No image in clipboard" toast. `getClipboardImage()` is the only public entry point and exposes no cheap synchronous has-image probe (it always spawns a subprocess + decodes), so the menu cannot be gated the AyuGram way. Add a lightweight `clipboardHasImage()` (Linux: just scan `--list-types` / `TARGETS` for an `image/*` type, no byte fetch/decode) and gate the menu item on it. — `clipboard_image.dart:34` (sole entry point, no peek variant) / consumer `my_profile_page.dart:1307-1316` (unconditional `PopupMenuItem value:'clipboard'`) ← `AyuGram/Telegram/SourceFiles/ui/controls/userpic_button.cpp:382-398`
-
 # ayu_filter — regex/shadowban message-filter engine (FiltersController + FiltersCacheController + FilterUtils port)
 
 Audited `dart/lib/data/ayu_filter.dart` against AyuGram's
