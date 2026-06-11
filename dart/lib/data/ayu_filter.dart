@@ -1004,7 +1004,13 @@ class AyuFilterEngine extends ChangeNotifier {
     // (3) Direct sender neither shadow-banned nor blocked → forwarded-origin branch: an
     //     original shadow-banned sender hides unconditionally; an original *blocked*
     //     sender hides only with hideFromBlocked on. ← filters_controller.cpp:119-129
-    final fwdId = _parseForwardSenderId(msg.forwardFrom);
+    //     The origin's real peer ID lives in the numeric forwardFromId (same peerToID
+    //     format as senderId — bare user id / -chatId / -1000000000000-channelId), NOT in
+    //     forwardFrom, which carries the origin's DISPLAY NAME (GetFromName/cached name).
+    //     forwardFromId is empty only for privacy-restricted name-only forwards — exactly
+    //     the case where AyuGram's `forwarded->originalSender` is null and nothing can be
+    //     matched either, so the empty → null → skip behaviour matches AyuGram 1:1.
+    final fwdId = _parseSenderId(msg.forwardFromId);
     if (fwdId != null) {
       if (appState.isShadowBanned(fwdId)) return true;
       if (appState.hideFromBlocked && appState.isBlocked(fwdId)) return true;
@@ -1066,16 +1072,5 @@ class AyuFilterEngine extends ChangeNotifier {
   int? _parseSenderId(String senderId) {
     if (senderId.isEmpty) return null;
     return int.tryParse(senderId);
-  }
-
-  static final _forwardIdPattern = RegExp(r'(?:User|Channel|Chat) (\d+)$');
-
-  int? _parseForwardSenderId(String forwardFrom) {
-    if (forwardFrom.isEmpty) return null;
-    final id = int.tryParse(forwardFrom);
-    if (id != null) return id;
-    final match = _forwardIdPattern.firstMatch(forwardFrom);
-    if (match != null) return int.tryParse(match.group(1)!);
-    return null;
   }
 }

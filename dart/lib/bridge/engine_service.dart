@@ -7242,7 +7242,12 @@ class EngineService {
       replyToId: p.replyToId,
       replyPreview: _safeStr(p.replyPreview),
       forwardFrom: _safeStr(p.forwardFrom),
-      forwardFromId: _strFromExtra(extra, 'forward_from_id') ?? '',
+      // forward_from_id is a TOP-LEVEL key of content_raw (json.Marshal of cores.Message,
+      // base.go `json:"forward_from_id"`), NOT nested under content_raw['extra'], so it must
+      // be read from `decoded`. Reading it from `extra` always returned null, which left the
+      // numeric forward-origin ID empty and broke ayu_filter's forwarded-origin block/
+      // shadowban hiding. Matches the deleted-messages JSON path (map['forward_from_id']).
+      forwardFromId: _strFromDecoded(decoded, 'forward_from_id') ?? '',
       isPinned: p.isPinned,
       isOutgoing: p.isOutgoing,
       isService: p.isService,
@@ -7361,6 +7366,15 @@ class EngineService {
     if (v is int) return v;
     if (v is num) return v.toInt();
     return 0;
+  }
+
+  // Reads a top-level string key from the decoded content_raw map (as opposed to the
+  // nested content_raw['extra'] map that _strFromExtra reads). Used for fields the Go
+  // engine marshals at the root of cores.Message (e.g. forward_from_id).
+  static String? _strFromDecoded(Map<String, dynamic>? decoded, String key) {
+    if (decoded == null) return null;
+    final v = decoded[key];
+    return v is String ? v : v?.toString();
   }
 
   static bool _boolFromExtra(Map<String, dynamic>? extra, String key) {
