@@ -35,6 +35,11 @@ class EngineService {
   final Map<String, ({int count, DateTime fetchedAt})> _sessionsCountCache = {};
   static const _sessionsCountTtl = Duration(seconds: 60);
 
+  // Accounts created against the test datacenter (addAccount(testMode: true)).
+  // Mirrors AyuGram's `_account->mtp().isTestMode()` so app-config fallbacks
+  // (e.g. confcall size limit) can pick the test-DC default — main_app_config.cpp.
+  final Set<String> _testModeAccountIds = {};
+
   // Event streams — engine pushes events, we parse and dispatch.
   final _authStateController = StreamController<AuthStateEvent>.broadcast();
   final _connStateController = StreamController<ConnStateEvent>.broadcast();
@@ -141,6 +146,9 @@ class EngineService {
     }
     final respBytes = _callRaw('__engine', 'AddAccount', req.writeToBuffer());
     final resp = epb.EngineAddAccountResponse.fromBuffer(respBytes);
+    if (testMode) {
+      _testModeAccountIds.add(resp.accountId);
+    }
     return resp.accountId;
   }
 
@@ -2458,14 +2466,18 @@ class EngineService {
   // ── Confcall size limit ──
 
   Future<int> getConfcallSizeLimit(String accountId) async {
+    // AyuGram's fallback when `conference_call_size_limit` is absent from
+    // app-config: 5 on the test DC, 100 in production — not 200 — i.e.
+    // `_account->mtp().isTestMode() ? 5 : 100` (main_app_config.cpp:157-161).
+    final fallback = _testModeAccountIds.contains(accountId) ? 5 : 100;
     final payload = utf8.encode(json.encode({'account_id': accountId}));
     try {
       final respBytes = await _callAsync('__engine', 'GetConfcallSizeLimit', Uint8List.fromList(payload));
-      if (respBytes.isEmpty) return 200;
+      if (respBytes.isEmpty) return fallback;
       final m = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
-      return (m['limit'] as num?)?.toInt() ?? 200;
+      return (m['limit'] as num?)?.toInt() ?? fallback;
     } catch (_) {
-      return 200;
+      return fallback;
     }
   }
 
@@ -5382,12 +5394,14 @@ class EngineService {
       final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
       return (
         maxStars: (data['max_stars'] as num?)?.toInt() ?? 10000,
-        commissionPermille: (data['commission_permille'] as num?)?.toInt() ?? 150,
+        // `stars_paid_message_commission_permille` default is 850 (the
+        // commission taken, not 150 = 1000-850 kept) — main_app_config.cpp:128-130.
+        commissionPermille: (data['commission_permille'] as num?)?.toInt() ?? 850,
         withdrawRate: (data['withdraw_rate'] as num?)?.toDouble() ?? 0.013,
       );
     } catch (e) {
       Debug.error('ENGINE', 'getPaidMessagesConfig failed', e);
-      return (maxStars: 10000, commissionPermille: 150, withdrawRate: 0.013);
+      return (maxStars: 10000, commissionPermille: 850, withdrawRate: 0.013);
     }
   }
 
