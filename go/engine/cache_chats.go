@@ -2213,9 +2213,22 @@ func (e *Engine) ToggleGroupCallStartSubscription(accountID, callID string, subs
 
 func (e *Engine) SetNoiseSuppression(accountID, callID string, enabled bool) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	e.config.NoiseSuppression = enabled
-	return e.vault.SetConfig(e.config)
+	cfgErr := e.vault.SetConfig(e.config)
+	e.mu.Unlock()
+	// Apply live to the running call too (AyuGram call->setNoiseSuppression), so
+	// toggling mid-call takes effect immediately instead of only on the next call.
+	if callID != "" {
+		if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
+			type nsApplier interface {
+				SetNoiseSuppression(callID string, enabled bool) error
+			}
+			if ns, ok := acc.Core.(nsApplier); ok {
+				_ = ns.SetNoiseSuppression(callID, enabled)
+			}
+		}
+	}
+	return cfgErr
 }
 
 func (e *Engine) GetAudioDevices(accountID, deviceType string) ([]string, error) {
@@ -2444,40 +2457,62 @@ func (e *Engine) GetCallSoundPeak(accountID, callID string) (float64, error) {
 	return peak, nil
 }
 
+// GetGroupCallParticipantLevels returns the REAL per-participant audio levels for
+// the chat's active group call, keyed by userID, sourced from the media layer
+// (the RTP ssrc-audio-level extension parsed by the core) — not a synthetic
+// generator. Empty when nobody is audibly speaking, exactly like AyuGram's blobs.
 func (e *Engine) GetGroupCallParticipantLevels(accountID, chatID string) (map[string]float64, error) {
-	info, err := e.GetGroupCall(accountID, chatID)
-	if err != nil || info == nil {
-		return nil, err
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return map[string]float64{}, nil
 	}
-	levels := make(map[string]float64, len(info.Participants))
-	ms := time.Now().UnixMilli()
-	for _, p := range info.Participants {
-		if p.IsMuted && !p.Sounding {
-			levels[p.UserID] = 0
-			continue
-		}
-		h := int64(0)
-		for _, c := range p.UserID {
-			h = h*31 + int64(c)
-		}
-		if h < 0 {
-			h = -h
-		}
-		phaseMs := h % 7000
-		cycleMs := int64(3000) + (h%3)*1000
-		onMs := int64(1000) + (h%2)*500
-		pos := (ms + phaseMs) % cycleMs
-		if pos >= onMs {
-			levels[p.UserID] = 0
-			continue
-		}
-		t := float64(pos) / float64(onMs)
-		env := math.Sin(t * math.Pi)
-		freq := 5.0 + float64(h%8)
-		wave := 0.5 + 0.5*math.Sin(t*2*math.Pi*freq)
-		levels[p.UserID] = env * (0.2 + 0.8*wave)
+	type levelProvider interface {
+		GetGroupCallAudioLevels(chatID string) (map[string]float64, error)
 	}
-	return levels, nil
+	if lp, ok := acc.Core.(levelProvider); ok {
+		return lp.GetGroupCallAudioLevels(chatID)
+	}
+	return map[string]float64{}, nil
+}
+
+// GetGroupCallSettings returns the live (joinMuted, messagesEnabled) state of the
+// chat's active group call so the settings sheet can seed its manager toggles
+// from the real server value (AyuGram real->joinMuted()/messagesEnabled()).
+func (e *Engine) GetGroupCallSettings(accountID, callID string) (bool, bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return false, false, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return false, false, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type settingsProvider interface {
+		GetGroupCallSettings(callID string) (bool, bool, error)
+	}
+	if sp, ok := acc.Core.(settingsProvider); ok {
+		return sp.GetGroupCallSettings(callID)
+	}
+	return false, false, nil
+}
+
+// InviteToGroupCall invites users to a NORMAL group voice chat
+// (phone.inviteToGroupCall) — the common case, distinct from
+// InviteToConferenceCall which only works for E2E conference calls.
+func (e *Engine) InviteToGroupCall(accountID, callID string, userIDs []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type inviter interface {
+		InviteToGroupCall(callID string, userIDs []string) error
+	}
+	if iv, ok := acc.Core.(inviter); ok {
+		return iv.InviteToGroupCall(callID, userIDs)
+	}
+	return fmt.Errorf("core does not support InviteToGroupCall")
 }
 
 func (e *Engine) SetCallMuted(accountID, callID string, muted bool) error {

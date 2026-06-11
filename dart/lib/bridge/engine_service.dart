@@ -2898,6 +2898,50 @@ class EngineService {
     }
   }
 
+  /// Invites users to a NORMAL group voice chat via phone.inviteToGroupCall
+  /// (AyuGram GroupCall::inviteToGroupCall). This is the common-case path —
+  /// distinct from [inviteToConferenceCall], which only works for E2E conference
+  /// calls and errors out for ordinary group calls.
+  Future<void> inviteToGroupCall(String accountId, String callId, List<String> userIds) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'user_ids': userIds,
+    }));
+    try {
+      await _callAsync('__engine', 'InviteToGroupCall', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'inviteToGroupCall failed', e);
+      rethrow;
+    }
+  }
+
+  /// Returns the live (joinMuted, messagesEnabled) state of a group call so the
+  /// settings sheet can seed its manager toggles from the real server value
+  /// (AyuGram real->joinMuted()/messagesEnabled()).
+  Future<({bool joinMuted, bool messagesEnabled})> getGroupCallSettings(
+      String accountId, String callId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetGroupCallSettings', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return (joinMuted: false, messagesEnabled: false);
+      final result = json.decode(utf8.decode(respBytes));
+      if (result is Map<String, dynamic>) {
+        return (
+          joinMuted: result['join_muted'] as bool? ?? false,
+          messagesEnabled: result['messages_enabled'] as bool? ?? false,
+        );
+      }
+      return (joinMuted: false, messagesEnabled: false);
+    } catch (e) {
+      Debug.error('ENGINE', 'getGroupCallSettings failed', e);
+      return (joinMuted: false, messagesEnabled: false);
+    }
+  }
+
   /// Invites users to a conference call. [videoUserIds] is the subset of
   /// [userIds] that the host chose to invite with video on (AyuGram preserves
   /// the per-user flag via `ConfInviteController::requests()` →

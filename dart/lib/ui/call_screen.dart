@@ -86,6 +86,11 @@ class GroupCallPanel extends StatefulWidget {
   static const minWidth = 380.0;
   static const defaultWidthNarrow = 380.0;
   static const defaultWidthRtmp = 720.0;
+  // AyuGram groupCallWideModeSize: size(960px, 580px) — a *video* group call's
+  // wide stage (calls.style:1358). Distinct from groupCallWidthRtmp (720px),
+  // which applies only to RTMP livestreams.
+  static const defaultWidthWide = 960.0;
+  static const defaultHeightWide = 580.0;
   static const defaultHeight = 520.0;
   static const defaultHeightRtmp = 580.0;
   static const sidebarWidth = 204.0;
@@ -96,20 +101,24 @@ class GroupCallPanel extends StatefulWidget {
 
 class _GroupCallPanelState extends State<GroupCallPanel>
     with TickerProviderStateMixin {
+  // _durationTimer drives ONLY the scheduled-call countdown overlay (a personal
+  // control AyuGram keeps for scheduled calls); active group calls show no
+  // duration, so the timer is inert for them — no per-second panel rebuild.
   Timer? _durationTimer;
   Timer? _audioLevelTimer;
-  int _durationSeconds = 0;
-  late DateTime _callStartTime;
   final _validAvatarPaths = <String>{};
   final _messageController = TextEditingController();
   final _messageFocusNode = FocusNode();
   final _chatScrollController = ScrollController();
   final _panelFocusNode = FocusNode();
 
-  double _selfAudioLevel = 0.0;
   StreamSubscription<GroupCallStateEvent>? _callStateSub;
-  Map<String, double> _participantLevels = {};
-  Map<String, bool> _participantSpeaking = {};
+  // Real per-participant audio levels (0..1) from the media layer, keyed by
+  // userID. A ValueNotifier so the 100ms poll rebuilds ONLY the per-row blobs /
+  // video tiles that listen to it — not the whole panel (AyuGram scopes blob
+  // updates to each row's BlobsAnimation, not a panel-wide relayout).
+  final ValueNotifier<Map<String, double>> _levels =
+      ValueNotifier<Map<String, double>>(const <String, double>{});
   bool _isRecording = false;
   bool _isPushToTalk = false;
   Timer? _pushToTalkTimer;
@@ -137,10 +146,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   void initState() {
     super.initState();
     _isRecording = widget.isRecording;
-    _callStartTime = widget.callStartTime ?? DateTime.now();
-    _durationSeconds = DateTime.now().difference(_callStartTime).inSeconds;
-    if (_durationSeconds < 0) _durationSeconds = 0;
-    _startDurationTimer();
+    _startScheduledTimer();
     _cacheAvatarPaths();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startAudioLevelPolling();
@@ -245,6 +251,9 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     if (widget.isRecording != old.isRecording) {
       _isRecording = widget.isRecording;
     }
+    if (widget.scheduleDate != old.scheduleDate) {
+      _startScheduledTimer(); // start/stop the countdown when scheduling changes
+    }
     if (_isPushToTalk && (widget.isForceMuted || widget.isSelfMuted)) {
       _isPushToTalk = false;
       _pushToTalkTimer?.cancel();
@@ -285,6 +294,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     _audioLevelTimer?.cancel();
     _pushToTalkTimer?.cancel();
     _callStateSub?.cancel();
+    _levels.dispose();
     _messageController.dispose();
     _messageFocusNode.dispose();
     _chatScrollController.dispose();
@@ -292,16 +302,14 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     super.dispose();
   }
 
-  void _startDurationTimer() {
+  // Per-second refresh for the SCHEDULED-call countdown overlay only. AyuGram's
+  // updateDurationText early-returns for group calls — an active voice chat has
+  // no running-duration control — so we don't tick (or rebuild) for live calls.
+  void _startScheduledTimer() {
     _durationTimer?.cancel();
+    if (widget.scheduleDate == 0) return;
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() {
-          _durationSeconds =
-              DateTime.now().difference(_callStartTime).inSeconds;
-          if (_durationSeconds < 0) _durationSeconds = 0;
-        });
-      }
+      if (mounted) setState(() {});
     });
   }
 
@@ -309,41 +317,39 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     _audioLevelTimer?.cancel();
     _audioLevelTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
       if (!mounted) return;
-      final callId = widget.info.callId;
-      if (callId.isEmpty) return;
+      final chatId = widget.info.chatId;
+      if (chatId.isEmpty || widget.info.callId.isEmpty) return;
       try {
         final engine = context.read<EngineService>();
         final accountId = context.read<AppState>().activeAccountId;
-        final results = await Future.wait([
-          engine.getCallSoundPeak(accountId, callId),
-          engine.getGroupCallParticipantLevels(accountId, widget.info.chatId),
-        ]);
+        // Real per-participant levels from the media layer (RTP ssrc-audio-level).
+        final pLevels =
+            await engine.getGroupCallParticipantLevels(accountId, chatId);
         if (!mounted) return;
-        final level = results[0] as double;
-        final pLevels = results[1] as Map<String, double>;
-        bool needsRebuild = false;
-        if ((_selfAudioLevel - level).abs() > 0.01) {
-          _selfAudioLevel = level;
-          needsRebuild = true;
-        }
-        if (pLevels.isNotEmpty) {
-          for (final entry in pLevels.entries) {
-            final old = _participantLevels[entry.key] ?? 0.0;
-            if ((old - entry.value).abs() > 0.01) {
-              needsRebuild = true;
+        // Publish only on a meaningful change so an idle call doesn't churn the
+        // notifier. Updating it rebuilds ONLY the row blobs / video tiles that
+        // listen — never the whole panel subtree.
+        final old = _levels.value;
+        var changed = pLevels.length != old.length;
+        if (!changed) {
+          for (final e in pLevels.entries) {
+            if (((old[e.key] ?? 0.0) - e.value).abs() > 0.01) {
+              changed = true;
               break;
             }
           }
-          if (needsRebuild) {
-            _participantLevels = pLevels;
-            for (final entry in pLevels.entries) {
-              _participantSpeaking[entry.key] = entry.value > 0.01;
+        }
+        if (!changed) {
+          for (final k in old.keys) {
+            if (!pLevels.containsKey(k) && (old[k] ?? 0.0) > 0.01) {
+              changed = true;
+              break;
             }
           }
         }
-        if (needsRebuild) setState(() {});
+        if (changed) _levels.value = pLevels;
       } catch (e) {
-        Debug.log('call_screen', 'final engine = context.read<EngineService>(): $e');
+        Debug.log('call_screen', 'audio level poll: $e');
       }
     });
   }
@@ -354,25 +360,18 @@ class _GroupCallPanelState extends State<GroupCallPanel>
       if (!mounted) return;
       if (event.info.callId != widget.info.callId) return;
 
+      // Speaking is driven entirely by real audio levels (the media-layer poll →
+      // _levels), so we no longer fold the snapshot's isSpeaking in here — the
+      // server never populates it, and doing so would reset the real blobs.
       final newRecording = event.info.isRecording;
       if (newRecording != _isRecording) {
-        _isRecording = newRecording;
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(newRecording ? 'Recording started' : 'Recording saved'),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          for (final p in event.info.participants) {
-            _participantSpeaking[p.userId] = p.isSpeaking;
-          }
-        });
+        setState(() => _isRecording = newRecording);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(newRecording ? 'Recording started' : 'Recording saved'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     });
   }
@@ -507,8 +506,11 @@ class _GroupCallPanelState extends State<GroupCallPanel>
                   ],
                 ),
                 const SizedBox(height: 2),
+                // AyuGram group-call subtitle is the member count only — the
+                // running duration is a personal-call control (calls_group_panel
+                // updateDurationText early-returns for group calls).
                 Text(
-                  '$count participant${count == 1 ? '' : 's'} · ${_formatDuration(_durationSeconds)}',
+                  '$count participant${count == 1 ? '' : 's'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -572,9 +574,6 @@ class _GroupCallPanelState extends State<GroupCallPanel>
       );
     }
 
-    final liveLevel = _participantLevels[p.userId] ?? p.audioLevel;
-    final liveSpeaking = _participantSpeaking[p.userId] ?? p.isSpeaking;
-
     // Conference invited/calling rows (AyuGram MembersRow Row::State::Invited /
     // Calling): greyed avatar with no speaking blob, name over an "invited" /
     // "calling..." status line, no mic/video/speaking icons.
@@ -632,10 +631,19 @@ class _GroupCallPanelState extends State<GroupCallPanel>
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            _SpeakerBlobAvatar(
-              level: liveSpeaking ? (liveLevel > 0 ? liveLevel : 0.5) : 0.0,
-              isSpeaking: liveSpeaking,
-              child: avatar,
+            // Blob scoped to the level notifier — only this avatar rebuilds when
+            // the participant's real audio level ticks, not the whole panel.
+            ValueListenableBuilder<Map<String, double>>(
+              valueListenable: _levels,
+              builder: (_, levels, __) {
+                final lvl = levels[p.userId] ?? 0.0;
+                final speaking = lvl > 0.01;
+                return _SpeakerBlobAvatar(
+                  level: speaking ? (lvl > 0 ? lvl : 0.5) : 0.0,
+                  isSpeaking: speaking,
+                  child: avatar,
+                );
+              },
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -650,8 +658,13 @@ class _GroupCallPanelState extends State<GroupCallPanel>
                 ),
               ),
             ),
-            if (liveSpeaking)
-              const Icon(Icons.graphic_eq, color: Color(0xFF4DC920), size: 20),
+            ValueListenableBuilder<Map<String, double>>(
+              valueListenable: _levels,
+              builder: (_, levels, __) => (levels[p.userId] ?? 0.0) > 0.01
+                  ? const Icon(Icons.graphic_eq,
+                      color: Color(0xFF4DC920), size: 20)
+                  : const SizedBox.shrink(),
+            ),
             if (p.isMuted)
               const Icon(Icons.mic_off, color: Color(0x80FFFFFF), size: 18),
             if (p.hasVideo)
@@ -1206,17 +1219,22 @@ class _GroupCallPanelState extends State<GroupCallPanel>
             children: [
               Expanded(
                 child: widget.videoViewport ??
-                    _GroupCallViewport(
-                      callId: widget.info.callId,
-                      accountId: accountId,
-                      feeds: _videoFeeds,
-                      isRtmp: widget.isRtmp,
-                      pinnedKey: _pinnedVideoKey,
-                      participantSpeaking: _participantSpeaking,
-                      validAvatarPaths: _validAvatarPaths,
-                      onTilePinToggle: (key) => setState(() {
-                        _pinnedVideoKey = _pinnedVideoKey == key ? null : key;
-                      }),
+                    ValueListenableBuilder<Map<String, double>>(
+                      valueListenable: _levels,
+                      builder: (_, levels, __) => _GroupCallViewport(
+                        callId: widget.info.callId,
+                        accountId: accountId,
+                        feeds: _videoFeeds,
+                        isRtmp: widget.isRtmp,
+                        pinnedKey: _pinnedVideoKey,
+                        participantSpeaking: {
+                          for (final e in levels.entries) e.key: e.value > 0.01,
+                        },
+                        validAvatarPaths: _validAvatarPaths,
+                        onTilePinToggle: (key) => setState(() {
+                          _pinnedVideoKey = _pinnedVideoKey == key ? null : key;
+                        }),
+                      ),
                     ),
               ),
               _buildBottomControls(wide: true),
@@ -2628,6 +2646,10 @@ void showGroupCallPanel(
   var recording = isRecording;
   var messagesVisible = false;
   var pttActive = false;
+  // User-dragged panel size overrides (null = track the default/window size).
+  // Mirrors AyuGram's call panel being a resizable window.
+  double? resizeW;
+  double? resizeH;
   var scheduleSubscribed = info.scheduleStartSubscribed;
   // Show gray "Connecting…" until the call instance reports in, unless we're
   // already in the participant list (panel reopened on a live call) or scheduled.
@@ -2721,18 +2743,28 @@ void showGroupCallPanel(
                     cameraEnabled ||
                     screenShareEnabled ||
                     info.participants.any((p) => p.hasVideo);
-                final panelWidth = wantsWide
-                    ? GroupCallPanel.defaultWidthRtmp
-                    : GroupCallPanel.defaultWidthNarrow;
+                // AyuGram: RTMP livestreams use groupCallWidthRtmp (720); a *video*
+                // group call's wide stage uses the larger groupCallWideModeSize
+                // (960×580). Only RTMP should get the narrower 720 (calls.style:1358).
+                final panelWidth = !wantsWide
+                    ? GroupCallPanel.defaultWidthNarrow
+                    : (info.isRtmp
+                        ? GroupCallPanel.defaultWidthRtmp
+                        : GroupCallPanel.defaultWidthWide);
                 final panelHeight = wantsWide
-                    ? GroupCallPanel.defaultHeightRtmp
+                    ? GroupCallPanel.defaultHeightWide
                     : GroupCallPanel.defaultHeight;
-                final w = math.min(panelWidth, screenW - 32);
-                final h = math.min(panelHeight, screenH - 32);
+                final defW = math.min(panelWidth, screenW - 32);
+                final defH = math.min(panelHeight, screenH - 32);
+                // Resizable like AyuGram's window: the user can drag the bottom-right
+                // corner; until then the panel tracks the default/window size.
+                final w = (resizeW ?? defW).clamp(GroupCallPanel.minWidth, screenW - 32).toDouble();
+                final h = (resizeH ?? defH).clamp(360.0, screenH - 32).toDouble();
                 return SizedBox(
                   width: w,
                   height: h,
-                  child: ClipRRect(
+                  child: Stack(children: [
+                  Positioned.fill(child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: KeyboardListener(
                   focusNode: FocusNode()..requestFocus(),
@@ -2944,7 +2976,37 @@ void showGroupCallPanel(
                   callMessages: callMessages,
                 ),
                   ),
-                  ),
+                  )),
+                  // Drag-to-resize handle (bottom-right) — AyuGram's call panel is
+                  // a resizable window. Only in wide (desktop video/RTMP) mode.
+                  if (wantsWide)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.resizeDownRight,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onPanUpdate: (drag) {
+                            setSbState(() {
+                              resizeW = ((resizeW ?? defW) + drag.delta.dx)
+                                  .clamp(GroupCallPanel.minWidth, screenW - 32)
+                                  .toDouble();
+                              resizeH = ((resizeH ?? defH) + drag.delta.dy)
+                                  .clamp(360.0, screenH - 32)
+                                  .toDouble();
+                            });
+                          },
+                          child: const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: Icon(Icons.south_east,
+                                size: 12, color: Color(0x66FFFFFF)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ]),
                 );
           },
         ),
@@ -3304,7 +3366,8 @@ void _showGroupCallMenu(BuildContext context, {String callId = '', String chatId
                       style: TextStyle(color: Colors.white)),
                   onTap: () {
                     Navigator.pop(ctx2);
-                    _showInviteMembersFromMenu(context, callId: callId);
+                    _showInviteMembersFromMenu(context,
+                        callId: callId, isConference: isConference);
                   },
                 ),
                 ListTile(
@@ -3518,7 +3581,8 @@ Future<void> _showSoundDevicePicker(BuildContext context) async {
   );
 }
 
-Future<void> _showInviteMembersFromMenu(BuildContext context, {String callId = ''}) async {
+Future<void> _showInviteMembersFromMenu(BuildContext context,
+    {String callId = '', bool isConference = false}) async {
   final engine = context.read<EngineService>();
   final accountId = context.read<AppState>().activeAccountId;
 
@@ -3608,7 +3672,29 @@ Future<void> _showInviteMembersFromMenu(BuildContext context, {String callId = '
   if (selectedIds.isEmpty || !context.mounted) return;
 
   if (callId.isNotEmpty) {
-    await engine.inviteToConferenceCall(accountId, callId, selectedIds.toList());
+    // Normal group voice chats use phone.inviteToGroupCall; only E2E conference
+    // calls use the conference-invite API (which errors out for normal calls).
+    // Mirrors AyuGram GroupCall::inviteToGroupCall vs the conference branch.
+    try {
+      if (isConference) {
+        await engine.inviteToConferenceCall(accountId, callId, selectedIds.toList());
+      } else {
+        await engine.inviteToGroupCall(accountId, callId, selectedIds.toList());
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(selectedIds.length == 1
+              ? 'Invited 1 member'
+              : 'Invited ${selectedIds.length} members')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not invite members')),
+        );
+      }
+    }
   }
 }
 
@@ -3656,8 +3742,6 @@ class _CallSettingsSheet extends StatefulWidget {
 }
 
 class _CallSettingsSheetState extends State<_CallSettingsSheet> {
-  Timer? _micTimer;
-  double _micLevel = 0.0;
   bool _recordingShortcut = false;
   late bool _muteNewParticipants = widget.initialMuteNewParticipants;
   late bool _messagesEnabled = widget.initialMessagesEnabled;
@@ -3666,24 +3750,25 @@ class _CallSettingsSheetState extends State<_CallSettingsSheet> {
   @override
   void initState() {
     super.initState();
-    _micTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
-      if (!mounted) return;
-      try {
+    // Seed the manager toggles from the REAL server state — AyuGram seeds the box
+    // from real->joinMuted()/messagesEnabled(), not a hardcoded default.
+    if (widget.isCanManage && widget.callId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
         final engine = context.read<EngineService>();
         final accountId = context.read<AppState>().activeAccountId;
-        final level = await engine.getCallSoundPeak(accountId, widget.callId);
-        if (mounted && (level - _micLevel).abs() > 0.01) {
-          setState(() => _micLevel = level);
-        }
-      } catch (e) {
-        Debug.log('call_screen', 'final engine = context.read<EngineService>(): $e');
-      }
-    });
+        final s = await engine.getGroupCallSettings(accountId, widget.callId);
+        if (!mounted) return;
+        setState(() {
+          _muteNewParticipants = s.joinMuted;
+          _messagesEnabled = s.messagesEnabled;
+        });
+      });
+    }
   }
 
   @override
   void dispose() {
-    _micTimer?.cancel();
     _shortcutFocus.dispose();
     super.dispose();
   }
@@ -3809,7 +3894,9 @@ class _CallSettingsSheetState extends State<_CallSettingsSheet> {
               onChanged: (v) {
                 appState.setCallNoiseSuppression(v);
                 final engine = context.read<EngineService>();
-                engine.setNoiseSuppression(appState.activeAccountId, '', v);
+                // Real callId so it applies to the RUNNING call (AyuGram
+                // call->setNoiseSuppression), not just the persisted default.
+                engine.setNoiseSuppression(appState.activeAccountId, widget.callId, v);
               },
             ),
             ListTile(
@@ -3823,10 +3910,12 @@ class _CallSettingsSheetState extends State<_CallSettingsSheet> {
                 _showInputDevicePicker(context);
               },
             ),
-            // Live mic-test level meter (AyuGram Ui::LevelMeter).
+            // Live mic-test level meter (AyuGram Ui::LevelMeter), fed by a REAL
+            // independent capture of the selected microphone — works regardless
+            // of call/mute state, exactly like AyuGram's Webrtc::AudioInputTester.
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: _MicLevelMeter(level: _micLevel),
+              child: _MicLevelMeter(selectedDevice: appState.callInputDevice),
             ),
             ListTile(
               leading: const Icon(Icons.volume_up, color: Colors.white70),
@@ -3898,9 +3987,115 @@ class _CallSettingsSheetState extends State<_CallSettingsSheet> {
 }
 
 /// Horizontal mic-test level meter — ported from AyuGram's `Ui::LevelMeter`.
-class _MicLevelMeter extends StatelessWidget {
-  final double level;
-  const _MicLevelMeter({required this.level});
+/// Captures the SELECTED microphone directly (PulseAudio/PipeWire/SoX/FFmpeg) and
+/// shows its real peak, mirroring AyuGram's `Webrtc::AudioInputTester` which runs
+/// on the chosen capture device independently of the call (works while muted, or
+/// with no active call). Pure Flutter — no fake oscillator, no engine round-trip.
+class _MicLevelMeter extends StatefulWidget {
+  final String selectedDevice;
+  const _MicLevelMeter({this.selectedDevice = 'Default'});
+
+  @override
+  State<_MicLevelMeter> createState() => _MicLevelMeterState();
+}
+
+class _MicLevelMeterState extends State<_MicLevelMeter> {
+  Process? _captureProcess;
+  Timer? _decayTimer;
+  StreamSubscription<List<int>>? _stdoutSub;
+  double _level = 0.0;
+  bool _capturing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCapture();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MicLevelMeter old) {
+    super.didUpdateWidget(old);
+    if (old.selectedDevice != widget.selectedDevice) {
+      _stopCapture();
+      _level = 0.0;
+      _startCapture();
+    }
+  }
+
+  Future<void> _startCapture() async {
+    final dev = widget.selectedDevice;
+    final hasDevice = dev.isNotEmpty && dev != 'Default';
+    final List<List<String>> candidates;
+    if (Platform.isLinux) {
+      candidates = [
+        if (hasDevice) ...[
+          ['parec', '--raw', '--format=s16le', '--rate=16000', '--channels=1', '--device=$dev'],
+          ['pw-record', '--target', dev, '--rate', '16000', '--channels', '1', '--format', 's16', '-'],
+        ],
+        ['parec', '--raw', '--format=s16le', '--rate=16000', '--channels=1'],
+        ['pw-record', '--rate', '16000', '--channels', '1', '--format', 's16', '-'],
+      ];
+    } else if (Platform.isMacOS) {
+      candidates = [
+        ['rec', '-t', 'raw', '-b', '16', '-r', '16000', '-c', '1', '-e', 'signed-integer', '-'],
+      ];
+    } else if (Platform.isWindows) {
+      candidates = [
+        ['ffmpeg', '-f', 'dshow', '-i', 'audio=default', '-f', 's16le', '-ar', '16000', '-ac', '1', '-'],
+        ['ffmpeg', '-f', 'wasapi', '-i', 'default', '-f', 's16le', '-ar', '16000', '-ac', '1', '-'],
+      ];
+    } else {
+      return;
+    }
+    for (final candidate in candidates) {
+      try {
+        _captureProcess = await Process.start(candidate[0], candidate.sublist(1));
+        break;
+      } catch (_) {
+        continue;
+      }
+    }
+    if (_captureProcess == null || !mounted) return;
+    _capturing = true;
+    // Smooth decay so the bar eases down between speech bursts.
+    _decayTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
+      if (!mounted) return;
+      if (_level > 0.001) setState(() => _level *= 0.7);
+    });
+    _stdoutSub = _captureProcess!.stdout.listen(
+      (data) {
+        if (!mounted || data.length < 2) return;
+        double peak = 0;
+        for (int i = 0; i < data.length - 1; i += 2) {
+          int sample = data[i] | (data[i + 1] << 8);
+          if (sample >= 32768) sample -= 65536;
+          final abs = sample.abs() / 32768.0;
+          if (abs > peak) peak = abs;
+        }
+        if (peak > _level) setState(() => _level = peak.clamp(0.0, 1.0));
+      },
+      onError: (_) => _stopCapture(),
+      onDone: _stopCapture,
+      cancelOnError: true,
+    );
+    _captureProcess!.stderr.drain<void>();
+  }
+
+  void _stopCapture() {
+    _capturing = false;
+    _decayTimer?.cancel();
+    _decayTimer = null;
+    _stdoutSub?.cancel();
+    _stdoutSub = null;
+    _captureProcess?.kill();
+    _captureProcess = null;
+  }
+
+  @override
+  void dispose() {
+    _stopCapture();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3908,7 +4103,7 @@ class _MicLevelMeter extends StatelessWidget {
       height: 6,
       child: CustomPaint(
         size: const Size(double.infinity, 6),
-        painter: _MicLevelPainter(level: level.clamp(0.0, 1.0)),
+        painter: _MicLevelPainter(level: (_capturing ? _level : 0.0).clamp(0.0, 1.0)),
       ),
     );
   }

@@ -5987,6 +5987,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "InviteToGroupCall":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			CallID    string   `json:"call_id"`
+			UserIDs   []string `json:"user_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.InviteToGroupCall(params.AccountID, params.CallID, params.UserIDs); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "DeclineOutgoingConferenceInvite":
 		var params struct {
 			AccountID string `json:"account_id"`
@@ -6831,6 +6845,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return json.Marshal(levels)
+
+	case "GetGroupCallSettings":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		joinMuted, messagesEnabled, err := e.GetGroupCallSettings(params.AccountID, params.CallID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{
+			"join_muted":       joinMuted,
+			"messages_enabled": messagesEnabled,
+		})
 
 	case "UpdateDefaultNotifySettings":
 		var params struct {

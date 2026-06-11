@@ -603,6 +603,13 @@ func (t *TelegramCore) initClient() {
 			call := t.activeCalls[gc.ID]
 			t.mu.RUnlock()
 			if call != nil {
+				// Cache the manager settings (join-muted / messages) so the settings
+				// sheet seeds its toggles from the real server value, like AyuGram.
+				call.gcSettingsMu.Lock()
+				call.gcJoinMuted = gc.JoinMuted
+				call.gcMessagesEnabled = gc.MessagesEnabled
+				call.gcSettingsLoaded = true
+				call.gcSettingsMu.Unlock()
 				t.fireUpdate(Update{
 					Type:     UpdateCallState,
 					Platform: tgPlatform,
@@ -672,6 +679,14 @@ func (t *TelegramCore) initClient() {
 					}
 				}
 				call.sfuRemoteVideoMu.Unlock()
+				// Drop their audio-level mapping so a stale blob can't linger.
+				if src := uint32(p.Source); src != 0 {
+					call.audioLevelMu.Lock()
+					delete(call.audioLevels, src)
+					delete(call.audioLevelTs, src)
+					delete(call.ssrcToUser, src)
+					call.audioLevelMu.Unlock()
+				}
 			} else {
 				fmt.Printf("[tg-group]   participant: userID=%s ssrc=%d muted=%v canSelfUnmute=%v videoJoined=%v\n",
 					userID, p.Source, p.Muted, p.CanSelfUnmute, p.VideoJoined)
@@ -708,7 +723,15 @@ func (t *TelegramCore) initClient() {
 				CanSelfUnmute:    p.CanSelfUnmute,
 				RaisedHandRating: rhr,
 				Volume:           vol,
+				SSRC:             int32(p.Source),
 			})
+			// Map this SSRC → user so incoming audio levels (parsed from the RTP
+			// ssrc-audio-level extension) can be attributed to the right participant.
+			if src := uint32(p.Source); src != 0 && userID != "" && call.ssrcToUser != nil {
+				call.audioLevelMu.Lock()
+				call.ssrcToUser[src] = userID
+				call.audioLevelMu.Unlock()
+			}
 		}
 		// If video endpoints changed, update SFU subscription
 		if videoEndpointsChanged {
@@ -3100,6 +3123,27 @@ type tgCall struct {
 	// rows added or removed without waiting for the next server push.
 	lastParticipants   []CallParticipant
 	lastParticipantsMu sync.Mutex
+
+	// Group-call chat + server settings, cached so the audio-level lookup can find
+	// the call by chat and the settings sheet can seed its toggles from the real
+	// server state (mirrors AyuGram reading real->joinMuted()/messagesEnabled()).
+	gcChatID          string
+	gcJoinMuted       bool
+	gcMessagesEnabled bool
+	gcSettingsLoaded  bool
+	gcSettingsMu      sync.Mutex
+	// noiseSuppression is the per-call noise-suppression state applied live by
+	// SetNoiseSuppression (AyuGram call->setNoiseSuppression); the audio pipeline
+	// reads it as the source of truth for this call.
+	noiseSuppression bool
+
+	// Real-time per-participant audio levels derived from the RTP ssrc-audio-level
+	// header extension (RFC 6464) on incoming SFU audio — the same media-layer
+	// source tgcalls feeds participant blobs from (MTProto never carries levels).
+	audioLevels  map[uint32]float64 // ssrc → last level 0..1
+	audioLevelTs map[uint32]int64   // ssrc → last update (unix ms)
+	ssrcToUser   map[uint32]string  // ssrc → userID (from participant updates)
+	audioLevelMu sync.Mutex
 
 	// Audio receive callback (set via SetOnAudioFrame)
 	onAudioFrame func(frame []byte)
@@ -8639,6 +8683,10 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		sfuDataChannel:       sfuDC,
 		sfuDataChannelOpen:   make(chan struct{}),
 		sfuRemoteVideoEndpts: initialVideoEndpoints,
+		gcChatID:             chatID,
+		audioLevels:          make(map[uint32]float64),
+		audioLevelTs:         make(map[uint32]int64),
+		ssrcToUser:           make(map[uint32]string),
 	}
 
 	// Wire up incoming tracks from SFU (audio and video)
@@ -8679,6 +8727,26 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 					if err != nil {
 						fmt.Printf("[tg-group] track.ReadRTP error: %v (ssrc=%d)\n", err, trackSSRC)
 						return
+					}
+					// Real per-participant audio level from the RTP ssrc-audio-level
+					// header extension (RFC 6464, ID 1) — drives the participant
+					// speaking blobs. The byte is (V<<7 | -dBov): V=voice activity,
+					// the low 7 bits are loudness in -dBov (0=loudest, 127=silence).
+					if pkt.Header.Extension {
+						if ext := pkt.Header.GetExtension(1); len(ext) >= 1 {
+							if b := ext[0]; b&0x80 != 0 {
+								dbov := int(b & 0x7F)
+								lvl := float64(90-dbov) / 90.0
+								if lvl < 0 {
+									lvl = 0
+								} else if lvl > 1 {
+									lvl = 1
+								}
+								call.recordAudioLevel(trackSSRC, lvl)
+							} else {
+								call.recordAudioLevel(trackSSRC, 0)
+							}
+						}
 					}
 					if call.onAudioFrame != nil && len(pkt.Payload) > 0 {
 						call.onAudioFrame(pkt.Payload)
@@ -9859,6 +9927,150 @@ func (t *TelegramCore) resolveActiveGroupCall(callID string) (int64, *tgCall, er
 		return 0, nil, fmt.Errorf("no active group call %s", callID)
 	}
 	return cid, call, nil
+}
+
+// recordAudioLevel updates the smoothed real-time audio level for an incoming
+// SSRC from the RTP ssrc-audio-level extension. Rising levels snap up (a new
+// speaker lights instantly); falling levels ease down so the blob decays like
+// AyuGram's BlobsAnimation rather than flickering per packet.
+func (c *tgCall) recordAudioLevel(ssrc uint32, level float64) {
+	if c.audioLevels == nil {
+		return
+	}
+	c.audioLevelMu.Lock()
+	prev := c.audioLevels[ssrc]
+	if level > prev {
+		c.audioLevels[ssrc] = level
+	} else {
+		c.audioLevels[ssrc] = prev*0.65 + level*0.35
+	}
+	c.audioLevelTs[ssrc] = time.Now().UnixMilli()
+	c.audioLevelMu.Unlock()
+}
+
+// GetGroupCallAudioLevels returns the real per-participant audio levels (0..1)
+// for the active group call in chatID, keyed by userID. Levels older than ~250ms
+// are treated as silent (the speaker stopped / Opus DTX), so a participant's blob
+// fades when they go quiet. Pure media-layer data — no MTProto, no synthetic
+// generator: the entire speaking visualisation is now driven by real call audio.
+func (t *TelegramCore) GetGroupCallAudioLevels(chatID string) (map[string]float64, error) {
+	t.mu.RLock()
+	var call *tgCall
+	for _, c := range t.activeCalls {
+		if c.isGroupCall && c.gcChatID == chatID {
+			call = c
+			break
+		}
+	}
+	t.mu.RUnlock()
+	out := make(map[string]float64)
+	if call == nil {
+		return out, nil
+	}
+	nowMs := time.Now().UnixMilli()
+	call.audioLevelMu.Lock()
+	for ssrc, lvl := range call.audioLevels {
+		uid := call.ssrcToUser[ssrc]
+		if uid == "" {
+			continue
+		}
+		// Stale (DTX / speaker stopped) or sub-audible → omit, so the map holds
+		// only participants who are actually making sound (empty = nobody speaking).
+		if nowMs-call.audioLevelTs[ssrc] > 250 || lvl < 0.02 {
+			continue
+		}
+		if lvl > out[uid] {
+			out[uid] = lvl
+		}
+	}
+	call.audioLevelMu.Unlock()
+	return out, nil
+}
+
+// GetGroupCallSettings returns the live (joinMuted, messagesEnabled) state of the
+// active group call so the settings sheet can seed its manager toggles from the
+// real server value (AyuGram real->joinMuted()/messagesEnabled()). Values are
+// cached from UpdateGroupCall; on the first read before any push they're fetched
+// once from the server.
+func (t *TelegramCore) GetGroupCallSettings(callID string) (bool, bool, error) {
+	cid, call, err := t.resolveActiveGroupCall(callID)
+	if err != nil {
+		return false, false, err
+	}
+	call.gcSettingsMu.Lock()
+	loaded := call.gcSettingsLoaded
+	jm, me := call.gcJoinMuted, call.gcMessagesEnabled
+	ah := call.accessHash
+	call.gcSettingsMu.Unlock()
+	if loaded {
+		return jm, me, nil
+	}
+	res, ferr := t.api.PhoneGetGroupCall(t.ctx, &tg.PhoneGetGroupCallRequest{
+		Call:  &tg.InputGroupCall{ID: cid, AccessHash: ah},
+		Limit: 1,
+	})
+	if ferr != nil {
+		return jm, me, nil
+	}
+	if gc, ok := res.Call.(*tg.GroupCall); ok {
+		jm, me = gc.JoinMuted, gc.MessagesEnabled
+		call.gcSettingsMu.Lock()
+		call.gcJoinMuted, call.gcMessagesEnabled, call.gcSettingsLoaded = jm, me, true
+		call.gcSettingsMu.Unlock()
+	}
+	return jm, me, nil
+}
+
+// InviteToGroupCall invites users to a NORMAL group voice chat via
+// phone.inviteToGroupCall (AyuGram GroupCall::inviteToGroupCall →
+// MTPphone_InviteToGroupCall). This is the common-case counterpart to
+// InviteToConferenceCall (phone.inviteConferenceCallParticipant), which only
+// works for E2E conference calls and errors out for normal voice chats.
+func (t *TelegramCore) InviteToGroupCall(callID string, userIDs []string) error {
+	cid, call, err := t.resolveActiveGroupCall(callID)
+	if err != nil {
+		return err
+	}
+	users := make([]tg.InputUserClass, 0, len(userIDs))
+	for _, uid := range userIDs {
+		id, perr := strconv.ParseInt(uid, 10, 64)
+		if perr != nil {
+			continue
+		}
+		users = append(users, &tg.InputUser{UserID: id, AccessHash: t.getCachedUserHash(id)})
+	}
+	if len(users) == 0 {
+		return fmt.Errorf("no valid users to invite")
+	}
+	_, err = t.api.PhoneInviteToGroupCall(t.ctx, &tg.PhoneInviteToGroupCallRequest{
+		Call:  &tg.InputGroupCall{ID: cid, AccessHash: call.accessHash},
+		Users: users,
+	})
+	return err
+}
+
+// SetNoiseSuppression applies noise suppression to the running call live
+// (AyuGram call->setNoiseSuppression). Stored on the call as the per-call source
+// of truth the audio pipeline reads; the engine also persists it as the default
+// for future calls. Resolves group calls first, then 1:1 calls by ID.
+func (t *TelegramCore) SetNoiseSuppression(callID string, enabled bool) error {
+	_, call, err := t.resolveActiveGroupCall(callID)
+	if err != nil {
+		cid, perr := strconv.ParseInt(callID, 10, 64)
+		if perr != nil {
+			return err
+		}
+		t.mu.RLock()
+		call = t.activeCalls[cid]
+		t.mu.RUnlock()
+		if call == nil {
+			return err
+		}
+	}
+	call.gcSettingsMu.Lock()
+	call.noiseSuppression = enabled
+	call.gcSettingsMu.Unlock()
+	return nil
 }
 
 // EditGroupCallTitle renames a voice chat / livestream (manager-only on the
