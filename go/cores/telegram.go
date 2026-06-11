@@ -69,6 +69,9 @@ type TelegramCore struct {
 	// Used for resending OTP codes and requesting password recovery mid-auth.
 	preAuthAPI    *tg.Client
 	authPhoneHash string
+	// Serializes the on-demand pre-auth connect (ensurePreAuthAPI) so two intro
+	// langpack queries can't each spawn a duplicate client.Run goroutine.
+	preAuthConnectMu sync.Mutex
 
 	// Config
 	apiID         int
@@ -27173,22 +27176,115 @@ func (t *TelegramCore) LangpackGetLanguage(request *tg.LangpackGetLanguageReques
 	return t.api.LangpackGetLanguage(t.ctx, request)
 }
 
+// ensurePreAuthAPI returns an MTProto client + context suitable for the
+// unauthorized langpack methods (getLanguages / getStrings) that drive the intro
+// language switcher. Resolution order:
+//  1. t.api — a fully-authed connection: reuse it.
+//  2. t.preAuthAPI — an in-progress phone/QR attempt already brought up the
+//     connection: reuse it.
+//  3. neither — the user is sitting on the intro "choose method" step where no
+//     method has been picked and nothing has connected yet. Bring up a fresh
+//     *unauthorized* MTProto connection and park it on t.preAuthAPI. This mirrors
+//     AyuGram keeping an MTP instance alive from the very first intro step so the
+//     language switcher can always reach the cloud — its createLanguageLink()
+//     issues langpack.getStrings straight on the live intro _api
+//     (intro_widget.cpp:296-307). Without it, langpack.getLanguages can't reach
+//     Telegram pre-auth and the picker is stuck on its embedded fallback list.
+//
+// A connection created here is transparently torn down and replaced by the real
+// auth bootstrap: both Authenticate and StartQRAuth call teardownPriorAuthAttempt
+// first, which cancels this context, waits out the goroutine and clears
+// preAuthAPI; CancelAuth → Close() does the same on intro exit. preAuthConnectMu
+// serializes the bootstrap so two concurrent intro langpack queries can't each
+// spawn a duplicate client.Run.
+func (t *TelegramCore) ensurePreAuthAPI() (*tg.Client, context.Context, error) {
+	t.mu.RLock()
+	if t.api != nil {
+		api, ctx := t.api, t.ctx
+		t.mu.RUnlock()
+		return api, ctx, nil
+	}
+	if t.preAuthAPI != nil {
+		api, ctx := t.preAuthAPI, t.ctx
+		t.mu.RUnlock()
+		return api, ctx, nil
+	}
+	t.mu.RUnlock()
+
+	t.preAuthConnectMu.Lock()
+	defer t.preAuthConnectMu.Unlock()
+
+	// Re-check under the serializing lock: another caller may have connected, or
+	// a real auth bootstrap may have started, while we waited.
+	t.mu.RLock()
+	if t.api != nil {
+		api, ctx := t.api, t.ctx
+		t.mu.RUnlock()
+		return api, ctx, nil
+	}
+	if t.preAuthAPI != nil {
+		api, ctx := t.preAuthAPI, t.ctx
+		t.mu.RUnlock()
+		return api, ctx, nil
+	}
+	t.mu.RUnlock()
+
+	// Bring up an unauthorized connection — the same connect dance as
+	// StartQRAuth, but parked on preAuthAPI (no auth mode, no token export).
+	t.mu.Lock()
+	t.initClient()
+	t.ctx, t.cancel = context.WithCancel(context.Background())
+	ctx := t.ctx
+	t.mu.Unlock()
+
+	clientReady := make(chan struct{})
+	errCh := make(chan error, 1)
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		errCh <- t.client.Run(ctx, func(rctx context.Context) error {
+			api := tg.NewClient(t.client)
+			t.mu.Lock()
+			t.preAuthAPI = api
+			t.mu.Unlock()
+			close(clientReady)
+			// Stay connected until the context is cancelled — by Close() on intro
+			// exit, or by the real auth bootstrap's teardownPriorAuthAttempt.
+			<-rctx.Done()
+			return rctx.Err()
+		})
+	}()
+
+	select {
+	case <-clientReady:
+	case err := <-errCh:
+		return nil, nil, fmt.Errorf("pre-auth connect: %w", err)
+	case <-time.After(30 * time.Second):
+		return nil, nil, fmt.Errorf("pre-auth connect timeout")
+	}
+
+	t.mu.RLock()
+	api := t.preAuthAPI
+	t.mu.RUnlock()
+	if api == nil {
+		return nil, nil, ErrAuth
+	}
+	return api, ctx, nil
+}
+
 // LangpackGetLanguages returns available languages. langpack.getLanguages is an
-// unauthorized MTProto method, so it works DURING the login flow too: when the
-// session is not yet authed it falls back to the live preAuthAPI client (same as
-// LangpackGetStringsMap). This lets the intro language switcher list every cloud
-// language pre-auth instead of an embedded fallback, mirroring AyuGram building
-// the intro switch link from langpack.getLanguages (intro_widget.cpp:267-308).
+// unauthorized MTProto method, so it works DURING the login flow too: it reuses
+// t.api / t.preAuthAPI when connected, and otherwise (the intro "choose method"
+// step, before any login method is picked) brings up a fresh unauthorized
+// connection via ensurePreAuthAPI. This lets the intro language switcher list
+// every cloud language pre-auth instead of an embedded fallback, mirroring
+// AyuGram building the intro switch link from the cloud (intro_widget.cpp:267-308).
 func (t *TelegramCore) LangpackGetLanguages(langpack string) ([]tg.LangPackLanguage, error) {
-	t.mu.RLock(); defer t.mu.RUnlock()
-	api := t.api
-	if api == nil {
-		api = t.preAuthAPI
+	api, ctx, err := t.ensurePreAuthAPI()
+	if err != nil {
+		return nil, err
 	}
-	if api == nil {
-		return nil, ErrAuth
-	}
-	return api.LangpackGetLanguages(t.ctx, langpack)
+	return api.LangpackGetLanguages(ctx, langpack)
 }
 
 // LangpackGetStrings returns specific localization strings by key.
@@ -27209,15 +27305,11 @@ func (t *TelegramCore) LangpackGetStrings(request *tg.LangpackGetStringsRequest)
 // plural rule (lang_tag.cpp ChoosePlural*); deleted keys are omitted so callers
 // fall back to their bundled English baseline.
 func (t *TelegramCore) LangpackGetStringsMap(langCode string, keys []string) (map[string]string, error) {
-	t.mu.RLock(); defer t.mu.RUnlock()
-	api := t.api
-	if api == nil {
-		api = t.preAuthAPI
+	api, ctx, err := t.ensurePreAuthAPI()
+	if err != nil {
+		return nil, err
 	}
-	if api == nil {
-		return nil, ErrAuth
-	}
-	strs, err := api.LangpackGetStrings(t.ctx, &tg.LangpackGetStringsRequest{
+	strs, err := api.LangpackGetStrings(ctx, &tg.LangpackGetStringsRequest{
 		LangPack: "tdesktop",
 		LangCode: langCode,
 		Keys:     keys,

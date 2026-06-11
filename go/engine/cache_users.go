@@ -2429,29 +2429,45 @@ type LanguageInfo struct {
 }
 
 func (e *Engine) GetLanguages(accountID string) ([]LanguageInfo, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
+	// During the intro/login flow the account's Core is still nil — the
+	// connected, auth-in-progress core lives in the auth flow (set in
+	// StartAuth, attached to the account only by finalizeAuth once login
+	// completes). The language picker only exists on the pre-auth intro, so
+	// fall back to the in-progress flow core, exactly the way GetLangStrings,
+	// onQRTokenUpdate and finalizeAuth reach it (authFlows is package-level in
+	// auth.go). Without this, langpack.getLanguages never reaches the core
+	// pre-auth and the picker is stuck on its embedded fallback list.
+	core := e.GetAccountCore(accountID)
+	if core == nil {
+		authFlowsMu.Lock()
+		if flow, ok := authFlows[accountID]; ok {
+			core = flow.core
+		}
+		authFlowsMu.Unlock()
+	}
+	if core == nil {
 		return nil, fmt.Errorf("account not found")
 	}
-	if tc, ok := acc.Core.(*cores.TelegramCore); ok {
-		langs, err := tc.LangpackGetLanguages("tdesktop")
-		if err != nil {
-			return nil, err
-		}
-		result := make([]LanguageInfo, 0, len(langs))
-		for _, l := range langs {
-			result = append(result, LanguageInfo{
-				LangCode:   l.LangCode,
-				Name:       l.Name,
-				NativeName: l.NativeName,
-				Official:   l.Official,
-				Rtl:        l.Rtl,
-				Beta:       l.Beta,
-			})
-		}
-		return result, nil
+	tc, ok := core.(*cores.TelegramCore)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
 	}
-	return nil, fmt.Errorf("not supported")
+	langs, err := tc.LangpackGetLanguages("tdesktop")
+	if err != nil {
+		return nil, err
+	}
+	result := make([]LanguageInfo, 0, len(langs))
+	for _, l := range langs {
+		result = append(result, LanguageInfo{
+			LangCode:   l.LangCode,
+			Name:       l.Name,
+			NativeName: l.NativeName,
+			Official:   l.Official,
+			Rtl:        l.Rtl,
+			Beta:       l.Beta,
+		})
+	}
+	return result, nil
 }
 
 func (e *Engine) SetLanguage(accountID, langCode string) error {
