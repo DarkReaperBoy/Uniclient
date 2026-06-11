@@ -343,7 +343,7 @@ const List<EmojiEntry> kEmojiSuggestions = [
   EmojiEntry('🤰', ['pregnant_woman', 'expecting_woman']),
   EmojiEntry('🎐', ['wind_chime']),
   EmojiEntry('🤦', ['person_facepalming', 'face_palm', 'facepalm']),
-  EmojiEntry('🤷', ['person_shrugging', 'shrug']),
+  EmojiEntry('🤷', ['person_shrugging']),
   EmojiEntry('🎑', ['rice_scene']),
   EmojiEntry('🎒', ['school_satchel']),
   EmojiEntry('🎓', ['mortar_board']),
@@ -474,8 +474,8 @@ const List<EmojiEntry> kEmojiSuggestions = [
   EmojiEntry('👊', ['punch']),
   EmojiEntry('👋', ['wave']),
   EmojiEntry('👌', ['ok_hand']),
-  EmojiEntry('👍', ['thumbsup', '+1', 'thumbup']),
-  EmojiEntry('👎', ['thumbsdown', '-1', 'thumbdown']),
+  EmojiEntry('👍', ['thumbsup', '+1', 'thumbup', 'like']),
+  EmojiEntry('👎', ['thumbsdown', '-1', 'thumbdown', 'dislike']),
   EmojiEntry('👏', ['clap']),
   EmojiEntry('👐', ['open_hands']),
   EmojiEntry('👑', ['crown']),
@@ -1714,7 +1714,7 @@ const List<EmojiEntry> kEmojiSuggestions = [
   EmojiEntry('🤓', ['nerd', 'nerd_face']),
   EmojiEntry('🤗', ['hugging', 'hugging_face']),
   EmojiEntry('🙄', ['rolling_eyes', 'face_with_rolling_eyes']),
-  EmojiEntry('🤔', ['thinking', 'thinking_face']),
+  EmojiEntry('🤔', ['thinking', 'thinking_face', 'hmm']),
   EmojiEntry('🤐', ['zipper_mouth', 'zipper_mouth_face']),
   EmojiEntry('🤒', ['thermometer_face', 'face_with_thermometer']),
   EmojiEntry('🤕', ['head_bandage', 'face_with_head_bandage']),
@@ -2674,6 +2674,15 @@ const List<EmojiEntry> kEmojiSuggestions = [
   EmojiEntry('🧘🏿‍♀️', ['woman_in_lotus_position_tone5', 'woman_in_lotus_position_dark_skin_tone']),
   EmojiEntry('🧘🏿‍♂️', ['man_in_lotus_position_tone5', 'man_in_lotus_position_dark_skin_tone']),
 
+  // Codegen-added built-in replacements appended AFTER the JSON is parsed
+  // (replaces.cpp:281-292: `AddReplacement(result, id, ":party:", ...)`), with
+  // the colon-shortcode reduced to its single word by `ReplacementWords`. The
+  // `:like:`/`:dislike:`/`:hmm:` extras only add an alias to 👍/👎/🤔 (folded
+  // into their entries above, since the completer dedups by emoji). 🥳 (U+1F973,
+  // 0xD83E 0xDD73) is absent from emoji_autocomplete.json entirely — it exists
+  // ONLY via this `:party:` extra, so without it the built-in fallback could
+  // never suggest 🥳.
+  EmojiEntry('🥳', ['party']),
 ];
 
 class EmojiEntry {
