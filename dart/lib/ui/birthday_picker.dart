@@ -195,11 +195,18 @@ class _BirthdayDrumPickerDialogState extends State<BirthdayDrumPickerDialog> {
   @override
   Widget build(BuildContext context) {
     final lang = context.watch<LangPack>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF3390EC);
+    // All dialog chrome is theme-derived, exactly like AyuGram's box — never
+    // hardcoded hex (which would ignore the user's theme): the surface is
+    // `boxBg` (= `windowBg`, colors.palette:135), the title is `windowFg`
+    // (st::defaultFlatLabel.textFg — the same color the wheel items use), and
+    // every button is created with the box's default button style
+    // `getDelegate()->style().button` = `lightButtonFg`, with NO
+    // attention/destructive style for the reset button — so Save, Cancel and
+    // Remove are all the same blue (edit_birthday_box.cpp:200,210,214 +
+    // box_content.cpp:128-168).
+    final bgColor = context.palette.windowBg;
+    final textColor = context.palette.windowFg;
+    final buttonColor = context.palette.lightButtonFg;
     // Items use one uniform font (st::boxTextFont = 14px) and one color
     // (st::defaultFlatLabel.textFg = windowFg); the centered row is set apart
     // only by the opacity fade + vertical squish, not by size/weight/color
@@ -322,12 +329,12 @@ class _BirthdayDrumPickerDialogState extends State<BirthdayDrumPickerDialog> {
                         onPressed: () => Navigator.of(context).pop(
                           (day: 0, month: 0, year: 0),
                         ),
-                        child: Text('Remove', style: TextStyle(color: Colors.red[400])),
+                        child: Text('Remove', style: TextStyle(color: buttonColor)),
                       ),
                     const Spacer(),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                      child: Text('Cancel', style: TextStyle(color: buttonColor)),
                     ),
                     const SizedBox(width: 8),
                     TextButton(
@@ -336,7 +343,7 @@ class _BirthdayDrumPickerDialogState extends State<BirthdayDrumPickerDialog> {
                           (day: _selectedDay, month: _selectedMonth, year: _selectedYear),
                         );
                       },
-                      child: Text(widget.saveLabel, style: TextStyle(color: accentColor)),
+                      child: Text(widget.saveLabel, style: TextStyle(color: buttonColor)),
                     ),
                   ],
                 ),
