@@ -789,20 +789,41 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           ),
         ),
         const Spacer(flex: 4),
+        // AyuGram shows the pre-answer Mute + Camera toggles on the incoming
+        // screen too (mute toggled visible when !isWaitingUser, camera visible
+        // when !_startVideo even while incomingWaiting), flanking Decline +
+        // Answer in the single control row — order: Camera, Decline, Answer, Mute
+        // (calls_panel.cpp:1407,1421, geometry :1300-1313). Screencast stays
+        // hidden while incomingWaiting. The toggles let the callee pre-arm
+        // mute/camera before accepting.
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            _CallControlButton(
+              icon: _isCameraOn ? Icons.videocam : Icons.videocam_off_outlined,
+              label: _isCameraOn ? 'Stop Video' : 'Camera',
+              isActive: _isCameraOn,
+              onTap: _onCameraTap,
+            ),
+            const SizedBox(width: 28),
             _CallActionButton(
               icon: Icons.call_end,
               label: 'Decline',
               backgroundColor: const Color(0xFFE53935),
               onTap: widget.onDecline,
             ),
-            const SizedBox(width: 80),
+            const SizedBox(width: 28),
             _AnswerButton(
               soundPeak: _soundPeak,
               onTap: widget.onAccept,
               isVideo: widget.info.isVideo,
+            ),
+            const SizedBox(width: 28),
+            _CallControlButton(
+              icon: _isMuted ? Icons.mic_off : Icons.mic_outlined,
+              label: _isMuted ? 'Unmute' : 'Mute',
+              isActive: _isMuted,
+              onTap: _onMuteTap,
             ),
           ],
         ),
@@ -854,11 +875,17 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
               ),
             ],
             const Spacer(flex: 4),
-            _CallActionButton(
-              icon: Icons.call_end,
-              label: 'End Call',
-              backgroundColor: const Color(0xFFE53935),
-              onTap: widget.onHangup,
+            // AyuGram keeps the Mute + Camera + Screencast (+ Add People) controls
+            // visible throughout the outgoing setup states (connecting / ringing /
+            // exchangingKeys / waiting / requesting): toggleButton(_mute,
+            // !isWaitingUser), toggleButton(_screencast, !(isBusy||isWaitingUser||
+            // incomingWaiting)), _camera->setVisible(!_startVideo) — with the big
+            // red End Call (hangup) in the middle (calls_panel.cpp:1407-1425). This
+            // is the same control row as the active state, so the user can mute /
+            // enable camera / screencast while the call is still ringing.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: _buildControlsRow(),
             ),
             const SizedBox(height: 48),
           ],
@@ -2703,6 +2730,13 @@ void startOutgoingCall(
       signalQuality: callSignalQualityFromMeta(meta),
       callStartTime: callConnectTimeFromMeta(meta),
       isRemoteVideoActive: meta['remote_video_state'] == 'active',
+      // Local media state, sourced from the engine (AyuGram binds the mute /
+      // camera / screencast buttons to mutedValue() / isSharingCamera() /
+      // isSharingScreen()) so the screencast "Stop" state and the optimistic
+      // mute/camera toggles reflect engine truth, not client-side guesses.
+      isMuted: meta['is_muted'] == 'true',
+      isCameraOn: meta['is_camera_on'] == 'true',
+      isScreenSharing: meta['is_screen_sharing'] == 'true',
     ));
     if (newState == CallPanelState.ended ||
         newState == CallPanelState.failed ||
@@ -2791,6 +2825,10 @@ void startIncomingCall(
       signalQuality: callSignalQualityFromMeta(meta),
       callStartTime: callConnectTimeFromMeta(meta),
       isRemoteVideoActive: meta['remote_video_state'] == 'active',
+      // Local media state from the engine (see startOutgoingCall).
+      isMuted: meta['is_muted'] == 'true',
+      isCameraOn: meta['is_camera_on'] == 'true',
+      isScreenSharing: meta['is_screen_sharing'] == 'true',
     ));
     if (newState == CallPanelState.ended ||
         newState == CallPanelState.failed ||
@@ -2889,6 +2927,34 @@ class _LiveCallPanelDialogState extends State<_LiveCallPanelDialog> {
     return null;
   }
 
+  // Local self-preview, built from the LIVE call state exactly like _remoteVideo:
+  // AyuGram always creates _outgoingVideoBubble from _call->videoOutgoing() and
+  // shows it whenever the camera or screen is being captured. The engine caches
+  // the locally-sent frames (outgoing_camera / outgoing_screen endpoints), so the
+  // preview renders real frames when a capture source feeds them. An explicitly
+  // supplied widget (the flutter_interact debug command) still takes precedence.
+  Widget? get _selfVideo {
+    if (widget.selfVideoWidget != null) return widget.selfVideoWidget;
+    if (_liveCallId.isEmpty) return null;
+    // Screen share takes visual priority over the camera (AyuGram mirrors the
+    // bubble for the camera but not for a screen-share).
+    if (_currentInfo.isScreenSharing) {
+      return _CallVideoView(
+        key: ValueKey('self_screen_$_liveCallId'),
+        callId: _liveCallId,
+        kind: 'outgoing_screen',
+      );
+    }
+    if (_currentInfo.isCameraOn) {
+      return _CallVideoView(
+        key: ValueKey('self_camera_$_liveCallId'),
+        callId: _liveCallId,
+        kind: 'outgoing_camera',
+      );
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2968,12 +3034,11 @@ class _LiveCallPanelDialogState extends State<_LiveCallPanelDialog> {
               }
             },
             remoteVideoWidget: _remoteVideo,
-            // Self-view (outgoing camera / screen) is only supplied when a real
-            // capture source feeds frames to the engine. The app has no 1:1
-            // camera/screen capture pipeline yet (no frames are pushed via
-            // SendVideoFrameYUV), so wiring an always-empty self-view would be a
-            // non-functional placeholder — it stays unset until capture exists.
-            selfVideoWidget: widget.selfVideoWidget,
+            // Self-view (outgoing camera / screen) derived from the live call
+            // state, mirroring AyuGram's always-present _outgoingVideoBubble bound
+            // to _call->videoOutgoing(). It polls the engine's outgoing-frame
+            // endpoint and renders frames when a capture source feeds them.
+            selfVideoWidget: _selfVideo,
           ),
         ),
       ),

@@ -2587,6 +2587,12 @@ type GroupCallScreenSharer interface {
 	StopGroupCallScreenShare(callID string) error
 }
 
+// ScreenSharingToggler is the unified entry point: the core routes by call type
+// (1:1 vs group) internally, so a 1:1 personal call can share its screen too.
+type ScreenSharingToggler interface {
+	SetScreenSharing(callID string, enabled bool) error
+}
+
 func (e *Engine) ToggleScreenSharing(accountID, callID string, enabled bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2594,6 +2600,11 @@ func (e *Engine) ToggleScreenSharing(accountID, callID string, enabled bool) err
 	}
 	if acc.Core == nil {
 		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	// Prefer the unified router (handles both 1:1 and group calls); fall back to
+	// the group-only path for cores that predate it.
+	if st, ok := acc.Core.(ScreenSharingToggler); ok {
+		return st.SetScreenSharing(callID, enabled)
 	}
 	ss, ok := acc.Core.(GroupCallScreenSharer)
 	if !ok {

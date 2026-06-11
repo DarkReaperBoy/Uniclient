@@ -1342,6 +1342,10 @@ class _UniClientAppState extends State<UniClientApp>
                 conferenceSupported: confSupported,
                 isRemoteMuted: cmdRemoteMuted || meta['remote_muted'] == 'true',
                 isRemoteLowBattery: cmdRemoteLowBattery || meta['remote_low_battery'] == 'true',
+                // Engine-sourced local media state (mute / camera / screen-share).
+                isMuted: meta['is_muted'] == 'true',
+                isCameraOn: meta['is_camera_on'] == 'true',
+                isScreenSharing: meta['is_screen_sharing'] == 'true',
               ));
               if (newState == CallPanelState.ended ||
                   newState == CallPanelState.failed ||

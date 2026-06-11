@@ -3158,6 +3158,19 @@ type tgCall struct {
 	incomingScreenW      int
 	incomingScreenH      int
 
+	// Latest OUTGOING (locally-captured) video frame per stream kind, kept as
+	// YUV420P so the call panel can render the local self-preview the same way
+	// AyuGram binds _outgoingVideoBubble to _call->videoOutgoing(). Populated
+	// from SendVideoFrameYUV / SendScreenFrameYUV when a capture source feeds
+	// frames; empty otherwise (the panel then shows the dark no-frame surface).
+	outgoingFrameMu      sync.Mutex
+	outgoingCameraFrame  []byte
+	outgoingCameraW      int
+	outgoingCameraH      int
+	outgoingScreenFrame  []byte
+	outgoingScreenW      int
+	outgoingScreenH      int
+
 	// Signaling encryption counter (accessed atomically via tgEncryptSignaling)
 	sigCounter uint32
 
@@ -3370,7 +3383,7 @@ func (t *TelegramCore) applyRemoteMediaState(call *tgCall, ms tgMediaState) {
 func (c *tgCall) callStatusMeta() map[string]string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	m := make(map[string]string, 3)
+	m := make(map[string]string, 6)
 	if c.fpReady {
 		m["fingerprint"] = fmt.Sprintf("%d,%d,%d,%d",
 			c.fpValues[0], c.fpValues[1], c.fpValues[2], c.fpValues[3])
@@ -3381,7 +3394,61 @@ func (c *tgCall) callStatusMeta() map[string]string {
 	if c.signalBars > 0 {
 		m["signal_bars"] = strconv.Itoa(c.signalBars)
 	}
+	// Local media state — AyuGram binds the mute/camera/screencast buttons to
+	// mutedValue() / isSharingCamera() / isSharingScreen(). Always present so the
+	// panel reflects engine truth (e.g. the screencast "Stop" state) rather than
+	// client-side optimistic flags.
+	m["is_muted"] = strconv.FormatBool(c.muted)
+	m["is_camera_on"] = strconv.FormatBool(c.isVideo)
+	m["is_screen_sharing"] = strconv.FormatBool(c.screenActive)
 	return m
+}
+
+// fireCallStateUpdate emits an UpdateCallState carrying the call's COMPLETE UI
+// meta — remote media state, conference support, the live status badge
+// (fingerprint/connect/signal) and the local media state (mute/camera/screen).
+// Used after local mute/camera/screencast toggles so the panel reflects engine
+// truth immediately; the full meta (not just callStatusMeta) is rebuilt so a
+// local toggle never wipes the remote-mute/battery state the panel is showing.
+// Must NOT be called while holding call.mu.
+func (t *TelegramCore) fireCallStateUpdate(call *tgCall) {
+	if call == nil {
+		return
+	}
+	call.mu.Lock()
+	meta := map[string]string{
+		"remote_muted":            strconv.FormatBool(call.remoteMuted),
+		"remote_video_state":      call.remoteVideoState,
+		"remote_screencast_state": call.remoteScreencastState,
+		"remote_video_rotation":   strconv.Itoa(call.remoteVideoRotation),
+		"remote_low_battery":      strconv.FormatBool(call.remoteLowBattery),
+		"conference_supported":    strconv.FormatBool(call.conferenceSupported),
+		"is_muted":                strconv.FormatBool(call.muted),
+		"is_camera_on":            strconv.FormatBool(call.isVideo),
+		"is_screen_sharing":       strconv.FormatBool(call.screenActive),
+	}
+	if call.fpReady {
+		meta["fingerprint"] = fmt.Sprintf("%d,%d,%d,%d",
+			call.fpValues[0], call.fpValues[1], call.fpValues[2], call.fpValues[3])
+	}
+	if call.connectedAtMs > 0 {
+		meta["connect_time_ms"] = strconv.FormatInt(call.connectedAtMs, 10)
+	}
+	if call.signalBars > 0 {
+		meta["signal_bars"] = strconv.Itoa(call.signalBars)
+	}
+	state := call.state
+	id := call.id
+	call.mu.Unlock()
+	t.fireUpdate(Update{
+		Type:     UpdateCallState,
+		Platform: tgPlatform,
+		Call: &CallSession{
+			ID:    strconv.FormatInt(id, 10),
+			State: state,
+			Meta:  meta,
+		},
+	})
 }
 
 // markCallConnected stamps the authoritative connect time once (AyuGram sets
@@ -9199,6 +9266,7 @@ func (t *TelegramCore) SetCallVideo(callID string, enabled bool) error {
 		ms.ScreencastState = "active"
 	}
 	t.sendCallSignaling(call, ms)
+	t.fireCallStateUpdate(call)
 	fmt.Printf("[tg-call] SetCallVideo: video=%v → MediaState videoState=%s\n", enabled, videoState)
 	return nil
 }
@@ -9235,6 +9303,8 @@ func (t *TelegramCore) SetCallMuted(callID string, muted bool) error {
 		ms.ScreencastState = "active"
 	}
 	t.sendCallSignaling(call, ms)
+	// Reflect the new mute state on the local call panel (AyuGram mutedValue()).
+	t.fireCallStateUpdate(call)
 	return nil
 }
 
@@ -9269,6 +9339,8 @@ func (t *TelegramCore) ToggleCamera(callID string, enabled bool) error {
 		VideoState:      videoState,
 		ScreencastState: screencastState,
 	})
+	// Reflect the new camera state on the local panel (AyuGram isSharingCamera()).
+	t.fireCallStateUpdate(call)
 	return nil
 }
 
@@ -9641,6 +9713,7 @@ func (t *TelegramCore) StartGroupCallScreenShare(callID string) error {
 	}
 
 	fmt.Printf("[tg-group] Screen share started: ssrc=%d rtx=%d\n", screenSSRC, rtxSSRC)
+	t.fireCallStateUpdate(call)
 	return nil
 }
 
@@ -9675,6 +9748,7 @@ func (t *TelegramCore) StopGroupCallScreenShare(callID string) error {
 	}
 
 	fmt.Printf("[tg-group] Screen share stopped\n")
+	t.fireCallStateUpdate(call)
 	return nil
 }
 
@@ -9875,14 +9949,38 @@ func (t *TelegramCore) SetGroupCallMessagesEnabled(callID string, enabled bool) 
 	return nil
 }
 
-// GetGroupCallVideoFrame returns the latest decoded incoming video frame for a
-// stream kind ("camera" or "screen") as RGBA8888 bytes plus its dimensions.
-// Returns (nil, 0, 0, nil) when no frame is available yet — the UI then shows
-// the participant's avatar tile (AyuGram's no-frame / paused state).
+// storeOutgoingFrame caches a copy of the latest locally-captured YUV420P frame
+// for the given stream kind ("camera" or "screen") so the call panel can render
+// the self-preview (AyuGram _call->videoOutgoing()). The bytes are copied because
+// the caller may reuse its buffer.
+func (c *tgCall) storeOutgoingFrame(kind string, yuv420p []byte, width, height int) {
+	if len(yuv420p) == 0 || width <= 0 || height <= 0 {
+		return
+	}
+	cp := make([]byte, len(yuv420p))
+	copy(cp, yuv420p)
+	c.outgoingFrameMu.Lock()
+	if kind == "screen" {
+		c.outgoingScreenFrame, c.outgoingScreenW, c.outgoingScreenH = cp, width, height
+	} else {
+		c.outgoingCameraFrame, c.outgoingCameraW, c.outgoingCameraH = cp, width, height
+	}
+	c.outgoingFrameMu.Unlock()
+}
+
+// GetGroupCallVideoFrame returns the latest decoded video frame for a stream kind
+// as RGBA8888 bytes plus its dimensions. Returns (nil, 0, 0, nil) when no frame is
+// available yet — the UI then shows the participant's avatar tile (AyuGram's
+// no-frame / paused state).
 //
-// Resolves both group calls and 1:1 calls: a 1:1 video call caches its incoming
-// frames through the same storeIncomingFrame path, so the 1:1 call panel reuses
-// this getter for the remote-video surface (AyuGram's _call->videoIncoming()).
+// Endpoints:
+//   - "camera" / "screen" — the latest INCOMING frame (AyuGram _call->videoIncoming()).
+//   - "outgoing_camera" / "outgoing_screen" — the latest LOCALLY-CAPTURED frame
+//     (AyuGram _call->videoOutgoing()), used by the panel self-preview bubble.
+//
+// Resolves both group calls and 1:1 calls: a 1:1 video call caches its frames
+// through the same store paths, so the 1:1 call panel reuses this getter for both
+// the remote-video surface and the local self-preview.
 func (t *TelegramCore) GetGroupCallVideoFrame(callID, endpoint string) ([]byte, int, int, error) {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -9894,15 +9992,26 @@ func (t *TelegramCore) GetGroupCallVideoFrame(callID, endpoint string) ([]byte, 
 	if call == nil {
 		return nil, 0, 0, fmt.Errorf("no active call %s", callID)
 	}
-	call.incomingFrameMu.Lock()
 	var yuv []byte
 	var w, h int
-	if endpoint == "screen" {
+	switch endpoint {
+	case "outgoing_camera":
+		call.outgoingFrameMu.Lock()
+		yuv, w, h = call.outgoingCameraFrame, call.outgoingCameraW, call.outgoingCameraH
+		call.outgoingFrameMu.Unlock()
+	case "outgoing_screen":
+		call.outgoingFrameMu.Lock()
+		yuv, w, h = call.outgoingScreenFrame, call.outgoingScreenW, call.outgoingScreenH
+		call.outgoingFrameMu.Unlock()
+	case "screen":
+		call.incomingFrameMu.Lock()
 		yuv, w, h = call.incomingScreenFrame, call.incomingScreenW, call.incomingScreenH
-	} else {
+		call.incomingFrameMu.Unlock()
+	default:
+		call.incomingFrameMu.Lock()
 		yuv, w, h = call.incomingCameraFrame, call.incomingCameraW, call.incomingCameraH
+		call.incomingFrameMu.Unlock()
 	}
-	call.incomingFrameMu.Unlock()
 	if len(yuv) == 0 || w <= 0 || h <= 0 {
 		return nil, 0, 0, nil
 	}
@@ -10653,6 +10762,9 @@ func (t *TelegramCore) SendVideoFrameYUV(callID string, yuv420p []byte, width, h
 	if call == nil {
 		return fmt.Errorf("no active call %s", callID)
 	}
+	// Cache the locally-captured frame so the call panel can render the self
+	// preview (AyuGram _call->videoOutgoing()), independent of encode success.
+	call.storeOutgoingFrame("camera", yuv420p, width, height)
 	if call.videoTrack == nil {
 		return fmt.Errorf("no video track (call not started as video)")
 	}
@@ -10816,6 +10928,8 @@ func (t *TelegramCore) SendScreenFrameYUV(callID string, yuv420p []byte, width, 
 	if call == nil {
 		return fmt.Errorf("no active call %s", callID)
 	}
+	// Cache the locally-captured screen frame for the panel self-preview.
+	call.storeOutgoingFrame("screen", yuv420p, width, height)
 	if call.screenTrack == nil {
 		return fmt.Errorf("no screen track (call StartScreenShare first)")
 	}
@@ -10883,6 +10997,8 @@ func (t *TelegramCore) StartScreenShare(callID string) error {
 		VideoState:      videoState,
 		ScreencastState: "active",
 	})
+	// Reflect screen-sharing on the local panel (AyuGram isSharingScreen()).
+	t.fireCallStateUpdate(call)
 	return nil
 }
 
@@ -10917,7 +11033,39 @@ func (t *TelegramCore) StopScreenShare(callID string) error {
 		VideoState:      videoState,
 		ScreencastState: "inactive",
 	})
+	// Reflect the stop on the local panel — the self-preview is gated on the
+	// is_screen_sharing flag, so it disappears once this propagates.
+	t.fireCallStateUpdate(call)
 	return nil
+}
+
+// SetScreenSharing is the unified screen-share entry point the engine routes to.
+// It dispatches by call type so a 1:1 call uses the in-call screencast track
+// (StartScreenShare/StopScreenShare) while a group call uses the presentation API
+// (StartGroupCallScreenShare/StopGroupCallScreenShare). Previously the engine
+// always used the group path, which errors out for a 1:1 call — leaving the panel
+// unable to ever enter the screen-sharing state.
+func (t *TelegramCore) SetScreenSharing(callID string, enabled bool) error {
+	cid, err := strconv.ParseInt(callID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid call ID: %w", err)
+	}
+	t.mu.RLock()
+	call := t.activeCalls[cid]
+	t.mu.RUnlock()
+	if call == nil {
+		return fmt.Errorf("no active call %s", callID)
+	}
+	if call.isGroupCall {
+		if enabled {
+			return t.StartGroupCallScreenShare(callID)
+		}
+		return t.StopGroupCallScreenShare(callID)
+	}
+	if enabled {
+		return t.StartScreenShare(callID)
+	}
+	return t.StopScreenShare(callID)
 }
 
 // StartCallRecording begins recording incoming audio frames to a file.
