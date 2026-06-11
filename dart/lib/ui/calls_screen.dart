@@ -425,7 +425,9 @@ class _CallsBoxState extends State<_CallsBox> {
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
         child: Center(
           child: Text(
-            'Your recent calls will appear here.',
+            // AyuGram refreshAbout() → lng_call_box_about
+            // (calls_box_controller.cpp:597, lang.strings:5861)
+            "You haven't made any Telegram calls yet.",
             style: TextStyle(fontSize: 14, color: p.boxTitleAdditionalFg),
             textAlign: TextAlign.center,
           ),
@@ -486,8 +488,9 @@ class _ClearCallHistoryBoxState extends State<_ClearCallHistoryBox> {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
+    // AyuGram's ClearCallsBox sets NO box title — just the confirm label,
+    // revoke checkbox and Clear/Cancel buttons (calls_box_controller.cpp:712).
     return TelegramBox(
-      title: 'Clear Call History',
       content: Padding(
         padding: kBoxPadding,
         child: Column(
@@ -495,7 +498,8 @@ class _ClearCallHistoryBoxState extends State<_ClearCallHistoryBox> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Are you sure you want to delete all call history?',
+              // lng_call_box_clear_sure (lang.strings:5867)
+              'Are you sure you want to completely clear your calls log?',
               style: TextStyle(fontSize: 14, color: p.boxTextFg),
             ),
             const SizedBox(height: 16),
@@ -514,7 +518,8 @@ class _ClearCallHistoryBoxState extends State<_ClearCallHistoryBox> {
                   child: GestureDetector(
                     onTap: () => setState(() => _revoke = !_revoke),
                     child: Text(
-                      'Also delete for other participants',
+                      // lng_delete_for_everyone_check (lang.strings:5566)
+                      'Delete for everyone',
                       style: TextStyle(fontSize: 14, color: p.boxTextFg),
                     ),
                   ),
@@ -907,34 +912,35 @@ class _CreateCallButtonState extends State<_CreateCallButton>
                 behavior: HitTestBehavior.opaque,
                 onTap: _openCreateCallBox,
                 child: Container(
-                  height: 56,
+                  // AyuGram inviteViaLinkButton: text height 20px + padding
+                  // margins(74px,8px,8px,9px) → 37px flat row, NOT 56px
+                  // (boxes.style:856-867).
+                  height: 37,
                   color: highlightBg ?? (_hovered ? hoverBg : Colors.transparent),
                   child: Stack(
                     children: [
-                      // Floating icon: accent circle with phone+ icon
+                      // inviteViaLinkIcon: small "group_manage_links" chain-link
+                      // glyph tinted accent (lightButtonFg) at point(23px,2px),
+                      // vertically centered — NOT a filled accent circle.
+                      // (boxes.style:871-872, calls_box_controller.cpp:789-798)
                       Positioned(
-                        left: 16,
-                        top: 7,
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
+                        left: 23,
+                        top: 0,
+                        bottom: 0,
+                        child: Center(
+                          child: Icon(
+                            Icons.link,
                             color: accentColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.add_call,
-                            color: Colors.white,
-                            size: 22,
+                            size: 24,
                           ),
                         ),
                       ),
-                      // Label aligned with peer list name column
+                      // Label aligned with peer list name column (74px left pad)
                       Positioned(
                         left: 74,
                         top: 0,
                         bottom: 0,
-                        right: 16,
+                        right: 8,
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
@@ -2099,18 +2105,20 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
       context: context,
       position: position,
       items: [
+        // AyuGram rowContextMenu: lng_context_delete_selected with the
+        // NON-attention menuIconDelete (regular menuIconFg, not red).
+        // (calls_box_controller.cpp:584, lang.strings:5097)
         TelegramMenuItem(
           value: 'delete',
-          icon: Icon(Icons.delete_outline, size: 20, color: p.attentionButtonFg),
-          label: 'Delete',
-          labelColor: p.attentionButtonFg,
-          iconColor: p.attentionButtonFg,
-          isAttention: true,
+          icon: Icon(Icons.delete_outline, size: 20, color: p.menuIconFg),
+          label: 'Delete Selected',
         ),
+        // lng_context_to_msg + menuIconShowInChat.
+        // (calls_box_controller.cpp:588, lang.strings:5064)
         TelegramMenuItem(
           value: 'show_in_chat',
           icon: Icon(Icons.forum_outlined, size: 20, color: p.menuIconFg),
-          label: 'Show in Chat',
+          label: 'Go To Message',
         ),
       ],
     );
