@@ -92,13 +92,18 @@ class AyuOtherPage extends StatelessWidget {
       isDark: isDark,
       onSupportTap: () => _showDonateInfoBox(context, isDark),
     ));
-    b.addSkip();
 
     if (!const bool.fromEnvironment('TDESKTOP_DISABLE_AUTOUPDATE')) {
-      // No separate divider band here — the support description above is itself
-      // the boxDividerBg band (AddDividerText), so AyuGram flows straight from it
-      // (via the single addSkip above, == BuildCrashReporting's opening addSkip)
-      // into the "Other" subsection title (settings_other.cpp:159-182).
+      // BuildCrashReporting (settings_other.cpp:178-194): opens with a plain
+      // builder.addSkip() (:180) — this is the crash block's own leading skip,
+      // so it belongs INSIDE this branch (it vanishes with the block when
+      // autoupdate is disabled, exactly like the C++ #ifndef). Then the "Other"
+      // subsection title (:181), the crash toggle (:183), another addSkip (:191),
+      // and finally the description rendered ON a full-bleed boxDividerBg band via
+      // builder.addDividerText() (:192 -> Ui::AddDividerText/DividerLabel) — the
+      // SAME band treatment as the support description above, NOT a transparent
+      // plain-text label. No separate empty divider band exists here.
+      b.addSkip();
       b.addSectionTitle('Other');
       b.addSettingToggle(
         label: 'Crash Reporting',
@@ -107,12 +112,17 @@ class AyuOtherPage extends StatelessWidget {
         icon: Icons.bug_report_outlined,
       );
       b.addSkip();
-      b.addDescription("When this option is enabled, you'll be prompted to "
+      b.addDividerText("When this option is enabled, you'll be prompted to "
           'send a report after the app crashes. You can decide whether to '
           'send it or not.');
     }
 
-    b.addSectionDivider();
+    // BuildOtherThings opens with a plain builder.addSkip() (settings_other.cpp:199),
+    // NOT a divider band: the element immediately above (the crash divider-text
+    // band when autoupdate is enabled, otherwise the support divider-text band)
+    // already IS the boxDividerBg divider, so a second 8px band would be a
+    // duplicate AyuGram never renders.
+    b.addSkip();
 
     // --- Utility Actions (§54.15) ---
     // URL-scheme registration only applies to desktop platforms; don't offer the
