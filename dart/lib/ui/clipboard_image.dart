@@ -72,6 +72,88 @@ Future<Uint8List?> getClipboardImage() async {
   return null;
 }
 
+/// Cheap, side-effect-free probe for whether the system clipboard currently
+/// offers an image — WITHOUT fetching or decoding any pixel data. This is the
+/// gate AyuGram applies before adding the "Photo from clipboard" menu action:
+/// the item only appears when `data->hasImage()` is true
+/// (userpic_button.cpp:382-398). [getClipboardImage] is far too heavy for that
+/// role — it always spawns a fetch subprocess and re-encodes to PNG — so this
+/// companion only enumerates the offered MIME types / targets (Linux:
+/// `wl-paste --list-types` / `xclip -t TARGETS`; macOS: `clipboard info`;
+/// Windows: `Clipboard::ContainsImage()`) and reports whether any names an
+/// image, never reading the bytes.
+///
+/// Returns false (never throws) on any failure, including a missing clipboard
+/// tool: a menu item that silently doesn't appear is the correct degradation,
+/// exactly matching AyuGram simply not adding the action when `hasImage()` is
+/// false. (The heavier [getClipboardImage] still throws
+/// [ClipboardToolMissingException] so the actual paste can surface an accurate
+/// "install wl-clipboard or xclip" diagnostic.)
+Future<bool> clipboardHasImage() async {
+  try {
+    if (Platform.isLinux) {
+      return await _linuxClipboardHasImage();
+    } else if (Platform.isMacOS) {
+      return await _macClipboardHasImage();
+    } else if (Platform.isWindows) {
+      return await _windowsClipboardHasImage();
+    }
+  } catch (e) {
+    Debug.log('clipboard_image', 'clipboardHasImage probe failed: $e');
+  }
+  return false;
+}
+
+/// Linux has-image probe: list the clipboard's offered MIME types via
+/// wl-clipboard (Wayland) then xclip (X11) and report whether any is `image/*`.
+/// No byte fetch — only the cheap `--list-types` / `TARGETS` listing — and it
+/// tries the tools in the SAME order as [_getLinuxClipboardImage] so the gate
+/// and the subsequent paste agree on which selection is inspected. Short-
+/// circuits as soon as one tool reports an image, so xclip isn't spawned when
+/// wl-paste already answered.
+Future<bool> _linuxClipboardHasImage() async {
+  final wlTypes = await _runTool('wl-paste', const ['--list-types']);
+  if (wlTypes != null && _pickImageType(_linesOf(wlTypes.stdout)) != null) {
+    return true;
+  }
+  final xTargets = await _runTool(
+      'xclip', const ['-selection', 'clipboard', '-t', 'TARGETS', '-o']);
+  if (xTargets != null && _pickImageType(_linesOf(xTargets.stdout)) != null) {
+    return true;
+  }
+  return false;
+}
+
+/// macOS has-image probe via `osascript -e 'clipboard info'`, which lists the
+/// pasteboard's available type classes and their sizes WITHOUT coercing the
+/// data (unlike `the clipboard as «class PNGf»`, which [getClipboardImage]
+/// uses). Image payloads surface as e.g. «class PNGf» / TIFF picture / GIF
+/// picture / JPEG picture / «class BMP », so a substring scan for those names
+/// answers the has-image question cheaply.
+Future<bool> _macClipboardHasImage() async {
+  final result = await _runTool('osascript', const ['-e', 'clipboard info']);
+  if (result == null || result.exitCode != 0) return false;
+  final info = _textOf(result.stdout).toLowerCase();
+  return info.contains('pngf') ||
+      info.contains('tiff') ||
+      info.contains('giff') ||
+      info.contains('jpeg') ||
+      info.contains('picture') ||
+      info.contains('class bmp');
+}
+
+/// Windows has-image probe via `Clipboard::ContainsImage()`, a metadata-only
+/// check that reports whether the clipboard holds a bitmap without
+/// deserialising it (unlike `GetImage()`, which [getClipboardImage] uses).
+/// Prints `True`/`False`.
+Future<bool> _windowsClipboardHasImage() async {
+  final result = await _runTool('powershell', const ['-command',
+      'Add-Type -Assembly System.Windows.Forms; '
+      '[System.Windows.Forms.Clipboard]::ContainsImage()']);
+  if (result == null || result.exitCode != 0) return false;
+  return _textOf(result.stdout).trim().toLowerCase() == 'true';
+}
+
 /// Linux clipboard-image retrieval. Enumerates the MIME types the clipboard
 /// currently offers (via wl-clipboard on Wayland or xclip on X11), picks any
 /// `image/*` target — not just `image/png` — and coerces the bytes to PNG,
@@ -181,4 +263,12 @@ Uint8List? _bytesOf(Object? stdout) {
   if (stdout is Uint8List) return stdout;
   if (stdout is List<int>) return Uint8List.fromList(stdout);
   return null;
+}
+
+/// Decodes a tool's text stdout into a single string for substring probing
+/// (macOS `clipboard info` / Windows `ContainsImage`).
+String _textOf(Object? stdout) {
+  if (stdout is String) return stdout;
+  if (stdout is List<int>) return systemEncoding.decode(stdout);
+  return '';
 }

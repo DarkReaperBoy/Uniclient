@@ -1267,7 +1267,14 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
     );
   }
 
-  void _showAvatarMenu(BuildContext context) {
+  void _showAvatarMenu(BuildContext context) async {
+    // Probe the clipboard up front (cheap MIME-type / target listing, no pixel
+    // fetch) so the "From Clipboard" item only appears when an image is
+    // actually present — matching AyuGram, which only adds the menu action when
+    // `data->hasImage()` is true (userpic_button.cpp:382-398). Doing it before
+    // the geometry math also keeps the menu position fresh after the await.
+    final hasClipboardImage = await clipboardHasImage();
+    if (!mounted) return;
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
     final overlay =
@@ -1304,16 +1311,17 @@ class _ProfilePhotoAreaState extends State<_ProfilePhotoArea> {
             ],
           ),
         ),
-        const PopupMenuItem<String>(
-          value: 'clipboard',
-          child: Row(
-            children: [
-              Icon(Icons.content_paste, size: 20),
-              SizedBox(width: 12),
-              Text('From Clipboard'),
-            ],
+        if (hasClipboardImage)
+          const PopupMenuItem<String>(
+            value: 'clipboard',
+            child: Row(
+              children: [
+                Icon(Icons.content_paste, size: 20),
+                SizedBox(width: 12),
+                Text('From Clipboard'),
+              ],
+            ),
           ),
-        ),
         const PopupMenuItem<String>(
           value: 'emoji',
           child: Row(
