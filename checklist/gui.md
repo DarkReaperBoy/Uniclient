@@ -301,15 +301,21 @@ Pagination constants (20/100) match `kFirstPageCount`/`kPerPageCount` exactly.
 `defaultLevelMeter` (18px/3px lineWidth/5px spacing/44 lines/mediaPlayerActiveFg)
 and `createCallListItem` (52px, photo 12,6 @40px, name 63,7, status 63,26) are
 reproduced exactly. Selection toggle logic is a faithful port of
-`ConfInviteController`. Findings below are visual/text fidelity deviations only.
+`ConfInviteController`. The MAJOR findings below were visual/text fidelity deviations — all now FIXED and closed.
 
-- [ ] [MAJOR] Create-call button renders a 42px filled accent **circle** with a white `add_call` glyph; AyuGram's `AddCreateCallButton` is a flat `inviteViaLinkButton` row whose icon is the small `inviteViaLinkIcon` = `"info/edit/group_manage_links"` tinted accent (`lightButtonFg`) placed at `point(23px,2px)`, vertically centered — no filled circle, and row height is ~37px (text 20px + 8/9 padding) not 56px — `calls_screen.dart:918` ← `AyuGram/Telegram/SourceFiles/calls/calls_box_controller.cpp:789` / `AyuGram/Telegram/SourceFiles/boxes/boxes.style:871`
+Verified (ralph Stage 2): all 4 MAJOR items are now FIXED and confirmed 1:1 against the cited AyuGram
+sources, with Flutter linux debug building clean and the app launching/running with zero exceptions.
+Items 1–2 were visually confirmed in the rendered Calls box (desktop); items 3–4 are text/icon-token
+fixes with no breakpoint-conditional code, code-verified exact against AyuGram ground truth (their UI
+states require call-history data the test account lacks). Closed fixes:
 
-- [ ] [MAJOR] Empty call-history placeholder text is wrong: shows "Your recent calls will appear here." but AyuGram's `refreshAbout()` sets `lng_call_box_about` = "You haven't made any Telegram calls yet." — `calls_screen.dart:428` ← `AyuGram/Telegram/SourceFiles/calls/calls_box_controller.cpp:597` / `AyuGram/Telegram/Resources/langs/lang.strings:5861`
+- [MAJOR→FIXED] Create-call button is now a flat `inviteViaLinkButton` row (height 37px = text 20 + padding 8/9), with the small accent chain-link icon at x=23 vertically centered and the `lng_confcall_create_call` "Start New Call" label — no 42px filled accent circle / white `add_call` glyph. Visually confirmed in the rendered Calls box. ← `calls_box_controller.cpp:789` / `boxes.style:856-872`.
 
-- [ ] [MAJOR] Call-history row context-menu labels deviate from AyuGram's `rowContextMenu`: Dart uses "Delete" (attention/red-tinted) + "Show in Chat"; AyuGram uses `lng_context_delete_selected` = "Delete Selected" with the non-attention `menuIconDelete`, and `lng_context_to_msg` = "Go To Message" — `calls_screen.dart:2103` ← `AyuGram/Telegram/SourceFiles/calls/calls_box_controller.cpp:584` / `AyuGram/Telegram/Resources/langs/lang.strings:5097`
+- [MAJOR→FIXED] Empty call-history placeholder now reads `lng_call_box_about` "You haven't made any Telegram calls yet." (was "Your recent calls will appear here."). Visually confirmed in the rendered Calls box. ← `calls_box_controller.cpp:597` / `lang.strings:5861`.
 
-- [ ] [MAJOR] Clear-call-history box text deviates: confirm line is "Are you sure you want to delete all call history?" vs AyuGram `lng_call_box_clear_sure` = "Are you sure you want to completely clear your calls log?", and the revoke checkbox reads "Also delete for other participants" vs AyuGram `lng_delete_for_everyone_check` = "Delete for everyone" (AyuGram's `ClearCallsBox` also sets no box title, while Dart adds "Clear Call History") — `calls_screen.dart:498` ← `AyuGram/Telegram/SourceFiles/calls/calls_box_controller.cpp:719` / `AyuGram/Telegram/Resources/langs/lang.strings:5867`
+- [MAJOR→FIXED] Row context menu now uses `lng_context_delete_selected` "Delete Selected" with the non-attention `menuIconDelete` (regular `menuIconFg`, not red) + `lng_context_to_msg` "Go To Message" (was "Delete"/red + "Show in Chat"). Code-verified exact against `rowContextMenu`; UI state needs call-history rows the test account lacks. ← `calls_box_controller.cpp:584` / `lang.strings:5097`.
+
+- [MAJOR→FIXED] Clear-call-history box now sets no box title, the `lng_call_box_clear_sure` "Are you sure you want to completely clear your calls log?" confirm line, and the `lng_delete_for_everyone_check` "Delete for everyone" revoke checkbox (was titled "Clear Call History" with "...delete all call history?" + "Also delete for other participants"). Code-verified exact against `ClearCallsBox`; UI state gated behind call history the test account lacks. ← `calls_box_controller.cpp:712` / `lang.strings:5867`.
 
 # engine_service — Dart-side FFI bridge wrapper for the Go engine
 
