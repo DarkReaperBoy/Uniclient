@@ -366,38 +366,3 @@ AyuGram source (commit `5ed5c52d`):
   (3288) offloads to `Isolate.run`. Real inconsistency, but counts are small
   (pinned/deleted ≤ ~20-30) and there is no AyuGram C++ line to cite against
   (different threading model), so it is not reported as a both-files finding.
-
-# strings — TrStrings static lang-pack table (port of AyuGram `tr::lng_*` / `lang.strings`)
-
-`strings.dart` is the embedded English string table (`TrStrings`). It maps ~100
-Telegram/AyuGram lang-pack keys to hardcoded English. Verified ~55 keys 1:1
-against `AyuGram/Telegram/Resources/langs/lang.strings` (intro, passcode, theme,
-file-size-limit box, notification content, all 15 reaction keys, poll-vote keys,
-report-reaction, paid-post warnings, delete-chat, folder checkboxes, session
-termination, TTL-edit, and the `ayu_AyuForwardStatus*` keys) — values match.
-The findings below are the real divergences.
-
-## Localization wiring
-
-- [ ] [MAJOR] `TrStrings` returns hardcoded English literals and never consults the cloud language pack, so all 132 call sites render English regardless of the user's selected language. The repo already ships the correct overlay mechanism next door — `LangPack.tr()` resolves *server overlay → English baseline → key* and is wired to `langpack.getStrings` — but none of these ~100 keys are registered in `LangPack`, and the UI calls `TrStrings.lngXxx()` directly. In AyuGram every `tr::lng_*` resolves through `Lang::Instance::getValue` (returns the cloud-overlaid value or the embedded English default), so all of these strings localize. Result: a user who picks e.g. Spanish gets localized intro/login (via LangPack) but English notifications, passcode, sessions, auto-delete, reports, paid-post warnings and AyuForward status — a visible parity gap. (English baseline is correct, so MAJOR not CRITICAL; the header comment "Replace with server-sourced language packs when i18n is implemented" acknowledges it.) — `strings.dart:4-226` (e.g. `strings.dart:8`) ← `AyuGram/Telegram/SourceFiles/lang/lang_instance.h:90` (cf. in-repo `dart/lib/l10n/lang_pack.dart:188`)
-
-## String-value mismatches vs `lang.strings` (ground truth)
-
-- [ ] [MAJOR] `lngSigninCantEmailForgot()` reads "…restore access to **your** email…" but AyuGram's value is "…restore access to **the** email…" — wrong word in account-recovery copy. — `strings.dart:11-13` ← `AyuGram/Telegram/Resources/langs/lang.strings:440`
-- [ ] [MAJOR] `lngThemeKeepChanges()` returns `'Keep Changes'` but `lng_theme_keep_changes` = "Keep changes" (lowercase "changes"). Casing divergence from ground truth. — `strings.dart:19` ← `AyuGram/Telegram/Resources/langs/lang.strings:1088`
-- [ ] [MAJOR] `lngNotifLiveLocation()` returns `'Live location'` but `lng_live_location` = "Live Location" (capital "Location"). — `strings.dart:93` ← `AyuGram/Telegram/Resources/langs/lang.strings:4967`
-- [ ] [MAJOR] `lngEnableAutoDelete()` returns `'Enable auto-delete'` but `lng_enable_auto_delete` = "Enable Auto-Delete" (title case). — `strings.dart:149` ← `AyuGram/Telegram/Resources/langs/lang.strings:5559`
-- [ ] [MAJOR] `lngEditAutoDeleteSettings()` returns `'Edit auto-delete settings'` but `lng_edit_auto_delete_settings` = "Edit Auto-Delete Settings" (title case). — `strings.dart:150` ← `AyuGram/Telegram/Resources/langs/lang.strings:5558`
-
-## Verified correct (no action)
-
-- Intro (`lng_intro_finish/next/submit`), passcode block (`lng_passcode_*` incl. winhello/touchid/applewatch/systempwd), theme (`lng_theme_sure_keep/reverting/revert`), `lng_box_ok/done`, `lng_cancel`, `lng_limits_increase`, `lng_flood_error` — exact.
-- File-size box: `lng_file_size_limit_title/1/2` and `#one/#other` "{count} GB" — exact.
-- Notification content: `lng_notification_preview/reminder`, `lng_from_you`, `lng_in_dlg_*` (photo/video/audio_file/audio/video_message/sticker/file/poll/contact), `lng_in_dlg_voice_message_ttl`/`_video_message_ttl`, `lng_maps_point`, GIF (hardcoded `u"GIF"_q` in `data_media_types.cpp:1229`) — match.
-- All 15 reaction keys (`lng_reaction_*`) and poll-vote keys (`lng_poll_vote`/`_notext`/`_option`) — exact, including placeholder order.
-- Report (`lng_report_reaction_*`, `lng_report_and_ban_button`, `lng_report_select_messages`, `lng_report_please_select_messages`), paid-post warnings (`lng_suggest_warn_*`), delete-chat (`lng_profile_delete_conversation`, `lng_profile_block_bot`), folder checkboxes (`lng_filters_checkbox_remove_*`), `lng_settings_save`, `ayu_BoxActionReset`, `lng_settings_theme_accent_title` — exact.
-- Sessions (`lng_settings_reset_button/_one_sure/_sure`, `lng_self_destruct_sessions_title/_description`), TTL timer + about (`lng_manage_messages_ttl_*`, `lng_ttl_edit_about*`), `lng_edited` — exact.
-- `ayu_AyuForwardStatus*` (Preparing/LoadingMedia/Forwarding/Finished/SentCount/ChunkCount) verified against both `lang.strings:8323-8328` and usage in `ayu_forward.cpp:64-92` — exact, placeholders `{count1}/{count2}` correctly mapped.
-- English pluralization (`count == 1 ? '' : 's'`) for `lngThemeReverting`/`lngForwardMessages` matches the `#one`/`#other` CLDR English forms.
-- No empty callbacks, TODO/FIXME, mock data, or "coming soon" stubs in the file.
-
