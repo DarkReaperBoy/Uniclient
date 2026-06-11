@@ -338,11 +338,15 @@ The only concrete deviations from the AyuGram authority are wrong hardcoded
 fallback defaults — values used when the engine returns empty / errors, which is
 also exactly when AyuGram falls back to its own `appConfig().get<T>(key,
 DEFAULT)` default. AyuGram's DEFAULT is the contract these fallbacks are meant to
-mirror, and two of them don't.
+mirror. Two of them initially didn't; both are now fixed and verified against the
+AyuGram source (commit `5ed5c52d`):
 
-- [ ] [MAJOR] `getConfcallSizeLimit` falls back to `200`, but AyuGram's conference-call participant cap default is `100` (and `5` in test mode) — the fallback is ~2× too high and drops the test-mode branch entirely, so the conference-invite picker would cap at the wrong size whenever `conference_call_size_limit` is absent from app-config — `engine_service.dart:2425` (also 2427, 2429) ← `AyuGram/SourceFiles/main/main_app_config.cpp:161`
-
-- [ ] [MAJOR] `getPaidMessagesConfig` falls back to `commissionPermille: 150`, but AyuGram's `stars_paid_message_commission_permille` default is `850` — note `150 == 1000 - 850`, i.e. the complement, so this looks like the "amount kept" was used where the "commission taken" is expected; on the fallback path the paid-messages UI would show a ~15% commission instead of the correct 85% — `engine_service.dart:5302` (also 5307) ← `AyuGram/SourceFiles/main/main_app_config.cpp:129`
+- `getConfcallSizeLimit` fell back to a flat `200`; now `isTestMode() ? 5 : 100`
+  (test-DC accounts tracked in `_testModeAccountIds`, set from
+  `addAccount(testMode: true)`) per `main_app_config.cpp:157-161`. ✓
+- `getPaidMessagesConfig` `commissionPermille` fell back to `150` (the complement
+  `1000 - 850`, i.e. the amount kept); now `850`, the commission taken, in both the
+  success and catch paths per `main_app_config.cpp:129`. ✓
 
 ## Checked and NOT flagged (to avoid false positives)
 
