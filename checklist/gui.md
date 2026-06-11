@@ -249,22 +249,6 @@ These components were diffed against their AyuGram sources end-to-end (UI → en
 - **Statistics screen** (overview + charts + recent posts) — real MTProto data (no fakes), all 12 channel / 8 group charts, series toggle, crosshair tooltip, draggable range-footer, server zoom, growth-badge formula, `ListView.builder` + `RepaintBoundary` (`info_statistics_inner_widget.cpp`, `chart_widget.cpp`, `api_statistics.cpp`).
 - **StarRefJoin screen** (join other bots' programs) — connected + suggested lists fetched & paginated, 3 sort orders, join-confirmation box before connect, revoke/leave, copy/share, commission/duration from data, `ListView.builder` (`info_bot_starref_join_widget.cpp`, `info_bot_starref_common.cpp`).
 
-# auth_screen — Telegram intro flow (choose / qr / phone / email / code / 2FA / signup)
-
-Audited `dart/lib/ui/auth_screen.dart` against AyuGram `intro/` (intro_widget,
-intro_step, intro_phone, intro_code, intro_code_input, intro_password_check,
-intro_signup, intro_qr, intro_email + intro.style).
-
-The port is dimensionally faithful — cover height 208, OTP cells 40×50 / 4px
-border / 10px gap / 20px font / 6px(boxRadius) radius, shake constants
-(shift 4 / dur 300 / 6-segment pattern), 2FA field offsets 74/96/151/220, next
-button 300×42 r6, QR token payload `tg://login?token=<base64url>`, hasBack per
-step, and the call-status / login-code / no-telegram-code flows all match. The
-issues below are a soft-keyboard wiring bug and a cluster of strings that bypass
-the cloud lang pack the rest of the screen uses.
-
-- [ ] [MAJOR] The intro language switcher uses a hardcoded 19-entry list and a hardcoded English "Change Language" label, instead of cloud-sourced language data. `_LanguagePickerDialog._languages` is a static 19-language tuple list (Telegram serves ~60+ via `langpack.getLanguages`), and the bottom-bar trigger text is the literal `'Change Language'`. AyuGram's intro switch link is built from the cloud (`Lang::GetOriginalValue(tr::lng_switch_to_this…)`, fetched via `MTPlangpack_GetStrings`) and is shown conditionally on a suggested/non-default language. — `auth_screen.dart:2619-2639,2581` ← `intro/intro_widget.cpp:267-308`
-
 # ayu_appearance_page — AyuGram Appearance settings (icon picker, avatar corners, mono font, tray/drawer elements)
 
 Overall this is a faithful, fully-wired port of `settings_appearance.cpp`. Verified correct:
