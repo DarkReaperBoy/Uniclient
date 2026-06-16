@@ -119,18 +119,18 @@ func (e *Engine) DownloadSingleAvatar(accountID, chatID string) (string, error) 
 // GetUserAvatarThumb returns a single user's small base64 avatar thumbnail, used
 // for lazy per-sender avatar loading in group/channel message lists (replaces the
 // bulk member-avatar fetch). Empty string when the user has no photo.
-func (e *Engine) GetUserAvatarThumb(accountID, userID string) (string, error) {
+func (e *Engine) GetUserAvatarThumb(accountID, userID, chatID, msgID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return "", fmt.Errorf("account not found or not connected: %s", accountID)
 	}
 	thumber, ok := acc.Core.(interface {
-		GetUserAvatarThumb(userID string) (string, error)
+		GetUserAvatarThumb(userID, chatID, msgID string) (string, error)
 	})
 	if !ok {
 		return "", fmt.Errorf("platform does not support avatar thumbnails")
 	}
-	return thumber.GetUserAvatarThumb(userID)
+	return thumber.GetUserAvatarThumb(userID, chatID, msgID)
 }
 
 // updateAvatarPath sets the avatar_path for a chat and emits an update event.

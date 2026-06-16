@@ -1319,11 +1319,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		var req struct {
 			AccountID string `json:"account_id"`
 			UserID    string `json:"user_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     string `json:"msg_id"`
 		}
 		if err := json.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		b64, err := e.GetUserAvatarThumb(req.AccountID, req.UserID)
+		b64, err := e.GetUserAvatarThumb(req.AccountID, req.UserID, req.ChatID, req.MsgID)
 		if err != nil {
 			return nil, err
 		}

@@ -2727,18 +2727,21 @@ class ChatState extends ChangeNotifier {
     }
     final accountId = chat.accountId;
     final cacheKey = '$accountId:${chat.chatId}';
-    final toFetch = <String>{};
+    // senderId → one of that sender's message ids. The msgId lets the core
+    // resolve members whose access hash isn't cached, via inputUserFromMessage
+    // (cached-history senders otherwise come back with no avatar).
+    final toFetch = <String, String>{};
     for (final m in msgs) {
       final sid = m.senderId;
       if (sid.isEmpty || m.isOutgoing || m.isService) continue;
       if (_senderAvatars.containsKey(sid)) continue;
       if (_senderAvatarsFetching.contains(sid)) continue;
-      toFetch.add(sid);
+      toFetch.putIfAbsent(sid, () => m.msgId);
     }
     if (toFetch.isEmpty) return;
-    for (final sid in toFetch) {
+    toFetch.forEach((sid, msgId) {
       _senderAvatarsFetching.add(sid);
-      _engine.getUserAvatarThumb(accountId, sid).then((b64) {
+      _engine.getUserAvatarThumb(accountId, sid, chatId: chat.chatId, msgId: msgId).then((b64) {
         if (_disposed) return;
         _senderAvatarsFetching.remove(sid);
         if (b64 == null || b64.isEmpty) return;
@@ -2752,7 +2755,7 @@ class ChatState extends ChangeNotifier {
       }).catchError((_) {
         _senderAvatarsFetching.remove(sid);
       });
-    }
+    });
   }
 
   /// Fetch the online member count for a group/channel via the platform API.

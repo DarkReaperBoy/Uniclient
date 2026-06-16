@@ -4929,10 +4929,14 @@ class EngineService {
   /// photo download). Used for lazy per-sender avatar loading in group/channel
   /// message lists — replaces bulk member-avatar fetching. Returns null when the
   /// user has no photo or the fetch fails.
-  Future<String?> getUserAvatarThumb(String accountId, String userId) async {
+  Future<String?> getUserAvatarThumb(String accountId, String userId, {String chatId = '', String msgId = ''}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'user_id': userId,
+      // chat_id + msg_id let the core resolve group/supergroup members whose
+      // access hash isn't cached, via inputUserFromMessage (see telegram.go).
+      'chat_id': chatId,
+      'msg_id': msgId,
     }));
     try {
       final respBytes = await _callAsync('__engine', 'GetUserAvatarThumb', Uint8List.fromList(payload));

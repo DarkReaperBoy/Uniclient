@@ -345,6 +345,7 @@ func (t *TelegramCore) initClient() {
 
 	// Register update dispatcher for new messages
 	dispatcher.OnNewMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewMessage) error {
+		t.cacheUpdateEntities(e)
 		var converted *Message
 		switch msg := u.Message.(type) {
 		case *tg.Message:
@@ -381,6 +382,7 @@ func (t *TelegramCore) initClient() {
 	})
 
 	dispatcher.OnEditMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateEditMessage) error {
+		t.cacheUpdateEntities(e)
 		msg, ok := u.Message.(*tg.Message)
 		if !ok {
 			return nil
@@ -422,6 +424,7 @@ func (t *TelegramCore) initClient() {
 
 	// Channel/supergroup message handlers (supergroups use different update types)
 	dispatcher.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewChannelMessage) error {
+		t.cacheUpdateEntities(e)
 		var converted *Message
 		switch msg := u.Message.(type) {
 		case *tg.Message:
@@ -448,6 +451,7 @@ func (t *TelegramCore) initClient() {
 	})
 
 	dispatcher.OnEditChannelMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateEditChannelMessage) error {
+		t.cacheUpdateEntities(e)
 		msg, ok := u.Message.(*tg.Message)
 		if !ok {
 			return nil
@@ -2982,7 +2986,7 @@ func (t *TelegramCore) getUserAvatarB64(userID int64) string {
 // instead of bulk-fetching every participant. Cheap: users.getUsers returns the
 // inline stripped thumb, no profile-photo download. Empty string if the user has
 // no photo. Falls back to a full-photo download only when no thumb is inline.
-func (t *TelegramCore) GetUserAvatarThumb(userID string) (string, error) {
+func (t *TelegramCore) GetUserAvatarThumb(userID, chatID, msgID string) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -2992,11 +2996,36 @@ func (t *TelegramCore) GetUserAvatarThumb(userID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	inputUser := &tg.InputUser{UserID: id, AccessHash: t.getCachedUserHash(id)}
+
+	// Build the user reference. Group/supergroup members whose access hash we
+	// never cached (e.g. senders whose messages were served from the local
+	// cache, not a live network fetch) resolve to hash 0 — a plain InputUser
+	// then fails and the avatar comes back empty. inputUserFromMessage resolves
+	// such a user via a message they sent in the chat, no access hash required;
+	// this is how AyuGram loads channel-member userpics (data_user.cpp).
+	var inputUser tg.InputUserClass
+	hash := t.getCachedUserHash(id)
+	if hash == 0 && chatID != "" && msgID != "" {
+		if mid, errc := strconv.Atoi(msgID); errc == nil {
+			if peer, errp := t.resolvePeer(chatID); errp == nil {
+				if inputPeer, erri := t.toInputPeer(peer); erri == nil {
+					inputUser = &tg.InputUserFromMessage{Peer: inputPeer, MsgID: mid, UserID: id}
+				}
+			}
+		}
+	}
+	if inputUser == nil {
+		inputUser = &tg.InputUser{UserID: id, AccessHash: hash}
+	}
+
 	users, err := t.api.UsersGetUsers(t.ctx, []tg.InputUserClass{inputUser})
 	if err != nil {
 		return "", err
 	}
+	// Cache the resolved user's access hash + photo ID so subsequent avatar
+	// lookups (and the getUserAvatarB64 download fallback) succeed without
+	// re-resolving through a message.
+	t.cacheEntities(users, nil)
 	for _, u := range users {
 		if user, ok := u.(*tg.User); ok && user.ID == id {
 			cu := t.convertUser(user)
@@ -12503,6 +12532,31 @@ func (t *TelegramCore) cacheEntities(users []tg.UserClass, chats []tg.ChatClass)
 		}
 	}
 	t.peerMu.Unlock()
+}
+
+// cacheUpdateEntities caches names/hashes/colors from a live update's inline
+// entities (the tg.Entities maps gotd parses from the *Updates container).
+// Live messages — especially in groups/supergroups — carry their sender in the
+// update's Users map; without caching it here, convertMessage's getCachedUserName
+// lookup returns "" for any sender not previously seen, so the colored author
+// name above a group message (and service-message actor names) renders blank.
+// Mirrors the cacheEntities call the bulk message-fetch path already performs.
+func (t *TelegramCore) cacheUpdateEntities(e tg.Entities) {
+	if len(e.Users) == 0 && len(e.Chats) == 0 && len(e.Channels) == 0 {
+		return
+	}
+	users := make([]tg.UserClass, 0, len(e.Users))
+	for _, u := range e.Users {
+		users = append(users, u)
+	}
+	chats := make([]tg.ChatClass, 0, len(e.Chats)+len(e.Channels))
+	for _, c := range e.Chats {
+		chats = append(chats, c)
+	}
+	for _, c := range e.Channels {
+		chats = append(chats, c)
+	}
+	t.cacheEntities(users, chats)
 }
 
 // resolveChannelAccessHash fetches the access hash for a channel/supergroup.

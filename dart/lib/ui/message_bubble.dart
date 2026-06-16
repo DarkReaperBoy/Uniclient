@@ -285,6 +285,7 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   void _onReactionTap(String emoji) {
+    if (!mounted) return;
     setState(() => _hovered = false);
     final appState = context.read<AppState>();
     final chatState = context.read<ChatState>();
@@ -359,6 +360,14 @@ class _MessageBubbleState extends State<MessageBubble> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final accountId = context.read<AppState>().activeAccountId;
+    // Capture the engine + target ids now, while this bubble is mounted: the
+    // overlay outlives the bubble (the reversed ListView can recycle/dispose it
+    // before the user picks an emoji), so routing the pick back through the
+    // disposed bubble's context/setState throws ("setState after dispose") and
+    // the reaction is silently dropped.
+    final engine = context.read<EngineService>();
+    final chatId = context.read<ChatState>().activeChat?.chatId ?? '';
+    final msgId = widget.message.msgId;
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
     entry = OverlayEntry(builder: (ctx) {
@@ -370,7 +379,11 @@ class _MessageBubbleState extends State<MessageBubble> {
         accountId: accountId,
         onPick: (emoji) {
           entry.remove();
-          _onReactionTap(emoji);
+          if (accountId.isNotEmpty && chatId.isNotEmpty && emoji.isNotEmpty) {
+            engine.reactToMessage(accountId, chatId, msgId, emoji);
+            EmojiKeywords.instance.recordRecent(emoji);
+          }
+          if (mounted) setState(() => _hovered = false);
         },
         onDismiss: () => entry.remove(),
       );
@@ -7031,9 +7044,13 @@ class _SvgPathPreviewPainter extends CustomPainter {
     double next() => i < tokens.length ? tokens[i++] : 0.0;
 
     while (i < tokens.length || cmd.isNotEmpty) {
-      if (i < tokens.length && tokens[i].isNaN) {
-        cmd = String.fromCharCode(tokens[i].toInt().abs());
-        i++;
+      if (i + 1 < tokens.length && tokens[i].isNaN) {
+        // _tokenize emits a command as a pair: a NaN sentinel followed by the
+        // negated char code. Read the code from the NEXT token — calling
+        // toInt() on the NaN sentinel itself throws "Infinity or NaN toInt"
+        // on every paint.
+        cmd = String.fromCharCode(tokens[i + 1].toInt().abs());
+        i += 2;
       } else if (cmd.isEmpty) {
         break;
       }
