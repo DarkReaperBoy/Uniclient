@@ -218,6 +218,7 @@ class ChatState extends ChangeNotifier {
   Timer? _loadChatsDebounce;
   Timer? _forumTopicDebounce;
   Timer? _savedSublistDebounce;
+  Timer? _avatarNotifyDebounce; // coalesces per-sender avatar repaints into one
   bool _disposed = false;
 
   ChatState(this._engine, this._appState) {
@@ -2750,11 +2751,24 @@ class ChatState extends ChangeNotifier {
         (_avatarCache[cacheKey] ??= {})[sid] = b64;
         if (_activeChat?.accountId == accountId && _activeChat?.chatId == chat.chatId) {
           _senderAvatars[sid] = b64;
-          notifyListeners();
+          // Coalesce repaints: a group page can resolve 10-20 sender avatars in
+          // a burst, and one notifyListeners() per avatar rebuilds the whole
+          // message list each time — the flicker + jank on chat open. Debounce
+          // so a burst collapses into a single rebuild.
+          _scheduleAvatarNotify();
         }
       }).catchError((_) {
         _senderAvatarsFetching.remove(sid);
       });
+    });
+  }
+
+  /// Debounced repaint for streamed-in sender avatars (see _ensureSenderAvatars).
+  void _scheduleAvatarNotify() {
+    if (_disposed) return;
+    _avatarNotifyDebounce?.cancel();
+    _avatarNotifyDebounce = Timer(const Duration(milliseconds: 80), () {
+      if (!_disposed) notifyListeners();
     });
   }
 
@@ -3708,6 +3722,7 @@ class ChatState extends ChangeNotifier {
     _loadChatsDebounce?.cancel();
     _forumTopicDebounce?.cancel();
     _savedSublistDebounce?.cancel();
+    _avatarNotifyDebounce?.cancel();
     for (final sub in _subs) {
       sub.cancel();
     }
