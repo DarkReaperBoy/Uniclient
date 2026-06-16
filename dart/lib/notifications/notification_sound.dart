@@ -26,6 +26,9 @@ class NotificationSoundPlayer {
 
   void init() {
     _player = Player();
+    // Notification sounds are audio-only; assert no video track so libmpv never
+    // opens its own output window for a sound file that happens to carry cover art.
+    _player!.setVideoTrack(VideoTrack.no());
     // Extraction is async on the very first launch (the temp file isn't written
     // yet), so re-sync consumers once it lands — otherwise the native OS sound
     // hint stays empty for the whole session and the system default beep plays.

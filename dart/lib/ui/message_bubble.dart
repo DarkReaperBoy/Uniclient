@@ -46,6 +46,7 @@ import 'sticker_pack_viewer.dart';
 import 'payment_panel.dart';
 import 'web_app_panel.dart';
 import 'package:uniclient/utils/debug.dart';
+import 'package:uniclient/utils/native_location.dart';
 
 Uint8List _gzipDecode(Uint8List data) => Uint8List.fromList(gzip.decode(data));
 
@@ -11046,23 +11047,10 @@ class _InlineButtonState extends State<_InlineButton>
       ),
     ).then((confirmed) async {
       if (confirmed != true || !context.mounted) return;
-      try {
-        final result = await Process.run('geoclue-where-am-i', ['-t', '10']);
-        if (result.exitCode == 0) {
-          final output = result.stdout as String;
-          final latMatch = RegExp(r'Latitude:\s*([\d.-]+)').firstMatch(output);
-          final lonMatch = RegExp(r'Longitude:\s*([\d.-]+)').firstMatch(output);
-          if (latMatch != null && lonMatch != null) {
-            final lat = double.tryParse(latMatch.group(1)!);
-            final lon = double.tryParse(lonMatch.group(1)!);
-            if (lat != null && lon != null) {
-              sendLocation(lat, lon);
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        Debug.log('message_bubble', 'final result = await Process.run(\'geoclue-where-am-i\', [\'...: $e');
+      final loc = await NativeLocation.current();
+      if (loc != null) {
+        sendLocation(loc.lat, loc.lon);
+        return;
       }
       if (context.mounted) showManualFallback();
     });

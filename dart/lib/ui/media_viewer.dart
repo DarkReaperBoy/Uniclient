@@ -21,6 +21,8 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import '../utils/native_files.dart';
+import '../utils/native_clipboard.dart';
 import 'custom_emoji_cache.dart';
 import 'emoji_panel.dart';
 import 'info_panel.dart';
@@ -490,13 +492,7 @@ class _MediaViewerState extends State<MediaViewer>
     );
     _downloadsLinkRecognizer = TapGestureRecognizer()
       ..onTap = () {
-        if (Platform.isMacOS) {
-          Process.run('open', [_saveToastPath]);
-        } else if (Platform.isWindows) {
-          Process.run('explorer', [_saveToastPath]);
-        } else {
-          Process.run('xdg-open', [_saveToastPath]);
-        }
+        revealInFolder(_saveToastPath);
       };
     // Restore the persisted video volume before the player is created so it
     // opens at the user's remembered level (AyuGram: videoVolume() is the live
@@ -3017,46 +3013,13 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   Future<bool> _copyBytesToClipboard(Uint8List bytes, String mimeType, String filePath) async {
-    if (Platform.isLinux) {
-      try {
-        final proc = await Process.start('wl-copy', ['--type', mimeType]);
-        proc.stdin.add(bytes);
-        await proc.stdin.close();
-        if (await proc.exitCode == 0) return true;
-      } catch (e) {
-        Debug.log('media_viewer', 'final proc = await Process.start(\'wl-copy\', [\'--type\', mi...: $e');
-      }
-      try {
-        final result = await Process.run('xclip',
-            ['-selection', 'clipboard', '-t', mimeType, '-i', filePath]);
-        if (result.exitCode == 0) return true;
-      } catch (e) {
-        Debug.log('media_viewer', 'final result = await Process.run(\'xclip\',: $e');
-      }
-    } else if (Platform.isMacOS) {
-      try {
-        final tmpPath = filePath.endsWith('.png') ? filePath : '/tmp/uniclient_clip.png';
-        if (tmpPath != filePath) await File(tmpPath).writeAsBytes(bytes);
-        final result = await Process.run('osascript',
-            ['-e', 'set the clipboard to (read (POSIX file "$tmpPath") as «class PNGf»)']);
-        if (result.exitCode == 0) return true;
-      } catch (e) {
-        Debug.log('media_viewer', 'final tmpPath = filePath.endsWith(\'.png\') ? filePath : \'/...: $e');
-      }
-    } else if (Platform.isWindows) {
-      try {
-        final tmpPath = filePath.endsWith('.png') ? filePath : '${Directory.systemTemp.path}\\uniclient_clip.png';
-        if (tmpPath != filePath) await File(tmpPath).writeAsBytes(bytes);
-        final result = await Process.run('powershell', ['-command',
-            'Add-Type -Assembly System.Windows.Forms; '
-            '[System.Windows.Forms.Clipboard]::SetImage('
-            '[System.Drawing.Image]::FromFile("$tmpPath"))']);
-        if (result.exitCode == 0) return true;
-      } catch (e) {
-        Debug.log('media_viewer', 'final tmpPath = filePath.endsWith(\'.png\') ? filePath : \'\$...: $e');
-      }
+    try {
+      await NativeClipboard.writeImage(bytes);
+      return true;
+    } catch (e) {
+      Debug.log('media_viewer', '_copyBytesToClipboard NativeClipboard.writeImage: $e');
+      return false;
     }
-    return false;
   }
 
   void _copyImageToClipboard(CachedMessage msg) async {
@@ -3094,14 +3057,7 @@ class _MediaViewerState extends State<MediaViewer>
 
   void _showInFolder(CachedMessage msg) {
     if (msg.mediaLocalPath.isEmpty) return;
-    final dir = File(msg.mediaLocalPath).parent.path;
-    if (Platform.isMacOS) {
-      Process.run('open', ['-R', msg.mediaLocalPath]);
-    } else if (Platform.isWindows) {
-      Process.run('explorer', ['/select,', msg.mediaLocalPath]);
-    } else {
-      Process.run('xdg-open', [dir]);
-    }
+    revealInFolder(msg.mediaLocalPath);
     if (_mode != _MediaViewerMode.windowed) {
       Navigator.of(context).pop();
     }

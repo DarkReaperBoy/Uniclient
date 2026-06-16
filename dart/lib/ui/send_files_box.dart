@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:desktop_drop/desktop_drop.dart';
@@ -22,6 +23,7 @@ import 'spoiler_animation.dart' show SpoilerAnimationMixin, SpoilerTilePainter, 
 import 'popup_menu.dart';
 import 'choose_datetime_box.dart';
 import 'photo_crop_editor.dart';
+import '../utils/native_clipboard.dart';
 import 'telegram_toast.dart' show showTelegramToast;
 import 'package:uniclient/utils/debug.dart';
 
@@ -885,20 +887,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   Future<void> _handleCaptionPaste() async {
-    if (Platform.isLinux || Platform.isMacOS) {
+    if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
       try {
         final pasted = await _tryClipboardImage();
         if (pasted) return;
       } catch (e) {
         Debug.log('send_files_box', 'final pasted = await _tryClipboardImage(): $e');
-      }
-    }
-    if (Platform.isWindows) {
-      try {
-        final pasted = await _tryClipboardImageWindows();
-        if (pasted) return;
-      } catch (e) {
-        Debug.log('send_files_box', 'final pasted = await _tryClipboardImageWindows(): $e');
       }
     }
     // Fallback: just let normal paste happen
@@ -921,61 +915,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   Future<bool> _tryClipboardImage() async {
-    String? types;
-    String clipTool = 'wl-paste';
-    // Try Wayland first
-    try {
-      final r = await Process.run('wl-paste', ['--list-types']);
-      if (r.exitCode == 0) types = r.stdout.toString();
-    } catch (e) {
-      Debug.log('send_files_box', 'final r = await Process.run(\'wl-paste\', [\'--list-types\']): $e');
-    }
-    // Fallback to X11
-    if (types == null || (!types.contains('image/png') && !types.contains('image/jpeg'))) {
-      try {
-        final r = await Process.run('xclip', ['-selection', 'clipboard', '-t', 'TARGETS', '-o']);
-        if (r.exitCode == 0) {
-          types = r.stdout.toString();
-          clipTool = 'xclip';
-        }
-      } catch (e) {
-        Debug.log('send_files_box', 'final r = await Process.run(\'xclip\', [\'-selection\', \'clip...: $e');
-      }
-    }
-    if (types == null) return false;
-    if (!types.contains('image/png') && !types.contains('image/jpeg')) return false;
-    final ext = types.contains('image/png') ? 'png' : 'jpg';
-    final tmpFile = File('${Directory.systemTemp.path}/uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.$ext');
-    ProcessResult pasteResult;
-    if (clipTool == 'wl-paste') {
-      pasteResult = await Process.run('wl-paste', ['--type', 'image/$ext'], stdoutEncoding: null);
-    } else {
-      pasteResult = await Process.run('xclip', ['-selection', 'clipboard', '-t', 'image/$ext', '-o'], stdoutEncoding: null);
-    }
-    if (pasteResult.exitCode == 0 && pasteResult.stdout is List<int>) {
-      await tmpFile.writeAsBytes(pasteResult.stdout as List<int>);
-      if (await tmpFile.exists() && await tmpFile.length() > 0) {
-        final name = tmpFile.uri.pathSegments.last;
-        final prepared = _PreparedFile(path: tmpFile.path, name: name, size: tmpFile.lengthSync(), type: _detectType(name));
-        if (!_canBeSentInSlowmode(_files, prepared)) {
-          if (mounted) showTelegramToast(context, 'Cannot add this file in slow mode');
-          return true;
-        }
-        setState(() {
-          _files.add(prepared);
-        });
-        _loadImageDimensions();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  Future<bool> _tryClipboardImageWindows() async {
-    final ts = DateTime.now().millisecondsSinceEpoch;
-    final r = await Process.run('powershell', ['-Command', 'Get-Clipboard -Format Image | ForEach-Object { \$_.Save("${Directory.systemTemp.path}\\uniclient_paste_$ts.png") }']);
-    if (r.exitCode != 0) return false;
-    final tmpFile = File('${Directory.systemTemp.path}\\uniclient_paste_$ts.png');
+    final imgBytes = await NativeClipboard.readImage();
+    if (imgBytes == null || imgBytes.isEmpty) return false;
+    final tmpFile = File('${Directory.systemTemp.path}/uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.png');
+    await tmpFile.writeAsBytes(imgBytes);
     if (await tmpFile.exists() && await tmpFile.length() > 0) {
       final name = tmpFile.uri.pathSegments.last;
       final prepared = _PreparedFile(path: tmpFile.path, name: name, size: tmpFile.lengthSync(), type: _detectType(name));
@@ -1734,6 +1677,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
   }
 
+  // DE-HACK EXCEPTION: making a webp sticker from an arbitrary image needs a
+  // webp ENCODER, which no pure-Dart package provides (the `image` package
+  // decodes webp but cannot encode it). This optionally uses a system tool
+  // (ffmpeg/magick/cwebp) if one is installed, and degrades gracefully when none
+  // is — and only on the explicit "send as sticker" path, never automatically.
+  // No cross-platform Flutter API exists; revisit if a pure-Dart webp encoder
+  // ships.
   static Future<bool> _convertToWebp(String pngPath, String webpPath) async {
     for (final tool in _webpConverters) {
       try {

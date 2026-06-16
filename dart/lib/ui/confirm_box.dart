@@ -1585,6 +1585,7 @@ Future<PermissionStatus> getPermissionStatus(PermissionType type) async {
   if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) {
     return PermissionStatus.granted;
   }
+  // TODO(de-hack deferred): calls/screenshare feature — replace pactl/screen-capture CLI with a plugin later
   try {
     if (type == PermissionType.microphone) {
       final pactl = await Process.run('pactl', ['list', 'sources', 'short']);
@@ -1623,30 +1624,7 @@ Future<PermissionStatus> getPermissionStatus(PermissionType type) async {
 }
 
 void openSystemSettingsForPermission(PermissionType type) {
-  if (Platform.isLinux) {
-    final panel = type == PermissionType.microphone ? 'sound' : 'sound';
-    Process.run('gnome-control-center', [panel]).then((r) {
-      if (r.exitCode != 0) {
-        return Process.run('systemsettings', ['kcm_pulseaudio']);
-      }
-      return r;
-    }).catchError((_) {
-      Process.run('pavucontrol', []);
-    });
-  } else if (Platform.isMacOS) {
-    final pane = type == PermissionType.microphone
-        ? 'Privacy_Microphone'
-        : 'Privacy_Camera';
-    Process.run(
-      'open',
-      ['x-apple.systempreferences:com.apple.preference.security?$pane'],
-    );
-  } else if (Platform.isWindows) {
-    final page = type == PermissionType.microphone
-        ? 'ms-settings:privacy-microphone'
-        : 'ms-settings:privacy-webcam';
-    Process.run('cmd', ['/c', 'start', page]);
-  }
+  // OS sound-settings panel: no cross-platform API; removed CLI shell-out.
 }
 
 String _permissionLabel(PermissionType type) {
@@ -1915,6 +1893,7 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
   Future<bool> _loopbackAudioSupported() async {
     if (Platform.isWindows) return true;
     if (Platform.isLinux) {
+      // TODO(de-hack deferred): calls/screenshare feature — replace pactl/screen-capture CLI with a plugin later
       try {
         final pactl = await Process.run('pactl', ['list', 'sources', 'short']);
         if (pactl.exitCode == 0 &&
@@ -1964,6 +1943,7 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
         name: 'Entire Screen',
         isScreen: true,
       ));
+      // TODO(de-hack deferred): calls/screenshare feature — replace pactl/screen-capture CLI with a plugin later
       try {
         final kdotool = await Process.run('kdotool', ['search', '--name', '']);
         if (kdotool.exitCode == 0) {
@@ -1989,6 +1969,7 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
         Debug.log('confirm_box', 'final nameRes = await Process.run(\'kdotool\', [\'getwindown...: $e');
       }
     } else {
+      // TODO(de-hack deferred): calls/screenshare feature — replace pactl/screen-capture CLI with a plugin later
       try {
         final xrandr = await Process.run('xrandr', ['--listmonitors']);
         if (xrandr.exitCode == 0) {
@@ -2116,6 +2097,7 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
   // deleted immediately so per-second refreshes don't accumulate on disk).
   Future<Uint8List?> _captureThumb(ScreenShareSource source, int index) async {
     final path = '/tmp/uniclient_ss_thumb_$index.png';
+    // TODO(de-hack deferred): calls/screenshare feature — replace pactl/screen-capture CLI with a plugin later
     try {
       ProcessResult? r;
       if (source.isScreen) {
@@ -2154,6 +2136,7 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
   // grab that screen region with grim. Returns null (→ the source icon is shown
   // instead) when the compositor tools aren't available.
   Future<ProcessResult?> _captureWaylandWindow(String wid, String path) async {
+    // TODO(de-hack deferred): calls/screenshare feature — replace pactl/screen-capture CLI with a plugin later
     try {
       final geo = await Process.run(
         'kdotool',

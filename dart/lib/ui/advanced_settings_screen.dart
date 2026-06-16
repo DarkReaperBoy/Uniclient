@@ -12,7 +12,10 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../utils/native_a11y.dart';
+import '../utils/native_files.dart';
 import '../utils/spell_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'box_content_divider.dart';
 import 'chat_export.dart';
 import 'settings_style.dart';
@@ -47,47 +50,11 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     _detectScreenReader();
   }
 
-  Future<void> _detectScreenReader() async {
-    if (kIsWeb) return;
-    var detected = false;
-    if (Platform.isLinux) {
-      try {
-        final result = await Process.run('pgrep', ['-x', 'orca']);
-        if (result.exitCode == 0) detected = true;
-      } catch (e) {
-        Debug.log('advanced_settings_screen', 'final result = await Process.run(\'pgrep\', [\'-x\', \'orca\']): $e');
-      }
-      if (!detected) {
-        try {
-          final result = await Process.run('gdbus', [
-            'call', '--session',
-            '--dest', 'org.a11y.Bus',
-            '--object-path', '/org/a11y/bus',
-            '--method', 'org.freedesktop.DBus.Properties.Get',
-            'org.a11y.Status', 'IsEnabled',
-          ]);
-          final out = (result.stdout as String).trim();
-          if (out.contains('true')) detected = true;
-        } catch (e) {
-          Debug.log('advanced_settings_screen', 'final result = await Process.run(\'gdbus\', [: $e');
-        }
-      }
-    } else if (Platform.isMacOS) {
-      try {
-        final result = await Process.run('defaults', ['read', 'com.apple.universalaccess', 'voiceOverOnOffKey']);
-        if ((result.stdout as String).trim() == '1') detected = true;
-      } catch (e) {
-        Debug.log('advanced_settings_screen', 'final result = await Process.run(\'defaults\', [\'read\', \'co...: $e');
-      }
-    } else if (Platform.isWindows) {
-      try {
-        final result = await Process.run('powershell', ['-Command',
-          '(Get-ItemProperty HKCU:\\Software\\Microsoft\\Narrator\\NoRoam -Name RunningState -ErrorAction SilentlyContinue).RunningState']);
-        if ((result.stdout as String).trim() == '1') detected = true;
-      } catch (e) {
-        Debug.log('advanced_settings_screen', 'final result = await Process.run(\'powershell\', [\'-Command\',: $e');
-      }
-    }
+  void _detectScreenReader() {
+    // De-hack: replaced the per-OS shell-out detector (pgrep orca / gdbus
+    // org.a11y.Bus / macOS `defaults` / Windows Narrator registry) with
+    // Flutter's pure-Dart accessibility signal. See utils/native_a11y.dart.
+    final detected = NativeA11y.screenReaderActive;
     if (mounted && detected != _screenReaderDetected) {
       setState(() => _screenReaderDetected = detected);
     }
@@ -165,12 +132,17 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   static void _openWithSystem(String pathOrUrl) {
-    if (Platform.isMacOS) {
-      Process.run('open', [pathOrUrl]);
-    } else if (Platform.isWindows) {
-      Process.run('cmd', ['/c', 'start', '', pathOrUrl]);
+    // De-hack: replaced the per-OS shell-out (open / cmd start / xdg-open) with
+    // url_launcher. URLs go through launchUrl; filesystem paths through
+    // openFileExternally (utils/native_files.dart). Fire-and-forget to preserve
+    // the original void signature used by callers.
+    final lower = pathOrUrl.toLowerCase();
+    if (lower.startsWith('http://') ||
+        lower.startsWith('https://') ||
+        pathOrUrl.contains('://')) {
+      launchUrl(Uri.parse(pathOrUrl));
     } else {
-      Process.run('xdg-open', [pathOrUrl]);
+      openFileExternally(pathOrUrl);
     }
   }
 
@@ -316,6 +288,14 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       await sink.close();
       client.close();
 
+      // TODO(de-hack): self-update — KEPT (essential, no in-Dart equivalent).
+      // The freshly-downloaded binary at `tmpPath` lacks the execute bit, so we
+      // chmod +x it. Dart's dart:io exposes no chmod/setMode API, so this must
+      // shell out. Then on Linux/macOS we cannot overwrite-and-relaunch the
+      // currently-running executable from within this process: the binary is in
+      // use, and after exit(0) there is no process left to perform the swap. The
+      // detached `bash -c 'sleep 1 && mv ... && exec ...'` exists precisely to
+      // outlive this process, replace the binary, and re-exec the updated app.
       if (!Platform.isWindows) {
         await Process.run('chmod', ['+x', tmpPath]);
       }
@@ -2696,29 +2676,14 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
 
   Future<void> _checkPowerSaverMode() async {
     if (!Platform.isLinux) return;
-    var detected = false;
-    try {
-      final result = await Process.run('powerprofilesctl', ['get']);
-      final profile = (result.stdout as String).trim();
-      if (profile == 'power-saver') detected = true;
-    } catch (e) {
-      Debug.log('advanced_settings_screen', 'final result = await Process.run(\'powerprofilesctl\', [\'ge...: $e');
-    }
-    if (!detected) {
-      try {
-        final result = await Process.run('gdbus', [
-          'call', '--system',
-          '--dest', 'org.freedesktop.UPower',
-          '--object-path', '/org/freedesktop/UPower',
-          '--method', 'org.freedesktop.DBus.Properties.Get',
-          'org.freedesktop.UPower', 'OnBattery',
-        ]);
-        final out = (result.stdout as String).trim();
-        if (out.contains('true')) detected = true;
-      } catch (e) {
-        Debug.log('advanced_settings_screen', 'final result = await Process.run(\'gdbus\', [: $e');
-      }
-    }
+    // De-hack: the OS power-profile read was DROPPED. It previously shelled out
+    // to `powerprofilesctl get` (with a `gdbus` UPower OnBattery fallback) to
+    // detect the system battery-saver profile. Flutter exposes no cross-platform
+    // power-profile API, so rather than re-introduce a CLI hack we treat the
+    // machine as the normal/balanced profile (i.e. not power-saving). The
+    // battery-saver override overlay simply never auto-triggers from the OS now;
+    // the user's explicit auto-power-saving toggle is unaffected.
+    const detected = false;
     if (!mounted) return;
     // Apply the OS power-saver override LIVE only — never persist it. The engine
     // already receives the forced state via `force_all` (AppState.setAutoPowerSaving

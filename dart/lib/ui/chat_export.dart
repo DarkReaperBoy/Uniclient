@@ -12,6 +12,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import '../utils/native_files.dart';
 import 'package:uniclient/utils/debug.dart';
 
 const double _exportPanelWidth = 364;
@@ -720,13 +721,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final path = _exportPath.isNotEmpty
         ? _exportPath
         : (_exportLocation.isNotEmpty ? _exportLocation : _defaultExportLocation);
-    if (Platform.isLinux) {
-      Process.run('xdg-open', [path]).ignore();
-    } else if (Platform.isMacOS) {
-      Process.run('open', [path]).ignore();
-    } else if (Platform.isWindows) {
-      Process.run('explorer', [path]).ignore();
-    }
+    openFolder(path);
   }
 
   @override

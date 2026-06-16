@@ -18,6 +18,7 @@ import 'confirm_box.dart';
 import 'telegram_toast.dart';
 import '../theme/theme_name_generator.dart';
 import '../theme/theme_preview.dart';
+import '../utils/native_files.dart';
 import 'package:uniclient/utils/debug.dart';
 
 class ThemeEditorScreen extends StatefulWidget {
@@ -497,13 +498,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   void _showInFolder() {
     final target = _themeFilePath ?? _editingPalettePath;
     if (target == null) return;
-    if (Platform.isLinux) {
-      Process.run('xdg-open', [File(target).parent.path]);
-    } else if (Platform.isMacOS) {
-      Process.run('open', ['-R', target]);
-    } else if (Platform.isWindows) {
-      Process.run('explorer', ['/select,', target]);
-    }
+    revealInFolder(target);
   }
 
   double _estimateRowHeight(String? token) {

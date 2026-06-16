@@ -994,59 +994,46 @@ class _NotificationMonitorWidgetState
     // hide() above clears it, so the net state is "shown".
     _demoAppState?.setNotifDemoShown(count > 0);
 
-    if (!kIsWeb && Platform.isLinux) {
-      for (var i = 0; i < count; i++) {
-        Process.run('notify-send', [
-          '--app-name=UniClient',
-          '--urgency=low',
-          '--expire-time=4000',
-          'UniClient',
-          'You have a new message',
-        ]);
-      }
-    } else if (!kIsWeb && Platform.isMacOS) {
-      for (var i = 0; i < count; i++) {
-        Process.run('osascript', [
-          '-e', 'display notification "You have a new message" with title "UniClient"',
-        ]);
-      }
-    } else {
-      final overlay = Overlay.of(context, rootOverlay: true);
-      final windowSize = MediaQuery.sizeOf(context);
-      for (var i = 0; i < count; i++) {
-        final entry = OverlayEntry(builder: (ctx) {
-          final isTop = _isTopCorner(corner);
-          final isLeft = _isLeftCorner(corner);
-          final isCenter = corner == _ScreenCorner.topCenter;
+    // De-hack: this is a sample/preview of where notifications appear, not a
+    // real delivered notification. Previously Linux/macOS shelled out to the OS
+    // daemon (notify-send / osascript) while other platforms rendered the app's
+    // own in-app preview card. Use that in-app preview path everywhere — it
+    // honours the chosen corner + bar count and needs no CLI shell-out.
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final windowSize = MediaQuery.sizeOf(context);
+    for (var i = 0; i < count; i++) {
+      final entry = OverlayEntry(builder: (ctx) {
+        final isTop = _isTopCorner(corner);
+        final isLeft = _isLeftCorner(corner);
+        final isCenter = corner == _ScreenCorner.topCenter;
 
-          double top;
-          double left;
-          final slotOffset = (_sampleH + _sampleDeltaY) * i;
+        double top;
+        double left;
+        final slotOffset = (_sampleH + _sampleDeltaY) * i;
 
-          if (isTop) {
-            top = _sampleDeltaY + slotOffset;
-          } else {
-            top = windowSize.height - _sampleDeltaY - _sampleH - slotOffset;
-          }
-          if (isCenter) {
-            left = (windowSize.width - _sampleW) / 2;
-          } else if (isLeft) {
-            left = _sampleDeltaX;
-          } else {
-            left = windowSize.width - _sampleDeltaX - _sampleW;
-          }
+        if (isTop) {
+          top = _sampleDeltaY + slotOffset;
+        } else {
+          top = windowSize.height - _sampleDeltaY - _sampleH - slotOffset;
+        }
+        if (isCenter) {
+          left = (windowSize.width - _sampleW) / 2;
+        } else if (isLeft) {
+          left = _sampleDeltaX;
+        } else {
+          left = windowSize.width - _sampleDeltaX - _sampleW;
+        }
 
-          return Positioned(
-            top: top,
-            left: left,
-            child: IgnorePointer(
-              child: _SampleNotificationCard(isDark: widget.isDark),
-            ),
-          );
-        });
-        _sampleOverlays.add(entry);
-        overlay.insert(entry);
-      }
+        return Positioned(
+          top: top,
+          left: left,
+          child: IgnorePointer(
+            child: _SampleNotificationCard(isDark: widget.isDark),
+          ),
+        );
+      });
+      _sampleOverlays.add(entry);
+      overlay.insert(entry);
     }
   }
 

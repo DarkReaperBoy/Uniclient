@@ -38,6 +38,10 @@ dependencies:
   local_auth: ^2.3.0
   webview_flutter: ^4.8.0
   path_provider: ^2.1.5
+  launch_at_startup: ^0.5.1
+  pasteboard: ^0.5.0
+  system_fonts: ^1.0.1
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:

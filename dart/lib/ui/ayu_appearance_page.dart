@@ -11,6 +11,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'ayu_section_builder.dart';
 import 'ayu_toggle.dart';
+import '../utils/native_fonts.dart';
 import 'package:uniclient/utils/debug.dart';
 
 class AyuAppearancePage extends StatelessWidget {
@@ -770,25 +771,12 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
   }
 
   Future<void> _loadSystemFonts() async {
-    List<String>? families;
-    try {
-      if (Platform.isLinux || Platform.isMacOS) {
-        families = await _loadViaFcList();
-      }
-      if (families == null && Platform.isMacOS) {
-        families = await _loadViaMacOSFontManager();
-      }
-      if (families == null && Platform.isWindows) {
-        families = await _loadViaWindowsPowerShell();
-      }
-      if (families == null && (Platform.isAndroid || Platform.isIOS)) {
-        families = await _loadViaMobileFontDir();
-      }
-    } catch (e) {
-      Debug.log('ayu_appearance_page', 'if (Platform.isLinux || Platform.isMacOS): $e');
-    }
-    if (families != null && families.isNotEmpty) {
-      if (mounted) setState(() { _systemFonts = ['', ...families!]; _loadingFonts = false; _cachedFilteredFonts = null; });
+    // System fonts come from the `system_fonts` plugin (platform channels) via
+    // NativeFonts — no `fc-list` / `osascript` / `powershell` subprocess. The
+    // result is already de-duplicated and sorted; the helper never throws.
+    final fonts = NativeFonts.list();
+    if (fonts.isNotEmpty) {
+      if (mounted) setState(() { _systemFonts = ['', ...fonts]; _loadingFonts = false; _cachedFilteredFonts = null; });
     } else if (mounted) {
       setState(() {
         _systemFonts = [''];
@@ -796,111 +784,6 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
         _cachedFilteredFonts = null;
       });
     }
-  }
-
-  Future<List<String>?> _loadViaFcList() async {
-    try {
-      final result = await Process.run('fc-list', ['-f', '%{family}\n']);
-      if (result.exitCode == 0) {
-        final families = <String>{};
-        for (final line in (result.stdout as String).split('\n')) {
-          final trimmed = line.trim();
-          if (trimmed.isNotEmpty) {
-            for (final family in trimmed.split(',')) {
-              final f = family.trim();
-              if (f.isNotEmpty) families.add(f);
-            }
-          }
-        }
-        if (families.isNotEmpty) {
-          return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-        }
-      }
-    } catch (e) {
-      Debug.log('ayu_appearance_page', 'final result = await Process.run(\'fc-list\', [\'-f\', \'%{fam...: $e');
-    }
-    return null;
-  }
-
-  Future<List<String>?> _loadViaMacOSFontManager() async {
-    try {
-      final result = await Process.run('osascript', [
-        '-l', 'JavaScript',
-        '-e',
-        'ObjC.import("AppKit");'
-        'var fm = \$.NSFontManager.sharedFontManager;'
-        'var arr = fm.availableFontFamilies;'
-        'var out = [];'
-        'for (var i = 0; i < arr.count; i++) out.push(arr.objectAtIndex(i).js);'
-        'out.sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});'
-        'out.join("\\n");',
-      ]);
-      if (result.exitCode == 0) {
-        final families = <String>{};
-        for (final line in (result.stdout as String).split('\n')) {
-          final trimmed = line.trim();
-          if (trimmed.isNotEmpty) families.add(trimmed);
-        }
-        if (families.isNotEmpty) {
-          return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-        }
-      }
-    } catch (e) {
-      Debug.log('ayu_appearance_page', 'final result = await Process.run(\'osascript\', [: $e');
-    }
-    return null;
-  }
-
-  Future<List<String>?> _loadViaWindowsPowerShell() async {
-    try {
-      final result = await Process.run('powershell', [
-        '-NoProfile', '-Command',
-        'Add-Type -AssemblyName System.Drawing; '
-            '(New-Object System.Drawing.Text.InstalledFontCollection).Families '
-            '| ForEach-Object { \$_.Name }',
-      ]);
-      if (result.exitCode == 0) {
-        final families = <String>{};
-        for (final line in (result.stdout as String).split('\n')) {
-          final trimmed = line.trim();
-          if (trimmed.isNotEmpty) families.add(trimmed);
-        }
-        if (families.isNotEmpty) {
-          return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-        }
-      }
-    } catch (e) {
-      Debug.log('ayu_appearance_page', 'final result = await Process.run(\'powershell\', [: $e');
-    }
-    return null;
-  }
-
-  Future<List<String>?> _loadViaMobileFontDir() async {
-    final families = <String>{};
-    final fontDirs = Platform.isAndroid
-        ? ['/system/fonts', '/system/font']
-        : ['/System/Library/Fonts', '/Library/Fonts'];
-    for (final dirPath in fontDirs) {
-      try {
-        final dir = Directory(dirPath);
-        if (!await dir.exists()) continue;
-        await for (final entity in dir.list()) {
-          if (entity is! File) continue;
-          final name = entity.uri.pathSegments.last;
-          if (!name.endsWith('.ttf') && !name.endsWith('.otf') && !name.endsWith('.ttc')) continue;
-          var family = name.replaceAll(RegExp(r'\.(ttf|otf|ttc)$'), '');
-          family = family.replaceAll(RegExp(r'-(Regular|Bold|Italic|Light|Medium|Thin|Black|SemiBold|ExtraBold|ExtraLight|BoldItalic|LightItalic|MediumItalic)$'), '');
-          family = family.replaceAll(RegExp(r'_'), ' ');
-          if (family.isNotEmpty) families.add(family);
-        }
-      } catch (e) {
-        Debug.log('ayu_appearance_page', 'final dir = Directory(dirPath): $e');
-      }
-    }
-    if (families.isNotEmpty) {
-      return families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    }
-    return null;
   }
 
   @override

@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:launch_at_startup/launch_at_startup.dart';
 
 import '../bridge/engine_service.dart';
 import '../data/ayu_filter.dart';
@@ -2550,56 +2551,28 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _configureAutostart(v);
   }
 
+  static bool _launchAtStartupConfigured = false;
+
   Future<void> _configureAutostart(bool enable) async {
     if (kIsWeb) return;
-    final exe = Platform.resolvedExecutable;
-    final appName = 'uniclient';
+    // Autostart is a desktop-only concept; launch_at_startup supports
+    // Linux/macOS/Windows. Skip on any other platform.
+    if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) return;
     try {
-      if (Platform.isLinux) {
-        final autostartDir = '${Platform.environment['HOME']}/.config/autostart';
-        final desktopFile = '$autostartDir/$appName.desktop';
-        if (enable) {
-          await Directory(autostartDir).create(recursive: true);
-          await File(desktopFile).writeAsString(
-            '[Desktop Entry]\n'
-            'Type=Application\n'
-            'Name=UniClient\n'
-            'Exec=$exe\n'
-            'Terminal=false\n'
-            'X-GNOME-Autostart-enabled=true\n',
-          );
-        } else {
-          final f = File(desktopFile);
-          if (await f.exists()) await f.delete();
-        }
-      } else if (Platform.isWindows) {
-        final regKey = r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';
-        if (enable) {
-          await Process.run('reg', ['add', regKey, '/v', appName, '/t', 'REG_SZ', '/d', exe, '/f']);
-        } else {
-          await Process.run('reg', ['delete', regKey, '/v', appName, '/f']);
-        }
-      } else if (Platform.isMacOS) {
-        final plistDir = '${Platform.environment['HOME']}/Library/LaunchAgents';
-        final plistFile = '$plistDir/com.$appName.plist';
-        if (enable) {
-          await Directory(plistDir).create(recursive: true);
-          await File(plistFile).writeAsString(
-            '<?xml version="1.0" encoding="UTF-8"?>\n'
-            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
-            '<plist version="1.0"><dict>\n'
-            '<key>Label</key><string>com.$appName</string>\n'
-            '<key>ProgramArguments</key><array><string>$exe</string></array>\n'
-            '<key>RunAtLoad</key><true/>\n'
-            '</dict></plist>\n',
-          );
-        } else {
-          final f = File(plistFile);
-          if (await f.exists()) await f.delete();
-        }
+      if (!_launchAtStartupConfigured) {
+        LaunchAtStartup.instance.setup(
+          appName: 'uniclient',
+          appPath: Platform.resolvedExecutable,
+        );
+        _launchAtStartupConfigured = true;
+      }
+      if (enable) {
+        await LaunchAtStartup.instance.enable();
+      } else {
+        await LaunchAtStartup.instance.disable();
       }
     } catch (e) {
-      Debug.log('app_state', 'if (Platform.isLinux): $e');
+      Debug.log('app_state', 'launch_at_startup configure failed: $e');
     }
   }
 

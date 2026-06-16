@@ -2680,19 +2680,7 @@ class _CallsSettingsTabState extends State<_CallsSettingsTab> {
         const SizedBox(height: 8),
         InkWell(
           onTap: () {
-            if (Platform.isLinux) {
-              Process.run('xdg-open', ['gnome-control-center://sound'])
-                  .catchError((_) {
-                return Process.run('xdg-open', ['x-settings://sound']);
-              }).catchError((_) {
-                return Process.run('pavucontrol', []);
-              });
-            } else if (Platform.isMacOS) {
-              Process.run('open',
-                  ['/System/Library/PreferencePanes/Sound.prefPane']);
-            } else if (Platform.isWindows) {
-              Process.run('control', ['mmsys.cpl', 'sounds']);
-            }
+            // OS sound-settings panel: no cross-platform API; CLI shell-out removed.
           },
           hoverColor: hoverBg,
           child: Padding(

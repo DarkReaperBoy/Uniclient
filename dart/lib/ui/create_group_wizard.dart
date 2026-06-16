@@ -18,6 +18,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import '../utils/native_clipboard.dart';
 import 'confirm_box.dart';
 import 'photo_crop_editor.dart';
 import 'telegram_toast.dart';
@@ -556,34 +557,11 @@ class _WizardDialogState extends State<_WizardDialog>
       final tempPath = '/tmp/uniclient_clipboard_${DateTime.now().millisecondsSinceEpoch}.png';
       bool gotImage = false;
 
-      if (Platform.isLinux) {
-        var result = await Process.run('bash', ['-c',
-          'wl-paste --type image/png > ${_shellEscape(tempPath)} 2>/dev/null']);
-        if (result.exitCode != 0) {
-          result = await Process.run('bash', ['-c',
-            'xclip -selection clipboard -t image/png -o > ${_shellEscape(tempPath)} 2>/dev/null']);
-        }
+      final imgBytes = await NativeClipboard.readImage();
+      if (imgBytes != null && imgBytes.isNotEmpty) {
+        await File(tempPath).writeAsBytes(imgBytes);
         final f = File(tempPath);
         gotImage = await f.exists() && (await f.length()) > 0;
-      } else if (Platform.isMacOS) {
-        final result = await Process.run('bash', ['-c',
-          'osascript -e \'set theData to the clipboard as «class PNGf»\' '
-          '-e \'set theFile to open for access POSIX file "${_shellEscape(tempPath)}" with write permission\' '
-          '-e \'write theData to theFile\' '
-          '-e \'close access theFile\' 2>/dev/null']);
-        if (result.exitCode == 0) {
-          final f = File(tempPath);
-          gotImage = await f.exists() && (await f.length()) > 0;
-        }
-      } else if (Platform.isWindows) {
-        final result = await Process.run('powershell', ['-NoProfile', '-Command',
-          'Add-Type -AssemblyName System.Windows.Forms; '
-          '\$img = [System.Windows.Forms.Clipboard]::GetImage(); '
-          'if (\$img -ne \$null) { \$img.Save("${tempPath.replaceAll('/', '\\')}") }']);
-        if (result.exitCode == 0) {
-          final f = File(tempPath);
-          gotImage = await f.exists() && (await f.length()) > 0;
-        }
       }
 
       if (!gotImage) {
@@ -618,9 +596,6 @@ class _WizardDialogState extends State<_WizardDialog>
       if (mounted) showTelegramToast(context, 'Failed to paste image');
     }
   }
-
-  static String _shellEscape(String s) => "'${s.replaceAll("'", "'\\''")}'";
-
 
   Future<void> _pickEmojiAvatar() async {
     if (!mounted) return;

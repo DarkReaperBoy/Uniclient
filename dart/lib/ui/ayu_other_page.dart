@@ -172,6 +172,7 @@ class AyuOtherPage extends StatelessWidget {
     );
   }
 
+  // TODO(de-hack exception): OS protocol-handler registration has no Flutter API; belongs in packaging/installer. Kept as a guarded platform-specific action.
   static void _registerUrlScheme(BuildContext context) {
     if (Platform.isLinux) {
       _registerLinuxUrlScheme(context);

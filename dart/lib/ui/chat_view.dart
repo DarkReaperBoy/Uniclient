@@ -26,6 +26,7 @@ import 'gesture_utils.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../utils/ayu_translator.dart';
+import '../utils/native_clipboard.dart';
 import '../utils/spell_service.dart';
 import '../state/audio_service.dart';
 import '../state/ayu_forward.dart';
@@ -59,6 +60,7 @@ import 'emoji_status_widget.dart';
 import 'choose_datetime_box.dart';
 import 'emoji_panel.dart';
 import '../utils/web_drop.dart';
+import '../utils/native_files.dart';
 import '../l10n/strings.dart';
 import 'package:uniclient/utils/debug.dart';
 
@@ -1907,33 +1909,7 @@ class _ChatViewState extends State<ChatView>
       return;
     }
     try {
-      if (Platform.isLinux) {
-        final mime = path.endsWith('.png') ? 'image/png' : 'image/jpeg';
-        final proc = await Process.start('wl-copy', ['--type', mime]);
-        proc.stdin.add(await file.readAsBytes());
-        await proc.stdin.close();
-        final exitCode = await proc.exitCode.timeout(const Duration(seconds: 3),
-          onTimeout: () => -1);
-        if (exitCode != 0) {
-          final fallback = await Process.run('xclip',
-            ['-selection', 'clipboard', '-t', mime, '-i', path]);
-          if (fallback.exitCode != 0) throw Exception('Clipboard command failed');
-        }
-      } else if (Platform.isMacOS) {
-        final esc = path.replaceAll('"', '\\"');
-        final result = await Process.run('osascript', [
-          '-e', 'set the clipboard to (read (POSIX file "$esc") as «class PNGf»)',
-        ]);
-        if (result.exitCode != 0) throw Exception('AppleScript clipboard failed');
-      } else if (Platform.isWindows) {
-        final esc = path.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-        await Process.run('powershell', [
-          '-Command',
-          'Add-Type -AssemblyName System.Windows.Forms; '
-          '[System.Windows.Forms.Clipboard]::SetImage('
-          '[System.Drawing.Image]::FromFile("$esc"))',
-        ]);
-      }
+      await NativeClipboard.writeImage(await file.readAsBytes());
       if (!mounted) return;
       showTelegramToast(context, 'Image copied to clipboard');
     } catch (e) {
@@ -2014,14 +1990,7 @@ class _ChatViewState extends State<ChatView>
       showTelegramToast(context, 'File not found');
       return;
     }
-    final dir = file.parent.path;
-    if (Platform.isLinux) {
-      await Process.run('xdg-open', [dir]);
-    } else if (Platform.isMacOS) {
-      await Process.run('open', ['-R', msg.mediaLocalPath]);
-    } else if (Platform.isWindows) {
-      await Process.run('explorer', ['/select,', msg.mediaLocalPath]);
-    }
+    await revealInFolder(msg.mediaLocalPath);
   }
 
   void _showSendNowConfirm(ChatState chatState, List<String> msgIds) {
@@ -15082,33 +15051,14 @@ class _ComposeAreaState extends State<_ComposeArea>
     if (kIsWeb) return false;
     final tmp = '/tmp/uniclient_clipboard_${DateTime.now().millisecondsSinceEpoch}.png';
     try {
-      final wlResult = await Process.run('wl-paste', ['--type', 'image/png'],
-          stdoutEncoding: null);
-      if (wlResult.exitCode == 0) {
-        final bytes = wlResult.stdout as List<int>;
-        if (bytes.length > 8) {
-          await File(tmp).writeAsBytes(bytes);
-          widget.onFilesSelected?.call([tmp]);
-          return true;
-        }
+      final imgBytes = await NativeClipboard.readImage();
+      if (imgBytes != null && imgBytes.length > 8) {
+        await File(tmp).writeAsBytes(imgBytes);
+        widget.onFilesSelected?.call([tmp]);
+        return true;
       }
     } catch (e) {
-      Debug.log('chat_view', 'final wlResult = await Process.run(\'wl-paste\', [\'--type\',...: $e');
-    }
-    try {
-      final xResult = await Process.run('xclip',
-          ['-selection', 'clipboard', '-t', 'image/png', '-o'],
-          stdoutEncoding: null);
-      if (xResult.exitCode == 0) {
-        final bytes = xResult.stdout as List<int>;
-        if (bytes.length > 8) {
-          await File(tmp).writeAsBytes(bytes);
-          widget.onFilesSelected?.call([tmp]);
-          return true;
-        }
-      }
-    } catch (e) {
-      Debug.log('chat_view', 'final xResult = await Process.run(\'xclip\',: $e');
+      Debug.log('chat_view', '_pasteClipboardImage NativeClipboard.readImage: $e');
     }
     return false;
   }

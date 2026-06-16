@@ -21,6 +21,7 @@ import '../state/audio_service.dart';
 import '../state/chat_state.dart';
 import 'media_viewer.dart';
 import '../theme/theme.dart';
+import '../utils/native_files.dart';
 import 'chat_export.dart';
 import 'chat_list_row.dart' show MyNotesUserpic, SavedMessagesUserpic;
 import 'chat_view.dart' show formatChatLastSeen;
@@ -6784,7 +6785,7 @@ class _FileListItem extends StatelessWidget {
 
   void _onTap(BuildContext context) {
     if (item.localPath.isNotEmpty && File(item.localPath).existsSync()) {
-      Process.run('xdg-open', [item.localPath]);
+      openFileExternally(item.localPath);
     } else if (accountId.isNotEmpty && chatId.isNotEmpty) {
       final engine = context.read<EngineService>();
       engine.requestDownload(accountId, chatId, item.msgId);

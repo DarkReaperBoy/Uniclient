@@ -16,6 +16,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 import '../theme/wallpaper.dart';
+import '../utils/native_fonts.dart';
 import 'color_picker_box.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
@@ -816,118 +817,22 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     return _gnomeAccent();
   }
 
-  static String? _gnomeAccent() {
-    try {
-      final r = Process.runSync(
-        'gsettings',
-        ['get', 'org.gnome.desktop.interface', 'accent-color'],
-      );
-      if (r.exitCode != 0) return null;
-      final name = (r.stdout as String).trim().replaceAll("'", '');
-      // libadwaita named accent colors (GNOME 47+).
-      const map = {
-        'blue': '#3584e4',
-        'teal': '#2190a4',
-        'green': '#3a944a',
-        'yellow': '#c88800',
-        'orange': '#ed5b00',
-        'red': '#e62d42',
-        'pink': '#d56199',
-        'purple': '#9141ac',
-        'slate': '#6f8396',
-      };
-      return map[name];
-    } catch (_) {
-      return null;
-    }
-  }
+  // GNOME's accent (`gsettings get org.gnome.desktop.interface accent-color`)
+  // was only reachable via a shell-out, now dropped — Flutter exposes no
+  // OS-accent API. KDE still resolves via the pure `kdeglobals` file read in
+  // _linuxAccent above; on GNOME the "Use system accent color" option is simply
+  // hidden rather than spawning a subprocess.
+  static String? _gnomeAccent() => null;
 
-  // macOS: AppleHighlightColor is the QPalette::Highlight equivalent
-  // ("r g b Name" floats in 0..1). Falls back to the AppleAccentColor index,
-  // then to the default system blue — macOS always reports a highlight, so
-  // (like Qt) this never returns null.
-  static String? _macAccent() {
-    try {
-      final r =
-          Process.runSync('defaults', ['read', '-g', 'AppleHighlightColor']);
-      if (r.exitCode == 0) {
-        final parts = (r.stdout as String).trim().split(RegExp(r'\s+'));
-        if (parts.length >= 3) {
-          final rr = double.tryParse(parts[0]);
-          final gg = double.tryParse(parts[1]);
-          final bb = double.tryParse(parts[2]);
-          if (rr != null && gg != null && bb != null) {
-            return _rgbToHex(
-                (rr * 255).round(), (gg * 255).round(), (bb * 255).round());
-          }
-        }
-      }
-    } catch (e) {
-      Debug.log('chat_settings_screen', 'final r =: $e');
-    }
-    try {
-      final r =
-          Process.runSync('defaults', ['read', '-g', 'AppleAccentColor']);
-      if (r.exitCode == 0) {
-        final idx = int.tryParse((r.stdout as String).trim());
-        const palette = {
-          -1: '#989898',
-          0: '#ff5257',
-          1: '#f7821b',
-          2: '#ffc600',
-          3: '#62ba46',
-          4: '#007aff',
-          5: '#953d96',
-          6: '#f74f9e',
-        };
-        final hex = palette[idx];
-        if (hex != null) return hex;
-      }
-    } catch (e) {
-      Debug.log('chat_settings_screen', 'final r =: $e');
-    }
-    return '#007aff';
-  }
+  // macOS accent (`defaults read -g AppleAccentColor`) is only reachable via a
+  // shell-out — dropped. No pure-Dart/Flutter API exists, so the option is
+  // hidden on macOS rather than seeded with a fake color.
+  static String? _macAccent() => null;
 
-  // Windows: QPalette::Highlight maps to COLOR_HIGHLIGHT
-  // (HKCU\Control Panel\Colors\Hilight, "r g b"); falls back to the DWM accent
-  // (ABGR DWORD). Always present on Windows 8+, so this returns non-null there.
-  static String? _windowsAccent() {
-    try {
-      final r = Process.runSync(
-        'reg',
-        ['query', r'HKCU\Control Panel\Colors', '/v', 'Hilight'],
-      );
-      if (r.exitCode == 0) {
-        final m = RegExp(r'Hilight\s+REG_SZ\s+(\d+)\s+(\d+)\s+(\d+)')
-            .firstMatch(r.stdout as String);
-        if (m != null) {
-          return _rgbToHex(
-              int.parse(m[1]!), int.parse(m[2]!), int.parse(m[3]!));
-        }
-      }
-    } catch (e) {
-      Debug.log('chat_settings_screen', 'final r = Process.runSync(: $e');
-    }
-    try {
-      final r = Process.runSync(
-        'reg',
-        ['query', r'HKCU\Software\Microsoft\Windows\DWM', '/v', 'AccentColor'],
-      );
-      if (r.exitCode == 0) {
-        final m = RegExp(r'AccentColor\s+REG_DWORD\s+0x([0-9a-fA-F]+)')
-            .firstMatch(r.stdout as String);
-        if (m != null) {
-          final abgr = int.parse(m[1]!, radix: 16);
-          return _rgbToHex(
-              abgr & 0xFF, (abgr >> 8) & 0xFF, (abgr >> 16) & 0xFF);
-        }
-      }
-    } catch (e) {
-      Debug.log('chat_settings_screen', 'final r = Process.runSync(: $e');
-    }
-    return null;
-  }
+  // Windows accent (HKCU Control Panel\Colors\Hilight / DWM AccentColor) is only
+  // reachable via `reg` — dropped. No pure-Dart/Flutter API exists, so the
+  // option is hidden on Windows rather than spawning a subprocess.
+  static String? _windowsAccent() => null;
 
   static String? _rgbTripletToHex(String triplet) {
     final parts = triplet.split(',');
@@ -2220,55 +2125,11 @@ List<String> _getAvailableFonts() {
 }
 
 Future<List<String>> _scanSystemFonts() async {
-  final fonts = <String>{'System Default'};
-  try {
-    if (Platform.isLinux) {
-      final result = await Process.run('fc-list', ['--format', '%{family}\n']);
-      if (result.exitCode == 0) {
-        final output = (result.stdout as String).trim();
-        for (final line in output.split('\n')) {
-          for (final family in line.split(',')) {
-            final trimmed = family.trim();
-            if (trimmed.isNotEmpty) fonts.add(trimmed);
-          }
-        }
-      }
-    } else if (Platform.isMacOS) {
-      final result = await Process.run('system_profiler', ['SPFontsDataType', '-detailLevel', 'mini']);
-      if (result.exitCode == 0) {
-        final re = RegExp(r'^\s{4}(\S.+):$', multiLine: true);
-        for (final match in re.allMatches(result.stdout as String)) {
-          fonts.add(match.group(1)!.trim());
-        }
-      }
-    } else if (Platform.isWindows) {
-      final fontsDir = Directory('C:\\Windows\\Fonts');
-      if (fontsDir.existsSync()) {
-        final re = RegExp(r'^(.+)\.(ttf|otf|ttc)$', caseSensitive: false);
-        for (final entity in fontsDir.listSync()) {
-          final match = re.firstMatch(entity.uri.pathSegments.last);
-          if (match != null) fonts.add(match.group(1)!.replaceAll(RegExp(r'[-_]'), ' '));
-        }
-      }
-    }
-  } catch (e) {
-    Debug.log('chat_settings_screen', 'if (Platform.isLinux): $e');
-  }
-
-  if (fonts.length <= 1) {
-    if (Platform.isLinux) {
-      fonts.addAll(['Noto Sans', 'DejaVu Sans', 'Liberation Sans', 'Ubuntu',
-        'Cantarell', 'Roboto', 'Inter', 'Open Sans', 'Fira Sans']);
-    } else if (Platform.isMacOS) {
-      fonts.addAll(['San Francisco', 'Helvetica Neue', 'Arial', 'Avenir',
-        'Georgia', 'Times New Roman', 'SF Mono', 'Menlo']);
-    } else if (Platform.isWindows) {
-      fonts.addAll(['Segoe UI', 'Arial', 'Calibri', 'Verdana', 'Tahoma',
-        'Consolas', 'Cascadia Code']);
-    } else {
-      fonts.addAll(['Roboto', 'Noto Sans', 'Inter', 'Open Sans']);
-    }
-  }
+  // Family names come from the `system_fonts` plugin (platform channels) via
+  // NativeFonts — no `fc-list` / `system_profiler` subprocess. NativeFonts
+  // already de-duplicates, sorts, and falls back to a bundled list; here we
+  // just guarantee "System Default" leads the list.
+  final fonts = <String>{'System Default', ...NativeFonts.list()};
 
   final sorted = fonts.toList()..sort((a, b) {
     if (a == 'System Default') return -1;

@@ -789,6 +789,16 @@ class AudioService extends ChangeNotifier {
 
     _attachListeners(t, player);
 
+    // Audio-only player: it is never paired with a VideoController, so force the
+    // video track off. Otherwise libmpv decodes any embedded video stream — a
+    // music file's cover-art "frame", or a round-video note — and can spawn its
+    // OWN native output window (the "mpv window" users see when playing music).
+    // media_kit defaults vid=no for VideoController-less players; we assert it
+    // explicitly so a media_kit/libmpv update can't silently regress it. Round-
+    // video *frames* render via the in-bubble VideoController; this player only
+    // carries their audio.
+    await player.setVideoTrack(VideoTrack.no());
+
     try {
       await player.open(Media(filePath));
       // Apply playback speed (music → audioPlaybackSpeed, voice/video message →
