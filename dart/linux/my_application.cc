@@ -525,6 +525,12 @@ static void tray_method_call_handler(FlMethodChannel* channel,
             if (!id_val || !name_val) continue;
             const gchar* acct_id = fl_value_get_string(id_val);
             const gchar* acct_name = fl_value_get_string(name_val);
+            // Skip blank entries: an empty label renders as a phantom empty
+            // menu row (a long scroll of them buries the real items).
+            if (!acct_id || acct_id[0] == '\0' || !acct_name ||
+                acct_name[0] == '\0') {
+              continue;
+            }
 
             GtkWidget* item = gtk_menu_item_new_with_label(acct_name);
             g_object_set_data_full(G_OBJECT(item), "account-id",

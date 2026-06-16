@@ -906,7 +906,13 @@ class _UniClientAppState extends State<UniClientApp>
   }
 
   void _syncTrayAccounts(AppState appState) {
-    final accounts = appState.accounts;
+    // Only accounts with a usable display name belong in the tray quick-switcher.
+    // Unnamed / not-yet-connected sessions (a profile may not have loaded, or it's
+    // a background test session) would otherwise render as blank menu rows — with
+    // many sessions loaded that's a long scroll of empty buttons burying Quit/Ghost.
+    final accounts = appState.accounts
+        .where((a) => a.displayName.trim().isNotEmpty || a.username.trim().isNotEmpty)
+        .toList();
     if (accounts.length <= 1) {
       _tray.updateAccountsMenu([]);
       return;
