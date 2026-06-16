@@ -2997,34 +2997,52 @@ func (t *TelegramCore) GetUserAvatarThumb(userID, chatID, msgID string) (string,
 		return "", err
 	}
 
-	// Build the user reference. Group/supergroup members whose access hash we
-	// never cached (e.g. senders whose messages were served from the local
-	// cache, not a live network fetch) resolve to hash 0 — a plain InputUser
-	// then fails and the avatar comes back empty. inputUserFromMessage resolves
-	// such a user via a message they sent in the chat, no access hash required;
-	// this is how AyuGram loads channel-member userpics (data_user.cpp).
-	var inputUser tg.InputUserClass
+	// Group/supergroup members whose access hash we never cached (e.g. senders
+	// whose messages were served from the local cache, never a live network
+	// fetch) resolve to hash 0 — a plain InputUser then fails and the avatar
+	// comes back empty. Resolve them via channels.getMessages on one of their
+	// messages: it works with the (valid, persisted) channel access hash and
+	// any accessible message ID, returning the sender with a usable access hash
+	// + photo. (inputUserFromMessage can't be used here — the server requires a
+	// message fetched in the current session and returns MSG_ID_INVALID for
+	// cache-served ids.) cacheEntities then stores the hash + photo for reuse.
 	hash := t.getCachedUserHash(id)
 	if hash == 0 && chatID != "" && msgID != "" {
 		if mid, errc := strconv.Atoi(msgID); errc == nil {
 			if peer, errp := t.resolvePeer(chatID); errp == nil {
-				if inputPeer, erri := t.toInputPeer(peer); erri == nil {
-					inputUser = &tg.InputUserFromMessage{Peer: inputPeer, MsgID: mid, UserID: id}
+				if pc, ok := peer.(*tg.PeerChannel); ok {
+					if chHash, errh := t.resolveChannelAccessHash(pc.ChannelID); errh == nil {
+						res, errm := t.api.ChannelsGetMessages(t.ctx, &tg.ChannelsGetMessagesRequest{
+							Channel: &tg.InputChannel{ChannelID: pc.ChannelID, AccessHash: chHash},
+							ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: mid}},
+						})
+						if errm == nil {
+							if cm, ok := res.(*tg.MessagesChannelMessages); ok {
+								t.cacheEntities(cm.Users, cm.Chats)
+								for _, u := range cm.Users {
+									if user, ok := u.(*tg.User); ok && user.ID == id {
+										if cu := t.convertUser(user); cu.AvatarB64 != "" {
+											return cu.AvatarB64, nil
+										}
+										break
+									}
+								}
+								hash = t.getCachedUserHash(id) // now populated → InputUser/download fallback below works
+							}
+						}
+					}
 				}
 			}
 		}
 	}
-	if inputUser == nil {
-		inputUser = &tg.InputUser{UserID: id, AccessHash: hash}
-	}
 
-	users, err := t.api.UsersGetUsers(t.ctx, []tg.InputUserClass{inputUser})
+	users, err := t.api.UsersGetUsers(t.ctx, []tg.InputUserClass{&tg.InputUser{UserID: id, AccessHash: hash}})
 	if err != nil {
 		return "", err
 	}
 	// Cache the resolved user's access hash + photo ID so subsequent avatar
 	// lookups (and the getUserAvatarB64 download fallback) succeed without
-	// re-resolving through a message.
+	// re-resolving.
 	t.cacheEntities(users, nil)
 	for _, u := range users {
 		if user, ok := u.(*tg.User); ok && user.ID == id {
