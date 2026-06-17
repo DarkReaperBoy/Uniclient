@@ -823,7 +823,8 @@ class _FilterColumnState extends State<FilterColumn> {
             isActive: false,
             unreadCount: appState.hideNotificationCounters ? 0 : otherAccountsUnread,
             unreadAllMuted: otherAccountsUnread > 0 && _isOtherAccountsAllMuted(appState, chatState),
-            minHeight: 54,
+            minHeight: 54, // windowFiltersMainMenu minHeight: 54px (window.style:274)
+            iconSize: 32, // dialogs/dialogs_menu icon is 32×32 (window.style:272)
             iconCentered: true,
             useDotBadge: true,
             onTap: widget.onOpenDrawer ?? () {},
@@ -965,6 +966,7 @@ class _SideBarButton extends StatefulWidget {
   final bool unreadAllMuted;
   final VoidCallback onTap;
   final double minHeight;
+  final double iconSize;
   final bool iconCentered;
   final bool useDotBadge;
   final bool locked;
@@ -978,6 +980,10 @@ class _SideBarButton extends StatefulWidget {
     this.unreadAllMuted = false,
     required this.onTap,
     this.minHeight = 62,
+    // AyuGram folder icons (`st::foldersAll` etc.) are 36px PNGs
+    // (Telegram/Resources/icons/folders/folders_all.png = 36×36@1x). The menu
+    // button overrides this to 32 (`dialogs/dialogs_menu` = 32×32).
+    this.iconSize = 36,
     this.iconCentered = false,
     this.useDotBadge = false,
     this.locked = false,
@@ -1030,7 +1036,8 @@ class _SideBarButtonState extends State<_SideBarButton>
   static const int _kMaxLabelLines = 3;
   static const double _textTop = 40;
   static const double _textSkip = 6;
-  static const double _iconSize = 24;
+  // AyuGram `iconPosition: point(-1px, 6px)` → icon 6px from top, centered (x=-1)
+  // (window.style:269). Icon box size comes from the asset (widget.iconSize).
   static const double _iconTop = 6;
   static const double _badgeHeight = 17;
   static const double _badgeSkip = 4;
@@ -1108,9 +1115,9 @@ class _SideBarButtonState extends State<_SideBarButton>
       child: Center(
         child: CustomPaint(
           foregroundPainter: dotColor != null
-              ? _MenuDotPainter(dotColor: dotColor, iconSize: _iconSize)
+              ? _MenuDotPainter(dotColor: dotColor, iconSize: widget.iconSize)
               : null,
-          child: Icon(widget.icon, size: _iconSize, color: iconColor),
+          child: Icon(widget.icon, size: widget.iconSize, color: iconColor),
         ),
       ),
     );
@@ -1147,7 +1154,7 @@ class _SideBarButtonState extends State<_SideBarButton>
         textTop: _textTop,
         textSkip: _textSkip,
         iconTop: _iconTop,
-        iconSize: _iconSize,
+        iconSize: widget.iconSize,
         badgePosX: _badgePosX,
         badgePosY: _badgePosY,
         badgeHeight: _badgeHeight,
@@ -1157,7 +1164,7 @@ class _SideBarButtonState extends State<_SideBarButton>
       children: [
         LayoutId(
           id: _SideBarSlot.icon,
-          child: Icon(widget.icon, size: _iconSize, color: iconColor),
+          child: Icon(widget.icon, size: widget.iconSize, color: iconColor),
         ),
         LayoutId(
           id: _SideBarSlot.label,

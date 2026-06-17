@@ -127,38 +127,54 @@ class ChatListRow extends StatelessWidget {
     // AyuGram always renders the draft preview in the dialog list (no toggle).
     const showDrafts = true;
 
-    final nameColor = isActive ? palette.dialogsNameFgActive : palette.dialogsNameFg;
-    final mutedColor = isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg;
-
-    final Color? rowBg;
-    if (isForwardHovered) {
-      rowBg = Color.lerp(palette.dialogsBg, palette.dialogsBgActive, 0.15);
-    } else if (isActive) {
-      rowBg = palette.dialogsBgActive;
-    } else {
-      rowBg = palette.dialogsBg;
-    }
-
     // Use a plain Container (not Material widget) to avoid MD3 surface-tint behavior
     // that washes Material(color: primary) to white in a ColorScheme.dark context.
-    return Container(
-      color: rowBg,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: onTap,
-          onSecondaryTapDown: onSecondaryTap == null
-              ? null
-              : (details) => onSecondaryTap!(details.globalPosition),
-          hoverColor: isActive
-              ? Colors.white.withValues(alpha: 0.08)
-              : palette.dialogsBgOver,
-          splashColor: isActive
-              ? palette.dialogsRippleBgActive
-              : palette.dialogsRippleBg,
-          child: _HoverBuilder(
-            builder: (_, isHovered) {
-              final Color badgeBg;
+    // AyuGram dialogs_layout.cpp:436-440: the row background is a SOLID swap —
+    // active → dialogsBgActive, selected (hover) → dialogsBgOver, else currentBg.
+    // So hover is NOT a translucent overlay; the ripple/splash still uses
+    // dialogsRippleBg(Active). _HoverBuilder hoists isHovered so every text/icon
+    // colour can switch to its *Over variant in the same selected state.
+    return _HoverBuilder(
+      builder: (_, isHovered) {
+        // AyuGram active→selected→normal cascade (dialogs_layout.cpp:904-908 etc.).
+        final nameColor = isActive
+            ? palette.dialogsNameFgActive
+            : isHovered
+                ? palette.dialogsNameFgOver
+                : palette.dialogsNameFg;
+        // Message-preview / muted text (st::dialogsTextFg cascade).
+        final mutedColor = isActive
+            ? palette.dialogsTextFgActive
+            : isHovered
+                ? palette.dialogsTextFgOver
+                : palette.dialogsTextFg;
+
+        final Color? rowBg;
+        if (isForwardHovered) {
+          rowBg = Color.lerp(palette.dialogsBg, palette.dialogsBgActive, 0.15);
+        } else if (isActive) {
+          rowBg = palette.dialogsBgActive;
+        } else if (isHovered) {
+          rowBg = palette.dialogsBgOver;
+        } else {
+          rowBg = palette.dialogsBg;
+        }
+
+        return Container(
+          color: rowBg,
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              onSecondaryTapDown: onSecondaryTap == null
+                  ? null
+                  : (details) => onSecondaryTap!(details.globalPosition),
+              splashColor: isActive
+                  ? palette.dialogsRippleBgActive
+                  : palette.dialogsRippleBg,
+              child: Builder(
+                builder: (_) {
+                  final Color badgeBg;
               if (isActive) {
                 badgeBg = chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive;
               } else if (isHovered) {
@@ -243,10 +259,18 @@ class ChatListRow extends StatelessWidget {
                       // Top row: name + timestamp.
                       Row(
                         children: [
-                          // Chat type icon.
+                          // Chat type icon — dialogsChatIcon/Channel/Bot/Forum
+                          // cascade (dialogs.style:383-402): its own
+                          // dialogsChatIconFg(Over/Active), NOT the message-text fg.
                           if (_typeIcon != null) ...[
-                            Icon(_typeIcon, size: 16, color: mutedColor),
-                            const SizedBox(width: 3),
+                            Icon(_typeIcon,
+                                size: 16,
+                                color: isActive
+                                    ? palette.dialogsChatIconFgActive
+                                    : isHovered
+                                        ? palette.dialogsChatIconFgOver
+                                        : palette.dialogsChatIconFg),
+                            const SizedBox(width: 3), // dialogsChatTypeSkip
                           ],
                           // Chat name.
                           Expanded(
@@ -266,18 +290,31 @@ class ChatListRow extends StatelessWidget {
                                 ),
                                 if (chat.isVerified) ...[
                                   const SizedBox(width: 4),
+                                  // dialogsVerifiedIcon cascade
+                                  // (dialogs_layout.cpp:815-818): star tinted
+                                  // dialogsVerifiedIconBg(Over/Active).
                                   Icon(Icons.verified,
                                     size: 16,
-                                    color: isActive ? palette.dialogsNameFgActive : palette.dialogsVerifiedIconBg,
+                                    color: isActive
+                                        ? palette.dialogsVerifiedIconBgActive
+                                        : isHovered
+                                            ? palette.dialogsVerifiedIconBgOver
+                                            : palette.dialogsVerifiedIconBg,
                                   ),
                                 ],
                                 if (chat.isScam) ...[
                                   const SizedBox(width: 4),
-                                  _WarningBadge(label: 'SCAM', isActive: isActive),
+                                  _WarningBadge(
+                                      label: 'SCAM',
+                                      isActive: isActive,
+                                      isHovered: isHovered),
                                 ],
                                 if (chat.isFake) ...[
                                   const SizedBox(width: 4),
-                                  _WarningBadge(label: 'FAKE', isActive: isActive),
+                                  _WarningBadge(
+                                      label: 'FAKE',
+                                      isActive: isActive,
+                                      isHovered: isHovered),
                                 ],
                                 if (chat.emojiStatusId.isNotEmpty &&
                                     !hidePremiumStatuses) ...[
@@ -292,14 +329,28 @@ class ChatListRow extends StatelessWidget {
                                     chat.type == ChatType.dm &&
                                     !hidePremiumStatuses) ...[
                                   const SizedBox(width: 4),
+                                  // dialogsPremiumIcon cascade
+                                  // (dialogs_layout.cpp:827-830).
                                   Icon(Icons.star_rounded,
                                     size: 16,
-                                    color: isActive ? palette.dialogsNameFgActive : palette.dialogsVerifiedIconBg,
+                                    color: isActive
+                                        ? palette.dialogsVerifiedIconBgActive
+                                        : isHovered
+                                            ? palette.dialogsVerifiedIconBgOver
+                                            : palette.dialogsVerifiedIconBg,
                                   ),
                                 ],
                                 if (chat.isMuted && showMuteIcon) ...[
                                   const SizedBox(width: 4),
-                                  Icon(Icons.volume_off, size: 14, color: mutedColor),
+                                  // dialogsMuteIcon cascade (dialogs.style:641):
+                                  // the muted-badge gray, NOT the message-text fg.
+                                  Icon(Icons.volume_off,
+                                      size: 14,
+                                      color: isActive
+                                          ? palette.dialogsUnreadBgMutedActive
+                                          : isHovered
+                                              ? palette.dialogsUnreadBgMutedOver
+                                              : palette.dialogsUnreadBgMuted),
                                 ],
                               ],
                             ),
@@ -308,19 +359,27 @@ class ChatListRow extends StatelessWidget {
                             _SendStateIcon(
                               status: MsgStatus.unknown,
                               isActive: isActive,
+                              isHovered: isHovered,
                               isClosed: true,
                             )
                           else if (chat.lastMsgIsOutgoing && chat.lastMsgText.isNotEmpty)
                             _SendStateIcon(
                               status: chat.lastMsgStatus,
                               isActive: isActive,
+                              isHovered: isHovered,
                             ),
                           const SizedBox(width: 5),
+                          // dialogsDateFg cascade (dialogs_layout.cpp:101-105):
+                          // active → dialogsDateFgActive, selected → dialogsDateFgOver.
                           Text(
                             formatChatListTime(context, chat.lastMsgTime),
                             style: TextStyle(
                               fontSize: 13,
-                              color: isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg,
+                              color: isActive
+                                  ? palette.dialogsDateFgActive
+                                  : isHovered
+                                      ? palette.dialogsDateFgOver
+                                      : palette.dialogsDateFg,
                             ),
                           ),
                         ],
@@ -335,14 +394,20 @@ class ChatListRow extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: _buildPreview(palette, nameColor, mutedColor, showDrafts),
+                            child: _buildPreview(palette, nameColor, mutedColor, showDrafts, isHovered),
                           ),
-                          // Poll badge — leftmost of the cluster.
+                          // Poll badge — leftmost of the cluster. Wide-mode icon
+                          // cascade (dialogs.style:600-604): base colour normally,
+                          // dialogsNameFgActive when the row is the active chat.
                           if (chat.unreadPollCount > 0) ...[
                             const SizedBox(width: 5),
                             _ThreeStateBadgeIcon(
                               icon: Icons.poll,
-                              color: isNarrow ? badgeBg : palette.dialogsPollIconFg,
+                              color: isNarrow
+                                  ? badgeBg
+                                  : (isActive
+                                      ? palette.dialogsNameFgActive
+                                      : palette.dialogsPollIconFg),
                               isNarrow: isNarrow,
                             ),
                           ],
@@ -352,14 +417,22 @@ class ChatListRow extends StatelessWidget {
                             const SizedBox(width: 5),
                             _ThreeStateBadgeIcon(
                               icon: Icons.alternate_email,
-                              color: isNarrow ? badgeBg : palette.dialogsMentionIconFg,
+                              color: isNarrow
+                                  ? badgeBg
+                                  : (isActive
+                                      ? palette.dialogsNameFgActive
+                                      : palette.dialogsMentionIconFg),
                               isNarrow: isNarrow,
                             ),
                           ] else if (chat.unreadReactionCount > 0) ...[
                             const SizedBox(width: 5),
                             _ThreeStateBadgeIcon(
                               icon: Icons.favorite,
-                              color: isNarrow ? badgeBg : palette.dialogsReactionIconFg,
+                              color: isNarrow
+                                  ? badgeBg
+                                  : (isActive
+                                      ? palette.dialogsNameFgActive
+                                      : palette.dialogsReactionIconFg),
                               isNarrow: isNarrow,
                             ),
                           ],
@@ -376,7 +449,16 @@ class ChatListRow extends StatelessWidget {
                             _UnreadDot(bgColor: badgeBg),
                           ] else if (chat.isPinned) ...[
                             const SizedBox(width: 5),
-                            Icon(Icons.push_pin, size: 14, color: mutedColor),
+                            // dialogsPinnedIcon cascade (dialogs.style:425-429):
+                            // the muted-badge gray (dialogsUnreadBgMuted*), NOT
+                            // the message-text fg.
+                            Icon(Icons.push_pin,
+                                size: 14,
+                                color: isActive
+                                    ? palette.dialogsUnreadBgMutedActive
+                                    : isHovered
+                                        ? palette.dialogsUnreadBgMutedOver
+                                        : palette.dialogsUnreadBgMuted),
                           ],
                         ],
                       ),
@@ -387,24 +469,41 @@ class ChatListRow extends StatelessWidget {
             ),
           ),
         );
-            },
+                },
+              ),
+            ),
           ),
-      ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildPreview(TelegramPalette palette, Color nameColor, Color mutedColor, bool showDrafts) {
+  Widget _buildPreview(TelegramPalette palette, Color nameColor, Color mutedColor, bool showDrafts, bool isHovered) {
+    // Service-text (sender / typing) cascade — dialogs_layout.cpp:640-644.
+    final serviceColor = isActive
+        ? palette.dialogsTextFgServiceActive
+        : isHovered
+            ? palette.dialogsTextFgServiceOver
+            : palette.dialogsTextFgService;
+
     if (typingUser != null) {
       return _TypingDotsIndicator(
         userName: typingUser!,
         action: typingAction,
-        color: palette.dialogsTextFgService,
+        color: serviceColor,
       );
     }
 
     if (showDrafts && chat.draftText.isNotEmpty &&
         !chat.isForum && chat.unreadCount == 0 && !chat.isUnreadMark) {
+      // "Draft:" prefix uses dialogsDraftFg(Over/Active) — the red label
+      // (dialogsTextPaletteDraft linkFg, dialogs.style:184-198); the draft body
+      // keeps the message-text colour (monoFg = dialogsTextFg cascade).
+      final draftColor = isActive
+          ? palette.dialogsDraftFgActive
+          : isHovered
+              ? palette.dialogsDraftFgOver
+              : palette.dialogsDraftFg;
       return Text.rich(
         TextSpan(children: [
           if (chat.draftReplyToMsgId.isNotEmpty)
@@ -412,12 +511,12 @@ class ChatListRow extends StatelessWidget {
               alignment: PlaceholderAlignment.middle,
               child: Padding(
                 padding: const EdgeInsets.only(right: 2),
-                child: Icon(Icons.reply, size: 14, color: palette.dialogsDraftFg),
+                child: Icon(Icons.reply, size: 14, color: draftColor),
               ),
             ),
           TextSpan(
             text: 'Draft: ',
-            style: TextStyle(fontSize: 13, color: palette.dialogsDraftFg),
+            style: TextStyle(fontSize: 13, color: draftColor),
           ),
           TextSpan(
             text: chat.draftText,
@@ -451,12 +550,7 @@ class ChatListRow extends StatelessWidget {
         if (showSender)
           TextSpan(
             text: '${chat.lastMsgSender}: ',
-            style: TextStyle(
-              fontSize: 13,
-              color: isActive
-                  ? palette.dialogsTextFgActive
-                  : palette.dialogsTextFgService,
-            ),
+            style: TextStyle(fontSize: 13, color: serviceColor),
           ),
         TextSpan(
           text: chat.lastMsgText,
@@ -1145,14 +1239,18 @@ class _ChatAvatar extends StatelessWidget {
             else
               avatar,
             if (!_hasStories)
+              // AyuGram OnlineBadgePosition (ayu_userpic.cpp:81-90): for a round
+              // 46px photo the 12px badge sits flush in the bottom-right corner
+              // (top-left ≈ 33.3,33.3 → inset ≈ 0.7px), NOT 3px outside it. The
+              // 3px ring below is the stroke gap AyuGram carves with the row bg.
               Positioned(
-                right: -3,
-                bottom: -3,
+                right: 0,
+                bottom: 0,
                 child: AnimatedOpacity(
                   opacity: isOnline ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 150),
+                  duration: const Duration(milliseconds: 150), // dialogsOnlineBadgeDuration
                   child: Container(
-                  width: 12,
+                  width: 12, // dialogsOnlineBadgeSize
                   height: 12,
                   decoration: BoxDecoration(
                     color: isActive
@@ -1599,27 +1697,41 @@ class _UploadArrowPainter extends CustomPainter {
 }
 
 /// Red text badge for scam/fake indicators.
-/// Spec §2: rendered inline after name, red border + red text.
+/// Ports AyuGram's scam/fake badge (ui/unread_badge.cpp:90-128): 9px-SEMIBOLD
+/// text in a 1px-stroke rounded rect, dialogsScamPadding (2px horizontal, 0px
+/// vertical), dialogsScamRadius 2px, dialogsScamFg(Over/Active) colour
+/// (dialogs_layout.cpp:831-835 — dialogsScamFg = dialogsDraftFg #dd4b39).
 class _WarningBadge extends StatelessWidget {
   final String label;
   final bool isActive;
+  final bool isHovered;
 
-  const _WarningBadge({required this.label, required this.isActive});
+  const _WarningBadge({
+    required this.label,
+    required this.isActive,
+    this.isHovered = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? Colors.white : const Color(0xFFe53935);
+    final palette = context.palette;
+    final color = isActive
+        ? palette.dialogsScamFgActive
+        : isHovered
+            ? palette.dialogsScamFgOver
+            : palette.dialogsScamFg;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+      // dialogsScamPadding: margins(2px, 0px, 2px, 0px) — horizontal only.
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       decoration: BoxDecoration(
-        border: Border.all(color: color, width: 1),
-        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: color, width: 1), // st::lineWidth
+        borderRadius: BorderRadius.circular(2), // dialogsScamRadius
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 9,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600, // dialogsScamFont: font(9px semibold)
           color: color,
           height: 1.0,
         ),
@@ -1738,11 +1850,13 @@ class _ThreeStateBadgeIcon extends StatelessWidget {
 class _SendStateIcon extends StatelessWidget {
   final MsgStatus status;
   final bool isActive;
+  final bool isHovered;
   final bool isClosed;
 
   const _SendStateIcon({
     required this.status,
     required this.isActive,
+    this.isHovered = false,
     this.isClosed = false,
   });
 
@@ -1750,9 +1864,14 @@ class _SendStateIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
 
-    // AyuGram dialogs_layout.cpp:769-774: closed topic → lock icon in send-state position.
+    // AyuGram dialogs_layout.cpp:769-774: closed topic → dialogsLockIcon in the
+    // send-state slot, which is the muted-badge gray cascade (dialogs.style:430-434).
     if (isClosed) {
-      final lockColor = isActive ? palette.dialogsTextFgActive : palette.dialogsSentIconFg;
+      final lockColor = isActive
+          ? palette.dialogsUnreadBgMutedActive
+          : isHovered
+              ? palette.dialogsUnreadBgMutedOver
+              : palette.dialogsUnreadBgMuted;
       return SizedBox(
         width: 20,
         height: 11,
@@ -1767,12 +1886,18 @@ class _SendStateIcon extends StatelessWidget {
 
     final Color iconColor;
     if (isActive) {
-      iconColor = palette.dialogsTextFgActive;
+      // dialogsSent/Received/SendingIcon active variant → dialogsSentIconFgActive
+      // (== windowFgActive in theme, matching the active text colour).
+      iconColor = palette.dialogsSentIconFgActive;
     } else if (status == MsgStatus.sending || status == MsgStatus.failed) {
       // AyuGram routes both sending AND failed to dialogsSendingIcon's styling.
-      iconColor = palette.dialogsSendingIconFg;
+      iconColor = isHovered
+          ? palette.dialogsSendingIconFgOver
+          : palette.dialogsSendingIconFg;
     } else {
-      iconColor = palette.dialogsSentIconFg;
+      iconColor = isHovered
+          ? palette.dialogsSentIconFgOver
+          : palette.dialogsSentIconFg;
     }
 
     final IconData icon;
