@@ -2217,11 +2217,15 @@ class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = context.palette;
     return Padding(
+      // dialogs.style: dialogsFilterPadding point(7px, 7px), dialogsFilterSkip 4px.
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
       child: Row(
         children: [
           if (showHamburger && !searching) ...[
+            // dialogs.style dialogsMenuToggle: 40x40 IconButton to the LEFT of
+            // the field (no inline search icon inside the field itself).
             IconButton(
               icon: const Icon(Icons.menu, size: 20),
               onPressed: onOpenDrawer,
@@ -2243,6 +2247,9 @@ class _SearchBar extends StatelessWidget {
           ],
           Expanded(
             child: SizedBox(
+              // dialogsFilter: heightMin 35px, borderRadius 18px, left
+              // textMargin 12px, placeholderFg, fill filterInputInactiveBg.
+              // No leading icon inside the field (AyuGram dialogsFilter).
               height: 35,
               child: TextField(
                 controller: controller,
@@ -2251,17 +2258,14 @@ class _SearchBar extends StatelessWidget {
                 style: theme.textTheme.bodyMedium,
                 decoration: InputDecoration(
                   hintText: 'Search',
-                  prefixIcon: const Icon(Icons.search, size: 18),
-                  prefixIconConstraints: const BoxConstraints(minWidth: 36),
+                  hintStyle: TextStyle(color: palette.placeholderFg),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(18),
                     borderSide: BorderSide.none,
                   ),
                   filled: true,
-                  fillColor: theme.brightness == Brightness.dark
-                      ? const Color(0xFF1e2430)
-                      : const Color(0xFFF0F0F0),
+                  fillColor: palette.filterInputInactiveBg,
                 ),
               ),
             ),
@@ -5088,19 +5092,19 @@ class _SearchSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    // dialogs.style: searchedBarHeight 28px, searchedBarPosition point(14px, 5px),
+    // searchedBarFont normalFont (13px), searchedBarBg, searchedBarFg.
     return Container(
       height: 28,
       width: double.infinity,
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.only(left: 14),
-      color: palette.dialogsBg,
+      alignment: Alignment.topLeft,
+      padding: const EdgeInsets.only(left: 14, top: 5),
+      color: palette.searchedBarBg,
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-          color: palette.dialogsTextFg,
+          fontSize: 13,
+          color: palette.searchedBarFg,
         ),
       ),
     );

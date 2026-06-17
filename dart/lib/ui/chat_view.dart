@@ -7073,11 +7073,13 @@ class _ChatTopBar extends StatelessWidget {
               child: SizedBox(
                 width: 52,
                 height: 54,
+                // AyuGram topBarInfoButton: 52×54 hit-area, 42px photo at
+                // photoPosition (2px, -1px) (info/info.style:1078-1086).
                 child: Stack(
                   children: [
                     Positioned(
                       left: 2,
-                      top: 5,
+                      top: -1,
                       child: _chatAvatar(chat, palette, 21, activeSublist: activeSublist),
                     ),
                   ],
@@ -7207,88 +7209,116 @@ class _ChatTopBar extends StatelessWidget {
             )
           else
             // Tappable title block — toggles info panel.
+            //
+            // AyuGram paints the title and status at fixed Y inside the 54px
+            // bar (NOT vertically centered as a column):
+            //   nametop   = topBarArrowPadding.top()                      = 8px
+            //   statustop = topBarHeight - topBarArrowPadding.bottom()
+            //               - dialogsTextFont->height (= normalFont 13px ≈18px)
+            //             = 54 - 8 - 18                                   = 28px
+            // (history_view_top_bar_widget.cpp:557-558; info/info.style:1023).
+            // nameleft = _leftTaken (avatar's right edge), with a 3px right gap
+            // (topBarNameRightPadding, info/info.style:1024).
             Expanded(
               child: InkWell(
                 onTap: onToggleInfo,
                 borderRadius: BorderRadius.circular(6),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          // §22.6: topic icon prefix before title.
-                          if (isTopic) ...[
-                            _buildTopicTitleIcon(context),
-                            const SizedBox(width: 6),
-                          ],
-                          Flexible(
+                  padding: const EdgeInsets.only(right: 3),
+                  child: SizedBox(
+                    height: 54,
+                    child: Stack(
+                      children: [
+                        // Title row pinned at nametop = 8px.
+                        Positioned(
+                          left: 0,
+                          top: 8,
+                          right: 0,
+                          child: Row(
+                            children: [
+                              // §22.6: topic icon prefix before title.
+                              if (isTopic) ...[
+                                _buildTopicTitleIcon(context),
+                                const SizedBox(width: 6),
+                              ],
+                              Flexible(
+                                child: Text(
+                                  activeSublist != null
+                                      ? activeSublist!.peerName
+                                      : isTopic && activeTopic != null && activeTopic!.isGeneral
+                                          ? '# ${chat.title.isNotEmpty ? chat.title : chat.chatId}'
+                                          : (chat.title.isNotEmpty ? chat.title : chat.chatId),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: palette.windowBoldFg,
+                                  ),
+                                ),
+                              ),
+                              if (chat.isVerified) ...[
+                                const SizedBox(width: 4),
+                                Icon(Icons.verified,
+                                  size: 16,
+                                  color: palette.profileVerifiedCheckBg,
+                                ),
+                              ],
+                              if (chat.isScam) ...[
+                                const SizedBox(width: 4),
+                                _TopBarWarningBadge(label: 'SCAM'),
+                              ],
+                              if (chat.isFake) ...[
+                                const SizedBox(width: 4),
+                                _TopBarWarningBadge(label: 'FAKE'),
+                              ],
+                              if (chat.emojiStatusId.isNotEmpty &&
+                                  !context.read<AppState>().hidePremiumStatuses) ...[
+                                const SizedBox(width: 4),
+                                EmojiStatusWidget(
+                                  emojiStatusId: chat.emojiStatusId,
+                                  accountId: chat.accountId,
+                                  size: 18,
+                                ),
+                              ],
+                              if (chat.isMuted) ...[
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.volume_off,
+                                  size: 16,
+                                  color: theme.textTheme.bodySmall?.color,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        // Status / subtitle pinned at statustop = 28px.
+                        if (isTyping)
+                          Positioned(
+                            left: 0,
+                            top: 28,
+                            right: 0,
+                            child: _TopBarTypingDots(
+                              userName: typingUser!,
+                              color: subtitleColor ?? theme.colorScheme.primary,
+                            ),
+                          )
+                        else if (subtitle.isNotEmpty)
+                          Positioned(
+                            left: 0,
+                            top: 28,
+                            right: 0,
                             child: Text(
-                              activeSublist != null
-                                  ? activeSublist!.peerName
-                                  : isTopic && activeTopic != null && activeTopic!.isGeneral
-                                      ? '# ${chat.title.isNotEmpty ? chat.title : chat.chatId}'
-                                      : (chat.title.isNotEmpty ? chat.title : chat.chatId),
+                              subtitle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: palette.windowBoldFg,
+                              style: TgTokens.normalFont.copyWith(
+                                color: subtitleColor,
                               ),
                             ),
                           ),
-                          if (chat.isVerified) ...[
-                            const SizedBox(width: 4),
-                            Icon(Icons.verified,
-                              size: 16,
-                              color: palette.profileVerifiedCheckBg,
-                            ),
-                          ],
-                          if (chat.isScam) ...[
-                            const SizedBox(width: 4),
-                            _TopBarWarningBadge(label: 'SCAM'),
-                          ],
-                          if (chat.isFake) ...[
-                            const SizedBox(width: 4),
-                            _TopBarWarningBadge(label: 'FAKE'),
-                          ],
-                          if (chat.emojiStatusId.isNotEmpty &&
-                              !context.read<AppState>().hidePremiumStatuses) ...[
-                            const SizedBox(width: 4),
-                            EmojiStatusWidget(
-                              emojiStatusId: chat.emojiStatusId,
-                              accountId: chat.accountId,
-                              size: 18,
-                            ),
-                          ],
-                          if (chat.isMuted) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.volume_off,
-                              size: 16,
-                              color: theme.textTheme.bodySmall?.color,
-                            ),
-                          ],
-                        ],
-                      ),
-                      if (isTyping)
-                        _TopBarTypingDots(
-                          userName: typingUser!,
-                          color: subtitleColor ?? theme.colorScheme.primary,
-                        )
-                      else if (subtitle.isNotEmpty)
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TgTokens.normalFont.copyWith(
-                            color: subtitleColor,
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -15509,6 +15539,13 @@ class _ComposeAreaState extends State<_ComposeArea>
     final composeLeftPad = hasBlockquote ? 16.0 : 11.0;
 
     final spellEnabled = context.select<AppState, bool>((s) => s.spellcheckerEnabled);
+    final pal = context.palette;
+
+    // AyuGram historyComposeField uses historyTextStyle → defaultTextStyle →
+    // normalFont = font(fsize=13px) (basic.style:51,81; chat_helpers.style:1193).
+    // bodyMedium is 14px app-wide, so the compose field overrides to 13px.
+    final composeTextStyle =
+        (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(fontSize: 13);
 
     Widget field = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 36, maxHeight: 224),
@@ -15519,7 +15556,7 @@ class _ComposeAreaState extends State<_ComposeArea>
         onChanged: _onTextChanged,
         maxLines: null,
         textInputAction: TextInputAction.newline,
-        style: theme.textTheme.bodyMedium,
+        style: composeTextStyle,
         spellCheckConfiguration: spellEnabled
             ? SpellCheckConfiguration(spellCheckService: UniSpellCheckService.instance)
             : const SpellCheckConfiguration.disabled(),
@@ -15549,6 +15586,9 @@ class _ComposeAreaState extends State<_ComposeArea>
               : widget.chatType == ChatType.channel
                   ? 'Broadcast a message...'
                   : 'Write a message...',
+          // placeholderFg = windowSubTextFg, normalFont 13px
+          // (chat_helpers.style:1199; colors.palette:73).
+          hintStyle: TextStyle(fontSize: 13, color: pal.windowSubTextFg),
           border: InputBorder.none,
           contentPadding:
               EdgeInsets.fromLTRB(composeLeftPad, 8, 11, 8),
@@ -15581,7 +15621,6 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
 
     final isDark = theme.brightness == Brightness.dark;
-    final pal = context.palette;
     final composeBg = pal.historyComposeAreaBg;
     final iconFg = pal.historyComposeIconFg;
     final iconFgOver = pal.historyComposeIconFgOver;
@@ -15737,14 +15776,14 @@ class _ComposeAreaState extends State<_ComposeArea>
                           child: _ComposeFormattingOverlay(
                             controller: richCtrl,
                             scrollController: _scrollController,
-                            textStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
+                            textStyle: composeTextStyle,
                             contentPadding: EdgeInsets.fromLTRB(composeLeftPad, 8, 11, 8),
                           ),
                         ),
                         _CodeHeaderTapLayer(
                           controller: richCtrl,
                           scrollController: _scrollController,
-                          textStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
+                          textStyle: composeTextStyle,
                           contentPadding: EdgeInsets.fromLTRB(composeLeftPad, 8, 11, 8),
                           onLanguageTap: (entity) {
                             richCtrl.selection = TextSelection(
