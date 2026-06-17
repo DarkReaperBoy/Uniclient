@@ -28,23 +28,26 @@ the lossy spec doc — then built + screenshot-verified against the running app.
   higher-value bubble re-port needs it (the `_BubbleTailBorder` R1 rewrite can be
   done surgically in place — it's isolated at message_bubble.dart:84-167).
 
-## ⚠️ IMPORTANT BACKEND BUG (not UI — flag for review)
-Opening the real content chats (the Persian-named groups/channels) renders a
-**blank message area**. The log shows the Go engine returning **`PEER_ID_INVALID`
-(rpc error 400)** for `GetMessages` / `GetPinnedMessages` / `GetOnlineCount` /
-`GetPeerBarSettings` on those peers (e.g. `tele_4beb99fd` peer id resolving to `1`).
-This is a **peer access-hash resolution problem in the Telegram core** (stale/missing
-access_hash for archived peers), NOT a UI rendering bug — the UI correctly shows
-empty because the backend returns nothing. This likely accounts for much of the
-"buggy" feel (real chats appear empty). It lives in `go/cores/telegram.go` (peer
-resolution / access-hash cache), outside the AyuGram UI-port scope, so it was NOT
-touched here. **Recommend investigating peer access-hash caching/refresh next.**
+## ✅ BIG "BUGGY" FIX — forum topics rendered blank (FIXED, commit 28b53504)
+The real content chats rendered **blank**. Root cause (confirmed via DB): they are
+**forum topics** (engine DB `type=4`), stored with the *topic id* as `chat_id`
+(1, 6, 10, 149154…). Opening one passed that bare id to the read path; the core's
+`resolvePeer()` saw a positive id → `PeerUser` → `InputPeerUser{id,hash:0}` →
+Telegram `PEER_ID_INVALID`, so ~68 chats showed empty. Each topic row already kept
+its parent forum in `parent_id` (e.g. عمومی = topic 1 of forum `-1001796213998`),
+and the SEND path was already topic-aware (`TopMsgID`) — only READS weren't.
 
-Consequence for verification: the only chats that fetch successfully are the empty
-test chats (TestChannel, Test Group Flow) + self-sent messages, so incoming
-group-bubble fidelity (sender-name colors, member avatars, reactions) can't be
-visually verified right now. Those bubble fixes should be verified once peer
-resolution works (or against a chat that does load).
+Fix routes topic reads through the parent forum + topic thread
+(`MessagesGetReplies(parent, MsgID=topic)`), with `GetTopicPinnedMessages` and
+parent-routed online/peer-settings. `cores/base.go` (+ThreadID),
+`cores/telegram.go`, `engine/cache_msgs.go` (topicRoute), `engine/cache_users.go`.
+Verified: عمومی + Musics (different forums) each load 30 messages, zero
+PEER_ID_INVALID, desktop + mobile — sender names/avatars/reactions/reply-quotes/
+pinned bar all render. **This unblocks incoming-group-bubble fidelity work.**
+
+Residual (pre-existing, non-blocking): rapid topic-switching can transiently
+`CHANNEL_INVALID` on GetOnlineCount/GetPeerBarSettings (parent access-hash warmup;
+also hits unmodified GetScheduledMessages). Does NOT blank the chat.
 
 ## Verified-working this session
 - App launches clean after the Phase-0 de-hack (new plugins init fine, zero log errors).
