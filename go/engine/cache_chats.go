@@ -109,8 +109,9 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		        0, c.has_active_call
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+		 WHERE c.type != ?
 		 ORDER BY c.is_archived ASC, c.is_pinned DESC, c.last_msg_time DESC
-		 LIMIT ? OFFSET ?`, limit, offset)
+		 LIMIT ? OFFSET ?`, ChatTypeTopicVal, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -149,9 +150,9 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		        0, c.has_active_call
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
-		 WHERE c.account_id = ? AND c.is_archived = ?
+		 WHERE c.account_id = ? AND c.is_archived = ? AND c.type != ?
 		 ORDER BY c.is_pinned DESC, c.last_msg_time DESC
-		 LIMIT ? OFFSET ?`, accountID, archivedInt, limit, offset)
+		 LIMIT ? OFFSET ?`, accountID, archivedInt, ChatTypeTopicVal, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -924,11 +925,54 @@ func (e *Engine) ArchiveChat(accountID, chatID string, archived bool) error {
 	return nil
 }
 
-// GetForumTopics fetches forum topics for a chat from the core.
+// cachedForumTopics rebuilds ForumTopic entries from the cached forum-topic
+// rows (ChatTypeTopicVal) whose parent_id matches the given forum chat. These
+// rows are kept in the DB even though they are excluded from the main chat list
+// (GetChatList), so the topic list stays reachable when the core is offline or
+// cannot fetch topics live. Ordered pinned-first, then by last message time.
+func (e *Engine) cachedForumTopics(accountID, parentChatID string) []cores.ForumTopic {
+	rows, err := e.db.Query(
+		`SELECT chat_id, title, unread_count, unread_mention_count, unread_reaction_count,
+		        is_pinned, last_msg_id, last_msg_text, last_msg_time
+		 FROM chats
+		 WHERE account_id = ? AND type = ? AND parent_id = ?
+		 ORDER BY is_pinned DESC, last_msg_time DESC`,
+		accountID, ChatTypeTopicVal, parentChatID)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var topics []cores.ForumTopic
+	for rows.Next() {
+		var t cores.ForumTopic
+		var lastMsgID, lastMsgText sql.NullString
+		var lastMsgTime sql.NullInt64
+		var isPinned int
+		if err := rows.Scan(&t.ID, &t.Title, &t.UnreadCount, &t.UnreadMentions,
+			&t.UnreadReactions, &isPinned, &lastMsgID, &lastMsgText, &lastMsgTime); err != nil {
+			continue
+		}
+		t.ParentID = parentChatID
+		t.IsPinned = isPinned == 1
+		t.TopMessageID = lastMsgID.String
+		t.LastMsgText = lastMsgText.String
+		t.LastMsgDate = lastMsgTime.Int64 / 1000
+		topics = append(topics, t)
+	}
+	return topics
+}
+
+// GetForumTopics fetches forum topics for a chat from the core, falling back to
+// cached topic rows when the live fetch is unavailable (offline / error) so the
+// per-forum topic list stays reachable even though topics are excluded from the
+// main chat list.
 // Returns the full ForumTopic data model with capability flags.
 func (e *Engine) GetForumTopics(accountID, chatID string) ([]cores.ForumTopic, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
+		if cached := e.cachedForumTopics(accountID, chatID); len(cached) > 0 {
+			return cached, nil
+		}
 		return nil, fmt.Errorf("account not found: %s", accountID)
 	}
 
@@ -937,12 +981,20 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]cores.ForumTopic, e
 	}
 	ftg, ok := acc.Core.(forumTopicGetter)
 	if !ok {
-		return nil, nil
+		return e.cachedForumTopics(accountID, chatID), nil
 	}
 
 	topics, err := ftg.GetForumTopics(chatID, 20)
-	if err != nil {
-		return nil, err
+	if err != nil || len(topics) == 0 {
+		// Live fetch failed or returned nothing — serve the cached topic rows so
+		// the forum remains browsable. Only surface the error if no cache exists.
+		if cached := e.cachedForumTopics(accountID, chatID); len(cached) > 0 {
+			return cached, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return topics, nil
 	}
 
 	for _, t := range topics {

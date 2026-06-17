@@ -2980,7 +2980,15 @@ class ChatState extends ChangeNotifier {
     if (_disposed) return;
     final idx = _chats.indexWhere((c) => c.accountId == updated.accountId && c.chatId == updated.chatId);
     final String? oldAvatar = idx >= 0 ? _chats[idx].avatarPath : null;
-    if (idx >= 0) {
+    // Forum topics are NOT top-level dialogs — they live under their parent
+    // forum and are reached via the topic list (getForumTopics). A topic chat
+    // update must never enter the main chat list (it would clutter it with
+    // dozens of per-topic rows). The update still flows through below to drive
+    // the forum-topic-list refresh and active-chat swap. Drop any topic row
+    // that was inserted by an older build/snapshot, then skip the list write.
+    if (updated.type == ChatType.topic) {
+      if (idx >= 0) _chats.removeAt(idx);
+    } else if (idx >= 0) {
       _chats[idx] = updated;
     } else {
       _chats.insert(0, updated);
