@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
@@ -585,7 +586,7 @@ class _MediaViewerState extends State<MediaViewer>
     if ((msg.mediaType == 2 || msg.mediaType == 5 || msg.mediaType == 7) &&
         msg.mediaLocalPath.isNotEmpty) {
       _disposePlayer();
-      final player = Player();
+      final player = createPlayer();
       if (AppState.noHwAccelVideo) {
         (player.platform as NativePlayer).setProperty('hwdec', 'no');
       }
@@ -2345,7 +2346,7 @@ class _MediaViewerState extends State<MediaViewer>
       _qualityDownloading = false;
     });
     _disposePlayer();
-    final player = Player();
+    final player = createPlayer();
     if (AppState.noHwAccelVideo) {
       (player.platform as NativePlayer).setProperty('hwdec', 'no');
     }
@@ -6482,7 +6483,7 @@ class _StoriesViewerState extends State<StoriesViewer>
     _storyTimer.reset();
 
     if (_current.isVideo && _current.hasMedia) {
-      final player = Player();
+      final player = createPlayer();
       if (AppState.noHwAccelVideo) {
         (player.platform as NativePlayer).setProperty('hwdec', 'no');
       }

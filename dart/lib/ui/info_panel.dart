@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -2723,7 +2724,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     engine.getUserProfile(widget.chat.accountId, widget.chat.chatId).then((p) {
       if (!mounted || p == null) return;
       if (p.videoAvatarPath.isEmpty) return;
-      final player = Player();
+      final player = createPlayer();
       if (AppState.noHwAccelVideo) {
         (player.platform as NativePlayer).setProperty('hwdec', 'no');
       }
@@ -7864,7 +7865,7 @@ class _GifCellState extends State<_GifCell> {
     if (_playingPath == path && _player != null) return;
     _disposePlayer();
     _playingPath = path;
-    final player = Player();
+    final player = createPlayer();
     if (AppState.noHwAccelVideo) {
       (player.platform as NativePlayer).setProperty('hwdec', 'no');
     }

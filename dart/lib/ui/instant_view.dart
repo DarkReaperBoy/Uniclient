@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -2005,7 +2006,7 @@ class _IvVideoBlockState extends State<_IvVideoBlock> {
       setState(() { _downloading = false; _error = 'Failed to download video'; });
       return;
     }
-    final player = Player();
+    final player = createPlayer();
     if (AppState.noHwAccelVideo) {
       (player.platform as NativePlayer).setProperty('hwdec', 'no');
     }
@@ -2187,7 +2188,7 @@ class _IvAudioBlockState extends State<_IvAudioBlock> {
       setState(() { _downloading = false; _error = 'Failed to download audio'; });
       return;
     }
-    final player = Player();
+    final player = createPlayer();
     _player = player;
     _subs.add(player.stream.playing.listen((v) {
       if (mounted) setState(() { _playing = v; _paused = !v; });
@@ -2344,7 +2345,7 @@ class _IvEmbedBlockState extends State<_IvEmbedBlock> {
     }
     setState(() => _loading = true);
     try {
-      final player = Player();
+      final player = createPlayer();
       if (AppState.noHwAccelVideo) {
         (player.platform as NativePlayer).setProperty('hwdec', 'no');
       }

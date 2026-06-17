@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 
 import '../utils/debug.dart';
 import 'notification_types.dart';
@@ -25,7 +26,7 @@ class NotificationSoundPlayer {
   void Function()? onDefaultSoundReady;
 
   void init() {
-    _player = Player();
+    _player = createPlayer();
     // Notification sounds are audio-only; assert no video track so libmpv never
     // opens its own output window for a sound file that happens to carry cover art.
     _player!.setVideoTrack(VideoTrack.no());

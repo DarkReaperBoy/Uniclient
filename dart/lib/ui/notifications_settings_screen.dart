@@ -9,6 +9,7 @@ import '../theme/telegram_palette.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
@@ -49,7 +50,7 @@ class _NotificationsSettingsScreenState
       final path =
           '${Directory.systemTemp.path}/uniclient_msg_incoming.wav';
       if (!File(path).existsSync()) return;
-      _previewPlayer ??= Player();
+      _previewPlayer ??= createPlayer();
       await _previewPlayer!.setVolume(volume.clamp(0, 100).toDouble());
       await _previewPlayer!.open(Media(path));
     });
@@ -4096,7 +4097,7 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
     if (toneId == _kDefaultValue) {
       final defaultPath = '${Directory.systemTemp.path}/uniclient_msg_incoming.wav';
       if (File(defaultPath).existsSync()) {
-        _previewPlayer ??= Player();
+        _previewPlayer ??= createPlayer();
         _previewPlayer!.setVolume(vol);
         _previewPlayer!.open(Media(defaultPath));
       }
@@ -4106,7 +4107,7 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
     if (tone.isEmpty) return;
     final filePath = tone.first.filePath;
     if (filePath != null && File(filePath).existsSync()) {
-      _previewPlayer ??= Player();
+      _previewPlayer ??= createPlayer();
       _previewPlayer!.setVolume(vol);
       _previewPlayer!.open(Media(filePath));
     }

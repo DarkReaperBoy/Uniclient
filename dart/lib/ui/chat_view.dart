@@ -15,6 +15,7 @@ import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart' as lottie;
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
@@ -10548,7 +10549,7 @@ class _VoiceListenBarState extends State<_VoiceListenBar> {
   }
 
   Future<void> _initPlayer() async {
-    final player = Player();
+    final player = createPlayer();
     _player = player;
     _subs.add(player.stream.playing.listen((v) {
       if (_player != player || !mounted) return;

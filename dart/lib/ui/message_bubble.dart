@@ -25,6 +25,7 @@ import 'telegram_toast.dart';
 import 'telegram_tooltip.dart';
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 import 'package:crypto/crypto.dart' as crypto;
@@ -3526,7 +3527,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
     if (widget.message.mediaType != 5 ||
         widget.message.mediaLocalPath.isEmpty ||
         _vnPlayer != null) return;
-    final player = Player();
+    final player = createPlayer();
     _vnPlayer = player;
     _vnCtrl = VideoController(player);
     player.setVolume(0);
@@ -4210,7 +4211,7 @@ class _GifPlayerPool {
 
   static Player acquire() {
     if (_pool.isNotEmpty) return _pool.removeLast();
-    return Player();
+    return createPlayer();
   }
 
   static void release(Player player) {
@@ -4473,7 +4474,7 @@ class _WebmStickerPlayerState extends State<_WebmStickerPlayer> {
   }
 
   void _initPlayer() {
-    final player = Player();
+    final player = createPlayer();
     _player = player;
     _controller = VideoController(player);
     player.setVolume(0);
@@ -6939,7 +6940,7 @@ class _WebmEmojiPlayerState extends State<_WebmEmojiPlayer> {
       if (!await file.exists()) {
         await file.writeAsBytes(widget.fileData, flush: true);
       }
-      final player = Player();
+      final player = createPlayer();
       final controller = VideoController(player);
       // Animated media autoplays & loops by default (no AyuGram experimental toggle for this).
       await player.open(Media(file.path), play: true);

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 
@@ -1470,7 +1471,7 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> with SingleTickerPro
       _GifPlayerPool.instance.release(this);
       return;
     }
-    _webmPlayer = Player();
+    _webmPlayer = createPlayer();
     _webmVideoController = VideoController(_webmPlayer!);
     _webmPlayer!.setVolume(0);
     _webmPlayer!.setPlaylistMode(PlaylistMode.loop);
@@ -2821,7 +2822,7 @@ class _StickerCellState extends State<_StickerCell> with SingleTickerProviderSta
       _GifPlayerPool.instance.release(this);
       return;
     }
-    _webmPlayer = Player();
+    _webmPlayer = createPlayer();
     _webmVideoController = VideoController(_webmPlayer!);
     _webmPlayer!.setVolume(0);
     _webmPlayer!.setPlaylistMode(PlaylistMode.loop);
@@ -4116,7 +4117,7 @@ class _GifCellState extends State<_GifCell> {
       _GifPlayerPool.instance.release(this);
       return;
     }
-    _player = Player();
+    _player = createPlayer();
     _videoController = VideoController(_player!);
     _player!.setVolume(0);
     _player!.setPlaylistMode(PlaylistMode.loop);
@@ -4229,7 +4230,7 @@ class _GifSearchCellState extends State<_GifSearchCell> {
     }
     final url = widget.result.contentUrl;
     if (url.isEmpty) return;
-    _player = Player();
+    _player = createPlayer();
     _videoController = VideoController(_player!);
     _player!.setVolume(0);
     _player!.setPlaylistMode(PlaylistMode.loop);
@@ -4338,7 +4339,7 @@ class _StickerPreviewOverlayState extends State<_StickerPreviewOverlay> with Sin
     final path = '${dir.path}/uniclient_preview_$docId.webm';
     await File(path).writeAsBytes(file.fileData);
     if (!mounted) return;
-    _webmPlayer = Player();
+    _webmPlayer = createPlayer();
     _webmVideoController = VideoController(_webmPlayer!);
     _webmPlayer!.setVolume(0);
     _webmPlayer!.setPlaylistMode(PlaylistMode.loop);
@@ -4645,7 +4646,7 @@ class _StickerSetDialogCellState extends State<_StickerSetDialogCell> with Singl
       _GifPlayerPool.instance.release(this);
       return;
     }
-    _webmPlayer = Player();
+    _webmPlayer = createPlayer();
     _webmVideoController = VideoController(_webmPlayer!);
     _webmPlayer!.setVolume(0);
     _webmPlayer!.setPlaylistMode(PlaylistMode.loop);

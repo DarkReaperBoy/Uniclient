@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
@@ -713,7 +714,7 @@ class _StickerTileState extends State<_StickerTile>
         final file = File('${dir.path}/sticker_${docId}_${identityHashCode(this)}.webm');
         await file.writeAsBytes(fileData.fileData, flush: true);
         _webmTempFile = file;
-        final player = Player();
+        final player = createPlayer();
         final controller = VideoController(player);
         await player.open(Media(file.path), play: true);
         await player.setPlaylistMode(PlaylistMode.loop);

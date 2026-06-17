@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -659,7 +660,7 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon>
       return;
     }
     _webmTempFile = tempFile;
-    final player = Player();
+    final player = createPlayer();
     final controller = VideoController(player);
     await player.open(Media(tempFile.path), play: true);
     // AyuGram plays topic icons LimitedLoopsEmoji(kUserpicLoopsCount = 1): one

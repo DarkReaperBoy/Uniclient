@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 
@@ -273,7 +274,7 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
         return;
       }
       _webmTempFile = tempFile;
-      final player = Player();
+      final player = createPlayer();
       final controller = VideoController(player);
       // Manual loop counting → cap at kPlayStatusLimit, then freeze, matching
       // AyuGram's LimitedLoopsEmoji. PlaylistMode.none so restarts are ours.

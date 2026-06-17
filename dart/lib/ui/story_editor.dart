@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart' as lottie;
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -336,7 +337,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   }
 
   Future<void> _readVideoDuration(File file) async {
-    final player = Player();
+    final player = createPlayer();
     try {
       final completer = Completer<Duration>();
       StreamSubscription<Duration>? sub;
@@ -378,7 +379,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     if (totalDuration.inMilliseconds <= 0) return;
     const frameCount = 12;
     final thumbs = <ui.Image?>[];
-    final player = Player();
+    final player = createPlayer();
     try {
       await player.open(Media(file.path), play: false);
       await Future.delayed(const Duration(milliseconds: 300));

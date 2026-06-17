@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:uniclient/utils/mpv_player.dart';
 
 import '../bridge/engine_service.dart';
 import '../utils/power_save_blocker.dart';
@@ -734,7 +735,7 @@ class AudioService extends ChangeNotifier {
     // tracks). Playing a voice over music no longer destroys the music.
     await _stopTrack(t, notify: false);
 
-    final player = Player();
+    final player = createPlayer();
     t.player = player;
     t.msgId = msgId;
     t.chatId = chatId;
