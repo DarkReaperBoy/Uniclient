@@ -508,12 +508,6 @@ class _UniClientAppState extends State<UniClientApp>
       // Tray accounts menu — populate with logged-in accounts for switching.
       // Matches AyuGram's TrayAccountsMenu::Fill: only shown when >1 account.
       _tray.onAccountSwitch = (accountId, {bool ctrlPressed = false}) {
-        if (ctrlPressed) {
-          Debug.log('TRAY', 'Ctrl+click account $accountId — opening separate window');
-          Process.start(Platform.resolvedExecutable, ['--account', accountId],
-              mode: ProcessStartMode.detached);
-          return;
-        }
         appState.setActiveAccountId(accountId);
         chatState.switchAccount(accountId);
       };

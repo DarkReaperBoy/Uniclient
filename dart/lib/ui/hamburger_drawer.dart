@@ -177,20 +177,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           icon: Icons.archive,
                           label: 'Archived Chats',
                           onTap: () {
-                            final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
-                                .any((k) =>
-                                    k == LogicalKeyboardKey.controlLeft ||
-                                    k == LogicalKeyboardKey.controlRight);
-                            if (ctrlHeld) {
-                              Process.start(
-                                Platform.resolvedExecutable,
-                                ['--archive'],
-                                mode: ProcessStartMode.detached,
-                              );
-                            } else {
-                              Navigator.of(context).pop();
-                              appState.requestShowArchive();
-                            }
+                            Navigator.of(context).pop();
+                            appState.requestShowArchive();
                           },
                         ),
                       ),
@@ -576,11 +564,6 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
     final chatState = context.read<ChatState>();
     final collapsed = appState.archiveCollapsed;
     final items = <TelegramMenuItem<String>>[
-      const TelegramMenuItem(
-        value: 'new_window',
-        icon: Icon(Icons.open_in_new),
-        label: 'Open in New Window',
-      ),
       TelegramMenuItem(
         value: 'expand_collapse',
         icon: Icon(collapsed ? Icons.expand_more : Icons.expand_less),
@@ -616,12 +599,6 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
     ).then((value) {
       if (value == null) return;
       switch (value) {
-        case 'new_window':
-          Process.start(
-            Platform.resolvedExecutable,
-            ['--archive'],
-            mode: ProcessStartMode.detached,
-          );
         case 'expand_collapse':
           appState.setArchiveCollapsed(!collapsed);
         case 'to_list':
@@ -1394,20 +1371,7 @@ class _AccountList extends StatelessWidget {
           },
           child: InkWell(
             onTap: () {
-              final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
-                  .any((k) =>
-                      k == LogicalKeyboardKey.controlLeft ||
-                      k == LogicalKeyboardKey.controlRight);
-              if (ctrlHeld) {
-                // Spec §3.2: Ctrl+click launches new app window.
-                Process.start(
-                  Platform.resolvedExecutable,
-                  [],
-                  mode: ProcessStartMode.detached,
-                );
-              } else {
-                onAddAccount();
-              }
+              onAddAccount();
             },
             hoverColor: hoverBg,
             splashColor: hoverBg.withValues(alpha: 0.5),
@@ -1480,10 +1444,6 @@ class _AccountRow extends StatelessWidget {
   void _showContextMenu(BuildContext context, Offset position) {
     final items = <TelegramMenuItem<String>>[];
 
-    if (!isActive) {
-      items.add(const TelegramMenuItem(value: 'new_window', icon: Icon(Icons.open_in_new), label: 'New Window'));
-    }
-
     if (account.phone.isNotEmpty) {
       items.add(const TelegramMenuItem(value: 'copy_phone', icon: Icon(Icons.copy), label: 'Copy Phone'));
     }
@@ -1504,12 +1464,6 @@ class _AccountRow extends StatelessWidget {
     ).then((value) {
       if (value == null) return;
       switch (value) {
-        case 'new_window':
-          Process.start(
-            Platform.resolvedExecutable,
-            [],
-            mode: ProcessStartMode.detached,
-          );
         case 'copy_phone':
           Clipboard.setData(ClipboardData(text: account.phone));
         case 'activate':

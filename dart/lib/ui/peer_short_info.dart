@@ -399,13 +399,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   }
 
   void _showContextMenu(BuildContext context, Offset position) {
-    final items = <TelegramMenuItem<String>>[
-      TelegramMenuItem<String>(
-        value: 'new_window',
-        icon: const Icon(Icons.open_in_new, size: 20),
-        label: 'Open in New Window',
-      ),
-    ];
+    final items = <TelegramMenuItem<String>>[];
     if (!_isSelf) {
       items.add(TelegramMenuItem<String>(
         value: 'report',
@@ -430,6 +424,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         ));
       }
     }
+    if (items.isEmpty) return;
     showTelegramMenu<String>(
       context: context,
       position: position,
@@ -438,13 +433,6 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       if (!mounted) return;
       final engine = context.read<EngineService>();
       switch (value) {
-        case 'new_window':
-          Navigator.of(context).pop();
-          Process.start(
-            Platform.resolvedExecutable,
-            ['--chat', widget.peerId, '--account', widget.accountId],
-            mode: ProcessStartMode.detached,
-          );
         case 'report':
           showDynamicReportFlow(
             context,

@@ -2854,20 +2854,6 @@ class _AccountsSection extends StatelessWidget {
                     )
                   : const Icon(Icons.drag_handle, size: 20, color: Color(0xFF6C7883)),
               onTap: () {
-                if (HardwareKeyboard.instance.logicalKeysPressed
-                    .any((k) => k == LogicalKeyboardKey.controlLeft || k == LogicalKeyboardKey.controlRight || k == LogicalKeyboardKey.metaLeft || k == LogicalKeyboardKey.metaRight)) {
-                  final executable = Platform.resolvedExecutable;
-                  Process.start(executable, ['--account', accounts[i].id], mode: ProcessStartMode.detached).then((_) {
-                    if (context.mounted) {
-                      showTelegramToast(context, 'Opening ${accounts[i].displayName} in new window');
-                    }
-                  }).catchError((e) {
-                    if (context.mounted) {
-                      showTelegramToast(context, 'Could not open new window: $e');
-                    }
-                  });
-                  return;
-                }
                 if (accounts[i].id == activeId) {
                   Navigator.of(context).pop();
                 } else {
@@ -2935,29 +2921,8 @@ class _SettingsAccountRow extends StatelessWidget {
     this.dragHandle,
   });
 
-  void _openInNewWindow(BuildContext context) {
-    final executable = Platform.resolvedExecutable;
-    Process.start(executable, ['--account', account.id], mode: ProcessStartMode.detached).then((_) {
-      if (context.mounted) {
-        showTelegramToast(context, 'Opening ${account.displayName} in new window');
-      }
-    }).catchError((e) {
-      if (context.mounted) {
-        showTelegramToast(context, 'Could not open new window: $e');
-      }
-    });
-  }
-
   void _showContextMenu(BuildContext context, Offset position) {
     final items = <TelegramMenuItem<String>>[];
-
-    if (!isActive) {
-      items.add(const TelegramMenuItem(
-        value: 'new_window',
-        icon: Icon(Icons.open_in_new),
-        label: 'Open in New Window',
-      ));
-    }
 
     if (account.phone.isNotEmpty) {
       items.add(const TelegramMenuItem(
@@ -2997,8 +2962,6 @@ class _SettingsAccountRow extends StatelessWidget {
     ).then((value) {
       if (value == null) return;
       switch (value) {
-        case 'new_window':
-          _openInNewWindow(context);
         case 'copy_phone':
           Clipboard.setData(ClipboardData(text: account.phone));
           if (context.mounted) {
@@ -3040,7 +3003,6 @@ class _SettingsAccountRow extends StatelessWidget {
     final avatarSize = isActive ? 26.0 : 30.0;
 
     return GestureDetector(
-      onTertiaryTapUp: !isActive ? (_) => _openInNewWindow(context) : null,
       onSecondaryTapUp: (details) =>
           _showContextMenu(context, details.globalPosition),
       onLongPressStart: (details) =>
