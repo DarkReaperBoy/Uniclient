@@ -1,4 +1,3 @@
-import 'dart:io';
 
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
@@ -373,26 +372,6 @@ class _ContextMenuItem {
   _ContextMenuItem(this.label, this.icon, this.value, this.onChanged);
 }
 
-void _showRestartPrompt(BuildContext context) {
-  showConfirmBox(
-    context,
-    title: 'Restart Required',
-    text: 'Some settings will be applied after restarting.',
-    confirmText: 'Restart Now',
-    cancelText: 'Later',
-    onConfirm: () {
-      context.read<AppState>().flushSettingsSync();
-      final exe = Platform.resolvedExecutable;
-      Process.start(exe, Platform.executableArguments,
-          mode: ProcessStartMode.detached).then((_) {
-        exit(0);
-      }).catchError((_) {
-        exit(0);
-      });
-    },
-    strictCancel: true,
-  );
-}
 
 class _WideMultiplierSlider extends StatefulWidget {
   final double value;
@@ -478,7 +457,6 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
                 if ((snapped - _committedValue).abs() < 0.001) return;
                 _committedValue = snapped;
                 widget.onChanged(snapped);
-                _showRestartPrompt(context);
               },
             ),
           ),
@@ -594,7 +572,6 @@ class _BubbleRadiusSliderState extends State<_BubbleRadiusSlider> {
                 if (newVal == _committedValue) return;
                 _committedValue = newVal;
                 widget.onChanged(newVal);
-                _showRestartPrompt(context);
               },
             ),
           ),

@@ -2056,7 +2056,11 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection>
                               });
                               _removePreviewOverlay();
                               if (snapped != _committedScale) {
-                                _showRestartDialog(snapped);
+                                // Applied live — the whole app rebuilds with the
+                                // new textScaler (uiScalePercent → notifyListeners
+                                // → MediaQuery in main). No restart needed.
+                                _committedScale = snapped;
+                                widget.appState.setUiScalePercent(snapped);
                               }
                             },
                           ),
@@ -2082,26 +2086,6 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection>
     );
   }
 
-  void _showRestartDialog(double newScale) {
-    showConfirmBox(
-      context,
-      text: 'Some settings will be applied after restarting the application.',
-      title: 'Restart Required',
-      confirmText: 'Restart Now',
-      cancelText: 'Cancel',
-      onConfirm: () {
-        setState(() => _committedScale = newScale);
-        widget.appState.setUiScalePercent(newScale);
-        final exe = Platform.resolvedExecutable;
-        Process.start(exe, [], mode: ProcessStartMode.detached).then((_) {
-          exit(0);
-        });
-      },
-      onCancel: () {
-        setState(() => _scalePercent = _committedScale);
-      },
-    );
-  }
 }
 
 class _ScalePreviewContent extends StatelessWidget {

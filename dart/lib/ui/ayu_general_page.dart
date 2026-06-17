@@ -81,10 +81,9 @@ class AyuGeneralPage extends StatelessWidget {
       label: 'Disable Stories',
       value: appState.disableStories,
       onChanged: (v) {
-        // AyuGram applies the setting then shows a restart prompt
-        // (settings_general.cpp:171-174 → ShowRestartPrompt).
+        // Applied live in Flutter — the stories row reads
+        // appState.disableStories on build (no restart needed, unlike Qt).
         appState.setDisableStories(v);
-        _showRestartPrompt(context);
       },
     );
 
@@ -132,11 +131,9 @@ class AyuGeneralPage extends StatelessWidget {
       label: 'Filter Zalgo',
       value: appState.filterZalgo,
       onChanged: (v) {
-        // AyuGram applies the setting immediately on toggle, then shows the
-        // standard restart prompt (settings_general.cpp:218-228 → ShowRestartPrompt)
-        // — identical to "Disable Stories".
+        // Applied live in Flutter — setFilterZalgo mirrors to the gFilterZalgo
+        // global the text renderer reads + notifies (no restart needed).
         appState.setFilterZalgo(v);
-        _showRestartPrompt(context);
       },
       showBetaBadge: true,
     );
@@ -235,27 +232,3 @@ class AyuGeneralPage extends StatelessWidget {
 }
 
 // Faithful port of AyuGram's ShowRestartPrompt (settings_ayu_utils.cpp:36-45):
-// a titleless Ui::MakeConfirmBox — body lng_settings_need_restart, confirm
-// lng_settings_restart_now ("Restart" → Core::Restart), cancel
-// lng_settings_restart_later ("Later") (lang.strings:1305-1307).
-void _showRestartPrompt(BuildContext context) {
-  showConfirmBox(
-    context,
-    text: 'You need to restart for applying some of the new settings. '
-        'Restart now?',
-    confirmText: 'Restart',
-    cancelText: 'Later',
-    onConfirm: () {
-      context.read<AppState>().flushSettingsSync();
-      final exe = Platform.resolvedExecutable;
-      Process.start(exe, Platform.executableArguments,
-              mode: ProcessStartMode.detached)
-          .then((_) {
-        exit(0);
-      }).catchError((_) {
-        exit(0);
-      });
-    },
-    strictCancel: true,
-  );
-}

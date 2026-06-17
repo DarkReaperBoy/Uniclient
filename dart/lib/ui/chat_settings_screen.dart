@@ -75,15 +75,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     }
   }
 
-  void _restartApp() {
-    final exe = Platform.resolvedExecutable;
-    final args = Platform.executableArguments;
-    Process.start(exe, args, mode: ProcessStartMode.detached).then((_) {
-      exit(0);
-    }).catchError((_) {
-      exit(0);
-    });
-  }
 
   void _loadSelfColor() {
     final appState = context.read<AppState>();
@@ -539,28 +530,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             isDark: isDark,
             currentFont: appState.customFontFamily,
             onFontChanged: (f) {
+              // Applied live — the app theme rebuilds with the new fontFamily
+              // (customFontFamily → notifyListeners). No restart needed.
               appState.customFontFamily = f;
-              showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Font Changed'),
-                  content: const Text('The app needs to restart to apply the new font.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(false),
-                      child: const Text('Later'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(true),
-                      child: const Text('Restart Now'),
-                    ),
-                  ],
-                ),
-              ).then((restart) {
-                if (restart == true && mounted) {
-                  _restartApp();
-                }
-              });
             },
           ),
           // AyuGram builds BuildThemeSettingsSection (peer color → auto-night →

@@ -258,42 +258,6 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
     }
   }
 
-  void _showRestartDialog(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentColor =
-        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Restart Required'),
-        content: const Text(
-            'The avatar corners change will be applied after restarting the app.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Restart Later', style: TextStyle(color: accentColor)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.read<AppState>().flushSettingsSync();
-              final exe = Platform.resolvedExecutable;
-              Process.start(exe, Platform.executableArguments,
-                  mode: ProcessStartMode.detached).then((_) {
-                exit(0);
-              }).catchError((_) {
-                exit(0);
-              });
-            },
-            child: Text('Restart Now',
-                style: TextStyle(
-                    color: accentColor, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
-
   String get _badgeText {
     if (_localCorners == 0) return 'SQUARE';
     if (_localCorners >= _kMax) return 'CIRCLE';
@@ -356,11 +320,9 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
                 setState(() => _localCorners = v.round());
               },
               onChangeEnd: (v) {
-                final newVal = v.round();
-                widget.onCornersChanged(newVal);
-                if (newVal == _committedCorners) return;
-                _committedCorners = newVal;
-                _showRestartDialog(context);
+                // Applied live — avatars across the app re-clip on the next
+                // build (setAvatarCorners → notifyListeners). No restart needed.
+                widget.onCornersChanged(v.round());
               },
             ),
           ),
@@ -968,60 +930,20 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
     );
   }
 
-  void _showRestartDialog(String fontValue) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentColor =
-        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Restart Required'),
-        content: const Text('The font change will be applied after restarting the app.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Restart Later', style: TextStyle(color: accentColor)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.read<AppState>().flushSettingsSync();
-              final exe = Platform.resolvedExecutable;
-              Process.start(exe, Platform.executableArguments,
-                  mode: ProcessStartMode.detached).then((_) {
-                exit(0);
-              }).catchError((_) {
-                exit(0);
-              });
-            },
-            child: Text('Restart Now',
-                style: TextStyle(
-                    color: accentColor, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _save() {
-    final newFont = _selectedFont;
-    if (newFont != widget.currentFont) {
-      widget.onSaved(newFont);
-      Navigator.of(context).pop();
-      _showRestartDialog(newFont);
-    } else {
-      Navigator.of(context).pop();
+    // Applied live — the app theme rebuilds with the new fontFamily
+    // (customFontFamily → notifyListeners → AppTheme.fromPalette). No restart.
+    if (_selectedFont != widget.currentFont) {
+      widget.onSaved(_selectedFont);
     }
+    Navigator.of(context).pop();
   }
 
   void _reset() {
     if (widget.currentFont.isNotEmpty) {
       widget.onSaved('');
-      Navigator.of(context).pop();
-      _showRestartDialog('');
-    } else {
-      Navigator.of(context).pop();
     }
+    Navigator.of(context).pop();
   }
 }
 
