@@ -2078,6 +2078,27 @@ func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Messag
 		return nil, err
 	}
 
+	// Forum-topic read path: when a thread (topic root msg ID) is supplied, the
+	// chatID is the PARENT forum peer and we must page the topic via
+	// messages.getReplies (NOT getHistory on the bare topic id — that yields
+	// PEER_ID_INVALID). Same offset/limit paging as below.
+	if opts.ThreadID != "" {
+		topicID, terr := tgMsgID(opts.ThreadID)
+		if terr != nil {
+			return nil, fmt.Errorf("invalid thread id %q: %w", opts.ThreadID, terr)
+		}
+		result, rerr := t.api.MessagesGetReplies(t.ctx, &tg.MessagesGetRepliesRequest{
+			Peer:     inputPeer,
+			MsgID:    topicID,
+			Limit:    limit,
+			OffsetID: offsetID,
+		})
+		if rerr != nil {
+			return nil, fmt.Errorf("get topic messages: %w", rerr)
+		}
+		return t.convertMessages(result), nil
+	}
+
 	// Try getHistory first (works for user mode), fall back to search (works for bots)
 	result, err := t.api.MessagesGetHistory(t.ctx, &tg.MessagesGetHistoryRequest{
 		Peer:     inputPeer,
@@ -2130,6 +2151,50 @@ func (t *TelegramCore) GetPinnedMessages(chatID string) ([]Message, error) {
 
 	msgs := t.convertMessages(result)
 	// Mark all as pinned since the filter guarantees it.
+	for i := range msgs {
+		msgs[i].IsPinned = true
+	}
+	return msgs, nil
+}
+
+// GetTopicPinnedMessages returns pinned messages inside a forum topic. parentID
+// is the parent forum peer and topicID the topic root message ID; pinned
+// messages are scoped to the topic via the search TopMsgID filter.
+func (t *TelegramCore) GetTopicPinnedMessages(parentID, topicID string) ([]Message, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	peer, err := t.resolvePeer(parentID)
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, err
+	}
+	tid, err := tgMsgID(topicID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid topic id %q: %w", topicID, err)
+	}
+
+	req := &tg.MessagesSearchRequest{
+		Peer:   inputPeer,
+		Q:      "",
+		Filter: &tg.InputMessagesFilterPinned{},
+		Limit:  50,
+	}
+	req.SetTopMsgID(tid)
+	result, err := t.api.MessagesSearch(t.ctx, req)
+	if err != nil {
+		// Topic pinned-message search can fail on some forums; degrade to empty
+		// rather than erroring so the topic still renders.
+		return nil, nil
+	}
+
+	msgs := t.convertMessages(result)
 	for i := range msgs {
 		msgs[i].IsPinned = true
 	}

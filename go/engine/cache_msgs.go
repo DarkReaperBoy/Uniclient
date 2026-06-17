@@ -77,6 +77,28 @@ type CachedMessage struct {
 	SenderNoForwards bool `json:"sender_no_forwards,omitempty"`
 }
 
+// topicRoute looks up a chat in the cache and, if it is a forum topic
+// (ChatTypeTopicVal) with a parent forum, returns the parent forum peer ID and
+// the topic root message ID. For all other chats it returns isTopic=false so
+// callers stay on the existing non-topic code path. This routes topic reads to
+// the parent forum + topic thread, since the bare topic id is not a valid peer
+// (resolvePeer would yield PEER_ID_INVALID).
+func (e *Engine) topicRoute(accountID, chatID string) (parentID, topicID string, isTopic bool) {
+	var typ int
+	var parent sql.NullString
+	err := e.db.QueryRow(
+		`SELECT type, parent_id FROM chats WHERE account_id = ? AND chat_id = ?`,
+		accountID, chatID,
+	).Scan(&typ, &parent)
+	if err != nil {
+		return "", "", false
+	}
+	if typ != ChatTypeTopicVal || !parent.Valid || parent.String == "" {
+		return "", "", false
+	}
+	return parent.String, chatID, true
+}
+
 // GetMessages returns cached messages for a chat, paginated by timestamp,
 // always newest-first.
 //   - afterMs > 0: load messages NEWER than afterMs (the nearest ones), for
@@ -147,8 +169,17 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 	// but that doesn't mean we have the full history page.
 	if len(msgs) < limit && beforeMs == 0 && afterMs == 0 {
 		if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
+			// Forum topics: fetch from the parent forum peer using the topic id
+			// as the message thread (messages.getReplies), not the bare topic id.
+			fetchID := chatID
+			opts := cores.PaginationOpts{Limit: limit}
+			if parentID, topicID, isTopic := e.topicRoute(accountID, chatID); isTopic {
+				fetchID = parentID
+				opts.ThreadID = topicID
+				log.Printf("[engine] GetMessages(%s, %s): topic → parent=%s thread=%s", accountID, chatID, parentID, topicID)
+			}
 			log.Printf("[engine] GetMessages(%s, %s): cache empty, fetching live from core...", accountID, chatID)
-			live, liveErr := acc.Core.GetMessages(chatID, cores.PaginationOpts{Limit: limit})
+			live, liveErr := acc.Core.GetMessages(fetchID, opts)
 			if liveErr != nil {
 				log.Printf("[engine] GetMessages(%s, %s): core fetch failed: %v", accountID, chatID, liveErr)
 			} else if len(live) > 0 {
@@ -220,21 +251,42 @@ func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, e
 	}
 
 	// Cache empty — try fetching pinned messages from the core.
-	type pinnedFetcher interface {
-		GetPinnedMessages(chatID string) ([]cores.Message, error)
-	}
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, nil
 	}
-	pf, ok := acc.Core.(pinnedFetcher)
-	if !ok {
-		return nil, nil
-	}
-	live, err := pf.GetPinnedMessages(chatID)
-	if err != nil {
-		log.Printf("[engine] GetPinnedMessages(%s, %s): core fetch failed: %v", accountID, chatID, err)
-		return nil, nil
+
+	var live []cores.Message
+	if parentID, topicID, isTopic := e.topicRoute(accountID, chatID); isTopic {
+		// Forum topic: pinned messages live on the parent forum scoped to the
+		// topic thread. Degrades to empty (no error) if unsupported.
+		type topicPinnedFetcher interface {
+			GetTopicPinnedMessages(parentID, topicID string) ([]cores.Message, error)
+		}
+		tpf, ok := acc.Core.(topicPinnedFetcher)
+		if !ok {
+			return nil, nil
+		}
+		var ferr error
+		live, ferr = tpf.GetTopicPinnedMessages(parentID, topicID)
+		if ferr != nil {
+			log.Printf("[engine] GetPinnedMessages(%s, %s): topic fetch failed: %v", accountID, chatID, ferr)
+			return nil, nil
+		}
+	} else {
+		type pinnedFetcher interface {
+			GetPinnedMessages(chatID string) ([]cores.Message, error)
+		}
+		pf, ok := acc.Core.(pinnedFetcher)
+		if !ok {
+			return nil, nil
+		}
+		var ferr error
+		live, ferr = pf.GetPinnedMessages(chatID)
+		if ferr != nil {
+			log.Printf("[engine] GetPinnedMessages(%s, %s): core fetch failed: %v", accountID, chatID, ferr)
+			return nil, nil
+		}
 	}
 	result := make([]CachedMessage, 0, len(live))
 	for _, m := range live {

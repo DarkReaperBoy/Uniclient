@@ -544,11 +544,17 @@ func (e *Engine) GetOnlineCount(accountID, chatID string) (int, error) {
 	if acc.Core == nil {
 		return 0, fmt.Errorf("account not connected: %s", accountID)
 	}
+	// A topic's online count = its parent forum's. Route to the parent peer,
+	// since the bare topic id is not a valid peer.
+	peerID := chatID
+	if parentID, _, isTopic := e.topicRoute(accountID, chatID); isTopic {
+		peerID = parentID
+	}
 	type onlineCounter interface {
 		GetOnlineCount(chatID string) (int, error)
 	}
 	if oc, ok := acc.Core.(onlineCounter); ok {
-		return oc.GetOnlineCount(chatID)
+		return oc.GetOnlineCount(peerID)
 	}
 	return 0, nil
 }
@@ -1090,7 +1096,13 @@ func (e *Engine) GetPeerBarSettings(accountID, chatID string) (string, error) {
 	if !ok {
 		return "{}", nil
 	}
-	return tc.GetPeerBarSettings(chatID)
+	// A topic shares its parent forum's bar settings. Route to the parent peer,
+	// since the bare topic id is not a valid peer.
+	peerID := chatID
+	if parentID, _, isTopic := e.topicRoute(accountID, chatID); isTopic {
+		peerID = parentID
+	}
+	return tc.GetPeerBarSettings(peerID)
 }
 
 // SharePhoneWithPeer shares the current user's phone number with a peer.

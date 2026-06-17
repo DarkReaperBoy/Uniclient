@@ -135,6 +135,11 @@ type AuthConfig struct {
 type PaginationOpts struct {
 	Limit  int    `json:"limit"`
 	Offset string `json:"offset,omitempty"` // opaque cursor, platform-specific
+	// ThreadID, when non-empty, scopes the request to a message thread / forum
+	// topic. For Telegram forum topics the chatID passed to GetMessages must be
+	// the PARENT forum peer and ThreadID the topic root message ID; the core
+	// then fetches via messages.getReplies instead of messages.getHistory.
+	ThreadID string `json:"thread_id,omitempty"`
 }
 
 // User represents a platform user or bot with profile information.
