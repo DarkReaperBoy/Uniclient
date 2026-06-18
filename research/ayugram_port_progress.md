@@ -13,7 +13,8 @@ the lossy spec doc — then built + screenshot-verified against the running app.
 | Chat top bar | ✅ ported, verifying | avatar Y −1, title/status placed at fixed Y=8/28 (Stack, was drifting centered Column), title right-gap 3px; rest already faithful (`_ChatTopBar` @ chat_view.dart:6393) |
 | Shell / 3-column | ⬜ pending | looked correct in screenshots; likely low-deviation (constants 260/540/380/292/392, min 380×480) |
 | Chat list panel (search/tabs) | ⬜ pending | |
-| Message bubble frame+text | ⬜ pending | outgoing bubble already renders well (color/tail/ticks); incoming-group fidelity (sender colors/avatars/reactions) needs real group data to verify — see blocker below |
+| Message bubble TAIL | ✅ ported (this session) | Replaced the hand-drawn bezier `_BubbleTailBorder` (8px wide, dropped 5px *below* the bubble — wrong geometry) with AyuGram's **real `bubble_tail` asset** (6×10px) tinted with the bubble bg via `ColorFilter.mode(srcIn)` + h-flipped for outgoing, positioned at the squared bottom sender-side corner — a 1:1 port of `PaintSolidBubble`'s `tail.paint` (ui/chat/message_bubble.cpp). Mask converted to alpha PNG (@1x/2x/3x) under `assets/icons/bubble_tail.png`. Bottom sender corner already squared (`bottomSenderSide==0` when showTail). Radii confirmed exact: large=16px, small=`roundRadiusLarge`=6px. |
+| Message bubble frame+text | ⬜ pending | frame metrics (radii/corner-grouping/shadow) confirmed faithful; tail now ported. Remaining: padding (`msgPadding`), incoming-group fidelity (sender colors/avatars/reactions) needs real group data to verify |
 | Media message types | ⬜ pending | |
 | Message list (scroll/sep/FAB) | ⬜ pending | |
 | Compose area | ⬜ pending | visible; may have deviations (right-side icon set/order) |

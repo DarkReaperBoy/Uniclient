@@ -79,94 +79,6 @@ void _showStickerPackToast(BuildContext ctx, CachedMessage msg) {
   });
 }
 
-/// Spec §5: bubble shape with decorative tail on the last message in a group.
-/// The tail is a curved triangular protrusion at the bottom sender-side corner:
-/// bottom-right for outgoing, bottom-left for incoming.
-class _BubbleTailBorder extends ShapeBorder {
-  final double topLeftRadius;
-  final double topRightRadius;
-  final double bottomOtherRadius;
-  final bool tailOnRight;
-
-  const _BubbleTailBorder({
-    required this.topLeftRadius,
-    required this.topRightRadius,
-    required this.bottomOtherRadius,
-    required this.tailOnRight,
-  });
-
-  static const _tailW = 8.0;
-  static const _tailDrop = 5.0;
-
-  @override
-  EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
-
-  @override
-  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
-    final path = Path();
-    final l = rect.left;
-    final t = rect.top;
-    final r = rect.right;
-    final b = rect.bottom;
-
-    path.moveTo(l + topLeftRadius, t);
-    path.lineTo(r - topRightRadius, t);
-
-    if (topRightRadius > 0) {
-      path.arcToPoint(Offset(r, t + topRightRadius),
-          radius: Radius.circular(topRightRadius));
-    } else {
-      path.lineTo(r, t);
-    }
-
-    if (tailOnRight) {
-      path.lineTo(r, b);
-      path.cubicTo(r, b + 2, r + _tailW * 0.4, b + _tailDrop,
-          r + _tailW, b + _tailDrop);
-      path.cubicTo(r + _tailW * 0.5, b + _tailDrop * 0.6, r, b,
-          r - _tailW * 0.75, b);
-      path.lineTo(l + bottomOtherRadius, b);
-      if (bottomOtherRadius > 0) {
-        path.arcToPoint(Offset(l, b - bottomOtherRadius),
-            radius: Radius.circular(bottomOtherRadius));
-      } else {
-        path.lineTo(l, b);
-      }
-    } else {
-      path.lineTo(r, b - bottomOtherRadius);
-      if (bottomOtherRadius > 0) {
-        path.arcToPoint(Offset(r - bottomOtherRadius, b),
-            radius: Radius.circular(bottomOtherRadius));
-      } else {
-        path.lineTo(r, b);
-      }
-      path.lineTo(l + _tailW * 0.75, b);
-      path.cubicTo(l, b, l - _tailW * 0.5, b + _tailDrop * 0.6,
-          l - _tailW, b + _tailDrop);
-      path.cubicTo(l - _tailW * 0.4, b + _tailDrop, l, b + 2, l, b);
-    }
-
-    path.lineTo(l, t + topLeftRadius);
-    if (topLeftRadius > 0) {
-      path.arcToPoint(Offset(l + topLeftRadius, t),
-          radius: Radius.circular(topLeftRadius));
-    }
-
-    path.close();
-    return path;
-  }
-
-  @override
-  Path getInnerPath(Rect rect, {TextDirection? textDirection}) =>
-      getOuterPath(rect, textDirection: textDirection);
-
-  @override
-  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {}
-
-  @override
-  ShapeBorder scale(double t) => this;
-}
-
 /// Single message bubble. Spec §5: max 430px, 16/6px radius, sender colors.
 class MessageBubble extends StatefulWidget {
   final CachedMessage message;
@@ -689,6 +601,11 @@ class _MessageBubbleState extends State<MessageBubble> {
   static const _baseMaxGifWidth = 320.0;
   static const _radiusLarge = 16.0;
   static const _radiusSmall = 6.0;
+  // AyuGram bubble_tail asset logical size (6x10px @1x — ui/chat/chat.style
+  // historyBubbleTail*). The tail flares sideways out of the squared bottom
+  // sender-side corner and stays within the bubble's vertical bounds.
+  static const _tailWidth = 6.0;
+  static const _tailHeight = 10.0;
 
   @override
   Widget build(BuildContext context) {
@@ -947,27 +864,41 @@ class _MessageBubbleState extends State<MessageBubble> {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
+              // AyuGram message tail: the real `bubble_tail` asset (tinted with
+              // the bubble bg, flipped for outgoing), drawn at the bottom
+              // sender-side corner — a 1:1 port of PaintSolidBubble's tail.paint
+              // (ui/chat/message_bubble.cpp). The bubble's bottom sender corner is
+              // squared (bottomSenderSide == 0 when showTail) so the tail flares
+              // cleanly out of it. 6x10 logical px (assets/icons/bubble_tail.png).
+              if (showTail)
+                Positioned(
+                  bottom: 0,
+                  left: isOutgoing ? null : -_tailWidth,
+                  right: isOutgoing ? -_tailWidth : null,
+                  width: _tailWidth,
+                  height: _tailHeight,
+                  child: IgnorePointer(
+                    child: Transform.flip(
+                      flipX: isOutgoing,
+                      child: ColorFiltered(
+                        colorFilter:
+                            ColorFilter.mode(bubbleColor, BlendMode.srcIn),
+                        child: Image.asset(
+                          'assets/icons/bubble_tail.png',
+                          width: _tailWidth,
+                          height: _tailHeight,
+                          fit: BoxFit.fill,
+                          filterQuality: FilterQuality.medium,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               Container(
                 padding: noBubble
                     ? EdgeInsets.zero
                     : const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-                decoration: showTail && !noBubble
-                    ? ShapeDecoration(
-                        color: bubbleColor,
-                        shadows: [
-                          BoxShadow(
-                            color: shadowColor,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                        shape: _BubbleTailBorder(
-                          topLeftRadius: isOutgoing ? topOtherSide : topSenderSide,
-                          topRightRadius: isOutgoing ? topSenderSide : topOtherSide,
-                          bottomOtherRadius: bottomOtherSide,
-                          tailOnRight: isOutgoing,
-                        ),
-                      )
-                    : BoxDecoration(
+                decoration: BoxDecoration(
                   color: bubbleColor,
                   borderRadius: noBubble
                       ? BorderRadius.zero
