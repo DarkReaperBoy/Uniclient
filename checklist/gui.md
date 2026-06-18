@@ -1,3 +1,41 @@
+# De-jank + bug-fix campaign (session 2026-06-17/18)
+
+User report: UI "ugly and buggy", and shells out to linux CLI / opens an "mpv
+window". Mandate: best UX, **strip everything non-portable** (no external
+programs, pure Flutter + Go engine). Working build→screenshot→diff→fix→verify.
+
+Done & pushed (branch fix/group-chat-rendering):
+- **libmpv stray window** — all ~20 media_kit `Player()` sites routed through
+  `createPlayer()` (utils/mpv_player*.dart) which forces `force-window=no`
+  (NVIDIA+Wayland render-fallback was opening a real window). `c4d0454c`
+- **multi-window relaunch hacks (3a)** — removed every fake "open in separate
+  window" that re-exec'd the app binary (`Process.start --account/--chat/
+  --archive/[]`); collapsed to the existing in-place switch/open. `105eb0e4`
+- **vestigial "Restart Required" prompts (3b)** — avatar corners, font (×2),
+  Disable Stories, Filter Zalgo, ayu_chats sliders, UI scale all apply LIVE in
+  Flutter (verified each consumer); removed the prompts + their relaunch. `af55e035`
+- **BLANK CHAT ON OPEN** (the core "buggy") — `_MessageList._displayItems`
+  cached `_buildDisplayItems()` by `identical(_lastMessages, widget.messages)`,
+  but ChatState mutates `_messages` IN PLACE (cold-load `addAll`, plus add/
+  insert/removeWhere/clear and `_messages[i]=copyWith` for edits/reactions/
+  deletions/download progress) — instance never changes → stale empty cache →
+  blank until an unrelated rebuild (scroll). Fixed by deriving display items
+  fresh each build. `108444d8`
+
+GOTCHA for future work: **ChatState._messages is mutated in place.** Any
+identity-keyed cache / Provider Selector / AnimatedList over it can go stale.
+Consider an immutable-update refactor (reassign `_messages` on every change) if
+more such staleness bugs surface.
+
+Remaining non-portable shelling to strip: calls audio devices (pactl/pw-cli)
++ screen-share (grim/slurp/xrandr/wmctrl/xdotool/kdotool) in confirm_box/
+call_screen/calls_screen; tg:// handler registration (xdg-mime/reg) in
+ayu_other_page; webp sticker encode (ffmpeg/cwebp) in send_files_box;
+advanced_settings GL/ANGLE/hw-video env-var relaunch (needs a product call —
+env vars are load-bearing at process start).
+
+---
+
 # GUI Audit — Cycle 5 Phase Ayugram (2026-06-10 14:32)
 
 ## Code Comparison (Dart vs AyuGram)
