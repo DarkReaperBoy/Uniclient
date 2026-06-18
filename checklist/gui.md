@@ -21,6 +21,30 @@ Done & pushed (branch fix/group-chat-rendering):
   deletions/download progress) — instance never changes → stale empty cache →
   blank until an unrelated rebuild (scroll). Fixed by deriving display items
   fresh each build. `108444d8`
+- **DOWNLOADED MEDIA "FORGETS" ITSELF EVERY 30s** (the "music button buggy" +
+  "preview images flicker" reports) — `_refreshMessages` polls GetMessages every
+  30s and did `_messages = [...fresh, ...older]`. The engine returns SERVER state
+  only (no local-download info), so each poll reset `mediaLocalPath=''` /
+  `mediaDownloadState=0` on every visible message. Effects: (1) a downloaded music
+  track re-downloads instead of playing on tap (state wiped → tap takes the
+  `requestDownload` branch, never `playVoice`); (2) a photo's full image
+  (`hasFullImage = mediaLocalPath.isNotEmpty`, message_bubble.dart) VANISHES →
+  reverts to blurred-thumb + download spinner → re-downloads → reappears =
+  flickers every 30s; (3) `_autoDownloadMedia(fresh)` re-fired downloads for all
+  visible media each poll. Fix: `_preserveLocalMediaState()` carries
+  `mediaLocalPath`/`mediaDownloadState` from the prior copy onto the fresh one
+  when `mediaRemoteRef` is unchanged (edited-to-different-media still
+  re-downloads; an engine-provided path wins); `_autoDownloadMedia` now gets the
+  merged list. + `gaplessPlayback:true` on the thumb/full `Image` as anti-blank
+  insurance. VERIFIED in-app: music plays after 2 real poll cycles, 0
+  re-downloads, no mpv window; chat-list + photos render stable.
+
+FOUND (not yet fixed) — scrolling گروه Mahsa Net (50k unread) up ~2 pages →
+Skia fatal `SkContainers.cpp:80: "Requested capacity is too large"` → app
+freezes (VM/IPC unresponsive, needs relaunch). Likely an oversized render
+surface (a message with a huge image dimension, or the debug-inspector
+screenshot rendering an oversized logical tree). One of the user's "other
+issues" — investigate next.
 
 GOTCHA for future work: **ChatState._messages is mutated in place.** Any
 identity-keyed cache / Provider Selector / AnimatedList over it can go stale.

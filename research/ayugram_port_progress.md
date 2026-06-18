@@ -14,10 +14,10 @@ the lossy spec doc — then built + screenshot-verified against the running app.
 | Shell / 3-column | ⬜ pending | looked correct in screenshots; likely low-deviation (constants 260/540/380/292/392, min 380×480) |
 | Chat list panel (search/tabs) | ⬜ pending | |
 | Message bubble TAIL | ✅ ported (this session) | Replaced the hand-drawn bezier `_BubbleTailBorder` (8px wide, dropped 5px *below* the bubble — wrong geometry) with AyuGram's **real `bubble_tail` asset** (6×10px) tinted with the bubble bg via `ColorFilter.mode(srcIn)` + h-flipped for outgoing, positioned at the squared bottom sender-side corner — a 1:1 port of `PaintSolidBubble`'s `tail.paint` (ui/chat/message_bubble.cpp). Mask converted to alpha PNG (@1x/2x/3x) under `assets/icons/bubble_tail.png`. Bottom sender corner already squared (`bottomSenderSide==0` when showTail). Radii confirmed exact: large=16px, small=`roundRadiusLarge`=6px. |
-| Message bubble frame+text | ⬜ pending | frame metrics (radii/corner-grouping/shadow) confirmed faithful; tail now ported. Remaining: padding (`msgPadding`), incoming-group fidelity (sender colors/avatars/reactions) needs real group data to verify |
-| Media message types | ⬜ pending | |
-| Message list (scroll/sep/FAB) | ⬜ pending | |
-| Compose area | ⬜ pending | visible; may have deviations (right-side icon set/order) |
+| Message bubble frame+text | ✅ frame faithful | ALL frame metrics confirmed exact vs `ui/chat/chat.style`: `msgPadding 11/8/11/8` == Dart `EdgeInsets.symmetric(h:11,v:8)`; `msgMaxWidth 430px`; `msgDateFont 13px`; radii 16/6; corner-grouping; 2px shadow; tail (this campaign). Incoming-group content (sender colors/avatars/reactions) renders in real groups (verified گروه Mahsa Net). |
+| Media message types | ⬜ pending | photo/video/gif/file/voice/sticker/location/contact indicators in message_bubble.dart — verify each against real messages |
+| Message list (scroll/sep/FAB) | ⬜ pending | date separators, unread divider, scroll-to-bottom FAB, inter-message spacing |
+| Compose area | ✅ layout faithful | order confirmed 1:1 vs `ComposeControls::updateControlsGeometry` (compose_controls.cpp:3577): attach/comments LEFT of field; ttl/scheduled/silent/emoji/send stacked on the RIGHT (emoji just left of send). The "AI" button = real translate/AI-editor feature gated by `showAiEditorButton`, not a placeholder. |
 
 ## Method
 - Each component → one focused agent reads the AyuGram C++ + current Dart, fixes

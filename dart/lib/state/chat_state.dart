@@ -2946,21 +2946,55 @@ class ChatState extends ChangeNotifier {
     final fresh = await _engine.getMessages(chat.accountId, chat.chatId, beforeMs: 0);
     if (_disposed || fresh.isEmpty) return;
 
+    // The engine's GetMessages returns SERVER state only — it does not know which
+    // media files we've downloaded locally (mediaLocalPath / mediaDownloadState
+    // are client-side, set by requestDownload + the download_complete event).
+    // Carry them onto the fresh copies so a poll refresh doesn't revert a
+    // downloaded message to "not downloaded": without this a photo flickers
+    // (full image vanishes → re-downloads → reappears every 30s) and a music
+    // track re-downloads instead of playing on tap.
+    final prevById = {for (final m in _messages) m.msgId: m};
+    final freshMerged = [
+      for (final m in fresh) _preserveLocalMediaState(m, prevById[m.msgId])
+    ];
+
     // Merge: replace the newest portion of messages with fresh data.
     // Keep any older paginated messages that aren't in the fresh batch.
-    final freshIds = fresh.map((m) => m.msgId).toSet();
-    final oldestFreshId = int.tryParse(fresh.last.msgId);
+    final freshIds = freshMerged.map((m) => m.msgId).toSet();
+    final oldestFreshId = int.tryParse(freshMerged.last.msgId);
     final older = _messages.where((m) => !freshIds.contains(m.msgId)).toList();
     if (oldestFreshId != null) {
-      _messages = [...fresh, ...older.where((m) {
+      _messages = [...freshMerged, ...older.where((m) {
         final mid = int.tryParse(m.msgId);
         return mid != null && mid < oldestFreshId;
       })];
     } else {
-      _messages = [...fresh, ...older.where((m) => m.timestamp <= fresh.last.timestamp)];
+      _messages = [...freshMerged, ...older.where((m) => m.timestamp <= freshMerged.last.timestamp)];
     }
-    _autoDownloadMedia(fresh);
+    _autoDownloadMedia(freshMerged);
     notifyListeners();
+  }
+
+  /// Carry the client-side download state (mediaLocalPath / mediaDownloadState)
+  /// from a previously-loaded copy of a message onto a freshly-fetched one. The
+  /// engine's GetMessages only returns server state, so without this every poll
+  /// refresh reverts downloaded media to "not downloaded". Only carried when the
+  /// media identity (mediaRemoteRef) is unchanged, so a message edited to a
+  /// different file correctly re-downloads; if the fresh copy already carries a
+  /// path (the engine provided one), it wins. A failed/none state is left as-is
+  /// so the user can retry.
+  CachedMessage _preserveLocalMediaState(CachedMessage fresh, CachedMessage? prev) {
+    if (prev == null || fresh.mediaLocalPath.isNotEmpty) return fresh;
+    final sameMedia = fresh.mediaRemoteRef.isNotEmpty &&
+        fresh.mediaRemoteRef == prev.mediaRemoteRef;
+    if (!sameMedia) return fresh;
+    // Preserve a completed download (path set, state 2) or an in-flight one
+    // (state 1, path still empty) — but not a none/failed state.
+    if (prev.mediaLocalPath.isEmpty && prev.mediaDownloadState != 1) return fresh;
+    return fresh.copyWith(
+      mediaLocalPath: prev.mediaLocalPath,
+      mediaDownloadState: prev.mediaDownloadState,
+    );
   }
 
   /// Start periodic polling for the active chat (rare safety-net fallback).

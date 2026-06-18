@@ -3691,6 +3691,8 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                     width: displayWidth,
                     height: displayHeight,
                     fit: BoxFit.cover,
+                    // Keep the last frame while a rebuild re-decodes (no blank flash).
+                    gaplessPlayback: true,
                     errorBuilder: (_, __, ___) => _placeholder(displayWidth, displayHeight),
                   ),
                 )
@@ -3748,6 +3750,8 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                     width: displayWidth,
                     height: displayHeight,
                     fit: BoxFit.cover,
+                    // Keep the last frame while a rebuild re-decodes (no blank flash).
+                    gaplessPlayback: true,
                     errorBuilder: (_, __, ___) =>
                         const SizedBox.shrink(),
                   ),
