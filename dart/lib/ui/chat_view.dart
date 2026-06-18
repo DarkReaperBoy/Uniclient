@@ -7850,16 +7850,18 @@ class _MessageList extends StatefulWidget {
 }
 
 class _MessageListState extends State<_MessageList> {
-  List<_DisplayItem> _cachedDisplayItems = const [];
-  List<CachedMessage>? _lastMessages;
-
-  List<_DisplayItem> get _displayItems {
-    if (!identical(_lastMessages, widget.messages)) {
-      _lastMessages = widget.messages;
-      _cachedDisplayItems = _buildDisplayItems(widget.messages);
-    }
-    return _cachedDisplayItems;
-  }
+  // Display items are derived FRESH from widget.messages on every build — we do
+  // NOT cache by list identity. ChatState mutates its message list IN PLACE
+  // (addAll / add / insert / removeWhere / clear, and `_messages[i] = copyWith`
+  // for edits, reactions, deletions and download progress), so the list
+  // *instance* never changes on these updates. An identity-keyed cache
+  // therefore goes stale — most visibly as a BLANK chat on cold open: the
+  // initial history loads via an in-place addAll, the identity stays equal, and
+  // the cache keeps returning the empty result it computed before any messages
+  // arrived (only an unrelated rebuild, e.g. a manual scroll, recovered it).
+  // The derivation is an O(n log n) sort over the bounded loaded window, and
+  // build is event-driven (not per-frame), so recomputing each build is cheap.
+  List<_DisplayItem> get _displayItems => _buildDisplayItems(widget.messages);
 
   @override
   Widget build(BuildContext context) {
