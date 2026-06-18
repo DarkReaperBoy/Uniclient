@@ -7926,12 +7926,25 @@ class _MessageListState extends State<_MessageList> {
     }
 
     final displayItems = _displayItems;
+    // Map each keyed item → its current index so ListView.builder's lazy delegate
+    // can RELOCATE a keyed child when the list shifts (a new message inserts at
+    // the front) instead of rebuilding the element at each slot. Keys ALONE don't
+    // survive an insert-at-front in a builder-delegate list — every visible
+    // bubble's State (and its media_kit GIF/video player) gets recreated on each
+    // incoming message → the "preview images flicker every few seconds" bug.
+    // (Flutter SliverChildBuilderDelegate.findChildIndexCallback.)
+    final keyToIndex = <String, int>{
+      for (var i = 0; i < displayItems.length; i++)
+        'm_${displayItems[i].primary.msgId}': i,
+    };
 
     return ListView.builder(
       controller: scrollController,
       reverse: true, // Newest at bottom.
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: displayItems.length + (loading ? 1 : 0),
+      findChildIndexCallback: (Key key) =>
+          (key is ValueKey<String>) ? keyToIndex[key.value] : null,
       itemBuilder: (context, index) {
         if (loading && index == displayItems.length) {
           return const Padding(
@@ -7985,7 +7998,7 @@ class _MessageListState extends State<_MessageList> {
             serviceWidget = _ServiceMessage(text: serviceText, isSelected: isSelected);
           }
           return Column(
-            key: isJumpHighlight ? highlightMsgKey : null,
+            key: isJumpHighlight ? highlightMsgKey : ValueKey('m_${msg.msgId}'),
             children: [
               if (showDate) _DateSeparator(
                 timestamp: isScheduledView && msg.scheduleDate > 0 ? msg.scheduleDate * 1000 : msg.timestamp,
@@ -8067,7 +8080,12 @@ class _MessageListState extends State<_MessageList> {
         }
 
         return Column(
-          key: isJumpHighlight ? highlightMsgKey : null,
+          // Key by msgId so a new message inserted at index 0 (newest-first)
+          // doesn't shift every item into a recycled State — that re-inits the
+          // media_kit GIF/video players in each bubble, which flicker + show a
+          // blurry placeholder for a frame (the "preview images flicker every
+          // few seconds" report). Keyed items keep their State + player.
+          key: isJumpHighlight ? highlightMsgKey : ValueKey('m_${msg.msgId}'),
           children: [
             if (showDate) _DateSeparator(
                 timestamp: isScheduledView && msg.scheduleDate > 0 ? msg.scheduleDate * 1000 : msg.timestamp,

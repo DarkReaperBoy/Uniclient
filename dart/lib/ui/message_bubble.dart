@@ -4909,37 +4909,12 @@ class _AudioIndicatorState extends State<_AudioIndicator> {
   }
 
   void _onPlayPause() {
-    final audio = context.read<AudioService>();
-    if (message.mediaLocalPath.isEmpty && message.mediaDownloadState != 1) {
-      context.read<ChatState>().requestDownload(message);
-      return;
-    }
-    if (message.mediaLocalPath.isEmpty) return;
-    int accessHash = 0;
-    List<int> fileRef = const [];
-    final extraParts = message.mediaExtra.split(':');
-    if (extraParts.length == 2) {
-      accessHash = int.tryParse(extraParts[0]) ?? 0;
-      try {
-        fileRef = base64.decode(extraParts[1]);
-      } catch (e) {
-        Debug.log('message_bubble', 'fileRef = base64.decode(extraParts[1]): $e');
-      }
-    }
-    audio.playVoice(message.mediaLocalPath, message.msgId,
-      chatId: message.chatId,
-      performer: message.audioPerformer,
-      title: message.audioTitle,
-      msgTimestamp: message.timestamp,
-      accountId: message.accountId,
-      docId: message.mediaRemoteRef,
-      accessHash: accessHash,
-      fileRef: fileRef,
-      isSong: true,
-      // A music file < 1 minute always plays at 1.0× (AyuGram
-      // changeablePlaybackSpeed gate, data_audio_msg_id.cpp:28-30).
-      durationSeconds: message.mediaDuration,
-    );
+    // Delegate to ChatState.userPlayAudio: when the file is already downloaded
+    // it toggles play/pause (AudioService.playVoice toggles a same-msgId track);
+    // when it is NOT downloaded it downloads AND auto-plays once the file lands.
+    // Previously the not-downloaded tap only kicked a download and returned, so
+    // tapping a music file "did nothing" (downloaded silently, never played).
+    context.read<ChatState>().userPlayAudio(message);
   }
 
   void _onDownloadCancel() {

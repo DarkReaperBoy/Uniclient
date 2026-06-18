@@ -5,6 +5,34 @@ window". Mandate: best UX, **strip everything non-portable** (no external
 programs, pure Flutter + Go engine). Working build→screenshot→diff→fix→verify.
 
 Done & pushed (branch fix/group-chat-rendering):
+- **PREVIEW IMAGES FLICKER "every few seconds, everywhere" + blurry** (the big
+  one) — ROOT CAUSE: the message `ListView.builder` (reverse) items were NOT
+  keyed, and a builder-delegate list needs `findChildIndexCallback` to relocate
+  a keyed child when the list shifts. `_handleMsgReceived` does
+  `_messages.insert(0, …)` on every incoming message, shifting every index → the
+  lazy delegate rebuilt the element at each slot → **every visible bubble's State
+  (and its media_kit GIF/video player) was recreated on each incoming message**.
+  The re-init shows a black/blurry placeholder frame = flicker (and a video that
+  keeps resetting never finishes rendering → stays blurry). Invisible to
+  `flutter_inspect` screenshots (it captures the Flutter layer tree, NOT
+  media_kit platform-view textures) — diagnosed via an instrumented State-init
+  counter: sending msgs showed BUBINIT growing +3/+5/+7 (all bubbles recreated)
+  → after fix, flat ~+2 (only the new msg). Fix: `key: ValueKey('m_<msgId>')` on
+  both list-item Columns + `findChildIndexCallback` mapping the key → current
+  index. Existing bubbles + their players now persist across inserts. The
+  codebase even documented the symptom (`_MessageBubbleState`: "the message list
+  can rebuild (recreating this State) between a user's two physical clicks").
+- **Music play button "ignored"** — tapping an undownloaded music file only
+  kicked a download and returned (no playback queued); `_maybeAutoplayDownloaded`
+  only handles playlist auto-advance (needs an active "from" track), so a
+  user-initiated download never played. Added `ChatState.userPlayAudio()`
+  (download → auto-play on `download_complete`, no from-track requirement);
+  `_AudioIndicator._onPlayPause` delegates to it. Verified: one tap → download →
+  plays (pause icon, position advances, ReportMusicListen sent), no mpv window.
+- **media-state preservation relaxed** — `_preserveLocalMediaState` required a
+  matching `mediaRemoteRef`, which photos/stickers may lack → those weren't
+  preserved across the 30s poll. Now preserves unless the media POSITIVELY
+  changed (both refs present AND different).
 - **libmpv stray window** — all ~20 media_kit `Player()` sites routed through
   `createPlayer()` (utils/mpv_player*.dart) which forces `force-window=no`
   (NVIDIA+Wayland render-fallback was opening a real window). `c4d0454c`

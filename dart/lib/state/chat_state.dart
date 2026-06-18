@@ -56,6 +56,7 @@ class ChatState extends ChangeNotifier {
   AudioService? _audioServiceRef; // set once from main.dart for download-driven autoplay
   String? _pendingAutoplayMsgId; // neighbour track awaiting download before it can play
   String? _pendingAutoplayFromMsgId; // audio context msgId when the neighbour was queued
+  String? _pendingUserPlayMsgId; // user tapped an UNdownloaded audio → play once it arrives
   int _groupOnlineCount = 0; // online members in active group/channel chat
   GroupCallInfo? _activeGroupCall; // active group call in current chat
   PersonalCallInfo? _activePersonalCall; // active 1:1 call
@@ -2985,9 +2986,13 @@ class ChatState extends ChangeNotifier {
   /// so the user can retry.
   CachedMessage _preserveLocalMediaState(CachedMessage fresh, CachedMessage? prev) {
     if (prev == null || fresh.mediaLocalPath.isNotEmpty) return fresh;
-    final sameMedia = fresh.mediaRemoteRef.isNotEmpty &&
-        fresh.mediaRemoteRef == prev.mediaRemoteRef;
-    if (!sameMedia) return fresh;
+    // Preserve unless we can POSITIVELY confirm the media changed (both refs
+    // present AND different). Photos/stickers may carry no stable mediaRemoteRef,
+    // so requiring one wrongly wiped them — re-download + blurry-thumb fallback.
+    final mediaChanged = fresh.mediaRemoteRef.isNotEmpty &&
+        prev.mediaRemoteRef.isNotEmpty &&
+        fresh.mediaRemoteRef != prev.mediaRemoteRef;
+    if (mediaChanged) return fresh;
     // Preserve a completed download (path set, state 2) or an in-flight one
     // (state 1, path still empty) — but not a none/failed state.
     if (prev.mediaLocalPath.isEmpty && prev.mediaDownloadState != 1) return fresh;
@@ -3615,6 +3620,25 @@ class ChatState extends ChangeNotifier {
     _startAudioPlayback(audio, msg);
   }
 
+  /// User tapped a music / voice file's play button. Mirrors AyuGram: tapping an
+  /// UNdownloaded audio downloads it AND starts playback as soon as it arrives
+  /// (not just downloads silently). If already downloaded, plays immediately.
+  /// Unlike [_playAudioMessage] this has no "from track" requirement — it is the
+  /// user's explicit intent, so [_handleDownloadComplete] plays it unconditionally.
+  void userPlayAudio(CachedMessage msg) {
+    if (msg.mediaLocalPath.isNotEmpty) {
+      _pendingUserPlayMsgId = null;
+      final audio = _audioServiceRef;
+      if (audio != null) _startAudioPlayback(audio, msg);
+      return;
+    }
+    // Not downloaded yet: remember the intent and kick the download (regardless
+    // of whether the audio service is wired). Playback starts from
+    // _handleDownloadComplete once the file lands.
+    _pendingUserPlayMsgId = msg.msgId;
+    if (msg.mediaDownloadState != 1) requestDownload(msg);
+  }
+
   /// Hand [msg] to the [AudioService], reconstructing the song access-hash /
   /// file-reference from mediaExtra exactly as the message-bubble play buttons do.
   void _startAudioPlayback(AudioService audio, CachedMessage msg) {
@@ -3711,6 +3735,17 @@ class ChatState extends ChangeNotifier {
       );
       notifyListeners();
       _maybeAutoplayDownloaded(_messages[idx]);
+      // User explicitly tapped this (undownloaded) audio's play button — start
+      // playback now that the file has arrived. This is the "tapping music just
+      // downloads, never plays" fix; no from-track requirement (unlike playlist
+      // auto-advance), since it's the user's direct intent.
+      if (_pendingUserPlayMsgId == event.msgId) {
+        _pendingUserPlayMsgId = null;
+        final audio = _audioServiceRef;
+        if (audio != null && _messages[idx].mediaLocalPath.isNotEmpty) {
+          _startAudioPlayback(audio, _messages[idx]);
+        }
+      }
     }
   }
 
