@@ -83,10 +83,19 @@ case "$PLATFORM" in
     echo "=== Step 1: Compile Dart code ==="
     mkdir -p "$BUILD_DIR/flutter_assets"
 
+    # On desktop-only machines (no Android SDK) tell the bundler to target
+    # linux-x64, otherwise the native-assets step (jni plugin) defaults to
+    # Android and aborts with "Android SDK could not be found". On NixOS the
+    # full dev shell provides the Android SDK, so we leave the default.
+    BUNDLE_PLATFORM_ARG=""
+    if [ -z "${ANDROID_HOME:-}${ANDROID_SDK_ROOT:-}" ]; then
+      BUNDLE_PLATFORM_ARG="--target-platform=linux-x64"
+    fi
+
     # Use Flutter's asset bundler for proper font/asset manifests
     cd "$DART_DIR"
     CI=true FLUTTER_SUPPRESS_ANALYTICS=true "$FLUTTER_SDK/bin/flutter" build bundle \
-      --"$BUILD_MODE" --target lib/main.dart \
+      --"$BUILD_MODE" --target lib/main.dart $BUNDLE_PLATFORM_ARG \
       --dart-define=BUILD_DATE="$BUILD_DATE" \
       --dart-define=APP_VERSION="$APP_VERSION" \
       --dart-define=APP_STAGE="$APP_STAGE" \
@@ -109,7 +118,11 @@ case "$PLATFORM" in
         --output-dill "$BUILD_DIR/app.dill" \
         "$DART_DIR/lib/main.dart" 2>&1 | tail -1
 
-      # Generate AOT snapshot (ELF shared library)
+      # Generate AOT snapshot (ELF shared library).
+      # mkdir first: on a clean checkout BUILD_DIR/lib does not exist yet
+      # (the CMake step that would create it runs later), so gen_snapshot
+      # would otherwise fail with "Unable to write file: .../lib/libapp.so".
+      mkdir -p "$BUILD_DIR/lib"
       "$ENGINE_DIR/$ENGINE_VARIANT/gen_snapshot" \
         --deterministic \
         --snapshot_kind=app-aot-elf \
@@ -189,14 +202,26 @@ CMEOF
     echo "=== Step 3: Build native runner ==="
     mkdir -p "$BUILD_DIR/native_assets/linux"
 
-    # Build with nix-shell to get GTK dev dependencies
-    nix-shell -p cmake ninja pkg-config gtk3.dev glib.dev pango.dev cairo.dev atk.dev gdk-pixbuf.dev mpv-unwrapped.dev gnumake libxdmcp.dev libxcb.dev libxau.dev sysprof.dev libass.dev --run "
-      cd '$BUILD_DIR' &&
-      rm -f CMakeCache.txt &&
-      export FLUTTER_SKIP_ASSEMBLE=1 &&
-      cmake '$DART_DIR/linux' -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE -G Ninja 2>&1 | tail -3 &&
-      ninja install 2>&1
-    " 2>/dev/null
+    # Build the native runner. On NixOS, pull GTK/mpv dev headers via nix-shell;
+    # on ordinary Linux those come from the system (apt/dnf/pacman) and are
+    # already on PATH, so run cmake/ninja directly.
+    if command -v nix-shell >/dev/null 2>&1; then
+      nix-shell -p cmake ninja pkg-config gtk3.dev glib.dev pango.dev cairo.dev atk.dev gdk-pixbuf.dev mpv-unwrapped.dev gnumake libxdmcp.dev libxcb.dev libxau.dev sysprof.dev libass.dev --run "
+        cd '$BUILD_DIR' &&
+        rm -f CMakeCache.txt &&
+        export FLUTTER_SKIP_ASSEMBLE=1 &&
+        cmake '$DART_DIR/linux' -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE -G Ninja 2>&1 | tail -3 &&
+        ninja install 2>&1
+      " 2>/dev/null
+    else
+      (
+        cd "$BUILD_DIR" &&
+        rm -f CMakeCache.txt &&
+        export FLUTTER_SKIP_ASSEMBLE=1 &&
+        cmake "$DART_DIR/linux" -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE -G Ninja 2>&1 | tail -5 &&
+        ninja install 2>&1 | tail -5
+      )
+    fi
 
     # For release: copy AOT library into bundle
     if [[ "$BUILD_MODE" == "release" || "$BUILD_MODE" == "profile" ]]; then
@@ -212,12 +237,16 @@ CMEOF
       fi
     done
 
-    # Copy bundled native libraries for media_kit (libmpv)
-    MPV_LIB="$(nix-build '<nixpkgs>' -A mpv-unwrapped --no-out-link 2>/dev/null)/lib/libmpv.so.2"
-    if [[ -f "$MPV_LIB" ]]; then
-      cp -Lf "$MPV_LIB" "$BUILD_DIR/bundle/lib/libmpv.so.2"
-      ln -sf libmpv.so.2 "$BUILD_DIR/bundle/lib/libmpv.so"
-      echo "  Copied libmpv into bundle."
+    # Copy bundled native libraries for media_kit (libmpv). On NixOS we pull it
+    # from the store; on ordinary Linux libmpv is a system package (libmpv2)
+    # resolved at runtime, so this is skipped.
+    if command -v nix-build >/dev/null 2>&1; then
+      MPV_LIB="$(nix-build '<nixpkgs>' -A mpv-unwrapped --no-out-link 2>/dev/null)/lib/libmpv.so.2"
+      if [[ -f "$MPV_LIB" ]]; then
+        cp -Lf "$MPV_LIB" "$BUILD_DIR/bundle/lib/libmpv.so.2"
+        ln -sf libmpv.so.2 "$BUILD_DIR/bundle/lib/libmpv.so"
+        echo "  Copied libmpv into bundle."
+      fi
     fi
 
     # Copy Go shared library into bundle
