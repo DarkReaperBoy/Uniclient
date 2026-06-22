@@ -251,10 +251,10 @@ So every build is the same three moves, **in this order**:
 2. Build the Flutter Linux bundle.
 3. Make sure `libcores.so` ends up in the bundle's `lib/` folder, next to the executable — `scripts/build_flutter.sh` does this for you.
 
-> ⚠️ **Wayland required.** The Linux app force-selects the GTK Wayland backend
-> (`GDK_BACKEND=wayland`, hard-coded in `dart/linux/main.cc`) and does **not** fall
-> back to X11/XWayland. You must run it from a **Wayland session**. On an X11-only
-> desktop it will fail to open a window — see [Running on X11](#running-on-x11).
+> ⚠️ **Wayland only — by design.** The Linux app pins the GTK Wayland backend
+> (`GDK_BACKEND=wayland`, set in `dart/linux/main.cc`) and intentionally does **not**
+> fall back to X11/XWayland. Run it from a **Wayland session**. If your desktop is
+> X11-only, run it inside a Wayland compositor — see [Wayland only](#wayland-only).
 
 Pinned, tested toolchain: **Go 1.26.1** · **Flutter 3.41.5** (Dart 3.11.3).
 
@@ -380,15 +380,21 @@ the system toolchain directly. Pass `debug` instead of `release` for a debug bui
 
 ---
 
-### Running on X11
+### Wayland only
 
-The app forces the Wayland GTK backend in `dart/linux/main.cc`. On an X11-only session
-it won't open a window. Either:
+Uniclient is **Wayland-only by design** — `dart/linux/main.cc` pins the GTK Wayland
+backend and deliberately does not fall back to X11/XWayland. Run it from a Wayland
+session (the common case on modern KDE Plasma, GNOME, Sway, etc.).
 
-- **Run it inside a nested Wayland compositor** (no rebuild): e.g. `cage ./uniclient`,
-  or launch it from a `weston`/`gnome-kiosk` session; or
-- **Rebuild for X11:** change `setenv("GDK_BACKEND", "wayland", 1);` in
-  `dart/linux/main.cc` to `"x11"` (or delete the line to let GTK auto-pick), then rebuild.
+If your desktop session is X11-only, run it inside a nested Wayland compositor — no
+rebuild needed:
+
+```bash
+cage -- ./dart/build/linux/x64/release/bundle/uniclient   # single-app Wayland kiosk
+```
+
+(or launch it from a `weston` / `gnome-kiosk` session). Verified headless this way with
+`weston --backend=headless-backend.so`.
 
 ---
 
