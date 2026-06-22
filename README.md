@@ -238,15 +238,172 @@ Cross-platform Flutter UI connected to Go via protobuf FFI bridge. Provider stat
 
 All utils fully tested (**98 tests passing**), zero cross-dependencies.
 
-## Building
+## Building & Running
 
-Requires [Nix](https://nixos.org/) with flakes enabled:
+Uniclient is two halves stitched together at runtime:
+
+1. **The Go engine** — compiled to a C shared library (`libcores.so`) that does all the networking, crypto, and protocol work.
+2. **The Flutter app** — the desktop UI, which loads `libcores.so` over FFI at startup.
+
+So every build is the same three moves, **in this order**:
+
+1. Build `libcores.so` (Go).
+2. Build the Flutter Linux bundle.
+3. Make sure `libcores.so` ends up in the bundle's `lib/` folder, next to the executable — `scripts/build_flutter.sh` does this for you.
+
+> ⚠️ **Wayland only — by design.** The Linux app pins the GTK Wayland backend
+> (`GDK_BACKEND=wayland`, set in `dart/linux/main.cc`) and intentionally does **not**
+> fall back to X11/XWayland. Run it from a **Wayland session**. If your desktop is
+> X11-only, run it inside a Wayland compositor — see [Wayland only](#wayland-only).
+
+Pinned, tested toolchain: **Go 1.26.1** · **Flutter 3.41.5** (Dart 3.11.3).
+
+---
+
+### Option A — Ordinary Linux (Ubuntu/Debian/Fedora/Arch — *not* NixOS)
+
+Tested from scratch on a clean **Ubuntu 24.04**. Translate package names for your distro.
+
+**1. System packages** (build tooling + GTK + libmpv for media + optional tray):
 
 ```bash
-nix develop          # drops you into a shell with Go, Flutter, Android SDK, everything
-go test ./go/utils/... # run util tests
-scripts/build_go.sh  # compile Go to shared library for current platform
+sudo apt-get update
+sudo apt-get install -y \
+  curl git xz-utils zip unzip build-essential \
+  clang lld cmake ninja-build pkg-config \
+  libgtk-3-dev libglib2.0-dev liblzma-dev libstdc++-12-dev \
+  libmpv-dev mpv \
+  libayatana-appindicator3-dev    # optional (system-tray); build still works without it
 ```
+
+The first three lines are the standard Flutter Linux desktop prerequisites;
+`lld` is needed by Flutter's native-assets compile step (the `jni` plugin),
+`libmpv-dev` adds media support, and `libayatana-appindicator3-dev` adds the
+(optional) tray.
+
+`build-essential`/`clang` are **required** — `libcores.so` is a `c-shared` library built
+with `CGO_ENABLED=1`, and Flutter's native-assets step also needs a C/C++ compiler.
+
+**2. Go 1.26.1+** (distro packages are usually too old):
+
+```bash
+curl -fsSL https://go.dev/dl/go1.26.1.linux-amd64.tar.gz -o /tmp/go.tgz
+sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf /tmp/go.tgz
+export PATH=/usr/local/go/bin:$PATH      # add to ~/.bashrc
+go version                               # → go1.26.1 (or newer)
+```
+
+**3. Flutter 3.41.5 (stable):**
+
+```bash
+cd ~
+curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.41.5-stable.tar.xz -o flutter.tar.xz
+tar xf flutter.tar.xz                     # creates ~/flutter
+export PATH="$HOME/flutter/bin:$PATH"     # add to ~/.bashrc
+flutter --version                         # → Flutter 3.41.5 • stable
+flutter config --enable-linux-desktop
+flutter precache --linux
+```
+
+> Any stable Flutter ≥ 3.29 (Dart ≥ 3.7) satisfies the constraints, but 3.41.5 is what
+> this repo is developed and CI-built against — use it to avoid surprises.
+
+**4. Build:**
+
+```bash
+git clone https://github.com/DarkReaperBoy/Uniclient.git
+cd Uniclient
+
+# (1) Go engine → go/build/libcores.so
+bash scripts/build_go.sh linux
+
+# (2) Fetch Dart deps + the Linux engine artifacts
+( cd dart && flutter pub get )
+flutter precache --linux
+
+# (3) Build the Flutter desktop bundle.
+#     Use scripts/build_flutter.sh — do NOT use a bare `flutter build linux`:
+#     this repo's linux/ scaffold predates the current Flutter template, so the
+#     stock command can't assemble it. build_flutter.sh compiles Dart, assembles
+#     the bundle, runs the native CMake build, and copies libcores.so into the
+#     bundle for you. Output: dart/build/linux/x64/release/bundle/
+bash scripts/build_flutter.sh linux release
+```
+
+**5. Run:**
+
+```bash
+./dart/build/linux/x64/release/bundle/uniclient
+```
+
+For a debug build (hot reload, DevTools, in-app automation hooks) use
+`scripts/build_flutter.sh linux debug` and run the binary under `…/debug/bundle/`.
+
+**Runtime dependencies** of the built bundle: a Wayland session, **GTK 3**
+(`libgtk-3-0`), and **libmpv** (`libmpv2` + its codecs). The Flutter engine and all
+plugins are bundled inside `bundle/lib/` and found via the `$ORIGIN/lib` RPATH. If you
+copy the bundle to another machine, that machine still needs `libgtk-3-0` and `libmpv2`
+(and `libayatana-appindicator3-1` if you want the tray).
+
+---
+
+### Option B — NixOS (or any machine with Nix + flakes)
+
+The repo ships a flake with the **exact** pinned toolchain.
+
+```bash
+git clone https://github.com/DarkReaperBoy/Uniclient.git
+cd Uniclient
+
+nix develop                               # full shell: Go + Flutter + GTK/mpv + Android SDK
+scripts/build_go.sh linux                 # → go/build/libcores.so
+scripts/build_flutter.sh linux release    # → dart/build/linux/x64/release/bundle/
+                                          #   (this script ALSO copies libcores.so +
+                                          #    libmpv into the bundle for you)
+./dart/build/linux/x64/release/bundle/uniclient
+```
+
+`scripts/build_flutter.sh` is the build entry point on every Linux (the same script
+Option A uses). It compiles Dart, assembles the bundle by hand — Flutter's stock
+`flutter build linux` can't, because this repo's `linux/` scaffold predates the current
+Flutter template — then runs the native CMake build. On NixOS it pulls the GTK/mpv dev
+headers via `nix-shell` and bundles `libmpv` from the store; on ordinary Linux it uses
+the system toolchain directly. Pass `debug` instead of `release` for a debug build.
+
+> **Skip the multi-gigabyte Android download.** The default `nix develop` shell bundles
+> the Android SDK/NDK/emulator for mobile builds. If you only want the Linux desktop
+> app, use the lean shell — same Go + Flutter + GTK + mpv toolchain, no Android:
+>
+> ```bash
+> nix develop .#linux
+> ```
+
+---
+
+### Wayland only
+
+Uniclient is **Wayland-only by design** — `dart/linux/main.cc` pins the GTK Wayland
+backend and deliberately does not fall back to X11/XWayland. Run it from a Wayland
+session (the common case on modern KDE Plasma, GNOME, Sway, etc.).
+
+If your desktop session is X11-only, run it inside a nested Wayland compositor — no
+rebuild needed:
+
+```bash
+cage -- ./dart/build/linux/x64/release/bundle/uniclient   # single-app Wayland kiosk
+```
+
+(or launch it from a `weston` / `gnome-kiosk` session). Verified headless this way with
+`weston --backend=headless-backend.so`.
+
+---
+
+### Other targets
+
+`scripts/build_go.sh` also targets `windows` (needs mingw-w64), `darwin`, `android`
+(needs the Android NDK — provided by `nix develop`), and `web` (WASM). The Flutter side
+uses the standard `flutter build apk` / `flutter build web`. Desktop Linux is the
+most-tested target today.
 
 ## Project Status
 
