@@ -142,7 +142,7 @@ func (e *Engine) ListAccounts() []AccountInfo {
 			IsVerified:  acc.IsVerified,
 			IsPremium:   acc.IsPremium,
 		}
-		type selfIDer interface { SelfUserID() string }
+		type selfIDer interface{ SelfUserID() string }
 		if s, ok := acc.Core.(selfIDer); ok {
 			info.SelfUserID = s.SelfUserID()
 		}
@@ -341,7 +341,7 @@ func (e *Engine) UpdateAccountDisplay(accountID, displayName, avatarPath string)
 	}
 	e.accountsMu.Unlock()
 
-	// Notify Dart so the sidebar user panel updates.
+	// Notify the host so the sidebar user panel updates.
 	e.emitAccountList()
 	return nil
 }
@@ -393,7 +393,7 @@ type CoreFactory func(platform, accountID string) (cores.Core, error)
 // coreFactory is set by the bridge/main code so the engine can create cores.
 var (
 	coreFactoryMu sync.Mutex
-	coreFactory    CoreFactory
+	coreFactory   CoreFactory
 )
 
 // SetCoreFactory registers the function used to create new core instances.

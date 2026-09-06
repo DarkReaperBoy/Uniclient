@@ -20,35 +20,35 @@ import (
 
 // ChatInfo is the cached chat data returned to the UI.
 type ChatInfo struct {
-	AccountID    string `json:"account_id"`
-	ChatID       string `json:"chat_id"`
-	Type         int    `json:"type"`
-	Title        string `json:"title"`
-	AvatarPath   string `json:"avatar_path,omitempty"`
-	LastMsgID    string `json:"last_msg_id,omitempty"`
-	LastMsgText  string `json:"last_msg_text,omitempty"`
-	LastMsgTime  int64  `json:"last_msg_time,omitempty"`
-	LastMsgSender     string `json:"last_msg_sender,omitempty"`
-	LastMsgIsOutgoing bool   `json:"last_msg_is_outgoing,omitempty"`
-	LastMsgStatus     int    `json:"last_msg_status,omitempty"`
-	LastMsgMediaType  int    `json:"last_msg_media_type,omitempty"`
-	LastMsgThumbB64   string `json:"last_msg_thumb_b64,omitempty"`
-	UnreadCount       int    `json:"unread_count"`
-	IsMuted      bool   `json:"is_muted"`
-	IsPinned     bool   `json:"is_pinned"`
-	IsArchived   bool   `json:"is_archived"`
-	DraftText    string `json:"draft_text,omitempty"`
-	MemberCount  int    `json:"member_count,omitempty"`
-	ParentID     string `json:"parent_id,omitempty"`
-	IsBot               bool `json:"is_bot"`
-	IsContact           bool `json:"is_contact"`
-	IsBlocked           bool `json:"is_blocked"`
-	UnreadMark          bool `json:"unread_mark"`
-	UnreadMentionCount  int  `json:"unread_mention_count"`
-	UnreadReactionCount int  `json:"unread_reaction_count"`
-	IsVerified           bool  `json:"is_verified"`
-	IsScam               bool  `json:"is_scam"`
-	IsFake               bool  `json:"is_fake"`
+	AccountID            string `json:"account_id"`
+	ChatID               string `json:"chat_id"`
+	Type                 int    `json:"type"`
+	Title                string `json:"title"`
+	AvatarPath           string `json:"avatar_path,omitempty"`
+	LastMsgID            string `json:"last_msg_id,omitempty"`
+	LastMsgText          string `json:"last_msg_text,omitempty"`
+	LastMsgTime          int64  `json:"last_msg_time,omitempty"`
+	LastMsgSender        string `json:"last_msg_sender,omitempty"`
+	LastMsgIsOutgoing    bool   `json:"last_msg_is_outgoing,omitempty"`
+	LastMsgStatus        int    `json:"last_msg_status,omitempty"`
+	LastMsgMediaType     int    `json:"last_msg_media_type,omitempty"`
+	LastMsgThumbB64      string `json:"last_msg_thumb_b64,omitempty"`
+	UnreadCount          int    `json:"unread_count"`
+	IsMuted              bool   `json:"is_muted"`
+	IsPinned             bool   `json:"is_pinned"`
+	IsArchived           bool   `json:"is_archived"`
+	DraftText            string `json:"draft_text,omitempty"`
+	MemberCount          int    `json:"member_count,omitempty"`
+	ParentID             string `json:"parent_id,omitempty"`
+	IsBot                bool   `json:"is_bot"`
+	IsContact            bool   `json:"is_contact"`
+	IsBlocked            bool   `json:"is_blocked"`
+	UnreadMark           bool   `json:"unread_mark"`
+	UnreadMentionCount   int    `json:"unread_mention_count"`
+	UnreadReactionCount  int    `json:"unread_reaction_count"`
+	IsVerified           bool   `json:"is_verified"`
+	IsScam               bool   `json:"is_scam"`
+	IsFake               bool   `json:"is_fake"`
 	SlowmodeSeconds      int    `json:"slowmode_seconds,omitempty"`
 	SlowmodeNextSendDate int64  `json:"slowmode_next_send_date,omitempty"`
 	StarsToSend          int    `json:"stars_to_send,omitempty"`
@@ -570,7 +570,7 @@ func (e *Engine) MarkAllChatsRead(accountID string) error {
 }
 
 // OpenSavedMessages ensures the "Saved Messages" chat exists in the local
-// cache and emits a chat update so the Dart side can navigate to it.
+// cache and emits a chat update so the host side can navigate to it.
 func (e *Engine) OpenSavedMessages(accountID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1624,15 +1624,15 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 
 // GroupCallInfo is the group call data returned to the UI.
 type GroupCallInfo struct {
-	CallID            string                  `json:"call_id"`
-	ChatID            string                  `json:"chat_id"`
-	Title             string                  `json:"title"`
-	ParticipantsCount int                     `json:"participants_count"`
-	Participants      []GroupCallParticipant   `json:"participants"`
-	Active            bool                    `json:"active"`
-	IsRtmp            bool                    `json:"is_rtmp,omitempty"`
-	ScheduleDate      int64                   `json:"schedule_date,omitempty"`
-	Origin            string                  `json:"origin,omitempty"`
+	CallID            string                 `json:"call_id"`
+	ChatID            string                 `json:"chat_id"`
+	Title             string                 `json:"title"`
+	ParticipantsCount int                    `json:"participants_count"`
+	Participants      []GroupCallParticipant `json:"participants"`
+	Active            bool                   `json:"active"`
+	IsRtmp            bool                   `json:"is_rtmp,omitempty"`
+	ScheduleDate      int64                  `json:"schedule_date,omitempty"`
+	Origin            string                 `json:"origin,omitempty"`
 }
 
 // GroupCallParticipant is a single participant in a group call.
@@ -2248,7 +2248,7 @@ func (e *Engine) GetAudioDevices(accountID, deviceType string) ([]string, error)
 
 // enumerateAudioDevices returns the real OS audio/video devices for the given
 // type ("output", "input", or "camera"). The returned names deliberately do NOT
-// include a "Default" entry — every Dart caller (settings_screen, call_panel,
+// include a "Default" entry — every host caller (settings_screen, call_panel,
 // call_screen) prepends its own "Default" sentinel meaning "use the system
 // default device", so adding one here would duplicate it.
 //

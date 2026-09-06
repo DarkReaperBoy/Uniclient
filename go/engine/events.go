@@ -12,37 +12,37 @@ import (
 // --- Engine event types ---
 
 const (
-	EventAuthState       = "auth_state"
-	EventConnState       = "conn_state"
-	EventAccountList     = "account_list"
-	EventChatSnapshot    = "chat_snapshot"
-	EventChatUpdated     = "chat_updated"
-	EventChatRemoved     = "chat_removed"
-	EventMsgReceived     = "msg_received"
-	EventMsgEdited       = "msg_edited"
-	EventMsgDeleted      = "msg_deleted"
-	EventMsgStatus       = "msg_status"
-	EventTyping          = "typing"
-	EventUserStatus      = "user_status"
+	EventAuthState        = "auth_state"
+	EventConnState        = "conn_state"
+	EventAccountList      = "account_list"
+	EventChatSnapshot     = "chat_snapshot"
+	EventChatUpdated      = "chat_updated"
+	EventChatRemoved      = "chat_removed"
+	EventMsgReceived      = "msg_received"
+	EventMsgEdited        = "msg_edited"
+	EventMsgDeleted       = "msg_deleted"
+	EventMsgStatus        = "msg_status"
+	EventTyping           = "typing"
+	EventUserStatus       = "user_status"
 	EventDownloadProgress = "download_progress"
 	EventDownloadComplete = "download_complete"
-	EventIncomingCall    = "incoming_call"
-	EventCallState       = "call_state"
-	EventGroupCallState  = "group_call_state"
+	EventIncomingCall     = "incoming_call"
+	EventCallState        = "call_state"
+	EventGroupCallState   = "group_call_state"
 	EventGroupCallMessage = "group_call_message"
-	EventExportProgress  = "export_progress"
-	EventExportError     = "export_error"
-	EventExportComplete  = "export_complete"
-	EventExportSuggest   = "export_suggest"
-	EventNotifySettings  = "notify_settings"
+	EventExportProgress   = "export_progress"
+	EventExportError      = "export_error"
+	EventExportComplete   = "export_complete"
+	EventExportSuggest    = "export_suggest"
+	EventNotifySettings   = "notify_settings"
 	// EventLoginCode is broadcast when any connected account receives a
 	// Telegram-pushed login code (a `tg://login?code=` service message); the
 	// login UI fills+submits it on the in-progress flow, mirroring AyuGram
 	// Account::handleLoginCode (intro_code.cpp:59-62).
-	EventLoginCode       = "login_code"
+	EventLoginCode = "login_code"
 )
 
-// EngineEvent is the envelope for all events pushed to Dart.
+// EngineEvent is the envelope for all events pushed to the host.
 type EngineEvent struct {
 	Type      string `json:"type"`
 	AccountID string `json:"account_id,omitempty"`
@@ -53,9 +53,9 @@ type EngineEvent struct {
 // --- Event data types ---
 
 type AuthStateEvent struct {
-	State   string `json:"state"`
-	Prompt  string `json:"prompt,omitempty"`
-	Error   string `json:"error,omitempty"`
+	State  string `json:"state"`
+	Prompt string `json:"prompt,omitempty"`
+	Error  string `json:"error,omitempty"`
 }
 
 type ConnStateEvent struct {
@@ -77,8 +77,8 @@ type ChatRemovedEvent struct {
 }
 
 type MsgReceivedEvent struct {
-	AccountID string `json:"account_id"`
-	ChatID    string `json:"chat_id"`
+	AccountID string        `json:"account_id"`
+	ChatID    string        `json:"chat_id"`
 	Message   CachedMessage `json:"message"`
 }
 
@@ -114,8 +114,8 @@ type TypingEvent struct {
 }
 
 type UserStatusEvent struct {
-	UserID       string `json:"user_id"`
-	IsOnline     bool   `json:"is_online"`
+	UserID   string `json:"user_id"`
+	IsOnline bool   `json:"is_online"`
 	// LastSeenKind: "online", "recently", "within_week", "within_month",
 	// "long_ago", "exact", "hidden". When "exact", LastSeen holds the UTC timestamp.
 	LastSeenKind string `json:"last_seen_kind,omitempty"`
@@ -123,12 +123,12 @@ type UserStatusEvent struct {
 }
 
 type DownloadProgressEvent struct {
-	AccountID string `json:"account_id"`
-	ChatID    string `json:"chat_id"`
-	MsgID     string `json:"msg_id"`
-	Seq       int    `json:"seq"`
-	BytesRecv int64  `json:"bytes_recv"`
-	BytesTotal int64 `json:"bytes_total"`
+	AccountID  string `json:"account_id"`
+	ChatID     string `json:"chat_id"`
+	MsgID      string `json:"msg_id"`
+	Seq        int    `json:"seq"`
+	BytesRecv  int64  `json:"bytes_recv"`
+	BytesTotal int64  `json:"bytes_total"`
 }
 
 type DownloadCompleteEvent struct {
@@ -141,7 +141,7 @@ type DownloadCompleteEvent struct {
 
 // --- Event dispatch ---
 
-// emitEvent serializes and pushes an event to Dart.
+// emitEvent serializes and pushes an event to the host.
 func (e *Engine) emitEvent(eventType, accountID string, data any) {
 	evt := EngineEvent{
 		Type:      eventType,
@@ -173,7 +173,7 @@ func (e *Engine) emitConnState(accountID string, state ConnState, errMsg string)
 	})
 }
 
-// emitAccountList pushes the full account list to Dart.
+// emitAccountList pushes the full account list to the host.
 func (e *Engine) emitAccountList() {
 	e.emitEvent(EventAccountList, "", e.ListAccounts())
 }
@@ -207,7 +207,7 @@ func shouldEmitTyping(accountID, chatID, userID string) bool {
 // --- Core update handler ---
 
 // handleUpdate processes a real-time update from a core.
-// It caches the data, deduplicates, and emits events to Dart.
+// It caches the data, deduplicates, and emits events to the host.
 func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 	// Update last event time for heartbeat monitoring.
 	e.accountsMu.Lock()

@@ -172,7 +172,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		// Step the auth flow back one step within the live flow. Reuses the
 		// account-id request and the auth-state response shapes (no dedicated
 		// proto message needed): an absent State in the response signals "already
-		// at the first step", on which the Dart side fully cancels.
+		// at the first step", on which the host side fully cancels.
 		var req pb.EngineCancelAuthRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
@@ -937,9 +937,9 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "SetForumViewAsMessages":
 		var params struct {
-			AccountID    string `json:"account_id"`
-			ChatID       string `json:"chat_id"`
-			AsMessages   bool   `json:"as_messages"`
+			AccountID  string `json:"account_id"`
+			ChatID     string `json:"chat_id"`
+			AsMessages bool   `json:"as_messages"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
@@ -2185,7 +2185,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "ReorderAccountUsernames":
 		var params struct {
-			AccountID string `json:"account_id"`
+			AccountID string   `json:"account_id"`
 			Order     []string `json:"order"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
@@ -2229,8 +2229,8 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "ReorderChannelUsernames":
 		var params struct {
-			AccountID string `json:"account_id"`
-			ChatID    string `json:"chat_id"`
+			AccountID string   `json:"account_id"`
+			ChatID    string   `json:"chat_id"`
 			Order     []string `json:"order"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
@@ -4155,7 +4155,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return json.Marshal(map[string]interface{}{
 			"sensitive_enabled":    enabled,
 			"sensitive_can_change": canChange,
-			"age_verify_needed":   ageVerify,
+			"age_verify_needed":    ageVerify,
 		})
 
 	case "SetContentSettings":
@@ -4187,10 +4187,10 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "SetArchiveSettings":
 		var params struct {
-			AccountID          string `json:"account_id"`
-			ArchiveAndMute     bool   `json:"archive_and_mute"`
-			KeepArchivedUnmuted bool  `json:"keep_archived_unmuted"`
-			KeepArchivedFolders bool  `json:"keep_archived_folders"`
+			AccountID           string `json:"account_id"`
+			ArchiveAndMute      bool   `json:"archive_and_mute"`
+			KeepArchivedUnmuted bool   `json:"keep_archived_unmuted"`
+			KeepArchivedFolders bool   `json:"keep_archived_folders"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
@@ -4361,9 +4361,9 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return json.Marshal(map[string]interface{}{
-			"max_stars":              maxStars,
-			"commission_permille":    commissionPermille,
-			"withdraw_rate":          withdrawRate,
+			"max_stars":           maxStars,
+			"commission_permille": commissionPermille,
+			"withdraw_rate":       withdrawRate,
 		})
 
 	case "GetCloudThemes":
@@ -7133,8 +7133,8 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "SetBusinessFeature":
 		var params struct {
-			AccountID string `json:"account_id"`
-			Feature   string `json:"feature"`
+			AccountID string                 `json:"account_id"`
+			Feature   string                 `json:"feature"`
 			Data      map[string]interface{} `json:"data"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
@@ -7460,19 +7460,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 }
 
 var privacyKeyMap = map[string]tg.InputPrivacyKeyClass{
-	"phone_number":    &tg.InputPrivacyKeyPhoneNumber{},
-	"last_seen":       &tg.InputPrivacyKeyStatusTimestamp{},
-	"profile_photo":   &tg.InputPrivacyKeyProfilePhoto{},
-	"forwards":        &tg.InputPrivacyKeyForwards{},
-	"calls":           &tg.InputPrivacyKeyPhoneCall{},
-	"calls_p2p":       &tg.InputPrivacyKeyPhoneP2P{},
-	"voice_messages":  &tg.InputPrivacyKeyVoiceMessages{},
-	"chat_invite":     &tg.InputPrivacyKeyChatInvite{},
-	"birthday":        &tg.InputPrivacyKeyBirthday{},
-	"gifts":           &tg.InputPrivacyKeyStarGiftsAutoSave{},
-	"about":           &tg.InputPrivacyKeyAbout{},
-	"added_by_phone":  &tg.InputPrivacyKeyAddedByPhone{},
-	"saved_music":     &tg.InputPrivacyKeySavedMusic{},
+	"phone_number":   &tg.InputPrivacyKeyPhoneNumber{},
+	"last_seen":      &tg.InputPrivacyKeyStatusTimestamp{},
+	"profile_photo":  &tg.InputPrivacyKeyProfilePhoto{},
+	"forwards":       &tg.InputPrivacyKeyForwards{},
+	"calls":          &tg.InputPrivacyKeyPhoneCall{},
+	"calls_p2p":      &tg.InputPrivacyKeyPhoneP2P{},
+	"voice_messages": &tg.InputPrivacyKeyVoiceMessages{},
+	"chat_invite":    &tg.InputPrivacyKeyChatInvite{},
+	"birthday":       &tg.InputPrivacyKeyBirthday{},
+	"gifts":          &tg.InputPrivacyKeyStarGiftsAutoSave{},
+	"about":          &tg.InputPrivacyKeyAbout{},
+	"added_by_phone": &tg.InputPrivacyKeyAddedByPhone{},
+	"saved_music":    &tg.InputPrivacyKeySavedMusic{},
 }
 
 type privacyResult struct {
@@ -7516,10 +7516,18 @@ func parsePrivacyRules(rules []tg.PrivacyRuleClass) *privacyResult {
 			res.AllowPremium = true
 		}
 	}
-	if res.AlwaysUsers == nil { res.AlwaysUsers = []string{} }
-	if res.NeverUsers == nil { res.NeverUsers = []string{} }
-	if res.AlwaysChats == nil { res.AlwaysChats = []string{} }
-	if res.NeverChats == nil { res.NeverChats = []string{} }
+	if res.AlwaysUsers == nil {
+		res.AlwaysUsers = []string{}
+	}
+	if res.NeverUsers == nil {
+		res.NeverUsers = []string{}
+	}
+	if res.AlwaysChats == nil {
+		res.AlwaysChats = []string{}
+	}
+	if res.NeverChats == nil {
+		res.NeverChats = []string{}
+	}
 	return res
 }
 
@@ -7571,7 +7579,9 @@ func setPrivacySetting(e *engine.Engine, accountID, key, option string, alwaysID
 		var users []tg.InputUserClass
 		for _, idStr := range alwaysIDs {
 			id, err := strconv.ParseInt(idStr, 10, 64)
-			if err != nil { continue }
+			if err != nil {
+				continue
+			}
 			users = append(users, &tg.InputUser{UserID: id})
 		}
 		if len(users) > 0 {
@@ -7582,7 +7592,9 @@ func setPrivacySetting(e *engine.Engine, accountID, key, option string, alwaysID
 		var users []tg.InputUserClass
 		for _, idStr := range neverIDs {
 			id, err := strconv.ParseInt(idStr, 10, 64)
-			if err != nil { continue }
+			if err != nil {
+				continue
+			}
 			users = append(users, &tg.InputUser{UserID: id})
 		}
 		if len(users) > 0 {
@@ -7611,7 +7623,9 @@ func getAllPrivacySettings(e *engine.Engine, accountID string) ([]byte, error) {
 	}
 	for _, k := range keys {
 		inputKey, ok := privacyKeyMap[k]
-		if !ok { continue }
+		if !ok {
+			continue
+		}
 		rules, err := tgCore.GetPrivacy(inputKey)
 		if err != nil {
 			result[k] = &privacyResult{Option: "everyone", AlwaysUsers: []string{}, NeverUsers: []string{}, AlwaysChats: []string{}, NeverChats: []string{}}
@@ -7629,22 +7643,22 @@ func authStateToProto(s *engine.AuthState) *pb.EngineAuthState {
 		return nil
 	}
 	p := &pb.EngineAuthState{
-		AccountId:   s.AccountID,
-		Platform:    s.Platform,
-		State:       s.State,
-		FieldType:   s.FieldType,
-		Label:       s.Label,
-		Hint:        s.Hint,
-		Error:       s.Error,
-		CodeLength:  int32(s.CodeLength),
-		SentTo:      s.SentTo,
-		TimeoutSecs: int32(s.TimeoutSecs),
-		CanResend:   s.CanResend,
-		HasRecovery: s.HasRecovery,
-		QrData:      s.QRData,
-		QrExpiresIn: int32(s.QRExpiresIn),
-		DisplayName: s.DisplayName,
-		AvatarB64:   s.AvatarB64,
+		AccountId:      s.AccountID,
+		Platform:       s.Platform,
+		State:          s.State,
+		FieldType:      s.FieldType,
+		Label:          s.Label,
+		Hint:           s.Hint,
+		Error:          s.Error,
+		CodeLength:     int32(s.CodeLength),
+		SentTo:         s.SentTo,
+		TimeoutSecs:    int32(s.TimeoutSecs),
+		CanResend:      s.CanResend,
+		HasRecovery:    s.HasRecovery,
+		QrData:         s.QRData,
+		QrExpiresIn:    int32(s.QRExpiresIn),
+		DisplayName:    s.DisplayName,
+		AvatarB64:      s.AvatarB64,
 		Message:        s.Message,
 		Recoverable:    s.Recoverable,
 		CodeByTelegram: s.CodeByTelegram,
@@ -7657,35 +7671,35 @@ func authStateToProto(s *engine.AuthState) *pb.EngineAuthState {
 
 func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 	return &pb.EngineChatInfo{
-		AccountId:    c.AccountID,
-		ChatId:       c.ChatID,
-		Type:         int32(c.Type),
-		Title:        sanitizeUTF8(c.Title),
-		AvatarPath:   c.AvatarPath,
-		LastMsgId:    c.LastMsgID,
-		LastMsgText:  sanitizeUTF8(c.LastMsgText),
-		LastMsgTime:  c.LastMsgTime,
-		LastMsgSender:     sanitizeUTF8(c.LastMsgSender),
-		LastMsgIsOutgoing: c.LastMsgIsOutgoing,
-		LastMsgStatus:     int32(c.LastMsgStatus),
-		UnreadCount:       int32(c.UnreadCount),
-		IsMuted:      c.IsMuted,
-		IsPinned:     c.IsPinned,
-		IsArchived:   c.IsArchived,
-		DraftText:    sanitizeUTF8(c.DraftText),
-		MemberCount:  int32(c.MemberCount),
-		ParentId:     c.ParentID,
-		IsBot:        c.IsBot,
-		IsContact:    c.IsContact,
-		IsBlocked:    c.IsBlocked,
-		SlowmodeSeconds:       int32(c.SlowmodeSeconds),
-		SlowmodeNextSendDate:  c.SlowmodeNextSendDate,
-		StarsToSend:           int32(c.StarsToSend),
-		TtlPeriod:             int32(c.TtlPeriod),
-		EmojiStatusId:         c.EmojiStatusID,
-		IsForum:               c.IsForum,
-		WriteRestrictionType:  int32(c.WriteRestrictionType),
-		WriteRestrictionText:  c.WriteRestrictionText,
+		AccountId:            c.AccountID,
+		ChatId:               c.ChatID,
+		Type:                 int32(c.Type),
+		Title:                sanitizeUTF8(c.Title),
+		AvatarPath:           c.AvatarPath,
+		LastMsgId:            c.LastMsgID,
+		LastMsgText:          sanitizeUTF8(c.LastMsgText),
+		LastMsgTime:          c.LastMsgTime,
+		LastMsgSender:        sanitizeUTF8(c.LastMsgSender),
+		LastMsgIsOutgoing:    c.LastMsgIsOutgoing,
+		LastMsgStatus:        int32(c.LastMsgStatus),
+		UnreadCount:          int32(c.UnreadCount),
+		IsMuted:              c.IsMuted,
+		IsPinned:             c.IsPinned,
+		IsArchived:           c.IsArchived,
+		DraftText:            sanitizeUTF8(c.DraftText),
+		MemberCount:          int32(c.MemberCount),
+		ParentId:             c.ParentID,
+		IsBot:                c.IsBot,
+		IsContact:            c.IsContact,
+		IsBlocked:            c.IsBlocked,
+		SlowmodeSeconds:      int32(c.SlowmodeSeconds),
+		SlowmodeNextSendDate: c.SlowmodeNextSendDate,
+		StarsToSend:          int32(c.StarsToSend),
+		TtlPeriod:            int32(c.TtlPeriod),
+		EmojiStatusId:        c.EmojiStatusID,
+		IsForum:              c.IsForum,
+		WriteRestrictionType: int32(c.WriteRestrictionType),
+		WriteRestrictionText: c.WriteRestrictionText,
 		NotJoined:            c.NotJoined,
 		JoinRequest:          c.JoinRequest,
 		CanPost:              c.CanPost,

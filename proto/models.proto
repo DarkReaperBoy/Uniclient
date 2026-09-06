@@ -244,7 +244,7 @@ message BridgeResponse {
   bytes  payload  = 4; // serialized per-method response proto
 }
 
-// Event from Go → Dart (async updates)
+// Event from Go → host (async updates)
 message BridgeEvent {
   string core_id      = 1;
   Update update       = 2; // core events (core_id != "__engine")

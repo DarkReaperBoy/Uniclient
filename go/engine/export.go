@@ -199,7 +199,7 @@ func (e *Engine) LoadExportSettings(accountID string) (json.RawMessage, error) {
 // elapses and no export is running — re-prompts the user with the "Data export
 // ready" box (Export::View::SuggestStart). We mirror that: SuggestStartExport
 // persists availableAt and (re)arms a timer; when it fires we emit
-// EventExportSuggest so Dart shows the box. ClearExportSuggestion (=
+// EventExportSuggest so the host shows the box. ClearExportSuggestion (=
 // ClearSuggestStart) cancels the timer and clears the persisted value.
 
 // exportSuggestPath returns the per-account file persisting the export-ready
@@ -698,7 +698,7 @@ func (e *Engine) emitExportProgress(accountID string, state *exportState, step s
 // emitExportFileBytes reports a single written export file to the progress
 // view's per-file byte row (AyuGram pushBytes → FormatDownloadText). Files are
 // marshalled then flushed atomically, so loaded == count for the file just
-// written. Carries no Step/TotalSteps, so the Dart handler updates only the
+// written. Carries no Step/TotalSteps, so the host handler updates only the
 // byte row and leaves the main/entity rows untouched.
 func (e *Engine) emitExportFileBytes(accountID string, state *exportState, name string, size int64) {
 	if size <= 0 {

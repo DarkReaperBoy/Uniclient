@@ -52,23 +52,23 @@ const (
 type UpdateType string
 
 const (
-	UpdateNewMessage     UpdateType = "new_message"
-	UpdateEditMessage    UpdateType = "edit_message"
-	UpdateDeleteMessage  UpdateType = "delete_message"
-	UpdateReadState      UpdateType = "read_state"
-	UpdateUserStatus     UpdateType = "user_status"
-	UpdateTyping         UpdateType = "typing"
-	UpdateCallState      UpdateType = "call_state"
+	UpdateNewMessage       UpdateType = "new_message"
+	UpdateEditMessage      UpdateType = "edit_message"
+	UpdateDeleteMessage    UpdateType = "delete_message"
+	UpdateReadState        UpdateType = "read_state"
+	UpdateUserStatus       UpdateType = "user_status"
+	UpdateTyping           UpdateType = "typing"
+	UpdateCallState        UpdateType = "call_state"
 	UpdateGroupCallMessage UpdateType = "group_call_message"
-	UpdateGroupMembers    UpdateType = "group_members"
-	UpdateVerification    UpdateType = "verification"
-	UpdateConnectivity    UpdateType = "connectivity"
-	UpdateNotifySettings  UpdateType = "notify_settings"
+	UpdateGroupMembers     UpdateType = "group_members"
+	UpdateVerification     UpdateType = "verification"
+	UpdateConnectivity     UpdateType = "connectivity"
+	UpdateNotifySettings   UpdateType = "notify_settings"
 	// UpdateLoginCode carries a login code pushed by Telegram as a service
 	// message to an already-connected session (a `tg://login?code=NNNNN` link).
 	// Mirrors AyuGram Account::handleLoginCode → CodeWidget auto-fill+submit
 	// (intro_code.cpp:59-62, core/local_url_handlers.cpp:1437-1456).
-	UpdateLoginCode       UpdateType = "login_code"
+	UpdateLoginCode UpdateType = "login_code"
 )
 
 // CallState represents the current phase of a voice or video call.
@@ -139,116 +139,116 @@ type PaginationOpts struct {
 
 // User represents a platform user or bot with profile information.
 type User struct {
-	ID          string `json:"id"`
-	Username    string `json:"username,omitempty"`
-	DisplayName string `json:"display_name"`
-	Phone       string `json:"phone,omitempty"`
-	Bio         string `json:"bio,omitempty"`
-	AvatarURL   string `json:"avatar_url,omitempty"`
-	AvatarB64   string `json:"avatar_b64,omitempty"` // base64-encoded thumbnail
-	IsBot       bool   `json:"is_bot"`
-	IsOnline    bool   `json:"is_online"`
-	IsContact   bool   `json:"is_contact"`
-	IsBlocked   bool   `json:"is_blocked"`
-	LastSeen      *time.Time `json:"last_seen,omitempty"`
-	LastSeenKind  string     `json:"last_seen_kind,omitempty"`
-	IsVerified    bool       `json:"is_verified,omitempty"`
-	IsPremium     bool       `json:"is_premium,omitempty"`
-	IsScam        bool       `json:"is_scam,omitempty"`
-	IsFake        bool       `json:"is_fake,omitempty"`
-	EmojiStatusID string     `json:"emoji_status_id,omitempty"`
-	BotMenuText   string     `json:"bot_menu_text,omitempty"`
-	Role          string     `json:"role,omitempty"`
-	Platform      string     `json:"platform"`
-	StoryCount    int        `json:"story_count,omitempty"`
-	HasUnreadStory bool      `json:"has_unread_story,omitempty"`
-	BirthdayDay   int        `json:"birthday_day,omitempty"`
-	BirthdayMonth int        `json:"birthday_month,omitempty"`
-	BirthdayYear  int        `json:"birthday_year,omitempty"`
-	PersonalChannelID      string `json:"personal_channel_id,omitempty"`
-	PersonalChannelName    string `json:"personal_channel_name,omitempty"`
-	PersonalChannelCount   int    `json:"personal_channel_count,omitempty"` // subscriber count appended to the personal-channel label
-	VoiceMessagesForbidden bool   `json:"voice_messages_forbidden,omitempty"`
-	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
-	IsMutualContact        bool   `json:"is_mutual_contact,omitempty"`
-	HasPersonalPhoto       bool   `json:"has_personal_photo,omitempty"`
-	PersonalPhotoId        string `json:"personal_photo_id,omitempty"`
-	FallbackPhotoId        string `json:"fallback_photo_id,omitempty"`
-	UserpicPhotoId         string `json:"userpic_photo_id,omitempty"`
-	VideoStartPosition     int    `json:"video_start_position,omitempty"`
-	Note                   string `json:"note,omitempty"`
-	NoteEntities           string `json:"note_entities,omitempty"`
-	BusinessHours          string `json:"business_hours,omitempty"`
+	ID                     string          `json:"id"`
+	Username               string          `json:"username,omitempty"`
+	DisplayName            string          `json:"display_name"`
+	Phone                  string          `json:"phone,omitempty"`
+	Bio                    string          `json:"bio,omitempty"`
+	AvatarURL              string          `json:"avatar_url,omitempty"`
+	AvatarB64              string          `json:"avatar_b64,omitempty"` // base64-encoded thumbnail
+	IsBot                  bool            `json:"is_bot"`
+	IsOnline               bool            `json:"is_online"`
+	IsContact              bool            `json:"is_contact"`
+	IsBlocked              bool            `json:"is_blocked"`
+	LastSeen               *time.Time      `json:"last_seen,omitempty"`
+	LastSeenKind           string          `json:"last_seen_kind,omitempty"`
+	IsVerified             bool            `json:"is_verified,omitempty"`
+	IsPremium              bool            `json:"is_premium,omitempty"`
+	IsScam                 bool            `json:"is_scam,omitempty"`
+	IsFake                 bool            `json:"is_fake,omitempty"`
+	EmojiStatusID          string          `json:"emoji_status_id,omitempty"`
+	BotMenuText            string          `json:"bot_menu_text,omitempty"`
+	Role                   string          `json:"role,omitempty"`
+	Platform               string          `json:"platform"`
+	StoryCount             int             `json:"story_count,omitempty"`
+	HasUnreadStory         bool            `json:"has_unread_story,omitempty"`
+	BirthdayDay            int             `json:"birthday_day,omitempty"`
+	BirthdayMonth          int             `json:"birthday_month,omitempty"`
+	BirthdayYear           int             `json:"birthday_year,omitempty"`
+	PersonalChannelID      string          `json:"personal_channel_id,omitempty"`
+	PersonalChannelName    string          `json:"personal_channel_name,omitempty"`
+	PersonalChannelCount   int             `json:"personal_channel_count,omitempty"` // subscriber count appended to the personal-channel label
+	VoiceMessagesForbidden bool            `json:"voice_messages_forbidden,omitempty"`
+	ContactRequirePremium  bool            `json:"contact_require_premium,omitempty"`
+	IsMutualContact        bool            `json:"is_mutual_contact,omitempty"`
+	HasPersonalPhoto       bool            `json:"has_personal_photo,omitempty"`
+	PersonalPhotoId        string          `json:"personal_photo_id,omitempty"`
+	FallbackPhotoId        string          `json:"fallback_photo_id,omitempty"`
+	UserpicPhotoId         string          `json:"userpic_photo_id,omitempty"`
+	VideoStartPosition     int             `json:"video_start_position,omitempty"`
+	Note                   string          `json:"note,omitempty"`
+	NoteEntities           string          `json:"note_entities,omitempty"`
+	BusinessHours          string          `json:"business_hours,omitempty"`
 	BannedRights           map[string]bool `json:"banned_rights,omitempty"`
 	// Saved admin rights + custom rank for an admin/creator participant, so the
 	// EditAdminBox opens seeded from _oldRights/_oldRank instead of all-on
 	// defaults (edit_participant_box.cpp:304).
-	AdminRights            map[string]bool `json:"admin_rights,omitempty"`
-	Rank                   string          `json:"rank,omitempty"`
-	BannedUntil            int             `json:"banned_until,omitempty"`
+	AdminRights map[string]bool `json:"admin_rights,omitempty"`
+	Rank        string          `json:"rank,omitempty"`
+	BannedUntil int             `json:"banned_until,omitempty"`
 	// Attribution for the "Restricted/Banned by X on DATE" footer
 	// (edit_participant_box.cpp:816): the admin who applied the ban + when.
-	BannedBy               string          `json:"banned_by,omitempty"`
-	BannedByName           string          `json:"banned_by_name,omitempty"`
-	BannedDate             int             `json:"banned_date,omitempty"`
-	StarsPerMessage        int64           `json:"stars_per_message,omitempty"`
-	NeedContactsException  bool            `json:"need_contacts_exception,omitempty"`
+	BannedBy              string `json:"banned_by,omitempty"`
+	BannedByName          string `json:"banned_by_name,omitempty"`
+	BannedDate            int    `json:"banned_date,omitempty"`
+	StarsPerMessage       int64  `json:"stars_per_message,omitempty"`
+	NeedContactsException bool   `json:"need_contacts_exception,omitempty"`
 }
 
 // Dialog represents a conversation (DM, group, channel, or topic) in the chat list.
 type Dialog struct {
-	ID            string     `json:"id"`
-	Type          ChatType   `json:"type"`
-	Title         string     `json:"title"`
-	AvatarURL     string     `json:"avatar_url,omitempty"`
-	AvatarB64     string     `json:"avatar_b64,omitempty"`
-	LastMessage   *Message   `json:"last_message,omitempty"`
-	UnreadCount   int        `json:"unread_count"`
-	IsMuted       bool       `json:"is_muted"`
-	IsPinned      bool       `json:"is_pinned"`
-	IsArchived    bool       `json:"is_archived"`
-	MemberCount   int        `json:"member_count,omitempty"`
-	ParentID      string     `json:"parent_id,omitempty"` // for topics: the parent group ID
-	UnreadMark          bool `json:"unread_mark,omitempty"`
-	UnreadMentionCount  int  `json:"unread_mention_count,omitempty"`
-	UnreadReactionCount int  `json:"unread_reaction_count,omitempty"`
-	IsVerified          bool `json:"is_verified,omitempty"`
-	IsScam              bool   `json:"is_scam,omitempty"`
-	IsFake              bool   `json:"is_fake,omitempty"`
-	SlowmodeSeconds     int    `json:"slowmode_seconds,omitempty"`
-	SlowmodeNextSendDate int64 `json:"slowmode_next_send_date,omitempty"`
-	StarsToSend         int    `json:"stars_to_send,omitempty"`
-	TtlPeriod           int    `json:"ttl_period,omitempty"`
-	LinkedChatId        string `json:"linked_chat_id,omitempty"`
-	EmojiStatusID       string `json:"emoji_status_id,omitempty"`
-	StoryCount          int    `json:"story_count,omitempty"`
-	HasUnreadStory      bool   `json:"has_unread_story,omitempty"`
-	IsForum             bool   `json:"is_forum,omitempty"`
-	WriteRestrictionType int   `json:"write_restriction_type,omitempty"`
-	WriteRestrictionText string `json:"write_restriction_text,omitempty"`
-	NotJoined           bool   `json:"not_joined,omitempty"`
-	JoinRequest         bool   `json:"join_request,omitempty"`
-	CanPost             bool   `json:"can_post,omitempty"`
-	IsAdmin             bool   `json:"is_admin,omitempty"`
-	IsCreator           bool   `json:"is_creator,omitempty"` // current user is the chat/channel creator (amCreator)
-	NoForwards          bool   `json:"no_forwards,omitempty"`
-	Username            string `json:"username,omitempty"`
-	HasActiveCall       bool   `json:"has_active_call,omitempty"` // group/livestream call with participants (MTProto call_not_empty)
-	AccessHash          int64  `json:"-"`
-	Platform            string `json:"platform"`
+	ID                   string   `json:"id"`
+	Type                 ChatType `json:"type"`
+	Title                string   `json:"title"`
+	AvatarURL            string   `json:"avatar_url,omitempty"`
+	AvatarB64            string   `json:"avatar_b64,omitempty"`
+	LastMessage          *Message `json:"last_message,omitempty"`
+	UnreadCount          int      `json:"unread_count"`
+	IsMuted              bool     `json:"is_muted"`
+	IsPinned             bool     `json:"is_pinned"`
+	IsArchived           bool     `json:"is_archived"`
+	MemberCount          int      `json:"member_count,omitempty"`
+	ParentID             string   `json:"parent_id,omitempty"` // for topics: the parent group ID
+	UnreadMark           bool     `json:"unread_mark,omitempty"`
+	UnreadMentionCount   int      `json:"unread_mention_count,omitempty"`
+	UnreadReactionCount  int      `json:"unread_reaction_count,omitempty"`
+	IsVerified           bool     `json:"is_verified,omitempty"`
+	IsScam               bool     `json:"is_scam,omitempty"`
+	IsFake               bool     `json:"is_fake,omitempty"`
+	SlowmodeSeconds      int      `json:"slowmode_seconds,omitempty"`
+	SlowmodeNextSendDate int64    `json:"slowmode_next_send_date,omitempty"`
+	StarsToSend          int      `json:"stars_to_send,omitempty"`
+	TtlPeriod            int      `json:"ttl_period,omitempty"`
+	LinkedChatId         string   `json:"linked_chat_id,omitempty"`
+	EmojiStatusID        string   `json:"emoji_status_id,omitempty"`
+	StoryCount           int      `json:"story_count,omitempty"`
+	HasUnreadStory       bool     `json:"has_unread_story,omitempty"`
+	IsForum              bool     `json:"is_forum,omitempty"`
+	WriteRestrictionType int      `json:"write_restriction_type,omitempty"`
+	WriteRestrictionText string   `json:"write_restriction_text,omitempty"`
+	NotJoined            bool     `json:"not_joined,omitempty"`
+	JoinRequest          bool     `json:"join_request,omitempty"`
+	CanPost              bool     `json:"can_post,omitempty"`
+	IsAdmin              bool     `json:"is_admin,omitempty"`
+	IsCreator            bool     `json:"is_creator,omitempty"` // current user is the chat/channel creator (amCreator)
+	NoForwards           bool     `json:"no_forwards,omitempty"`
+	Username             string   `json:"username,omitempty"`
+	HasActiveCall        bool     `json:"has_active_call,omitempty"` // group/livestream call with participants (MTProto call_not_empty)
+	AccessHash           int64    `json:"-"`
+	Platform             string   `json:"platform"`
 }
 
 // ForumTopic represents a forum topic within a supergroup.
 type ForumTopic struct {
-	ID              string `json:"id"`               // root message ID (General = "1")
+	ID              string `json:"id"` // root message ID (General = "1")
 	Title           string `json:"title"`
-	ColorID         int    `json:"color_id"`          // predefined icon color (0x6FB9F0, 0xFFD67E, etc.)
-	IconEmojiID     int64  `json:"icon_emoji_id"`     // custom emoji ID, 0 for default
+	ColorID         int    `json:"color_id"`      // predefined icon color (0x6FB9F0, 0xFFD67E, etc.)
+	IconEmojiID     int64  `json:"icon_emoji_id"` // custom emoji ID, 0 for default
 	CreatorID       string `json:"creator_id"`
-	CreationDate    int64  `json:"creation_date"`     // unix timestamp
+	CreationDate    int64  `json:"creation_date"` // unix timestamp
 	IsClosed        bool   `json:"is_closed"`
-	IsHidden        bool   `json:"is_hidden"`         // only for General topic
-	IsMy            bool   `json:"is_my"`             // created by current user
+	IsHidden        bool   `json:"is_hidden"` // only for General topic
+	IsMy            bool   `json:"is_my"`     // created by current user
 	IsPinned        bool   `json:"is_pinned"`
 	UnreadCount     int    `json:"unread_count"`
 	UnreadMentions  int    `json:"unread_mentions"`
@@ -256,7 +256,7 @@ type ForumTopic struct {
 	TopMessageID    string `json:"top_message_id"`
 	ReadInboxMaxID  int    `json:"read_inbox_max_id"`
 	ReadOutboxMaxID int    `json:"read_outbox_max_id"`
-	ParentID        string `json:"parent_id"`         // parent supergroup ID
+	ParentID        string `json:"parent_id"` // parent supergroup ID
 	CanEdit         bool   `json:"can_edit"`
 	CanDelete       bool   `json:"can_delete"`
 	CanToggleClosed bool   `json:"can_toggle_closed"`
@@ -270,13 +270,13 @@ func (ft *ForumTopic) IsGeneral() bool { return ft.ID == "1" }
 
 // TextEntity represents a rich-text formatting entity (bold, italic, link, etc.)
 // within a message's text. Offset and Length are in UTF-16 code units to match
-// Telegram's convention; the Dart side works natively in UTF-16.
+// Telegram's convention; the host language works natively in UTF-16.
 type TextEntity struct {
-	Type       string `json:"type"`               // "bold","italic","underline","strike","code","pre","text_url","url","mention","hashtag","bot_command","email","phone","cashtag","spoiler","blockquote","custom_emoji","mention_name","bank_card","formatted_date"
-	Offset     int    `json:"offset"`             // start position in UTF-16 code units
-	Length     int    `json:"length"`             // length in UTF-16 code units
-	URL        string `json:"url,omitempty"`      // for text_url
-	Language   string `json:"language,omitempty"` // for pre (code block language)
+	Type       string `json:"type"`                  // "bold","italic","underline","strike","code","pre","text_url","url","mention","hashtag","bot_command","email","phone","cashtag","spoiler","blockquote","custom_emoji","mention_name","bank_card","formatted_date"
+	Offset     int    `json:"offset"`                // start position in UTF-16 code units
+	Length     int    `json:"length"`                // length in UTF-16 code units
+	URL        string `json:"url,omitempty"`         // for text_url
+	Language   string `json:"language,omitempty"`    // for pre (code block language)
 	DocumentID int64  `json:"document_id,omitempty"` // for custom_emoji
 	// formatted_date (messageEntityFormattedDate): a clickable, locale-rendered
 	// date. Date is the unix-seconds timestamp; the bools are the render flags.
@@ -291,32 +291,32 @@ type TextEntity struct {
 
 // Message represents a single message with its content, metadata, and attachments.
 type Message struct {
-	ID            string        `json:"id"`
-	ChatID        string        `json:"chat_id"`
-	SenderID      string        `json:"sender_id"`
-	SenderName    string        `json:"sender_name"`
-	SenderRank    string        `json:"sender_rank,omitempty"` // admin/creator custom title (e.g. "admin", "owner", "Head Mod")
-	SenderColorID int           `json:"sender_color_id"`       // name color palette index (0..63)
-	Text          string        `json:"text"`
-	Entities      []TextEntity  `json:"entities,omitempty"` // rich-text entities for Text
-	Timestamp     time.Time     `json:"timestamp"`
-	EditedAt      *time.Time    `json:"edited_at,omitempty"`
-	Status        MessageStatus `json:"status"`
-	ReplyToID     string        `json:"reply_to_id,omitempty"`
-	ReplyPreview  string        `json:"reply_preview,omitempty"` // first line of the replied-to message
-	ForwardFrom   string        `json:"forward_from,omitempty"`
-	ForwardFromID string        `json:"forward_from_id,omitempty"`
-	IsEncrypted   bool          `json:"is_encrypted"`
-	DecryptFailed bool          `json:"decrypt_failed"`
-	Attachments   []FileRef     `json:"attachments,omitempty"`
-	Reactions     []Reaction    `json:"reactions,omitempty"`
+	ID            string                 `json:"id"`
+	ChatID        string                 `json:"chat_id"`
+	SenderID      string                 `json:"sender_id"`
+	SenderName    string                 `json:"sender_name"`
+	SenderRank    string                 `json:"sender_rank,omitempty"` // admin/creator custom title (e.g. "admin", "owner", "Head Mod")
+	SenderColorID int                    `json:"sender_color_id"`       // name color palette index (0..63)
+	Text          string                 `json:"text"`
+	Entities      []TextEntity           `json:"entities,omitempty"` // rich-text entities for Text
+	Timestamp     time.Time              `json:"timestamp"`
+	EditedAt      *time.Time             `json:"edited_at,omitempty"`
+	Status        MessageStatus          `json:"status"`
+	ReplyToID     string                 `json:"reply_to_id,omitempty"`
+	ReplyPreview  string                 `json:"reply_preview,omitempty"` // first line of the replied-to message
+	ForwardFrom   string                 `json:"forward_from,omitempty"`
+	ForwardFromID string                 `json:"forward_from_id,omitempty"`
+	IsEncrypted   bool                   `json:"is_encrypted"`
+	DecryptFailed bool                   `json:"decrypt_failed"`
+	Attachments   []FileRef              `json:"attachments,omitempty"`
+	Reactions     []Reaction             `json:"reactions,omitempty"`
 	IsPinned      bool                   `json:"is_pinned"`
 	IsOutgoing    bool                   `json:"is_outgoing"`
-	IsService     bool                   `json:"is_service"`        // service/action message (e.g. "X joined the group")
-	GroupedID     string                 `json:"grouped_id,omitempty"` // album group ID (messages with same ID form an album)
-	Views         int                    `json:"views,omitempty"`    // view count (channel posts)
-	Forwards      int                    `json:"forwards,omitempty"` // forward/share count (channel posts)
-	NoForwards    bool                   `json:"no_forwards,omitempty"` // message-level forwarding restriction (AyuNoForwards flag)
+	IsService     bool                   `json:"is_service"`               // service/action message (e.g. "X joined the group")
+	GroupedID     string                 `json:"grouped_id,omitempty"`     // album group ID (messages with same ID form an album)
+	Views         int                    `json:"views,omitempty"`          // view count (channel posts)
+	Forwards      int                    `json:"forwards,omitempty"`       // forward/share count (channel posts)
+	NoForwards    bool                   `json:"no_forwards,omitempty"`    // message-level forwarding restriction (AyuNoForwards flag)
 	PaidPostType  int                    `json:"paid_post_type,omitempty"` // suggested-post payment type: 0=none, 1=stars, 2=ton (drives the delete-warning, delete_messages_box.cpp:527-548)
 	Platform      string                 `json:"platform"`
 	Extra         map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
@@ -333,7 +333,7 @@ type OutgoingMessage struct {
 
 // FileRef represents a reference to a file attachment with optional thumbnail.
 type FileRef struct {
-	ID       string `json:"id,omitempty"`  // platform file ID (for downloads)
+	ID       string `json:"id,omitempty"` // platform file ID (for downloads)
 	Name     string `json:"name"`
 	MimeType string `json:"mime_type"`
 	Size     int64  `json:"size"`
@@ -388,10 +388,10 @@ type SavedSublistInfo struct {
 }
 
 type SavedReactionTagInfo struct {
-	Emoji      string `json:"emoji,omitempty"`
-	CustomID   int64  `json:"custom_id,omitempty"`
-	Title      string `json:"title,omitempty"`
-	Count      int    `json:"count"`
+	Emoji    string `json:"emoji,omitempty"`
+	CustomID int64  `json:"custom_id,omitempty"`
+	Title    string `json:"title,omitempty"`
+	Count    int    `json:"count"`
 }
 
 // StickerInfo holds data for a single sticker in a set.
@@ -507,15 +507,15 @@ type WebPagePreviewResult struct {
 }
 
 type StarGiftItem struct {
-	ID          int64  `json:"id"`
-	Stars       int64  `json:"stars"`
-	Title       string `json:"title,omitempty"`
-	Limited     bool   `json:"limited,omitempty"`
-	SoldOut     bool   `json:"sold_out,omitempty"`
-	Birthday    bool   `json:"birthday,omitempty"`
-	Remaining   int    `json:"remaining,omitempty"`
-	Total       int    `json:"total,omitempty"`
-	ThumbB64    string `json:"thumb_b64,omitempty"`
+	ID        int64  `json:"id"`
+	Stars     int64  `json:"stars"`
+	Title     string `json:"title,omitempty"`
+	Limited   bool   `json:"limited,omitempty"`
+	SoldOut   bool   `json:"sold_out,omitempty"`
+	Birthday  bool   `json:"birthday,omitempty"`
+	Remaining int    `json:"remaining,omitempty"`
+	Total     int    `json:"total,omitempty"`
+	ThumbB64  string `json:"thumb_b64,omitempty"`
 }
 
 type StarGiftsResult struct {
@@ -577,21 +577,21 @@ type CallParticipant struct {
 // a chat matches the folder if it's in ChatIDs OR matches any active flag.
 // ExcludeChatIDs are always excluded. PinnedChatIDs are shown first.
 type Folder struct {
-	ID             string   `json:"id"`
-	Name           string   `json:"name"`
-	ChatIDs        []string `json:"chat_ids"`
-	ExcludeChatIDs []string `json:"exclude_chat_ids,omitempty"`
-	PinnedChatIDs  []string `json:"pinned_chat_ids,omitempty"`
-	Contacts       bool     `json:"contacts,omitempty"`
-	NonContacts    bool     `json:"non_contacts,omitempty"`
-	Groups         bool     `json:"groups,omitempty"`
-	Channels       bool     `json:"channels,omitempty"`
-	Bots           bool     `json:"bots,omitempty"`
-	ExcludeMuted   bool     `json:"exclude_muted,omitempty"`
-	ExcludeRead    bool     `json:"exclude_read,omitempty"`
-	ExcludeArchived bool    `json:"exclude_archived,omitempty"`
-	IsChatList      bool    `json:"is_chat_list,omitempty"`
-	Emoticon        string  `json:"emoticon,omitempty"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	ChatIDs         []string `json:"chat_ids"`
+	ExcludeChatIDs  []string `json:"exclude_chat_ids,omitempty"`
+	PinnedChatIDs   []string `json:"pinned_chat_ids,omitempty"`
+	Contacts        bool     `json:"contacts,omitempty"`
+	NonContacts     bool     `json:"non_contacts,omitempty"`
+	Groups          bool     `json:"groups,omitempty"`
+	Channels        bool     `json:"channels,omitempty"`
+	Bots            bool     `json:"bots,omitempty"`
+	ExcludeMuted    bool     `json:"exclude_muted,omitempty"`
+	ExcludeRead     bool     `json:"exclude_read,omitempty"`
+	ExcludeArchived bool     `json:"exclude_archived,omitempty"`
+	IsChatList      bool     `json:"is_chat_list,omitempty"`
+	Emoticon        string   `json:"emoticon,omitempty"`
 }
 
 type SuggestedFolder struct {
@@ -626,26 +626,26 @@ type Session struct {
 
 // Update represents a real-time event pushed from the platform to the client.
 type Update struct {
-	Type         UpdateType        `json:"type"`
-	ChatID       string            `json:"chat_id,omitempty"`
-	Message      *Message          `json:"message,omitempty"`
-	MessageID    string            `json:"message_id,omitempty"`
-	UserID       string            `json:"user_id,omitempty"`
-	ReadState    *ReadState        `json:"read_state,omitempty"`
-	Call         *CallSession      `json:"call,omitempty"`
-	IsOnline     *bool             `json:"is_online,omitempty"`
+	Type      UpdateType   `json:"type"`
+	ChatID    string       `json:"chat_id,omitempty"`
+	Message   *Message     `json:"message,omitempty"`
+	MessageID string       `json:"message_id,omitempty"`
+	UserID    string       `json:"user_id,omitempty"`
+	ReadState *ReadState   `json:"read_state,omitempty"`
+	Call      *CallSession `json:"call,omitempty"`
+	IsOnline  *bool        `json:"is_online,omitempty"`
 	// LastSeenKind carries coarse last-seen visibility for user_status updates:
 	// "online", "recently", "within_week", "within_month", "long_ago", "exact", "hidden".
 	// When "exact", LastSeen holds the actual timestamp.
-	LastSeenKind string            `json:"last_seen_kind,omitempty"`
-	LastSeen     *time.Time        `json:"last_seen,omitempty"`
-	Verification *VerificationInfo `json:"verification,omitempty"`
-	Action       string            `json:"action,omitempty"` // typing action: "typing", "record_video", "upload_photo", etc.
-	ConnState    string            `json:"conn_state,omitempty"` // "connected", "disconnected", "reconnecting"
-	NotifySettings *NotifySettingsUpdate `json:"notify_settings,omitempty"`
+	LastSeenKind     string                  `json:"last_seen_kind,omitempty"`
+	LastSeen         *time.Time              `json:"last_seen,omitempty"`
+	Verification     *VerificationInfo       `json:"verification,omitempty"`
+	Action           string                  `json:"action,omitempty"`     // typing action: "typing", "record_video", "upload_photo", etc.
+	ConnState        string                  `json:"conn_state,omitempty"` // "connected", "disconnected", "reconnecting"
+	NotifySettings   *NotifySettingsUpdate   `json:"notify_settings,omitempty"`
 	GroupCallMessage *GroupCallMessageUpdate `json:"group_call_message,omitempty"`
-	LoginCode    string            `json:"login_code,omitempty"` // login_code update: the pushed login code
-	Platform     string            `json:"platform"`
+	LoginCode        string                  `json:"login_code,omitempty"` // login_code update: the pushed login code
+	Platform         string                  `json:"platform"`
 }
 
 // GroupCallMessageUpdate carries an ephemeral message posted into a group call's

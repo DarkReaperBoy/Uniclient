@@ -53,11 +53,13 @@ case "$TARGET" in
     echo "Output: $BUILD_DIR/android/"
     ;;
   web|wasm)
-    echo "Building cores.wasm for js/wasm..."
-    GOOS=js GOARCH=wasm \
-      go build -tags goolm -o "$BUILD_DIR/cores.wasm" ./cmd/bridge/
-    cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" "$BUILD_DIR/"
-    echo "Output: $BUILD_DIR/cores.wasm + wasm_exec.js"
+    # NOT CURRENTLY BUILDABLE: pion/webrtc (call transports in telegram,
+    # matrix, rubika, deltachat, bale) and coder/websocket do not support
+    # GOOS=js. The wasm entry point (go/cmd/bridge/main_js.go) is kept for
+    # when the call transports get js stubs like bale_calls_js.go.
+    echo "Error: the web/wasm target is not buildable yet." >&2
+    echo "pion/webrtc and coder/websocket lack GOOS=js support; call transports need js stubs." >&2
+    exit 1
     ;;
   *)
     echo "Unknown target: $TARGET"

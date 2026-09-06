@@ -31,12 +31,12 @@ type downloadJob struct {
 type MediaManager struct {
 	engine *Engine
 
-	mu       sync.Mutex
-	queue    []*downloadJob
-	active   int
-	maxConc  int // max concurrent downloads total
-	wg       sync.WaitGroup
-	notify   chan struct{} // signal to process queue
+	mu      sync.Mutex
+	queue   []*downloadJob
+	active  int
+	maxConc int // max concurrent downloads total
+	wg      sync.WaitGroup
+	notify  chan struct{} // signal to process queue
 }
 
 func newMediaManager(e *Engine) *MediaManager {
@@ -353,7 +353,7 @@ func (e *Engine) ClearCache(accountID string) error {
 }
 
 // mediaTypesForTag maps a Local Storage UI cache-tag index to the engine media
-// type ids it represents. Tag indices match the Dart Local Storage box rows:
+// type ids it represents. Tag indices match the host Local Storage box rows:
 // 0=Images, 1=Stickers, 2=Voice messages, 3=Video messages, 4=Animations,
 // 5=Media cache (everything else / big files). Mirrors AyuGram's per-tag cache
 // buckets (kImageCacheTag/kStickerCacheTag/… in data/data_cloud_file / cache tags).

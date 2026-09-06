@@ -1,8 +1,8 @@
 // Package bridge provides the FFI entry point for the uniclient protobuf bridge.
 //
-// Flutter/Dart calls BridgeCall with a serialized BridgeRequest proto.
+// The host (frontend) calls BridgeCall with a serialized BridgeRequest proto.
 // Go dispatches to the appropriate core + method and returns a serialized BridgeResponse.
-// Async events (updates) are pushed to Dart via a callback port set by BridgeSetEventPort.
+// Async events (updates) are delivered to the host via the event pull/push exports.
 package bridge
 
 import (
@@ -24,7 +24,7 @@ import (
 
 // coreRegistry maps core_id → (core instance, core type name).
 var (
-	mu    sync.RWMutex
+	mu       sync.RWMutex
 	registry = make(map[string]coreEntry)
 
 	// eventCallback is called when an async event (update) fires.
@@ -53,7 +53,7 @@ func UnregisterCore(coreID string) {
 	delete(registry, coreID)
 }
 
-// SetEventCallback sets the function called when async events are pushed to Dart.
+// SetEventCallback sets the function called when async events are pushed to the host.
 // The callback receives serialized BridgeEvent proto bytes.
 func SetEventCallback(cb func([]byte)) {
 	mu.Lock()
@@ -61,7 +61,7 @@ func SetEventCallback(cb func([]byte)) {
 	eventCallback = cb
 }
 
-// PushEvent sends an async event to the Dart side.
+// PushEvent sends an async event to the host side.
 func PushEvent(event *pb.BridgeEvent) {
 	mu.RLock()
 	cb := eventCallback

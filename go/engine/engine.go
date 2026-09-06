@@ -49,17 +49,17 @@ type Account struct {
 	cancelFunc context.CancelFunc // cancels this account's goroutines
 }
 
-// Engine is the orchestration layer between cores and the Flutter UI.
+// Engine is the orchestration layer between cores and the host UI.
 type Engine struct {
-	mu       sync.RWMutex
-	db       *sql.DB
-	vault    *utils.Vault
-	config   *utils.AppConfig
+	mu     sync.RWMutex
+	db     *sql.DB
+	vault  *utils.Vault
+	config *utils.AppConfig
 
 	accounts   map[string]*Account // accountID → live account
 	accountsMu sync.RWMutex
 
-	eventCB func([]byte) // push serialized events to Dart
+	eventCB func([]byte) // push serialized events to the host
 
 	configDir   string
 	cacheDir    string
@@ -76,28 +76,28 @@ type Engine struct {
 	media   *MediaManager
 	avatars *avatarState
 
-	lockFile     *os.File       // single-instance lock file (held open with flock)
+	lockFile     *os.File // single-instance lock file (held open with flock)
 	shuttingDown bool
 	wg           sync.WaitGroup // tracks background goroutines
 
-	// Anti-recall settings (§52): controlled from Dart via SetAntiRecallSettings.
-	antiRecallMu           sync.RWMutex
-	saveDeletedMessages    bool
-	saveMessagesHistory    bool
-	saveForBots            bool
+	// Anti-recall settings (§52): controlled from the host via SetAntiRecallSettings.
+	antiRecallMu        sync.RWMutex
+	saveDeletedMessages bool
+	saveMessagesHistory bool
+	saveForBots         bool
 
 	exportMu sync.RWMutex
 	exports  map[string]*exportState
 
 	// Export-ready suggestion scheduling (AyuGram Session::suggestStartExport):
 	// per-account timer that fires when a delayed takeout becomes available,
-	// emitting EventExportSuggest so Dart shows the "Data export ready" box.
+	// emitting EventExportSuggest so the host shows the "Data export ready" box.
 	exportSuggestMu     sync.Mutex
 	exportSuggestTimers map[string]*time.Timer
 
-	// Proxy settings: controlled from Dart via SetProxy.
+	// Proxy settings: controlled from the host via SetProxy.
 	proxyMu       sync.RWMutex
-	proxyMode     int    // 0=disabled, 1=system, 2=custom
+	proxyMode     int // 0=disabled, 1=system, 2=custom
 	proxyHost     string
 	proxyPort     int
 	proxyType     string // socks5, http, mtproto
@@ -111,25 +111,25 @@ type Engine struct {
 	proxyRotationEnabled bool
 	proxyRotationTimeout int
 
-	// Auto-download settings: per-source limits controlled from Dart via SetAutoDownload.
+	// Auto-download settings: per-source limits controlled from the host via SetAutoDownload.
 	autoDownloadMu       sync.RWMutex
 	autoDownloadSettings map[string]map[string]interface{}
 
 	// Per-account ghost overrides (AyuGram per-session ghost resolution,
 	// ayu_settings.cpp:437 ghost(uint64 userId)). When an account has an entry
 	// here, its ghost flags take precedence over the global config; otherwise
-	// the global config applies. Populated from Dart when the user picks
+	// the global config applies. Populated from the host when the user picks
 	// "individual settings for each account".
 	ghostMu        sync.RWMutex
 	ghostOverrides map[string]GhostFlags
 
-	// Power saving flags bitmap from Dart UI.
+	// Power saving flags bitmap from host UI.
 	powerSavingFlags int
 	// powerSavingForceAll mirrors AyuGram PowerSaving::ForceAll (auto power
 	// saving): when true, every power-saving flag is treated as enabled.
 	powerSavingForceAll bool
 
-	// Local storage limits from Dart UI.
+	// Local storage limits from host UI.
 	localStorageTotalMB  int
 	localStorageMediaMB  int
 	localStorageTimeDays int
@@ -245,7 +245,7 @@ func (e *Engine) MediaDir() string {
 	return e.mediaDir
 }
 
-// SetEventCallback sets the function called when async events are pushed to Dart.
+// SetEventCallback sets the function called when async events are pushed to the host.
 // The callback receives serialized event bytes.
 func (e *Engine) SetEventCallback(cb func([]byte)) {
 	e.mu.Lock()
@@ -253,7 +253,7 @@ func (e *Engine) SetEventCallback(cb func([]byte)) {
 	e.eventCB = cb
 }
 
-// pushEvent sends an event to the Dart side. Safe to call from any goroutine.
+// pushEvent sends an event to the host side. Safe to call from any goroutine.
 func (e *Engine) pushEvent(data []byte) {
 	e.mu.RLock()
 	cb := e.eventCB
@@ -283,7 +283,7 @@ type proxyConfigurable interface {
 // proxy into MTProto and reconnects sessions.
 func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass, secret string, ipv6, forCalls, rotationEnabled bool, rotationTimeout int) {
 	// Normalize the proxy type to the lowercase tokens the dialer expects
-	// ("socks5"/"http"/"mtproto"). Dart sends the uppercase display label
+	// ("socks5"/"http"/"mtproto"). the host sends the uppercase display label
 	// ("SOCKS5"/"HTTP"/"MTPROTO"), but ProxyConfig.active()/resolver()/dialFunc()
 	// (cores/proxy.go) compare case-sensitively against lowercase. Without this
 	// active() returns false for every real proxy, no resolver is installed, and
@@ -374,7 +374,7 @@ func (e *Engine) SetAutoDownloadSettings(source string, settings map[string]inte
 // auto-downloads when its toggle is on and the file is within the size limit.
 // When a source has no stored settings the AyuGram-faithful defaults apply
 // (photos/videos/GIFs/round videos on, files off; 10 MB / 50 MB limits) so the
-// feature works out of the box, matching the Dart getAutoDownloadForSource
+// feature works out of the box, matching the host getAutoDownloadForSource
 // defaults.
 func (e *Engine) ShouldAutoDownload(source string, mediaType int, fileSize int64) bool {
 	e.autoDownloadMu.RLock()
@@ -475,7 +475,7 @@ func (e *Engine) UpdatePasscodeConfig(updates map[string]interface{}) error {
 }
 
 // SetPowerSaving stores the power-saving flags bitmap and the force-all flag
-// (auto power saving) from the Dart UI. forceAll maps to AyuGram
+// (auto power saving) from the host UI. forceAll maps to the host
 // PowerSaving::SetForceAll: when set, every flag is treated as enabled.
 func (e *Engine) SetPowerSaving(flags int, forceAll bool) {
 	e.powerSavingFlags = flags
@@ -497,7 +497,7 @@ func (e *Engine) SetExperimentalFlag(id string, value bool) {
 	log.Printf("[engine] SetExperimentalFlag: %s=%v", id, value)
 }
 
-// SetLocalStorageLimits stores cache eviction limits from the Dart UI.
+// SetLocalStorageLimits stores cache eviction limits from the host UI.
 func (e *Engine) SetLocalStorageLimits(totalMB, mediaMB, timeDays int) {
 	e.localStorageTotalMB = totalMB
 	e.localStorageMediaMB = mediaMB
@@ -511,13 +511,13 @@ func (e *Engine) SetLocalStorageLimits(totalMB, mediaMB, timeDays int) {
 // CheckProxy tests proxy connectivity by connecting to a Telegram DC through it.
 // Returns ping time in milliseconds on success.
 func (e *Engine) CheckProxy(host string, port int, proxyType, user, pass, secret string) (int64, error) {
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	start := time.Now()
 
 	var conn net.Conn
 	var err error
 
-	// Lowercase to match the protocol cases below — Dart may pass an uppercase
+	// Lowercase to match the protocol cases below — the host may pass an uppercase
 	// display label, which would otherwise fall through to the default (a bare
 	// TCP dial that wrongly reports any reachable host as a working proxy).
 	switch strings.ToLower(strings.TrimSpace(proxyType)) {
@@ -855,7 +855,7 @@ func (e *Engine) LeaveChat(accountID, chatID string) error {
 	e.db.Exec("DELETE FROM chats WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 	e.db.Exec("DELETE FROM media WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 
-	// Emit chat_removed event so Dart updates the list.
+	// Emit chat_removed event so the host updates the list.
 	e.emitEvent(EventChatRemoved, accountID, map[string]string{
 		"account_id": accountID,
 		"chat_id":    chatID,
@@ -979,7 +979,7 @@ func (e *Engine) ClearHistory(accountID, chatID string, revoke bool) error {
 	e.db.Exec("DELETE FROM messages WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 	e.db.Exec("DELETE FROM media WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 
-	// Emit event so Dart can refresh the chat view.
+	// Emit event so the host can refresh the chat view.
 	e.emitEvent(EventChatUpdated, accountID, map[string]string{
 		"account_id": accountID,
 		"chat_id":    chatID,
@@ -1016,7 +1016,7 @@ func (e *Engine) DeleteChat(accountID, chatID string, revoke bool) error {
 	e.db.Exec("DELETE FROM chats WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 	e.db.Exec("DELETE FROM media WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 
-	// Emit chat_removed event so Dart updates the list.
+	// Emit chat_removed event so the host updates the list.
 	e.emitEvent(EventChatRemoved, accountID, map[string]string{
 		"account_id": accountID,
 		"chat_id":    chatID,
@@ -1092,7 +1092,7 @@ func (e *Engine) CreateChannel(accountID, name, description string) (*ChatInfo, 
 		return nil, fmt.Errorf("failed to cache new channel: %w", err)
 	}
 
-	// Re-sync so the chat list updates for the Dart side.
+	// Re-sync so the chat list updates for the host side.
 	go func() {
 		ctx := context.Background()
 		e.syncAccount(ctx, accountID)
@@ -1354,14 +1354,14 @@ func (e *Engine) GetUnreadMentions(accountID, chatID string, limit int) ([]Cache
 	result := make([]CachedMessage, len(msgs))
 	for i, m := range msgs {
 		result[i] = CachedMessage{
-			AccountID:  accountID,
-			ChatID:     chatID,
-			MsgID:      m.ID,
-			SenderID:   m.SenderID,
-			SenderName: m.SenderName,
+			AccountID:   accountID,
+			ChatID:      chatID,
+			MsgID:       m.ID,
+			SenderID:    m.SenderID,
+			SenderName:  m.SenderName,
 			ContentText: m.Text,
-			Timestamp:  m.Timestamp.UnixMilli(),
-			IsOutgoing: m.IsOutgoing,
+			Timestamp:   m.Timestamp.UnixMilli(),
+			IsOutgoing:  m.IsOutgoing,
 		}
 	}
 	return result, nil
@@ -1386,14 +1386,14 @@ func (e *Engine) GetUnreadPollVotes(accountID, chatID string, limit int) ([]Cach
 	result := make([]CachedMessage, len(msgs))
 	for i, m := range msgs {
 		result[i] = CachedMessage{
-			AccountID:  accountID,
-			ChatID:     chatID,
-			MsgID:      m.ID,
-			SenderID:   m.SenderID,
-			SenderName: m.SenderName,
+			AccountID:   accountID,
+			ChatID:      chatID,
+			MsgID:       m.ID,
+			SenderID:    m.SenderID,
+			SenderName:  m.SenderName,
 			ContentText: m.Text,
-			Timestamp:  m.Timestamp.UnixMilli(),
-			IsOutgoing: m.IsOutgoing,
+			Timestamp:   m.Timestamp.UnixMilli(),
+			IsOutgoing:  m.IsOutgoing,
 		}
 	}
 	return result, nil
@@ -1418,14 +1418,14 @@ func (e *Engine) GetUnreadReactions(accountID, chatID string, limit int) ([]Cach
 	result := make([]CachedMessage, len(msgs))
 	for i, m := range msgs {
 		result[i] = CachedMessage{
-			AccountID:  accountID,
-			ChatID:     chatID,
-			MsgID:      m.ID,
-			SenderID:   m.SenderID,
-			SenderName: m.SenderName,
+			AccountID:   accountID,
+			ChatID:      chatID,
+			MsgID:       m.ID,
+			SenderID:    m.SenderID,
+			SenderName:  m.SenderName,
 			ContentText: m.Text,
-			Timestamp:  m.Timestamp.UnixMilli(),
-			IsOutgoing: m.IsOutgoing,
+			Timestamp:   m.Timestamp.UnixMilli(),
+			IsOutgoing:  m.IsOutgoing,
 		}
 	}
 	return result, nil
@@ -1677,20 +1677,20 @@ func (e *Engine) GetAdminedPublicChannelsFiltered(accountID string, forPersonal 
 }
 
 type ChatPermissionFlags struct {
-	SlowmodeSeconds      int    `json:"slowmode_seconds"`
-	JoinToSend           bool   `json:"join_to_send"`
-	NoForwards           bool   `json:"no_forwards"`
-	JoinRequest          bool   `json:"join_request"`
-	IsForum              bool   `json:"is_forum"`
-	Antispam             bool   `json:"antispam"`
-	Signatures           bool   `json:"signatures"`
+	SlowmodeSeconds       int    `json:"slowmode_seconds"`
+	JoinToSend            bool   `json:"join_to_send"`
+	NoForwards            bool   `json:"no_forwards"`
+	JoinRequest           bool   `json:"join_request"`
+	IsForum               bool   `json:"is_forum"`
+	Antispam              bool   `json:"antispam"`
+	Signatures            bool   `json:"signatures"`
 	SignatureProfiles     bool   `json:"signature_profiles"`
-	PreHistoryHidden     bool   `json:"pre_history_hidden"`
-	NoTranslations       bool   `json:"no_translations"`
+	PreHistoryHidden      bool   `json:"pre_history_hidden"`
+	NoTranslations        bool   `json:"no_translations"`
 	HasUsername           bool   `json:"has_username"`
-	LinkedChatID         string `json:"linked_chat_id"`
-	PendingRequestsCount int    `json:"pending_requests_count"`
-	BoostLevel           int    `json:"boost_level"`
+	LinkedChatID          string `json:"linked_chat_id"`
+	PendingRequestsCount  int    `json:"pending_requests_count"`
+	BoostLevel            int    `json:"boost_level"`
 	IsMegagroup           bool   `json:"is_megagroup"`
 	IsBroadcast           bool   `json:"is_broadcast"`
 	IsGigagroup           bool   `json:"is_gigagroup"`
@@ -1704,13 +1704,13 @@ type ChatPermissionFlags struct {
 	// (edit_peer_info_box.cpp:1523-1534): mode is "all"/"some"/"none", the list
 	// carries the allowed reactions when mode == "some", and paidEnabled gates
 	// the "1" fallback.
-	ReactionsMode         string   `json:"reactions_mode"`
-	ReactionsAllowed      []string `json:"reactions_allowed"`
-	PaidReactionsEnabled  bool     `json:"paid_reactions_enabled"`
+	ReactionsMode        string   `json:"reactions_mode"`
+	ReactionsAllowed     []string `json:"reactions_allowed"`
+	PaidReactionsEnabled bool     `json:"paid_reactions_enabled"`
 	// Aggressive anti-spam gating (menu_antispam_validator.cpp:86-90): the toggle
 	// is locked while MemberCount < AntispamGroupSizeMin.
-	AntispamGroupSizeMin  int      `json:"antispam_group_size_min"`
-	MemberCount           int      `json:"member_count"`
+	AntispamGroupSizeMin int `json:"antispam_group_size_min"`
+	MemberCount          int `json:"member_count"`
 }
 
 func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissionFlags, error) {
@@ -1730,20 +1730,20 @@ func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissi
 		return nil, err
 	}
 	return &ChatPermissionFlags{
-		SlowmodeSeconds:      cf.SlowmodeSeconds,
-		JoinToSend:           cf.JoinToSend,
-		NoForwards:           cf.NoForwards,
-		JoinRequest:          cf.JoinRequest,
-		IsForum:              cf.IsForum,
-		Antispam:             cf.Antispam,
-		Signatures:           cf.Signatures,
+		SlowmodeSeconds:       cf.SlowmodeSeconds,
+		JoinToSend:            cf.JoinToSend,
+		NoForwards:            cf.NoForwards,
+		JoinRequest:           cf.JoinRequest,
+		IsForum:               cf.IsForum,
+		Antispam:              cf.Antispam,
+		Signatures:            cf.Signatures,
 		SignatureProfiles:     cf.SignatureProfiles,
-		PreHistoryHidden:     cf.PreHistoryHidden,
-		NoTranslations:       cf.NoTranslations,
+		PreHistoryHidden:      cf.PreHistoryHidden,
+		NoTranslations:        cf.NoTranslations,
 		HasUsername:           cf.HasUsername,
-		LinkedChatID:         cf.LinkedChatID,
-		PendingRequestsCount: cf.PendingRequestsCount,
-		BoostLevel:           cf.BoostLevel,
+		LinkedChatID:          cf.LinkedChatID,
+		PendingRequestsCount:  cf.PendingRequestsCount,
+		BoostLevel:            cf.BoostLevel,
 		IsMegagroup:           cf.IsMegagroup,
 		IsBroadcast:           cf.IsBroadcast,
 		IsGigagroup:           cf.IsGigagroup,
@@ -1914,24 +1914,24 @@ func (e *Engine) SetStarRefProgram(accountID, chatID string, commissionPermille,
 }
 
 type DefaultBannedRights struct {
-	SendPlain         bool `json:"send_plain"`
-	SendPhotos        bool `json:"send_photos"`
-	SendVideos        bool `json:"send_videos"`
-	SendRoundvideos   bool `json:"send_roundvideos"`
-	SendAudios        bool `json:"send_audios"`
-	SendVoices        bool `json:"send_voices"`
-	SendDocs          bool `json:"send_docs"`
-	SendStickers      bool `json:"send_stickers"`
-	EmbedLinks        bool `json:"embed_links"`
-	SendPolls         bool `json:"send_polls"`
-	InviteUsers       bool `json:"invite_users"`
-	ManageTopics      bool `json:"manage_topics"`
-	PinMessages       bool `json:"pin_messages"`
-	EditRank          bool  `json:"edit_rank"`
-	ChangeInfo        bool  `json:"change_info"`
-	SlowmodeSeconds   int   `json:"slowmode_seconds"`
-	BoostsUnrestrict  int   `json:"boosts_unrestrict"`
-	ChargeStars       int64 `json:"charge_stars"`
+	SendPlain        bool  `json:"send_plain"`
+	SendPhotos       bool  `json:"send_photos"`
+	SendVideos       bool  `json:"send_videos"`
+	SendRoundvideos  bool  `json:"send_roundvideos"`
+	SendAudios       bool  `json:"send_audios"`
+	SendVoices       bool  `json:"send_voices"`
+	SendDocs         bool  `json:"send_docs"`
+	SendStickers     bool  `json:"send_stickers"`
+	EmbedLinks       bool  `json:"embed_links"`
+	SendPolls        bool  `json:"send_polls"`
+	InviteUsers      bool  `json:"invite_users"`
+	ManageTopics     bool  `json:"manage_topics"`
+	PinMessages      bool  `json:"pin_messages"`
+	EditRank         bool  `json:"edit_rank"`
+	ChangeInfo       bool  `json:"change_info"`
+	SlowmodeSeconds  int   `json:"slowmode_seconds"`
+	BoostsUnrestrict int   `json:"boosts_unrestrict"`
+	ChargeStars      int64 `json:"charge_stars"`
 }
 
 func (e *Engine) GetDefaultBannedRights(accountID, chatID string) (*DefaultBannedRights, error) {
@@ -1951,18 +1951,18 @@ func (e *Engine) GetDefaultBannedRights(accountID, chatID string) (*DefaultBanne
 		return nil, err
 	}
 	return &DefaultBannedRights{
-		SendPlain:       cr.SendPlain,
-		SendPhotos:      cr.SendPhotos,
-		SendVideos:      cr.SendVideos,
-		SendRoundvideos: cr.SendRoundvideos,
-		SendAudios:      cr.SendAudios,
-		SendVoices:      cr.SendVoices,
-		SendDocs:        cr.SendDocs,
-		SendStickers:    cr.SendStickers,
-		EmbedLinks:      cr.EmbedLinks,
-		SendPolls:       cr.SendPolls,
-		InviteUsers:     cr.InviteUsers,
-		ManageTopics:    cr.ManageTopics,
+		SendPlain:        cr.SendPlain,
+		SendPhotos:       cr.SendPhotos,
+		SendVideos:       cr.SendVideos,
+		SendRoundvideos:  cr.SendRoundvideos,
+		SendAudios:       cr.SendAudios,
+		SendVoices:       cr.SendVoices,
+		SendDocs:         cr.SendDocs,
+		SendStickers:     cr.SendStickers,
+		EmbedLinks:       cr.EmbedLinks,
+		SendPolls:        cr.SendPolls,
+		InviteUsers:      cr.InviteUsers,
+		ManageTopics:     cr.ManageTopics,
 		PinMessages:      cr.PinMessages,
 		EditRank:         cr.EditRank,
 		ChangeInfo:       cr.ChangeInfo,

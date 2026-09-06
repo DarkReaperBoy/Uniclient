@@ -2,6 +2,12 @@
 
 <!-- Written 2026-04-14, before Step 15 (Build GUI) -->
 
+> **STATUS (2026-09):** The Flutter frontend referenced throughout this doc
+> has been removed; the core is now frontend-agnostic ("host" = whatever
+> frontend consumes the bridge). The engine/bridge/cache/auth design below
+> is still accurate — mentally substitute "host frontend" wherever it says
+> Flutter/Dart. Sections describing Flutter-specific rendering (textures,
+> widget state) describe the *plan for a future frontend*, not current code.
 The engine is the orchestration layer between the 10 platform cores and the Flutter UI. Without it, the UI must manage 10 core lifecycles, implement caching, handle offline, coordinate events, and drive auth flows — all in Dart. With it, Dart is a dumb renderer.
 
 This document is the implementation spec for `go/engine/`. Every decision here was validated against how Telegram (TDLib) and Google (Gmail/Messages) build their clients, adapted for our 10-platform, pure-Go, cross-platform constraints.

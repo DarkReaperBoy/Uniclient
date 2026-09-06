@@ -1,4 +1,4 @@
-// Package engine is the orchestration layer between the 10 platform cores and the Flutter UI.
+// Package engine is the orchestration layer between the 10 platform cores and the host UI.
 // It manages SQLite caching, account lifecycle, auth flows, offline-first pending queue,
 // media pipeline, and event dispatch. The UI is a dumb renderer; the engine is the brain.
 package engine
@@ -333,10 +333,10 @@ func migrateV1(tx *sql.Tx) error {
 // --- Chat type constants (stored as integers in DB) ---
 
 const (
-	ChatTypeUnspec  = 0
-	ChatTypeDMVal   = 1
+	ChatTypeUnspec   = 0
+	ChatTypeDMVal    = 1
 	ChatTypeGroupVal = 2
-	ChatTypeChanVal = 3
+	ChatTypeChanVal  = 3
 	ChatTypeTopicVal = 4
 )
 
@@ -361,10 +361,10 @@ const (
 // --- Download state constants ---
 
 const (
-	DownloadNone        = 0
-	DownloadInProgress  = 1
-	DownloadComplete    = 2
-	DownloadFailed      = 3
+	DownloadNone       = 0
+	DownloadInProgress = 1
+	DownloadComplete   = 2
+	DownloadFailed     = 3
 )
 
 // --- Media type constants ---

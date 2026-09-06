@@ -23,9 +23,6 @@ import (
 	"uniclient/utils"
 
 	"github.com/coder/websocket"
-	lksdk "github.com/livekit/server-sdk-go/v2"
-	"github.com/pion/webrtc/v4"
-	"github.com/pion/webrtc/v4/pkg/media"
 )
 
 // baleFallbackIPs maps Bale domains to their origin server IPs.
@@ -39,29 +36,29 @@ import (
 // Scan results: go/tests/bale_scan_results.txt
 var baleFallbackIPs = map[string][]string{
 	// --- Confirmed correct: app-specific responses (not wildcard 404) ---
-	"tapi.bale.ai":         {"2.189.68.126"}, // HTTP 403 {"ok":false,"error_code":403} — Bot API ✓
-	"next-ws.bale.ai":      {"2.189.68.126"}, // HTTP 401 — WebSocket auth gate ✓
-	"bale.ai":              {"2.189.68.126"}, // HTTP 200 — Bale landing page ✓
-	"www.bale.ai":          {"2.189.68.126"}, // HTTP 308 → bale.ai ✓
-	"beta.bale.ai":         {"2.189.68.126"}, // HTTP 200 — Bale Web app ✓
-	"business.bale.ai":     {"2.189.68.126"}, // HTTP 200 — Business portal ✓
-	"docs.bale.ai":         {"2.189.68.126"}, // HTTP 200 — Docs (مستندات) ✓
-	"maviz.bale.ai":        {"2.189.68.126"}, // HTTP 200 — Bale Web app ✓
-	"meet.bale.ai":         {"2.189.68.126"}, // HTTP 200 — Meet app ✓
-	"ble.ir":               {"2.189.68.126"}, // HTTP 200 — Short domain ✓
-	"www.ble.ir":           {"2.189.68.126"}, // HTTP 200 — Short domain ✓
-	"l.ble.ir":             {"2.189.68.126"}, // HTTP 200 — Link shortener ✓
-	"contest.bale.ai":      {"2.189.68.126"}, // HTTP 301 — Contest redirect ✓
+	"tapi.bale.ai":     {"2.189.68.126"}, // HTTP 403 {"ok":false,"error_code":403} — Bot API ✓
+	"next-ws.bale.ai":  {"2.189.68.126"}, // HTTP 401 — WebSocket auth gate ✓
+	"bale.ai":          {"2.189.68.126"}, // HTTP 200 — Bale landing page ✓
+	"www.bale.ai":      {"2.189.68.126"}, // HTTP 308 → bale.ai ✓
+	"beta.bale.ai":     {"2.189.68.126"}, // HTTP 200 — Bale Web app ✓
+	"business.bale.ai": {"2.189.68.126"}, // HTTP 200 — Business portal ✓
+	"docs.bale.ai":     {"2.189.68.126"}, // HTTP 200 — Docs (مستندات) ✓
+	"maviz.bale.ai":    {"2.189.68.126"}, // HTTP 200 — Bale Web app ✓
+	"meet.bale.ai":     {"2.189.68.126"}, // HTTP 200 — Meet app ✓
+	"ble.ir":           {"2.189.68.126"}, // HTTP 200 — Short domain ✓
+	"www.ble.ir":       {"2.189.68.126"}, // HTTP 200 — Short domain ✓
+	"l.ble.ir":         {"2.189.68.126"}, // HTTP 200 — Link shortener ✓
+	"contest.bale.ai":  {"2.189.68.126"}, // HTTP 301 — Contest redirect ✓
 
 	// --- Probable correct: same nginx, app-specific 503 (backend down, right vhost) ---
-	"api.bale.ai":          {"2.189.68.126"}, // HTTP 503 — API backend unavailable ✓
-	"meetbm.bale.ai":       {"2.189.68.126"}, // HTTP 503 — Meet backend unavailable ✓
+	"api.bale.ai":    {"2.189.68.126"}, // HTTP 503 — API backend unavailable ✓
+	"meetbm.bale.ai": {"2.189.68.126"}, // HTTP 503 — Meet backend unavailable ✓
 
 	// --- CDN file servers: 185.166.104.0/24 (whole range responds) ---
-	"cdn-siloo.ble.ir":       {"185.166.104.6"},  // HTTP 503 — CDN, needs file path ✓
-	"video-cdn-siloo.ble.ir": {"185.166.104.6"},  // Same range ✓
-	"bale.sh":                {"185.166.104.6"},  // HTTP 404 ✓
-	"sentry.bale.sh":         {"185.166.104.6"},  // HTTP 404 ✓
+	"cdn-siloo.ble.ir":       {"185.166.104.6"}, // HTTP 503 — CDN, needs file path ✓
+	"video-cdn-siloo.ble.ir": {"185.166.104.6"}, // Same range ✓
+	"bale.sh":                {"185.166.104.6"}, // HTTP 404 ✓
+	"sentry.bale.sh":         {"185.166.104.6"}, // HTTP 404 ✓
 
 	// --- Removed: .126 responds to TCP but doesn't actually serve these domains ---
 	// siloo.bale.ai (.94), next-api.bale.ai (.118), gateway-sabz.bale.ai,
@@ -95,19 +92,19 @@ type BaleCore struct {
 	pollCancel     context.CancelFunc
 
 	// User mode (gRPC-Web/Protobuf over WebSocket)
-	userToken  string // JWT access token
-	userID     int64
-	userPhone  string
-	wsConn     *websocket.Conn
-	wsCtx      context.Context
-	wsCancel   context.CancelFunc
-	wsIndex    int64                                  // auto-incrementing request index
-	wsPending  map[int64]chan map[string]interface{}   // index → response channel
-	wsPendMu   sync.Mutex
-	wsPingID   int64
+	userToken   string // JWT access token
+	userID      int64
+	userPhone   string
+	wsConn      *websocket.Conn
+	wsCtx       context.Context
+	wsCancel    context.CancelFunc
+	wsIndex     int64                                 // auto-incrementing request index
+	wsPending   map[int64]chan map[string]interface{} // index → response channel
+	wsPendMu    sync.Mutex
+	wsPingID    int64
 	wsSessionID string
 	wsMeta      map[string]interface{}
-	wsReady     chan struct{}                           // closed when HandshakeResponse received
+	wsReady     chan struct{} // closed when HandshakeResponse received
 
 	// Context
 	ctx    context.Context
@@ -118,32 +115,35 @@ type BaleCore struct {
 	groupIDCache   map[int64]int64
 	groupIDCacheMu sync.RWMutex
 
-	// Active call (LiveKit-based)
+	// Active call (transport subsystem lives in bale_calls_*.go)
 	activeCall   *baleActiveCall
 	activeCallMu sync.Mutex
 
 	// Interactive auth (GUI mode)
-	authCodeCh    chan string    // OTP code from UI
-	authCodeReady chan struct{}  // closed when OTP is needed
-	authPwdCh     chan string    // 2FA password from UI
-	authPwdReady  chan struct{}  // closed when 2FA is needed
-	authDoneCh    chan struct{}  // closed when auth completes
-	authErrCh     chan error     // auth error result
-	authSetupDone chan struct{}  // closed after auth channels initialized
+	authCodeCh    chan string   // OTP code from UI
+	authCodeReady chan struct{} // closed when OTP is needed
+	authPwdCh     chan string   // 2FA password from UI
+	authPwdReady  chan struct{} // closed when 2FA is needed
+	authDoneCh    chan struct{} // closed when auth completes
+	authErrCh     chan error    // auth error result
+	authSetupDone chan struct{} // closed after auth channels initialized
 }
 
 var _ Core = (*BaleCore)(nil)
 
 // baleActiveCall holds state for an active LiveKit call connection.
-// UNTESTED: meet-em.ble.ir is geo-restricted to Iran. This entire subsystem
+// UNTESTED: meet-em.ble.ir is geo-restricted to Iran. The calling subsystem
 // was implemented from the Python reference (bale.py) and LiveKit SDK docs
 // but has never been tested against a live server.
+//
+// baleActiveCall is the platform-neutral part of an active call. The LiveKit
+// transport (bale_calls_livekit.go, excluded from js/wasm builds) keeps its
+// handles in impl; on js/wasm (bale_calls_js.go) calling is unsupported.
 type baleActiveCall struct {
-	session  *CallSession
-	room     *lksdk.Room
-	audioPub *lksdk.LocalTrackPublication // our published silent/mic audio track
-	muted    bool
-	done     chan struct{} // closed when call ends, signals goroutines to exit
+	session *CallSession
+	muted   bool
+	done    chan struct{} // closed when call ends, signals goroutines to exit
+	impl    any           // transport-specific handles (*baleLKCall)
 }
 
 type baleSession struct {
@@ -199,9 +199,9 @@ type BaleWebhookInfo struct {
 
 // BaleStickerSet represents a sticker set from the bot API.
 type BaleStickerSet struct {
-	Name     string `json:"name"`
-	Title    string `json:"title"`
-	IsAnimated bool `json:"is_animated"`
+	Name       string `json:"name"`
+	Title      string `json:"title"`
+	IsAnimated bool   `json:"is_animated"`
 }
 
 // BaleUserProfilePhotos represents user profile photos.
@@ -325,26 +325,31 @@ func (b *BaleCore) Name() string { return balePlatform }
 func (b *BaleCore) GetUserID() int64 { return b.userID }
 
 // Exported protobuf helpers for debugging/testing.
-func PbEncode(fields map[string]interface{}) []byte                    { return pbEncode(fields) }
+func PbEncode(fields map[string]interface{}) []byte { return pbEncode(fields) }
 
 // UserHTTPPost sends an RPC via gRPC-Web HTTP POST (bypasses WebSocket).
 func (b *BaleCore) UserHTTPPost(service, method string, payload map[string]interface{}) (map[string]interface{}, error) {
 	return b.wsPost(service, method, payload, b.userToken)
 }
-func PbGetInt64(m map[string]interface{}, field string) int64          { return pbGetInt64(m, field) }
-func PbGetString(m map[string]interface{}, field string) string       { return pbGetString(m, field) }
-func PbGetMsg(m map[string]interface{}, field string) map[string]interface{} { return pbGetMsg(m, field) }
-func PbGetList(m map[string]interface{}, field string) []interface{}  { return pbGetList(m, field) }
+func PbGetInt64(m map[string]interface{}, field string) int64   { return pbGetInt64(m, field) }
+func PbGetString(m map[string]interface{}, field string) string { return pbGetString(m, field) }
+func PbGetMsg(m map[string]interface{}, field string) map[string]interface{} {
+	return pbGetMsg(m, field)
+}
+func PbGetList(m map[string]interface{}, field string) []interface{} { return pbGetList(m, field) }
 func ParseMsgIDFullExported(msgID string) (int64, int64, int64)      { return parseMsgIDFull(msgID) }
 func PbDecode(data []byte) map[string]interface{}                    { return pbDecode(data) }
+
 // UserSendRaw sends a raw request via the user-mode WebSocket connection.
 func (b *BaleCore) UserSendRaw(service, method string, payload map[string]interface{}) (map[string]interface{}, error) {
 	return b.userSend(service, method, payload)
 }
+
 // ResolveGroupID resolves a peer ID to the internal group ID.
 func (b *BaleCore) ResolveGroupID(peerID int64) (int64, error) {
 	return b.resolveGroupInternalID(peerID)
 }
+
 // UploadRawPUT uploads raw data via HTTP PUT to the given URL.
 func (b *BaleCore) UploadRawPUT(url string, data []byte) error {
 	req, err := http.NewRequestWithContext(b.ctx, "PUT", url, bytes.NewReader(data))
@@ -999,7 +1004,7 @@ func (b *BaleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 				lastMsg.Text = truncateText(lastMsg.Text, 100)
 			}
 			lastMsg.SenderID = strconv.FormatInt(pbGetInt64(pd, "4"), 10) // field 4 = senderUid
-				lastMsg.IsOutgoing = pbGetInt64(pd, "4") == b.userID
+			lastMsg.IsOutgoing = pbGetInt64(pd, "4") == b.userID
 			dateMs := pbGetInt64(pd, "6")
 			if dateMs > 1e12 {
 				lastMsg.Timestamp = time.UnixMilli(dateMs)
@@ -1416,8 +1421,8 @@ func (b *BaleCore) UploadFile(chatID string, file FileUpload, progress func(sent
 	var reader io.Reader = file.Reader
 	if progress != nil {
 		reader = &progressReader{
-			reader: file.Reader,
-			total:  file.Size,
+			reader:     file.Reader,
+			total:      file.Size,
 			onProgress: progress,
 		}
 	}
@@ -1492,9 +1497,9 @@ func (b *BaleCore) userUploadFile(chatID string, file FileUpload, progress func(
 	rid := baleRID()
 	docMsg := map[string]interface{}{
 		"1": fileID,
-		"2": b.userID,  // access_hash = our user ID
+		"2": b.userID, // access_hash = our user ID
 		"3": file.Size,
-		"4": file.Name,  // plain string, NOT StringValue
+		"4": file.Name, // plain string, NOT StringValue
 		"5": file.MimeType,
 	}
 	content := map[string]interface{}{
@@ -1684,148 +1689,9 @@ func baleCallSession(callID int64, chatID string, isGroup bool, room, token, wsU
 	}
 }
 
-// baleConnectLiveKit connects to the LiveKit SFU room using the credentials from CallSession.Meta.
-// It publishes a silent audio track (required for the SFU to treat us as a real participant)
-// and subscribes to all remote tracks. Audio from remote participants is forwarded to
-// the update handler as UpdateCallState events.
-//
-// UNTESTED: meet-em.ble.ir is geo-restricted to Iran.
-func (b *BaleCore) baleConnectLiveKit(session *CallSession) error {
-	lkURL := session.Meta["livekit_url"]
-	lkToken := session.Meta["livekit_token"]
-	if lkURL == "" || lkToken == "" {
-		return fmt.Errorf("missing LiveKit credentials (url=%q token=%v)", lkURL, lkToken != "")
-	}
-
-	// done is closed when the call ends, signaling all track reader goroutines to exit
-	callDone := make(chan struct{})
-
-	// Create a silent opus audio track — the SFU needs at least one published audio track
-	// to treat the connection as a real call participant (affects bandwidth allocation,
-	// triggers connection_quality_changed events).
-	silenceTrack, err := lksdk.NewLocalSampleTrack(webrtc.RTPCodecCapability{
-		MimeType:  webrtc.MimeTypeOpus,
-		ClockRate: 48000,
-		Channels:  1,
-	})
-	if err != nil {
-		return fmt.Errorf("create silent audio track: %w", err)
-	}
-
-	cb := &lksdk.RoomCallback{
-		ParticipantCallback: lksdk.ParticipantCallback{
-			OnTrackSubscribed: func(track *webrtc.TrackRemote, pub *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
-				fmt.Fprintf(os.Stderr, "bale: track subscribed: kind=%s from %s\n", track.Kind(), rp.Identity())
-				if track.Kind() == webrtc.RTPCodecTypeAudio {
-					// Read and discard audio RTP packets to keep the stream alive.
-					// In a full implementation, these would be decoded and forwarded
-					// to the Dart UI for playback via the bridge's audio callback.
-					go func() {
-						buf := make([]byte, 1500)
-						for {
-							select {
-							case <-callDone:
-								return
-							default:
-							}
-							_, _, err := track.Read(buf)
-							if err != nil {
-								return
-							}
-						}
-					}()
-				}
-			},
-			OnTrackUnsubscribed: func(track *webrtc.TrackRemote, pub *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
-				fmt.Fprintf(os.Stderr, "bale: track unsubscribed: kind=%s from %s\n", track.Kind(), rp.Identity())
-			},
-		},
-		OnDisconnected: func() {
-			fmt.Fprintf(os.Stderr, "bale: LiveKit disconnected\n")
-			b.activeCallMu.Lock()
-			b.activeCall = nil
-			b.activeCallMu.Unlock()
-			b.updateMu.RLock()
-			for _, h := range b.updateHandlers {
-				go h(Update{Type: UpdateCallState})
-			}
-			b.updateMu.RUnlock()
-		},
-		OnReconnecting: func() {
-			fmt.Fprintf(os.Stderr, "bale: LiveKit reconnecting...\n")
-		},
-		OnReconnected: func() {
-			fmt.Fprintf(os.Stderr, "bale: LiveKit reconnected\n")
-		},
-		OnParticipantConnected: func(p *lksdk.RemoteParticipant) {
-			fmt.Fprintf(os.Stderr, "bale: participant joined: %s (sid=%s)\n", p.Identity(), p.SID())
-		},
-		OnParticipantDisconnected: func(p *lksdk.RemoteParticipant) {
-			fmt.Fprintf(os.Stderr, "bale: participant left: %s\n", p.Identity())
-		},
-	}
-
-	room, err := lksdk.ConnectToRoomWithToken(lkURL, lkToken, cb,
-		lksdk.WithAutoSubscribe(true),
-	)
-	if err != nil {
-		return fmt.Errorf("LiveKit connect to %s: %w", lkURL, err)
-	}
-
-	fmt.Fprintf(os.Stderr, "bale: connected to LiveKit room %s\n", room.Name())
-
-	// Publish silent audio track — feed one frame of silence then rely on DTX
-	// Source auto-detected as MICROPHONE for audio tracks when Source == UNKNOWN
-	audioPub, err := room.LocalParticipant.PublishTrack(silenceTrack, &lksdk.TrackPublicationOptions{
-		Name: "mic",
-	})
-	if err != nil {
-		room.Disconnect()
-		return fmt.Errorf("publish audio track: %w", err)
-	}
-
-	// Write one frame of silence to initialize the encoder, then DTX handles the rest
-	silence := make([]byte, 960*2) // 20ms at 48kHz, 16-bit mono = 960 samples * 2 bytes
-	_ = silenceTrack.WriteSample(media.Sample{
-		Data:     silence,
-		Duration: 20 * time.Millisecond,
-	}, nil)
-
-	fmt.Fprintf(os.Stderr, "bale: audio track published (silent, DTX)\n")
-
-	b.activeCallMu.Lock()
-	b.activeCall = &baleActiveCall{
-		session:  session,
-		room:     room,
-		audioPub: audioPub,
-		done:     callDone,
-	}
-	b.activeCallMu.Unlock()
-
-	return nil
-}
-
-// baleDisconnectLiveKit disconnects from the active LiveKit room.
-func (b *BaleCore) baleDisconnectLiveKit() {
-	b.activeCallMu.Lock()
-	call := b.activeCall
-	b.activeCall = nil
-	b.activeCallMu.Unlock()
-
-	if call != nil {
-		if call.done != nil {
-			select {
-			case <-call.done:
-			default:
-				close(call.done)
-			}
-		}
-		if call.room != nil {
-			call.room.Disconnect()
-			fmt.Fprintf(os.Stderr, "bale: LiveKit disconnected\n")
-		}
-	}
-}
+// baleConnectLiveKit connects the call transport using the credentials from
+// CallSession.Meta. Implemented in bale_calls_livekit.go (native) and
+// bale_calls_js.go (js/wasm stub).
 
 // StartCall initiates a voice or video call with the specified user.
 func (b *BaleCore) StartCall(chatID string, video bool) (*CallSession, error) {
@@ -2069,14 +1935,14 @@ func (b *BaleCore) SetCallMuted(callID string, muted bool) error {
 	call := b.activeCall
 	b.activeCallMu.Unlock()
 
-	if call == nil || call.audioPub == nil {
+	if call == nil {
 		return fmt.Errorf("%w: no active call", ErrNotSupported)
 	}
 	if call.session.ID != callID {
 		return fmt.Errorf("%w: call ID mismatch (active=%s, requested=%s)", ErrInvalidInput, call.session.ID, callID)
 	}
 
-	call.audioPub.SetMuted(muted)
+	call.audioPubSetMuted(muted)
 	call.muted = muted
 	fmt.Fprintf(os.Stderr, "bale: call muted=%v\n", muted)
 	return nil
@@ -3194,33 +3060,33 @@ const (
 	baleServiceAbacus    = "bale.abacus.v1.Abacus"
 
 	// New services from web.bale.ai v4.17.0 JS scrape (2026-04-13)
-	baleServicePoll          = "bale.poll.v1.Poll"
-	baleServiceSearch        = "bale.search.v1.Search"
-	baleServiceStory         = "bale.story.v1.Story"
-	baleServiceMsgStream     = "bale.message_stream.v1.MessageStream"
-	baleServiceScheduler     = "bale.schedule.v1.Scheduler"
-	baleServiceTLDR          = "bale.tldr.v1.TLDR"
-	baleServiceAnonContact   = "bale.anonymous_contact.v1.AnonymousContact"
-	baleServiceMaviz         = "bale.maviz.v1.MavizStream"
-	baleServiceFalake        = "bale.falake.v1.Falake"
-	baleServiceNegah         = "bale.negah.v1.Negah"
-	baleServiceLLMAuth       = "bale.llm_auth.v1.LLMAuthService"
-	baleServiceAppzar        = "bale.appzar.v1.Appzar"
-	baleServiceTopPeer       = "bale.top_peer.v1.TopPeer"
-	baleServiceOrgs          = "bale.organizations.v1.Organizations"
-	baleServiceRecommender   = "bale.recommender.v1.Recommender"
-	baleServiceSharedMedia   = "bale.shared_media.v1.SharedMediaService"
-	baleServiceKetf          = "bale.ketf.v1.Ketf"
-	baleServiceTuringAI      = "bale.turing.v1.AI"
+	baleServicePoll        = "bale.poll.v1.Poll"
+	baleServiceSearch      = "bale.search.v1.Search"
+	baleServiceStory       = "bale.story.v1.Story"
+	baleServiceMsgStream   = "bale.message_stream.v1.MessageStream"
+	baleServiceScheduler   = "bale.schedule.v1.Scheduler"
+	baleServiceTLDR        = "bale.tldr.v1.TLDR"
+	baleServiceAnonContact = "bale.anonymous_contact.v1.AnonymousContact"
+	baleServiceMaviz       = "bale.maviz.v1.MavizStream"
+	baleServiceFalake      = "bale.falake.v1.Falake"
+	baleServiceNegah       = "bale.negah.v1.Negah"
+	baleServiceLLMAuth     = "bale.llm_auth.v1.LLMAuthService"
+	baleServiceAppzar      = "bale.appzar.v1.Appzar"
+	baleServiceTopPeer     = "bale.top_peer.v1.TopPeer"
+	baleServiceOrgs        = "bale.organizations.v1.Organizations"
+	baleServiceRecommender = "bale.recommender.v1.Recommender"
+	baleServiceSharedMedia = "bale.shared_media.v1.SharedMediaService"
+	baleServiceKetf        = "bale.ketf.v1.Ketf"
+	baleServiceTuringAI    = "bale.turing.v1.AI"
 
 	baleWSURL   = "wss://next-ws.bale.ai/ws/"
 	balePostURL = "https://next-ws.bale.ai"
 
-	baleAppVersion    = "113466"
-	baleBrowserType   = "1"
-	baleBrowserVer    = 3471765337684194354
-	baleOSType        = "3"
-	baleUserAgent     = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+	baleAppVersion  = "113466"
+	baleBrowserType = "1"
+	baleBrowserVer  = 3471765337684194354
+	baleOSType      = "3"
+	baleUserAgent   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
 )
 
 // Peer type constants (ExPeerType enum)
@@ -3651,13 +3517,13 @@ func (b *BaleCore) authUser(cfg AuthConfig) error {
 	// 5=device_title, 9=send_code_type (NOT 8!), 10=options (REQUIRED: {"0":1})
 	deviceHash := fmt.Sprintf("uniclient_%d", rand.Int63())
 	startReq := map[string]interface{}{
-		"1":  phoneInt,                                                                    // phone_number
-		"2":  int64(4),                                                                    // app_id
-		"3":  "C28D46DC4C3A7A26564BFCC48B929086A95C93C98E789A19847BEE8627DE4E7D",          // app_key (api_key)
-		"4":  deviceHash,                                                                  // device_hash
-		"5":  "Chrome_138.0.0.0, Windows",                                                 // device_title
-		"9":  int64(1),                                // send_code_type = DEFAULT
-		"10": map[string]interface{}{"0": int64(1)},   // options (required!)
+		"1":  phoneInt,                                                           // phone_number
+		"2":  int64(4),                                                           // app_id
+		"3":  "C28D46DC4C3A7A26564BFCC48B929086A95C93C98E789A19847BEE8627DE4E7D", // app_key (api_key)
+		"4":  deviceHash,                                                         // device_hash
+		"5":  "Chrome_138.0.0.0, Windows",                                        // device_title
+		"9":  int64(1),                                                           // send_code_type = DEFAULT
+		"10": map[string]interface{}{"0": int64(1)},                              // options (required!)
 	}
 
 	startResp, err := b.wsPost(baleServiceAuth, "StartPhoneAuth", startReq, "")
@@ -3683,8 +3549,8 @@ func (b *BaleCore) authUser(cfg AuthConfig) error {
 
 	// Step 3: ValidateCode
 	validateReq := map[string]interface{}{
-		"1": transactionHash, // transaction_hash
-		"2": otp,             // code
+		"1": transactionHash,                       // transaction_hash
+		"2": otp,                                   // code
 		"3": map[string]interface{}{"1": int64(1)}, // is_jwt = {1: 1}
 	}
 
@@ -4082,7 +3948,7 @@ func (b *BaleCore) UserPinMessage(chatID string, msgRID int64, date int64, mid i
 	payload := map[string]interface{}{
 		"1": balePeer(peerType, peerID),
 		"2": map[string]interface{}{"1": date, "2": msgRID}, // OtherMessage
-		"3": int64(0), // just_me (IntBool)
+		"3": int64(0),                                       // just_me (IntBool)
 	}
 	return b.userSend(baleServiceMessaging, "PinMessage", payload)
 }
@@ -5416,8 +5282,8 @@ func (b *BaleCore) GetWebhookInfo() (BaleWebhookInfo, error) {
 // sendBotMedia is the shared implementation for all bot-mode media sends.
 func (b *BaleCore) sendBotMedia(method, chatID, mediaKey, mediaVal, caption string, duration, length int) (*Message, error) {
 	params := map[string]interface{}{
-		"chat_id":  chatID,
-		mediaKey:   mediaVal,
+		"chat_id": chatID,
+		mediaKey:  mediaVal,
 	}
 	if caption != "" {
 		params["caption"] = caption
@@ -8472,31 +8338,41 @@ func (b *BaleCore) UserGetNasimFilePublicUrl(fileID int64, accessHash int64) (ma
 
 // UserSetMyCommands registers bot commands for the current user-as-bot (user mode).
 func (b *BaleCore) UserSetMyCommands(commands []map[string]interface{}) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	return b.userSend(baleServiceMessaging, "SetMyCommands", map[string]interface{}{"1": commands})
 }
 
 // UserDeleteMyCommands deletes the bot's registered commands (user mode).
 func (b *BaleCore) UserDeleteMyCommands() (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	return b.userSend(baleServiceMessaging, "DeleteMyCommands", map[string]interface{}{})
 }
 
 // UserGetMyCommands retrieves the bot's registered commands (user mode).
 func (b *BaleCore) UserGetMyCommands() (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	return b.userSend(baleServiceMessaging, "GetMyCommands", map[string]interface{}{})
 }
 
 // UserTerminateSession terminates a specific login session (user mode).
 func (b *BaleCore) UserTerminateSession(sessionID int64) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	return b.userSend(baleServiceMessaging, "TerminateSession", map[string]interface{}{"1": sessionID})
 }
 
 // UserCreateFolder creates a new chat folder (user mode).
 func (b *BaleCore) UserCreateFolder(title string, peerIDs []string) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	peers := make([]map[string]interface{}, len(peerIDs))
 	for i, pid := range peerIDs {
 		id, pt := parsePeerID(pid)
@@ -8507,7 +8383,9 @@ func (b *BaleCore) UserCreateFolder(title string, peerIDs []string) (map[string]
 
 // UserLoadDialogsFiltered retrieves dialogs matching a filter (user mode).
 func (b *BaleCore) UserLoadDialogsFiltered(filterType int, offset int64, limit int) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	return b.userSend(baleServiceMessaging, "LoadDialogsFiltered", map[string]interface{}{
 		"1": int64(filterType), "2": offset, "3": int64(limit),
 	})
@@ -8515,13 +8393,17 @@ func (b *BaleCore) UserLoadDialogsFiltered(filterType int, offset int64, limit i
 
 // UserPushSetConfig configures push notification settings (user mode).
 func (b *BaleCore) UserPushSetConfig(config map[string]interface{}) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	return b.userSend(baleServiceMessaging, "PushSetConfig", config)
 }
 
 // UserMarkAsUnread marks a dialog as unread (user mode).
 func (b *BaleCore) UserMarkAsUnread(chatID string, unread bool) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	peerID, peerType := parsePeerID(chatID)
 	return b.userSend(baleServiceMessaging, "MarkAsUnread", map[string]interface{}{
 		"1": balePeer(peerType, peerID), "2": unread,
@@ -8530,7 +8412,9 @@ func (b *BaleCore) UserMarkAsUnread(chatID string, unread bool) (map[string]inte
 
 // UserSendScheduledMessage sends a message scheduled for future delivery (user mode).
 func (b *BaleCore) UserSendScheduledMessage(chatID string, date int64, msg map[string]interface{}) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	peerID, peerType := parsePeerID(chatID)
 	msg["1"] = balePeer(peerType, peerID)
 	msg["2"] = date
@@ -8539,7 +8423,9 @@ func (b *BaleCore) UserSendScheduledMessage(chatID string, date int64, msg map[s
 
 // UserSendProtectedMessage sends a non-forwardable message (user mode).
 func (b *BaleCore) UserSendProtectedMessage(chatID string, msg map[string]interface{}) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	peerID, peerType := parsePeerID(chatID)
 	msg["1"] = balePeer(peerType, peerID)
 	return b.userSend(baleServiceMessaging, "SendProtectedMessage", msg)
@@ -8547,7 +8433,9 @@ func (b *BaleCore) UserSendProtectedMessage(chatID string, msg map[string]interf
 
 // UserSendLongTextMessage sends a message exceeding the normal length limit (user mode).
 func (b *BaleCore) UserSendLongTextMessage(chatID string, text string) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	peerID, peerType := parsePeerID(chatID)
 	return b.userSend(baleServiceMessaging, "SendLongTextMessage", map[string]interface{}{
 		"1": balePeer(peerType, peerID), "2": text,
@@ -8556,7 +8444,9 @@ func (b *BaleCore) UserSendLongTextMessage(chatID string, text string) (map[stri
 
 // UserSendBankMessage sends a banking/payment message (user mode).
 func (b *BaleCore) UserSendBankMessage(chatID string, bankMsg map[string]interface{}) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	peerID, peerType := parsePeerID(chatID)
 	bankMsg["1"] = balePeer(peerType, peerID)
 	return b.userSend(baleServiceMessaging, "SendBankMessage", bankMsg)
@@ -8564,7 +8454,9 @@ func (b *BaleCore) UserSendBankMessage(chatID string, bankMsg map[string]interfa
 
 // UserSendJsonMessage sends a message with structured JSON content (user mode).
 func (b *BaleCore) UserSendJsonMessage(chatID string, jsonData string) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	peerID, peerType := parsePeerID(chatID)
 	return b.userSend(baleServiceMessaging, "SendJsonMessage", map[string]interface{}{
 		"1": balePeer(peerType, peerID), "2": jsonData,
@@ -8573,7 +8465,9 @@ func (b *BaleCore) UserSendJsonMessage(chatID string, jsonData string) (map[stri
 
 // UserSendOrderMessage sends an order/invoice message (user mode).
 func (b *BaleCore) UserSendOrderMessage(chatID string, order map[string]interface{}) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	peerID, peerType := parsePeerID(chatID)
 	order["1"] = balePeer(peerType, peerID)
 	return b.userSend(baleServiceMessaging, "SendOrderMessage", order)
@@ -8581,7 +8475,9 @@ func (b *BaleCore) UserSendOrderMessage(chatID string, order map[string]interfac
 
 // UserSendAnimatedSticker sends an animated sticker (user mode).
 func (b *BaleCore) UserSendAnimatedSticker(chatID string, stickerData map[string]interface{}) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	peerID, peerType := parsePeerID(chatID)
 	stickerData["1"] = balePeer(peerType, peerID)
 	return b.userSend(baleServiceMessaging, "SendAnimatedSticker", stickerData)
@@ -8589,7 +8485,9 @@ func (b *BaleCore) UserSendAnimatedSticker(chatID string, stickerData map[string
 
 // UserSendLiveMessage sends a live-updating message (user mode).
 func (b *BaleCore) UserSendLiveMessage(chatID string, liveData map[string]interface{}) (map[string]interface{}, error) {
-	if !b.authed { return nil, ErrAuth }
+	if !b.authed {
+		return nil, ErrAuth
+	}
 	peerID, peerType := parsePeerID(chatID)
 	liveData["1"] = balePeer(peerType, peerID)
 	return b.userSend(baleServiceMessaging, "SendLiveMessage", liveData)

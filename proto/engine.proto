@@ -10,7 +10,7 @@ option go_package = "uniclient/proto";
 // not proto imports, since engine types use their own flattened representations.
 
 // ═══════════════════════════════════════════════════════════════════════
-// Engine events (Go → Dart, pushed asynchronously)
+// Engine events (Go → host, pushed asynchronously)
 // ═══════════════════════════════════════════════════════════════════════
 
 message EngineEvent {

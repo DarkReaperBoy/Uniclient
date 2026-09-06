@@ -1,3 +1,5 @@
+//go:build !js
+
 // Entry point for the c-shared library build (native platforms).
 //
 // About `import "C"` below — it is the irreducible minimum the Go toolchain
@@ -8,18 +10,18 @@
 //     ignored and no symbols are produced.
 //   - `-buildmode=c-shared` refuses to link with CGO_ENABLED=0
 //     ("-buildmode=c-shared requires external (cgo) linking, but cgo is not
-//     enabled"). A loadable shared library callable from dart:ffi cannot be
+//     enabled"). A loadable shared library callable from an FFI frontend cannot be
 //     produced any other way on linux/windows/macos/android.
 //
 // What this file does NOT contain: no C preamble, no #include, no C types
 // (C.int32_t, C.malloc, C.free, C.CBytes, …), and no C function calls. Every
 // exported signature uses pure Go types (*byte, int32) and all memory handed to
-// Dart is Go-allocated and pinned via runtime.Pinner.
+// the host is Go-allocated and pinned via runtime.Pinner.
 //
 // Async events used to be delivered by invoking a C function-pointer trampoline
-// back into Dart — the last remaining piece of hand-written C. That is gone.
+// back into the host — the last remaining piece of hand-written C. That is gone.
 // Events are now delivered by a pull model: Go buffers serialized BridgeEvent
-// bytes in a channel and the Dart side drains them via the blocking
+// bytes in a channel and the host drains them via the blocking
 // BridgeNextEvent export running on a dedicated isolate. Go never calls a C
 // function pointer.
 package main
@@ -38,7 +40,7 @@ func main() {}
 
 // ---- Go-managed memory for buffers handed across the FFI boundary ----
 //
-// Dart receives a *byte + length, copies the bytes, then calls BridgeFree to
+// The host receives a *byte + length, copies the bytes, then calls BridgeFree to
 // release them. We keep the backing slice alive and pinned (so the GC neither
 // frees nor moves it) until BridgeFree is called.
 
@@ -108,8 +110,8 @@ func BridgeFree(ptr *byte) {
 
 var (
 	// eventQueue buffers serialized BridgeEvent bytes produced by the engine
-	// until the Dart event isolate drains them. Buffered so a burst at startup
-	// (before Dart begins pulling) does not block the producer.
+	// until the host event reader drains them. Buffered so a burst at startup
+	// (before the host begins pulling) does not block the producer.
 	eventQueue = make(chan []byte, 256)
 
 	stopOnce sync.Once
@@ -130,7 +132,7 @@ func init() {
 // BridgeNextEvent blocks until the next async event is available, then returns
 // a Go-pinned buffer holding the serialized BridgeEvent (free with BridgeFree).
 // It returns nil with *outLen == 0 once BridgeStopEvents has been called, which
-// is the signal for the Dart event isolate to terminate.
+// is the signal for the host event reader to terminate.
 //
 //export BridgeNextEvent
 func BridgeNextEvent(outLen *int32) *byte {
@@ -147,7 +149,7 @@ func BridgeNextEvent(outLen *int32) *byte {
 	}
 }
 
-// BridgeStopEvents permanently unblocks BridgeNextEvent so the Dart event
+// BridgeStopEvents permanently unblocks BridgeNextEvent so the host event
 // isolate can exit cleanly during shutdown. Idempotent.
 //
 //export BridgeStopEvents

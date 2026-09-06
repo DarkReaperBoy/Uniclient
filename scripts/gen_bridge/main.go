@@ -1,13 +1,12 @@
 // gen_bridge — Parses Go AST of all core files and generates:
 //   - Per-core .proto files with request/response messages for every exported method
 //   - Go dispatch code (method name → function call)
-//   - Dart typed wrapper classes
 //
-// Usage: go run ./scripts/gen_bridge [--dump] [--proto] [--dispatch] [--dart]
-//   --dump: print extracted method signatures to stdout (default if no flags)
-//   --proto: generate proto/cores/*.proto
-//   --dispatch: generate go/bridge/dispatch_gen.go
-//   --dart: generate dart/lib/bridge/cores/*_gen.dart
+// Usage: go run ./scripts/gen_bridge [--dump] [--proto] [--dispatch]
+//
+//	--dump: print extracted method signatures to stdout (default if no flags)
+//	--proto: generate proto/cores/*.proto
+//	--dispatch: generate go/bridge/dispatch_gen.go
 package main
 
 import (
@@ -23,10 +22,10 @@ import (
 
 // CoreMethod represents a single exported method on a core struct.
 type CoreMethod struct {
-	ReceiverType string    // e.g. "TelegramCore"
-	Name         string    // e.g. "SendMessage"
-	Params       []Param   // input parameters (excluding receiver)
-	Results      []Param   // return values
+	ReceiverType string  // e.g. "TelegramCore"
+	Name         string  // e.g. "SendMessage"
+	Params       []Param // input parameters (excluding receiver)
+	Results      []Param // return values
 }
 
 // Param represents a single function parameter or return value.
@@ -43,10 +42,10 @@ type StructDef struct {
 
 // CoreInfo groups methods by core.
 type CoreInfo struct {
-	Name       string       // e.g. "telegram"
-	StructName string       // e.g. "TelegramCore"
+	Name       string // e.g. "telegram"
+	StructName string // e.g. "TelegramCore"
 	Methods    []CoreMethod
-	Structs    []StructDef  // exported structs (excluding the core struct itself)
+	Structs    []StructDef // exported structs (excluding the core struct itself)
 }
 
 // repoRoot finds the project root by looking for go/cores relative to CWD or script location.
@@ -705,351 +704,6 @@ func goFieldToProtoField(goName string) string {
 	return goName
 }
 
-
-func _writeSharedConverters_removed(b *strings.Builder) {
-	b.WriteString("// ═══════════════════════════════════════════════════════════════════\n")
-	b.WriteString("// Shared type converters (cores ↔ proto)\n")
-	b.WriteString("// ═══════════════════════════════════════════════════════════════════\n\n")
-
-	// User
-	b.WriteString(`func UserToProto(u *cores.User) *pb.User {
-	if u == nil { return nil }
-	return &pb.User{
-		Id: u.ID, Username: u.Username, DisplayName: u.DisplayName,
-		Phone: u.Phone, AvatarUrl: u.AvatarURL, AvatarB64: u.AvatarB64,
-		IsBot: u.IsBot, IsOnline: u.IsOnline, LastSeenMs: u.LastSeenMS,
-		Platform: u.Platform,
-	}
-}
-
-func ProtoToUser(u *pb.User) *cores.User {
-	if u == nil { return nil }
-	return &cores.User{
-		ID: u.Id, Username: u.Username, DisplayName: u.DisplayName,
-		Phone: u.Phone, AvatarURL: u.AvatarUrl, AvatarB64: u.AvatarB64,
-		IsBot: u.IsBot, IsOnline: u.IsOnline, LastSeenMS: u.LastSeenMs,
-		Platform: u.Platform,
-	}
-}
-
-`)
-
-	// FileRef
-	b.WriteString(`func FileRefToProto(f *cores.FileRef) *pb.FileRef {
-	if f == nil { return nil }
-	return &pb.FileRef{
-		Id: f.ID, Name: f.Name, MimeType: f.MimeType,
-		Size: f.Size, Url: f.URL, ThumbB64: f.ThumbB64, Extra: f.Extra,
-	}
-}
-
-func ProtoToFileRef(f *pb.FileRef) *cores.FileRef {
-	if f == nil { return nil }
-	return &cores.FileRef{
-		ID: f.Id, Name: f.Name, MimeType: f.MimeType,
-		Size: f.Size, URL: f.Url, ThumbB64: f.ThumbB64, Extra: f.Extra,
-	}
-}
-
-func FileRefsToProto(fs []cores.FileRef) []*pb.FileRef {
-	out := make([]*pb.FileRef, len(fs))
-	for i := range fs { out[i] = FileRefToProto(&fs[i]) }
-	return out
-}
-
-func ProtoToFileRefs(fs []*pb.FileRef) []cores.FileRef {
-	out := make([]cores.FileRef, len(fs))
-	for i := range fs {
-		if fs[i] != nil { out[i] = *ProtoToFileRef(fs[i]) }
-	}
-	return out
-}
-
-`)
-
-	// Reaction
-	b.WriteString(`func ReactionToProto(r *cores.Reaction) *pb.Reaction {
-	if r == nil { return nil }
-	return &pb.Reaction{Emoji: r.Emoji, Count: int32(r.Count), ByMe: r.ByMe, PeerId: r.PeerID, PeerName: r.PeerName}
-}
-
-func ReactionsToProto(rs []cores.Reaction) []*pb.Reaction {
-	out := make([]*pb.Reaction, len(rs))
-	for i := range rs { out[i] = ReactionToProto(&rs[i]) }
-	return out
-}
-
-`)
-
-	// Message
-	b.WriteString(`func MessageToProto(m *cores.Message) *pb.Message {
-	if m == nil { return nil }
-	extra, _ := json.Marshal(m.ExtraJSON)
-	return &pb.Message{
-		Id: m.ID, ChatId: m.ChatID, SenderId: m.SenderID,
-		SenderName: m.SenderName, Text: m.Text,
-		TimestampMs: m.TimestampMS, EditedAtMs: m.EditedAtMS,
-		Status: pb.MessageStatus(m.Status),
-		ReplyToId: m.ReplyToID, ReplyPreview: m.ReplyPreview,
-		ForwardFrom: m.ForwardFrom, IsEncrypted: m.IsEncrypted,
-		DecryptFailed: m.DecryptFailed,
-		Attachments: FileRefsToProto(m.Attachments),
-		Reactions: ReactionsToProto(m.Reactions),
-		IsPinned: m.IsPinned, Platform: m.Platform,
-		ExtraJson: extra,
-	}
-}
-
-func ProtoToMessage(m *pb.Message) *cores.Message {
-	if m == nil { return nil }
-	msg := &cores.Message{
-		ID: m.Id, ChatID: m.ChatId, SenderID: m.SenderId,
-		SenderName: m.SenderName, Text: m.Text,
-		TimestampMS: m.TimestampMs, EditedAtMS: m.EditedAtMs,
-		Status: cores.MessageStatus(m.Status),
-		ReplyToID: m.ReplyToId, ReplyPreview: m.ReplyPreview,
-		ForwardFrom: m.ForwardFrom, IsEncrypted: m.IsEncrypted,
-		DecryptFailed: m.DecryptFailed,
-		Attachments: ProtoToFileRefs(m.Attachments),
-		IsPinned: m.IsPinned, Platform: m.Platform,
-	}
-	if len(m.ExtraJson) > 0 {
-		_ = json.Unmarshal(m.ExtraJson, &msg.ExtraJSON)
-	}
-	return msg
-}
-
-func MessagesToProto(ms []cores.Message) []*pb.Message {
-	out := make([]*pb.Message, len(ms))
-	for i := range ms { out[i] = MessageToProto(&ms[i]) }
-	return out
-}
-
-`)
-
-	// OutgoingMessage
-	b.WriteString(`func ProtoToOutgoingMessage(m *pb.OutgoingMessage) *cores.OutgoingMessage {
-	if m == nil { return nil }
-	om := &cores.OutgoingMessage{
-		Text: m.Text, ReplyToID: m.ReplyToId,
-		Attachments: ProtoToFileRefs(m.Attachments),
-	}
-	if len(m.ExtraJson) > 0 {
-		_ = json.Unmarshal(m.ExtraJson, &om.ExtraJSON)
-	}
-	return om
-}
-
-`)
-
-	// Dialog
-	b.WriteString(`func DialogToProto(d *cores.Dialog) *pb.Dialog {
-	if d == nil { return nil }
-	return &pb.Dialog{
-		Id: d.ID, Type: pb.ChatType(d.Type), Title: d.Title,
-		AvatarUrl: d.AvatarURL, AvatarB64: d.AvatarB64,
-		LastMessage: MessageToProto(d.LastMessage),
-		UnreadCount: int32(d.UnreadCount), IsMuted: d.IsMuted,
-		IsPinned: d.IsPinned, IsArchived: d.IsArchived,
-		MemberCount: int32(d.MemberCount), ParentId: d.ParentID,
-		Platform: d.Platform,
-	}
-}
-
-func DialogsToProto(ds []cores.Dialog) []*pb.Dialog {
-	out := make([]*pb.Dialog, len(ds))
-	for i := range ds { out[i] = DialogToProto(&ds[i]) }
-	return out
-}
-
-`)
-
-	// Folder
-	b.WriteString(`func FolderToProto(f *cores.Folder) *pb.Folder {
-	if f == nil { return nil }
-	return &pb.Folder{Id: f.ID, Name: f.Name, ChatIds: f.ChatIDs}
-}
-
-func FoldersToProto(fs []cores.Folder) []*pb.Folder {
-	out := make([]*pb.Folder, len(fs))
-	for i := range fs { out[i] = FolderToProto(&fs[i]) }
-	return out
-}
-
-func ProtoToFolder(f *pb.Folder) *cores.Folder {
-	if f == nil { return nil }
-	return &cores.Folder{ID: f.Id, Name: f.Name, ChatIDs: f.ChatIds}
-}
-
-`)
-
-	// Session
-	b.WriteString(`func SessionToProto(s *cores.Session) *pb.Session {
-	if s == nil { return nil }
-	return &pb.Session{
-		Id: s.ID, Device: s.Device, Platform: s.Platform,
-		AppName: s.AppName, AppVersion: s.AppVersion,
-		Ip: s.IP, Location: s.Location,
-		LastActiveMs: s.LastActiveMS, IsCurrent: s.IsCurrent,
-	}
-}
-
-func SessionsToProto(ss []cores.Session) []*pb.Session {
-	out := make([]*pb.Session, len(ss))
-	for i := range ss { out[i] = SessionToProto(&ss[i]) }
-	return out
-}
-
-`)
-
-	// CallSession
-	b.WriteString(`func CallSessionToProto(c *cores.CallSession) *pb.CallSession {
-	if c == nil { return nil }
-	parts := make([]*pb.CallParticipant, len(c.Participants))
-	for i, p := range c.Participants {
-		parts[i] = &pb.CallParticipant{
-			UserId: p.UserID, DisplayName: p.DisplayName,
-			IsMuted: p.IsMuted, IsSpeaking: p.IsSpeaking, HasVideo: p.HasVideo,
-		}
-	}
-	return &pb.CallSession{
-		Id: c.ID, ChatId: c.ChatID, IsVideo: c.IsVideo, IsGroup: c.IsGroup,
-		Participants: parts, State: pb.CallState(c.State), Meta: c.Meta,
-	}
-}
-
-`)
-
-	// ReadState
-	b.WriteString(`func ReadStateToProto(r *cores.ReadState) *pb.ReadState {
-	if r == nil { return nil }
-	return &pb.ReadState{MyLastRead: r.MyLastRead, PeerLastRead: r.PeerLastRead}
-}
-
-`)
-
-	// AuthConfig
-	b.WriteString(`func ProtoToAuthConfig(a *pb.AuthConfig) cores.AuthConfig {
-	if a == nil { return cores.AuthConfig{} }
-	return cores.AuthConfig{
-		Mode: cores.AuthMode(a.Mode), BotToken: a.BotToken,
-		Phone: a.Phone, OTP: a.Otp, Password2F: a.Password_2F,
-		Extra: a.Extra,
-	}
-}
-
-`)
-
-	// PaginationOpts
-	b.WriteString(`func ProtoToPaginationOpts(p *pb.PaginationOpts) cores.PaginationOpts {
-	if p == nil { return cores.PaginationOpts{} }
-	return cores.PaginationOpts{Limit: int(p.Limit), Offset: p.Offset}
-}
-
-`)
-
-	// VerificationInfo
-	b.WriteString(`func VerificationInfoToProto(v *cores.VerificationInfo) *pb.VerificationInfo {
-	if v == nil { return nil }
-	decimals := make([]int32, len(v.Decimals))
-	for i, d := range v.Decimals { decimals[i] = int32(d) }
-	return &pb.VerificationInfo{
-		TransactionId: v.TransactionID, State: v.State,
-		FromUser: v.FromUser, FromDevice: v.FromDevice,
-		Emojis: v.Emojis, EmojiSymbols: v.EmojiSymbols,
-		Decimals: decimals,
-		CancelCode: v.CancelCode, CancelReason: v.CancelReason,
-	}
-}
-
-`)
-
-	// Update
-	b.WriteString(`func UpdateToProto(u *cores.Update) *pb.Update {
-	if u == nil { return nil }
-	return &pb.Update{
-		Type: pb.UpdateType(u.Type), ChatId: u.ChatID,
-		Message: MessageToProto(u.Message), MessageId: u.MessageID,
-		UserId: u.UserID, ReadState: ReadStateToProto(u.ReadState),
-		Call: CallSessionToProto(u.Call),
-		IsOnline: u.IsOnline, HasIsOnline: u.HasIsOnline,
-		Verification: VerificationInfoToProto(u.Verification),
-		ConnState: u.ConnState, Platform: u.Platform,
-	}
-}
-
-`)
-
-	// mapToBytes / bytesToMap helpers for untyped methods
-	b.WriteString(`func mapToBytes(m map[string]interface{}) []byte {
-	if m == nil { return nil }
-	b, _ := json.Marshal(m)
-	return b
-}
-
-func bytesToMap(data []byte) map[string]interface{} {
-	if len(data) == 0 { return nil }
-	var m map[string]interface{}
-	_ = json.Unmarshal(data, &m)
-	return m
-}
-
-func mapStringToBytes(m map[string]string) []byte {
-	if m == nil { return nil }
-	b, _ := json.Marshal(m)
-	return b
-}
-
-func bytesToMapString(data []byte) map[string]string {
-	if len(data) == 0 { return nil }
-	var m map[string]string
-	_ = json.Unmarshal(data, &m)
-	return m
-}
-
-func sliceMapToBytes(ms []map[string]interface{}) []byte {
-	if ms == nil { return nil }
-	b, _ := json.Marshal(ms)
-	return b
-}
-
-func anyToBytes(v interface{}) []byte {
-	if v == nil { return nil }
-	b, _ := json.Marshal(v)
-	return b
-}
-
-`)
-}
-
-// writeCoreStructConverters generates To/From proto converters for a core-specific struct.
-func writeCoreStructConverters(b *strings.Builder, c CoreInfo, sd StructDef) {
-	goType := fmt.Sprintf("cores.%s", sd.Name)
-	protoType := fmt.Sprintf("pbcores.%s", sd.Name)
-
-	// ToProto
-	b.WriteString(fmt.Sprintf("func %sToProto(v *%s) *%s {\n", sd.Name, goType, protoType))
-	b.WriteString("\tif v == nil { return nil }\n")
-	b.WriteString(fmt.Sprintf("\treturn &%s{\n", protoType))
-	for _, f := range sd.Fields {
-		protoField := goFieldToProtoField(f.Name)
-		goField := f.Name
-		b.WriteString(fmt.Sprintf("\t\t%s: v.%s,\n", protoField, goField))
-	}
-	b.WriteString("\t}\n}\n\n")
-
-	// FromProto
-	b.WriteString(fmt.Sprintf("func ProtoTo%s(v *%s) *%s {\n", sd.Name, protoType, goType))
-	b.WriteString("\tif v == nil { return nil }\n")
-	b.WriteString(fmt.Sprintf("\treturn &%s{\n", goType))
-	for _, f := range sd.Fields {
-		protoField := goFieldToProtoField(f.Name)
-		goField := f.Name
-		b.WriteString(fmt.Sprintf("\t\t%s: v.%s,\n", goField, protoField))
-	}
-	b.WriteString("\t}\n}\n\n")
-}
-
 // ═══════════════════════════════════════════════════════════════════════
 // Dispatch generation (Step 13.5)
 // ═══════════════════════════════════════════════════════════════════════
@@ -1627,4 +1281,3 @@ func convertGoRetToProto(goType string, expr string) string {
 		return expr
 	}
 }
-

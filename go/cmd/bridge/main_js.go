@@ -2,7 +2,7 @@
 
 // Entry point for the WebAssembly (js/wasm) build.
 //
-// The native build (main.go) exposes the bridge to Dart through cgo `//export`
+// The native build (main.go) exposes the bridge to the host through cgo `//export`
 // symbols in a c-shared library. That mechanism does not exist on js/wasm:
 //   - cgo is unavailable for GOOS=js, so a file with `import "C"` (main.go) is
 //     excluded from the wasm build entirely, and `//export` produces nothing.
@@ -11,7 +11,7 @@
 //     called from JS at all.
 //
 // Instead we register plain JS functions on the global object via syscall/js.
-// The names and signatures match exactly what dart/lib/bridge/bridge_web.dart
+// The names and signatures match exactly what the web frontend
 // imports, so no pointers ever cross the boundary — only JS Uint8Array values,
 // marshaled with js.CopyBytesToGo / js.CopyBytesToJS:
 //

@@ -1978,7 +1978,7 @@ func (x *BridgeResponse) GetPayload() []byte {
 	return nil
 }
 
-// Event from Go → Dart (async updates)
+// Event from Go → host (async updates)
 type BridgeEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CoreId        string                 `protobuf:"bytes,1,opt,name=core_id,json=coreId,proto3" json:"core_id,omitempty"`
