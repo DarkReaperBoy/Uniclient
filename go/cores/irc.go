@@ -308,6 +308,11 @@ type IRCCore struct {
 	saslDone   chan struct{}
 	capDone    chan struct{}
 
+	// banReason is set when the server replies 465 (ERR_YOUREBANNED)
+	// during registration; Authenticate then fails with the server's
+	// message instead of a generic timeout.
+	banReason string
+
 	// Last send time (flood protection)
 	lastSend   time.Time
 	lastSendMu sync.Mutex
@@ -530,6 +535,7 @@ func (c *IRCCore) connect() error {
 	c.registered = make(chan struct{})
 	c.saslDone = make(chan struct{})
 	c.capDone = make(chan struct{})
+	c.banReason = ""
 
 	// Start read loop
 	c.wg.Add(1)
@@ -549,6 +555,15 @@ func (c *IRCCore) connect() error {
 	// Wait for registration (001 numeric) or timeout
 	select {
 	case <-c.registered:
+		// 465 (ERR_YOUREBANNED) also closes this channel — check
+		// whether registration actually succeeded.
+		c.mu.RLock()
+		ban := c.banReason
+		c.mu.RUnlock()
+		if ban != "" {
+			conn.Close()
+			return fmt.Errorf("%w: banned by server: %s", ErrAuth, ban)
+		}
 	case <-time.After(30 * time.Second):
 		conn.Close()
 		return fmt.Errorf("irc: registration timeout: %w", ErrTimeout)
@@ -796,6 +811,7 @@ func (c *IRCCore) reconnectLoop(maxRetries int) {
 		c.registered = make(chan struct{})
 		c.saslDone = make(chan struct{})
 		c.capDone = make(chan struct{})
+		c.banReason = ""
 		nick := c.nick
 		username := c.username
 		realname := c.realname
@@ -821,7 +837,14 @@ func (c *IRCCore) reconnectLoop(maxRetries int) {
 		// Wait for registration or timeout
 		select {
 		case <-c.registered:
-			// Success
+			// 465 (ERR_YOUREBANNED) also closes this channel M-bM-^@M-^T a ban
+			// is permanent; retrying is pointless.
+			c.mu.RLock()
+			banned := c.banReason != ""
+			c.mu.RUnlock()
+			if banned {
+				return
+			}
 		case <-time.After(30 * time.Second):
 			c.mu.Lock()
 			if c.conn != nil {
@@ -889,6 +912,24 @@ func (c *IRCCore) handleMessage(msg *ircMsg) {
 		c.nick = c.nick + "_"
 		c.mu.Unlock()
 		c.sendRaw("NICK " + c.nick)
+
+	case "465": // ERR_YOUREBANNED — fail registration immediately with the
+		// server's reason instead of stalling until the timeout (servers
+		// ban datacenter/cloud IPs with "Your bot is not permitted").
+		c.mu.Lock()
+		c.banReason = msg.Trailing()
+		c.mu.Unlock()
+		select {
+		case <-c.registered:
+		default:
+			close(c.registered)
+		}
+		c.mu.RLock()
+		if c.conn != nil {
+			c.conn.Close()
+			c.conn = nil
+		}
+		c.mu.RUnlock()
 
 	// --- CAP / SASL ---
 	case "CAP":
