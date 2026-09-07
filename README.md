@@ -138,3 +138,9 @@ State: `~/.uniclient/` (override with `UNICLIENT_HOME`, vault password with
 - **No telemetry.** Network traffic is the messengers' protocols, full stop.
 
 See `AGENTS.md` for the full project constitution and roadmap context.
+
+## Co-Authorship
+
+This project was developed with the assistance of GLM 5.3 AI.
+
+Co-Authored-By: GLM 5.3 <noreply@z.ai>
