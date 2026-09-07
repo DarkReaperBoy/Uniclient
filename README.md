@@ -5,10 +5,35 @@ through one standardized FFI bridge. Native hosts (Flutter, Qt, anything with
 a C FFI) load the c-shared library; the browser loads the js/wasm module.
 One Go core, every frontend.
 
+## The desktop app (no toolchain needed)
+
+**Just want to chat?** Download a binary from the
+[Releases](https://github.com/DarkReaperBoy/Uniclient/releases) page, unpack,
+and run:
+
+* **Windows** — double-click `Start Uniclient.bat`
+* **Linux / macOS** — `./uniclient.sh` (or `./uniclient-web`)
+
+Your browser opens the app at `http://127.0.0.1:8199`. Add an account with
+the **+** button (Telegram, GitHub, IRC, Matrix, XMPP, Delta Chat, Bale,
+Rubika, TeamSpeak, Mumble), pick a chat, and message. Everything stays on
+your machine: the server binds 127.0.0.1 only, and credentials live in an
+encrypted vault.
+
+From source:
+
+```sh
+cd go && CGO_ENABLED=0 go build -tags goolm -o uniclient-web ./cmd/web
+./uniclient-web          # or: -port 9000, -dir /path/to/config, -no-browser
+```
+
+A second launch detects the running instance and just opens the browser.
+
 ## What's in the box
 
 | Piece | Path | What it is |
 |---|---|---|
+| Desktop app | `go/cmd/web/` | The chat app: engine + local HTTP/WS API + embedded web UI |
 | Engine | `go/engine/` | Accounts, vault, SQLite cache, media, auth, events — the layer every backend plugs into |
 | Bridge | `go/bridge/` | Protobuf request/response dispatch (`__engine` + per-core routing, 500+ methods) |
 | Cores | `go/cores/` | Protocol backends: Telegram (gotd/MTProto), Matrix (mautrix, full E2EE via goolm), IRC, XMPP, GitHub, Mumble, TeamSpeak, Bale, Rubika, DeltaChat |
@@ -32,6 +57,7 @@ make smoke        # build + run both FFI smoke suites (C and Node)
 ```
 
 Or per-platform: `./scripts/build.sh [linux|windows|darwin|android|web|cli]`.
+The web host smoke suite lives in `scripts/smoke/smoke_web.sh`.
 
 **The goolm tag is mandatory everywhere**: mautrix's default Olm
 implementation is cgo; `-tags goolm` selects the pure-Go implementation so the
@@ -84,7 +110,7 @@ make smoke-wasm  # builds the .wasm, then Node drives the same lifecycle
 
 Both are wired into CI (`.github/workflows/ci.yml`) alongside the native
 gate, race detector, platform matrix (windows/darwin/linux × amd64/arm64),
-and the wasm build.
+the wasm build, and the web-host smoke suite.
 
 ## CLI quick start
 

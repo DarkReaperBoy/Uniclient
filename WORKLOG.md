@@ -114,3 +114,69 @@ Live protocol verification against REAL servers (go/tests/, build tag
   seconds carrying the server's actual ban text, and the reconnect loop
   stops retrying permanent bans. Verified live against Libera (fails in
   ~6s with the real reason).
+
+## Session 3 — CI repair + the desktop app (go/cmd/web)
+
+### CI fix
+- The race-detector job was the only red one: `CGO_ENABLED=0 go test -race`
+  fails instantly — the race runtime on linux/amd64 requires cgo. Fixed to
+  `CGO_ENABLED=1` (+30-min timeout). Verified green on GitHub runners
+  (gotd/td's own CI compiles the same tg package under -race on
+  ubuntu-latest, which is why it fits the 16GB runner but not the 4GB dev box).
+
+### The desktop app: `uniclient-web` (go/cmd/web)
+- Single binary: engine + local HTTP/WS API + embedded web UI (vanilla
+  HTML/CSS/JS, go:embed, no frontend toolchain). Binds 127.0.0.1 only.
+- Wires the engine through the bridge exactly like the FFI hosts
+  (bridge.InitEngine), then drives the rich Go API directly.
+- API: accounts (add/remove/connect/disconnect), the full interactive
+  per-platform auth state machine (start/input/back/cancel + live state),
+  chats (unified + per-account), messages (cache reads with live fallback),
+  send (optimistic pending flow), mark-read, join-channel, QR rendering
+  (rsc.io/qr, server-side PNG), /ws event stream (JSON EngineEvents).
+- UI: account rail with status dots, chat list with unread badges, message
+  bubbles (grouping, day dividers, reply quotes, media chips, status ticks),
+  auth modal driven by the state machine (incl. Telegram QR login),
+  new-chat/join modal, toasts. Verified in a real headless browser
+  (agent-browser + VLM screenshot review): layout clean, no console errors.
+- Second launch detects the running instance and just opens the browser.
+
+### Live end-to-end verification (this session)
+- **GitHub auth via the web API with the user's PAT**: full flow
+  input→token→ready ("Fallen Reaper"), auto-reconnect after restart
+  (vault-persisted), send pipeline: comment to issue #2 → msg_received +
+  msg_status events over WS → read-back from the cache = the real comment.
+- **IRC (irc.libera.chat)**: auth flow server→nick→(optional NickServ)→
+  connected; joined #libera (1428 members) through the web API.
+- Both OFTC (fresh autokill — test-connection spam) and Libera (pre-existing
+  datacenter bot ban, dated 8/31) now k-line this dev box's IP; IRC live
+  verification remains from Session 2 + the pre-ban checks above.
+
+### Bugs found & fixed
+- `engine.JoinChat` re-synced dialogs IMMEDIATELY after sending JOIN — the
+  server's JOIN echo/353/366 arrive ~1s later, so the sync cached a list
+  without the new channel and never re-synced. Now waits 3s.
+- Server-origin IRC NOTICEs (auth banners, k-lines, "NOTICE AUTH") created
+  junk DM chats named after the server host. They now route into a single
+  "Server log" pseudo-chat (also surfaced in GetDialogs) — k-line text stays
+  visible without polluting the chat list.
+- Web events initially hooked `bridge.SetEventCallback` (protobuf
+  BridgeEvent bytes) instead of the engine's JSON envelopes — browsers now
+  get pure JSON via `eng.SetEventCallback(hub.broadcast)`.
+
+### Tooling
+- `scripts/smoke/smoke_web.sh`: headless web-host smoke (health, static UI,
+  QR PNG magic, GitHub auth flow incl. a REAL bogus-token network
+  round-trip, WS connect, second-launch dedupe, clean SIGINT shutdown).
+  PASSED locally; wired into CI as its own job.
+- `.github/workflows/release.yml`: tag `v*` → 6-platform matrix build
+  (linux/windows/darwin × amd64/arm64) of uniclient-web + uniclient-cli
+  with launchers (Start Uniclient.bat / uniclient.sh) + README, sha256s,
+  auto-created GitHub Release.
+
+### Leftovers / next session
+- Telegram login UI flow is built (phone/OTP/2FA/QR) but unverified against
+  a real phone account (needs the user's SIM). GitHub + IRC verified live.
+- Avatars render as colored initials; media is read-only chips (no inline
+  images / downloads yet).
+- Bale/Rubika remain untested (geo-restricted), unchanged.

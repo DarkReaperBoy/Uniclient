@@ -1,0 +1,124 @@
+name: Release
+
+# Builds the Uniclient desktop app (uniclient-web — the engine with the
+# embedded web UI) and the headless CLI for every Tier-A platform, then
+# publishes them as a GitHub Release.
+#
+#   * push a tag like  v0.3.0  → build + create the Release
+#   * run manually (workflow_dispatch) → build + upload workflow artifacts
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to create the Release
+
+env:
+  GO_VERSION: "1.27"
+  GOOLM: -tags goolm
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}/${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux,   arch: amd64, archive: tar.gz }
+          - { os: linux,   arch: arm64, archive: tar.gz }
+          - { os: windows, arch: amd64, archive: zip }
+          - { os: windows, arch: arm64, archive: zip }
+          - { os: darwin,  arch: amd64, archive: tar.gz }
+          - { os: darwin,  arch: arm64, archive: tar.gz }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+
+      - name: Build binaries
+        working-directory: go
+        run: |
+          export GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0
+          mkdir -p ../dist/pkg
+          go build $GOOLM -trimpath -ldflags="-s -w" -o ../dist/pkg/uniclient-web${{ matrix.os == 'windows' && '.exe' || '' }} ./cmd/web
+          go build $GOOLM -trimpath -ldflags="-s -w" -o ../dist/pkg/uniclient-cli${{ matrix.os == 'windows' && '.exe' || '' }} ./cmd/cli
+
+      - name: Write launcher scripts and notes
+        run: |
+          cd dist/pkg
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            printf '@echo off\r\ncd /d "%%~dp0"\r\nuniclient-web.exe\r\n' > "Start Uniclient.bat"
+          else
+            printf '#!/bin/sh\ncd "$(dirname "$0")"\nexec ./uniclient-web "$@"\n' > uniclient.sh
+            chmod +x uniclient.sh
+          fi
+          cat > README.txt <<'EOF'
+          Uniclient — one chat client for every network
+          ============================================
+
+          Quick start:
+            * Windows:   double-click "Start Uniclient.bat"
+            * Linux/mac: ./uniclient.sh   (or run ./uniclient-web)
+
+          Your browser opens the app at http://127.0.0.1:8199.
+          Add an account with the + button (Telegram, GitHub, IRC, Matrix,
+          XMPP, Delta Chat, Bale, Rubika, TeamSpeak, Mumble).
+
+          Everything stays on this machine: the server binds 127.0.0.1 and
+          stores credentials in an encrypted vault under the config dir
+          (~/.uniclient by default).
+
+          uniclient-cli is the headless companion for scripting.
+          EOF
+
+      - name: Package
+        id: package
+        run: |
+          VERSION="${GITHUB_REF_NAME:-manual}"
+          cd dist
+          NAME="uniclient-$VERSION-${{ matrix.os }}-${{ matrix.arch }}"
+          mv pkg "$NAME"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            zip -r "$NAME.zip" "$NAME"
+          else
+            tar czf "$NAME.tar.gz" "$NAME"
+          fi
+          sha256sum "$NAME.${{ matrix.archive }}" > "$NAME.${{ matrix.archive }}.sha256"
+          echo "asset=$NAME.${{ matrix.archive }}" >> "$GITHUB_OUTPUT"
+          echo "asset_hash=$NAME.${{ matrix.archive }}.sha256" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uniclient-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/${{ steps.package.outputs.asset }}
+            dist/${{ steps.package.outputs.asset_hash }}
+          retention-days: 14
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/* --title "Uniclient $TAG" --generate-notes

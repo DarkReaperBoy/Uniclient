@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uniclient</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233b82f6'/%3E%3Ctext x='16' y='22' font-size='18' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'%3EU%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+  <!-- Account rail -->
+  <nav id="rail">
+    <div id="logo" title="Uniclient">U</div>
+    <div id="accountRail"></div>
+    <button id="addAccountBtn" title="Add account">+</button>
+  </nav>
+
+  <!-- Chat list -->
+  <aside id="sidebar">
+    <header id="sidebarHeader">
+      <h1>Chats</h1>
+      <span class="header-actions">
+        <button id="newChatBtn" title="New chat / join channel">+</button>
+        <button id="refreshBtn" title="Refresh">&#8635;</button>
+      </span>
+    </header>
+    <div id="chatList"><div class="empty">No chats yet</div></div>
+  </aside>
+
+  <!-- Conversation -->
+  <main id="main">
+    <header id="chatHeader"><div id="chatHeaderText">Select a chat</div></header>
+    <div id="messages" class="empty-main">
+      <div class="welcome">
+        <div class="welcome-logo">U</div>
+        <h2>Welcome to Uniclient</h2>
+        <p>Add an account with the <b>+</b> button on the left, pick a chat, and start messaging.</p>
+      </div>
+    </div>
+    <footer id="composer">
+      <textarea id="composerInput" rows="1" placeholder="Write a message…" disabled></textarea>
+      <button id="sendBtn" title="Send" disabled>Send</button>
+    </footer>
+  </main>
+</div>
+
+<!-- Modal (add account / auth flow) -->
+<div id="modalOverlay" class="hidden">
+  <div id="modal">
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div id="toasts"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

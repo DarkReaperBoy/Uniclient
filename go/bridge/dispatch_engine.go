@@ -46,6 +46,13 @@ func SetEngine(e *engine.Engine) {
 	engineInstance = e
 }
 
+// Engine returns the global engine instance, or nil before Init.
+// In-process hosts (CLI, web server) use this to drive the rich Go API
+// directly while keeping the FFI event path intact.
+func Engine() *engine.Engine {
+	return engineInstance
+}
+
 // dispatchEngine routes __engine method calls to the Engine.
 func dispatchEngine(method string, payload []byte) ([]byte, error) {
 	// Init is special — it creates the engine, so handle before nil check.

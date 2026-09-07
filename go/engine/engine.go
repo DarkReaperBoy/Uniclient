@@ -1065,8 +1065,13 @@ func (e *Engine) JoinChat(accountID, channelName string) error {
 		return fmt.Errorf("platform %q does not support joining channels", acc.Platform)
 	}
 
-	// Re-sync chats so the new channel appears.
+	// Re-sync chats so the new channel appears. The JOIN round-trip is
+	// asynchronous on the protocol side (the server confirms with a JOIN echo
+	// + 353/366 numerics), so give the core a moment to register the channel
+	// before snapshotting the dialog list — otherwise the sync caches a list
+	// that still lacks the new channel.
 	go func() {
+		time.Sleep(3 * time.Second)
 		ctx := context.Background()
 		e.syncAccount(ctx, accountID)
 	}()

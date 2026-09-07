@@ -71,6 +71,25 @@ var (
 	authFlows   = make(map[string]*authFlow) // accountID → flow
 )
 
+// CurrentAuthState returns the live auth flow state for an account, or nil
+// when no flow is in progress. Hosts use it to re-sync their UI after an
+// async auth_state event (e.g. Telegram QR token refresh).
+func CurrentAuthState(accountID string) *AuthState {
+	authFlowsMu.Lock()
+	defer authFlowsMu.Unlock()
+	flow, ok := authFlows[accountID]
+	if !ok {
+		return nil
+	}
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+	if flow.state == nil {
+		return nil
+	}
+	cp := *flow.state
+	return &cp
+}
+
 // StartAuth begins the auth flow for a new account.
 func (e *Engine) StartAuth(accountID string) (*AuthState, error) {
 	acc, ok := e.getAccount(accountID)

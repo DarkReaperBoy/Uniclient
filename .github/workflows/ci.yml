@@ -164,3 +164,23 @@ jobs:
           GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -p 1 $GOOLM -o ../dist/uniclient.wasm ./cmd/bridge
           cd ../scripts/smoke
           GOROOT="$(go env GOROOT)" node --stack-size=8192 run_wasm.mjs
+
+  # ── Web host smoke: boot the desktop server headlessly and drive it ────
+  smoke-web:
+    name: Smoke test web host (desktop UI server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache-dependency-path: go/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run web host smoke test
+        run: scripts/smoke/smoke_web.sh

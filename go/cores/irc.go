@@ -1657,6 +1657,26 @@ func (c *IRCCore) handleWhoisEnd(msg *ircMsg) {
 // Message handlers
 // ---------------------------------------------------------------------------
 
+// ircServerChat is the pseudo-chat that collects server-origin diagnostics
+// (connection notices, auth messages, k-line/ban text). Without it every
+// server NOTICE to us would materialize as a junk "DM" chat named after the
+// server host or the literal "AUTH".
+const ircServerChat = "server"
+
+// isServerOrigin reports whether a message came from the IRC server itself
+// rather than a user: user prefixes are "nick!user@host", server prefixes
+// (and prefix-less commands like "NOTICE AUTH :…") carry no "!".
+func isServerOrigin(msg *ircMsg, target string) bool {
+	if msg.Prefix != "" && !strings.Contains(msg.Prefix, "!") {
+		return true
+	}
+	switch target {
+	case "", "*", "AUTH": // classic pre-registration targets
+		return true
+	}
+	return false
+}
+
 func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
 	if len(msg.Params) < 1 {
 		return
@@ -1664,6 +1684,12 @@ func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
 	target := msg.Params[0]
 	text := msg.Trailing()
 	nick := msg.Nick()
+
+	// Server-origin PRIVMSGs are diagnostics, not conversations.
+	if isServerOrigin(msg, target) {
+		c.handleServerNotice(nick, text)
+		return
+	}
 
 	// Handle CTCP
 	if strings.HasPrefix(text, "\x01") && strings.HasSuffix(text, "\x01") {
@@ -1744,6 +1770,13 @@ func (c *IRCCore) handleNotice(msg *ircMsg) {
 	myNick := c.nick
 	c.mu.RUnlock()
 
+	// Server-origin notices (auth banners, MOTD plumbing, k-lines) belong in
+	// the server log, not in a DM chat per server host.
+	if isServerOrigin(msg, target) {
+		c.handleServerNotice(nick, text)
+		return
+	}
+
 	chatID := target
 	if strings.EqualFold(target, myNick) {
 		chatID = nick
@@ -1767,6 +1800,39 @@ func (c *IRCCore) handleNotice(msg *ircMsg) {
 	c.fireUpdate(Update{
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
+		Message:  m,
+		Platform: ircPlatform,
+	})
+}
+
+// handleServerNotice buffers a server-origin diagnostic into the server log
+// pseudo-chat. The k-line / autokill text lands here — visible instead of
+// silently lost, without polluting the DM list.
+func (c *IRCCore) handleServerNotice(serverName, text string) {
+	if text == "" {
+		return
+	}
+	if serverName == "" {
+		serverName = "server"
+	}
+	id := c.msgCounter.Add(1)
+	m := &Message{
+		ID:         strconv.FormatInt(id, 10),
+		ChatID:     ircServerChat,
+		SenderID:   ircServerChat,
+		SenderName: serverName,
+		Text:       text,
+		Timestamp:  time.Now(),
+		Platform:   ircPlatform,
+		Status:     MessageStatusDelivered,
+		IsOutgoing: false,
+		IsService:  true,
+	}
+	c.bufferMessage(ircServerChat, m)
+
+	c.fireUpdate(Update{
+		Type:     UpdateNewMessage,
+		ChatID:   ircServerChat,
 		Message:  m,
 		Platform: ircPlatform,
 	})
@@ -1965,6 +2031,20 @@ func (c *IRCCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	}
 
 	var dialogs []Dialog
+
+	// Server log (auth banners, k-lines) — only when it has content.
+	c.messagesMu.RLock()
+	if msgs, ok := c.messages[ircServerChat]; ok && len(msgs) > 0 {
+		last := msgs[len(msgs)-1]
+		dialogs = append(dialogs, Dialog{
+			ID:          ircServerChat,
+			Type:        ChatTypeChannel,
+			Title:       "Server log",
+			LastMessage: last,
+			Platform:    ircPlatform,
+		})
+	}
+	c.messagesMu.RUnlock()
 
 	// Channels
 	c.channelsMu.RLock()
