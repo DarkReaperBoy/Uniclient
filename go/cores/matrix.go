@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v4"
+
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto"
@@ -30,6 +31,7 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 	"uniclient/utils"
+	"uniclient/wrtc"
 )
 
 const mxPlatform = "matrix"
@@ -124,8 +126,8 @@ type matrixCall struct {
 	RemoteParty string // remote party_id
 
 	// WebRTC
-	pc         *webrtc.PeerConnection
-	audioTrack *webrtc.TrackLocalStaticRTP
+	pc         *wrtc.PeerConnection
+	audioTrack *wrtc.TrackLocalStaticRTP
 	cancel     context.CancelFunc
 
 	// ICE candidates buffered before remote description is set
@@ -343,9 +345,9 @@ func (m *MatrixCore) Authenticate(cfg AuthConfig) error {
 				Type: mautrix.IdentifierTypeUser,
 				User: username,
 			},
-			Password:         password,
-			StoreCredentials: true,
-			DeviceID:         id.DeviceID(cfg.Extra["device_id"]),
+			Password:                 password,
+			StoreCredentials:         true,
+			DeviceID:                 id.DeviceID(cfg.Extra["device_id"]),
 			InitialDeviceDisplayName: "Uniclient",
 		})
 		if err != nil {
@@ -451,9 +453,9 @@ func (m *MatrixCore) CreateGroup(name string, members []string) (*Dialog, error)
 	}
 
 	resp, err := m.client.CreateRoom(m.ctx, &mautrix.ReqCreateRoom{
-		Name:    name,
-		Preset:  "private_chat",
-		Invite:  invites,
+		Name:     name,
+		Preset:   "private_chat",
+		Invite:   invites,
 		IsDirect: len(members) == 1,
 	})
 	if err != nil {
@@ -506,10 +508,10 @@ func (m *MatrixCore) CreateChannel(name string, description string) (*Dialog, er
 
 	if rs == nil {
 		rs = &matrixRoomState{
-			ID:    resp.RoomID,
-			Name:  name,
-			Topic: description,
-			Type:  ChatTypeChannel,
+			ID:      resp.RoomID,
+			Name:    name,
+			Topic:   description,
+			Type:    ChatTypeChannel,
 			Members: make(map[id.UserID]*matrixMember),
 		}
 	}
@@ -1136,7 +1138,7 @@ func (m *MatrixCore) StartCall(chatID string, video bool) (*CallSession, error) 
 	}
 
 	// Add audio track
-	audioTrack, err := webrtc.NewTrackLocalStaticRTP(
+	audioTrack, err := wrtc.NewTrackLocalStaticRTP(
 		webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2},
 		"audio", "uniclient-audio",
 	)
@@ -1165,7 +1167,7 @@ func (m *MatrixCore) StartCall(chatID string, video bool) (*CallSession, error) 
 	m.setupCallStateHandlers(call)
 
 	// Set up incoming audio handler
-	pc.OnTrack(func(track *webrtc.TrackRemote, recv *webrtc.RTPReceiver) {
+	pc.OnTrack(func(track *wrtc.TrackRemote, recv *webrtc.RTPReceiver) {
 		m.handleIncomingAudio(callCtx, call, track)
 	})
 
@@ -1184,7 +1186,7 @@ func (m *MatrixCore) StartCall(chatID string, video bool) (*CallSession, error) 
 	}
 
 	// Wait for ICE gathering to complete (or timeout)
-	gatherDone := webrtc.GatheringCompletePromise(pc)
+	gatherDone := wrtc.GatheringCompletePromise(pc)
 	select {
 	case <-gatherDone:
 	case <-time.After(5 * time.Second):
@@ -1381,7 +1383,7 @@ func (m *MatrixCore) AcceptCall(callID string) (*CallSession, error) {
 	}
 
 	// Wait for ICE gathering
-	gatherDone := webrtc.GatheringCompletePromise(call.pc)
+	gatherDone := wrtc.GatheringCompletePromise(call.pc)
 	select {
 	case <-gatherDone:
 	case <-time.After(5 * time.Second):
@@ -1463,7 +1465,7 @@ func (m *MatrixCore) RejectCall(callID string) error {
 }
 
 // createPeerConnection creates a pion PeerConnection with TURN servers from the homeserver.
-func (m *MatrixCore) createPeerConnection() (*webrtc.PeerConnection, error) {
+func (m *MatrixCore) createPeerConnection() (*wrtc.PeerConnection, error) {
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{URLs: []string{"stun:stun.l.google.com:19302"}},
@@ -1480,7 +1482,7 @@ func (m *MatrixCore) createPeerConnection() (*webrtc.PeerConnection, error) {
 		})
 	}
 
-	return webrtc.NewPeerConnection(config)
+	return wrtc.NewPeerConnection(config)
 }
 
 // setupCallStateHandlers wires pion connection state changes to Matrix call state updates.
@@ -1571,7 +1573,7 @@ func (m *MatrixCore) sendICECandidates(call *matrixCall, candidates []webrtc.ICE
 
 // handleIncomingAudio reads RTP packets from a remote audio track and delivers
 // the Opus payload to the audioSink callback if set.
-func (m *MatrixCore) handleIncomingAudio(ctx context.Context, call *matrixCall, track *webrtc.TrackRemote) {
+func (m *MatrixCore) handleIncomingAudio(ctx context.Context, call *matrixCall, track *wrtc.TrackRemote) {
 	buf := make([]byte, 1500)
 	for {
 		select {
@@ -2303,14 +2305,14 @@ func (m *MatrixCore) CreatePoll(chatID string, question string, options []string
 	answers := make([]map[string]interface{}, len(options))
 	for i, opt := range options {
 		answers[i] = map[string]interface{}{
-			"id":                        fmt.Sprintf("opt_%d", i),
-			"org.matrix.msc1767.text":   opt,
+			"id":                      fmt.Sprintf("opt_%d", i),
+			"org.matrix.msc1767.text": opt,
 		}
 	}
 
 	content := map[string]interface{}{
 		"org.matrix.msc3381.v2.poll": map[string]interface{}{
-			"kind":      "org.matrix.msc3381.v2.disclosed",
+			"kind":           "org.matrix.msc3381.v2.disclosed",
 			"max_selections": 1,
 			"question": map[string]interface{}{
 				"org.matrix.msc1767.text": question,
@@ -3307,9 +3309,9 @@ func (m *MatrixCore) handleMessageEvent(evt *event.Event) {
 		if msg != nil {
 			msg.ID = mc.RelatesTo.EventID.String() // use original event ID
 			m.fireUpdate(Update{
-				Type:    UpdateEditMessage,
-				ChatID:  evt.RoomID.String(),
-				Message: msg,
+				Type:     UpdateEditMessage,
+				ChatID:   evt.RoomID.String(),
+				Message:  msg,
 				Platform: mxPlatform,
 			})
 		}
@@ -3415,7 +3417,7 @@ func (m *MatrixCore) handleCallInvite(evt *event.Event) {
 	}
 
 	// Add audio track
-	audioTrack, err := webrtc.NewTrackLocalStaticRTP(
+	audioTrack, err := wrtc.NewTrackLocalStaticRTP(
 		webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2},
 		"audio", "uniclient-audio",
 	)
@@ -3442,7 +3444,7 @@ func (m *MatrixCore) handleCallInvite(evt *event.Event) {
 
 	m.setupCallStateHandlers(call)
 
-	pc.OnTrack(func(track *webrtc.TrackRemote, recv *webrtc.RTPReceiver) {
+	pc.OnTrack(func(track *wrtc.TrackRemote, recv *webrtc.RTPReceiver) {
 		m.handleIncomingAudio(callCtx, call, track)
 	})
 
@@ -3923,7 +3925,7 @@ func (a *matrixCryptoAdapter) RequestSession(ctx context.Context, roomID id.Room
 		deviceID = "*"
 	}
 	a.m.olmMachine.SendRoomKeyRequest(ctx, roomID, senderKey, sessionID, "", map[id.UserID][]id.DeviceID{
-		userID:                  {deviceID},
+		userID:            {deviceID},
 		a.m.client.UserID: {"*"},
 	})
 }
@@ -3968,14 +3970,14 @@ type pickledOlmSession struct {
 
 // pickledInboundGroupSession is the serializable form of a crypto.InboundGroupSession.
 type pickledInboundGroupSession struct {
-	Pickle           string             `json:"pickle"`
-	SigningKey       id.Ed25519         `json:"signing_key"`
-	SenderKey        id.Curve25519      `json:"sender_key"`
-	RoomID           id.RoomID          `json:"room_id"`
-	ForwardingChains []string           `json:"forwarding_chains"`
-	ReceivedAt       time.Time          `json:"received_at"`
-	MaxAge           int64              `json:"max_age"`
-	MaxMessages      int                `json:"max_messages"`
+	Pickle           string              `json:"pickle"`
+	SigningKey       id.Ed25519          `json:"signing_key"`
+	SenderKey        id.Curve25519       `json:"sender_key"`
+	RoomID           id.RoomID           `json:"room_id"`
+	ForwardingChains []string            `json:"forwarding_chains"`
+	ReceivedAt       time.Time           `json:"received_at"`
+	MaxAge           int64               `json:"max_age"`
+	MaxMessages      int                 `json:"max_messages"`
 	KeyBackupVersion id.KeyBackupVersion `json:"key_backup_version"`
 }
 
@@ -3994,14 +3996,14 @@ type cryptoStoreFile struct {
 	AccountShared    bool   `json:"account_shared"`
 	AccountKBVersion string `json:"account_kb_version,omitempty"`
 
-	Sessions         map[string][]pickledOlmSession                  `json:"sessions"`
+	Sessions         map[string][]pickledOlmSession                   `json:"sessions"`
 	GroupSessions    map[string]map[string]pickledInboundGroupSession `json:"group_sessions"`
 	OutGroupSessions map[string]pickledOutboundGroupSession           `json:"out_group_sessions"`
 
-	Devices          map[id.UserID]map[id.DeviceID]*id.Device                                    `json:"devices"`
-	CrossSigningKeys map[id.UserID]map[id.CrossSigningUsage]id.CrossSigningKey                    `json:"cross_signing_keys"`
-	KeySignatures    map[id.UserID]map[id.Ed25519]map[id.UserID]map[id.Ed25519]string            `json:"key_signatures"`
-	Secrets          map[id.Secret]string                                                         `json:"secrets"`
+	Devices          map[id.UserID]map[id.DeviceID]*id.Device                         `json:"devices"`
+	CrossSigningKeys map[id.UserID]map[id.CrossSigningUsage]id.CrossSigningKey        `json:"cross_signing_keys"`
+	KeySignatures    map[id.UserID]map[id.Ed25519]map[id.UserID]map[id.Ed25519]string `json:"key_signatures"`
+	Secrets          map[id.Secret]string                                             `json:"secrets"`
 }
 
 func (m *MatrixCore) saveCryptoStore() error {
@@ -4638,9 +4640,9 @@ func (m *MatrixCore) CallReplaces(callID, targetRoomID, targetCallID string) err
 	}
 
 	content := map[string]interface{}{
-		"call_id":  callID,
-		"version":  "1",
-		"party_id": m.deviceID.String(),
+		"call_id":        callID,
+		"version":        "1",
+		"party_id":       m.deviceID.String(),
 		"replacement_id": "rep_" + strconv.FormatInt(time.Now().UnixNano(), 10),
 		"target_room": map[string]interface{}{
 			"room_id": targetRoomID,
@@ -4666,9 +4668,9 @@ func (m *MatrixCore) SDPStreamMetadataChanged(callID string, metadata map[string
 	}
 
 	content := map[string]interface{}{
-		"call_id":                 callID,
-		"version":                 "1",
-		"party_id":               m.deviceID.String(),
+		"call_id":             callID,
+		"version":             "1",
+		"party_id":            m.deviceID.String(),
 		"sdp_stream_metadata": metadata,
 	}
 	_, err := m.client.SendMessageEvent(m.ctx, call.RoomID, event.NewEventType("m.call.sdp_stream_metadata_changed"), content)
@@ -4681,12 +4683,12 @@ func (m *MatrixCore) CallNotify(callID string, roomID id.RoomID, lifetime int) e
 		return ErrAuth
 	}
 	content := map[string]interface{}{
-		"call_id":          callID,
-		"version":          "1",
-		"party_id":         m.deviceID.String(),
-		"lifetime":         lifetime,
-		"application":      "m.call",
-		"m.mentions":       map[string]interface{}{"user_ids": []string{}},
+		"call_id":     callID,
+		"version":     "1",
+		"party_id":    m.deviceID.String(),
+		"lifetime":    lifetime,
+		"application": "m.call",
+		"m.mentions":  map[string]interface{}{"user_ids": []string{}},
 	}
 	_, err := m.client.SendMessageEvent(m.ctx, roomID, event.NewEventType("m.call.notify"), content)
 	return err
@@ -4722,8 +4724,8 @@ func (m *MatrixCore) Register(homeserverURL, username, password string) error {
 	client.Log = zerolog.Nop()
 
 	type regReq struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		Username string                 `json:"username"`
+		Password string                 `json:"password"`
 		Auth     map[string]interface{} `json:"auth,omitempty"`
 	}
 	req := regReq{Username: username, Password: password}
@@ -4731,9 +4733,9 @@ func (m *MatrixCore) Register(homeserverURL, username, password string) error {
 	// First attempt — may get interactive auth response
 	var resp mautrix.RespRegister
 	_, err = client.MakeFullRequest(m.ctx, mautrix.FullRequest{
-		Method:      http.MethodPost,
-		URL:         client.BuildClientURL("v3", "register"),
-		RequestJSON: req,
+		Method:       http.MethodPost,
+		URL:          client.BuildClientURL("v3", "register"),
+		RequestJSON:  req,
 		ResponseJSON: &resp,
 	})
 	if err != nil {
@@ -4742,9 +4744,9 @@ func (m *MatrixCore) Register(homeserverURL, username, password string) error {
 			"type": "m.login.dummy",
 		}
 		_, err = client.MakeFullRequest(m.ctx, mautrix.FullRequest{
-			Method:      http.MethodPost,
-			URL:         client.BuildClientURL("v3", "register"),
-			RequestJSON: req,
+			Method:       http.MethodPost,
+			URL:          client.BuildClientURL("v3", "register"),
+			RequestJSON:  req,
 			ResponseJSON: &resp,
 		})
 		if err != nil {
@@ -4824,7 +4826,7 @@ func (m *MatrixCore) RequestEmailToken(email, clientSecret string, sendAttempt i
 		return "", ErrAuth
 	}
 	req := map[string]interface{}{
-		"email":        email,
+		"email":         email,
 		"client_secret": clientSecret,
 		"send_attempt":  sendAttempt,
 	}
@@ -5107,9 +5109,9 @@ func (m *MatrixCore) SetServerACL(chatID string, allow, deny []string, allowIPLi
 	}
 	roomID := id.RoomID(chatID)
 	_, err := m.client.SendStateEvent(m.ctx, roomID, event.NewEventType("m.room.server_acl"), "", map[string]interface{}{
-		"allow":              allow,
-		"deny":               deny,
-		"allow_ip_literals":  allowIPLiterals,
+		"allow":             allow,
+		"deny":              deny,
+		"allow_ip_literals": allowIPLiterals,
 	})
 	return err
 }
@@ -5785,7 +5787,9 @@ func (m *MatrixCore) mxRawReq(method, url string, body interface{}) ([]byte, err
 func (m *MatrixCore) RefreshToken(refreshToken string) (map[string]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodPost, m.client.BuildClientURL("v3", "refresh"),
 		map[string]string{"refresh_token": refreshToken})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -5795,7 +5799,9 @@ func (m *MatrixCore) RefreshToken(refreshToken string) (map[string]interface{}, 
 func (m *MatrixCore) GetLoginToken() (map[string]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodPost, m.client.BuildClientURL("v1", "login", "get_token"),
 		map[string]interface{}{})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -5805,8 +5811,12 @@ func (m *MatrixCore) GetLoginToken() (map[string]interface{}, error) {
 func (m *MatrixCore) CheckRegistrationToken(token string) (bool, error) {
 	url := m.client.BuildClientURL("v1", "register", "m.login.registration_token", "validity") + "?token=" + token
 	data, err := m.mxRawReq(http.MethodGet, url, nil)
-	if err != nil { return false, err }
-	var result struct{ Valid bool `json:"valid"` }
+	if err != nil {
+		return false, err
+	}
+	var result struct {
+		Valid bool `json:"valid"`
+	}
 	json.Unmarshal(data, &result)
 	return result.Valid, nil
 }
@@ -5824,7 +5834,9 @@ func (m *MatrixCore) SSORedirectIdP(idpID, redirectURL string) string {
 // GetAuthMetadata returns OAuth 2.0 discovery metadata (v1.15).
 func (m *MatrixCore) GetAuthMetadata() (map[string]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodGet, m.client.BuildClientURL("v1", "auth_metadata"), nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -5834,7 +5846,9 @@ func (m *MatrixCore) GetAuthMetadata() (map[string]interface{}, error) {
 func (m *MatrixCore) DeviceAuthGrant(scope string) (map[string]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodPost, m.client.BuildClientURL("v1", "auth", "device"),
 		map[string]string{"scope": scope})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -5847,7 +5861,9 @@ func (m *MatrixCore) DeviceAuthGrant(scope string) (map[string]interface{}, erro
 // GetClientWellKnown discovers homeserver URLs via .well-known.
 func (m *MatrixCore) GetClientWellKnown(domain string) (map[string]interface{}, error) {
 	resp, err := http.Get("https://" + domain + "/.well-known/matrix/client")
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer resp.Body.Close()
 	var result map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&result)
@@ -5857,7 +5873,9 @@ func (m *MatrixCore) GetClientWellKnown(domain string) (map[string]interface{}, 
 // GetSupportContacts returns admin contact info (v1.10).
 func (m *MatrixCore) GetSupportContacts(domain string) (map[string]interface{}, error) {
 	resp, err := http.Get("https://" + domain + "/.well-known/matrix/support")
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer resp.Body.Close()
 	var result map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&result)
@@ -5867,7 +5885,9 @@ func (m *MatrixCore) GetSupportContacts(domain string) (map[string]interface{}, 
 // GetRTCTransports discovers MatrixRTC backends.
 func (m *MatrixCore) GetRTCTransports() (map[string]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodGet, m.client.BuildClientURL("v1", "rtc", "transports"), nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -5891,8 +5911,12 @@ func (m *MatrixCore) GetRoomSummary(roomIDOrAlias string) (MatrixRoomSummary, er
 // GetMutualRooms returns rooms shared with another user.
 func (m *MatrixCore) GetMutualRooms(userID string) ([]string, error) {
 	data, err := m.mxRawReq(http.MethodGet, m.client.BuildClientURL("v1", "user", "mutual_rooms", userID), nil)
-	if err != nil { return nil, err }
-	var result struct{ JoinedRooms []string `json:"joined"` }
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		JoinedRooms []string `json:"joined"`
+	}
 	json.Unmarshal(data, &result)
 	return result.JoinedRooms, nil
 }
@@ -5902,7 +5926,9 @@ func (m *MatrixCore) TimestampToEvent(roomID string, timestamp int64, dir string
 	url := m.client.BuildClientURL("v1", "rooms", roomID, "timestamp_to_event") +
 		"?ts=" + strconv.FormatInt(timestamp, 10) + "&dir=" + dir
 	data, err := m.mxRawReq(http.MethodGet, url, nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -5928,12 +5954,14 @@ func (m *MatrixCore) InviteBy3PID(roomID, medium, address, idServer, idAccessTok
 func (m *MatrixCore) CreateDelayedEvent(roomID, eventType string, content map[string]interface{}, delayMs int64) (map[string]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodPost, m.client.BuildClientURL("v1", "delayed_events"),
 		map[string]interface{}{
-			"room_id":    roomID,
-			"type":       eventType,
-			"content":    content,
-			"delay":      delayMs,
+			"room_id": roomID,
+			"type":    eventType,
+			"content": content,
+			"delay":   delayMs,
 		})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -5954,7 +5982,9 @@ func (m *MatrixCore) SendLocationMessage(roomID, geoURI, body string) (string, e
 		GeoURI:  geoURI,
 	}
 	resp, err := m.client.SendMessageEvent(m.ctx, id.RoomID(roomID), event.EventMessage, content)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	return resp.EventID.String(), nil
 }
 
@@ -5966,7 +5996,9 @@ func (m *MatrixCore) SendLiveLocation(roomID string, geoURI string, description 
 			"timeout":     timeout,
 			"live":        true,
 		})
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	_, err = m.client.SendMessageEvent(m.ctx, id.RoomID(roomID), event.Type{Type: "m.beacon", Class: event.MessageEventType},
 		map[string]interface{}{
 			"m.relates_to": map[string]interface{}{
@@ -5986,7 +6018,9 @@ func (m *MatrixCore) SendEmoteMessage(roomID, body string) (string, error) {
 		Body:    body,
 	}
 	resp, err := m.client.SendMessageEvent(m.ctx, id.RoomID(roomID), event.EventMessage, content)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	return resp.EventID.String(), nil
 }
 
@@ -5999,10 +6033,12 @@ func (m *MatrixCore) EndPoll(roomID, pollStartEventID, text string) (string, err
 				"rel_type": "m.reference",
 				"event_id": pollStartEventID,
 			},
-			"m.text": text,
+			"m.text":                      text,
 			"org.matrix.msc3381.poll.end": map[string]interface{}{},
 		})
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	return resp.EventID.String(), nil
 }
 
@@ -6013,7 +6049,9 @@ func (m *MatrixCore) EndPoll(roomID, pollStartEventID, text string) (string, err
 // GetProfileField reads a custom profile field.
 func (m *MatrixCore) GetProfileField(userID, fieldKey string) (map[string]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodGet, m.client.BuildClientURL("v3", "profile", userID, fieldKey), nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -6051,7 +6089,9 @@ func (m *MatrixCore) SuspendUser(userID string, suspend *bool) (map[string]inter
 		return nil, err
 	}
 	data, err := m.mxRawReq(http.MethodGet, m.client.BuildClientURL("v1", "admin", "suspend", userID), nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -6065,7 +6105,9 @@ func (m *MatrixCore) LockUser(userID string, lock *bool) (map[string]interface{}
 		return nil, err
 	}
 	data, err := m.mxRawReq(http.MethodGet, m.client.BuildClientURL("v1", "admin", "lock", userID), nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -6097,7 +6139,9 @@ func (m *MatrixCore) RedactAllUserEvents(roomID, userID, reason string) (map[str
 	data, err := m.mxRawReq(http.MethodPost,
 		m.client.BuildClientURL("v1", "rooms", roomID, "redact", userID),
 		map[string]string{"reason": reason})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -6145,7 +6189,9 @@ func (m *MatrixCore) GetURLPreviewAuth(url string, ts int64) (map[string]interfa
 	reqURL := m.client.BuildClientURL("v1", "media", "preview_url") +
 		"?url=" + url + "&ts=" + strconv.FormatInt(ts, 10)
 	data, err := m.mxRawReq(http.MethodGet, reqURL, nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -6173,7 +6219,9 @@ func (m *MatrixCore) UploadMediaAsync(serverName, mediaID string, contentType st
 func (m *MatrixCore) SlidingSync(body map[string]interface{}) (map[string]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodPost,
 		m.client.BuildClientURL("unstable", "org.matrix.msc3575", "sync"), body)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -6184,7 +6232,9 @@ func (m *MatrixCore) SyncStateAfter(since string, timeout int) (map[string]inter
 	url := m.client.BuildClientURL("v3", "sync") +
 		"?since=" + since + "&timeout=" + strconv.Itoa(timeout) + "&use_state_after=true"
 	data, err := m.mxRawReq(http.MethodGet, url, nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -6259,7 +6309,9 @@ func (m *MatrixCore) SendGroupCallEncryptionKeys(roomID string, keys map[string]
 func (m *MatrixCore) GetKeyChanges(from, to string) (map[string]interface{}, error) {
 	url := m.client.BuildClientURL("v3", "keys", "changes") + "?from=" + from + "&to=" + to
 	data, err := m.mxRawReq(http.MethodGet, url, nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -6276,7 +6328,9 @@ func (m *MatrixCore) SetDehydratedDevice(deviceData map[string]interface{}) erro
 func (m *MatrixCore) GetDehydratedDevice() (map[string]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodGet,
 		m.client.BuildClientURL("unstable", "org.matrix.msc3814", "dehydrated_device"), nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -6293,7 +6347,9 @@ func (m *MatrixCore) DeleteDehydratedDevice() error {
 func (m *MatrixCore) GetDehydratedDeviceEvents(deviceID string) (map[string]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodGet,
 		m.client.BuildClientURL("unstable", "org.matrix.msc3814", "dehydrated_device", deviceID, "events"), nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]interface{}
 	json.Unmarshal(data, &result)
 	return result, nil
@@ -6337,9 +6393,9 @@ func (m *MatrixCore) SendSecretSend(targetDeviceID, requestID, secret string) er
 // StartQRVerification starts QR code verification.
 func (m *MatrixCore) StartQRVerification(roomID, transactionID, sharedSecret string) error {
 	content := map[string]interface{}{
-		"from_device":                m.client.DeviceID.String(),
-		"method":                     "m.reciprocate.v1",
-		"transaction_id":             transactionID,
+		"from_device":    m.client.DeviceID.String(),
+		"method":         "m.reciprocate.v1",
+		"transaction_id": transactionID,
 		"m.relates_to": map[string]interface{}{
 			"rel_type": "m.reference",
 			"event_id": transactionID,
@@ -6359,8 +6415,12 @@ func (m *MatrixCore) StartQRVerification(roomID, transactionID, sharedSecret str
 func (m *MatrixCore) GetPushRuleActions(kind, ruleID string) ([]interface{}, error) {
 	data, err := m.mxRawReq(http.MethodGet,
 		m.client.BuildClientURL("v3", "pushrules", "global", kind, ruleID, "actions"), nil)
-	if err != nil { return nil, err }
-	var result struct{ Actions []interface{} `json:"actions"` }
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		Actions []interface{} `json:"actions"`
+	}
 	json.Unmarshal(data, &result)
 	return result.Actions, nil
 }
@@ -6377,8 +6437,12 @@ func (m *MatrixCore) SetPushRuleActions(kind, ruleID string, actions []interface
 func (m *MatrixCore) GetPushRuleEnabled(kind, ruleID string) (bool, error) {
 	data, err := m.mxRawReq(http.MethodGet,
 		m.client.BuildClientURL("v3", "pushrules", "global", kind, ruleID, "enabled"), nil)
-	if err != nil { return false, err }
-	var result struct{ Enabled bool `json:"enabled"` }
+	if err != nil {
+		return false, err
+	}
+	var result struct {
+		Enabled bool `json:"enabled"`
+	}
 	json.Unmarshal(data, &result)
 	return result.Enabled, nil
 }
@@ -6391,7 +6455,9 @@ func (m *MatrixCore) GetPushRuleEnabled(kind, ruleID string) (bool, error) {
 func (m *MatrixCore) GetRoomCreationEvent(roomID string) (map[string]interface{}, error) {
 	var result map[string]interface{}
 	err := m.client.StateEvent(m.ctx, id.RoomID(roomID), event.StateCreate, "", &result)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
@@ -6399,14 +6465,18 @@ func (m *MatrixCore) GetRoomCreationEvent(roomID string) (map[string]interface{}
 func (m *MatrixCore) GetRoomTombstone(roomID string) (map[string]interface{}, error) {
 	var result map[string]interface{}
 	err := m.client.StateEvent(m.ctx, id.RoomID(roomID), event.StateTombstone, "", &result)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
 // GetThirdPartyInvites retrieves m.room.third_party_invite state events.
 func (m *MatrixCore) GetThirdPartyInvites(roomID string) ([]map[string]interface{}, error) {
 	state, err := m.client.State(m.ctx, id.RoomID(roomID))
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var invites []map[string]interface{}
 	for _, evts := range state {
 		for _, evt := range evts {
@@ -6438,14 +6508,18 @@ func (m *MatrixCore) SetCanonicalAlias(roomID, alias string, altAliases []string
 // ValidateEmailForAccount is an alias for RequestEmailToken (same API endpoint).
 func (m *MatrixCore) ValidateEmailForAccount(email, clientSecret string, sendAttempt int) (map[string]interface{}, error) {
 	sid, err := m.RequestEmailToken(email, clientSecret, sendAttempt)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return map[string]interface{}{"sid": sid}, nil
 }
 
 // ValidatePhoneForAccount is an alias for RequestMsisdnToken (same API endpoint).
 func (m *MatrixCore) ValidatePhoneForAccount(country, phone, clientSecret string, sendAttempt int) (map[string]interface{}, error) {
 	sid, err := m.RequestMsisdnToken(country, phone, clientSecret, sendAttempt)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return map[string]interface{}{"sid": sid}, nil
 }
 
@@ -6461,7 +6535,9 @@ func (m *MatrixCore) Delete3PIDByAddress(medium, address string) error {
 // GetForgetOnLeave checks if m.forget_forced_upon_leave is enabled.
 func (m *MatrixCore) GetForgetOnLeave() (bool, error) {
 	caps, err := m.client.Capabilities(m.ctx)
-	if err != nil { return false, err }
+	if err != nil {
+		return false, err
+	}
 	raw, _ := json.Marshal(caps)
 	var result map[string]interface{}
 	json.Unmarshal(raw, &result)
@@ -6476,7 +6552,9 @@ func (m *MatrixCore) GetForgetOnLeave() (bool, error) {
 // GetProfileFieldsCap returns supported profile fields capability.
 func (m *MatrixCore) GetProfileFieldsCap() (map[string]interface{}, error) {
 	caps, err := m.client.Capabilities(m.ctx)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	raw, _ := json.Marshal(caps)
 	var result map[string]interface{}
 	json.Unmarshal(raw, &result)
@@ -6488,14 +6566,18 @@ func (m *MatrixCore) GetProfileFieldsCap() (map[string]interface{}, error) {
 
 // HandleUserLimitExceeded checks for M_USER_LIMIT_EXCEEDED in error responses.
 func (m *MatrixCore) HandleUserLimitExceeded(err error) bool {
-	if err == nil { return false }
+	if err == nil {
+		return false
+	}
 	return strings.Contains(err.Error(), "M_USER_LIMIT_EXCEEDED")
 }
 
 // GetNonCrossSignedExclusion checks MSC4153 recommendation capability.
 func (m *MatrixCore) GetNonCrossSignedExclusion() (bool, error) {
 	caps, err := m.client.Capabilities(m.ctx)
-	if err != nil { return false, err }
+	if err != nil {
+		return false, err
+	}
 	raw, _ := json.Marshal(caps)
 	var result map[string]interface{}
 	json.Unmarshal(raw, &result)
@@ -6515,8 +6597,12 @@ func (m *MatrixCore) GetNonCrossSignedExclusion() (bool, error) {
 func (m *MatrixCore) GetRecentEmoji() ([]string, error) {
 	data, err := m.mxRawReq(http.MethodGet,
 		m.client.BuildClientURL("v3", "user", m.client.UserID.String(), "account_data", "m.recent_emoji"), nil)
-	if err != nil { return nil, err }
-	var result struct{ RecentEmoji []interface{} `json:"recent_emoji"` }
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		RecentEmoji []interface{} `json:"recent_emoji"`
+	}
 	json.Unmarshal(data, &result)
 	var emojis []string
 	for _, e := range result.RecentEmoji {
@@ -6533,8 +6619,12 @@ func (m *MatrixCore) GetRecentEmoji() ([]string, error) {
 func (m *MatrixCore) GetIgnoredUsers() ([]string, error) {
 	data, err := m.mxRawReq(http.MethodGet,
 		m.client.BuildClientURL("v3", "user", m.client.UserID.String(), "account_data", "m.ignored_user_list"), nil)
-	if err != nil { return nil, err }
-	var result struct{ IgnoredUsers map[string]interface{} `json:"ignored_users"` }
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		IgnoredUsers map[string]interface{} `json:"ignored_users"`
+	}
 	json.Unmarshal(data, &result)
 	var users []string
 	for u := range result.IgnoredUsers {
@@ -6613,8 +6703,12 @@ func (m *MatrixCore) SendLocation(chatID string, lat float64, lon float64) (*Mes
 func (m *MatrixCore) GetFullyReadMarker(roomID string) (string, error) {
 	data, err := m.mxRawReq(http.MethodGet,
 		m.client.BuildClientURL("v3", "user", m.client.UserID.String(), "rooms", roomID, "account_data", "m.fully_read"), nil)
-	if err != nil { return "", err }
-	var result struct{ EventID string `json:"event_id"` }
+	if err != nil {
+		return "", err
+	}
+	var result struct {
+		EventID string `json:"event_id"`
+	}
 	json.Unmarshal(data, &result)
 	return result.EventID, nil
 }

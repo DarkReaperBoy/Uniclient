@@ -49,6 +49,7 @@ import (
         "github.com/pion/webrtc/v4"
 
         pionmedia "github.com/pion/webrtc/v4/pkg/media"
+        "uniclient/wrtc"
 )
 
 const tgPlatform = "telegram"
@@ -3108,9 +3109,9 @@ type tgCall struct {
         isGroupCall bool      // true for SFU group calls
         authKey     [256]byte // DH shared secret (1:1 only)
 
-        pc                  *webrtc.PeerConnection
-        audioTrack          *webrtc.TrackLocalStaticRTP    // stored for SendAudioFrame (1:1 + group calls)
-        videoTrack          *webrtc.TrackLocalStaticSample // VP8 video (pion handles RTP packetization)
+        pc                  *wrtc.PeerConnection
+        audioTrack          *wrtc.TrackLocalStaticRTP    // stored for SendAudioFrame (1:1 + group calls)
+        videoTrack          *wrtc.TrackLocalStaticSample // VP8 video (pion handles RTP packetization)
         state               CallState
         muted               bool
         cancel              context.CancelFunc
@@ -3176,7 +3177,7 @@ type tgCall struct {
         videoEncoder VideoEncoder // lazy-init'd by SendVideoFrameYUV
 
         // Screencast (screen sharing) — separate VP8 track
-        screenTrack          *webrtc.TrackLocalStaticSample          // VP8 screencast
+        screenTrack          *wrtc.TrackLocalStaticSample            // VP8 screencast
         onScreenFrame        func(frame []byte)                      // raw VP8 frame
         onDecodedScreenFrame func(yuv420p []byte, width, height int) // decoded YUV420P frame
         screenSSRC           uint32                                  // our screencast SSRC
@@ -5690,8 +5691,8 @@ func (t *TelegramCore) sendV2SignalingAcks(call *tgCall, ackSeqs []uint32) {
 
 // createCallWebRTCAPI creates a pion WebRTC API configured for Telegram calls.
 // Registers RED and telephone-event codecs that Desktop includes in re-offers.
-func createCallWebRTCAPI(iceUfrag, icePwd string) *webrtc.API {
-        me := &webrtc.MediaEngine{}
+func createCallWebRTCAPI(iceUfrag, icePwd string) *wrtc.API {
+        me := &wrtc.MediaEngine{}
         me.RegisterDefaultCodecs()
 
         // Register RED (redundant encoding, PT 63) — Desktop's WebRTC adds this via EnableMedia()
@@ -5737,8 +5738,8 @@ func createCallWebRTCAPI(iceUfrag, icePwd string) *webrtc.API {
         }
 
         ir := &interceptor.Registry{}
-        webrtc.RegisterDefaultInterceptors(me, ir)
-        se := webrtc.SettingEngine{}
+        wrtc.RegisterDefaultInterceptors(me, ir)
+        se := wrtc.SettingEngine{}
         se.SetSRTPReplayProtectionWindow(1024)
         se.SetICECredentials(iceUfrag, icePwd)
         // Fire OnTrack before first RTP — combined with deferred re-offer processing (after DTLS),
@@ -5747,10 +5748,10 @@ func createCallWebRTCAPI(iceUfrag, icePwd string) *webrtc.API {
         logFactory := pionlogging.NewDefaultLoggerFactory()
         logFactory.DefaultLogLevel = pionlogging.LogLevelWarn
         se.LoggerFactory = logFactory
-        return webrtc.NewAPI(
-                webrtc.WithMediaEngine(me),
-                webrtc.WithInterceptorRegistry(ir),
-                webrtc.WithSettingEngine(se),
+        return wrtc.NewAPI(
+                wrtc.WithMediaEngine(me),
+                wrtc.WithInterceptorRegistry(ir),
+                wrtc.WithSettingEngine(se),
         )
 }
 
@@ -6231,12 +6232,7 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
                 }
         })
         // Monitor DTLS transport state changes directly
-        if dtlsT := pc.SCTP().Transport(); dtlsT != nil {
-                dtlsT.OnStateChange(func(state webrtc.DTLSTransportState) {
-                        fmt.Printf("[tg-call] DTLS state: %s (+%dms)\n", state, time.Since(t0).Milliseconds())
-                })
-                fmt.Printf("[tg-call] DTLS initial state: %s\n", dtlsT.State())
-        }
+        monitorCallDTLS(pc, t0)
 
         // 9. Set up audio, create offer, then send InitialSetup + NegotiateChannels
         go t.finishCallSetup(call, t0)
@@ -6253,7 +6249,7 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
         }
 
         // Add opus audio track
-        audioTrack, err := webrtc.NewTrackLocalStaticRTP(
+        audioTrack, err := wrtc.NewTrackLocalStaticRTP(
                 webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2},
                 "audio", "uniclient-audio",
         )
@@ -6280,7 +6276,7 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
         // Add VP8 video track if this is a video call
         // Uses TrackLocalStaticSample for proper VP8 RTP packetization (RFC 7741 fragmentation).
         if call.isVideo {
-                videoTrack, err := webrtc.NewTrackLocalStaticSample(
+                videoTrack, err := wrtc.NewTrackLocalStaticSample(
                         webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: 90000},
                         "video", "uniclient-video",
                 )
@@ -6296,7 +6292,7 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 
         // Add screencast VP8 track (declared idle, activated by StartScreenShare)
         if call.useWebSignaling || call.isVideo {
-                screenTrack, err := webrtc.NewTrackLocalStaticSample(
+                screenTrack, err := wrtc.NewTrackLocalStaticSample(
                         webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: 90000},
                         "screencast", "uniclient-screencast",
                 )
@@ -6319,10 +6315,11 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
         })
 
         // Wire up callbacks — dispatch audio vs video vs screencast tracks
-        pc.OnTrack(func(track *webrtc.TrackRemote, recv *webrtc.RTPReceiver) {
+        pc.OnTrack(func(track *wrtc.TrackRemote, recv *webrtc.RTPReceiver) {
                 trackSSRC := uint32(track.SSRC())
                 fmt.Printf("[tg-call] Incoming track: kind=%s codec=%s ssrc=%d mid=%s rid=%s streamID=%s\n",
                         track.Kind(), track.Codec().MimeType, trackSSRC, track.Msid(), track.RID(), track.StreamID())
+                logCallTransceivers(call)
                 go func() {
                         isVideo := track.Kind() == webrtc.RTPCodecTypeVideo ||
                                 strings.Contains(strings.ToLower(track.Codec().MimeType), "vp8") ||
@@ -6760,7 +6757,7 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
         call.pcReady = make(chan struct{})
 
         // Add opus audio track
-        audioTrack, err := webrtc.NewTrackLocalStaticRTP(
+        audioTrack, err := wrtc.NewTrackLocalStaticRTP(
                 webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2},
                 "audio", "uniclient-audio",
         )
@@ -6786,7 +6783,7 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 
         // Add VP8 video track if this is a video call
         if call.isVideo {
-                videoTrack, err := webrtc.NewTrackLocalStaticSample(
+                videoTrack, err := wrtc.NewTrackLocalStaticSample(
                         webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: 90000},
                         "video", "uniclient-video",
                 )
@@ -6802,7 +6799,7 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 
         // Add screencast VP8 track (declared idle, activated by StartScreenShare)
         if call.useWebSignaling || call.isVideo {
-                screenTrack, err := webrtc.NewTrackLocalStaticSample(
+                screenTrack, err := wrtc.NewTrackLocalStaticSample(
                         webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: 90000},
                         "screencast", "uniclient-screencast",
                 )
@@ -6816,19 +6813,11 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
                 }
         }
 
-        pc.OnTrack(func(track *webrtc.TrackRemote, recv *webrtc.RTPReceiver) {
+        pc.OnTrack(func(track *wrtc.TrackRemote, recv *webrtc.RTPReceiver) {
                 trackSSRC := uint32(track.SSRC())
                 fmt.Printf("[tg-call] Incoming track: kind=%s codec=%s ssrc=%d mid=%s rid=%s streamID=%s\n",
                         track.Kind(), track.Codec().MimeType, trackSSRC, track.Msid(), track.RID(), track.StreamID())
-                for i, tr := range call.pc.GetTransceivers() {
-                        mid := tr.Mid()
-                        dir := tr.Direction()
-                        var recvSSRC webrtc.SSRC
-                        if tr.Receiver() != nil && tr.Receiver().Track() != nil {
-                                recvSSRC = tr.Receiver().Track().SSRC()
-                        }
-                        fmt.Printf("[tg-call]   transceiver[%d]: mid=%s dir=%s recvSSRC=%d\n", i, mid, dir, recvSSRC)
-                }
+                logCallTransceivers(call)
                 go func() {
                         isVideo := track.Kind() == webrtc.RTPCodecTypeVideo ||
                                 strings.Contains(strings.ToLower(track.Codec().MimeType), "vp8") ||
@@ -8332,7 +8321,7 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
         // in the exact order the SFU expects (IDs 1=ssrc-audio-level, 2=abs-send-time,
         // 3=transport-cc). Extension IDs must match on the wire since the SFU parses
         // RTP headers by position — a mismatch means the SFU can't read our extensions.
-        me := &webrtc.MediaEngine{}
+        me := &wrtc.MediaEngine{}
         me.RegisterCodec(webrtc.RTPCodecParameters{
                 RTPCodecCapability: webrtc.RTPCodecCapability{
                         MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2,
@@ -8390,11 +8379,11 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
         // simulcast probing for unknown SSRCs (from SFU-forwarded audio), which fails because
         // audio packets don't contain MID/RID. Without them, pion falls back to PT-based
         // matching: PT 111 → audio m-line, PT 100 → video m-line.
-        webrtc.ConfigureNack(me, ir)
-        webrtc.ConfigureRTCPReports(ir)
-        webrtc.ConfigureStatsInterceptor(ir)
-        webrtc.ConfigureTWCCSender(me, ir)
-        se := webrtc.SettingEngine{}
+        wrtc.ConfigureNack(me, ir)
+        wrtc.ConfigureRTCPReports(ir)
+        wrtc.ConfigureStatsInterceptor(ir)
+        wrtc.ConfigureTWCCSender(me, ir)
+        se := wrtc.SettingEngine{}
         // Filter out IPv6 — user confirmed no IPv6 connectivity, so IPv6 ICE pairs
         // waste time and cause intermittent failures when pion tries them first.
         se.SetIPFilter(func(ip net.IP) bool { return ip.To4() != nil })
@@ -8402,10 +8391,10 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
         // The SFU forwards other participants' audio with their original SSRCs, which aren't
         // in our synthetic answer. Without this, pion drops the packets and OnTrack never fires.
         se.SetHandleUndeclaredSSRCWithoutAnswer(true)
-        groupAPI := webrtc.NewAPI(
-                webrtc.WithMediaEngine(me),
-                webrtc.WithInterceptorRegistry(ir),
-                webrtc.WithSettingEngine(se),
+        groupAPI := wrtc.NewAPI(
+                wrtc.WithMediaEngine(me),
+                wrtc.WithInterceptorRegistry(ir),
+                wrtc.WithSettingEngine(se),
         )
         pc, err := groupAPI.NewPeerConnection(webrtc.Configuration{
                 ICEServers: []webrtc.ICEServer{
@@ -8418,7 +8407,7 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 
         // Add opus audio track (RTP-based — we manually construct headers with extensions.
         // The SFU requires ssrc-audio-level extension in RTP packets for routing.)
-        audioRTPTrack, err := webrtc.NewTrackLocalStaticRTP(
+        audioRTPTrack, err := wrtc.NewTrackLocalStaticRTP(
                 webrtc.RTPCodecCapability{
                         MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2,
                         SDPFmtpLine:  "minptime=10;useinbandfec=1",
@@ -8448,9 +8437,9 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
         // Add video track BEFORE SDP offer so the SDP has both audio + video m-lines.
         // The SFU expects the DTLS session to have video capability when VideoStopped=false.
         // Video SSRCs are extracted from the SDP (pion-assigned) for join params.
-        var videoTrackLocal *webrtc.TrackLocalStaticSample
+        var videoTrackLocal *wrtc.TrackLocalStaticSample
         if video {
-                videoTrackLocal, err = webrtc.NewTrackLocalStaticSample(
+                videoTrackLocal, err = wrtc.NewTrackLocalStaticSample(
                         webrtc.RTPCodecCapability{
                                 MimeType:  webrtc.MimeTypeVP8,
                                 ClockRate: 90000,
@@ -8507,7 +8496,7 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
         }
 
         // Wait for ICE gathering to complete
-        gatherDone := webrtc.GatheringCompletePromise(pc)
+        gatherDone := wrtc.GatheringCompletePromise(pc)
         <-gatherDone
 
         localDesc := pc.LocalDescription()
@@ -8700,7 +8689,7 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
         }
 
         // Wire up incoming tracks from SFU (audio and video)
-        pc.OnTrack(func(track *webrtc.TrackRemote, recv *webrtc.RTPReceiver) {
+        pc.OnTrack(func(track *wrtc.TrackRemote, recv *webrtc.RTPReceiver) {
                 trackSSRC := uint32(track.SSRC())
                 codec := track.Codec().MimeType
                 fmt.Printf("[tg-group] SFU track: kind=%s codec=%s ssrc=%d\n",
@@ -9702,7 +9691,7 @@ func (t *TelegramCore) StartGroupCallScreenShare(callID string) error {
         }
 
         // Create a screen share VP8 track on the existing PeerConnection
-        screenTrack, err := webrtc.NewTrackLocalStaticSample(
+        screenTrack, err := wrtc.NewTrackLocalStaticSample(
                 webrtc.RTPCodecCapability{
                         MimeType:     webrtc.MimeTypeVP8,
                         ClockRate:    90000,
@@ -11387,7 +11376,7 @@ func (t *TelegramCore) StopCallRecording(callID string) (int, error) {
 
 // readSenderRTCP reads RTCP feedback from a video/screen sender and triggers ForceKeyframe
 // on PLI/FIR requests from the remote receiver. This replaces the old drain-only goroutine.
-func (t *TelegramCore) readSenderRTCP(call *tgCall, sender *webrtc.RTPSender, isScreen bool) {
+func (t *TelegramCore) readSenderRTCP(call *tgCall, sender *wrtc.RTPSender, isScreen bool) {
         label := "video"
         if isScreen {
                 label = "screen"
