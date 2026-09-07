@@ -119,15 +119,18 @@ jobs:
           xdotool search --name "Uniclient" || echo "WARN: window not found"
           import -window root /tmp/shot-1-welcome.png
 
-          # Click the "Add an account" CTA. Pixel-derived from the rendered
-          # welcome screen: the Material-blue button centers at ~(559, 445)
-          # on the 1280x800 Xvfb screen. Try the exact spot plus fallbacks.
-          for xy in "559 445" "560 440" "560 460"; do
-            set -- $xy
-            xdotool mousemove $1 $2 click 1
-            sleep 2
-          done
+          # Click the "Add an account" CTA ONCE. Pixel-derived: the
+          # Material-blue button centers at ~(559, 445) on the 1280x800
+          # Xvfb screen. Screenshot the picker grid immediately.
+          xdotool mousemove 559 445 click 1
+          sleep 3
           import -window root /tmp/shot-2-picker.png
+
+          # Then click the first backend card (Telegram, top-left of the
+          # grid) to capture the real auth flow UI as well.
+          xdotool mousemove 560 470 click 1
+          sleep 3
+          import -window root /tmp/shot-3-authflow.png
 
           kill -TERM $APP_PID || true
           sleep 2
