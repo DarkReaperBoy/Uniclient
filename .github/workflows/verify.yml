@@ -119,21 +119,15 @@ jobs:
           xdotool search --name "Uniclient" || echo "WARN: window not found"
           import -window root /tmp/shot-1-welcome.png
 
-          # Click the "Add an account" CTA. The welcome column is centered;
-          # try a few vertical positions and screenshot after each so the
-          # review can pick the one that opened the backend picker.
-          for y in 470 510 550 590; do
-            xdotool mousemove 640 $y click 1
+          # Click the "Add an account" CTA. Pixel-derived from the rendered
+          # welcome screen: the Material-blue button centers at ~(559, 445)
+          # on the 1280x800 Xvfb screen. Try the exact spot plus fallbacks.
+          for xy in "559 445" "560 440" "560 460"; do
+            set -- $xy
+            xdotool mousemove $1 $2 click 1
             sleep 2
           done
           import -window root /tmp/shot-2-picker.png
-
-          # Second click burst in case the first run of coordinates missed.
-          for y in 430 630; do
-            xdotool mousemove 640 $y click 1
-            sleep 2
-          done
-          import -window root /tmp/shot-3-picker-alt.png
 
           kill -TERM $APP_PID || true
           sleep 2
