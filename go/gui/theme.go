@@ -260,12 +260,12 @@ type platformMeta struct {
 	Status                  string // "", "experimental", "hidden"
 }
 
-// platforms is the picker list (order = display order). Hidden/stale cores
-// (teamspeak, mumble) are excluded until rewritten; demo lives on the
-// welcome screen.
+// platforms is the picker list (order = display order). Every entry must
+// be a real, factory-supported backend (tested in theme_test.go against
+// bootstrap.SupportedPlatforms). Hidden/stale cores (teamspeak, mumble) are
+// excluded until rewritten. No fake/demo entries — AGENTS.md §1.10.
 var platforms = []platformMeta{
 	{ID: "telegram", Title: "Telegram", Desc: "MTProto via gotd. Calls, folders, full parity work.", Letter: "T"},
-	{ID: "demo", Title: "Demo", Desc: "Fake backend with sample chats — try the UI with no account.", Letter: "D"},
 	{ID: "irc", Title: "IRC", Desc: "IRCv3, SASL, verified against real servers.", Letter: "I"},
 	{ID: "matrix", Title: "Matrix", Desc: "mautrix, E2EE via goolm (pure Go).", Letter: "M"},
 	{ID: "github", Title: "GitHub", Desc: "Issues, PRs, notifications as chats.", Letter: "G"},
@@ -300,7 +300,7 @@ func chatKind(c engine.ChatInfo) string {
 	return "people"
 }
 
-// folderNames mirrors the demo/telegram folder tabs.
+// folderNames mirrors the Telegram folder tabs.
 var folderNames = []string{"All", "Unread", "People", "Groups", "Channels"}
 
 func folderMatches(i int, c engine.ChatInfo) bool {

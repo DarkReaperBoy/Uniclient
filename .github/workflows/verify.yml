@@ -1,0 +1,149 @@
+# Uniclient manual verification runner.
+#
+# Dispatch-only (never runs on push — AGENTS.md §1.5). Use it to verify any
+# commit without cutting a release:
+#   GitHub → Actions → Verify → Run workflow (branch/ref)
+# Runs the full quality gate + cross-builds + a real Xvfb GUI smoke with
+# screenshots uploaded as artifacts, so the GUI can be reviewed without a
+# local toolchain (useful on small machines that cannot compile gotd/td).
+
+name: Verify
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.27"
+
+jobs:
+  test:
+    name: Test & vet & gofmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - name: Install Gio Linux headers (cgo)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pkg-config libegl1-mesa-dev libgles-dev \
+            libx11-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcursor-dev libxfixes-dev libwayland-dev \
+            libwayland-egl-backend-dev libvulkan-dev
+      - name: gofmt gate
+        run: cd go && test -z "$(gofmt -l .)" || (echo "gofmt needed:"; gofmt -l .; exit 1)
+      - name: Vet
+        run: cd go && CGO_ENABLED=1 go vet -tags goolm ./...
+      - name: Test
+        run: cd go && CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 ./...
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+
+  cross-builds:
+    name: Cross-builds (windows + wasm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - name: Windows (pure Go)
+        run: |
+          cd go
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -p 1 -tags goolm \
+            -trimpath -ldflags "-s -w" -o ../dist/uniclient-windows-amd64.exe ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - name: Web (wasm)
+        run: |
+          cd go
+          GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -p 1 -tags goolm \
+            -trimpath -ldflags "-s -w" -o ../dist/uniclient.wasm ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cross-builds
+          path: dist/
+          if-no-files-found: error
+
+  gui-smoke:
+    name: GUI smoke (Xvfb + screenshots)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - name: Install Gio headers + X11 tooling
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pkg-config libegl1-mesa-dev libgles-dev \
+            libx11-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcursor-dev libxfixes-dev libwayland-dev \
+            libwayland-egl-backend-dev libvulkan-dev \
+            xvfb xdotool imagemagick libgl1-mesa-dri
+      - name: Build linux binary
+        run: |
+          cd go
+          CGO_ENABLED=1 go build -p 1 -tags goolm -o ../uniclient ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - name: Boot under Xvfb, screenshot welcome + picker
+        run: |
+          Xvfb :99 -screen 0 1280x800x24 &
+          sleep 2
+          export DISPLAY=:99
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export GALLIUM_DRIVER=llvmpipe
+          mkdir -p /tmp/uc-home
+          ./uniclient -dir /tmp/uc-home > /tmp/uc.log 2>&1 &
+          APP_PID=$!
+          sleep 12
+
+          # Window sanity: the Gio window must exist.
+          xdotool search --name "Uniclient" || echo "WARN: window not found"
+          import -window root /tmp/shot-1-welcome.png
+
+          # Click the "Add an account" CTA. The welcome column is centered;
+          # try a few vertical positions and screenshot after each so the
+          # review can pick the one that opened the backend picker.
+          for y in 470 510 550 590; do
+            xdotool mousemove 640 $y click 1
+            sleep 2
+          done
+          import -window root /tmp/shot-2-picker.png
+
+          # Second click burst in case the first run of coordinates missed.
+          for y in 430 630; do
+            xdotool mousemove 640 $y click 1
+            sleep 2
+          done
+          import -window root /tmp/shot-3-picker-alt.png
+
+          kill -TERM $APP_PID || true
+          sleep 2
+          echo "--- app log ---"
+          cat /tmp/uc.log || true
+          ls -la /tmp/shot-*.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gui-smoke
+          path: |
+            /tmp/shot-*.png
+            /tmp/uc.log
+          if-no-files-found: error

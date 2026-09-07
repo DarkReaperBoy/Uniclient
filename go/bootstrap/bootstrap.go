@@ -6,6 +6,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,6 +22,28 @@ import (
 func Engine() *engine.Engine { return eng }
 
 var eng *engine.Engine
+
+// supportedPlatforms is every platform the core factory can construct.
+// It is the single source of truth for what is a real backend — anything
+// else (e.g. the banned "demo" fake) is not part of the product.
+var supportedPlatforms = []string{
+	"telegram",
+	"matrix",
+	"irc",
+	"xmpp",
+	"github",
+	"bale",
+	"rubika",
+	"deltachat",
+	"teamspeak",
+	"mumble",
+}
+
+// SupportedPlatforms returns every platform the factory can construct.
+// The GUI picker is tested against this list (no placeholder backends).
+func SupportedPlatforms() []string {
+	return append([]string(nil), supportedPlatforms...)
+}
 
 // Init initializes the engine and registers the core factory for every
 // supported platform. Events are delivered to onEvent as JSON EngineEvent
@@ -41,8 +64,6 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string, onEvent func([
 	engine.SetCoreFactory(func(platform, accountID string) (cores.Core, error) {
 		store := utils.NewSessionStore(vault, accountID)
 		switch platform {
-		case "demo":
-			return cores.NewDemoCore(), nil
 		case "telegram":
 			apiID := 2040
 			apiHash := "b18441a1ff607e10a989891a5462e627"
@@ -81,10 +102,10 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string, onEvent func([
 		case "deltachat":
 			return cores.NewDeltaChatCore(store), nil
 		case "teamspeak":
-			// Stale core: hidden from the GUI until rewritten (AGENTS.md §7).
+			// Stale core: hidden from the GUI until rewritten (AGENTS.md §8).
 			return cores.NewTeamSpeakCore(store), nil
 		case "mumble":
-			// Stale core: hidden from the GUI until rewritten (AGENTS.md §7).
+			// Stale core: hidden from the GUI until rewritten (AGENTS.md §8).
 			c := &cores.MumbleCore{}
 			c.Session = store
 			return c, nil
@@ -92,6 +113,22 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string, onEvent func([
 			return nil, fmt.Errorf("unknown platform: %s", platform)
 		}
 	})
+
+	// Purge saved accounts whose platform no longer exists (e.g. the
+	// banned demo backend): they could never connect again and would
+	// rot in the account list as dead rows (AGENTS.md §1.10).
+	supported := make(map[string]bool, len(supportedPlatforms))
+	for _, p := range supportedPlatforms {
+		supported[p] = true
+	}
+	for _, acc := range e.ListAccounts() {
+		if !supported[acc.Platform] {
+			log.Printf("[bootstrap] removing account %s: platform %q is no longer supported", acc.ID, acc.Platform)
+			if err := e.RemoveAccount(acc.ID); err != nil {
+				log.Printf("[bootstrap] remove account %s: %v", acc.ID, err)
+			}
+		}
+	}
 
 	if onEvent != nil {
 		e.SetEventCallback(onEvent)

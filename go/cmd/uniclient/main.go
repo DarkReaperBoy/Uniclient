@@ -5,7 +5,6 @@
 // Usage:
 //
 //	uniclient              # normal launch
-//	uniclient -demo        # add the demo backend if no account exists yet
 //	uniclient -dir PATH    # config directory (default ~/.uniclient)
 //	uniclient -password P  # vault password (default UNICLIENT_PASSWORD env or "uniclient")
 package main
@@ -30,7 +29,6 @@ func main() {
 	home := defaultHome()
 	dir := flag.String("dir", home, "config directory (vault + cache + downloads)")
 	password := flag.String("password", defaultVaultPassword(), "vault password")
-	demo := flag.Bool("demo", false, "auto-add the demo backend when no account exists")
 	flag.Parse()
 
 	w := new(app.Window)
@@ -41,14 +39,14 @@ func main() {
 	)
 
 	go func() {
-		if err := run(w, *dir, *password, *demo); err != nil {
+		if err := run(w, *dir, *password); err != nil {
 			log.Fatal(err)
 		}
 	}()
 	app.Main()
 }
 
-func run(w *app.Window, dir, password string, demo bool) error {
+func run(w *app.Window, dir, password string) error {
 	// Engine boots off the UI thread; vault+DB init is blocking I/O.
 	eng, err := bootstrap.Init(
 		dir,
@@ -61,18 +59,6 @@ func run(w *app.Window, dir, password string, demo bool) error {
 		return fmt.Errorf("engine init: %w", err)
 	}
 	defer bootstrap.Shutdown()
-
-	if demo && len(eng.ListAccounts()) == 0 {
-		// StartAuth runs the (credential-free) demo flow to completion:
-		// it saves the account credentials and connects, exactly like the
-		// GUI's own "Try the demo" button.
-		id, err := eng.AddAccount("demo", false)
-		if err != nil {
-			log.Printf("demo account: %v", err)
-		} else if _, err := eng.StartAuth(id); err != nil {
-			log.Printf("demo auth: %v", err)
-		}
-	}
 
 	ui := gui.New(w, eng)
 	ui.Start()

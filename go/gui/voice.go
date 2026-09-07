@@ -19,8 +19,8 @@ func init() {
 }
 
 // layoutVoice: the second GUI mode — voice-chat backends surface here.
-// Until voice cores land (AGENTS.md §7), it lists chats with active calls
-// and a clear "coming" state — never a dead end.
+// Renders ONLY real engine state (chats with active calls); when there are
+// none, an honest empty state — no promises, no placeholders (AGENTS.md §7).
 func (a *App) layoutVoice(gtx layout.Context, f frame) layout.Dimensions {
 	active := chatsWithCalls(f)
 
@@ -32,7 +32,7 @@ func (a *App) layoutVoice(gtx layout.Context, f frame) layout.Dimensions {
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Left: unit.Dp(18), Right: unit.Dp(18), Bottom: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				lbl := a.ui.Dim(unit.Sp(13), "Group calls and voice rooms across your accounts. Voice backends (Mumble, TeamSpeak) are being rebuilt — see AGENTS.md.")
+				lbl := a.ui.Dim(unit.Sp(13), "Active group calls and voice rooms across your connected accounts.")
 				return lbl.Layout(gtx)
 			})
 		}),
@@ -73,16 +73,10 @@ func chatsWithCalls(f frame) []engine.ChatInfo {
 	return out
 }
 
-// voiceRow: one active-call row with a Join button.
+// voiceRow: one active-call row. Informational only — real call UI (join
+// screen, mic/speaker controls on wrtc) lands with the voice backends; a
+// dead "Join" button is banned (AGENTS.md §1.10).
 func (a *App) voiceRow(gtx layout.Context, f frame, c engine.ChatInfo) layout.Dimensions {
-	for len(voiceJoinBtns) < len(f.chats) {
-		voiceJoinBtns = append(voiceJoinBtns, widget.Clickable{})
-	}
-	idx := voiceIndex(f, c)
-	if voiceJoinBtns[idx].Clicked(gtx) {
-		a.setToast("Voice: joining is not wired yet — backends under rebuild")
-	}
-
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -105,25 +99,8 @@ func (a *App) voiceRow(gtx layout.Context, f frame, c engine.ChatInfo) layout.Di
 							}),
 						)
 					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.PrimaryButton(&voiceJoinBtns[idx], "Join")
-						btn.CornerRadius = 14
-						btn.Inset.Top, btn.Inset.Bottom = 8, 8
-						return btn.Layout(gtx)
-					}),
 				)
 			})
 		})
 	})
-}
-
-var voiceJoinBtns []widget.Clickable
-
-func voiceIndex(f frame, c engine.ChatInfo) int {
-	for i := range f.chats {
-		if f.chats[i].AccountID == c.AccountID && f.chats[i].ChatID == c.ChatID {
-			return i
-		}
-	}
-	return 0
 }

@@ -21,7 +21,6 @@ var (
 	loginBackBtn   widget.Clickable
 	loginCancelBtn widget.Clickable
 	platformBtns   []widget.Clickable
-	welcomeDemoBtn widget.Clickable
 	welcomeAddBtn  widget.Clickable
 	pickerCloseBtn widget.Clickable
 	authQR         *image.RGBA
@@ -32,11 +31,8 @@ func init() {
 	loginInput.SingleLine = true
 }
 
-// layoutWelcome: first-run screen — big title, demo CTA, add-account CTA.
+// layoutWelcome: first-run screen — big title, add-account CTA.
 func (a *App) layoutWelcome(gtx layout.Context, f frame) layout.Dimensions {
-	if welcomeDemoBtn.Clicked(gtx) {
-		a.addAccount("demo")
-	}
 	if welcomeAddBtn.Clicked(gtx) {
 		a.mu.Lock()
 		a.showPicker = true
@@ -70,15 +66,11 @@ func (a *App) layoutWelcome(gtx layout.Context, f frame) layout.Dimensions {
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					btn := a.ui.PrimaryButton(&welcomeDemoBtn, "Try the demo")
+					btn := a.ui.PrimaryButton(&welcomeAddBtn, "Add an account")
 					btn.CornerRadius = 12
 					btn.Inset.Top, btn.Inset.Bottom = 14, 14
 					return btn.Layout(gtx)
 				})
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.TextButton(&welcomeAddBtn, "Add an account")
-				return btn.Layout(gtx)
 			}),
 		)
 	})
