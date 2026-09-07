@@ -43,9 +43,13 @@ jobs:
   # ── Race detector on the packages that fit CI memory ──────────────────
   # (gotd's generated tg package under -race needs more RAM than the
   # smaller runners give; utils+cores+bridge fit.)
+  # Note: CGO_ENABLED=1 is REQUIRED here — the race runtime on linux/amd64
+  # is built via cgo (gotd/td's own CI runs -race on ubuntu-latest the
+  # same way).
   race:
     name: Race detector
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: go
@@ -58,7 +62,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Test -race (utils, cores, bridge)
-        run: CGO_ENABLED=0 go test -p 1 $GOOLM -race ./utils/ ./cores/ ./bridge/
+        run: CGO_ENABLED=1 go test -p 1 $GOOLM -race ./utils/ ./cores/ ./bridge/
 
   # ── Platform matrix: Tier-A compile gate (library code, CGO-free) ──────
   matrix:
