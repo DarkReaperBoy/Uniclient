@@ -61,12 +61,24 @@ this list wins.
     not. This bans the old `cores/demo.go` (fake platform + fake account,
     owner: "horrible demo"): delete it, the `-demo` flag, the welcome-screen
     demo entry, and every README mention.
-11. **AyuGram layout, 1:1.** UniClient's layout and feature set is
-    AyuGramDesktop's (https://github.com/AyuGram/AyuGramDesktop). The owner
-    wants its features and layout 1:1 — at minimum full Telegram feature
-    parity — with **Material Design** as the visual style on top (owner
-    prefers Material, loves AyuGram's structure). Re-implement in Gio;
-    never copy AyuGram code or assets.
+11. **AyuGram 1:1 — UI *and* functionality, every aspect.** UniClient's
+    GUI is a 1:1 clone of AyuGramDesktop
+    (https://github.com/AyuGram/AyuGramDesktop): same layout, same screens,
+    same interactions, same features — **every aspect of it** (owner:
+    "i want every aspect of it cloned"). This is a **source-level parity
+    mandate**: walk AyuGramDesktop feature-by-feature and mirror each one
+    in `gui/`; when unsure, the answer is what AyuGram does. If a feature
+    needs functionality the cores don't have yet, **add it to the cores** —
+    the GUI is never trimmed to fit the cores; the cores grow to fit the
+    GUI. **One frontend for every backend:** all backends render through
+    this same GUI; a backend is just an account you add (owner: "all of
+    the backends use the same frontend and be like just diff accounts").
+    **Telegram is the mandatory exact 1:1** — telegram core + GUI must
+    reproduce AyuGram (full Telegram) functionality *exactly*, at the very
+    least; other cores follow the same UI as far as their protocols allow.
+    **Material Design** is the visual skin on top (owner prefers Material,
+    loves AyuGram's structure). Re-implement in Gio; never copy AyuGram
+    code or assets.
 12. **Cores are disposable.** Cores may be stale or badly designed — if a
     core's implementation is not solid, **replace it completely**, don't
     patch it. If directly using a good pure-Go library beats a custom core,
@@ -201,9 +213,19 @@ store paths in binaries.
 ## 7. GUI spec (AyuGram layout 1:1, Material Design)
 
 The GUI is the product. Target: **AyuGramDesktop's layout and features,
-1:1**, re-implemented in Gio with Material Design visuals. A horrible GUI is
+1:1 — UI and functionality, every aspect** (owner mandate §1.11),
+re-implemented in Gio with Material Design visuals. A horrible GUI is
 a release blocker, not a nit.
 
+- **Parity doctrine (owner's words):** "1:1 ui, and same functionality…
+  every aspect of it cloned." Every screen, control, and behavior
+  AyuGramDesktop has is part of the spec. A missing one is a bug to fix,
+  never a "difference" to accept or a redesign to invent. GUI feature
+  missing core support → extend the core, never simplify the GUI.
+- **One frontend, many backends:** every backend renders in this GUI —
+  a backend is just an account. Backend-specific UI is limited to auth
+  steps and capability-gated actions (Capabilities/ErrNotSupported);
+  everything else is shared surface.
 - **AyuGram layout (the standard):** three-pane structure — left chat list
   column (account switcher + search + folder tabs + dialog list), main chat
   view (peer header with name/status, message list, composer), optional
@@ -329,7 +351,12 @@ is the next task.
       (visual pass lands with a real voice-capable account)
 - [x] Dispatch-only verify workflow (§5) — full gate + cross-builds +
       Xvfb GUI smoke with screenshot artifacts
-- [ ] Telegram 1:1 AyuGram features (folders sync, ghost mode, QR verify...)
+- [~] **AyuGram 1:1 parity program (§1.11 mandate):** mirror
+      AyuGramDesktop feature-by-feature in `gui/` (source-level
+      comparison, tracked in research/ayugram_parity.md); extend cores
+      where functionality is missing; Telegram core+GUI = exact 1:1 first
+      (folders sync, ghost mode, QR verify, message actions, settings,
+      search, media...), other cores follow
 - [ ] mumble + teamspeak rewrite (tests first, docker-based, §8)
 - [ ] Verify xmpp / bale / rubika / deltachat cores live or replace them (§8)
 - [ ] Voice mode: real call UI on top of wrtc
