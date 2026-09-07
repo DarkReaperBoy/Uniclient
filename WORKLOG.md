@@ -326,3 +326,100 @@ verify), starting from the topmost unchecked checklist items.
 - mumble/teamspeak rewrite (tests-first, dockerized servers).
 - Live-verify or replace xmpp / bale / rubika / deltachat.
 - Real call UI on wrtc (voice rows informational until then).
+
+---
+
+## 2026-09-08 — AyuGram 1:1 parity program, first slice: message actions
+
+Session goal (owner): "1:1 ui, and same functionality. 1:1 uniclient's gui
+source code against ayugram (modify agents.md first before anything to
+include this). i want every aspect of it cloned and the functionality
+doesn't exist on the cores then update em or something. i want all of the
+backends use the same frontend and be like just diff accounts and such. i
+EXACT telegram functionality, like 1:1 for telegram core-gui at the very
+least and other cores may follow."
+
+### What I did
+
+0. **AGENTS.md first (owner's explicit order)** — §1.11 rewritten as the
+   full mandate: UI *and* functionality 1:1, every aspect, source-level
+   feature-by-feature walk of AyuGramDesktop; GUI is never trimmed to fit
+   cores — cores grow to fit the GUI; one frontend for every backend (a
+   backend is just an account); Telegram = mandatory exact 1:1, others
+   follow. §7 got the parity doctrine + one-frontend rule. §11 checklist
+   got the parity-program item. Pushed as 03e496b3.
+1. **Research (§2 step 1)** — full AyuGramDesktop source-tree enumeration
+   (shallow clone, dev @ db3b989) cross-referenced with our gui/engine/
+   cores → `research/ayugram_parity.md`: 201 concrete rows, statuses
+   PRESENT 12 / PARTIAL 16 / MISSING 48 / CORE-ONLY 125, priorities
+   P0 36 / P1 57 / P2 62 / P3 43, plus a ranked top-20 gap list. The huge
+   finding: 125 features already exist in engine/cores and the GUI never
+   shows them — the program is mostly GUI surfacing, not protocol work.
+2. **Rating (§2 step 3, required)** — GUI architecture 7/10 (snapshot/
+   frame pattern, event pump, async engine dispatch: keep + extend);
+   GUI surface coverage 2/10 vs AyuGram (extension, not replacement —
+   the engine/telegram core rated 8/10, 1323 methods live); reactions
+   persistence missing end-to-end (core had data, cache dropped it) →
+   this session closes that seam.
+3. **Best plan (§2 step 4)** — deliver the top P0 cluster as one coherent
+   "message-action layer": context menu, reply/edit composer modes,
+   reply-quote + forward headers in bubbles, reactions strip with
+   persistence, scroll-up history pagination, forward picker. All
+   engine methods already existed except reaction persistence.
+
+### Shipped (message-action layer)
+
+- `gui/menu.go` (NEW): right-click message context menu anchored at the
+  cursor (pane-level `event.Op` + `pointer.Filter` hit-testing against
+  per-frame row bounds; press-outside dismisses, never blocks the chat),
+  quick-reaction row (server list + TG default fallback), action rows
+  gated by `actionsFor` (real message flags + backend Capabilities), and
+  the forward picker (layout-swap chat list, same account).
+- `gui/actions.go` (NEW) + `gui/actions_test.go` (tests first): the
+  action-gating model (reply/edit/copy/forward/delete/pin/react rules —
+  service messages, pending sends, NoForwards, CapReactions) and the
+  composerMode reply/edit state machine.
+- `gui/chat.go`: bubbles now render forwarded-from header, reply quote
+  block, and the reactions strip (own reaction highlighted, click
+  toggles); composer grows the reply/edit chip (Ayu input-field header)
+  and routes send through replyToID/EditMessage; scroll-up loads older
+  history (loadOlder + merge that preserves loaded pages across
+  refreshes — the previously dead `loadedOlder` path).
+- `gui/state.go`: message-action state (modes, menu, forward, cached
+  caps/reaction list, older-page bookkeeping) wired into snapshot/frame.
+- `gui/theme.go`: embedded Noto Emoji (monochrome, SIL OFL 1.1, license
+  in gui/assets/OFL.txt) registered as a shaper fallback — emoji in
+  messages and reaction pills render instead of tofu on every platform.
+- Engine + core reactions pipeline (the "cores grow to fit the GUI" case):
+  migration v44 `messages.reactions_json`; every cache write/read carries
+  reactions; NEW `cores.UpdateReactions` fired by the telegram core from
+  `tg.UpdateMessageReactions` with the full counts; engine updates the
+  cache row + emits EventMsgEdited; own reaction toggles update the cache
+  optimistically after the pending react succeeds (tests-first:
+  `engine/reactions_test.go` locks the toggle semantics). Telegram core
+  compiles against gotd v0.161.0 APIs verified from source (MsgID int,
+  MessageReactions struct, GetResults).
+
+### Verification status
+
+- gofmt clean (all files; the editor's space-indent roundtrip was
+  normalized back to tabs — diff reviewed, only intended changes remain).
+- Local go build of the full graph is impossible on this 4GB sandbox
+  (gotd tg compile OOM-kills, same as last session) → CI verify.yml is
+  the gate; dispatched after push (run number in the next entry).
+- Local type-level risk was minimized by verifying every new gio v0.10.2
+  and gotd v0.161.0 API against the actual dependency sources.
+
+### Leftovers / next session (in priority order)
+
+- CI verify run green for this slice (watch it, fix anything red).
+- Media bubbles + download progress (top-20 gap #3) — engine pipeline
+  already emits EventDownloadProgress.
+- Settings screen (gap #4) + right info panel (gap #5).
+- Attach menu + uploads + voice recording (gap #6).
+- Server folder sync + folder CRUD (gap #9) — replace hardcoded tabs.
+- Real image avatars (gap #10); ghost-mode drawer + preferences (gap #11).
+- Custom-emoji reaction pills (need document fetch) and the full tabbed
+  reaction/emoji picker; delete for-me-vs-all dialog; selection mode.
+- Touch long-press to open the context menu on Android/narrow layout
+  (right-click only, desktop, for now).

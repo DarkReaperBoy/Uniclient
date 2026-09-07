@@ -11,7 +11,11 @@ import (
 	"strings"
 	"time"
 
+	_ "embed"
+
+	"gioui.org/font"
 	"gioui.org/font/gofont"
+	"gioui.org/font/opentype"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -74,12 +78,26 @@ type UI struct {
 	p palette
 }
 
+// notoEmoji is the monochrome Noto Emoji face (SIL OFL 1.1, see assets/OFL.txt).
+// Registered as a shaper fallback so emoji in messages and reaction strips
+// render instead of tofu (AyuGram parity: emoji everywhere).
+//
+//go:embed assets/notoemoji.ttf
+var notoEmoji []byte
+
 func NewUI() *UI {
 	th := material.NewTheme()
 	// gio v0.10.2 leaves the shaper empty — register the Go font collection
 	// (embedded, works on every platform incl. Windows/WASM) and allow system
 	// fonts as additional fallbacks.
-	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+	collection := gofont.Collection()
+	if face, err := opentype.Parse(notoEmoji); err == nil {
+		collection = append(collection, font.FontFace{
+			Font: font.Font{Typeface: "NotoEmoji"},
+			Face: face,
+		})
+	}
+	th.Shaper = text.NewShaper(text.WithCollection(collection))
 	th.TextSize = unit.Sp(15)
 	return &UI{Theme: th, p: dark}
 }

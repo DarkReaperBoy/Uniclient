@@ -75,6 +75,12 @@ type CachedMessage struct {
 
 	// Derived at read time (not persisted in DB).
 	SenderNoForwards bool `json:"sender_no_forwards,omitempty"`
+
+	// Reactions is the message's current reaction state, persisted as JSON in
+	// the messages.reactions_json column and updated by reaction updates
+	// (cores.UpdateReactions) and own-reaction toggles (ReactToMessage).
+	// Mirrors AyuGram's reaction strip under each bubble.
+	Reactions []cores.Reaction `json:"reactions,omitempty"`
 }
 
 // GetMessages returns cached messages for a chat, paginated by timestamp,
@@ -92,8 +98,8 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 	}
 
 	const cols = `account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
-			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type`
+                                content_text, content_raw, content_rich, timestamp, edited_at,
+                                status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json`
 
 	var rows *sql.Rows
 	var err error
@@ -104,25 +110,25 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 		// newest-first contract below.
 		rows, err = e.db.Query(
 			`SELECT `+cols+`
-			 FROM messages
-			 WHERE account_id = ? AND chat_id = ? AND timestamp > ?
-			 ORDER BY timestamp ASC
-			 LIMIT ?`, accountID, chatID, afterMs, limit)
+                         FROM messages
+                         WHERE account_id = ? AND chat_id = ? AND timestamp > ?
+                         ORDER BY timestamp ASC
+                         LIMIT ?`, accountID, chatID, afterMs, limit)
 		reversed = true
 	} else if beforeMs > 0 {
 		rows, err = e.db.Query(
 			`SELECT `+cols+`
-			 FROM messages
-			 WHERE account_id = ? AND chat_id = ? AND timestamp < ?
-			 ORDER BY timestamp DESC
-			 LIMIT ?`, accountID, chatID, beforeMs, limit)
+                         FROM messages
+                         WHERE account_id = ? AND chat_id = ? AND timestamp < ?
+                         ORDER BY timestamp DESC
+                         LIMIT ?`, accountID, chatID, beforeMs, limit)
 	} else {
 		rows, err = e.db.Query(
 			`SELECT `+cols+`
-			 FROM messages
-			 WHERE account_id = ? AND chat_id = ?
-			 ORDER BY timestamp DESC
-			 LIMIT ?`, accountID, chatID, limit)
+                         FROM messages
+                         WHERE account_id = ? AND chat_id = ?
+                         ORDER BY timestamp DESC
+                         LIMIT ?`, accountID, chatID, limit)
 	}
 	if err != nil {
 		return nil, err
@@ -203,11 +209,11 @@ func (e *Engine) SearchSavedMessagesByReaction(accountID, chatID, savedPeerID st
 func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, error) {
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
-		        content_text, content_raw, content_rich, timestamp, edited_at,
-		        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type
-		 FROM messages
-		 WHERE account_id = ? AND chat_id = ? AND is_pinned = 1
-		 ORDER BY timestamp DESC`, accountID, chatID)
+                        content_text, content_raw, content_rich, timestamp, edited_at,
+                        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json
+                 FROM messages
+                 WHERE account_id = ? AND chat_id = ? AND is_pinned = 1
+                 ORDER BY timestamp DESC`, accountID, chatID)
 	if err != nil {
 		return nil, err
 	}
@@ -253,12 +259,13 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		var contentRaw, contentRich []byte
 		var editedAt, deletedAt sql.NullInt64
 		var isPinned, isOutgoing, isService, hasMedia, noForwards, isDeleted int
+		var reactionsJSON sql.NullString
 
 		if err := rows.Scan(
 			&m.AccountID, &m.ChatID, &m.MsgID, &localID, &senderID, &senderName, &senderRank, &m.SenderColorID,
 			&m.ContentText, &contentRaw, &contentRich, &m.Timestamp, &editedAt,
 			&m.Status, &replyToID, &replyPreview, &forwardFrom, &forwardFromID, &isPinned, &isOutgoing, &isService, &hasMedia, &groupedID,
-			&noForwards, &isDeleted, &deletedAt, &m.PaidPostType,
+			&noForwards, &isDeleted, &deletedAt, &m.PaidPostType, &reactionsJSON,
 		); err != nil {
 			return msgs, err
 		}
@@ -286,10 +293,94 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		if deletedAt.Valid {
 			m.DeletedAt = deletedAt.Int64
 		}
+		if reactionsJSON.Valid && reactionsJSON.String != "" {
+			var reactions []cores.Reaction
+			if json.Unmarshal([]byte(reactionsJSON.String), &reactions) == nil && len(reactions) > 0 {
+				m.Reactions = reactions
+			}
+		}
 
 		msgs = append(msgs, m)
 	}
 	return msgs, rows.Err()
+}
+
+// updateMessageReactions persists a full reaction state for one message
+// (from cores.UpdateReactions) and notifies the GUI via EventMsgEdited so
+// the open chat re-renders the reaction strip. A no-op when the message
+// is not cached.
+func (e *Engine) updateMessageReactions(accountID, chatID, msgID string, reactions []cores.Reaction) {
+	var payload string
+	if len(reactions) > 0 {
+		if b, err := json.Marshal(reactions); err == nil {
+			payload = string(b)
+		}
+	}
+	res, err := e.db.Exec(
+		`UPDATE messages SET reactions_json = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+		payload, accountID, chatID, msgID)
+	if err != nil {
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return
+	}
+	e.emitEvent(EventMsgEdited, accountID, MsgEditedEvent{
+		AccountID: accountID,
+		ChatID:    chatID,
+		MsgID:     msgID,
+	})
+}
+
+// toggleReaction applies the user's own reaction toggle to a cached reaction
+// list (optimistic UI): adding a new or existing emoji, or removing the own
+// reaction when the emoji already has one. Mirrors Telegram Desktop
+// SendReaction with a single (default) reaction.
+func toggleReaction(list []cores.Reaction, emoji string) []cores.Reaction {
+	for i := range list {
+		if list[i].Emoji != emoji {
+			continue
+		}
+		if list[i].ByMe {
+			list[i].ByMe = false
+			list[i].Count--
+			if list[i].Count <= 0 {
+				out := make([]cores.Reaction, 0, len(list)-1)
+				out = append(out, list[:i]...)
+				out = append(out, list[i+1:]...)
+				return out
+			}
+		} else {
+			list[i].ByMe = true
+			list[i].Count++
+		}
+		return list
+	}
+	return append(list, cores.Reaction{Emoji: emoji, Count: 1, ByMe: true})
+}
+
+// cachedReactions loads the current reaction state of one cached message.
+func (e *Engine) cachedReactions(accountID, chatID, msgID string) []cores.Reaction {
+	var reactionsJSON sql.NullString
+	err := e.db.QueryRow(
+		`SELECT reactions_json FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+		accountID, chatID, msgID,
+	).Scan(&reactionsJSON)
+	if err != nil || !reactionsJSON.Valid || reactionsJSON.String == "" {
+		return nil
+	}
+	var reactions []cores.Reaction
+	if json.Unmarshal([]byte(reactionsJSON.String), &reactions) != nil {
+		return nil
+	}
+	return reactions
+}
+
+// applyOwnReaction toggles the user's own reaction in the cached message and
+// notifies the GUI (called after the pending react action succeeds).
+func (e *Engine) applyOwnReaction(accountID, chatID, msgID, emoji string) {
+	next := toggleReaction(e.cachedReactions(accountID, chatID, msgID), emoji)
+	e.updateMessageReactions(accountID, chatID, msgID, next)
 }
 
 // populateMediaMetadata fetches media info from the media table for messages that have media.
@@ -305,8 +396,8 @@ func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 		var downloadState int
 		err := e.db.QueryRow(
 			`SELECT media_type, file_name, mime_type, file_size, thumb_b64, local_path,
-			        width, height, duration_ms, download_state, remote_ref, extra
-			 FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
+                                width, height, duration_ms, download_state, remote_ref, extra
+                         FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
 			msgs[i].AccountID, msgs[i].ChatID, msgs[i].MsgID,
 		).Scan(&mediaType, &fileName, &mimeType, &fileSize, &thumbB64, &localPath,
 			&width, &height, &durationMs, &downloadState, &remoteRef, &extra)
@@ -469,25 +560,33 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		}
 	}
 
+	var reactionsJSON string
+	if len(msg.Reactions) > 0 {
+		if b, err := json.Marshal(msg.Reactions); err == nil {
+			reactionsJSON = string(b)
+		}
+	}
+
 	e.db.Exec(
 		`INSERT INTO messages
-		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
-		  content_raw, content_rich, content_text, timestamp, edited_at,
-		  status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, topic_id, paid_post_type)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(account_id, chat_id, msg_id) DO UPDATE SET
-		  local_id=excluded.local_id, sender_id=excluded.sender_id, sender_name=excluded.sender_name,
-		  sender_rank=excluded.sender_rank, sender_color_id=excluded.sender_color_id,
-		  content_raw=excluded.content_raw, content_rich=excluded.content_rich, content_text=excluded.content_text,
-		  timestamp=excluded.timestamp, edited_at=excluded.edited_at, status=excluded.status,
-		  reply_to_id=excluded.reply_to_id, reply_preview=excluded.reply_preview, forward_from=excluded.forward_from,
-		  forward_from_id=excluded.forward_from_id,
-		  is_pinned=excluded.is_pinned, is_outgoing=excluded.is_outgoing, is_service=excluded.is_service,
-		  has_media=excluded.has_media, grouped_id=excluded.grouped_id, no_forwards=excluded.no_forwards, topic_id=excluded.topic_id, paid_post_type=excluded.paid_post_type`,
+                 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
+                  content_raw, content_rich, content_text, timestamp, edited_at,
+                  status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, topic_id, paid_post_type, reactions_json)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(account_id, chat_id, msg_id) DO UPDATE SET
+                  local_id=excluded.local_id, sender_id=excluded.sender_id, sender_name=excluded.sender_name,
+                  sender_rank=excluded.sender_rank, sender_color_id=excluded.sender_color_id,
+                  content_raw=excluded.content_raw, content_rich=excluded.content_rich, content_text=excluded.content_text,
+                  timestamp=excluded.timestamp, edited_at=excluded.edited_at, status=excluded.status,
+                  reply_to_id=excluded.reply_to_id, reply_preview=excluded.reply_preview, forward_from=excluded.forward_from,
+                  forward_from_id=excluded.forward_from_id,
+                  is_pinned=excluded.is_pinned, is_outgoing=excluded.is_outgoing, is_service=excluded.is_service,
+                  has_media=excluded.has_media, grouped_id=excluded.grouped_id, no_forwards=excluded.no_forwards, topic_id=excluded.topic_id, paid_post_type=excluded.paid_post_type,
+                  reactions_json=excluded.reactions_json`,
 		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank), msg.SenderColorID,
 		rawBytes, richBytes, msg.Text, ts, editedAt,
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
-		nullStr(msg.ForwardFrom), nullStr(msg.ForwardFromID), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID), msg.PaidPostType)
+		nullStr(msg.ForwardFrom), nullStr(msg.ForwardFromID), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID), msg.PaidPostType, nullStr(reactionsJSON))
 
 	// Cache media references.
 	for i, att := range msg.Attachments {
@@ -519,6 +618,7 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		GroupedID:     msg.GroupedID,
 		NoForwards:    msg.NoForwards,
 		PaidPostType:  msg.PaidPostType,
+		Reactions:     msg.Reactions,
 	}
 
 	// Populate media metadata from what we just cached so the returned
@@ -538,9 +638,9 @@ func (e *Engine) InsertPendingMessage(accountID, chatID, localID, text, senderID
 
 	e.db.Exec(
 		`INSERT INTO messages
-		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name,
-		  content_text, timestamp, status, reply_to_id, is_outgoing, has_media)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 (account_id, chat_id, msg_id, local_id, sender_id, sender_name,
+                  content_text, timestamp, status, reply_to_id, is_outgoing, has_media)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, localID, localID, senderID, senderName,
 		text, now, MsgStatusSending, replyToID, 1, 0)
 
@@ -563,7 +663,7 @@ func (e *Engine) InsertPendingMessage(accountID, chatID, localID, text, senderID
 func (e *Engine) ConfirmMessage(accountID, chatID, localID, serverMsgID string) {
 	e.db.Exec(
 		`UPDATE messages SET msg_id = ?, local_id = NULL, status = ?
-		 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+                 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
 		serverMsgID, MsgStatusSent, accountID, chatID, localID)
 
 	e.emitEvent(EventMsgStatus, accountID, MsgStatusEvent{
@@ -617,10 +717,10 @@ func (e *Engine) cacheMediaRef(accountID, chatID, msgID string, seq int, att cor
 
 	e.db.Exec(
 		`INSERT OR REPLACE INTO media
-		 (account_id, chat_id, msg_id, seq, media_type, remote_ref, thumb_b64,
-		  file_name, mime_type, file_size, width, height, duration_ms,
-		  download_state, last_accessed, extra)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 (account_id, chat_id, msg_id, seq, media_type, remote_ref, thumb_b64,
+                  file_name, mime_type, file_size, width, height, duration_ms,
+                  download_state, last_accessed, extra)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, msgID, seq, mediaType, att.ID, att.ThumbB64,
 		att.Name, att.MimeType, att.Size, width, height, durationMs,
 		DownloadNone, time.Now().UnixMilli(), att.Extra)
@@ -633,15 +733,15 @@ func (e *Engine) PruneOldMessages(keep int) error {
 		keep = 200
 	}
 	_, err := e.db.Exec(`
-		DELETE FROM messages WHERE rowid IN (
-			SELECT m.rowid FROM messages m
-			WHERE (
-				SELECT COUNT(*) FROM messages m2
-				WHERE m2.account_id = m.account_id
-				  AND m2.chat_id = m.chat_id
-				  AND m2.timestamp >= m.timestamp
-			) > ?
-		)`, keep)
+                DELETE FROM messages WHERE rowid IN (
+                        SELECT m.rowid FROM messages m
+                        WHERE (
+                                SELECT COUNT(*) FROM messages m2
+                                WHERE m2.account_id = m.account_id
+                                  AND m2.chat_id = m.chat_id
+                                  AND m2.timestamp >= m.timestamp
+                        ) > ?
+                )`, keep)
 	return err
 }
 
@@ -696,18 +796,18 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 	}
 
 	sqlQuery := fmt.Sprintf(`
-		SELECT m.msg_id, COALESCE(msg.timestamp, 0), m.media_type,
-		       m.file_name, m.mime_type, m.file_size, m.thumb_b64,
-		       m.local_path, m.width, m.height, m.duration_ms,
-		       msg.content_raw
-		FROM media m
-		LEFT JOIN messages msg ON msg.account_id = m.account_id
-		                       AND msg.chat_id = m.chat_id
-		                       AND msg.msg_id = m.msg_id
-		WHERE m.account_id = ? AND m.chat_id = ? AND m.seq = 0
-		%s %s
-		ORDER BY COALESCE(msg.timestamp, 0) DESC
-		LIMIT ? OFFSET ?`, typeFilter, queryFilter)
+                SELECT m.msg_id, COALESCE(msg.timestamp, 0), m.media_type,
+                       m.file_name, m.mime_type, m.file_size, m.thumb_b64,
+                       m.local_path, m.width, m.height, m.duration_ms,
+                       msg.content_raw
+                FROM media m
+                LEFT JOIN messages msg ON msg.account_id = m.account_id
+                                       AND msg.chat_id = m.chat_id
+                                       AND msg.msg_id = m.msg_id
+                WHERE m.account_id = ? AND m.chat_id = ? AND m.seq = 0
+                %s %s
+                ORDER BY COALESCE(msg.timestamp, 0) DESC
+                LIMIT ? OFFSET ?`, typeFilter, queryFilter)
 
 	args = append(args, limit, offset)
 	rows, err := e.db.Query(sqlQuery, args...)
@@ -783,11 +883,11 @@ type SharedMediaCountItem struct {
 
 func (e *Engine) GetSharedMediaCounts(accountID, chatID string) ([]SharedMediaCountItem, error) {
 	query := `
-		SELECT m.media_type, COUNT(*) as cnt
-		FROM media m
-		WHERE m.account_id = ? AND m.chat_id = ? AND m.seq = 0
-		GROUP BY m.media_type
-		ORDER BY m.media_type`
+                SELECT m.media_type, COUNT(*) as cnt
+                FROM media m
+                WHERE m.account_id = ? AND m.chat_id = ? AND m.seq = 0
+                GROUP BY m.media_type
+                ORDER BY m.media_type`
 
 	rows, err := e.db.Query(query, accountID, chatID)
 	if err != nil {
@@ -2704,10 +2804,10 @@ type EditRevision struct {
 func (e *Engine) GetEditRevisions(accountID, chatID, msgID string, offset, limit int) ([]EditRevision, error) {
 	rows, err := e.db.Query(
 		`SELECT id, account_id, chat_id, msg_id, sender_id, sender_name, content_text, entities_json, timestamp
-		 FROM edited_messages
-		 WHERE account_id = ? AND chat_id = ? AND msg_id = ?
-		 ORDER BY id DESC
-		 LIMIT ? OFFSET ?`,
+                 FROM edited_messages
+                 WHERE account_id = ? AND chat_id = ? AND msg_id = ?
+                 ORDER BY id DESC
+                 LIMIT ? OFFSET ?`,
 		accountID, chatID, msgID, limit, offset,
 	)
 	if err != nil {
@@ -2749,21 +2849,21 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 		pattern := "%" + escaped + "%"
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
-			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type
-			 FROM messages
-			 WHERE account_id = ? AND chat_id = ? AND is_deleted = 1 AND content_text LIKE ? ESCAPE '\'
-			 ORDER BY timestamp DESC
-			 LIMIT ? OFFSET ?`, accountID, chatID, pattern, limit, offset)
+                                content_text, content_raw, content_rich, timestamp, edited_at,
+                                status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json
+                         FROM messages
+                         WHERE account_id = ? AND chat_id = ? AND is_deleted = 1 AND content_text LIKE ? ESCAPE '\'
+                         ORDER BY timestamp DESC
+                         LIMIT ? OFFSET ?`, accountID, chatID, pattern, limit, offset)
 	} else {
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
-			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type
-			 FROM messages
-			 WHERE account_id = ? AND chat_id = ? AND is_deleted = 1
-			 ORDER BY timestamp DESC
-			 LIMIT ? OFFSET ?`, accountID, chatID, limit, offset)
+                                content_text, content_raw, content_rich, timestamp, edited_at,
+                                status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json
+                         FROM messages
+                         WHERE account_id = ? AND chat_id = ? AND is_deleted = 1
+                         ORDER BY timestamp DESC
+                         LIMIT ? OFFSET ?`, accountID, chatID, limit, offset)
 	}
 	if err != nil {
 		return nil, err

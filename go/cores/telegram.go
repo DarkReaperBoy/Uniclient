@@ -963,11 +963,43 @@ func (t *TelegramCore) initClient() {
 	})
 
 	dispatcher.OnMessageReactions(func(ctx context.Context, e tg.Entities, u *tg.UpdateMessageReactions) error {
+		chatID := peerToID(u.Peer)
+		msgID := strconv.Itoa(u.MsgID)
+
+		// Full reaction state → engine cache → GUI reaction strip
+		// (cores.UpdateReactions, mirrors HistoryWidget::refreshReactionSummary).
+		results := u.Reactions.GetResults()
+		counts := make([]Reaction, 0, len(results))
+		for _, r := range results {
+			switch re := r.Reaction.(type) {
+			case *tg.ReactionEmoji:
+				if re.Emoticon != "" {
+					counts = append(counts, Reaction{
+						Emoji: re.Emoticon,
+						Count: r.Count,
+						ByMe:  r.ChosenOrder > 0,
+					})
+				}
+			case *tg.ReactionCustomEmoji:
+				counts = append(counts, Reaction{
+					DocumentID: re.DocumentID,
+					Count:      r.Count,
+					ByMe:       r.ChosenOrder > 0,
+				})
+			}
+		}
+		t.fireUpdate(Update{
+			Type:      UpdateReactions,
+			ChatID:    chatID,
+			MessageID: msgID,
+			Message:   &Message{ID: msgID, ChatID: chatID, Platform: tgPlatform, Reactions: counts},
+			Platform:  tgPlatform,
+		})
+
 		recent, ok := u.Reactions.GetRecentReactions()
 		if !ok {
 			return nil
 		}
-		chatID := peerToID(u.Peer)
 		for _, r := range recent {
 			if !r.Unread {
 				continue

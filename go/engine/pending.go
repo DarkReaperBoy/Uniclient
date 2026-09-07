@@ -179,7 +179,7 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities
 	// Write to pending table.
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, localID, ActionSend, payload, PendingQueued, now)
 	if err != nil {
 		return "", fmt.Errorf("insert pending: %w", err)
@@ -365,7 +365,7 @@ func (e *Engine) EditMessage(accountID, chatID, msgID, newText, entitiesJSON str
 
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, localID, ActionEdit, payload, PendingQueued, now)
 	if err != nil {
 		return err
@@ -389,7 +389,7 @@ func (e *Engine) DeleteMessage(accountID, chatID, msgID string, revoke bool) err
 
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, localID, ActionDelete, payload, PendingQueued, now)
 	if err != nil {
 		return err
@@ -416,7 +416,7 @@ func (e *Engine) ForwardMessage(accountID, chatID, msgID, toChatID string, dropA
 
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, localID, ActionForward, payload, PendingQueued, now)
 	if err != nil {
 		return err
@@ -447,7 +447,7 @@ func (e *Engine) ForwardMessages(accountID, chatID string, msgIDs []string, toCh
 
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, localID, ActionForwardBatch, payload, PendingQueued, now)
 	if err != nil {
 		return err
@@ -475,7 +475,7 @@ func (e *Engine) ResendAsOwn(accountID, sourceChatID, msgID, toChatID string, si
 
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		accountID, toChatID, localID, ActionResendAsOwn, payload, PendingQueued, now)
 	if err != nil {
 		return err
@@ -504,7 +504,7 @@ func (e *Engine) ResendAlbumAsOwn(accountID, sourceChatID string, msgIDs []strin
 
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		accountID, toChatID, localID, ActionResendAlbum, payload, PendingQueued, now)
 	if err != nil {
 		return err
@@ -550,8 +550,8 @@ func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []str
 		var expectedSize int64
 		err := e.db.QueryRow(
 			`SELECT media_type, remote_ref, file_name, mime_type, extra, file_size
-			 FROM media
-			 WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
+                         FROM media
+                         WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
 			acc.ID, sourceChatID, msgID,
 		).Scan(&mediaType, &remoteRef, &fileName, &mimeType, &extraStr, &expectedSize)
 		if err != nil || remoteRef.String == "" {
@@ -604,7 +604,7 @@ func (e *Engine) ReactToMessage(accountID, chatID, msgID, emoji string) error {
 
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, localID, ActionReact, payload, PendingQueued, now)
 	if err != nil {
 		return err
@@ -691,6 +691,15 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 		if err == nil {
 			// Success — remove from pending.
 			e.db.Exec("DELETE FROM pending WHERE local_id = ?", localID)
+			if action == ActionReact {
+				// Optimistically mirror the toggle in the cached message so
+				// the reaction strip updates immediately; the server's
+				// UpdateMessageReactions echo reconciles it shortly after.
+				var p reactPayload
+				if json.Unmarshal(payload, &p) == nil {
+					e.applyOwnReaction(accountID, chatID, p.MsgID, p.Emoji)
+				}
+			}
 			return nil
 		}
 
@@ -921,7 +930,7 @@ func (e *Engine) RetryPending(localID string) error {
 func (e *Engine) resumePending() {
 	rows, err := e.db.Query(
 		`SELECT local_id, account_id, chat_id, action, payload
-		 FROM pending WHERE status IN (?, ?) ORDER BY created_at`,
+                 FROM pending WHERE status IN (?, ?) ORDER BY created_at`,
 		PendingQueued, PendingSending)
 	if err != nil {
 		return
@@ -970,7 +979,7 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 	var contentRaw []byte
 	err := e.db.QueryRow(
 		`SELECT content_text, content_raw FROM messages
-		 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+                 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
 		acc.ID, p.SourceChatID, p.MsgID,
 	).Scan(&contentText, &contentRaw)
 	if err != nil {
@@ -989,9 +998,9 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 	hasMedia := false
 	err = e.db.QueryRow(
 		`SELECT media_type, remote_ref, file_name, mime_type, extra, file_size,
-		        width, height, duration
-		 FROM media
-		 WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
+                        width, height, duration
+                 FROM media
+                 WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
 		acc.ID, p.SourceChatID, p.MsgID,
 	).Scan(&mediaType, &remoteRef, &fileName, &mimeType, &extraStr,
 		&expectedSize, &width, &height, &duration)
@@ -1194,7 +1203,7 @@ func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 		var expSize int64
 		err = e.db.QueryRow(
 			`SELECT media_type, remote_ref, file_name, mime_type, extra, file_size
-			 FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
+                         FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
 			acc.ID, p.SourceChatID, msgID,
 		).Scan(&mt, &remoteRef, &fName, &mime, &extra, &expSize)
 

@@ -69,6 +69,11 @@ const (
 	// Mirrors AyuGram Account::handleLoginCode → CodeWidget auto-fill+submit
 	// (intro_code.cpp:59-62, core/local_url_handlers.cpp:1437-1456).
 	UpdateLoginCode UpdateType = "login_code"
+	// UpdateReactions carries the full current reaction state of one message
+	// (u.Message.Reactions) after a tg.UpdateMessageReactions. Mirrors
+	// Telegram Desktop HistoryWidget::refreshReactionSummary — the GUI's
+	// reaction strip re-renders from the engine cache.
+	UpdateReactions UpdateType = "reactions"
 )
 
 // CallState represents the current phase of a voice or video call.

@@ -57,7 +57,7 @@ func (e *Engine) loadAccounts() error {
 		// Ensure DB cache row exists.
 		e.db.Exec(
 			`INSERT OR IGNORE INTO accounts (id, platform, display_name, avatar_path, sort_order, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?)`,
+                         VALUES (?, ?, ?, ?, ?, ?)`,
 			id, entry.Platform, entry.DisplayName, entry.AvatarPath, entry.SortOrder, entry.CreatedAt)
 	}
 	return nil
@@ -72,7 +72,7 @@ func (e *Engine) migrateAccountsToVault() {
 
 	rows, err := e.db.Query(
 		`SELECT id, platform, display_name, avatar_path, sort_order, created_at
-		 FROM accounts ORDER BY sort_order`)
+                 FROM accounts ORDER BY sort_order`)
 	if err != nil {
 		return // no DB accounts = fresh install
 	}
@@ -189,7 +189,7 @@ func (e *Engine) AddAccount(platform string, testMode bool) (string, error) {
 	// Insert DB cache row.
 	e.db.Exec(
 		`INSERT OR IGNORE INTO accounts (id, platform, sort_order, created_at)
-		 VALUES (?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?)`,
 		id, platform, maxOrder, now)
 
 	acc := &Account{
@@ -360,6 +360,18 @@ func (e *Engine) GetAccountCore(accountID string) cores.Core {
 		return nil
 	}
 	return acc.Core
+}
+
+// AccountCapabilities returns the live core's capability list for an account
+// (e.g. cores.CapReactions). The GUI gates shared-surface actions on it so
+// every backend renders through one frontend (§1.11) without dead entries.
+// Unknown accounts return nil — callers treat "absent" as "unsupported".
+func (e *Engine) AccountCapabilities(accountID string) []string {
+	core := e.GetAccountCore(accountID)
+	if core == nil {
+		return nil
+	}
+	return core.Capabilities()
 }
 
 // setConnState updates an account's connection state.

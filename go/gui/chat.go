@@ -33,20 +33,33 @@ func init() {
 	msgList.ScrollToEnd = true // stick to bottom, AyuGram-style
 }
 
-// layoutChatView: header, message list (scrollable), composer.
+// layoutChatView: header, message list (scrollable), composer, plus the
+// message-action overlay layer (context menu, forward picker swap).
 func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Dimensions {
 	if f.selected == nil {
 		return a.layoutEmptyState(gtx)
 	}
+	// Forward picker replaces the pane content (AyuGram ChooseRecipientBox;
+	// layout swap = no click-through).
+	if f.fwd != nil {
+		return a.layoutForwardDialog(gtx, f)
+	}
 	chat := findChat(f, *f.selected)
 
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	// Route pane presses (right-click context menu, menu dismissal).
+	a.processPaneEvents(gtx, f)
+
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		// Header
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.chatHeader(gtx, f, chat, narrow)
+			d := a.chatHeader(gtx, f, chat, narrow)
+			a.headerH = d.Size.Y
+			return d
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.ui.Divider(gtx)
+			d := a.ui.Divider(gtx)
+			a.listTop = a.headerH + d.Size.Y
+			return d
 		}),
 		// Messages
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -60,6 +73,12 @@ func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Di
 			return a.composerBar(gtx, f)
 		}),
 	)
+
+	// Context menu on top of everything in the pane.
+	if f.menu != nil {
+		a.layoutContextMenu(gtx, f)
+	}
+	return dims
 }
 
 func findChat(f frame, k chatKey) *engine.ChatInfo {
@@ -212,6 +231,8 @@ func dotLabel(d connDot) string {
 }
 
 // messageList: scrolling message bubbles + day dividers + typing row.
+// Records per-message row bounds (pane coords) for right-click hit tests and
+// triggers scroll-up history pagination (AyuGram loadMessages).
 func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	// Auto-scroll: AnchorEnd keeps us pinned unless the user scrolls up.
 	// While someone is typing we keep the view pinned & animating.
@@ -223,6 +244,7 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	type row struct {
 		day string
 		msg *engine.CachedMessage
+		idx int // index into f.messages (-1 for dividers)
 	}
 	rows := make([]row, 0, len(f.messages)+4)
 	var lastDay string
@@ -230,10 +252,10 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		m := &f.messages[i]
 		day := time.UnixMilli(m.Timestamp).Format("2 Jan 2006")
 		if day != lastDay {
-			rows = append(rows, row{day: day})
+			rows = append(rows, row{day: day, idx: -1})
 			lastDay = day
 		}
-		rows = append(rows, row{msg: m})
+		rows = append(rows, row{msg: m, idx: i})
 	}
 
 	if f.loadingMsgs {
@@ -255,14 +277,40 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		})
 	}
 
+	// Reset this frame's row bounds; refill as visible rows lay out.
+	a.rowBounds = make(map[int]image.Rectangle, len(rows))
+	paneW := gtx.Constraints.Max.X
+	y := -msgList.Position.Offset
+
 	list := material.List(a.ui.Theme, &msgList)
-	return list.Layout(gtx, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
+	dims := list.Layout(gtx, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
 		r := rows[i]
+		var d layout.Dimensions
 		if r.day != "" {
-			return a.dayDivider(gtx, r.day)
+			d = a.dayDivider(gtx, r.day)
+		} else {
+			d = a.messageRow(gtx, f, r.msg)
 		}
-		return a.messageRow(gtx, f, r.msg)
+		if r.idx >= 0 {
+			a.rowBounds[r.idx] = image.Rect{Min: image.Pt(0, a.listTop+y), Max: image.Pt(paneW, a.listTop+y+d.Size.Y)}
+		}
+		y += d.Size.Y
+		return d
 	})
+
+	// Scroll-up pagination: at (or near) the top, load older history once.
+	if msgList.Position.First == 0 && msgList.Position.Offset <= 64 &&
+		!f.loadingOlder && len(f.messages) > 0 && a.olderExhaustedLocked() == false {
+		a.loadOlder()
+	}
+	return dims
+}
+
+// olderExhaustedLocked reports whether the open chat has more history.
+func (a *App) olderExhaustedLocked() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.olderDone
 }
 
 func (a *App) dayDivider(gtx layout.Context, day string) layout.Dimensions {
@@ -305,6 +353,21 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		return roundedFill(gtx, bg, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					// Forwarded-from header (AyuGram: "Forwarded from X").
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if m.ForwardFrom == "" {
+							return layout.Dimensions{}
+						}
+						lbl := a.ui.Dim(unit.Sp(12), "Forwarded from "+m.ForwardFrom)
+						return layout.Inset{Bottom: unit.Dp(3)}.Layout(gtx, lbl.Layout)
+					}),
+					// Reply quote block (AyuGram quoted bar).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if m.ReplyPreview == "" {
+							return layout.Dimensions{}
+						}
+						return a.replyQuote(gtx, m.ReplyPreview)
+					}),
 					// sender name in group chats
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if out || m.SenderName == "" || m.IsService {
@@ -322,6 +385,13 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 							lbl.Color = a.ui.p.Text
 						}
 						return lbl.Layout(gtx)
+					}),
+					// Reactions strip (AyuGram parity: emoji + count, own highlighted).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if len(m.Reactions) == 0 {
+							return layout.Dimensions{}
+						}
+						return a.reactionStrip(gtx, f, m)
 					}),
 					// meta: time + edited + status ticks
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -357,6 +427,107 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(pad)}.Layout(gtx, bubble)
 	}
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, bubble)
+}
+
+// replyQuote renders the quoted reply block inside a bubble. The cached
+// preview is "sender\ntext" or plain "text" (AyuGram quoted bar).
+func (a *App) replyQuote(gtx layout.Context, preview string) layout.Dimensions {
+	sender, body := preview, preview
+	if i := strings.IndexByte(preview, '\n'); i >= 0 {
+		sender, body = preview[:i], preview[i+1:]
+	}
+	return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Max.X = gtx.Dp(unit.Dp(240))
+			return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				var children []layout.FlexChild
+				if sender != "" {
+					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						lbl := a.ui.Label(unit.Sp(12), sender)
+						lbl.Color = a.ui.p.Accent
+						lbl.MaxLines = 1
+						return lbl.Layout(gtx)
+					}))
+				}
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					lbl := a.ui.Dim(unit.Sp(12), previewText(body, 80))
+					lbl.MaxLines = 1
+					return lbl.Layout(gtx)
+				}))
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+			})
+		})
+	})
+}
+
+// reactionClicks holds per-(message,emoji) pill clickables, pruned when the
+// map outgrows the open chat (rows scroll out and never come back).
+var reactionClicks = map[string]*widget.Clickable{}
+
+func reactionClickable(key string) *widget.Clickable {
+	if c, ok := reactionClicks[key]; ok {
+		return c
+	}
+	if len(reactionClicks) > 512 {
+		reactionClicks = make(map[string]*widget.Clickable)
+	}
+	c := new(widget.Clickable)
+	reactionClicks[key] = c
+	return c
+}
+
+// reactionStrip renders the reactions under a bubble: emoji + count pills,
+// the user's own reaction highlighted with the accent. Clicking a pill
+// toggles the own reaction (engine ReactToMessage; optimistic cache update).
+func (a *App) reactionStrip(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
+	canReact := actionsFor(m, f.menuCaps).React
+	children := make([]layout.FlexChild, 0, len(m.Reactions))
+	for i := range m.Reactions {
+		r := m.Reactions[i]
+		if r.Emoji == "" {
+			continue // custom-emoji reactions need a document fetch — next pass
+		}
+		emoji, count, byMe := r.Emoji, r.Count, r.ByMe
+		key := m.MsgID + "|" + emoji
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			btn := reactionClickable(key)
+			if canReact && btn.Clicked(gtx) {
+				msg := *m
+				go func() {
+					if err := a.eng.ReactToMessage(msg.AccountID, msg.ChatID, msg.MsgID, emoji); err != nil {
+						a.setToast("React failed: " + err.Error())
+					}
+				}()
+			}
+			bg := a.ui.p.SurfaceHi
+			fg := a.ui.p.TextDim
+			if byMe {
+				bg = a.ui.p.AccentDim
+				fg = a.ui.p.Text
+			}
+			return layout.Inset{Top: unit.Dp(4), Right: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return roundedFill(gtx, bg, 10, func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.Label(unit.Sp(13), emoji)
+								return lbl.Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.Dim(unit.Sp(11), itoa(count))
+								lbl.Color = fg
+								return layout.Inset{Left: unit.Dp(3)}.Layout(gtx, lbl.Layout)
+							}),
+						)
+					})
+				})
+			})
+		}))
+	}
+	if len(children) == 0 {
+		return layout.Dimensions{}
+	}
+	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 }
 
 // statusTicks: sending (clock spinner), sent (single check),
@@ -408,7 +579,9 @@ func check(gtx layout.Context, c color.NRGBA, size int, dx int) layout.Dimension
 	return layout.Dimensions{Size: image.Pt(size, size)}
 }
 
-// composerBar: input + send, disabled state shows progress.
+// composerBar: input + send, disabled state shows progress. When a reply or
+// edit mode is active (AyuGram input field), a header chip with the quoted
+// message sits above the input row.
 func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
 	// Submit on Enter (Shift+Enter = newline) unless mobile-wide.
 	for {
@@ -434,32 +607,83 @@ func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
 
 	return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.End}.Layout(gtx,
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return roundedFill(gtx, a.ui.p.SurfaceHi, 14, func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(44))
-						return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							ed := a.ui.Editor(&composer, "Write a message…")
-							return ed.Layout(gtx)
+			var children []layout.FlexChild
+			if f.cMode.active() {
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.composerChip(gtx, f)
+				}))
+			}
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.End}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return roundedFill(gtx, a.ui.p.SurfaceHi, 14, func(gtx layout.Context) layout.Dimensions {
+							gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(44))
+							return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								ed := a.ui.Editor(&composer, "Write a message…")
+								return ed.Layout(gtx)
+							})
 						})
-					})
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						if f.sending {
-							ld := material.Loader(a.ui.Theme)
-							ld.Color = a.ui.p.Accent
-							return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, ld.Layout)
-						}
-						btn := material.IconButton(a.ui.Theme, &chatSendBtn, iconContentSend, "Send")
-						btn.Background = a.ui.p.Accent
-						btn.Color = rgb(0x0D1821)
-						btn.Size = unit.Dp(22)
-						btn.Inset = layout.UniformInset(unit.Dp(11))
-						return btn.Layout(gtx)
-					})
-				}),
-			)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							if f.sending {
+								ld := material.Loader(a.ui.Theme)
+								ld.Color = a.ui.p.Accent
+								return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, ld.Layout)
+							}
+							btn := material.IconButton(a.ui.Theme, &chatSendBtn, iconContentSend, "Send")
+							btn.Background = a.ui.p.Accent
+							btn.Color = rgb(0x0D1821)
+							btn.Size = unit.Dp(22)
+							btn.Inset = layout.UniformInset(unit.Dp(11))
+							return btn.Layout(gtx)
+						})
+					}),
+				)
+			}))
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 		},
 	)
+}
+
+// composerChip renders the reply/edit header above the input: title, quoted
+// preview, and a close (cancel) button — AyuGram's InputField header bar.
+func (a *App) composerChip(gtx layout.Context, f frame) layout.Dimensions {
+	if chipCancelBtn.Clicked(gtx) {
+		a.cancelComposerMode()
+	}
+	title, preview := f.cMode.header()
+	return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(10), Right: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.Label(unit.Sp(12), title)
+								lbl.Color = a.ui.p.Accent
+								lbl.Font.Weight = font.SemiBold
+								return lbl.Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								if preview == "" {
+									return layout.Dimensions{}
+								}
+								lbl := a.ui.Dim(unit.Sp(12), preview)
+								lbl.MaxLines = 1
+								return lbl.Layout(gtx)
+							}),
+						)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						btn := a.ui.IconButton(&chipCancelBtn, iconContentClear, "Cancel")
+						btn.Color = a.ui.p.TextDim
+						btn.Size = unit.Dp(18)
+						btn.Inset = layout.UniformInset(unit.Dp(6))
+						return btn.Layout(gtx)
+					}),
+				)
+			})
+		})
+	})
 }

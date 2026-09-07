@@ -155,6 +155,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV41,
 	migrateV42,
 	migrateV43,
+	migrateV44,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -190,146 +191,146 @@ func migrateV1(tx *sql.Tx) error {
 	stmts := []string{
 		// Account registry
 		`CREATE TABLE IF NOT EXISTS accounts (
-			id           TEXT PRIMARY KEY,
-			platform     TEXT NOT NULL,
-			display_name TEXT,
-			avatar_path  TEXT,
-			vault_key    TEXT,
-			sort_order   INTEGER NOT NULL DEFAULT 0,
-			created_at   INTEGER NOT NULL
-		)`,
+                        id           TEXT PRIMARY KEY,
+                        platform     TEXT NOT NULL,
+                        display_name TEXT,
+                        avatar_path  TEXT,
+                        vault_key    TEXT,
+                        sort_order   INTEGER NOT NULL DEFAULT 0,
+                        created_at   INTEGER NOT NULL
+                )`,
 
 		// Chat list
 		`CREATE TABLE IF NOT EXISTS chats (
-			account_id    TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-			chat_id       TEXT NOT NULL,
-			type          INTEGER NOT NULL DEFAULT 0,
-			title         TEXT NOT NULL DEFAULT '',
-			avatar_path   TEXT,
-			last_msg_id   TEXT,
-			last_msg_text TEXT,
-			last_msg_time INTEGER,
-			last_msg_sender TEXT,
-			last_msg_is_outgoing INTEGER NOT NULL DEFAULT 0,
-			unread_count  INTEGER NOT NULL DEFAULT 0,
-			is_muted      INTEGER NOT NULL DEFAULT 0,
-			is_pinned     INTEGER NOT NULL DEFAULT 0,
-			is_archived   INTEGER NOT NULL DEFAULT 0,
-			draft_text    TEXT,
-			member_count  INTEGER,
-			parent_id     TEXT,
-			capabilities  TEXT,
-			is_verified   INTEGER NOT NULL DEFAULT 0,
-			is_scam       INTEGER NOT NULL DEFAULT 0,
-			is_fake       INTEGER NOT NULL DEFAULT 0,
-			updated_at    INTEGER NOT NULL,
-			PRIMARY KEY (account_id, chat_id)
-		)`,
+                        account_id    TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+                        chat_id       TEXT NOT NULL,
+                        type          INTEGER NOT NULL DEFAULT 0,
+                        title         TEXT NOT NULL DEFAULT '',
+                        avatar_path   TEXT,
+                        last_msg_id   TEXT,
+                        last_msg_text TEXT,
+                        last_msg_time INTEGER,
+                        last_msg_sender TEXT,
+                        last_msg_is_outgoing INTEGER NOT NULL DEFAULT 0,
+                        unread_count  INTEGER NOT NULL DEFAULT 0,
+                        is_muted      INTEGER NOT NULL DEFAULT 0,
+                        is_pinned     INTEGER NOT NULL DEFAULT 0,
+                        is_archived   INTEGER NOT NULL DEFAULT 0,
+                        draft_text    TEXT,
+                        member_count  INTEGER,
+                        parent_id     TEXT,
+                        capabilities  TEXT,
+                        is_verified   INTEGER NOT NULL DEFAULT 0,
+                        is_scam       INTEGER NOT NULL DEFAULT 0,
+                        is_fake       INTEGER NOT NULL DEFAULT 0,
+                        updated_at    INTEGER NOT NULL,
+                        PRIMARY KEY (account_id, chat_id)
+                )`,
 		`CREATE INDEX IF NOT EXISTS idx_chats_sort ON chats(is_archived, is_pinned DESC, last_msg_time DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_chats_account ON chats(account_id)`,
 
 		// Messages
 		`CREATE TABLE IF NOT EXISTS messages (
-			account_id    TEXT NOT NULL,
-			chat_id       TEXT NOT NULL,
-			msg_id        TEXT NOT NULL,
-			local_id      TEXT,
-			sender_id     TEXT,
-			sender_name   TEXT,
-			sender_rank   TEXT,
-			content_raw   BLOB,
-			content_rich  BLOB,
-			content_text  TEXT,
-			timestamp     INTEGER NOT NULL,
-			edited_at     INTEGER,
-			status        INTEGER NOT NULL DEFAULT 2,
-			reply_to_id   TEXT,
-			reply_preview TEXT,
-			forward_from  TEXT,
-			is_pinned     INTEGER NOT NULL DEFAULT 0,
-			is_outgoing   INTEGER NOT NULL DEFAULT 0,
-			has_media     INTEGER NOT NULL DEFAULT 0,
-			PRIMARY KEY (account_id, chat_id, msg_id)
-		)`,
+                        account_id    TEXT NOT NULL,
+                        chat_id       TEXT NOT NULL,
+                        msg_id        TEXT NOT NULL,
+                        local_id      TEXT,
+                        sender_id     TEXT,
+                        sender_name   TEXT,
+                        sender_rank   TEXT,
+                        content_raw   BLOB,
+                        content_rich  BLOB,
+                        content_text  TEXT,
+                        timestamp     INTEGER NOT NULL,
+                        edited_at     INTEGER,
+                        status        INTEGER NOT NULL DEFAULT 2,
+                        reply_to_id   TEXT,
+                        reply_preview TEXT,
+                        forward_from  TEXT,
+                        is_pinned     INTEGER NOT NULL DEFAULT 0,
+                        is_outgoing   INTEGER NOT NULL DEFAULT 0,
+                        has_media     INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY (account_id, chat_id, msg_id)
+                )`,
 		`CREATE INDEX IF NOT EXISTS idx_msgs_chat_time ON messages(account_id, chat_id, timestamp DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_msgs_local ON messages(local_id) WHERE local_id IS NOT NULL`,
 
 		// FTS5 full-text search
 		`CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-			content_text,
-			content='messages',
-			content_rowid='rowid',
-			tokenize='unicode61'
-		)`,
+                        content_text,
+                        content='messages',
+                        content_rowid='rowid',
+                        tokenize='unicode61'
+                )`,
 
 		// FTS5 sync triggers
 		`CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
-			INSERT INTO messages_fts(rowid, content_text) VALUES (new.rowid, new.content_text);
-		END`,
+                        INSERT INTO messages_fts(rowid, content_text) VALUES (new.rowid, new.content_text);
+                END`,
 		`CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
-			INSERT INTO messages_fts(messages_fts, rowid, content_text) VALUES('delete', old.rowid, old.content_text);
-		END`,
+                        INSERT INTO messages_fts(messages_fts, rowid, content_text) VALUES('delete', old.rowid, old.content_text);
+                END`,
 		`CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
-			INSERT INTO messages_fts(messages_fts, rowid, content_text) VALUES('delete', old.rowid, old.content_text);
-			INSERT INTO messages_fts(rowid, content_text) VALUES (new.rowid, new.content_text);
-		END`,
+                        INSERT INTO messages_fts(messages_fts, rowid, content_text) VALUES('delete', old.rowid, old.content_text);
+                        INSERT INTO messages_fts(rowid, content_text) VALUES (new.rowid, new.content_text);
+                END`,
 
 		// Pending outbox
 		`CREATE TABLE IF NOT EXISTS pending (
-			id           INTEGER PRIMARY KEY AUTOINCREMENT,
-			account_id   TEXT NOT NULL,
-			chat_id      TEXT NOT NULL,
-			local_id     TEXT NOT NULL UNIQUE,
-			action       TEXT NOT NULL,
-			payload      BLOB NOT NULL,
-			status       INTEGER NOT NULL DEFAULT 0,
-			retry_count  INTEGER NOT NULL DEFAULT 0,
-			error_msg    TEXT,
-			created_at   INTEGER NOT NULL,
-			last_attempt INTEGER
-		)`,
+                        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                        account_id   TEXT NOT NULL,
+                        chat_id      TEXT NOT NULL,
+                        local_id     TEXT NOT NULL UNIQUE,
+                        action       TEXT NOT NULL,
+                        payload      BLOB NOT NULL,
+                        status       INTEGER NOT NULL DEFAULT 0,
+                        retry_count  INTEGER NOT NULL DEFAULT 0,
+                        error_msg    TEXT,
+                        created_at   INTEGER NOT NULL,
+                        last_attempt INTEGER
+                )`,
 		`CREATE INDEX IF NOT EXISTS idx_pending_status ON pending(status, created_at)`,
 
 		// User profiles
 		`CREATE TABLE IF NOT EXISTS users (
-			account_id    TEXT NOT NULL,
-			user_id       TEXT NOT NULL,
-			display_name  TEXT,
-			username      TEXT,
-			phone         TEXT,
-			bio           TEXT,
-			avatar_path   TEXT,
-			is_bot        INTEGER NOT NULL DEFAULT 0,
-			is_online     INTEGER NOT NULL DEFAULT 0,
-			is_contact    INTEGER NOT NULL DEFAULT 0,
-			is_blocked    INTEGER NOT NULL DEFAULT 0,
-			last_seen     INTEGER,
-			updated_at    INTEGER NOT NULL,
-			PRIMARY KEY (account_id, user_id)
-		)`,
+                        account_id    TEXT NOT NULL,
+                        user_id       TEXT NOT NULL,
+                        display_name  TEXT,
+                        username      TEXT,
+                        phone         TEXT,
+                        bio           TEXT,
+                        avatar_path   TEXT,
+                        is_bot        INTEGER NOT NULL DEFAULT 0,
+                        is_online     INTEGER NOT NULL DEFAULT 0,
+                        is_contact    INTEGER NOT NULL DEFAULT 0,
+                        is_blocked    INTEGER NOT NULL DEFAULT 0,
+                        last_seen     INTEGER,
+                        updated_at    INTEGER NOT NULL,
+                        PRIMARY KEY (account_id, user_id)
+                )`,
 
 		// Media references
 		`CREATE TABLE IF NOT EXISTS media (
-			account_id     TEXT NOT NULL,
-			chat_id        TEXT NOT NULL,
-			msg_id         TEXT NOT NULL,
-			seq            INTEGER NOT NULL DEFAULT 0,
-			media_type     INTEGER NOT NULL,
-			remote_ref     TEXT,
-			local_path     TEXT,
-			thumb_path     TEXT,
-			thumb_b64      TEXT,
-			file_name      TEXT,
-			mime_type      TEXT,
-			file_size      INTEGER,
-			duration_ms    INTEGER,
-			width          INTEGER,
-			height         INTEGER,
-			download_state INTEGER NOT NULL DEFAULT 0,
-			last_accessed  INTEGER,
-			extra          TEXT,
-			PRIMARY KEY (account_id, chat_id, msg_id, seq)
-		)`,
+                        account_id     TEXT NOT NULL,
+                        chat_id        TEXT NOT NULL,
+                        msg_id         TEXT NOT NULL,
+                        seq            INTEGER NOT NULL DEFAULT 0,
+                        media_type     INTEGER NOT NULL,
+                        remote_ref     TEXT,
+                        local_path     TEXT,
+                        thumb_path     TEXT,
+                        thumb_b64      TEXT,
+                        file_name      TEXT,
+                        mime_type      TEXT,
+                        file_size      INTEGER,
+                        duration_ms    INTEGER,
+                        width          INTEGER,
+                        height         INTEGER,
+                        download_state INTEGER NOT NULL DEFAULT 0,
+                        last_accessed  INTEGER,
+                        extra          TEXT,
+                        PRIMARY KEY (account_id, chat_id, msg_id, seq)
+                )`,
 		`CREATE INDEX IF NOT EXISTS idx_media_evict ON media(last_accessed) WHERE local_path IS NOT NULL`,
 	}
 
@@ -699,16 +700,16 @@ func migrateV28(tx *sql.Tx) error {
 
 func migrateV29(tx *sql.Tx) error {
 	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS edited_messages (
-		id            INTEGER PRIMARY KEY AUTOINCREMENT,
-		account_id    TEXT NOT NULL,
-		chat_id       TEXT NOT NULL,
-		msg_id        TEXT NOT NULL,
-		sender_id     TEXT,
-		sender_name   TEXT,
-		content_text  TEXT NOT NULL,
-		entities_json TEXT,
-		timestamp     INTEGER NOT NULL
-	)`)
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id    TEXT NOT NULL,
+                chat_id       TEXT NOT NULL,
+                msg_id        TEXT NOT NULL,
+                sender_id     TEXT,
+                sender_name   TEXT,
+                content_text  TEXT NOT NULL,
+                entities_json TEXT,
+                timestamp     INTEGER NOT NULL
+        )`)
 	if err != nil {
 		return err
 	}
@@ -764,9 +765,9 @@ func migrateV34(tx *sql.Tx) error {
 
 func migrateV35(tx *sql.Tx) error {
 	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS kv (
-		key   TEXT PRIMARY KEY,
-		value TEXT NOT NULL DEFAULT ''
-	)`)
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT ''
+        )`)
 	return err
 }
 
@@ -865,5 +866,16 @@ func migrateV43(tx *sql.Tx) error {
 		return nil
 	}
 	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN is_creator INTEGER NOT NULL DEFAULT 0`)
+	return err
+}
+
+// migrateV44 adds reactions_json to the messages table so per-message reaction
+// strips (AyuGram/Telegram parity) persist across restarts and render from the
+// cache instead of live server queries.
+func migrateV44(tx *sql.Tx) error {
+	if columnExists(tx, "messages", "reactions_json") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN reactions_json TEXT`)
 	return err
 }

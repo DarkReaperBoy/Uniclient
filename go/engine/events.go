@@ -232,6 +232,11 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 	case cores.UpdateDeleteMessage:
 		e.handleDeleteMessage(accountID, u.ChatID, u.MessageID)
 
+	case cores.UpdateReactions:
+		if u.Message != nil {
+			e.updateMessageReactions(accountID, u.ChatID, u.MessageID, u.Message.Reactions)
+		}
+
 	case cores.UpdateReadState:
 		if u.ReadState != nil {
 			e.handleReadState(accountID, u.ChatID, u.ReadState)
@@ -389,7 +394,7 @@ func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message)
 	var isOutgoing int
 	e.db.QueryRow(
 		`SELECT content_text, sender_id, sender_name, content_rich, is_outgoing
-		 FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+                 FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
 		accountID, chatID, msg.ID,
 	).Scan(&oldText, &oldSenderID, &oldSenderName, &oldRich, &isOutgoing)
 
@@ -400,7 +405,7 @@ func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message)
 		}
 		e.db.Exec(
 			`INSERT INTO edited_messages (account_id, chat_id, msg_id, sender_id, sender_name, content_text, entities_json, timestamp)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			accountID, chatID, msg.ID, oldSenderID, oldSenderName, oldText, entitiesJSON, now,
 		)
 	}
@@ -413,7 +418,7 @@ func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message)
 
 	e.db.Exec(
 		`UPDATE messages SET content_text = ?, content_raw = ?, content_rich = ?, edited_at = ?
-		 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+                 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
 		msg.Text, rawBytes, richBytes, editedAt, accountID, chatID, msg.ID)
 
 	e.emitEvent(EventMsgEdited, accountID, MsgEditedEvent{
@@ -505,8 +510,8 @@ func (e *Engine) handleUserStatus(accountID, userID string, online bool, kind st
 	now := time.Now().UnixMilli()
 	e.db.Exec(
 		`INSERT INTO users (account_id, user_id, is_online, updated_at)
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(account_id, user_id) DO UPDATE SET is_online = ?, updated_at = ?`,
+                 VALUES (?, ?, ?, ?)
+                 ON CONFLICT(account_id, user_id) DO UPDATE SET is_online = ?, updated_at = ?`,
 		accountID, userID, boolToInt(online), now, boolToInt(online), now)
 
 	e.emitEvent(EventUserStatus, accountID, UserStatusEvent{
