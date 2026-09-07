@@ -6,342 +6,345 @@
 package bridge
 
 import (
-	"context"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
-	"sync"
+        "context"
+        "fmt"
+        "os"
+        "path/filepath"
+        "strconv"
+        "sync"
 
-	"github.com/gotd/td/session"
-	"google.golang.org/protobuf/proto"
+        "github.com/gotd/td/session"
+        "google.golang.org/protobuf/proto"
 
-	"uniclient/cores"
-	"uniclient/engine"
-	pb "uniclient/proto"
-	"uniclient/utils"
+        "uniclient/cores"
+        "uniclient/engine"
+        pb "uniclient/proto"
+        "uniclient/utils"
 )
 
 // coreRegistry maps core_id → (core instance, core type name).
 var (
-	mu       sync.RWMutex
-	registry = make(map[string]coreEntry)
+        mu       sync.RWMutex
+        registry = make(map[string]coreEntry)
 
-	// eventCallback is called when an async event (update) fires.
-	// Set via SetEventCallback from the FFI layer.
-	eventCallback func([]byte)
+        // eventCallback is called when an async event (update) fires.
+        // Set via SetEventCallback from the FFI layer.
+        eventCallback func([]byte)
 )
 
 type coreEntry struct {
-	instance interface{}
-	coreType string // "telegram", "bale", etc.
+        instance interface{}
+        coreType string // "telegram", "bale", etc.
 }
 
 // RegisterCore registers a core instance for bridge dispatch.
 // coreID is an arbitrary identifier (e.g. "tg-main"), coreType is the platform
 // name matching dispatch (e.g. "telegram"), and instance is the *XxxCore pointer.
 func RegisterCore(coreID, coreType string, instance interface{}) {
-	mu.Lock()
-	defer mu.Unlock()
-	registry[coreID] = coreEntry{instance: instance, coreType: coreType}
+        mu.Lock()
+        defer mu.Unlock()
+        registry[coreID] = coreEntry{instance: instance, coreType: coreType}
 }
 
 // UnregisterCore removes a core from the bridge.
 func UnregisterCore(coreID string) {
-	mu.Lock()
-	defer mu.Unlock()
-	delete(registry, coreID)
+        mu.Lock()
+        defer mu.Unlock()
+        delete(registry, coreID)
 }
 
 // SetEventCallback sets the function called when async events are pushed to the host.
 // The callback receives serialized BridgeEvent proto bytes.
 func SetEventCallback(cb func([]byte)) {
-	mu.Lock()
-	defer mu.Unlock()
-	eventCallback = cb
+        mu.Lock()
+        defer mu.Unlock()
+        eventCallback = cb
 }
 
 // PushEvent sends an async event to the host side.
 func PushEvent(event *pb.BridgeEvent) {
-	mu.RLock()
-	cb := eventCallback
-	mu.RUnlock()
-	if cb == nil {
-		return
-	}
-	data, err := proto.Marshal(event)
-	if err != nil {
-		return
-	}
-	cb(data)
+        mu.RLock()
+        cb := eventCallback
+        mu.RUnlock()
+        if cb == nil {
+                return
+        }
+        data, err := proto.Marshal(event)
+        if err != nil {
+                return
+        }
+        cb(data)
 }
 
 // Call processes a serialized BridgeRequest and returns a serialized BridgeResponse.
 // This is the main dispatch function — the FFI layer wraps this.
 func Call(reqData []byte) []byte {
-	var req pb.BridgeRequest
-	if err := proto.Unmarshal(reqData, &req); err != nil {
-		return marshalError("invalid request: " + err.Error())
-	}
+        var req pb.BridgeRequest
+        if err := proto.Unmarshal(reqData, &req); err != nil {
+                return marshalError("invalid request: " + err.Error())
+        }
 
-	// Engine dispatch — core_id "__engine" routes to the engine layer.
-	if req.CoreId == "__engine" {
-		respPayload, err := dispatchEngine(req.Method, req.Payload)
-		if err != nil {
-			return marshalErrorCategorized(err)
-		}
-		resp := &pb.BridgeResponse{
-			Ok:      true,
-			Payload: respPayload,
-		}
-		data, err := proto.Marshal(resp)
-		if err != nil {
-			return marshalError("marshal response: " + err.Error())
-		}
-		return data
-	}
+        // Engine dispatch — core_id "__engine" routes to the engine layer.
+        if req.CoreId == "__engine" {
+                respPayload, err := dispatchEngine(req.Method, req.Payload)
+                if err != nil {
+                        return marshalErrorCategorized(err)
+                }
+                resp := &pb.BridgeResponse{
+                        Ok:      true,
+                        Payload: respPayload,
+                }
+                data, err := proto.Marshal(resp)
+                if err != nil {
+                        return marshalError("marshal response: " + err.Error())
+                }
+                return data
+        }
 
-	mu.RLock()
-	entry, ok := registry[req.CoreId]
-	mu.RUnlock()
-	if !ok {
-		return marshalError("unknown core_id: " + req.CoreId)
-	}
+        mu.RLock()
+        entry, ok := registry[req.CoreId]
+        mu.RUnlock()
+        if !ok {
+                return marshalError("unknown core_id: " + req.CoreId)
+        }
 
-	if suppressed := ghostIntercept(req.Method, req.Payload, entry, req.CoreId); suppressed {
-		resp := &pb.BridgeResponse{Ok: true}
-		data, _ := proto.Marshal(resp)
-		return data
-	}
+        if suppressed := ghostIntercept(req.Method, req.Payload, entry, req.CoreId); suppressed {
+                resp := &pb.BridgeResponse{Ok: true}
+                data, _ := proto.Marshal(resp)
+                return data
+        }
 
-	respPayload, err := Dispatch(entry.instance, entry.coreType, req.Method, req.Payload)
-	if err != nil {
-		return marshalErrorCategorized(err)
-	}
+        respPayload, err := Dispatch(entry.instance, entry.coreType, req.Method, req.Payload)
+        if err != nil {
+                return marshalErrorCategorized(err)
+        }
 
-	resp := &pb.BridgeResponse{
-		Ok:      true,
-		Payload: respPayload,
-	}
-	data, err := proto.Marshal(resp)
-	if err != nil {
-		return marshalError("marshal response: " + err.Error())
-	}
-	return data
+        resp := &pb.BridgeResponse{
+                Ok:      true,
+                Payload: respPayload,
+        }
+        data, err := proto.Marshal(resp)
+        if err != nil {
+                return marshalError("marshal response: " + err.Error())
+        }
+        return data
 }
 
 // uniConfigSessionStorage adapts utils.SessionStore to gotd's session.Storage
 // interface for Telegram core compatibility.
 type uniConfigSessionStorage struct {
-	store *utils.SessionStore
+        store *utils.SessionStore
 }
 
 func (s *uniConfigSessionStorage) LoadSession(_ context.Context) ([]byte, error) {
-	raw := s.store.LoadRaw()
-	if raw == nil {
-		return nil, session.ErrNotFound
-	}
-	return raw, nil
+        raw := s.store.LoadRaw()
+        if raw == nil {
+                return nil, session.ErrNotFound
+        }
+        return raw, nil
 }
 
 func (s *uniConfigSessionStorage) StoreSession(_ context.Context, data []byte) error {
-	return s.store.SaveRaw(data)
+        return s.store.SaveRaw(data)
 }
 
 // InitEngine initializes the engine and wires its event callback into the bridge.
 // Call this from the FFI Init handler before any other engine operations.
 func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
-	// Init engine first (opens vault with config + sessions).
-	eng, err := engine.Init(configDir, cacheDir, downloadDir, vaultPassword)
-	if err != nil {
-		return err
-	}
-	SetEngine(eng)
+        // Init engine first (opens vault with config + sessions).
+        eng, err := engine.Init(configDir, cacheDir, downloadDir, vaultPassword)
+        if err != nil {
+                return err
+        }
+        SetEngine(eng)
 
-	vault := eng.Vault()
+        vault := eng.Vault()
 
-	// Migrate old per-file sessions into vault.
-	migrateOldSessions(configDir, vault)
+        // Migrate old per-file sessions into vault.
+        migrateOldSessions(configDir, vault)
 
-	// Register core factory — each core gets a SessionStore backed by vault.
-	engine.SetCoreFactory(func(platform, accountID string) (cores.Core, error) {
-		store := utils.NewSessionStore(vault, accountID)
-		switch platform {
-		case "telegram":
-			apiID := 2040
-			apiHash := "b18441a1ff607e10a989891a5462e627"
-			if v := os.Getenv("TG_API_ID"); v != "" {
-				if id, err := strconv.Atoi(v); err == nil {
-					apiID = id
-				}
-			}
-			if v := os.Getenv("TG_API_HASH"); v != "" {
-				apiHash = v
-			}
-			// Test-server accounts (AyuGram Environment::Test) connect to the
-			// test datacenter. Flag is persisted in the vault entry at creation.
-			testMode := false
-			if entry, err := vault.GetAccount(accountID); err == nil && entry != nil {
-				testMode = entry.TestMode
-			}
-			return cores.NewTelegramCore(cores.TelegramConfig{
-				APIID:          apiID,
-				APIHash:        apiHash,
-				SessionStorage: &uniConfigSessionStorage{store: store},
-				UseTestDC:      testMode,
-			}), nil
-		case "bale":
-			return cores.NewBaleCore(store), nil
-		case "matrix":
-			return cores.NewMatrixCore(store), nil
-		case "irc":
-			return cores.NewIRCCore(store), nil
-		case "xmpp":
-			return cores.NewXMPPCore(store), nil
-		case "github":
-			return cores.NewGitHubCore(store), nil
-		case "rubika":
-			return cores.NewRubikaCore(store), nil
-		case "deltachat":
-			return cores.NewDeltaChatCore(store), nil
-		case "teamspeak":
-			return cores.NewTeamSpeakCore(store), nil
-		case "mumble":
-			c := &cores.MumbleCore{}
-			c.Session = store
-			return c, nil
-		default:
-			return nil, fmt.Errorf("unknown platform: %s", platform)
-		}
-	})
+        // Register core factory — each core gets a SessionStore backed by vault.
+        engine.SetCoreFactory(func(platform, accountID string) (cores.Core, error) {
+                store := utils.NewSessionStore(vault, accountID)
+                switch platform {
+                case "telegram":
+                        apiID := 2040
+                        apiHash := "b18441a1ff607e10a989891a5462e627"
+                        if v := os.Getenv("TG_API_ID"); v != "" {
+                                if id, err := strconv.Atoi(v); err == nil {
+                                        apiID = id
+                                }
+                        }
+                        if v := os.Getenv("TG_API_HASH"); v != "" {
+                                apiHash = v
+                        }
+                        // Test-server accounts (AyuGram Environment::Test) connect to the
+                        // test datacenter. Flag is persisted in the vault entry at creation.
+                        testMode := false
+                        if entry, err := vault.GetAccount(accountID); err == nil && entry != nil {
+                                testMode = entry.TestMode
+                        }
+                        return cores.NewTelegramCore(cores.TelegramConfig{
+                                APIID:          apiID,
+                                APIHash:        apiHash,
+                                SessionStorage: &uniConfigSessionStorage{store: store},
+                                UseTestDC:      testMode,
+                        }), nil
+                case "bale":
+                        return cores.NewBaleCore(store), nil
+                case "matrix":
+                        return cores.NewMatrixCore(store), nil
+                case "irc":
+                        return cores.NewIRCCore(store), nil
+                case "xmpp":
+                        return cores.NewXMPPCore(store), nil
+                case "github":
+                        return cores.NewGitHubCore(store), nil
+                case "rubika":
+                        return cores.NewRubikaCore(store), nil
+                case "deltachat":
+                        return cores.NewDeltaChatCore(store), nil
+                case "teamspeak":
+                        return cores.NewTeamSpeakCore(store), nil
+                case "mumble":
+                        c := &cores.MumbleCore{}
+                        c.Session = store
+                        return c, nil
+                default:
+                        return nil, fmt.Errorf("unknown platform: %s", platform)
+                }
+        })
 
-	// Wire engine events through the bridge event system.
-	// Engine emits JSON-encoded EngineEvent bytes; we wrap them in BridgeEvent.
-	eng.SetEventCallback(func(data []byte) {
-		event := &pb.BridgeEvent{
-			CoreId:      "__engine",
-			EngineEvent: data,
-		}
-		PushEvent(event)
-	})
+        // Wire engine events through the bridge event system.
+        // Engine emits JSON-encoded EngineEvent bytes; we wrap them in BridgeEvent.
+        eng.SetEventCallback(func(data []byte) {
+                event := &pb.BridgeEvent{
+                        CoreId:      "__engine",
+                        EngineEvent: data,
+                }
+                PushEvent(event)
+        })
 
-	return nil
+        return nil
 }
 
 // migrateOldSessions imports old per-file sessions into the vault.
 // Scans configDir/sessions/<platform>/<accountID>.json and imports each.
 func migrateOldSessions(configDir string, vault *utils.Vault) {
-	sessDir := filepath.Join(configDir, "sessions")
-	platforms, err := os.ReadDir(sessDir)
-	if err != nil {
-		return // no old sessions
-	}
-	migrated := false
-	for _, pdir := range platforms {
-		if !pdir.IsDir() {
-			continue
-		}
-		platDir := filepath.Join(sessDir, pdir.Name())
-		files, err := os.ReadDir(platDir)
-		if err != nil {
-			continue
-		}
-		for _, f := range files {
-			if f.IsDir() || filepath.Ext(f.Name()) != ".json" {
-				continue
-			}
-			accountID := f.Name()[:len(f.Name())-5] // strip .json
-			if vault.HasSession(accountID) {
-				continue // already migrated
-			}
-			fpath := filepath.Join(platDir, f.Name())
-			raw, err := os.ReadFile(fpath)
-			if err != nil {
-				continue
-			}
-			_ = vault.SaveSessionRaw(accountID, raw)
-			migrated = true
-		}
-	}
-	if migrated {
-		// Remove old sessions directory after successful migration
-		os.RemoveAll(sessDir)
-	}
+        sessDir := filepath.Join(configDir, "sessions")
+        platforms, err := os.ReadDir(sessDir)
+        if err != nil {
+                return // no old sessions
+        }
+        migrated := false
+        for _, pdir := range platforms {
+                if !pdir.IsDir() {
+                        continue
+                }
+                platDir := filepath.Join(sessDir, pdir.Name())
+                files, err := os.ReadDir(platDir)
+                if err != nil {
+                        continue
+                }
+                for _, f := range files {
+                        if f.IsDir() || filepath.Ext(f.Name()) != ".json" {
+                                continue
+                        }
+                        accountID := f.Name()[:len(f.Name())-5] // strip .json
+                        if vault.HasSession(accountID) {
+                                continue // already migrated
+                        }
+                        fpath := filepath.Join(platDir, f.Name())
+                        raw, err := os.ReadFile(fpath)
+                        if err != nil {
+                                continue
+                        }
+                        _ = vault.SaveSessionRaw(accountID, raw)
+                        migrated = true
+                }
+        }
+        if migrated {
+                // Remove old sessions directory after successful migration
+                os.RemoveAll(sessDir)
+        }
 }
 
 // marshalError returns a serialized BridgeResponse with the given error message.
 func marshalError(msg string) []byte {
-	resp := &pb.BridgeResponse{
-		Ok:    false,
-		Error: msg,
-	}
-	data, err := proto.Marshal(resp)
-	if err != nil {
-		// Last resort: return minimal valid protobuf for error
-		return []byte{0x10, 0x00}
-	}
-	return data
+        resp := &pb.BridgeResponse{
+                Ok:    false,
+                Error: msg,
+        }
+        data, err := proto.Marshal(resp)
+        if err != nil {
+                // Last resort: return minimal valid protobuf for error
+                return []byte{0x10, 0x00}
+        }
+        return data
 }
 
 // marshalErrorCategorized returns a serialized BridgeResponse with error categorization.
 func marshalErrorCategorized(err error) []byte {
-	resp := &pb.BridgeResponse{
-		Ok:        false,
-		Error:     err.Error(),
-		ErrorCode: categorizeError(err),
-	}
-	data, merr := proto.Marshal(resp)
-	if merr != nil {
-		return []byte{0x10, 0x00}
-	}
-	return data
+        resp := &pb.BridgeResponse{
+                Ok:        false,
+                Error:     err.Error(),
+                ErrorCode: categorizeError(err),
+        }
+        data, merr := proto.Marshal(resp)
+        if merr != nil {
+                return []byte{0x10, 0x00}
+        }
+        return data
 }
 
 // categorizeError maps Go errors to sentinel categories for the GUI.
 func categorizeError(err error) string {
-	if err == nil {
-		return ""
-	}
-	msg := err.Error()
+        if err == nil {
+                return ""
+        }
+        msg := err.Error()
 
-	// Check for known sentinel errors
-	switch {
-	case contains(msg, "auth", "unauthorized", "FLOOD_WAIT", "SESSION_EXPIRED", "AUTH_KEY"):
-		return "auth"
-	case contains(msg, "timeout", "deadline", "context deadline"):
-		return "timeout"
-	case contains(msg, "network", "connection", "dial", "EOF", "reset by peer", "broken pipe"):
-		return "network"
-	case contains(msg, "not found", "NOT_FOUND", "404", "no such"):
-		return "not_found"
-	case contains(msg, "rate limit", "FLOOD", "429", "too many requests", "slowmode"):
-		return "rate_limited"
-	case contains(msg, "permission", "forbidden", "403", "CHAT_ADMIN_REQUIRED", "not allowed"):
-		return "permission"
-	case contains(msg, "not supported", "not implemented", "501"):
-		return "not_supported"
-	}
-	return "unknown"
+        // Check for known sentinel errors.
+        // NOTE: rate limiting is checked BEFORE auth — Telegram FLOOD_WAIT
+        // means "retry after N seconds", not "re-login", so it must never
+        // fall into the auth bucket.
+        switch {
+        case contains(msg, "rate limit", "FLOOD", "429", "too many requests", "slowmode", "FLOOD_WAIT"):
+                return "rate_limited"
+        case contains(msg, "auth", "unauthorized", "SESSION_EXPIRED", "AUTH_KEY"):
+                return "auth"
+        case contains(msg, "timeout", "deadline", "context deadline"):
+                return "timeout"
+        case contains(msg, "network", "connection", "dial", "EOF", "reset by peer", "broken pipe"):
+                return "network"
+        case contains(msg, "not found", "NOT_FOUND", "404", "no such"):
+                return "not_found"
+        case contains(msg, "permission", "forbidden", "403", "CHAT_ADMIN_REQUIRED", "not allowed"):
+                return "permission"
+        case contains(msg, "not supported", "not implemented", "501"):
+                return "not_supported"
+        }
+        return "unknown"
 }
 
 // contains checks if s contains any of the substrings (case-insensitive-ish).
 func contains(s string, subs ...string) bool {
-	for _, sub := range subs {
-		if len(sub) <= len(s) {
-			for i := 0; i <= len(s)-len(sub); i++ {
-				match := true
-				for j := 0; j < len(sub); j++ {
-					a, b := s[i+j], sub[j]
-					if a != b && a != b+32 && a != b-32 {
-						match = false
-						break
-					}
-				}
-				if match {
-					return true
-				}
-			}
-		}
-	}
-	return false
+        for _, sub := range subs {
+                if len(sub) <= len(s) {
+                        for i := 0; i <= len(s)-len(sub); i++ {
+                                match := true
+                                for j := 0; j < len(sub); j++ {
+                                        a, b := s[i+j], sub[j]
+                                        if a != b && a != b+32 && a != b-32 {
+                                                match = false
+                                                break
+                                        }
+                                }
+                                if match {
+                                        return true
+                                }
+                        }
+                }
+        }
+        return false
 }
