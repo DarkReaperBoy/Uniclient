@@ -16,11 +16,11 @@ import (
 // All data is held in memory while open, encrypted at rest using AES-256-GCM
 // with a master key derived from the user's password via Argon2id.
 type Vault struct {
-	mu       sync.RWMutex
-	path     string
+	mu        sync.RWMutex
+	path      string
 	masterKey []byte
-	data     map[string]map[string]json.RawMessage // bucket → key → value
-	dirty    bool
+	data      map[string]map[string]json.RawMessage // bucket → key → value
+	dirty     bool
 }
 
 const (

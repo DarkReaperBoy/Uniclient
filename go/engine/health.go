@@ -12,8 +12,8 @@ import (
 
 // reconnectState tracks backoff for a single account.
 type reconnectState struct {
-	attempts  int
-	lastOK    time.Time // last time connection was stable for >60s
+	attempts int
+	lastOK   time.Time // last time connection was stable for >60s
 }
 
 var reconnectDelays = []time.Duration{

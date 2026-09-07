@@ -19,15 +19,15 @@ import (
 
 // PendingAction represents the type of outbound operation.
 const (
-	ActionSend        = "send"
-	ActionEdit        = "edit"
-	ActionDelete      = "delete"
-	ActionReact       = "react"
+	ActionSend         = "send"
+	ActionEdit         = "edit"
+	ActionDelete       = "delete"
+	ActionReact        = "react"
 	ActionForward      = "forward"
 	ActionForwardBatch = "forward_batch"
 	ActionSendContact  = "send_contact"
-	ActionResendAsOwn   = "resend_as_own"
-	ActionResendAlbum   = "resend_album"
+	ActionResendAsOwn  = "resend_as_own"
+	ActionResendAlbum  = "resend_album"
 )
 
 // sendPayload is the serialized payload for a "send" action.
@@ -134,7 +134,7 @@ func generateLocalID() string {
 
 // Per-chat send locks ensure message ordering within a chat.
 var (
-	chatSendMu sync.Mutex
+	chatSendMu    sync.Mutex
 	chatSendLocks = make(map[string]*sync.Mutex)
 )
 

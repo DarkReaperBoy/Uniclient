@@ -62,22 +62,22 @@ type AppConfig struct {
 // DefaultConfig returns an AppConfig populated with sensible defaults.
 func DefaultConfig() AppConfig {
 	return AppConfig{
-		Theme:            "dark",
-		AccentColor:      "#4f6ef7",
-		FontScale:        1.0,
-		Language:         "en",
-		DownloadDir:      "",
-		MaxCacheSize:     1 << 30, // 1GB
-		ProxyConfig:      ProxyConfig{Type: "none", Host: "127.0.0.1", Port: "1080"},
-		DNSOverrides:     make(map[string]string),
-		DNSFallback:      true,
+		Theme:              "dark",
+		AccentColor:        "#4f6ef7",
+		FontScale:          1.0,
+		Language:           "en",
+		DownloadDir:        "",
+		MaxCacheSize:       1 << 30, // 1GB
+		ProxyConfig:        ProxyConfig{Type: "none", Host: "127.0.0.1", Port: "1080"},
+		DNSOverrides:       make(map[string]string),
+		DNSFallback:        true,
 		SendReadReceipts:   true,
 		SendTyping:         true,
 		SendUploadProgress: true,
 		SendReadStories:    true,
-		SendOnlinePackets: true,
-		NotifyDMs:        true,
-		NotifyGroups:     true,
+		SendOnlinePackets:  true,
+		NotifyDMs:          true,
+		NotifyGroups:       true,
 	}
 }
 

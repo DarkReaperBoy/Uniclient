@@ -3,16 +3,16 @@
 package wrtc
 
 import (
-        "errors"
-        "net"
-        "time"
+	"errors"
+	"net"
+	"time"
 
-        "github.com/pion/interceptor"
-        pionlogging "github.com/pion/logging"
-        "github.com/pion/rtcp"
-        "github.com/pion/rtp"
-        "github.com/pion/webrtc/v4"
-        pionmedia "github.com/pion/webrtc/v4/pkg/media"
+	"github.com/pion/interceptor"
+	pionlogging "github.com/pion/logging"
+	"github.com/pion/rtcp"
+	"github.com/pion/rtp"
+	"github.com/pion/webrtc/v4"
+	pionmedia "github.com/pion/webrtc/v4/pkg/media"
 )
 
 // ErrUnsupported is returned by every media-plumbing entry point on js/wasm.
@@ -27,16 +27,16 @@ var ErrUnsupported = errors.New("wrtc: media call transport is not supported on 
 // AddICECandidate, OnICECandidate, OnConnectionStateChange, Close, ...)
 // keeps working through the embedded pointer.
 type PeerConnection struct {
-        *webrtc.PeerConnection
+	*webrtc.PeerConnection
 }
 
 // NewPeerConnection wraps webrtc.NewPeerConnection.
 func NewPeerConnection(cfg webrtc.Configuration) (*PeerConnection, error) {
-        pc, err := webrtc.NewPeerConnection(cfg)
-        if err != nil {
-                return nil, err
-        }
-        return &PeerConnection{PeerConnection: pc}, nil
+	pc, err := webrtc.NewPeerConnection(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &PeerConnection{PeerConnection: pc}, nil
 }
 
 // AddTrack is a native-only media API; media cannot be attached on js/wasm.
@@ -78,12 +78,12 @@ func (s *RTPSender) Track() *TrackRemote { return nil }
 
 // Read is a native-only media API; always fails on js/wasm.
 func (s *RTPSender) Read([]byte) (int, interceptor.Attributes, error) {
-        return 0, nil, ErrUnsupported
+	return 0, nil, ErrUnsupported
 }
 
 // ReadRTCP is a native-only media API; always fails on js/wasm.
 func (s *RTPSender) ReadRTCP() ([]rtcp.Packet, interceptor.Attributes, error) {
-        return nil, nil, ErrUnsupported
+	return nil, nil, ErrUnsupported
 }
 
 // GetParameters is a native-only media API; zero value on js/wasm.
@@ -106,12 +106,12 @@ func (*TrackLocalStaticSample) trackLocal() {}
 
 // NewTrackLocalStaticRTP mirrors the native constructor signature.
 func NewTrackLocalStaticRTP(_ webrtc.RTPCodecCapability, _, _ string, _ ...func(*TrackLocalStaticRTP)) (*TrackLocalStaticRTP, error) {
-        return nil, ErrUnsupported
+	return nil, ErrUnsupported
 }
 
 // NewTrackLocalStaticSample mirrors the native constructor signature.
 func NewTrackLocalStaticSample(_ webrtc.RTPCodecCapability, _, _ string, _ ...func(*TrackLocalStaticSample)) (*TrackLocalStaticSample, error) {
-        return nil, ErrUnsupported
+	return nil, ErrUnsupported
 }
 
 // WriteRTP mirrors the native method; always fails on js/wasm.
@@ -168,12 +168,12 @@ func (t *TrackRemote) PayloadType() webrtc.PayloadType { return 0 }
 
 // Read mirrors the native method; always fails on js/wasm.
 func (t *TrackRemote) Read([]byte) (int, interceptor.Attributes, error) {
-        return 0, nil, ErrUnsupported
+	return 0, nil, ErrUnsupported
 }
 
 // ReadRTP mirrors the native method; always fails on js/wasm.
 func (t *TrackRemote) ReadRTP() (*rtp.Packet, interceptor.Attributes, error) {
-        return nil, nil, ErrUnsupported
+	return nil, nil, ErrUnsupported
 }
 
 // SetReadDeadline mirrors the native method; always fails on js/wasm.
@@ -188,12 +188,12 @@ func (m *MediaEngine) RegisterDefaultCodecs() error { return nil }
 
 // RegisterCodec mirrors the native 2-argument form; no-op on js/wasm.
 func (m *MediaEngine) RegisterCodec(webrtc.RTPCodecParameters, webrtc.RTPCodecType) error {
-        return nil
+	return nil
 }
 
 // RegisterHeaderExtension is a no-op on js/wasm.
 func (m *MediaEngine) RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability, webrtc.RTPCodecType) error {
-        return nil
+	return nil
 }
 
 // RegisterFeedback is a no-op on js/wasm.
@@ -202,8 +202,8 @@ func (m *MediaEngine) RegisterFeedback(webrtc.RTCPFeedback, webrtc.RTPCodecType)
 // SettingEngine is a compile stub; all Set* methods are no-ops on js/wasm
 // (the browser owns ICE/SRTP configuration).
 type SettingEngine struct {
-        // LoggerFactory mirrors the native field; unused on js/wasm.
-        LoggerFactory pionlogging.LoggerFactory
+	// LoggerFactory mirrors the native field; unused on js/wasm.
+	LoggerFactory pionlogging.LoggerFactory
 }
 
 // SetSRTPReplayProtectionWindow is a no-op on js/wasm.
@@ -239,11 +239,11 @@ func WithSettingEngine(SettingEngine) func(*API) { return func(*API) {} }
 
 // NewPeerConnection returns the wrtc wrapper around a browser PC.
 func (a *API) NewPeerConnection(cfg webrtc.Configuration) (*PeerConnection, error) {
-        pc, err := webrtc.NewPeerConnection(cfg)
-        if err != nil {
-                return nil, err
-        }
-        return &PeerConnection{PeerConnection: pc}, nil
+	pc, err := webrtc.NewPeerConnection(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &PeerConnection{PeerConnection: pc}, nil
 }
 
 // RegisterDefaultInterceptors is a no-op on js/wasm.
@@ -265,7 +265,7 @@ func ConfigureTWCCSender(*MediaEngine, *interceptor.Registry) error { return nil
 // browser fires ICE gathering events, so the returned channel is closed
 // immediately (gathering treated as complete).
 func GatheringCompletePromise(_ *PeerConnection) (gatherComplete <-chan struct{}) {
-        ch := make(chan struct{})
-        close(ch)
-        return ch
+	ch := make(chan struct{})
+	close(ch)
+	return ch
 }

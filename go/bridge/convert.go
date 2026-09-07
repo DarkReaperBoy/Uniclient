@@ -9,8 +9,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	pb "uniclient/proto"
 	"uniclient/cores"
+	pb "uniclient/proto"
 )
 
 // ═══════════════════════════════════════════════════════════════════
@@ -523,10 +523,10 @@ func ForumTopicsToDialogProtos(fts []cores.ForumTopic) []*pb.Dialog {
 	for i := range fts {
 		out[i] = &pb.Dialog{
 			Id: fts[i].ID, Title: fts[i].Title,
-			Type: pb.ChatType_CHAT_TYPE_TOPIC,
+			Type:        pb.ChatType_CHAT_TYPE_TOPIC,
 			UnreadCount: int32(fts[i].UnreadCount),
-			IsPinned: fts[i].IsPinned,
-			ParentId: fts[i].ParentID,
+			IsPinned:    fts[i].IsPinned,
+			ParentId:    fts[i].ParentID,
 		}
 	}
 	return out
@@ -623,7 +623,7 @@ func VerificationInfoToProto(v *cores.VerificationInfo) *pb.VerificationInfo {
 		TransactionId: v.TransactionID, State: v.State,
 		FromUser: v.FromUser, FromDevice: v.FromDevice,
 		Emojis: v.Emojis, EmojiSymbols: v.EmojiSymbols,
-		Decimals: decimals,
+		Decimals:   decimals,
 		CancelCode: v.CancelCode, CancelReason: v.CancelReason,
 	}
 }
@@ -676,8 +676,8 @@ func protoToGoJSON(src proto.Message, dst interface{}) error {
 	return json.Unmarshal(data, dst)
 }
 
-func boolPtr(b bool) *bool { return &b }
-func intPtr(i int) *int     { return &i }
+func boolPtr(b bool) *bool       { return &b }
+func intPtr(i int) *int          { return &i }
 func stringPtr(s string) *string { return &s }
 
 // Suppress unused import warning.

@@ -24,40 +24,40 @@ type AdminRankProvider interface {
 
 // CachedMessage is the message data returned to the UI from cache.
 type CachedMessage struct {
-	AccountID    string `json:"account_id"`
-	ChatID       string `json:"chat_id"`
-	MsgID        string `json:"msg_id"`
-	LocalID      string `json:"local_id,omitempty"`
+	AccountID     string `json:"account_id"`
+	ChatID        string `json:"chat_id"`
+	MsgID         string `json:"msg_id"`
+	LocalID       string `json:"local_id,omitempty"`
 	SenderID      string `json:"sender_id,omitempty"`
 	SenderName    string `json:"sender_name,omitempty"`
 	SenderRank    string `json:"sender_rank,omitempty"`
 	SenderColorID int    `json:"sender_color_id,omitempty"`
-	ContentText  string `json:"content_text,omitempty"`
-	ContentRaw   []byte `json:"content_raw,omitempty"`
-	ContentRich  []byte `json:"content_rich,omitempty"`
-	Timestamp    int64  `json:"timestamp"`
-	EditedAt     int64  `json:"edited_at,omitempty"`
-	Status       int    `json:"status"`
-	ReplyToID    string `json:"reply_to_id,omitempty"`
-	ReplyPreview string `json:"reply_preview,omitempty"`
+	ContentText   string `json:"content_text,omitempty"`
+	ContentRaw    []byte `json:"content_raw,omitempty"`
+	ContentRich   []byte `json:"content_rich,omitempty"`
+	Timestamp     int64  `json:"timestamp"`
+	EditedAt      int64  `json:"edited_at,omitempty"`
+	Status        int    `json:"status"`
+	ReplyToID     string `json:"reply_to_id,omitempty"`
+	ReplyPreview  string `json:"reply_preview,omitempty"`
 	ForwardFrom   string `json:"forward_from,omitempty"`
 	ForwardFromID string `json:"forward_from_id,omitempty"`
-	IsPinned     bool   `json:"is_pinned"`
-	IsOutgoing   bool   `json:"is_outgoing"`
-	IsService    bool   `json:"is_service"`
-	HasMedia     bool   `json:"has_media"`
-	GroupedID    string `json:"grouped_id,omitempty"`
-	NoForwards   bool   `json:"no_forwards"`
-	PaidPostType int    `json:"paid_post_type,omitempty"` // suggested-post payment: 0=none, 1=stars, 2=ton
+	IsPinned      bool   `json:"is_pinned"`
+	IsOutgoing    bool   `json:"is_outgoing"`
+	IsService     bool   `json:"is_service"`
+	HasMedia      bool   `json:"has_media"`
+	GroupedID     string `json:"grouped_id,omitempty"`
+	NoForwards    bool   `json:"no_forwards"`
+	PaidPostType  int    `json:"paid_post_type,omitempty"` // suggested-post payment: 0=none, 1=stars, 2=ton
 
 	// Anti-recall metadata.
 	IsDeleted bool  `json:"is_deleted"`
 	DeletedAt int64 `json:"deleted_at,omitempty"`
 
 	// Scheduled message metadata.
-	ScheduleDate        int64 `json:"schedule_date,omitempty"`
-	IsSilent            bool  `json:"is_silent,omitempty"`
-	ScheduleRepeatPeriod int  `json:"schedule_repeat_period,omitempty"`
+	ScheduleDate         int64 `json:"schedule_date,omitempty"`
+	IsSilent             bool  `json:"is_silent,omitempty"`
+	ScheduleRepeatPeriod int   `json:"schedule_repeat_period,omitempty"`
 
 	// Media metadata (populated from media table join).
 	MediaType          int    `json:"media_type,omitempty"`
@@ -84,6 +84,7 @@ type CachedMessage struct {
 //     HistoryWidget::loadMessagesDown (history_widget.cpp:4522).
 //   - else beforeMs > 0: load messages OLDER than beforeMs (loadMessages).
 //   - else: the most recent messages (initial load).
+//
 // Falls back to fetching from the core if cache is empty on initial load.
 func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, limit int) ([]CachedMessage, error) {
 	if limit <= 0 {
@@ -502,22 +503,22 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		SenderRank:    msg.SenderRank,
 		SenderColorID: msg.SenderColorID,
 		ContentText:   msg.Text,
-		ContentRaw:   rawBytes,
-		ContentRich:  richBytes,
-		Timestamp:    ts,
-		EditedAt:     editedAt.Int64,
-		Status:       status,
-		ReplyToID:    msg.ReplyToID,
-		ReplyPreview: msg.ReplyPreview,
+		ContentRaw:    rawBytes,
+		ContentRich:   richBytes,
+		Timestamp:     ts,
+		EditedAt:      editedAt.Int64,
+		Status:        status,
+		ReplyToID:     msg.ReplyToID,
+		ReplyPreview:  msg.ReplyPreview,
 		ForwardFrom:   msg.ForwardFrom,
 		ForwardFromID: msg.ForwardFromID,
-		IsPinned:     msg.IsPinned,
-		IsOutgoing:   msg.IsOutgoing,
-		IsService:    msg.IsService,
-		HasMedia:     hasMedia,
-		GroupedID:    msg.GroupedID,
-		NoForwards:   msg.NoForwards,
-		PaidPostType: msg.PaidPostType,
+		IsPinned:      msg.IsPinned,
+		IsOutgoing:    msg.IsOutgoing,
+		IsService:     msg.IsService,
+		HasMedia:      hasMedia,
+		GroupedID:     msg.GroupedID,
+		NoForwards:    msg.NoForwards,
+		PaidPostType:  msg.PaidPostType,
 	}
 
 	// Populate media metadata from what we just cached so the returned
@@ -847,11 +848,11 @@ func nullStr(s string) sql.NullString {
 }
 
 // msgPreviewText returns the chat-list preview for a message.
-// - Non-empty text → truncated to 100 chars (optionally prefixed with a media emoji
-//   for media-with-caption messages, e.g. "📷 look at this").
-// - Media-only (text empty, attachments present) → emoji + media-type label
-//   (e.g. "📷 Photo", "🎙 Voice message", "📎 filename.pdf").
-// - No text, no attachments → "".
+//   - Non-empty text → truncated to 100 chars (optionally prefixed with a media emoji
+//     for media-with-caption messages, e.g. "📷 look at this").
+//   - Media-only (text empty, attachments present) → emoji + media-type label
+//     (e.g. "📷 Photo", "🎙 Voice message", "📎 filename.pdf").
+//   - No text, no attachments → "".
 func msgPreviewText(msg *cores.Message) string {
 	text := msg.Text
 	if len(msg.Attachments) == 0 {
@@ -2496,8 +2497,8 @@ func (e *Engine) FetchPeerStories(accountID, peerID string) (string, error) {
 
 	// Download each story's media to local path.
 	type storyEntry struct {
-		ID      int            `json:"id"`
-		FileRef cores.FileRef  `json:"file_ref"`
+		ID      int           `json:"id"`
+		FileRef cores.FileRef `json:"file_ref"`
 	}
 	var entries []storyEntry
 	if err := json.Unmarshal([]byte(storiesJSON), &entries); err != nil {
@@ -2514,7 +2515,9 @@ func (e *Engine) FetchPeerStories(accountID, peerID string) (string, error) {
 	}
 
 	for i, entry := range entries {
-		if entry.FileRef.ID == "" { continue }
+		if entry.FileRef.ID == "" {
+			continue
+		}
 		ext := ".jpg"
 		if entry.FileRef.MimeType != "" && entry.FileRef.MimeType != "image/jpeg" {
 			ext = ".mp4"

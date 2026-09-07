@@ -591,9 +591,10 @@ func writeTokenValue(be *vp8BoolEnc, probs [11]uint8, value int) {
 // ---------------------------------------------------------------------------
 
 // encodeBlock encodes a coefficient block matching the decoder's exact bit protocol:
-//   1. p[0] EOB check before first coefficient
-//   2. For each position: p[1] zero/nonzero
-//   3. After non-zero: value tree + sign, then p[0] EOB check at next band
+//  1. p[0] EOB check before first coefficient
+//  2. For each position: p[1] zero/nonzero
+//  3. After non-zero: value tree + sign, then p[0] EOB check at next band
+//
 // Returns true if any non-zero coefficient was encoded.
 func encodeBlock(tp *vp8BoolEnc, plane int, startBand int, ctx int, coeffs [16]int) bool {
 	lastNz := -1

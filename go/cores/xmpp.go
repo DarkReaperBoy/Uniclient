@@ -3,16 +3,18 @@
 // No external dependencies — stdlib only (encoding/xml, crypto/tls, net).
 //
 // Chat IDs:
-//   "user@domain"             → DM (bare JID)
-//   "room@conference.domain"  → MUC room (group)
+//
+//	"user@domain"             → DM (bare JID)
+//	"room@conference.domain"  → MUC room (group)
 //
 // AuthConfig.Extra keys:
-//   "server"      — host:port (e.g. "conversations.im:5222")
-//   "resource"    — XMPP resource (default: "uniclient")
-//   "tls"         — "direct" for port 5223 direct TLS, "starttls" (default), "none"
-//   "mechanism"   — "plain", "scram-sha-1", "scram-sha-256" (default: best available)
-//   "muc_service" — MUC service domain (auto-discovered if empty)
-//   "upload_service" — HTTP upload service (auto-discovered if empty)
+//
+//	"server"      — host:port (e.g. "conversations.im:5222")
+//	"resource"    — XMPP resource (default: "uniclient")
+//	"tls"         — "direct" for port 5223 direct TLS, "starttls" (default), "none"
+//	"mechanism"   — "plain", "scram-sha-1", "scram-sha-256" (default: best available)
+//	"muc_service" — MUC service domain (auto-discovered if empty)
+//	"upload_service" — HTTP upload service (auto-discovered if empty)
 //
 // Coverage: SASL (PLAIN, SCRAM-SHA-1, SCRAM-SHA-256), STARTTLS, resource binding,
 // roster (RFC 6121), presence, MUC (XEP-0045), disco (XEP-0030), MAM (XEP-0313),
@@ -75,58 +77,58 @@ const (
 
 // XML namespaces
 const (
-	nsStream    = "http://etherx.jabber.org/streams"
-	nsClient    = "jabber:client"
-	nsTLS       = "urn:ietf:params:xml:ns:xmpp-tls"
-	nsSASL      = "urn:ietf:params:xml:ns:xmpp-sasl"
-	nsBind      = "urn:ietf:params:xml:ns:xmpp-bind"
-	nsSession   = "urn:ietf:params:xml:ns:xmpp-session"
-	nsRoster    = "jabber:iq:roster"
-	nsDiscoInfo = "http://jabber.org/protocol/disco#info"
-	nsDiscoItem = "http://jabber.org/protocol/disco#items"
-	nsMUC       = "http://jabber.org/protocol/muc"
-	nsMUCUser   = "http://jabber.org/protocol/muc#user"
-	nsMUCAdmin  = "http://jabber.org/protocol/muc#admin"
-	nsMUCOwner  = "http://jabber.org/protocol/muc#owner"
-	nsDirectMUC = "jabber:x:conference"
-	nsChatState = "http://jabber.org/protocol/chatstates"
-	nsReceipts  = "urn:xmpp:receipts"
-	nsCorrect   = "urn:xmpp:message-correct:0"
-	nsCarbons   = "urn:xmpp:carbons:2"
-	nsForward   = "urn:xmpp:forward:0"
-	nsMAM       = "urn:xmpp:mam:2"
-	nsRSM       = "http://jabber.org/protocol/rsm"
-	nsBlocking  = "urn:xmpp:blocking"
-	nsBookmarks = "storage:bookmarks"
-	nsBmk2      = "urn:xmpp:bookmarks:1"
-	nsPubSub    = "http://jabber.org/protocol/pubsub"
-	nsPubEvent  = "http://jabber.org/protocol/pubsub#event"
-	nsPubOwner  = "http://jabber.org/protocol/pubsub#owner"
-	nsUpload    = "urn:xmpp:http:upload:0"
-	nsOOB       = "jabber:x:oob"
-	nsVCard     = "vcard-temp"
-	nsPing      = "urn:xmpp:ping"
-	nsVersion   = "jabber:iq:version"
-	nsLast      = "jabber:iq:last"
-	nsTime      = "urn:xmpp:time"
-	nsSM        = "urn:xmpp:sm:3"
-	nsCSI       = "urn:xmpp:csi:0"
-	nsCaps      = "http://jabber.org/protocol/caps"
-	nsReply     = "urn:xmpp:reply:0"
-	nsReactions = "urn:xmpp:reactions:0"
-	nsMarkers   = "urn:xmpp:chat-markers:0"
-	nsHints     = "urn:xmpp:hints"
-	nsRegister  = "jabber:iq:register"
-	nsXData     = "jabber:x:data"
-	nsDelay     = "urn:xmpp:delay"
-	nsJingle    = "urn:xmpp:jingle:1"
-	nsJingleRTP = "urn:xmpp:jingle:apps:rtp:1"
-	nsJingleICE = "urn:xmpp:jingle:transports:ice-udp:1"
-	nsExtSvc    = "urn:xmpp:extdisco:2"
-	nsMood      = "http://jabber.org/protocol/mood"
-	nsActivity  = "http://jabber.org/protocol/activity"
-	nsTune      = "http://jabber.org/protocol/tune"
-	nsGeoLoc    = "http://jabber.org/protocol/geoloc"
+	nsStream     = "http://etherx.jabber.org/streams"
+	nsClient     = "jabber:client"
+	nsTLS        = "urn:ietf:params:xml:ns:xmpp-tls"
+	nsSASL       = "urn:ietf:params:xml:ns:xmpp-sasl"
+	nsBind       = "urn:ietf:params:xml:ns:xmpp-bind"
+	nsSession    = "urn:ietf:params:xml:ns:xmpp-session"
+	nsRoster     = "jabber:iq:roster"
+	nsDiscoInfo  = "http://jabber.org/protocol/disco#info"
+	nsDiscoItem  = "http://jabber.org/protocol/disco#items"
+	nsMUC        = "http://jabber.org/protocol/muc"
+	nsMUCUser    = "http://jabber.org/protocol/muc#user"
+	nsMUCAdmin   = "http://jabber.org/protocol/muc#admin"
+	nsMUCOwner   = "http://jabber.org/protocol/muc#owner"
+	nsDirectMUC  = "jabber:x:conference"
+	nsChatState  = "http://jabber.org/protocol/chatstates"
+	nsReceipts   = "urn:xmpp:receipts"
+	nsCorrect    = "urn:xmpp:message-correct:0"
+	nsCarbons    = "urn:xmpp:carbons:2"
+	nsForward    = "urn:xmpp:forward:0"
+	nsMAM        = "urn:xmpp:mam:2"
+	nsRSM        = "http://jabber.org/protocol/rsm"
+	nsBlocking   = "urn:xmpp:blocking"
+	nsBookmarks  = "storage:bookmarks"
+	nsBmk2       = "urn:xmpp:bookmarks:1"
+	nsPubSub     = "http://jabber.org/protocol/pubsub"
+	nsPubEvent   = "http://jabber.org/protocol/pubsub#event"
+	nsPubOwner   = "http://jabber.org/protocol/pubsub#owner"
+	nsUpload     = "urn:xmpp:http:upload:0"
+	nsOOB        = "jabber:x:oob"
+	nsVCard      = "vcard-temp"
+	nsPing       = "urn:xmpp:ping"
+	nsVersion    = "jabber:iq:version"
+	nsLast       = "jabber:iq:last"
+	nsTime       = "urn:xmpp:time"
+	nsSM         = "urn:xmpp:sm:3"
+	nsCSI        = "urn:xmpp:csi:0"
+	nsCaps       = "http://jabber.org/protocol/caps"
+	nsReply      = "urn:xmpp:reply:0"
+	nsReactions  = "urn:xmpp:reactions:0"
+	nsMarkers    = "urn:xmpp:chat-markers:0"
+	nsHints      = "urn:xmpp:hints"
+	nsRegister   = "jabber:iq:register"
+	nsXData      = "jabber:x:data"
+	nsDelay      = "urn:xmpp:delay"
+	nsJingle     = "urn:xmpp:jingle:1"
+	nsJingleRTP  = "urn:xmpp:jingle:apps:rtp:1"
+	nsJingleICE  = "urn:xmpp:jingle:transports:ice-udp:1"
+	nsExtSvc     = "urn:xmpp:extdisco:2"
+	nsMood       = "http://jabber.org/protocol/mood"
+	nsActivity   = "http://jabber.org/protocol/activity"
+	nsTune       = "http://jabber.org/protocol/tune"
+	nsGeoLoc     = "http://jabber.org/protocol/geoloc"
 	nsAvatarData = "urn:xmpp:avatar:data"
 	nsAvatarMeta = "urn:xmpp:avatar:metadata"
 	nsPrivate    = "jabber:iq:private"
@@ -147,14 +149,14 @@ type xmppStreamStart struct {
 
 // streamFeatures represents <stream:features>.
 type xmppFeatures struct {
-	StartTLS   *xmppTLSFeature   `xml:"urn:ietf:params:xml:ns:xmpp-tls starttls"`
-	Mechanisms *xmppSASLMechs    `xml:"urn:ietf:params:xml:ns:xmpp-sasl mechanisms"`
-	Bind       *xml.Name         `xml:"urn:ietf:params:xml:ns:xmpp-bind bind"`
-	Session    *xml.Name         `xml:"urn:ietf:params:xml:ns:xmpp-session session"`
-	SM         *xml.Name         `xml:"urn:xmpp:sm:3 sm"`
-	CSI        *xml.Name         `xml:"urn:xmpp:csi:0 csi"`
-	RosterVer  *xml.Name         `xml:"urn:xmpp:features:rosterver ver"`
-	InnerXML   string            `xml:",innerxml"`
+	StartTLS   *xmppTLSFeature `xml:"urn:ietf:params:xml:ns:xmpp-tls starttls"`
+	Mechanisms *xmppSASLMechs  `xml:"urn:ietf:params:xml:ns:xmpp-sasl mechanisms"`
+	Bind       *xml.Name       `xml:"urn:ietf:params:xml:ns:xmpp-bind bind"`
+	Session    *xml.Name       `xml:"urn:ietf:params:xml:ns:xmpp-session session"`
+	SM         *xml.Name       `xml:"urn:xmpp:sm:3 sm"`
+	CSI        *xml.Name       `xml:"urn:xmpp:csi:0 csi"`
+	RosterVer  *xml.Name       `xml:"urn:xmpp:features:rosterver ver"`
+	InnerXML   string          `xml:",innerxml"`
 }
 
 type xmppTLSFeature struct {
@@ -167,13 +169,13 @@ type xmppSASLMechs struct {
 
 // Generic stanza types
 type XMPPIQ struct {
-	XMLName xml.Name     `xml:"iq"`
-	Type    string       `xml:"type,attr"`
-	ID      string       `xml:"id,attr,omitempty"`
-	To      string       `xml:"to,attr,omitempty"`
-	From    string       `xml:"from,attr,omitempty"`
-	Lang    string       `xml:"xml:lang,attr,omitempty"`
-	Inner   string       `xml:",innerxml"`
+	XMLName xml.Name         `xml:"iq"`
+	Type    string           `xml:"type,attr"`
+	ID      string           `xml:"id,attr,omitempty"`
+	To      string           `xml:"to,attr,omitempty"`
+	From    string           `xml:"from,attr,omitempty"`
+	Lang    string           `xml:"xml:lang,attr,omitempty"`
+	Inner   string           `xml:",innerxml"`
 	Error   *XMPPStanzaError `xml:"error"`
 }
 
@@ -198,9 +200,9 @@ type xmppPresence struct {
 }
 
 type XMPPStanzaError struct {
-	Type string `xml:"type,attr,omitempty"`
-	Code string `xml:"code,attr,omitempty"`
-	Text string `xml:"text,omitempty"`
+	Type  string `xml:"type,attr,omitempty"`
+	Code  string `xml:"code,attr,omitempty"`
+	Text  string `xml:"text,omitempty"`
 	Inner string `xml:",innerxml"`
 }
 
@@ -226,8 +228,8 @@ type xmppParsedMessage struct {
 	DisplayedID string
 	ReceivedID  string
 	// XEP-0461 reply
-	ReplyTo   string // JID
-	ReplyID   string // message id
+	ReplyTo string // JID
+	ReplyID string // message id
 	// XEP-0444 reactions
 	ReactionsID string
 	Reactions   []string
@@ -238,9 +240,9 @@ type xmppParsedMessage struct {
 	CarbonType string // sent or received
 	CarbonMsg  *xmppParsedMessage
 	// MAM
-	MAMID    string
+	MAMID      string
 	MAMQueryID string
-	MAMMsg   *xmppParsedMessage
+	MAMMsg     *xmppParsedMessage
 	// Forwarded
 	ForwardedFrom string
 }
@@ -262,19 +264,19 @@ type xmppRosterItem struct {
 // ---------------------------------------------------------------------------
 
 type xmppSession struct {
-	JID            string            `json:"jid"`
-	Server         string            `json:"server"`
-	Resource       string            `json:"resource"`
-	MUCService     string            `json:"muc_service,omitempty"`
-	UploadService  string            `json:"upload_service,omitempty"`
-	UploadMaxSize  int64             `json:"upload_max_size,omitempty"`
-	JoinedRooms    []string          `json:"joined_rooms,omitempty"`
-	Bookmarks      []xmppBookmark    `json:"bookmarks,omitempty"`
-	Blocked        []string          `json:"blocked,omitempty"`
-	RosterVer      string            `json:"roster_ver,omitempty"`
-	SMEnabled      bool              `json:"sm_enabled,omitempty"`
-	SMResumeID     string            `json:"sm_resume_id,omitempty"`
-	CarbonsEnabled bool              `json:"carbons_enabled,omitempty"`
+	JID            string         `json:"jid"`
+	Server         string         `json:"server"`
+	Resource       string         `json:"resource"`
+	MUCService     string         `json:"muc_service,omitempty"`
+	UploadService  string         `json:"upload_service,omitempty"`
+	UploadMaxSize  int64          `json:"upload_max_size,omitempty"`
+	JoinedRooms    []string       `json:"joined_rooms,omitempty"`
+	Bookmarks      []xmppBookmark `json:"bookmarks,omitempty"`
+	Blocked        []string       `json:"blocked,omitempty"`
+	RosterVer      string         `json:"roster_ver,omitempty"`
+	SMEnabled      bool           `json:"sm_enabled,omitempty"`
+	SMResumeID     string         `json:"sm_resume_id,omitempty"`
+	CarbonsEnabled bool           `json:"carbons_enabled,omitempty"`
 }
 
 type xmppBookmark struct {
@@ -289,14 +291,14 @@ type xmppBookmark struct {
 // ---------------------------------------------------------------------------
 
 type xmppRoom struct {
-	JID         string
-	Name        string
-	Nick        string
-	Subject     string
-	SubjectBy   string
-	Occupants   map[string]*xmppOccupant // nick → occupant
-	Joined      bool
-	Config      map[string]string
+	JID       string
+	Name      string
+	Nick      string
+	Subject   string
+	SubjectBy string
+	Occupants map[string]*xmppOccupant // nick → occupant
+	Joined    bool
+	Config    map[string]string
 }
 
 type xmppOccupant struct {
@@ -335,19 +337,19 @@ type XMPPCore struct {
 	writeMu sync.Mutex
 
 	// Identity
-	jid        string // full JID (user@domain/resource)
-	bareJID    string // bare JID (user@domain)
-	domain     string
-	server     string // host:port
-	resource   string
-	password   string
-	tlsMode    string // "starttls", "direct", "none"
-	saslMech   string // preferred mechanism
+	jid      string // full JID (user@domain/resource)
+	bareJID  string // bare JID (user@domain)
+	domain   string
+	server   string // host:port
+	resource string
+	password string
+	tlsMode  string // "starttls", "direct", "none"
+	saslMech string // preferred mechanism
 
 	// Server features
-	features     xmppFeatures
-	serverFeats  []string // disco#info features
-	mucService   string
+	features      xmppFeatures
+	serverFeats   []string // disco#info features
+	mucService    string
 	uploadService string
 	uploadMaxSize int64
 
@@ -383,12 +385,12 @@ type XMPPCore struct {
 	iqCounter   atomic.Int64
 
 	// Stream management (XEP-0198)
-	smEnabled   bool
-	smResumeID  string
-	smInH       atomic.Int64 // handled count (incoming)
-	smOutH      atomic.Int64 // sent count (outgoing)
-	smOutQueue  []*bytes.Buffer // unacked outgoing stanzas
-	smOutMu     sync.Mutex
+	smEnabled  bool
+	smResumeID string
+	smInH      atomic.Int64    // handled count (incoming)
+	smOutH     atomic.Int64    // sent count (outgoing)
+	smOutQueue []*bytes.Buffer // unacked outgoing stanzas
+	smOutMu    sync.Mutex
 
 	// Carbons
 	carbonsEnabled bool
@@ -415,9 +417,9 @@ type XMPPCore struct {
 
 	// Lifecycle
 	session *utils.SessionStore
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	ctx     context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 var _ Core = (*XMPPCore)(nil)
@@ -435,8 +437,8 @@ func NewXMPPCore(session *utils.SessionStore) *XMPPCore {
 		pendingIQ:  make(map[string]*xmppPendingIQ),
 		vcardCache: make(map[string]map[string]string),
 		session:    session,
-		ctx:         ctx,
-		cancel:      cancel,
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 }
 
@@ -1590,8 +1592,8 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 		}
 		// Fire update for subscription request
 		c.fireUpdate(Update{
-			Type:     UpdateNewMessage,
-			ChatID:   fromBare,
+			Type:   UpdateNewMessage,
+			ChatID: fromBare,
 			Message: &Message{
 				ID:         fmt.Sprintf("sub_%d", time.Now().UnixNano()),
 				ChatID:     fromBare,
@@ -1654,9 +1656,9 @@ func (c *XMPPCore) handleMUCPresence(pres xmppPresence) {
 		delete(room.Occupants, nick)
 		c.roomsMu.Unlock()
 		c.fireUpdate(Update{
-			Type:   UpdateGroupMembers,
-			ChatID: roomJID,
-			UserID: nick,
+			Type:     UpdateGroupMembers,
+			ChatID:   roomJID,
+			UserID:   nick,
 			Platform: xmppPlatform,
 		})
 		return
@@ -1682,9 +1684,9 @@ func (c *XMPPCore) handleMUCPresence(pres xmppPresence) {
 	c.roomsMu.Unlock()
 
 	c.fireUpdate(Update{
-		Type:   UpdateGroupMembers,
-		ChatID: roomJID,
-		UserID: nick,
+		Type:     UpdateGroupMembers,
+		ChatID:   roomJID,
+		UserID:   nick,
 		Platform: xmppPlatform,
 	})
 }
@@ -3162,8 +3164,6 @@ func (c *XMPPCore) SendPresenceUnavailable(status string) error {
 	return c.sendRawStanza("<presence type='unavailable'><status>" + xmlEscape(status) + "</status></presence>")
 }
 
-
-
 // SetPresencePriority sets the priority value on subsequent presence stanzas.
 func (c *XMPPCore) SetPresencePriority(priority int) error {
 	return c.sendRawStanza(fmt.Sprintf(
@@ -3365,7 +3365,6 @@ func (c *XMPPCore) SendChatStateGone(chatID string) error {
 // XMPP-specific: Message extensions
 // ---------------------------------------------------------------------------
 
-
 // SendGroupchatMessage sends groupchat message to the specified JID.
 func (c *XMPPCore) SendGroupchatMessage(to, body string) error {
 	id := c.nextMsgID()
@@ -3410,8 +3409,6 @@ func (c *XMPPCore) SendReceipt(to, msgID string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza("<message to='" + xmlEscape(to) + "' id='" + id + "'><received xmlns='" + nsReceipts + "' id='" + xmlEscape(msgID) + "'/></message>")
 }
-
-
 
 // EnableCarbons enables message carbons (XEP-0280) for multi-device sync.
 func (c *XMPPCore) EnableCarbons() error {
@@ -3473,7 +3470,6 @@ func (c *XMPPCore) SendOOBURL(chatID, url, desc string) error {
 func (c *XMPPCore) SetMessageHint(chatID, msgID, hint string) error {
 	return fmt.Errorf("%w: xmpp message hints can only be set at send time", ErrNotSupported)
 }
-
 
 // SendReaction sends a message reaction (XEP-0444) to the specified message.
 func (c *XMPPCore) SendReaction(chatID, msgID string, emojis []string) error {
@@ -4929,10 +4925,10 @@ func (c *XMPPCore) InitiateJingle(to string, video bool) (*CallSession, error) {
 	}
 
 	return &CallSession{
-		ID:     sid,
-		ChatID: bareJID(to),
+		ID:      sid,
+		ChatID:  bareJID(to),
 		IsVideo: video,
-		State:  CallStateRinging,
+		State:   CallStateRinging,
 		Participants: []CallParticipant{
 			{UserID: c.bareJID, DisplayName: c.bareJID},
 			{UserID: bareJID(to), DisplayName: bareJID(to)},
@@ -6871,7 +6867,6 @@ func (c *XMPPCore) ConnectDirectTLS(domain string) error {
 	return nil
 }
 
-
 // InstantStreamResumption implements XEP-0397 ISR token storage/negotiation.
 func (c *XMPPCore) InstantStreamResumption(token string) error {
 	return c.sendRawStanza(fmt.Sprintf(
@@ -6945,7 +6940,7 @@ func (c *XMPPCore) GetStreamLimits() map[string]int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return map[string]int{
-		"max_bytes": c.streamMaxBytes,
+		"max_bytes":    c.streamMaxBytes,
 		"idle_seconds": c.streamIdleSeconds,
 	}
 }
@@ -7852,7 +7847,6 @@ func (c *XMPPCore) SearchUsersExtended(service string, fields map[string]string)
 			`<x xmlns='jabber:x:data' type='submit'>%s</x></query>`, fieldXML))
 }
 
-
 // HandleCAPTCHA implements XEP-0158 — respond to CAPTCHA challenge.
 func (c *XMPPCore) HandleCAPTCHA(to, challengeID, answer string) error {
 	_, err := c.sendIQSync("set", to,
@@ -7864,7 +7858,6 @@ func (c *XMPPCore) HandleCAPTCHA(to, challengeID, answer string) error {
 			`</x></captcha>`, xmlEscape(challengeID), xmlEscape(answer)))
 	return err
 }
-
 
 // EnableRosterVersioning implements XEP-0237 — request versioned roster.
 func (c *XMPPCore) EnableRosterVersioning(ver string) (*XMPPIQ, error) {
@@ -7969,7 +7962,6 @@ func (c *XMPPCore) RequestBurnerJID(service string) (*XMPPIQ, error) {
 		`<burner xmlns='urn:xmpp:burner:0'/>`)
 }
 
-
 // ForwardStanza implements XEP-0297 — standard stanza encapsulation.
 func (c *XMPPCore) ForwardStanza(to, originalFrom, originalStanza string) error {
 	id := c.nextMsgID()
@@ -7981,7 +7973,6 @@ func (c *XMPPCore) ForwardStanza(to, originalFrom, originalStanza string) error 
 		xmlEscape(to), id, xmlEscape(originalFrom),
 		time.Now().UTC().Format("2006-01-02T15:04:05Z"), originalStanza))
 }
-
 
 // ── Miscellaneous (5 XEPs) ──
 
@@ -8074,4 +8065,3 @@ func (c *XMPPCore) DeclineCall(callID string) error {
 func (c *XMPPCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
 	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, xmppPlatform)
 }
-

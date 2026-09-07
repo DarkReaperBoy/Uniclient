@@ -1042,10 +1042,10 @@ func tsParseInit3(data []byte) (x, n [64]byte, level uint32, random2 [100]byte, 
 // ──────────────────────────── TS3 Connection State ────────────────────────────
 
 type tsPacketState struct {
-	nextSendID  uint16
-	nextRecvID  uint16
-	sendGenID   uint32
-	recvGenID   uint32
+	nextSendID uint16
+	nextRecvID uint16
+	sendGenID  uint32
+	recvGenID  uint32
 }
 
 type tsPendingCmd struct {
@@ -1078,8 +1078,8 @@ type tsConnection struct {
 	clientID  uint16
 
 	// Receive queue for out-of-order command packets (per command type)
-	recvQueue    [2]map[uint16]*tsDecryptedPkt // [0]=Command, [1]=CommandLow
-	recvQueueMu  sync.Mutex
+	recvQueue   [2]map[uint16]*tsDecryptedPkt // [0]=Command, [1]=CommandLow
+	recvQueueMu sync.Mutex
 
 	// Fragment assembly state (per command type)
 	fragBuf   [2][]byte // accumulated fragment data
@@ -1157,16 +1157,16 @@ type TeamSpeakCore struct {
 	bwStats tsBandwidthStats
 
 	// 3D audio state
-	listener3D      ts3DListener
-	client3DPos     map[int][3]float32
-	wave3DPos       map[int][3]float32
+	listener3D       ts3DListener
+	client3DPos      map[int][3]float32
+	wave3DPos        map[int][3]float32
 	distanceFactor3D float32
 	rolloffScale3D   float32
 
 	// Audio device state
-	playbackDevice    string
-	captureDevice     string
-	captureActive     bool
+	playbackDevice     string
+	captureDevice      string
+	captureActive      bool
 	preprocessorConfig map[string]string
 	playbackConfig     map[string]string
 	clientVolume       map[int]float32
@@ -1227,10 +1227,10 @@ type tsSession struct {
 	ServerAddr string `json:"server_address"`
 	Nickname   string `json:"nickname,omitempty"`
 	// Identity key (P-256 private key, base64 encoded)
-	IdentityD  string `json:"identity_d,omitempty"`
-	IdentityX  string `json:"identity_x,omitempty"`
-	IdentityY  string `json:"identity_y,omitempty"`
-	KeyOffset  uint64 `json:"key_offset,omitempty"`
+	IdentityD string `json:"identity_d,omitempty"`
+	IdentityX string `json:"identity_x,omitempty"`
+	IdentityY string `json:"identity_y,omitempty"`
+	KeyOffset uint64 `json:"key_offset,omitempty"`
 }
 
 func NewTeamSpeakCore(session *utils.SessionStore) *TeamSpeakCore {
@@ -1241,8 +1241,8 @@ func NewTeamSpeakCore(session *utils.SessionStore) *TeamSpeakCore {
 		clientInfo:    make(map[int]tsClientInfo),
 		channels:      make(map[int]tsChannelInfo),
 		eventHandlers: make(map[string][]func(map[string]string)),
-		ctx:         ctx,
-		cancel:      cancel,
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 }
 
@@ -1465,7 +1465,6 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 		return
 	}
 
-
 	flags := pType & 0xf0
 	packetType := pType & 0x0f
 
@@ -1473,8 +1472,6 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 	if tc.owner != nil {
 		tc.owner.bwStats.recordRecv(packetType, len(raw))
 	}
-
-
 
 	switch packetType {
 	case tsPktCommand, tsPktCommandLow:
@@ -1598,7 +1595,7 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 				for k := range tc.recvQueue[cmdI] {
 					keys = append(keys, k)
 				}
-	
+
 			}
 			return // waiting for the next in-order packet
 		}
@@ -1631,8 +1628,6 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 			firstFlags := tc.fragFlags[cmdI]
 			tc.fragBuf[cmdI] = nil
 
-
-
 			// Decompress if first fragment had Compressed flag
 			if firstFlags&tsFlagCompressed != 0 {
 				decompressed, err := tsQuickLZDecompress(assembled)
@@ -1640,7 +1635,7 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 					fmt.Printf("[TS3 FRAG] decompress FAIL: %v\n", err)
 					continue
 				}
-	
+
 				assembled = decompressed
 			}
 
@@ -5583,10 +5578,10 @@ func (t *TeamSpeakCore) SetConnectionInfo() error {
 
 // Codec type constants
 const (
-	tsCodecSpeexNB  = 0 // Speex Narrowband 8kHz mono
-	tsCodecSpeexWB  = 1 // Speex Wideband 16kHz mono
-	tsCodecSpeexUWB = 2 // Speex Ultra-wideband 32kHz mono
-	tsCodecCeltMono = 3 // CELT Mono 48kHz
+	tsCodecSpeexNB   = 0 // Speex Narrowband 8kHz mono
+	tsCodecSpeexWB   = 1 // Speex Wideband 16kHz mono
+	tsCodecSpeexUWB  = 2 // Speex Ultra-wideband 32kHz mono
+	tsCodecCeltMono  = 3 // CELT Mono 48kHz
 	tsCodecOpusVoice = 4 // Opus Voice 48kHz mono (default)
 	tsCodecOpusMusic = 5 // Opus Music 48kHz stereo
 )
@@ -5879,16 +5874,16 @@ func (bw *tsBandwidthStats) recordRecv(pktType byte, size int) {
 // TsBandwidthSnapshot holds bandwidth statistics at a point in time.
 type TsBandwidthSnapshot struct {
 	// Per-category last-second bandwidth (bytes/sec)
-	SentLastSecond  [3]int64 // [speech, keepalive, control]
-	RecvLastSecond  [3]int64
+	SentLastSecond [3]int64 // [speech, keepalive, control]
+	RecvLastSecond [3]int64
 	// Per-category last-minute bandwidth (bytes/sec average)
-	SentLastMinute  [3]int64
-	RecvLastMinute  [3]int64
+	SentLastMinute [3]int64
+	RecvLastMinute [3]int64
 	// Total packet/byte counts
-	TotalSentPkts   [3]int64
-	TotalSentBytes  [3]int64
-	TotalRecvPkts   [3]int64
-	TotalRecvBytes  [3]int64
+	TotalSentPkts  [3]int64
+	TotalSentBytes [3]int64
+	TotalRecvPkts  [3]int64
+	TotalRecvBytes [3]int64
 	// Voice packet loss ratio (0.0-1.0)
 	VoicePacketLoss float64
 }
@@ -6514,10 +6509,16 @@ func DetectVoiceActivity(pcm []int16, threshold float64) bool {
 func (t *TeamSpeakCore) HostInfo() (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return nil, ErrAuth }
+	if !t.authed {
+		return nil, ErrAuth
+	}
 	rows, err := t.tsExec("hostinfo")
-	if err != nil { return nil, err }
-	if len(rows) == 0 { return nil, ErrNotFound }
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, ErrNotFound
+	}
 	return rows[0], nil
 }
 
@@ -6525,10 +6526,16 @@ func (t *TeamSpeakCore) HostInfo() (map[string]string, error) {
 func (t *TeamSpeakCore) InstanceInfo() (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return nil, ErrAuth }
+	if !t.authed {
+		return nil, ErrAuth
+	}
 	rows, err := t.tsExec("instanceinfo")
-	if err != nil { return nil, err }
-	if len(rows) == 0 { return nil, ErrNotFound }
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, ErrNotFound
+	}
 	return rows[0], nil
 }
 
@@ -6536,7 +6543,9 @@ func (t *TeamSpeakCore) InstanceInfo() (map[string]string, error) {
 func (t *TeamSpeakCore) InstanceEdit(props map[string]string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	var b strings.Builder
 	b.WriteString("instanceedit")
 	for k, v := range props {
@@ -6552,7 +6561,9 @@ func (t *TeamSpeakCore) InstanceEdit(props map[string]string) error {
 func (t *TeamSpeakCore) BindingList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return nil, ErrAuth }
+	if !t.authed {
+		return nil, ErrAuth
+	}
 	return t.tsExec("bindinglist")
 }
 
@@ -6560,7 +6571,9 @@ func (t *TeamSpeakCore) BindingList() ([]map[string]string, error) {
 func (t *TeamSpeakCore) ServerProcessStop() error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	return t.tsExecSimple("serverprocessstop")
 }
 
@@ -6568,10 +6581,16 @@ func (t *TeamSpeakCore) ServerProcessStop() error {
 func (t *TeamSpeakCore) ServerIdGetByPort(port int) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return 0, ErrAuth }
+	if !t.authed {
+		return 0, ErrAuth
+	}
 	rows, err := t.tsExec(fmt.Sprintf("serveridgetbyport virtualserver_port=%d", port))
-	if err != nil { return 0, err }
-	if len(rows) == 0 { return 0, ErrNotFound }
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, ErrNotFound
+	}
 	sid, err := strconv.Atoi(rows[0]["server_id"])
 	if err != nil {
 		return 0, fmt.Errorf("invalid server_id in response: %w", err)
@@ -6587,7 +6606,9 @@ func (t *TeamSpeakCore) ServerIdGetByPort(port int) (int, error) {
 func (t *TeamSpeakCore) VerifyServerPassword(password string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	return t.tsExecSimple(fmt.Sprintf("verifyserverpassword virtualserver_password=%s", tsEscape(password)))
 }
 
@@ -6595,7 +6616,9 @@ func (t *TeamSpeakCore) VerifyServerPassword(password string) error {
 func (t *TeamSpeakCore) VerifyChannelPassword(cid int, password string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	return t.tsExecSimple(fmt.Sprintf("verifychannelpassword cid=%d cpw=%s", cid, tsEscape(password)))
 }
 
@@ -6607,16 +6630,24 @@ func (t *TeamSpeakCore) VerifyChannelPassword(cid int, password string) error {
 func (t *TeamSpeakCore) BanClientDBID(cldbid, timeSeconds int, reason string) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return 0, ErrAuth }
+	if !t.authed {
+		return 0, ErrAuth
+	}
 	cmd := fmt.Sprintf("banclient cldbid=%d time=%d", cldbid, timeSeconds)
 	if reason != "" {
 		cmd += fmt.Sprintf(" banreason=%s", tsEscape(reason))
 	}
 	rows, err := t.tsExec(cmd)
-	if err != nil { return 0, err }
-	if len(rows) == 0 { return 0, nil }
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
 	banID, err := strconv.Atoi(rows[0]["banid"])
-	if err != nil { return 0, fmt.Errorf("invalid banid in response: %w", err) }
+	if err != nil {
+		return 0, fmt.Errorf("invalid banid in response: %w", err)
+	}
 	return banID, nil
 }
 
@@ -6624,16 +6655,24 @@ func (t *TeamSpeakCore) BanClientDBID(cldbid, timeSeconds int, reason string) (i
 func (t *TeamSpeakCore) BanAddMyTSID(mytsid string, timeSeconds int, reason string) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return 0, ErrAuth }
+	if !t.authed {
+		return 0, ErrAuth
+	}
 	cmd := fmt.Sprintf("banadd mytsid=%s time=%d", tsEscape(mytsid), timeSeconds)
 	if reason != "" {
 		cmd += fmt.Sprintf(" banreason=%s", tsEscape(reason))
 	}
 	rows, err := t.tsExec(cmd)
-	if err != nil { return 0, err }
-	if len(rows) == 0 { return 0, nil }
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
 	banID, err := strconv.Atoi(rows[0]["banid"])
-	if err != nil { return 0, fmt.Errorf("invalid banid in response: %w", err) }
+	if err != nil {
+		return 0, fmt.Errorf("invalid banid in response: %w", err)
+	}
 	return banID, nil
 }
 
@@ -6641,7 +6680,9 @@ func (t *TeamSpeakCore) BanAddMyTSID(mytsid string, timeSeconds int, reason stri
 func (t *TeamSpeakCore) BanListPaginated(start, duration int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return nil, ErrAuth }
+	if !t.authed {
+		return nil, ErrAuth
+	}
 	return t.tsExec(fmt.Sprintf("banlist -start=%d -duration=%d", start, duration))
 }
 
@@ -6653,13 +6694,17 @@ func (t *TeamSpeakCore) BanListPaginated(start, duration int) ([]map[string]stri
 func (t *TeamSpeakCore) ClientAddServerGroup(cldbid int, sgids []int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	var b strings.Builder
 	b.WriteString("clientaddservergroup cldbid=")
 	b.WriteString(strconv.Itoa(cldbid))
 	b.WriteString(" sgid=")
 	for i, sg := range sgids {
-		if i > 0 { b.WriteByte(',') }
+		if i > 0 {
+			b.WriteByte(',')
+		}
 		b.WriteString(strconv.Itoa(sg))
 	}
 	return t.tsExecSimple(b.String())
@@ -6669,13 +6714,17 @@ func (t *TeamSpeakCore) ClientAddServerGroup(cldbid int, sgids []int) error {
 func (t *TeamSpeakCore) ClientDelServerGroup(cldbid int, sgids []int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	var b strings.Builder
 	b.WriteString("clientdelservergroup cldbid=")
 	b.WriteString(strconv.Itoa(cldbid))
 	b.WriteString(" sgid=")
 	for i, sg := range sgids {
-		if i > 0 { b.WriteByte(',') }
+		if i > 0 {
+			b.WriteByte(',')
+		}
 		b.WriteString(strconv.Itoa(sg))
 	}
 	return t.tsExecSimple(b.String())
@@ -6696,31 +6745,69 @@ func (t *TeamSpeakCore) tsOnEvent(event string, handler func(map[string]string))
 }
 
 // HandleServerEdited registers a callback for server property change events.
-func (t *TeamSpeakCore) HandleServerEdited(handler func(map[string]string))    { t.tsOnEvent("notifyserveredited", handler) }
+func (t *TeamSpeakCore) HandleServerEdited(handler func(map[string]string)) {
+	t.tsOnEvent("notifyserveredited", handler)
+}
+
 // HandleServerUpdated registers a callback for server update events.
-func (t *TeamSpeakCore) HandleServerUpdated(handler func(map[string]string))   { t.tsOnEvent("notifyserverupdated", handler) }
+func (t *TeamSpeakCore) HandleServerUpdated(handler func(map[string]string)) {
+	t.tsOnEvent("notifyserverupdated", handler)
+}
+
 // HandleChannelEdited registers a callback for channel property change events.
-func (t *TeamSpeakCore) HandleChannelEdited(handler func(map[string]string))   { t.tsOnEvent("notifychanneledited", handler) }
+func (t *TeamSpeakCore) HandleChannelEdited(handler func(map[string]string)) {
+	t.tsOnEvent("notifychanneledited", handler)
+}
+
 // HandleChannelCreated registers a callback for channel creation events.
-func (t *TeamSpeakCore) HandleChannelCreated(handler func(map[string]string))  { t.tsOnEvent("notifychannelcreated", handler) }
+func (t *TeamSpeakCore) HandleChannelCreated(handler func(map[string]string)) {
+	t.tsOnEvent("notifychannelcreated", handler)
+}
+
 // HandleChannelDeleted registers a callback for channel deletion events.
-func (t *TeamSpeakCore) HandleChannelDeleted(handler func(map[string]string))  { t.tsOnEvent("notifychanneldeleted", handler) }
+func (t *TeamSpeakCore) HandleChannelDeleted(handler func(map[string]string)) {
+	t.tsOnEvent("notifychanneldeleted", handler)
+}
+
 // HandleChannelMoved registers a callback for channel move events.
-func (t *TeamSpeakCore) HandleChannelMoved(handler func(map[string]string))    { t.tsOnEvent("notifychannelmoved", handler) }
+func (t *TeamSpeakCore) HandleChannelMoved(handler func(map[string]string)) {
+	t.tsOnEvent("notifychannelmoved", handler)
+}
+
 // HandleChannelDescriptionChanged registers a callback for channel description change events.
-func (t *TeamSpeakCore) HandleChannelDescriptionChanged(handler func(map[string]string)) { t.tsOnEvent("notifychanneldescriptionchanged", handler) }
+func (t *TeamSpeakCore) HandleChannelDescriptionChanged(handler func(map[string]string)) {
+	t.tsOnEvent("notifychanneldescriptionchanged", handler)
+}
+
 // HandleChannelPasswordChanged registers a callback for channel password change events.
-func (t *TeamSpeakCore) HandleChannelPasswordChanged(handler func(map[string]string))    { t.tsOnEvent("notifychannelpasswordchanged", handler) }
+func (t *TeamSpeakCore) HandleChannelPasswordChanged(handler func(map[string]string)) {
+	t.tsOnEvent("notifychannelpasswordchanged", handler)
+}
+
 // HandleClientUpdated registers a callback for client property change events.
-func (t *TeamSpeakCore) HandleClientUpdated(handler func(map[string]string))   { t.tsOnEvent("notifyclientupdated", handler) }
+func (t *TeamSpeakCore) HandleClientUpdated(handler func(map[string]string)) {
+	t.tsOnEvent("notifyclientupdated", handler)
+}
+
 // HandleTokenUsed registers a callback for privilege key usage events.
-func (t *TeamSpeakCore) HandleTokenUsed(handler func(map[string]string))       { t.tsOnEvent("notifytokenused", handler) }
+func (t *TeamSpeakCore) HandleTokenUsed(handler func(map[string]string)) {
+	t.tsOnEvent("notifytokenused", handler)
+}
+
 // HandleTalkStatusChange registers a callback for talk status change events.
-func (t *TeamSpeakCore) HandleTalkStatusChange(handler func(map[string]string))           { t.tsOnEvent("notifytalkstatuschange", handler) }
+func (t *TeamSpeakCore) HandleTalkStatusChange(handler func(map[string]string)) {
+	t.tsOnEvent("notifytalkstatuschange", handler)
+}
+
 // HandleConnectStatusChange registers a callback for connection status change events.
-func (t *TeamSpeakCore) HandleConnectStatusChange(handler func(map[string]string))        { t.tsOnEvent("notifyconnectstatuschange", handler) }
+func (t *TeamSpeakCore) HandleConnectStatusChange(handler func(map[string]string)) {
+	t.tsOnEvent("notifyconnectstatuschange", handler)
+}
+
 // HandleCurrentServerConnectionChanged registers a callback for server connection change events.
-func (t *TeamSpeakCore) HandleCurrentServerConnectionChanged(handler func(map[string]string)) { t.tsOnEvent("notifycurrentserverconnectionchanged", handler) }
+func (t *TeamSpeakCore) HandleCurrentServerConnectionChanged(handler func(map[string]string)) {
+	t.tsOnEvent("notifycurrentserverconnectionchanged", handler)
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Step 4 — Extended List Flags (3 enhancements)
@@ -6731,7 +6818,9 @@ func (t *TeamSpeakCore) HandleCurrentServerConnectionChanged(handler func(map[st
 func (t *TeamSpeakCore) ClientListExtended(flags ...string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return nil, ErrAuth }
+	if !t.authed {
+		return nil, ErrAuth
+	}
 	cmd := "clientlist"
 	for _, f := range flags {
 		cmd += " " + f
@@ -6744,7 +6833,9 @@ func (t *TeamSpeakCore) ClientListExtended(flags ...string) ([]map[string]string
 func (t *TeamSpeakCore) ChannelListExtended(flags ...string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return nil, ErrAuth }
+	if !t.authed {
+		return nil, ErrAuth
+	}
 	cmd := "channellist"
 	for _, f := range flags {
 		cmd += " " + f
@@ -6757,7 +6848,9 @@ func (t *TeamSpeakCore) ChannelListExtended(flags ...string) ([]map[string]strin
 func (t *TeamSpeakCore) ServerListExtended(flags ...string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return nil, ErrAuth }
+	if !t.authed {
+		return nil, ErrAuth
+	}
 	cmd := "serverlist"
 	for _, f := range flags {
 		cmd += " " + f
@@ -7051,9 +7144,13 @@ func (t *TeamSpeakCore) IsReceivingWhisper(clid int) bool {
 func (t *TeamSpeakCore) SetIsTalker(clid int, isTalker bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	val := "0"
-	if isTalker { val = "1" }
+	if isTalker {
+		val = "1"
+	}
 	return t.tsExecSimple(fmt.Sprintf("clientedit clid=%d client_is_talker=%s", clid, val))
 }
 
@@ -7065,7 +7162,9 @@ func (t *TeamSpeakCore) SetIsTalker(clid int, isTalker bool) error {
 func (t *TeamSpeakCore) RequestClientsMove(clids []int, cid int, password string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	for _, clid := range clids {
 		cmd := fmt.Sprintf("clientmove clid=%d cid=%d", clid, cid)
 		if password != "" {
@@ -7082,7 +7181,9 @@ func (t *TeamSpeakCore) RequestClientsMove(clids []int, cid int, password string
 func (t *TeamSpeakCore) RequestClientsKickFromChannel(clids []int, message string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	for _, clid := range clids {
 		if err := t.tsExecSimple(fmt.Sprintf("clientkick clid=%d reasonid=4 reasonmsg=%s", clid, tsEscape(message))); err != nil {
 			return err
@@ -7095,7 +7196,9 @@ func (t *TeamSpeakCore) RequestClientsKickFromChannel(clids []int, message strin
 func (t *TeamSpeakCore) RequestClientsKickFromServer(clids []int, message string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	for _, clid := range clids {
 		if err := t.tsExecSimple(fmt.Sprintf("clientkick clid=%d reasonid=5 reasonmsg=%s", clid, tsEscape(message))); err != nil {
 			return err
@@ -7108,7 +7211,9 @@ func (t *TeamSpeakCore) RequestClientsKickFromServer(clids []int, message string
 func (t *TeamSpeakCore) RequestMuteClientsTemporary(clids []int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	for _, clid := range clids {
 		if err := t.tsExecSimple(fmt.Sprintf("clientedit clid=%d client_output_muted=1", clid)); err != nil {
 			return err
@@ -7121,7 +7226,9 @@ func (t *TeamSpeakCore) RequestMuteClientsTemporary(clids []int) error {
 func (t *TeamSpeakCore) RequestUnmuteClientsTemporary(clids []int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	for _, clid := range clids {
 		if err := t.tsExecSimple(fmt.Sprintf("clientedit clid=%d client_output_muted=0", clid)); err != nil {
 			return err
@@ -7134,7 +7241,9 @@ func (t *TeamSpeakCore) RequestUnmuteClientsTemporary(clids []int) error {
 func (t *TeamSpeakCore) RequestClientEditDescription(clid int, description string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	return t.tsExecSimple(fmt.Sprintf("clientedit clid=%d client_description=%s", clid, tsEscape(description)))
 }
 
@@ -7146,16 +7255,24 @@ func (t *TeamSpeakCore) RequestClientEditDescription(clid int, description strin
 func (t *TeamSpeakCore) GetAvatar(clid int) ([]byte, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return nil, ErrAuth }
+	if !t.authed {
+		return nil, ErrAuth
+	}
 	// Get client UID first
 	uid, err := t.ClientGetUIDFromCLID(clid)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	// Avatar file path in TS3 is /avatar_{base64uid}
 	avatarPath := "/avatar_" + uid
 	// Use file transfer to download
 	rows, err := t.tsExec(fmt.Sprintf("ftinitdownload clientftfid=1 name=%s cid=0 cpw= seekpos=0", tsEscape(avatarPath)))
-	if err != nil { return nil, err }
-	if len(rows) == 0 { return nil, ErrNotFound }
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, ErrNotFound
+	}
 	// Return the file transfer info — caller must complete the FT
 	return nil, fmt.Errorf("avatar file transfer info: port=%s, ftkey=%s, size=%s", rows[0]["port"], rows[0]["ftkey"], rows[0]["size"])
 }
@@ -7168,10 +7285,16 @@ func (t *TeamSpeakCore) GetAvatar(clid int) ([]byte, error) {
 func (t *TeamSpeakCore) ChannelInfoRequest(cid int) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return nil, ErrAuth }
+	if !t.authed {
+		return nil, ErrAuth
+	}
 	rows, err := t.tsExec(fmt.Sprintf("channelinfo cid=%d", cid))
-	if err != nil { return nil, err }
-	if len(rows) == 0 { return nil, ErrNotFound }
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, ErrNotFound
+	}
 	return rows[0], nil
 }
 
@@ -7179,7 +7302,9 @@ func (t *TeamSpeakCore) ChannelInfoRequest(cid int) (map[string]string, error) {
 func (t *TeamSpeakCore) RequestInfoUpdate(infoType string, id int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	switch infoType {
 	case "server":
 		_, err := t.tsExec("serverinfo")
@@ -7202,7 +7327,9 @@ func (t *TeamSpeakCore) RequestInfoUpdate(infoType string, id int) error {
 func (t *TeamSpeakCore) ServerSnapshotDeployKeepFiles(snapshot string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	return t.tsExecSimple(fmt.Sprintf("serversnapshotdeploy -keepfiles %s", tsEscape(snapshot)))
 }
 
@@ -7210,10 +7337,16 @@ func (t *TeamSpeakCore) ServerSnapshotDeployKeepFiles(snapshot string) error {
 func (t *TeamSpeakCore) ServerSnapshotPassword(password string) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return "", ErrAuth }
+	if !t.authed {
+		return "", ErrAuth
+	}
 	rows, err := t.tsExec(fmt.Sprintf("serversnapshotcreate -password=%s", tsEscape(password)))
-	if err != nil { return "", err }
-	if len(rows) == 0 { return "", nil }
+	if err != nil {
+		return "", err
+	}
+	if len(rows) == 0 {
+		return "", nil
+	}
 	return rows[0]["data"], nil
 }
 
@@ -7257,7 +7390,9 @@ func (t *TeamSpeakCore) GetProfileList() []map[string]string {
 func (t *TeamSpeakCore) PermissionListNew() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return nil, ErrAuth }
+	if !t.authed {
+		return nil, ErrAuth
+	}
 	return t.tsExec("permissionlist -new")
 }
 
@@ -7265,7 +7400,9 @@ func (t *TeamSpeakCore) PermissionListNew() ([]map[string]string, error) {
 func (t *TeamSpeakCore) PermCommandsPermSID(command string, permSID string, permValue int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if !t.authed { return ErrAuth }
+	if !t.authed {
+		return ErrAuth
+	}
 	return t.tsExecSimple(fmt.Sprintf("%s -permsid permsid=%s permvalue=%d", command, tsEscape(permSID), permValue))
 }
 

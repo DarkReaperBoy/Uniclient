@@ -17,28 +17,28 @@ import (
 
 // CachedUser is the user profile data returned to the UI from cache.
 type CachedUser struct {
-	AccountID   string `json:"account_id"`
-	UserID      string `json:"user_id"`
-	DisplayName string `json:"display_name,omitempty"`
-	Username    string `json:"username,omitempty"`
-	Phone       string `json:"phone,omitempty"`
-	Bio         string `json:"bio,omitempty"`
-	AvatarPath  string `json:"avatar_path,omitempty"`
-	IsBot       bool   `json:"is_bot"`
-	IsOnline    bool   `json:"is_online"`
-	IsContact   bool   `json:"is_contact"`
-	IsBlocked   bool   `json:"is_blocked"`
-	BotMenuText         string `json:"bot_menu_text,omitempty"`
-	LastSeen            int64  `json:"last_seen,omitempty"`
-	LastSeenKind        string `json:"last_seen_kind,omitempty"`
-	HasPersonalPhoto    bool   `json:"has_personal_photo,omitempty"`
-	PersonalPhotoId     string `json:"personal_photo_id,omitempty"`
-	FallbackPhotoId     string `json:"fallback_photo_id,omitempty"`
-	UserpicPhotoId      string `json:"userpic_photo_id,omitempty"`
-	VideoStartPosition  int    `json:"video_start_position,omitempty"`
-	BirthdayDay         int    `json:"birthday_day,omitempty"`
-	BirthdayMonth       int    `json:"birthday_month,omitempty"`
-	BirthdayYear        int    `json:"birthday_year,omitempty"`
+	AccountID              string `json:"account_id"`
+	UserID                 string `json:"user_id"`
+	DisplayName            string `json:"display_name,omitempty"`
+	Username               string `json:"username,omitempty"`
+	Phone                  string `json:"phone,omitempty"`
+	Bio                    string `json:"bio,omitempty"`
+	AvatarPath             string `json:"avatar_path,omitempty"`
+	IsBot                  bool   `json:"is_bot"`
+	IsOnline               bool   `json:"is_online"`
+	IsContact              bool   `json:"is_contact"`
+	IsBlocked              bool   `json:"is_blocked"`
+	BotMenuText            string `json:"bot_menu_text,omitempty"`
+	LastSeen               int64  `json:"last_seen,omitempty"`
+	LastSeenKind           string `json:"last_seen_kind,omitempty"`
+	HasPersonalPhoto       bool   `json:"has_personal_photo,omitempty"`
+	PersonalPhotoId        string `json:"personal_photo_id,omitempty"`
+	FallbackPhotoId        string `json:"fallback_photo_id,omitempty"`
+	UserpicPhotoId         string `json:"userpic_photo_id,omitempty"`
+	VideoStartPosition     int    `json:"video_start_position,omitempty"`
+	BirthdayDay            int    `json:"birthday_day,omitempty"`
+	BirthdayMonth          int    `json:"birthday_month,omitempty"`
+	BirthdayYear           int    `json:"birthday_year,omitempty"`
 	PersonalChannelID      string `json:"personal_channel_id,omitempty"`
 	PersonalChannelName    string `json:"personal_channel_name,omitempty"`
 	VoiceMessagesForbidden bool   `json:"voice_messages_forbidden,omitempty"`
@@ -690,23 +690,23 @@ func (e *Engine) GetChatBotCommands(accountID, chatID string) ([]BotCommandInfo,
 
 // ContactInfo is the contact data returned to the UI for the contacts list.
 type ContactInfo struct {
-	UserID           string `json:"user_id"`
-	Username         string `json:"username,omitempty"`
-	DisplayName      string `json:"display_name,omitempty"`
-	Phone            string `json:"phone,omitempty"`
-	AvatarB64        string `json:"avatar_b64,omitempty"`
-	IsBot            bool   `json:"is_bot"`
-	IsOnline         bool   `json:"is_online"`
-	IsMutualContact  bool   `json:"is_mutual_contact,omitempty"`
-	StoryCount       int32  `json:"story_count,omitempty"`
-	HasUnreadStory   bool   `json:"has_unread_story,omitempty"`
-	IsVerified       bool   `json:"is_verified,omitempty"`
-	IsPremium        bool   `json:"is_premium,omitempty"`
-	IsScam           bool   `json:"is_scam,omitempty"`
-	IsFake           bool   `json:"is_fake,omitempty"`
-	LastSeenKind     string `json:"last_seen_kind,omitempty"`
-	LastSeenTs        int64  `json:"last_seen_ts,omitempty"`
-	StarsPerMessage  int64  `json:"stars_per_message,omitempty"`
+	UserID          string `json:"user_id"`
+	Username        string `json:"username,omitempty"`
+	DisplayName     string `json:"display_name,omitempty"`
+	Phone           string `json:"phone,omitempty"`
+	AvatarB64       string `json:"avatar_b64,omitempty"`
+	IsBot           bool   `json:"is_bot"`
+	IsOnline        bool   `json:"is_online"`
+	IsMutualContact bool   `json:"is_mutual_contact,omitempty"`
+	StoryCount      int32  `json:"story_count,omitempty"`
+	HasUnreadStory  bool   `json:"has_unread_story,omitempty"`
+	IsVerified      bool   `json:"is_verified,omitempty"`
+	IsPremium       bool   `json:"is_premium,omitempty"`
+	IsScam          bool   `json:"is_scam,omitempty"`
+	IsFake          bool   `json:"is_fake,omitempty"`
+	LastSeenKind    string `json:"last_seen_kind,omitempty"`
+	LastSeenTs      int64  `json:"last_seen_ts,omitempty"`
+	StarsPerMessage int64  `json:"stars_per_message,omitempty"`
 }
 
 // GetContacts fetches the contact list from the connected core.
@@ -1045,21 +1045,21 @@ func (e *Engine) RestrictMemberWithRights(accountID, chatID, userID string, righ
 	}
 	if r, ok := acc.Core.(restrictable); ok {
 		return r.RestrictMemberWithRights(chatID, userID, &cores.DefaultBannedRights{
-			SendPlain:     rights.SendPlain,
-			SendPhotos:    rights.SendPhotos,
-			SendVideos:    rights.SendVideos,
+			SendPlain:       rights.SendPlain,
+			SendPhotos:      rights.SendPhotos,
+			SendVideos:      rights.SendVideos,
 			SendRoundvideos: rights.SendRoundvideos,
-			SendAudios:    rights.SendAudios,
-			SendVoices:    rights.SendVoices,
-			SendDocs:      rights.SendDocs,
-			SendStickers:  rights.SendStickers,
-			EmbedLinks:    rights.EmbedLinks,
-			SendPolls:     rights.SendPolls,
-			InviteUsers:   rights.InviteUsers,
-			ManageTopics:  rights.ManageTopics,
-			PinMessages:   rights.PinMessages,
-			EditRank:      rights.EditRank,
-			ChangeInfo:    rights.ChangeInfo,
+			SendAudios:      rights.SendAudios,
+			SendVoices:      rights.SendVoices,
+			SendDocs:        rights.SendDocs,
+			SendStickers:    rights.SendStickers,
+			EmbedLinks:      rights.EmbedLinks,
+			SendPolls:       rights.SendPolls,
+			InviteUsers:     rights.InviteUsers,
+			ManageTopics:    rights.ManageTopics,
+			PinMessages:     rights.PinMessages,
+			EditRank:        rights.EditRank,
+			ChangeInfo:      rights.ChangeInfo,
 		}, untilDate)
 	}
 	return fmt.Errorf("platform does not support RestrictMemberWithRights")
@@ -1246,25 +1246,25 @@ func (e *Engine) GetContactFullInfo(accountID, userID string) (map[string]interf
 		return nil, err
 	}
 	return map[string]interface{}{
-		"user_id":            u.ID,
-		"display_name":       u.DisplayName,
-		"username":           u.Username,
-		"phone":              u.Phone,
-		"is_bot":             u.IsBot,
-		"is_contact":         u.IsContact,
-		"has_personal_photo": u.HasPersonalPhoto,
-		"birthday_day":       u.BirthdayDay,
-		"birthday_month":     u.BirthdayMonth,
-		"birthday_year":      u.BirthdayYear,
-		"is_online":          u.IsOnline,
-		"is_verified":        u.IsVerified,
-		"is_premium":         u.IsPremium,
-		"is_scam":            u.IsScam,
-		"is_fake":            u.IsFake,
-		"last_seen_kind":     u.LastSeenKind,
-		"avatar_b64":         u.AvatarB64,
-		"note":               u.Note,
-		"note_entities":      u.NoteEntities,
+		"user_id":                 u.ID,
+		"display_name":            u.DisplayName,
+		"username":                u.Username,
+		"phone":                   u.Phone,
+		"is_bot":                  u.IsBot,
+		"is_contact":              u.IsContact,
+		"has_personal_photo":      u.HasPersonalPhoto,
+		"birthday_day":            u.BirthdayDay,
+		"birthday_month":          u.BirthdayMonth,
+		"birthday_year":           u.BirthdayYear,
+		"is_online":               u.IsOnline,
+		"is_verified":             u.IsVerified,
+		"is_premium":              u.IsPremium,
+		"is_scam":                 u.IsScam,
+		"is_fake":                 u.IsFake,
+		"last_seen_kind":          u.LastSeenKind,
+		"avatar_b64":              u.AvatarB64,
+		"note":                    u.Note,
+		"note_entities":           u.NoteEntities,
 		"need_contacts_exception": u.NeedContactsException,
 	}, nil
 }
@@ -1852,7 +1852,9 @@ func (e *Engine) DownloadIVPhoto(accountID string, photoID int64, extra string) 
 		return nil, fmt.Errorf("IV photo download not supported for this account type")
 	}
 	path, err := dl.DownloadIVPhoto(photoID, extra)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return json.Marshal(map[string]string{"path": path})
 }
 
@@ -1872,7 +1874,9 @@ func (e *Engine) DownloadIVDocument(accountID string, docID int64, extra, mime s
 		return nil, fmt.Errorf("IV document download not supported for this account type")
 	}
 	path, err := dl.DownloadIVDocument(docID, extra, mime)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return json.Marshal(map[string]string{"path": path})
 }
 

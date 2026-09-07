@@ -26,12 +26,12 @@ import (
 // ════════════════════════════════════════════════════════════════════════════════
 
 const (
-	ghAPIBase     = "https://api.github.com"
-	ghPlatform    = "github"
-	ghDMPrefix    = "Uniclient DM \u2014 " // human-readable issue title for DM threads: "Uniclient DM — {peer}"
-	ghDMLabel     = "uniclient-dm"       // label to tag DM issues (keeps them filterable)
-	ghGroupLabel  = "uniclient-group"    // label to tag group chat repos
-	ghGeneralTitle = "General"           // default channel (pinned issue) in every group
+	ghAPIBase      = "https://api.github.com"
+	ghPlatform     = "github"
+	ghDMPrefix     = "Uniclient DM \u2014 " // human-readable issue title for DM threads: "Uniclient DM — {peer}"
+	ghDMLabel      = "uniclient-dm"         // label to tag DM issues (keeps them filterable)
+	ghGroupLabel   = "uniclient-group"      // label to tag group chat repos
+	ghGeneralTitle = "General"              // default channel (pinned issue) in every group
 
 	// Polling intervals — tiered strategy (all use conditional requests; 304s are FREE)
 	ghPollActiveFast = 3 * time.Second  // per-issue polling for the actively viewed conversation
@@ -53,9 +53,9 @@ const (
 	ghRecentWindow = 5 * time.Minute
 
 	// Limits
-	ghMaxCommentLen = 65536 // GitHub comment body max length
+	ghMaxCommentLen = 65536            // GitHub comment body max length
 	ghMaxFileUpload = 25 * 1024 * 1024 // 25MB for images in comments
-	ghPageSize      = 30    // default items per page
+	ghPageSize      = 30               // default items per page
 
 	// Chat ID formats:
 	//   "dm:{username}"                — DM (issue on {peer}/{peer} profile repo)
@@ -124,9 +124,9 @@ type ghCacheItem struct {
 
 // ghDMIssueInfo tracks where a DM issue lives (persisted in session).
 type ghDMIssueInfo struct {
-	IssueNum  int    `json:"n"`           // issue number
-	RepoOwner string `json:"o"`           // owner of the repo where the issue lives
-	RepoName  string `json:"r"`           // repo name where the issue lives
+	IssueNum  int    `json:"n"` // issue number
+	RepoOwner string `json:"o"` // owner of the repo where the issue lives
+	RepoName  string `json:"r"` // repo name where the issue lives
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -189,10 +189,10 @@ type GitHubCore struct {
 	activeChatMu     sync.Mutex
 
 	// Deduplication: bounded set of recently seen comment IDs to prevent duplicate UpdateNewMessage
-	seenCommentIDs   []string // ring buffer of comment IDs
-	seenCommentIdx   int      // next write position in the ring buffer
-	seenCommentSet   map[string]bool
-	seenCommentMu    sync.Mutex
+	seenCommentIDs []string // ring buffer of comment IDs
+	seenCommentIdx int      // next write position in the ring buffer
+	seenCommentSet map[string]bool
+	seenCommentMu  sync.Mutex
 
 	// Per-thread If-Modified-Since timestamps (complement ETags)
 	threadLastMod   map[string]string // chatID → Last-Modified timestamp
@@ -201,7 +201,7 @@ type GitHubCore struct {
 	// Session-persistent caches (survive restarts)
 	dmIssues     map[string]*ghDMIssueInfo // peerUser → DM issue location
 	dmIssuesMu   sync.RWMutex
-	groupRepos   map[string]int            // "owner/repo" → General issue number
+	groupRepos   map[string]int // "owner/repo" → General issue number
 	groupReposMu sync.RWMutex
 
 	// Blocked users (local cache)
@@ -254,16 +254,16 @@ type ghDialog struct {
 
 // ghSession is the persisted session state.
 type ghSession struct {
-	Token        string                     `json:"token"`
-	Username     string                     `json:"username"`
-	UserID       int64                      `json:"user_id"`
-	Blocked      []string                   `json:"blocked,omitempty"`
-	Pinned       map[string][]string        `json:"pinned,omitempty"`
-	MarkedUnread map[string]bool            `json:"marked_unread,omitempty"`
-	ReadState    map[string]*ReadState      `json:"read_state,omitempty"`
-	DMIssues     map[string]*ghDMIssueInfo  `json:"dm_issues,omitempty"`   // persistent DM cache
-	GroupRepos   map[string]int             `json:"group_repos,omitempty"` // persistent group cache
-	ThreadETags  map[string]string          `json:"thread_etags,omitempty"` // per-chat ETag cache (avoids re-fetch on restart)
+	Token        string                    `json:"token"`
+	Username     string                    `json:"username"`
+	UserID       int64                     `json:"user_id"`
+	Blocked      []string                  `json:"blocked,omitempty"`
+	Pinned       map[string][]string       `json:"pinned,omitempty"`
+	MarkedUnread map[string]bool           `json:"marked_unread,omitempty"`
+	ReadState    map[string]*ReadState     `json:"read_state,omitempty"`
+	DMIssues     map[string]*ghDMIssueInfo `json:"dm_issues,omitempty"`    // persistent DM cache
+	GroupRepos   map[string]int            `json:"group_repos,omitempty"`  // persistent group cache
+	ThreadETags  map[string]string         `json:"thread_etags,omitempty"` // per-chat ETag cache (avoids re-fetch on restart)
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -478,12 +478,12 @@ func (g *GitHubCore) CreateGroup(name string, members []string) (*Dialog, error)
 	chatID := "repo:" + owner + "/" + repo
 
 	// Tag the repo with uniclient-group topic (enables discovery by topic search)
-	g.apiPut(ghRepoPath(owner, repo) + "/topics", map[string]any{
+	g.apiPut(ghRepoPath(owner, repo)+"/topics", map[string]any{
 		"names": []string{"uniclient-group"},
 	})
 
 	// Create the default "General" channel (pinned issue)
-	issueResp, err := g.apiPost(ghRepoPath(owner, repo) + "/issues", map[string]any{
+	issueResp, err := g.apiPost(ghRepoPath(owner, repo)+"/issues", map[string]any{
 		"title":  ghGeneralTitle,
 		"body":   "Welcome! This is the default channel for **" + name + "**.\n\nPowered by [Uniclient](https://github.com/DarkReaperBoy/uniclient).",
 		"labels": []string{ghGroupLabel},
@@ -501,7 +501,7 @@ func (g *GitHubCore) CreateGroup(name string, members []string) (*Dialog, error)
 
 	// Invite members as collaborators
 	for _, member := range members {
-		g.apiPut(ghRepoPath(owner, repo) + "/collaborators/" + member, map[string]any{
+		g.apiPut(ghRepoPath(owner, repo)+"/collaborators/"+member, map[string]any{
 			"permission": "write",
 		})
 	}
@@ -559,7 +559,7 @@ func (g *GitHubCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 		return nil, err
 	}
 
-	resp, err := g.apiPost(ghRepoPath(owner, repo) + "/issues", map[string]any{
+	resp, err := g.apiPost(ghRepoPath(owner, repo)+"/issues", map[string]any{
 		"title":  name,
 		"body":   "Channel: **" + name + "**",
 		"labels": []string{ghGroupLabel},
@@ -688,7 +688,7 @@ func (g *GitHubCore) EditMessage(chatID string, msgID string, text string) (*Mes
 	// msgID format: "comment:{id}"
 	commentID := strings.TrimPrefix(msgID, "comment:")
 	owner, repo, _ := g.parseChatOwnerRepo(chatID)
-	resp, err := g.apiPatch(ghRepoPath(owner, repo) + "/issues/comments/" + commentID, map[string]any{
+	resp, err := g.apiPatch(ghRepoPath(owner, repo)+"/issues/comments/"+commentID, map[string]any{
 		"body": text,
 	})
 	if err != nil {
@@ -760,7 +760,7 @@ func (g *GitHubCore) ReactToMessage(chatID string, msgID string, emoji string) e
 
 	commentID := strings.TrimPrefix(msgID, "comment:")
 	owner, repo, _ := g.parseChatOwnerRepo(chatID)
-	_, err := g.apiPost(ghRepoPath(owner, repo) + "/issues/comments/" + commentID + "/reactions", map[string]any{
+	_, err := g.apiPost(ghRepoPath(owner, repo)+"/issues/comments/"+commentID+"/reactions", map[string]any{
 		"content": ghReaction,
 	})
 	return err
@@ -806,7 +806,7 @@ func (g *GitHubCore) MarkAsRead(chatID string, upToMsgID string) error {
 	if strings.HasPrefix(chatID, "dm:") || strings.HasPrefix(chatID, "issue:") {
 		owner, repo, num := g.parseChatOwnerRepo(chatID)
 		if num != "" {
-			g.apiPut(ghRepoPath(owner, repo) + "/issues/" + num, map[string]any{})
+			g.apiPut(ghRepoPath(owner, repo)+"/issues/"+num, map[string]any{})
 		}
 	}
 
@@ -857,7 +857,7 @@ func (g *GitHubCore) UploadFile(chatID string, file FileUpload, progress func(se
 	// Upload to uniclient-files/ path in the repo (avoids polluting root)
 	import_b64 := base64.StdEncoding.EncodeToString(data)
 	filePath := fmt.Sprintf("uniclient-files/%d-%s", time.Now().UnixMilli(), file.Name)
-	_, uploadErr := g.apiPut(ghRepoPath(owner, repo) + "/contents/" + filePath, map[string]any{
+	_, uploadErr := g.apiPut(ghRepoPath(owner, repo)+"/contents/"+filePath, map[string]any{
 		"message": "Upload: " + file.Name,
 		"content": import_b64,
 	})
@@ -940,14 +940,17 @@ func (g *GitHubCore) SendImageBase64(chatID string, b64 string, caption string) 
 func (g *GitHubCore) StartCall(_ string, _ bool) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: github does not support calls", ErrNotSupported)
 }
+
 // JoinGroupCall is not supported on GitHub and returns an unsupported error.
 func (g *GitHubCore) JoinGroupCall(_ string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: github does not support calls", ErrNotSupported)
 }
+
 // EndCall is not supported on GitHub and returns an unsupported error.
 func (g *GitHubCore) EndCall(_ string) error {
 	return fmt.Errorf("%w: github does not support calls", ErrNotSupported)
 }
+
 // SetCallMuted is not supported on GitHub and returns an unsupported error.
 func (g *GitHubCore) SetCallMuted(_ string, _ bool) error {
 	return fmt.Errorf("%w: github does not support calls", ErrNotSupported)
@@ -1116,7 +1119,7 @@ func (g *GitHubCore) AddMembers(chatID string, userIDs []string) error {
 		return err
 	}
 	for _, uid := range userIDs {
-		_, err := g.apiPut(ghRepoPath(owner, repo) + "/collaborators/" + uid, map[string]any{
+		_, err := g.apiPut(ghRepoPath(owner, repo)+"/collaborators/"+uid, map[string]any{
 			"permission": "write",
 		})
 		if err != nil {
@@ -1162,7 +1165,7 @@ func (g *GitHubCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 	if err != nil {
 		return nil, err
 	}
-	resp, err := g.apiGet(ghRepoPath(owner, repo) + "/collaborators", nil)
+	resp, err := g.apiGet(ghRepoPath(owner, repo)+"/collaborators", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1196,7 +1199,7 @@ func (g *GitHubCore) SetAdmin(chatID string, userID string, admin bool) error {
 	if admin {
 		perm = "admin"
 	}
-	_, err = g.apiPut(ghRepoPath(owner, repo) + "/collaborators/" + userID, map[string]any{
+	_, err = g.apiPut(ghRepoPath(owner, repo)+"/collaborators/"+userID, map[string]any{
 		"permission": perm,
 	})
 	return err
@@ -1241,7 +1244,7 @@ func (g *GitHubCore) AddContact(_ string, firstName string, _ string) error {
 	if firstName == "" {
 		return fmt.Errorf("%w: username required (pass GitHub username as firstName)", ErrInvalidInput)
 	}
-	_, err := g.apiPut("/user/following/" + firstName, nil)
+	_, err := g.apiPut("/user/following/"+firstName, nil)
 	return err
 }
 
@@ -1259,7 +1262,7 @@ func (g *GitHubCore) BlockUser(userID string) error {
 	if !g.authed {
 		return ErrAuth
 	}
-	_, err := g.apiPut("/user/blocks/" + userID, nil)
+	_, err := g.apiPut("/user/blocks/"+userID, nil)
 	if err != nil {
 		return err
 	}
@@ -1498,7 +1501,7 @@ func (g *GitHubCore) sendDMMessage(chatID string, text string) (*Message, error)
 	}
 
 	owner, repo := g.dmIssueLocation(peerUser, issueNum)
-	resp, err := g.apiPost(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(issueNum) + "/comments", map[string]any{
+	resp, err := g.apiPost(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNum)+"/comments", map[string]any{
 		"body": text,
 	})
 	if err != nil {
@@ -1532,7 +1535,7 @@ func (g *GitHubCore) findOrCreateDMIssue(peerUser string) (int, error) {
 	g.dmIssuesMu.RUnlock()
 
 	// Search for existing DM issue we created on their profile repo
-	resp, err := g.apiGet(ghRepoPath(peerUser, peerUser) + "/issues", map[string]string{
+	resp, err := g.apiGet(ghRepoPath(peerUser, peerUser)+"/issues", map[string]string{
 		"creator": g.username,
 		"state":   "open",
 	})
@@ -1555,7 +1558,7 @@ func (g *GitHubCore) findOrCreateDMIssue(peerUser string) (int, error) {
 
 	// Check if the PEER created a DM issue to US on OUR profile repo
 	// (they might have initiated the conversation — check our repo too)
-	resp2, err := g.apiGet(ghRepoPath(g.username, g.username) + "/issues", map[string]string{
+	resp2, err := g.apiGet(ghRepoPath(g.username, g.username)+"/issues", map[string]string{
 		"state": "open",
 	})
 	if err == nil {
@@ -1581,7 +1584,7 @@ func (g *GitHubCore) findOrCreateDMIssue(peerUser string) (int, error) {
 	if strings.EqualFold(peerUser, g.username) {
 		body["labels"] = []string{ghDMLabel}
 	}
-	resp3, err := g.apiPost(ghRepoPath(peerUser, peerUser) + "/issues", body)
+	resp3, err := g.apiPost(ghRepoPath(peerUser, peerUser)+"/issues", body)
 	if err != nil {
 		return 0, err
 	}
@@ -1614,7 +1617,7 @@ func (g *GitHubCore) getDMMessages(chatID string, limit int, cursor string) ([]M
 	}
 
 	resp, err := g.apiGetConditional(
-		ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(issueNum) + "/comments",
+		ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNum)+"/comments",
 		params, chatID,
 	)
 	if err != nil {
@@ -1664,7 +1667,7 @@ func (g *GitHubCore) dmIssueLocation(peerUser string, issueNum int) (owner, repo
 	g.dmIssuesMu.RUnlock()
 
 	// Fallback: speculative check (rare — only if cache was cleared)
-	_, err := g.apiGet(ghRepoPath(peerUser, peerUser) + "/issues/" + strconv.Itoa(issueNum), nil)
+	_, err := g.apiGet(ghRepoPath(peerUser, peerUser)+"/issues/"+strconv.Itoa(issueNum), nil)
 	if err == nil {
 		return peerUser, peerUser
 	}
@@ -1677,7 +1680,7 @@ func (g *GitHubCore) fetchDMDialogs() ([]Dialog, error) {
 	seen := make(map[string]bool)
 
 	// 1. Issues on OUR profile repo (people messaging us via {us}/{us})
-	resp, err := g.apiGet(ghRepoPath(g.username, g.username) + "/issues", map[string]string{
+	resp, err := g.apiGet(ghRepoPath(g.username, g.username)+"/issues", map[string]string{
 		"state": "open",
 	})
 	if err == nil {
@@ -1897,7 +1900,7 @@ func (g *GitHubCore) cachedGroupDialogs() []Dialog {
 // findGeneralIssue looks for the "General" issue in a repo (our group chat marker).
 // Returns the issue number, or 0 if not found.
 func (g *GitHubCore) findGeneralIssue(owner, repo string) int {
-	resp, err := g.apiGet(ghRepoPath(owner, repo) + "/issues", map[string]string{
+	resp, err := g.apiGet(ghRepoPath(owner, repo)+"/issues", map[string]string{
 		"state": "open",
 	})
 	if err != nil {
@@ -1918,7 +1921,7 @@ func (g *GitHubCore) sendIssueComment(chatID string, text string) (*Message, err
 	if owner == "" {
 		return nil, fmt.Errorf("%w: invalid channel ID %q (expected issue:owner/repo/number)", ErrInvalidInput, chatID)
 	}
-	resp, err := g.apiPost(ghRepoPath(owner, repo) + "/issues/" + numStr + "/comments", map[string]any{
+	resp, err := g.apiPost(ghRepoPath(owner, repo)+"/issues/"+numStr+"/comments", map[string]any{
 		"body": text,
 	})
 	if err != nil {
@@ -1946,7 +1949,7 @@ func (g *GitHubCore) getIssueMessages(chatID string, limit int, cursor string) (
 	}
 
 	resp, err := g.apiGetConditional(
-		ghRepoPath(owner, repo) + "/issues/" + numStr + "/comments",
+		ghRepoPath(owner, repo)+"/issues/"+numStr+"/comments",
 		params, chatID,
 	)
 	if err != nil {
@@ -1993,7 +1996,7 @@ func (g *GitHubCore) getRepoMessages(chatID string, limit int) ([]Message, error
 	}
 
 	// Fetch open issues (channels) in this group
-	resp, err := g.apiGet(ghRepoPath(owner, repo) + "/issues", map[string]string{
+	resp, err := g.apiGet(ghRepoPath(owner, repo)+"/issues", map[string]string{
 		"state":    "open",
 		"per_page": strconv.Itoa(limit),
 		"sort":     "updated",
@@ -3166,7 +3169,7 @@ func (g *GitHubCore) findCachedOrFetchComment(chatID string, msgID string) *Mess
 	if owner == "" {
 		return nil
 	}
-	resp, err := g.apiGet(ghRepoPath(owner, repo) + "/issues/comments/" + commentID, nil)
+	resp, err := g.apiGet(ghRepoPath(owner, repo)+"/issues/comments/"+commentID, nil)
 	if err != nil {
 		return nil
 	}
@@ -3317,7 +3320,7 @@ func (g *GitHubCore) LockIssue(owner, repo string, number int, reason string) er
 	if reason != "" {
 		payload["lock_reason"] = reason
 	}
-	_, err := g.apiPut(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/lock", payload)
+	_, err := g.apiPut(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/lock", payload)
 	return err
 }
 
@@ -3329,22 +3332,22 @@ func (g *GitHubCore) UnlockIssue(owner, repo string, number int) error {
 
 // ListIssueEvents lists events for an issue.
 func (g *GitHubCore) ListIssueEvents(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/events", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/events", nil)
 }
 
 // GetIssueTimeline gets the timeline of an issue.
 func (g *GitHubCore) GetIssueTimeline(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/timeline", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/timeline", nil)
 }
 
 // ListSubIssues lists sub-issues of an issue.
 func (g *GitHubCore) ListSubIssues(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/sub_issues", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/sub_issues", nil)
 }
 
 // AddSubIssue adds a sub-issue to a parent issue.
 func (g *GitHubCore) AddSubIssue(owner, repo string, number int, subIssueID int) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/sub_issues", map[string]any{
+	return g.apiPost(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/sub_issues", map[string]any{
 		"sub_issue_id": subIssueID,
 	})
 }
@@ -3355,7 +3358,7 @@ func (g *GitHubCore) AddSubIssue(owner, repo string, number int, subIssueID int)
 
 // ListLabels lists all labels for a repository.
 func (g *GitHubCore) ListLabels(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/labels", map[string]string{"per_page": "100"})
+	return g.apiGet(ghRepoPath(owner, repo)+"/labels", map[string]string{"per_page": "100"})
 }
 
 // CreateLabel creates a label.
@@ -3364,12 +3367,12 @@ func (g *GitHubCore) CreateLabel(owner, repo, name, color, description string) (
 	if description != "" {
 		payload["description"] = description
 	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/labels", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/labels", payload)
 }
 
 // UpdateLabel updates a label.
 func (g *GitHubCore) UpdateLabel(owner, repo, name string, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/labels/" + name, updates)
+	return g.apiPatch(ghRepoPath(owner, repo)+"/labels/"+name, updates)
 }
 
 // DeleteLabel deletes a label.
@@ -3380,7 +3383,7 @@ func (g *GitHubCore) DeleteLabel(owner, repo, name string) error {
 
 // AddLabelsToIssue adds labels to an issue.
 func (g *GitHubCore) AddLabelsToIssue(owner, repo string, number int, labels []string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/labels", map[string]any{"labels": labels})
+	return g.apiPost(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/labels", map[string]any{"labels": labels})
 }
 
 // RemoveLabel removes a label from an issue.
@@ -3391,7 +3394,7 @@ func (g *GitHubCore) RemoveLabel(owner, repo string, number int, label string) e
 
 // SetLabels replaces all labels on an issue.
 func (g *GitHubCore) SetLabels(owner, repo string, number int, labels []string) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/labels", map[string]any{"labels": labels})
+	return g.apiPut(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/labels", map[string]any{"labels": labels})
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3400,7 +3403,7 @@ func (g *GitHubCore) SetLabels(owner, repo string, number int, labels []string) 
 
 // ListMilestones lists milestones for a repository.
 func (g *GitHubCore) ListMilestones(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/milestones", map[string]string{"per_page": "100"})
+	return g.apiGet(ghRepoPath(owner, repo)+"/milestones", map[string]string{"per_page": "100"})
 }
 
 // CreateMilestone creates a milestone.
@@ -3409,12 +3412,12 @@ func (g *GitHubCore) CreateMilestone(owner, repo, title, description string) (js
 	if description != "" {
 		payload["description"] = description
 	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/milestones", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/milestones", payload)
 }
 
 // UpdateMilestone updates a milestone.
 func (g *GitHubCore) UpdateMilestone(owner, repo string, number int, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/milestones/" + strconv.Itoa(number), updates)
+	return g.apiPatch(ghRepoPath(owner, repo)+"/milestones/"+strconv.Itoa(number), updates)
 }
 
 // DeleteMilestone deletes a milestone.
@@ -3433,7 +3436,7 @@ func (g *GitHubCore) ListPullRequests(owner, repo, state string, perPage int) (j
 	if state != "" {
 		params["state"] = state
 	}
-	return g.apiGet(ghRepoPath(owner, repo) + "/pulls", params)
+	return g.apiGet(ghRepoPath(owner, repo)+"/pulls", params)
 }
 
 // CreatePullRequest creates a pull request.
@@ -3446,17 +3449,17 @@ func (g *GitHubCore) CreatePullRequest(owner, repo, title, head, base, body stri
 	if body != "" {
 		payload["body"] = body
 	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/pulls", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/pulls", payload)
 }
 
 // GetPullRequest gets a pull request.
 func (g *GitHubCore) GetPullRequest(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(number), nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number), nil)
 }
 
 // UpdatePullRequest updates a pull request.
 func (g *GitHubCore) UpdatePullRequest(owner, repo string, number int, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(number), updates)
+	return g.apiPatch(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number), updates)
 }
 
 // MergePullRequest merges a pull request.
@@ -3471,12 +3474,12 @@ func (g *GitHubCore) MergePullRequest(owner, repo string, number int, mergeMetho
 	if commitMessage != "" {
 		payload["commit_message"] = commitMessage
 	}
-	return g.apiPut(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(number) + "/merge", payload)
+	return g.apiPut(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/merge", payload)
 }
 
 // ListPRComments lists review comments on a pull request.
 func (g *GitHubCore) ListPRComments(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(number) + "/comments", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/comments", nil)
 }
 
 // CreatePRComment creates a review comment on a pull request.
@@ -3491,12 +3494,12 @@ func (g *GitHubCore) CreatePRComment(owner, repo string, number int, body, path,
 	if line > 0 {
 		payload["line"] = line
 	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(number) + "/comments", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/comments", payload)
 }
 
 // ListPRReviews lists reviews on a pull request.
 func (g *GitHubCore) ListPRReviews(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(number) + "/reviews", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/reviews", nil)
 }
 
 // CreatePRReview creates a review on a pull request.
@@ -3508,12 +3511,12 @@ func (g *GitHubCore) CreatePRReview(owner, repo string, number int, body, event 
 	if event != "" {
 		payload["event"] = event
 	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(number) + "/reviews", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/reviews", payload)
 }
 
 // SubmitPRReview submits a pending review.
 func (g *GitHubCore) SubmitPRReview(owner, repo string, prNumber, reviewID int, body, event string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(prNumber) + "/reviews/" + strconv.Itoa(reviewID) + "/events", map[string]any{
+	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/reviews/"+strconv.Itoa(reviewID)+"/events", map[string]any{
 		"body":  body,
 		"event": event,
 	})
@@ -3521,7 +3524,7 @@ func (g *GitHubCore) SubmitPRReview(owner, repo string, prNumber, reviewID int, 
 
 // DismissPRReview dismisses a review.
 func (g *GitHubCore) DismissPRReview(owner, repo string, prNumber, reviewID int, message string) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(prNumber) + "/reviews/" + strconv.Itoa(reviewID) + "/dismissals", map[string]any{
+	return g.apiPut(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/reviews/"+strconv.Itoa(reviewID)+"/dismissals", map[string]any{
 		"message": message,
 	})
 }
@@ -3535,7 +3538,7 @@ func (g *GitHubCore) RequestReviewers(owner, repo string, number int, reviewers 
 	if len(teamReviewers) > 0 {
 		payload["team_reviewers"] = teamReviewers
 	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(number) + "/requested_reviewers", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/requested_reviewers", payload)
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3559,18 +3562,18 @@ func (g *GitHubCore) MarkAllNotificationsRead() error {
 
 // GetNotificationThread gets a notification thread.
 func (g *GitHubCore) GetNotificationThread(threadID string) (json.RawMessage, error) {
-	return g.apiGet("/notifications/threads/" + threadID, nil)
+	return g.apiGet("/notifications/threads/"+threadID, nil)
 }
 
 // MarkThreadRead marks a notification thread as read.
 func (g *GitHubCore) MarkThreadRead(threadID string) error {
-	_, err := g.apiPatch("/notifications/threads/" + threadID, nil)
+	_, err := g.apiPatch("/notifications/threads/"+threadID, nil)
 	return err
 }
 
 // SubscribeThread subscribes to a notification thread.
 func (g *GitHubCore) SubscribeThread(threadID string) (json.RawMessage, error) {
-	return g.apiPut("/notifications/threads/" + threadID + "/subscription", map[string]any{"ignored": false})
+	return g.apiPut("/notifications/threads/"+threadID+"/subscription", map[string]any{"ignored": false})
 }
 
 // UnsubscribeThread unsubscribes from a notification thread.
@@ -3591,29 +3594,28 @@ func (g *GitHubCore) DeleteRepo(owner, repo string) error {
 
 // ForkRepo forks a repository.
 func (g *GitHubCore) ForkRepo(owner, repo string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/forks", nil)
+	return g.apiPost(ghRepoPath(owner, repo)+"/forks", nil)
 }
 
 // TransferRepo transfers a repository to another owner.
 func (g *GitHubCore) TransferRepo(owner, repo, newOwner string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/transfer", map[string]any{"new_owner": newOwner})
+	return g.apiPost(ghRepoPath(owner, repo)+"/transfer", map[string]any{"new_owner": newOwner})
 }
 
 // GetRepoTopics gets repository topics.
 func (g *GitHubCore) GetRepoTopics(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/topics", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/topics", nil)
 }
 
 // SetRepoTopics replaces all repository topics.
 func (g *GitHubCore) SetRepoTopics(owner, repo string, topics []string) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/topics", map[string]any{"names": topics})
+	return g.apiPut(ghRepoPath(owner, repo)+"/topics", map[string]any{"names": topics})
 }
 
 // ListContributors lists repository contributors.
 func (g *GitHubCore) ListContributors(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/contributors", map[string]string{"per_page": "100"})
+	return g.apiGet(ghRepoPath(owner, repo)+"/contributors", map[string]string{"per_page": "100"})
 }
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Repository Invitations (5)
@@ -3621,12 +3623,12 @@ func (g *GitHubCore) ListContributors(owner, repo string) (json.RawMessage, erro
 
 // ListInvitations lists repository invitations.
 func (g *GitHubCore) ListInvitations(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/invitations", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/invitations", nil)
 }
 
 // UpdateInvitation updates a repository invitation.
 func (g *GitHubCore) UpdateInvitation(owner, repo string, invitationID int, permissions string) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/invitations/" + strconv.Itoa(invitationID), map[string]any{"permissions": permissions})
+	return g.apiPatch(ghRepoPath(owner, repo)+"/invitations/"+strconv.Itoa(invitationID), map[string]any{"permissions": permissions})
 }
 
 // DeleteInvitation deletes a repository invitation.
@@ -3637,7 +3639,7 @@ func (g *GitHubCore) DeleteInvitation(owner, repo string, invitationID int) erro
 
 // AcceptInvitation accepts a repository invitation.
 func (g *GitHubCore) AcceptInvitation(invitationID int) error {
-	_, err := g.apiPatch("/user/repository_invitations/" + strconv.Itoa(invitationID), nil)
+	_, err := g.apiPatch("/user/repository_invitations/"+strconv.Itoa(invitationID), nil)
 	return err
 }
 
@@ -3674,7 +3676,7 @@ func (g *GitHubCore) UpdateGist(gistID string, description string, files map[str
 	if files != nil {
 		payload["files"] = files
 	}
-	return g.apiPatch("/gists/" + gistID, payload)
+	return g.apiPatch("/gists/"+gistID, payload)
 }
 
 // DeleteGist deletes a gist.
@@ -3685,7 +3687,7 @@ func (g *GitHubCore) DeleteGist(gistID string) error {
 
 // StarGist stars a gist.
 func (g *GitHubCore) StarGist(gistID string) error {
-	_, err := g.apiPut("/gists/" + gistID + "/star", nil)
+	_, err := g.apiPut("/gists/"+gistID+"/star", nil)
 	return err
 }
 
@@ -3697,12 +3699,12 @@ func (g *GitHubCore) UnstarGist(gistID string) error {
 
 // ListGistComments lists comments on a gist.
 func (g *GitHubCore) ListGistComments(gistID string) (json.RawMessage, error) {
-	return g.apiGet("/gists/" + gistID + "/comments", nil)
+	return g.apiGet("/gists/"+gistID+"/comments", nil)
 }
 
 // CreateGistComment creates a comment on a gist.
 func (g *GitHubCore) CreateGistComment(gistID, body string) (json.RawMessage, error) {
-	return g.apiPost("/gists/" + gistID + "/comments", map[string]any{"body": body})
+	return g.apiPost("/gists/"+gistID+"/comments", map[string]any{"body": body})
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3711,7 +3713,7 @@ func (g *GitHubCore) CreateGistComment(gistID, body string) (json.RawMessage, er
 
 // ListReleases lists releases for a repository.
 func (g *GitHubCore) ListReleases(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/releases", map[string]string{"per_page": "30"})
+	return g.apiGet(ghRepoPath(owner, repo)+"/releases", map[string]string{"per_page": "30"})
 }
 
 // CreateRelease creates a release.
@@ -3723,12 +3725,12 @@ func (g *GitHubCore) CreateRelease(owner, repo, tagName, name, body string, draf
 		"draft":      draft,
 		"prerelease": prerelease,
 	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/releases", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/releases", payload)
 }
 
 // UpdateRelease updates a release.
 func (g *GitHubCore) UpdateRelease(owner, repo string, releaseID int, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/releases/" + strconv.Itoa(releaseID), updates)
+	return g.apiPatch(ghRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID), updates)
 }
 
 // DeleteRelease deletes a release.
@@ -3752,7 +3754,7 @@ func (g *GitHubCore) UploadReleaseAsset(owner, repo string, releaseID int, name 
 
 // ListReleaseAssets lists assets for a release.
 func (g *GitHubCore) ListReleaseAssets(owner, repo string, releaseID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/releases/" + strconv.Itoa(releaseID) + "/assets", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID)+"/assets", nil)
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3761,17 +3763,17 @@ func (g *GitHubCore) ListReleaseAssets(owner, repo string, releaseID int) (json.
 
 // ListCommitComments lists comments for a commit.
 func (g *GitHubCore) ListCommitComments(owner, repo, sha string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/commits/" + sha + "/comments", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/commits/"+sha+"/comments", nil)
 }
 
 // CreateCommitComment creates a comment on a commit.
 func (g *GitHubCore) CreateCommitComment(owner, repo, sha, body string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/commits/" + sha + "/comments", map[string]any{"body": body})
+	return g.apiPost(ghRepoPath(owner, repo)+"/commits/"+sha+"/comments", map[string]any{"body": body})
 }
 
 // UpdateCommitComment updates a commit comment.
 func (g *GitHubCore) UpdateCommitComment(owner, repo string, commentID int, body string) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/comments/" + strconv.Itoa(commentID), map[string]any{"body": body})
+	return g.apiPatch(ghRepoPath(owner, repo)+"/comments/"+strconv.Itoa(commentID), map[string]any{"body": body})
 }
 
 // DeleteCommitComment deletes a commit comment.
@@ -3791,17 +3793,17 @@ func (g *GitHubCore) ListOrgs() (json.RawMessage, error) {
 
 // GetOrg gets an organization.
 func (g *GitHubCore) GetOrg(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org, nil)
+	return g.apiGet("/orgs/"+org, nil)
 }
 
 // ListOrgMembers lists organization members.
 func (g *GitHubCore) ListOrgMembers(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/members", map[string]string{"per_page": "100"})
+	return g.apiGet("/orgs/"+org+"/members", map[string]string{"per_page": "100"})
 }
 
 // ListOrgTeams lists organization teams.
 func (g *GitHubCore) ListOrgTeams(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/teams", map[string]string{"per_page": "100"})
+	return g.apiGet("/orgs/"+org+"/teams", map[string]string{"per_page": "100"})
 }
 
 // CreateTeam creates a team in an organization.
@@ -3813,12 +3815,12 @@ func (g *GitHubCore) CreateTeam(org, name, description, privacy string) (json.Ra
 	if privacy != "" {
 		payload["privacy"] = privacy
 	}
-	return g.apiPost("/orgs/" + org + "/teams", payload)
+	return g.apiPost("/orgs/"+org+"/teams", payload)
 }
 
 // UpdateTeam updates a team.
 func (g *GitHubCore) UpdateTeam(org, teamSlug string, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/orgs/" + org + "/teams/" + teamSlug, updates)
+	return g.apiPatch("/orgs/"+org+"/teams/"+teamSlug, updates)
 }
 
 // DeleteTeam deletes a team.
@@ -3833,7 +3835,7 @@ func (g *GitHubCore) AddTeamMember(org, teamSlug, username, role string) (json.R
 	if role != "" {
 		payload["role"] = role
 	}
-	return g.apiPut("/orgs/" + org + "/teams/" + teamSlug + "/memberships/" + username, payload)
+	return g.apiPut("/orgs/"+org+"/teams/"+teamSlug+"/memberships/"+username, payload)
 }
 
 // RemoveTeamMember removes a member from a team.
@@ -3852,12 +3854,12 @@ func (g *GitHubCore) RemoveTeamMember(org, teamSlug, username string) error {
 
 // ListStargazers lists stargazers for a repository.
 func (g *GitHubCore) ListStargazers(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/stargazers", map[string]string{"per_page": "100"})
+	return g.apiGet(ghRepoPath(owner, repo)+"/stargazers", map[string]string{"per_page": "100"})
 }
 
 // StarRepo stars a repository.
 func (g *GitHubCore) StarRepo(owner, repo string) error {
-	_, err := g.apiPut("/user/starred/" + owner + "/" + repo, nil)
+	_, err := g.apiPut("/user/starred/"+owner+"/"+repo, nil)
 	return err
 }
 
@@ -3869,12 +3871,12 @@ func (g *GitHubCore) UnstarRepo(owner, repo string) error {
 
 // ListWatchers lists watchers for a repository.
 func (g *GitHubCore) ListWatchers(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/subscribers", map[string]string{"per_page": "100"})
+	return g.apiGet(ghRepoPath(owner, repo)+"/subscribers", map[string]string{"per_page": "100"})
 }
 
 // WatchRepo watches a repository.
 func (g *GitHubCore) WatchRepo(owner, repo string) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/subscription", map[string]any{"subscribed": true})
+	return g.apiPut(ghRepoPath(owner, repo)+"/subscription", map[string]any{"subscribed": true})
 }
 
 // UnwatchRepo unwatches a repository.
@@ -3894,12 +3896,12 @@ func (g *GitHubCore) ListEvents(perPage int) (json.RawMessage, error) {
 
 // ListRepoEvents lists events for a repository.
 func (g *GitHubCore) ListRepoEvents(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/events", map[string]string{"per_page": "30"})
+	return g.apiGet(ghRepoPath(owner, repo)+"/events", map[string]string{"per_page": "30"})
 }
 
 // ListUserEvents lists events for a user.
 func (g *GitHubCore) ListUserEvents(username string) (json.RawMessage, error) {
-	return g.apiGet("/users/" + username + "/events", map[string]string{"per_page": "30"})
+	return g.apiGet("/users/"+username+"/events", map[string]string{"per_page": "30"})
 }
 
 // GetFeeds lists feeds available to the authenticated user.
@@ -4049,46 +4051,33 @@ func (g *GitHubCore) DeleteSocialAccount(accountURLs []string) error {
 
 // GetUserHovercard gets hovercard info for a user.
 func (g *GitHubCore) GetUserHovercard(username string) (json.RawMessage, error) {
-	return g.apiGet("/users/" + username + "/hovercard", nil)
+	return g.apiGet("/users/"+username+"/hovercard", nil)
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Search Extended (4)
 // ══════════════════════════════════════════════════════════════════════════════
 
-
-
-
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Utility (3)
 // ══════════════════════════════════════════════════════════════════════════════
-
 
 // CheckRateLimit checks the current rate limit status.
 func (g *GitHubCore) CheckRateLimit() (json.RawMessage, error) {
 	return g.apiGet("/rate_limit", nil)
 }
 
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Branches & Branch Protection (6)
 // ══════════════════════════════════════════════════════════════════════════════
-
-
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Git References / Tags (6)
 // ══════════════════════════════════════════════════════════════════════════════
 
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Commits (3)
 // ══════════════════════════════════════════════════════════════════════════════
-
-
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Actions / Workflows (10)
@@ -4110,20 +4099,13 @@ func (g *GitHubCore) CheckRateLimit() (json.RawMessage, error) {
 // Extended Methods — Repository Contents (5)
 // ══════════════════════════════════════════════════════════════════════════════
 
-
-
-
-
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Forks (1)
 // ══════════════════════════════════════════════════════════════════════════════
 
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Collaborator Permissions (2)
 // ══════════════════════════════════════════════════════════════════════════════
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Code Scanning / Security (4)
@@ -4185,13 +4167,12 @@ func (g *GitHubCore) CheckRateLimit() (json.RawMessage, error) {
 
 // ListCollaborators returns all collaborators for a repository.
 func (g *GitHubCore) ListCollaborators(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/collaborators", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/collaborators", nil)
 }
-
 
 // AddCollaborator invites a user as a collaborator on a repository.
 func (g *GitHubCore) AddCollaborator(owner, repo, username string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/collaborators/" + username, payload)
+	return g.apiPut(ghRepoPath(owner, repo)+"/collaborators/"+username, payload)
 }
 
 // RemoveCollaborator removes a collaborator from a repository.
@@ -4208,20 +4189,9 @@ func (g *GitHubCore) RemoveCollaborator(owner, repo, username string) error {
 
 // ── Repos — Community & README ───────────────────────────────────────────────
 
-
-
-
 // ── Repos — Git Objects ──────────────────────────────────────────────────────
 
 // ── Repos — Misc Missing ────────────────────────────────────────────────────
-
-
-
-
-
-
-
-
 
 // ── Repos — Branch Protection Details ────────────────────────────────────────
 
@@ -4233,22 +4203,18 @@ func (g *GitHubCore) RemoveCollaborator(owner, repo, username string) error {
 
 // ── Repos — Commits Extras ───────────────────────────────────────────────────
 
-
 // ── Repos — Environment Deployment Policies ──────────────────────────────────
 
 // ── Pull Requests — Missing ──────────────────────────────────────────────────
 
 // CreatePRCommentReply posts a reply to an existing pull request review comment.
 func (g *GitHubCore) CreatePRCommentReply(owner, repo string, prNumber, commentID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(prNumber) + "/comments/" + strconv.Itoa(commentID) + "/replies", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/comments/"+strconv.Itoa(commentID)+"/replies", payload)
 }
-
-
-
 
 // GetRequestedReviewers returns the users and teams requested to review a pull request.
 func (g *GitHubCore) GetRequestedReviewers(owner, repo string, prNumber int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(prNumber) + "/requested_reviewers", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/requested_reviewers", nil)
 }
 
 // RemoveRequestedReviewers removes review requests from a pull request.
@@ -4257,30 +4223,26 @@ func (g *GitHubCore) RemoveRequestedReviewers(owner, repo string, prNumber int, 
 	return err
 }
 
-
-
-
 // ListPRReviewComments returns the comments belonging to a specific pull request review.
 func (g *GitHubCore) ListPRReviewComments(owner, repo string, prNumber, reviewID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(prNumber) + "/reviews/" + strconv.Itoa(reviewID) + "/comments", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/reviews/"+strconv.Itoa(reviewID)+"/comments", nil)
 }
-
 
 // ── Issues — Missing ─────────────────────────────────────────────────────────
 
 // ListRepoIssueEvents returns all issue events across a repository.
 func (g *GitHubCore) ListRepoIssueEvents(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/issues/events", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/issues/events", nil)
 }
 
 // GetIssueEvent retrieves a single issue event by its ID.
 func (g *GitHubCore) GetIssueEvent(owner, repo string, eventID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/issues/events/" + strconv.Itoa(eventID), nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/issues/events/"+strconv.Itoa(eventID), nil)
 }
 
 // AddIssueAssignees adds assignees to an issue.
 func (g *GitHubCore) AddIssueAssignees(owner, repo string, issueNumber int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(issueNumber) + "/assignees", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNumber)+"/assignees", payload)
 }
 
 // RemoveIssueAssignees removes assignees from an issue.
@@ -4289,14 +4251,6 @@ func (g *GitHubCore) RemoveIssueAssignees(owner, repo string, issueNumber int, p
 	return err
 }
 
-
-
-
-
-
-
-
-
 // ListAuthenticatedUserIssues returns issues assigned to or created by the authenticated user.
 func (g *GitHubCore) ListAuthenticatedUserIssues() (json.RawMessage, error) {
 	return g.apiGet("/issues", nil)
@@ -4304,9 +4258,8 @@ func (g *GitHubCore) ListAuthenticatedUserIssues() (json.RawMessage, error) {
 
 // ListOrgIssues returns issues across all repositories in an organization.
 func (g *GitHubCore) ListOrgIssues(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/issues", nil)
+	return g.apiGet("/orgs/"+org+"/issues", nil)
 }
-
 
 // ── Codespaces ───────────────────────────────────────────────────────────────
 
@@ -4318,12 +4271,12 @@ func (g *GitHubCore) ListOrgIssues(org string) (json.RawMessage, error) {
 
 // ListCommitCommentReactions returns reactions on a commit comment.
 func (g *GitHubCore) ListCommitCommentReactions(owner, repo string, commentID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/comments/" + strconv.Itoa(commentID) + "/reactions", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/comments/"+strconv.Itoa(commentID)+"/reactions", nil)
 }
 
 // CreateCommitCommentReaction adds a reaction to a commit comment.
 func (g *GitHubCore) CreateCommitCommentReaction(owner, repo string, commentID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/comments/" + strconv.Itoa(commentID) + "/reactions", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/comments/"+strconv.Itoa(commentID)+"/reactions", payload)
 }
 
 // DeleteCommitCommentReaction removes a reaction from a commit comment.
@@ -4334,12 +4287,12 @@ func (g *GitHubCore) DeleteCommitCommentReaction(owner, repo string, commentID, 
 
 // ListIssueCommentReactions returns reactions on an issue comment.
 func (g *GitHubCore) ListIssueCommentReactions(owner, repo string, commentID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/issues/comments/" + strconv.Itoa(commentID) + "/reactions", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/issues/comments/"+strconv.Itoa(commentID)+"/reactions", nil)
 }
 
 // CreateIssueCommentReaction adds a reaction to an issue comment.
 func (g *GitHubCore) CreateIssueCommentReaction(owner, repo string, commentID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/issues/comments/" + strconv.Itoa(commentID) + "/reactions", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/issues/comments/"+strconv.Itoa(commentID)+"/reactions", payload)
 }
 
 // DeleteIssueCommentReaction removes a reaction from an issue comment.
@@ -4350,12 +4303,12 @@ func (g *GitHubCore) DeleteIssueCommentReaction(owner, repo string, commentID, r
 
 // ListIssueReactions returns reactions on an issue.
 func (g *GitHubCore) ListIssueReactions(owner, repo string, issueNumber int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(issueNumber) + "/reactions", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNumber)+"/reactions", nil)
 }
 
 // CreateIssueReaction adds a reaction to an issue.
 func (g *GitHubCore) CreateIssueReaction(owner, repo string, issueNumber int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(issueNumber) + "/reactions", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNumber)+"/reactions", payload)
 }
 
 // DeleteIssueReaction removes a reaction from an issue.
@@ -4366,12 +4319,12 @@ func (g *GitHubCore) DeleteIssueReaction(owner, repo string, issueNumber, reacti
 
 // ListPRCommentReactions returns reactions on a pull request review comment.
 func (g *GitHubCore) ListPRCommentReactions(owner, repo string, commentID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pulls/comments/" + strconv.Itoa(commentID) + "/reactions", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/comments/"+strconv.Itoa(commentID)+"/reactions", nil)
 }
 
 // CreatePRCommentReaction adds a reaction to a pull request review comment.
 func (g *GitHubCore) CreatePRCommentReaction(owner, repo string, commentID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/pulls/comments/" + strconv.Itoa(commentID) + "/reactions", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/comments/"+strconv.Itoa(commentID)+"/reactions", payload)
 }
 
 // DeletePRCommentReaction removes a reaction from a pull request review comment.
@@ -4382,12 +4335,12 @@ func (g *GitHubCore) DeletePRCommentReaction(owner, repo string, commentID, reac
 
 // ListReleaseReactions returns reactions on a release.
 func (g *GitHubCore) ListReleaseReactions(owner, repo string, releaseID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/releases/" + strconv.Itoa(releaseID) + "/reactions", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID)+"/reactions", nil)
 }
 
 // CreateReleaseReaction adds a reaction to a release.
 func (g *GitHubCore) CreateReleaseReaction(owner, repo string, releaseID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/releases/" + strconv.Itoa(releaseID) + "/reactions", payload)
+	return g.apiPost(ghRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID)+"/reactions", payload)
 }
 
 // DeleteReleaseReaction removes a reaction from a release.
@@ -4410,12 +4363,12 @@ func (g *GitHubCore) DeleteReleaseReaction(owner, repo string, releaseID, reacti
 
 // ListOrgBlockedUsers returns users blocked by an organization.
 func (g *GitHubCore) ListOrgBlockedUsers(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/blocks", nil)
+	return g.apiGet("/orgs/"+org+"/blocks", nil)
 }
 
 // BlockOrgUser blocks a user from an organization.
 func (g *GitHubCore) BlockOrgUser(org, username string) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/blocks/" + username, nil)
+	return g.apiPut("/orgs/"+org+"/blocks/"+username, nil)
 }
 
 // UnblockOrgUser removes a user block from an organization.
@@ -4428,12 +4381,12 @@ func (g *GitHubCore) UnblockOrgUser(org, username string) error {
 
 // ListOrgInvitations returns pending invitations for an organization.
 func (g *GitHubCore) ListOrgInvitations(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/invitations", nil)
+	return g.apiGet("/orgs/"+org+"/invitations", nil)
 }
 
 // CreateOrgInvitation sends a new membership invitation for an organization.
 func (g *GitHubCore) CreateOrgInvitation(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/invitations", payload)
+	return g.apiPost("/orgs/"+org+"/invitations", payload)
 }
 
 // CancelOrgInvitation revokes a pending organization invitation.
@@ -4444,29 +4397,29 @@ func (g *GitHubCore) CancelOrgInvitation(org string, invitationID int) error {
 
 // ListInvitationTeams returns the teams associated with an organization invitation.
 func (g *GitHubCore) ListInvitationTeams(org string, invitationID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/invitations/" + strconv.Itoa(invitationID) + "/teams", nil)
+	return g.apiGet("/orgs/"+org+"/invitations/"+strconv.Itoa(invitationID)+"/teams", nil)
 }
 
 // ListFailedInvitations returns organization invitations that failed to send.
 func (g *GitHubCore) ListFailedInvitations(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/failed_invitations", nil)
+	return g.apiGet("/orgs/"+org+"/failed_invitations", nil)
 }
 
 // ── Organizations — Roles ────────────────────────────────────────────────────
 
 // ListOrgRoles returns the custom roles defined for an organization.
 func (g *GitHubCore) ListOrgRoles(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/organization-roles", nil)
+	return g.apiGet("/orgs/"+org+"/organization-roles", nil)
 }
 
 // GetOrgRole retrieves a single custom role by ID within an organization.
 func (g *GitHubCore) GetOrgRole(org string, roleID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/organization-roles/" + strconv.Itoa(roleID), nil)
+	return g.apiGet("/orgs/"+org+"/organization-roles/"+strconv.Itoa(roleID), nil)
 }
 
 // AssignTeamRole assigns a custom organization role to a team.
 func (g *GitHubCore) AssignTeamRole(org, teamSlug string, roleID int) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/organization-roles/teams/" + teamSlug + "/" + strconv.Itoa(roleID), nil)
+	return g.apiPut("/orgs/"+org+"/organization-roles/teams/"+teamSlug+"/"+strconv.Itoa(roleID), nil)
 }
 
 // RemoveTeamRole removes a custom organization role from a team.
@@ -4477,7 +4430,7 @@ func (g *GitHubCore) RemoveTeamRole(org, teamSlug string, roleID int) error {
 
 // AssignUserRole assigns a custom organization role to a user.
 func (g *GitHubCore) AssignUserRole(org, username string, roleID int) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/organization-roles/users/" + username + "/" + strconv.Itoa(roleID), nil)
+	return g.apiPut("/orgs/"+org+"/organization-roles/users/"+username+"/"+strconv.Itoa(roleID), nil)
 }
 
 // RemoveUserRole removes a custom organization role from a user.
@@ -4488,24 +4441,24 @@ func (g *GitHubCore) RemoveUserRole(org, username string, roleID int) error {
 
 // ListTeamsForRole returns the teams assigned to a specific organization role.
 func (g *GitHubCore) ListTeamsForRole(org string, roleID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/organization-roles/" + strconv.Itoa(roleID) + "/teams", nil)
+	return g.apiGet("/orgs/"+org+"/organization-roles/"+strconv.Itoa(roleID)+"/teams", nil)
 }
 
 // ListUsersForRole returns the users assigned to a specific organization role.
 func (g *GitHubCore) ListUsersForRole(org string, roleID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/organization-roles/" + strconv.Itoa(roleID) + "/users", nil)
+	return g.apiGet("/orgs/"+org+"/organization-roles/"+strconv.Itoa(roleID)+"/users", nil)
 }
 
 // ── Organizations — Outside Collaborators ────────────────────────────────────
 
 // ListOutsideCollaborators returns outside collaborators for an organization.
 func (g *GitHubCore) ListOutsideCollaborators(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/outside_collaborators", nil)
+	return g.apiGet("/orgs/"+org+"/outside_collaborators", nil)
 }
 
 // ConvertToOutsideCollaborator converts an organization member to an outside collaborator.
 func (g *GitHubCore) ConvertToOutsideCollaborator(org, username string) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/outside_collaborators/" + username, nil)
+	return g.apiPut("/orgs/"+org+"/outside_collaborators/"+username, nil)
 }
 
 // RemoveOutsideCollaborator removes an outside collaborator from an organization.
@@ -4518,12 +4471,12 @@ func (g *GitHubCore) RemoveOutsideCollaborator(org, username string) error {
 
 // GetOrgMembership retrieves a user's membership details within an organization.
 func (g *GitHubCore) GetOrgMembership(org, username string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/memberships/" + username, nil)
+	return g.apiGet("/orgs/"+org+"/memberships/"+username, nil)
 }
 
 // SetOrgMembership updates a user's membership role within an organization.
 func (g *GitHubCore) SetOrgMembership(org, username string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/memberships/" + username, payload)
+	return g.apiPut("/orgs/"+org+"/memberships/"+username, payload)
 }
 
 // RemoveOrgMembership removes a user's membership from an organization.
@@ -4539,7 +4492,7 @@ func (g *GitHubCore) ListUserOrgMemberships() (json.RawMessage, error) {
 
 // GetUserOrgMembership retrieves the authenticated user's membership in a specific organization.
 func (g *GitHubCore) GetUserOrgMembership(org string) (json.RawMessage, error) {
-	return g.apiGet("/user/memberships/orgs/" + org, nil)
+	return g.apiGet("/user/memberships/orgs/"+org, nil)
 }
 
 // ── Organizations — Custom Properties ────────────────────────────────────────
@@ -4552,28 +4505,24 @@ func (g *GitHubCore) GetUserOrgMembership(org string) (json.RawMessage, error) {
 
 // ListPublicMembers returns the publicly visible members of an organization.
 func (g *GitHubCore) ListPublicMembers(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/public_members", nil)
+	return g.apiGet("/orgs/"+org+"/public_members", nil)
 }
-
-
-
 
 // ── Teams — Extended ─────────────────────────────────────────────────────────
 
 // ListTeamInvitations returns pending invitations for a team.
 func (g *GitHubCore) ListTeamInvitations(org, teamSlug string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/teams/" + teamSlug + "/invitations", nil)
+	return g.apiGet("/orgs/"+org+"/teams/"+teamSlug+"/invitations", nil)
 }
 
 // ListTeamRepos returns the repositories accessible to a team.
 func (g *GitHubCore) ListTeamRepos(org, teamSlug string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/teams/" + teamSlug + "/repos", nil)
+	return g.apiGet("/orgs/"+org+"/teams/"+teamSlug+"/repos", nil)
 }
-
 
 // AddTeamRepo grants a team access to a repository.
 func (g *GitHubCore) AddTeamRepo(org, teamSlug, owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/teams/" + teamSlug + "/repos/" + owner + "/" + repo, payload)
+	return g.apiPut("/orgs/"+org+"/teams/"+teamSlug+"/repos/"+owner+"/"+repo, payload)
 }
 
 // RemoveTeamRepo revokes a team's access to a repository.
@@ -4582,15 +4531,12 @@ func (g *GitHubCore) RemoveTeamRepo(org, teamSlug, owner, repo string) error {
 	return err
 }
 
-
 // ListUserTeams returns the teams the authenticated user belongs to.
 func (g *GitHubCore) ListUserTeams() (json.RawMessage, error) {
 	return g.apiGet("/user/teams", nil)
 }
 
 // ── Users — Extended ─────────────────────────────────────────────────────────
-
-
 
 // ── Search — Extended ────────────────────────────────────────────────────────
 
@@ -4625,13 +4571,6 @@ func (g *GitHubCore) SearchUsers(query string, params map[string]string) (json.R
 
 // ── Gists — Extended ─────────────────────────────────────────────────────────
 
-
-
-
-
-
-
-
 // ── Packages — Extended ─────────────────────────────────────────────────────
 
 // ── Dependency Graph ─────────────────────────────────────────────────────────
@@ -4640,12 +4579,12 @@ func (g *GitHubCore) SearchUsers(query string, params map[string]string) (json.R
 
 // GetOrgInteractionLimits returns the interaction restrictions for an organization.
 func (g *GitHubCore) GetOrgInteractionLimits(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/interaction-limits", nil)
+	return g.apiGet("/orgs/"+org+"/interaction-limits", nil)
 }
 
 // SetOrgInteractionLimits configures interaction restrictions for an organization.
 func (g *GitHubCore) SetOrgInteractionLimits(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/interaction-limits", payload)
+	return g.apiPut("/orgs/"+org+"/interaction-limits", payload)
 }
 
 // RemoveOrgInteractionLimits removes all interaction restrictions from an organization.
@@ -4656,12 +4595,12 @@ func (g *GitHubCore) RemoveOrgInteractionLimits(org string) error {
 
 // GetRepoInteractionLimits returns the interaction restrictions for a repository.
 func (g *GitHubCore) GetRepoInteractionLimits(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/interaction-limits", nil)
+	return g.apiGet(ghRepoPath(owner, repo)+"/interaction-limits", nil)
 }
 
 // SetRepoInteractionLimits configures interaction restrictions for a repository.
 func (g *GitHubCore) SetRepoInteractionLimits(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/interaction-limits", payload)
+	return g.apiPut(ghRepoPath(owner, repo)+"/interaction-limits", payload)
 }
 
 // RemoveRepoInteractionLimits removes all interaction restrictions from a repository.

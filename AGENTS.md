@@ -1182,29 +1182,38 @@ prove model expressiveness, degradation honesty, and backend-neutrality) / OS-gl
 
 ## 15. Current status (keep accurate — this is "where you left off")
 
-- Date: 2026-09-07. **Round-4 re-verification same day**: external AI's "Linux builds
-  cgo-free" claim tested and rejected (15 fresh builds incl. 7 linux tag combos;
-  research/16 round 4); AGENTS.md bumped v3.1; internal "X11 windowing pure Go" wording
-  corrected; exact Linux build-dep list finalized (§8).
-- Phase: **P0, first three items done** — research package (research/00–14) + AGENTS.md v2 +
-  **AGENTS.md v3 verification pass** (research/16, executed): installed Go 1.27.1, resolved
-  all 20 planned dependencies to current versions (§2), compiled the core layer with
-  CGO_ENABLED=0 across the platform matrix and the full UI app for windows+js/wasm,
-  corrected the Gio cgo claim and the keyring-darwin mechanism, documented the gotd tg
-  compile-memory recipe and the linux desktop dev headers requirement.
-- Code: none yet. The repo is currently docs+research only. (A throwaway verification
-  module — verify_build/ — exists outside the repo as evidence; its scripts are the recipe
-  for tools/purego/check.sh.)
-- Next session's first task (checklist order): "Repo init: go.mod, Makefile,
-  .github/workflows/ci.yml" then "tools/purego/check.sh + make target", then
-  "Hello-window app".
-- Owner actions pending (non-blocking, needed by P2): obtain Telegram api_id/api_hash
-  (core.telegram.org/api/obtaining_api_id); decide project name (working title UniChat);
-  confirm MIT as the project license (rule 0.11); optionally reserve a git host + module
-  path; optionally create a GitHub PAT (fine-grained, notifications+issues scope) for P4
-  nightly smoke.
-- Known open decisions: ADR-007 (XMPP E2EE strategy), project name/module path, whether
-  iOS ships in v0.1 (P5 dependency), translator provider choice (P3, owner preference).
+- Date: 2026-09-07. **Session "restore the build" completed** (see WORKLOG.md
+  for the full entry): the existing `go/` engine+cores+bridge codebase (the
+  pre-AGENTS.md "pure Go core" that was stripped of its build system) now
+  builds, tests, and its FFI artifacts are smoke-verified end-to-end.
+  go.mod/go.sum restored against current versions (gotd v0.161.0, mautrix
+  v0.30.0, pion v4 line, protobuf v1.36.12); `-tags goolm` is mandatory
+  (pure-Go Olm); two API-skew fixes (pion stun v4, gotd AI-tone); the
+  js/wasm target builds for the first time ever (new `go/wrtc` compat shim +
+  per-core js splits); a real wasm deadlock was found and fixed
+  (bridgeCall is now Promise-based — see WORKLOG); test suite added
+  (utils/cores/bridge; caught the FLOOD_WAIT→auth miscategorization bug);
+  C and Node FFI smoke suites PASS against the real artifacts; Makefile,
+  build.sh, CI (native+race+matrix+wasm+smokes), README, and a headless
+  CLI host (`go/cmd/cli`) added. **The Gio-GUI rewrite in this plan has NOT
+  started** — the verified, working code is the bridge/cores architecture
+  under `go/`, which this plan supersedes but does not yet replace.
+- Phase: the P0 items of THIS plan remain (repo hygiene is now done via the
+  restored code's own tooling; "Hello-window app" i.e. the Gio shell is still
+  the first GUI milestone). Treat `go/` as the working engine core a future
+  GUI wraps.
+- Next session's first task: pick the frontend path — (a) start the Gio GUI
+  (P1, wrapping or replacing `go/`), or (b) build a web host on the now
+  verified `dist/uniclient.wasm`. Then the P0 checklist remainder.
+- Owner actions pending (non-blocking, needed by P2): obtain Telegram
+  api_id/api_hash (core.telegram.org/api/obtaining_api_id); decide project
+  name (working title UniChat); confirm MIT as the project license (rule
+  0.11); optionally reserve a git host + module path; optionally create a
+  GitHub PAT (fine-grained, notifications+issues scope) for P4 nightly
+  smoke.
+- Known open decisions: ADR-007 (XMPP E2EE strategy), project name/module
+  path, whether iOS ships in v0.1 (P5 dependency), translator provider
+  choice (P3, owner preference).
 - Assumptions made in this plan (owner granted autonomy; revisit if wrong):
   MVP order Telegram→IRC→GitHub (§1 row 2 rationale); voice anchored on Mumble+Telegram
   at P5; GitHub scoped to inbox+threads; TS3/Bale experimental last; English as dev

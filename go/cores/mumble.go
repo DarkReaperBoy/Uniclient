@@ -62,32 +62,32 @@ const (
 
 // TCP message type IDs (Mumble.proto)
 const (
-	mumbleMsgVersion              = 0
-	mumbleMsgUDPTunnel            = 1
-	mumbleMsgAuthenticate         = 2
-	mumbleMsgPing                 = 3
-	mumbleMsgReject               = 4
-	mumbleMsgServerSync           = 5
-	mumbleMsgChannelRemove        = 6
-	mumbleMsgChannelState         = 7
-	mumbleMsgUserRemove           = 8
-	mumbleMsgUserState            = 9
-	mumbleMsgBanList              = 10
-	mumbleMsgTextMessage          = 11
-	mumbleMsgPermissionDenied     = 12
-	mumbleMsgACL                  = 13
-	mumbleMsgQueryUsers           = 14
-	mumbleMsgCryptSetup           = 15
-	mumbleMsgContextActionModify  = 16
-	mumbleMsgContextAction        = 17
-	mumbleMsgUserList             = 18
-	mumbleMsgVoiceTarget          = 19
-	mumbleMsgPermissionQuery      = 20
-	mumbleMsgCodecVersion         = 21
-	mumbleMsgUserStats            = 22
-	mumbleMsgRequestBlob          = 23
-	mumbleMsgServerConfig         = 24
-	mumbleMsgSuggestConfig        = 25
+	mumbleMsgVersion                = 0
+	mumbleMsgUDPTunnel              = 1
+	mumbleMsgAuthenticate           = 2
+	mumbleMsgPing                   = 3
+	mumbleMsgReject                 = 4
+	mumbleMsgServerSync             = 5
+	mumbleMsgChannelRemove          = 6
+	mumbleMsgChannelState           = 7
+	mumbleMsgUserRemove             = 8
+	mumbleMsgUserState              = 9
+	mumbleMsgBanList                = 10
+	mumbleMsgTextMessage            = 11
+	mumbleMsgPermissionDenied       = 12
+	mumbleMsgACL                    = 13
+	mumbleMsgQueryUsers             = 14
+	mumbleMsgCryptSetup             = 15
+	mumbleMsgContextActionModify    = 16
+	mumbleMsgContextAction          = 17
+	mumbleMsgUserList               = 18
+	mumbleMsgVoiceTarget            = 19
+	mumbleMsgPermissionQuery        = 20
+	mumbleMsgCodecVersion           = 21
+	mumbleMsgUserStats              = 22
+	mumbleMsgRequestBlob            = 23
+	mumbleMsgServerConfig           = 24
+	mumbleMsgSuggestConfig          = 25
 	mumbleMsgPluginDataTransmission = 26
 )
 
@@ -114,16 +114,16 @@ const (
 
 // Reject types
 const (
-	mumbleRejectNone             = 0
-	mumbleRejectWrongVersion     = 1
-	mumbleRejectInvalidUsername  = 2
-	mumbleRejectWrongUserPW      = 3
-	mumbleRejectWrongServerPW    = 4
-	mumbleRejectUsernameInUse    = 5
-	mumbleRejectServerFull       = 6
-	mumbleRejectNoCertificate    = 7
+	mumbleRejectNone              = 0
+	mumbleRejectWrongVersion      = 1
+	mumbleRejectInvalidUsername   = 2
+	mumbleRejectWrongUserPW       = 3
+	mumbleRejectWrongServerPW     = 4
+	mumbleRejectUsernameInUse     = 5
+	mumbleRejectServerFull        = 6
+	mumbleRejectNoCertificate     = 7
 	mumbleRejectAuthenticatorFail = 8
-	mumbleRejectNoNewConnections = 9
+	mumbleRejectNoNewConnections  = 9
 )
 
 // UDP audio types (legacy format)
@@ -671,16 +671,16 @@ func ocb2Decrypt(ciph cipher.Block, plain, encrypted, nonce, tag []byte) bool {
 
 // CryptState manages OCB2-AES128 encryption state for the UDP channel
 type mumbleCryptState struct {
-	key           [16]byte
-	encryptIV     [16]byte
-	decryptIV     [16]byte
-	cipher        cipher.Block
-	decryptHist   [256]byte
-	good          uint32
-	late          uint32
-	lost          uint32
-	resync        uint32
-	mu            sync.Mutex
+	key         [16]byte
+	encryptIV   [16]byte
+	decryptIV   [16]byte
+	cipher      cipher.Block
+	decryptHist [256]byte
+	good        uint32
+	late        uint32
+	lost        uint32
+	resync      uint32
+	mu          sync.Mutex
 }
 
 func (cs *mumbleCryptState) init(key, clientNonce, serverNonce []byte) error {
@@ -828,26 +828,38 @@ func (m *mumbleVersion) unmarshal(data []byte) error {
 		switch field {
 		case 1:
 			v, err := d.readVarint()
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			m.VersionV1 = uint32(v)
 		case 5:
 			v, err := d.readVarint()
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			m.VersionV2 = v
 		case 2:
 			s, err := d.readString()
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			m.Release = s
 		case 3:
 			s, err := d.readString()
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			m.OS = s
 		case 4:
 			s, err := d.readString()
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			m.OSVersion = s
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -910,43 +922,80 @@ func (m *mumblePingMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Timestamp = v
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Good = uint32(v)
 		case 3:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Late = uint32(v)
 		case 4:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Lost = uint32(v)
 		case 5:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Resync = uint32(v)
 		case 6:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.UDPPackets = uint32(v)
 		case 7:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.TCPPackets = uint32(v)
 		case 8:
-			v, err := d.readFixed32(); if err != nil { return err }
+			v, err := d.readFixed32()
+			if err != nil {
+				return err
+			}
 			m.UDPPingAvg = math.Float32frombits(v)
 		case 9:
-			v, err := d.readFixed32(); if err != nil { return err }
+			v, err := d.readFixed32()
+			if err != nil {
+				return err
+			}
 			m.UDPPingVar = math.Float32frombits(v)
 		case 10:
-			v, err := d.readFixed32(); if err != nil { return err }
+			v, err := d.readFixed32()
+			if err != nil {
+				return err
+			}
 			m.TCPPingAvg = math.Float32frombits(v)
 		case 11:
-			v, err := d.readFixed32(); if err != nil { return err }
+			v, err := d.readFixed32()
+			if err != nil {
+				return err
+			}
 			m.TCPPingVar = math.Float32frombits(v)
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -961,16 +1010,26 @@ func (m *mumbleReject) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Type = uint32(v)
 		case 2:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Reason = s
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -987,22 +1046,38 @@ func (m *mumbleServerSync) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Session = uint32(v)
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.MaxBandwidth = uint32(v)
 		case 3:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.WelcomeText = s
 		case 4:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Permissions = v
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1051,49 +1126,94 @@ func (m *mumbleChannelStateMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.ChannelID = uint32(v); m.HasChannelID = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.ChannelID = uint32(v)
+			m.HasChannelID = true
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.Parent = uint32(v); m.HasParent = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.Parent = uint32(v)
+			m.HasParent = true
 		case 3:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Name = s
 		case 4:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Links = append(m.Links, uint32(v))
 		case 5:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Description = s
 		case 6:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.LinksAdd = append(m.LinksAdd, uint32(v))
 		case 7:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.LinksRemove = append(m.LinksRemove, uint32(v))
 		case 8:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Temporary = v != 0
 		case 9:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Position = int32(v)
 		case 10:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.DescriptionHash = b
 		case 11:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.MaxUsers = uint32(v)
 		case 12:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.IsEnterRestricted = v != 0
 		case 13:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.CanEnter = v != 0
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1111,7 +1231,7 @@ type mumbleUserStateMsg struct {
 	SelfMute               bool
 	SelfDeaf               bool
 	Texture                []byte
-	PluginContext           []byte
+	PluginContext          []byte
 	PluginIdentity         string
 	Comment                string
 	Hash                   string
@@ -1125,17 +1245,17 @@ type mumbleUserStateMsg struct {
 	// VolumeAdjustments stored as submessages
 	ListeningVolumeAdj []mumbleVolumeAdj
 
-	HasSession   bool
-	HasActor     bool
-	HasUserID    bool
-	HasChannelID bool
-	HasMute      bool
-	HasDeaf      bool
-	HasSuppress  bool
-	HasSelfMute  bool
-	HasSelfDeaf  bool
+	HasSession         bool
+	HasActor           bool
+	HasUserID          bool
+	HasChannelID       bool
+	HasMute            bool
+	HasDeaf            bool
+	HasSuppress        bool
+	HasSelfMute        bool
+	HasSelfDeaf        bool
 	HasPrioritySpeaker bool
-	HasRecording bool
+	HasRecording       bool
 }
 
 type mumbleVolumeAdj struct {
@@ -1202,95 +1322,189 @@ func (m *mumbleUserStateMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.Session = uint32(v); m.HasSession = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.Session = uint32(v)
+			m.HasSession = true
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.Actor = uint32(v); m.HasActor = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.Actor = uint32(v)
+			m.HasActor = true
 		case 3:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Name = s
 		case 4:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.UserID = uint32(v); m.HasUserID = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.UserID = uint32(v)
+			m.HasUserID = true
 		case 5:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.ChannelID = uint32(v); m.HasChannelID = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.ChannelID = uint32(v)
+			m.HasChannelID = true
 		case 6:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.Mute = v != 0; m.HasMute = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.Mute = v != 0
+			m.HasMute = true
 		case 7:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.Deaf = v != 0; m.HasDeaf = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.Deaf = v != 0
+			m.HasDeaf = true
 		case 8:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.Suppress = v != 0; m.HasSuppress = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.Suppress = v != 0
+			m.HasSuppress = true
 		case 9:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.SelfMute = v != 0; m.HasSelfMute = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.SelfMute = v != 0
+			m.HasSelfMute = true
 		case 10:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.SelfDeaf = v != 0; m.HasSelfDeaf = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.SelfDeaf = v != 0
+			m.HasSelfDeaf = true
 		case 11:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.Texture = b
 		case 12:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.PluginContext = b
 		case 13:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.PluginIdentity = s
 		case 14:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Comment = s
 		case 15:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Hash = s
 		case 16:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.CommentHash = b
 		case 17:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.TextureHash = b
 		case 18:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.PrioritySpeaker = v != 0; m.HasPrioritySpeaker = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.PrioritySpeaker = v != 0
+			m.HasPrioritySpeaker = true
 		case 19:
-			v, err := d.readVarint(); if err != nil { return err }
-			m.Recording = v != 0; m.HasRecording = true
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
+			m.Recording = v != 0
+			m.HasRecording = true
 		case 20:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.TemporaryAccessTokens = append(m.TemporaryAccessTokens, s)
 		case 21:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.ListeningChannelAdd = append(m.ListeningChannelAdd, uint32(v))
 		case 22:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.ListeningChannelRemove = append(m.ListeningChannelRemove, uint32(v))
 		case 23:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			var va mumbleVolumeAdj
 			sd := newPBDecoder(b)
 			for sd.remaining() > 0 {
 				sf, swt, serr := sd.readTag()
-				if serr != nil { return serr }
+				if serr != nil {
+					return serr
+				}
 				switch sf {
 				case 1:
-					sv, serr := sd.readVarint(); if serr != nil { return serr }
+					sv, serr := sd.readVarint()
+					if serr != nil {
+						return serr
+					}
 					va.ListeningChannel = uint32(sv)
 				case 2:
-					sv, serr := sd.readFixed32(); if serr != nil { return serr }
+					sv, serr := sd.readFixed32()
+					if serr != nil {
+						return serr
+					}
 					va.VolumeAdjustment = math.Float32frombits(sv)
 				default:
-					if serr := sd.skipField(swt); serr != nil { return serr }
+					if serr := sd.skipField(swt); serr != nil {
+						return serr
+					}
 				}
 			}
 			m.ListeningVolumeAdj = append(m.ListeningVolumeAdj, va)
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1320,28 +1534,50 @@ func (m *mumbleUserRemoveMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Session = uint32(v)
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Actor = uint32(v)
 		case 3:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Reason = s
 		case 4:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Ban = v != 0
 		case 5:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.BanCertificate = v != 0
 		case 6:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.BanIP = v != 0
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1369,25 +1605,44 @@ func (m *mumbleTextMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Actor = uint32(v)
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Session = append(m.Session, uint32(v))
 		case 3:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.ChannelID = append(m.ChannelID, uint32(v))
 		case 4:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.TreeID = append(m.TreeID, uint32(v))
 		case 5:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Message = s
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1407,13 +1662,20 @@ func (m *mumbleChannelRemoveMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.ChannelID = uint32(v)
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1437,19 +1699,32 @@ func (m *mumbleCryptSetupMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.Key = b
 		case 2:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.ClientNonce = b
 		case 3:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.ServerNonce = b
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1466,22 +1741,38 @@ func (m *mumbleCodecVersionMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Alpha = int32(v)
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Beta = int32(v)
 		case 3:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.PreferAlpha = v != 0
 		case 4:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Opus = v != 0
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1501,63 +1792,104 @@ func (m *MumbleServerConfig) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.MaxBandwidth = uint32(v)
 		case 2:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.WelcomeText = s
 		case 3:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.AllowHTML = v != 0
 		case 4:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.MessageLength = uint32(v)
 		case 5:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.ImageMessageLength = uint32(v)
 		case 6:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.MaxUsers = uint32(v)
 		case 7:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.RecordingAllowed = v != 0
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
 type mumbleSuggestConfigMsg struct {
-	VersionV1   uint32
-	VersionV2   uint64
-	Positional  bool
-	PushToTalk  bool
+	VersionV1  uint32
+	VersionV2  uint64
+	Positional bool
+	PushToTalk bool
 }
 
 func (m *mumbleSuggestConfigMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.VersionV1 = uint32(v)
 		case 4:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.VersionV2 = v
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Positional = v != 0
 		case 3:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.PushToTalk = v != 0
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1576,28 +1908,50 @@ func (m *mumblePermissionDeniedMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Permission = uint32(v)
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.ChannelID = uint32(v)
 		case 3:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Session = uint32(v)
 		case 4:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Reason = s
 		case 5:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Type = uint32(v)
 		case 6:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Name = s
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1621,19 +1975,32 @@ func (m *mumblePermissionQueryMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.ChannelID = uint32(v)
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Permissions = uint32(v)
 		case 3:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Flush = v != 0
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1641,11 +2008,11 @@ func (m *mumblePermissionQueryMsg) unmarshal(data []byte) error {
 
 // ACL message
 type MumbleACLMsg struct {
-	ChannelID  uint32
+	ChannelID   uint32
 	InheritACLs bool
-	Groups     []MumbleACLGroup
-	ACLs       []MumbleACLEntry
-	Query      bool
+	Groups      []MumbleACLGroup
+	ACLs        []MumbleACLEntry
+	Query       bool
 }
 
 type MumbleACLGroup struct {
@@ -1707,89 +2074,163 @@ func (m *MumbleACLMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.ChannelID = uint32(v)
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.InheritACLs = v != 0
 		case 3:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			var g MumbleACLGroup
-			g.Inherited = true; g.Inherit = true; g.Inheritable = true // defaults
+			g.Inherited = true
+			g.Inherit = true
+			g.Inheritable = true // defaults
 			sd := newPBDecoder(b)
 			for sd.remaining() > 0 {
 				sf, swt, serr := sd.readTag()
-				if serr != nil { return serr }
+				if serr != nil {
+					return serr
+				}
 				switch sf {
 				case 1:
-					s, e := sd.readString(); if e != nil { return e }
+					s, e := sd.readString()
+					if e != nil {
+						return e
+					}
 					g.Name = s
 				case 2:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					g.Inherited = v != 0
 				case 3:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					g.Inherit = v != 0
 				case 4:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					g.Inheritable = v != 0
 				case 5:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					g.Add = append(g.Add, uint32(v))
 				case 6:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					g.Remove = append(g.Remove, uint32(v))
 				case 7:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					g.InheritedMembers = append(g.InheritedMembers, uint32(v))
 				default:
-					if e := sd.skipField(swt); e != nil { return e }
+					if e := sd.skipField(swt); e != nil {
+						return e
+					}
 				}
 			}
 			m.Groups = append(m.Groups, g)
 		case 4:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			var a MumbleACLEntry
-			a.ApplyHere = true; a.ApplySubs = true; a.Inherited = true // defaults
+			a.ApplyHere = true
+			a.ApplySubs = true
+			a.Inherited = true // defaults
 			sd := newPBDecoder(b)
 			for sd.remaining() > 0 {
 				sf, swt, serr := sd.readTag()
-				if serr != nil { return serr }
+				if serr != nil {
+					return serr
+				}
 				switch sf {
 				case 1:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					a.ApplyHere = v != 0
 				case 2:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					a.ApplySubs = v != 0
 				case 3:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					a.Inherited = v != 0
 				case 4:
-					v, e := sd.readVarint(); if e != nil { return e }
-					a.UserID = uint32(v); a.HasUserID = true
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
+					a.UserID = uint32(v)
+					a.HasUserID = true
 				case 5:
-					s, e := sd.readString(); if e != nil { return e }
+					s, e := sd.readString()
+					if e != nil {
+						return e
+					}
 					a.Group = s
 				case 6:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					a.Grant = uint32(v)
 				case 7:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					a.Deny = uint32(v)
 				default:
-					if e := sd.skipField(swt); e != nil { return e }
+					if e := sd.skipField(swt); e != nil {
+						return e
+					}
 				}
 			}
 			m.ACLs = append(m.ACLs, a)
 		case 5:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Query = v != 0
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1811,16 +2252,26 @@ func (m *mumbleQueryUsersMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.IDs = append(m.IDs, uint32(v))
 		case 2:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Names = append(m.Names, s)
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1863,47 +2314,82 @@ func (m *mumbleBanListMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			var ban MumbleBanEntry
 			sd := newPBDecoder(b)
 			for sd.remaining() > 0 {
 				sf, swt, serr := sd.readTag()
-				if serr != nil { return serr }
+				if serr != nil {
+					return serr
+				}
 				switch sf {
 				case 1:
-					v, e := sd.readBytes(); if e != nil { return e }
+					v, e := sd.readBytes()
+					if e != nil {
+						return e
+					}
 					ban.Address = v
 				case 2:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					ban.Mask = uint32(v)
 				case 3:
-					s, e := sd.readString(); if e != nil { return e }
+					s, e := sd.readString()
+					if e != nil {
+						return e
+					}
 					ban.Name = s
 				case 4:
-					s, e := sd.readString(); if e != nil { return e }
+					s, e := sd.readString()
+					if e != nil {
+						return e
+					}
 					ban.Hash = s
 				case 5:
-					s, e := sd.readString(); if e != nil { return e }
+					s, e := sd.readString()
+					if e != nil {
+						return e
+					}
 					ban.Reason = s
 				case 6:
-					s, e := sd.readString(); if e != nil { return e }
+					s, e := sd.readString()
+					if e != nil {
+						return e
+					}
 					ban.Start = s
 				case 7:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					ban.Duration = uint32(v)
 				default:
-					if e := sd.skipField(swt); e != nil { return e }
+					if e := sd.skipField(swt); e != nil {
+						return e
+					}
 				}
 			}
 			m.Bans = append(m.Bans, ban)
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Query = v != 0
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1938,35 +2424,58 @@ func (m *mumbleUserListMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			var u mumbleUserListEntry
 			sd := newPBDecoder(b)
 			for sd.remaining() > 0 {
 				sf, swt, serr := sd.readTag()
-				if serr != nil { return serr }
+				if serr != nil {
+					return serr
+				}
 				switch sf {
 				case 1:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					u.UserID = uint32(v)
 				case 2:
-					s, e := sd.readString(); if e != nil { return e }
+					s, e := sd.readString()
+					if e != nil {
+						return e
+					}
 					u.Name = s
 				case 3:
-					s, e := sd.readString(); if e != nil { return e }
+					s, e := sd.readString()
+					if e != nil {
+						return e
+					}
 					u.LastSeen = s
 				case 4:
-					v, e := sd.readVarint(); if e != nil { return e }
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
 					u.LastChannel = uint32(v)
 				default:
-					if e := sd.skipField(swt); e != nil { return e }
+					if e := sd.skipField(swt); e != nil {
+						return e
+					}
 				}
 			}
 			m.Users = append(m.Users, u)
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -1979,11 +2488,11 @@ type mumbleVoiceTargetMsg struct {
 }
 
 type MumbleVoiceTargetEntry struct {
-	Sessions  []uint32
-	ChannelID uint32
-	Group     string
-	Links     bool
-	Children  bool
+	Sessions   []uint32
+	ChannelID  uint32
+	Group      string
+	Links      bool
+	Children   bool
 	HasChannel bool
 }
 
@@ -2045,92 +2554,205 @@ func (m *mumbleUserStatsMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Session = uint32(v)
 		case 2:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.StatsOnly = v != 0
 		case 3:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.Certificates = append(m.Certificates, b)
 		case 4:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.FromClient = &mumblePacketStats{}
 			sd := newPBDecoder(b)
 			for sd.remaining() > 0 {
 				sf, swt, serr := sd.readTag()
-				if serr != nil { return serr }
+				if serr != nil {
+					return serr
+				}
 				switch sf {
-				case 1: v, e := sd.readVarint(); if e != nil { return e }; m.FromClient.Good = uint32(v)
-				case 2: v, e := sd.readVarint(); if e != nil { return e }; m.FromClient.Late = uint32(v)
-				case 3: v, e := sd.readVarint(); if e != nil { return e }; m.FromClient.Lost = uint32(v)
-				case 4: v, e := sd.readVarint(); if e != nil { return e }; m.FromClient.Resync = uint32(v)
-				default: if e := sd.skipField(swt); e != nil { return e }
+				case 1:
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
+					m.FromClient.Good = uint32(v)
+				case 2:
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
+					m.FromClient.Late = uint32(v)
+				case 3:
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
+					m.FromClient.Lost = uint32(v)
+				case 4:
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
+					m.FromClient.Resync = uint32(v)
+				default:
+					if e := sd.skipField(swt); e != nil {
+						return e
+					}
 				}
 			}
 		case 5:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.FromServer = &mumblePacketStats{}
 			sd := newPBDecoder(b)
 			for sd.remaining() > 0 {
 				sf, swt, serr := sd.readTag()
-				if serr != nil { return serr }
+				if serr != nil {
+					return serr
+				}
 				switch sf {
-				case 1: v, e := sd.readVarint(); if e != nil { return e }; m.FromServer.Good = uint32(v)
-				case 2: v, e := sd.readVarint(); if e != nil { return e }; m.FromServer.Late = uint32(v)
-				case 3: v, e := sd.readVarint(); if e != nil { return e }; m.FromServer.Lost = uint32(v)
-				case 4: v, e := sd.readVarint(); if e != nil { return e }; m.FromServer.Resync = uint32(v)
-				default: if e := sd.skipField(swt); e != nil { return e }
+				case 1:
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
+					m.FromServer.Good = uint32(v)
+				case 2:
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
+					m.FromServer.Late = uint32(v)
+				case 3:
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
+					m.FromServer.Lost = uint32(v)
+				case 4:
+					v, e := sd.readVarint()
+					if e != nil {
+						return e
+					}
+					m.FromServer.Resync = uint32(v)
+				default:
+					if e := sd.skipField(swt); e != nil {
+						return e
+					}
 				}
 			}
 		case 6:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.UDPPackets = uint32(v)
 		case 7:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.TCPPackets = uint32(v)
 		case 8:
-			v, err := d.readFixed32(); if err != nil { return err }
+			v, err := d.readFixed32()
+			if err != nil {
+				return err
+			}
 			m.UDPPingAvg = math.Float32frombits(v)
 		case 9:
-			v, err := d.readFixed32(); if err != nil { return err }
+			v, err := d.readFixed32()
+			if err != nil {
+				return err
+			}
 			m.UDPPingVar = math.Float32frombits(v)
 		case 10:
-			v, err := d.readFixed32(); if err != nil { return err }
+			v, err := d.readFixed32()
+			if err != nil {
+				return err
+			}
 			m.TCPPingAvg = math.Float32frombits(v)
 		case 11:
-			v, err := d.readFixed32(); if err != nil { return err }
+			v, err := d.readFixed32()
+			if err != nil {
+				return err
+			}
 			m.TCPPingVar = math.Float32frombits(v)
 		case 12:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.Version = &mumbleVersion{}
-			if err := m.Version.unmarshal(b); err != nil { return err }
+			if err := m.Version.unmarshal(b); err != nil {
+				return err
+			}
 		case 13:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.CELTVersions = append(m.CELTVersions, int32(v))
 		case 14:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.Address = b
 		case 15:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Bandwidth = uint32(v)
 		case 16:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.OnlineSecs = uint32(v)
 		case 17:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.IdleSecs = uint32(v)
 		case 18:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.StrongCertificate = v != 0
 		case 19:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Opus = v != 0
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -2161,22 +2783,38 @@ func (m *mumbleContextActionModifyMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Action = s
 		case 2:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.Text = s
 		case 3:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Context = uint32(v)
 		case 4:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.Operation = uint32(v)
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -2216,31 +2854,53 @@ func (m *mumblePluginDataMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		switch field {
 		case 1:
-			v, err := d.readVarint(); if err != nil { return err }
+			v, err := d.readVarint()
+			if err != nil {
+				return err
+			}
 			m.SenderSession = uint32(v)
 		case 2:
 			if wt == 2 { // packed
-				b, err := d.readBytes(); if err != nil { return err }
+				b, err := d.readBytes()
+				if err != nil {
+					return err
+				}
 				sd := newPBDecoder(b)
 				for sd.remaining() > 0 {
-					v, err := sd.readVarint(); if err != nil { return err }
+					v, err := sd.readVarint()
+					if err != nil {
+						return err
+					}
 					m.ReceiverSessions = append(m.ReceiverSessions, uint32(v))
 				}
 			} else {
-				v, err := d.readVarint(); if err != nil { return err }
+				v, err := d.readVarint()
+				if err != nil {
+					return err
+				}
 				m.ReceiverSessions = append(m.ReceiverSessions, uint32(v))
 			}
 		case 3:
-			b, err := d.readBytes(); if err != nil { return err }
+			b, err := d.readBytes()
+			if err != nil {
+				return err
+			}
 			m.Data = b
 		case 4:
-			s, err := d.readString(); if err != nil { return err }
+			s, err := d.readString()
+			if err != nil {
+				return err
+			}
 			m.DataID = s
 		default:
-			if err := d.skipField(wt); err != nil { return err }
+			if err := d.skipField(wt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -2284,13 +2944,13 @@ type mumbleUser struct {
 }
 
 type mumbleTextEntry struct {
-	ID        string
-	Sender    uint32
+	ID         string
+	Sender     uint32
 	SenderName string
-	ChannelID uint32 // 0 for private messages
-	IsPrivate bool
-	Message   string
-	Timestamp time.Time
+	ChannelID  uint32 // 0 for private messages
+	IsPrivate  bool
+	Message    string
+	Timestamp  time.Time
 }
 
 type mumbleContextActionEntry struct {
@@ -2377,7 +3037,7 @@ type MumbleCore struct {
 	myChannelID uint32
 	certHash    string
 	tlsCert     tls.Certificate
-	Session *utils.SessionStore
+	Session     *utils.SessionStore
 
 	// server info
 	serverVersion   mumbleVersion
@@ -2389,30 +3049,30 @@ type MumbleCore struct {
 	useOpus         bool
 
 	// crypto
-	crypt mumbleCryptState
+	crypt      mumbleCryptState
 	cryptReady bool
 	udpReady   bool
 
 	// caches
-	channels      map[uint32]*mumbleChannel
-	users         map[uint32]*mumbleUser
-	permissions   map[uint32]uint32 // channelID → permission bits
+	channels       map[uint32]*mumbleChannel
+	users          map[uint32]*mumbleUser
+	permissions    map[uint32]uint32 // channelID → permission bits
 	contextActions map[string]mumbleContextActionEntry
-	localMutes    map[uint32]bool
-	banList       []MumbleBanEntry
+	localMutes     map[uint32]bool
+	banList        []MumbleBanEntry
 
 	// text message buffer
 	messages   []mumbleTextEntry
 	msgCounter atomic.Int64
 
 	// voice
-	voiceHandler  func(MumbleVoicePacket)
-	voiceSeqNum   atomic.Int64
-	udpPktsSent   atomic.Uint32
-	udpPktsRecv   atomic.Uint32
-	tcpPktsSent      atomic.Uint32
-	tcpPktsRecv      atomic.Uint32
-	voiceTunnelRecv  atomic.Uint32
+	voiceHandler    func(MumbleVoicePacket)
+	voiceSeqNum     atomic.Int64
+	udpPktsSent     atomic.Uint32
+	udpPktsRecv     atomic.Uint32
+	tcpPktsSent     atomic.Uint32
+	tcpPktsRecv     atomic.Uint32
+	voiceTunnelRecv atomic.Uint32
 
 	// update handler
 	updateHandlers []func(Update)
@@ -2467,8 +3127,8 @@ type MumbleCore struct {
 	reconnectDelay time.Duration
 
 	// Audio config (Step 4)
-	audioBitrate     int
-	audioFrameSize   int
+	audioBitrate       int
+	audioFrameSize     int
 	audioStreamHandler func(session uint32, pcm []int16, codec string)
 }
 
@@ -2849,28 +3509,40 @@ func (c *MumbleCore) handleProtobufUDPPacket(data []byte) {
 		switch field {
 		case 1: // target (client→server)
 			v, err := d.readVarint()
-			if err != nil { return }
+			if err != nil {
+				return
+			}
 			pkt.Target = int(v)
 		case 2: // context (server→client)
 			v, err := d.readVarint()
-			if err != nil { return }
+			if err != nil {
+				return
+			}
 			pkt.Target = int(v) // reuse Target field for context
 		case 3: // sender_session
 			v, err := d.readVarint()
-			if err != nil { return }
+			if err != nil {
+				return
+			}
 			pkt.SenderSession = uint32(v)
 		case 4: // frame_number
 			v, err := d.readVarint()
-			if err != nil { return }
+			if err != nil {
+				return
+			}
 			pkt.SequenceNum = int64(v)
 		case 5: // opus_data
 			b, err := d.readBytes()
-			if err != nil { return }
+			if err != nil {
+				return
+			}
 			pkt.AudioData = b
 		case 6: // positional_data (repeated float)
 			if wt == 5 { // single float32
 				v, err := d.readFixed32()
-				if err != nil { return }
+				if err != nil {
+					return
+				}
 				f := math.Float32frombits(v)
 				if pkt.PositionX == 0 {
 					pkt.PositionX = f
@@ -2881,7 +3553,9 @@ func (c *MumbleCore) handleProtobufUDPPacket(data []byte) {
 				}
 			} else if wt == 2 { // packed floats
 				b, err := d.readBytes()
-				if err != nil { return }
+				if err != nil {
+					return
+				}
 				if len(b) >= 4 {
 					pkt.PositionX = math.Float32frombits(binary.LittleEndian.Uint32(b[0:4]))
 				}
@@ -2896,11 +3570,15 @@ func (c *MumbleCore) handleProtobufUDPPacket(data []byte) {
 			}
 		case 7: // volume_adjustment (float)
 			_, err := d.readFixed32()
-			if err != nil { return }
+			if err != nil {
+				return
+			}
 			// We don't use volume_adjustment in the voice packet struct currently
 		case 16: // is_terminator
 			v, err := d.readVarint()
-			if err != nil { return }
+			if err != nil {
+				return
+			}
 			pkt.IsTerminator = v != 0
 		default:
 			d.skipField(wt)
@@ -4040,6 +4718,7 @@ func (c *MumbleCore) createChannel(name string, parentID uint32, temporary bool)
 func (c *MumbleCore) GetFolders() ([]Folder, error) {
 	return nil, fmt.Errorf("%w: mumble does not support folders", ErrNotSupported)
 }
+
 // CreateFolder returns an error because Mumble does not support folders.
 func (c *MumbleCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
 	return nil, fmt.Errorf("%w: mumble does not support folders", ErrNotSupported)
@@ -4163,6 +4842,7 @@ func (c *MumbleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 func (c *MumbleCore) EditMessage(chatID, msgID, text string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support message editing", ErrNotSupported)
 }
+
 // DeleteMessage returns an error because Mumble does not support message deletion.
 func (c *MumbleCore) DeleteMessage(chatID, msgID string) error {
 	return fmt.Errorf("%w: mumble does not support message deletion", ErrNotSupported)
@@ -4178,14 +4858,17 @@ func (c *MumbleCore) ReplyToMessage(chatID, replyToMsgID string, msg OutgoingMes
 func (c *MumbleCore) ForwardMessage(fromChatID, msgID, toChatID string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support message forwarding", ErrNotSupported)
 }
+
 // ReactToMessage returns an error because Mumble does not support reactions.
 func (c *MumbleCore) ReactToMessage(chatID, msgID, emoji string) error {
 	return fmt.Errorf("%w: mumble does not support reactions", ErrNotSupported)
 }
+
 // PinMessage returns an error because Mumble does not support message pinning.
 func (c *MumbleCore) PinMessage(chatID, msgID string) error {
 	return fmt.Errorf("%w: mumble does not support message pinning", ErrNotSupported)
 }
+
 // UnpinMessage returns an error because Mumble does not support message pinning.
 func (c *MumbleCore) UnpinMessage(chatID, msgID string) error {
 	return fmt.Errorf("%w: mumble does not support message pinning", ErrNotSupported)
@@ -4203,6 +4886,7 @@ func (c *MumbleCore) MarkAsRead(chatID, upToMsgID string) error {
 	c.mu.RUnlock()
 	return nil
 }
+
 // GetReadState returns an empty read state since Mumble has no read receipts.
 func (c *MumbleCore) GetReadState(chatID string) (*ReadState, error) {
 	c.mu.RLock()
@@ -4614,6 +5298,7 @@ func (c *MumbleCore) GetContacts() ([]User, error) {
 func (c *MumbleCore) AddContact(phone, firstName, lastName string) error {
 	return fmt.Errorf("%w: mumble does not support contacts", ErrNotSupported)
 }
+
 // DeleteContact returns an error because Mumble does not support contacts.
 func (c *MumbleCore) DeleteContact(userID string) error {
 	return fmt.Errorf("%w: mumble does not support contacts", ErrNotSupported)
@@ -4741,14 +5426,17 @@ func (c *MumbleCore) SendTyping(chatID string) error {
 	c.mu.RUnlock()
 	return nil // no-op
 }
+
 // CreatePoll returns an error because Mumble does not support polls.
 func (c *MumbleCore) CreatePoll(chatID, question string, options []string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support polls", ErrNotSupported)
 }
+
 // VotePoll returns an error because Mumble does not support polls.
 func (c *MumbleCore) VotePoll(chatID, msgID string, optionIndex int) error {
 	return fmt.Errorf("%w: mumble does not support polls", ErrNotSupported)
 }
+
 // SendSticker returns an error because Mumble does not support stickers.
 func (c *MumbleCore) SendSticker(chatID, stickerID string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support stickers", ErrNotSupported)
@@ -5593,17 +6281,17 @@ func (c *MumbleCore) SetPreferredCodec(opus bool) {
 // Server N → {name:"N", category:"s"} (via ServerLocator).
 
 const (
-	iceHeaderLen   = 14
-	iceProtoMaj    = 1
-	iceProtoMin    = 0
-	iceEncMaj      = 1
-	iceEncMin      = 0
-	iceMsgRequest  = 0
-	iceMsgReply    = 2
-	iceMsgValidate = 3
-	iceMsgClose    = 4
-	iceReplyOK     = 0
-	iceOpNormal    = 0
+	iceHeaderLen    = 14
+	iceProtoMaj     = 1
+	iceProtoMin     = 0
+	iceEncMaj       = 1
+	iceEncMin       = 0
+	iceMsgRequest   = 0
+	iceMsgReply     = 2
+	iceMsgValidate  = 3
+	iceMsgClose     = 4
+	iceReplyOK      = 0
+	iceOpNormal     = 0
 	iceOpIdempotent = 2
 )
 
@@ -5765,26 +6453,26 @@ func iceEncProxy(buf *bytes.Buffer, name, category, host string, port int) {
 
 // iceSkipUser skips a Murmur User struct (25 fields) in an Ice byte stream.
 func iceSkipUser(r io.Reader) {
-	iceDecInt(r) // session
-	iceDecInt(r) // userid
-	io.ReadFull(r, make([]byte, 7)) // mute,deaf,suppress,prioritySpeaker,selfMute,selfDeaf,recording
-	iceDecInt(r) // channel
-	iceDecStr(r) // name
-	iceDecInt(r) // onlinesecs
-	iceDecInt(r) // bytespersec
-	iceDecInt(r) // version (legacy)
-	io.ReadFull(r, make([]byte, 8)) // version2 (long)
-	iceDecStr(r) // release
-	iceDecStr(r) // os
-	iceDecStr(r) // osversion
-	iceDecStr(r) // identity
-	iceDecStr(r) // context
-	iceDecStr(r) // comment
+	iceDecInt(r)                                      // session
+	iceDecInt(r)                                      // userid
+	io.ReadFull(r, make([]byte, 7))                   // mute,deaf,suppress,prioritySpeaker,selfMute,selfDeaf,recording
+	iceDecInt(r)                                      // channel
+	iceDecStr(r)                                      // name
+	iceDecInt(r)                                      // onlinesecs
+	iceDecInt(r)                                      // bytespersec
+	iceDecInt(r)                                      // version (legacy)
+	io.ReadFull(r, make([]byte, 8))                   // version2 (long)
+	iceDecStr(r)                                      // release
+	iceDecStr(r)                                      // os
+	iceDecStr(r)                                      // osversion
+	iceDecStr(r)                                      // identity
+	iceDecStr(r)                                      // context
+	iceDecStr(r)                                      // comment
 	if n, err := iceDecSize(r); err == nil && n > 0 { // address (NetAddress = seq<byte>)
 		io.ReadFull(r, make([]byte, n))
 	}
 	io.ReadFull(r, make([]byte, 1)) // tcponly
-	iceDecInt(r)                     // idlesecs
+	iceDecInt(r)                    // idlesecs
 	io.ReadFull(r, make([]byte, 8)) // udpPing + tcpPing (2 floats)
 }
 
@@ -6003,7 +6691,8 @@ func (ic *mumbleIceClient) handleCBReq(conn net.Conn, body []byte) {
 	r.ReadByte() // mode
 	if n, _ := iceDecSize(r); n > 0 {
 		for i := 0; i < n; i++ {
-			iceDecStr(r); iceDecStr(r) // context entries
+			iceDecStr(r)
+			iceDecStr(r) // context entries
 		}
 	}
 	params, _ := iceDecEncap(r)
@@ -6316,7 +7005,7 @@ func iceDecServerList(data []byte) ([]int, error) {
 		if e != nil {
 			break
 		}
-		iceDecStr(r) // category
+		iceDecStr(r)  // category
 		iceDecSize(r) // facet (empty)
 		id, _ := strconv.Atoi(name)
 		ids = append(ids, id)
@@ -7544,15 +8233,15 @@ func (c *MumbleCore) IceMetaCallbackStopped(handler func(serverID int)) {
 
 // MumbleAuthenticator stores external authenticator callbacks.
 type MumbleAuthenticator struct {
-	Authenticate  func(name, pw, certHash string, certStrong bool) (userID int, groups []string, err error)
-	GetInfo       func(userID int) (map[int]string, error)
-	NameToId      func(name string) (int, error)
-	IdToName      func(userID int) (string, error)
-	IdToTexture   func(userID int) ([]byte, error)
-	RegisterUser  func(info map[int]string) (int, error)
+	Authenticate   func(name, pw, certHash string, certStrong bool) (userID int, groups []string, err error)
+	GetInfo        func(userID int) (map[int]string, error)
+	NameToId       func(name string) (int, error)
+	IdToName       func(userID int) (string, error)
+	IdToTexture    func(userID int) ([]byte, error)
+	RegisterUser   func(info map[int]string) (int, error)
 	UnregisterUser func(userID int) error
-	SetInfo       func(userID int, info map[int]string) error
-	SetTexture    func(userID int, texture []byte) error
+	SetInfo        func(userID int, info map[int]string) error
+	SetTexture     func(userID int, texture []byte) error
 }
 
 // IceSetAuthenticator registers a custom authenticator for the server.

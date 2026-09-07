@@ -12,8 +12,8 @@
 //
 // Instead we register plain JS functions on the global object via syscall/js:
 //
-//      globalThis.bridgeCall(req: Uint8Array) -> Promise<Uint8Array>
-//      globalThis.bridgeSetEventCallback(cb: Function | null)  // cb(ev: Uint8Array)
+//	globalThis.bridgeCall(req: Uint8Array) -> Promise<Uint8Array>
+//	globalThis.bridgeSetEventCallback(cb: Function | null)  // cb(ev: Uint8Array)
 //
 // bridgeCall is ASYNCHRONOUS (returns a Promise). This is a hard requirement,
 // not a style choice: js/wasm is single-threaded and a synchronous JS→Go call
@@ -32,23 +32,23 @@
 package main
 
 import (
-        "syscall/js"
+	"syscall/js"
 
-        "uniclient/bridge"
+	"uniclient/bridge"
 )
 
 func main() {
-        // Expose the bridge API to JavaScript. These stay callable for the
-        // lifetime of the page; registering them as js.Func keeps the Go
-        // runtime alive so the block below is not flagged as a deadlock.
-        js.Global().Set("bridgeCall", js.FuncOf(bridgeCall))
-        js.Global().Set("bridgeSetEventCallback", js.FuncOf(bridgeSetEventCallback))
+	// Expose the bridge API to JavaScript. These stay callable for the
+	// lifetime of the page; registering them as js.Func keeps the Go
+	// runtime alive so the block below is not flagged as a deadlock.
+	js.Global().Set("bridgeCall", js.FuncOf(bridgeCall))
+	js.Global().Set("bridgeSetEventCallback", js.FuncOf(bridgeSetEventCallback))
 
-        // Block forever: the host resolves window.bridgeReady right after
-        // go.run() starts (main() has already registered the functions by the
-        // time go.run() yields here), and the registered callbacks serve every
-        // later JS call.
-        <-make(chan struct{})
+	// Block forever: the host resolves window.bridgeReady right after
+	// go.run() starts (main() has already registered the functions by the
+	// time go.run() yields here), and the registered callbacks serve every
+	// later JS call.
+	<-make(chan struct{})
 }
 
 // bridgeCall dispatches a serialized BridgeRequest and resolves with the
@@ -57,44 +57,44 @@ func main() {
 // Uint8Array carrying the error response bytes (or an empty buffer only when
 // no request bytes were supplied at all).
 func bridgeCall(_ js.Value, args []js.Value) any {
-        if len(args) < 1 || args[0].IsNull() || args[0].IsUndefined() {
-                return js.Global().Get("Uint8Array").New(0)
-        }
-        src := args[0]
-        req := make([]byte, src.Get("length").Int())
-        js.CopyBytesToGo(req, src)
+	if len(args) < 1 || args[0].IsNull() || args[0].IsUndefined() {
+		return js.Global().Get("Uint8Array").New(0)
+	}
+	src := args[0]
+	req := make([]byte, src.Get("length").Int())
+	js.CopyBytesToGo(req, src)
 
-        // Resolve the promise from a dedicated goroutine so the JS call stack
-        // can unwind — see the package comment for why this must be async.
-        return js.Global().Get("Promise").New(js.FuncOf(func(_ js.Value, promiseArgs []js.Value) any {
-                resolve := promiseArgs[0]
-                go func() {
-                        resp := bridge.Call(req)
-                        out := js.Global().Get("Uint8Array").New(len(resp))
-                        if len(resp) > 0 {
-                                js.CopyBytesToJS(out, resp)
-                        }
-                        resolve.Invoke(out)
-                }()
-                return js.Undefined()
-        }))
+	// Resolve the promise from a dedicated goroutine so the JS call stack
+	// can unwind — see the package comment for why this must be async.
+	return js.Global().Get("Promise").New(js.FuncOf(func(_ js.Value, promiseArgs []js.Value) any {
+		resolve := promiseArgs[0]
+		go func() {
+			resp := bridge.Call(req)
+			out := js.Global().Get("Uint8Array").New(len(resp))
+			if len(resp) > 0 {
+				js.CopyBytesToJS(out, resp)
+			}
+			resolve.Invoke(out)
+		}()
+		return js.Undefined()
+	}))
 }
 
 // bridgeSetEventCallback wires the bridge's async event source to a JS callback.
 // The callback is invoked with a Uint8Array of serialized BridgeEvent bytes for
 // each event. Passing null/undefined (or no argument) clears the callback.
 func bridgeSetEventCallback(_ js.Value, args []js.Value) any {
-        if len(args) < 1 || args[0].IsNull() || args[0].IsUndefined() {
-                bridge.SetEventCallback(nil)
-                return js.Undefined()
-        }
-        cb := args[0]
-        bridge.SetEventCallback(func(data []byte) {
-                arr := js.Global().Get("Uint8Array").New(len(data))
-                if len(data) > 0 {
-                        js.CopyBytesToJS(arr, data)
-                }
-                cb.Invoke(arr)
-        })
-        return js.Undefined()
+	if len(args) < 1 || args[0].IsNull() || args[0].IsUndefined() {
+		bridge.SetEventCallback(nil)
+		return js.Undefined()
+	}
+	cb := args[0]
+	bridge.SetEventCallback(func(data []byte) {
+		arr := js.Global().Get("Uint8Array").New(len(data))
+		if len(data) > 0 {
+			js.CopyBytesToJS(arr, data)
+		}
+		cb.Invoke(arr)
+	})
+	return js.Undefined()
 }

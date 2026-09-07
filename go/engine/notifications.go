@@ -220,11 +220,11 @@ func (e *Engine) GetReactionsNotifySettings(accountID string) (map[string]interf
 	g, ok := acc.Core.(reactionsNotifyGetter)
 	if !ok {
 		return map[string]interface{}{
-			"reactions_enabled": true,
-			"reactions_from":    "everyone",
+			"reactions_enabled":  true,
+			"reactions_from":     "everyone",
 			"poll_votes_enabled": true,
-			"poll_votes_from":   "everyone",
-			"show_sender_name":  true,
+			"poll_votes_from":    "everyone",
+			"show_sender_name":   true,
 		}, nil
 	}
 	return g.GetReactionsNotifySettings()

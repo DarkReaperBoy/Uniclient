@@ -11,15 +11,15 @@ import (
 // --- Auth state types ---
 
 const (
-	AuthStateChoose  = "choose"
-	AuthStateInput   = "input"
-	AuthStateOTP     = "otp"
-	AuthState2FA     = "2fa"
-	AuthStateQR      = "qr"
-	AuthStateSignUp  = "signup"
-	AuthStateEmail   = "email"
-	AuthStateReady   = "ready"
-	AuthStateError   = "error"
+	AuthStateChoose = "choose"
+	AuthStateInput  = "input"
+	AuthStateOTP    = "otp"
+	AuthState2FA    = "2fa"
+	AuthStateQR     = "qr"
+	AuthStateSignUp = "signup"
+	AuthStateEmail  = "email"
+	AuthStateReady  = "ready"
+	AuthStateError  = "error"
 )
 
 // AuthState represents the current auth step for a platform account.
@@ -29,27 +29,27 @@ type AuthState struct {
 	State     string `json:"state"`
 
 	// Fields used by different states:
-	Options      []AuthOption `json:"options,omitempty"`       // choose state
-	FieldType    string       `json:"field_type,omitempty"`    // input state
-	Label        string       `json:"label,omitempty"`         // input/otp/2fa
-	Hint         string       `json:"hint,omitempty"`          // input/otp/2fa
-	Error        string       `json:"error,omitempty"`         // input/error state
-	CodeLength   int          `json:"code_length,omitempty"`   // otp state
-	SentTo       string       `json:"sent_to,omitempty"`       // otp state
-	TimeoutSecs  int          `json:"timeout_secs,omitempty"`  // otp state
-	CanResend    bool         `json:"can_resend,omitempty"`    // otp state
-	HasRecovery  bool         `json:"has_recovery,omitempty"`  // 2fa state
-	QRData       []byte       `json:"qr_data,omitempty"`       // qr state
-	QRExpiresIn  int          `json:"qr_expires_in,omitempty"` // qr state
-	DisplayName  string       `json:"display_name,omitempty"`  // ready state
-	AvatarB64    string       `json:"avatar_b64,omitempty"`    // ready state
-	Message        string       `json:"message,omitempty"`         // error state
-	Recoverable    bool         `json:"recoverable,omitempty"`     // error state
-	CodeByTelegram bool         `json:"code_by_telegram,omitempty"` // otp state: code sent via Telegram app
-	CodeByFragmentUrl string    `json:"code_by_fragment_url,omitempty"` // otp state: open this URL instead of typing a code
-	Email             string    `json:"email,omitempty"`                // email state: prefilled address
-	EmailPatternSetup string    `json:"email_pattern_setup,omitempty"`  // otp state: masked email the verify code went to
-	EmailPatternLogin string    `json:"email_pattern_login,omitempty"`  // otp state: masked login email the login code went to
+	Options           []AuthOption `json:"options,omitempty"`              // choose state
+	FieldType         string       `json:"field_type,omitempty"`           // input state
+	Label             string       `json:"label,omitempty"`                // input/otp/2fa
+	Hint              string       `json:"hint,omitempty"`                 // input/otp/2fa
+	Error             string       `json:"error,omitempty"`                // input/error state
+	CodeLength        int          `json:"code_length,omitempty"`          // otp state
+	SentTo            string       `json:"sent_to,omitempty"`              // otp state
+	TimeoutSecs       int          `json:"timeout_secs,omitempty"`         // otp state
+	CanResend         bool         `json:"can_resend,omitempty"`           // otp state
+	HasRecovery       bool         `json:"has_recovery,omitempty"`         // 2fa state
+	QRData            []byte       `json:"qr_data,omitempty"`              // qr state
+	QRExpiresIn       int          `json:"qr_expires_in,omitempty"`        // qr state
+	DisplayName       string       `json:"display_name,omitempty"`         // ready state
+	AvatarB64         string       `json:"avatar_b64,omitempty"`           // ready state
+	Message           string       `json:"message,omitempty"`              // error state
+	Recoverable       bool         `json:"recoverable,omitempty"`          // error state
+	CodeByTelegram    bool         `json:"code_by_telegram,omitempty"`     // otp state: code sent via Telegram app
+	CodeByFragmentUrl string       `json:"code_by_fragment_url,omitempty"` // otp state: open this URL instead of typing a code
+	Email             string       `json:"email,omitempty"`                // email state: prefilled address
+	EmailPatternSetup string       `json:"email_pattern_setup,omitempty"`  // otp state: masked email the verify code went to
+	EmailPatternLogin string       `json:"email_pattern_login,omitempty"`  // otp state: masked login email the login code went to
 }
 
 type AuthOption struct {

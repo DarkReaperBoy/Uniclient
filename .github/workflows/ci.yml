@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # Pure-Go Olm for Matrix E2EE (libolm is cgo; goolm keeps the repo C-free).
+  GOOLM: -tags goolm
+
+jobs:
+  # ── Native gate: build + test + vet (the every-commit bar) ─────────────
+  native:
+    name: Build, test, vet (linux/amd64)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache-dependency-path: go/go.sum
+
+      - name: Build (CGO_ENABLED=0)
+        run: CGO_ENABLED=0 go build -p 1 $GOOLM ./...
+
+      - name: Test
+        run: CGO_ENABLED=0 go test -p 1 $GOOLM ./...
+
+      - name: Vet
+        run: CGO_ENABLED=0 go vet -p 1 $GOOLM ./...
+
+      - name: gofmt check
+        run: test -z "$(gofmt -l .)" || { echo 'gofmt needed on:'; gofmt -l .; exit 1; }
+
+  # ── Race detector on the packages that fit CI memory ──────────────────
+  # (gotd's generated tg package under -race needs more RAM than the
+  # smaller runners give; utils+cores+bridge fit.)
+  race:
+    name: Race detector
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache-dependency-path: go/go.sum
+
+      - name: Test -race (utils, cores, bridge)
+        run: CGO_ENABLED=0 go test -p 1 $GOOLM -race ./utils/ ./cores/ ./bridge/
+
+  # ── Platform matrix: Tier-A compile gate (library code, CGO-free) ──────
+  matrix:
+    name: Compile ${{ matrix.os }}/${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows, arch: amd64 }
+          - { os: windows, arch: arm64 }
+          - { os: darwin,  arch: amd64 }
+          - { os: darwin,  arch: arm64 }
+          - { os: linux,   arch: arm64 }
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache-dependency-path: go/go.sum
+
+      - name: Build library packages
+        run: GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build $GOOLM ./...
+
+      - name: Build CLI binary
+        run: GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build $GOOLM -o /dev/null ./cmd/cli
+
+  # ── WASM gate: the web target must keep building ───────────────────────
+  wasm:
+    name: Build js/wasm
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache-dependency-path: go/go.sum
+
+      - name: Build wasm module
+        run: GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -p 1 $GOOLM -o ../dist/uniclient.wasm ./cmd/bridge
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uniclient-wasm
+          path: dist/uniclient.wasm
+          retention-days: 7
+
+  # ── FFI smoke: drive the real c-shared library from C ──────────────────
+  smoke-c:
+    name: Smoke test c-shared (C FFI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache-dependency-path: go/go.sum
+
+      - name: Build c-shared library
+        run: |
+          cd go
+          CGO_ENABLED=1 go build -p 1 $GOOLM -buildmode=c-shared -o ../dist/libuniclient.so ./cmd/bridge
+
+      - name: Compile and run C smoke test
+        run: |
+          cc scripts/smoke/smoke_c.c -o scripts/smoke/smoke_c \
+            -L"$(pwd)/dist" -luniclient -Wl,-rpath,"$(pwd)/dist"
+          mkdir -p /tmp/uniclient-smoke-c
+          scripts/smoke/smoke_c /tmp/uniclient-smoke-c
+
+  # ── WASM smoke: drive the real wasm module from Node ───────────────────
+  smoke-wasm:
+    name: Smoke test js/wasm (Node FFI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache-dependency-path: go/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build wasm module and run smoke test
+        run: |
+          cd go
+          GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -p 1 $GOOLM -o ../dist/uniclient.wasm ./cmd/bridge
+          cd ../scripts/smoke
+          GOROOT="$(go env GOROOT)" node --stack-size=8192 run_wasm.mjs

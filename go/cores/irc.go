@@ -4,19 +4,21 @@
 // No external dependencies — stdlib only (net, crypto/tls, bufio).
 //
 // Chat IDs:
-//   "#channel"  → channel
-//   "nick"      → DM (private message)
+//
+//	"#channel"  → channel
+//	"nick"      → DM (private message)
 //
 // AuthConfig.Extra keys:
-//   "server"          — host:port (e.g. "irc.libera.chat:6697")
-//   "nick"            — desired nickname
-//   "username"        — IRC username (defaults to nick)
-//   "realname"        — real name field (defaults to nick)
-//   "password"        — NickServ/SASL password (optional)
-//   "server_password" — connection password (PASS command, optional)
-//   "tls"             — "true"/"false" (default: auto-detect from port)
-//   "sasl"            — "true" to force SASL PLAIN auth
-//   "channels"        — comma-separated auto-join list
+//
+//	"server"          — host:port (e.g. "irc.libera.chat:6697")
+//	"nick"            — desired nickname
+//	"username"        — IRC username (defaults to nick)
+//	"realname"        — real name field (defaults to nick)
+//	"password"        — NickServ/SASL password (optional)
+//	"server_password" — connection password (PASS command, optional)
+//	"tls"             — "true"/"false" (default: auto-detect from port)
+//	"sasl"            — "true" to force SASL PLAIN auth
+//	"channels"        — comma-separated auto-join list
 //
 // Coverage: RFC 2812 commands, IRCv3 ratified + drafts (CAP, SASL, TAGMSG,
 // CHATHISTORY, MARKREAD, REDACT, REGISTER, RENAME, MONITOR, WATCH),
@@ -209,9 +211,9 @@ type IRCWhowasEntry struct {
 
 // IRCBanEntry represents one entry from the ban list.
 type IRCBanEntry struct {
-	Mask   string
-	SetBy  string
-	SetAt  time.Time
+	Mask  string
+	SetBy string
+	SetAt time.Time
 }
 
 // IRCUserhostEntry represents one USERHOST reply.
@@ -297,9 +299,9 @@ type IRCCore struct {
 
 	// Lifecycle
 	session *utils.SessionStore
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	ctx     context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 
 	// Registration state (used during connect)
 	registered chan struct{}
@@ -322,22 +324,22 @@ type IRCCore struct {
 	motdMu sync.RWMutex
 
 	// Away state
-	awayMsg   string
-	awayMu    sync.RWMutex
+	awayMsg string
+	awayMu  sync.RWMutex
 
 	// IRCv3 enabled capabilities
 	enabledCaps   map[string]bool
 	enabledCapsMu sync.RWMutex
 
 	// LIST accumulator (server-side channel listing)
-	listResult   []IRCListEntry
-	listDone     chan struct{}
-	listMu       sync.Mutex
+	listResult []IRCListEntry
+	listDone   chan struct{}
+	listMu     sync.Mutex
 
 	// WHO accumulator
-	whoResult   []IRCWhoEntry
-	whoDone     chan struct{}
-	whoMu       sync.Mutex
+	whoResult []IRCWhoEntry
+	whoDone   chan struct{}
+	whoMu     sync.Mutex
 
 	// WHOWAS accumulator
 	whowasResult []IRCWhowasEntry
@@ -345,9 +347,9 @@ type IRCCore struct {
 	whowasMu     sync.Mutex
 
 	// Ban list accumulator
-	banResult   []IRCBanEntry
-	banDone     chan struct{}
-	banMu       sync.Mutex
+	banResult []IRCBanEntry
+	banDone   chan struct{}
+	banMu     sync.Mutex
 
 	// USERHOST accumulator
 	userhostResult []IRCUserhostEntry
@@ -369,18 +371,18 @@ type IRCCore struct {
 
 	// Reconnection
 	reconnectEnabled bool
-	reconnectCount   int // max retries (default 10)
+	reconnectCount   int  // max retries (default 10)
 	reconnecting     bool // true while reconnect loop is active
 
 	// Step 4 fields
-	stsPolicies        map[string]int       // domain → TLS port
-	wsURL              string               // WebSocket URL
-	extbanPrefix       string               // EXTBAN prefix from ISUPPORT
+	stsPolicies         map[string]int // domain → TLS port
+	wsURL               string         // WebSocket URL
+	extbanPrefix        string         // EXTBAN prefix from ISUPPORT
 	inviteNotifyHandler func(inviter, channel, target string)
-	networkIcon        string               // ISUPPORT NETWORK_ICON
-	saslUser           string               // SASL username for multi-step auth
-	saslPass           string               // SASL password for multi-step auth
-	saslMech           string               // SASL mechanism name
+	networkIcon         string // ISUPPORT NETWORK_ICON
+	saslUser            string // SASL username for multi-step auth
+	saslPass            string // SASL password for multi-step auth
+	saslMech            string // SASL mechanism name
 }
 
 var _ Core = (*IRCCore)(nil)
@@ -4513,7 +4515,6 @@ func (c *IRCCore) ChanServClone(source, target string) {
 	c.sendRaw("PRIVMSG ChanServ :CLONE " + source + " " + target)
 }
 
-
 // ChanServIdentify authenticates as channel founder.
 func (c *IRCCore) ChanServIdentify(channel, password string) {
 	c.sendRaw("PRIVMSG ChanServ :IDENTIFY " + channel + " " + password)
@@ -5314,44 +5315,59 @@ func (c *IRCCore) StatServAkill() {
 
 // Tempshun temporarily shuns a nick, preventing them from executing commands.
 func (c *IRCCore) Tempshun(nick, reason string) { c.sendRaw("TEMPSHUN " + nick + " :" + reason) }
+
 // SpamfilterAdd adds a spam filter rule to the IRCd.
 func (c *IRCCore) SpamfilterAdd(target, action, tkltime, reason, regex string) {
 	c.sendRaw("SPAMFILTER add " + target + " " + action + " " + tkltime + " " + reason + " :" + regex)
 }
+
 // SpamfilterDel removes a spam filter rule from the IRCd.
 func (c *IRCCore) SpamfilterDel(target, action, regex string) {
 	c.sendRaw("SPAMFILTER del " + target + " " + action + " :" + regex)
 }
+
 // Rmtkl removes a TKL (ban) entry by type and pattern from the IRCd.
 func (c *IRCCore) Rmtkl(tklType, pattern string) { c.sendRaw("RMTKL " + tklType + " " + pattern) }
+
 // Jumpserver redirects clients to another server via the JUMPSERVER IRCd command.
 func (c *IRCCore) Jumpserver(addr, port, reason string) {
 	c.sendRaw("JUMPSERVER " + addr + " " + port + " :" + reason)
 }
+
 // Tsctl sends a TS control command to the IRCd.
 func (c *IRCCore) Tsctl(subcmd string) { c.sendRaw("TSCTL " + subcmd) }
+
 // Dccdeny adds a DCC deny rule to block file transfers matching the pattern.
 func (c *IRCCore) Dccdeny(filePattern, reason string) {
 	c.sendRaw("DCCDENY " + filePattern + " :" + reason)
 }
+
 // Undccdeny removes a DCC deny rule for the specified file pattern.
 func (c *IRCCore) Undccdeny(filePattern string) { c.sendRaw("UNDCCDENY " + filePattern) }
+
 // Dccallow manages the DCC allow list for the current user.
 func (c *IRCCore) Dccallow(args string) { c.sendRaw("DCCALLOW " + args) }
+
 // Sdesc sets the server description via the SDESC IRCd command.
 func (c *IRCCore) Sdesc(desc string) { c.sendRaw("SDESC :" + desc) }
+
 // Mkpasswd generates a hashed password using the specified hash type.
 func (c *IRCCore) Mkpasswd(hashType, password string) {
 	c.sendRaw("MKPASSWD " + hashType + " " + password)
 }
+
 // Ircops lists all online IRC operators.
 func (c *IRCCore) Ircops() { c.sendRaw("IRCOPS") }
+
 // Cycle parts and immediately rejoins a channel.
 func (c *IRCCore) Cycle(channel string) { c.sendRaw("CYCLE " + channel) }
+
 // CloseConnections sends a CLOSE command to disconnect idle connections on the IRCd.
 func (c *IRCCore) CloseConnections() { c.sendRaw("CLOSE") }
+
 // DnsInfo queries DNS information via the IRCd DNS command.
 func (c *IRCCore) DnsInfo(args string) { c.sendRaw("DNS " + args) }
+
 // Eline adds or removes an E-line (ban exception) on the IRCd.
 func (c *IRCCore) Eline(mask, duration, reason string) {
 	if reason != "" {
@@ -5360,20 +5376,28 @@ func (c *IRCCore) Eline(mask, duration, reason string) {
 		c.sendRaw("ELINE " + mask)
 	}
 }
+
 // Addmotd appends a line to the server's Message of the Day.
-func (c *IRCCore) Addmotd(line string)  { c.sendRaw("ADDMOTD :" + line) }
+func (c *IRCCore) Addmotd(line string) { c.sendRaw("ADDMOTD :" + line) }
+
 // Addomotd appends a line to the oper-only Message of the Day.
 func (c *IRCCore) Addomotd(line string) { c.sendRaw("ADDOMOTD :" + line) }
+
 // Botmotd displays the bot Message of the Day.
-func (c *IRCCore) Botmotd()             { c.sendRaw("BOTMOTD") }
+func (c *IRCCore) Botmotd() { c.sendRaw("BOTMOTD") }
+
 // Opermotd displays the oper-only Message of the Day.
-func (c *IRCCore) Opermotd()            { c.sendRaw("OPERMOTD") }
+func (c *IRCCore) Opermotd() { c.sendRaw("OPERMOTD") }
+
 // ShowCredits displays the IRCd credits.
-func (c *IRCCore) ShowCredits()         { c.sendRaw("CREDITS") }
+func (c *IRCCore) ShowCredits() { c.sendRaw("CREDITS") }
+
 // ShowLicense displays the IRCd license information.
-func (c *IRCCore) ShowLicense()         { c.sendRaw("LICENSE") }
+func (c *IRCCore) ShowLicense() { c.sendRaw("LICENSE") }
+
 // ShowStaff displays the IRCd staff list.
-func (c *IRCCore) ShowStaff()           { c.sendRaw("STAFFLIST") }
+func (c *IRCCore) ShowStaff() { c.sendRaw("STAFFLIST") }
+
 // ModuleManage loads, unloads, or lists IRCd modules.
 func (c *IRCCore) ModuleManage(action, moduleName string) {
 	switch action {
@@ -5392,66 +5416,90 @@ func (c *IRCCore) ModuleManage(action, moduleName string) {
 func (c *IRCCore) ForcePart(nick, channel, reason string) {
 	c.sendRaw("REMOVE " + channel + " " + nick + " :" + reason)
 }
+
 // Uninvite revokes a pending invite for a user to a channel.
 func (c *IRCCore) Uninvite(nick, channel string) { c.sendRaw("UNINVITE " + nick + " " + channel) }
+
 // Clearchan clears a channel attribute (bans, ops, voices, etc.) via the IRCd.
 func (c *IRCCore) Clearchan(channel, action string) {
 	c.sendRaw("CLEARCHAN " + channel + " " + action)
 }
+
 // Cban adds a channel ban preventing the channel from being used.
 func (c *IRCCore) Cban(channel, reason string) { c.sendRaw("CBAN " + channel + " :" + reason) }
+
 // CbanDel removes a channel ban set by CBAN.
-func (c *IRCCore) CbanDel(channel string)      { c.sendRaw("CBAN " + channel) }
+func (c *IRCCore) CbanDel(channel string) { c.sendRaw("CBAN " + channel) }
+
 // Rline adds a regex-based ban line on the IRCd.
 func (c *IRCCore) Rline(regex, duration, reason string) {
 	c.sendRaw("RLINE " + regex + " " + duration + " :" + reason)
 }
+
 // RlineDel removes a regex-based ban line from the IRCd.
 func (c *IRCCore) RlineDel(regex string) { c.sendRaw("RLINE " + regex) }
+
 // Tline tests how many users match a hostmask pattern.
-func (c *IRCCore) Tline(mask string)     { c.sendRaw("TLINE " + mask) }
+func (c *IRCCore) Tline(mask string) { c.sendRaw("TLINE " + mask) }
+
 // Clones lists users connecting from the same IP address.
-func (c *IRCCore) Clones()               { c.sendRaw("CLONES") }
+func (c *IRCCore) Clones() { c.sendRaw("CLONES") }
+
 // Rconnect requests a remote server to connect to another server.
 func (c *IRCCore) Rconnect(serverMask, remoteTarget string) {
 	c.sendRaw("RCONNECT " + serverMask + " " + remoteTarget)
 }
+
 // Rsquit requests a remote server to disconnect from the network.
 func (c *IRCCore) Rsquit(serverMask, reason string) {
 	c.sendRaw("RSQUIT " + serverMask + " :" + reason)
 }
+
 // Nicklock forcibly changes and locks a user's nick via the IRCd.
 func (c *IRCCore) Nicklock(nick, newNick string) { c.sendRaw("NICKLOCK " + nick + " " + newNick) }
+
 // Nickunlock unlocks a previously locked nick.
-func (c *IRCCore) Nickunlock(nick string)        { c.sendRaw("NICKUNLOCK " + nick) }
+func (c *IRCCore) Nickunlock(nick string) { c.sendRaw("NICKUNLOCK " + nick) }
+
 // Setidle sets the idle time for the current connection.
-func (c *IRCCore) Setidle(seconds int)           { c.sendRaw("SETIDLE " + strconv.Itoa(seconds)) }
+func (c *IRCCore) Setidle(seconds int) { c.sendRaw("SETIDLE " + strconv.Itoa(seconds)) }
+
 // Swhois sets a custom WHOIS line for a user via the IRCd.
-func (c *IRCCore) Swhois(nick, line string)      { c.sendRaw("SWHOIS " + nick + " :" + line) }
+func (c *IRCCore) Swhois(nick, line string) { c.sendRaw("SWHOIS " + nick + " :" + line) }
+
 // Ojoin joins a channel as an IRC operator with elevated privileges.
-func (c *IRCCore) Ojoin(channel string)          { c.sendRaw("OJOIN " + channel) }
+func (c *IRCCore) Ojoin(channel string) { c.sendRaw("OJOIN " + channel) }
+
 // Sakick forcibly kicks a user from a channel using services authority.
 func (c *IRCCore) Sakick(channel, nick, reason string) {
 	c.sendRaw("SAKICK " + channel + " " + nick + " :" + reason)
 }
+
 // Saquit forcibly disconnects a user from the server.
 func (c *IRCCore) Saquit(nick, reason string) { c.sendRaw("SAQUIT " + nick + " :" + reason) }
+
 // Satopic forcibly sets a channel topic using services authority.
 func (c *IRCCore) Satopic(channel, topic string) {
 	c.sendRaw("SATOPIC " + channel + " :" + topic)
 }
+
 // Rmode sets modes on all channels matching a mask.
-func (c *IRCCore) Rmode(mask, modes string)    { c.sendRaw("RMODE " + mask + " " + modes) }
+func (c *IRCCore) Rmode(mask, modes string) { c.sendRaw("RMODE " + mask + " " + modes) }
+
 // FilterAdd adds a message filter pattern to the IRCd.
-func (c *IRCCore) FilterAdd(pattern string)    { c.sendRaw("FILTER " + pattern) }
+func (c *IRCCore) FilterAdd(pattern string) { c.sendRaw("FILTER " + pattern) }
+
 // FilterDel removes a message filter pattern from the IRCd.
-func (c *IRCCore) FilterDel(pattern string)    { c.sendRaw("FILTER -" + pattern) }
+func (c *IRCCore) FilterDel(pattern string) { c.sendRaw("FILTER -" + pattern) }
+
 // Alltime displays the local time on all linked servers.
-func (c *IRCCore) Alltime()                    { c.sendRaw("ALLTIME") }
+func (c *IRCCore) Alltime() { c.sendRaw("ALLTIME") }
+
 // Qline adds a Q-line to prevent use of a nickname.
-func (c *IRCCore) Qline(nick, reason string)   { c.sendRaw("QLINE " + nick + " :" + reason) }
+func (c *IRCCore) Qline(nick, reason string) { c.sendRaw("QLINE " + nick + " :" + reason) }
+
 // QlineDel removes a Q-line for the specified nickname.
-func (c *IRCCore) QlineDel(nick string)        { c.sendRaw("QLINE -" + nick) }
+func (c *IRCCore) QlineDel(nick string) { c.sendRaw("QLINE -" + nick) }
 
 // ── IRCv3 Extensions (~19) ──
 
@@ -5459,20 +5507,25 @@ func (c *IRCCore) QlineDel(nick string)        { c.sendRaw("QLINE -" + nick) }
 func (c *IRCCore) MetadataGet(target, key string) {
 	c.sendRaw("METADATA " + target + " GET " + key)
 }
+
 // MetadataSet sets a metadata key-value pair on a target via the IRCv3 METADATA command.
 func (c *IRCCore) MetadataSet(target, key, value string) {
 	c.sendRaw("METADATA " + target + " SET " + key + " :" + value)
 }
+
 // MetadataList lists all metadata keys for a target via the IRCv3 METADATA command.
 func (c *IRCCore) MetadataList(target string) { c.sendRaw("METADATA " + target + " LIST") }
+
 // MetadataSub subscribes to metadata change notifications for a key on a target.
 func (c *IRCCore) MetadataSub(target, key string) {
 	c.sendRaw("METADATA " + target + " SUB " + key)
 }
+
 // MetadataUnsub unsubscribes from metadata change notifications for a key on a target.
 func (c *IRCCore) MetadataUnsub(target, key string) {
 	c.sendRaw("METADATA " + target + " UNSUB " + key)
 }
+
 // Relaymsg sends a message to a channel on behalf of another nick using the draft/relaymsg extension.
 func (c *IRCCore) Relaymsg(channel, nick, text string) {
 	c.sendRaw("@+draft/relaymsg=" + nick + " PRIVMSG " + channel + " :" + text)
@@ -5528,6 +5581,7 @@ func (c *IRCCore) ConnectWebSocket(url string) error {
 func (c *IRCCore) RequestNoImplicitNames() {
 	c.sendRaw("CAP REQ :draft/no-implicit-names")
 }
+
 // RequestExtendedMonitor requests the draft/extended-monitor IRCv3 capability.
 func (c *IRCCore) RequestExtendedMonitor() {
 	c.sendRaw("CAP REQ :draft/extended-monitor")
@@ -5586,7 +5640,8 @@ func (c *IRCCore) SendMultiline(target string, lines []string) {
 }
 
 // RequestExtendedIsupport requests extended ISUPPORT tokens from the server.
-func (c *IRCCore) RequestExtendedIsupport()  { c.sendRaw("CAP REQ :draft/extended-isupport") }
+func (c *IRCCore) RequestExtendedIsupport() { c.sendRaw("CAP REQ :draft/extended-isupport") }
+
 // GetNetworkIcon retrieves the network icon URL via IRCv3 metadata.
 func (c *IRCCore) GetNetworkIcon() string {
 	c.mu.RLock()
@@ -5730,11 +5785,11 @@ const (
 	ircFmtReset         = "\x0F"
 )
 
-func FormatBold(text string)          string { return ircFmtBold + text + ircFmtBold }
-func FormatItalic(text string)        string { return ircFmtItalic + text + ircFmtItalic }
-func FormatUnderline(text string)     string { return ircFmtUnderline + text + ircFmtUnderline }
+func FormatBold(text string) string          { return ircFmtBold + text + ircFmtBold }
+func FormatItalic(text string) string        { return ircFmtItalic + text + ircFmtItalic }
+func FormatUnderline(text string) string     { return ircFmtUnderline + text + ircFmtUnderline }
 func FormatStrikethrough(text string) string { return ircFmtStrikethrough + text + ircFmtStrikethrough }
-func FormatMonospace(text string)     string { return ircFmtMonospace + text + ircFmtMonospace }
+func FormatMonospace(text string) string     { return ircFmtMonospace + text + ircFmtMonospace }
 func FormatColor(text string, fg, bg int) string {
 	if bg >= 0 {
 		return fmt.Sprintf("%s%02d,%02d%s%s", ircFmtColor, fg, bg, text, ircFmtColor)

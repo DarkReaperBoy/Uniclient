@@ -15,8 +15,8 @@ type avatarDownloader interface {
 
 // avatarState tracks which chats have photos available but not yet downloaded.
 type avatarState struct {
-	mu       sync.Mutex
-	pending  map[string]map[string]bool // accountID → set of chatIDs needing download
+	mu      sync.Mutex
+	pending map[string]map[string]bool // accountID → set of chatIDs needing download
 }
 
 func newAvatarState() *avatarState {
