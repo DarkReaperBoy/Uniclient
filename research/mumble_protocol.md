@@ -1,3 +1,12 @@
+> **RESEARCH NOTE — read with suspicion.** These files are working notes
+> gathered by earlier agent sessions. Some claims were verified (marked
+> where), others were never tested against real servers and may be outdated
+> or plain wrong (the owner explicitly warned about this). Anything that
+> contradicts the code in `go/` loses. When you verify a claim, update this
+> file. The old FFI-bridge/Flutter architecture described in some notes was
+> **deleted** — the app is now a native Gio GUI calling the engine directly.
+>
+
 # Mumble Protocol Specification
 
 Complete reverse-engineered spec for the Mumble VoIP protocol. See also: `research/ice_protocol.md` for Murmur admin via ZeroC Ice RPC.

@@ -122,6 +122,21 @@ func (e *Engine) StartAuth(accountID string) (*AuthState, error) {
 	authFlows[accountID] = flow
 	authFlowsMu.Unlock()
 
+	// Credential-free platforms (demo) start ready: finalize immediately —
+	// save credentials, attach the core, connect and sync, exactly like a
+	// flow that auto-completes on a valid stored session.
+	if initial.State == AuthStateReady {
+		if err := flow.core.Authenticate(cores.AuthConfig{}); err == nil {
+			if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil && profile.DisplayName != "" {
+				initial.DisplayName = profile.DisplayName
+			}
+			e.finalizeAuth(accountID, acc, flow)
+		} else {
+			initial.State = AuthStateError
+			initial.Message = err.Error()
+		}
+	}
+
 	e.emitEvent(EventAuthState, accountID, initial)
 	return initial, nil
 }
@@ -428,6 +443,10 @@ func initialAuthState(platform, accountID string) *AuthState {
 	base := &AuthState{AccountID: accountID, Platform: platform}
 
 	switch platform {
+	case "demo":
+		// The demo backend needs no credentials.
+		base.State = AuthStateReady
+		base.DisplayName = "Demo User"
 	case "telegram":
 		base.State = AuthStateChoose
 		base.Options = []AuthOption{
@@ -495,6 +514,11 @@ func advanceAuth(platform string, flow *authFlow, input string) (*AuthState, err
 	base := &AuthState{AccountID: s.AccountID, Platform: platform}
 
 	switch platform {
+	case "demo":
+		// Already authenticated (initial state is ready); nothing to collect.
+		base.State = AuthStateReady
+		base.DisplayName = "Demo User"
+		return base, nil
 	case "telegram":
 		return advanceTelegram(flow, input, base)
 	case "bale":

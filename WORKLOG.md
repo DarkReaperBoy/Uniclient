@@ -180,3 +180,85 @@ Live protocol verification against REAL servers (go/tests/, build tag
 - Avatars render as colored initials; media is read-only chips (no inline
   images / downloads yet).
 - Bale/Rubika remain untested (geo-restricted), unchanged.
+
+## Session 4 — v0.4.0: the native-Gio pivot (everything the owner demanded)
+
+Session trigger: owner's angry review — web-app desktop is "retarded", two
+binaries, JS/CSS in repo, CI on every commit, no Android, no scroll, no
+folders, dead buttons, no indicators, bloated AGENTS.md, macOS/iOS not
+wanted, binaries too big, not marked pre-release.
+
+### Docs (done FIRST, per explicit instruction)
+- **AGENTS.md rewritten from scratch**: 82KB of over-verified bloat → ~200
+  lines of enforced owner requirements, verified platform truth table, GUI
+  spec (folders/scroll/indicators/responsive), core status table, release
+  policy (tag-only, prerelease), and a resumable checklist.
+- README.md rewritten for end users (pre-release banner, platforms, demo
+  mode, build/NixOS instructions). research/*.md stamped with "read with
+  suspicion" headers; Flutter/bridge references marked historical.
+
+### Architecture pivot (the repo is now pure Go)
+- DELETED: go/bridge (35K generated dispatch), go/proto + root proto/
+  (~420K generated), go/cmd/web (browser desktop app, the JS/CSS source),
+  go/cmd/bridge (c-shared lib), go/cmd/cli (second binary), ci.yml,
+  scripts/smoke/*.mjs|*.c. GitHub language stats will show Go only.
+- NEW go/bootstrap: engine.Init + core factory + session migration (extracted
+  from the bridge; the GUI calls the engine in-process, no serialization).
+- NEW go/gui: full Gio Material-Design client — theme (AyuGram dark
+  palette), adaptive sidebar+chat panes (phone layout below ~680dp),
+  folder tabs (All/Unread/People/Groups/Channels), scrolling chat list with
+  scrollbars, message list (bubbles, day dividers, status ticks, grouping),
+  composer (Enter=send), account bar with connection dots + account menu
+  (switch/remove), backend picker grid, auth state machine UI (choose/
+  input/OTP/2FA/QR + back/cancel), voice mode tab, toasts, loaders on all
+  async ops.
+- NEW go/cores/demo.go + stub.go: credential-free demo backend (6 chats,
+  folders, echo bot, typing simulation, live bursts). Registered in the
+  engine as a real platform — the GUI is fully evaluable with zero accounts.
+- NEW go/cmd/uniclient: THE single binary (flag -demo for instant demo).
+
+### Bugs found & fixed along the way
+- gio v0.10.2's material.NewTheme leaves the Shaper empty → NO text
+  rendered. Fixed: th.Shaper = text.NewShaper(WithCollection(gofont)).
+- All my palette colors lacked alpha (NRGBA A=0 = invisible): the entire UI
+  rendered as default-blue rectangles. Fixed in rgb().
+- engine.StartAuth: credential-free platforms (demo) now finalize
+  immediately (save creds + connect + sync), mirroring auto-completing flows.
+- wlynxg/anet v0.0.5 //go:linkname net.zoneCache breaks Go 1.23+ android
+  LINKING (pion→transport→anet pulled in by webrtc). Fixed via patched fork
+  go/third_party/anet + replace directive. APK builds again.
+- Verified MYSELF (owner: don't trust old research): CGO_ENABLED=0 on
+  Linux is impossible with gio (X11 cgo, EGL/Vulkan cgo) — the old
+  AGENTS.md was right about that; Windows + WASM pure-Go confirmed.
+
+### Runtime verification (not just compile)
+- Headless Xvfb + software-EGL: app boots, engine+demo connect, window
+  renders. VLM screenshot review read the ACTUAL UI: account bar ("Demo
+  User/connected/+"), Chats/Voice tabs, search, folder tabs, 6 chat rows
+  with unread badges, live incoming message + "typing…" indicator while
+  watching, chat view with bubbles/timestamps/day divider, composer.
+  Click-to-open-chat verified via synthetic XTEST events.
+- Bootstrap end-to-end test (committed): add→auth→connect→folders→send→
+  echo→events→cache→persistence→restart-reconnect. Green.
+
+### Release pipeline
+- release.yml: tag/dispatch ONLY. Jobs: test (vet+gofmt+tests), linux
+  amd64+arm64 (native arm64 runner), windows (pure Go), android arm64 APK
+  (SDK+NDK+gogio), web wasm → gh-pages push (index.html+wasm_exec.js
+  generated IN CI — main stays pure Go). All binaries -s -w + UPX
+  (~45MB→~12MB). softprops release, prerelease: true.
+- flake.yml: dispatch job that computes the nix vendorHash and commits it.
+- flake.nix: app + dev shell for NixOS (first-class, owner's platform).
+- Makefile: build/run/test/lint/wasm/apk/windows/compress/serve.
+- scripts: build.sh (release builds), web.sh (local wasm serving).
+
+### Built & verified locally
+- linux/amd64 12.1MB (UPX), windows/amd64 12.1MB, wasm 57.9MB,
+  android arm64 APK 17.5MB. Tests+vet+gofmt green.
+
+### Leftovers / next session
+- CI run of the full release pipeline (tag v0.4.0) — watch for surprises.
+- flake vendorHash needs the one-shot flake.yml dispatch to pin.
+- mumble/teamspeak rewrite (tests-first, docker-based) — hidden until then.
+- Telegram 1:1 AyuGram features (real folder sync, ghost mode, QR verify).
+- Voice mode wiring to wrtc; media downloads/inline images; XMPP E2EE ADR.

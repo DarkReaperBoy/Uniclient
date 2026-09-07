@@ -1,58 +1,43 @@
-# Uniclient — Go engine + FFI bridge build system
+# Uniclient — single-binary Gio messenger build system
 #
-# Build requirements:
-#   - Go 1.27+ (https://go.dev/dl)
-#   - A C compiler (gcc/clang/mingw) for the c-shared targets
-#   - Node.js (>= 18) only for `make smoke-wasm`
-#
-# All library/engine builds use `-tags goolm`:
-#   mautrix's default Olm implementation (crypto/libolm) is cgo; the goolm
-#   build tag selects the pure-Go implementation so the engine stays
-#   CGO-free. The ONLY cgo in the repo is the c-shared FFI export shim
-#   (go/cmd/bridge/main.go) required by -buildmode=c-shared.
-#
-# Low-RAM note: gotd/td's generated tg package needs ~2GB+ RAM to compile.
-# The GOFLAGS/GOENV below enable the documented low-memory recipe
-# automatically (harmless on big machines).
+# Requirements: Go 1.27+. On Linux additionally the X11/Wayland/EGL
+# development headers. Android needs the Android SDK + NDK (see flake.nix
+# or CI). NixOS users: `nix run` — no local toolchain needed.
 
 GO      ?= go
-GOROOT  ?= $(shell $(GO) env GOROOT 2>/dev/null)
-NODE    ?= node
 DIST    ?= dist
 GO_DIR  := go
-SMOKE   := scripts/smoke
 
-# Low-memory compile recipe (verified): harmless on big machines, keeps
-# 4GB CI boxes alive through the gotd tg package.
+# Low-memory compile recipe: keeps small machines alive through gotd's tg
+# package (~2GB+ to compile). Harmless on big machines.
 export GOMEMLIMIT ?= 900MiB
 export GOGC       ?= 30
 
-GOFLAGS_BUILD := -p 1 -tags goolm
+TAGS := goolm
+STRIP := -trimpath -ldflags "-s -w"
 
-.PHONY: all build test vet lint clean dist c-shared wasm cli \
-	smoke-c smoke-wasm smoke \
-	ci-native ci-wasm ci-smoke help
+.PHONY: all build run test vet lint fmt clean wasm apk web serve help
 
 all: build test vet
 
-## build: compile all packages (native, CGO_ENABLED=0 where possible)
+## build: compile the native binary for the CURRENT platform
 build:
-	cd $(GO_DIR) && CGO_ENABLED=0 $(GO) build $(GOFLAGS_BUILD) ./...
+	cd $(GO_DIR) && CGO_ENABLED=1 $(GO) build -p 1 -tags $(TAGS) $(STRIP) -o ../$(DIST)/uniclient ./cmd/uniclient
+
+## run: build + run the app (with the demo backend for a quick look)
+run: build
+	UNICLIENT_HOME ?= $(DIST)/home
+	$(DIST)/uniclient -demo
 
 ## test: run the full test suite
 test:
-	cd $(GO_DIR) && CGO_ENABLED=0 $(GO) test $(GOFLAGS_BUILD) ./...
+	cd $(GO_DIR) && CGO_ENABLED=1 $(GO) test -p 1 -tags $(TAGS) -count=1 ./...
 
-## test-race: run tests with the race detector (needs ~4GB+ free RAM;
-## the gotd tg package under -race needs more than small CI boxes have)
-test-race:
-	cd $(GO_DIR) && CGO_ENABLED=0 $(GO) test $(GOFLAGS_BUILD) -race ./utils/ ./cores/ ./bridge/
-
-## vet: go vet across the module
+## vet: go vet
 vet:
-	cd $(GO_DIR) && CGO_ENABLED=0 $(GO) vet $(GOFLAGS_BUILD) ./...
+	cd $(GO_DIR) && CGO_ENABLED=1 $(GO) vet -tags $(TAGS) ./...
 
-## lint: vet + verify gofmt clean
+## lint: vet + gofmt clean
 lint: vet
 	@cd $(GO_DIR) && test -z "$$(gofmt -l .)" || (echo "gofmt needed on:"; gofmt -l .; exit 1)
 
@@ -60,60 +45,44 @@ lint: vet
 fmt:
 	cd $(GO_DIR) && $(GO) fmt ./...
 
-## c-shared: build the FFI shared library for the CURRENT platform into dist/
-c-shared:
-	cd $(GO_DIR) && CGO_ENABLED=1 $(GO) build $(GOFLAGS_BUILD) -buildmode=c-shared \
-		-o ../$(DIST)/libuniclient.so ./cmd/bridge
-	@echo "-> $(DIST)/libuniclient.so + libuniclient.h"
-
-## cli: build a native CLI binary that links the bridge in-process
-cli:
-	cd $(GO_DIR) && CGO_ENABLED=0 $(GO) build $(GOFLAGS_BUILD) -o ../$(DIST)/uniclient-cli ./cmd/cli
-
-## wasm: build the js/wasm module into dist/
+## wasm: web build (pure Go)
 wasm:
-	cd $(GO_DIR) && GOOS=js GOARCH=wasm CGO_ENABLED=0 $(GO) build $(GOFLAGS_BUILD) \
-		-o ../$(DIST)/uniclient.wasm ./cmd/bridge
-	@echo "-> $(DIST)/uniclient.wasm"
+	cd $(GO_DIR) && GOOS=js GOARCH=wasm CGO_ENABLED=0 $(GO) build -p 1 -tags $(TAGS) \
+		$(STRIP) -o ../$(DIST)/uniclient.wasm ./cmd/uniclient
 
-## smoke-c: build c-shared + run the C FFI smoke test (needs cc + the .so)
-smoke-c: c-shared
-	$(CC) $(SMOKE)/smoke_c.c -o $(SMOKE)/smoke_c \
-		-L$(realpath $(DIST)) -luniclient -Wl,-rpath,'$(realpath $(DIST))'
-	@rm -rf /tmp/uniclient-smoke-c && mkdir -p /tmp/uniclient-smoke-c
-	$(SMOKE)/smoke_c /tmp/uniclient-smoke-c
+## apk: Android APK (arm64; needs ANDROID_HOME + ANDROID_NDK_HOME)
+apk:
+	cd $(GO_DIR) && gogio -target android -arch arm64 -minsdk 24 -tags $(TAGS) \
+		-o ../$(DIST)/uniclient.apk ./cmd/uniclient
 
-## smoke-wasm: build wasm + run the Node smoke test (needs node)
-smoke-wasm: wasm
-	cd $(SMOKE) && GOROOT='$(GOROOT)' $(NODE) --stack-size=8192 run_wasm.mjs
+## windows: cross-build windows (pure Go, no toolchain needed)
+windows:
+	cd $(GO_DIR) && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 $(GO) build -p 1 -tags $(TAGS) \
+		$(STRIP) -o ../$(DIST)/uniclient-windows-amd64.exe ./cmd/uniclient
 
-## smoke: both smoke suites
-smoke: smoke-c smoke-wasm
+## compress: UPX the native binaries (if upx is installed)
+compress:
+	@if command -v upx >/dev/null 2>&1; then \
+		upx --best --lzma $(DIST)/uniclient $(DIST)/uniclient-windows-amd64.exe 2>/dev/null || true; \
+	else echo "upx not found (release CI compresses binaries)"; fi
 
-## ci-native: the native CI gate
-ci-native: build test vet
-
-## ci-wasm: the wasm CI gate
-ci-wasm: wasm
-
-## ci-smoke: the artifact smoke CI gate
-ci-smoke: smoke
+## serve: serve the wasm build locally on :8080 (after make wasm)
+serve:
+	./scripts/web.sh
 
 ## clean: remove build artifacts
 clean:
-	rm -rf $(DIST) $(SMOKE)/smoke_c
+	rm -rf $(DIST)
 
 help:
 	@echo "Uniclient build targets:"
-	@echo "  make build      — compile all packages (CGO_ENABLED=0)"
-	@echo "  make test       — run the test suite"
-	@echo "  make test-race  — tests + race detector (heavy)"
-	@echo "  make vet        — go vet"
-	@echo "  make lint       — vet + gofmt check"
-	@echo "  make c-shared   — dist/libuniclient.so (FFI library for hosts)"
-	@echo "  make cli        — dist/uniclient-cli"
-	@echo "  make wasm       — dist/uniclient.wasm (web bridge module)"
-	@echo "  make smoke-c    — build + run C FFI smoke test"
-	@echo "  make smoke-wasm — build + run Node wasm smoke test"
-	@echo "  make smoke      — both smoke suites"
-	@echo "  make clean      — remove artifacts"
+	@echo "  make build    — native binary for this platform (dist/uniclient)"
+	@echo "  make run      — build + run with the demo backend"
+	@echo "  make test     — test suite (includes the demo end-to-end test)"
+	@echo "  make lint     — vet + gofmt gate"
+	@echo "  make wasm     — web build (dist/uniclient.wasm)"
+	@echo "  make apk      — Android APK (needs ANDROID_HOME/NDK)"
+	@echo "  make windows  — Windows cross-build"
+	@echo "  make compress — UPX native binaries"
+	@echo "  make serve    — serve the wasm build on :8080"
+	@echo "  make clean    — remove dist/"

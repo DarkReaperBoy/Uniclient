@@ -144,3 +144,9 @@ See `AGENTS.md` for the full project constitution and roadmap context.
 This project was developed with the assistance of GLM 5.3 AI.
 
 Co-Authored-By: GLM 5.3 <noreply@z.ai>
+
+## Co-Authorship
+
+This project was developed with the assistance of GLM 5.3 AI.
+
+Co-Authored-By: GLM 5.3 <noreply@z.ai>

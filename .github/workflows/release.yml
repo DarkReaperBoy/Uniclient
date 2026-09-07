@@ -1,126 +1,241 @@
-name: Release
-
-# Builds the Uniclient desktop app (uniclient-web — the engine with the
-# embedded web UI) and the headless CLI for every Tier-A platform, then
-# publishes them as a GitHub Release.
+# Uniclient release pipeline.
 #
-#   * push a tag like  v0.3.0  → build + create the Release
-#   * run manually (workflow_dispatch) → build + upload workflow artifacts
+# Triggered ONLY by release tags (v*) or manual dispatch — never on every
+# commit (owner's requirement). Produces:
+#   - linux/amd64 + linux/arm64 (cgo, stripped, UPX)
+#   - windows/amd64 (pure Go, stripped, UPX)
+#   - android arm64 APK (gogio)
+#   - web WASM → deployed to gh-pages (https://darkreaperboy.github.io/Uniclient/)
+# All releases are marked PRE-RELEASE until the owner says otherwise.
+
+name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
-  contents: write # needed to create the Release
+  contents: write
 
 env:
   GO_VERSION: "1.27"
-  GOOLM: -tags goolm
 
 jobs:
-  build:
-    name: Build ${{ matrix.os }}/${{ matrix.arch }}
+  test:
+    name: Test & vet
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: linux,   arch: amd64, archive: tar.gz }
-          - { os: linux,   arch: arm64, archive: tar.gz }
-          - { os: windows, arch: amd64, archive: zip }
-          - { os: windows, arch: arm64, archive: zip }
-          - { os: darwin,  arch: amd64, archive: tar.gz }
-          - { os: darwin,  arch: arm64, archive: tar.gz }
-
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go/go.sum
-
-      - name: Build binaries
-        working-directory: go
+      - name: Install Gio Linux headers (cgo)
         run: |
-          export GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0
-          mkdir -p ../dist/pkg
-          go build $GOOLM -trimpath -ldflags="-s -w" -o ../dist/pkg/uniclient-web${{ matrix.os == 'windows' && '.exe' || '' }} ./cmd/web
-          go build $GOOLM -trimpath -ldflags="-s -w" -o ../dist/pkg/uniclient-cli${{ matrix.os == 'windows' && '.exe' || '' }} ./cmd/cli
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pkg-config libegl1-mesa-dev libgles-dev \
+            libx11-dev libxkbcommon-dev libxkbcommon-x11-dev libxcursor-dev \
+            libxfixes-dev libwayland-dev libwayland-egl-backend-dev libvulkan-dev
+      - name: gofmt gate
+        run: cd go && test -z "$(gofmt -l .)" || (echo "gofmt needed:"; gofmt -l .; exit 1)
+      - name: Vet
+        run: cd go && CGO_ENABLED=1 go vet -tags goolm ./...
+      - name: Test
+        run: cd go && CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 ./...
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
 
-      - name: Write launcher scripts and notes
-        run: |
-          cd dist/pkg
-          if [ "${{ matrix.os }}" = "windows" ]; then
-            printf '@echo off\r\ncd /d "%%~dp0"\r\nuniclient-web.exe\r\n' > "Start Uniclient.bat"
-          else
-            printf '#!/bin/sh\ncd "$(dirname "$0")"\nexec ./uniclient-web "$@"\n' > uniclient.sh
-            chmod +x uniclient.sh
-          fi
-          cat > README.txt <<'EOF'
-          Uniclient — one chat client for every network
-          ============================================
-
-          Quick start:
-            * Windows:   double-click "Start Uniclient.bat"
-            * Linux/mac: ./uniclient.sh   (or run ./uniclient-web)
-
-          Your browser opens the app at http://127.0.0.1:8199.
-          Add an account with the + button (Telegram, GitHub, IRC, Matrix,
-          XMPP, Delta Chat, Bale, Rubika, TeamSpeak, Mumble).
-
-          Everything stays on this machine: the server binds 127.0.0.1 and
-          stores credentials in an encrypted vault under the config dir
-          (~/.uniclient by default).
-
-          uniclient-cli is the headless companion for scripting.
-          EOF
-
-      - name: Package
-        id: package
-        run: |
-          VERSION="${GITHUB_REF_NAME:-manual}"
-          cd dist
-          NAME="uniclient-$VERSION-${{ matrix.os }}-${{ matrix.arch }}"
-          mv pkg "$NAME"
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            zip -r "$NAME.zip" "$NAME"
-          else
-            tar czf "$NAME.tar.gz" "$NAME"
-          fi
-          sha256sum "$NAME.${{ matrix.archive }}" > "$NAME.${{ matrix.archive }}.sha256"
-          echo "asset=$NAME.${{ matrix.archive }}" >> "$GITHUB_OUTPUT"
-          echo "asset_hash=$NAME.${{ matrix.archive }}.sha256" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: uniclient-${{ matrix.os }}-${{ matrix.arch }}
-          path: |
-            dist/${{ steps.package.outputs.asset }}
-            dist/${{ steps.package.outputs.asset_hash }}
-          retention-days: 14
-
-  release:
-    name: Publish release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
+  linux:
+    name: Linux ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - name: Install Gio Linux headers (cgo)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pkg-config libegl1-mesa-dev libgles-dev \
+            libx11-dev libxkbcommon-dev libxkbcommon-x11-dev libxcursor-dev \
+            libxfixes-dev libwayland-dev libwayland-egl-backend-dev libvulkan-dev upx-ucl
+      - name: Build
+        run: |
+          cd go
+          CGO_ENABLED=1 go build -p 1 -tags goolm -trimpath -ldflags "-s -w" \
+            -o ../dist/uniclient-linux-${{ matrix.arch }} ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - name: Compress (UPX)
+        run: |
+          upx --best --lzma dist/uniclient-linux-${{ matrix.arch }} \
+            || echo "upx failed — keeping uncompressed"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uniclient-linux-${{ matrix.arch }}
+          path: dist/uniclient-linux-${{ matrix.arch }}
+          if-no-files-found: error
 
+  windows:
+    name: Windows amd64
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - name: Build (pure Go)
+        run: |
+          cd go
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -p 1 -tags goolm \
+            -trimpath -ldflags "-s -w" -o ../dist/uniclient-windows-amd64.exe ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - name: Compress (UPX)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq upx-ucl
+          upx --best --lzma dist/uniclient-windows-amd64.exe \
+            || echo "upx failed — keeping uncompressed"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uniclient-windows-amd64
+          path: dist/uniclient-windows-amd64.exe
+          if-no-files-found: error
+
+  android:
+    name: Android arm64 (APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install gogio
+        run: go install gioui.org/cmd/gogio@v0.10.0
+      - name: Set up Android SDK + NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "build-tools;35.0.0" "platforms;android-34" "ndk;27.0.12077973" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      - name: Build APK
+        run: |
+          cd go
+          ~/go/bin/gogio -target android -arch arm64 -minsdk 24 -tags goolm \
+            -o ../dist/uniclient.apk ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uniclient-android
+          path: dist/uniclient.apk
+          if-no-files-found: error
+
+  web:
+    name: Web (WASM → GitHub Pages)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - name: Build wasm
+        run: |
+          cd go
+          GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -p 1 -tags goolm \
+            -trimpath -ldflags "-s -w" -o ../web-build/uniclient.wasm ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - name: Assemble web shell
+        run: |
+          cp "$(go env GOROOT)/lib/wasm_exec.js" web-build/wasm_exec.js
+          cat > web-build/index.html <<'HTML'
+          <!doctype html>
+          <html>
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Uniclient</title>
+          <style>
+            html, body { margin:0; height:100%; background:#17212B; }
+            canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+          </style>
+          </head>
+          <body>
+          <script src="wasm_exec.js"></script>
+          <script>
+          (async () => {
+            const go = new Go();
+            const resp = await fetch("uniclient.wasm");
+            if (!resp.ok) { document.body.textContent = "failed to load uniclient.wasm"; return; }
+            const bytes = await resp.arrayBuffer();
+            const { instance } = await WebAssembly.instantiate(bytes, go.importObject);
+            go.run(instance);
+          })();
+          </script>
+          </body>
+          </html>
+          HTML
+          echo "Uniclient web (WASM)" > web-build/.nojekyll
+      - name: Deploy to gh-pages
+        run: |
+          cd web-build
+          git init -q
+          git config user.name "uniclient-ci"
+          git config user.email "ci@uniclient.local"
+          git add -A
+          git commit -qm "Web build for ${{ github.ref_name }}"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
+
+  release:
+    name: Publish pre-release
+    needs: [test, linux, windows, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          gh release create "$TAG" \
-            dist/uniclient-*.tar.gz dist/uniclient-*.zip dist/*.sha256 \
-            --title "Uniclient $TAG" --generate-notes
+      - name: Checksums
+        run: cd dist && sha256sum * > checksums.txt && ls -la
+      - name: Create pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: true # pre-release until the owner flips it
+          generate_release_notes: true
+          files: |
+            dist/uniclient-linux-amd64
+            dist/uniclient-linux-arm64
+            dist/uniclient-windows-amd64.exe
+            dist/uniclient.apk
+            dist/checksums.txt

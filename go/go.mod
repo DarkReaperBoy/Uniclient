@@ -4,6 +4,7 @@ go 1.27
 
 require (
 	filippo.io/edwards25519 v1.2.0
+	gioui.org v0.10.2
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/coder/websocket v1.8.15
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
@@ -18,14 +19,15 @@ require (
 	github.com/pion/rtcp v1.2.17
 	github.com/pion/rtp v1.10.5
 	github.com/pion/sctp v1.11.1
-	github.com/pion/stun/v3 v3.1.7
+	github.com/pion/stun/v4 v4.0.0
 	github.com/pion/webrtc/v4 v4.2.20
 	github.com/rs/zerolog v1.35.1
 	golang.org/x/crypto v0.56.0
+	golang.org/x/exp/shiny v0.0.0-20260824195058-e88cd73687aa
 	golang.org/x/net v0.58.0
-	google.golang.org/protobuf v1.36.12
 	maunium.net/go/mautrix v0.30.0
 	modernc.org/sqlite v1.58.0
+	rsc.io/qr v0.2.0
 )
 
 require (
@@ -33,6 +35,7 @@ require (
 	buf.build/go/protovalidate v1.2.0 // indirect
 	buf.build/go/protoyaml v0.7.0 // indirect
 	cel.dev/expr v0.25.2 // indirect
+	gioui.org/shader v1.0.9 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
@@ -55,6 +58,7 @@ require (
 	github.com/go-faster/yaml v0.4.6 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/go-text/typesetting v0.3.4 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/cel-go v0.28.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -86,7 +90,6 @@ require (
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/sdp/v3 v3.0.19 // indirect
 	github.com/pion/srtp/v3 v3.0.13 // indirect
-	github.com/pion/stun/v4 v4.0.0 // indirect
 	github.com/pion/transport/v4 v4.1.0 // indirect
 	github.com/pion/turn/v5 v5.1.0 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
@@ -117,6 +120,7 @@ require (
 	go.uber.org/zap/exp v0.3.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297 // indirect
+	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
@@ -126,10 +130,15 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.81.1 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.75.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
-	rsc.io/qr v0.2.0 // indirect
 )
+
+// Patched fork: upstream anet v0.0.5 uses //go:linkname into net.zoneCache,
+// which the Go 1.23+ linker rejects on android (breaks every APK build).
+// See third_party/anet/interface_android.go.
+replace github.com/wlynxg/anet => ./third_party/anet

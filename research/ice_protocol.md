@@ -1,3 +1,12 @@
+> **RESEARCH NOTE — read with suspicion.** These files are working notes
+> gathered by earlier agent sessions. Some claims were verified (marked
+> where), others were never tested against real servers and may be outdated
+> or plain wrong (the owner explicitly warned about this). Anything that
+> contradicts the code in `go/` loses. When you verify a claim, update this
+> file. The old FFI-bridge/Flutter architecture described in some notes was
+> **deleted** — the app is now a native Gio GUI calling the engine directly.
+>
+
 # ZeroC Ice Wire Protocol Notes (for Mumble admin)
 
 Pure-Go Ice client implementation notes for talking to Murmur's Ice RPC interface. See also: `research/mumble_protocol.md` for the Mumble client protocol.

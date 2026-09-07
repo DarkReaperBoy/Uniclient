@@ -1,0 +1,465 @@
+package gui
+
+import (
+	"image"
+	"image/color"
+	"strings"
+	"time"
+
+	"gioui.org/f32"
+	"gioui.org/font"
+	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/op/clip"
+	"gioui.org/op/paint"
+	"gioui.org/unit"
+	"gioui.org/widget"
+	"gioui.org/widget/material"
+
+	"uniclient/engine"
+)
+
+// Chat view widgets.
+var (
+	chatBackBtn widget.Clickable
+	chatSendBtn widget.Clickable
+	composer    widget.Editor
+	msgList     widget.List
+)
+
+func init() {
+	composer.SingleLine = false
+	msgList.Axis = layout.Vertical
+	msgList.ScrollToEnd = true // stick to bottom, AyuGram-style
+}
+
+// layoutChatView: header, message list (scrollable), composer.
+func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Dimensions {
+	if f.selected == nil {
+		return a.layoutEmptyState(gtx)
+	}
+	chat := findChat(f, *f.selected)
+
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		// Header
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.chatHeader(gtx, f, chat, narrow)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.ui.Divider(gtx)
+		}),
+		// Messages
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return a.messageList(gtx, f, chat)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.ui.Divider(gtx)
+		}),
+		// Composer
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.composerBar(gtx, f)
+		}),
+	)
+}
+
+func findChat(f frame, k chatKey) *engine.ChatInfo {
+	for i := range f.chats {
+		if f.chats[i].AccountID == k.AccountID && f.chats[i].ChatID == k.ChatID {
+			c := f.chats[i]
+			return &c
+		}
+	}
+	return nil
+}
+
+// chatHeader: back button (narrow), avatar, title, status/typing, platform tag.
+func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, narrow bool) layout.Dimensions {
+	return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(8), Right: unit.Dp(12)}.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				backIf(narrow, gtx, a),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					title := "Chat"
+					if chat != nil {
+						title = chat.Title
+					}
+					return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return a.ui.Avatar(gtx, title, unit.Dp(40), dotNone)
+					})
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					title, sub := "Chat", ""
+					if chat != nil {
+						title = chat.Title
+						if a.stillTyping(*f.selected) {
+							sub = "typing…"
+						} else if chat.MemberCount > 0 {
+							sub = memberCountLabel(chat)
+						} else if chat.Type == engine.ChatTypeChanVal {
+							sub = "channel"
+						} else {
+							sub = platformTitle(platformOf(f, chat.AccountID))
+						}
+					}
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							lbl := a.ui.H3(title)
+							return lbl.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							lbl := a.ui.Dim(unit.Sp(12), sub)
+							if sub == "typing…" {
+								lbl.Color = a.ui.p.Accent
+							}
+							return lbl.Layout(gtx)
+						}),
+					)
+				}),
+				// connection indicator for this chat's account
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					acc := accountByID(f, chat.AccountID)
+					dot := connDotFor(acc)
+					return statusChip(gtx, a.ui, dot)
+				}),
+			)
+		},
+	)
+}
+
+func backIf(narrow bool, gtx layout.Context, a *App) layout.FlexChild {
+	if !narrow {
+		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Dimensions{}
+		})
+	}
+	if chatBackBtn.Clicked(gtx) {
+		a.mu.Lock()
+		a.selected = nil
+		a.msgFor = nil
+		a.mu.Unlock()
+		a.invalidate()
+	}
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			btn := a.ui.IconButton(&chatBackBtn, iconNavigationBack, "Back")
+			btn.Color = a.ui.p.TextDim
+			return btn.Layout(gtx)
+		})
+	})
+}
+
+func memberCountLabel(c *engine.ChatInfo) string {
+	n := c.MemberCount
+	suffix := " members"
+	if c.Type == engine.ChatTypeChanVal {
+		suffix = " subscribers"
+	}
+	if n == 1 {
+		suffix = strings.TrimSuffix(suffix, "s")
+	}
+	return itoa(n) + suffix
+}
+
+func platformOf(f frame, accountID string) string {
+	for _, acc := range f.accounts {
+		if acc.ID == accountID {
+			return acc.Platform
+		}
+	}
+	return ""
+}
+
+func accountByID(f frame, id string) engine.AccountInfo {
+	for _, acc := range f.accounts {
+		if acc.ID == id {
+			return acc
+		}
+	}
+	return engine.AccountInfo{}
+}
+
+// statusChip renders a small colored connection dot with label.
+func statusChip(gtx layout.Context, u *UI, dot connDot) layout.Dimensions {
+	return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		d := gtx.Dp(unit.Dp(10))
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				paint.FillShape(gtx.Ops, dot.color(),
+					clip.Ellipse{Min: image.Pt(0, 0), Max: image.Pt(d, d)}.Op(gtx.Ops))
+				return layout.Dimensions{Size: image.Pt(d, d)}
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					lbl := u.Dim(unit.Sp(11), dotLabel(dot))
+					return lbl.Layout(gtx)
+				})
+			}),
+		)
+	})
+}
+
+func dotLabel(d connDot) string {
+	switch d {
+	case dotOnline:
+		return "online"
+	case dotConnecting:
+		return "connecting"
+	case dotError:
+		return "error"
+	default:
+		return "offline"
+	}
+}
+
+// messageList: scrolling message bubbles + day dividers + typing row.
+func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
+	// Auto-scroll: AnchorEnd keeps us pinned unless the user scrolls up.
+	// While someone is typing we keep the view pinned & animating.
+	if a.stillTyping(*f.selected) || f.sending {
+		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(200 * time.Millisecond)})
+	}
+
+	// Build the row model: dividers + messages.
+	type row struct {
+		day string
+		msg *engine.CachedMessage
+	}
+	rows := make([]row, 0, len(f.messages)+4)
+	var lastDay string
+	for i := range f.messages {
+		m := &f.messages[i]
+		day := time.UnixMilli(m.Timestamp).Format("2 Jan 2006")
+		if day != lastDay {
+			rows = append(rows, row{day: day})
+			lastDay = day
+		}
+		rows = append(rows, row{msg: m})
+	}
+
+	if f.loadingMsgs {
+		// loading indicator at top
+		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					ld := material.Loader(a.ui.Theme)
+					ld.Color = a.ui.p.Accent
+					return ld.Layout(gtx)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						lbl := a.ui.Dim(unit.Sp(13), "Loading messages…")
+						return lbl.Layout(gtx)
+					})
+				}),
+			)
+		})
+	}
+
+	list := material.List(a.ui.Theme, &msgList)
+	return list.Layout(gtx, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
+		r := rows[i]
+		if r.day != "" {
+			return a.dayDivider(gtx, r.day)
+		}
+		return a.messageRow(gtx, f, r.msg)
+	})
+}
+
+func (a *App) dayDivider(gtx layout.Context, day string) layout.Dimensions {
+	return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3), Left: unit.Dp(10), Right: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					lbl := a.ui.Dim(unit.Sp(11), day)
+					return lbl.Layout(gtx)
+				})
+			})
+		})
+	})
+}
+
+// messageRow renders one message bubble: outgoing right-aligned accent,
+// incoming left-aligned surface.
+func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
+	out := m.IsOutgoing
+
+	// Highlight deleted (anti-recall) messages.
+	text := m.ContentText
+	deleted := m.IsDeleted
+	if deleted {
+		if text == "" {
+			text = "(message deleted)"
+		} else {
+			text = text + " — deleted"
+		}
+	}
+
+	bubble := func(gtx layout.Context) layout.Dimensions {
+		bg := a.ui.p.BubbleIn
+		if out {
+			bg = a.ui.p.AccentDim
+			if deleted {
+				bg = a.ui.p.BubbleOutDim
+			}
+		}
+		return roundedFill(gtx, bg, 12, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					// sender name in group chats
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if out || m.SenderName == "" || m.IsService {
+							return layout.Dimensions{}
+						}
+						lbl := a.ui.Label(unit.Sp(13), m.SenderName)
+						lbl.Color = a.ui.p.Accent
+						lbl.Font.Weight = font.SemiBold
+						return lbl.Layout(gtx)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						lbl := a.ui.Label(unit.Sp(15), text)
+						lbl.MaxLines = 30
+						if out {
+							lbl.Color = a.ui.p.Text
+						}
+						return lbl.Layout(gtx)
+					}),
+					// meta: time + edited + status ticks
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								meta := fmtTime(m.Timestamp)
+								if m.EditedAt != 0 {
+									meta = "edited " + fmtTime(m.EditedAt)
+								}
+								lbl := a.ui.Dim(unit.Sp(10), meta)
+								lbl.Color = a.ui.p.TextFaint
+								return lbl.Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								if !out {
+									return layout.Dimensions{}
+								}
+								return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return a.statusTicks(gtx, m.Status, f)
+								})
+							}),
+						)
+					}),
+				)
+			})
+		})
+	}
+
+	maxW := gtx.Constraints.Max.X * 3 / 4
+	pad := gtx.Constraints.Max.X - maxW
+
+	if out {
+		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(pad)}.Layout(gtx, bubble)
+	}
+	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, bubble)
+}
+
+// statusTicks: sending (clock spinner), sent (single check),
+// delivered (double check), read (double check, accent).
+func (a *App) statusTicks(gtx layout.Context, status int, f frame) layout.Dimensions {
+	_ = f
+	c := color.NRGBA(a.ui.p.TextFaint)
+	switch status {
+	case 3: // read
+		c = a.ui.p.Accent
+	case 1, 2: // sent / delivered
+		c = a.ui.p.TextDim
+	}
+	d := gtx.Dp(unit.Dp(12))
+	switch status {
+	case 0: // sending
+		ld := material.Loader(a.ui.Theme)
+		ld.Color = c
+		gtx.Constraints.Max = image.Pt(gtx.Dp(unit.Dp(14)), gtx.Dp(unit.Dp(14)))
+		return ld.Layout(gtx)
+	case 1:
+		return check(gtx, c, d, 0)
+	default:
+		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return check(gtx, c, d, 0) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return check(gtx, c, d, -gtx.Dp(unit.Dp(5))) }),
+		)
+	}
+}
+
+// check draws a simple check mark path.
+func check(gtx layout.Context, c color.NRGBA, size int, dx int) layout.Dimensions {
+	s := float32(size)
+	x1 := float32(size)/4 + float32(dx)
+	y1 := s * 0.55
+	x2 := float32(size)/2 + float32(dx)
+	y2 := s * 0.8
+	x3 := s*0.85 + float32(dx)
+	y3 := s * 0.25
+	var p clip.Path
+	p.Begin(gtx.Ops)
+	p.MoveTo(f32.Pt(x1, y1))
+	p.LineTo(f32.Pt(x2, y2))
+	p.LineTo(f32.Pt(x3, y3))
+	stroke := clip.Stroke{Path: p.End(), Width: float32(gtx.Dp(unit.Dp(1)))}
+	stack := stroke.Op().Push(gtx.Ops)
+	paint.Fill(gtx.Ops, c)
+	stack.Pop()
+	return layout.Dimensions{Size: image.Pt(size, size)}
+}
+
+// composerBar: input + send, disabled state shows progress.
+func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
+	// Submit on Enter (Shift+Enter = newline) unless mobile-wide.
+	for {
+		ev, ok := composer.Update(gtx)
+		if !ok {
+			break
+		}
+		if se, isSubmit := ev.(widget.SubmitEvent); isSubmit {
+			txt := strings.TrimSpace(se.Text)
+			if txt != "" && !f.sending {
+				composer.SetText("")
+				a.sendText(txt)
+			}
+		}
+	}
+	if chatSendBtn.Clicked(gtx) {
+		txt := strings.TrimSpace(composer.Text())
+		if txt != "" && !f.sending {
+			composer.SetText("")
+			a.sendText(txt)
+		}
+	}
+
+	return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.End}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return roundedFill(gtx, a.ui.p.SurfaceHi, 14, func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(44))
+						return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							ed := a.ui.Editor(&composer, "Write a message…")
+							return ed.Layout(gtx)
+						})
+					})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						if f.sending {
+							ld := material.Loader(a.ui.Theme)
+							ld.Color = a.ui.p.Accent
+							return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, ld.Layout)
+						}
+						btn := material.IconButton(a.ui.Theme, &chatSendBtn, iconContentSend, "Send")
+						btn.Background = a.ui.p.Accent
+						btn.Color = rgb(0x0D1821)
+						btn.Size = unit.Dp(22)
+						btn.Inset = layout.UniformInset(unit.Dp(11))
+						return btn.Layout(gtx)
+					})
+				}),
+			)
+		},
+	)
+}
