@@ -36,8 +36,9 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq pkg-config libegl1-mesa-dev libgles-dev \
-            libx11-dev libxkbcommon-dev libxkbcommon-x11-dev libxcursor-dev \
-            libxfixes-dev libwayland-dev libwayland-egl-backend-dev libvulkan-dev
+            libx11-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcursor-dev libxfixes-dev libwayland-dev \
+            libwayland-egl-backend-dev libvulkan-dev
       - name: gofmt gate
         run: cd go && test -z "$(gofmt -l .)" || (echo "gofmt needed:"; gofmt -l .; exit 1)
       - name: Vet
@@ -70,8 +71,9 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq pkg-config libegl1-mesa-dev libgles-dev \
-            libx11-dev libxkbcommon-dev libxkbcommon-x11-dev libxcursor-dev \
-            libxfixes-dev libwayland-dev libwayland-egl-backend-dev libvulkan-dev upx-ucl
+            libx11-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcursor-dev libxfixes-dev libwayland-dev \
+            libwayland-egl-backend-dev libvulkan-dev upx-ucl
       - name: Build
         run: |
           cd go
@@ -137,8 +139,9 @@ jobs:
         run: go install gioui.org/cmd/gogio@v0.10.0
       - name: Set up Android SDK + NDK
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "build-tools;35.0.0" "platforms;android-34" "ndk;27.0.12077973" > /dev/null
+          SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMGR" --licenses >/dev/null || true
+          "$SDKMGR" --install "build-tools;35.0.0" "platforms;android-34" "ndk;27.0.12077973" > /dev/null
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
       - name: Build APK
@@ -175,7 +178,7 @@ jobs:
           GOGC: "30"
       - name: Assemble web shell
         run: |
-          cp "$(go env GOROOT)/lib/wasm_exec.js" web-build/wasm_exec.js
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web-build/wasm_exec.js
           cat > web-build/index.html <<'HTML'
           <!doctype html>
           <html>

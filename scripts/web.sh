@@ -9,7 +9,7 @@ PORT="${1:-8080}"
 GOROOT="$(go env GOROOT)"
 
 [ -f "$DIST/uniclient.wasm" ] || { echo "dist/uniclient.wasm missing — run: make wasm"; exit 1; }
-[ -f "$DIST/wasm_exec.js" ] || cp "$GOROOT/lib/wasm_exec.js" "$DIST/wasm_exec.js"
+[ -f "$DIST/wasm_exec.js" ] || cp "$GOROOT/lib/wasm/wasm_exec.js" "$DIST/wasm_exec.js"
 
 if [ ! -f "$DIST/index.html" ]; then
 	cat > "$DIST/index.html" <<'HTML'
