@@ -121,4 +121,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" dist/* --title "Uniclient $TAG" --generate-notes
+          gh release create "$TAG" \
+            dist/uniclient-*.tar.gz dist/uniclient-*.zip dist/*.sha256 \
+            --title "Uniclient $TAG" --generate-notes
