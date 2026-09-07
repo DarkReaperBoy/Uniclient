@@ -423,3 +423,19 @@ least and other cores may follow."
   reaction/emoji picker; delete for-me-vs-all dialog; selection mode.
 - Touch long-press to open the context menu on Android/narrow layout
   (right-click only, desktop, for now).
+
+---
+
+## 2026-09-08 — CI verification of the message-action slice
+
+- First verify dispatch (run 34167190069 on 9adce071): vet caught 5 real
+  compile errors in the new gui code — previewText redeclared (sidebar.go
+  already had one; mine renamed to quotePreview), image.Rect used as a type
+  (→ image.Rectangle), clipboard.WriteCmd is the stream API in gio v0.10.2
+  (Type + io.NopCloser), ForwardMessage arity, and widget.Editor has no
+  Focus method (→ key.FocusCmd from the menu action). All fixed against
+  the actual dependency sources; 19f64362.
+- Second verify dispatch (run 34167736025 on 19f64362): **all green** —
+  Test & vet & gofmt ✓ (new tests gui/actions_test.go +
+  engine/reactions_test.go pass), windows + wasm cross-builds ✓, Xvfb GUI
+  smoke + screenshots ✓ (app boots with the emoji font + new layout).
