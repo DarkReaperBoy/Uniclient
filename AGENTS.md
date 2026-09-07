@@ -1,15 +1,19 @@
 # AGENTS.md — Uniclient
 
-> **If you are an agent with no prior context:** read this file top-to-bottom,
-> then read `WORKLOG.md` (last 2 entries), then check the checklist at the
-> bottom. Then resume work without asking the owner anything technical.
+> **Zero-context agent?** Read this file top-to-bottom, then the last two
+> entries of `WORKLOG.md`, then the checklist in §11. Resume work from the
+> topmost unchecked item without asking the owner anything technical.
 > The owner is **not a programmer** — never ask them code questions.
+> This file is written so that if the owner deletes your context, the next
+> agent can continue exactly where the last one left off.
 
-Uniclient is one pure-Go, cross-platform messenger. One native GUI, many chat
-backends (Telegram, Matrix, IRC, XMPP, GitHub, Delta Chat, Bale, Rubika,
-TeamSpeak, Mumble...), each added and switched as easily as an account.
-GUI inspired by **AyuGram** (Telegram feature parity, re-implemented — never
-copied) with **Material Design** visuals, built with **Gio**.
+Uniclient is one pure-Go, cross-platform (PC / mobile / web), multi-backend,
+user-friendly messenger. One native GUI, many chat and voice backends
+(Telegram, Matrix, IRC, XMPP, GitHub, Delta Chat, Bale, Rubika, TeamSpeak,
+Mumble...), each added and switched as easily as an account. The GUI uses
+**AyuGram's layout and features, 1:1** (re-implemented from scratch — never
+copied) with **Material Design** visuals, built with **Gio**. Standardized
+backend surface so one GUI can handle them all; optimized code and builds.
 
 Current phase: **pre-release**. All GitHub releases must be marked
 `prerelease: true` until the owner says otherwise.
@@ -22,9 +26,10 @@ These came straight from the owner. If any decision contradicts this list,
 this list wins.
 
 1. **Pure Go. 100%.** No Node, no Electron, no Flutter, no Rust, no Python, no
-   webview-wrapper in OUR repo. The repo language stats must show Go (plus
-   md/yml/sh infra files). The only acceptable non-Go artifact is generated at
-   CI time into the `gh-pages` branch (see §4), never on `main`.
+   webview-wrapper in OUR repo. No external (non-Go) runtime dependencies —
+   the owner will not compromise on this. The repo language stats must show
+   Go (plus md/yml/sh infra files). The only acceptable non-Go artifact is
+   generated at CI time into the `gh-pages` branch (see §5), never on `main`.
    cgo exception: Gio's Linux GPU access needs tiny cgo shims *inside the gio
    dependency* — that's the Go toolchain compiling Go-shipped code, still fine.
 2. **Platforms:** Linux and Android are **first-class**. Windows is
@@ -43,11 +48,69 @@ this list wins.
 6. **Release binaries are small:** `-trimpath -ldflags "-s -w"`, then **UPX**
    (`upx --best --lzma`, skip on .wasm/.apk). UPX breaks on some arm64 setups —
    guard it so failure never fails the release.
-7. **Gio is the GUI toolkit** (`gioui.org`). It is the only windowing dep.
+7. **Gio is the GUI toolkit** (`gioui.org`, https://github.com/gioui/gio).
+   It is the only windowing dep.
 8. Account switching UX: every backend is just an account you add/remove.
 9. Two GUI modes: **Chat** and **Voice** (voice-chat backends surface there).
+10. **No placeholders. Everything functional.** No fake accounts, no fake
+    users, no mock/demo platforms, no fabricated chats or messages, no stub
+    buttons, no "coming soon" panes, no dead UI pretending to work. Anything
+    visible in the GUI must actually work against a real backend with a real
+    account. If it cannot work yet, **hide it — never fake it**. Honest
+    empty states driven by real engine state are fine; simulated content is
+    not. This bans the old `cores/demo.go` (fake platform + fake account,
+    owner: "horrible demo"): delete it, the `-demo` flag, the welcome-screen
+    demo entry, and every README mention.
+11. **AyuGram layout, 1:1.** UniClient's layout and feature set is
+    AyuGramDesktop's (https://github.com/AyuGram/AyuGramDesktop). The owner
+    wants its features and layout 1:1 — at minimum full Telegram feature
+    parity — with **Material Design** as the visual style on top (owner
+    prefers Material, loves AyuGram's structure). Re-implement in Gio;
+    never copy AyuGram code or assets.
+12. **Cores are disposable.** Cores may be stale or badly designed — if a
+    core's implementation is not solid, **replace it completely**, don't
+    patch it. If directly using a good pure-Go library beats a custom core,
+    use the library. "Already written" is not a reason to keep bad code.
+13. **Deep research first.** Every non-trivial task starts with deep
+    research — web search, RTFM, primary sources (upstream repos, docs,
+    protocol specs). Never assume; never trust stale notes (§10 research
+    policy). Findings go into `research/`. Go beyond the code, libs and
+    samples already provided.
+14. **Think deeply → rate → best plan → then code.** Before writing code:
+    think deeply about the architecture and design; **rate** the existing
+    implementation (the arch + each affected core — a justified score,
+    recorded in the session's WORKLOG entry); a bad rating means complete
+    replacement (§1.12), a good one means keep and extend; then think of
+    the *best* plan, not the fastest. Only then write code — tests first
+    (§9), then verify against something real (§9 ladder). The order is
+    mandatory: research → think → rate → plan → tests → code → verify.
 
-## 2. Architecture
+## 2. Workflow (mandatory order of operations)
+
+The owner's process, in their own words: *"do deep research... think deeply
+about it, rate it, and then write code... think of best plan."* Every
+non-trivial task follows this order. Never jump straight to code.
+
+1. **Deep research** — web search, RTFM, primary sources. Write findings
+   into `research/` (scratch space, §10). Distrust old notes; verify
+   everything yourself.
+2. **Think deeply** — architecture, design, trade-offs. Arch design and
+   research always come before implementation.
+3. **Rate it** — score the existing design/implementation (the arch and
+   each affected core) with a justified rating, recorded in the session's
+   WORKLOG entry. Bad rating → replace completely (§1.12). Good rating →
+   keep and extend.
+4. **Best plan** — think of the *best* plan, not the fastest, and write it
+   down (WORKLOG / research/) before implementing.
+5. **Tests first** — the failing test exists before the implementation
+   code (§9).
+6. **Write code** — pure Go (§1), standardized on the `cores.Core`
+   interface (§3), optimized.
+7. **Verify for real** — run the §9 ladder: unit → dockerized server →
+   official server. "It compiles" is not done. "Works against a real
+   server" is done.
+
+## 3. Architecture
 
 ```
 go/
@@ -72,6 +135,9 @@ go/
 directly — in-process Go calls, no IPC, no serialization layer. That is the
 whole point of a native GUI.
 
+**ALSO BANNED (see §1.10):** `cores/demo.go` + `-demo` flag + welcome-screen
+demo path. Fake data is not a feature.
+
 Event flow: `cores` → `engine` (caches + normalizes) → JSON `EngineEvent`
 bytes → `SetEventCallback` → `gui` notifier decodes → invalidates UI state.
 (Events stay JSON-shaped so a future remote host could reuse them, but
@@ -80,13 +146,14 @@ nothing external depends on it today.)
 Core interface lives in `go/cores/base.go` (~90 methods). New backends
 embed `cores.StubCore` and override what they support; everything else
 returns `ErrNotSupported` and the GUI hides unsupported actions via
-`Capabilities()`.
+`Capabilities()`. This is the "standardized" surface that lets one GUI
+handle every backend.
 
-## 3. Platform truth table (verified 2026-09, go1.27, gio v0.10.2)
+## 4. Platform truth table (verified 2026-09, go1.27, gio v0.10.2)
 
 | Target | Build | Notes |
 |---|---|---|
-| Linux amd64/arm64 | `CGO_ENABLED=1` + X11/wayland/EGL dev libs | CGO **required** on Linux — Gio's X11 backend and EGL/Vulkan contexts are cgo. Verified: CGO_ENABLED=0 fails. NixOS users install via flake (§5). |
+| Linux amd64/arm64 | `CGO_ENABLED=1` + X11/wayland/EGL dev libs | CGO **required** on Linux — Gio's X11 backend and EGL/Vulkan contexts are cgo. Verified: CGO_ENABLED=0 fails. NixOS users install via flake (§6). |
 | Windows amd64 | `CGO_ENABLED=0` | Pure Go (D3D11/OpenGL via syscalls). Verified. |
 | Android arm64 (+amd64/x86) | gogio + Android NDK | APK output. NDK needed in CI. |
 | Web | `GOOS=js GOARCH=wasm CGO_ENABLED=0` | Pure Go, same GUI code. Verified. |
@@ -95,7 +162,7 @@ returns `ErrNotSupported` and the GUI hides unsupported actions via
 Old research claiming anything else about cgo was re-tested; only this table
 is trusted. Re-verify with `scripts/gio_probe` if gio is upgraded.
 
-## 4. Release & web deploy (CI policy)
+## 5. Release & web deploy (CI policy)
 
 `.github/workflows/release.yml` — triggers: `push: tags: ['v*']` +
 `workflow_dispatch`. Never `on: push` to a branch.
@@ -113,7 +180,7 @@ Jobs:
 One artifact name per platform, all called `uniclient-*`. No tarballs unless
 the owner asks.
 
-## 5. NixOS (owner's daily driver)
+## 6. NixOS (owner's daily driver)
 
 Root `flake.nix` provides `packages.default` (the app, built with Nix's cgo
 against Nix libs) and a dev shell. Owner runs:
@@ -122,10 +189,19 @@ runners will not start on NixOS (dynamic linker path) — that is expected;
 the flake is the supported path there. Never "fix" this by shipping Nix
 store paths in binaries.
 
-## 6. GUI spec (AyuGram-inspired, Material Design)
+## 7. GUI spec (AyuGram layout 1:1, Material Design)
 
-The GUI is the product. A horrible GUI is a release blocker, not a nit.
+The GUI is the product. Target: **AyuGramDesktop's layout and features,
+1:1**, re-implemented in Gio with Material Design visuals. A horrible GUI is
+a release blocker, not a nit.
 
+- **AyuGram layout (the standard):** three-pane structure — left chat list
+  column (account switcher + search + folder tabs + dialog list), main chat
+  view (peer header with name/status, message list, composer), optional
+  right info/media panel. Same navigation model, same behaviors (folder
+  tabs above the list, unread badges, jump-to-message, context menus).
+  When unsure how something should look or behave, open AyuGramDesktop and
+  copy the *behavior* (never the code).
 - **Chat folders** (AyuGram/Telegram parity): folder tabs above the chat list
   (All / Unread / Groups / Channels / custom per-account folders from
   `GetFolders`). This was missing and the owner was angry about it.
@@ -138,61 +214,82 @@ The GUI is the product. A horrible GUI is a release blocker, not a nit.
   spinners/progress bars; account rows show connection dots
   (green=connected, amber=connecting, red=error); empty-vs-loading states
   are distinct. The owner must never wonder "is it doing anything?"
-- **Layout**: left sidebar (account switcher, search, folder tabs, chat
-  list) + right chat view (header with peer name/status, message list,
-  composer). Adaptive: sidebar collapses on narrow/mobile widths.
 - **Message bubbles**: outgoing/incoming styles, sender name in groups,
   timestamps, delivery ticks, unread separator, day dividers.
 - **Login**: backend picker (grid of cards), per-backend auth form driven by
   the engine auth state machine (step prompt + input + back + progress +
   error). Never a raw JSON dump.
-- **Voice mode**: second top-level tab — call list, join screen, mic/speaker
-  controls. Placeholder-acceptable until voice cores land, but the tab and
-  navigation must exist and look intentional.
-- **Demo backend** (`cores/demo.go`): a fake platform with sample chats,
-  folders, an echo bot and typing simulation, selectable from the welcome
-  screen. Lets the owner (a non-programmer) evaluate the GUI with zero
-  accounts. The GUI must be fully demoable before any core is trusted.
+- **Voice mode**: second top-level GUI mode (Chat/Voice tabs) — call list,
+  join screen, mic/speaker controls, wired to real voice-capable backends
+  through `wrtc`. Renders **only** what the engine actually reports. No
+  simulated calls, no fake participants, no "coming soon" banner — an
+  honest empty state ("no voice backends connected") is the ceiling of
+  what may be shown until real call UI lands.
 
-## 7. Cores status & policy
+## 8. Cores: status, sources, policy
 
-Cores are protocol implementations behind `cores.Core`. The old ones were
-stale; per backend the policy is: **write tests first** (unit + env-gated
-live test against a real or dockerized server), then implement, then wire
-into `bootstrap` + GUI.
+Cores are protocol implementations behind `cores.Core`.
 
-| Core | State (2026-09) |
-|---|---|
-| telegram (gotd/td) | Most complete. 1:1 AyuGram feature work continues here. |
-| matrix (mautrix) | Builds; E2EE via goolm (pure Go, tag `goolm`). |
-| irc (girc-style own impl) | Live-tested vs real server. |
-| github | Live-tested vs real API. |
-| xmpp, bale, rubika, deltachat | Implementations exist, unverified live. |
-| mumble, teamspeak | **Broken/stale — owner explicitly called them out.** Do not ship them as "working". Either rewrite with tests or mark hidden+experimental. Current decision: hidden behind an env flag until rewritten. |
+**Policy (owner's rules, enforced):**
+- **Tests first.** Write the tests *before* reading/writing implementation
+  code. Every core must be verified against something real-world-verifiable:
+  a **dockerized server first** (ergo for IRC, prosody for XMPP,
+  mumble-server...), then the **official server** (env-gated live tests).
+  "It compiles" and "a research file says so" are not verification.
+- **Replace, don't patch.** Stale/bad core → complete replacement (§1.12).
+- **Non-Go implementations are reference-only.** Protocol docs, feature
+  checklists, GUI inspiration. Never a runtime dependency, never vendored.
+- **Go beyond what's provided.** The repo's code, libs and samples are
+  starting points; do your own research. Use web search / RTFM whenever
+  uncertain — old research notes may be stale or hallucinated.
 
-## 8. Testing rules
+| Core | State (2026-09) | Go base / candidates | Reference material (read-only) |
+|---|---|---|---|
+| telegram | Most complete. 1:1 AyuGram feature work continues here. | gotd/td — https://github.com/gotd/td | AyuGramDesktop — https://github.com/AyuGram/AyuGramDesktop (GUI/feature spec 1:1, §7); tdlib/td — https://github.com/tdlib/td/ (C++ official — protocol reference only) |
+| matrix | Builds; E2EE via goolm (pure Go, tag `goolm`). | mautrix/go — https://github.com/mautrix/go | element-web — https://github.com/element-hq/element-web (what Matrix *supports*; its UI is NOT our inspiration — owner finds it ugly); matrix-rust-sdk — https://github.com/matrix-org/matrix-rust-sdk (Rust, ignored — non-Go) |
+| irc | Live-tested vs real server (own RFC2812+IRCv3 impl). | own impl, girc-style | lrstanley/girc — https://github.com/lrstanley/girc (Go); kiwiirc/irc-framework — https://github.com/kiwiirc/irc-framework (Node); hexchat — https://github.com/hexchat/hexchat (archived client); protocol: https://modern.ircdocs.horse/ + https://ircv3.net/ |
+| github | Live-tested vs real API. | own impl on net/http | The GitHub REST/GraphQL API docs themselves. **Design rule:** think what a social network needs (feed, profiles, DMs, groups, notifications) and which GitHub surfaces map to it; design the arch FIRST, *then* compare with the existing core and fix it to match. |
+| xmpp | Implementation exists, unverified live. | evaluate and pick one: xmppo/go-xmpp — https://github.com/xmppo/go-xmpp vs mellium/xmpp — https://codeberg.org/mellium/xmpp | Smack — https://github.com/igniterealtime/Smack (Java); Conversations — https://codeberg.org/iNPUTmice/Conversations (Android, "just works" behavior reference — not looks) |
+| bale | Implementation exists, unverified live (geo-restricted). | own protobuf-over-websocket impl | Balethon — https://github.com/Balethon/Balethon (Python); aiobale — https://github.com/aminmadaniofficial/aiobale (client impl); web client — https://web.bale.ai/ (live reference) |
+| rubika | Implementation exists, unverified live (geo-restricted). | own impl | reverse-engineered protocol notes in research/ (verify before trusting) |
+| deltachat | Implementation exists, unverified live. | candidate stack: go-imap + go-smtp + go-crypto + modernc/sqlite | chatmail/core — https://github.com/chatmail/core (Rust official — reference only); deltachat-desktop — https://github.com/deltachat/deltachat-desktop |
+| mumble | **Broken/stale — owner called it out.** Rewrite tests-first (docker mumble-server) or keep hidden. | evaluate layeh/gumble — https://github.com/layeh/gumble; may need own impl | protocol docs — https://github.com/mumble-voip/mumble/tree/master/docs/dev/network-protocol; mumble desktop client — https://github.com/mumble-voip/mumble (possible voice-GUI inspiration) |
+| teamspeak | **Broken/stale — same as mumble.** | RE candidates: ts3j — https://github.com/Manevolent/ts3j; gospeak — https://github.com/NicolasHaas/gospeak; go-ts3 — https://github.com/rocketsciencegg/go-ts3; tsclientlib — https://github.com/ReSpeak/tsclientlib | TS3AudioBot — https://github.com/Splamy/TS3AudioBot (best-effort RE sources) |
 
+Mumble + TeamSpeak stay hidden behind an env flag until rewritten — do not
+ship them as "working".
+
+## 9. Testing rules
+
+- **Write tests before code.** For any core/engine change: failing test
+  first, then the implementation that passes it.
 - `go test ./...` (with `-tags goolm`) must pass on every commit that ships.
 - gofmt + vet clean, always.
 - Live tests live in `go/tests/`, gated behind env vars (e.g.
   `UNICLIENT_LIVE_IRC=1`), never run in CI, never need secrets in the repo.
-- Docker-based protocol tests (prosody, ergo, mumble-server...) are the
-  preferred way to verify cores without the real internet.
+- Docker-based protocol tests are the preferred verification ladder rung
+  before touching official servers; official-server tests are the final
+  proof. Every core gets both before being called "done".
 
-## 9. Repo hygiene
+## 10. Repo hygiene
 
 - No build artifacts committed. `dist/` is gitignored.
 - No generated code committed (protobuf codegen was deleted with the bridge;
   if codegen is ever reintroduced, generate in CI, don't commit).
+- **`research/` is agent scratch space.** Minimize, delete, modify, rewrite
+  anything in there however needed to keep it from confusing you. Nothing in
+  the repo depends on it. Read old notes with suspicion: they may be
+  outdated or hallucinated — verify against primary sources before acting.
 - Markdown stays short and true. If a doc describes something the code no
   longer does, fix the doc or delete it. Docs that smell like hallucination
   get deleted, not "fixed" with more words.
 - `WORKLOG.md`: append one entry per work session (what changed, why, what is
   next). This is the resume-from-zero mechanism for agents.
 
-## 10. Session checklist
+## 11. Session checklist
 
-Legend: `[x]` done, `[~]` in progress, `[ ]` todo.
+Legend: `[x]` done, `[~]` in progress, `[ ]` todo. The topmost unchecked item
+is the next task.
 
 - [x] AGENTS.md rewritten from scratch (owner's 2026-09 requirements)
 - [x] All md files refreshed (README, WORKLOG, research headers)
@@ -202,14 +299,24 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` todo.
 - [x] Scrolling + scrollbars everywhere
 - [x] Responsive material buttons + ripple
 - [x] Progress/connection indicators
-- [x] Demo backend for GUI evaluation
 - [x] `bootstrap/` package (engine wiring without bridge)
 - [x] flake.nix for NixOS (run + dev shell)
 - [x] release.yml: tag-only triggers, linux+windows+android+wasm, UPX, prerelease
 - [x] gh-pages WASM deploy to /Uniclient/
 - [x] ci.yml removed (per owner: CI only on release)
 - [x] gofmt/vet/tests green; linux/windows/wasm builds verified
-- [ ] mumble + teamspeak rewrite (tests first, docker-based)
-- [ ] Telegram 1:1 AyuGram features (folders sync, ghost mode, ...)
+- [x] AGENTS.md updated: placeholder ban (§1.10), AyuGram-1:1 layout rule
+      (§1.11 + §7), core sources & policies from the owner's full
+      requirements dump folded into §1/§8/§9/§10, and the owner's workflow
+      rules (deep research → think deeply → rate → best plan → tests →
+      code → real-world verify) enforced as §1.13-14 + §2
+- [ ] **Delete the demo backend** — `cores/demo.go`, `-demo` flag,
+      welcome-screen demo entry, README "demo mode" mentions, demo rows in
+      bootstrap registration (banned, §1.10)
+- [ ] Voice tab pass: strip any "coming soon" copy; show only real engine
+      state until real call UI exists (§7)
+- [ ] Telegram 1:1 AyuGram features (folders sync, ghost mode, QR verify...)
+- [ ] mumble + teamspeak rewrite (tests first, docker-based, §8)
+- [ ] Verify xmpp / bale / rubika / deltachat cores live or replace them (§8)
 - [ ] Voice mode: real call UI on top of wrtc
 - [ ] First non-prerelease when owner approves
