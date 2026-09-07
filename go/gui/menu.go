@@ -2,9 +2,12 @@ package gui
 
 import (
 	"image"
+	"io"
+	"strings"
 
 	"gioui.org/io/clipboard"
 	"gioui.org/io/event"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -177,11 +180,15 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 	if acts.Edit {
 		items = append(items, menuAction{"Edit", func(gtx layout.Context) {
 			a.startEdit(&m)
+			gtx.Execute(key.FocusCmd{Tag: &composer})
 		}})
 	}
 	if acts.Copy {
 		items = append(items, menuAction{"Copy Text", func(gtx layout.Context) {
-			gtx.Execute(clipboard.WriteCmd{Text: m.ContentText})
+			gtx.Execute(clipboard.WriteCmd{
+				Type: "text/plain",
+				Data: io.NopCloser(strings.NewReader(m.ContentText)),
+			})
 		}})
 	}
 	if acts.Forward {
@@ -396,7 +403,7 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 					a.mu.Unlock()
 					a.invalidate()
 					go func() {
-						if err := a.eng.ForwardMessage(src.AccountID, src.ChatID, src.MsgID, dst.ChatID, false, false, false, false, 0); err != nil {
+						if err := a.eng.ForwardMessage(src.AccountID, src.ChatID, src.MsgID, dst.ChatID, false, false, false, 0); err != nil {
 							a.setToast("Forward failed: " + err.Error())
 						} else {
 							a.setToast("Forwarded to " + dst.Title)

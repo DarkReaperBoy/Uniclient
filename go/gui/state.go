@@ -451,7 +451,8 @@ func (a *App) startEdit(m *engine.CachedMessage) {
 	a.cMode.startEdit(m)
 	a.mu.Unlock()
 	composer.SetText(m.ContentText)
-	composer.Focus()
+	// Focus is executed by the menu's Edit action via key.FocusCmd (gio
+	// v0.10.2 editors take focus through commands, not methods).
 	a.invalidate()
 }
 

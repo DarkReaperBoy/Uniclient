@@ -292,7 +292,7 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			d = a.messageRow(gtx, f, r.msg)
 		}
 		if r.idx >= 0 {
-			a.rowBounds[r.idx] = image.Rect{Min: image.Pt(0, a.listTop+y), Max: image.Pt(paneW, a.listTop+y+d.Size.Y)}
+			a.rowBounds[r.idx] = image.Rectangle{Min: image.Pt(0, a.listTop+y), Max: image.Pt(paneW, a.listTop+y+d.Size.Y)}
 		}
 		y += d.Size.Y
 		return d
@@ -450,7 +450,7 @@ func (a *App) replyQuote(gtx layout.Context, preview string) layout.Dimensions {
 					}))
 				}
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					lbl := a.ui.Dim(unit.Sp(12), previewText(body, 80))
+					lbl := a.ui.Dim(unit.Sp(12), quotePreview(body, 80))
 					lbl.MaxLines = 1
 					return lbl.Layout(gtx)
 				}))

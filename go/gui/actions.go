@@ -86,14 +86,14 @@ func (c *composerMode) active() bool { return c.reply != nil || c.edit != nil }
 // header returns the chip title and quoted preview for the active mode.
 func (c *composerMode) header() (title, preview string) {
 	if c.edit != nil {
-		return "Edit message", previewText(c.edit.ContentText, 64)
+		return "Edit message", quotePreview(c.edit.ContentText, 64)
 	}
 	if c.reply != nil {
 		title = "Reply to " + c.reply.SenderName
 		if c.reply.SenderName == "" {
 			title = "Reply"
 		}
-		return title, previewText(c.reply.ContentText, 64)
+		return title, quotePreview(c.reply.ContentText, 64)
 	}
 	return "", ""
 }
@@ -107,9 +107,9 @@ func (c *composerMode) replyTarget() string {
 
 func (c *composerMode) editTarget() *engine.CachedMessage { return c.edit }
 
-// previewText truncates s to max runes, appending an ellipsis when cut.
+// quotePreview truncates s to max runes, appending an ellipsis when cut.
 // Reply previews keep at most one newline (AyuGram quotes are one-liners).
-func previewText(s string, max int) string {
+func quotePreview(s string, max int) string {
 	s = strings.TrimSpace(s)
 	if i := strings.IndexByte(s, '\n'); i >= 0 {
 		s = s[:i]

@@ -131,8 +131,8 @@ func TestComposerMode(t *testing.T) {
 	}
 }
 
-// previewText truncates long quoted previews the way AyuGram's reply bar does.
-func TestPreviewText(t *testing.T) {
+// quotePreview truncates long quoted previews the way AyuGram's reply bar does.
+func TestQuotePreview(t *testing.T) {
 	cases := []struct {
 		in, want string
 	}{
@@ -142,12 +142,12 @@ func TestPreviewText(t *testing.T) {
 		{"line one\nline two", "line one"},
 	}
 	for _, c := range cases {
-		if got := previewText(c.in, 40); got != c.want {
-			t.Errorf("previewText(%q) = %q, want %q", c.in, got, c.want)
+		if got := quotePreview(c.in, 40); got != c.want {
+			t.Errorf("quotePreview(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
 	long := "0123456789012345678901234567890123456789012345"
-	if got := previewText(long, 40); got != "0123456789012345678901234567890123456789…" {
-		t.Errorf("previewText truncation failed: %q", got)
+	if got := quotePreview(long, 40); got != "0123456789012345678901234567890123456789…" {
+		t.Errorf("quotePreview truncation failed: %q", got)
 	}
 }
