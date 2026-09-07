@@ -13,8 +13,8 @@ dist/
 *.exe
 scripts/smoke/smoke_c
 
-# Test files — live API tests, not committed
-go/tests/
+# Live API test credentials (env vars, never committed)
+.env*
 
 # DC test account data
 go/accounts/
