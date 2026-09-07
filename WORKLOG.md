@@ -97,3 +97,20 @@ hallucination so do your own research."
   and builds, but regenerating requires rewriting those tools.
 - ADR-007 (XMPP E2EE) and the other open decisions in AGENTS.md §15 still
   stand.
+
+### Addendum (same session, later)
+
+Live protocol verification against REAL servers (go/tests/, build tag
+`live`, env-gated, now committed):
+
+- **GitHub core vs api.github.com** with a real PAT: Authenticate verified
+  via /user ("authenticated as DarkReaperBoy (Fallen Reaper)"), GetDialogs
+  round-trip, background pollLoop — PASS.
+- **IRC core vs irc.oftc.net:6697**: full TLS registration (NICK/USER →
+  001), MOTD (35 lines), clean Logout — PASS.
+- **Found+fixed by live testing**: IRC 465 (ERR_YOUREBANNED) stalled
+  registration to the 30s timeout with a generic error. Libera bans
+  datacenter IPs ("Your bot is not permitted"); the core now fails within
+  seconds carrying the server's actual ban text, and the reconnect loop
+  stops retrying permanent bans. Verified live against Libera (fails in
+  ~6s with the real reason).
