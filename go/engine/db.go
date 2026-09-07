@@ -6,6 +6,7 @@ package engine
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 )
@@ -57,7 +58,17 @@ var pragmas = []string{
 
 // openAndPragma opens the SQLite database and sets performance pragmas.
 func openAndPragma(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path)
+	// Per-connection pragmas MUST ride along in the DSN: sql.DB pools
+	// multiple connections and `db.Exec("PRAGMA ...")` only configures ONE
+	// of them — the rest would hit SQLITE_BUSY immediately under any
+	// concurrency (seen in CI: "insert pending: database is locked").
+	// journal_mode(WAL) is persistent in the file, the rest are per-connection.
+	dsn := "file:" + url.QueryEscape(path) +
+		"?_pragma=busy_timeout(5000)" +
+		"&_pragma=journal_mode(WAL)" +
+		"&_pragma=foreign_keys(1)" +
+		"&_pragma=synchronous(NORMAL)"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}

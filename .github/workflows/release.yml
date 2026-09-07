@@ -146,6 +146,7 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
       - name: Build APK
         run: |
+          mkdir -p dist
           cd go
           ~/go/bin/gogio -target android -arch arm64 -minsdk 24 -tags goolm \
             -o ../dist/uniclient.apk ./cmd/uniclient
