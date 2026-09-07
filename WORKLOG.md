@@ -262,3 +262,67 @@ wanted, binaries too big, not marked pre-release.
 - mumble/teamspeak rewrite (tests-first, docker-based) — hidden until then.
 - Telegram 1:1 AyuGram features (real folder sync, ghost mode, QR verify).
 - Voice mode wiring to wrtc; media downloads/inline images; XMPP E2EE ADR.
+
+## 2026-09-08 — Session 5: the placeholder purge (demo deleted, honest voice, verify pipeline)
+
+Owner's order: "ok now based on the agents.md, work on it." — executed per
+the AGENTS.md §2 workflow (research → think → rate → plan → tests → code →
+verify), starting from the topmost unchecked checklist items.
+
+### Ratings (§2 step 3, recorded as required)
+- Demo backend: **1/10** — shipped fabricated chats/users to the owner's
+  GUI (§1.10 violation). Verdict: complete deletion, nothing salvaged.
+- Voice tab: **5/10** — data was real (HasActiveCall) but the copy promised
+  future work ("being rebuilt — see AGENTS.md") and Join was a dead stub
+  button. Verdict: strip the promises and the dead button, keep honest
+  rows + empty state.
+- Engine auth machine: **7/10** — solid per-platform state machine; demo
+  was special-cased in 3 places (initialAuthState, advanceAuth, the
+  credential-free StartAuth shortcut). All excised; the shortcut was dead
+  code once demo was gone.
+- Old bootstrap test: **3/10** — depended on the banned fake platform and
+  contained a no-op placeholder test. Both replaced.
+
+### What changed
+- DELETED: go/cores/demo.go (315 lines of fake world), the `-demo` flag,
+  the welcome-screen "Try the demo" CTA, the Demo picker card, the
+  bootstrap factory row, and all engine auth demo special-cases.
+- bootstrap: `SupportedPlatforms()` is now the single source of truth for
+  real backends; saved accounts with unsupported platforms are PURGED at
+  boot (the owner's vaulted demo row vanishes instead of rotting as a dead
+  error row).
+- gui/voice: honest state only — "being rebuilt" copy and the dead Join
+  button removed; rows are informational until real call UI lands on wrtc.
+- Makefile: `make run` no longer passes -demo.
+- NEW `.github/workflows/verify.yml`: dispatch-only manual verification
+  runner (gofmt/vet/tests + windows/wasm cross-builds + Xvfb GUI smoke
+  with screenshot artifacts). Born out of necessity: this 4GB sandbox
+  OOM-kills gotd/td's tg compile (3.6GB RSS, every GC recipe tried), so
+  CI's 16GB runners are the build path here. Documented in AGENTS.md §5.
+
+### Tests (written FIRST, red against the pre-deletion code)
+- TestStartAuthRejectsUnknownPlatforms — "demo" must be refused.
+- TestUnsupportedAccountsPurgedAtBoot — stale demo rows removed at boot.
+- TestFactoryConstructsEverySupportedPlatform — all 10 real backends build.
+- gui TestPlatformsAreRealBackends — picker ⊆ factory, no placeholder IDs.
+- cores TestStubCoreIsHonest — stub never fakes success.
+- Engine e2e rewritten on a TEST-LOCAL fake core (never shipped) via the
+  real saved-account boot path: SaveCredentials → ConnectAccount → sync →
+  send → echo events → cache → restart → ConnectAllAccounts reconnect.
+
+### Verification (real, not "it compiles")
+- GitHub Actions (dispatch, main): runs 34151360457, 34152145890,
+  34152662552 — test/vet/gofmt GREEN, windows+wasm GREEN, GUI smoke GREEN.
+- VLM review of CI screenshots: welcome screen shows exactly ONE CTA
+  ("Add an account"), NO demo mention; picker grid = 8 real cards
+  (Telegram, IRC, Matrix, GitHub, XMPP, Delta Chat, Bale, Rubika), NO
+  Demo card; clicking a card opens the REAL auth state machine (Delta
+  Chat email form, Continue/Back/Cancel, account listed offline).
+- Purge test proves the owner's existing demo account self-destructs on
+  next launch.
+
+### Leftovers / next session
+- Telegram 1:1 AyuGram features (folder sync, ghost mode, QR verification).
+- mumble/teamspeak rewrite (tests-first, dockerized servers).
+- Live-verify or replace xmpp / bale / rubika / deltachat.
+- Real call UI on wrtc (voice rows informational until then).

@@ -180,6 +180,15 @@ Jobs:
 One artifact name per platform, all called `uniclient-*`. No tarballs unless
 the owner asks.
 
+**`.github/workflows/verify.yml`** — dispatch-only manual verification runner
+(constitution-compliant: `workflow_dispatch` trigger, never `on: push`).
+Runs the full quality gate (gofmt/vet/tests), windows+wasm cross-builds, and
+an **Xvfb GUI smoke** that boots the real binary and uploads screenshots as
+artifacts for review. Use it to verify any commit without cutting a release
+— this is also the ONLY way to build/test on machines too small to compile
+gotd's `tg` package (needs ≥4GB free RAM; small sandboxes dispatch CI
+instead).
+
 ## 6. NixOS (owner's daily driver)
 
 Root `flake.nix` provides `packages.default` (the app, built with Nix's cgo
@@ -310,11 +319,16 @@ is the next task.
       requirements dump folded into §1/§8/§9/§10, and the owner's workflow
       rules (deep research → think deeply → rate → best plan → tests →
       code → real-world verify) enforced as §1.13-14 + §2
-- [ ] **Delete the demo backend** — `cores/demo.go`, `-demo` flag,
-      welcome-screen demo entry, README "demo mode" mentions, demo rows in
-      bootstrap registration (banned, §1.10)
-- [ ] Voice tab pass: strip any "coming soon" copy; show only real engine
-      state until real call UI exists (§7)
+- [x] **Delete the demo backend** — `cores/demo.go`, `-demo` flag,
+      welcome-screen demo entry, bootstrap registration: DONE, verified
+      (tests-first: StartAuth rejects "demo", stale demo rows purged at
+      boot; welcome-screen screenshot shows one CTA "Add an account",
+      no demo mention; run 34151360457 all green)
+- [x] Voice tab pass: "coming soon"/"being rebuilt" copy and dead Join
+      button removed — real engine state only (§7); compile+review verified
+      (visual pass lands with a real voice-capable account)
+- [x] Dispatch-only verify workflow (§5) — full gate + cross-builds +
+      Xvfb GUI smoke with screenshot artifacts
 - [ ] Telegram 1:1 AyuGram features (folders sync, ghost mode, QR verify...)
 - [ ] mumble + teamspeak rewrite (tests first, docker-based, §8)
 - [ ] Verify xmpp / bale / rubika / deltachat cores live or replace them (§8)
