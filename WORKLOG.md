@@ -847,3 +847,10 @@ Stage Summary:
 - **54 Folder tab menu + invite links**: right-click a server folder tab → Edit / Move left / Move right (engine ReorderDialogFilters, boundary-aware) / Invite links / Delete; new chatlist-share dialog (GetFolderInviteLinks list, tap-to-copy, CreateFolderInviteLink); Esc + outside-press dismissal
 - Matrix: rows 87 (custom-emoji pills), 48 (three-pane — was stale), 78 (header avatar — was stale) flipped to PRESENT
 - CI: slice-53 run 34257548785 in flight; the earlier 34254679916 failure was a transient artifact-upload 403 (smoke itself passed; superseded GREEN by 34254967388)
+---
+## 2026-09-09 — slices 53–55
+
+- **53 Custom-emoji reaction pills** (CI gofmt hiccup fixed in 43da68ec): static doc thumbs in pills, custom_<docID> toggle convention, webp decode
+- **54 Folder tab menu + invite links**: Edit / Move left/right / Invite links / Delete + chatlist-share dialog
+- **55 Full reaction picker**: quick bar (7 + ⋯) swaps the menu into a full scrollable 8-column grid
+- Matrix rows 48/55/78/87/154 flipped to PRESENT (three-pane, folder management, header avatar, custom pills, reaction picker)

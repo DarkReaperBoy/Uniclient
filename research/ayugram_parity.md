@@ -151,7 +151,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
 | Message context menu (base) | Copy, forward, reply, edit, pin, delete, select, report | PRESENT (slice 19 completes: report w/ full interactive reason+comment flow; delete dialog w/ for-all revoke; select + bulk actions shipped slice 14) | gui/menu.go + gui/deldlg.go + gui/report.go | P0 |
-| Reaction picker in menu | Emoji row at top of menu | PARTIAL (2026-09: quick-reaction row from GetAvailableReactions w/ TG default fallback; full tabbed picker pending) | gui/menu.go menuReactionsRow | P0 |
+| Reaction picker in menu | Emoji row at top of menu | PRESENT (2026-09: quick bar 7 pills + ⋯ toggle; slice 55: full 8-column scrollable picker grid of all available reactions, anchored at the menu, shared dismissal paths; premium-marked custom reactions pending engine premium flags) | gui/menu.go menuReactionsRow + layoutReactionPicker | P0 |
 | Delete dialog w/ "delete for all" | Revoke checkbox | PRESENT (slice 19: single + bulk confirm dialog, checkbox for outgoing/admin, per-message revoke) | gui/deldlg.go + engine DeleteMessage | P0 |
 | Forward picker (share box) | Choose recipients, hide-sender options (Ayu) | PRESENT (hide sender/captions since slice 23; slice 41: multi-pick — rows toggle recipients w/ check circles, Send bar commits to all selected, selection resets on open; comment field later) | gui/menu.go layoutForwardDialog + engine.ForwardMessage(s) | P1 |
 | Copy link to message | t.me link copy | PRESENT (slice 34: context-menu Copy Link → engine MessageLink → core ExportMessageLink; clipboard flush via frame loop) | gui/menu.go + engine MessageLink + cores ExportMessageLink | P2 |
