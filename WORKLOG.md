@@ -803,3 +803,15 @@ Work Log:
 
 Stage Summary:
 - 41 slices landed; CI green through 37; runs in flight for 38-39 and 40-41
+
+---
+## 2026-09-08 — slices 42–47
+
+- **42 Polls**: attach-menu Poll → creation dialog (question/options/anonymous/multiple/quiz+correct, engine.CreatePollEx); poll bubbles from message Extra (vote bars, quiz reveal, optimistic VotePoll overlay)
+- **43 Keyboard shortcuts**: global key layer — Esc dismissal stack, Ctrl+F search, Ctrl+↑↓/PgUp/PgDn chat switching (gui/shortcuts.go)
+- **44 Streamer mode**: drawer toggle + vault persistence; masked names/presence, neutral person avatars (gui/streamer.go)
+- **45 Notification privacy**: "Message previews" toggle; banners hide text/sender while off (gui/notify.go, AppConfig.NotifyPreviews *bool)
+- **46 Ayu translator**: message menu Translate/Hide translation → engine.TranslateText; italic block under bubble (gui/translate.go)
+- **47 Ayu marks**: customizable deleted/edited mark strings in settings_ayu (gui/marks.go, AppConfig.AyuDeletedMark/AyuEditedMark)
+- Infra: fixed the node+wasm test runner (Go 1.27 wasm_exec.js is library-only; wrapper now uses GOROOT/lib/wasm/go_js_wasm_exec) — tests verified actually executing
+- CI: 34250036199 (s42) + 34251620044 (s43–45) GREEN; verify dispatched for s46–47
