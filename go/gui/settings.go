@@ -743,6 +743,23 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			return btn.Layout(gtx)
 		})
 	}))
+	// Drawer customization (Ayu "drawer" menu parity): hide drawer rows.
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Ayu · Drawer")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Show drawer items", "Hide rows you never use; Settings always stays")
+	}))
+	for _, item := range drawerCustomItems() {
+		item := item
+		visible := !drawerRowHidden(f.cfg.DrawerHidden, item.id)
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.toggleRow(gtx, "drawer:"+item.id, item.label, visible, func(v bool) {
+				a.applyDrawerHidden(item.id, v)
+			})
+		}))
+	}
+
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 

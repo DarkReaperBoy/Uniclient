@@ -939,6 +939,7 @@ type cfgSnapshot struct {
 	NotifyGroups           bool
 	NotifyMentionsOnly     bool
 	RecentSearches         []string
+	DrawerHidden           []string
 }
 
 // notifyAcctState carries per-account notification behavior for the page.
@@ -993,6 +994,7 @@ func (a *App) refreshConfig() {
 		NotifyGroups:           c.NotifyGroups,
 		NotifyMentionsOnly:     c.NotifyMentionsOnly,
 		RecentSearches:         c.RecentSearches,
+		DrawerHidden:           c.DrawerHiddenItems,
 	}
 	a.mu.Lock()
 	a.cfg = snap
@@ -1064,6 +1066,31 @@ func (a *App) loadGhost() {
 }
 
 // applyConfigBool persists one config boolean via the bridge (async).
+// applyDrawerHidden shows/hides one drawer row (Ayu customization).
+func (a *App) applyDrawerHidden(id string, show bool) {
+	go func() {
+		c := a.eng.GetConfig()
+		if c == nil {
+			return
+		}
+		hidden := make([]string, 0, len(c.DrawerHiddenItems))
+		for _, h := range c.DrawerHiddenItems {
+			if h != id {
+				hidden = append(hidden, h)
+			}
+		}
+		if !show {
+			hidden = append(hidden, id)
+		}
+		ch := engine.ConfigChanges{DrawerHiddenItems: hidden}
+		if err := a.eng.UpdateConfigFromBridge(&ch); err != nil {
+			a.setToast("Drawer settings: " + err.Error())
+			return
+		}
+		a.refreshConfig()
+	}()
+}
+
 func (a *App) applyConfigBool(field string, v bool) {
 	go func() {
 		c := configFieldChanges(field, v)

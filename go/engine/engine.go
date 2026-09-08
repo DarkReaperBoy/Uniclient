@@ -640,6 +640,9 @@ func (e *Engine) UpdateConfig(changes *utils.AppConfig) error {
 	if changes.RecentSearches != nil {
 		e.config.RecentSearches = changes.RecentSearches
 	}
+	if changes.DrawerHiddenItems != nil {
+		e.config.DrawerHiddenItems = changes.DrawerHiddenItems
+	}
 	if changes.AccentColor != "" {
 		e.config.AccentColor = changes.AccentColor
 	}
@@ -673,6 +676,9 @@ type ConfigChanges struct {
 	NotifyDMs              *bool
 	NotifyGroups           *bool
 	NotifyMentionsOnly     *bool
+
+	// Drawer customization (Ayu): ids of hidden drawer rows. Nil = unchanged.
+	DrawerHiddenItems []string
 }
 
 // UpdateConfigFromBridge applies partial config changes from the bridge layer.
@@ -698,6 +704,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.DownloadDir != "" {
 		e.config.DownloadDir = changes.DownloadDir
+	}
+	if changes.DrawerHiddenItems != nil {
+		e.config.DrawerHiddenItems = changes.DrawerHiddenItems
 	}
 	if changes.SendReadReceipts != nil {
 		e.config.SendReadReceipts = *changes.SendReadReceipts

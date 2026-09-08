@@ -238,7 +238,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Ayu message filters (regex) | Hide msgs by regex/author | MISSING | new engine feature | P3 |
 | Forward options (Ayu rich) | Hide sender/captions when forwarding | PRESENT (slice 23: forward picker options row feeds dropAuthor/dropCaptions for single + batch) | gui/menu.go + engine ForwardMessage(s) | P1 |
 | Shadow ban list | Per-chat local shadowban + quick menu | MISSING | new engine feature | P3 |
-| Drawer customization | Show/hide each drawer item | MISSING | gui/menu.go + settings_ayu | P2 |
+| Drawer customization | Show/hide each drawer item | PRESENT (slice 38: Settings → Ayu · Drawer toggles for Saved/Contacts/Calls/Ghost/New group/New channel; hidden list persists in the vault config, rows filtered at build; Settings row always shown) | gui/drawer.go + gui/settings.go + AppConfig.drawer_hidden_items | P2 |
 | Font customization + mono font | Font selector box | PARTIAL (font scale only in config, not exposed) | gui/theme.go + settings | P2 |
 | App icon selector | Alternative app icons | MISSING | P3 (platform-dependent) | P3 |
 | Ayu deleted/edited mark strings | Customizable marks | MISSING | settings_ayu | P2 |

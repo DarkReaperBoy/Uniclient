@@ -46,6 +46,9 @@ type AppConfig struct {
 	// Search
 	RecentSearches []string `json:"recent_searches,omitempty"` // last 8 queries
 
+	// Drawer customization (Ayu "drawer" menu): ids of hidden rows.
+	DrawerHiddenItems []string `json:"drawer_hidden_items,omitempty"`
+
 	// Notifications
 	NotifyDMs          bool `json:"notify_dms"`
 	NotifyGroups       bool `json:"notify_groups"`

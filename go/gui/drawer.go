@@ -327,13 +327,19 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 	})
 
 	// Saved messages (self chat).
-	rows = append(rows, a.drawerIconRow(&drawerSavedBtn, iconActionBackup, "Saved messages"))
+	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemSaved) {
+		rows = append(rows, a.drawerIconRow(&drawerSavedBtn, iconActionBackup, "Saved messages"))
+	}
 
 	rows = append(rows, a.drawerDividerRow())
 
 	// Contacts / Calls / Night mode.
-	rows = append(rows, a.drawerIconRow(&drawerContacts, iconCommunicationContacts, "Contacts"))
-	rows = append(rows, a.drawerIconRow(&drawerCalls, iconCommunicationCall, "Calls"))
+	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemContacts) {
+		rows = append(rows, a.drawerIconRow(&drawerContacts, iconCommunicationContacts, "Contacts"))
+	}
+	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemCalls) {
+		rows = append(rows, a.drawerIconRow(&drawerCalls, iconCommunicationCall, "Calls"))
+	}
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 		return a.drawerSwitchRow(gtx, iconImagePalette, "Night mode", drawerNight)
 	})
@@ -341,26 +347,32 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 	rows = append(rows, a.drawerDividerRow())
 
 	// AyuGram section: ghost-mode master + preferences shortcut.
-	rows = append(rows, a.drawerSectionLabel("AyuGram"))
-	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return a.drawerSwitchRow(gtx, iconActionGhost, "Ghost mode", drawerGhost)
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.IconButton(&drawerGhostCfg, iconNavChevronRight, "Ghost preferences")
-				btn.Color = a.ui.p.TextDim
-				btn.Size = unit.Dp(16)
-				return btn.Layout(gtx)
-			}),
-		)
-	})
+	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemGhost) {
+		rows = append(rows, a.drawerSectionLabel("AyuGram"))
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return a.drawerSwitchRow(gtx, iconActionGhost, "Ghost mode", drawerGhost)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					btn := a.ui.IconButton(&drawerGhostCfg, iconNavChevronRight, "Ghost preferences")
+					btn.Color = a.ui.p.TextDim
+					btn.Size = unit.Dp(16)
+					return btn.Layout(gtx)
+				}),
+			)
+		})
+	}
 
 	rows = append(rows, a.drawerDividerRow())
 
 	// New group / New channel (accent rows, like Ayu's blue actions).
-	rows = append(rows, a.drawerIconRowAccent(&drawerNewGroup, iconSocialGroup, "New group"))
-	rows = append(rows, a.drawerIconRowAccent(&drawerNewChan, iconCommunicationChat, "New channel"))
+	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemNewGroup) {
+		rows = append(rows, a.drawerIconRowAccent(&drawerNewGroup, iconSocialGroup, "New group"))
+	}
+	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemNewChan) {
+		rows = append(rows, a.drawerIconRowAccent(&drawerNewChan, iconCommunicationChat, "New channel"))
+	}
 
 	rows = append(rows, a.drawerDividerRow())
 
@@ -503,4 +515,36 @@ func drawerAccountRowLabel(gtx layout.Context, u *UI, btn *widget.Clickable, lab
 				})
 			})
 		})
+}
+
+// Drawer row ids for the customization settings (Ayu "drawer" menu).
+const (
+	drawerItemSaved    = "saved"
+	drawerItemContacts = "contacts"
+	drawerItemCalls    = "calls"
+	drawerItemGhost    = "ghost"
+	drawerItemNewGroup = "new_group"
+	drawerItemNewChan  = "new_channel"
+)
+
+// drawerRowHidden reports whether a drawer row id is hidden by config.
+func drawerRowHidden(hidden []string, id string) bool {
+	for _, h := range hidden {
+		if h == id {
+			return true
+		}
+	}
+	return false
+}
+
+// drawerCustomItems lists the toggleable rows: id + display label.
+func drawerCustomItems() []struct{ id, label string } {
+	return []struct{ id, label string }{
+		{drawerItemSaved, "Saved messages"},
+		{drawerItemContacts, "Contacts"},
+		{drawerItemCalls, "Calls"},
+		{drawerItemGhost, "Ghost mode"},
+		{drawerItemNewGroup, "New group"},
+		{drawerItemNewChan, "New channel"},
+	}
 }
