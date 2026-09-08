@@ -859,3 +859,8 @@ Stage Summary:
 
 - **56 Attach Location + Contact**: attach menu entries; Location = lat/lon dialog (SendLocation); Contact = account contact picker (SendContact); dedicated bubbles — map-card w/ pin + live badge (tap copies maps URL), person-card (tap copies phone); parser tests lock the Extra contract
 - CI: runs for 43da68ec (gofmt fix) + 2782f703 (s55) in flight; 34257548785 (s53) failed on the since-fixed gofmt gate
+---
+## 2026-09-09 — slice 57
+
+- **57 Search results tabs**: All/Chats/Messages/Links/Files bar over the sidebar results; engine SearchMessagesEx kind filters (links = URL text/entities, files = has_media); invite row survives tabs
+- CI: 34258709036 (gofmt fix, s53–54) GREEN; dispatched for s55–57
