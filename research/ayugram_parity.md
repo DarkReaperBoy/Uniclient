@@ -100,7 +100,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Not-joined channel view | Channel w/o join: preview + big "Join" button | CORE-ONLY (ChatInfo.NotJoined/JoinRequest CORE-ONLY) | gui/chat.go + engine.JoinChannel | P1 |
 | Slowmode / write restriction | Composer disabled w/ countdown/text | CORE-ONLY (ChatInfo.Slowmode*/WriteRestriction* CORE-ONLY) | gui/chat.go composerBar | P1 |
 | Forum topics view | Topic list + topic bars + subsection tabs | CORE-ONLY (engine forum CRUD all CORE-ONLY) | new gui/topics.go | P2 |
-| Chat background | Per-chat wallpaper, chat themes | CORE-ONLY (engine GetChatThemes/SetChatTheme CORE-ONLY) | gui/theme.go | P3 |
+| Chat background | Per-chat wallpaper, chat themes | PARTIAL (slice 65: DM ⋮ menu "Change colors…" picker w/ server chat themes (emoticon chips tinted w/ message colors, Reset) → engine.SetChatTheme for both sides; in-app wallpaper/bubble re-tint + per-chat preview later) | gui/chattheme.go + engine GetChatThemes/SetChatTheme | P3 |
 | Voice-message transcription | "▶ Transcribe" button on voice notes | CORE-ONLY | engine.TranscribeAudio (CORE-ONLY!) | P2 |
 | Sponsored messages (channels) | Marked sponsored post | CORE-ONLY | engine.GetSponsoredInfo (CORE-ONLY) | P3 |
 
