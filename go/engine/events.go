@@ -248,6 +248,17 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 			e.updateMessageReactions(accountID, u.ChatID, u.MessageID, u.Message.Reactions)
 		}
 
+	case cores.UpdatePollResults:
+		// Live poll counts (tg.UpdateMessagePoll): merge into the cached
+		// message's raw extra; the chat resolves from cache when empty.
+		if u.Message != nil {
+			chatID := u.ChatID
+			if chatID == "" {
+				chatID = u.Message.ChatID
+			}
+			e.mergePollResults(accountID, chatID, u.Message.ID, u.Message.Extra)
+		}
+
 	case cores.UpdateReadState:
 		if u.ReadState != nil {
 			e.handleReadState(accountID, u.ChatID, u.ReadState)

@@ -182,7 +182,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Reactions/views list | Who reacted w/ which emoji | PRESENT (slice 49: message menu 'Who reacted' → dialog w/ per-emoji tabs (engine GetMessageReactorsList w/ filter + offset paging); rows 'emoji + name'; views list later) | gui/reactors.go + engine.GetMessageReactorsList | P2 |
 | Common groups | Shared chats w/ user | CORE-ONLY | engine.GetCommonChats (CORE-ONLY) | P3 |
 | Saved Messages | Own chat + saved sublists + tags | CORE-ONLY | engine.OpenSavedMessages/GetSavedSublists (CORE-ONLY) | P2 |
-| Poll results panel | Votes per option | PARTIAL (slice 42: poll bubbles — question, tappable options, vote bars w/ percentages, quiz correct/wrong reveal, voters footer, optimistic vote overlay; core does not surface UpdateMessagePoll so live result pushes need engine work) | gui/poll.go + engine VotePoll/VotePollMulti/CreatePollEx | P2 |
+| Poll results panel | Votes per option | PRESENT (slice 42: poll bubbles — question, tappable options, vote bars w/ percentages, quiz correct/wrong reveal, voters footer, optimistic vote overlay; slice 51: core registers OnMessagePoll → cores.UpdatePollResults (Peer+MsgID, PollID fallback), engine merges counts into cached content_raw (option-byte match, chat resolved from cache on old layers) + EventMsgEdited → live refresh) | gui/poll.go + cores OnMessagePoll + engine mergePollResults | P2 |
 | Bot info panel | Bot description + commands | CORE-ONLY | engine.GetBotManageInfo (CORE-ONLY) | P3 |
 
 ## 8. Settings — scope: SHARED shell; folders/premium/stars/business/passport sections = TG

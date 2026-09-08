@@ -74,6 +74,12 @@ const (
 	// Telegram Desktop HistoryWidget::refreshReactionSummary — the GUI's
 	// reaction strip re-renders from the engine cache.
 	UpdateReactions UpdateType = "reactions"
+	// UpdatePollResults carries fresh vote counts for one poll message
+	// (tg.UpdateMessagePoll). Message.ID is the message id (poll id on
+	// older layers); Message.Extra carries the updated poll_* fields. The
+	// engine merges them into the cached content_raw so poll bubbles
+	// re-render with live results (AyuGram polls refresh in place).
+	UpdatePollResults UpdateType = "poll_results"
 )
 
 // CallState represents the current phase of a voice or video call.

@@ -1077,6 +1077,62 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
+	// Poll results (tg.UpdateMessagePoll): fresh vote counts for a poll.
+	// Newer layers carry Peer + MsgID; older ones only PollID (== message
+	// id for message polls), where the engine resolves the chat from cache.
+	dispatcher.OnMessagePoll(func(ctx context.Context, e tg.Entities, u *tg.UpdateMessagePoll) error {
+		msgID := int64(0)
+		chatID := ""
+		if peer, ok := u.GetPeer(); ok && peer != nil {
+			if id := peerToID(peer); id != "" {
+				chatID = id
+			}
+		}
+		if mid, ok := u.GetMsgID(); ok && mid != 0 {
+			msgID = int64(mid)
+		} else if msgID == 0 {
+			msgID = u.PollID
+		}
+
+		extra := map[string]interface{}{}
+		if res := u.GetResults(); res.Results != nil || res.TotalVoters > 0 {
+			if rs := res.Results; len(rs) > 0 {
+				opts := make([]map[string]interface{}, 0, len(rs))
+				for _, v := range rs {
+					opt := map[string]interface{}{
+						"option": base64.StdEncoding.EncodeToString(v.Option),
+					}
+					opt["voters"] = v.Voters
+					opt["chosen"] = v.Chosen
+					opt["correct"] = v.Correct
+					opts = append(opts, opt)
+				}
+				extra["poll_results_merge"] = opts
+			}
+			if tv, ok := res.GetTotalVoters(); ok {
+				extra["poll_total_voters"] = tv
+			}
+		}
+		if poll, ok := u.GetPoll(); ok {
+			if poll.Closed {
+				extra["poll_closed"] = true
+			}
+		}
+
+		m := &Message{
+			ID:     strconv.FormatInt(msgID, 10),
+			ChatID: chatID,
+			Extra:  extra,
+		}
+		t.fireUpdate(Update{
+			Type:     UpdatePollResults,
+			ChatID:   chatID,
+			Message:  m,
+			Platform: tgPlatform,
+		})
+		return nil
+	})
+
 	// following the tgcalls protocol spec in docs/tgcalls_protocol.md
 }
 

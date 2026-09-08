@@ -335,6 +335,136 @@ func (e *Engine) updateMessageReactions(accountID, chatID, msgID string, reactio
 	})
 }
 
+// mergePollResults folds a poll-results update (cores.UpdatePollResults,
+// from tg.UpdateMessagePoll) into the cached message's raw JSON: per-option
+// voters/chosen/correct matched by option bytes, total voters, closed flag.
+// Emits EventMsgEdited so the GUI re-renders the poll bubble with live
+// counts. ChatID may be empty on older layers — resolved via a cache lookup
+// on the message id (poll ids equal message ids for message polls).
+func (e *Engine) mergePollResults(accountID, chatID, msgID string, extra map[string]interface{}) {
+	if msgID == "" || len(extra) == 0 {
+		return
+	}
+	if chatID == "" {
+		// Resolve the chat that caches this poll message.
+		row := e.db.QueryRow(
+			`SELECT chat_id FROM messages
+			 WHERE account_id = ? AND msg_id = ? AND content_raw LIKE '%poll_question%'
+			 LIMIT 1`, accountID, msgID)
+		if err := row.Scan(&chatID); err != nil || chatID == "" {
+			return
+		}
+	}
+
+	var raw []byte
+	err := e.db.QueryRow(
+		`SELECT content_raw FROM messages
+		 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+		accountID, chatID, msgID).Scan(&raw)
+	if err != nil || len(raw) == 0 {
+		return
+	}
+
+	var msg struct {
+		Extra map[string]interface{} `json:"extra"`
+	}
+	if err := json.Unmarshal(raw, &msg); err != nil || msg.Extra == nil {
+		return
+	}
+
+	if tv, ok := extraNumEngine(extra["poll_total_voters"]); ok {
+		msg.Extra["poll_total_voters"] = tv
+	}
+	if closed, ok := extra["poll_closed"].(bool); ok && closed {
+		msg.Extra["poll_closed"] = true
+	}
+	if merge, ok := extra["poll_results_merge"].([]interface{}); ok {
+		cur, _ := msg.Extra["poll_options"].([]interface{})
+		for _, mo := range merge {
+			mo, ok := mo.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			key, _ := mo["option"].(string)
+			if key == "" {
+				continue
+			}
+			for i, co := range cur {
+				cm, ok := co.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if cm["option"] == key {
+					if v, ok := extraNumEngine(mo["voters"]); ok {
+						cm["voters"] = v
+					}
+					if b, ok := mo["chosen"].(bool); ok {
+						cm["chosen"] = b
+					}
+					if b, ok := mo["correct"].(bool); ok {
+						cm["correct"] = b
+					}
+					cur[i] = cm
+					break
+				}
+			}
+		}
+		msg.Extra["poll_options"] = cur
+	}
+
+	// content_raw is a full cores.Message JSON; rewrite the extra object.
+	patched, err := patchRawExtra(raw, msg.Extra)
+	if err != nil {
+		return
+	}
+	if _, err := e.db.Exec(
+		`UPDATE messages SET content_raw = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+		patched, accountID, chatID, msgID); err != nil {
+		return
+	}
+	e.emitEvent(EventMsgEdited, accountID, MsgEditedEvent{
+		AccountID: accountID,
+		ChatID:    chatID,
+		MsgID:     msgID,
+	})
+}
+
+// patchRawExtra rewrites the "extra" object of a marshaled cores.Message
+// JSON, preserving every other field byte-for-byte is not required — a
+// decode/re-encode round-trip of the raw map is acceptable (fields the
+// engine does not model survive as raw JSON).
+func patchRawExtra(raw []byte, extra map[string]interface{}) ([]byte, error) {
+	var doc map[string]interface{}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, err
+	}
+	doc["extra"] = extra
+	return json.Marshal(doc)
+}
+
+// extraNumEngine coerces a number carried in an interface{} to float64.
+// JSON-decoded values arrive as float64; cores-side constructors use
+// native ints — both must merge.
+func extraNumEngine(v interface{}) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case uint32:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	}
+	return 0, false
+}
+
 // toggleReaction applies the user's own reaction toggle to a cached reaction
 // list (optimistic UI): adding a new or existing emoji, or removing the own
 // reaction when the emoji already has one. Mirrors Telegram Desktop
