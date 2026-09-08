@@ -233,7 +233,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Message edit history | Revisions viewer | CORE-ONLY | engine.GetEditRevisions (CORE-ONLY) | P2 |
 | Streamer mode | Blur names/photos on stream, tray toggle | PARTIAL (slice 44: drawer toggle persisted in vault config (streamer_mode, engine ConfigChanges); masked chat titles, header titles+presence, sender names, forward headers, reply-quote senders, profile names; avatars fall back to a neutral person glyph; tray toggle later) | gui/streamer.go + utils AppConfig.StreamerMode | P2 |
 | Local Telegram Premium | Unlock premium perks locally | MISSING | engine premium APIs exist; local-premium flag new | P3 |
-| Ayu translator | Provider-based inline translation | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
+| Ayu translator | Provider-based inline translation | PRESENT (slice 46: message menu Translate / Hide translation; engine TranslateText free-text path (Telegram MT translate) + message-bound fallback; italic block with caption under the bubble; target-language setting later) | gui/translate.go + engine.TranslateText | P2 |
 | Message shot | Export a message screenshot as image | MISSING (no core; needs renderer) | gui render-to-image | P3 |
 | Ayu message filters (regex) | Hide msgs by regex/author | MISSING | new engine feature | P3 |
 | Forward options (Ayu rich) | Hide sender/captions when forwarding | PRESENT (slice 23: forward picker options row feeds dropAuthor/dropCaptions for single + batch) | gui/menu.go + engine ForwardMessage(s) | P1 |

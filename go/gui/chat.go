@@ -573,6 +573,10 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						}
 						return a.richTextLabel(gtx, body, unit.Sp(15), baseCol, bgCol, true)
 					}),
+					// Translation block (Ayu translator, slice 46).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.translationBlock(gtx, m)
+					}),
 					// Reactions strip (AyuGram parity: emoji + count, own highlighted).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if len(m.Reactions) == 0 {

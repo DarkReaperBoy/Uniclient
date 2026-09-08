@@ -218,6 +218,16 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			})
 		}})
 	}
+	// Ayu translator (AyuGram "translate message": inline under the bubble).
+	if acts.Translate {
+		label := "Translate"
+		if _, shown := a.translationFor(&m); shown {
+			label = "Hide translation"
+		}
+		items = append(items, menuAction{label, func(gtx layout.Context) {
+			a.toggleTranslation(&m)
+		}})
+	}
 	// Copy link to message (AyuGram: t.me link for channel/group posts).
 	chat := chatOf(f, m)
 	if chat.Type == engine.ChatTypeChanVal || chat.Type == engine.ChatTypeGroupVal {

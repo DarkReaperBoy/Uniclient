@@ -168,6 +168,10 @@ type App struct {
 	pollDlg   *pollDlgState
 	pollVotes map[string]map[int]bool
 
+	// translations (AyuGram Ayu translator, slice 46): shown message
+	// translations, keyed account|chat|msg.
+	translations map[string]string
+
 	// per-message silent sends (AyuGram 🔕, slice 23): sticky toggle
 	silentNext bool
 
@@ -229,17 +233,18 @@ type App struct {
 
 func New(win *app.Window, eng *engine.Engine) *App {
 	return &App{
-		win:         win,
-		ui:          NewUI(),
-		eng:         eng,
-		expl:        explorer.NewExplorer(win),
-		typing:      make(map[string]time.Time),
-		connecting:  make(map[string]bool),
-		rowBounds:   make(map[int]image.Rectangle),
-		sbTabBounds: make([]image.Rectangle, 0, 8),
-		downloads:   make(map[string]dlState),
-		autoDl:      make(map[string]bool),
-		pollVotes:   make(map[string]map[int]bool),
+		win:          win,
+		ui:           NewUI(),
+		eng:          eng,
+		expl:         explorer.NewExplorer(win),
+		typing:       make(map[string]time.Time),
+		connecting:   make(map[string]bool),
+		rowBounds:    make(map[int]image.Rectangle),
+		sbTabBounds:  make([]image.Rectangle, 0, 8),
+		downloads:    make(map[string]dlState),
+		autoDl:       make(map[string]bool),
+		pollVotes:    make(map[string]map[int]bool),
+		translations: make(map[string]string),
 	}
 }
 

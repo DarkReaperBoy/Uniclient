@@ -15,13 +15,14 @@ import (
 
 // msgActions is the set of context-menu actions available for one message.
 type msgActions struct {
-	Reply   bool
-	Edit    bool
-	Copy    bool
-	Forward bool
-	Delete  bool
-	Pin     bool
-	React   bool
+	Reply     bool
+	Edit      bool
+	Copy      bool
+	Forward   bool
+	Delete    bool
+	Pin       bool
+	React     bool
+	Translate bool
 }
 
 // actionsFor derives the AyuGram message context-menu action set.
@@ -29,6 +30,7 @@ type msgActions struct {
 //   - Edit: own outgoing, non-service, confirmed (server echo'd it).
 //   - Forward: hidden when the chat/sender forbids it (NoForwards).
 //   - React: only when the backend has the REACTIONS capability.
+//   - Translate: any message with text (Ayu translator; free-text path).
 //   - Delete: always available for real messages (revoke = own message).
 //   - Pin: available; the engine surfaces a per-chat error honestly.
 func actionsFor(m *engine.CachedMessage, caps []string) msgActions {
@@ -45,13 +47,14 @@ func actionsFor(m *engine.CachedMessage, caps []string) msgActions {
 	}
 	pending := m.IsOutgoing && (m.Status == engine.MsgStatusSending || m.Status == engine.MsgStatusFailed)
 	return msgActions{
-		Reply:   !pending,
-		Edit:    m.IsOutgoing && !pending,
-		Copy:    strings.TrimSpace(m.ContentText) != "",
-		Forward: !m.NoForwards && !pending,
-		Delete:  true,
-		Pin:     !pending,
-		React:   hasCap("REACTIONS") && !pending,
+		Reply:     !pending,
+		Edit:      m.IsOutgoing && !pending,
+		Copy:      strings.TrimSpace(m.ContentText) != "",
+		Forward:   !m.NoForwards && !pending,
+		Delete:    true,
+		Pin:       !pending,
+		React:     hasCap("REACTIONS") && !pending,
+		Translate: strings.TrimSpace(m.ContentText) != "",
 	}
 }
 

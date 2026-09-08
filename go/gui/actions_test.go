@@ -151,3 +151,28 @@ func TestQuotePreview(t *testing.T) {
 		t.Errorf("quotePreview truncation failed: %q", got)
 	}
 }
+
+func TestActionsForTranslate(t *testing.T) {
+	base := func() engine.CachedMessage {
+		return engine.CachedMessage{MsgID: "10", ChatID: "c", ContentText: "hola"}
+	}
+	t.Run("text message", func(t *testing.T) {
+		if a := actionsFor(&[]engine.CachedMessage{base()}[0], nil); !a.Translate {
+			t.Errorf("text message must offer Translate")
+		}
+	})
+	t.Run("empty text", func(t *testing.T) {
+		m := base()
+		m.ContentText = "   "
+		if a := actionsFor(&m, nil); a.Translate {
+			t.Errorf("empty text must not offer Translate")
+		}
+	})
+	t.Run("service message", func(t *testing.T) {
+		m := base()
+		m.IsService = true
+		if a := actionsFor(&m, nil); a.Translate {
+			t.Errorf("service message must not offer Translate")
+		}
+	})
+}
