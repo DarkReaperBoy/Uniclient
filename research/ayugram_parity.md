@@ -122,7 +122,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Silent send toggle | Bell toggle in field | CORE-ONLY | SendMessage silent param (CORE-ONLY) | P2 |
 | Draft save/restore | Per-chat draft persists across restarts | PRESENT (slice 20: restore on open, flush on leave/back, clear on send — persisted via engine.SaveDraft so it survives restarts) | gui/drafts.go + gui/state.go + engine.SaveDraft | P1 |
 | Char count / limits | Counter near limit | MISSING | gui/chat.go | P3 |
-| Formatting (bold/italic/spoiler/code) | Rich text with entities + spoiler reveal | PARTIAL (slice 32: ContentRich entity renderer — bold/italic/underline/strike/mono pills/links/mentions/quote styled word-flow; spoilers hidden + click-reveal. Compose-side markdown + link opening later) | gui/richtext.go + engine content_rich | P1 |
+| Formatting (bold/italic/spoiler/code) | Rich text with entities + spoiler reveal | PRESENT (slice 32 render: ContentRich entity renderer — bold/italic/underline/strike/mono pills/links/mentions/quote styled word-flow, spoilers hidden + click-reveal; slice 33 compose: *bold*/_italic_/__underline__/~strike~/||spoiler||/`code`/```pre``` markers parse to entities on send, nested. Link opening later) | gui/richtext.go + gui/markdown.go + engine content_rich + SendMessage(entities) | P1 |
 | Webpage preview toggle | Link preview on/off in field | CORE-ONLY | SendMessage webPageUrl params (CORE-ONLY) | P2 |
 | Send-as channel (in groups) | Pick identity to post as | CORE-ONLY | engine.GetSendAs/SaveDefaultSendAs (CORE-ONLY) | P3 |
 

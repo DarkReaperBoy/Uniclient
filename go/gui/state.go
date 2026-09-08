@@ -823,7 +823,12 @@ func (a *App) sendText(text string) {
 			}
 			return
 		}
-		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, text, replyID, nil, silent, 0, "", "", false, false, false, false); err != nil {
+		// Compose markdown (slice 33): typed markers become entities.
+		sendText, sendEnts := text, []cores.TextEntity(nil)
+		if hasMarkdown(text) {
+			sendText, sendEnts = parseMarkdown(text)
+		}
+		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, silent, 0, "", "", false, false, false, false); err != nil {
 			a.setToast("Send failed: " + err.Error())
 			return
 		}

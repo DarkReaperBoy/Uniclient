@@ -14,6 +14,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 
+	"uniclient/cores"
 	"uniclient/engine"
 )
 
@@ -160,7 +161,12 @@ func (a *App) sendTextScheduled(text string, scheduleDate int64) {
 		if k == nil || text == "" {
 			return
 		}
-		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, text, replyID, nil, false, scheduleDate, "", "", false, false, false, false); err != nil {
+		// Compose markdown (slice 33): typed markers become entities.
+		sendText, sendEnts := text, []cores.TextEntity(nil)
+		if hasMarkdown(text) {
+			sendText, sendEnts = parseMarkdown(text)
+		}
+		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, false, scheduleDate, "", "", false, false, false, false); err != nil {
 			a.setToast("Schedule failed: " + err.Error())
 			return
 		}
