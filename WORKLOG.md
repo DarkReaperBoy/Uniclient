@@ -878,3 +878,8 @@ Stage Summary:
 
 - **60 Message auto-delete**: core MessagesSetHistoryTTL wrapper + engine SetChatTTL (chats.ttl_period + event); header ⋮ "Auto-delete…" dialog (Off/24h/7d/1m); profile info row; gate.sh now guards every commit (gofmt-before-add)
 - CI: s57 gofmt failure fixed (a1e839e7); s58/s59 runs in flight
+---
+## 2026-09-09 — slice 61
+
+- **61 Reactions & poll-vote notifications**: per-account settings rows w/ contacts-only filters, engine SetReactionsNotifySettings; state seeded from GetReactionsNotifySettings
+- Root-caused + fixed the s58/s59 CI gofmt failures (stale searchtabs_test.go in those commits; fixed by a1e839e7 — subsequent commits gated by scripts gate.sh)
