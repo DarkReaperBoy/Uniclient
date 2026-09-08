@@ -410,7 +410,7 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo) layo
 	}))
 	if len(f.panelRecent) > 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.recentPhotosGrid(gtx, f)
+			return a.recentPhotosGrid(gtx, f, chat)
 		}))
 	}
 
@@ -596,11 +596,16 @@ func sharedMediaLabel(t string) string {
 	return t
 }
 
+// photoGridClicks pools the info-panel gallery cell clickables.
+var photoGridClicks []widget.Clickable
+
 // recentPhotosGrid renders the latest shared photos as a thumbnail grid,
 // reusing the media-image cache (stripped thumbs decode to valid JPEG).
-func (a *App) recentPhotosGrid(gtx layout.Context, f frame) layout.Dimensions {
+// Tapping a cell opens the fullscreen media viewer at that photo (§12).
+func (a *App) recentPhotosGrid(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	const cols = 3
 	cell := gtx.Dp(unit.Dp(84))
+	growClickables(&photoGridClicks, len(f.panelRecent))
 	var rows []layout.FlexChild
 	for i := 0; i+0 < len(f.panelRecent); i += cols {
 		end := i + cols
@@ -608,27 +613,41 @@ func (a *App) recentPhotosGrid(gtx layout.Context, f frame) layout.Dimensions {
 			end = len(f.panelRecent)
 		}
 		items := f.panelRecent[i:end]
+		base := i
 		rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			cells := make([]layout.FlexChild, 0, len(items))
-			for _, it := range items {
+			for j, it := range items {
 				it := it
+				idx := base + j
 				cells = append(cells, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Right: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						gtx.Constraints.Max.X = cell
 						gtx.Constraints.Max.Y = cell
 						gtx.Constraints.Min = image.Pt(cell, cell)
-						var img *image.RGBA
-						if it.ThumbB64 != "" {
-							key := "thumb:" + it.ThumbB64
-							if img = mediaImgs.get(key); img == nil {
-								a.decodeThumbAsync(key, it.ThumbB64)
+						if btn := &photoGridClicks[idx]; btn.Clicked(gtx) {
+							title := ""
+							if chat != nil {
+								title = chat.Title
 							}
+							a.openViewerAt(f.panelChat, title, "image", it.MsgID)
 						}
-						if img != nil {
-							return drawImageScaled(gtx, img, cell, cell, 4)
-						}
-						return roundedFill(gtx, a.ui.p.SurfaceHi, 4, func(gtx layout.Context) layout.Dimensions {
-							return layout.Dimensions{Size: image.Pt(cell, cell)}
+						bl := material.ButtonLayout(a.ui.Theme, &photoGridClicks[idx])
+						bl.Background = a.ui.p.Surface
+						bl.CornerRadius = 4
+						return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							var img *image.RGBA
+							if it.ThumbB64 != "" {
+								key := "thumb:" + it.ThumbB64
+								if img = mediaImgs.get(key); img == nil {
+									a.decodeThumbAsync(key, it.ThumbB64)
+								}
+							}
+							if img != nil {
+								return drawImageScaled(gtx, img, cell, cell, 4)
+							}
+							return roundedFill(gtx, a.ui.p.SurfaceHi, 4, func(gtx layout.Context) layout.Dimensions {
+								return layout.Dimensions{Size: image.Pt(cell, cell)}
+							})
 						})
 					})
 				}))

@@ -403,13 +403,13 @@ func (a *App) mediaBlock(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 	if btn.Clicked(gtx) {
-		a.actMedia(m, state)
+		a.actMedia(gtx, m, state)
 	}
 	return dims
 }
 
 // actMedia dispatches the tap for a media bubble.
-func (a *App) actMedia(m *engine.CachedMessage, state int) {
+func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 	msg := *m
 	switch state {
 	case engine.DownloadNone, engine.DownloadFailed:
@@ -421,9 +421,15 @@ func (a *App) actMedia(m *engine.CachedMessage, state int) {
 	case engine.DownloadInProgress:
 		go func() { a.eng.CancelDownload(msg.AccountID, msg.ChatID, msg.MsgID, 0) }()
 	default:
-		// Complete: photos render inline; other types reveal the local path.
-		if msg.MediaType != engine.MediaImage && msg.MediaType != engine.MediaGIF && msg.MediaLocalPath != "" {
-			a.setToast("Saved to " + msg.MediaLocalPath)
+		// Complete: photos/GIFs/videos open the fullscreen viewer; other
+		// types reveal the local path.
+		switch msg.MediaType {
+		case engine.MediaImage, engine.MediaGIF, engine.MediaVideo, engine.MediaVideoNote:
+			a.openViewerFromMsg(gtx, &msg)
+		default:
+			if msg.MediaLocalPath != "" {
+				a.setToast("Saved to " + msg.MediaLocalPath)
+			}
 		}
 	}
 }

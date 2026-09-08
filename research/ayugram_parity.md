@@ -130,7 +130,7 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Photo | Image bubble, caption, tap→viewer | PARTIAL (bubble: inline thumb → auto-download → full image; caption; viewer later) | gui/media.go photoBubble | P0 |
+| Photo | Image bubble, caption, tap→viewer | PRESENT (bubble → auto-download → full image; tap opens fullscreen viewer w/ zoom/pan, filmstrip, save/share/delete) | gui/media.go photoBubble + gui/mediaview.go | P0 |
 | Video / video-note (round) | Player bubble w/ cover, round crop | PARTIAL (thumb + play badge + duration pill; round-crop notes; player later) | gui/media.go videoBubble | P1 |
 | Voice message | Waveform bubble, play, speed, transcribe | PARTIAL (play badge + duration/size bubble, tap downloads; playback/waveform later) | gui/media.go voiceBubble | P1 |
 | Audio file | Music player bubble (title/artist, seek) | PARTIAL (title/duration/size row; playback later) | gui/media.go audioBubble | P2 |
@@ -262,11 +262,11 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Full-screen overlay | Photo/video/doc viewer w/ caption | CORE-ONLY | new gui/mediaview.go + engine media (CORE-ONLY) | P0 |
-| Prev/next + group thumbs | Navigate album/chat media | CORE-ONLY | engine.GetSharedMedia | P1 |
-| Playback controls (video) | Play/pause/seek/volume/fullscreen | MISSING | gui/mediaview.go + engine media streaming | P1 |
-| Zoom/pan + double-click | Gesture zoom | MISSING | gui/mediaview.go | P2 |
-| Download + share + delete in viewer | Toolbar actions | MISSING | engine media ops | P1 |
+| Full-screen overlay | Photo/video/doc viewer w/ caption | PRESENT (near-black scrim, top bar w/ title+date, caption, save/share/delete, Esc/arrows) | gui/mediaview.go | P0 |
+| Prev/next + group thumbs | Navigate album/chat media | PRESENT (side chevrons + filmstrip over engine.GetSharedMedia; info-panel gallery opens it too) | gui/mediaview.go + engine GetSharedMedia | P1 |
+| Playback controls (video) | Play/pause/seek/volume/fullscreen | PARTIAL (poster + play → download pipeline + saved-path toast; in-app streaming blocked on engine media streaming CORE-ONLY) | gui/mediaview.go viewerPlay | P1 |
+| Zoom/pan + double-click | Gesture zoom | PRESENT (double-click zoom 1x↔2.5x anchored at cursor + drag pan w/ clamp; pinch/wheel later) | gui/mediaview.go processViewerImageEvents | P2 |
+| Download + share + delete in viewer | Toolbar actions | PRESENT (save→RequestDownload/reveal path; share→forward picker; delete→confirm dialog→engine.DeleteMessage) | gui/mediaview.go | P1 |
 | PiP floating window | Video in floating window | MISSING | gui/os window + engine video frames | P3 |
 | Story viewer | Full story playback w/ reactions/reply/share | CORE-ONLY | engine stories (CORE-ONLY) | P2 |
 | Streaming video in chat | Playback without full download | CORE-ONLY | engine media streaming (CORE-ONLY) | P2 |
@@ -310,19 +310,27 @@ P2 = settings/extras, P3 = rare/edge.
 2. **Reactions** — display strip, picker, own-highlight. `engine.ReactToMessage` + `GetAvailableReactions` ready. `gui/chat.go`.
    → 2026-09-08: SHIPPED (first pass) — strip + persistence (reactions_json, cores.UpdateReactions, optimistic toggle) + quick row; custom-emoji pills + full picker remain.
 3. **Media bubbles + download** — photo/video/voice/file rendering with progress. Engine media pipeline + `EventDownloadProgress` ready. `gui/chat.go`.
+   → 2026-09-08: SHIPPED (slice 2) — all bubble kinds + live byte counters + progress bars + auto-download; fullscreen media viewer shipped as slice 9 (§12).
 4. **Settings screen** — nothing exists; Ayu's biggest visible surface. Engine has nearly every backend call. `gui/settings.go`.
+   → 2026-09-08: SHIPPED (slice 3) — 7-section shell w/ real cache accounting, appearance, ghost flags.
 5. **Right info panel** — profile, bio/username rows, shared-media tabs, members, mute toggle. `gui/profile.go` + engine profile/media APIs.
+   → 2026-09-08: SHIPPED (slice 4) — profile rows, member list w/ role badges, shared-media counts + recent-photos grid (grid now opens the media viewer).
 6. **Attach menu + uploads + voice recording** — 📎 menu, albums, captions. `engine.UploadFile/SendMediaAlbum` ready.
+   → 2026-09-08: SHIPPED (slice 5) — 📎 menu + OS file picker + single/album uploads w/ captions; voice recording still open.
 7. **Reply & forward headers in bubbles** — quoted reply block, "forwarded from". `CachedMessage` fields already present.
    → 2026-09-08: SHIPPED.
 8. **Composer reply/edit modes** — header chip above input. `SendMessage(replyToID)` + `EditMessage` ready.
    → 2026-09-08: SHIPPED.
 9. **Server folder sync + folder CRUD** — replace hardcoded tabs with `engine.GetFolders` + editor dialog + chat-row "add to folder".
+   → 2026-09-08: SHIPPED (slice 6) — real dialog-filter tabs + "+" create dialog; full folder editor w/ chat picker still open.
 10. **Real image avatars** — render `ChatInfo.AvatarPath`; engine downloader exists (letters today).
+   → 2026-09-08: SHIPPED (slice 7) — userpics everywhere w/ circle cover-crop + letter fallback.
 11. **Ghost mode UI** — drawer toggle + Ayu preferences screen. Engine ghost flags fully modeled (utils AppConfig) but unreachable.
 12. **Global search** — server chats+messages search w/ results screen. `engine.SearchChats/SearchMessages/SearchGlobalChats` ready.
 13. **Scroll-up history pagination** — load older pages on scroll-top; `loadedOlder` state exists but is dead.
+   → 2026-09-08: SHIPPED (slice 1) — scroll-up loads older pages w/ page-preserving merge.
 14. **Chat-row context menu** — mute/pin/archive/mark-unread/folders/leave/delete. Engine methods all CORE-ONLY.
+   → 2026-09-08: SHIPPED (slice 8) — mute durations, pin, mark read/unread, archive, delete.
 15. **Emoji/sticker/GIF picker** — tabbed panel; engine sticker/GIF APIs are exhaustive.
 16. **Pinned bar + unread separator + jump-to-message** — chat-view chrome; `GetPinnedMessages` ready.
 17. **Peer header extras** — "..." menu, verified badge, join button for channels, group-call bar.
@@ -332,10 +340,12 @@ P2 = settings/extras, P3 = rare/edge.
 
 ## Counts (201 feature rows)
 
-- PRESENT: 12 (6%) — login machine, QR, day dividers, ticks, typing, toast, composer, scrolling basics, mode tabs, unified list
-- PARTIAL: 16 (8%) — folder tabs, chat rows, bubbles, sidebar search, voice tab, deleted marker, signup, 2-pane layout, account bar
-- MISSING: 48 (24%) — needs new core work: streamer mode, message shot, regex filters, shadow ban, tray, passcode UI, deep links, selection mode, Ayu prefs shell…
-- CORE-ONLY: 125 (62%) — the engine already has the functionality; the GUI just never surfaces it
+→ 2026-09-08 after slices 1–9: PRESENT 24 (12%) · PARTIAL 39 (19%) · MISSING 39 (19%) · CORE-ONLY 99 (49%).
+
+- PRESENT: 24 — login machine, QR, day dividers, ticks, typing, toast, composer, scrolling, mode tabs, unified list, context menu, reactions strip, bubble headers, reply/edit modes, settings shell, info panel, attach flow, folder tabs, avatars, chat-row menu, media bubbles, media viewer, zoom/pan, viewer toolbar
+- PARTIAL: 39 — simplified versions (video playback, voice, folder editor, ghost shell…)
+- MISSING: 39 — needs new core work: streamer mode, message shot, regex filters, shadow ban, tray, passcode UI, deep links, selection mode…
+- CORE-ONLY: 99 — the engine already has the functionality; the GUI just never surfaces it
 
 Priorities: P0 36 · P1 57 · P2 62 · P3 43 (+3 UniClient-only rows).
 

@@ -541,8 +541,8 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		var mediaType sql.NullInt64
 		e.db.QueryRow(
 			`SELECT sender_name, content_text, has_media,
-				(SELECT media_type FROM media WHERE account_id = messages.account_id AND chat_id = messages.chat_id AND msg_id = messages.msg_id AND seq = 0 LIMIT 1)
-			 FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+                                (SELECT media_type FROM media WHERE account_id = messages.account_id AND chat_id = messages.chat_id AND msg_id = messages.msg_id AND seq = 0 LIMIT 1)
+                         FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
 			accountID, chatID, msg.ReplyToID,
 		).Scan(&sn, &ct, &hasMedia, &mediaType)
 		preview := ""
@@ -755,20 +755,24 @@ func (e *Engine) PruneOldMessages(keep int) error {
 	return err
 }
 
-// SharedMediaItem is a media entry returned for the right-panel gallery.
+// SharedMediaItem is a media entry returned for the right-panel gallery
+// and the fullscreen media viewer.
 type SharedMediaItem struct {
-	MsgID     string `json:"msg_id"`
-	Timestamp int64  `json:"timestamp"`
-	MediaType int    `json:"media_type"`
-	FileName  string `json:"file_name"`
-	MimeType  string `json:"mime_type"`
-	FileSize  int64  `json:"file_size"`
-	ThumbB64  string `json:"thumb_b64"`
-	LocalPath string `json:"local_path"`
-	Width     int    `json:"width"`
-	Height    int    `json:"height"`
-	Duration  int    `json:"duration"` // seconds
-	Waveform  []byte `json:"waveform,omitempty"`
+	MsgID      string `json:"msg_id"`
+	Timestamp  int64  `json:"timestamp"`
+	MediaType  int    `json:"media_type"`
+	FileName   string `json:"file_name"`
+	MimeType   string `json:"mime_type"`
+	FileSize   int64  `json:"file_size"`
+	ThumbB64   string `json:"thumb_b64"`
+	LocalPath  string `json:"local_path"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	Duration   int    `json:"duration"` // seconds
+	Waveform   []byte `json:"waveform,omitempty"`
+	SenderName string `json:"sender_name,omitempty"` // joined message row
+	Text       string `json:"text,omitempty"`        // message caption
+	IsOutgoing bool   `json:"is_outgoing,omitempty"` // delete-revoke decision
 }
 
 // GetSharedMedia queries the media table for all media in a chat, optionally
@@ -809,7 +813,8 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
                 SELECT m.msg_id, COALESCE(msg.timestamp, 0), m.media_type,
                        m.file_name, m.mime_type, m.file_size, m.thumb_b64,
                        m.local_path, m.width, m.height, m.duration_ms,
-                       msg.content_raw
+                       msg.content_raw, COALESCE(msg.sender_name, ''),
+                       COALESCE(msg.content_text, ''), COALESCE(msg.is_outgoing, 0)
                 FROM media m
                 LEFT JOIN messages msg ON msg.account_id = m.account_id
                                        AND msg.chat_id = m.chat_id
@@ -833,12 +838,14 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 		var fileSize, durationMs sql.NullInt64
 		var width, height sql.NullInt64
 		var contentRaw []byte
+		var senderName, text sql.NullString
+		var isOutgoing sql.NullInt64
 
 		if err := rows.Scan(
 			&item.MsgID, &item.Timestamp, &item.MediaType,
 			&fileName, &mimeType, &fileSize, &thumbB64,
 			&localPath, &width, &height, &durationMs,
-			&contentRaw,
+			&contentRaw, &senderName, &text, &isOutgoing,
 		); err != nil {
 			return items, err
 		}
@@ -862,6 +869,9 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 		if (item.MediaType == MediaVoice || item.MediaType == MediaAudio) && len(contentRaw) > 0 {
 			item.Waveform = extractWaveform(contentRaw)
 		}
+		item.SenderName = senderName.String
+		item.Text = text.String
+		item.IsOutgoing = isOutgoing.Int64 != 0
 
 		items = append(items, item)
 	}
@@ -1192,8 +1202,8 @@ func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
 			var mediaType sql.NullInt64
 			e.db.QueryRow(
 				`SELECT sender_name, content_text, has_media,
-					(SELECT media_type FROM media WHERE account_id = messages.account_id AND chat_id = messages.chat_id AND msg_id = messages.msg_id AND seq = 0 LIMIT 1)
-				 FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+                                        (SELECT media_type FROM media WHERE account_id = messages.account_id AND chat_id = messages.chat_id AND msg_id = messages.msg_id AND seq = 0 LIMIT 1)
+                                 FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
 				msgs[i].AccountID, msgs[i].ChatID, msgs[i].ReplyToID,
 			).Scan(&sn, &ct, &hasMedia, &mediaType)
 			if ct.Valid && ct.String != "" {

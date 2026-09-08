@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gioui.org/app"
+	"gioui.org/f32"
 	"gioui.org/io/event"
 	"gioui.org/op"
 	"gioui.org/widget"
@@ -107,6 +108,10 @@ type App struct {
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
 
+	// fullscreen media viewer (AyuGram parity slice 9, §12): shared under
+	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
+	viewer *viewerState
+
 	// transient
 	typing map[string]time.Time // chatKey -> last typing seen
 
@@ -123,6 +128,12 @@ type App struct {
 	chatMenuRect  image.Rectangle
 	listTop       int // top Y of the message list within the chat pane
 	headerH       int // chat header height
+	// media viewer gesture state (frame-loop only): zoom factor, pan
+	// offset, double-click bookkeeping.
+	mvZoom         float32
+	mvPan          f32.Point
+	mvLastPressAt  time.Time
+	mvLastPressPos f32.Point
 }
 
 func New(win *app.Window, eng *engine.Engine) *App {
@@ -360,6 +371,18 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 				msgs[i].MediaDownloadState = engine.DownloadComplete
 				msgs[i].MediaLocalPath = d.LocalPath
 				a.messages = msgs
+				break
+			}
+		}
+	}
+	// The open media viewer swaps the shown item onto its local file.
+	if v := a.viewer; v != nil && v.accountID == d.AccountID && v.chatID == d.ChatID {
+		for i := range v.items {
+			if v.items[i].MsgID == d.MsgID {
+				items := make([]engine.SharedMediaItem, len(v.items))
+				copy(items, v.items)
+				items[i].LocalPath = d.LocalPath
+				v.items = items
 				break
 			}
 		}
@@ -907,6 +930,7 @@ func (a *App) snapshot() frame {
 		foldersSupported: a.foldersSupported,
 		folderDlg:        a.folderDlg,
 		chatMenu:         a.chatMenu,
+		viewer:           a.viewer,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -984,6 +1008,9 @@ type frame struct {
 
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
+
+	// fullscreen media viewer (slice 9)
+	viewer *viewerState
 }
 
 var _ = op.InvalidateCmd{} // referenced in widgets that animate

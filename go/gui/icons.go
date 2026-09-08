@@ -38,6 +38,9 @@ var (
 	iconActionGhost        = mustIcon(icons.ActionVisibilityOff)
 	iconActionInfo         = mustIcon(icons.ActionInfoOutline)
 	iconImagePhoto         = mustIcon(icons.ImagePhoto)
+	iconNavChevronLeft     = mustIcon(icons.NavigationChevronLeft)
+	iconNavChevronRight    = mustIcon(icons.NavigationChevronRight)
+	iconSocialShare        = mustIcon(icons.SocialShare)
 )
 
 func mustIcon(data []byte) *widget.Icon {

@@ -575,3 +575,27 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
   press dismisses.
 - `gui/state.go`: chatMenu state (open target, rect, row bounds). Tests:
   gui/chatmenu_test.go (flag-driven item sets). Full suite green locally.
+
+## 2026-09-08 — AyuGram parity program, slice 9: fullscreen media viewer
+
+- `gui/mediaview.go` (new): the AyuGram mediaview overlay (§12) — near-black
+  fullscreen scrim; top bar with chat title + date and save/share/delete;
+  aspect-fit image (or video poster + play badge) with double-click zoom
+  (1x↔2.5x anchored at the cursor) + drag pan with edge clamping; caption
+  (sender + text) under the image; thumbnail filmstrip over the chat's real
+  shared media (engine.GetSharedMedia) with the current item highlighted;
+  live download progress bar fed by the engine media pipeline; Escape/arrows
+  keyboard routing (composer focus cleared while viewing so keys reach the
+  viewer); backdrop click closes. Share hands the message to the existing
+  forward picker; Delete shows a confirm dialog and dispatches
+  engine.DeleteMessage with revoke=outgoing; Save runs RequestDownload when
+  the file is missing. Photos/GIFs/videos with a complete download now open
+  the viewer on tap (media.go actMedia), and the info-panel recent-photos
+  grid opens it at the tapped photo.
+- Engine: GetSharedMedia now joins the message row's sender_name,
+  content_text and is_outgoing into SharedMediaItem (viewer header, caption,
+  delete-revoke decision).
+- Tests: gui/mediaview_test.go (step clamp, zoom toggle, pan clamp/zoom
+  math, item find/merge/synth, kind mapping). Full gui suite green locally
+  under node+wasm; engine+utils native green; windows + wasm builds clean;
+  gofmt + vet clean.

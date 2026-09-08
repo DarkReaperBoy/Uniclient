@@ -27,6 +27,9 @@ func (a *App) Root(gtx layout.Context) {
 	}
 
 	a.layoutMain(gtx, f)
+	if f.viewer != nil {
+		a.layoutMediaView(gtx, f)
+	}
 	a.layoutToast(gtx, f)
 }
 
