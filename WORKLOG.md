@@ -854,3 +854,8 @@ Stage Summary:
 - **54 Folder tab menu + invite links**: Edit / Move left/right / Invite links / Delete + chatlist-share dialog
 - **55 Full reaction picker**: quick bar (7 + ⋯) swaps the menu into a full scrollable 8-column grid
 - Matrix rows 48/55/78/87/154 flipped to PRESENT (three-pane, folder management, header avatar, custom pills, reaction picker)
+---
+## 2026-09-09 — slice 56
+
+- **56 Attach Location + Contact**: attach menu entries; Location = lat/lon dialog (SendLocation); Contact = account contact picker (SendContact); dedicated bubbles — map-card w/ pin + live badge (tap copies maps URL), person-card (tap copies phone); parser tests lock the Extra contract
+- CI: runs for 43da68ec (gofmt fix) + 2782f703 (s55) in flight; 34257548785 (s53) failed on the since-fixed gofmt gate
