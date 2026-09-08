@@ -128,6 +128,7 @@ type App struct {
 	folderInvites    *folderInvitesState // folder invite-links dialog (slice 54)
 	attachDlg        *attachDlgState     // location/contact share dialog (slice 56)
 	searchTab        int                 // search results tab (slice 57)
+	ttlDlg           *ttlDlgState        // message auto-delete dialog (slice 60)
 	// helper-panel modes & data (slice 58)
 	emojiMode      int // panel: 0 emoji, 1 stickers, 2 gifs
 	stickerPacks   []cores.StickerPackSummary
@@ -781,6 +782,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.chatMenu = nil
 	a.folderMenu = nil
 	a.attachDlg = nil
+	a.ttlDlg = nil
 	a.headerMenu = nil
 	a.profile = nil
 	a.members = nil
@@ -1341,6 +1343,7 @@ func (a *App) snapshot() frame {
 		folderInvites:    a.folderInvites,
 		attachDlg:        a.attachDlg,
 		searchTab:        a.searchTab,
+		ttlDlg:           a.ttlDlg,
 		emojiMode:        a.emojiMode,
 		stickerPacks:     a.stickerPacks,
 		stickerPackIdx:   a.stickerPackIdx,
@@ -1480,6 +1483,7 @@ type frame struct {
 	folderInvites    *folderInvitesState
 	attachDlg        *attachDlgState
 	searchTab        int
+	ttlDlg           *ttlDlgState
 	emojiMode        int
 	stickerPacks     []cores.StickerPackSummary
 	stickerPackIdx   int

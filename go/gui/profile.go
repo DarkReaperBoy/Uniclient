@@ -371,6 +371,13 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo) layo
 		return d
 	}))
 
+	// Auto-delete period (AyuGram profile info, slice 60).
+	if chat.TtlPeriod > 0 {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.panelValueRow(gtx, iconActionSchedule, "Auto-delete", ttlLabel(chat.TtlPeriod))
+		}))
+	}
+
 	// Profile rows (DM).
 	if showProfile && f.profile != nil {
 		p := *f.profile

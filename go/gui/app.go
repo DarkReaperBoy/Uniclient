@@ -86,6 +86,10 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			a.layoutAttachDialog(gtx, f)
 			return
 		}
+		if f.ttlDlg != nil {
+			a.layoutTtlDialog(gtx, f)
+			return
+		}
 		if f.settingsOpen {
 			a.layoutSettings(gtx, f, narrow)
 			return
@@ -132,6 +136,9 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			}
 			if f.attachDlg != nil {
 				return a.layoutAttachDialog(gtx, f)
+			}
+			if f.ttlDlg != nil {
+				return a.layoutTtlDialog(gtx, f)
 			}
 			if f.settingsOpen {
 				return a.layoutSettings(gtx, f, narrow)

@@ -58,6 +58,7 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked bool) []chatMenuAc
 	}
 	items = append(items, chatMenuAction{"View profile", "profile"})
 	items = append(items, chatMenuAction{"Scheduled messages", "scheduled"})
+	items = append(items, chatMenuAction{"Auto-delete…", "autodelete"})
 	if c.Type == engine.ChatTypeDMVal {
 		if blockedKnown && blocked {
 			items = append(items, chatMenuAction{"Unblock user", "unblock"})
@@ -76,6 +77,15 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked bool) []chatMenuAc
 }
 
 // ── state transitions ─────────────────────────────────────────────────────
+
+// openTtlDialogNow opens the auto-delete picker from the header menu
+// (the open chat's frame snapshot is read under the lock).
+func (a *App) openTtlDialogNow(c engine.ChatInfo) {
+	a.mu.Lock()
+	a.ttlDlg = &ttlDlgState{accountID: c.AccountID, chatID: c.ChatID, title: c.Title}
+	a.mu.Unlock()
+	a.invalidate()
+}
 
 // openHeaderMenu opens the peer menu at pos (chat pane coords).
 func (a *App) openHeaderMenu(c engine.ChatInfo, pos image.Point) {
@@ -107,6 +117,10 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 	case "scheduled":
 		a.closeHeaderMenu()
 		a.openSchedPanel()
+	case "autodelete":
+		a.closeHeaderMenu()
+		chat := c
+		a.openTtlDialogNow(chat)
 	case "mute":
 		a.closeHeaderMenu()
 		go func() {

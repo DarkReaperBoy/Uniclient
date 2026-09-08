@@ -1558,6 +1558,32 @@ func (e *Engine) LeaveChatlistFolder(accountID string, folderID int, peerIDs []s
 }
 
 // emitChatUpdate reads the current chat state from DB and emits an update event.
+// SetChatTTL sets the chat's message auto-delete period (0 = off),
+// updates the cached chat row, and notifies the GUI.
+func (e *Engine) SetChatTTL(accountID, chatID string, ttlSeconds int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type ttlSetter interface {
+		SetChatTTL(chatID string, ttlSeconds int) error
+	}
+	ts, ok := acc.Core.(ttlSetter)
+	if !ok {
+		return fmt.Errorf("platform does not support auto-delete")
+	}
+	if err := ts.SetChatTTL(chatID, ttlSeconds); err != nil {
+		return err
+	}
+	_, err := e.db.Exec(
+		"UPDATE chats SET ttl_period = ? WHERE account_id = ? AND chat_id = ?",
+		ttlSeconds, accountID, chatID)
+	if err == nil {
+		e.emitChatUpdate(accountID, chatID)
+	}
+	return nil
+}
+
 func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	row := e.db.QueryRow(
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
@@ -1567,7 +1593,8 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		        c.draft_text, c.member_count, c.parent_id,
 		        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
 		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
-		        c.is_verified, c.is_scam, c.is_fake, c.is_admin, c.is_creator
+		        c.is_verified, c.is_scam, c.is_fake, c.is_admin, c.is_creator,
+		        c.ttl_period
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 WHERE c.account_id = ? AND c.chat_id = ?`, accountID, chatID)
@@ -1588,6 +1615,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		&draftText, &memberCount, &parentID, &isBot, &isContact, &isBlocked,
 		&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 		&isVerified, &isScam, &isFake, &isAdminInt, &isCreatorInt,
+		&c.TtlPeriod,
 	)
 	if err != nil {
 		return

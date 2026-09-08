@@ -11769,6 +11769,24 @@ func (t *TelegramCore) CreateGroupWithTTL(name string, members []string, ttlSeco
 	return &Dialog{Title: name, Type: ChatTypeGroup, Platform: tgPlatform}, nil
 }
 
+// SetChatTTL sets the chat's message auto-delete period in seconds
+// (0 = off) — MessagesSetHistoryTTL.
+func (t *TelegramCore) SetChatTTL(chatID string, ttlSeconds int) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	_, err = t.api.MessagesSetHistoryTTL(t.ctx, &tg.MessagesSetHistoryTTLRequest{
+		Peer:   inputPeer,
+		Period: ttlSeconds,
+	})
+	if err != nil {
+		return fmt.Errorf("set history ttl: %w", err)
+	}
+	return nil
+}
+
 // CreateChannel creates a new channel or supergroup.
 func (t *TelegramCore) CreateChannel(name string, description string) (*Dialog, error) {
 	return t.RawCreateChannel(name, description, true, false)
