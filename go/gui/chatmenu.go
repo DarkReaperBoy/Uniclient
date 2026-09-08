@@ -24,10 +24,12 @@ import (
 // sidebarPaneTag receives pointer presses across the sidebar.
 var sidebarPaneTag = new(struct{})
 
-// chatMenuTarget is an open chat-row context menu.
+// chatMenuTarget is an open chat-row context menu. When folderPick is
+// set the menu shows the account's folders instead (add-to-folder).
 type chatMenuTarget struct {
-	chat engine.ChatInfo
-	pos  image.Point
+	chat       engine.ChatInfo
+	pos        image.Point
+	folderPick bool
 }
 
 // chatMenuAction is one menu row: a label plus the engine action id.
@@ -93,6 +95,8 @@ func (a *App) dispatchChatAction(c engine.ChatInfo, action string) {
 			err = a.eng.ArchiveChat(c.AccountID, c.ChatID, false)
 		case "delete":
 			err = a.eng.DeleteChat(c.AccountID, c.ChatID, false)
+		case "addfolder":
+			// Handled synchronously in layoutChatMenu (opens the picker).
 		}
 		if err != nil {
 			a.setToast("Chat action failed: " + err.Error())
@@ -167,7 +171,18 @@ func (a *App) onSidebarPress(f frame, pe pointer.Event) {
 // layoutChatMenu draws the open chat-row menu, clamped to the sidebar.
 func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.chatMenu.chat
+	if f.chatMenu.folderPick {
+		return a.layoutFolderPickMenu(gtx, f, m)
+	}
+	// The account's folders enable the add-to-folder row (slice 27).
+	// frame.folders is loaded for the scoped account (frame.foldersFor),
+	// so the row only appears when the chat belongs to that account.
+	folders := foldersForAccount(f, m.AccountID)
+	hasFolders := f.foldersSupported && len(folders) > 0
 	items := chatMenuItems(m)
+	if hasFolders {
+		items = append(items, chatMenuAction{"Add to folder", "addfolder"})
+	}
 	growClickables(&chatMenuBtns, len(items))
 
 	menuW := gtx.Dp(unit.Dp(210))
@@ -200,8 +215,12 @@ func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 				btn := &chatMenuBtns[i]
 				if btn.Clicked(gtx) {
 					chat, action := m, items[i].action
-					a.closeChatMenu()
-					a.dispatchChatAction(chat, action)
+					if action == "addfolder" {
+						a.openChatFolderPick(chat)
+					} else {
+						a.closeChatMenu()
+						a.dispatchChatAction(chat, action)
+					}
 				}
 				bl := material.ButtonLayout(a.ui.Theme, btn)
 				bl.Background = a.ui.p.Surface
@@ -221,3 +240,116 @@ func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 }
 
 var chatMenuBtns []widget.Clickable
+
+// foldersForAccount returns the frame's server folders when they were
+// loaded for the given account (folders are fetched per account scope).
+func foldersForAccount(f frame, accountID string) []engine.FolderInfo {
+	if f.foldersFor != accountID || accountID == "" {
+		return nil
+	}
+	return f.folders
+}
+
+// openChatFolderPick switches the chat menu into folder-choice mode.
+func (a *App) openChatFolderPick(chat engine.ChatInfo) {
+	a.mu.Lock()
+	if a.chatMenu != nil {
+		a.chatMenu.folderPick = true
+	}
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// layoutFolderPickMenu: the account's folders; clicking one adds the chat.
+func (a *App) layoutFolderPickMenu(gtx layout.Context, f frame, m engine.ChatInfo) layout.Dimensions {
+	folders := foldersForAccount(f, m.AccountID)
+	growClickables(&chatMenuBtns, len(folders)+1)
+
+	menuW := gtx.Dp(unit.Dp(210))
+	rowH := gtx.Dp(unit.Dp(36))
+	h := gtx.Dp(unit.Dp(8)) + (len(folders)+1)*rowH + gtx.Dp(unit.Dp(8))
+
+	pos := f.chatMenu.pos
+	paneW, paneH := gtx.Constraints.Max.X, gtx.Constraints.Max.Y
+	if pos.X+menuW > paneW {
+		pos.X = paneW - menuW
+	}
+	if pos.X < 0 {
+		pos.X = 0
+	}
+	if pos.Y+h > paneH {
+		pos.Y = paneH - h
+	}
+	if pos.Y < 0 {
+		pos.Y = 0
+	}
+	a.chatMenuRect = image.Rect(pos.X, pos.Y, pos.X+menuW, pos.Y+h)
+
+	// Cancel row sits last (AyuGram dialogs put the negative action last).
+	cancelIdx := len(folders)
+	if chatMenuBtns[cancelIdx].Clicked(gtx) {
+		a.closeChatMenu()
+	}
+	for i, fo := range folders {
+		i, fo := i, fo
+		if chatMenuBtns[i].Clicked(gtx) {
+			chat := m
+			folder := fo
+			a.closeChatMenu()
+			go func() {
+				if err := a.eng.AddChatToFolder(chat.AccountID, chat.ChatID, folder.ID); err != nil {
+					a.setToast("Add to folder failed: " + err.Error())
+					return
+				}
+				a.setToast("Added to " + folder.Name)
+				a.refreshFolders(chat.AccountID)
+			}()
+		}
+	}
+
+	defer op.Offset(pos).Push(gtx.Ops).Pop()
+	gtx.Constraints = layout.Constraints{Max: image.Pt(menuW, h), Min: image.Pt(menuW, h)}
+	return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
+		children := make([]layout.FlexChild, 0, len(folders)+1)
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			lbl := a.ui.Label(unit.Sp(11), "Add to folder")
+			lbl.Color = a.ui.p.TextDim
+			return layout.Inset{Top: unit.Dp(8), Left: unit.Dp(12), Bottom: unit.Dp(4)}.Layout(gtx, lbl.Layout)
+		}))
+		rows := append(folderNames(folders), "Cancel")
+		for i, name := range rows {
+			i := i
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				btn := &chatMenuBtns[i]
+				bl := material.ButtonLayout(a.ui.Theme, btn)
+				bl.Background = a.ui.p.Surface
+				bl.CornerRadius = 8
+				gtx.Constraints.Min.Y = rowH
+				return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(unit.Dp(9)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						lbl := a.ui.Label(unit.Sp(14), name)
+						return lbl.Layout(gtx)
+					})
+				})
+			}))
+		}
+		layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+		return layout.Dimensions{Size: image.Pt(menuW, h)}
+	})
+}
+
+// folderNames: display names for folders (emoticon + name, AyuGram style).
+func folderNames(folders []engine.FolderInfo) []string {
+	out := make([]string, 0, len(folders))
+	for _, fo := range folders {
+		name := fo.Name
+		if name == "" {
+			name = "Folder"
+		}
+		if fo.Emoticon != "" {
+			name = fo.Emoticon + " " + name
+		}
+		out = append(out, name)
+	}
+	return out
+}

@@ -1128,6 +1128,7 @@ func (a *App) snapshot() frame {
 		pinnedIdx:        a.pinnedIdx,
 		pinnedLoaded:     a.pinnedLoaded,
 		folders:          a.folders,
+		foldersFor:       a.foldersFor,
 		foldersSupported: a.foldersSupported,
 		folderDlg:        a.folderDlg,
 		chatMenu:         a.chatMenu,
@@ -1248,6 +1249,7 @@ type frame struct {
 
 	// server folders (slice 6)
 	folders          []engine.FolderInfo
+	foldersFor       string
 	foldersSupported bool
 	folderDlg        *folderDlgState
 
