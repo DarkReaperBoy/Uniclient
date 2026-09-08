@@ -744,3 +744,9 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - **23 (fe98f0e1)**: forward options (hide sender/captions → dropAuthor/dropCaptions), drawer Saved messages → self chat, composer 🔕 sticky per-message silent → SendMessage silent; CI green (34223944370)
 - **24 (87996f21)**: invite-link join (t.me/+hash & joinchat forms in search → CheckChatInvite preview → confirm → ImportChatInvite); chat rows render REAL userpics + unread-story rings + 34dp media thumbs (LastMsgThumbB64); fixed slice-21 snapshot bug (schedPanel/schedMsgs/schedLoad never copied → panel never rendered); CI in flight
 - **25 (6cd60ba1)**: new-group member picker (async contacts + toggles → CreateGroup members), reply quotes clickable → jumpToMessageAt; CI dispatched
+
+---
+### 2026-09-08 (session 4, final) — slice 26 + all CI green
+
+- **26 (1c9257a5)**: profile info-row copy (username/phone/bio → clipboard + toast), in-chat search from-user filter (👤 sender picker → SearchMessages senderID); CI 34225265665 GREEN
+- Session 4 total: 10 slices (17–26) + slice-16 gofmt fix + slice-21 snapshot bugfix, every dispatch green
