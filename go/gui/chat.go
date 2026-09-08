@@ -100,6 +100,15 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
+		// In-chat search bar + results (slice 18) under the pinned bar.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if !f.inSearch || f.selected == nil {
+				return layout.Dimensions{}
+			}
+			d := a.layoutInChatSearch(gtx, f, *f.selected)
+			a.listTop += d.Size.Y
+			return d
+		}),
 		// Messages
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return a.messageList(gtx, f, chat)
@@ -193,6 +202,18 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 					acc := accountByID(f, chat.AccountID)
 					dot := connDotFor(acc)
 					return statusChip(gtx, a.ui, dot)
+				}),
+				// search — in-chat search (AyuGram, slice 18)
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if headerSearchBtn.Clicked(gtx) {
+						a.toggleInChatSearch()
+					}
+					btn := a.ui.IconButton(&headerSearchBtn, iconActionSearch, "Search in chat")
+					btn.Color = a.ui.p.TextDim
+					if f.inSearch {
+						btn.Color = a.ui.p.Accent
+					}
+					return btn.Layout(gtx)
 				}),
 				// info (ⓘ) — right panel toggle (AyuGram)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

@@ -147,6 +147,14 @@ type App struct {
 	pendingOpen  *chatKey
 	pendingTitle string
 
+	// in-chat search (AyuGram parity slice 18): scoped FTS + jump nav
+	inSearch   bool
+	inSearchQ  string
+	inChatHits []engine.SearchResult
+	inChatFor  string // "q@acct/chat" staleness guard
+	inChatIdx  int
+	inChatBusy bool
+
 	// fullscreen media viewer (AyuGram parity slice 9, §12): shared under
 	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
 	viewer *viewerState
@@ -613,7 +621,12 @@ func (a *App) openChat(k chatKey, title string) {
 	a.pinnedIdx = 0
 	a.pinnedLoaded = false
 	a.unreadSepMsgID = ""
-	a.viewer = nil // slice 9: close any open media viewer
+	a.viewer = nil     // slice 9: close any open media viewer
+	a.inSearch = false // slice 18: close in-chat search
+	a.inSearchQ = ""
+	a.inChatHits = nil
+	a.inChatIdx = 0
+	a.inChatBusy = false
 	// Unread snapshot BEFORE the read receipt fires (openChat marks read
 	// right after the first load) — the separator position for this visit.
 	a.unreadAtOpen = 0
@@ -1037,6 +1050,11 @@ func (a *App) snapshot() frame {
 		addDlgBusy:       a.addDlgBusy,
 		newDlg:           a.newDlg,
 		newDlgErr:        a.newDlgErr,
+		inSearch:         a.inSearch,
+		inSearchQ:        a.inSearchQ,
+		inChatHits:       a.inChatHits,
+		inChatIdx:        a.inChatIdx,
+		inChatBusy:       a.inChatBusy,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -1147,6 +1165,13 @@ type frame struct {
 	addDlgBusy   bool
 	newDlg       *newChatDlg
 	newDlgErr    string
+
+	// in-chat search (slice 18)
+	inSearch   bool
+	inSearchQ  string
+	inChatHits []engine.SearchResult
+	inChatIdx  int
+	inChatBusy bool
 
 	// fullscreen media viewer (slice 9)
 	viewer *viewerState

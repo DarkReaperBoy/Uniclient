@@ -31,6 +31,8 @@ var (
 	headerMoreBtn  widget.Clickable
 	headerCxlBtn   widget.Clickable
 	headerOkBtn    widget.Clickable
+
+	headerSearchBtn widget.Clickable // in-chat search toggle (slice 18)
 )
 
 // headerMenuConfirmText maps a confirm id to its dialog copy.

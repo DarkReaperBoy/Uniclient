@@ -46,7 +46,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
 | Three-pane layout | list · chat · right info panel | PARTIAL (2 panes; no right panel) | gui/app.go layoutMain | P0 |
-| Hamburger main menu (drawer) | My profile, contacts, calls, night mode, settings, ghost/LRead/SRead/streamer toggles, new group/channel, saved msgs | MISSING (account menu = add/remove only) | new gui/menu.go + engine GhostFor/SetAccountGhost | P0 |
+| Hamburger main menu (drawer) | My profile, contacts, calls, night mode, settings, ghost/LRead/SRead/streamer toggles, new group/channel, saved msgs | PRESENT (slice 17: ☰ drawer w/ account header+switching, contacts, calls→voice pane, night switch, ghost master + ⚙ prefs, new group/channel, settings; streamer/LRead/SRead quick toggles + saved-msgs row remain) | gui/drawer.go + sidebar.go ☰ | P0 |
 | Account switcher | Multi-account bar with per-account unread dots | PARTIAL (UniClient account bar: add/remove/conn dot; Ayu-style tray+drawer missing) | gui/sidebar.go + engine accounts | P1 |
 | Search field in bar | Global search: chats, messages, users, posts, files, tags | PARTIAL (local title/lastmsg filter only) | gui/sidebar.go + engine SearchChats/SearchGlobalChats (CORE-ONLY) | P0 |
 | Search results screen w/ tabs | Chats/Messages/Links/Files tabs + "search in" | CORE-ONLY | new gui/search.go + engine.SearchMessages (CORE-ONLY) | P1 |
@@ -226,7 +226,7 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Ghost mode (flexible, per-account + global) | Toggle in drawer/tray, shift-click → settings; blocks read receipts/presence/typing | CORE-ONLY (engine GhostFlags + SetAccountGhost + utils config + MarkChatRead already respect it; zero UI) | new gui/menu.go toggle + gui/settings_ayu.go | P0 |
+| Ghost mode (flexible, per-account + global) | Toggle in drawer/tray, shift-click → settings; blocks read receipts/presence/typing | PRESENT (slice 17: drawer master toggle flips all 8 global flags; settings Ayu page has global + per-account overrides; engine already enforces) | gui/drawer.go + gui/settings.go | P0 |
 | Ghost sub-flags w/ lock | sendReadMessages/Stories/OnlinePackets/UploadProgress/OfflineAfterOnline, markReadAfterAction, useScheduledMessages, locked variants | CORE-ONLY (all flags exist in utils AppConfig) | gui/settings_ayu.go | P1 |
 | LRead / SRead drawer toggles | Local-read vs send-read quick toggles | CORE-ONLY (MarkChatRead ghost-aware; SetAccountGhost exists; no toggles) | gui/menu.go + engine.SetAccountGhost/GhostFor | P1 |
 | Anti-recall (save deleted) | Deleted msgs kept, semi-transparent + custom mark, clear per chat | PARTIAL (GUI renders "— deleted" text; engine SetAntiRecallSettings/GetDeletedMessages CORE-ONLY; no Ayu styling/marks) | gui/chat.go + engine | P1 |
@@ -296,8 +296,8 @@ P2 = settings/extras, P3 = rare/edge.
 | Moderation (admin log, restrictions) | Admin log viewer, restrict boxes | CORE-ONLY | engine GetAdminLogEvents/Restrict (CORE-ONLY) | P3 |
 | Join via invite link / QR | Check+import invite | CORE-ONLY | engine.CheckChatInvite/ImportChatInvite (CORE-ONLY) | P2 |
 | Giveaways / boosts | Launch & view giveaway flows | CORE-ONLY | engine giveaway APIs (CORE-ONLY) | P3 |
-| Contacts list screen | Browse contacts, add contact box | CORE-ONLY | engine.GetContacts/AddContact (CORE-ONLY) | P1 |
-| New chat/group/channel creation flow | Multi-step wizards w/ member picker | CORE-ONLY | engine.CreateGroup/CreateChannel/CreateMegagroup (CORE-ONLY) | P1 |
+| Contacts list screen | Browse contacts, add contact box | PRESENT (slice 17: searchable list w/ avatars + online/bot badges, click opens the DM, add-contact dialog → engine.AddContact) | gui/contacts.go + engine GetContacts/AddContact | P1 |
+| New chat/group/channel creation flow | Multi-step wizards w/ member picker | PARTIAL (slice 17: name/desc/megagroup dialog → real CreateGroup/CreateChannel/CreateMegagroup + auto-open; member-picker step remains) | gui/newchat.go | P1 |
 | UniClient: unified multi-account list | (not in Ayu) all backends in one list | PRESENT | gui/sidebar.go | — |
 | UniClient: Chat/Voice mode tabs | (not in Ayu, mandated §1.9) | PRESENT | gui/sidebar.go layoutModeTabs | — |
 
