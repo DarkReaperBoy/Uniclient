@@ -54,19 +54,19 @@ P2 = settings/extras, P3 = rare/edge.
 | Recent searches | Persisted search history dropdown | MISSING | engine settings_recent_searches ≙ new engine method | P3 |
 | Folder tabs above list | Server-synced folders incl. custom, edit, reorder, invite links | PARTIAL (real server folders when an account is scoped: tabs + Telegram filter rules + "+" create dialog; smart tabs fallback; edit/reorder/invites later) | gui/folders.go + engine.GetFolders/CreateFolder/FoldersSupported | P0 |
 | Archive collapsed row | Archived chats collapse to one row w/ badge | CORE-ONLY | engine.ArchiveChat/IsArchived (CORE-ONLY) | P1 |
-| Pinned chats section | Pinned first, pin indicator icon | PARTIAL (engine sorts pinned first; no pin icon/separator) | gui/sidebar.go chatRow + ChatInfo.IsPinned | P1 |
+| Pinned chats section | Pinned first, pin indicator icon | PRESENT (engine sorts pinned first; slice 29 pushpin glyph next to time) | gui/sidebar.go chatRow + ChatInfo.IsPinned | P1 |
 | Chat row: image avatar | Real photo/video userpic w/ stories ring | PRESENT (real userpics everywhere incl. chat rows since slice 24 + accent unread-stories ring) | gui/avatar.go + engine avatars pipeline | P0 |
 | Row: verified/scam/fake badges | Icon next to title | CORE-ONLY (fields exist: IsVerified/IsScam/IsFake) | gui/sidebar.go + ChatInfo fields | P1 |
-| Row: muted/pin/unread-mark icons | Icons right of time, muted badge style | PARTIAL (gray badge; no mute/pin icons, no UnreadMark) | gui/sidebar.go | P1 |
+| Row: muted/pin/unread-mark icons | Icons right of time, muted badge style | PRESENT (slice 29: pin + mute icons right of title before time; unread-mark accent dot when count is 0; muted badge keeps gray style) | gui/sidebar.go + gui/rowicons.go | P1 |
 | Row: draft preview | "Draft: …" when unsent | PRESENT (slice 20: red Draft preview over the last message) | gui/sidebar.go | P2 |
 | Row: media preview + "Photo"/"Voice" labels | Thumb + typed last-message labels | PRESENT (typed labels via engine.MediaPreviewLabel + 34dp rounded last-message thumbs, slice 24) | gui/sidebar.go previewText + mediaThumb | P1 |
 | Row: typing preview | "typing…" animated | PRESENT | gui/sidebar.go + engine.EventTyping | P0 |
 | Row: unread reactions/mentions badge | @ badge for mentions, badge variants | CORE-ONLY (UnreadMentionCount/UnreadReactionCount CORE-ONLY) | gui/sidebar.go | P2 |
 | Stories row + rings | Horizontal story circles w/ seen/unseen rings, story counter | CORE-ONLY (engine stories: FetchPeerStories, ChatInfo.StoryCount CORE-ONLY) | new gui/stories.go | P1 |
-| Chat row context menu | Mute (1h/8h/forever), pin, archive, read/unread, add to folder, delete/leave, block | PARTIAL (right-click menu: mute 1h/8h/forever/unmute, pin, mark read/unread, archive, delete — all real engine calls; add-to-folder/block later) | gui/chatmenu.go + engine MuteChat/PinChat/ArchiveChat/MarkChat(Unread)/DeleteChat | P0 |
+| Chat row context menu | Mute (1h/8h/forever), pin, archive, read/unread, add to folder, delete/leave, block | PARTIAL (right-click menu: mute 1h/8h/forever/unmute, pin, mark read/unread, archive, delete — all real engine calls; slice 27 add-to-folder picker (server folders, account-scoped); block later) | gui/chatmenu.go + engine MuteChat/PinChat/ArchiveChat/MarkChat(Unread)/DeleteChat/AddChatToFolder | P0 |
 | Folder context menu | Edit/delete folder, hide All-chats, import filters | PARTIAL (slice 13: right-click a folder tab → full editor w/ chat picker, flags, emoticon; delete in-editor; hide-All/import later) | gui/folders.go + engine Create/Edit/DeleteFolder | P2 |
 | Quick action on hover | Mute/unread toggle buttons on row hover | MISSING | gui/sidebar.go | P3 |
-| Next-unread button (↓) | Floating button jumps to next unread | MISSING | new gui/sidebar.go | P2 |
+| Next-unread button (↓) | Floating button jumps to next unread | PRESENT (slice 30: round ⬇ bottom-center when scope has unread; click scrolls + opens next unread, wraps) | gui/nextunread.go | P2 |
 | Chat preview popup | Hover row → floating recent-messages peek | CORE-ONLY | new widget; engine.GetMessages (CORE-ONLY) | P3 |
 | Suggestions (birthday/premium/promo) | Info cards in list | MISSING | P3 (low value; honest-empty rules apply) | P3 |
 | Similar channels block | Channel recommendations block | CORE-ONLY | engine.GetSimilarChannels (CORE-ONLY) | P3 |
@@ -76,8 +76,8 @@ P2 = settings/extras, P3 = rare/edge.
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
 | Peer header: image avatar | Round avatar in header | PARTIAL (letter avatar) | gui/chat.go chatHeader | P0 |
-| Header status | "online"/"last seen"/members/typing/subtitle switch | PARTIAL (member count/typing; no online status) | gui/chat.go + engine EventUserStatus (unused) | P1 |
-| Header badges | Verified/premium/emoji-status/scam icons | MISSING (ChatInfo has fields) | gui/chat.go | P1 |
+| Header status | "online"/"last seen"/members/typing/subtitle switch | PRESENT (slice 28: DM presence line — online (accent) / last seen (exact time/date) / bot — seeded by GetUserProfile, live via EventUserStatus; members for groups; typing) | gui/chat.go + gui/headerpresence.go + engine EventUserStatus | P1 |
+| Header badges | Verified/premium/emoji-status/scam icons | PRESENT (slice 28: verified ✓ blue, premium ⭐ gold, scam/fake ⚠ next to title; emoji-status custom emoji later) | gui/headerpresence.go | P1 |
 | Header "..." menu | Peer actions: mute, search in chat, view profile, add member, clear history, leave/delete, block | PARTIAL (slice 15: ⋮ menu — mute/unmute, view profile (opens the info panel), clear history w/ confirm, block/unblock (DMs, state-aware when the panel profile is loaded), leave (groups/channels) / delete (DMs) w/ confirm — all real engine calls; search-in-chat + add-member later) | gui/headermenu.go + engine MuteChat/BlockUser/ClearHistory/LeaveChat/DeleteChat | P0 |
 | Pinned-message bar | Shows current pin, tap → jump, "N pinned" switcher | PRESENT (bar under header w/ pin glyph + preview + cycle chevron; tap → jumpToMessage incl. window reload via beforeMs/afterMs) | gui/chrome.go + engine.GetPinnedMessages | P1 |
 | Translate bar | "Show original / Translate to …" bar over chat | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
@@ -87,11 +87,11 @@ P2 = settings/extras, P3 = rare/edge.
 | Bubbles: reactions strip | Emoji + counts under bubble, own highlighted | PARTIAL (2026-09: strip + own toggle + quick-reaction row in menu; custom-emoji pills skipped — need doc fetch) | gui/chat.go reactionStrip + engine reactions_json persistence + cores.UpdateReactions | P0 |
 | Bubbles: grouped/album layout | Media groups render as one grid bubble | PRESENT (slice 12: consecutive GroupedID media collapse into one bubble w/ Telegram grid patterns 1/2/3/4+overflow, cover-cropped cells, per-cell tap → viewer/download, caption/reactions/meta on the bubble) | gui/album.go + buildChatRows | P1 |
 | Bubbles: sender color (groups) | Per-sender accent color + admin rank | CORE-ONLY (SenderColorID/SenderRank CORE-ONLY) | gui/chat.go | P2 |
-| Service messages | Centered pill ("X joined group") | PARTIAL (rendered as plain bubble) | gui/chat.go messageRow | P1 |
+| Service messages | Centered pill ("X joined group") | PRESENT (slice 29: centered dim pill, no bubble/sender) | gui/chat.go messageRow + gui/rowicons.go serviceRow | P1 |
 | Unread messages separator | "Unread messages" divider line | PRESENT (accent pill on hairline, anchored to the boundary message captured at open — survives window reloads/jumps) | gui/chrome.go unreadDivider | P1 |
 | Scroll: start bottom + autoscroll | Pin to bottom on new msg | PRESENT | gui/chat.go messageList | P0 |
 | Scroll-up older history load | Loads older pages when reaching top | PRESENT (2026-09: loadOlder + merge preserves pages across refreshes) | gui/chat.go + state.go | P0 |
-| Jump-to-message (reply/search click) | Scroll+highlight target | MISSING (engine GetMessages afterMs mirrors AyuGram loadMessagesDown) | gui/chat.go | P1 |
+| Jump-to-message (reply/search click) | Scroll+highlight target | PRESENT (slice 25 reply-quote jump + slice 18/26 search-hit jump: loads window around target when out of view; highlight ring later) | gui/chrome.go jumpToMessageAt | P1 |
 | Day dividers | Date pills between days | PRESENT | gui/chat.go dayDivider | P0 |
 | Delivery ticks (sent/delivered/read) | Clock→✓→✓✓→accent ✓✓ | PRESENT | gui/chat.go statusTicks | P0 |
 | Read receipt "seen" (small groups) | "Seen" time on own msgs, avatar stack | CORE-ONLY | engine.GetOutboxReadDate/GetMessageReadParticipants (CORE-ONLY) | P2 |
