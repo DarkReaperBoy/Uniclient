@@ -829,3 +829,9 @@ Stage Summary:
 
 - **51 Live poll results**: cores OnMessagePoll → UpdatePollResults; engine mergePollResults (cache chat resolve, option-byte merge into content_raw) + EventMsgEdited; fixed int/float64 number coercion
 - CI: 34253409439 (s48–49) + 34253838794 (s50) GREEN; dispatched for s51
+
+---
+## 2026-09-08 — slice 52
+
+- **52 Profile cover**: big centered 96dp panel photo + centered name/status (streamer-safe)
+- CI: dispatched for s51–52 (34254679916 in flight)
