@@ -126,3 +126,14 @@ func servicePillText(m engine.CachedMessage) string {
 	}
 	return "(service message)"
 }
+
+// accountUnread sums unread counts for one account's chats.
+func accountUnread(chats []engine.ChatInfo, accountID string) int {
+	n := 0
+	for _, c := range chats {
+		if c.AccountID == accountID {
+			n += c.UnreadCount
+		}
+	}
+	return n
+}

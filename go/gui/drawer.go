@@ -314,7 +314,7 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 			continue
 		}
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
-			return drawerAccountRow(gtx, a.ui, &drawerAcctRows[i], acc, f.acctFilter == acc.ID)
+			return drawerAccountRow(gtx, a.ui, &drawerAcctRows[i], acc, f.acctFilter == acc.ID, accountUnread(f.chats, acc.ID))
 		})
 	}
 	if len(f.accounts) > 1 || current.ID == "" {
@@ -456,7 +456,7 @@ func drawerIcon(gtx layout.Context, icon *widget.Icon, c color.NRGBA) layout.Dim
 	return icon.Layout(gtx, c)
 }
 
-func drawerAccountRow(gtx layout.Context, u *UI, btn *widget.Clickable, acc engine.AccountInfo, active bool) layout.Dimensions {
+func drawerAccountRow(gtx layout.Context, u *UI, btn *widget.Clickable, acc engine.AccountInfo, active bool, unread int) layout.Dimensions {
 	return layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Top: unit.Dp(1), Bottom: unit.Dp(1)}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			return material.ButtonLayout(u.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -473,6 +473,16 @@ func drawerAccountRow(gtx layout.Context, u *UI, btn *widget.Clickable, acc engi
 								lbl.Color = u.p.Accent
 							}
 							return lbl.Layout(gtx)
+						}),
+						// per-account unread badge (AyuGram tray parity, slice 36)
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return layout.Dimensions{}
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							if unread <= 0 {
+								return layout.Dimensions{}
+							}
+							return unreadBadge(gtx, u, unread, false)
 						}),
 					)
 				})

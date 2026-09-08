@@ -28,6 +28,7 @@ var (
 	selBarFwdBtn  widget.Clickable
 	selBarDelBtn  widget.Clickable
 	selBarCopyBtn widget.Clickable
+	selBarRptBtn  widget.Clickable
 	selBarXBtn    widget.Clickable
 )
 
@@ -109,6 +110,17 @@ func (a *App) selectedMessages() []engine.CachedMessage {
 }
 
 // forwardSelected opens the forward picker over the selected messages.
+// reportSelected opens the report flow for the selected messages.
+func (a *App) reportSelected() {
+	msgs := a.selectedMessages()
+	if len(msgs) == 0 {
+		return
+	}
+	batch := make([]engine.CachedMessage, len(msgs))
+	copy(batch, msgs)
+	a.openReportDialog(batch)
+}
+
 func (a *App) forwardSelected() {
 	msgs := a.selectedMessages()
 	if len(msgs) == 0 {
@@ -194,6 +206,9 @@ func (a *App) layoutSelBar(gtx layout.Context, f frame) layout.Dimensions {
 	if selBarCopyBtn.Clicked(gtx) {
 		a.copySelectedText(gtx)
 	}
+	if selBarRptBtn.Clicked(gtx) {
+		a.reportSelected()
+	}
 	if selBarXBtn.Clicked(gtx) {
 		a.cancelSelection()
 	}
@@ -237,6 +252,13 @@ func (a *App) layoutSelBar(gtx layout.Context, f frame) layout.Dimensions {
 					return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						btn := a.ui.TextButton(&selBarCopyBtn, "Copy")
 						btn.Color = a.ui.p.Text
+						return btn.Layout(gtx)
+					})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						btn := a.ui.TextButton(&selBarRptBtn, "Report")
+						btn.Color = a.ui.p.Error
 						return btn.Layout(gtx)
 					})
 				}),

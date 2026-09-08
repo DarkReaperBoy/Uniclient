@@ -47,7 +47,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Three-pane layout | list · chat · right info panel | PARTIAL (2 panes; no right panel) | gui/app.go layoutMain | P0 |
 | Hamburger main menu (drawer) | My profile, contacts, calls, night mode, settings, ghost/LRead/SRead/streamer toggles, new group/channel, saved msgs | PRESENT (slice 17+23: ☰ drawer w/ account header+switching, contacts, calls→voice pane, night switch, ghost master + ⚙ prefs, new group/channel, settings, saved messages→self chat; streamer/LRead/SRead quick toggles remain) | gui/drawer.go + sidebar.go ☰ | P0 |
-| Account switcher | Multi-account bar with per-account unread dots | PARTIAL (UniClient account bar: add/remove/conn dot; Ayu-style tray+drawer missing) | gui/sidebar.go + engine accounts | P1 |
+| Account switcher | Multi-account bar with per-account unread dots | PARTIAL (UniClient account bar: add/remove/conn dot; drawer account rows carry per-account unread badges (slice 36); Ayu-style tray later) | gui/sidebar.go + gui/drawer.go + engine accounts | P1 |
 | Search field in bar | Global search: chats, messages, users, posts, files, tags | PARTIAL (local title/lastmsg filter only) | gui/sidebar.go + engine SearchChats/SearchGlobalChats (CORE-ONLY) | P0 |
 | Search results screen w/ tabs | Chats/Messages/Links/Files tabs + "search in" | CORE-ONLY | new gui/search.go + engine.SearchMessages (CORE-ONLY) | P1 |
 | Top peers strip | Pictured top-contacts row above list while searching | CORE-ONLY | engine.GetTopPeers (CORE-ONLY) | P2 |
@@ -95,7 +95,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Day dividers | Date pills between days | PRESENT | gui/chat.go dayDivider | P0 |
 | Delivery ticks (sent/delivered/read) | Clock→✓→✓✓→accent ✓✓ | PRESENT | gui/chat.go statusTicks | P0 |
 | Read receipt "seen" (small groups) | "Seen" time on own msgs, avatar stack | CORE-ONLY | engine.GetOutboxReadDate/GetMessageReadParticipants (CORE-ONLY) | P2 |
-| Message selection mode | Rect/ctrl/shift select, action bar (fwd/del/report) | PARTIAL (slice 14: "Select" in the context menu → check circles on rows, taps toggle; bar w/ Forward (ForwardMessages batch) / Copy / Delete; Escape cancels; rubber-band + report later) | gui/select.go + chat.go | P1 |
+| Message selection mode | Rect/ctrl/shift select, action bar (fwd/del/report) | PARTIAL (slice 14: "Select" in the context menu → check circles on rows, taps toggle; bar w/ Forward (ForwardMessages batch) / Copy / Report (slice 36, opens the slice-19 flow) / Delete; Escape cancels; rubber-band later) | gui/select.go + chat.go | P1 |
 | Chat empty intro | "No messages here yet…" bubble | PRESENT (centered bubble when the chat has no cached messages) | gui/chrome.go emptyIntro | P2 |
 | Not-joined channel view | Channel w/o join: preview + big "Join" button | CORE-ONLY (ChatInfo.NotJoined/JoinRequest CORE-ONLY) | gui/chat.go + engine.JoinChannel | P1 |
 | Slowmode / write restriction | Composer disabled w/ countdown/text | CORE-ONLY (ChatInfo.Slowmode*/WriteRestriction* CORE-ONLY) | gui/chat.go composerBar | P1 |
