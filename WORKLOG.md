@@ -619,3 +619,25 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - Tests: gui/emoji_test.go (row math, category clamp, dataset sanity incl.
   duplicate scan, row padding). Full gui suite green under node+wasm;
   engine/utils green; gofmt + vet clean.
+
+## 2026-09-08 — AyuGram parity program, slice 11: chat chrome
+
+- `gui/chrome.go` (new): the AyuGram chat-view chrome — pinned-message bar
+  under the header (pin glyph, "Pinned message(s)" title, preview line w/
+  media labels, cycle chevron for multiples; tap jumps to the message);
+  "Unread messages" separator (accent pill on a hairline, anchored to the
+  boundary MESSAGE id captured at open — before the read receipt fires — so
+  it survives window reloads and jumps, AyuGram behavior); "No messages
+  here yet…" empty-chat intro; jumpToMessage (in-window → exact row scroll
+  via the shared row model; out-of-window → engine GetMessages
+  beforeMs/afterMs window reload + scroll).
+- `gui/chat.go`: messageList row model extracted to the shared
+  buildChatRows (dividers + separator + messages) so hit-testing, bounds
+  and jumps stay consistent; pinned bar slot under the header (listTop
+  accounts for it).
+- `gui/state.go`: unreadAtOpen/unreadSepMsgID + pinned state; openChat
+  captures the unread count pre-receipt, loads pins, closes the emoji panel
+  and any open media viewer.
+- Tests: gui/chrome_test.go (separator index math, row model w/ anchored
+  separator, rowIndexOf consistency, pinned preview/title). Full suite
+  green under node+wasm; windows + wasm builds clean.

@@ -89,6 +89,12 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop = a.headerH + d.Size.Y
 			return d
 		}),
+		// Pinned-message bar (AyuGram chat chrome)
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			d := a.pinnedBar(gtx, f)
+			a.listTop += d.Size.Y
+			return d
+		}),
 		// Messages
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return a.messageList(gtx, f, chat)
@@ -292,23 +298,9 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(200 * time.Millisecond)})
 	}
 
-	// Build the row model: dividers + messages.
-	type row struct {
-		day string
-		msg *engine.CachedMessage
-		idx int // index into f.messages (-1 for dividers)
-	}
-	rows := make([]row, 0, len(f.messages)+4)
-	var lastDay string
-	for i := range f.messages {
-		m := &f.messages[i]
-		day := time.UnixMilli(m.Timestamp).Format("2 Jan 2006")
-		if day != lastDay {
-			rows = append(rows, row{day: day, idx: -1})
-			lastDay = day
-		}
-		rows = append(rows, row{msg: m, idx: i})
-	}
+	// Build the row model: day dividers + messages + the unread separator
+	// anchored to its boundary message.
+	rows := buildChatRows(f.messages, f.unreadSepMsgID)
 
 	if f.loadingMsgs {
 		// loading indicator at top
@@ -329,6 +321,11 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		})
 	}
 
+	// Empty chat intro (AyuGram "No messages here yet…").
+	if len(f.messages) == 0 {
+		return a.emptyIntro(gtx, f)
+	}
+
 	// Reset this frame's row bounds; refill as visible rows lay out.
 	a.rowBounds = make(map[int]image.Rectangle, len(rows))
 	paneW := gtx.Constraints.Max.X
@@ -338,13 +335,16 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	dims := list.Layout(gtx, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
 		r := rows[i]
 		var d layout.Dimensions
-		if r.day != "" {
+		switch {
+		case r.unread:
+			d = a.unreadDivider(gtx)
+		case r.day != "":
 			d = a.dayDivider(gtx, r.day)
-		} else {
-			d = a.messageRow(gtx, f, r.msg)
+		default:
+			d = a.messageRow(gtx, f, &f.messages[r.msgIdx])
 		}
-		if r.idx >= 0 {
-			a.rowBounds[r.idx] = image.Rectangle{Min: image.Pt(0, a.listTop+y), Max: image.Pt(paneW, a.listTop+y+d.Size.Y)}
+		if r.msgIdx >= 0 {
+			a.rowBounds[r.msgIdx] = image.Rectangle{Min: image.Pt(0, a.listTop+y), Max: image.Pt(paneW, a.listTop+y+d.Size.Y)}
 		}
 		y += d.Size.Y
 		return d

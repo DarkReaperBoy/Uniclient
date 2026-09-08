@@ -79,7 +79,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Header status | "online"/"last seen"/members/typing/subtitle switch | PARTIAL (member count/typing; no online status) | gui/chat.go + engine EventUserStatus (unused) | P1 |
 | Header badges | Verified/premium/emoji-status/scam icons | MISSING (ChatInfo has fields) | gui/chat.go | P1 |
 | Header "..." menu | Peer actions: mute, search in chat, view profile, add member, clear history, leave/delete, block | CORE-ONLY | new gui/menu.go + engine methods (CORE-ONLY) | P0 |
-| Pinned-message bar | Shows current pin, tap → jump, "N pinned" switcher | CORE-ONLY | engine.GetPinnedMessages (CORE-ONLY) + gui/chat.go | P1 |
+| Pinned-message bar | Shows current pin, tap → jump, "N pinned" switcher | PRESENT (bar under header w/ pin glyph + preview + cycle chevron; tap → jumpToMessage incl. window reload via beforeMs/afterMs) | gui/chrome.go + engine.GetPinnedMessages | P1 |
 | Translate bar | "Show original / Translate to …" bar over chat | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
 | Group-call bar | Live bar in header w/ participants, join button | CORE-ONLY | engine.GetGroupCall (CORE-ONLY) + gui/chat.go | P1 |
 | Message bubbles: reply quote | Quoted block w/ sender+text, click→jump | PARTIAL (rendered; click→jump pending) | gui/chat.go replyQuote | P0 |
@@ -88,7 +88,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Bubbles: grouped/album layout | Media groups render as one grid bubble | CORE-ONLY (GroupedID CORE-ONLY) | gui/chat.go | P1 |
 | Bubbles: sender color (groups) | Per-sender accent color + admin rank | CORE-ONLY (SenderColorID/SenderRank CORE-ONLY) | gui/chat.go | P2 |
 | Service messages | Centered pill ("X joined group") | PARTIAL (rendered as plain bubble) | gui/chat.go messageRow | P1 |
-| Unread messages separator | "Unread messages" divider line | MISSING | gui/chat.go messageList | P1 |
+| Unread messages separator | "Unread messages" divider line | PRESENT (accent pill on hairline, anchored to the boundary message captured at open — survives window reloads/jumps) | gui/chrome.go unreadDivider | P1 |
 | Scroll: start bottom + autoscroll | Pin to bottom on new msg | PRESENT | gui/chat.go messageList | P0 |
 | Scroll-up older history load | Loads older pages when reaching top | PRESENT (2026-09: loadOlder + merge preserves pages across refreshes) | gui/chat.go + state.go | P0 |
 | Jump-to-message (reply/search click) | Scroll+highlight target | MISSING (engine GetMessages afterMs mirrors AyuGram loadMessagesDown) | gui/chat.go | P1 |
@@ -96,7 +96,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Delivery ticks (sent/delivered/read) | Clock→✓→✓✓→accent ✓✓ | PRESENT | gui/chat.go statusTicks | P0 |
 | Read receipt "seen" (small groups) | "Seen" time on own msgs, avatar stack | CORE-ONLY | engine.GetOutboxReadDate/GetMessageReadParticipants (CORE-ONLY) | P2 |
 | Message selection mode | Rect/ctrl/shift select, action bar (fwd/del/report) | MISSING | gui/chat.go + engine bulk ops | P1 |
-| Chat empty intro | "No messages here yet…" bubble | MISSING | gui/chat.go | P2 |
+| Chat empty intro | "No messages here yet…" bubble | PRESENT (centered bubble when the chat has no cached messages) | gui/chrome.go emptyIntro | P2 |
 | Not-joined channel view | Channel w/o join: preview + big "Join" button | CORE-ONLY (ChatInfo.NotJoined/JoinRequest CORE-ONLY) | gui/chat.go + engine.JoinChannel | P1 |
 | Slowmode / write restriction | Composer disabled w/ countdown/text | CORE-ONLY (ChatInfo.Slowmode*/WriteRestriction* CORE-ONLY) | gui/chat.go composerBar | P1 |
 | Forum topics view | Topic list + topic bars + subsection tabs | CORE-ONLY (engine forum CRUD all CORE-ONLY) | new gui/topics.go | P2 |

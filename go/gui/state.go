@@ -103,6 +103,14 @@ type App struct {
 	emojiOpen bool
 	emojiTab  int
 
+	// chat chrome (AyuGram parity slice 11): unread boundary snapshot +
+	// pinned messages for the open chat.
+	unreadAtOpen   int
+	unreadSepMsgID string // boundary message the separator anchors to
+	pinned         []engine.CachedMessage
+	pinnedIdx      int
+	pinnedLoaded   bool
+
 	// server folders (AyuGram parity slice 6): real dialog-filter tabs
 	folders          []engine.FolderInfo
 	foldersFor       string
@@ -547,13 +555,29 @@ func (a *App) openChat(k chatKey, title string) {
 	a.downloads = make(map[string]dlState)
 	a.panelOpen = false
 	a.attachMenuOpen = false
+	a.emojiOpen = false
 	a.chatMenu = nil
 	a.profile = nil
 	a.members = nil
 	a.mediaCounts = nil
 	a.panelRecent = nil
+	a.pinned = nil
+	a.pinnedIdx = 0
+	a.pinnedLoaded = false
+	a.unreadSepMsgID = ""
+	a.viewer = nil // slice 9: close any open media viewer
+	// Unread snapshot BEFORE the read receipt fires (openChat marks read
+	// right after the first load) — the separator position for this visit.
+	a.unreadAtOpen = 0
+	for _, c := range a.chats {
+		if c.AccountID == k.AccountID && c.ChatID == k.ChatID {
+			a.unreadAtOpen = c.UnreadCount
+			break
+		}
+	}
 	a.mu.Unlock()
 	a.rowBounds = make(map[int]image.Rectangle) // stale rows from the previous chat
+	a.loadPinned(k)
 	a.invalidate()
 	go func() {
 		msgs, err := a.eng.GetMessages(k.AccountID, k.ChatID, 0, 0, 100)
@@ -567,6 +591,13 @@ func (a *App) openChat(k chatKey, title string) {
 		a.messages = msgs
 		a.msgFor = &k
 		a.loadingMsgs = false
+		// Anchor the unread separator to the boundary message (only
+		// on the first load of this visit, before the read receipt).
+		if a.unreadSepMsgID == "" && a.unreadAtOpen > 0 {
+			if sepAt := unreadSepIndex(len(msgs), a.unreadAtOpen); sepAt >= 0 && sepAt < len(msgs) {
+				a.unreadSepMsgID = msgs[sepAt].MsgID
+			}
+		}
 		a.mu.Unlock()
 		go func() {
 			_ = a.eng.MarkChatRead(k.AccountID, k.ChatID, "")
@@ -933,6 +964,11 @@ func (a *App) snapshot() frame {
 		attachMenuOpen:   a.attachMenuOpen,
 		emojiOpen:        a.emojiOpen,
 		emojiTab:         a.emojiTab,
+		unreadAtOpen:     a.unreadAtOpen,
+		unreadSepMsgID:   a.unreadSepMsgID,
+		pinned:           a.pinned,
+		pinnedIdx:        a.pinnedIdx,
+		pinnedLoaded:     a.pinnedLoaded,
 		folders:          a.folders,
 		foldersSupported: a.foldersSupported,
 		folderDlg:        a.folderDlg,
@@ -1011,6 +1047,13 @@ type frame struct {
 	// emoji picker (slice 10)
 	emojiOpen bool
 	emojiTab  int
+
+	// chat chrome (slice 11): unread separator + pinned bar
+	unreadAtOpen   int
+	unreadSepMsgID string
+	pinned         []engine.CachedMessage
+	pinnedIdx      int
+	pinnedLoaded   bool
 
 	// server folders (slice 6)
 	folders          []engine.FolderInfo
