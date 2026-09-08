@@ -769,3 +769,24 @@ Work Log:
 Stage Summary:
 - 32 parity slices landed; CI green through slice 29; verify run dispatched for 30–32 (HEAD c521a438)
 - Next candidates: compose-side markdown formatting, link opening, copy message link (engine t.me), Ayu local "hide message", recent searches persistence, streamer mode
+
+---
+Task ID: parity-slices-33-40
+Agent: main (Super Z)
+Task: Continue the AyuGram 1:1 parity program endlessly (slices 33–40)
+
+Work Log:
+- CI runs all green this session: 34241829062 (30–32), 34242862469 (33–35), 34243839450 (36–37)
+- Slice 33: compose markdown → entities on send (*bold*, _italic_, __underline__, ~strike~, ||spoiler||, `code`, ```pre```; nested, UTF-16 offsets)
+- Slice 34: copy-link-to-message (engine MessageLink wraps core ExportMessageLink) + tappable link tokens copy URL via per-token event tags; pendingCopy clipboard hop for background goroutines
+- Slice 35: Ayu local hide (locally_hidden_messages v45 migration, GetMessages NOT EXISTS filter) + repeat (resends cached text + entities); engine tests on in-memory sqlite
+- Slice 36: drawer per-account unread badges + selection-bar Report (opens the slice-19 flow)
+- Slice 37: recent searches — AddRecentSearch/ClearRecentSearches in vault config (dedupe, cap 8), recents dropdown under the focused empty search field, Enter records
+- Slice 38: drawer customization — Settings → Ayu · Drawer toggles persist hidden row ids (AppConfig.drawer_hidden_items), rows filtered at build
+- Slice 39: schedule "send when online" (0x7FFFFFFF magic date; labels render 'when online')
+- Slice 40: member-list search in the info panel (name/username/id substring filter)
+- Matrix rows updated for every slice; all local gates green per slice
+
+Stage Summary:
+- 40 parity slices landed; CI green through 37; runs dispatched for 38–40
+- Remaining P1/P2 candidates: voice/video playback (blocked: engine streaming), call bar (wrtc), forward multi-pick, streamer mode, profile share/edit, shared-media full grids, QR invite scan
