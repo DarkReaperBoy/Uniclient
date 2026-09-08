@@ -126,6 +126,7 @@ type App struct {
 	foldersSupported bool
 	folderDlg        *folderDlgState
 	folderInvites    *folderInvitesState // folder invite-links dialog (slice 54)
+	attachDlg        *attachDlgState     // location/contact share dialog (slice 56)
 
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
@@ -767,6 +768,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.emojiOpen = false
 	a.chatMenu = nil
 	a.folderMenu = nil
+	a.attachDlg = nil
 	a.headerMenu = nil
 	a.profile = nil
 	a.members = nil
@@ -1297,6 +1299,7 @@ func (a *App) snapshot() frame {
 		foldersSupported: a.foldersSupported,
 		folderDlg:        a.folderDlg,
 		folderInvites:    a.folderInvites,
+		attachDlg:        a.attachDlg,
 		chatMenu:         a.chatMenu,
 		folderMenu:       a.folderMenu,
 		headerMenu:       a.headerMenu,
@@ -1429,6 +1432,7 @@ type frame struct {
 	foldersSupported bool
 	folderDlg        *folderDlgState
 	folderInvites    *folderInvitesState
+	attachDlg        *attachDlgState
 
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget

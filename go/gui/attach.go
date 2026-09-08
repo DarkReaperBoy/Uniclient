@@ -44,6 +44,8 @@ func (a *App) attachMenuItems() []attachMenuItem {
 		{label: "Photo or Video", icon: iconImagePhoto, run: func() { a.pickAndSend(true) }},
 		{label: "File", icon: iconFileAttach, run: func() { a.pickAndSend(false) }},
 		{label: "Poll", icon: iconSocialPoll, run: func() { a.openPollDialog() }},
+		{label: "Location", icon: iconMapsPlace, run: func() { a.openAttachDialog("location") }},
+		{label: "Contact", icon: iconCommunicationContacts, run: func() { a.openAttachDialog("contact") }},
 	}
 }
 

@@ -31,6 +31,7 @@ func escTarget(f frame) string {
 		f.pollDlg != nil,
 		f.folderDlg != nil,
 		f.folderInvites != nil,
+		f.attachDlg != nil,
 		f.inviteDlg != nil,
 		f.newDlg != nil,
 		f.viewer != nil,

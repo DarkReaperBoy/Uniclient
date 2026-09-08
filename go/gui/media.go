@@ -328,6 +328,10 @@ func mediaBlockKind(mt int) string {
 		return "voice"
 	case engine.MediaAudio:
 		return "audio"
+	case engine.MediaLocation:
+		return "location"
+	case engine.MediaContact:
+		return "contact"
 	default:
 		return "file"
 	}
@@ -384,6 +388,10 @@ func (a *App) mediaBlock(gtx layout.Context, f frame, m *engine.CachedMessage) l
 				return a.voiceBubble(gtx, f, m)
 			case "audio":
 				return a.audioBubble(gtx, m)
+			case "location":
+				return a.locationBubble(gtx, m)
+			case "contact":
+				return a.contactBubble(gtx, m)
 			default:
 				return a.fileBubble(gtx, m)
 			}
@@ -419,6 +427,20 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 		return
 	}
 	msg := *m
+	// Location/contact bubbles carry no downloadable payload — tap copies
+	// the maps URL / phone number instead (same clipboard hop as links).
+	switch msg.MediaType {
+	case engine.MediaLocation:
+		if g := parseGeoMessage(&msg); g != nil {
+			a.copyTextSoon(g.mapsURL())
+		}
+		return
+	case engine.MediaContact:
+		if c := parseContactMessage(&msg); c != nil && c.Phone != "" {
+			a.copyTextSoon(c.Phone)
+		}
+		return
+	}
 	switch state {
 	case engine.DownloadNone, engine.DownloadFailed:
 		go func() {
