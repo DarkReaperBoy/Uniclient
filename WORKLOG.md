@@ -883,3 +883,13 @@ Stage Summary:
 
 - **61 Reactions & poll-vote notifications**: per-account settings rows w/ contacts-only filters, engine SetReactionsNotifySettings; state seeded from GetReactionsNotifySettings
 - Root-caused + fixed the s58/s59 CI gofmt failures (stale searchtabs_test.go in those commits; fixed by a1e839e7 — subsequent commits gated by scripts gate.sh)
+---
+## 2026-09-09 — slices 62–66 (post sandbox-reset session)
+
+- Reinstalled the toolchain after a sandbox reset (Go 1.27.1 → /home/z/go, wasm exec re-linked); all gates re-verified before continuing
+- **62 Privacy scopes**: cores GetPrivacyScope/SetPrivacyScope (settings vocabulary ↔ Telegram rules, round-trip tested); engine GetPrivacyScopes/SetPrivacyScope; Privacy & Security page — 10 rows w/ live server scope + picker dialog (Everybody/My contacts/Close friends where supported/Nobody)
+- **63 Auto-download rules**: engine persists rules (kv autodl:<source>, loaded at Init) + GetAutoDownloadSettings effective view; Data & Storage per-source rows + editor dialog (type toggles, media/video size ladders, immediate apply)
+- **64 Recent calls**: Voice tab per-account call history (engine.GetCallHistory was CORE-ONLY) — direction/duration/time rows, missed red, tap opens peer chat
+- **65 Per-chat themes**: DM ⋮ "Change colors…" — server chat-theme picker (emoticon chips tinted w/ message colors, Reset) → engine.SetChatTheme
+- **66 Cloud themes**: Appearance section — server theme list (GetCloudThemes was CORE-ONLY), install confirm → InstallCloudTheme + accent applied locally (persisted)
+- CI GREEN at every dispatched checkpoint: 34270604522 (s62) · 34271439394 (s62–65) · 34272135542 (s66)
