@@ -286,7 +286,7 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Keyboard shortcuts | Ctrl+F search, Ctrl+up/down chat switch, Esc close, etc. | MISSING | gui key handling | P2 |
+| Keyboard shortcuts | Ctrl+F search, Ctrl+up/down chat switch, Esc close, etc. | PARTIAL (slice 43: global key layer — Esc closes the topmost surface in AyuGram's dismissal order (menus → attach/emoji → selection → in-chat search → panel → sidebar search; dialogs/viewer/drawer self-handle first), Ctrl+F opens in-chat search or focuses the sidebar field, Ctrl+↑↓/PgUp/PgDn switch chats (wrap); Alt+jumplist, Ctrl+Tab account switch later) | gui/shortcuts.go | P2 |
 | Multi-window chats | Separate chat windows | MISSING | gui multi-window support | P3 |
 | Lock on autolock timer | Passcode relock | CORE-ONLY | engine passcode (CORE-ONLY) | P2 |
 | Deep links (tg://) | URL handling for join/phone | MISSING | engine ayu_url_handlers ≙ new resolver | P3 |

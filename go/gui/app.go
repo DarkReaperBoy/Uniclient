@@ -43,6 +43,9 @@ func (a *App) Root(gtx layout.Context) {
 		a.layoutDrawer(gtx, f)
 	}
 	a.layoutToast(gtx, f)
+	// Global keyboard layer (slice 43): registered last so surface-local
+	// key handlers consume their events first.
+	a.layoutShortcuts(gtx, f)
 }
 
 func (u *UI) paintBackground(gtx layout.Context) {
