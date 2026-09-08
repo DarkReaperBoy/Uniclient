@@ -88,6 +88,10 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 				return a.searchField(gtx, f)
 			})
 		})),
+		// Search result tabs (AyuGram results screen, slice 57)
+		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
+			return a.layoutSearchTabs(gtx, f)
+		})),
 		// Recent searches dropdown (AyuGram, slice 37): below the field while
 		// it is focused and empty.
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
@@ -487,6 +491,7 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 	// matches (slice 16).
 	global := searchGlobalScope(f.searchGlobal, f.acctFilter)
 	rows := buildSearchRows(visible, f.searchMsgs, global, f.acctFilter)
+	rows = filterSearchRows(rows, f.searchTab)
 	// Invite links: the query itself can be a t.me/+hash join link
 	// (slice 24) — surface the join row above the results.
 	inviteHash, isInvite := extractInviteHash(f.search)

@@ -127,6 +127,7 @@ type App struct {
 	folderDlg        *folderDlgState
 	folderInvites    *folderInvitesState // folder invite-links dialog (slice 54)
 	attachDlg        *attachDlgState     // location/contact share dialog (slice 56)
+	searchTab        int                 // search results tab (slice 57)
 
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
@@ -1300,6 +1301,7 @@ func (a *App) snapshot() frame {
 		folderDlg:        a.folderDlg,
 		folderInvites:    a.folderInvites,
 		attachDlg:        a.attachDlg,
+		searchTab:        a.searchTab,
 		chatMenu:         a.chatMenu,
 		folderMenu:       a.folderMenu,
 		headerMenu:       a.headerMenu,
@@ -1433,6 +1435,7 @@ type frame struct {
 	folderDlg        *folderDlgState
 	folderInvites    *folderInvitesState
 	attachDlg        *attachDlgState
+	searchTab        int
 
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget

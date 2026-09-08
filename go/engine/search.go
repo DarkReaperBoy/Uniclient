@@ -26,7 +26,22 @@ type SearchResult struct {
 // If topicID is non-empty, restricts to that forum topic.
 // If senderID is non-empty, restricts to messages from that sender
 // (the "Search from [user]" filter — AyuGram ChatSearchIn `_from`).
+// Search message-kind filters (AyuGram search results tabs): Links keeps
+// messages carrying URLs (auto-detected or explicit entities, or a bare
+// http prefix in the text); Files keeps messages with media attachments.
+const (
+	SearchFilterLinks = "links"
+	SearchFilterFiles = "files"
+)
+
+// SearchMessages is the unrestricted search (all kinds).
 func (e *Engine) SearchMessages(query string, accountID string, limit int, chatID string, topicID string, senderID string) ([]SearchResult, error) {
+	return e.SearchMessagesEx(query, accountID, limit, chatID, topicID, senderID, "")
+}
+
+// SearchMessagesEx additionally restricts the hits to one message kind
+// (SearchFilterLinks / SearchFilterFiles; "" = all).
+func (e *Engine) SearchMessagesEx(query string, accountID string, limit int, chatID string, topicID string, senderID string, kind string) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -65,6 +80,12 @@ func (e *Engine) SearchMessages(query string, accountID string, limit int, chatI
 	if senderID != "" {
 		where += ` AND m.sender_id = ?`
 		args = append(args, senderID)
+	}
+	switch kind {
+	case SearchFilterLinks:
+		where += ` AND (m.content_text LIKE '%http%' OR m.content_raw LIKE '%"type":"url"%' OR m.content_raw LIKE '%"type":"text_url"%')`
+	case SearchFilterFiles:
+		where += ` AND m.has_media = 1`
 	}
 
 	where += ` ORDER BY m.timestamp DESC LIMIT ?`

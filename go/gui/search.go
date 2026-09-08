@@ -81,6 +81,66 @@ func searchGlobalScope(global []engine.ChatInfo, acctFilter string) []engine.Cha
 	return out
 }
 
+// ── results tabs (AyuGram search-results screen, slice 57) ─────────────────
+
+// Search-result tabs: All (unified sections, previous behavior), Chats
+// (local + server chat hits), Messages (text hits), Links / Files (message
+// hits filtered engine-side by URL / media presence).
+const (
+	searchTabAll = iota
+	searchTabChats
+	searchTabMsgs
+	searchTabLinks
+	searchTabFiles
+)
+
+var searchTabLabels = [...]string{"All", "Chats", "Messages", "Links", "Files"}
+
+// searchTabKind maps a tab to the engine message-kind filter ("" = none).
+func searchTabKind(tab int) string {
+	switch tab {
+	case searchTabLinks:
+		return engine.SearchFilterLinks
+	case searchTabFiles:
+		return engine.SearchFilterFiles
+	}
+	return ""
+}
+
+// filterSearchRows narrows built rows to one tab's sections (the invite
+// row survives everywhere). Pure — unit-tested.
+func filterSearchRows(rows []sbRow, tab int) []sbRow {
+	if tab == searchTabAll {
+		return rows
+	}
+	keepChat := tab == searchTabChats
+	keepMsg := tab == searchTabMsgs || tab == searchTabLinks || tab == searchTabFiles
+	out := make([]sbRow, 0, len(rows))
+	headerFor := -1 // -1: none pending, -2: emitted
+	for _, r := range rows {
+		switch r.kind {
+		case sbRowInvite:
+			out = append(out, r)
+		case sbRowHeader:
+			headerFor = -2
+			if (keepChat && (r.title == "Chats" || r.title == "Global results")) ||
+				(keepMsg && r.title == "Messages") {
+				headerFor = len(out)
+				out = append(out, r)
+			}
+		case sbRowChat, sbRowGlobal:
+			if keepChat && headerFor != -2 {
+				out = append(out, r)
+			}
+		case sbRowMsg:
+			if keepMsg && headerFor != -2 {
+				out = append(out, r)
+			}
+		}
+	}
+	return out
+}
+
 // ── state transitions ─────────────────────────────────────────────────────
 
 // onSearchChanged (GUI goroutine, from the search field's ChangeEvents)
@@ -105,8 +165,12 @@ func (a *App) onSearchChanged(q string) {
 	}
 	a.mu.Unlock()
 
+	a.mu.Lock()
+	tab := a.searchTab
+	a.mu.Unlock()
+
 	go func() {
-		msgs, errM := a.eng.SearchMessages(q, acct, 30, "", "", "")
+		msgs, errM := a.eng.SearchMessagesEx(q, acct, 30, "", "", "", searchTabKind(tab))
 		if errM != nil {
 			log.Printf("gui: search messages: %v", errM)
 			msgs = nil
@@ -136,6 +200,23 @@ func (a *App) onSearchChanged(q string) {
 		a.mu.Unlock()
 		a.invalidate()
 	}()
+}
+
+// setSearchTab switches the results tab and re-runs the message search
+// (links/files hits come from the engine kind filter).
+func (a *App) setSearchTab(tab int) {
+	a.mu.Lock()
+	if a.searchTab == tab {
+		a.mu.Unlock()
+		return
+	}
+	a.searchTab = tab
+	q := a.searchFor
+	a.mu.Unlock()
+	a.invalidate()
+	if q != "" {
+		a.onSearchChanged(q)
+	}
 }
 
 // openSearchResult opens the chat for a message hit and jumps to it.
@@ -243,5 +324,42 @@ func (a *App) searchGlobalRow(gtx layout.Context, btn *widget.Clickable, c engin
 				}),
 			)
 		})
+	})
+}
+
+// searchTabBtns pools the result-tab pills.
+var searchTabBtns []widget.Clickable
+
+// layoutSearchTabs renders the result filter bar (All/Chats/Messages/
+// Links/Files) — shown while a query is active.
+func (a *App) layoutSearchTabs(gtx layout.Context, f frame) layout.Dimensions {
+	if f.search == "" {
+		return layout.Dimensions{}
+	}
+	growClickables(&searchTabBtns, len(searchTabLabels))
+	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		children := make([]layout.FlexChild, 0, len(searchTabLabels))
+		for i, label := range searchTabLabels {
+			i, label := i, label
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				btn := &searchTabBtns[i]
+				if btn.Clicked(gtx) {
+					a.setSearchTab(i)
+				}
+				active := f.searchTab == i
+				b := material.Button(a.ui.Theme, btn, label)
+				b.Background = a.ui.p.Surface
+				b.Color = a.ui.p.TextDim
+				b.TextSize = unit.Sp(12)
+				b.CornerRadius = 12
+				b.Inset = layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4), Left: unit.Dp(8), Right: unit.Dp(8)}
+				if active {
+					b.Background = a.ui.p.AccentDim
+					b.Color = a.ui.p.Text
+				}
+				return layout.Inset{Right: unit.Dp(4)}.Layout(gtx, b.Layout)
+			}))
+		}
+		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 	})
 }
