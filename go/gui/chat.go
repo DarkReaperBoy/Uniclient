@@ -46,9 +46,37 @@ func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Di
 	}
 	chat := findChat(f, *f.selected)
 
+	// Right info panel replaces the pane on narrow layouts (AyuGram slide-in).
+	if f.panelOpen && narrow {
+		return a.layoutInfoPanel(gtx, f, chat, true)
+	}
+
 	// Route pane presses (right-click context menu, menu dismissal).
 	a.processPaneEvents(gtx, f)
 
+	chatPane := func(gtx layout.Context) layout.Dimensions {
+		return a.chatPaneColumn(gtx, f, chat, narrow)
+	}
+	if f.panelOpen {
+		// Desktop: chat column | divider | info panel (AyuGram 3rd pane).
+		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+			layout.Flexed(1, chatPane),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.ui.DividerV(gtx)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Max.X = gtx.Dp(unit.Dp(320))
+				gtx.Constraints.Min.X = gtx.Dp(unit.Dp(320))
+				return a.layoutInfoPanel(gtx, f, chat, false)
+			}),
+		)
+	}
+	return chatPane(gtx)
+}
+
+// chatPaneColumn renders the chat column (header + messages + composer) plus
+// the overlay menu — the non-panel layout of the chat view.
+func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo, narrow bool) layout.Dimensions {
 	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		// Header
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -139,6 +167,19 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 					acc := accountByID(f, chat.AccountID)
 					dot := connDotFor(acc)
 					return statusChip(gtx, a.ui, dot)
+				}),
+				// info (ⓘ) — right panel toggle (AyuGram)
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if panelInfoBtn.Clicked(gtx) {
+						if f.panelOpen {
+							a.closePanel()
+						} else {
+							a.openPanel()
+						}
+					}
+					btn := a.ui.IconButton(&panelInfoBtn, iconActionInfo, "Chat info")
+					btn.Color = a.ui.p.TextDim
+					return btn.Layout(gtx)
 				}),
 			)
 		},

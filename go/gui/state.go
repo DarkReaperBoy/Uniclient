@@ -81,6 +81,15 @@ type App struct {
 	ghostSel      string
 	ghostFlags    map[string]engine.GhostFlags
 	ghostLoaded   bool
+	// right info panel (AyuGram parity slice 4): profile/members/media
+	panelOpen   bool
+	panelChat   chatKey
+	panelLoaded bool
+	panelMuted  bool
+	profile     *engine.CachedUser
+	members     []engine.MemberInfo
+	mediaCounts []engine.SharedMediaCountItem
+	panelRecent []engine.SharedMediaItem
 
 	// transient
 	typing map[string]time.Time // chatKey -> last typing seen
@@ -476,6 +485,12 @@ func (a *App) openChat(k chatKey, title string) {
 	a.fwd = nil
 	a.autoDl = make(map[string]bool)
 	a.downloads = make(map[string]dlState)
+	a.panelOpen = false
+	a.panelLoaded = false
+	a.profile = nil
+	a.members = nil
+	a.mediaCounts = nil
+	a.panelRecent = nil
 	a.mu.Unlock()
 	a.rowBounds = make(map[int]image.Rectangle) // stale rows from the previous chat
 	a.invalidate()
@@ -839,6 +854,14 @@ func (a *App) snapshot() frame {
 		ghostSel:      a.ghostSel,
 		ghostFlags:    a.ghostFlags,
 		ghostLoaded:   a.ghostLoaded,
+		panelOpen:     a.panelOpen,
+		panelChat:     a.panelChat,
+		panelLoaded:   a.panelLoaded,
+		panelMuted:    a.panelMuted,
+		profile:       a.profile,
+		members:       a.members,
+		mediaCounts:   a.mediaCounts,
+		panelRecent:   a.panelRecent,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -896,6 +919,15 @@ type frame struct {
 	ghostSel      string
 	ghostFlags    map[string]engine.GhostFlags
 	ghostLoaded   bool
+	// right info panel (slice 4)
+	panelOpen   bool
+	panelChat   chatKey
+	panelLoaded bool
+	panelMuted  bool
+	profile     *engine.CachedUser
+	members     []engine.MemberInfo
+	mediaCounts []engine.SharedMediaCountItem
+	panelRecent []engine.SharedMediaItem
 }
 
 var _ = op.InvalidateCmd{} // referenced in widgets that animate

@@ -171,14 +171,14 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Right panel exists | Slide-in 3rd pane (info/media/peer) | MISSING | new gui/profile.go | P0 |
-| Profile: cover + avatar + name + status | Big header w/ photo | CORE-ONLY | engine.GetUserProfile (CORE-ONLY) | P0 |
-| Profile: bio/phone/username rows + copy | Info rows w/ icons | CORE-ONLY | engine.GetUser (CORE-ONLY) | P0 |
-| Profile: actions (add contact, share, block, edit) | Button rows | CORE-ONLY | engine AddContact/BlockUser/Unblock (CORE-ONLY) | P1 |
-| Shared media tabs | Photos/Videos/Files/Links/Voice/GIFs grids w/ counts | CORE-ONLY | engine.GetSharedMedia/GetSharedMediaCounts (CORE-ONLY!) | P1 |
-| Members list (groups) | Searchable, roles, admin badges | CORE-ONLY | engine.GetChatMembers/ByRole (CORE-ONLY) | P1 |
+| Right panel exists | Slide-in 3rd pane (info/media/peer) | PRESENT (desktop 3rd pane 320dp, narrow replaces pane; ⓘ toggle in chat header) | gui/profile.go | P0 |
+| Profile: cover + avatar + name + status | Big header w/ photo | PARTIAL (header w/ avatar + presence from GetUserProfile; big cover photo later) | gui/profile.go + engine.GetUserProfile | P0 |
+| Profile: bio/phone/username rows + copy | Info rows w/ icons | PARTIAL (icon rows for username/phone/bio; copy action later) | gui/profile.go panelValueRow | P0 |
+| Profile: actions (add contact, share, block, edit) | Button rows | PARTIAL (add-to-contacts + block/unblock wired; share/edit later) | gui/profile.go + engine AddContactByUser/BlockUser | P1 |
+| Shared media tabs | Photos/Videos/Files/Links/Voice/GIFs grids w/ counts | PARTIAL (real per-type counts + recent-photos grid; full tabbed grids later) | gui/profile.go + engine GetSharedMedia(Counts) | P1 |
+| Members list (groups) | Searchable, roles, admin badges | PARTIAL (200 members w/ role badges + presence; search later) | gui/profile.go memberRow + engine.GetChatMembers | P1 |
 | Member context menu | Promote/restrict/ban/remove | CORE-ONLY | engine admin methods (CORE-ONLY) | P2 |
-| Notifications toggle in panel | Per-chat mute switch | CORE-ONLY | engine.MuteChat (CORE-ONLY) | P1 |
+| Notifications toggle in panel | Per-chat mute switch | PRESENT (per-chat mute switch wired to engine.MuteChat) | gui/profile.go muteRow | P1 |
 | Reactions/views list | Who reacted w/ which emoji | CORE-ONLY | engine.GetMessageReactorsList (CORE-ONLY) | P2 |
 | Common groups | Shared chats w/ user | CORE-ONLY | engine.GetCommonChats (CORE-ONLY) | P3 |
 | Saved Messages | Own chat + saved sublists + tags | CORE-ONLY | engine.OpenSavedMessages/GetSavedSublists (CORE-ONLY) | P2 |

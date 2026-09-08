@@ -493,3 +493,18 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
   page loaders under mu, frame copies).
 - Tests first: gui/settings_test.go (section list, cache-tag labels,
   ConfigChanges/GhostFlags field mapping, theme name).
+
+## 2026-09-08 — AyuGram parity program, slice 4: right info panel
+
+- `gui/profile.go` (new): the AyuGram third pane — desktop slides in a 320dp
+  column beside the chat (ⓘ toggle in the chat header), narrow replaces the
+  pane with a back header. Sections: per-chat notifications switch
+  (engine.MuteChat), DM profile (GetUserProfile → username/phone/bio rows,
+  block/unblock + add-to-contacts actions), group/channel member list
+  (GetChatMembers, 200, role badges w/ owner/admin/restricted/banned colors,
+  custom ranks), shared-media counts (GetSharedMediaCounts) + a recent-photos
+  grid reusing the media thumbnail cache (GetSharedMedia "image").
+- `gui/chat.go`: header ⓘ button, chat column extracted to chatPaneColumn,
+  panel routing; `gui/state.go`: panel state + async loadPanel; tests:
+  gui/profile_test.go (section gating, role badges, last-seen labels).
+- Local gate before push: gofmt clean, full windows-target vet clean.
