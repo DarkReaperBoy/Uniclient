@@ -44,6 +44,7 @@ var (
 	iconEmojiSmile         = mustIcon(icons.EditorInsertEmoticon)
 	iconContentBackspace   = mustIcon(icons.ContentBackspace)
 	iconActionOfflinePin   = mustIcon(icons.ActionOfflinePin)
+	iconNavMoreVert        = mustIcon(icons.NavigationMoreVert)
 )
 
 func mustIcon(data []byte) *widget.Icon {

@@ -78,7 +78,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Peer header: image avatar | Round avatar in header | PARTIAL (letter avatar) | gui/chat.go chatHeader | P0 |
 | Header status | "online"/"last seen"/members/typing/subtitle switch | PARTIAL (member count/typing; no online status) | gui/chat.go + engine EventUserStatus (unused) | P1 |
 | Header badges | Verified/premium/emoji-status/scam icons | MISSING (ChatInfo has fields) | gui/chat.go | P1 |
-| Header "..." menu | Peer actions: mute, search in chat, view profile, add member, clear history, leave/delete, block | CORE-ONLY | new gui/menu.go + engine methods (CORE-ONLY) | P0 |
+| Header "..." menu | Peer actions: mute, search in chat, view profile, add member, clear history, leave/delete, block | PARTIAL (slice 15: ⋮ menu — mute/unmute, view profile (opens the info panel), clear history w/ confirm, block/unblock (DMs, state-aware when the panel profile is loaded), leave (groups/channels) / delete (DMs) w/ confirm — all real engine calls; search-in-chat + add-member later) | gui/headermenu.go + engine MuteChat/BlockUser/ClearHistory/LeaveChat/DeleteChat | P0 |
 | Pinned-message bar | Shows current pin, tap → jump, "N pinned" switcher | PRESENT (bar under header w/ pin glyph + preview + cycle chevron; tap → jumpToMessage incl. window reload via beforeMs/afterMs) | gui/chrome.go + engine.GetPinnedMessages | P1 |
 | Translate bar | "Show original / Translate to …" bar over chat | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
 | Group-call bar | Live bar in header w/ participants, join button | CORE-ONLY | engine.GetGroupCall (CORE-ONLY) + gui/chat.go | P1 |

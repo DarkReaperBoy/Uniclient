@@ -124,6 +124,9 @@ type App struct {
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
 
+	// chat-header "..." menu (slice 15)
+	headerMenu *headerMenuTarget
+
 	// fullscreen media viewer (AyuGram parity slice 9, §12): shared under
 	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
 	viewer *viewerState
@@ -139,13 +142,14 @@ type App struct {
 	attachMenuRect image.Rectangle
 	emojiRect      image.Rectangle
 	// sidebar (chat-row menu) bookkeeping
-	chatRowBounds map[int]image.Rectangle
-	sbVisible     []engine.ChatInfo
-	sbAboveList   int
-	chatMenuRect  image.Rectangle
-	sbTabBounds   []image.Rectangle // folder-tab bounds (right-click → edit)
-	listTop       int               // top Y of the message list within the chat pane
-	headerH       int               // chat header height
+	chatRowBounds  map[int]image.Rectangle
+	sbVisible      []engine.ChatInfo
+	sbAboveList    int
+	chatMenuRect   image.Rectangle
+	sbTabBounds    []image.Rectangle // folder-tab bounds (right-click → edit)
+	headerMenuRect image.Rectangle
+	listTop        int // top Y of the message list within the chat pane
+	headerH        int // chat header height
 	// media viewer gesture state (frame-loop only): zoom factor, pan
 	// offset, double-click bookkeeping.
 	mvZoom         float32
@@ -565,6 +569,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.attachMenuOpen = false
 	a.emojiOpen = false
 	a.chatMenu = nil
+	a.headerMenu = nil
 	a.profile = nil
 	a.members = nil
 	a.mediaCounts = nil
@@ -983,6 +988,7 @@ func (a *App) snapshot() frame {
 		foldersSupported: a.foldersSupported,
 		folderDlg:        a.folderDlg,
 		chatMenu:         a.chatMenu,
+		headerMenu:       a.headerMenu,
 		viewer:           a.viewer,
 	}
 	if len(a.downloads) > 0 {
@@ -1076,6 +1082,9 @@ type frame struct {
 
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
+
+	// chat-header "..." menu (slice 15)
+	headerMenu *headerMenuTarget
 
 	// fullscreen media viewer (slice 9)
 	viewer *viewerState

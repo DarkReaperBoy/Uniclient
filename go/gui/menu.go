@@ -88,6 +88,12 @@ func (a *App) onPanePress(f frame, pe pointer.Event) {
 			a.closeEmojiPanel()
 		}
 	}
+	if f.headerMenu != nil {
+		if !pointInRect(pos, a.headerMenuRect) {
+			a.closeHeaderMenu()
+		}
+		return // presses inside the menu belong to its own buttons
+	}
 	if f.menu != nil {
 		if !pointInRect(pos, a.menuRect) {
 			a.closeMenu()

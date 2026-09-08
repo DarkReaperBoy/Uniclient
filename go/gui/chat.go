@@ -117,6 +117,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.menu != nil {
 		a.layoutContextMenu(gtx, f)
 	}
+	// Chat-header "..." menu.
+	if f.headerMenu != nil {
+		a.layoutHeaderMenu(gtx, f)
+	}
 	// Attach popup above the composer.
 	if f.attachMenuOpen {
 		a.layoutAttachMenu(gtx, f)
@@ -202,6 +206,20 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 					btn := a.ui.IconButton(&panelInfoBtn, iconActionInfo, "Chat info")
 					btn.Color = a.ui.p.TextDim
 					return btn.Layout(gtx)
+				}),
+				// "..." — peer menu (AyuGram ⋮)
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if headerMoreBtn.Clicked(gtx) {
+						if chat != nil {
+							c := *chat
+							a.openHeaderMenu(c, image.Pt(gtx.Constraints.Max.X, a.headerH))
+						}
+					}
+					return layout.Inset{Left: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						btn := a.ui.IconButton(&headerMoreBtn, iconNavMoreVert, "Chat menu")
+						btn.Color = a.ui.p.TextDim
+						return btn.Layout(gtx)
+					})
 				}),
 			)
 		},

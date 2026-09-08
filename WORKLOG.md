@@ -692,3 +692,17 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - Tests: gui/select_test.go (toggle state machine, menu auto-close,
   selectedMessages windowing, batch forward build). Full suite green under
   node+wasm; windows + wasm builds clean; engine green.
+
+## 2026-09-08 — AyuGram parity program, slice 15: chat-header "..." menu
+
+- `gui/headermenu.go` (new): the AyuGram peer menu on a ⋮ button in the chat
+  header — mute/unmute (MuteChat), View profile (opens the info panel),
+  clear history (ClearHistory w/ confirm card), block/unblock for DMs
+  (BlockUser/UnblockUser; state-aware label when the panel profile is
+  loaded), leave for groups/channels (LeaveChat) and delete for DMs
+  (DeleteChat), each destructive action behind a confirm card; leave/delete
+  close the chat and refresh the list. Outside-press dismissal via the pane
+  press routing; menu anchored under the ⋮, clamped.
+- Tests: gui/headermenu_test.go (DM/group/channel item sets, mute label
+  swap, blocked-state label, confirm copy). Full suite green under
+  node+wasm; windows + wasm builds clean.
