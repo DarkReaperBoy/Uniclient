@@ -82,7 +82,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Pinned-message bar | Shows current pin, tap → jump, "N pinned" switcher | PRESENT (bar under header w/ pin glyph + preview + cycle chevron; tap → jumpToMessage incl. window reload via beforeMs/afterMs) | gui/chrome.go + engine.GetPinnedMessages | P1 |
 | Translate bar | "Show original / Translate to …" bar over chat | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
 | Group-call bar | Live bar in header w/ participants, join button | CORE-ONLY | engine.GetGroupCall (CORE-ONLY) + gui/chat.go | P1 |
-| Message bubbles: reply quote | Quoted block w/ sender+text, click→jump | PARTIAL (rendered; click→jump pending) | gui/chat.go replyQuote | P0 |
+| Message bubbles: reply quote | Quoted block w/ sender+text, click→jump | PRESENT (slice 25: quoted block w/ sender+text, click jumps to the original incl. out-of-window reload) | gui/chat.go replyQuote | P0 |
 | Bubbles: forward header | "Forwarded from X" | PRESENT | gui/chat.go messageRow | P0 |
 | Bubbles: reactions strip | Emoji + counts under bubble, own highlighted | PARTIAL (2026-09: strip + own toggle + quick-reaction row in menu; custom-emoji pills skipped — need doc fetch) | gui/chat.go reactionStrip + engine reactions_json persistence + cores.UpdateReactions | P0 |
 | Bubbles: grouped/album layout | Media groups render as one grid bubble | PRESENT (slice 12: consecutive GroupedID media collapse into one bubble w/ Telegram grid patterns 1/2/3/4+overflow, cover-cropped cells, per-cell tap → viewer/download, caption/reactions/meta on the bubble) | gui/album.go + buildChatRows | P1 |
@@ -297,7 +297,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Join via invite link / QR | Check+import invite | PARTIAL (slice 24: invite links in the search field → preview title + confirm → ImportChatInvite; QR scan remains) | gui/invite.go + engine CheckChatInvite/ImportChatInvite | P2 |
 | Giveaways / boosts | Launch & view giveaway flows | CORE-ONLY | engine giveaway APIs (CORE-ONLY) | P3 |
 | Contacts list screen | Browse contacts, add contact box | PRESENT (slice 17: searchable list w/ avatars + online/bot badges, click opens the DM, add-contact dialog → engine.AddContact) | gui/contacts.go + engine GetContacts/AddContact | P1 |
-| New chat/group/channel creation flow | Multi-step wizards w/ member picker | PARTIAL (slice 17: name/desc/megagroup dialog → real CreateGroup/CreateChannel/CreateMegagroup + auto-open; member-picker step remains) | gui/newchat.go | P1 |
+| New chat/group/channel creation flow | Multi-step wizards w/ member picker | PRESENT (slice 17+25: name/desc/megagroup dialog + group member-picker step (contacts w/ toggles → CreateGroup members) + auto-open) | gui/newchat.go | P1 |
 | UniClient: unified multi-account list | (not in Ayu) all backends in one list | PRESENT | gui/sidebar.go | — |
 | UniClient: Chat/Voice mode tabs | (not in Ayu, mandated §1.9) | PRESENT | gui/sidebar.go layoutModeTabs | — |
 
