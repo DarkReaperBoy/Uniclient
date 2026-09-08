@@ -48,7 +48,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Three-pane layout | list · chat · right info panel | PARTIAL (2 panes; no right panel) | gui/app.go layoutMain | P0 |
 | Hamburger main menu (drawer) | My profile, contacts, calls, night mode, settings, ghost/LRead/SRead/streamer toggles, new group/channel, saved msgs | PRESENT (slice 17+23: ☰ drawer w/ account header+switching, contacts, calls→voice pane, night switch, ghost master + ⚙ prefs, new group/channel, settings, saved messages→self chat; streamer/LRead/SRead quick toggles remain) | gui/drawer.go + sidebar.go ☰ | P0 |
 | Account switcher | Multi-account bar with per-account unread dots | PARTIAL (UniClient account bar: add/remove/conn dot; drawer account rows carry per-account unread badges (slice 36); Ayu-style tray later) | gui/sidebar.go + gui/drawer.go + engine accounts | P1 |
-| Search field in bar | Global search: chats, messages, users, posts, files, tags | PARTIAL (local title/lastmsg filter only) | gui/sidebar.go + engine SearchChats/SearchGlobalChats (CORE-ONLY) | P0 |
+| Search field in bar | Global search: chats, messages, users, posts, files, tags | PARTIAL (local filter + engine FTS message search (SearchMessages) + per-account server chat hits (SearchGlobalChats) + recent searches + invite-hash row; user/global message tabs later) | gui/search.go + engine SearchMessages/SearchGlobalChats | P0 |
 | Search results screen w/ tabs | Chats/Messages/Links/Files tabs + "search in" | CORE-ONLY | new gui/search.go + engine.SearchMessages (CORE-ONLY) | P1 |
 | Top peers strip | Pictured top-contacts row above list while searching | CORE-ONLY | engine.GetTopPeers (CORE-ONLY) | P2 |
 | Recent searches | Persisted search history dropdown | PRESENT (slice 37: Enter submits record the query (engine AddRecentSearch, case-insensitive dedupe, cap 8, vault-persisted); focused+empty field shows the recents dropdown — click fills, clear row empties) | gui/recentsearch.go + engine AddRecentSearch/ClearRecentSearches + AppConfig.recent_searches | P3 |
@@ -111,7 +111,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Text input + send (Enter) | Send on Enter, shift+Enter newline | PRESENT | gui/chat.go composerBar | P0 |
 | Reply mode | Header above input w/ quoted msg, cancel | PRESENT (composer chip; send routes replyToID) | gui/chat.go composerChip + state.go sendText | P0 |
 | Edit mode | "Editing" header, saves via edit | PRESENT (composer chip + EditMessage, prefill) | gui/chat.go + state.go sendText | P0 |
-| Attach menu (📎) | Photo/file/poll/location/contact/music menus | PARTIAL (📎 menu: Photo-or-Video + File via OS picker (gioui.org/x/explorer); multi = album via new engine.SendMediaAlbumFromPaths; composer text = caption; poll/location/contact later) | gui/attach.go + engine.UploadFileEx/SendMediaAlbumFromPaths | P0 |
+| Attach menu (📎) | Photo/file/poll/location/contact/music menus | PARTIAL (📎 menu: Photo-or-Video + File via OS picker (gioui.org/x/explorer); multi = album via engine.SendMediaAlbumFromPaths; composer text = caption; slice 42: Poll → creation dialog (question/options/anonymous/multiple/quiz+correct) via engine.CreatePollEx; location/contact later) | gui/attach.go + gui/poll.go + engine.UploadFileEx/SendMediaAlbumFromPaths/CreatePollEx | P0 |
 | Voice recording (hold 🎤) | Hold-to-record, slide-cancel, duration | CORE-ONLY | engine UploadFileWithOptions IsVoice (CORE-ONLY) | P1 |
 | Emoji picker panel | Tabbed emoji/stickers/GIFs, search, recent | PARTIAL (2026-09 slice 10: emoji panel w/ 9 categories + backspace key + insert-at-caret in gui/emoji.go; sticker/GIF tabs need engine sticker set fetch, search needs keywords) | gui/emoji.go + engine sticker/gif APIs (CORE-ONLY) | P1 |
 | Emoji autocomplete | Keyword suggestions while typing | CORE-ONLY | engine.GetEmojiKeywords (CORE-ONLY) | P2 |
@@ -182,7 +182,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Reactions/views list | Who reacted w/ which emoji | CORE-ONLY | engine.GetMessageReactorsList (CORE-ONLY) | P2 |
 | Common groups | Shared chats w/ user | CORE-ONLY | engine.GetCommonChats (CORE-ONLY) | P3 |
 | Saved Messages | Own chat + saved sublists + tags | CORE-ONLY | engine.OpenSavedMessages/GetSavedSublists (CORE-ONLY) | P2 |
-| Poll results panel | Votes per option | MISSING | engine poll APIs | P2 |
+| Poll results panel | Votes per option | PARTIAL (slice 42: poll bubbles — question, tappable options, vote bars w/ percentages, quiz correct/wrong reveal, voters footer, optimistic vote overlay; core does not surface UpdateMessagePoll so live result pushes need engine work) | gui/poll.go + engine VotePoll/VotePollMulti/CreatePollEx | P2 |
 | Bot info panel | Bot description + commands | CORE-ONLY | engine.GetBotManageInfo (CORE-ONLY) | P3 |
 
 ## 8. Settings — scope: SHARED shell; folders/premium/stars/business/passport sections = TG

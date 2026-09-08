@@ -160,6 +160,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.schedDlg != nil {
 		a.layoutScheduleDialog(gtx, f)
 	}
+	// Poll creation dialog (slice 42).
+	if f.pollDlg != nil {
+		a.layoutPollDialog(gtx, f)
+	}
 	return dims
 }
 
@@ -503,6 +507,11 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						lbl := a.ui.Dim(unit.Sp(12), "Forwarded from "+m.ForwardFrom)
 						return layout.Inset{Bottom: unit.Dp(3)}.Layout(gtx, lbl.Layout)
 					}),
+					// Poll (AyuGram parity, slice 42): question + tappable
+					// options + vote bars, from the message's raw Extra.
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.pollBlock(gtx, m)
+					}),
 					// Media attachment (AyuGram: photo/video/voice/audio/file bubble,
 					// driven by the engine download pipeline).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -529,7 +538,7 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						return lbl.Layout(gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if text == "" {
+						if text == "" || pollIsBody(m) {
 							return layout.Dimensions{}
 						}
 						// Rich text (slice 32): entity formatting + spoiler reveal.

@@ -164,6 +164,10 @@ type App struct {
 	// drafts + scheduled send (AyuGram parity slice 20)
 	schedDlg *schedDlgState
 
+	// polls (AyuGram parity slice 42): creation dialog + optimistic votes
+	pollDlg   *pollDlgState
+	pollVotes map[string]map[int]bool
+
 	// per-message silent sends (AyuGram 🔕, slice 23): sticky toggle
 	silentNext bool
 
@@ -235,6 +239,7 @@ func New(win *app.Window, eng *engine.Engine) *App {
 		sbTabBounds: make([]image.Rectangle, 0, 8),
 		downloads:   make(map[string]dlState),
 		autoDl:      make(map[string]bool),
+		pollVotes:   make(map[string]map[int]bool),
 	}
 }
 
@@ -1278,6 +1283,7 @@ func (a *App) snapshot() frame {
 		delDlg:           a.delDlg,
 		reportDlg:        a.reportDlg,
 		schedDlg:         a.schedDlg,
+		pollDlg:          a.pollDlg,
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
 		schedLoad:        a.schedLoad,
@@ -1417,6 +1423,9 @@ type frame struct {
 
 	// scheduled send (slice 20)
 	schedDlg *schedDlgState
+
+	// polls (slice 42)
+	pollDlg *pollDlgState
 
 	// scheduled-messages panel (slice 21)
 	schedPanel bool
