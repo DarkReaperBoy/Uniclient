@@ -658,3 +658,20 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - Tests: gui/album_test.go (grid geometry per pattern incl. rounding, overflow
   count, media gating, grouping + member jump, caption selection). Full gui
   suite green under node+wasm; engine green; windows + wasm builds clean.
+
+## 2026-09-08 — AyuGram parity program, slice 13: full folder editor
+
+- `gui/folders.go`: the folder dialog is now the full AyuGram filter editor —
+  name, emoticon pick row, Contacts/Non-contacts/Groups/Channels/Bots +
+  Exclude-muted/read/archived switches, and the account's chat picker where
+  tapping cycles none → include (✓) → exclude (✕) → none. Create and Edit
+  share the dialog: engine.CreateFolder / EditFolder with CreateFolderOpts
+  (flags + exclude lists + emoticon; ordered chat IDs from the sidebar
+  order); Delete (engine.DeleteFolder) when editing.
+- Entry points: the "+" tab still creates; right-clicking a REAL server
+  folder tab opens the editor prefilled from engine.FolderInfo (tab bounds
+  recorded in layoutFolders; sidebar press routing checks tabs before chat
+  rows).
+- Tests: gui/folderdlg_test.go (picker cycle state machine, flag mapping,
+  switch sync, edit prefill incl. name editor). Full suite green under
+  node+wasm; windows + wasm builds clean.

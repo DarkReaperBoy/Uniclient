@@ -349,6 +349,8 @@ func (a *App) searchField(gtx layout.Context, f frame) layout.Dimensions {
 }
 
 // layoutFolders: horizontal scrollable folder tabs (AyuGram parity).
+// Right-clicking a real server folder tab opens the folder editor (the tab
+// bounds recorded here feed the sidebar press routing).
 func (a *App) layoutFolders(gtx layout.Context, f frame) layout.Dimensions {
 	// Real server folders when an account is scoped and its core supports
 	// them; smart fallback tabs otherwise (AyuGram parity §2).
@@ -368,13 +370,24 @@ func (a *App) layoutFolders(gtx layout.Context, f frame) layout.Dimensions {
 			}
 		}
 	}
+	// Tab bounds in sidebar-pane coords (y fixed by the accumulated layout,
+	// x scrolled with the tab list).
+	tabY := a.sbAboveList
+	tabH := gtx.Dp(unit.Dp(30))
+	a.sbTabBounds = a.sbTabBounds[:0]
+	x := -sidebarFolderTabs.Position.Offset
 	list := material.List(a.ui.Theme, &sidebarFolderTabs)
-	return list.Layout(gtx, len(tabs), func(gtx layout.Context, i int) layout.Dimensions {
-		active := f.folder == i && tabs[i].kind != folderTabNew
-		return layout.Inset{Left: unit.Dp(4), Right: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	dims := list.Layout(gtx, len(tabs), func(gtx layout.Context, i int) layout.Dimensions {
+		d := layout.Inset{Left: unit.Dp(4), Right: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			active := f.folder == i && tabs[i].kind != folderTabNew
 			return layoutFolderTab(gtx, a, &folderBtns[i], tabs[i], active)
 		})
+		a.sbTabBounds = append(a.sbTabBounds, image.Rect(x, tabY, x+d.Size.X, tabY+d.Size.Y))
+		x += d.Size.X
+		return d
 	})
+	_ = tabH
+	return dims
 }
 
 var folderBtns []widget.Clickable

@@ -139,8 +139,9 @@ type App struct {
 	sbVisible     []engine.ChatInfo
 	sbAboveList   int
 	chatMenuRect  image.Rectangle
-	listTop       int // top Y of the message list within the chat pane
-	headerH       int // chat header height
+	sbTabBounds   []image.Rectangle // folder-tab bounds (right-click → edit)
+	listTop       int               // top Y of the message list within the chat pane
+	headerH       int               // chat header height
 	// media viewer gesture state (frame-loop only): zoom factor, pan
 	// offset, double-click bookkeeping.
 	mvZoom         float32
@@ -151,15 +152,16 @@ type App struct {
 
 func New(win *app.Window, eng *engine.Engine) *App {
 	return &App{
-		win:        win,
-		ui:         NewUI(),
-		eng:        eng,
-		expl:       explorer.NewExplorer(win),
-		typing:     make(map[string]time.Time),
-		connecting: make(map[string]bool),
-		rowBounds:  make(map[int]image.Rectangle),
-		downloads:  make(map[string]dlState),
-		autoDl:     make(map[string]bool),
+		win:         win,
+		ui:          NewUI(),
+		eng:         eng,
+		expl:        explorer.NewExplorer(win),
+		typing:      make(map[string]time.Time),
+		connecting:  make(map[string]bool),
+		rowBounds:   make(map[int]image.Rectangle),
+		sbTabBounds: make([]image.Rectangle, 0, 8),
+		downloads:   make(map[string]dlState),
+		autoDl:      make(map[string]bool),
 	}
 }
 

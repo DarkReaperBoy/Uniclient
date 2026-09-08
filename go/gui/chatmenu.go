@@ -144,6 +144,16 @@ func (a *App) onSidebarPress(f frame, pe pointer.Event) {
 	if pe.Buttons != pointer.ButtonSecondary {
 		return
 	}
+	// Folder tabs first (right-click a server folder tab → editor).
+	if f.folderDlg == nil {
+		tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported)
+		for i, r := range a.sbTabBounds {
+			if pointInRect(pos, r) && i < len(tabs) && tabs[i].kind == folderTabServer && tabs[i].folder != nil {
+				a.openFolderDlgEdit(*tabs[i].folder)
+				return
+			}
+		}
+	}
 	for idx, r := range a.chatRowBounds {
 		if pointInRect(pos, r) {
 			if idx >= 0 && idx < len(a.sbVisible) {
