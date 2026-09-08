@@ -25,6 +25,7 @@ const (
 	sbRowHeader
 	sbRowMsg
 	sbRowGlobal
+	sbRowInvite
 )
 
 // sbRow is one row of the search-augmented sidebar list.
@@ -34,7 +35,7 @@ type sbRow struct {
 	listIdx int                  // sbRowMsg/sbRowGlobal: index into that list
 	msg     *engine.SearchResult // sbRowMsg
 	gchat   *engine.ChatInfo     // sbRowGlobal
-	title   string               // sbRowHeader
+	title   string               // sbRowHeader / sbRowInvite (hash)
 }
 
 // buildSearchRows builds the sidebar list rows for an active search:

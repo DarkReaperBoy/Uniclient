@@ -165,6 +165,9 @@ type App struct {
 	// per-message silent sends (AyuGram 🔕, slice 23): sticky toggle
 	silentNext bool
 
+	// invite-link join (AyuGram parity slice 24)
+	inviteDlg *inviteDlgState
+
 	// scheduled-messages panel (AyuGram parity slice 21)
 	schedPanel bool
 	schedMsgs  []engine.CachedMessage
@@ -1142,6 +1145,11 @@ func (a *App) snapshot() frame {
 		delDlg:           a.delDlg,
 		reportDlg:        a.reportDlg,
 		schedDlg:         a.schedDlg,
+		schedPanel:       a.schedPanel,
+		schedMsgs:        a.schedMsgs,
+		schedLoad:        a.schedLoad,
+		inviteDlg:        a.inviteDlg,
+		silentNext:       a.silentNext,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -1271,6 +1279,10 @@ type frame struct {
 	schedPanel bool
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
+
+	// invite-link join + silent sends (slices 23/24)
+	inviteDlg  *inviteDlgState
+	silentNext bool
 
 	// fullscreen media viewer (slice 9)
 	viewer *viewerState

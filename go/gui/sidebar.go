@@ -102,6 +102,10 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 	if f.chatMenu != nil {
 		a.layoutChatMenu(gtx, f)
 	}
+	// Invite-link confirm dialog (slice 24).
+	if f.inviteDlg != nil {
+		a.layoutInviteDialog(gtx, f)
+	}
 	return dims
 }
 
@@ -466,6 +470,12 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 	// matches (slice 16).
 	global := searchGlobalScope(f.searchGlobal, f.acctFilter)
 	rows := buildSearchRows(visible, f.searchMsgs, global, f.acctFilter)
+	// Invite links: the query itself can be a t.me/+hash join link
+	// (slice 24) — surface the join row above the results.
+	inviteHash, isInvite := extractInviteHash(f.search)
+	if isInvite {
+		rows = append([]sbRow{{kind: sbRowInvite, title: inviteHash}}, rows...)
+	}
 	if len(rows) != len(visible) {
 		growClickables(&searchMsgBtns, len(f.searchMsgs))
 		growClickables(&searchGlobalBtns, len(global))
@@ -481,6 +491,9 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 				a.openGlobalResult(c)
 			}
 		}
+		if isInvite && inviteRowBtn.Clicked(gtx) {
+			a.openInviteJoin(inviteHash)
+		}
 		list := material.List(a.ui.Theme, &sidebarChatsList)
 		y := a.sbAboveList - sidebarChatsList.Position.Offset
 		paneW := gtx.Constraints.Max.X
@@ -489,6 +502,8 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 			r := rows[i]
 			var d layout.Dimensions
 			switch r.kind {
+			case sbRowInvite:
+				d = a.inviteRow(gtx, r.title)
 			case sbRowHeader:
 				d = a.searchSectionHeader(gtx, r.title)
 			case sbRowChat:
@@ -536,7 +551,7 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.ui.Avatar(gtx, c.Title, unit.Dp(46), dotNone)
+							return a.chatAvatar(gtx, c, unit.Dp(46), dotNone)
 						})
 					}),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -574,6 +589,15 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 							}),
 						)
 					}),
+					// last-message media thumb (AyuGram rows, slice 24).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if c.LastMsgThumbB64 == "" {
+							return layout.Dimensions{}
+						}
+						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.mediaThumb(gtx, c.LastMsgThumbB64, unit.Dp(34))
+						})
+					}),
 					// unread badge
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if c.UnreadCount <= 0 {
@@ -588,6 +612,42 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 		})
 	})
 }
+
+// inviteRow: the "join by invite link" row at the top of search results.
+func (a *App) inviteRow(gtx layout.Context, hash string) layout.Dimensions {
+	return layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			return material.ButtonLayout(a.ui.Theme, &inviteRowBtn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return iconSocialPerson.Layout(gtx, a.ui.p.Accent)
+							})
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Label(unit.Sp(14), "Join by invite link")
+									return lbl.Layout(gtx)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									shown := hash
+									if len(shown) > 16 {
+										shown = shown[:8] + "…" + shown[len(shown)-6:]
+									}
+									lbl := a.ui.Dim(unit.Sp(11), "+"+shown)
+									return lbl.Layout(gtx)
+								}),
+							)
+						}),
+					)
+				})
+			})
+		})
+}
+
+var inviteRowBtn widget.Clickable
 
 func previewText(c engine.ChatInfo) string {
 	prefix := ""

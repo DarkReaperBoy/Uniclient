@@ -94,6 +94,40 @@ func avatarFromImage(gtx layout.Context, a *App, img *image.RGBA, sizeDp unit.Dp
 	return d
 }
 
+// mediaThumb paints a small rounded-square media preview (chat-row thumbs).
+func (a *App) mediaThumb(gtx layout.Context, b64 string, sizeDp unit.Dp) layout.Dimensions {
+	size := gtx.Dp(sizeDp)
+	if b64 == "" || size <= 0 {
+		return layout.Dimensions{}
+	}
+	img := a.avatarImage("", b64)
+	if img == nil {
+		// Async decode in flight: reserve the box so rows don't jump.
+		return layout.Dimensions{Size: image.Pt(size, size)}
+	}
+	return drawImageRRectCover(gtx, img, size)
+}
+
+// drawImageRRectCover center-crops img to a square and paints it clipped to
+// a rounded rect (cover fit).
+func drawImageRRectCover(gtx layout.Context, img *image.RGBA, size int) layout.Dimensions {
+	if size <= 0 || img == nil || img.Bounds().Empty() {
+		return layout.Dimensions{}
+	}
+	crop := squareCrop(img)
+	s := fitScale(crop.Bounds().Dx(), crop.Bounds().Dy(), size, size)
+
+	clipStack := clip.UniformRRect(image.Rectangle{Max: image.Pt(size, size)}, size/6).Push(gtx.Ops)
+	trStack := op.Affine(f32.AffineId().Scale(f32.Point{}, f32.Pt(s, s))).Push(gtx.Ops)
+	imgOp := paint.NewImageOp(crop)
+	imgOp.Filter = paint.FilterLinear
+	imgOp.Add(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
+	trStack.Pop()
+	clipStack.Pop()
+	return layout.Dimensions{Size: image.Pt(size, size)}
+}
+
 // drawImageEllipseCover center-crops img to a square and paints it clipped
 // to a circle of the given pixel size (cover, not fit — no gaps).
 func drawImageEllipseCover(gtx layout.Context, img *image.RGBA, size int) layout.Dimensions {
