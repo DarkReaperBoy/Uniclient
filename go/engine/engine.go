@@ -685,6 +685,10 @@ type ConfigChanges struct {
 
 	// Streamer mode (Ayu): blur names/photos in the UI. Nil = unchanged.
 	StreamerMode *bool
+
+	// Ayu mark strings. Nil = unchanged; "" resets to the GUI default.
+	AyuDeletedMark *string
+	AyuEditedMark  *string
 }
 
 // UpdateConfigFromBridge applies partial config changes from the bridge layer.
@@ -719,6 +723,12 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.NotifyPreviews != nil {
 		e.config.NotifyPreviews = changes.NotifyPreviews
+	}
+	if changes.AyuDeletedMark != nil {
+		e.config.AyuDeletedMark = *changes.AyuDeletedMark
+	}
+	if changes.AyuEditedMark != nil {
+		e.config.AyuEditedMark = *changes.AyuEditedMark
 	}
 	if changes.SendReadReceipts != nil {
 		e.config.SendReadReceipts = *changes.SendReadReceipts

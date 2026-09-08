@@ -241,7 +241,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Drawer customization | Show/hide each drawer item | PRESENT (slice 38: Settings → Ayu · Drawer toggles for Saved/Contacts/Calls/Ghost/New group/New channel; hidden list persists in the vault config, rows filtered at build; Settings row always shown) | gui/drawer.go + gui/settings.go + AppConfig.drawer_hidden_items | P2 |
 | Font customization + mono font | Font selector box | PARTIAL (font scale only in config, not exposed) | gui/theme.go + settings | P2 |
 | App icon selector | Alternative app icons | MISSING | P3 (platform-dependent) | P3 |
-| Ayu deleted/edited mark strings | Customizable marks | MISSING | settings_ayu | P2 |
+| Ayu deleted/edited mark strings | Customizable marks | PRESENT (slice 47: settings_ayu 'Message marks' — deleted + edited mark editors w/ Apply; AppConfig.AyuDeletedMark/AyuEditedMark (empty = defaults '— deleted'/'edited '), engine ConfigChanges pointer strings; chat meta + anti-recall bodies render through them) | gui/marks.go + gui/settings.go | P2 |
 | Hide similar channels / ads / stories | Toggle sponsored & similar | MISSING | settings_ayu + engine | P3 |
 | Wide multiplier / bubble radius / avatar corners | Layout tweak sliders | MISSING | gui/theme.go | P3 |
 | Ayu toasts + logo/userpic styling | Visual polish | PARTIAL (toast exists) | gui | P3 |

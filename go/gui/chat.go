@@ -485,15 +485,11 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 	}
 	out := m.IsOutgoing
 
-	// Highlight deleted (anti-recall) messages.
+	// Highlight deleted (anti-recall) messages with the Ayu mark string.
 	text := m.ContentText
 	deleted := m.IsDeleted
 	if deleted {
-		if text == "" {
-			text = "(message deleted)"
-		} else {
-			text = text + " — deleted"
-		}
+		text = deletedMarkText(text, f.cfg.AyuDeletedMark)
 	}
 
 	bubble := func(gtx layout.Context) layout.Dimensions {
@@ -590,7 +586,7 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								meta := fmtTime(m.Timestamp)
 								if m.EditedAt != 0 {
-									meta = "edited " + fmtTime(m.EditedAt)
+									meta = editedMark(f.cfg.AyuEditedMark) + fmtTime(m.EditedAt)
 								}
 								if sm := scheduledMetaLabel(*m); sm != "" {
 									meta = sm + " · " + meta

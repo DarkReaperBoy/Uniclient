@@ -49,6 +49,11 @@ type AppConfig struct {
 	// Streamer mode (Ayu): blur names and photos in the UI for streams.
 	StreamerMode bool `json:"streamer_mode"`
 
+	// Ayu mark strings (settings_ayu): "" = the GUI defaults
+	// ("— deleted", "edited ").
+	AyuDeletedMark string `json:"ayu_deleted_mark,omitempty"`
+	AyuEditedMark  string `json:"ayu_edited_mark,omitempty"`
+
 	// Drawer customization (Ayu "drawer" menu): ids of hidden rows.
 	DrawerHiddenItems []string `json:"drawer_hidden_items,omitempty"`
 

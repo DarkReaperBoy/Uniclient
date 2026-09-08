@@ -2,6 +2,7 @@ package gui
 
 import (
 	"image"
+	"strings"
 
 	"gioui.org/font"
 	"gioui.org/layout"
@@ -143,6 +144,12 @@ var (
 	ghostResetBtn      widget.Clickable
 	ghostAcctChips     []widget.Clickable
 	settingsScroll     widget.List
+
+	// Ayu mark-string editors (settings_ayu, slice 47).
+	ayuDeletedEd   widget.Editor
+	ayuEditedEd    widget.Editor
+	ayuMarksSave   widget.Clickable
+	ayuMarksSynced bool
 )
 
 func init() {
@@ -657,6 +664,46 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 		{"send_without_sound", "Send without sound"},
 	}
 	var children []layout.FlexChild
+	// Ayu mark strings (AyuGram settings_ayu: deleted/edited marks, slice 47).
+	if !ayuMarksSynced {
+		ayuDeletedEd.SetText(f.cfg.AyuDeletedMark)
+		ayuEditedEd.SetText(f.cfg.AyuEditedMark)
+		ayuMarksSynced = true
+	}
+	if ayuMarksSave.Clicked(gtx) {
+		dm := strings.TrimSpace(ayuDeletedEd.Text())
+		em := strings.TrimSpace(ayuEditedEd.Text())
+		go func() {
+			c := engine.ConfigChanges{AyuDeletedMark: &dm, AyuEditedMark: &em}
+			if err := a.eng.UpdateConfigFromBridge(&c); err != nil {
+				a.setToast("Ayu marks: " + err.Error())
+				return
+			}
+			a.refreshConfig()
+		}()
+	}
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Ayu · Message marks")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Deleted mark", "Shown on anti-recall messages (empty = "+defaultDeletedMark+")")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.markEditorRow(gtx, &ayuDeletedEd, "Deleted mark")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Edited mark", "Prefix before the edit time (empty = "+defaultEditedMark+")")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.markEditorRow(gtx, &ayuEditedEd, "Edited mark")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(12), Left: unit.Dp(14), Right: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			btn := a.ui.TextButton(&ayuMarksSave, "Apply marks")
+			btn.Color = a.ui.p.Accent
+			return btn.Layout(gtx)
+		})
+	}))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Ayu · Ghost mode")
 	}))

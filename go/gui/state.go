@@ -949,6 +949,8 @@ type cfgSnapshot struct {
 	NotifyGroups           bool
 	NotifyMentionsOnly     bool
 	NotifyPreviews         bool
+	AyuDeletedMark         string
+	AyuEditedMark          string
 	RecentSearches         []string
 	DrawerHidden           []string
 	Streamer               bool
@@ -970,6 +972,7 @@ func (a *App) openSettings(section int) {
 	a.mu.Unlock()
 	settingsSwitches = make(map[string]*widget.Bool)
 	settingsSynced = make(map[string]bool)
+	ayuMarksSynced = false
 	go a.refreshConfig()
 	go a.loadStorage()
 	go a.loadNotifyAccts()
@@ -1006,6 +1009,8 @@ func (a *App) refreshConfig() {
 		NotifyGroups:           c.NotifyGroups,
 		NotifyMentionsOnly:     c.NotifyMentionsOnly,
 		NotifyPreviews:         c.NotifyPreviewsEnabled(),
+		AyuDeletedMark:         c.AyuDeletedMark,
+		AyuEditedMark:          c.AyuEditedMark,
 		RecentSearches:         c.RecentSearches,
 		DrawerHidden:           c.DrawerHiddenItems,
 		Streamer:               c.StreamerMode,
