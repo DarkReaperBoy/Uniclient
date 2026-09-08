@@ -16,15 +16,16 @@ import (
 
 // Login widgets.
 var (
-	loginInput     widget.Editor
-	loginSubmitBtn widget.Clickable
-	loginBackBtn   widget.Clickable
-	loginCancelBtn widget.Clickable
-	platformBtns   []widget.Clickable
-	welcomeAddBtn  widget.Clickable
-	pickerCloseBtn widget.Clickable
-	authQR         *image.RGBA
-	authQRFor      string
+	loginInput      widget.Editor
+	loginCodeUseBtn widget.Clickable // slice 31: relayed-code Use button
+	loginSubmitBtn  widget.Clickable
+	loginBackBtn    widget.Clickable
+	loginCancelBtn  widget.Clickable
+	platformBtns    []widget.Clickable
+	welcomeAddBtn   widget.Clickable
+	pickerCloseBtn  widget.Clickable
+	authQR          *image.RGBA
+	authQRFor       string
 )
 
 func init() {
@@ -384,6 +385,38 @@ func (a *App) authInput(gtx layout.Context, f frame, st *engine.AuthState) layou
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		// Relayed login-code banner + auto-fill (AyuGram, slice 31).
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if st.State != engine.AuthStateOTP || !f.loginCodeFresh {
+				return layout.Dimensions{}
+			}
+			// Auto-fill the empty OTP field with the relayed code.
+			if loginInput.Text() == "" {
+				loginInput.SetText(f.loginCode)
+			}
+			if loginCodeUseBtn.Clicked(gtx) {
+				a.submitAuth(f.loginCode)
+				return layout.Dimensions{}
+			}
+			return layout.Inset{Bottom: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return roundedFill(gtx, a.ui.p.AccentDim, 10, func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.Label(unit.Sp(13), loginCodeBannerText(f.loginCode))
+								lbl.Color = a.ui.p.Text
+								lbl.MaxLines = 2
+								return lbl.Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								btn := a.ui.PrimaryButton(&loginCodeUseBtn, "Use")
+								return btn.Layout(gtx)
+							}),
+						)
+					})
+				})
+			})
+		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if st.Label == "" && st.Hint == "" {
 				return layout.Dimensions{}

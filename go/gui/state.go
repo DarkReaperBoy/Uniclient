@@ -185,6 +185,11 @@ type App struct {
 	// header presence (AyuGram parity slice 28): live online/last-seen
 	// for the open DM peer, fed by GetUserProfile + EventUserStatus.
 	hdrPresence *engine.CachedUser
+
+	// login code (AyuGram parity slice 31): code relayed by a connected
+	// account while another account sits at the OTP step.
+	loginCode   string
+	loginCodeAt time.Time
 	notifyAt    map[string]time.Time // chatKey -> last banner (throttle, slice 22)
 
 	// frame-loop-only layout bookkeeping (single GUI goroutine, no lock):
@@ -384,7 +389,16 @@ func (a *App) onEvent(data []byte) {
 			a.onUserStatus(env.AccountID, s)
 		}
 	case engine.EventLoginCode:
-		// auto-fill handled by the login view via auth state refresh
+		// A connected account relayed a login code for the pending login
+		// (slice 31) — keep it for the OTP banner + auto-fill.
+		var m map[string]string
+		if json.Unmarshal(env.Data, &m) == nil && m["code"] != "" {
+			a.mu.Lock()
+			a.loginCode = m["code"]
+			a.loginCodeAt = time.Now()
+			a.mu.Unlock()
+			a.invalidate()
+		}
 		go a.refreshAuth()
 	case engine.EventDownloadProgress:
 		var d engine.DownloadProgressEvent
@@ -1126,6 +1140,8 @@ func (a *App) snapshot() frame {
 		msgFor:           a.msgFor,
 		selected:         a.selected,
 		hdrPresence:      a.hdrPresence,
+		loginCode:        a.loginCode,
+		loginCodeFresh:   loginCodeFresh(a.loginCode, a.loginCodeAt, time.Now()),
 		folder:           a.folder,
 		search:           a.search,
 		searchMsgs:       a.searchMsgs,
@@ -1283,9 +1299,13 @@ type frame struct {
 
 	// header presence (slice 28): DM peer online/last-seen for the header
 	hdrPresence *engine.CachedUser
-	members     []engine.MemberInfo
-	mediaCounts []engine.SharedMediaCountItem
-	panelRecent []engine.SharedMediaItem
+
+	// login code (slice 31): fresh code for the OTP banner/auto-fill.
+	loginCode      string
+	loginCodeFresh bool
+	members        []engine.MemberInfo
+	mediaCounts    []engine.SharedMediaCountItem
+	panelRecent    []engine.SharedMediaItem
 
 	// attach flow (slice 5)
 	attachMenuOpen bool

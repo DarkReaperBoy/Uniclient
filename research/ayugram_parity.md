@@ -39,7 +39,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Signup (name/photo) | First/last name on new account | PARTIAL (name only, no photo) | gui/login.go + auth.AuthStateSignUp | P2 |
 | QR login | Live-refreshing QR, scan from mobile | PRESENT | gui/login.go+qr.go + engine QR states | P0 |
 | Email verify / email-login | Code to email, email setup during auth | PRESENT (state machine covers it) | gui/login.go + telegram VerifyEmailDuringAuth | P2 |
-| Login code auto-fill from TG msg | Code arrives via logged-in session | MISSING | engine EventLoginCode exists; gui shows nothing | P3 |
+| Login code auto-fill from TG msg | Code arrives via logged-in session | PRESENT (slice 31: EventLoginCode → OTP banner with code + Use button; auto-fills the empty code field; 10-min freshness window) | gui/logincode.go + engine EventLoginCode | P3 |
 
 ## 2. Chat list / Sidebar — scope: SHARED; folder CRUD, stories, similar channels = TG
 
