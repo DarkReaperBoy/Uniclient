@@ -750,3 +750,22 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 
 - **26 (1c9257a5)**: profile info-row copy (username/phone/bio → clipboard + toast), in-chat search from-user filter (👤 sender picker → SearchMessages senderID); CI 34225265665 GREEN
 - Session 4 total: 10 slices (17–26) + slice-16 gofmt fix + slice-21 snapshot bugfix, every dispatch green
+
+---
+Task ID: parity-slices-27-32
+Agent: main (Super Z)
+Task: Continue the AyuGram 1:1 parity program endlessly (slices 27–32)
+
+Work Log:
+- Local toolchain restored (Go 1.27 at /home/z/go; -tags goolm + GOMEMLIMIT recipe for gotd) — all local gates green per slice: gofmt, windows vet, gui suite under node+wasm, engine/utils tests, windows+wasm builds
+- Slice 27: add-to-folder from chat-row context menu (folder picker w/ emoticons, account-scoped via frame.foldersFor; engine AddChatToFolder) — CI 34239396476 GREEN
+- Slice 28: peer header status (online/last-seen via GetUserProfile + EventUserStatus, exact-time formatting) + verified/premium/scam badges — CI 34240718430 GREEN (w/ 29)
+- Slice 29: row pin (custom hand-encoded IconVG pushpin) + mute icons, unread-mark dot, service-message centered pills
+- Slice 30: floating next-unread ⬇ button (circular wrap search, scrolls + opens)
+- Slice 31: login-code relay banner + auto-fill (EventLoginCode, 10-min window)
+- Slice 32: rich text rendering — entity parsing (UTF-16 offsets, overlap merge), styled word-flow layouter, spoiler hide/reveal; engine content_rich already round-trips entities
+- Matrix rows updated: 42, 57, 60, 66, 69, 79, 80, 90, 94, 125
+
+Stage Summary:
+- 32 parity slices landed; CI green through slice 29; verify run dispatched for 30–32 (HEAD c521a438)
+- Next candidates: compose-side markdown formatting, link opening, copy message link (engine t.me), Ayu local "hide message", recent searches persistence, streamer mode
