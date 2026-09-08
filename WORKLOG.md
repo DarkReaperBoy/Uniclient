@@ -823,3 +823,9 @@ Stage Summary:
 - **49**: who-reacted dialog (per-emoji tabs, engine GetMessageReactorsList w/ paging)
 - **50**: emoji panel keyword search (engine GetEmojiKeywords + pure filter)
 - CI: 34252401355 (s46–47) GREEN; runs dispatched for s48–50
+
+---
+## 2026-09-08 — slice 51
+
+- **51 Live poll results**: cores OnMessagePoll → UpdatePollResults; engine mergePollResults (cache chat resolve, option-byte merge into content_raw) + EventMsgEdited; fixed int/float64 number coercion
+- CI: 34253409439 (s48–49) + 34253838794 (s50) GREEN; dispatched for s51
