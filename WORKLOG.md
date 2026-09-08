@@ -864,3 +864,8 @@ Stage Summary:
 
 - **57 Search results tabs**: All/Chats/Messages/Links/Files bar over the sidebar results; engine SearchMessagesEx kind filters (links = URL text/entities, files = has_media); invite row survives tabs
 - CI: 34258709036 (gofmt fix, s53–54) GREEN; dispatched for s55–57
+---
+## 2026-09-09 — slice 58
+
+- **58 Sticker + GIF panel tabs**: Emoji/Stickers/GIFs mode row in the helper panel; pack chips (Recent-first) + static-thumb grids; tap-to-send through SendSticker; saved-GIF grid via GetSavedGifs
+- CI: s55 (2782f703) + s56 runs in flight/verified; dispatched for s57–58
