@@ -35,6 +35,7 @@ var (
 	drawerNewGroup   widget.Clickable
 	drawerNewChan    widget.Clickable
 	drawerGhostCfg   widget.Clickable // ⚙ → Ayu preferences
+	drawerSavedBtn   widget.Clickable // Saved messages
 	drawerNight      = new(widget.Bool)
 	drawerGhost      = new(widget.Bool)
 	drawerNightSync  bool
@@ -239,6 +240,10 @@ func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 		a.closeDrawer()
 		a.openSettings(setSectionAyu)
 	}
+	if drawerSavedBtn.Clicked(gtx) {
+		a.closeDrawer()
+		a.openSavedMessages(f)
+	}
 
 	// Switches: sync from the snapshot on open, then let the user drive.
 	current := currentAccount(f)
@@ -320,6 +325,9 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 		return drawerAccountRowLabel(gtx, a.ui, &drawerAcctAdd, "Add account", false)
 	})
+
+	// Saved messages (self chat).
+	rows = append(rows, a.drawerIconRow(&drawerSavedBtn, iconActionBackup, "Saved messages"))
 
 	rows = append(rows, a.drawerDividerRow())
 

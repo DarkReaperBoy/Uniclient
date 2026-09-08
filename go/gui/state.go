@@ -162,6 +162,9 @@ type App struct {
 	// drafts + scheduled send (AyuGram parity slice 20)
 	schedDlg *schedDlgState
 
+	// per-message silent sends (AyuGram 🔕, slice 23): sticky toggle
+	silentNext bool
+
 	// scheduled-messages panel (AyuGram parity slice 21)
 	schedPanel bool
 	schedMsgs  []engine.CachedMessage
@@ -601,6 +604,35 @@ func (a *App) removeAccount(id string) {
 	}()
 }
 
+// openSavedMessages opens the account's self chat (AyuGram "Saved
+// messages"). Falls back to the first connected account's self chat.
+func (a *App) openSavedMessages(f frame) {
+	scope := a.acctFilterLocked()
+	var found *engine.ChatInfo
+	for i := range f.chats {
+		c := f.chats[i]
+		if c.IsSelf && (scope == "" || c.AccountID == scope) {
+			cc := c
+			found = &cc
+			break
+		}
+	}
+	if found == nil {
+		for i := range f.chats {
+			if f.chats[i].IsSelf {
+				cc := f.chats[i]
+				found = &cc
+				break
+			}
+		}
+	}
+	if found == nil {
+		a.setToast("No saved-messages chat yet — forward something to yourself first")
+		return
+	}
+	a.openChat(chatKey{AccountID: found.AccountID, ChatID: found.ChatID}, found.Title)
+}
+
 // consumePendingOpen runs a background-scheduled openChat on the GUI loop
 // (set by the new group/channel creation flow).
 func (a *App) consumePendingOpen() {
@@ -728,6 +760,7 @@ func (a *App) sendText(text string) {
 	if e := a.cMode.editTarget(); e != nil {
 		editMsg = e.MsgID
 	}
+	silent := a.silentNext
 	a.cMode.cancel()
 	a.sending = true
 	a.mu.Unlock()
@@ -748,7 +781,7 @@ func (a *App) sendText(text string) {
 			}
 			return
 		}
-		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, text, replyID, nil, false, 0, "", "", false, false, false, false); err != nil {
+		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, text, replyID, nil, silent, 0, "", "", false, false, false, false); err != nil {
 			a.setToast("Send failed: " + err.Error())
 			return
 		}

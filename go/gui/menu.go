@@ -48,6 +48,9 @@ var (
 	fwdChatBtns   []widget.Clickable // forward picker rows
 	fwdCancelBtn  widget.Clickable
 	chipCancelBtn widget.Clickable // reply/edit header close
+
+	fwdHideAuthor   widget.Bool // forward options (AyuGram)
+	fwdHideCaptions widget.Bool
 )
 
 func growClickables(pool *[]widget.Clickable, n int) {
@@ -423,6 +426,26 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.ui.Divider(gtx) }),
+		// Forward options (AyuGram: hide sender / hide captions).
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							chk := material.CheckBox(a.ui.Theme, &fwdHideAuthor, "Hide sender")
+							chk.Color = a.ui.p.Accent
+							return chk.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Left: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								chk := material.CheckBox(a.ui.Theme, &fwdHideCaptions, "Hide captions")
+								chk.Color = a.ui.p.Accent
+								return chk.Layout(gtx)
+							})
+						}),
+					)
+				})
+		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(candidates) == 0 {
 				return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -444,7 +467,7 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 					a.invalidate()
 					go func() {
 						if len(srcs) == 1 {
-							if err := a.eng.ForwardMessage(srcs[0].AccountID, srcs[0].ChatID, srcs[0].MsgID, dst.ChatID, false, false, false, 0); err != nil {
+							if err := a.eng.ForwardMessage(srcs[0].AccountID, srcs[0].ChatID, srcs[0].MsgID, dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0); err != nil {
 								a.setToast("Forward failed: " + err.Error())
 							} else {
 								a.setToast("Forwarded to " + dst.Title)
@@ -455,7 +478,7 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 						for k := range srcs {
 							ids[k] = srcs[k].MsgID
 						}
-						if err := a.eng.ForwardMessages(srcs[0].AccountID, srcs[0].ChatID, ids, dst.ChatID, false, false, false, 0); err != nil {
+						if err := a.eng.ForwardMessages(srcs[0].AccountID, srcs[0].ChatID, ids, dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0); err != nil {
 							a.setToast("Forward failed: " + err.Error())
 						} else {
 							a.setToast("Forwarded " + itoa(len(ids)) + " messages to " + dst.Title)

@@ -26,6 +26,7 @@ var (
 	composer    widget.Editor
 	msgList     widget.List
 	joinBarBtn  widget.Clickable // JOIN (not-joined channels, slice 19)
+	silentBtn   widget.Clickable // per-message silent (slice 23)
 )
 
 func init() {
@@ -834,6 +835,32 @@ func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
 								ed := a.ui.Editor(&composer, "Write a message…")
 								return ed.Layout(gtx)
 							})
+						})
+					}),
+					// silent (🔕) — send without sound (AyuGram
+					// per-message mute, slice 23).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if silentBtn.Clicked(gtx) {
+							a.mu.Lock()
+							a.silentNext = !a.silentNext
+							on := a.silentNext
+							a.mu.Unlock()
+							if on {
+								a.setToast("Next messages send without sound")
+							} else {
+								a.setToast("Sound on")
+							}
+						}
+						a.mu.Lock()
+						on := a.silentNext
+						a.mu.Unlock()
+						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							btn := a.ui.IconButton(&silentBtn, iconSocialNotif, "Send without sound")
+							btn.Color = a.ui.p.TextDim
+							if on {
+								btn.Color = a.ui.p.Accent
+							}
+							return btn.Layout(gtx)
 						})
 					}),
 					// schedule (⏰) — schedule the composed
