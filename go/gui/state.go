@@ -999,6 +999,30 @@ type cfgSnapshot struct {
 type notifyAcctState struct {
 	contact bool // contact sign-up notifications
 	calls   bool // calls disabled on this account
+	// reactions/poll-votes notify (AyuGram, slice 61)
+	reactOn   bool
+	reactFrom string // "everyone" | "contacts"
+	pollsOn   bool
+	pollsFrom string
+}
+
+// reactionsFromValue coerces an engine reactions-from value ("everyone" /
+// "contacts"; anything else = everyone).
+func reactionsFromValue(v interface{}) string {
+	if s, ok := v.(string); ok && s == "contacts" {
+		return "contacts"
+	}
+	return "everyone"
+}
+
+// applyReactionsNotify persists one account's reactions/polls notify
+// settings (async, AyuGram reactions notifications).
+func (a *App) applyReactionsNotify(accountID string, st notifyAcctState) {
+	go func() {
+		if err := a.eng.SetReactionsNotifySettings(accountID, st.reactOn, st.reactFrom, st.pollsOn, st.pollsFrom, true); err != nil {
+			a.setToast("Reactions notify: " + err.Error())
+		}
+	}()
 }
 
 // openSettings switches the content pane to the settings view and kicks off
@@ -1087,7 +1111,18 @@ func (a *App) loadNotifyAccts() {
 		if err1 != nil || err2 != nil {
 			continue
 		}
-		st[acc.ID] = notifyAcctState{contact: contact, calls: calls}
+		e := notifyAcctState{contact: contact, calls: calls}
+		if rn, err := a.eng.GetReactionsNotifySettings(acc.ID); err == nil {
+			e.reactOn, _ = rn["reactions_enabled"].(bool)
+			e.reactFrom = reactionsFromValue(rn["reactions_from"])
+			e.pollsOn, _ = rn["poll_votes_enabled"].(bool)
+			e.pollsFrom = reactionsFromValue(rn["poll_votes_from"])
+			if from, ok := rn["show_sender_name"].(bool); ok && !from {
+				// default: keep previews on; the map only records the override
+				_ = from
+			}
+		}
+		st[acc.ID] = e
 	}
 	a.mu.Lock()
 	a.notifyAccts, a.notifyLoaded = st, true

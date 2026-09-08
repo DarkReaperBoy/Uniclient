@@ -510,6 +510,55 @@ func (a *App) setPageNotifications(gtx layout.Context, f frame) layout.Dimension
 				}()
 			})
 		}))
+		// Reactions / poll-votes notifications (AyuGram, slice 61).
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.toggleRow(gtx, "notify:react:"+acc.ID, "Reaction notifications", st.reactOn, func(v bool) {
+				a.mu.Lock()
+				cur := a.notifyAccts[acc.ID]
+				cur.reactOn = v
+				a.notifyAccts[acc.ID] = cur
+				a.mu.Unlock()
+				a.applyReactionsNotify(acc.ID, cur)
+			})
+		}))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.toggleRow(gtx, "notify:reactfrom:"+acc.ID, "Reactions from contacts only", st.reactFrom == "contacts", func(v bool) {
+				a.mu.Lock()
+				cur := a.notifyAccts[acc.ID]
+				if v {
+					cur.reactFrom = "contacts"
+				} else {
+					cur.reactFrom = "everyone"
+				}
+				a.notifyAccts[acc.ID] = cur
+				a.mu.Unlock()
+				a.applyReactionsNotify(acc.ID, cur)
+			})
+		}))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.toggleRow(gtx, "notify:polls:"+acc.ID, "Poll-vote notifications", st.pollsOn, func(v bool) {
+				a.mu.Lock()
+				cur := a.notifyAccts[acc.ID]
+				cur.pollsOn = v
+				a.notifyAccts[acc.ID] = cur
+				a.mu.Unlock()
+				a.applyReactionsNotify(acc.ID, cur)
+			})
+		}))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.toggleRow(gtx, "notify:pollsfrom:"+acc.ID, "Poll votes from contacts only", st.pollsFrom == "contacts", func(v bool) {
+				a.mu.Lock()
+				cur := a.notifyAccts[acc.ID]
+				if v {
+					cur.pollsFrom = "contacts"
+				} else {
+					cur.pollsFrom = "everyone"
+				}
+				a.notifyAccts[acc.ID] = cur
+				a.mu.Unlock()
+				a.applyReactionsNotify(acc.ID, cur)
+			})
+		}))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
