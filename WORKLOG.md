@@ -790,3 +790,16 @@ Work Log:
 Stage Summary:
 - 40 parity slices landed; CI green through 37; runs dispatched for 38–40
 - Remaining P1/P2 candidates: voice/video playback (blocked: engine streaming), call bar (wrtc), forward multi-pick, streamer mode, profile share/edit, shared-media full grids, QR invite scan
+
+---
+Task ID: parity-slice-41
+Agent: main (Super Z)
+Task: Forward picker multi-select
+
+Work Log:
+- openForward helper centralizes forward entry points + selection reset
+- Rows toggle recipients (check circle + accent); Send bar commits to all selected chats w/ summary toast
+- Local gates green; matrix row upgraded to PRESENT; CI dispatched for 40-41
+
+Stage Summary:
+- 41 slices landed; CI green through 37; runs in flight for 38-39 and 40-41
