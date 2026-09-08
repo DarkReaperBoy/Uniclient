@@ -55,7 +55,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Folder tabs above list | Server-synced folders incl. custom, edit, reorder, invite links | PARTIAL (real server folders when an account is scoped: tabs + Telegram filter rules + "+" create dialog; smart tabs fallback; edit/reorder/invites later) | gui/folders.go + engine.GetFolders/CreateFolder/FoldersSupported | P0 |
 | Archive collapsed row | Archived chats collapse to one row w/ badge | CORE-ONLY | engine.ArchiveChat/IsArchived (CORE-ONLY) | P1 |
 | Pinned chats section | Pinned first, pin indicator icon | PARTIAL (engine sorts pinned first; no pin icon/separator) | gui/sidebar.go chatRow + ChatInfo.IsPinned | P1 |
-| Chat row: image avatar | Real photo/video userpic w/ stories ring | PARTIAL (real userpics rendered everywhere from ChatInfo.AvatarPath + b64 member thumbs, circle cover-crop; stories ring later) | gui/avatar.go + engine avatars pipeline | P0 |
+| Chat row: image avatar | Real photo/video userpic w/ stories ring | PARTIAL (real userpics rendered everywhere from ChatInfo.AvatarPath + b64 member thumbs, circle cover-crop; accent unread-stories ring on chat-row + header avatars, slice 21) | gui/avatar.go + engine avatars pipeline | P0 |
 | Row: verified/scam/fake badges | Icon next to title | CORE-ONLY (fields exist: IsVerified/IsScam/IsFake) | gui/sidebar.go + ChatInfo fields | P1 |
 | Row: muted/pin/unread-mark icons | Icons right of time, muted badge style | PARTIAL (gray badge; no mute/pin icons, no UnreadMark) | gui/sidebar.go | P1 |
 | Row: draft preview | "Draft: …" when unsent | PRESENT (slice 20: red Draft preview over the last message) | gui/sidebar.go | P2 |
@@ -118,7 +118,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Bot commands menu (/) | "/" button lists chat commands | CORE-ONLY | engine.GetChatBotCommands (CORE-ONLY) | P2 |
 | Bot keyboard (reply markup) | Custom reply keyboards under composer | CORE-ONLY | core has BotCallback infra (CORE-ONLY) | P2 |
 | Inline bot results | @bot query results panel | CORE-ONLY | engine.GetInlineBotResultsFull/SendInlineBotResult (CORE-ONLY) | P3 |
-| Scheduled send | Clock menu: pick time, silent, "send when online" | PARTIAL (slice 20: ⏰ schedule dialog w/ presets + custom date/time → SendMessage scheduleDate; scheduled bubbles show their time; scheduled list view / send-now / reschedule remain) | gui/drafts.go + engine SendMessage | P1 |
+| Scheduled send | Clock menu: pick time, silent, "send when online" | PARTIAL (slice 20+21: ⏰ schedule dialog w/ presets + custom date/time → SendMessage scheduleDate; scheduled bubbles show their time; header ⋮ 'Scheduled messages' manager w/ send-now/reschedule/delete via GetScheduledMessages/SendScheduledNow/RescheduleMessage/DeleteScheduledMessages; 'send when online' + silent toggle remain) | gui/drafts.go + gui/schedpanel.go + engine | P1 |
 | Silent send toggle | Bell toggle in field | CORE-ONLY | SendMessage silent param (CORE-ONLY) | P2 |
 | Draft save/restore | Per-chat draft persists across restarts | PRESENT (slice 20: restore on open, flush on leave/back, clear on send — persisted via engine.SaveDraft so it survives restarts) | gui/drafts.go + gui/state.go + engine.SaveDraft | P1 |
 | Char count / limits | Counter near limit | MISSING | gui/chat.go | P3 |
