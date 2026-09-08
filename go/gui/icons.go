@@ -31,6 +31,7 @@ var (
 	iconFileDownload          = mustIcon(icons.FileFileDownload)
 	iconAVPlayCircle          = mustIcon(icons.AVPlayCircleFilled)
 	iconAVStop                = mustIcon(icons.AVStop)
+	iconAVVideocam            = mustIcon(icons.AVVideocam)
 	iconSocialNotif           = mustIcon(icons.SocialNotificationsNone)
 	iconActionLock            = mustIcon(icons.ActionLock)
 	iconActionBackup          = mustIcon(icons.ActionBackup)

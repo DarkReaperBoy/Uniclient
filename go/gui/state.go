@@ -92,7 +92,9 @@ type App struct {
 	privacyDlg    *privacyDlgState                  // scope picker dialog (slice 62)
 	autoDlRules   map[string]map[string]interface{} // source → rules (slice 63)
 	autoDlOn      bool
-	autoDlDlg     *autodlDlgState // rules editor dialog (slice 63)
+	autoDlDlg     *autodlDlgState                      // rules editor dialog (slice 63)
+	callsList     map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
+	callsLoaded   bool
 	cacheTotal    int64
 	cacheTags     [6]int64
 	cacheLoaded   bool
@@ -1110,6 +1112,21 @@ func (a *App) loadStorage() {
 	a.invalidate()
 }
 
+// loadCalls reads the recent-call list per account for the Voice tab
+// (slice 64).
+func (a *App) loadCalls() {
+	calls := make(map[string][]engine.CallHistoryEntry)
+	for _, acc := range a.eng.ListAccounts() {
+		if entries, err := a.eng.GetCallHistory(acc.ID, 0, 40); err == nil {
+			calls[acc.ID] = entries
+		}
+	}
+	a.mu.Lock()
+	a.callsList, a.callsLoaded = calls, true
+	a.mu.Unlock()
+	a.invalidate()
+}
+
 // loadNotifyAccts reads per-account notification behavior.
 func (a *App) loadNotifyAccts() {
 	st := make(map[string]notifyAcctState)
@@ -1367,6 +1384,8 @@ func (a *App) snapshot() frame {
 		autoDlRules:      a.autoDlRules,
 		autoDlOn:         a.autoDlOn,
 		autoDlDlg:        a.autoDlDlg,
+		callsList:        a.callsList,
+		callsLoaded:      a.callsLoaded,
 		cacheTotal:       a.cacheTotal,
 		cacheTags:        a.cacheTags,
 		cacheLoaded:      a.cacheLoaded,
@@ -1495,7 +1514,9 @@ type frame struct {
 	privacyDlg    *privacyDlgState                  // scope picker dialog (slice 62)
 	autoDlRules   map[string]map[string]interface{} // source → rules (slice 63)
 	autoDlOn      bool
-	autoDlDlg     *autodlDlgState // rules editor dialog (slice 63)
+	autoDlDlg     *autodlDlgState                      // rules editor dialog (slice 63)
+	callsList     map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
+	callsLoaded   bool
 	cacheTotal    int64
 	cacheTags     [6]int64
 	cacheLoaded   bool

@@ -299,6 +299,7 @@ func (a *App) layoutModeTabs(gtx layout.Context, f frame) layout.Dimensions {
 		a.mu.Lock()
 		a.mode = 1
 		a.mu.Unlock()
+		go a.loadCalls() // slice 64: recent calls for the Voice tab
 		a.invalidate()
 	}
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
