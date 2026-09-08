@@ -213,6 +213,15 @@ func (a *App) panelAddContact(k chatKey, u engine.CachedUser) {
 	}()
 }
 
+// isPanelSubCount reports whether a panel subtitle is a count/channel
+// label (safe under streamer mode) rather than identity info.
+func isPanelSubCount(sub string) bool {
+	if sub == "channel" || sub == "online" || sub == "members" {
+		return true
+	}
+	return strings.Contains(sub, "member") || strings.Contains(sub, "online")
+}
+
 // ── layout ────────────────────────────────────────────────────────────────
 
 // layoutInfoPanel renders the panel as a full pane (narrow) or inside the
@@ -237,56 +246,74 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 	})
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// header: back (narrow) + big avatar + title + sub + close
+		// header (AyuGram profile cover): back/close row, then a big centered
+		// photo (96dp; real userpic via the engine avatar pipeline, letter
+		// fallback), name and status below it.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						// back (narrow) | spacer | close (desktop)
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							if !narrow {
-								return layout.Dimensions{}
-							}
-							btn := a.ui.IconButton(&panelCloseBtn, iconNavigationBack, "Back")
-							btn.Color = a.ui.p.TextDim
-							return btn.Layout(gtx)
-						}),
-						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return layout.Inset{Right: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-										if f.cfg.Streamer {
-											return a.personAvatar(gtx, unit.Dp(46))
-										}
-										return a.ui.Avatar(gtx, title, unit.Dp(46), dotNone)
-									})
+									if !narrow {
+										return layout.Dimensions{}
+									}
+									btn := a.ui.IconButton(&panelCloseBtn, iconNavigationBack, "Back")
+									btn.Color = a.ui.p.TextDim
+									return btn.Layout(gtx)
 								}),
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											lbl := a.ui.H3(title)
-											if f.cfg.Streamer {
-												return a.masked(gtx, lbl.Layout)
-											}
-											return lbl.Layout(gtx)
-										}),
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											if sub == "" {
-												return layout.Dimensions{}
-											}
-											lbl := a.ui.Dim(unit.Sp(12), sub)
-											return lbl.Layout(gtx)
-										}),
-									)
+									return layout.Dimensions{}
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									if narrow {
+										return layout.Dimensions{}
+									}
+									btn := a.ui.IconButton(&panelCloseBtn, iconContentClear, "Close")
+									btn.Color = a.ui.p.TextDim
+									return btn.Layout(gtx)
 								}),
 							)
 						}),
+						// big cover avatar.
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							if narrow {
+							return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									if f.cfg.Streamer {
+										return a.personAvatar(gtx, unit.Dp(96))
+									}
+									if chat != nil && chat.AvatarPath != "" {
+										return a.streamerAvatar(gtx, f, *chat, unit.Dp(96), dotNone)
+									}
+									return a.ui.Avatar(gtx, title, unit.Dp(96), dotNone)
+								})
+							})
+						}),
+						// name + status, centered.
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.H3(title)
+								if f.cfg.Streamer {
+									return a.masked(gtx, lbl.Layout)
+								}
+								return lbl.Layout(gtx)
+							})
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							if sub == "" {
 								return layout.Dimensions{}
 							}
-							btn := a.ui.IconButton(&panelCloseBtn, iconContentClear, "Close")
-							btn.Color = a.ui.p.TextDim
-							return btn.Layout(gtx)
+							return layout.Inset{Top: unit.Dp(1)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Dim(unit.Sp(12), sub)
+									if f.cfg.Streamer && !isPanelSubCount(sub) {
+										return a.masked(gtx, lbl.Layout)
+									}
+									return lbl.Layout(gtx)
+								})
+							})
 						}),
 					)
 				})

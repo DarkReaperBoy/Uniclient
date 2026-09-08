@@ -172,7 +172,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
 | Right panel exists | Slide-in 3rd pane (info/media/peer) | PRESENT (desktop 3rd pane 320dp, narrow replaces pane; ⓘ toggle in chat header) | gui/profile.go | P0 |
-| Profile: cover + avatar + name + status | Big header w/ photo | PARTIAL (header w/ avatar + presence from GetUserProfile; big cover photo later) | gui/profile.go + engine.GetUserProfile | P0 |
+| Profile: cover + avatar + name + status | Big header w/ photo | PRESENT (slice 52: AyuGram-style panel header — back/close row, big centered 96dp photo (real userpic via engine avatar pipeline, letter fallback, streamer-mode neutral glyph), name + status centered below; presence from GetUserProfile) | gui/profile.go + engine.GetUserProfile | P0 |
 | Profile: bio/phone/username rows + copy | Info rows w/ icons | PRESENT (slice 26: icon rows w/ copy-on-click + toast) | gui/profile.go panelValueRow | P0 |
 | Profile: actions (add contact, share, block, edit) | Button rows | PARTIAL (add-to-contacts + block/unblock wired; share/edit later) | gui/profile.go + engine AddContactByUser/BlockUser | P1 |
 | Shared media tabs | Photos/Videos/Files/Links/Voice/GIFs grids w/ counts | PARTIAL (real per-type counts + recent-photos grid; full tabbed grids later) | gui/profile.go + engine GetSharedMedia(Counts) | P1 |
