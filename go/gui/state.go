@@ -159,6 +159,9 @@ type App struct {
 	delDlg    *delDlgState
 	reportDlg *reportDlgState
 
+	// drafts + scheduled send (AyuGram parity slice 20)
+	schedDlg *schedDlgState
+
 	// fullscreen media viewer (AyuGram parity slice 9, §12): shared under
 	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
 	viewer *viewerState
@@ -599,6 +602,23 @@ func (a *App) consumePendingOpen() {
 }
 
 func (a *App) openChat(k chatKey, title string) {
+	// Draft flush: persist whatever the composer holds for the chat we are
+	// LEAVING, then restore the new chat's draft (slice 20). Runs on the
+	// GUI goroutine, so touching the composer editor is safe.
+	a.mu.Lock()
+	prev := a.selected
+	var next engine.ChatInfo
+	for _, c := range a.chats {
+		if c.AccountID == k.AccountID && c.ChatID == k.ChatID {
+			next = c
+			break
+		}
+	}
+	a.mu.Unlock()
+	if prev != nil && (prev.AccountID != k.AccountID || prev.ChatID != k.ChatID) {
+		a.flushDraft(*prev)
+	}
+
 	a.mu.Lock()
 	a.selected = &k
 	a.loadingMsgs = true
@@ -633,6 +653,14 @@ func (a *App) openChat(k chatKey, title string) {
 	a.inChatBusy = false
 	a.delDlg = nil // slice 19: close delete/report dialogs
 	a.reportDlg = nil
+	a.schedDlg = nil // slice 20: close the schedule dialog
+
+	// Restore the incoming chat's draft into the composer (slice 20).
+	if next.DraftText != "" {
+		composer.SetText(next.DraftText)
+	} else {
+		composer.SetText("")
+	}
 	// Unread snapshot BEFORE the read receipt fires (openChat marks read
 	// right after the first load) — the separator position for this visit.
 	a.unreadAtOpen = 0
@@ -707,7 +735,9 @@ func (a *App) sendText(text string) {
 		}
 		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, text, replyID, nil, false, 0, "", "", false, false, false, false); err != nil {
 			a.setToast("Send failed: " + err.Error())
+			return
 		}
+		a.clearDraft(*k) // slice 20: sent → the draft is consumed
 	}()
 }
 
@@ -1063,6 +1093,7 @@ func (a *App) snapshot() frame {
 		inChatBusy:       a.inChatBusy,
 		delDlg:           a.delDlg,
 		reportDlg:        a.reportDlg,
+		schedDlg:         a.schedDlg,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -1184,6 +1215,9 @@ type frame struct {
 	// delete + report dialogs (slice 19)
 	delDlg    *delDlgState
 	reportDlg *reportDlgState
+
+	// scheduled send (slice 20)
+	schedDlg *schedDlgState
 
 	// fullscreen media viewer (slice 9)
 	viewer *viewerState

@@ -150,6 +150,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.reportDlg != nil {
 		a.layoutReportDialog(gtx, f)
 	}
+	// Schedule dialog (slice 20).
+	if f.schedDlg != nil {
+		a.layoutScheduleDialog(gtx, f)
+	}
 	return dims
 }
 
@@ -267,9 +271,13 @@ func backIf(narrow bool, gtx layout.Context, a *App) layout.FlexChild {
 	}
 	if chatBackBtn.Clicked(gtx) {
 		a.mu.Lock()
+		prev := a.selected
 		a.selected = nil
 		a.msgFor = nil
 		a.mu.Unlock()
+		if prev != nil {
+			a.flushDraft(*prev) // slice 20: keep the text for next time
+		}
 		a.invalidate()
 	}
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -521,6 +529,9 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 								meta := fmtTime(m.Timestamp)
 								if m.EditedAt != 0 {
 									meta = "edited " + fmtTime(m.EditedAt)
+								}
+								if sm := scheduledMetaLabel(*m); sm != "" {
+									meta = sm + " · " + meta
 								}
 								lbl := a.ui.Dim(unit.Sp(10), meta)
 								lbl.Color = a.ui.p.TextFaint
@@ -818,6 +829,21 @@ func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
 								ed := a.ui.Editor(&composer, "Write a message…")
 								return ed.Layout(gtx)
 							})
+						})
+					}),
+					// schedule (⏰) — schedule the composed
+					// message (AyuGram, slice 20).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if composerSchedBtn.Clicked(gtx) {
+							a.openScheduleDialog()
+						}
+						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							btn := a.ui.IconButton(&composerSchedBtn, iconActionSchedule, "Schedule message")
+							btn.Color = a.ui.p.TextDim
+							if f.schedDlg != nil {
+								btn.Color = a.ui.p.Accent
+							}
+							return btn.Layout(gtx)
 						})
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {

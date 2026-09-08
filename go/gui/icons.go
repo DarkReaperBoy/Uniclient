@@ -48,6 +48,7 @@ var (
 	iconNavMenu               = mustIcon(icons.NavigationMenu)
 	iconCommunicationContacts = mustIcon(icons.CommunicationContacts)
 	iconSocialGroup           = mustIcon(icons.SocialGroup)
+	iconActionSchedule        = mustIcon(icons.ActionSchedule)
 )
 
 func mustIcon(data []byte) *widget.Icon {

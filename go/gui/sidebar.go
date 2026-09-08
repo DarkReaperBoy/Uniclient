@@ -559,7 +559,10 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 								return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 									preview := previewText(c)
 									colorT := a.ui.p.TextDim
-									if a.stillTyping(chatKey{c.AccountID, c.ChatID}) {
+									if c.DraftText != "" {
+										preview = draftPreview(c.DraftText)
+										colorT = a.ui.p.Error
+									} else if a.stillTyping(chatKey{c.AccountID, c.ChatID}) {
 										preview = "typing…"
 										colorT = a.ui.p.Accent
 									}

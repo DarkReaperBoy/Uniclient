@@ -150,9 +150,9 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Message context menu (base) | Copy, forward, reply, edit, pin, delete, select, report | PARTIAL (2026-09: right-click menu w/ reply/edit/copy/forward/pin/delete + quick reactions, cursor-anchored; select/report + delete-for-me-vs-all dialog pending) | gui/menu.go + engine Edit/Forward/Pin/Delete/React | P0 |
+| Message context menu (base) | Copy, forward, reply, edit, pin, delete, select, report | PRESENT (slice 19 completes: report w/ full interactive reason+comment flow; delete dialog w/ for-all revoke; select + bulk actions shipped slice 14) | gui/menu.go + gui/deldlg.go + gui/report.go | P0 |
 | Reaction picker in menu | Emoji row at top of menu | PARTIAL (2026-09: quick-reaction row from GetAvailableReactions w/ TG default fallback; full tabbed picker pending) | gui/menu.go menuReactionsRow | P0 |
-| Delete dialog w/ "delete for all" | Revoke checkbox | CORE-ONLY | engine.DeleteMessage(revoke) (CORE-ONLY) | P0 |
+| Delete dialog w/ "delete for all" | Revoke checkbox | PRESENT (slice 19: single + bulk confirm dialog, checkbox for outgoing/admin, per-message revoke) | gui/deldlg.go + engine DeleteMessage | P0 |
 | Forward picker (share box) | Choose recipients, hide-sender options (Ayu) | PARTIAL (2026-09: same-account chat list picker via layout swap; multi-pick + hide-sender options + comment pending) | gui/menu.go layoutForwardDialog + engine.ForwardMessage | P1 |
 | Copy link to message | t.me link copy | MISSING | telegram message links ≙ engine method needed | P2 |
 | Save file / save GIF / save sound | Download-to-disk actions | CORE-ONLY | engine media + DownloadFile (CORE-ONLY) | P1 |
