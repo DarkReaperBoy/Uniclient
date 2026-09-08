@@ -57,6 +57,7 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked bool) []chatMenuAc
 		items = append(items, chatMenuAction{"Mute notifications", "mute"})
 	}
 	items = append(items, chatMenuAction{"View profile", "profile"})
+	items = append(items, chatMenuAction{"Scheduled messages", "scheduled"})
 	if c.Type == engine.ChatTypeDMVal {
 		if blockedKnown && blocked {
 			items = append(items, chatMenuAction{"Unblock user", "unblock"})
@@ -103,6 +104,9 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 	case "profile":
 		a.closeHeaderMenu()
 		a.openPanel()
+	case "scheduled":
+		a.closeHeaderMenu()
+		a.openSchedPanel()
 	case "mute":
 		a.closeHeaderMenu()
 		go func() {

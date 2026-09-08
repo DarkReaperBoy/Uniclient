@@ -25,9 +25,10 @@ import (
 
 // schedDlgState: open schedule dialog (nil when closed).
 type schedDlgState struct {
-	preset int // 0 custom, 1 in 2h, 2 tomorrow 9:00
-	when   time.Time
-	busy   bool
+	preset  int // 0 custom, 1 in 2h, 2 tomorrow 9:00
+	when    time.Time
+	busy    bool
+	resched *engine.CachedMessage // set when rescheduling an existing message
 }
 
 var (
@@ -191,6 +192,27 @@ func (a *App) submitScheduleDialog() {
 	}
 	if when <= time.Now().Unix() {
 		a.setToast("Pick a time in the future")
+		return
+	}
+	a.mu.Lock()
+	resched := a.schedDlg.resched
+	a.mu.Unlock()
+	if resched != nil {
+		// Reschedule an existing scheduled message.
+		a.mu.Lock()
+		a.schedDlg.busy = true
+		a.mu.Unlock()
+		go func() {
+			if err := a.eng.RescheduleMessage(resched.AccountID, resched.ChatID, resched.MsgID, when); err != nil {
+				a.setToast("Reschedule failed: " + err.Error())
+			} else {
+				a.setToast("Rescheduled for " + time.Unix(when, 0).Format("Mon 15:04"))
+			}
+			a.mu.Lock()
+			a.schedDlg = nil
+			a.mu.Unlock()
+			a.reloadSchedPanel()
+		}()
 		return
 	}
 	text := strings.TrimSpace(composer.Text())

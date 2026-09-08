@@ -52,6 +52,11 @@ func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Di
 		return a.layoutInfoPanel(gtx, f, chat, true)
 	}
 
+	// Scheduled-messages panel replaces the pane (AyuGram, slice 21).
+	if f.schedPanel {
+		return a.layoutSchedPanel(gtx, f, chat)
+	}
+
 	// Route pane presses (right-click context menu, menu dismissal).
 	a.processPaneEvents(gtx, f)
 

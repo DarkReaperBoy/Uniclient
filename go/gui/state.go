@@ -162,6 +162,11 @@ type App struct {
 	// drafts + scheduled send (AyuGram parity slice 20)
 	schedDlg *schedDlgState
 
+	// scheduled-messages panel (AyuGram parity slice 21)
+	schedPanel bool
+	schedMsgs  []engine.CachedMessage
+	schedLoad  bool
+
 	// fullscreen media viewer (AyuGram parity slice 9, §12): shared under
 	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
 	viewer *viewerState
@@ -1218,6 +1223,11 @@ type frame struct {
 
 	// scheduled send (slice 20)
 	schedDlg *schedDlgState
+
+	// scheduled-messages panel (slice 21)
+	schedPanel bool
+	schedMsgs  []engine.CachedMessage
+	schedLoad  bool
 
 	// fullscreen media viewer (slice 9)
 	viewer *viewerState

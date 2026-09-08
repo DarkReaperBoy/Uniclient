@@ -1239,6 +1239,34 @@ func (e *Engine) SendScheduledNow(accountID, chatID string, msgIDs []string) err
 	return ss.SendScheduledNow(chatID, intIDs)
 }
 
+// DeleteScheduledMessages removes scheduled messages by ID (Telegram
+// messages.deleteScheduledMessages; AyuGram's scheduled-list trash action).
+func (e *Engine) DeleteScheduledMessages(accountID, chatID string, msgIDs []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	type scheduledDeleter interface {
+		DeleteScheduledMessages(chatID string, msgIDs []int) error
+	}
+	sd, ok := acc.Core.(scheduledDeleter)
+	if !ok {
+		return fmt.Errorf("core for account %q does not support scheduled messages", accountID)
+	}
+
+	intIDs := make([]int, 0, len(msgIDs))
+	for _, id := range msgIDs {
+		n, err := strconv.Atoi(id)
+		if err != nil {
+			return fmt.Errorf("invalid message ID %q: %w", id, err)
+		}
+		intIDs = append(intIDs, n)
+	}
+
+	return sd.DeleteScheduledMessages(chatID, intIDs)
+}
+
 func (e *Engine) RescheduleMessage(accountID, chatID, msgID string, scheduleDate int64) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

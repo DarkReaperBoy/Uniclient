@@ -24,10 +24,16 @@ import (
 // chatAvatar renders the chat's real userpic when available (letter
 // fallback), with the optional connection dot.
 func (a *App) chatAvatar(gtx layout.Context, c engine.ChatInfo, sizeDp unit.Dp, dot connDot) layout.Dimensions {
+	var d layout.Dimensions
 	if img := a.avatarImage(c.AvatarPath, ""); img != nil {
-		return avatarFromImage(gtx, a, img, sizeDp, dot)
+		d = avatarFromImage(gtx, a, img, sizeDp, dot)
+	} else {
+		d = a.ui.Avatar(gtx, c.Title, sizeDp, dot)
 	}
-	return a.ui.Avatar(gtx, c.Title, sizeDp, dot)
+	if c.HasUnreadStory {
+		paintAvatarRing(gtx, a.ui, d.Size.X) // unread-stories ring (AyuGram)
+	}
+	return d
 }
 
 // b64Avatar renders a base64 thumbnail avatar (member rows, profiles).

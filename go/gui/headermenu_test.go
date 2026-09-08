@@ -19,7 +19,7 @@ func TestHeaderMenuItemsDM(t *testing.T) {
 		for i, it := range items {
 			labels[i] = it.label
 		}
-		want := []string{"Mute notifications", "View profile", "Block user", "Clear history", "Delete chat"}
+		want := []string{"Mute notifications", "View profile", "Scheduled messages", "Block user", "Clear history", "Delete chat"}
 		if len(labels) != len(want) {
 			t.Fatalf("labels = %v, want %v", labels, want)
 		}
