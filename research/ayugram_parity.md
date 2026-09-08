@@ -173,7 +173,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Right panel exists | Slide-in 3rd pane (info/media/peer) | PRESENT (desktop 3rd pane 320dp, narrow replaces pane; ⓘ toggle in chat header) | gui/profile.go | P0 |
 | Profile: cover + avatar + name + status | Big header w/ photo | PARTIAL (header w/ avatar + presence from GetUserProfile; big cover photo later) | gui/profile.go + engine.GetUserProfile | P0 |
-| Profile: bio/phone/username rows + copy | Info rows w/ icons | PARTIAL (icon rows for username/phone/bio; copy action later) | gui/profile.go panelValueRow | P0 |
+| Profile: bio/phone/username rows + copy | Info rows w/ icons | PRESENT (slice 26: icon rows w/ copy-on-click + toast) | gui/profile.go panelValueRow | P0 |
 | Profile: actions (add contact, share, block, edit) | Button rows | PARTIAL (add-to-contacts + block/unblock wired; share/edit later) | gui/profile.go + engine AddContactByUser/BlockUser | P1 |
 | Shared media tabs | Photos/Videos/Files/Links/Voice/GIFs grids w/ counts | PARTIAL (real per-type counts + recent-photos grid; full tabbed grids later) | gui/profile.go + engine GetSharedMedia(Counts) | P1 |
 | Members list (groups) | Searchable, roles, admin badges | PARTIAL (200 members w/ role badges + presence; search later) | gui/profile.go memberRow + engine.GetChatMembers | P1 |
@@ -253,7 +253,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Global chat search | Finds chats by title/username across server | CORE-ONLY (local filter only) | engine.SearchGlobalChats (CORE-ONLY) | P0 |
 | Global message search | All-chats message results w/ preview | CORE-ONLY | engine.SearchMessages (CORE-ONLY) | P1 |
-| Search in current chat | In-chat results + jump + calendar picker | PRESENT (slice 18: header 🔍 → live scoped FTS bar w/ results panel, hit counter, ▲▼ navigation + click-jump; calendar picker + from-user filter remain) | gui/chatsearch.go + engine SearchMessages | P1 |
+| Search in current chat | In-chat results + jump + calendar picker | PRESENT (slice 18+26: header 🔍 → live scoped FTS bar w/ results panel, hit counter, ▲▼ + click-jump, from-user filter via sender picker; calendar picker remains) | gui/chatsearch.go + engine SearchMessages | P1 |
 | Search by sender/from | Filter "from user" | CORE-ONLY | engine search senderID param (CORE-ONLY) | P2 |
 | Search posts in public channels | Global post search | CORE-ONLY | engine.SearchGlobalPosts (CORE-ONLY) | P3 |
 | Hashtag/tag search | Filter by tag | MISSING | new engine search filter | P3 |
