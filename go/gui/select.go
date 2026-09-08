@@ -121,6 +121,16 @@ func (a *App) reportSelected() {
 	a.openReportDialog(batch)
 }
 
+// openForward opens the forward picker for a batch and resets the
+// recipient selection (slice 41).
+func (a *App) openForward(msgs []engine.CachedMessage) {
+	fwdSel = map[string]bool{}
+	a.mu.Lock()
+	a.fwd = msgs
+	a.mu.Unlock()
+	a.invalidate()
+}
+
 func (a *App) forwardSelected() {
 	msgs := a.selectedMessages()
 	if len(msgs) == 0 {
@@ -129,11 +139,10 @@ func (a *App) forwardSelected() {
 	batch := make([]engine.CachedMessage, len(msgs))
 	copy(batch, msgs)
 	a.mu.Lock()
-	a.fwd = batch
 	a.selOn = false
 	a.sel = nil
 	a.mu.Unlock()
-	a.invalidate()
+	a.openForward(batch)
 }
 
 // deleteSelected removes the selected messages (revoke for own messages).

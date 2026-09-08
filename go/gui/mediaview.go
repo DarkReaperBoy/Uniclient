@@ -857,7 +857,7 @@ func (a *App) viewerShare(v *viewerState, it engine.SharedMediaItem) {
 		ContentText: it.Text,
 	}
 	a.mu.Lock()
-	a.fwd = []engine.CachedMessage{m}
+	a.openForward([]engine.CachedMessage{m})
 	a.viewer = nil
 	a.mu.Unlock()
 	a.viewerResetGesture()

@@ -234,10 +234,7 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 	}
 	if acts.Forward {
 		items = append(items, menuAction{"Forward", func(gtx layout.Context) {
-			a.mu.Lock()
-			a.fwd = []engine.CachedMessage{m}
-			a.mu.Unlock()
-			a.invalidate()
+			a.openForward([]engine.CachedMessage{m})
 		}})
 	}
 	// Ayu local hide (AyuGram "hide message": gone from this client only).
@@ -497,43 +494,106 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 				c := candidates[i]
 				btn := &fwdChatBtns[i]
 				if btn.Clicked(gtx) {
-					dst := c
-					a.mu.Lock()
-					a.fwd = nil
-					a.mu.Unlock()
+					// Multi-pick (AyuGram, slice 41): rows toggle recipients.
+					fwdSel[c.ChatID] = !fwdSel[c.ChatID]
 					a.invalidate()
-					go func() {
-						if len(srcs) == 1 {
-							if err := a.eng.ForwardMessage(srcs[0].AccountID, srcs[0].ChatID, srcs[0].MsgID, dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0); err != nil {
-								a.setToast("Forward failed: " + err.Error())
-							} else {
-								a.setToast("Forwarded to " + dst.Title)
-							}
-							return
-						}
-						ids := make([]string, len(srcs))
-						for k := range srcs {
-							ids[k] = srcs[k].MsgID
-						}
-						if err := a.eng.ForwardMessages(srcs[0].AccountID, srcs[0].ChatID, ids, dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0); err != nil {
-							a.setToast("Forward failed: " + err.Error())
-						} else {
-							a.setToast("Forwarded " + itoa(len(ids)) + " messages to " + dst.Title)
-						}
-					}()
 				}
+				sel := fwdSel[c.ChatID]
 				bl := material.ButtonLayout(a.ui.Theme, btn)
 				bl.Background = a.ui.p.Surface
+				if sel {
+					bl.Background = a.ui.p.AccentDim
+				}
 				bl.CornerRadius = 0
 				return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Top: unit.Dp(12), Bottom: unit.Dp(12), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						lbl := a.ui.Label(unit.Sp(15), c.Title)
-						return lbl.Layout(gtx)
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.selectionCircle(gtx, sel)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Label(unit.Sp(15), c.Title)
+									return lbl.Layout(gtx)
+								})
+							}),
+						)
 					})
 				})
+			})
+		}),
+		// Send bar: commit the selection (slice 41).
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if fwdSendBtn.Clicked(gtx) {
+				a.forwardToSelection(srcs, candidates)
+			}
+			count := 0
+			for _, c := range candidates {
+				if fwdSel[c.ChatID] {
+					count++
+				}
+			}
+			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(10), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				btn := a.ui.PrimaryButton(&fwdSendBtn, "Send")
+				if count == 0 {
+					btn.Background = a.ui.p.SurfaceHi
+					btn.Color = a.ui.p.TextFaint
+					btn.Text = "Pick recipients"
+				} else if count == 1 {
+					btn.Text = "Forward to 1 chat"
+				} else {
+					btn.Text = "Forward to " + itoa(count) + " chats"
+				}
+				return btn.Layout(gtx)
 			})
 		}),
 	)
 }
 
+// forwardToSelection forwards the batch to every selected recipient.
+func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engine.ChatInfo) {
+	var dsts []engine.ChatInfo
+	for _, c := range candidates {
+		if fwdSel[c.ChatID] {
+			dsts = append(dsts, c)
+		}
+	}
+	if len(dsts) == 0 || len(srcs) == 0 {
+		return
+	}
+	a.mu.Lock()
+	a.fwd = nil
+	a.mu.Unlock()
+	fwdSel = map[string]bool{}
+	a.invalidate()
+	go func() {
+		ids := make([]string, len(srcs))
+		for k := range srcs {
+			ids[k] = srcs[k].MsgID
+		}
+		ok := 0
+		for _, dst := range dsts {
+			var err error
+			if len(srcs) == 1 {
+				err = a.eng.ForwardMessage(srcs[0].AccountID, srcs[0].ChatID, srcs[0].MsgID, dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0)
+			} else {
+				err = a.eng.ForwardMessages(srcs[0].AccountID, srcs[0].ChatID, ids, dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0)
+			}
+			if err != nil {
+				a.setToast("Forward failed: " + err.Error())
+			} else {
+				ok++
+			}
+		}
+		if ok > 0 {
+			a.setToast("Forwarded to " + itoa(ok) + " chat(s)")
+		}
+	}()
+}
+
 var fwdList widget.List
+
+// fwdSel is the forward picker's recipient selection (chat IDs, slice 41).
+var fwdSel = map[string]bool{}
+
+var fwdSendBtn widget.Clickable
