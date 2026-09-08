@@ -588,6 +588,37 @@ func (e *Engine) isActiveChat(accountID, chatID string) bool {
 	return e.activeChat.accountID == accountID && e.activeChat.chatID == chatID
 }
 
+// AddRecentSearch records a submitted search query (Telegram recents):
+// dedupes case-insensitively, moves to front, caps at 8 entries.
+func (e *Engine) AddRecentSearch(query string) error {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	kept := make([]string, 0, 9)
+	for _, q := range e.config.RecentSearches {
+		if !strings.EqualFold(q, query) {
+			kept = append(kept, q)
+		}
+	}
+	recent := append([]string{query}, kept...)
+	if len(recent) > 8 {
+		recent = recent[:8]
+	}
+	e.config.RecentSearches = recent
+	return e.vault.SetConfig(e.config)
+}
+
+// ClearRecentSearches empties the recent-search list.
+func (e *Engine) ClearRecentSearches() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.config.RecentSearches = nil
+	return e.vault.SetConfig(e.config)
+}
+
 // GetConfig returns the current app config.
 func (e *Engine) GetConfig() *utils.AppConfig {
 	e.mu.RLock()
@@ -605,6 +636,9 @@ func (e *Engine) UpdateConfig(changes *utils.AppConfig) error {
 	}
 	if changes.Language != "" {
 		e.config.Language = changes.Language
+	}
+	if changes.RecentSearches != nil {
+		e.config.RecentSearches = changes.RecentSearches
 	}
 	if changes.AccentColor != "" {
 		e.config.AccentColor = changes.AccentColor

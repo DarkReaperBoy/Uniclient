@@ -43,6 +43,9 @@ type AppConfig struct {
 	UseScheduledMessages   bool `json:"use_scheduled_messages"`
 	SendWithoutSound       bool `json:"send_without_sound"`
 
+	// Search
+	RecentSearches []string `json:"recent_searches,omitempty"` // last 8 queries
+
 	// Notifications
 	NotifyDMs          bool `json:"notify_dms"`
 	NotifyGroups       bool `json:"notify_groups"`

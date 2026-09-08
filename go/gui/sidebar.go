@@ -88,6 +88,13 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 				return a.searchField(gtx, f)
 			})
 		})),
+		// Recent searches dropdown (AyuGram, slice 37): below the field while
+		// it is focused and empty.
+		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return a.layoutRecentSearches(gtx, f)
+			})
+		})),
 		// Folder tabs
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutFolders(gtx, f)
@@ -344,6 +351,8 @@ func segCell(gtx layout.Context, u *UI, it segItem) layout.Dimensions {
 }
 
 func (a *App) searchField(gtx layout.Context, f frame) layout.Dimensions {
+	sidebarSearch.SingleLine = true
+	sidebarSearch.Submit = true // Enter records recent searches (slice 37)
 	// Update search state from editor.
 	for {
 		ev, ok := sidebarSearch.Update(gtx)
@@ -356,6 +365,8 @@ func (a *App) searchField(gtx layout.Context, f frame) layout.Dimensions {
 			a.search = sidebarSearch.Text()
 			a.mu.Unlock()
 			a.invalidate()
+		case widget.SubmitEvent:
+			a.submitSearch(sidebarSearch.Text())
 		}
 	}
 	ed := a.ui.Editor(&sidebarSearch, "Search")

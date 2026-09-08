@@ -938,6 +938,7 @@ type cfgSnapshot struct {
 	NotifyDMs              bool
 	NotifyGroups           bool
 	NotifyMentionsOnly     bool
+	RecentSearches         []string
 }
 
 // notifyAcctState carries per-account notification behavior for the page.
@@ -991,6 +992,7 @@ func (a *App) refreshConfig() {
 		NotifyDMs:              c.NotifyDMs,
 		NotifyGroups:           c.NotifyGroups,
 		NotifyMentionsOnly:     c.NotifyMentionsOnly,
+		RecentSearches:         c.RecentSearches,
 	}
 	a.mu.Lock()
 	a.cfg = snap

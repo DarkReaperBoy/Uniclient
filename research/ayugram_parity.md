@@ -51,7 +51,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Search field in bar | Global search: chats, messages, users, posts, files, tags | PARTIAL (local title/lastmsg filter only) | gui/sidebar.go + engine SearchChats/SearchGlobalChats (CORE-ONLY) | P0 |
 | Search results screen w/ tabs | Chats/Messages/Links/Files tabs + "search in" | CORE-ONLY | new gui/search.go + engine.SearchMessages (CORE-ONLY) | P1 |
 | Top peers strip | Pictured top-contacts row above list while searching | CORE-ONLY | engine.GetTopPeers (CORE-ONLY) | P2 |
-| Recent searches | Persisted search history dropdown | MISSING | engine settings_recent_searches ≙ new engine method | P3 |
+| Recent searches | Persisted search history dropdown | PRESENT (slice 37: Enter submits record the query (engine AddRecentSearch, case-insensitive dedupe, cap 8, vault-persisted); focused+empty field shows the recents dropdown — click fills, clear row empties) | gui/recentsearch.go + engine AddRecentSearch/ClearRecentSearches + AppConfig.recent_searches | P3 |
 | Folder tabs above list | Server-synced folders incl. custom, edit, reorder, invite links | PARTIAL (real server folders when an account is scoped: tabs + Telegram filter rules + "+" create dialog; smart tabs fallback; edit/reorder/invites later) | gui/folders.go + engine.GetFolders/CreateFolder/FoldersSupported | P0 |
 | Archive collapsed row | Archived chats collapse to one row w/ badge | CORE-ONLY | engine.ArchiveChat/IsArchived (CORE-ONLY) | P1 |
 | Pinned chats section | Pinned first, pin indicator icon | PRESENT (engine sorts pinned first; slice 29 pushpin glyph next to time) | gui/sidebar.go chatRow + ChatInfo.IsPinned | P1 |
