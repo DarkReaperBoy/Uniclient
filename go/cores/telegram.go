@@ -21725,6 +21725,103 @@ func (t *TelegramCore) SetPrivacy(key tg.InputPrivacyKeyClass, rules []tg.InputP
 	return err
 }
 
+// privacyKeyFor maps a settings-style privacy key ("last_seen", "calls", …)
+// to the matching Telegram input privacy key. Returns nil for unknown keys.
+// The vocabulary mirrors AyuGram's privacy settings rows.
+func privacyKeyFor(key string) tg.InputPrivacyKeyClass {
+	switch key {
+	case "last_seen":
+		return &tg.InputPrivacyKeyStatusTimestamp{}
+	case "phone_number":
+		return &tg.InputPrivacyKeyPhoneNumber{}
+	case "profile_photo":
+		return &tg.InputPrivacyKeyProfilePhoto{}
+	case "calls":
+		return &tg.InputPrivacyKeyPhoneCall{}
+	case "p2p":
+		return &tg.InputPrivacyKeyPhoneP2P{}
+	case "forwards":
+		return &tg.InputPrivacyKeyForwards{}
+	case "group_invites":
+		return &tg.InputPrivacyKeyChatInvite{}
+	case "voice_messages":
+		return &tg.InputPrivacyKeyVoiceMessages{}
+	case "about":
+		return &tg.InputPrivacyKeyAbout{}
+	case "birthday":
+		return &tg.InputPrivacyKeyBirthday{}
+	}
+	return nil
+}
+
+// privacyScopeFromRules classifies a Telegram privacy rule list into the
+// simple scope vocabulary shared with the engine and GUI:
+// "everybody" / "contacts" / "close_friends" / "nobody". An AllowAll rule
+// wins outright; otherwise the most restrictive descriptive rule (contacts,
+// close friends) is reported, defaulting to nobody. Per-user exceptions are
+// not modeled at this level.
+func privacyScopeFromRules(rules []tg.PrivacyRuleClass) string {
+	scope := "nobody"
+	for _, r := range rules {
+		switch r.(type) {
+		case *tg.PrivacyValueAllowAll:
+			return "everybody"
+		case *tg.PrivacyValueAllowContacts:
+			scope = "contacts"
+		case *tg.PrivacyValueAllowCloseFriends:
+			if scope == "nobody" {
+				scope = "close_friends"
+			}
+		}
+	}
+	return scope
+}
+
+// privacyRulesForScope builds the Telegram input rule list for a simple
+// scope. "contacts" allows contacts and disallows everyone else, matching
+// how Telegram clients encode "My contacts".
+func privacyRulesForScope(scope string) []tg.InputPrivacyRuleClass {
+	switch scope {
+	case "everybody":
+		return []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowAll{}}
+	case "contacts":
+		return []tg.InputPrivacyRuleClass{
+			&tg.InputPrivacyValueAllowContacts{},
+			&tg.InputPrivacyValueDisallowAll{},
+		}
+	case "close_friends":
+		return []tg.InputPrivacyRuleClass{
+			&tg.InputPrivacyValueAllowCloseFriends{},
+			&tg.InputPrivacyValueDisallowAll{},
+		}
+	default: // "nobody"
+		return []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueDisallowAll{}}
+	}
+}
+
+// GetPrivacyScope reads the current scope ("everybody"/"contacts"/
+// "close_friends"/"nobody") for a settings-style privacy key.
+func (t *TelegramCore) GetPrivacyScope(key string) (string, error) {
+	k := privacyKeyFor(key)
+	if k == nil {
+		return "", fmt.Errorf("unknown privacy key: %s", key)
+	}
+	rules, err := t.GetPrivacy(k)
+	if err != nil {
+		return "", err
+	}
+	return privacyScopeFromRules(rules), nil
+}
+
+// SetPrivacyScope applies a simple scope to a settings-style privacy key.
+func (t *TelegramCore) SetPrivacyScope(key, scope string) error {
+	k := privacyKeyFor(key)
+	if k == nil {
+		return fmt.Errorf("unknown privacy key: %s", key)
+	}
+	return t.SetPrivacy(k, privacyRulesForScope(scope))
+}
+
 // GetAllStickerSets returns all installed sticker sets.
 func (t *TelegramCore) GetAllStickerSets() ([]string, error) {
 	t.mu.RLock()

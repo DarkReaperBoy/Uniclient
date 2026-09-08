@@ -563,8 +563,12 @@ func (a *App) setPageNotifications(gtx layout.Context, f frame) layout.Dimension
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// setPagePrivacy: blocked users + active sessions per account.
+// setPagePrivacy: privacy scopes (slice 62), blocked users, and active
+// sessions per account.
+var privacyRowBtns []widget.Clickable
+
 func (a *App) setPagePrivacy(gtx layout.Context, f frame) layout.Dimensions {
+	growClickables(&privacyRowBtns, len(f.accounts)*len(privacyKeyLabels))
 	var children []layout.FlexChild
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Privacy & Security")
@@ -575,12 +579,54 @@ func (a *App) setPagePrivacy(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
+	row := 0
 	for _, acc := range f.accounts {
 		acc := acc
 		blocked := f.blockedUsers[acc.ID]
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.subHeader(gtx, accountName(acc)+" ("+platformTitle(acc.Platform)+")")
 		}))
+		// Privacy scope rows (slice 62): live server-side scope per key;
+		// tapping opens the picker dialog (gui/privacy.go).
+		accScopes := f.privacyScopes[acc.ID]
+		supported := len(accScopes) > 0
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.subHeader(gtx, "Privacy")
+		}))
+		for _, r := range privacyKeyLabels {
+			r := r
+			scope := accScopes[r.key]
+			btn := &privacyRowBtns[row]
+			row++
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if !supported {
+					return a.settingRow(gtx, r.label, "—")
+				}
+				if btn.Clicked(gtx) {
+					a.openPrivacyDialog(acc.ID, r.key)
+				}
+				bl := material.ButtonLayout(a.ui.Theme, btn)
+				bl.Background = a.ui.p.Surface
+				bl.CornerRadius = 10
+				return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Label(unit.Sp(14), r.label)
+									return lbl.Layout(gtx)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Dim(unit.Sp(12), privacyScopeLabel(scope))
+									lbl.Color = a.ui.p.TextFaint
+									return lbl.Layout(gtx)
+								}),
+							)
+						})
+					})
+				})
+			}))
+		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			n := itoa(len(blocked))
 			return a.settingRow(gtx, "Blocked users ("+n+")", "")

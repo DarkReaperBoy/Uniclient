@@ -88,6 +88,8 @@ type App struct {
 	blockedUsers  map[string][]cores.User
 	sessionsList  map[string][]cores.Session
 	privacyLoaded bool
+	privacyScopes map[string]map[string]string // accountID → key → scope (slice 62)
+	privacyDlg    *privacyDlgState             // scope picker dialog (slice 62)
 	cacheTotal    int64
 	cacheTags     [6]int64
 	cacheLoaded   bool
@@ -783,6 +785,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.folderMenu = nil
 	a.attachDlg = nil
 	a.ttlDlg = nil
+	a.privacyDlg = nil // slice 62: close the scope picker
 	a.headerMenu = nil
 	a.profile = nil
 	a.members = nil
@@ -1130,10 +1133,12 @@ func (a *App) loadNotifyAccts() {
 	a.invalidate()
 }
 
-// loadPrivacy reads blocked users + active sessions per account.
+// loadPrivacy reads blocked users, active sessions, and privacy scopes
+// per account (scopes: slice 62).
 func (a *App) loadPrivacy() {
 	blocked := make(map[string][]cores.User)
 	sessions := make(map[string][]cores.Session)
+	scopes := make(map[string]map[string]string)
 	for _, acc := range a.eng.ListAccounts() {
 		if bl, err := a.eng.GetBlockedUsers(acc.ID); err == nil {
 			blocked[acc.ID] = bl
@@ -1141,9 +1146,12 @@ func (a *App) loadPrivacy() {
 		if ss, err := a.eng.GetSessions(acc.ID); err == nil {
 			sessions[acc.ID] = ss
 		}
+		if sc, err := a.eng.GetPrivacyScopes(acc.ID); err == nil {
+			scopes[acc.ID] = sc
+		}
 	}
 	a.mu.Lock()
-	a.blockedUsers, a.sessionsList, a.privacyLoaded = blocked, sessions, true
+	a.blockedUsers, a.sessionsList, a.privacyScopes, a.privacyLoaded = blocked, sessions, scopes, true
 	a.mu.Unlock()
 	a.invalidate()
 }
@@ -1349,6 +1357,8 @@ func (a *App) snapshot() frame {
 		blockedUsers:     a.blockedUsers,
 		sessionsList:     a.sessionsList,
 		privacyLoaded:    a.privacyLoaded,
+		privacyScopes:    a.privacyScopes,
+		privacyDlg:       a.privacyDlg,
 		cacheTotal:       a.cacheTotal,
 		cacheTags:        a.cacheTags,
 		cacheLoaded:      a.cacheLoaded,
@@ -1473,6 +1483,8 @@ type frame struct {
 	blockedUsers  map[string][]cores.User
 	sessionsList  map[string][]cores.Session
 	privacyLoaded bool
+	privacyScopes map[string]map[string]string // accountID → key → scope (slice 62)
+	privacyDlg    *privacyDlgState             // scope picker dialog (slice 62)
 	cacheTotal    int64
 	cacheTags     [6]int64
 	cacheLoaded   bool

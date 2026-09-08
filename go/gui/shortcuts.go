@@ -33,6 +33,7 @@ func escTarget(f frame) string {
 		f.folderInvites != nil,
 		f.attachDlg != nil,
 		f.ttlDlg != nil,
+		f.privacyDlg != nil,
 		f.inviteDlg != nil,
 		f.newDlg != nil,
 		f.viewer != nil,

@@ -69,6 +69,14 @@ func TestEscTargetOrder(t *testing.T) {
 		t.Errorf("drawer + menu: escTarget = %q, want empty (drawer consumes Esc)", got)
 	}
 
+	// The privacy scope picker (slice 62) self-handles Esc too.
+	pf := escFrame()
+	pf.privacyDlg = &privacyDlgState{accountID: "a", key: "calls"}
+	pf.menu = &menuTarget{}
+	if got := escTarget(pf); got != "" {
+		t.Errorf("privacyDlg + menu: escTarget = %q, want empty (dialog consumes Esc)", got)
+	}
+
 	// Nothing open → no target.
 	if got := escTarget(escFrame()); got != "" {
 		t.Errorf("bare frame: escTarget = %q, want empty", got)
