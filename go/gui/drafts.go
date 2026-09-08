@@ -33,13 +33,14 @@ type schedDlgState struct {
 }
 
 var (
-	schedDlgCancel   widget.Clickable
-	schedDlgSend     widget.Clickable
-	schedDlgPresets  [3]widget.Clickable
-	schedDateEd      widget.Editor
-	schedTimeEd      widget.Editor
-	schedKeyTag      = new(struct{})
-	composerSchedBtn widget.Clickable // ⏰ next to send
+	schedDlgCancel     widget.Clickable
+	schedDlgSend       widget.Clickable
+	schedDlgWhenOnline widget.Clickable
+	schedDlgPresets    [3]widget.Clickable
+	schedDateEd        widget.Editor
+	schedTimeEd        widget.Editor
+	schedKeyTag        = new(struct{})
+	composerSchedBtn   widget.Clickable // ⏰ next to send
 )
 
 // schedulePresets (pure, testable): the quick choices AyuGram offers.
@@ -170,8 +171,41 @@ func (a *App) sendTextScheduled(text string, scheduleDate int64) {
 			a.setToast("Schedule failed: " + err.Error())
 			return
 		}
+		if scheduleDate == schedWhenOnline {
+			a.setToast("Will send when you're online")
+			return
+		}
 		a.setToast("Scheduled for " + time.Unix(scheduleDate, 0).Format("Mon 15:04"))
 	}()
+}
+
+// sendWhenOnline schedules the composed text for the magic "when the
+// peer comes online" date (AyuGram schedule option).
+func (a *App) sendWhenOnline() {
+	a.mu.Lock()
+	d := a.schedDlg
+	if d == nil || d.busy {
+		a.mu.Unlock()
+		return
+	}
+	a.schedDlg.busy = true
+	a.mu.Unlock()
+	text := strings.TrimSpace(composer.Text())
+	if text == "" {
+		a.setToast("Nothing to schedule")
+		a.mu.Lock()
+		a.schedDlg = nil
+		a.mu.Unlock()
+		a.invalidate()
+		return
+	}
+	composer.SetText("")
+	a.sendTextScheduled(text, schedWhenOnline)
+	a.mu.Lock()
+	a.schedDlg = nil
+	a.mu.Unlock()
+	a.invalidate()
+	a.clearDraftAfterSend()
 }
 
 // submitScheduleDialog reads the dialog's date/time and schedules.
@@ -271,6 +305,9 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 	if schedDlgSend.Clicked(gtx) {
 		a.submitScheduleDialog()
 	}
+	if schedDlgWhenOnline.Clicked(gtx) {
+		a.sendWhenOnline()
+	}
 	for i := range schedDlgPresets {
 		if schedDlgPresets[i].Clicked(gtx) {
 			a.mu.Lock()
@@ -307,6 +344,14 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 						return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							lbl := a.ui.Dim(unit.Sp(13), "The message will send automatically at this time")
 							return lbl.Layout(gtx)
+						})
+					}),
+					// Send when online (AyuGram schedule option, slice 39).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							btn := a.ui.TextButton(&schedDlgWhenOnline, "Send when they're online")
+							btn.Color = a.ui.p.Accent
+							return btn.Layout(gtx)
 						})
 					}),
 					// Preset chips.
@@ -396,9 +441,16 @@ func (a *App) schedChip(gtx layout.Context, btn *widget.Clickable, label string,
 }
 
 // scheduledMetaLabel (pure, testable): meta text for a scheduled message.
+// schedWhenOnline is Telegram's magic schedule_date for "send when the
+// peer comes online" (0x7FFFFFFF).
+const schedWhenOnline int64 = 0x7FFFFFFF
+
 func scheduledMetaLabel(m engine.CachedMessage) string {
 	if m.ScheduleDate == 0 {
 		return ""
+	}
+	if m.ScheduleDate == schedWhenOnline {
+		return "scheduled · when online"
 	}
 	return "scheduled " + time.Unix(m.ScheduleDate, 0).Format("Mon 15:04")
 }
