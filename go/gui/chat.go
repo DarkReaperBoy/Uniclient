@@ -493,12 +493,12 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						}
 						return a.mediaBlock(gtx, f, m)
 					}),
-					// Reply quote block (AyuGram quoted bar).
+					// Reply quote block (AyuGram quoted bar, click → jump).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if m.ReplyPreview == "" {
 							return layout.Dimensions{}
 						}
-						return a.replyQuote(gtx, m.ReplyPreview)
+						return a.replyQuote(gtx, *m, *f.msgFor)
 					}),
 					// sender name in group chats
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -588,33 +588,55 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 
 // replyQuote renders the quoted reply block inside a bubble. The cached
 // preview is "sender\ntext" or plain "text" (AyuGram quoted bar).
-func (a *App) replyQuote(gtx layout.Context, preview string) layout.Dimensions {
-	sender, body := preview, preview
-	if i := strings.IndexByte(preview, '\n'); i >= 0 {
-		sender, body = preview[:i], preview[i+1:]
+func (a *App) replyQuote(gtx layout.Context, m engine.CachedMessage, k chatKey) layout.Dimensions {
+	sender, body := m.ReplyPreview, m.ReplyPreview
+	if i := strings.IndexByte(m.ReplyPreview, '\n'); i >= 0 {
+		sender, body = m.ReplyPreview[:i], m.ReplyPreview[i+1:]
+	}
+	btn := replyQuoteClickable(k.String() + "/" + m.MsgID)
+	if btn.Clicked(gtx) && m.ReplyToID != "" {
+		a.jumpToMessageAt(m.ReplyToID, m.Timestamp)
 	}
 	return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Max.X = gtx.Dp(unit.Dp(240))
-			return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				var children []layout.FlexChild
-				if sender != "" {
+		return material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Max.X = gtx.Dp(unit.Dp(240))
+				return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					var children []layout.FlexChild
+					if sender != "" {
+						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							lbl := a.ui.Label(unit.Sp(12), sender)
+							lbl.Color = a.ui.p.Accent
+							lbl.MaxLines = 1
+							return lbl.Layout(gtx)
+						}))
+					}
 					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						lbl := a.ui.Label(unit.Sp(12), sender)
-						lbl.Color = a.ui.p.Accent
+						lbl := a.ui.Dim(unit.Sp(12), quotePreview(body, 80))
 						lbl.MaxLines = 1
 						return lbl.Layout(gtx)
 					}))
-				}
-				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					lbl := a.ui.Dim(unit.Sp(12), quotePreview(body, 80))
-					lbl.MaxLines = 1
-					return lbl.Layout(gtx)
-				}))
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+				})
 			})
 		})
 	})
+}
+
+// replyQuoteClicks: per-message clickables for the reply-quote
+// click-to-jump (AyuGram quote navigation, slice 25).
+var replyQuoteClicks = map[string]*widget.Clickable{}
+
+func replyQuoteClickable(msgID string) *widget.Clickable {
+	if c, ok := replyQuoteClicks[msgID]; ok {
+		return c
+	}
+	if len(replyQuoteClicks) > 512 {
+		replyQuoteClicks = make(map[string]*widget.Clickable)
+	}
+	c := new(widget.Clickable)
+	replyQuoteClicks[msgID] = c
+	return c
 }
 
 // reactionClicks holds per-(message,emoji) pill clickables, pruned when the

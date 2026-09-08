@@ -22,6 +22,11 @@ type newChatDlg struct {
 	accountID  string
 	supergroup bool // channel only: create a megagroup
 	busy       bool // creation in flight
+
+	// group member picker (slice 25): cached contacts + selected user IDs
+	members      map[string]bool
+	contacts     []engine.ContactInfo
+	contactsLoad bool
 }
 
 var (
@@ -30,7 +35,14 @@ var (
 	newDlgMega   widget.Bool
 	newDlgNameEd widget.Editor
 	newDlgDescEd widget.Editor
+
+	newDlgMemberRows []widget.Clickable // group member picker
+	newDlgMemberList widget.List
 )
+
+func init() {
+	newDlgMemberList.Axis = layout.Vertical
+}
 
 // openNewChat opens the creation dialog for kind on an account.
 func (a *App) openNewChat(kind int, accountID string) {
@@ -39,12 +51,29 @@ func (a *App) openNewChat(kind int, accountID string) {
 		return
 	}
 	a.mu.Lock()
-	a.newDlg = &newChatDlg{kind: kind, accountID: accountID}
+	a.newDlg = &newChatDlg{kind: kind, accountID: accountID, members: make(map[string]bool)}
 	a.mu.Unlock()
 	newDlgNameEd.SetText("")
 	newDlgDescEd.SetText("")
 	newDlgMega.Value = false
 	a.invalidate()
+	if kind == 0 {
+		go func() {
+			list, err := a.eng.GetContacts(accountID)
+			a.mu.Lock()
+			if a.newDlg == nil || a.newDlg.accountID != accountID {
+				a.mu.Unlock()
+				return
+			}
+			if err == nil {
+				sortContacts(list)
+				a.newDlg.contacts = list
+			}
+			a.newDlg.contactsLoad = true
+			a.mu.Unlock()
+			a.invalidate()
+		}()
+	}
 }
 
 // closeNewChat dismisses the dialog.
@@ -74,6 +103,14 @@ func (a *App) submitNewChat() {
 	}
 	d := *a.newDlg
 	busy := d.busy
+	var members []string
+	if d.kind == 0 && len(d.members) > 0 {
+		for id, on := range d.members {
+			if on {
+				members = append(members, id)
+			}
+		}
+	}
 	a.newDlg.busy = true
 	a.mu.Unlock()
 	if busy {
@@ -93,7 +130,7 @@ func (a *App) submitNewChat() {
 		var err error
 		switch {
 		case d.kind == 0:
-			info, err = a.eng.CreateGroup(d.accountID, name, nil)
+			info, err = a.eng.CreateGroup(d.accountID, name, members)
 		case d.supergroup:
 			info, err = a.eng.CreateMegagroup(d.accountID, name, desc, false, 0)
 		default:
@@ -152,6 +189,13 @@ func (a *App) layoutNewChatDialog(gtx layout.Context, f frame) layout.Dimensions
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						lbl := a.ui.H3(title)
 						return lbl.Layout(gtx)
+					}),
+					// Group member picker (slice 25).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if d.kind != 0 {
+							return layout.Dimensions{}
+						}
+						return a.newDlgMemberPicker(gtx, f)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -236,5 +280,88 @@ func (a *App) layoutNewChatDialog(gtx layout.Context, f frame) layout.Dimensions
 				)
 			})
 		})
+	})
+}
+
+// newDlgMemberPicker: contacts with toggle rows (group creation step 2,
+// AyuGram member picker). Selected IDs flow into CreateGroup.
+func (a *App) newDlgMemberPicker(gtx layout.Context, f frame) layout.Dimensions {
+	d := f.newDlg
+	contacts := d.contacts
+	growClickables(&newDlgMemberRows, len(contacts))
+	for i, c := range contacts {
+		i, c := i, c
+		if newDlgMemberRows[i].Clicked(gtx) {
+			a.mu.Lock()
+			if a.newDlg != nil {
+				if a.newDlg.members[c.UserID] {
+					delete(a.newDlg.members, c.UserID)
+				} else {
+					a.newDlg.members[c.UserID] = true
+				}
+			}
+			a.mu.Unlock()
+			a.invalidate()
+		}
+	}
+	var count int
+	for _, on := range d.members {
+		if on {
+			count++
+		}
+	}
+
+	maxH := gtx.Dp(unit.Dp(180))
+	return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				lbl := a.ui.Label(unit.Sp(12), "Add members ("+itoa(count)+" selected)")
+				lbl.Color = a.ui.p.TextDim
+				return lbl.Layout(gtx)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if !d.contactsLoad {
+					lbl := a.ui.Dim(unit.Sp(12), "Loading contacts…")
+					return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, lbl.Layout)
+				}
+				if len(contacts) == 0 {
+					lbl := a.ui.Dim(unit.Sp(12), "No contacts to add")
+					return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, lbl.Layout)
+				}
+				gtx.Constraints.Max.Y = maxH
+				return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return newDlgMemberList.Layout(gtx, len(contacts), func(gtx layout.Context, i int) layout.Dimensions {
+						c := contacts[i]
+						picked := d.members[c.UserID]
+						return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return material.ButtonLayout(a.ui.Theme, &newDlgMemberRows[i]).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								bg := a.ui.p.SurfaceHi
+								if picked {
+									bg = a.ui.p.AccentDim
+								}
+								return roundedFill(gtx, bg, 8, func(gtx layout.Context) layout.Dimensions {
+									return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+										return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return layout.Inset{Right: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+													if picked {
+														return iconNavigationCheck.Layout(gtx, a.ui.p.Accent)
+													}
+													return a.ui.Avatar(gtx, c.DisplayName, unit.Dp(26), dotNone)
+												})
+											}),
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												lbl := a.ui.Label(unit.Sp(13), c.DisplayName)
+												return lbl.Layout(gtx)
+											}),
+										)
+									})
+								})
+							})
+						})
+					})
+				})
+			}),
+		)
 	})
 }
