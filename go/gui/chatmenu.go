@@ -64,6 +64,11 @@ func chatMenuItems(c engine.ChatInfo) []chatMenuAction {
 	} else {
 		items = append(items, chatMenuAction{"Archive", "archive"})
 	}
+	// Block user (AyuGram chat-row menu, DMs; the header ⋮ menu keeps the
+	// state-aware unblock with the profile loaded).
+	if c.Type == engine.ChatTypeDMVal {
+		items = append(items, chatMenuAction{"Block user", "block"})
+	}
 	items = append(items, chatMenuAction{"Delete chat", "delete"})
 	return items
 }
@@ -93,6 +98,11 @@ func (a *App) dispatchChatAction(c engine.ChatInfo, action string) {
 			err = a.eng.ArchiveChat(c.AccountID, c.ChatID, true)
 		case "unarchive":
 			err = a.eng.ArchiveChat(c.AccountID, c.ChatID, false)
+		case "block":
+			err = a.eng.BlockUser(c.AccountID, c.ChatID)
+			if err == nil {
+				a.setToast("User blocked")
+			}
 		case "delete":
 			err = a.eng.DeleteChat(c.AccountID, c.ChatID, false)
 		case "addfolder":

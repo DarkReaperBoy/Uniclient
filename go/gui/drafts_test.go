@@ -82,3 +82,15 @@ func TestScheduledMetaLabelWhenOnline(t *testing.T) {
 		t.Errorf("normal label = %q", got)
 	}
 }
+
+func TestScheduledMetaLabelSilent(t *testing.T) {
+	m := engine.CachedMessage{ScheduleDate: 1759000000, IsSilent: true}
+	want := "silent · scheduled " + time.Unix(1759000000, 0).Format("Mon 15:04")
+	if got := scheduledMetaLabel(m); got != want {
+		t.Errorf("silent scheduled label = %q, want %q", got, want)
+	}
+	online := engine.CachedMessage{ScheduleDate: 0x7FFFFFFF, IsSilent: true}
+	if got := scheduledMetaLabel(online); got != "silent · scheduled · when online" {
+		t.Errorf("silent when-online label = %q", got)
+	}
+}

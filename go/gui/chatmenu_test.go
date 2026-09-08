@@ -13,9 +13,20 @@ func chatForMenu() engine.ChatInfo {
 	return engine.ChatInfo{AccountID: "a", ChatID: "1", Type: engine.ChatTypeDMVal, Title: "Test"}
 }
 
+func TestChatMenuItemsNonDMNoBlock(t *testing.T) {
+	c := chatForMenu()
+	c.Type = engine.ChatTypeGroupVal
+	items := chatMenuItems(c)
+	for _, it := range items {
+		if it.action == "block" {
+			t.Errorf("groups/channels must not offer Block user")
+		}
+	}
+}
+
 func TestChatMenuItemsDefault(t *testing.T) {
 	items := chatMenuItems(chatForMenu())
-	want := []string{"Mute for 1 hour", "Mute for 8 hours", "Mute forever", "Pin", "Mark as unread", "Archive", "Delete chat"}
+	want := []string{"Mute for 1 hour", "Mute for 8 hours", "Mute forever", "Pin", "Mark as unread", "Archive", "Block user", "Delete chat"}
 	if len(items) != len(want) {
 		t.Fatalf("items len = %d, want %d: %v", len(items), len(want), items)
 	}
@@ -33,7 +44,7 @@ func TestChatMenuItemsInverted(t *testing.T) {
 	c.UnreadCount = 4
 	c.IsArchived = true
 	items := chatMenuItems(c)
-	want := []string{"Unmute", "Unpin", "Mark as read", "Unarchive", "Delete chat"}
+	want := []string{"Unmute", "Unpin", "Mark as read", "Unarchive", "Block user", "Delete chat"}
 	if len(items) != len(want) {
 		t.Fatalf("items len = %d, want %d", len(items), len(want))
 	}

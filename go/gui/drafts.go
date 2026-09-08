@@ -37,6 +37,7 @@ var (
 	schedDlgSend       widget.Clickable
 	schedDlgWhenOnline widget.Clickable
 	schedDlgPresets    [3]widget.Clickable
+	schedDlgSilent     widget.Bool
 	schedDateEd        widget.Editor
 	schedTimeEd        widget.Editor
 	schedKeyTag        = new(struct{})
@@ -143,8 +144,10 @@ func (a *App) closeScheduleDialog() {
 	a.invalidate()
 }
 
-// sendTextScheduled sends the composed text at a unix-seconds date.
-func (a *App) sendTextScheduled(text string, scheduleDate int64) {
+// sendTextScheduled sends the composed text at a unix-seconds date. silent
+// suppresses the notification (AyuGram 🔕, threaded from the schedule
+// dialog's switch).
+func (a *App) sendTextScheduled(text string, scheduleDate int64, silent bool) {
 	a.mu.Lock()
 	k := a.selected
 	replyID := a.cMode.replyTarget()
@@ -167,7 +170,7 @@ func (a *App) sendTextScheduled(text string, scheduleDate int64) {
 		if hasMarkdown(text) {
 			sendText, sendEnts = parseMarkdown(text)
 		}
-		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, false, scheduleDate, "", "", false, false, false, false); err != nil {
+		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, silent, scheduleDate, "", "", false, false, false, false); err != nil {
 			a.setToast("Schedule failed: " + err.Error())
 			return
 		}
@@ -200,7 +203,7 @@ func (a *App) sendWhenOnline() {
 		return
 	}
 	composer.SetText("")
-	a.sendTextScheduled(text, schedWhenOnline)
+	a.sendTextScheduled(text, schedWhenOnline, schedDlgSilent.Value)
 	a.mu.Lock()
 	a.schedDlg = nil
 	a.mu.Unlock()
@@ -264,7 +267,7 @@ func (a *App) submitScheduleDialog() {
 	a.schedDlg.busy = true
 	a.mu.Unlock()
 	composer.SetText("")
-	a.sendTextScheduled(text, when)
+	a.sendTextScheduled(text, when, schedDlgSilent.Value)
 	a.mu.Lock()
 	a.schedDlg = nil
 	a.mu.Unlock()
@@ -400,6 +403,24 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 							)
 						})
 					}),
+					// Silent switch (AyuGram 🔕 in the schedule dialog).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Label(unit.Sp(14), "Silent — no notification")
+									return lbl.Layout(gtx)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									tg := material.Switch(a.ui.Theme, &schedDlgSilent, "")
+									tg.Color.Enabled = a.ui.p.Accent
+									tg.Color.Disabled = a.ui.p.SurfaceHi
+									tg.Color.Track = a.ui.p.SurfaceHi
+									return tg.Layout(gtx)
+								}),
+							)
+						})
+					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -449,10 +470,16 @@ func scheduledMetaLabel(m engine.CachedMessage) string {
 	if m.ScheduleDate == 0 {
 		return ""
 	}
+	lbl := ""
 	if m.ScheduleDate == schedWhenOnline {
-		return "scheduled · when online"
+		lbl = "scheduled · when online"
+	} else {
+		lbl = "scheduled " + time.Unix(m.ScheduleDate, 0).Format("Mon 15:04")
 	}
-	return "scheduled " + time.Unix(m.ScheduleDate, 0).Format("Mon 15:04")
+	if m.IsSilent {
+		lbl = "silent · " + lbl
+	}
+	return lbl
 }
 
 // scheduleHint is used by the composer row (pure).
