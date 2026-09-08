@@ -102,6 +102,8 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 	if f.chatMenu != nil {
 		a.layoutChatMenu(gtx, f)
 	}
+	// Floating next-unread jump button (AyuGram, slice 30).
+	a.layoutNextUnreadBtn(gtx, f, visible)
 	// Invite-link confirm dialog (slice 24).
 	if f.inviteDlg != nil {
 		a.layoutInviteDialog(gtx, f)
