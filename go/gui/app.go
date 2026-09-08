@@ -47,7 +47,11 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 	showChat := f.selected != nil || f.auth != nil || f.showPicker
 
 	if narrow {
-		// Phone layout: chat list OR open chat (with back button).
+		// Phone layout: settings, chat list, or open chat (with back button).
+		if f.settingsOpen {
+			a.layoutSettings(gtx, f, narrow)
+			return
+		}
 		if showChat && f.mode == 0 {
 			if f.auth != nil || f.showPicker {
 				a.layoutLogin(gtx, f)
@@ -75,6 +79,9 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if f.auth != nil || f.showPicker {
 				return a.layoutLogin(gtx, f)
+			}
+			if f.settingsOpen {
+				return a.layoutSettings(gtx, f, narrow)
 			}
 			if f.mode == 1 {
 				return a.layoutVoice(gtx, f)

@@ -189,12 +189,12 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Settings screen (section list) | Left-rail sections + content pages | MISSING (no settings UI at all!) | new gui/settings.go | P0 |
+| Settings screen (section list) | Left-rail sections + content pages | PRESENT (rail + 7 sections, gear entry in sidebar, narrow = chip row) | gui/settings.go | P0 |
 | Main: edit profile (name, bio, birthday, phone, usernames, photos) | Profile editor page | CORE-ONLY | engine.UpdateBio/UpdateBirthday/UploadProfilePhoto/UpdateAccountUsername (all CORE-ONLY) | P1 |
-| Notifications section | Per-type toggles, sound picker, exceptions, reactions notify | CORE-ONLY | engine notifications.go full API (CORE-ONLY) | P1 |
-| Privacy & security | Blocked users, sessions, passcode, 2FA, TTLs, privacy scopes | CORE-ONLY | engine GetBlockedUsers/GetSessions/CloudPassword*/SetAccountTTL (all CORE-ONLY) | P1 |
-| Data & storage | Storage usage bars, auto-download rules, download path, proxy | CORE-ONLY | engine.GetCacheSize/ClearCache/SetAutoDownloadSettings/SetProxy/CheckProxy (CORE-ONLY) | P1 |
-| Appearance | Day/night, themes (cloud), accent, bubble corners, font scale | PARTIAL (theme.go fixed palette; no settings UI) | gui/theme.go + engine cloud themes (CORE-ONLY) + utils AppConfig | P1 |
+| Notifications section | Per-type toggles, sound picker, exceptions, reactions notify | PARTIAL (global DM/group/mention toggles + per-account contact-signup/calls toggles; sound/exceptions later) | gui/settings.go + engine config/notifications | P1 |
+| Privacy & security | Blocked users, sessions, passcode, 2FA, TTLs, privacy scopes | PARTIAL (blocked users + active sessions listed per account; passcode/2FA/TTL later) | gui/settings.go + engine GetBlockedUsers/GetSessions | P1 |
+| Data & storage | Storage usage bars, auto-download rules, download path, proxy | PARTIAL (total + 6 tag rows w/ per-tag and total clears, real cache accounting; auto-download rules/proxy later) | gui/settings.go + engine cache APIs | P1 |
+| Appearance | Day/night, themes (cloud), accent, bubble corners, font scale | PARTIAL (day/night toggle persisted via config + light palette; cloud themes/accent/font scale later) | gui/theme.go + gui/settings.go | P1 |
 | Chat settings | folders, stickers/emoji managers, link preview, message actions | CORE-ONLY | engine sticker managers (CORE-ONLY) | P2 |
 | Calls settings | devices, noise suppression | CORE-ONLY | engine.GetAudioDevices/SetNoiseSuppression (CORE-ONLY) | P2 |
 | Language | Language box + lang pack switch | CORE-ONLY | engine.GetLanguages/SetLanguage (CORE-ONLY) | P2 |
@@ -206,8 +206,8 @@ P2 = settings/extras, P3 = rare/edge.
 | Advanced + experimental | Debug/experimental flags | CORE-ONLY | engine.SetExperimentalFlag (CORE-ONLY) | P3 |
 | Local passcode lock | Lock app w/ passcode + autolock | CORE-ONLY | engine.SetPasscode/GetPasscodeConfig (CORE-ONLY) | P2 |
 | Export data (chat history dump) | Export wizard w/ progress | CORE-ONLY | engine export.go full pipeline (CORE-ONLY!) | P2 |
-| About / FAQ | About box, versions, shortcuts | MISSING | static gui page | P2 |
-| Ayu preferences (own screen) | Ghost/spy/saving sections w/ ~90 toggles | MISSING | new gui/settings_ayu.go + engine ghost flags (partially wired: utils AppConfig ghost section) | P1 |
+| About / FAQ | About box, versions, shortcuts | PARTIAL (static about page; versions/shortcuts later) | gui/settings.go | P2 |
+| Ayu preferences (own screen) | Ghost/spy/saving sections w/ ~90 toggles | PARTIAL (Ayu section: 9 global ghost toggles + per-account overrides + reset; spy/saving sections later) | gui/settings.go Ayu section + engine GhostFlags/SetAccountGhost | P1 |
 
 ## 9. Calls / Voice — scope: TG (voice-mode surfaces for other backends via wrtc)
 

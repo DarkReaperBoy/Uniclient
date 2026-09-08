@@ -67,6 +67,37 @@ var dark = palette{
 	Divider:      rgb(0x273241),
 }
 
+// light is the Telegram-light-flavored palette (settings → Appearance).
+var light = palette{
+	Background:   rgb(0xF2F4F7),
+	Surface:      rgb(0xFFFFFF),
+	SurfaceHi:    rgb(0xE9EDF2),
+	BubbleIn:     rgb(0xE3EFFA),
+	BubbleOut:    rgb(0xB9E2A0),
+	BubbleOutDim: rgb(0xCDEBC0),
+	Accent:       rgb(0x2E7CD6),
+	AccentDim:    rgb(0xA7C9EC),
+	Text:         rgb(0x1A2B3C),
+	TextDim:      rgb(0x5B6B7A),
+	TextFaint:    rgb(0x93A2B0),
+	Online:       rgb(0x31A34A),
+	Connecting:   rgb(0xE6A700),
+	Error:        rgb(0xC43C3C),
+	UnreadBadge:  rgb(0x2E7CD6),
+	Divider:      rgb(0xE3E7EB),
+}
+
+// applyTheme swaps the active palette (config Theme: "dark" | "light").
+// Called from the frame loop (button clicks) and once at boot before the
+// first frame — both on the GUI thread, so no locking needed.
+func (u *UI) applyTheme(name string) {
+	if name == "light" {
+		u.p = light
+	} else {
+		u.p = dark
+	}
+}
+
 func rgb(c uint32) color.NRGBA {
 	// NOTE: alpha is mandatory — NRGBA with A=0 is fully transparent.
 	return color.NRGBA{A: 0xFF, R: uint8(c >> 16), G: uint8(c >> 8), B: uint8(c)}

@@ -30,6 +30,7 @@ var (
 	accountMenuRemove  []widget.Clickable
 	sidebarModeChatBtn widget.Clickable
 	sidebarModeVoiceBt widget.Clickable
+	sidebarSettingsBtn widget.Clickable
 )
 
 func init() {
@@ -129,6 +130,15 @@ func (a *App) layoutAccountBar(gtx layout.Context, f frame) func(gtx layout.Cont
 						}
 						btn := a.ui.IconButton(&sidebarAddBtn, iconContentAdd, "Add account")
 						btn.Color = a.ui.p.Accent
+						return btn.Layout(gtx)
+					}),
+					// settings (gear) — AyuGram settings entry
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if sidebarSettingsBtn.Clicked(gtx) {
+							a.openSettings(setSectionMain)
+						}
+						btn := a.ui.IconButton(&sidebarSettingsBtn, iconActionSettings, "Settings")
+						btn.Color = a.ui.p.TextDim
 						return btn.Layout(gtx)
 					}),
 				)

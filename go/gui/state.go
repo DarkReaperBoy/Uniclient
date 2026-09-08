@@ -9,7 +9,9 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/op"
+	"gioui.org/widget"
 
+	"uniclient/cores"
 	"uniclient/engine"
 )
 
@@ -63,6 +65,23 @@ type App struct {
 	downloads map[string]dlState // dlKey → progress
 	autoDl    map[string]bool    // msgID → prefetch already issued
 
+	// settings surface (AyuGram parity slice 3): open view + section, the
+	// config snapshot for the toggles, and async-loaded page data.
+	settingsOpen  bool
+	settingsSect  int
+	cfg           cfgSnapshot
+	notifyAccts   map[string]notifyAcctState
+	notifyLoaded  bool
+	blockedUsers  map[string][]cores.User
+	sessionsList  map[string][]cores.Session
+	privacyLoaded bool
+	cacheTotal    int64
+	cacheTags     [6]int64
+	cacheLoaded   bool
+	ghostSel      string
+	ghostFlags    map[string]engine.GhostFlags
+	ghostLoaded   bool
+
 	// transient
 	typing map[string]time.Time // chatKey -> last typing seen
 
@@ -91,6 +110,11 @@ func New(win *app.Window, eng *engine.Engine) *App {
 // Start boots the app: initial data pull + event subscription + reconnect.
 func (a *App) Start() {
 	eng := a.eng
+	// Apply the persisted theme before the first frame renders (the frame
+	// loop has not started yet — single-threaded at this point).
+	if cfg := eng.GetConfig(); cfg != nil {
+		a.ui.applyTheme(cfg.Theme)
+	}
 	eng.SetEventCallback(func(data []byte) { a.onEvent(data) })
 	go a.refreshAccounts()
 	go a.refreshChats()
@@ -578,7 +602,192 @@ func (a *App) loadOlder() {
 	}()
 }
 
+// ── settings surface (AyuGram parity §8) ──────────────────────────────────
+
+// cfgSnapshot is the frame-read copy of the engine app config.
+type cfgSnapshot struct {
+	Theme                  string
+	SendReadReceipts       bool
+	SendTyping             bool
+	SendUploadProgress     bool
+	SendReadStories        bool
+	SendOnlinePackets      bool
+	SendOfflineAfterOnline bool
+	MarkReadAfterAction    bool
+	UseScheduledMessages   bool
+	SendWithoutSound       bool
+	NotifyDMs              bool
+	NotifyGroups           bool
+	NotifyMentionsOnly     bool
+}
+
+// notifyAcctState carries per-account notification behavior for the page.
+type notifyAcctState struct {
+	contact bool // contact sign-up notifications
+	calls   bool // calls disabled on this account
+}
+
+// openSettings switches the content pane to the settings view and kicks off
+// the async data loads for its pages. Switch/toggle pools reset because the
+// values they mirror are re-read fresh.
+func (a *App) openSettings(section int) {
+	a.mu.Lock()
+	a.settingsOpen = true
+	a.settingsSect = section
+	a.mu.Unlock()
+	settingsSwitches = make(map[string]*widget.Bool)
+	settingsSynced = make(map[string]bool)
+	go a.refreshConfig()
+	go a.loadStorage()
+	go a.loadNotifyAccts()
+	go a.loadPrivacy()
+	go a.loadGhost()
+	a.invalidate()
+}
+
+// closeSettings returns to the chat/list layout.
+func (a *App) closeSettings() {
+	a.mu.Lock()
+	a.settingsOpen = false
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+func (a *App) refreshConfig() {
+	c := a.eng.GetConfig()
+	if c == nil {
+		return
+	}
+	snap := cfgSnapshot{
+		Theme:                  c.Theme,
+		SendReadReceipts:       c.SendReadReceipts,
+		SendTyping:             c.SendTyping,
+		SendUploadProgress:     c.SendUploadProgress,
+		SendReadStories:        c.SendReadStories,
+		SendOnlinePackets:      c.SendOnlinePackets,
+		SendOfflineAfterOnline: c.SendOfflineAfterOnline,
+		MarkReadAfterAction:    c.MarkReadAfterAction,
+		UseScheduledMessages:   c.UseScheduledMessages,
+		SendWithoutSound:       c.SendWithoutSound,
+		NotifyDMs:              c.NotifyDMs,
+		NotifyGroups:           c.NotifyGroups,
+		NotifyMentionsOnly:     c.NotifyMentionsOnly,
+	}
+	a.mu.Lock()
+	a.cfg = snap
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// loadStorage reads the cache accounting for the Data & Storage page.
+func (a *App) loadStorage() {
+	total, err1 := a.eng.GetCacheSize()
+	tags, err2 := a.eng.GetCacheSizesByTag("")
+	a.mu.Lock()
+	if err1 == nil {
+		a.cacheTotal = total
+	}
+	if err2 == nil {
+		a.cacheTags = tags
+	}
+	a.cacheLoaded = true
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// loadNotifyAccts reads per-account notification behavior.
+func (a *App) loadNotifyAccts() {
+	st := make(map[string]notifyAcctState)
+	for _, acc := range a.eng.ListAccounts() {
+		contact, err1 := a.eng.GetContactSignUpNotification(acc.ID)
+		calls, err2 := a.eng.GetCallsDisabledHere(acc.ID)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		st[acc.ID] = notifyAcctState{contact: contact, calls: calls}
+	}
+	a.mu.Lock()
+	a.notifyAccts, a.notifyLoaded = st, true
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// loadPrivacy reads blocked users + active sessions per account.
+func (a *App) loadPrivacy() {
+	blocked := make(map[string][]cores.User)
+	sessions := make(map[string][]cores.Session)
+	for _, acc := range a.eng.ListAccounts() {
+		if bl, err := a.eng.GetBlockedUsers(acc.ID); err == nil {
+			blocked[acc.ID] = bl
+		}
+		if ss, err := a.eng.GetSessions(acc.ID); err == nil {
+			sessions[acc.ID] = ss
+		}
+	}
+	a.mu.Lock()
+	a.blockedUsers, a.sessionsList, a.privacyLoaded = blocked, sessions, true
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// loadGhost reads the effective ghost flags per account.
+func (a *App) loadGhost() {
+	g := make(map[string]engine.GhostFlags)
+	for _, acc := range a.eng.ListAccounts() {
+		g[acc.ID] = a.eng.GhostFor(acc.ID)
+	}
+	a.mu.Lock()
+	a.ghostFlags, a.ghostLoaded = g, true
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// applyConfigBool persists one config boolean via the bridge (async).
+func (a *App) applyConfigBool(field string, v bool) {
+	go func() {
+		c := configFieldChanges(field, v)
+		if c == nil {
+			return
+		}
+		if err := a.eng.UpdateConfigFromBridge(c); err != nil {
+			a.setToast("Settings: " + err.Error())
+		}
+	}()
+}
+
+// applyTheme swaps the palette and persists the theme name (async).
+func (a *App) applyTheme(light bool) {
+	name := themeName(light)
+	a.ui.applyTheme(name)
+	go func() {
+		c := engine.ConfigChanges{Theme: name}
+		if err := a.eng.UpdateConfigFromBridge(&c); err != nil {
+			a.setToast("Theme: " + err.Error())
+		}
+	}()
+}
+
+// applyGhostFlag flips one flag of an account's ghost override (async).
+func (a *App) applyGhostFlag(accountID, field string, v bool) {
+	a.mu.Lock()
+	g := a.ghostFlags[accountID]
+	a.mu.Unlock()
+	if !ghostFlagSet(&g, field, v) {
+		return
+	}
+	a.mu.Lock()
+	if a.ghostFlags == nil {
+		a.ghostFlags = make(map[string]engine.GhostFlags)
+	}
+	a.ghostFlags[accountID] = g
+	a.mu.Unlock()
+	go func() {
+		a.eng.SetAccountGhost(accountID, g)
+	}()
+}
+
 // stillTyping reports an active typing indicator for a chat.
+
 func (a *App) stillTyping(k chatKey) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -592,30 +801,44 @@ func (a *App) snapshot() frame {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	f := frame{
-		showPicker:   a.showPicker,
-		acctFilter:   a.acctFilter,
-		accounts:     a.accounts,
-		chats:        a.chats,
-		messages:     a.messages,
-		msgFor:       a.msgFor,
-		selected:     a.selected,
-		folder:       a.folder,
-		search:       a.search,
-		mode:         a.mode,
-		auth:         a.auth,
-		authAcct:     a.authAcct,
-		toast:        a.toast,
-		toastAt:      a.toastAt,
-		connecting:   a.connecting,
-		sending:      a.sending,
-		loadingMsgs:  a.loadingMsgs,
-		cMode:        a.cMode,
-		menu:         a.menu,
-		fwd:          a.fwd,
-		menuCaps:     a.menuCaps,
-		availEmojis:  a.availEmojis,
-		loadingOlder: a.loadingOlder,
-		now:          time.Now(),
+		showPicker:    a.showPicker,
+		acctFilter:    a.acctFilter,
+		accounts:      a.accounts,
+		chats:         a.chats,
+		messages:      a.messages,
+		msgFor:        a.msgFor,
+		selected:      a.selected,
+		folder:        a.folder,
+		search:        a.search,
+		mode:          a.mode,
+		auth:          a.auth,
+		authAcct:      a.authAcct,
+		toast:         a.toast,
+		toastAt:       a.toastAt,
+		connecting:    a.connecting,
+		sending:       a.sending,
+		loadingMsgs:   a.loadingMsgs,
+		cMode:         a.cMode,
+		menu:          a.menu,
+		fwd:           a.fwd,
+		menuCaps:      a.menuCaps,
+		availEmojis:   a.availEmojis,
+		loadingOlder:  a.loadingOlder,
+		now:           time.Now(),
+		settingsOpen:  a.settingsOpen,
+		settingsSect:  a.settingsSect,
+		cfg:           a.cfg,
+		notifyAccts:   a.notifyAccts,
+		notifyLoaded:  a.notifyLoaded,
+		blockedUsers:  a.blockedUsers,
+		sessionsList:  a.sessionsList,
+		privacyLoaded: a.privacyLoaded,
+		cacheTotal:    a.cacheTotal,
+		cacheTags:     a.cacheTags,
+		cacheLoaded:   a.cacheLoaded,
+		ghostSel:      a.ghostSel,
+		ghostFlags:    a.ghostFlags,
+		ghostLoaded:   a.ghostLoaded,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -656,7 +879,23 @@ type frame struct {
 	now          time.Time
 
 	// media bubbles (slice 2)
-	downloads    map[string]dlState
+	downloads map[string]dlState
+
+	// settings surface (slice 3)
+	settingsOpen  bool
+	settingsSect  int
+	cfg           cfgSnapshot
+	notifyAccts   map[string]notifyAcctState
+	notifyLoaded  bool
+	blockedUsers  map[string][]cores.User
+	sessionsList  map[string][]cores.Session
+	privacyLoaded bool
+	cacheTotal    int64
+	cacheTags     [6]int64
+	cacheLoaded   bool
+	ghostSel      string
+	ghostFlags    map[string]engine.GhostFlags
+	ghostLoaded   bool
 }
 
 var _ = op.InvalidateCmd{} // referenced in widgets that animate

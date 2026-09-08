@@ -469,3 +469,27 @@ rendered nothing for any media message.
 
 Known follow-ups (next slices): media viewer overlay (§12), voice/audio
 playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
+
+## 2026-09-08 — AyuGram parity program, slice 3: settings screen + theme
+
+- Verified locally this time: the 4GB box CAN compile the full graph with
+  GOMEMLIMIT=3000MiB GOGC=15 -p=1 (downloaded Go 1.27.0 toolchain; gotd
+  compiles fine) — full `go vet ./...` (windows target) + `go test ./engine
+  ./utils` run green locally before push, no more CI-blind commits.
+- fix: slice-2 commit's state.go had hand-misaligned struct fields →
+  `gofmt -w` normalized (the CI gofmt gate caught it — run 34192076823).
+- `gui/settings.go` (new): the AyuGram settings shell — left rail of 7
+  sections (Main / Notifications / Privacy & Security / Data & Storage /
+  Appearance / Ayu / About) with content pages; gear entry added to the
+  sidebar account bar; narrow layouts collapse the rail to a chip row.
+  Every toggle/row is a real engine call: config booleans
+  (UpdateConfigFromBridge), per-account contact-signup + calls-disabled
+  toggles, blocked users + active sessions lists, real cache accounting with
+  per-tag and total clears, ghost flags (9 global + per-account overrides
+  with reset), theme.
+- `gui/theme.go`: light palette + UI.applyTheme; the persisted theme applies
+  at boot before the first frame.
+- `gui/state.go`: settings state surface (open/section, cfg snapshot, async
+  page loaders under mu, frame copies).
+- Tests first: gui/settings_test.go (section list, cache-tag labels,
+  ConfigChanges/GhostFlags field mapping, theme name).

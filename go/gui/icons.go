@@ -31,6 +31,12 @@ var (
 	iconFileDownload       = mustIcon(icons.FileFileDownload)
 	iconAVPlayCircle       = mustIcon(icons.AVPlayCircleFilled)
 	iconAVStop             = mustIcon(icons.AVStop)
+	iconSocialNotif        = mustIcon(icons.SocialNotificationsNone)
+	iconActionLock         = mustIcon(icons.ActionLock)
+	iconActionBackup       = mustIcon(icons.ActionBackup)
+	iconImagePalette       = mustIcon(icons.ImagePalette)
+	iconActionGhost        = mustIcon(icons.ActionVisibilityOff)
+	iconActionInfo         = mustIcon(icons.ActionInfoOutline)
 )
 
 func mustIcon(data []byte) *widget.Icon {
