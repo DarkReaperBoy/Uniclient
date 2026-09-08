@@ -564,9 +564,7 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 										return lbl.Layout(gtx)
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										t := a.ui.Dim(unit.Sp(11), fmtTime(c.LastMsgTime))
-										t.Color = a.ui.p.TextFaint
-										return t.Layout(gtx)
+										return a.rowMetaIcons(gtx, f, c)
 									}),
 								)
 							}),
@@ -598,13 +596,16 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 							return a.mediaThumb(gtx, c.LastMsgThumbB64, unit.Dp(34))
 						})
 					}),
-					// unread badge
+					// unread badge (or unread-mark dot, slice 29)
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if c.UnreadCount <= 0 {
+						if c.UnreadCount <= 0 && !c.UnreadMark {
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return unreadBadge(gtx, a.ui, c.UnreadCount, c.IsMuted)
+							if rowBadgeKindFor(c) == rowBadgeCount {
+								return unreadBadge(gtx, a.ui, c.UnreadCount, c.IsMuted)
+							}
+							return unreadMarkDot(gtx, a.ui, c.IsMuted)
 						})
 					}),
 				)

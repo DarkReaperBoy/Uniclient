@@ -466,6 +466,11 @@ func (a *App) dayDivider(gtx layout.Context, day string) layout.Dimensions {
 // messageRow renders one message bubble: outgoing right-aligned accent,
 // incoming left-aligned surface.
 func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
+	// Service messages render as centered pills (AyuGram: "X joined the
+	// group"), not bubbles — no sender, no tail, no reactions.
+	if m.IsService {
+		return a.serviceRow(gtx, m)
+	}
 	out := m.IsOutgoing
 
 	// Highlight deleted (anti-recall) messages.
