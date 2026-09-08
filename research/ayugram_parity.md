@@ -213,7 +213,7 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Voice tab / call list | Calls list in drawer + calls box | PARTIAL (Voice tab lists active group calls only, honest empty state) | gui/voice.go + engine.GetCallHistory (CORE-ONLY) | P1 |
+| Voice tab / call list | Calls list in drawer + calls box | PARTIAL (Voice tab lists active group calls; slice 64: per-account Recent calls section from engine.GetCallHistory — direction/type/duration/time rows, missed tinted red, tap opens the peer chat; calls box + call UI later) | gui/voice.go + engine.GetCallHistory | P1 |
 | 1:1 call panel | Accept/decline, call window, signal bars, emoji fingerprint | CORE-ONLY | engine.StartCall/AcceptCall/DeclineCall (CORE-ONLY) + wrtc | P1 |
 | Group call screen | Speaker grid, mute, camera, screen share, raise hand, invite, recording, title, RTMP | CORE-ONLY | engine group-call APIs are COMPLETE (Join/RaiseHand/ScreenShare/RTMP/devices…) (CORE-ONLY) | P1 |
 | Mic/speaker device pickers | Device dropdowns | CORE-ONLY | engine.GetAudioDevices/SetCallAudioDevice (CORE-ONLY) | P2 |

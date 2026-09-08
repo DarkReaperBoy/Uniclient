@@ -35,6 +35,7 @@ func escTarget(f frame) string {
 		f.ttlDlg != nil,
 		f.privacyDlg != nil,
 		f.autoDlDlg != nil,
+		f.themeDlg != nil,
 		f.inviteDlg != nil,
 		f.newDlg != nil,
 		f.viewer != nil,

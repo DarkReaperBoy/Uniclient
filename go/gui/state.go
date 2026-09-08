@@ -95,6 +95,10 @@ type App struct {
 	autoDlDlg     *autodlDlgState                      // rules editor dialog (slice 63)
 	callsList     map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
 	callsLoaded   bool
+	themeDlg      *chatThemeDlgState    // per-chat theme picker (slice 65)
+	chatThemes    []cores.ChatThemeInfo // picker data (slice 65)
+	chatThemesFor string                // account the data belongs to (slice 65)
+	chatThemesOn  bool                  // picker data loaded (slice 65)
 	cacheTotal    int64
 	cacheTags     [6]int64
 	cacheLoaded   bool
@@ -792,6 +796,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.ttlDlg = nil
 	a.privacyDlg = nil // slice 62: close the scope picker
 	a.autoDlDlg = nil  // slice 63: close the auto-download editor
+	a.themeDlg = nil   // slice 65: close the theme picker
 	a.headerMenu = nil
 	a.profile = nil
 	a.members = nil
@@ -1386,6 +1391,10 @@ func (a *App) snapshot() frame {
 		autoDlDlg:        a.autoDlDlg,
 		callsList:        a.callsList,
 		callsLoaded:      a.callsLoaded,
+		themeDlg:         a.themeDlg,
+		chatThemes:       a.chatThemes,
+		chatThemesFor:    a.chatThemesFor,
+		chatThemesOn:     a.chatThemesOn,
 		cacheTotal:       a.cacheTotal,
 		cacheTags:        a.cacheTags,
 		cacheLoaded:      a.cacheLoaded,
@@ -1517,6 +1526,10 @@ type frame struct {
 	autoDlDlg     *autodlDlgState                      // rules editor dialog (slice 63)
 	callsList     map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
 	callsLoaded   bool
+	themeDlg      *chatThemeDlgState    // per-chat theme picker (slice 65)
+	chatThemes    []cores.ChatThemeInfo // picker data (slice 65)
+	chatThemesFor string                // account the data belongs to (slice 65)
+	chatThemesOn  bool                  // picker data loaded (slice 65)
 	cacheTotal    int64
 	cacheTags     [6]int64
 	cacheLoaded   bool

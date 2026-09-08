@@ -98,6 +98,10 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			a.layoutAutoDownloadDialog(gtx, f)
 			return
 		}
+		if f.themeDlg != nil {
+			a.layoutChatThemeDialog(gtx, f)
+			return
+		}
 		if f.settingsOpen {
 			a.layoutSettings(gtx, f, narrow)
 			return
@@ -153,6 +157,9 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			}
 			if f.autoDlDlg != nil {
 				return a.layoutAutoDownloadDialog(gtx, f)
+			}
+			if f.themeDlg != nil {
+				return a.layoutChatThemeDialog(gtx, f)
 			}
 			if f.settingsOpen {
 				return a.layoutSettings(gtx, f, narrow)
