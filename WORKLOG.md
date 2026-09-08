@@ -835,3 +835,9 @@ Stage Summary:
 
 - **52 Profile cover**: big centered 96dp panel photo + centered name/status (streamer-safe)
 - CI: dispatched for s51–52 (34254679916 in flight)
+---
+## 2026-09-09 — slice 53
+
+- **53 Custom-emoji reaction pills**: premium custom reactions (empty Emoji + DocumentID) render in the strip with static doc thumbnails — gui/custemoji.go (session cache, batched lazy fetch per message, ⭐ placeholder, box reserved); pills toggle via the engine `custom_<docID>` convention; engine toggleReaction now keys custom entries by document id (optimistic parity); webp decoder registered
+- Gates: gofmt, windows vet, engine/cores/utils tests, gui wasm suite (executed-verified), win+wasm builds — all green locally
+- CI: verify dispatched on 1f0e8174 (slice-52 run 34254679916 was in flight)
