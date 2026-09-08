@@ -55,11 +55,11 @@ P2 = settings/extras, P3 = rare/edge.
 | Folder tabs above list | Server-synced folders incl. custom, edit, reorder, invite links | PARTIAL (real server folders when an account is scoped: tabs + Telegram filter rules + "+" create dialog; smart tabs fallback; edit/reorder/invites later) | gui/folders.go + engine.GetFolders/CreateFolder/FoldersSupported | P0 |
 | Archive collapsed row | Archived chats collapse to one row w/ badge | CORE-ONLY | engine.ArchiveChat/IsArchived (CORE-ONLY) | P1 |
 | Pinned chats section | Pinned first, pin indicator icon | PARTIAL (engine sorts pinned first; no pin icon/separator) | gui/sidebar.go chatRow + ChatInfo.IsPinned | P1 |
-| Chat row: image avatar | Real photo/video userpic w/ stories ring | PARTIAL (real userpics rendered everywhere from ChatInfo.AvatarPath + b64 member thumbs, circle cover-crop; accent unread-stories ring on chat-row + header avatars, slice 21) | gui/avatar.go + engine avatars pipeline | P0 |
+| Chat row: image avatar | Real photo/video userpic w/ stories ring | PRESENT (real userpics everywhere incl. chat rows since slice 24 + accent unread-stories ring) | gui/avatar.go + engine avatars pipeline | P0 |
 | Row: verified/scam/fake badges | Icon next to title | CORE-ONLY (fields exist: IsVerified/IsScam/IsFake) | gui/sidebar.go + ChatInfo fields | P1 |
 | Row: muted/pin/unread-mark icons | Icons right of time, muted badge style | PARTIAL (gray badge; no mute/pin icons, no UnreadMark) | gui/sidebar.go | P1 |
 | Row: draft preview | "Draft: …" when unsent | PRESENT (slice 20: red Draft preview over the last message) | gui/sidebar.go | P2 |
-| Row: media preview + "Photo"/"Voice" labels | Thumb + typed last-message labels | PARTIAL (typed labels done via engine.MediaPreviewLabel; sidebar thumbs later) | gui/sidebar.go previewText | P1 |
+| Row: media preview + "Photo"/"Voice" labels | Thumb + typed last-message labels | PRESENT (typed labels via engine.MediaPreviewLabel + 34dp rounded last-message thumbs, slice 24) | gui/sidebar.go previewText + mediaThumb | P1 |
 | Row: typing preview | "typing…" animated | PRESENT | gui/sidebar.go + engine.EventTyping | P0 |
 | Row: unread reactions/mentions badge | @ badge for mentions, badge variants | CORE-ONLY (UnreadMentionCount/UnreadReactionCount CORE-ONLY) | gui/sidebar.go | P2 |
 | Stories row + rings | Horizontal story circles w/ seen/unseen rings, story counter | CORE-ONLY (engine stories: FetchPeerStories, ChatInfo.StoryCount CORE-ONLY) | new gui/stories.go | P1 |
@@ -294,7 +294,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Instant View pages | IV reader overlay | CORE-ONLY | engine.GetInstantViewPage (CORE-ONLY) | P3 |
 | Channel statistics screens | Charts dashboards | CORE-ONLY | engine stats APIs (CORE-ONLY) | P3 |
 | Moderation (admin log, restrictions) | Admin log viewer, restrict boxes | CORE-ONLY | engine GetAdminLogEvents/Restrict (CORE-ONLY) | P3 |
-| Join via invite link / QR | Check+import invite | CORE-ONLY | engine.CheckChatInvite/ImportChatInvite (CORE-ONLY) | P2 |
+| Join via invite link / QR | Check+import invite | PARTIAL (slice 24: invite links in the search field → preview title + confirm → ImportChatInvite; QR scan remains) | gui/invite.go + engine CheckChatInvite/ImportChatInvite | P2 |
 | Giveaways / boosts | Launch & view giveaway flows | CORE-ONLY | engine giveaway APIs (CORE-ONLY) | P3 |
 | Contacts list screen | Browse contacts, add contact box | PRESENT (slice 17: searchable list w/ avatars + online/bot badges, click opens the DM, add-contact dialog → engine.AddContact) | gui/contacts.go + engine GetContacts/AddContact | P1 |
 | New chat/group/channel creation flow | Multi-step wizards w/ member picker | PARTIAL (slice 17: name/desc/megagroup dialog → real CreateGroup/CreateChannel/CreateMegagroup + auto-open; member-picker step remains) | gui/newchat.go | P1 |
