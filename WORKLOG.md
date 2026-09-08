@@ -841,3 +841,9 @@ Stage Summary:
 - **53 Custom-emoji reaction pills**: premium custom reactions (empty Emoji + DocumentID) render in the strip with static doc thumbnails — gui/custemoji.go (session cache, batched lazy fetch per message, ⭐ placeholder, box reserved); pills toggle via the engine `custom_<docID>` convention; engine toggleReaction now keys custom entries by document id (optimistic parity); webp decoder registered
 - Gates: gofmt, windows vet, engine/cores/utils tests, gui wasm suite (executed-verified), win+wasm builds — all green locally
 - CI: verify dispatched on 1f0e8174 (slice-52 run 34254679916 was in flight)
+---
+## 2026-09-09 — slice 54 + matrix corrections
+
+- **54 Folder tab menu + invite links**: right-click a server folder tab → Edit / Move left / Move right (engine ReorderDialogFilters, boundary-aware) / Invite links / Delete; new chatlist-share dialog (GetFolderInviteLinks list, tap-to-copy, CreateFolderInviteLink); Esc + outside-press dismissal
+- Matrix: rows 87 (custom-emoji pills), 48 (three-pane — was stale), 78 (header avatar — was stale) flipped to PRESENT
+- CI: slice-53 run 34257548785 in flight; the earlier 34254679916 failure was a transient artifact-upload 403 (smoke itself passed; superseded GREEN by 34254967388)

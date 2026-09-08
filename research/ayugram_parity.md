@@ -45,14 +45,14 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Three-pane layout | list · chat · right info panel | PARTIAL (2 panes; no right panel) | gui/app.go layoutMain | P0 |
+| Three-pane layout | list · chat · right info panel | PRESENT (2026-09: desktop chat|divider|info-panel 320dp when panel open; narrow slide-in replaces pane; profile panel w/ cover photo, actions, shared-media counts) | gui/app.go layoutMain + gui/chat.go layoutChatView + gui/profile.go | P0 |
 | Hamburger main menu (drawer) | My profile, contacts, calls, night mode, settings, ghost/LRead/SRead/streamer toggles, new group/channel, saved msgs | PRESENT (slice 17+23: ☰ drawer w/ account header+switching, contacts, calls→voice pane, night switch, ghost master + ⚙ prefs, new group/channel, settings, saved messages→self chat; streamer/LRead/SRead quick toggles remain) | gui/drawer.go + sidebar.go ☰ | P0 |
 | Account switcher | Multi-account bar with per-account unread dots | PARTIAL (UniClient account bar: add/remove/conn dot; drawer account rows carry per-account unread badges (slice 36); Ayu-style tray later) | gui/sidebar.go + gui/drawer.go + engine accounts | P1 |
 | Search field in bar | Global search: chats, messages, users, posts, files, tags | PARTIAL (local filter + engine FTS message search (SearchMessages) + per-account server chat hits (SearchGlobalChats) + recent searches + invite-hash row; user/global message tabs later) | gui/search.go + engine SearchMessages/SearchGlobalChats | P0 |
 | Search results screen w/ tabs | Chats/Messages/Links/Files tabs + "search in" | CORE-ONLY | new gui/search.go + engine.SearchMessages (CORE-ONLY) | P1 |
 | Top peers strip | Pictured top-contacts row above list while searching | CORE-ONLY | engine.GetTopPeers (CORE-ONLY) | P2 |
 | Recent searches | Persisted search history dropdown | PRESENT (slice 37: Enter submits record the query (engine AddRecentSearch, case-insensitive dedupe, cap 8, vault-persisted); focused+empty field shows the recents dropdown — click fills, clear row empties) | gui/recentsearch.go + engine AddRecentSearch/ClearRecentSearches + AppConfig.recent_searches | P3 |
-| Folder tabs above list | Server-synced folders incl. custom, edit, reorder, invite links | PARTIAL (real server folders when an account is scoped: tabs + Telegram filter rules + "+" create dialog; smart tabs fallback; edit/reorder/invites later) | gui/folders.go + engine.GetFolders/CreateFolder/FoldersSupported | P0 |
+| Folder tabs above list | Server-synced folders incl. custom, edit, reorder, invite links | PRESENT (server folders w/ filter rules + create/edit dialog; slice 54: tab context menu — Edit / Move left/right (ReorderDialogFilters) / Invite links (chatlist share dialog: list, copy, create) / Delete) | gui/folders.go + gui/foldermenu.go + gui/folderinvites.go + engine folder APIs | P0 |
 | Archive collapsed row | Archived chats collapse to one row w/ badge | CORE-ONLY | engine.ArchiveChat/IsArchived (CORE-ONLY) | P1 |
 | Pinned chats section | Pinned first, pin indicator icon | PRESENT (engine sorts pinned first; slice 29 pushpin glyph next to time) | gui/sidebar.go chatRow + ChatInfo.IsPinned | P1 |
 | Chat row: image avatar | Real photo/video userpic w/ stories ring | PRESENT (real userpics everywhere incl. chat rows since slice 24 + accent unread-stories ring) | gui/avatar.go + engine avatars pipeline | P0 |
@@ -75,7 +75,7 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Peer header: image avatar | Round avatar in header | PARTIAL (letter avatar) | gui/chat.go chatHeader | P0 |
+| Peer header: image avatar | Round avatar in header | PRESENT (real userpic via engine avatars pipeline w/ letter fallback; neutral glyph under streamer mode) | gui/chat.go chatHeader + gui/avatar.go chatAvatar | P0 |
 | Header status | "online"/"last seen"/members/typing/subtitle switch | PRESENT (slice 28: DM presence line — online (accent) / last seen (exact time/date) / bot — seeded by GetUserProfile, live via EventUserStatus; members for groups; typing) | gui/chat.go + gui/headerpresence.go + engine EventUserStatus | P1 |
 | Header badges | Verified/premium/emoji-status/scam icons | PRESENT (slice 28: verified ✓ blue, premium ⭐ gold, scam/fake ⚠ next to title; emoji-status custom emoji later) | gui/headerpresence.go | P1 |
 | Header "..." menu | Peer actions: mute, search in chat, view profile, add member, clear history, leave/delete, block | PARTIAL (slice 15: ⋮ menu — mute/unmute, view profile (opens the info panel), clear history w/ confirm, block/unblock (DMs, state-aware when the panel profile is loaded), leave (groups/channels) / delete (DMs) w/ confirm — all real engine calls; search-in-chat + add-member later) | gui/headermenu.go + engine MuteChat/BlockUser/ClearHistory/LeaveChat/DeleteChat | P0 |
