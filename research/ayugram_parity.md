@@ -176,7 +176,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Profile: bio/phone/username rows + copy | Info rows w/ icons | PRESENT (slice 26: icon rows w/ copy-on-click + toast) | gui/profile.go panelValueRow | P0 |
 | Profile: actions (add contact, share, block, edit) | Button rows | PARTIAL (add-to-contacts + block/unblock wired; share/edit later) | gui/profile.go + engine AddContactByUser/BlockUser | P1 |
 | Shared media tabs | Photos/Videos/Files/Links/Voice/GIFs grids w/ counts | PARTIAL (real per-type counts + recent-photos grid; full tabbed grids later) | gui/profile.go + engine GetSharedMedia(Counts) | P1 |
-| Members list (groups) | Searchable, roles, admin badges | PARTIAL (200 members w/ role badges + presence; search later) | gui/profile.go memberRow + engine.GetChatMembers | P1 |
+| Members list (groups) | Searchable, roles, admin badges | PRESENT (200 members w/ role badges + presence; slice 40 search field filters by name/username/id once the list passes 8) | gui/profile.go memberRow + filterMembers + engine.GetChatMembers | P1 |
 | Member context menu | Promote/restrict/ban/remove | CORE-ONLY | engine admin methods (CORE-ONLY) | P2 |
 | Notifications toggle in panel | Per-chat mute switch | PRESENT (per-chat mute switch wired to engine.MuteChat) | gui/profile.go muteRow | P1 |
 | Reactions/views list | Who reacted w/ which emoji | CORE-ONLY | engine.GetMessageReactorsList (CORE-ONLY) | P2 |

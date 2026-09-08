@@ -388,21 +388,41 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo) layo
 		}
 	}
 
-	// Members (groups/channels).
+	// Members (groups/channels), with search (AyuGram, slice 40).
 	if showMembers {
+		shown := filterMembers(f.members, memberSearchEd.Text())
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			n := itoa(len(f.members))
 			return a.sectionTitle(gtx, "Members ("+n+")")
 		}))
-		for i := range f.members {
-			m := f.members[i]
+		if len(f.members) > 8 {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					for {
+						ev, ok := memberSearchEd.Update(gtx)
+						if !ok {
+							break
+						}
+						if _, is := ev.(widget.ChangeEvent); is {
+							a.invalidate()
+						}
+					}
+					ed := a.ui.Editor(&memberSearchEd, "Search members")
+					return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(6)).Layout(gtx, ed.Layout)
+					})
+				})
+			}))
+		}
+		for i := range shown {
+			m := shown[i]
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.memberRow(gtx, m)
 			}))
 		}
-		if len(f.members) == 0 {
+		if len(shown) == 0 {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				lbl := a.ui.Dim(unit.Sp(13), "No members loaded")
+				lbl := a.ui.Dim(unit.Sp(13), "No members match")
 				return lbl.Layout(gtx)
 			}))
 		}
@@ -692,3 +712,24 @@ func (a *App) recentPhotosGrid(gtx layout.Context, f frame, chat *engine.ChatInf
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
+
+// filterMembers narrows the member list by a case-insensitive substring
+// match on display name, username, or id (AyuGram member search).
+func filterMembers(members []engine.MemberInfo, q string) []engine.MemberInfo {
+	q = strings.TrimSpace(strings.ToLower(q))
+	if q == "" {
+		return members
+	}
+	var out []engine.MemberInfo
+	for _, m := range members {
+		if strings.Contains(strings.ToLower(m.DisplayName), q) ||
+			strings.Contains(strings.ToLower(m.Username), q) ||
+			strings.Contains(m.UserID, q) {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// memberSearchEd filters the info panel's member list (slice 40).
+var memberSearchEd widget.Editor

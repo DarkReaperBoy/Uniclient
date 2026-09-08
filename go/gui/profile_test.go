@@ -73,3 +73,29 @@ func TestLastSeenLabel(t *testing.T) {
 		}
 	}
 }
+
+func TestFilterMembers(t *testing.T) {
+	members := []engine.MemberInfo{
+		{UserID: "1", DisplayName: "Alice", Username: "alice"},
+		{UserID: "2", DisplayName: "Bob", Username: "bobby"},
+		{UserID: "33", DisplayName: "Carol"},
+	}
+	if got := filterMembers(members, ""); len(got) != 3 {
+		t.Errorf("empty query = %d, want 3", len(got))
+	}
+	if got := filterMembers(members, "bob"); len(got) != 1 || got[0].UserID != "2" {
+		t.Errorf("username match = %+v", got)
+	}
+	if got := filterMembers(members, "ALICE"); len(got) != 1 {
+		t.Errorf("case-insensitive = %+v", got)
+	}
+	if got := filterMembers(members, "3"); len(got) != 1 || got[0].UserID != "33" {
+		t.Errorf("id match = %+v", got)
+	}
+	if got := filterMembers(members, "  "); len(got) != 3 {
+		t.Errorf("whitespace query = %d, want 3", len(got))
+	}
+	if got := filterMembers(members, "zzz"); len(got) != 0 {
+		t.Errorf("no match = %+v", got)
+	}
+}
