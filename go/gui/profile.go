@@ -3,7 +3,10 @@ package gui
 import (
 	"image"
 	"image/color"
+	"io"
+	"strings"
 
+	"gioui.org/io/clipboard"
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -443,31 +446,59 @@ func (a *App) muteRow(gtx layout.Context, sw *widget.Bool) layout.Dimensions {
 
 // panelValueRow renders an icon + label + value row.
 func (a *App) panelValueRow(gtx layout.Context, ic *widget.Icon, label, value string) layout.Dimensions {
+	// Copy on click (AyuGram info rows, slice 26).
+	btn := panelRowClickable(label)
+	if btn.Clicked(gtx) {
+		if value != "" {
+			gtx.Execute(clipboard.WriteCmd{
+				Type: "text/plain",
+				Data: io.NopCloser(strings.NewReader(value)),
+			})
+			a.setToast(label + " copied")
+		}
+	}
 	return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Dp(unit.Dp(20))
-				if ic == nil {
-					return layout.Dimensions{Size: image.Pt(gtx.Dp(unit.Dp(20)), gtx.Dp(unit.Dp(20)))}
-				}
-				return ic.Layout(gtx, a.ui.p.TextDim)
-			}),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							lbl := a.ui.Dim(unit.Sp(11), label)
-							return lbl.Layout(gtx)
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							lbl := a.ui.Label(unit.Sp(14), value)
-							return lbl.Layout(gtx)
-						}),
-					)
-				})
-			}),
-		)
+		return material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Min.X = gtx.Dp(unit.Dp(20))
+					if ic == nil {
+						return layout.Dimensions{Size: image.Pt(gtx.Dp(unit.Dp(20)), gtx.Dp(unit.Dp(20)))}
+					}
+					return ic.Layout(gtx, a.ui.p.TextDim)
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.Dim(unit.Sp(11), label)
+								return lbl.Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.Label(unit.Sp(14), value)
+								return lbl.Layout(gtx)
+							}),
+						)
+					})
+				}),
+			)
+		})
 	})
+}
+
+// panelRowClickables: per-label copy clickables for info rows.
+var panelRowClickables = map[string]*widget.Clickable{}
+
+func panelRowClickable(label string) *widget.Clickable {
+	if c, ok := panelRowClickables[label]; ok {
+		return c
+	}
+	if len(panelRowClickables) > 32 {
+		panelRowClickables = make(map[string]*widget.Clickable)
+	}
+	c := new(widget.Clickable)
+	panelRowClickables[label] = c
+	return c
 }
 
 // memberRow renders one member with an optional role badge.

@@ -148,12 +148,14 @@ type App struct {
 	pendingTitle string
 
 	// in-chat search (AyuGram parity slice 18): scoped FTS + jump nav
-	inSearch   bool
-	inSearchQ  string
-	inChatHits []engine.SearchResult
-	inChatFor  string // "q@acct/chat" staleness guard
-	inChatIdx  int
-	inChatBusy bool
+	inSearch         bool
+	inSearchQ        string
+	inChatHits       []engine.SearchResult
+	inChatFor        string // "q@acct/chat" staleness guard
+	inChatIdx        int
+	inChatBusy       bool
+	inSearchFrom     string // from-user filter (slice 26)
+	inSearchFromName string
 
 	// delete + report dialogs (AyuGram parity slice 19)
 	delDlg    *delDlgState
@@ -701,6 +703,9 @@ func (a *App) openChat(k chatKey, title string) {
 	a.inChatHits = nil
 	a.inChatIdx = 0
 	a.inChatBusy = false
+	a.inSearchFrom = ""
+	a.inSearchFromName = ""
+	inSearchFromPanel = false
 	a.delDlg = nil // slice 19: close delete/report dialogs
 	a.reportDlg = nil
 	a.schedDlg = nil // slice 20: close the schedule dialog
@@ -1142,6 +1147,8 @@ func (a *App) snapshot() frame {
 		inChatHits:       a.inChatHits,
 		inChatIdx:        a.inChatIdx,
 		inChatBusy:       a.inChatBusy,
+		inSearchFrom:     a.inSearchFrom,
+		inSearchFromName: a.inSearchFromName,
 		delDlg:           a.delDlg,
 		reportDlg:        a.reportDlg,
 		schedDlg:         a.schedDlg,
@@ -1262,11 +1269,13 @@ type frame struct {
 	newDlgErr    string
 
 	// in-chat search (slice 18)
-	inSearch   bool
-	inSearchQ  string
-	inChatHits []engine.SearchResult
-	inChatIdx  int
-	inChatBusy bool
+	inSearch         bool
+	inSearchQ        string
+	inChatHits       []engine.SearchResult
+	inChatIdx        int
+	inChatBusy       bool
+	inSearchFrom     string
+	inSearchFromName string
 
 	// delete + report dialogs (slice 19)
 	delDlg    *delDlgState

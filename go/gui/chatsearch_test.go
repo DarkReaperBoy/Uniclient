@@ -3,6 +3,8 @@ package gui
 import (
 	"strings"
 	"testing"
+
+	"uniclient/engine"
 )
 
 func TestInChatSearchKey(t *testing.T) {
@@ -39,5 +41,25 @@ func TestSearchSnippet(t *testing.T) {
 		if r == 0xFFFD {
 			t.Fatal("replacement rune found: multi-byte text was split")
 		}
+	}
+}
+
+func TestSearchSenders(t *testing.T) {
+	msgs := []engine.CachedMessage{
+		{SenderID: "u1", SenderName: "Alice"},
+		{SenderID: "u2", SenderName: "Bob"},
+		{SenderID: "u1", SenderName: "Alice"}, // dup
+		{SenderID: "", SenderName: "Anon"},    // no id → skipped
+		{SenderID: "u3", IsService: true},     // service → skipped
+	}
+	got := searchSenders(msgs)
+	if len(got) != 2 {
+		t.Fatalf("senders = %d, want 2", len(got))
+	}
+	if got[0].UserID != "u1" || got[0].DisplayName != "Alice" {
+		t.Errorf("first = %+v", got[0])
+	}
+	if got[1].UserID != "u2" {
+		t.Errorf("second = %+v", got[1])
 	}
 }

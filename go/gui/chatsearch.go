@@ -21,13 +21,17 @@ import (
 // and jump-to-message. Escape closes.
 
 var (
-	inSearchEd       widget.Editor
-	inSearchCloseBtn widget.Clickable
-	inSearchPrevBtn  widget.Clickable
-	inSearchNextBtn  widget.Clickable
-	inSearchRows     []widget.Clickable
-	inSearchList     widget.List
-	inSearchKeyTag   = new(struct{})
+	inSearchEd        widget.Editor
+	inSearchCloseBtn  widget.Clickable
+	inSearchPrevBtn   widget.Clickable
+	inSearchNextBtn   widget.Clickable
+	inSearchRows      []widget.Clickable
+	inSearchList      widget.List
+	inSearchKeyTag    = new(struct{})
+	inSearchFromBtn   widget.Clickable // 👤 from-user filter (slice 26)
+	inSearchFromRows  []widget.Clickable
+	inSearchFromList  widget.List
+	inSearchFromPanel bool // frame-loop: user picker open
 )
 
 func init() {
@@ -39,6 +43,24 @@ func inChatSearchKey(q string, k chatKey) string {
 	return q + "@" + k.String()
 }
 
+// searchSenders (pure, testable): distinct senders in message order.
+func searchSenders(msgs []engine.CachedMessage) []engine.MemberInfo {
+	var out []engine.MemberInfo
+	seen := map[string]bool{}
+	for _, m := range msgs {
+		if m.IsService || m.SenderID == "" || seen[m.SenderID] {
+			continue
+		}
+		seen[m.SenderID] = true
+		out = append(out, engine.MemberInfo{
+			UserID:      m.SenderID,
+			DisplayName: m.SenderName,
+			IsBot:       false,
+		})
+	}
+	return out
+}
+
 // toggleInChatSearch opens/closes the in-chat search bar.
 func (a *App) toggleInChatSearch() {
 	a.mu.Lock()
@@ -48,6 +70,8 @@ func (a *App) toggleInChatSearch() {
 	a.inChatHits = nil
 	a.inChatIdx = 0
 	a.inChatBusy = false
+	a.inSearchFrom = ""
+	a.inSearchFromName = ""
 	a.mu.Unlock()
 	if !opening {
 		inSearchEd.SetText("")
@@ -76,7 +100,10 @@ func (a *App) closeInChatSearch() {
 // async scoped search; stale writes are dropped by key.
 func (a *App) onInChatSearchChanged(q string, k chatKey) {
 	q = strings.TrimSpace(q)
-	key := inChatSearchKey(q, k)
+	a.mu.Lock()
+	from := a.inSearchFrom
+	a.mu.Unlock()
+	key := inChatSearchKey(q, k) + "|from:" + from
 	a.mu.Lock()
 	a.inSearchQ = q
 	a.inChatBusy = len([]rune(q)) >= 2
@@ -95,7 +122,7 @@ func (a *App) onInChatSearchChanged(q string, k chatKey) {
 	a.mu.Unlock()
 
 	go func() {
-		hits, err := a.eng.SearchMessages(q, k.AccountID, 50, k.ChatID, "", "")
+		hits, err := a.eng.SearchMessages(q, k.AccountID, 50, k.ChatID, "", from)
 		if err != nil {
 			hits = nil
 		}
@@ -171,6 +198,10 @@ func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.
 	if inSearchNextBtn.Clicked(gtx) {
 		a.inChatSearchStep(1)
 	}
+	if inSearchFromBtn.Clicked(gtx) {
+		inSearchFromPanel = !inSearchFromPanel
+		a.invalidate()
+	}
 
 	hits := f.inChatHits
 	growClickables(&inSearchRows, len(hits))
@@ -188,6 +219,12 @@ func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.inChatSearchBar(gtx, f)
 		}),
+	}
+	// From-user picker (AyuGram "search from [user]", slice 26).
+	if inSearchFromPanel {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.inChatFromPicker(gtx, f, k)
+		}))
 	}
 	// Results (only while a query is active; caps at 45% of the pane).
 	if q := strings.TrimSpace(f.inSearchQ); len([]rune(q)) >= 2 {
@@ -240,6 +277,24 @@ func (a *App) inChatSearchBar(gtx layout.Context, f frame) layout.Dimensions {
 							lbl := a.ui.Dim(unit.Sp(12), txt)
 							return lbl.Layout(gtx)
 						})
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if f.inSearchFrom != "" {
+							return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.Dim(unit.Sp(11), "from "+f.inSearchFromName)
+								lbl.Color = a.ui.p.Accent
+								return lbl.Layout(gtx)
+							})
+						}
+						return layout.Dimensions{}
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						btn := a.ui.IconButton(&inSearchFromBtn, iconSocialPerson, "Search from a person")
+						btn.Color = a.ui.p.TextDim
+						if f.inSearchFrom != "" || inSearchFromPanel {
+							btn.Color = a.ui.p.Accent
+						}
+						return btn.Layout(gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.ui.IconButton(&inSearchPrevBtn, iconNavChevronLeft, "Newer hit").Layout(gtx)
@@ -314,4 +369,84 @@ func searchSnippet(text string) string {
 		return "(no text)"
 	}
 	return text
+}
+
+// inChatFromPicker: sender list derived from the loaded window.
+func (a *App) inChatFromPicker(gtx layout.Context, f frame, k chatKey) layout.Dimensions {
+	senders := searchSenders(f.messages)
+	growClickables(&inSearchFromRows, len(senders)+1)
+	// "Everyone" clears the filter.
+	if inSearchFromRows[0].Clicked(gtx) {
+		a.setInSearchFrom(k, "", "")
+	}
+	for i, u := range senders {
+		i, u := i, u
+		if inSearchFromRows[i+1].Clicked(gtx) {
+			name := u.DisplayName
+			if name == "" {
+				name = u.UserID
+			}
+			a.setInSearchFrom(k, u.UserID, name)
+		}
+	}
+	maxH := gtx.Dp(unit.Dp(220))
+	if maxH > gtx.Constraints.Max.Y*45/100 {
+		maxH = gtx.Constraints.Max.Y * 45 / 100
+	}
+	return layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Bottom: unit.Dp(4)}.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Max.Y = maxH
+			return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
+				return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return inSearchFromList.Layout(gtx, len(senders)+1, func(gtx layout.Context, i int) layout.Dimensions {
+						return a.inChatFromRow(gtx, i, senders, f)
+					})
+				})
+			})
+		})
+}
+
+func (a *App) inChatFromRow(gtx layout.Context, i int, senders []engine.MemberInfo, f frame) layout.Dimensions {
+	// Row 0: Everyone.
+	if i == 0 {
+		active := f.inSearchFrom == ""
+		return a.inChatFromCell(gtx, &inSearchFromRows[0], "Everyone", active)
+	}
+	u := senders[i-1]
+	name := u.DisplayName
+	if name == "" {
+		name = u.UserID
+	}
+	return a.inChatFromCell(gtx, &inSearchFromRows[i], name, f.inSearchFrom == u.UserID)
+}
+
+func (a *App) inChatFromCell(gtx layout.Context, btn *widget.Clickable, label string, active bool) layout.Dimensions {
+	return layout.Inset{Left: unit.Dp(4), Right: unit.Dp(4), Top: unit.Dp(2), Bottom: unit.Dp(2)}.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			return material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				bg := a.ui.p.Surface
+				if active {
+					bg = a.ui.p.AccentDim
+				}
+				return roundedFill(gtx, bg, 8, func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						lbl := a.ui.Label(unit.Sp(13), label)
+						lbl.MaxLines = 1
+						return lbl.Layout(gtx)
+					})
+				})
+			})
+		})
+}
+
+// setInSearchFrom applies the from-user filter and re-runs the search.
+func (a *App) setInSearchFrom(k chatKey, id, name string) {
+	a.mu.Lock()
+	a.inSearchFrom = id
+	a.inSearchFromName = name
+	a.mu.Unlock()
+	inSearchFromPanel = false
+	a.invalidate()
+	q := inSearchEd.Text()
+	a.onInChatSearchChanged(q, k)
 }
