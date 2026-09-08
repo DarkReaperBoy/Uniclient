@@ -165,6 +165,10 @@ func (a *App) loadPanel(k chatKey) {
 
 	a.mu.Lock()
 	a.profile = prof
+	// Fresh profile fetch doubles as the header presence refresh (slice 28).
+	if prof != nil && a.selected != nil && a.selected.AccountID == k.AccountID && a.selected.ChatID == k.ChatID {
+		a.hdrPresence = prof
+	}
 	a.members = members
 	a.mediaCounts = counts
 	a.panelRecent = recent

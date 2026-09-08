@@ -193,10 +193,16 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					title, sub := "Chat", ""
+					online := false
+					var badges []hdrBadge
 					if chat != nil {
 						title = chat.Title
+						badges = headerBadges(*chat)
 						if a.stillTyping(*f.selected) {
 							sub = "typing…"
+						} else if chat.Type == engine.ChatTypeDMVal && f.hdrPresence != nil {
+							// DM peer presence (slice 28): online / last seen.
+							sub, online = presenceSubtitle(f.hdrPresence)
 						} else if chat.MemberCount > 0 {
 							sub = memberCountLabel(chat)
 						} else if chat.Type == engine.ChatTypeChanVal {
@@ -207,12 +213,19 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 					}
 					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							lbl := a.ui.H3(title)
-							return lbl.Layout(gtx)
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.H3(title)
+									return lbl.Layout(gtx)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.layoutHeaderBadges(gtx, badges)
+								}),
+							)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							lbl := a.ui.Dim(unit.Sp(12), sub)
-							if sub == "typing…" {
+							if online || sub == "typing…" {
 								lbl.Color = a.ui.p.Accent
 							}
 							return lbl.Layout(gtx)

@@ -49,6 +49,9 @@ var (
 	iconCommunicationContacts = mustIcon(icons.CommunicationContacts)
 	iconSocialGroup           = mustIcon(icons.SocialGroup)
 	iconActionSchedule        = mustIcon(icons.ActionSchedule)
+	iconActionCheckCircle     = mustIcon(icons.ActionCheckCircle)
+	iconToggleStar            = mustIcon(icons.ToggleStar)
+	iconAlertWarning          = mustIcon(icons.AlertWarning)
 )
 
 func mustIcon(data []byte) *widget.Icon {

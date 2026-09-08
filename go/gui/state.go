@@ -180,8 +180,12 @@ type App struct {
 	viewer *viewerState
 
 	// transient
-	typing   map[string]time.Time // chatKey -> last typing seen
-	notifyAt map[string]time.Time // chatKey -> last banner (throttle, slice 22)
+	typing map[string]time.Time // chatKey -> last typing seen
+
+	// header presence (AyuGram parity slice 28): live online/last-seen
+	// for the open DM peer, fed by GetUserProfile + EventUserStatus.
+	hdrPresence *engine.CachedUser
+	notifyAt    map[string]time.Time // chatKey -> last banner (throttle, slice 22)
 
 	// frame-loop-only layout bookkeeping (single GUI goroutine, no lock):
 	// message-row bounds in chat-pane coordinates for right-click hit tests,
@@ -372,6 +376,12 @@ func (a *App) onEvent(data []byte) {
 				a.mu.Unlock()
 				a.invalidate()
 			}()
+		}
+	// Header presence (slice 28): live peer status updates.
+	case engine.EventUserStatus:
+		var s engine.UserStatusEvent
+		if json.Unmarshal(env.Data, &s) == nil {
+			a.onUserStatus(env.AccountID, s)
 		}
 	case engine.EventLoginCode:
 		// auto-fill handled by the login view via auth state refresh
@@ -680,6 +690,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.cMode = composerMode{}
 	a.menu = nil
 	a.fwd = nil
+	a.hdrPresence = nil // slice 28: refetch presence for the new peer
 	a.selOn = false
 	a.sel = nil
 	a.autoDl = make(map[string]bool)
@@ -728,6 +739,11 @@ func (a *App) openChat(k chatKey, title string) {
 	a.mu.Unlock()
 	a.rowBounds = make(map[int]image.Rectangle) // stale rows from the previous chat
 	a.loadPinned(k)
+	// Header presence for DMs (slice 28): initial online/last-seen fetch.
+	// Live updates arrive via engine.EventUserStatus (see onEvent).
+	if next.Type == engine.ChatTypeDMVal && next.ChatID != "" {
+		go a.loadHdrPresence(k)
+	}
 	a.invalidate()
 	go func() {
 		msgs, err := a.eng.GetMessages(k.AccountID, k.ChatID, 0, 0, 100)
@@ -1062,6 +1078,40 @@ func (a *App) stillTyping(k chatKey) bool {
 	return ok && time.Since(t) < 4*time.Second
 }
 
+// loadHdrPresence fetches the DM peer's profile for the chat header's
+// online/last-seen line (AyuGram peer status). GetUserProfile treats the
+// DM chat id as the user id, same as the info panel.
+func (a *App) loadHdrPresence(k chatKey) {
+	p, err := a.eng.GetUserProfile(k.AccountID, k.ChatID)
+	if err != nil || p == nil {
+		return
+	}
+	a.mu.Lock()
+	if a.selected != nil && a.selected.AccountID == k.AccountID && a.selected.ChatID == k.ChatID {
+		a.hdrPresence = p
+	}
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// onUserStatus applies a live peer status event to the open chat's header
+// (engine users-table writes already happened engine-side).
+func (a *App) onUserStatus(accountID string, s engine.UserStatusEvent) {
+	a.mu.Lock()
+	if a.selected != nil && a.selected.AccountID == accountID && a.selected.ChatID == s.UserID {
+		p := a.hdrPresence
+		if p == nil {
+			p = &engine.CachedUser{AccountID: accountID, UserID: s.UserID}
+		}
+		p.IsOnline = s.IsOnline
+		p.LastSeenKind = s.LastSeenKind
+		p.LastSeen = s.LastSeen
+		a.hdrPresence = p
+	}
+	a.mu.Unlock()
+	a.invalidate()
+}
+
 // snapshot returns consistent copies for one frame. Message slices etc. are
 // copied by reference — they are only ever replaced, never mutated in place.
 func (a *App) snapshot() frame {
@@ -1075,6 +1125,7 @@ func (a *App) snapshot() frame {
 		messages:         a.messages,
 		msgFor:           a.msgFor,
 		selected:         a.selected,
+		hdrPresence:      a.hdrPresence,
 		folder:           a.folder,
 		search:           a.search,
 		searchMsgs:       a.searchMsgs,
@@ -1229,6 +1280,9 @@ type frame struct {
 	panelLoaded bool
 	panelMuted  bool
 	profile     *engine.CachedUser
+
+	// header presence (slice 28): DM peer online/last-seen for the header
+	hdrPresence *engine.CachedUser
 	members     []engine.MemberInfo
 	mediaCounts []engine.SharedMediaCountItem
 	panelRecent []engine.SharedMediaItem
