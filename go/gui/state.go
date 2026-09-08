@@ -192,6 +192,9 @@ type App struct {
 	loginCodeAt time.Time
 	notifyAt    map[string]time.Time // chatKey -> last banner (throttle, slice 22)
 
+	// spoiler reveal state (slice 32, GUI goroutine): msgID → revealed.
+	spoilerRevealed map[string]bool
+
 	// frame-loop-only layout bookkeeping (single GUI goroutine, no lock):
 	// message-row bounds in chat-pane coordinates for right-click hit tests,
 	// and the rendered context-menu rect for outside-press dismissal.
@@ -752,6 +755,7 @@ func (a *App) openChat(k chatKey, title string) {
 	}
 	a.mu.Unlock()
 	a.rowBounds = make(map[int]image.Rectangle) // stale rows from the previous chat
+	a.spoilerRevealed = nil                     // slice 32: re-hide spoilers
 	a.loadPinned(k)
 	// Header presence for DMs (slice 28): initial online/last-seen fetch.
 	// Live updates arrive via engine.EventUserStatus (see onEvent).

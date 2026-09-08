@@ -532,12 +532,22 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						if text == "" {
 							return layout.Dimensions{}
 						}
-						lbl := a.ui.Label(unit.Sp(15), text)
-						lbl.MaxLines = 30
+						// Rich text (slice 32): entity formatting + spoiler reveal.
+						// Pass the bubble color so hidden spoilers vanish into it.
+						body := *m
+						body.ContentText = text
+						bgCol := a.ui.p.BubbleIn
 						if out {
-							lbl.Color = a.ui.p.Text
+							bgCol = a.ui.p.AccentDim
+							if deleted {
+								bgCol = a.ui.p.BubbleOutDim
+							}
 						}
-						return lbl.Layout(gtx)
+						baseCol := a.ui.p.TextDim
+						if out {
+							baseCol = a.ui.p.Text
+						}
+						return a.richTextLabel(gtx, body, unit.Sp(15), baseCol, bgCol, true)
 					}),
 					// Reactions strip (AyuGram parity: emoji + count, own highlighted).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
