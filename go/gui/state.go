@@ -104,6 +104,9 @@ type App struct {
 	foldersSupported bool
 	folderDlg        *folderDlgState
 
+	// chat-row context menu (slice 8)
+	chatMenu *chatMenuTarget
+
 	// transient
 	typing map[string]time.Time // chatKey -> last typing seen
 
@@ -113,8 +116,13 @@ type App struct {
 	rowBounds      map[int]image.Rectangle
 	menuRect       image.Rectangle
 	attachMenuRect image.Rectangle
-	listTop        int // top Y of the message list within the chat pane
-	headerH        int // chat header height
+	// sidebar (chat-row menu) bookkeeping
+	chatRowBounds map[int]image.Rectangle
+	sbVisible     []engine.ChatInfo
+	sbAboveList   int
+	chatMenuRect  image.Rectangle
+	listTop       int // top Y of the message list within the chat pane
+	headerH       int // chat header height
 }
 
 func New(win *app.Window, eng *engine.Engine) *App {
@@ -511,6 +519,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.downloads = make(map[string]dlState)
 	a.panelOpen = false
 	a.attachMenuOpen = false
+	a.chatMenu = nil
 	a.profile = nil
 	a.members = nil
 	a.mediaCounts = nil
@@ -897,6 +906,7 @@ func (a *App) snapshot() frame {
 		folders:          a.folders,
 		foldersSupported: a.foldersSupported,
 		folderDlg:        a.folderDlg,
+		chatMenu:         a.chatMenu,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -971,6 +981,9 @@ type frame struct {
 	folders          []engine.FolderInfo
 	foldersSupported bool
 	folderDlg        *folderDlgState
+
+	// chat-row context menu (slice 8)
+	chatMenu *chatMenuTarget
 }
 
 var _ = op.InvalidateCmd{} // referenced in widgets that animate

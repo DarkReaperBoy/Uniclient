@@ -63,7 +63,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Row: typing preview | "typing…" animated | PRESENT | gui/sidebar.go + engine.EventTyping | P0 |
 | Row: unread reactions/mentions badge | @ badge for mentions, badge variants | CORE-ONLY (UnreadMentionCount/UnreadReactionCount CORE-ONLY) | gui/sidebar.go | P2 |
 | Stories row + rings | Horizontal story circles w/ seen/unseen rings, story counter | CORE-ONLY (engine stories: FetchPeerStories, ChatInfo.StoryCount CORE-ONLY) | new gui/stories.go | P1 |
-| Chat row context menu | Mute (1h/8h/forever), pin, archive, read/unread, add to folder, delete/leave, block | CORE-ONLY | new gui/menu.go + engine.MuteChat/PinChat/ArchiveChat/MarkChatUnread (CORE-ONLY) | P0 |
+| Chat row context menu | Mute (1h/8h/forever), pin, archive, read/unread, add to folder, delete/leave, block | PARTIAL (right-click menu: mute 1h/8h/forever/unmute, pin, mark read/unread, archive, delete — all real engine calls; add-to-folder/block later) | gui/chatmenu.go + engine MuteChat/PinChat/ArchiveChat/MarkChat(Unread)/DeleteChat | P0 |
 | Folder context menu | Edit/delete folder, hide All-chats, import filters | CORE-ONLY | engine folder CRUD (CORE-ONLY) | P2 |
 | Quick action on hover | Mute/unread toggle buttons on row hover | MISSING | gui/sidebar.go | P3 |
 | Next-unread button (↓) | Floating button jumps to next unread | MISSING | new gui/sidebar.go | P2 |

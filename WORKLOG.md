@@ -560,3 +560,18 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
   without photos / wasm (no local FS).
 - Tests: gui/avatar_test.go (square-crop math). Full gui suite green locally
   (wasm runner); windows vet + gofmt clean.
+
+## 2026-09-08 — AyuGram parity program, slice 8: chat-row context menu
+
+- `gui/chatmenu.go` (new): right-click a chat row in the sidebar for the
+  AyuGram chat menu — mute for 1 hour / 8 hours / forever / unmute, pin/unpin,
+  mark read/unread, archive/unarchive, delete chat. Every row dispatches a
+  real engine call (MuteChat with durations, PinChat, MarkChatRead/Unread,
+  ArchiveChat, DeleteChat); errors surface as toasts, successes refresh via
+  the engine's chat-update events.
+- Hit-testing mirrors the chat pane: the sidebar registers a pane-wide press
+  area (new sidebarPaneTag), per-frame chat-row bounds + visible-slice
+  bookkeeping in the sidebar layout, cursor-anchored clamped menu, outside
+  press dismisses.
+- `gui/state.go`: chatMenu state (open target, rect, row bounds). Tests:
+  gui/chatmenu_test.go (flag-driven item sets). Full suite green locally.

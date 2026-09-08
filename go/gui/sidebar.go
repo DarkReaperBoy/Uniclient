@@ -41,15 +41,31 @@ func init() {
 
 // layoutSidebar: account bar, mode tabs, search, folder tabs, chat list.
 func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dimensions {
+	// Route sidebar presses (chat-row context menu, menu dismissal).
+	a.processSidebarEvents(gtx, f)
+
 	// Pre-size the per-row clickables.
 	visible := filterChats(f)
 	for len(chatListBtns) < len(visible) {
 		chatListBtns = append(chatListBtns, widget.Clickable{})
 	}
 
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	// Reset this frame's row-bounds bookkeeping; filled by layoutChatList.
+	a.chatRowBounds = make(map[int]image.Rectangle, len(visible))
+	a.sbVisible = visible
+	a.sbAboveList = 0
+
+	record := func(fn func(gtx layout.Context) layout.Dimensions) func(gtx layout.Context) layout.Dimensions {
+		return func(gtx layout.Context) layout.Dimensions {
+			d := fn(gtx)
+			a.sbAboveList += d.Size.Y
+			return d
+		}
+	}
+
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		// Account bar (+ dropdown menu when open)
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			barFn := a.layoutAccountBar(gtx, f)
 			if !accountMenuOpen || len(f.accounts) == 0 {
 				return barFn(gtx)
@@ -60,26 +76,32 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 					return a.accountMenu(gtx, f)
 				}),
 			)
-		}),
+		})),
 		// Chat / Voice mode tabs
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutModeTabs(gtx, f)
-		}),
+		})),
 		// Search
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return insetAll(gtx, unit.Dp(8), unit.Dp(12), 4, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
 				return a.searchField(gtx, f)
 			})
-		}),
+		})),
 		// Folder tabs
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutFolders(gtx, f)
-		}),
+		})),
 		// Chat list (scrollable)
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return a.layoutChatList(gtx, f, visible)
 		}),
 	)
+
+	// Chat-row context menu on top of the sidebar.
+	if f.chatMenu != nil {
+		a.layoutChatMenu(gtx, f)
+	}
+	return dims
 }
 
 // layoutAccountBar: current account (avatar+name+conn dot) + add button +
@@ -412,11 +434,17 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 	}
 
 	list := material.List(a.ui.Theme, &sidebarChatsList)
-	return list.Layout(gtx, len(visible), func(gtx layout.Context, i int) layout.Dimensions {
+	y := a.sbAboveList - sidebarChatsList.Position.Offset
+	paneW := gtx.Constraints.Max.X
+	dims := list.Layout(gtx, len(visible), func(gtx layout.Context, i int) layout.Dimensions {
 		c := visible[i]
 		selected := f.selected != nil && f.selected.AccountID == c.AccountID && f.selected.ChatID == c.ChatID
-		return a.chatRow(gtx, f, c, selected, &chatListBtns[i])
+		d := a.chatRow(gtx, f, c, selected, &chatListBtns[i])
+		a.chatRowBounds[i] = image.Rectangle{Min: image.Pt(0, y), Max: image.Pt(paneW, y+d.Size.Y)}
+		y += d.Size.Y
+		return d
 	})
+	return dims
 }
 
 // chatRow: avatar, title, last message, time, unread badge, typing indicator.
