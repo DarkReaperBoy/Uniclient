@@ -132,6 +132,21 @@ type App struct {
 	// chat-header "..." menu (slice 15)
 	headerMenu *headerMenuTarget
 
+	// hamburger main menu (AyuGram parity slice 17): drawer, contacts
+	// sheet, new group/channel dialog, and the pending-open hop that lets
+	// goroutines schedule openChat on the GUI loop.
+	drawerOpen   bool
+	contactsOpen bool
+	contactsFor  string
+	contacts     []engine.ContactInfo
+	contactsLoad bool
+	addDlgOpen   bool
+	addDlgBusy   bool
+	newDlg       *newChatDlg
+	newDlgErr    string
+	pendingOpen  *chatKey
+	pendingTitle string
+
 	// fullscreen media viewer (AyuGram parity slice 9, §12): shared under
 	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
 	viewer *viewerState
@@ -554,6 +569,21 @@ func (a *App) removeAccount(id string) {
 		a.refreshAccounts()
 		a.refreshChats()
 	}()
+}
+
+// consumePendingOpen runs a background-scheduled openChat on the GUI loop
+// (set by the new group/channel creation flow).
+func (a *App) consumePendingOpen() {
+	a.mu.Lock()
+	k := a.pendingOpen
+	title := a.pendingTitle
+	a.pendingOpen = nil
+	a.pendingTitle = ""
+	a.mu.Unlock()
+	if k == nil {
+		return
+	}
+	a.openChat(*k, title)
 }
 
 func (a *App) openChat(k chatKey, title string) {
@@ -998,6 +1028,15 @@ func (a *App) snapshot() frame {
 		chatMenu:         a.chatMenu,
 		headerMenu:       a.headerMenu,
 		viewer:           a.viewer,
+		drawerOpen:       a.drawerOpen,
+		contactsOpen:     a.contactsOpen,
+		contactsFor:      a.contactsFor,
+		contacts:         a.contacts,
+		contactsLoad:     a.contactsLoad,
+		addDlgOpen:       a.addDlgOpen,
+		addDlgBusy:       a.addDlgBusy,
+		newDlg:           a.newDlg,
+		newDlgErr:        a.newDlgErr,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -1097,6 +1136,17 @@ type frame struct {
 
 	// chat-header "..." menu (slice 15)
 	headerMenu *headerMenuTarget
+
+	// hamburger main menu (slice 17)
+	drawerOpen   bool
+	contactsOpen bool
+	contactsFor  string
+	contacts     []engine.ContactInfo
+	contactsLoad bool
+	addDlgOpen   bool
+	addDlgBusy   bool
+	newDlg       *newChatDlg
+	newDlgErr    string
 
 	// fullscreen media viewer (slice 9)
 	viewer *viewerState

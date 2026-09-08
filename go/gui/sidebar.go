@@ -28,6 +28,7 @@ var (
 	accountMenuBtns    []widget.Clickable
 	accountMenuOpen    bool
 	accountMenuRemove  []widget.Clickable
+	sidebarMenuBtn     widget.Clickable // ☰ hamburger (drawer)
 	sidebarModeChatBtn widget.Clickable
 	sidebarModeVoiceBt widget.Clickable
 	sidebarSettingsBtn widget.Clickable
@@ -111,6 +112,15 @@ func (a *App) layoutAccountBar(gtx layout.Context, f frame) func(gtx layout.Cont
 		return layout.Inset{Top: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(8), Bottom: unit.Dp(4)}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					// ☰ hamburger: AyuGram main-menu drawer (slice 17).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if sidebarMenuBtn.Clicked(gtx) {
+							a.openDrawer()
+						}
+						btn := a.ui.IconButton(&sidebarMenuBtn, iconNavMenu, "Main menu")
+						btn.Color = a.ui.p.TextDim
+						return btn.Layout(gtx)
+					}),
 					// account switcher (opens menu)
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						current := currentAccount(f)

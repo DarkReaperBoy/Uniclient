@@ -17,6 +17,10 @@ import (
 // Root renders the whole app: welcome screen (no accounts + no auth flow),
 // or main layout (sidebar + chat view / voice view), plus toast overlay.
 func (a *App) Root(gtx layout.Context) {
+	// GUI-goroutine hop: a background goroutine scheduled a chat to open
+	// (e.g. after group/channel creation). openChat must run on this loop.
+	a.consumePendingOpen()
+
 	f := a.snapshot()
 	a.ui.paintBackground(gtx)
 
@@ -29,6 +33,9 @@ func (a *App) Root(gtx layout.Context) {
 	a.layoutMain(gtx, f)
 	if f.viewer != nil {
 		a.layoutMediaView(gtx, f)
+	}
+	if f.drawerOpen {
+		a.layoutDrawer(gtx, f)
 	}
 	a.layoutToast(gtx, f)
 }
@@ -51,6 +58,14 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 
 	if narrow {
 		// Phone layout: settings, chat list, or open chat (with back button).
+		if f.newDlg != nil {
+			a.layoutNewChatDialog(gtx, f)
+			return
+		}
+		if f.contactsOpen {
+			a.layoutContacts(gtx, f)
+			return
+		}
 		if f.folderDlg != nil {
 			a.layoutFolderDialog(gtx, f)
 			return
@@ -86,6 +101,12 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if f.auth != nil || f.showPicker {
 				return a.layoutLogin(gtx, f)
+			}
+			if f.newDlg != nil {
+				return a.layoutNewChatDialog(gtx, f)
+			}
+			if f.contactsOpen {
+				return a.layoutContacts(gtx, f)
 			}
 			if f.folderDlg != nil {
 				return a.layoutFolderDialog(gtx, f)
