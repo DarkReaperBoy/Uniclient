@@ -873,3 +873,8 @@ Stage Summary:
 ## 2026-09-09 — slice 59
 
 - **59 Accent color + font scale**: appearance page — 6 accent swatches (palette re-tint, dim blended to background, survives theme swaps) + Small/Default/Large text scale (UI.Label, clamped); persisted via the pre-existing AppConfig fields
+---
+## 2026-09-09 — slice 60
+
+- **60 Message auto-delete**: core MessagesSetHistoryTTL wrapper + engine SetChatTTL (chats.ttl_period + event); header ⋮ "Auto-delete…" dialog (Off/24h/7d/1m); profile info row; gate.sh now guards every commit (gofmt-before-add)
+- CI: s57 gofmt failure fixed (a1e839e7); s58/s59 runs in flight
