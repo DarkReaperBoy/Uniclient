@@ -163,11 +163,11 @@ func (a *App) cyclePinned() {
 	a.invalidate()
 }
 
-// jumpToMessage scrolls the message list to a message: in-window messages
-// scroll instantly; anything else loads a window around it first (engine
+// jumpToMessageAt scrolls the message list to a message: in-window messages
+// scroll instantly; anything else loads a window around tsFallback (engine
 // GetMessages beforeMs/afterMs — the jump path the pagination API was built
-// for). Runs on the GUI goroutine.
-func (a *App) jumpToMessage(msgID string) {
+// for; used by the pinned bar and search results). Runs on the GUI goroutine.
+func (a *App) jumpToMessageAt(msgID string, tsFallback int64) {
 	if msgID == "" {
 		return
 	}
@@ -188,20 +188,19 @@ func (a *App) jumpToMessage(msgID string) {
 		return
 	}
 
-	// Not in the window: find the target among pinned metadata, then load a
-	// window around its timestamp.
+	// Not in the window: prefer the pinned metadata, else the caller's
+	// timestamp (search results carry it), and load a window around it.
 	a.mu.Lock()
 	pinned := a.pinned
 	a.mu.Unlock()
-	var target *engine.CachedMessage
+	target := engine.CachedMessage{MsgID: msgID, Timestamp: tsFallback}
 	for i := range pinned {
 		if pinned[i].MsgID == msgID {
-			t := pinned[i]
-			target = &t
+			target = pinned[i]
 			break
 		}
 	}
-	if target == nil {
+	if target.Timestamp <= 0 {
 		return
 	}
 	go func() {
@@ -219,7 +218,7 @@ func (a *App) jumpToMessage(msgID string) {
 			older[i], older[j] = older[j], older[i]
 		}
 		win = append(win, older...)
-		win = append(win, *target)
+		win = append(win, target)
 		win = append(win, newer...)
 		a.mu.Lock()
 		if cur := a.selected; cur != nil && *cur == *k {
@@ -247,7 +246,7 @@ func (a *App) pinnedBar(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	if pinnedBarBtn.Clicked(gtx) {
 		if f.pinnedIdx >= 0 && f.pinnedIdx < len(f.pinned) {
-			a.jumpToMessage(f.pinned[f.pinnedIdx].MsgID)
+			a.jumpToMessageAt(f.pinned[f.pinnedIdx].MsgID, f.pinned[f.pinnedIdx].Timestamp)
 		}
 	}
 	if pinnedCycleBtn.Clicked(gtx) {

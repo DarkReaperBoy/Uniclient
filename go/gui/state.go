@@ -37,20 +37,25 @@ type App struct {
 	msgFor   *chatKey // which chat `messages` belongs to
 
 	// session state
-	selected    *chatKey
-	folder      int
-	search      string
-	mode        int               // 0 chat, 1 voice
-	auth        *engine.AuthState // login flow in progress
-	authAcct    string
-	showPicker  bool
-	acctFilter  string // "" = unified list, else filter to one account
-	toast       string
-	toastAt     time.Time
-	connecting  map[string]bool // accountID -> busy
-	sending     bool
-	loadingMsgs bool
-	loadedOlder int // how many pages loaded (scroll-up)
+	selected *chatKey
+	folder   int
+	search   string
+
+	// global search results (slice 16): message hits + server chat hits
+	searchMsgs   []engine.SearchResult
+	searchGlobal []engine.ChatInfo
+	searchFor    string
+	mode         int               // 0 chat, 1 voice
+	auth         *engine.AuthState // login flow in progress
+	authAcct     string
+	showPicker   bool
+	acctFilter   string // "" = unified list, else filter to one account
+	toast        string
+	toastAt      time.Time
+	connecting   map[string]bool // accountID -> busy
+	sending      bool
+	loadingMsgs  bool
+	loadedOlder  int // how many pages loaded (scroll-up)
 
 	// message-action state (AyuGram parity §1.11: reply/edit composer modes,
 	// context menu, forward picker, reactions).
@@ -937,6 +942,9 @@ func (a *App) snapshot() frame {
 		selected:         a.selected,
 		folder:           a.folder,
 		search:           a.search,
+		searchMsgs:       a.searchMsgs,
+		searchGlobal:     a.searchGlobal,
+		searchFor:        a.searchFor,
 		mode:             a.mode,
 		auth:             a.auth,
 		authAcct:         a.authAcct,
@@ -1003,23 +1011,27 @@ func (a *App) snapshot() frame {
 
 // frame is an immutable per-frame snapshot.
 type frame struct {
-	showPicker  bool
-	acctFilter  string
-	accounts    []engine.AccountInfo
-	chats       []engine.ChatInfo
-	messages    []engine.CachedMessage
-	msgFor      *chatKey
-	selected    *chatKey
-	folder      int
-	search      string
-	mode        int
-	auth        *engine.AuthState
-	authAcct    string
-	toast       string
-	toastAt     time.Time
-	connecting  map[string]bool
-	sending     bool
-	loadingMsgs bool
+	showPicker bool
+	acctFilter string
+	accounts   []engine.AccountInfo
+	chats      []engine.ChatInfo
+	messages   []engine.CachedMessage
+	msgFor     *chatKey
+	selected   *chatKey
+	folder     int
+	search     string
+
+	searchMsgs   []engine.SearchResult
+	searchGlobal []engine.ChatInfo
+	searchFor    string
+	mode         int
+	auth         *engine.AuthState
+	authAcct     string
+	toast        string
+	toastAt      time.Time
+	connecting   map[string]bool
+	sending      bool
+	loadingMsgs  bool
 	// message-action surface
 	cMode        composerMode
 	menu         *menuTarget

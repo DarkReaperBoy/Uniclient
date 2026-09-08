@@ -392,6 +392,12 @@ func (a *App) layoutFolders(gtx layout.Context, f frame) layout.Dimensions {
 
 var folderBtns []widget.Clickable
 
+// search-result row clickables (slice 16).
+var (
+	searchMsgBtns    []widget.Clickable
+	searchGlobalBtns []widget.Clickable
+)
+
 // filterChats applies folder + search.
 func filterChats(f frame) []engine.ChatInfo {
 	q := strings.ToLower(strings.TrimSpace(f.search))
@@ -444,6 +450,52 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 			a.mu.Unlock()
 			a.openChat(k, c.Title)
 		}
+	}
+
+	// Global search: message + server-chat result sections under the local
+	// matches (slice 16).
+	global := searchGlobalScope(f.searchGlobal, f.acctFilter)
+	rows := buildSearchRows(visible, f.searchMsgs, global, f.acctFilter)
+	if len(rows) != len(visible) {
+		growClickables(&searchMsgBtns, len(f.searchMsgs))
+		growClickables(&searchGlobalBtns, len(global))
+		for i := range f.searchMsgs {
+			if searchMsgBtns[i].Clicked(gtx) {
+				r := f.searchMsgs[i]
+				a.openSearchResult(r)
+			}
+		}
+		for i := range global {
+			if searchGlobalBtns[i].Clicked(gtx) {
+				c := global[i]
+				a.openGlobalResult(c)
+			}
+		}
+		list := material.List(a.ui.Theme, &sidebarChatsList)
+		y := a.sbAboveList - sidebarChatsList.Position.Offset
+		paneW := gtx.Constraints.Max.X
+		chatIdx := 0
+		dims := list.Layout(gtx, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
+			r := rows[i]
+			var d layout.Dimensions
+			switch r.kind {
+			case sbRowHeader:
+				d = a.searchSectionHeader(gtx, r.title)
+			case sbRowChat:
+				c := visible[r.chatIdx]
+				selected := f.selected != nil && f.selected.AccountID == c.AccountID && f.selected.ChatID == c.ChatID
+				d = a.chatRow(gtx, f, c, selected, &chatListBtns[r.chatIdx])
+				a.chatRowBounds[r.chatIdx] = image.Rectangle{Min: image.Pt(0, y), Max: image.Pt(paneW, y+d.Size.Y)}
+				chatIdx++
+			case sbRowMsg:
+				d = a.searchMsgRow(gtx, &searchMsgBtns[r.listIdx], *r.msg)
+			case sbRowGlobal:
+				d = a.searchGlobalRow(gtx, &searchGlobalBtns[r.listIdx], *r.gchat, platformOf(f, r.gchat.AccountID))
+			}
+			y += d.Size.Y
+			return d
+		})
+		return dims
 	}
 
 	list := material.List(a.ui.Theme, &sidebarChatsList)

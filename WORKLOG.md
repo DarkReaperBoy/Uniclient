@@ -706,3 +706,22 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - Tests: gui/headermenu_test.go (DM/group/channel item sets, mute label
   swap, blocked-state label, confirm copy). Full suite green under
   node+wasm; windows + wasm builds clean.
+
+## 2026-09-08 — AyuGram parity program, slice 16: global search
+
+- `gui/search.go` (new): while the sidebar search has ≥2 runes, the chat
+  list grows a search row model — [Chats local matches] [Messages:
+  cross-account FTS5 hits (engine.SearchMessages, 30)] [Global results:
+  per-account server chats (engine.SearchGlobalChats, 8/account, scoped by
+  the account filter)]. Message rows show chat/sender + snippet + time and
+  open the chat, jumping to the message (jumpToMessageAt now takes a
+  timestamp fallback so out-of-window search targets reload a window around
+  themselves — same path the pinned bar uses). Global rows open through the
+  engine's cache-then-core fallback. Stale async runs are dropped by query
+  comparison; short queries clear synchronously.
+- `gui/sidebar.go`: searchField ChangeEvents trigger onSearchChanged;
+  layoutChatList renders the mixed row model (chat-row bounds stay keyed to
+  visible chats for the context menu).
+- Tests: gui/search_test.go (row model shape, global scope filter, short
+  query clears). Full suite green under node+wasm; windows + wasm builds
+  clean.
