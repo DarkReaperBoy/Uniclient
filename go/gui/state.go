@@ -172,7 +172,8 @@ type App struct {
 	viewer *viewerState
 
 	// transient
-	typing map[string]time.Time // chatKey -> last typing seen
+	typing   map[string]time.Time // chatKey -> last typing seen
+	notifyAt map[string]time.Time // chatKey -> last banner (throttle, slice 22)
 
 	// frame-loop-only layout bookkeeping (single GUI goroutine, no lock):
 	// message-row bounds in chat-pane coordinates for right-click hit tests,
@@ -386,6 +387,15 @@ func (a *App) onEvent(data []byte) {
 }
 
 func (a *App) onMessageEvent(typ, accountID string, data json.RawMessage) {
+	// Desktop notifications (slice 22): gate + banner on every incoming
+	// message, regardless of which chat (if any) is open.
+	if typ == engine.EventMsgReceived {
+		var ev engine.MsgReceivedEvent
+		if json.Unmarshal(data, &ev) == nil && ev.AccountID == accountID {
+			a.maybeNotify(ev)
+		}
+	}
+
 	a.mu.Lock()
 	k := a.msgFor
 	open := k != nil
