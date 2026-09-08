@@ -2,12 +2,16 @@ package gui
 
 import (
 	"image"
+	"log"
+	"strings"
 
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+
+	"uniclient/engine"
 )
 
 // Emoji picker (AyuGram parity §4 "composer helpers" / top-gap #15): the 😊
@@ -91,6 +95,7 @@ var (
 	emojiBtn       widget.Clickable // the 😊 composer toggle
 	emojiBackspace widget.Clickable
 	emojiCellBtns  []widget.Clickable
+	emojiSearchEd  widget.Editor // panel search (keyword -> emoji, slice 50)
 	emojiTabBtns   []widget.Clickable
 )
 
@@ -165,13 +170,114 @@ func (a *App) emojiBackspaceAt() {
 	a.invalidate()
 }
 
+// ── emoji search (AyuGram keyword search, slice 50) ────────────────────────
+
+// filterEmojiByKeyword (pure, testable): emojis matching a keyword query —
+// case-insensitive substring over the engine keyword list (Telegram
+// MessagesGetEmojiKeywords: keyword -> emoticons/emojis), deduped, capped.
+func filterEmojiByKeyword(kws []engine.EmojiKeywordEntry, q string, cap int) []string {
+	q = strings.ToLower(strings.TrimSpace(q))
+	if q == "" || len(kws) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, 64)
+	out := make([]string, 0, 32)
+	for _, kw := range kws {
+		if !strings.Contains(strings.ToLower(kw.Keyword), q) {
+			continue
+		}
+		for _, e := range kw.Emoticons {
+			if e == "" {
+				continue
+			}
+			if _, dup := seen[e]; dup {
+				continue
+			}
+			seen[e] = struct{}{}
+			out = append(out, e)
+			if len(out) >= cap {
+				return out
+			}
+		}
+	}
+	return out
+}
+
+// emojiKeywords returns the cached keyword list (nil until fetched).
+func (a *App) emojiKeywords() []engine.EmojiKeywordEntry {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.emojiKws
+}
+
+// emojiKeywordsLoaded reports whether the keyword map arrived.
+func (a *App) emojiKeywordsLoaded() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.emojiKwsLoaded
+}
+
+// ensureEmojiKeywords fetches the keyword map once (best-effort; failures
+// leave the panel as the plain category grid).
+func (a *App) ensureEmojiKeywords(accountID string) {
+	if accountID == "" {
+		return
+	}
+	a.mu.Lock()
+	if a.emojiKwsLoaded || a.emojiKwsFetching {
+		a.mu.Unlock()
+		return
+	}
+	a.emojiKwsFetching = true
+	a.mu.Unlock()
+
+	go func() {
+		kws, err := a.eng.GetEmojiKeywords(accountID, "en")
+		a.mu.Lock()
+		a.emojiKwsFetching = false
+		if err == nil && kws != nil {
+			a.emojiKws = kws.Keywords
+			a.emojiKwsLoaded = true
+		}
+		a.mu.Unlock()
+		if err != nil {
+			log.Printf("gui: emoji keywords: %v", err)
+		}
+		a.invalidate()
+	}()
+}
+
 // ── layout ────────────────────────────────────────────────────────────────
 
 // layoutEmojiPanel renders the category-tabbed emoji grid above the composer.
 // Records its rect for outside-press dismissal (menu.go onPanePress).
 func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 	cat := emojiCategorySafe(f.emojiTab)
-	n := len(cat.emojis)
+
+	// Search (slice 50): while the field has a query the grid shows keyword
+	// matches from the engine (Telegram emoji keywords), fetched lazily.
+	query := strings.TrimSpace(emojiSearchEd.Text())
+	var results []string
+	searching := len([]rune(query)) >= 2
+	if searching {
+		acc := ""
+		if f.selected != nil {
+			acc = f.selected.AccountID
+		} else if len(f.accounts) > 0 {
+			acc = f.accounts[0].ID
+		}
+		a.ensureEmojiKeywords(acc)
+		results = filterEmojiByKeyword(a.emojiKeywords(), query, 64)
+	}
+
+	emojis := cat.emojis
+	if searching {
+		emojis = results
+	}
+	n := len(emojis)
+	if n < 1 {
+		n = 1
+	}
 	growClickables(&emojiCellBtns, n)
 	growClickables(&emojiTabBtns, len(emojiCategories))
 
@@ -200,6 +306,18 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 	gtx.Constraints = layout.Constraints{Max: image.Pt(panelW, panelH), Min: image.Pt(panelW, panelH)}
 	return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			// Search row (AyuGram emoji search, slice 50).
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							ed := a.ui.Editor(&emojiSearchEd, "Search emoji")
+							ed.TextSize = unit.Sp(13)
+							return ed.Layout(gtx)
+						})
+					})
+				})
+			}),
 			// Tab row.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(44))
@@ -238,13 +356,23 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.ui.Divider(gtx)
 			}),
-			// Grid.
+			// Grid (search results while querying, categories otherwise).
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				if searching && len(results) == 0 {
+					return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						note := "Searching…"
+						if a.emojiKeywordsLoaded() {
+							note = "No emoji found"
+						}
+						lbl := a.ui.Dim(unit.Sp(12), note)
+						return lbl.Layout(gtx)
+					})
+				}
 				rows := emojiRowCount(n, cols)
 				emojiList.Axis = layout.Vertical
 				gl := material.List(a.ui.Theme, &emojiList)
 				return gl.Layout(gtx, rows, func(gtx layout.Context, r int) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, cellsForRow(cat.emojis, r*cols, cols, func(gtx layout.Context, idx int, e string) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, cellsForRow(emojis, r*cols, cols, func(gtx layout.Context, idx int, e string) layout.Dimensions {
 						btn := &emojiCellBtns[idx]
 						if btn.Clicked(gtx) {
 							a.insertEmoji(e)

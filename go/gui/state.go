@@ -175,6 +175,12 @@ type App struct {
 	// who-reacted dialog (slice 49)
 	reactors *reactorsState
 
+	// emoji keyword search (slice 50): Telegram emoji keywords, fetched
+	// once per session for the emoji panel's search field.
+	emojiKws         []engine.EmojiKeywordEntry
+	emojiKwsLoaded   bool
+	emojiKwsFetching bool
+
 	// per-message silent sends (AyuGram 🔕, slice 23): sticky toggle
 	silentNext bool
 
