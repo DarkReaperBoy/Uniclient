@@ -37,14 +37,17 @@ var chatPaneTag = new(struct{})
 // menuTarget is an open context menu: the message it acts on (a copy) and
 // the anchor position in chat-pane coordinates.
 type menuTarget struct {
-	msg engine.CachedMessage
-	pos image.Point
+	msg    engine.CachedMessage
+	pos    image.Point
+	picker bool // full reaction-grid mode (slice 55)
 }
 
 // menu button pools (grown per frame, repo style).
 var (
 	menuBtns      []widget.Clickable // action rows
 	menuReactBtns []widget.Clickable // quick-reaction pills
+	menuPickBtns  []widget.Clickable // full-picker grid cells (slice 55)
+	reactList     widget.List        // picker grid scroller
 	fwdChatBtns   []widget.Clickable // forward picker rows
 	fwdCancelBtn  widget.Clickable
 	chipCancelBtn widget.Clickable // reply/edit header close
@@ -315,18 +318,20 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 // position, clamped to the pane. Called after the chat content so it draws
 // on top. Records the rendered rect for outside-press dismissal.
 func (a *App) layoutContextMenu(gtx layout.Context, f frame) layout.Dimensions {
+	if f.menu.picker {
+		return a.layoutReactionPicker(gtx, f)
+	}
 	m := f.menu.msg
 	items := a.menuActionsFor(f, m)
 
 	reacts := f.availEmojis
 	acts := actionsFor(&m, f.menuCaps)
-	nReact := 0
+	var quick []string
+	var more bool
 	if acts.React {
-		nReact = len(reacts)
-		if nReact > 8 {
-			nReact = 8 // top row only, AyuGram quick-reactions bar
-		}
+		quick, more = quickReactions(reacts)
 	}
+	nReact := len(quick)
 	growClickables(&menuBtns, len(items))
 	growClickables(&menuReactBtns, nReact)
 
@@ -363,7 +368,7 @@ func (a *App) layoutContextMenu(gtx layout.Context, f frame) layout.Dimensions {
 	var children []layout.FlexChild
 	if nReact > 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.menuReactionsRow(gtx, f, reacts[:nReact], &m)
+			return a.menuReactionsRow(gtx, f, quick, more, &m)
 		}))
 	}
 	for i := range items {
@@ -378,12 +383,24 @@ func (a *App) layoutContextMenu(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// menuReactionsRow renders the quick-reaction pills (emoji buttons).
-func (a *App) menuReactionsRow(gtx layout.Context, f frame, emojis []string, m *engine.CachedMessage) layout.Dimensions {
+// quickReactions splits the available reactions into the quick bar
+// (max 7 pills) and whether more exist for the expandable picker.
+func quickReactions(reacts []string) ([]string, bool) {
+	if len(reacts) > 7 {
+		return reacts[:7], true
+	}
+	return reacts, false
+}
+
+// menuReactionsRow renders the quick-reaction pills (emoji buttons) and,
+// when more reactions exist, the ⋯ toggle that swaps the menu into the
+// full picker (AyuGram quick bar + expandable grid).
+func (a *App) menuReactionsRow(gtx layout.Context, f frame, emojis []string, more bool, m *engine.CachedMessage) layout.Dimensions {
+	growClickables(&menuReactBtns, len(emojis)+1)
 	return layout.Inset{
 		Top: unit.Dp(8), Bottom: unit.Dp(4), Left: unit.Dp(8), Right: unit.Dp(8),
 	}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		children := make([]layout.FlexChild, 0, len(emojis))
+		children := make([]layout.FlexChild, 0, len(emojis)+1)
 		for i, emoji := range emojis {
 			i, emoji := i, emoji
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -406,7 +423,122 @@ func (a *App) menuReactionsRow(gtx layout.Context, f frame, emojis []string, m *
 				return b.Layout(gtx)
 			}))
 		}
+		if more {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				btn := &menuReactBtns[len(emojis)]
+				if btn.Clicked(gtx) {
+					a.openReactionPicker()
+				}
+				b := material.Button(a.ui.Theme, btn, "â¯")
+				b.Background = a.ui.p.Surface
+				b.Color = a.ui.p.TextFaint
+				b.TextSize = unit.Sp(16)
+				b.CornerRadius = 14
+				b.Inset = layout.UniformInset(unit.Dp(5))
+				return b.Layout(gtx)
+			}))
+		}
 		return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx, children...)
+	})
+}
+
+// openReactionPicker swaps the open message menu into the full picker.
+func (a *App) openReactionPicker() {
+	a.mu.Lock()
+	if a.menu != nil {
+		a.menu.picker = true
+	}
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// layoutReactionPicker: the full reaction grid (AyuGram expandable
+// picker) — every available reaction in an 8-column scrollable grid,
+// anchored at the message menu position. Tapping reacts and closes;
+// outside-press and Esc keep the menu dismissal paths (menuRect).
+func (a *App) layoutReactionPicker(gtx layout.Context, f frame) layout.Dimensions {
+	m := f.menu.msg
+	emojis := f.availEmojis
+	n := len(emojis)
+	growClickables(&menuPickBtns, n)
+
+	const cols = 8
+	const cellDp = unit.Dp(34)
+	menuW := gtx.Dp(unit.Dp(236))
+	rows := emojiRowCount(n, cols)
+	maxRows := 5
+	if rows > maxRows {
+		rows = maxRows
+	}
+	if rows < 1 {
+		rows = 1
+	}
+	cellPx := gtx.Dp(cellDp)
+	h := gtx.Dp(unit.Dp(30)) + rows*cellPx + gtx.Dp(unit.Dp(10))
+
+	pos := f.menu.pos
+	paneW, paneH := gtx.Constraints.Max.X, gtx.Constraints.Max.Y
+	if pos.X+menuW > paneW {
+		pos.X = paneW - menuW
+	}
+	if pos.X < 0 {
+		pos.X = 0
+	}
+	if pos.Y+h > paneH {
+		pos.Y = paneH - h
+	}
+	if pos.Y < 0 {
+		pos.Y = 0
+	}
+	a.menuRect = image.Rect(pos.X, pos.Y, pos.X+menuW, pos.Y+h)
+
+	defer op.Offset(pos).Push(gtx.Ops).Pop()
+	gtx.Constraints = layout.Constraints{Max: image.Pt(menuW, h), Min: image.Pt(menuW, h)}
+	return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					lbl := a.ui.Dim(unit.Sp(11), "Reactions")
+					lbl.Color = a.ui.p.TextFaint
+					return lbl.Layout(gtx)
+				})
+			}),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				reactList.Axis = layout.Vertical
+				lt := material.List(a.ui.Theme, &reactList)
+				return lt.Layout(gtx, emojiRowCount(len(emojis), cols), func(gtx layout.Context, row int) layout.Dimensions {
+					children := make([]layout.FlexChild, 0, cols)
+					for c := 0; c < cols; c++ {
+						idx := row*cols + c
+						if idx >= len(emojis) {
+							break
+						}
+						idx, emoji := idx, emojis[idx]
+						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							btn := &menuPickBtns[idx]
+							if btn.Clicked(gtx) {
+								msg, emoji := m, emoji
+								go func() {
+									if err := a.eng.ReactToMessage(msg.AccountID, msg.ChatID, msg.MsgID, emoji); err != nil {
+										a.setToast("React failed: " + err.Error())
+									}
+								}()
+								a.closeMenu()
+							}
+							b := material.Button(a.ui.Theme, btn, emoji)
+							b.Background = a.ui.p.Surface
+							b.Color = a.ui.p.Text
+							b.TextSize = unit.Sp(17)
+							b.CornerRadius = 10
+							b.Inset = layout.UniformInset(unit.Dp(4))
+							gtx.Constraints.Min = image.Point{}
+							return b.Layout(gtx)
+						}))
+					}
+					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
+				})
+			}),
+		)
 	})
 }
 
