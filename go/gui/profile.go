@@ -254,6 +254,9 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									return layout.Inset{Right: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+										if f.cfg.Streamer {
+											return a.personAvatar(gtx, unit.Dp(46))
+										}
 										return a.ui.Avatar(gtx, title, unit.Dp(46), dotNone)
 									})
 								}),
@@ -261,6 +264,9 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 									return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 											lbl := a.ui.H3(title)
+											if f.cfg.Streamer {
+												return a.masked(gtx, lbl.Layout)
+											}
 											return lbl.Layout(gtx)
 										}),
 										layout.Rigid(func(gtx layout.Context) layout.Dimensions {

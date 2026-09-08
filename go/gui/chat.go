@@ -190,7 +190,7 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 					}
 					return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						if chat != nil {
-							return a.chatAvatar(gtx, *chat, unit.Dp(40), dotNone)
+							return a.streamerAvatar(gtx, f, *chat, unit.Dp(40), dotNone)
 						}
 						return a.ui.Avatar(gtx, title, unit.Dp(40), dotNone)
 					})
@@ -220,6 +220,9 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									lbl := a.ui.H3(title)
+									if f.cfg.Streamer {
+										return a.masked(gtx, lbl.Layout)
+									}
 									return lbl.Layout(gtx)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -231,6 +234,11 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 							lbl := a.ui.Dim(unit.Sp(12), sub)
 							if online || sub == "typing…" {
 								lbl.Color = a.ui.p.Accent
+								return lbl.Layout(gtx)
+							}
+							// presence leaks identity — mask in streamer mode
+							if f.cfg.Streamer {
+								return a.masked(gtx, lbl.Layout)
 							}
 							return lbl.Layout(gtx)
 						}),
@@ -499,12 +507,16 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		return roundedFill(gtx, bg, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					// Forwarded-from header (AyuGram: "Forwarded from X").
+					// Forwarded-from header (AyuGram: "Forwarded from X"),
+					// masked in streamer mode (slice 44).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if m.ForwardFrom == "" {
 							return layout.Dimensions{}
 						}
 						lbl := a.ui.Dim(unit.Sp(12), "Forwarded from "+m.ForwardFrom)
+						if f.cfg.Streamer {
+							return a.masked(gtx, lbl.Layout)
+						}
 						return layout.Inset{Bottom: unit.Dp(3)}.Layout(gtx, lbl.Layout)
 					}),
 					// Poll (AyuGram parity, slice 42): question + tappable
@@ -525,9 +537,9 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						if m.ReplyPreview == "" {
 							return layout.Dimensions{}
 						}
-						return a.replyQuote(gtx, *m, *f.msgFor)
+						return a.replyQuote(gtx, f, *m, *f.msgFor)
 					}),
-					// sender name in group chats
+					// sender name in group chats (masked in streamer mode)
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if out || m.SenderName == "" || m.IsService {
 							return layout.Dimensions{}
@@ -535,6 +547,9 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						lbl := a.ui.Label(unit.Sp(13), m.SenderName)
 						lbl.Color = a.ui.p.Accent
 						lbl.Font.Weight = font.SemiBold
+						if f.cfg.Streamer {
+							return a.masked(gtx, lbl.Layout)
+						}
 						return lbl.Layout(gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -625,7 +640,7 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 
 // replyQuote renders the quoted reply block inside a bubble. The cached
 // preview is "sender\ntext" or plain "text" (AyuGram quoted bar).
-func (a *App) replyQuote(gtx layout.Context, m engine.CachedMessage, k chatKey) layout.Dimensions {
+func (a *App) replyQuote(gtx layout.Context, f frame, m engine.CachedMessage, k chatKey) layout.Dimensions {
 	sender, body := m.ReplyPreview, m.ReplyPreview
 	if i := strings.IndexByte(m.ReplyPreview, '\n'); i >= 0 {
 		sender, body = m.ReplyPreview[:i], m.ReplyPreview[i+1:]
@@ -645,6 +660,9 @@ func (a *App) replyQuote(gtx layout.Context, m engine.CachedMessage, k chatKey) 
 							lbl := a.ui.Label(unit.Sp(12), sender)
 							lbl.Color = a.ui.p.Accent
 							lbl.MaxLines = 1
+							if f.cfg.Streamer {
+								return a.masked(gtx, lbl.Layout)
+							}
 							return lbl.Layout(gtx)
 						}))
 					}

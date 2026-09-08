@@ -679,6 +679,9 @@ type ConfigChanges struct {
 
 	// Drawer customization (Ayu): ids of hidden drawer rows. Nil = unchanged.
 	DrawerHiddenItems []string
+
+	// Streamer mode (Ayu): blur names/photos in the UI. Nil = unchanged.
+	StreamerMode *bool
 }
 
 // UpdateConfigFromBridge applies partial config changes from the bridge layer.
@@ -707,6 +710,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.DrawerHiddenItems != nil {
 		e.config.DrawerHiddenItems = changes.DrawerHiddenItems
+	}
+	if changes.StreamerMode != nil {
+		e.config.StreamerMode = *changes.StreamerMode
 	}
 	if changes.SendReadReceipts != nil {
 		e.config.SendReadReceipts = *changes.SendReadReceipts

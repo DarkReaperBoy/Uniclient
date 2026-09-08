@@ -564,7 +564,7 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.chatAvatar(gtx, c, unit.Dp(46), dotNone)
+							return a.streamerAvatar(gtx, f, c, unit.Dp(46), dotNone)
 						})
 					}),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -572,9 +572,7 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 									layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-										lbl := a.ui.Label(unit.Sp(15), c.Title)
-										lbl.MaxLines = 1
-										return lbl.Layout(gtx)
+										return a.streamerTitle(gtx, f, c.Title, unit.Sp(15))
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										return a.rowMetaIcons(gtx, f, c)

@@ -231,7 +231,7 @@ P2 = settings/extras, P3 = rare/edge.
 | LRead / SRead drawer toggles | Local-read vs send-read quick toggles | CORE-ONLY (MarkChatRead ghost-aware; SetAccountGhost exists; no toggles) | gui/menu.go + engine.SetAccountGhost/GhostFor | P1 |
 | Anti-recall (save deleted) | Deleted msgs kept, semi-transparent + custom mark, clear per chat | PARTIAL (GUI renders "— deleted" text; engine SetAntiRecallSettings/GetDeletedMessages CORE-ONLY; no Ayu styling/marks) | gui/chat.go + engine | P1 |
 | Message edit history | Revisions viewer | CORE-ONLY | engine.GetEditRevisions (CORE-ONLY) | P2 |
-| Streamer mode | Blur names/photos on stream, tray toggle | MISSING (no core equivalent) | new engine flag + gui overlay | P2 |
+| Streamer mode | Blur names/photos on stream, tray toggle | PARTIAL (slice 44: drawer toggle persisted in vault config (streamer_mode, engine ConfigChanges); masked chat titles, header titles+presence, sender names, forward headers, reply-quote senders, profile names; avatars fall back to a neutral person glyph; tray toggle later) | gui/streamer.go + utils AppConfig.StreamerMode | P2 |
 | Local Telegram Premium | Unlock premium perks locally | MISSING | engine premium APIs exist; local-premium flag new | P3 |
 | Ayu translator | Provider-based inline translation | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
 | Message shot | Export a message screenshot as image | MISSING (no core; needs renderer) | gui render-to-image | P3 |

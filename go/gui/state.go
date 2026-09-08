@@ -945,6 +945,7 @@ type cfgSnapshot struct {
 	NotifyMentionsOnly     bool
 	RecentSearches         []string
 	DrawerHidden           []string
+	Streamer               bool
 }
 
 // notifyAcctState carries per-account notification behavior for the page.
@@ -1000,6 +1001,7 @@ func (a *App) refreshConfig() {
 		NotifyMentionsOnly:     c.NotifyMentionsOnly,
 		RecentSearches:         c.RecentSearches,
 		DrawerHidden:           c.DrawerHiddenItems,
+		Streamer:               c.StreamerMode,
 	}
 	a.mu.Lock()
 	a.cfg = snap

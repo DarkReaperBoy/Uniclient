@@ -46,6 +46,9 @@ type AppConfig struct {
 	// Search
 	RecentSearches []string `json:"recent_searches,omitempty"` // last 8 queries
 
+	// Streamer mode (Ayu): blur names and photos in the UI for streams.
+	StreamerMode bool `json:"streamer_mode"`
+
 	// Drawer customization (Ayu "drawer" menu): ids of hidden rows.
 	DrawerHiddenItems []string `json:"drawer_hidden_items,omitempty"`
 

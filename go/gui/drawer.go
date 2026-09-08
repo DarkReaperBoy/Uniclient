@@ -38,8 +38,10 @@ var (
 	drawerSavedBtn   widget.Clickable // Saved messages
 	drawerNight      = new(widget.Bool)
 	drawerGhost      = new(widget.Bool)
+	drawerStreamer   = new(widget.Bool)
 	drawerNightSync  bool
 	drawerGhostSync  bool
+	drawerStreamSync bool
 	drawerList       widget.List
 )
 
@@ -65,6 +67,7 @@ func (a *App) openDrawer() {
 	accountMenuOpen = false
 	drawerNightSync = false // resync switches from the config snapshot
 	drawerGhostSync = false
+	drawerStreamSync = false
 	a.invalidate()
 }
 
@@ -255,7 +258,11 @@ func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 		drawerGhost.Value = ghostAllOn(f.cfg)
 		drawerGhostSync = true
 	}
-	prevNight, prevGhost := drawerNight.Value, drawerGhost.Value
+	if !drawerStreamSync {
+		drawerStreamer.Value = f.cfg.Streamer
+		drawerStreamSync = true
+	}
+	prevNight, prevGhost, prevStreamer := drawerNight.Value, drawerGhost.Value, drawerStreamer.Value
 
 	children := a.drawerChildren(f, current)
 	dims := layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -269,6 +276,9 @@ func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	if drawerGhost.Value != prevGhost {
 		a.setGhostAll(drawerGhost.Value)
+	}
+	if drawerStreamer.Value != prevStreamer {
+		a.applyStreamer(drawerStreamer.Value)
 	}
 	return dims
 }
@@ -286,13 +296,16 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return layout.Inset{Right: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									return a.accountAvatar(gtx, current, unit.Dp(42), connDotFor(current))
+									return a.streamerAccountAvatar(gtx, f, current, unit.Dp(42), connDotFor(current))
 								})
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										lbl := a.ui.H3(accountName(current))
+										if f.cfg.Streamer {
+											return a.masked(gtx, lbl.Layout)
+										}
 										return lbl.Layout(gtx)
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -342,6 +355,9 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 	}
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 		return a.drawerSwitchRow(gtx, iconImagePalette, "Night mode", drawerNight)
+	})
+	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+		return a.drawerSwitchRow(gtx, iconAVPlayCircle, "Streamer mode", drawerStreamer)
 	})
 
 	rows = append(rows, a.drawerDividerRow())
