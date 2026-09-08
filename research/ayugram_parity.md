@@ -59,7 +59,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Row: verified/scam/fake badges | Icon next to title | CORE-ONLY (fields exist: IsVerified/IsScam/IsFake) | gui/sidebar.go + ChatInfo fields | P1 |
 | Row: muted/pin/unread-mark icons | Icons right of time, muted badge style | PARTIAL (gray badge; no mute/pin icons, no UnreadMark) | gui/sidebar.go | P1 |
 | Row: draft preview | "Draft: …" when unsent | CORE-ONLY (SaveDraft + DraftText CORE-ONLY) | gui/sidebar.go + engine.SaveDraft | P2 |
-| Row: media preview + "Photo"/"Voice" labels | Thumb + typed last-message labels | CORE-ONLY (LastMsgMediaType/ThumbB64 CORE-ONLY) | gui/sidebar.go previewText | P1 |
+| Row: media preview + "Photo"/"Voice" labels | Thumb + typed last-message labels | PARTIAL (typed labels done via engine.MediaPreviewLabel; sidebar thumbs later) | gui/sidebar.go previewText | P1 |
 | Row: typing preview | "typing…" animated | PRESENT | gui/sidebar.go + engine.EventTyping | P0 |
 | Row: unread reactions/mentions badge | @ badge for mentions, badge variants | CORE-ONLY (UnreadMentionCount/UnreadReactionCount CORE-ONLY) | gui/sidebar.go | P2 |
 | Stories row + rings | Horizontal story circles w/ seen/unseen rings, story counter | CORE-ONLY (engine stories: FetchPeerStories, ChatInfo.StoryCount CORE-ONLY) | new gui/stories.go | P1 |
@@ -130,11 +130,11 @@ P2 = settings/extras, P3 = rare/edge.
 
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
-| Photo | Image bubble, caption, tap→viewer | CORE-ONLY (CachedMessage media fields + engine media pipeline CORE-ONLY) | gui/chat.go + engine.RequestDownload | P0 |
-| Video / video-note (round) | Player bubble w/ cover, round crop | CORE-ONLY | engine media (CORE-ONLY) | P1 |
-| Voice message | Waveform bubble, play, speed, transcribe | CORE-ONLY | engine media + TranscribeAudio (CORE-ONLY) | P1 |
-| Audio file | Music player bubble (title/artist, seek) | CORE-ONLY | engine media (CORE-ONLY) | P2 |
-| Document/file | Filename, size, progress download bar | CORE-ONLY (MediaDownloadState + download events exist CORE-ONLY) | gui/chat.go + engine.EventDownloadProgress | P0 |
+| Photo | Image bubble, caption, tap→viewer | PARTIAL (bubble: inline thumb → auto-download → full image; caption; viewer later) | gui/media.go photoBubble | P0 |
+| Video / video-note (round) | Player bubble w/ cover, round crop | PARTIAL (thumb + play badge + duration pill; round-crop notes; player later) | gui/media.go videoBubble | P1 |
+| Voice message | Waveform bubble, play, speed, transcribe | PARTIAL (play badge + duration/size bubble, tap downloads; playback/waveform later) | gui/media.go voiceBubble | P1 |
+| Audio file | Music player bubble (title/artist, seek) | PARTIAL (title/duration/size row; playback later) | gui/media.go audioBubble | P2 |
+| Document/file | Filename, size, progress download bar | PARTIAL (file row + live byte counter + progress bar + tap/cancel/retry) | gui/media.go fileBubble + downloadRow | P0 |
 | Sticker (animated) | Big transparent sticker, tap = reaction | CORE-ONLY | engine sticker files (CORE-ONLY) | P1 |
 | Animated custom emoji | Inline animated emoji | CORE-ONLY | engine.GetCustomEmojiFiles (CORE-ONLY) | P2 |
 | Poll | Question+options, vote, results bars, retract | CORE-ONLY | engine.CreatePoll/VotePoll/VotePollMulti/RetractPollVote/StopPoll (all CORE-ONLY) | P1 |

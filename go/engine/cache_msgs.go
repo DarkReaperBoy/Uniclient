@@ -534,17 +534,27 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 	}
 
 	// Auto-populate reply preview from cache if the core didn't provide one.
+	// Media-only targets quote as "Photo" / "Voice message" (AyuGram).
 	if msg.ReplyToID != "" && msg.ReplyPreview == "" {
 		var sn, ct sql.NullString
+		var hasMedia int
+		var mediaType sql.NullInt64
 		e.db.QueryRow(
-			`SELECT sender_name, content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+			`SELECT sender_name, content_text, has_media,
+				(SELECT media_type FROM media WHERE account_id = messages.account_id AND chat_id = messages.chat_id AND msg_id = messages.msg_id AND seq = 0 LIMIT 1)
+			 FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
 			accountID, chatID, msg.ReplyToID,
-		).Scan(&sn, &ct)
+		).Scan(&sn, &ct, &hasMedia, &mediaType)
+		preview := ""
 		if ct.Valid && ct.String != "" {
-			preview := ct.String
+			preview = ct.String
 			if len(preview) > 100 {
 				preview = preview[:100]
 			}
+		} else if hasMedia == 1 {
+			preview = MediaPreviewLabel(int(mediaType.Int64))
+		}
+		if preview != "" {
 			if sn.Valid && sn.String != "" {
 				msg.ReplyPreview = sn.String + "\n" + preview
 			} else {
@@ -1100,10 +1110,52 @@ func (e *Engine) FetchLiveMessages(accountID, chatID string, limit int) ([]Cache
 // populateReplyPreviews fills in empty ReplyPreview fields by looking up
 // replied-to messages — first in the same batch, then in the DB cache.
 // Format: "SenderName\nPreviewText" (newline separates sender from content).
+// MediaPreviewLabel returns the human label AyuGram shows when a message's
+// text is empty but it carries media — used in reply quotes and chat-list
+// previews ("Photo", "Voice message", ...).
+func MediaPreviewLabel(mediaType int) string {
+	switch mediaType {
+	case MediaImage:
+		return "Photo"
+	case MediaVideo:
+		return "Video"
+	case MediaVoice:
+		return "Voice message"
+	case MediaVideoNote:
+		return "Video message"
+	case MediaAudio:
+		return "Audio file"
+	case MediaGIF:
+		return "GIF"
+	case MediaSticker:
+		return "Sticker"
+	case MediaFile:
+		return "File"
+	case MediaPoll:
+		return "Poll"
+	case MediaLocation:
+		return "Location"
+	case MediaContact:
+		return "Contact"
+	default:
+		return "Media"
+	}
+}
+
+// replyMediaLabel fills an empty preview with the media kind label.
+func replyMediaLabel(hasMedia bool, mediaType int) string {
+	if !hasMedia {
+		return ""
+	}
+	return MediaPreviewLabel(mediaType)
+}
+
 func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
 	type replyInfo struct {
 		senderName string
 		text       string
+		mediaType  int
+		hasMedia   bool
 	}
 	// Index messages in this batch by (chat_id, msg_id) for fast lookup.
 	batchIndex := make(map[string]replyInfo, len(msgs))
@@ -1111,6 +1163,8 @@ func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
 		batchIndex[msgs[i].ChatID+"\x00"+msgs[i].MsgID] = replyInfo{
 			senderName: msgs[i].SenderName,
 			text:       msgs[i].ContentText,
+			mediaType:  msgs[i].MediaType,
+			hasMedia:   msgs[i].HasMedia,
 		}
 	}
 
@@ -1123,18 +1177,29 @@ func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
 
 		// Try in-batch lookup first (replies often point to nearby messages).
 		key := msgs[i].ChatID + "\x00" + msgs[i].ReplyToID
-		if info, ok := batchIndex[key]; ok && info.text != "" {
+		if info, ok := batchIndex[key]; ok {
 			senderName = info.senderName
-			previewText = info.text
+			if info.text != "" {
+				previewText = info.text
+			} else {
+				// Media-only target: quote shows "Photo" / "Voice message" etc.
+				previewText = replyMediaLabel(info.hasMedia, info.mediaType)
+			}
 		} else {
-			// Fall back to DB lookup.
+			// Fall back to DB lookup (also resolves the target's media kind).
 			var sn, ct sql.NullString
+			var hasMedia int
+			var mediaType sql.NullInt64
 			e.db.QueryRow(
-				`SELECT sender_name, content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+				`SELECT sender_name, content_text, has_media,
+					(SELECT media_type FROM media WHERE account_id = messages.account_id AND chat_id = messages.chat_id AND msg_id = messages.msg_id AND seq = 0 LIMIT 1)
+				 FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
 				msgs[i].AccountID, msgs[i].ChatID, msgs[i].ReplyToID,
-			).Scan(&sn, &ct)
+			).Scan(&sn, &ct, &hasMedia, &mediaType)
 			if ct.Valid && ct.String != "" {
 				previewText = ct.String
+			} else if hasMedia == 1 {
+				previewText = replyMediaLabel(true, int(mediaType.Int64))
 			}
 			if sn.Valid {
 				senderName = sn.String

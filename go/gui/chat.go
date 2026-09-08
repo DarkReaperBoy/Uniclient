@@ -236,7 +236,7 @@ func dotLabel(d connDot) string {
 func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	// Auto-scroll: AnchorEnd keeps us pinned unless the user scrolls up.
 	// While someone is typing we keep the view pinned & animating.
-	if a.stillTyping(*f.selected) || f.sending {
+	if a.stillTyping(*f.selected) || f.sending || dlActive(f.downloads) {
 		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(200 * time.Millisecond)})
 	}
 
@@ -361,6 +361,14 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						lbl := a.ui.Dim(unit.Sp(12), "Forwarded from "+m.ForwardFrom)
 						return layout.Inset{Bottom: unit.Dp(3)}.Layout(gtx, lbl.Layout)
 					}),
+					// Media attachment (AyuGram: photo/video/voice/audio/file bubble,
+					// driven by the engine download pipeline).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if !m.HasMedia || m.MediaType == 0 {
+							return layout.Dimensions{}
+						}
+						return a.mediaBlock(gtx, f, m)
+					}),
 					// Reply quote block (AyuGram quoted bar).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if m.ReplyPreview == "" {
@@ -379,6 +387,9 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						return lbl.Layout(gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if text == "" {
+							return layout.Dimensions{}
+						}
 						lbl := a.ui.Label(unit.Sp(15), text)
 						lbl.MaxLines = 30
 						if out {

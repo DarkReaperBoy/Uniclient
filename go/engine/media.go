@@ -192,6 +192,13 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 		e.db.Exec(
 			"UPDATE media SET download_state = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
 			DownloadFailed, job.AccountID, job.ChatID, job.MsgID, job.Seq)
+		e.emitEvent(EventDownloadFailed, job.AccountID, DownloadFailedEvent{
+			AccountID: job.AccountID,
+			ChatID:    job.ChatID,
+			MsgID:     job.MsgID,
+			Seq:       job.Seq,
+			Err:       err.Error(),
+		})
 		return
 	}
 

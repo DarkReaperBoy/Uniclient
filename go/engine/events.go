@@ -26,6 +26,7 @@ const (
 	EventUserStatus       = "user_status"
 	EventDownloadProgress = "download_progress"
 	EventDownloadComplete = "download_complete"
+	EventDownloadFailed   = "download_failed"
 	EventIncomingCall     = "incoming_call"
 	EventCallState        = "call_state"
 	EventGroupCallState   = "group_call_state"
@@ -137,6 +138,16 @@ type DownloadCompleteEvent struct {
 	MsgID     string `json:"msg_id"`
 	Seq       int    `json:"seq"`
 	LocalPath string `json:"local_path"`
+}
+
+// DownloadFailedEvent tells the GUI a media download ended in error so the
+// bubble can flip back to "tap to retry" (AyuGram download error state).
+type DownloadFailedEvent struct {
+	AccountID string `json:"account_id"`
+	ChatID    string `json:"chat_id"`
+	MsgID     string `json:"msg_id"`
+	Seq       int    `json:"seq"`
+	Err       string `json:"err"`
 }
 
 // --- Event dispatch ---

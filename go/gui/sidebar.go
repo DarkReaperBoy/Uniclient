@@ -485,6 +485,11 @@ func previewText(c engine.ChatInfo) string {
 	if c.LastMsgText != "" {
 		return prefix + c.LastMsgText
 	}
+	// Media-only last message: typed label like AyuGram's dialog rows
+	// ("Photo", "Voice message", ...).
+	if c.LastMsgMediaType != 0 {
+		return prefix + engine.MediaPreviewLabel(c.LastMsgMediaType)
+	}
 	return prefix
 }
 

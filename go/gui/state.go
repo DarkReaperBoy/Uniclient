@@ -58,6 +58,11 @@ type App struct {
 	loadingOlder bool
 	olderDone    bool // no more history pages for the open chat
 
+	// media-bubble state (AyuGram parity slice 2): live download progress fed
+	// by engine events, and the auto-download ledger for prefetches.
+	downloads map[string]dlState // dlKey → progress
+	autoDl    map[string]bool    // msgID → prefetch already issued
+
 	// transient
 	typing map[string]time.Time // chatKey -> last typing seen
 
@@ -78,6 +83,8 @@ func New(win *app.Window, eng *engine.Engine) *App {
 		typing:     make(map[string]time.Time),
 		connecting: make(map[string]bool),
 		rowBounds:  make(map[int]image.Rectangle),
+		downloads:  make(map[string]dlState),
+		autoDl:     make(map[string]bool),
 	}
 }
 
@@ -221,6 +228,21 @@ func (a *App) onEvent(data []byte) {
 	case engine.EventLoginCode:
 		// auto-fill handled by the login view via auth state refresh
 		go a.refreshAuth()
+	case engine.EventDownloadProgress:
+		var d engine.DownloadProgressEvent
+		if json.Unmarshal(env.Data, &d) == nil {
+			a.onDownloadProgress(d)
+		}
+	case engine.EventDownloadComplete:
+		var d engine.DownloadCompleteEvent
+		if json.Unmarshal(env.Data, &d) == nil {
+			a.onDownloadComplete(d)
+		}
+	case engine.EventDownloadFailed:
+		var d engine.DownloadFailedEvent
+		if json.Unmarshal(env.Data, &d) == nil {
+			a.onDownloadFailed(d)
+		}
 	}
 }
 
@@ -241,6 +263,58 @@ func (a *App) onMessageEvent(typ, accountID string, data json.RawMessage) {
 		return
 	}
 	go a.refreshMessages()
+}
+
+// onDownloadProgress records live byte counts for a media bubble.
+func (a *App) onDownloadProgress(d engine.DownloadProgressEvent) {
+	a.mu.Lock()
+	if a.downloads == nil {
+		a.downloads = make(map[string]dlState)
+	}
+	a.downloads[dlKey(d.AccountID, d.ChatID, d.MsgID, d.Seq)] = dlState{
+		recv: d.BytesRecv, total: d.BytesTotal, state: engine.DownloadInProgress,
+	}
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// onDownloadComplete flips the bubble to its local file (copy-on-write so an
+// in-flight frame keeps a consistent slice) and swaps the displayed image
+// from thumbnail to the full photo.
+func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
+	a.mu.Lock()
+	if a.downloads == nil {
+		a.downloads = make(map[string]dlState)
+	}
+	a.downloads[dlKey(d.AccountID, d.ChatID, d.MsgID, d.Seq)] = dlState{recv: 1, total: 1, state: engine.DownloadComplete}
+	if k := a.msgFor; k != nil && k.AccountID == d.AccountID && k.ChatID == d.ChatID {
+		for i := range a.messages {
+			if a.messages[i].MsgID == d.MsgID {
+				msgs := make([]engine.CachedMessage, len(a.messages))
+				copy(msgs, a.messages)
+				msgs[i].MediaDownloadState = engine.DownloadComplete
+				msgs[i].MediaLocalPath = d.LocalPath
+				a.messages = msgs
+				break
+			}
+		}
+	}
+	a.mu.Unlock()
+	if isDisplayableImage(d.LocalPath) {
+		a.decodeFileAsync(d.LocalPath)
+	}
+	a.invalidate()
+}
+
+// onDownloadFailed flips the bubble back to "tap to retry".
+func (a *App) onDownloadFailed(d engine.DownloadFailedEvent) {
+	a.mu.Lock()
+	if a.downloads == nil {
+		a.downloads = make(map[string]dlState)
+	}
+	a.downloads[dlKey(d.AccountID, d.ChatID, d.MsgID, d.Seq)] = dlState{state: engine.DownloadFailed}
+	a.mu.Unlock()
+	a.invalidate()
 }
 
 func (a *App) refreshAuth() {
@@ -376,6 +450,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.cMode = composerMode{}
 	a.menu = nil
 	a.fwd = nil
+	a.autoDl = make(map[string]bool)
+	a.downloads = make(map[string]dlState)
 	a.mu.Unlock()
 	a.rowBounds = make(map[int]image.Rectangle) // stale rows from the previous chat
 	a.invalidate()
@@ -541,6 +617,13 @@ func (a *App) snapshot() frame {
 		loadingOlder: a.loadingOlder,
 		now:          time.Now(),
 	}
+	if len(a.downloads) > 0 {
+		dls := make(map[string]dlState, len(a.downloads))
+		for k, v := range a.downloads {
+			dls[k] = v
+		}
+		f.downloads = dls
+	}
 	return f
 }
 
@@ -571,6 +654,9 @@ type frame struct {
 	availEmojis  []string
 	loadingOlder bool
 	now          time.Time
+
+	// media bubbles (slice 2)
+	downloads    map[string]dlState
 }
 
 var _ = op.InvalidateCmd{} // referenced in widgets that animate

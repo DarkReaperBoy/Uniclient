@@ -439,3 +439,33 @@ least and other cores may follow."
   Test & vet & gofmt ✓ (new tests gui/actions_test.go +
   engine/reactions_test.go pass), windows + wasm cross-builds ✓, Xvfb GUI
   smoke + screenshots ✓ (app boots with the emoji font + new layout).
+
+## 2026-09-08 — AyuGram parity program, slice 2: media bubbles + downloads
+
+Scope: research/ayugram_parity.md §5 media rows (top-20 gap #3) — the engine
+media pipeline existed (queue, priorities, LRU eviction, events) but the GUI
+rendered nothing for any media message.
+
+- `gui/media.go` (new): per-type bubbles — photo (inline stripped-thumb JPEG
+  → auto-download → full-file swap, aspect-fit rounded, linear filter),
+  video + round video-note (thumb + centered play badge + m:ss pill, ellipse
+  crop for notes), voice (play badge + duration/size), audio (title row),
+  file (name/size + dims). Whole-bubble tap = download / cancel / reveal
+  (AyuGram semantics). Live byte counter + thin progress bar under
+  downloading bubbles, "tap to retry" on failure. Decoding is off-frame with
+  a bounded image cache; frames only look up.
+- `gui/state.go`: download event plumbing — EventDownloadProgress/Complete/
+  Failed handlers, copy-on-write message patch on complete (MediaLocalPath),
+  per-frame snapshot of the live download map, per-chat auto-download
+  ledger (photos/GIFs prefetch like AyuGram defaults), progress animation
+  invalidation in the message list.
+- `engine`: EventDownloadFailed + DownloadFailedEvent (media.go now emits it
+  on error); MediaPreviewLabel("Photo"/"Voice message"/…) used by reply
+  quotes (populateReplyPreviews + cacheMessage now resolve the target's
+  media kind when the text is empty) and by chat-list rows (gui sidebar
+  previewText — parity row "Row: media preview labels").
+- Tests first: gui/media_test.go (fmtBytes/fmtDur/fitDims/dlFraction/
+  block-kind gating), engine/media_label_test.go (label mapping).
+
+Known follow-ups (next slices): media viewer overlay (§12), voice/audio
+playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.

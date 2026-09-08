@@ -25,6 +25,12 @@ var (
 	iconNavigationCheck    = mustIcon(icons.NavigationCheck)
 	iconSocialPerson       = mustIcon(icons.SocialPerson)
 	iconCommunicationCall  = mustIcon(icons.CommunicationCall)
+	iconAVNote             = mustIcon(icons.AVNote)
+	iconAVMic              = mustIcon(icons.AVMic)
+	iconFileAttach         = mustIcon(icons.FileAttachment)
+	iconFileDownload       = mustIcon(icons.FileFileDownload)
+	iconAVPlayCircle       = mustIcon(icons.AVPlayCircleFilled)
+	iconAVStop             = mustIcon(icons.AVStop)
 )
 
 func mustIcon(data []byte) *widget.Icon {
