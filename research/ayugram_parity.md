@@ -58,7 +58,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Chat row: image avatar | Real photo/video userpic w/ stories ring | PARTIAL (real userpics rendered everywhere from ChatInfo.AvatarPath + b64 member thumbs, circle cover-crop; stories ring later) | gui/avatar.go + engine avatars pipeline | P0 |
 | Row: verified/scam/fake badges | Icon next to title | CORE-ONLY (fields exist: IsVerified/IsScam/IsFake) | gui/sidebar.go + ChatInfo fields | P1 |
 | Row: muted/pin/unread-mark icons | Icons right of time, muted badge style | PARTIAL (gray badge; no mute/pin icons, no UnreadMark) | gui/sidebar.go | P1 |
-| Row: draft preview | "Draft: …" when unsent | CORE-ONLY (SaveDraft + DraftText CORE-ONLY) | gui/sidebar.go + engine.SaveDraft | P2 |
+| Row: draft preview | "Draft: …" when unsent | PRESENT (slice 20: red Draft preview over the last message) | gui/sidebar.go | P2 |
 | Row: media preview + "Photo"/"Voice" labels | Thumb + typed last-message labels | PARTIAL (typed labels done via engine.MediaPreviewLabel; sidebar thumbs later) | gui/sidebar.go previewText | P1 |
 | Row: typing preview | "typing…" animated | PRESENT | gui/sidebar.go + engine.EventTyping | P0 |
 | Row: unread reactions/mentions badge | @ badge for mentions, badge variants | CORE-ONLY (UnreadMentionCount/UnreadReactionCount CORE-ONLY) | gui/sidebar.go | P2 |
@@ -118,9 +118,9 @@ P2 = settings/extras, P3 = rare/edge.
 | Bot commands menu (/) | "/" button lists chat commands | CORE-ONLY | engine.GetChatBotCommands (CORE-ONLY) | P2 |
 | Bot keyboard (reply markup) | Custom reply keyboards under composer | CORE-ONLY | core has BotCallback infra (CORE-ONLY) | P2 |
 | Inline bot results | @bot query results panel | CORE-ONLY | engine.GetInlineBotResultsFull/SendInlineBotResult (CORE-ONLY) | P3 |
-| Scheduled send | Clock menu: pick time, silent, "send when online" | CORE-ONLY | engine.GetScheduledMessages/SendScheduledNow/RescheduleMessage (CORE-ONLY) | P1 |
+| Scheduled send | Clock menu: pick time, silent, "send when online" | PARTIAL (slice 20: ⏰ schedule dialog w/ presets + custom date/time → SendMessage scheduleDate; scheduled bubbles show their time; scheduled list view / send-now / reschedule remain) | gui/drafts.go + engine SendMessage | P1 |
 | Silent send toggle | Bell toggle in field | CORE-ONLY | SendMessage silent param (CORE-ONLY) | P2 |
-| Draft save/restore | Per-chat draft persists across restarts | CORE-ONLY | engine.SaveDraft (CORE-ONLY) + gui state | P1 |
+| Draft save/restore | Per-chat draft persists across restarts | PRESENT (slice 20: restore on open, flush on leave/back, clear on send — persisted via engine.SaveDraft so it survives restarts) | gui/drafts.go + gui/state.go + engine.SaveDraft | P1 |
 | Char count / limits | Counter near limit | MISSING | gui/chat.go | P3 |
 | Formatting (bold/italic/spoiler/code) | Rich text with entities + spoiler reveal | MISSING (cores.TextEntity exists; GUI renders plain) | gui/chat.go + entity renderer | P1 |
 | Webpage preview toggle | Link preview on/off in field | CORE-ONLY | SendMessage webPageUrl params (CORE-ONLY) | P2 |
