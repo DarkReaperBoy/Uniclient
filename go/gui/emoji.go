@@ -306,8 +306,15 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 	gtx.Constraints = layout.Constraints{Max: image.Pt(panelW, panelH), Min: image.Pt(panelW, panelH)}
 	return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			// Top-level mode row: Emoji / Stickers / GIFs (slice 58).
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.layoutPanelModeRow(gtx, f)
+			}),
 			// Search row (AyuGram emoji search, slice 50).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if f.emojiMode != panelModeEmoji {
+					return layout.Dimensions{}
+				}
 				return layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
 						return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -320,6 +327,9 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 			}),
 			// Tab row.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if f.emojiMode != panelModeEmoji {
+					return layout.Dimensions{}
+				}
 				gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(44))
 				return layout.Inset{Left: unit.Dp(4), Right: unit.Dp(4), Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					emojiTabsList.Axis = layout.Horizontal
@@ -358,6 +368,12 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 			}),
 			// Grid (search results while querying, categories otherwise).
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				if f.emojiMode == panelModeStickers {
+					return a.layoutStickerMode(gtx, f)
+				}
+				if f.emojiMode == panelModeGifs {
+					return a.layoutGifMode(gtx, f)
+				}
 				if searching && len(results) == 0 {
 					return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						note := "Searching…"
@@ -396,6 +412,9 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 			}),
 			// Bottom bar: backspace key (right-aligned, AyuGram layout).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if f.emojiMode != panelModeEmoji {
+					return layout.Dimensions{}
+				}
 				gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(40))
 				return layout.Inset{Right: unit.Dp(6), Bottom: unit.Dp(4), Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,

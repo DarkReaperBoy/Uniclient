@@ -128,6 +128,15 @@ type App struct {
 	folderInvites    *folderInvitesState // folder invite-links dialog (slice 54)
 	attachDlg        *attachDlgState     // location/contact share dialog (slice 56)
 	searchTab        int                 // search results tab (slice 57)
+	// helper-panel modes & data (slice 58)
+	emojiMode      int // panel: 0 emoji, 1 stickers, 2 gifs
+	stickerPacks   []cores.StickerPackSummary
+	stickerPackIdx int
+	recentStickers []cores.StickerInfo
+	savedGifs      []cores.GifInfo
+	panelMediaFor  string
+	stickersLoaded bool
+	gifsLoaded     bool
 
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
@@ -1302,6 +1311,11 @@ func (a *App) snapshot() frame {
 		folderInvites:    a.folderInvites,
 		attachDlg:        a.attachDlg,
 		searchTab:        a.searchTab,
+		emojiMode:        a.emojiMode,
+		stickerPacks:     a.stickerPacks,
+		stickerPackIdx:   a.stickerPackIdx,
+		recentStickers:   a.recentStickers,
+		savedGifs:        a.savedGifs,
 		chatMenu:         a.chatMenu,
 		folderMenu:       a.folderMenu,
 		headerMenu:       a.headerMenu,
@@ -1436,6 +1450,11 @@ type frame struct {
 	folderInvites    *folderInvitesState
 	attachDlg        *attachDlgState
 	searchTab        int
+	emojiMode        int
+	stickerPacks     []cores.StickerPackSummary
+	stickerPackIdx   int
+	recentStickers   []cores.StickerInfo
+	savedGifs        []cores.GifInfo
 
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
