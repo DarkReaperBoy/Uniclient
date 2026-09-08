@@ -163,8 +163,8 @@ P2 = settings/extras, P3 = rare/edge.
 | Ayu: "Message details" submenu | Views/shares/dates/size/mime/DC/sticker author | CORE-ONLY | engine has views/reactions stats (CORE-ONLY) | P2 |
 | Ayu: "Edits history" | Revision list per message | CORE-ONLY | engine.GetEditRevisions/HasEditRevisions (CORE-ONLY!) | P2 |
 | Ayu: "View deleted messages" | Deleted-msgs browser per chat | CORE-ONLY | engine.GetDeletedMessages (CORE-ONLY!) | P2 |
-| Ayu: "Hide message" (local) | Locally hide a message | MISSING | new engine method + ayu DB | P2 |
-| Ayu: "Repeat message" (resend) | Resend w/o forward mark | MISSING | new engine method | P2 |
+| Ayu: "Hide message" (local) | Locally hide a message | PRESENT (slice 35: context-menu Hide Locally → engine HideMessage → locally_hidden_messages table (v45); GetMessages filters via NOT EXISTS; unhide supported) | gui/menu.go + engine HideMessage + v45 migration | P2 |
+| Ayu: "Repeat message" (resend) | Resend w/o forward mark | PRESENT (slice 35: context-menu Repeat → engine RepeatMessage re-sends cached text + entities as a fresh own message; media repeat later) | gui/menu.go + engine RepeatMessage | P2 |
 | Ayu: quick regex filter add | Tag msg by regex | MISSING | engine (Ayu filters feature) | P3 |
 
 ## 7. Right info panel / Profile — scope: SHARED; saved messages, similar channels, bot panel = TG

@@ -156,6 +156,20 @@ var migrations = []func(*sql.Tx) error{
 	migrateV42,
 	migrateV43,
 	migrateV44,
+	migrateV45,
+}
+
+// migrateV45 creates the locally-hidden-messages table (AyuGram "hide
+// message": local-only removal without server deletion).
+func migrateV45(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS locally_hidden_messages (
+                account_id TEXT NOT NULL,
+                chat_id    TEXT NOT NULL,
+                msg_id     TEXT NOT NULL,
+                hidden_at  INTEGER NOT NULL,
+                PRIMARY KEY (account_id, chat_id, msg_id)
+        )`)
+	return err
 }
 
 func migrateDB(db *sql.DB) error {

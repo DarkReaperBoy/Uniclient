@@ -112,6 +112,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 			`SELECT `+cols+`
                          FROM messages
                          WHERE account_id = ? AND chat_id = ? AND timestamp > ?
+                         AND NOT EXISTS (SELECT 1 FROM locally_hidden_messages h WHERE h.account_id = messages.account_id AND h.chat_id = messages.chat_id AND h.msg_id = messages.msg_id)
                          ORDER BY timestamp ASC
                          LIMIT ?`, accountID, chatID, afterMs, limit)
 		reversed = true
@@ -120,6 +121,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 			`SELECT `+cols+`
                          FROM messages
                          WHERE account_id = ? AND chat_id = ? AND timestamp < ?
+                         AND NOT EXISTS (SELECT 1 FROM locally_hidden_messages h WHERE h.account_id = messages.account_id AND h.chat_id = messages.chat_id AND h.msg_id = messages.msg_id)
                          ORDER BY timestamp DESC
                          LIMIT ?`, accountID, chatID, beforeMs, limit)
 	} else {
@@ -127,6 +129,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 			`SELECT `+cols+`
                          FROM messages
                          WHERE account_id = ? AND chat_id = ?
+                         AND NOT EXISTS (SELECT 1 FROM locally_hidden_messages h WHERE h.account_id = messages.account_id AND h.chat_id = messages.chat_id AND h.msg_id = messages.msg_id)
                          ORDER BY timestamp DESC
                          LIMIT ?`, accountID, chatID, limit)
 	}
@@ -1859,6 +1862,43 @@ func (e *Engine) TranscribeAudio(accountID, chatID, msgID string) (bool, int64, 
 
 type MessageContentsReader interface {
 	MessagesReadMessageContents(id []int) (interface{}, error)
+}
+
+// HideMessage locally hides a message without deleting it server-side
+// (AyuGram "hide message"). Purely local DB state.
+func (e *Engine) HideMessage(accountID, chatID, msgID string, hide bool) error {
+	if hide {
+		_, err := e.db.Exec(
+			`INSERT OR IGNORE INTO locally_hidden_messages (account_id, chat_id, msg_id, hidden_at)
+			 VALUES (?, ?, ?, ?)`,
+			accountID, chatID, msgID, time.Now().UnixMilli())
+		return err
+	}
+	_, err := e.db.Exec(
+		`DELETE FROM locally_hidden_messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+		accountID, chatID, msgID)
+	return err
+}
+
+// RepeatMessage resends a cached message's text as a fresh outgoing message
+// (AyuGram "repeat": no forward header). Returns the new pending local ID.
+func (e *Engine) RepeatMessage(accountID, chatID, msgID string) (string, error) {
+	var text string
+	var rich []byte
+	err := e.db.QueryRow(
+		`SELECT content_text, content_rich FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+		accountID, chatID, msgID).Scan(&text, &rich)
+	if err != nil {
+		return "", fmt.Errorf("repeat: message not found: %w", err)
+	}
+	if strings.TrimSpace(text) == "" {
+		return "", fmt.Errorf("repeat: message has no text")
+	}
+	var entities []cores.TextEntity
+	if len(rich) > 0 {
+		_ = json.Unmarshal(rich, &entities)
+	}
+	return e.SendMessage(accountID, chatID, text, "", entities, false, 0, "", "", false, false, false, false)
 }
 
 // MessageLink returns a shareable link to one message (Telegram t.me

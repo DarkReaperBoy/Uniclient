@@ -240,6 +240,29 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.invalidate()
 		}})
 	}
+	// Ayu local hide (AyuGram "hide message": gone from this client only).
+	if !m.IsService {
+		items = append(items, menuAction{"Hide Locally", func(gtx layout.Context) {
+			go func() {
+				if err := a.eng.HideMessage(m.AccountID, m.ChatID, m.MsgID, true); err != nil {
+					a.setToast("Hide failed: " + err.Error())
+					return
+				}
+				go a.refreshMessages()
+				a.setToast("Message hidden locally")
+			}()
+		}})
+	}
+	// Ayu repeat (AyuGram "repeat message": resend as your own, no forward).
+	if !m.IsService && strings.TrimSpace(m.ContentText) != "" {
+		items = append(items, menuAction{"Repeat", func(gtx layout.Context) {
+			go func() {
+				if _, err := a.eng.RepeatMessage(m.AccountID, m.ChatID, m.MsgID); err != nil {
+					a.setToast("Repeat failed: " + err.Error())
+				}
+			}()
+		}})
+	}
 	// Enter selection mode (AyuGram message multi-select).
 	if !m.IsService {
 		items = append(items, menuAction{"Select", func(gtx layout.Context) {
