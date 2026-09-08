@@ -280,7 +280,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Tray icon + tray menu (w/ ghost/streamer toggles, accounts) | Sys-tray integration | MISSING | new gui/tray.go (Gio has no tray; needs platform shim) | P2 |
 | Unread badge on taskbar/dock | Count badge | MISSING | platform-specific | P2 |
 | Per-chat notification settings UI | Mute duration picker, exceptions | CORE-ONLY | engine notify settings APIs (CORE-ONLY) | P2 |
-| Notification content privacy | Show/hide message text in banner | MISSING | engine notify config | P2 |
+| Notification content privacy | Show/hide message text in banner | PRESENT (slice 45: Settings → Notifications "Message previews" toggle; banners fall back to "New message" with no sender prefix while off; AppConfig.NotifyPreviews *bool (nil = show), engine ConfigChanges round-trip) | gui/notify.go + gui/settings.go + utils AppConfig.NotifyPreviews | P2 |
 
 ## 14. Misc / platform — scope: mixed (tagged inline where TG-specific)
 

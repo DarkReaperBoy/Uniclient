@@ -52,6 +52,16 @@ func notifyBody(m engine.CachedMessage) string {
 	return txt
 }
 
+// notifyPreviewBody (pure, testable): the banner body honoring the
+// content-privacy toggle — "New message" when previews are hidden
+// (AyuGram/Telegram behavior), the clamped text or media label otherwise.
+func notifyPreviewBody(m engine.CachedMessage, showText bool) string {
+	if !showText {
+		return "New message"
+	}
+	return notifyBody(m)
+}
+
 // notifyTitle (pure, testable): chat title or sender name.
 func notifyTitle(chat engine.ChatInfo, m engine.CachedMessage) string {
 	if chat.Title != "" {
@@ -96,8 +106,9 @@ func (a *App) maybeNotify(m engine.MsgReceivedEvent) {
 		return
 	}
 	title := notifyTitle(chat, m.Message)
-	body := notifyBody(m.Message)
-	if m.Message.SenderName != "" && title != m.Message.SenderName {
+	body := notifyPreviewBody(m.Message, cfg.NotifyPreviews)
+	// The sender prefix is part of the preview — hide it too when off.
+	if cfg.NotifyPreviews && m.Message.SenderName != "" && title != m.Message.SenderName {
 		body = m.Message.SenderName + ": " + body
 	}
 	go func() {

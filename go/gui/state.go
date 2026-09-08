@@ -943,6 +943,7 @@ type cfgSnapshot struct {
 	NotifyDMs              bool
 	NotifyGroups           bool
 	NotifyMentionsOnly     bool
+	NotifyPreviews         bool
 	RecentSearches         []string
 	DrawerHidden           []string
 	Streamer               bool
@@ -999,6 +1000,7 @@ func (a *App) refreshConfig() {
 		NotifyDMs:              c.NotifyDMs,
 		NotifyGroups:           c.NotifyGroups,
 		NotifyMentionsOnly:     c.NotifyMentionsOnly,
+		NotifyPreviews:         c.NotifyPreviewsEnabled(),
 		RecentSearches:         c.RecentSearches,
 		DrawerHidden:           c.DrawerHiddenItems,
 		Streamer:               c.StreamerMode,

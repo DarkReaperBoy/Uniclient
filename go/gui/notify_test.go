@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"uniclient/engine"
+	"uniclient/utils"
 )
 
 func allOn() cfgSnapshot {
@@ -93,5 +94,37 @@ func TestNotifyTitle(t *testing.T) {
 	}
 	if got := notifyTitle(engine.ChatInfo{}, engine.CachedMessage{}); got != "Uniclient" {
 		t.Errorf("final fallback = %q", got)
+	}
+}
+
+func TestNotifyPreviewBody(t *testing.T) {
+	m := engine.CachedMessage{ContentText: "meet me at the station"}
+	if got := notifyPreviewBody(m, true); got != "meet me at the station" {
+		t.Errorf("previews on = %q", got)
+	}
+	// Hidden previews never leak the text — or the media type.
+	if got := notifyPreviewBody(m, false); got != "New message" {
+		t.Errorf("previews off = %q", got)
+	}
+	media := engine.CachedMessage{MediaType: engine.MediaImage}
+	if got := notifyPreviewBody(media, false); got != "New message" {
+		t.Errorf("media previews off = %q", got)
+	}
+}
+
+func TestNotifyPreviewsEnabledResolver(t *testing.T) {
+	cfg := &utils.AppConfig{}
+	if !cfg.NotifyPreviewsEnabled() {
+		t.Error("nil pointer must default to true")
+	}
+	off := false
+	cfg.NotifyPreviews = &off
+	if cfg.NotifyPreviewsEnabled() {
+		t.Error("false pointer must resolve false")
+	}
+	on := true
+	cfg.NotifyPreviews = &on
+	if !cfg.NotifyPreviewsEnabled() {
+		t.Error("true pointer must resolve true")
 	}
 }

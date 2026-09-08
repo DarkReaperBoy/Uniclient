@@ -95,6 +95,8 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 		c.NotifyGroups = &b
 	case "notify_mentions_only":
 		c.NotifyMentionsOnly = &b
+	case "notify_previews":
+		c.NotifyPreviews = &b
 	default:
 		return nil
 	}
@@ -463,6 +465,11 @@ func (a *App) setPageNotifications(gtx layout.Context, f frame) layout.Dimension
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.toggleRow(gtx, "cfg:notify_mentions_only", "Mentions only", c.NotifyMentionsOnly, func(v bool) {
 			a.applyConfigBool("notify_mentions_only", v)
+		})
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:notify_previews", "Message previews", c.NotifyPreviews, func(v bool) {
+			a.applyConfigBool("notify_previews", v)
 		})
 	}))
 	if !f.notifyLoaded {

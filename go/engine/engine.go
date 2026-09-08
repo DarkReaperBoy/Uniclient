@@ -677,6 +677,9 @@ type ConfigChanges struct {
 	NotifyGroups           *bool
 	NotifyMentionsOnly     *bool
 
+	// Notification content privacy (AyuGram "show previews"). Nil = unchanged.
+	NotifyPreviews *bool
+
 	// Drawer customization (Ayu): ids of hidden drawer rows. Nil = unchanged.
 	DrawerHiddenItems []string
 
@@ -713,6 +716,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.StreamerMode != nil {
 		e.config.StreamerMode = *changes.StreamerMode
+	}
+	if changes.NotifyPreviews != nil {
+		e.config.NotifyPreviews = changes.NotifyPreviews
 	}
 	if changes.SendReadReceipts != nil {
 		e.config.SendReadReceipts = *changes.SendReadReceipts

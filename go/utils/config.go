@@ -57,6 +57,10 @@ type AppConfig struct {
 	NotifyGroups       bool `json:"notify_groups"`
 	NotifyMentionsOnly bool `json:"notify_mentions_only"`
 
+	// Notification content privacy (AyuGram/Telegram "show previews"):
+	// nil = default (show message text in banners).
+	NotifyPreviews *bool `json:"notify_previews,omitempty"`
+
 	// Call Devices
 	CallOutputDevice string `json:"call_output_device,omitempty"`
 	CallInputDevice  string `json:"call_input_device,omitempty"`
@@ -117,6 +121,12 @@ func SaveConfig(path string, cfg *AppConfig) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
+}
+
+// NotifyPreviewsEnabled resolves the preview pointer (nil = default true:
+// message text shows in banners).
+func (c *AppConfig) NotifyPreviewsEnabled() bool {
+	return c.NotifyPreviews == nil || *c.NotifyPreviews
 }
 
 // MergeDefaults fills zero-valued fields in cfg with values from DefaultConfig.
