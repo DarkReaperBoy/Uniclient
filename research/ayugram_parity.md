@@ -276,7 +276,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
 | In-app toast | Transient bottom message | PRESENT | gui/app.go layoutToast | P0 |
-| System desktop notifications | Native banners + sounds + actions | CORE-ONLY | engine notifications config (CORE-ONLY) + gui/os layer | P1 |
+| System desktop notifications | Native banners + sounds + actions | PARTIAL (slice 22: Linux DBus org.freedesktop.Notifications banners w/ config gating (DMs/groups/mentions-only), per-chat mute, 5s throttle; windows/wasm/android stubs; sounds + click-actions remain) | gui/notify.go + gui/notify_linux.go | P1 |
 | Tray icon + tray menu (w/ ghost/streamer toggles, accounts) | Sys-tray integration | MISSING | new gui/tray.go (Gio has no tray; needs platform shim) | P2 |
 | Unread badge on taskbar/dock | Count badge | MISSING | platform-specific | P2 |
 | Per-chat notification settings UI | Mute duration picker, exceptions | CORE-ONLY | engine notify settings APIs (CORE-ONLY) | P2 |
