@@ -815,3 +815,11 @@ Stage Summary:
 - **47 Ayu marks**: customizable deleted/edited mark strings in settings_ayu (gui/marks.go, AppConfig.AyuDeletedMark/AyuEditedMark)
 - Infra: fixed the node+wasm test runner (Go 1.27 wasm_exec.js is library-only; wrapper now uses GOROOT/lib/wasm/go_js_wasm_exec) — tests verified actually executing
 - CI: 34250036199 (s42) + 34251620044 (s43–45) GREEN; verify dispatched for s46–47
+
+---
+## 2026-09-08 — slices 48–50
+
+- **48**: chat-row menu Block user (DMs) + schedule-dialog silent switch ('silent ·' meta)
+- **49**: who-reacted dialog (per-emoji tabs, engine GetMessageReactorsList w/ paging)
+- **50**: emoji panel keyword search (engine GetEmojiKeywords + pure filter)
+- CI: 34252401355 (s46–47) GREEN; runs dispatched for s48–50
