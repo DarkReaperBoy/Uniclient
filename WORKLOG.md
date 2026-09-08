@@ -547,3 +547,16 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - Tests: gui/folders_test.go (tab building/scoping, tab matching, folder
   rule precedence) — full gui + engine suites green locally (wasm runner),
   windows vet clean.
+
+## 2026-09-08 — AyuGram parity program, slice 7: real image avatars
+
+- `gui/avatar.go` (new): real userpics render everywhere — chat rows, chat
+  header, account bar, settings account cards, info-panel header + member
+  rows (b64 thumbs), voice rows. Sources: ChatInfo.AvatarPath (the engine
+  avatar pipeline downloads jpgs on sync and emits chat updates) and
+  MemberInfo.AvatarB64; decoding reuses the shared media image cache (async
+  decode, frame-only lookup). Circle cover-crop via RGBA.SubImage center
+  square + ellipse clip + affine scale; letter fallback stays for chats
+  without photos / wasm (no local FS).
+- Tests: gui/avatar_test.go (square-crop math). Full gui suite green locally
+  (wasm runner); windows vet + gofmt clean.

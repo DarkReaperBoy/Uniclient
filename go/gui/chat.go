@@ -135,6 +135,9 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 						title = chat.Title
 					}
 					return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						if chat != nil {
+							return a.chatAvatar(gtx, *chat, unit.Dp(40), dotNone)
+						}
 						return a.ui.Avatar(gtx, title, unit.Dp(40), dotNone)
 					})
 				}),
