@@ -46,7 +46,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
 | Three-pane layout | list · chat · right info panel | PARTIAL (2 panes; no right panel) | gui/app.go layoutMain | P0 |
-| Hamburger main menu (drawer) | My profile, contacts, calls, night mode, settings, ghost/LRead/SRead/streamer toggles, new group/channel, saved msgs | PRESENT (slice 17: ☰ drawer w/ account header+switching, contacts, calls→voice pane, night switch, ghost master + ⚙ prefs, new group/channel, settings; streamer/LRead/SRead quick toggles + saved-msgs row remain) | gui/drawer.go + sidebar.go ☰ | P0 |
+| Hamburger main menu (drawer) | My profile, contacts, calls, night mode, settings, ghost/LRead/SRead/streamer toggles, new group/channel, saved msgs | PRESENT (slice 17+23: ☰ drawer w/ account header+switching, contacts, calls→voice pane, night switch, ghost master + ⚙ prefs, new group/channel, settings, saved messages→self chat; streamer/LRead/SRead quick toggles remain) | gui/drawer.go + sidebar.go ☰ | P0 |
 | Account switcher | Multi-account bar with per-account unread dots | PARTIAL (UniClient account bar: add/remove/conn dot; Ayu-style tray+drawer missing) | gui/sidebar.go + engine accounts | P1 |
 | Search field in bar | Global search: chats, messages, users, posts, files, tags | PARTIAL (local title/lastmsg filter only) | gui/sidebar.go + engine SearchChats/SearchGlobalChats (CORE-ONLY) | P0 |
 | Search results screen w/ tabs | Chats/Messages/Links/Files tabs + "search in" | CORE-ONLY | new gui/search.go + engine.SearchMessages (CORE-ONLY) | P1 |
@@ -236,7 +236,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Ayu translator | Provider-based inline translation | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
 | Message shot | Export a message screenshot as image | MISSING (no core; needs renderer) | gui render-to-image | P3 |
 | Ayu message filters (regex) | Hide msgs by regex/author | MISSING | new engine feature | P3 |
-| Forward options (Ayu rich) | Hide sender/captions when forwarding | CORE-ONLY | engine.ForwardMessage dropAuthor param (CORE-ONLY) | P1 |
+| Forward options (Ayu rich) | Hide sender/captions when forwarding | PRESENT (slice 23: forward picker options row feeds dropAuthor/dropCaptions for single + batch) | gui/menu.go + engine ForwardMessage(s) | P1 |
 | Shadow ban list | Per-chat local shadowban + quick menu | MISSING | new engine feature | P3 |
 | Drawer customization | Show/hide each drawer item | MISSING | gui/menu.go + settings_ayu | P2 |
 | Font customization + mono font | Font selector box | PARTIAL (font scale only in config, not exposed) | gui/theme.go + settings | P2 |
