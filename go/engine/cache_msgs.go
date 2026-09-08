@@ -349,8 +349,8 @@ func (e *Engine) mergePollResults(accountID, chatID, msgID string, extra map[str
 		// Resolve the chat that caches this poll message.
 		row := e.db.QueryRow(
 			`SELECT chat_id FROM messages
-			 WHERE account_id = ? AND msg_id = ? AND content_raw LIKE '%poll_question%'
-			 LIMIT 1`, accountID, msgID)
+                         WHERE account_id = ? AND msg_id = ? AND content_raw LIKE '%poll_question%'
+                         LIMIT 1`, accountID, msgID)
 		if err := row.Scan(&chatID); err != nil || chatID == "" {
 			return
 		}
@@ -359,7 +359,7 @@ func (e *Engine) mergePollResults(accountID, chatID, msgID string, extra map[str
 	var raw []byte
 	err := e.db.QueryRow(
 		`SELECT content_raw FROM messages
-		 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+                 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
 		accountID, chatID, msgID).Scan(&raw)
 	if err != nil || len(raw) == 0 {
 		return
@@ -465,13 +465,25 @@ func extraNumEngine(v interface{}) (float64, bool) {
 	return 0, false
 }
 
+// reactionKey returns the toggle identity of a reaction: the plain emoji,
+// or "custom_<documentID>" for premium custom-emoji reactions — the same
+// wire convention ReactToMessage uses for tg.ReactionCustomEmoji.
+func reactionKey(r cores.Reaction) string {
+	if r.Emoji == "" && r.DocumentID != 0 {
+		return "custom_" + strconv.FormatInt(r.DocumentID, 10)
+	}
+	return r.Emoji
+}
+
 // toggleReaction applies the user's own reaction toggle to a cached reaction
 // list (optimistic UI): adding a new or existing emoji, or removing the own
 // reaction when the emoji already has one. Mirrors Telegram Desktop
-// SendReaction with a single (default) reaction.
+// SendReaction with a single (default) reaction. Custom-emoji reactions are
+// matched by document id through the "custom_<id>" key and, when added
+// fresh, keep their document id so the GUI renders the custom pill.
 func toggleReaction(list []cores.Reaction, emoji string) []cores.Reaction {
 	for i := range list {
-		if list[i].Emoji != emoji {
+		if reactionKey(list[i]) != emoji {
 			continue
 		}
 		if list[i].ByMe {
@@ -488,6 +500,11 @@ func toggleReaction(list []cores.Reaction, emoji string) []cores.Reaction {
 			list[i].Count++
 		}
 		return list
+	}
+	if strings.HasPrefix(emoji, "custom_") {
+		if docID, err := strconv.ParseInt(strings.TrimPrefix(emoji, "custom_"), 10, 64); err == nil {
+			return append(list, cores.Reaction{DocumentID: docID, Count: 1, ByMe: true})
+		}
 	}
 	return append(list, cores.Reaction{Emoji: emoji, Count: 1, ByMe: true})
 }
@@ -2000,7 +2017,7 @@ func (e *Engine) HideMessage(accountID, chatID, msgID string, hide bool) error {
 	if hide {
 		_, err := e.db.Exec(
 			`INSERT OR IGNORE INTO locally_hidden_messages (account_id, chat_id, msg_id, hidden_at)
-			 VALUES (?, ?, ?, ?)`,
+                         VALUES (?, ?, ?, ?)`,
 			accountID, chatID, msgID, time.Now().UnixMilli())
 		return err
 	}

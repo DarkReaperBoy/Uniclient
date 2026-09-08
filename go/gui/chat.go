@@ -719,20 +719,29 @@ func reactionClickable(key string) *widget.Clickable {
 // toggles the own reaction (engine ReactToMessage; optimistic cache update).
 func (a *App) reactionStrip(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
 	canReact := actionsFor(m, f.menuCaps).React
+	// Register the message's custom-emoji document ids so the first pill
+	// below batches one engine fetch for the whole strip.
+	if want := customWantDocs(m.Reactions); len(want) > 0 {
+		a.noteCustomThumbs(m.AccountID, want)
+	}
 	children := make([]layout.FlexChild, 0, len(m.Reactions))
 	for i := range m.Reactions {
 		r := m.Reactions[i]
-		if r.Emoji == "" {
-			continue // custom-emoji reactions need a document fetch — next pass
+		if r.Emoji == "" && r.DocumentID == 0 {
+			continue // reaction without identity (e.g. paid placeholder)
 		}
-		emoji, count, byMe := r.Emoji, r.Count, r.ByMe
-		key := m.MsgID + "|" + emoji
+		emoji, docID, count, byMe := r.Emoji, r.DocumentID, r.Count, r.ByMe
+		react := emoji
+		if emoji == "" {
+			react = customReactionKey(docID)
+		}
+		key := m.MsgID + "|" + react
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			btn := reactionClickable(key)
 			if canReact && btn.Clicked(gtx) {
 				msg := *m
 				go func() {
-					if err := a.eng.ReactToMessage(msg.AccountID, msg.ChatID, msg.MsgID, emoji); err != nil {
+					if err := a.eng.ReactToMessage(msg.AccountID, msg.ChatID, msg.MsgID, react); err != nil {
 						a.setToast("React failed: " + err.Error())
 					}
 				}()
@@ -748,8 +757,11 @@ func (a *App) reactionStrip(gtx layout.Context, f frame, m *engine.CachedMessage
 					return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								lbl := a.ui.Label(unit.Sp(13), emoji)
-								return lbl.Layout(gtx)
+								if emoji != "" {
+									lbl := a.ui.Label(unit.Sp(13), emoji)
+									return lbl.Layout(gtx)
+								}
+								return a.customReactionGlyph(gtx, m.AccountID, docID)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								lbl := a.ui.Dim(unit.Sp(11), itoa(count))

@@ -181,6 +181,12 @@ type App struct {
 	emojiKwsLoaded   bool
 	emojiKwsFetching bool
 
+	// custom-emoji reaction thumbnails (slice 53), cached per session.
+	customThumbs         map[int64]cores.CustomEmojiThumb
+	customThumbsFetching map[string]bool
+	customThumbWant      []int64 // pending batch (consumed by customThumbFor)
+	customThumbWantAcc   string
+
 	// per-message silent sends (AyuGram 🔕, slice 23): sticky toggle
 	silentNext bool
 

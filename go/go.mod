@@ -12,6 +12,7 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.0
+	github.com/godbus/dbus/v5 v5.0.6
 	github.com/gotd/td v0.161.0
 	github.com/livekit/server-sdk-go/v2 v2.18.1
 	github.com/pion/ice/v4 v4.4.2
@@ -25,6 +26,7 @@ require (
 	github.com/rs/zerolog v1.35.1
 	golang.org/x/crypto v0.56.0
 	golang.org/x/exp/shiny v0.0.0-20260824195058-e88cd73687aa
+	golang.org/x/image v0.45.0
 	golang.org/x/net v0.58.0
 	maunium.net/go/mautrix v0.30.0
 	modernc.org/sqlite v1.58.0
@@ -61,7 +63,6 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-text/typesetting v0.3.4 // indirect
-	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/cel-go v0.28.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -123,7 +124,6 @@ require (
 	go.uber.org/zap/exp v0.3.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297 // indirect
-	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
