@@ -149,6 +149,12 @@ func (a *App) processSidebarEvents(gtx layout.Context, f frame) {
 
 func (a *App) onSidebarPress(f frame, pe pointer.Event) {
 	pos := image.Pt(int(pe.Position.X), int(pe.Position.Y))
+	if f.folderMenu != nil {
+		if !pointInRect(pos, a.folderMenuRect) {
+			a.closeFolderMenu()
+		}
+		return
+	}
 	if f.chatMenu != nil {
 		if !pointInRect(pos, a.chatMenuRect) {
 			a.closeChatMenu()
@@ -158,12 +164,12 @@ func (a *App) onSidebarPress(f frame, pe pointer.Event) {
 	if pe.Buttons != pointer.ButtonSecondary {
 		return
 	}
-	// Folder tabs first (right-click a server folder tab → editor).
+	// Folder tabs first (right-click a server folder tab → its menu).
 	if f.folderDlg == nil {
 		tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported)
 		for i, r := range a.sbTabBounds {
 			if pointInRect(pos, r) && i < len(tabs) && tabs[i].kind == folderTabServer && tabs[i].folder != nil {
-				a.openFolderDlgEdit(*tabs[i].folder)
+				a.openFolderMenu(*tabs[i].folder, f.foldersFor, pos)
 				return
 			}
 		}

@@ -78,6 +78,10 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			a.layoutFolderDialog(gtx, f)
 			return
 		}
+		if f.folderInvites != nil {
+			a.layoutFolderInvites(gtx, f)
+			return
+		}
 		if f.settingsOpen {
 			a.layoutSettings(gtx, f, narrow)
 			return
@@ -118,6 +122,9 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			}
 			if f.folderDlg != nil {
 				return a.layoutFolderDialog(gtx, f)
+			}
+			if f.folderInvites != nil {
+				return a.layoutFolderInvites(gtx, f)
 			}
 			if f.settingsOpen {
 				return a.layoutSettings(gtx, f, narrow)

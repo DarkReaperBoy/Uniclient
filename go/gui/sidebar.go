@@ -109,6 +109,10 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 	if f.chatMenu != nil {
 		a.layoutChatMenu(gtx, f)
 	}
+	// Folder-tab context menu on top of the sidebar (slice 54).
+	if f.folderMenu != nil {
+		a.layoutFolderMenu(gtx, f)
+	}
 	// Floating next-unread jump button (AyuGram, slice 30).
 	a.layoutNextUnreadBtn(gtx, f, visible)
 	// Invite-link confirm dialog (slice 24).

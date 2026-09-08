@@ -30,6 +30,7 @@ func escTarget(f frame) string {
 		f.schedDlg != nil,
 		f.pollDlg != nil,
 		f.folderDlg != nil,
+		f.folderInvites != nil,
 		f.inviteDlg != nil,
 		f.newDlg != nil,
 		f.viewer != nil,
@@ -42,6 +43,8 @@ func escTarget(f frame) string {
 		return "menu"
 	case f.headerMenu != nil:
 		return "headerMenu"
+	case f.folderMenu != nil:
+		return "folderMenu"
 	case f.chatMenu != nil:
 		return "chatMenu"
 	case f.attachMenuOpen:
@@ -152,6 +155,8 @@ func (a *App) handleEscTarget(target string) {
 		a.closeMenu()
 	case "headerMenu":
 		a.closeHeaderMenu()
+	case "folderMenu":
+		a.closeFolderMenu()
 	case "chatMenu":
 		a.closeChatMenu()
 	case "attach":

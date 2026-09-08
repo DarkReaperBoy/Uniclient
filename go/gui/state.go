@@ -125,9 +125,13 @@ type App struct {
 	foldersFor       string
 	foldersSupported bool
 	folderDlg        *folderDlgState
+	folderInvites    *folderInvitesState // folder invite-links dialog (slice 54)
 
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
+
+	// folder-tab context menu (slice 54)
+	folderMenu *folderMenuTarget
 
 	// chat-header "..." menu (slice 15)
 	headerMenu *headerMenuTarget
@@ -234,7 +238,8 @@ type App struct {
 	sbVisible      []engine.ChatInfo
 	sbAboveList    int
 	chatMenuRect   image.Rectangle
-	sbTabBounds    []image.Rectangle // folder-tab bounds (right-click → edit)
+	sbTabBounds    []image.Rectangle // folder-tab bounds (right-click → menu)
+	folderMenuRect image.Rectangle   // folder-tab context menu (slice 54)
 	headerMenuRect image.Rectangle
 	listTop        int // top Y of the message list within the chat pane
 	headerH        int // chat header height
@@ -761,6 +766,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.attachMenuOpen = false
 	a.emojiOpen = false
 	a.chatMenu = nil
+	a.folderMenu = nil
 	a.headerMenu = nil
 	a.profile = nil
 	a.members = nil
@@ -1290,7 +1296,9 @@ func (a *App) snapshot() frame {
 		foldersFor:       a.foldersFor,
 		foldersSupported: a.foldersSupported,
 		folderDlg:        a.folderDlg,
+		folderInvites:    a.folderInvites,
 		chatMenu:         a.chatMenu,
+		folderMenu:       a.folderMenu,
 		headerMenu:       a.headerMenu,
 		viewer:           a.viewer,
 		drawerOpen:       a.drawerOpen,
@@ -1420,9 +1428,13 @@ type frame struct {
 	foldersFor       string
 	foldersSupported bool
 	folderDlg        *folderDlgState
+	folderInvites    *folderInvitesState
 
 	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
+
+	// folder-tab context menu (slice 54)
+	folderMenu *folderMenuTarget
 
 	// chat-header "..." menu (slice 15)
 	headerMenu *headerMenuTarget
