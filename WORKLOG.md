@@ -737,3 +737,10 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - **21 (d9d53c24)**: scheduled manager (header ⋮ → panel w/ send-now/reschedule/delete; new engine.DeleteScheduledMessages) + unread-story rings on avatars; CI in flight
 - **22 (0750ff39)**: desktop notifications — Linux DBus org.freedesktop.Notifications, config/mute/throttle gating, pure helpers tested; CI dispatched
 - Toolchain notes: wasm test runner is `/tmp/go/lib/wasm/wasm_exec_node.js` (go_js_wasm_exec no longer node-runnable); gofmt fix flow: CI gofmt gate → local `gofmt -w` → gates → push
+
+---
+### 2026-09-08 (session 4, cont.) — slices 23–25
+
+- **23 (fe98f0e1)**: forward options (hide sender/captions → dropAuthor/dropCaptions), drawer Saved messages → self chat, composer 🔕 sticky per-message silent → SendMessage silent; CI green (34223944370)
+- **24 (87996f21)**: invite-link join (t.me/+hash & joinchat forms in search → CheckChatInvite preview → confirm → ImportChatInvite); chat rows render REAL userpics + unread-story rings + 34dp media thumbs (LastMsgThumbB64); fixed slice-21 snapshot bug (schedPanel/schedMsgs/schedLoad never copied → panel never rendered); CI in flight
+- **25 (6cd60ba1)**: new-group member picker (async contacts + toggles → CreateGroup members), reply quotes clickable → jumpToMessageAt; CI dispatched
