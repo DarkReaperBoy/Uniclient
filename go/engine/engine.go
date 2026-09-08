@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -229,6 +230,9 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 	// Resume pending operations from crash.
 	e.resumePending()
 
+	// Restore persisted auto-download rules (AyuGram Data::AutoDownload).
+	e.loadAutoDownloadSettings()
+
 	// Start media download manager.
 	e.media = newMediaManager(e)
 	e.media.Start(context.Background())
@@ -355,7 +359,9 @@ func (e *Engine) applyProxyToAllCores() {
 	}
 }
 
-// SetAutoDownloadSettings stores per-source auto-download limits.
+// SetAutoDownloadSettings stores per-source auto-download limits and
+// persists them to the DB so they survive restarts (AyuGram parity,
+// Data::AutoDownload persistence).
 func (e *Engine) SetAutoDownloadSettings(source string, settings map[string]interface{}) {
 	e.autoDownloadMu.Lock()
 	if e.autoDownloadSettings == nil {
@@ -364,6 +370,119 @@ func (e *Engine) SetAutoDownloadSettings(source string, settings map[string]inte
 	e.autoDownloadSettings[source] = settings
 	e.autoDownloadMu.Unlock()
 	log.Printf("[engine] SetAutoDownload: source=%s settings=%v", source, settings)
+
+	if e.db != nil {
+		if data, err := json.Marshal(settings); err == nil {
+			_, err = e.db.Exec(
+				`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?`,
+				"autodl:"+source, string(data), string(data))
+			if err != nil {
+				log.Printf("[engine] persist autodl %s: %v", source, err)
+			}
+		}
+	}
+}
+
+// GetAutoDownloadSettings returns the effective per-source auto-download
+// settings with the AyuGram-faithful defaults filled in for missing keys —
+// the shape the settings UI renders (photos/videos/gifs/videoMessages/files
+// toggles + downloadLimit/autoPlayLimit in bytes).
+func (e *Engine) GetAutoDownloadSettings() map[string]map[string]interface{} {
+	out := make(map[string]map[string]interface{}, 3)
+	for _, source := range []string{"private", "group", "channel"} {
+		e.autoDownloadMu.RLock()
+		stored := e.autoDownloadSettings[source]
+		e.autoDownloadMu.RUnlock()
+		out[source] = effectiveAutoDownloadSettings(stored)
+	}
+	return out
+}
+
+// effectiveAutoDownloadSettings merges a stored per-source map over the
+// defaults. Pure — unit-tested.
+func effectiveAutoDownloadSettings(stored map[string]interface{}) map[string]interface{} {
+	photos, files, videos, gifs, videoMsgs := true, false, true, true, true
+	downloadLimit := int64(10 * 1024 * 1024)
+	autoPlayLimit := int64(50 * 1024 * 1024)
+	if stored != nil {
+		if v, ok := stored["photos"].(bool); ok {
+			photos = v
+		}
+		if v, ok := stored["files"].(bool); ok {
+			files = v
+		}
+		if v, ok := stored["videos"].(bool); ok {
+			videos = v
+		}
+		if v, ok := stored["gifs"].(bool); ok {
+			gifs = v
+		}
+		if v, ok := stored["videoMessages"].(bool); ok {
+			videoMsgs = v
+		}
+		switch v := stored["downloadLimit"].(type) {
+		case float64:
+			downloadLimit = int64(v)
+		case int:
+			downloadLimit = int64(v)
+		case int64:
+			downloadLimit = v
+		}
+		switch v := stored["autoPlayLimit"].(type) {
+		case float64:
+			autoPlayLimit = int64(v)
+		case int:
+			autoPlayLimit = int64(v)
+		case int64:
+			autoPlayLimit = v
+		}
+	}
+	return map[string]interface{}{
+		"photos":        photos,
+		"files":         files,
+		"videos":        videos,
+		"gifs":          gifs,
+		"videoMessages": videoMsgs,
+		"downloadLimit": downloadLimit,
+		"autoPlayLimit": autoPlayLimit,
+	}
+}
+
+// loadAutoDownloadSettings restores persisted auto-download rules from the
+// DB into memory at engine start.
+func (e *Engine) loadAutoDownloadSettings() {
+	if e.db == nil {
+		return
+	}
+	rows, err := e.db.Query("SELECT key, value FROM kv WHERE key LIKE 'autodl:%'")
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	loaded := make(map[string]map[string]interface{})
+	for rows.Next() {
+		var key, val string
+		if err := rows.Scan(&key, &val); err != nil {
+			continue
+		}
+		source := strings.TrimPrefix(key, "autodl:")
+		var settings map[string]interface{}
+		if err := json.Unmarshal([]byte(val), &settings); err != nil {
+			continue
+		}
+		loaded[source] = settings
+	}
+	if len(loaded) == 0 {
+		return
+	}
+	e.autoDownloadMu.Lock()
+	if e.autoDownloadSettings == nil {
+		e.autoDownloadSettings = make(map[string]map[string]interface{})
+	}
+	for source, settings := range loaded {
+		e.autoDownloadSettings[source] = settings
+	}
+	e.autoDownloadMu.Unlock()
 }
 
 // ShouldAutoDownload reports whether a freshly-received attachment of the given

@@ -711,6 +711,45 @@ func (a *App) setPageData(gtx layout.Context, f frame) layout.Dimensions {
 			)
 		}))
 	}
+	// Automatic media download rows (slice 63): one per source, value
+	// summarizes the live rules; tap opens the editor dialog.
+	growClickables(&autodlRowBtns, len(autodlSourceLabels))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.subHeader(gtx, "Automatic media download")
+	}))
+	for i, r := range autodlSourceLabels {
+		i, r := i, r
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			btn := &autodlRowBtns[i]
+			if btn.Clicked(gtx) {
+				a.openAutodlDialog(r.source)
+			}
+			bl := material.ButtonLayout(a.ui.Theme, btn)
+			bl.Background = a.ui.p.Surface
+			bl.CornerRadius = 10
+			return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.Label(unit.Sp(14), r.label)
+								return lbl.Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								sub := autodlRowSummaryFor(f, r.source)
+								if sub == "" {
+									return layout.Dimensions{}
+								}
+								lbl := a.ui.Dim(unit.Sp(11), sub)
+								lbl.Color = a.ui.p.TextFaint
+								return lbl.Layout(gtx)
+							}),
+						)
+					})
+				})
+			})
+		}))
+	}
 	if clearAllBtn.Clicked(gtx) {
 		go func() {
 			if err := a.eng.ClearCache(""); err != nil {

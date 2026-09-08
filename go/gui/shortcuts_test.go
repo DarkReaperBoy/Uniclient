@@ -77,6 +77,14 @@ func TestEscTargetOrder(t *testing.T) {
 		t.Errorf("privacyDlg + menu: escTarget = %q, want empty (dialog consumes Esc)", got)
 	}
 
+	// The auto-download rules editor (slice 63) self-handles Esc too.
+	af := escFrame()
+	af.autoDlDlg = &autodlDlgState{source: "group"}
+	af.menu = &menuTarget{}
+	if got := escTarget(af); got != "" {
+		t.Errorf("autoDlDlg + menu: escTarget = %q, want empty (dialog consumes Esc)", got)
+	}
+
 	// Nothing open → no target.
 	if got := escTarget(escFrame()); got != "" {
 		t.Errorf("bare frame: escTarget = %q, want empty", got)

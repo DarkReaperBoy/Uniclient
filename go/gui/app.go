@@ -94,6 +94,10 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			a.layoutPrivacyScopeDialog(gtx, f)
 			return
 		}
+		if f.autoDlDlg != nil {
+			a.layoutAutoDownloadDialog(gtx, f)
+			return
+		}
 		if f.settingsOpen {
 			a.layoutSettings(gtx, f, narrow)
 			return
@@ -146,6 +150,9 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			}
 			if f.privacyDlg != nil {
 				return a.layoutPrivacyScopeDialog(gtx, f)
+			}
+			if f.autoDlDlg != nil {
+				return a.layoutAutoDownloadDialog(gtx, f)
 			}
 			if f.settingsOpen {
 				return a.layoutSettings(gtx, f, narrow)

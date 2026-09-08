@@ -88,8 +88,11 @@ type App struct {
 	blockedUsers  map[string][]cores.User
 	sessionsList  map[string][]cores.Session
 	privacyLoaded bool
-	privacyScopes map[string]map[string]string // accountID → key → scope (slice 62)
-	privacyDlg    *privacyDlgState             // scope picker dialog (slice 62)
+	privacyScopes map[string]map[string]string      // accountID → key → scope (slice 62)
+	privacyDlg    *privacyDlgState                  // scope picker dialog (slice 62)
+	autoDlRules   map[string]map[string]interface{} // source → rules (slice 63)
+	autoDlOn      bool
+	autoDlDlg     *autodlDlgState // rules editor dialog (slice 63)
 	cacheTotal    int64
 	cacheTags     [6]int64
 	cacheLoaded   bool
@@ -786,6 +789,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.attachDlg = nil
 	a.ttlDlg = nil
 	a.privacyDlg = nil // slice 62: close the scope picker
+	a.autoDlDlg = nil  // slice 63: close the auto-download editor
 	a.headerMenu = nil
 	a.profile = nil
 	a.members = nil
@@ -1041,6 +1045,7 @@ func (a *App) openSettings(section int) {
 	ayuMarksSynced = false
 	go a.refreshConfig()
 	go a.loadStorage()
+	go a.loadAutoDl()
 	go a.loadNotifyAccts()
 	go a.loadPrivacy()
 	go a.loadGhost()
@@ -1359,6 +1364,9 @@ func (a *App) snapshot() frame {
 		privacyLoaded:    a.privacyLoaded,
 		privacyScopes:    a.privacyScopes,
 		privacyDlg:       a.privacyDlg,
+		autoDlRules:      a.autoDlRules,
+		autoDlOn:         a.autoDlOn,
+		autoDlDlg:        a.autoDlDlg,
 		cacheTotal:       a.cacheTotal,
 		cacheTags:        a.cacheTags,
 		cacheLoaded:      a.cacheLoaded,
@@ -1483,8 +1491,11 @@ type frame struct {
 	blockedUsers  map[string][]cores.User
 	sessionsList  map[string][]cores.Session
 	privacyLoaded bool
-	privacyScopes map[string]map[string]string // accountID → key → scope (slice 62)
-	privacyDlg    *privacyDlgState             // scope picker dialog (slice 62)
+	privacyScopes map[string]map[string]string      // accountID → key → scope (slice 62)
+	privacyDlg    *privacyDlgState                  // scope picker dialog (slice 62)
+	autoDlRules   map[string]map[string]interface{} // source → rules (slice 63)
+	autoDlOn      bool
+	autoDlDlg     *autodlDlgState // rules editor dialog (slice 63)
 	cacheTotal    int64
 	cacheTags     [6]int64
 	cacheLoaded   bool
