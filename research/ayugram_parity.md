@@ -95,7 +95,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Day dividers | Date pills between days | PRESENT | gui/chat.go dayDivider | P0 |
 | Delivery ticks (sent/delivered/read) | Clock→✓→✓✓→accent ✓✓ | PRESENT | gui/chat.go statusTicks | P0 |
 | Read receipt "seen" (small groups) | "Seen" time on own msgs, avatar stack | CORE-ONLY | engine.GetOutboxReadDate/GetMessageReadParticipants (CORE-ONLY) | P2 |
-| Message selection mode | Rect/ctrl/shift select, action bar (fwd/del/report) | MISSING | gui/chat.go + engine bulk ops | P1 |
+| Message selection mode | Rect/ctrl/shift select, action bar (fwd/del/report) | PARTIAL (slice 14: "Select" in the context menu → check circles on rows, taps toggle; bar w/ Forward (ForwardMessages batch) / Copy / Delete; Escape cancels; rubber-band + report later) | gui/select.go + chat.go | P1 |
 | Chat empty intro | "No messages here yet…" bubble | PRESENT (centered bubble when the chat has no cached messages) | gui/chrome.go emptyIntro | P2 |
 | Not-joined channel view | Channel w/o join: preview + big "Join" button | CORE-ONLY (ChatInfo.NotJoined/JoinRequest CORE-ONLY) | gui/chat.go + engine.JoinChannel | P1 |
 | Slowmode / write restriction | Composer disabled w/ countdown/text | CORE-ONLY (ChatInfo.Slowmode*/WriteRestriction* CORE-ONLY) | gui/chat.go composerBar | P1 |

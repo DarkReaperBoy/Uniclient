@@ -410,6 +410,14 @@ func (a *App) mediaBlock(gtx layout.Context, f frame, m *engine.CachedMessage) l
 
 // actMedia dispatches the tap for a media bubble.
 func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
+	// Selection mode: taps mark messages instead of media actions.
+	a.mu.Lock()
+	selOn := a.selOn
+	a.mu.Unlock()
+	if selOn {
+		a.toggleMsgSel(m.MsgID)
+		return
+	}
 	msg := *m
 	switch state {
 	case engine.DownloadNone, engine.DownloadFailed:

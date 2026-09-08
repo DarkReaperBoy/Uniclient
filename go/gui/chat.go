@@ -41,7 +41,7 @@ func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Di
 	}
 	// Forward picker replaces the pane content (AyuGram ChooseRecipientBox;
 	// layout swap = no click-through).
-	if f.fwd != nil {
+	if len(f.fwd) > 0 {
 		return a.layoutForwardDialog(gtx, f)
 	}
 	chat := findChat(f, *f.selected)
@@ -89,8 +89,13 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop = a.headerH + d.Size.Y
 			return d
 		}),
-		// Pinned-message bar (AyuGram chat chrome)
+		// Selection bar (AyuGram multi-select) replaces the pinned bar.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if f.selOn {
+				d := a.layoutSelBar(gtx, f)
+				a.listTop += d.Size.Y
+				return d
+			}
 			d := a.pinnedBar(gtx, f)
 			a.listTop += d.Size.Y
 			return d
@@ -488,6 +493,25 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 	maxW := gtx.Constraints.Max.X * 3 / 4
 	pad := gtx.Constraints.Max.X - maxW
 
+	// Selection mode: leading check circle outside the bubble (AyuGram).
+	if f.selOn {
+		circle := func(gtx layout.Context) layout.Dimensions {
+			return a.selectionCircle(gtx, f.sel[m.MsgID])
+		}
+		align := layout.Start
+		row := func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: align}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: unit.Dp(8), Right: unit.Dp(6)}.Layout(gtx, circle)
+				}),
+				layout.Rigid(bubble),
+			)
+		}
+		if out {
+			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(pad)}.Layout(gtx, row)
+		}
+		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, row)
+	}
 	if out {
 		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(pad)}.Layout(gtx, bubble)
 	}

@@ -94,6 +94,14 @@ func (a *App) onPanePress(f frame, pe pointer.Event) {
 		}
 		return // presses inside the menu belong to its own buttons
 	}
+	// Selection mode: any row press toggles its mark (AyuGram multi-select;
+	// taps are the pure-Go input surface here).
+	if f.selOn {
+		if idx := a.rowAt(pos); idx >= 0 && idx < len(f.messages) {
+			a.toggleMsgSel(f.messages[idx].MsgID)
+		}
+		return
+	}
 	if pe.Buttons != pointer.ButtonSecondary {
 		return
 	}
@@ -204,9 +212,15 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 	if acts.Forward {
 		items = append(items, menuAction{"Forward", func(gtx layout.Context) {
 			a.mu.Lock()
-			a.fwd = &m
+			a.fwd = []engine.CachedMessage{m}
 			a.mu.Unlock()
 			a.invalidate()
+		}})
+	}
+	// Enter selection mode (AyuGram message multi-select).
+	if !m.IsService {
+		items = append(items, menuAction{"Select", func(gtx layout.Context) {
+			a.startSelection(m.MsgID)
 		}})
 	}
 	if acts.Pin {
@@ -356,9 +370,14 @@ func (a *App) menuItemRow(gtx layout.Context, btn *widget.Clickable, item menuAc
 // ── forward picker (AyuGram ChooseRecipientBox, first pass) ──────────────
 
 // layoutForwardDialog replaces the chat-pane content while a forward target
-// is being picked (layout swap = no click-through).
+// is being picked (layout swap = no click-through). Handles single and
+// batch sources (selection mode).
 func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions {
-	m := *f.fwd
+	if len(f.fwd) == 0 {
+		return layout.Dimensions{}
+	}
+	srcs := f.fwd
+	m := srcs[0]
 
 	// Candidates: chats on the same account as the source message.
 	var candidates []engine.ChatInfo
@@ -375,7 +394,11 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 				func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							return a.ui.H3("Forward to…").Layout(gtx)
+							title := "Forward to…"
+							if len(srcs) > 1 {
+								title = "Forward " + itoa(len(srcs)) + " messages to…"
+							}
+							return a.ui.H3(title).Layout(gtx)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							if fwdCancelBtn.Clicked(gtx) {
@@ -407,16 +430,27 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 				btn := &fwdChatBtns[i]
 				if btn.Clicked(gtx) {
 					dst := c
-					src := m
 					a.mu.Lock()
 					a.fwd = nil
 					a.mu.Unlock()
 					a.invalidate()
 					go func() {
-						if err := a.eng.ForwardMessage(src.AccountID, src.ChatID, src.MsgID, dst.ChatID, false, false, false, 0); err != nil {
+						if len(srcs) == 1 {
+							if err := a.eng.ForwardMessage(srcs[0].AccountID, srcs[0].ChatID, srcs[0].MsgID, dst.ChatID, false, false, false, 0); err != nil {
+								a.setToast("Forward failed: " + err.Error())
+							} else {
+								a.setToast("Forwarded to " + dst.Title)
+							}
+							return
+						}
+						ids := make([]string, len(srcs))
+						for k := range srcs {
+							ids[k] = srcs[k].MsgID
+						}
+						if err := a.eng.ForwardMessages(srcs[0].AccountID, srcs[0].ChatID, ids, dst.ChatID, false, false, false, 0); err != nil {
 							a.setToast("Forward failed: " + err.Error())
 						} else {
-							a.setToast("Forwarded to " + dst.Title)
+							a.setToast("Forwarded " + itoa(len(ids)) + " messages to " + dst.Title)
 						}
 					}()
 				}

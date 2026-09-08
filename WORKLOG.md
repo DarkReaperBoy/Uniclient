@@ -675,3 +675,20 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - Tests: gui/folderdlg_test.go (picker cycle state machine, flag mapping,
   switch sync, edit prefill incl. name editor). Full suite green under
   node+wasm; windows + wasm builds clean.
+
+## 2026-09-08 — AyuGram parity program, slice 14: message selection mode
+
+- `gui/select.go` (new): AyuGram multi-select — "Select" in the message
+  context menu starts the mode with that message marked; taps on rows (pane
+  press hit-testing) and on media bubbles toggle check circles; a header
+  action bar replaces the pinned bar ("N selected" + Forward / Copy /
+  Delete / ✕, Escape cancels). Forward feeds the batch into the forward
+  picker (a.fwd is now []CachedMessage) which dispatches
+  engine.ForwardMessages; Delete runs engine.DeleteMessage per message with
+  revoke=outgoing; Copy joins texts onto the clipboard.
+- `gui/menu.go`: Select action; forward dialog handles 1..N sources with a
+  count title. `gui/chat.go`: selection circle rows + bar routing.
+  `gui/state.go`: selOn/sel state; openChat resets it.
+- Tests: gui/select_test.go (toggle state machine, menu auto-close,
+  selectedMessages windowing, batch forward build). Full suite green under
+  node+wasm; windows + wasm builds clean; engine green.

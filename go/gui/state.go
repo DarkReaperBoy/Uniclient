@@ -54,15 +54,19 @@ type App struct {
 
 	// message-action state (AyuGram parity §1.11: reply/edit composer modes,
 	// context menu, forward picker, reactions).
-	cMode        composerMode          // reply/edit header above the composer
-	menu         *menuTarget           // open message context menu (copy)
-	fwd          *engine.CachedMessage // forward picker source (copy)
-	menuCaps     []string              // capabilities cached for the menu's account
+	cMode        composerMode           // reply/edit header above the composer
+	menu         *menuTarget            // open message context menu (copy)
+	fwd          []engine.CachedMessage // forward picker sources (1 or batch)
+	menuCaps     []string               // capabilities cached for the menu's account
 	menuCapsFor  string
 	availEmojis  []string // available reactions for the menu's account
 	availFor     string
 	loadingOlder bool
 	olderDone    bool // no more history pages for the open chat
+
+	// selection mode (AyuGram parity slice 14): marked message IDs.
+	selOn bool
+	sel   map[string]bool
 
 	// media-bubble state (AyuGram parity slice 2): live download progress fed
 	// by engine events, and the auto-download ledger for prefetches.
@@ -553,6 +557,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.cMode = composerMode{}
 	a.menu = nil
 	a.fwd = nil
+	a.selOn = false
+	a.sel = nil
 	a.autoDl = make(map[string]bool)
 	a.downloads = make(map[string]dlState)
 	a.panelOpen = false
@@ -937,6 +943,8 @@ func (a *App) snapshot() frame {
 		cMode:            a.cMode,
 		menu:             a.menu,
 		fwd:              a.fwd,
+		selOn:            a.selOn,
+		sel:              a.sel,
 		menuCaps:         a.menuCaps,
 		availEmojis:      a.availEmojis,
 		loadingOlder:     a.loadingOlder,
@@ -1009,11 +1017,15 @@ type frame struct {
 	// message-action surface
 	cMode        composerMode
 	menu         *menuTarget
-	fwd          *engine.CachedMessage
+	fwd          []engine.CachedMessage
 	menuCaps     []string
 	availEmojis  []string
 	loadingOlder bool
 	now          time.Time
+
+	// selection mode (slice 14)
+	selOn bool
+	sel   map[string]bool
 
 	// media bubbles (slice 2)
 	downloads map[string]dlState
