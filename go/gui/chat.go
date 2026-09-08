@@ -164,6 +164,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.pollDlg != nil {
 		a.layoutPollDialog(gtx, f)
 	}
+	// Who-reacted dialog (slice 49).
+	if f.reactors != nil {
+		a.layoutReactorsDialog(gtx, f)
+	}
 	return dims
 }
 

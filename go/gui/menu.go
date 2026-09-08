@@ -247,6 +247,12 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.openForward([]engine.CachedMessage{m})
 		}})
 	}
+	// Who reacted (AyuGram reactions list, slice 49).
+	if len(m.Reactions) > 0 {
+		items = append(items, menuAction{"Who reacted", func(gtx layout.Context) {
+			a.openReactors(&m, "")
+		}})
+	}
 	// Ayu local hide (AyuGram "hide message": gone from this client only).
 	if !m.IsService {
 		items = append(items, menuAction{"Hide Locally", func(gtx layout.Context) {

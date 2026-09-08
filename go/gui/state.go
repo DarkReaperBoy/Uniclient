@@ -172,6 +172,9 @@ type App struct {
 	// translations, keyed account|chat|msg.
 	translations map[string]string
 
+	// who-reacted dialog (slice 49)
+	reactors *reactorsState
+
 	// per-message silent sends (AyuGram 🔕, slice 23): sticky toggle
 	silentNext bool
 
@@ -1298,6 +1301,7 @@ func (a *App) snapshot() frame {
 		reportDlg:        a.reportDlg,
 		schedDlg:         a.schedDlg,
 		pollDlg:          a.pollDlg,
+		reactors:         a.reactors,
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
 		schedLoad:        a.schedLoad,
@@ -1440,6 +1444,9 @@ type frame struct {
 
 	// polls (slice 42)
 	pollDlg *pollDlgState
+
+	// who-reacted dialog (slice 49)
+	reactors *reactorsState
 
 	// scheduled-messages panel (slice 21)
 	schedPanel bool

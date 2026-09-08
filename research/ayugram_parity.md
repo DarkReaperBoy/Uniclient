@@ -179,7 +179,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Members list (groups) | Searchable, roles, admin badges | PRESENT (200 members w/ role badges + presence; slice 40 search field filters by name/username/id once the list passes 8) | gui/profile.go memberRow + filterMembers + engine.GetChatMembers | P1 |
 | Member context menu | Promote/restrict/ban/remove | CORE-ONLY | engine admin methods (CORE-ONLY) | P2 |
 | Notifications toggle in panel | Per-chat mute switch | PRESENT (per-chat mute switch wired to engine.MuteChat) | gui/profile.go muteRow | P1 |
-| Reactions/views list | Who reacted w/ which emoji | CORE-ONLY | engine.GetMessageReactorsList (CORE-ONLY) | P2 |
+| Reactions/views list | Who reacted w/ which emoji | PRESENT (slice 49: message menu 'Who reacted' → dialog w/ per-emoji tabs (engine GetMessageReactorsList w/ filter + offset paging); rows 'emoji + name'; views list later) | gui/reactors.go + engine.GetMessageReactorsList | P2 |
 | Common groups | Shared chats w/ user | CORE-ONLY | engine.GetCommonChats (CORE-ONLY) | P3 |
 | Saved Messages | Own chat + saved sublists + tags | CORE-ONLY | engine.OpenSavedMessages/GetSavedSublists (CORE-ONLY) | P2 |
 | Poll results panel | Votes per option | PARTIAL (slice 42: poll bubbles — question, tappable options, vote bars w/ percentages, quiz correct/wrong reveal, voters footer, optimistic vote overlay; core does not surface UpdateMessagePoll so live result pushes need engine work) | gui/poll.go + engine VotePoll/VotePollMulti/CreatePollEx | P2 |
