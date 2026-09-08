@@ -113,7 +113,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Edit mode | "Editing" header, saves via edit | PRESENT (composer chip + EditMessage, prefill) | gui/chat.go + state.go sendText | P0 |
 | Attach menu (📎) | Photo/file/poll/location/contact/music menus | PARTIAL (📎 menu: Photo-or-Video + File via OS picker (gioui.org/x/explorer); multi = album via new engine.SendMediaAlbumFromPaths; composer text = caption; poll/location/contact later) | gui/attach.go + engine.UploadFileEx/SendMediaAlbumFromPaths | P0 |
 | Voice recording (hold 🎤) | Hold-to-record, slide-cancel, duration | CORE-ONLY | engine UploadFileWithOptions IsVoice (CORE-ONLY) | P1 |
-| Emoji picker panel | Tabbed emoji/stickers/GIFs, search, recent | CORE-ONLY | engine sticker/gif/custom-emoji APIs (huge, CORE-ONLY) | P1 |
+| Emoji picker panel | Tabbed emoji/stickers/GIFs, search, recent | PARTIAL (2026-09 slice 10: emoji panel w/ 9 categories + backspace key + insert-at-caret in gui/emoji.go; sticker/GIF tabs need engine sticker set fetch, search needs keywords) | gui/emoji.go + engine sticker/gif APIs (CORE-ONLY) | P1 |
 | Emoji autocomplete | Keyword suggestions while typing | CORE-ONLY | engine.GetEmojiKeywords (CORE-ONLY) | P2 |
 | Bot commands menu (/) | "/" button lists chat commands | CORE-ONLY | engine.GetChatBotCommands (CORE-ONLY) | P2 |
 | Bot keyboard (reply markup) | Custom reply keyboards under composer | CORE-ONLY | core has BotCallback infra (CORE-ONLY) | P2 |

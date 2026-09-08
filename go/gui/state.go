@@ -99,6 +99,10 @@ type App struct {
 	expl           *explorer.Explorer
 	attachMenuOpen bool
 
+	// emoji picker (AyuGram parity slice 10): panel open + active category
+	emojiOpen bool
+	emojiTab  int
+
 	// server folders (AyuGram parity slice 6): real dialog-filter tabs
 	folders          []engine.FolderInfo
 	foldersFor       string
@@ -121,6 +125,7 @@ type App struct {
 	rowBounds      map[int]image.Rectangle
 	menuRect       image.Rectangle
 	attachMenuRect image.Rectangle
+	emojiRect      image.Rectangle
 	// sidebar (chat-row menu) bookkeeping
 	chatRowBounds map[int]image.Rectangle
 	sbVisible     []engine.ChatInfo
@@ -926,6 +931,8 @@ func (a *App) snapshot() frame {
 		mediaCounts:      a.mediaCounts,
 		panelRecent:      a.panelRecent,
 		attachMenuOpen:   a.attachMenuOpen,
+		emojiOpen:        a.emojiOpen,
+		emojiTab:         a.emojiTab,
 		folders:          a.folders,
 		foldersSupported: a.foldersSupported,
 		folderDlg:        a.folderDlg,
@@ -1000,6 +1007,10 @@ type frame struct {
 
 	// attach flow (slice 5)
 	attachMenuOpen bool
+
+	// emoji picker (slice 10)
+	emojiOpen bool
+	emojiTab  int
 
 	// server folders (slice 6)
 	folders          []engine.FolderInfo

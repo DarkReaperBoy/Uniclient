@@ -110,6 +110,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.attachMenuOpen {
 		a.layoutAttachMenu(gtx, f)
 	}
+	// Emoji picker above the composer.
+	if f.emojiOpen {
+		a.layoutEmojiPanel(gtx, f)
+	}
 	return dims
 }
 
@@ -682,6 +686,20 @@ func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
 						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							btn := a.ui.IconButton(&attachBtn, iconFileAttach, "Attach")
 							btn.Color = a.ui.p.TextDim
+							return btn.Layout(gtx)
+						})
+					}),
+					// emoji (😊) — picker panel (AyuGram)
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if emojiBtn.Clicked(gtx) {
+							a.toggleEmojiPanel()
+						}
+						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							btn := a.ui.IconButton(&emojiBtn, iconEmojiSmile, "Emoji")
+							btn.Color = a.ui.p.TextDim
+							if f.emojiOpen {
+								btn.Color = a.ui.p.Accent
+							}
 							return btn.Layout(gtx)
 						})
 					}),

@@ -46,9 +46,11 @@ func (a *App) attachMenuItems() []attachMenuItem {
 	}
 }
 
-// toggleAttachMenu shows or hides the attach popup.
+// toggleAttachMenu shows or hides the attach popup (closing the emoji
+// panel — one helper surface at a time).
 func (a *App) toggleAttachMenu() {
 	a.mu.Lock()
+	a.emojiOpen = false
 	a.attachMenuOpen = !a.attachMenuOpen
 	a.mu.Unlock()
 	a.invalidate()

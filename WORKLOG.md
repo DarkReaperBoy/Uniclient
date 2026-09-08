@@ -599,3 +599,23 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
   math, item find/merge/synth, kind mapping). Full gui suite green locally
   under node+wasm; engine+utils native green; windows + wasm builds clean;
   gofmt + vet clean.
+
+## 2026-09-08 — AyuGram parity program, slice 10: emoji picker + release fix
+
+- `gui/emoji.go` (new): the 😊 composer button opens a category-tabbed emoji
+  panel above the input (AyuGram composer helper). 9 categories (~450
+  emoji), tab strip with active highlight, 8-column grid, taps insert at the
+  caret via widget.Editor.Insert and keep the panel open for multi-insert,
+  backspace key (Editor.Delete), outside-press dismissal, mutually exclusive
+  with the attach popup. Emoji render through the Noto Emoji fallback face
+  (no new deps). Sticker/GIF tabs + emoji search = follow-up (engine sticker
+  set fetch / GetEmojiKeywords).
+- `gui/chat.go`: 😊 button beside 📎 + panel overlay; `gui/state.go`:
+  emojiOpen/emojiTab state + rect bookkeeping; `gui/menu.go`: dismissal.
+- Fix: the owner's manual "Release" dispatch (34199258328) failed at
+  "Create pre-release — GitHub Releases requires a tag" (dispatches run on a
+  branch). release.yml now derives a `dev-<sha>` tag for branch dispatches;
+  tag pushes are unchanged.
+- Tests: gui/emoji_test.go (row math, category clamp, dataset sanity incl.
+  duplicate scan, row padding). Full gui suite green under node+wasm;
+  engine/utils green; gofmt + vet clean.

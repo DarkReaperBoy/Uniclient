@@ -83,6 +83,11 @@ func (a *App) onPanePress(f frame, pe pointer.Event) {
 			a.closeAttachMenu()
 		}
 	}
+	if f.emojiOpen {
+		if !pointInRect(pos, a.emojiRect) {
+			a.closeEmojiPanel()
+		}
+	}
 	if f.menu != nil {
 		if !pointInRect(pos, a.menuRect) {
 			a.closeMenu()

@@ -231,9 +231,21 @@ jobs:
           merge-multiple: true
       - name: Checksums
         run: cd dist && sha256sum * > checksums.txt && ls -la
+      # Manual dispatches run on a branch (no tag); GitHub Releases requires
+      # one — derive a dev tag from the SHA so owner-triggered runs publish.
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=dev-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          fi
       - name: Create pre-release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Uniclient ${{ steps.tag.outputs.tag }}
           draft: false
           prerelease: true # pre-release until the owner flips it
           generate_release_notes: true

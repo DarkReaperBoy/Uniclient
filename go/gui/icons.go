@@ -41,6 +41,8 @@ var (
 	iconNavChevronLeft     = mustIcon(icons.NavigationChevronLeft)
 	iconNavChevronRight    = mustIcon(icons.NavigationChevronRight)
 	iconSocialShare        = mustIcon(icons.SocialShare)
+	iconEmojiSmile         = mustIcon(icons.EditorInsertEmoticon)
+	iconContentBackspace   = mustIcon(icons.ContentBackspace)
 )
 
 func mustIcon(data []byte) *widget.Icon {
