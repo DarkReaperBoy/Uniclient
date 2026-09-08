@@ -508,3 +508,23 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
   panel routing; `gui/state.go`: panel state + async loadPanel; tests:
   gui/profile_test.go (section gating, role badges, last-seen labels).
 - Local gate before push: gofmt clean, full windows-target vet clean.
+
+## 2026-09-08 — AyuGram parity program, slice 5: attach menu + uploads
+
+- `gui/attach.go` (new): 📎 in the composer opens an attach popup (Photo or
+  Video / File); file picking through the OS dialog via gioui.org/x/explorer
+  (new dep, v0.10.2 — matches gio v0.10.2; works on Linux portal / Windows /
+  macOS / Android SAF / browser). Desktop picks resolve to real paths,
+  streamed picks spool to temp files (cleaned up after upload). Single file →
+  engine.UploadFileEx; multiple → new engine.SendMediaAlbumFromPaths (album
+  when the core supports cores.MediaAlbumSender, sequential fallback). The
+  composer text at attach time becomes the caption; the composer clears.
+- `gui/state.go`: explorer wiring (created once per window, ListenEvents
+  forwarded from main.go's event loop), attach-menu state; `gui/chat.go`:
+  composer attach button + popup overlay; `gui/menu.go`: outside-press
+  dismissal.
+- fix (from CI runs 34194751486/34195237803): gui itoa(0) returned "" —
+  TestFmtDur caught it; fixed to return "0" (also correct for member counts).
+- Verification upgrade: the full gui test suite now runs locally under
+  node+wasm (go test -c GOOS=js + lib/wasm executor) — all 20+ gui tests
+  green locally before push; windows vet + wasm build clean.

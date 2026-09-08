@@ -526,6 +526,9 @@ func unreadBadge(gtx layout.Context, u *UI, n int, muted bool) layout.Dimensions
 }
 
 func itoa(n int) string {
+	if n <= 0 {
+		return "0"
+	}
 	if n > 999 {
 		return "999+"
 	}

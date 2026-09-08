@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"gioui.org/app"
+	"gioui.org/io/event"
 	"gioui.org/op"
 	"gioui.org/widget"
+
+	"gioui.org/x/explorer"
 
 	"uniclient/cores"
 	"uniclient/engine"
@@ -91,16 +94,21 @@ type App struct {
 	mediaCounts []engine.SharedMediaCountItem
 	panelRecent []engine.SharedMediaItem
 
+	// attach flow (AyuGram parity slice 5): OS file picker + upload pipeline
+	expl           *explorer.Explorer
+	attachMenuOpen bool
+
 	// transient
 	typing map[string]time.Time // chatKey -> last typing seen
 
 	// frame-loop-only layout bookkeeping (single GUI goroutine, no lock):
 	// message-row bounds in chat-pane coordinates for right-click hit tests,
 	// and the rendered context-menu rect for outside-press dismissal.
-	rowBounds map[int]image.Rectangle
-	menuRect  image.Rectangle
-	listTop   int // top Y of the message list within the chat pane
-	headerH   int // chat header height
+	rowBounds      map[int]image.Rectangle
+	menuRect       image.Rectangle
+	attachMenuRect image.Rectangle
+	listTop        int // top Y of the message list within the chat pane
+	headerH        int // chat header height
 }
 
 func New(win *app.Window, eng *engine.Engine) *App {
@@ -108,6 +116,7 @@ func New(win *app.Window, eng *engine.Engine) *App {
 		win:        win,
 		ui:         NewUI(),
 		eng:        eng,
+		expl:       explorer.NewExplorer(win),
 		typing:     make(map[string]time.Time),
 		connecting: make(map[string]bool),
 		rowBounds:  make(map[int]image.Rectangle),
@@ -128,6 +137,14 @@ func (a *App) Start() {
 	go a.refreshAccounts()
 	go a.refreshChats()
 	go eng.ConnectAllAccounts()
+}
+
+// ListenEvents forwards window events to the file explorer (it must see
+// every event — e.g. ViewEvent on mobile — to wire OS dialogs).
+func (a *App) ListenEvents(evt event.Event) {
+	if a.expl != nil {
+		a.expl.ListenEvents(evt)
+	}
 }
 
 // invalidate schedules a redraw (safe from any goroutine).
@@ -486,7 +503,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.autoDl = make(map[string]bool)
 	a.downloads = make(map[string]dlState)
 	a.panelOpen = false
-	a.panelLoaded = false
+	a.attachMenuOpen = false
 	a.profile = nil
 	a.members = nil
 	a.mediaCounts = nil
@@ -816,52 +833,53 @@ func (a *App) snapshot() frame {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	f := frame{
-		showPicker:    a.showPicker,
-		acctFilter:    a.acctFilter,
-		accounts:      a.accounts,
-		chats:         a.chats,
-		messages:      a.messages,
-		msgFor:        a.msgFor,
-		selected:      a.selected,
-		folder:        a.folder,
-		search:        a.search,
-		mode:          a.mode,
-		auth:          a.auth,
-		authAcct:      a.authAcct,
-		toast:         a.toast,
-		toastAt:       a.toastAt,
-		connecting:    a.connecting,
-		sending:       a.sending,
-		loadingMsgs:   a.loadingMsgs,
-		cMode:         a.cMode,
-		menu:          a.menu,
-		fwd:           a.fwd,
-		menuCaps:      a.menuCaps,
-		availEmojis:   a.availEmojis,
-		loadingOlder:  a.loadingOlder,
-		now:           time.Now(),
-		settingsOpen:  a.settingsOpen,
-		settingsSect:  a.settingsSect,
-		cfg:           a.cfg,
-		notifyAccts:   a.notifyAccts,
-		notifyLoaded:  a.notifyLoaded,
-		blockedUsers:  a.blockedUsers,
-		sessionsList:  a.sessionsList,
-		privacyLoaded: a.privacyLoaded,
-		cacheTotal:    a.cacheTotal,
-		cacheTags:     a.cacheTags,
-		cacheLoaded:   a.cacheLoaded,
-		ghostSel:      a.ghostSel,
-		ghostFlags:    a.ghostFlags,
-		ghostLoaded:   a.ghostLoaded,
-		panelOpen:     a.panelOpen,
-		panelChat:     a.panelChat,
-		panelLoaded:   a.panelLoaded,
-		panelMuted:    a.panelMuted,
-		profile:       a.profile,
-		members:       a.members,
-		mediaCounts:   a.mediaCounts,
-		panelRecent:   a.panelRecent,
+		showPicker:     a.showPicker,
+		acctFilter:     a.acctFilter,
+		accounts:       a.accounts,
+		chats:          a.chats,
+		messages:       a.messages,
+		msgFor:         a.msgFor,
+		selected:       a.selected,
+		folder:         a.folder,
+		search:         a.search,
+		mode:           a.mode,
+		auth:           a.auth,
+		authAcct:       a.authAcct,
+		toast:          a.toast,
+		toastAt:        a.toastAt,
+		connecting:     a.connecting,
+		sending:        a.sending,
+		loadingMsgs:    a.loadingMsgs,
+		cMode:          a.cMode,
+		menu:           a.menu,
+		fwd:            a.fwd,
+		menuCaps:       a.menuCaps,
+		availEmojis:    a.availEmojis,
+		loadingOlder:   a.loadingOlder,
+		now:            time.Now(),
+		settingsOpen:   a.settingsOpen,
+		settingsSect:   a.settingsSect,
+		cfg:            a.cfg,
+		notifyAccts:    a.notifyAccts,
+		notifyLoaded:   a.notifyLoaded,
+		blockedUsers:   a.blockedUsers,
+		sessionsList:   a.sessionsList,
+		privacyLoaded:  a.privacyLoaded,
+		cacheTotal:     a.cacheTotal,
+		cacheTags:      a.cacheTags,
+		cacheLoaded:    a.cacheLoaded,
+		ghostSel:       a.ghostSel,
+		ghostFlags:     a.ghostFlags,
+		ghostLoaded:    a.ghostLoaded,
+		panelOpen:      a.panelOpen,
+		panelChat:      a.panelChat,
+		panelLoaded:    a.panelLoaded,
+		panelMuted:     a.panelMuted,
+		profile:        a.profile,
+		members:        a.members,
+		mediaCounts:    a.mediaCounts,
+		panelRecent:    a.panelRecent,
+		attachMenuOpen: a.attachMenuOpen,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -928,6 +946,9 @@ type frame struct {
 	members     []engine.MemberInfo
 	mediaCounts []engine.SharedMediaCountItem
 	panelRecent []engine.SharedMediaItem
+
+	// attach flow (slice 5)
+	attachMenuOpen bool
 }
 
 var _ = op.InvalidateCmd{} // referenced in widgets that animate

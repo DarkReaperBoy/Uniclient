@@ -37,6 +37,7 @@ var (
 	iconImagePalette       = mustIcon(icons.ImagePalette)
 	iconActionGhost        = mustIcon(icons.ActionVisibilityOff)
 	iconActionInfo         = mustIcon(icons.ActionInfoOutline)
+	iconImagePhoto         = mustIcon(icons.ImagePhoto)
 )
 
 func mustIcon(data []byte) *widget.Icon {

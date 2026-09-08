@@ -78,6 +78,11 @@ func (a *App) processPaneEvents(gtx layout.Context, f frame) {
 
 func (a *App) onPanePress(f frame, pe pointer.Event) {
 	pos := image.Pt(int(pe.Position.X), int(pe.Position.Y))
+	if f.attachMenuOpen {
+		if !pointInRect(pos, a.attachMenuRect) {
+			a.closeAttachMenu()
+		}
+	}
 	if f.menu != nil {
 		if !pointInRect(pos, a.menuRect) {
 			a.closeMenu()

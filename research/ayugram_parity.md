@@ -111,7 +111,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Text input + send (Enter) | Send on Enter, shift+Enter newline | PRESENT | gui/chat.go composerBar | P0 |
 | Reply mode | Header above input w/ quoted msg, cancel | PRESENT (composer chip; send routes replyToID) | gui/chat.go composerChip + state.go sendText | P0 |
 | Edit mode | "Editing" header, saves via edit | PRESENT (composer chip + EditMessage, prefill) | gui/chat.go + state.go sendText | P0 |
-| Attach menu (📎) | Photo/file/poll/location/contact/music menus | CORE-ONLY | engine.UploadFile/SendMediaAlbum/CreatePoll/SendLocation/SendContact (all CORE-ONLY) | P0 |
+| Attach menu (📎) | Photo/file/poll/location/contact/music menus | PARTIAL (📎 menu: Photo-or-Video + File via OS picker (gioui.org/x/explorer); multi = album via new engine.SendMediaAlbumFromPaths; composer text = caption; poll/location/contact later) | gui/attach.go + engine.UploadFileEx/SendMediaAlbumFromPaths | P0 |
 | Voice recording (hold 🎤) | Hold-to-record, slide-cancel, duration | CORE-ONLY | engine UploadFileWithOptions IsVoice (CORE-ONLY) | P1 |
 | Emoji picker panel | Tabbed emoji/stickers/GIFs, search, recent | CORE-ONLY | engine sticker/gif/custom-emoji APIs (huge, CORE-ONLY) | P1 |
 | Emoji autocomplete | Keyword suggestions while typing | CORE-ONLY | engine.GetEmojiKeywords (CORE-ONLY) | P2 |

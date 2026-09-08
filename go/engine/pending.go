@@ -273,6 +273,93 @@ func (e *Engine) UploadFile(accountID, chatID, filePath, caption string) (string
 	return e.UploadFileEx(accountID, chatID, filePath, cores.UploadOptions{Caption: caption})
 }
 
+// SendMediaAlbumFromPaths uploads multiple files as one album message when
+// the core supports it (cores.MediaAlbumSender), falling back to sequential
+// single uploads otherwise. Paths must be readable local files (the GUI
+// resolves picked files to paths / temp copies). The caption applies to the
+// first item (AyuGram album caption behavior).
+func (e *Engine) SendMediaAlbumFromPaths(accountID, chatID string, paths []string, caption string, silent bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	if len(paths) == 0 {
+		return fmt.Errorf("no files to send")
+	}
+
+	// Single file: plain upload with the caption.
+	if len(paths) == 1 {
+		_, err := e.UploadFileEx(accountID, chatID, paths[0], cores.UploadOptions{Caption: caption, Silent: silent})
+		return err
+	}
+
+	sender, hasAlbum := acc.Core.(cores.MediaAlbumSender)
+	if !hasAlbum {
+		// No album support: send sequentially; first file carries the caption.
+		var firstErr error
+		for i, p := range paths {
+			itemCaption := ""
+			if i == 0 {
+				itemCaption = caption
+			}
+			if _, err := e.UploadFileEx(accountID, chatID, p, cores.UploadOptions{Caption: itemCaption, Silent: silent}); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		return firstErr
+	}
+
+	var files []*os.File
+	defer func() {
+		for _, f := range files {
+			f.Close()
+		}
+	}()
+	var items []cores.AlbumItem
+	for i, p := range paths {
+		f, err := os.Open(p)
+		if err != nil {
+			return fmt.Errorf("open %s: %w", p, err)
+		}
+		files = append(files, f)
+		info, err := f.Stat()
+		if err != nil {
+			return fmt.Errorf("stat %s: %w", p, err)
+		}
+		mime := detectMimeType(p)
+		itemCaption := ""
+		if i == 0 {
+			itemCaption = caption
+		}
+		items = append(items, cores.AlbumItem{
+			Upload: cores.FileUpload{
+				Name:     filepath.Base(p),
+				Size:     info.Size(),
+				MimeType: mime,
+				Reader:   f,
+			},
+			Caption: itemCaption,
+			IsPhoto: guessMediaType(mime, filepath.Base(p)) == MediaImage,
+		})
+	}
+
+	msgs, err := sender.SendMediaAlbum(chatID, items, silent, 0)
+	if err != nil {
+		return err
+	}
+	for _, m := range msgs {
+		if m != nil {
+			cached := e.cacheMessage(accountID, chatID, m)
+			e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{
+				AccountID: accountID,
+				ChatID:    chatID,
+				Message:   cached,
+			})
+		}
+	}
+	return nil
+}
+
 // UploadFileEx sends a file with extended options (spoiler, sendAsDocument, etc.).
 func (e *Engine) UploadFileEx(accountID, chatID, filePath string, opts cores.UploadOptions) (string, error) {
 	acc, ok := e.getAccount(accountID)

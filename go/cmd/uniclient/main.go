@@ -65,7 +65,10 @@ func run(w *app.Window, dir, password string) error {
 
 	var ops op.Ops
 	for {
-		switch e := w.Event().(type) {
+		e := w.Event()
+		// The file explorer needs every window event (ViewEvent on mobile).
+		ui.ListenEvents(e)
+		switch e := e.(type) {
 		case app.DestroyEvent:
 			return e.Err
 		case app.FrameEvent:

@@ -106,6 +106,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.menu != nil {
 		a.layoutContextMenu(gtx, f)
 	}
+	// Attach popup above the composer.
+	if f.attachMenuOpen {
+		a.layoutAttachMenu(gtx, f)
+	}
 	return dims
 }
 
@@ -667,6 +671,17 @@ func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
 			}
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.End}.Layout(gtx,
+					// attach (📎) — file/photo picker menu (AyuGram)
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if attachBtn.Clicked(gtx) {
+							a.toggleAttachMenu()
+						}
+						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							btn := a.ui.IconButton(&attachBtn, iconFileAttach, "Attach")
+							btn.Color = a.ui.p.TextDim
+							return btn.Layout(gtx)
+						})
+					}),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return roundedFill(gtx, a.ui.p.SurfaceHi, 14, func(gtx layout.Context) layout.Dimensions {
 							gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(44))
