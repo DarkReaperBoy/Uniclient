@@ -253,7 +253,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Global chat search | Finds chats by title/username across server | CORE-ONLY (local filter only) | engine.SearchGlobalChats (CORE-ONLY) | P0 |
 | Global message search | All-chats message results w/ preview | CORE-ONLY | engine.SearchMessages (CORE-ONLY) | P1 |
-| Search in current chat | In-chat results + jump + calendar picker | CORE-ONLY | engine.SearchMessages(chatID) (CORE-ONLY) | P1 |
+| Search in current chat | In-chat results + jump + calendar picker | PRESENT (slice 18: header 🔍 → live scoped FTS bar w/ results panel, hit counter, ▲▼ navigation + click-jump; calendar picker + from-user filter remain) | gui/chatsearch.go + engine SearchMessages | P1 |
 | Search by sender/from | Filter "from user" | CORE-ONLY | engine search senderID param (CORE-ONLY) | P2 |
 | Search posts in public channels | Global post search | CORE-ONLY | engine.SearchGlobalPosts (CORE-ONLY) | P3 |
 | Hashtag/tag search | Filter by tag | MISSING | new engine search filter | P3 |

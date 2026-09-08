@@ -25,6 +25,7 @@ var (
 	chatSendBtn widget.Clickable
 	composer    widget.Editor
 	msgList     widget.List
+	joinBarBtn  widget.Clickable // JOIN (not-joined channels, slice 19)
 )
 
 func init() {
@@ -116,8 +117,11 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.ui.Divider(gtx)
 		}),
-		// Composer
+		// Composer (or JOIN bar for not-joined previews, slice 19)
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if chat != nil && chat.NotJoined {
+				return a.joinBar(gtx, f, chat)
+			}
 			return a.composerBar(gtx, f)
 		}),
 	)
@@ -137,6 +141,14 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	// Emoji picker above the composer.
 	if f.emojiOpen {
 		a.layoutEmojiPanel(gtx, f)
+	}
+	// Delete confirm (slice 19).
+	if f.delDlg != nil {
+		a.layoutDeleteDialog(gtx, f)
+	}
+	// Report flow (slice 19).
+	if f.reportDlg != nil {
+		a.layoutReportDialog(gtx, f)
 	}
 	return dims
 }
@@ -705,6 +717,37 @@ func check(gtx layout.Context, c color.NRGBA, size int, dx int) layout.Dimension
 	paint.Fill(gtx.Ops, c)
 	stack.Pop()
 	return layout.Dimensions{Size: image.Pt(size, size)}
+}
+
+// joinBar: the JOIN action shown instead of the composer for not-joined
+// channel previews (AyuGram preview behavior, slice 19). Joins via
+// engine.JoinChannel; the engine re-sync flips the chat to joined.
+func (a *App) joinBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
+	if joinBarBtn.Clicked(gtx) {
+		acc, id := chat.AccountID, chat.ChatID
+		title := chat.Title
+		go func() {
+			if err := a.eng.JoinChannel(acc, id); err != nil {
+				a.setToast("Join failed: " + err.Error())
+				return
+			}
+			a.setToast("Joined " + title)
+			a.refreshChats()
+		}()
+	}
+	return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(10), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					lbl := a.ui.Dim(unit.Sp(13), "You are previewing this channel")
+					return lbl.Layout(gtx)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					btn := a.ui.PrimaryButton(&joinBarBtn, "JOIN")
+					return btn.Layout(gtx)
+				}),
+			)
+		})
 }
 
 // composerBar: input + send, disabled state shows progress. When a reply or

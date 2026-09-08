@@ -155,6 +155,10 @@ type App struct {
 	inChatIdx  int
 	inChatBusy bool
 
+	// delete + report dialogs (AyuGram parity slice 19)
+	delDlg    *delDlgState
+	reportDlg *reportDlgState
+
 	// fullscreen media viewer (AyuGram parity slice 9, §12): shared under
 	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
 	viewer *viewerState
@@ -627,6 +631,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.inChatHits = nil
 	a.inChatIdx = 0
 	a.inChatBusy = false
+	a.delDlg = nil // slice 19: close delete/report dialogs
+	a.reportDlg = nil
 	// Unread snapshot BEFORE the read receipt fires (openChat marks read
 	// right after the first load) — the separator position for this visit.
 	a.unreadAtOpen = 0
@@ -1055,6 +1061,8 @@ func (a *App) snapshot() frame {
 		inChatHits:       a.inChatHits,
 		inChatIdx:        a.inChatIdx,
 		inChatBusy:       a.inChatBusy,
+		delDlg:           a.delDlg,
+		reportDlg:        a.reportDlg,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -1172,6 +1180,10 @@ type frame struct {
 	inChatHits []engine.SearchResult
 	inChatIdx  int
 	inChatBusy bool
+
+	// delete + report dialogs (slice 19)
+	delDlg    *delDlgState
+	reportDlg *reportDlgState
 
 	// fullscreen media viewer (slice 9)
 	viewer *viewerState

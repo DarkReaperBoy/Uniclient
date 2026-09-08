@@ -229,6 +229,12 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.startSelection(m.MsgID)
 		}})
 	}
+	// Report (AyuGram: incoming, non-service messages).
+	if canReport(m) {
+		items = append(items, menuAction{"Report", func(gtx layout.Context) {
+			a.openReportDialog([]engine.CachedMessage{m})
+		}})
+	}
 	if acts.Pin {
 		label := "Pin"
 		if pinned {
@@ -244,11 +250,7 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 	}
 	if acts.Delete {
 		items = append(items, menuAction{"Delete", func(gtx layout.Context) {
-			go func() {
-				if err := a.eng.DeleteMessage(m.AccountID, m.ChatID, m.MsgID, m.IsOutgoing); err != nil {
-					a.setToast("Delete failed: " + err.Error())
-				}
-			}()
+			a.openDeleteDialog([]engine.CachedMessage{m}, chatOf(f, m))
 		}})
 	}
 	return items

@@ -127,16 +127,39 @@ func (a *App) forwardSelected() {
 // deleteSelected removes the selected messages (revoke for own messages).
 func (a *App) deleteSelected() {
 	msgs := a.selectedMessages()
-	a.cancelSelection()
-	for _, m := range msgs {
-		m := m
-		go func() {
-			if err := a.eng.DeleteMessage(m.AccountID, m.ChatID, m.MsgID, m.IsOutgoing); err != nil {
-				a.setToast("Delete failed: " + err.Error())
-			}
-		}()
+	if len(msgs) == 0 {
+		return
 	}
-	a.setToast("Deleting " + itoa(len(msgs)) + " message(s)…")
+	// Bulk delete goes through the same confirm dialog (revoke checkbox).
+	chat := engine.ChatInfo{}
+	if k := a.msgForLocked(); k != nil {
+		for _, c := range a.chatsLocked() {
+			if c.AccountID == k.AccountID && c.ChatID == k.ChatID {
+				chat = c
+				break
+			}
+		}
+	}
+	a.cancelSelection()
+	a.openDeleteDialog(msgs, chat)
+}
+
+// msgForLocked returns a copy of the open chat key.
+func (a *App) msgForLocked() *chatKey {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.msgFor == nil {
+		return nil
+	}
+	k := *a.msgFor
+	return &k
+}
+
+// chatsLocked returns a copy of the chat list.
+func (a *App) chatsLocked() []engine.ChatInfo {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.chats
 }
 
 // copySelectedText joins the selected messages' text onto the clipboard.
