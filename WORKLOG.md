@@ -725,3 +725,15 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - Tests: gui/search_test.go (row model shape, global scope filter, short
   query clears). Full suite green under node+wasm; windows + wasm builds
   clean.
+
+---
+### 2026-09-08 (session 4) — slices 17–22 (message-actions follow-ups + shell surfaces)
+
+- **16 fix (811a1c88)**: gofmt on gui/search_test.go; CI green (34220054302)
+- **17 (a0268178)**: hamburger drawer (☰ in account bar) — account switch, contacts, calls→voice, night switch, ghost master + ⚙ prefs, new group/channel (CreateGroup/CreateChannel/CreateMegagroup + pending-open GUI-loop hop), settings; contacts screen (GetContacts, search, jump-to-DM, AddContact dialog); CI green
+- **18 (f2661061)**: in-chat search — header 🔍, live scoped FTS, N/M counter, ▲▼ + click jump; CI green (34221720448)
+- **19 (d7a1c6f8)**: delete dialog w/ for-all revoke (single + bulk), interactive report flow (choose_option → add_comment → reported), JOIN bar for not-joined channel previews; CI green (34222198035)
+- **20 (00e51735)**: drafts (restore/flush/clear + red row preview) + scheduled send (⏰ dialog: presets + custom date/time → SendMessage scheduleDate; scheduled meta); CI green (34222830611)
+- **21 (d9d53c24)**: scheduled manager (header ⋮ → panel w/ send-now/reschedule/delete; new engine.DeleteScheduledMessages) + unread-story rings on avatars; CI in flight
+- **22 (0750ff39)**: desktop notifications — Linux DBus org.freedesktop.Notifications, config/mute/throttle gating, pure helpers tested; CI dispatched
+- Toolchain notes: wasm test runner is `/tmp/go/lib/wasm/wasm_exec_node.js` (go_js_wasm_exec no longer node-runnable); gofmt fix flow: CI gofmt gate → local `gofmt -w` → gates → push
