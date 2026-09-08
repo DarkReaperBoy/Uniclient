@@ -194,7 +194,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Notifications section | Per-type toggles, sound picker, exceptions, reactions notify | PARTIAL (global DM/group/mention toggles + per-account contact-signup/calls toggles; sound/exceptions later) | gui/settings.go + engine config/notifications | P1 |
 | Privacy & security | Blocked users, sessions, passcode, 2FA, TTLs, privacy scopes | PARTIAL (blocked users + active sessions listed per account; passcode/2FA/TTL later) | gui/settings.go + engine GetBlockedUsers/GetSessions | P1 |
 | Data & storage | Storage usage bars, auto-download rules, download path, proxy | PARTIAL (total + 6 tag rows w/ per-tag and total clears, real cache accounting; auto-download rules/proxy later) | gui/settings.go + engine cache APIs | P1 |
-| Appearance | Day/night, themes (cloud), accent, bubble corners, font scale | PARTIAL (day/night toggle persisted via config + light palette; cloud themes/accent/font scale later) | gui/theme.go + gui/settings.go | P1 |
+| Appearance | Day/night, themes (cloud), accent, bubble corners, font scale | PARTIAL (day/night persisted; slice 59: 6 accent presets w/ palette re-tint + 3-step font scale, both persisted (AccentColor/FontScale config); cloud themes/bubble corners later) | gui/theme.go + gui/settings.go | P1 |
 | Chat settings | folders, stickers/emoji managers, link preview, message actions | CORE-ONLY | engine sticker managers (CORE-ONLY) | P2 |
 | Calls settings | devices, noise suppression | CORE-ONLY | engine.GetAudioDevices/SetNoiseSuppression (CORE-ONLY) | P2 |
 | Language | Language box + lang pack switch | CORE-ONLY | engine.GetLanguages/SetLanguage (CORE-ONLY) | P2 |

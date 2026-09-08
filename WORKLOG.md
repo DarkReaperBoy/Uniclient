@@ -869,3 +869,7 @@ Stage Summary:
 
 - **58 Sticker + GIF panel tabs**: Emoji/Stickers/GIFs mode row in the helper panel; pack chips (Recent-first) + static-thumb grids; tap-to-send through SendSticker; saved-GIF grid via GetSavedGifs
 - CI: s55 (2782f703) + s56 runs in flight/verified; dispatched for s57–58
+---
+## 2026-09-09 — slice 59
+
+- **59 Accent color + font scale**: appearance page — 6 accent swatches (palette re-tint, dim blended to background, survives theme swaps) + Small/Default/Large text scale (UI.Label, clamped); persisted via the pre-existing AppConfig fields
