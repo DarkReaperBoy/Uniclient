@@ -52,7 +52,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Search results screen w/ tabs | Chats/Messages/Links/Files tabs + "search in" | CORE-ONLY | new gui/search.go + engine.SearchMessages (CORE-ONLY) | P1 |
 | Top peers strip | Pictured top-contacts row above list while searching | CORE-ONLY | engine.GetTopPeers (CORE-ONLY) | P2 |
 | Recent searches | Persisted search history dropdown | MISSING | engine settings_recent_searches ≙ new engine method | P3 |
-| Folder tabs above list | Server-synced folders incl. custom, edit, reorder, invite links | PARTIAL (hardcoded All/Unread/People/Groups/Channels; no server sync/edit) | gui/sidebar.go layoutFolders + engine.GetFolders/CreateFolder/EditFolder/ReorderDialogFilters (all CORE-ONLY) | P0 |
+| Folder tabs above list | Server-synced folders incl. custom, edit, reorder, invite links | PARTIAL (real server folders when an account is scoped: tabs + Telegram filter rules + "+" create dialog; smart tabs fallback; edit/reorder/invites later) | gui/folders.go + engine.GetFolders/CreateFolder/FoldersSupported | P0 |
 | Archive collapsed row | Archived chats collapse to one row w/ badge | CORE-ONLY | engine.ArchiveChat/IsArchived (CORE-ONLY) | P1 |
 | Pinned chats section | Pinned first, pin indicator icon | PARTIAL (engine sorts pinned first; no pin icon/separator) | gui/sidebar.go chatRow + ChatInfo.IsPinned | P1 |
 | Chat row: image avatar | Real photo/video userpic w/ stories ring | PARTIAL (letter avatar; ChatInfo.AvatarPath + engine avatars.go downloader unused) | gui/theme.go Avatar + engine.DownloadSingleAvatar | P0 |

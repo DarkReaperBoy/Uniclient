@@ -349,25 +349,6 @@ func chatKind(c engine.ChatInfo) string {
 	return "people"
 }
 
-// folderNames mirrors the Telegram folder tabs.
-var folderNames = []string{"All", "Unread", "People", "Groups", "Channels"}
-
-func folderMatches(i int, c engine.ChatInfo) bool {
-	switch i {
-	case 0:
-		return true
-	case 1:
-		return c.UnreadCount > 0
-	case 2:
-		return chatKind(c) == "people"
-	case 3:
-		return chatKind(c) == "groups"
-	case 4:
-		return chatKind(c) == "channels"
-	}
-	return true
-}
-
 // fmtTime renders a message timestamp (HH:MM or date).
 func fmtTime(ms int64) string {
 	if ms == 0 {

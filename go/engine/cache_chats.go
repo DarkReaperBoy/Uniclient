@@ -1110,6 +1110,21 @@ type FolderInfo struct {
 
 // GetFolders returns synced folders from the core, if the core supports them.
 // Returns an empty list for cores that don't support folders.
+// FoldersSupported reports whether the account's core implements dialog
+// folders (so the GUI can decide between real folder tabs and the smart
+// fallback tabs).
+func (e *Engine) FoldersSupported(accountID string) bool {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false
+	}
+	type folderLister interface {
+		GetFolders() ([]cores.Folder, error)
+	}
+	_, ok = acc.Core.(folderLister)
+	return ok
+}
+
 func (e *Engine) GetFolders(accountID string) ([]FolderInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

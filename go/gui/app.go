@@ -48,6 +48,10 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 
 	if narrow {
 		// Phone layout: settings, chat list, or open chat (with back button).
+		if f.folderDlg != nil {
+			a.layoutFolderDialog(gtx, f)
+			return
+		}
 		if f.settingsOpen {
 			a.layoutSettings(gtx, f, narrow)
 			return
@@ -79,6 +83,9 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if f.auth != nil || f.showPicker {
 				return a.layoutLogin(gtx, f)
+			}
+			if f.folderDlg != nil {
+				return a.layoutFolderDialog(gtx, f)
 			}
 			if f.settingsOpen {
 				return a.layoutSettings(gtx, f, narrow)

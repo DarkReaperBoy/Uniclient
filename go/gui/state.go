@@ -98,6 +98,12 @@ type App struct {
 	expl           *explorer.Explorer
 	attachMenuOpen bool
 
+	// server folders (AyuGram parity slice 6): real dialog-filter tabs
+	folders          []engine.FolderInfo
+	foldersFor       string
+	foldersSupported bool
+	folderDlg        *folderDlgState
+
 	// transient
 	typing map[string]time.Time // chatKey -> last typing seen
 
@@ -255,6 +261,7 @@ func (a *App) onEvent(data []byte) {
 	switch env.Type {
 	case engine.EventAccountList, engine.EventConnState, engine.EventAuthState:
 		go a.refreshAccounts()
+		go a.refreshFolders(a.acctFilterLocked())
 	case engine.EventChatSnapshot, engine.EventChatUpdated, engine.EventChatRemoved:
 		go a.refreshChats()
 	case engine.EventMsgReceived, engine.EventMsgEdited, engine.EventMsgDeleted, engine.EventMsgStatus:
@@ -818,6 +825,13 @@ func (a *App) applyGhostFlag(accountID, field string, v bool) {
 	}()
 }
 
+// acctFilterLocked returns the current account scope.
+func (a *App) acctFilterLocked() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.acctFilter
+}
+
 // stillTyping reports an active typing indicator for a chat.
 
 func (a *App) stillTyping(k chatKey) bool {
@@ -833,53 +847,56 @@ func (a *App) snapshot() frame {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	f := frame{
-		showPicker:     a.showPicker,
-		acctFilter:     a.acctFilter,
-		accounts:       a.accounts,
-		chats:          a.chats,
-		messages:       a.messages,
-		msgFor:         a.msgFor,
-		selected:       a.selected,
-		folder:         a.folder,
-		search:         a.search,
-		mode:           a.mode,
-		auth:           a.auth,
-		authAcct:       a.authAcct,
-		toast:          a.toast,
-		toastAt:        a.toastAt,
-		connecting:     a.connecting,
-		sending:        a.sending,
-		loadingMsgs:    a.loadingMsgs,
-		cMode:          a.cMode,
-		menu:           a.menu,
-		fwd:            a.fwd,
-		menuCaps:       a.menuCaps,
-		availEmojis:    a.availEmojis,
-		loadingOlder:   a.loadingOlder,
-		now:            time.Now(),
-		settingsOpen:   a.settingsOpen,
-		settingsSect:   a.settingsSect,
-		cfg:            a.cfg,
-		notifyAccts:    a.notifyAccts,
-		notifyLoaded:   a.notifyLoaded,
-		blockedUsers:   a.blockedUsers,
-		sessionsList:   a.sessionsList,
-		privacyLoaded:  a.privacyLoaded,
-		cacheTotal:     a.cacheTotal,
-		cacheTags:      a.cacheTags,
-		cacheLoaded:    a.cacheLoaded,
-		ghostSel:       a.ghostSel,
-		ghostFlags:     a.ghostFlags,
-		ghostLoaded:    a.ghostLoaded,
-		panelOpen:      a.panelOpen,
-		panelChat:      a.panelChat,
-		panelLoaded:    a.panelLoaded,
-		panelMuted:     a.panelMuted,
-		profile:        a.profile,
-		members:        a.members,
-		mediaCounts:    a.mediaCounts,
-		panelRecent:    a.panelRecent,
-		attachMenuOpen: a.attachMenuOpen,
+		showPicker:       a.showPicker,
+		acctFilter:       a.acctFilter,
+		accounts:         a.accounts,
+		chats:            a.chats,
+		messages:         a.messages,
+		msgFor:           a.msgFor,
+		selected:         a.selected,
+		folder:           a.folder,
+		search:           a.search,
+		mode:             a.mode,
+		auth:             a.auth,
+		authAcct:         a.authAcct,
+		toast:            a.toast,
+		toastAt:          a.toastAt,
+		connecting:       a.connecting,
+		sending:          a.sending,
+		loadingMsgs:      a.loadingMsgs,
+		cMode:            a.cMode,
+		menu:             a.menu,
+		fwd:              a.fwd,
+		menuCaps:         a.menuCaps,
+		availEmojis:      a.availEmojis,
+		loadingOlder:     a.loadingOlder,
+		now:              time.Now(),
+		settingsOpen:     a.settingsOpen,
+		settingsSect:     a.settingsSect,
+		cfg:              a.cfg,
+		notifyAccts:      a.notifyAccts,
+		notifyLoaded:     a.notifyLoaded,
+		blockedUsers:     a.blockedUsers,
+		sessionsList:     a.sessionsList,
+		privacyLoaded:    a.privacyLoaded,
+		cacheTotal:       a.cacheTotal,
+		cacheTags:        a.cacheTags,
+		cacheLoaded:      a.cacheLoaded,
+		ghostSel:         a.ghostSel,
+		ghostFlags:       a.ghostFlags,
+		ghostLoaded:      a.ghostLoaded,
+		panelOpen:        a.panelOpen,
+		panelChat:        a.panelChat,
+		panelLoaded:      a.panelLoaded,
+		panelMuted:       a.panelMuted,
+		profile:          a.profile,
+		members:          a.members,
+		mediaCounts:      a.mediaCounts,
+		panelRecent:      a.panelRecent,
+		attachMenuOpen:   a.attachMenuOpen,
+		folders:          a.folders,
+		foldersSupported: a.foldersSupported,
+		folderDlg:        a.folderDlg,
 	}
 	if len(a.downloads) > 0 {
 		dls := make(map[string]dlState, len(a.downloads))
@@ -949,6 +966,11 @@ type frame struct {
 
 	// attach flow (slice 5)
 	attachMenuOpen bool
+
+	// server folders (slice 6)
+	folders          []engine.FolderInfo
+	foldersSupported bool
+	folderDlg        *folderDlgState
 }
 
 var _ = op.InvalidateCmd{} // referenced in widgets that animate

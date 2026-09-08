@@ -528,3 +528,22 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - Verification upgrade: the full gui test suite now runs locally under
   node+wasm (go test -c GOOS=js + lib/wasm executor) — all 20+ gui tests
   green locally before push; windows vet + wasm build clean.
+
+## 2026-09-08 — AyuGram parity program, slice 6: server folder tabs
+
+- `gui/folders.go` (new): the tab row now renders the scoped account's REAL
+  server folders (engine.GetFolders) with Telegram dialog-filter matching —
+  explicit ChatIDs win, ExcludeChatIDs/Read/Muted/Archived rules apply, then
+  Contacts/NonContacts/Groups/Channels/Bots flag matches; emoticons render
+  in tab names. Smart fallback tabs (People/Groups/Channels) when unified or
+  the core lacks folders (new engine.FoldersSupported). "+" tab opens a
+  create-folder dialog (engine.CreateFolder; name-only first pass — the
+  full folder editor with chat picker is a follow-up).
+- `gui/sidebar.go`: layoutFolders + filterChats rewritten over the dynamic
+  tab model; account switching reloads the scoped folders; folder index
+  resets on scope change. Old hardcoded folderNames/folderMatches removed.
+- Folder loads also refresh on account/conn events; folder state in
+  state.go/frame with async refreshFolders.
+- Tests: gui/folders_test.go (tab building/scoping, tab matching, folder
+  rule precedence) — full gui + engine suites green locally (wasm runner),
+  windows vet clean.

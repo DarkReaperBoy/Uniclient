@@ -160,6 +160,7 @@ func (a *App) accountMenu(gtx layout.Context, f frame) layout.Dimensions {
 	if accountMenuBtns[0].Clicked(gtx) {
 		a.mu.Lock()
 		a.acctFilter = ""
+		a.folder = 0
 		a.mu.Unlock()
 		accountMenuOpen = false
 		a.invalidate()
@@ -172,7 +173,10 @@ func (a *App) accountMenu(gtx layout.Context, f frame) layout.Dimensions {
 			} else {
 				a.acctFilter = acc.ID
 			}
+			a.folder = 0
+			scope := a.acctFilter
 			a.mu.Unlock()
+			a.refreshFolders(scope)
 			accountMenuOpen = false
 			a.invalidate()
 		}
@@ -324,39 +328,29 @@ func (a *App) searchField(gtx layout.Context, f frame) layout.Dimensions {
 
 // layoutFolders: horizontal scrollable folder tabs (AyuGram parity).
 func (a *App) layoutFolders(gtx layout.Context, f frame) layout.Dimensions {
-	for i := range folderBtns {
-		if folderBtns[i].Clicked(gtx) {
-			a.mu.Lock()
-			a.folder = i
-			a.mu.Unlock()
-			a.invalidate()
-		}
-	}
-	for len(folderBtns) < len(folderNames) {
+	// Real server folders when an account is scoped and its core supports
+	// them; smart fallback tabs otherwise (AyuGram parity §2).
+	tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported)
+	for len(folderBtns) < len(tabs) {
 		folderBtns = append(folderBtns, widget.Clickable{})
 	}
-	tabs := material.List(a.ui.Theme, &sidebarFolderTabs)
-	return tabs.Layout(gtx, len(folderNames), func(gtx layout.Context, i int) layout.Dimensions {
-		active := f.folder == i
-		return layout.Inset{Left: unit.Dp(4), Right: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			bg := color00
-			txt := a.ui.p.TextDim
-			if active {
-				bg = a.ui.p.AccentDim
-				txt = a.ui.p.Text
+	for i := range tabs {
+		if folderBtns[i].Clicked(gtx) {
+			if tabs[i].kind == folderTabNew {
+				a.openFolderDlg()
+			} else {
+				a.mu.Lock()
+				a.folder = i
+				a.mu.Unlock()
+				a.invalidate()
 			}
-			return roundedFill(gtx, bg, 14, func(gtx layout.Context) layout.Dimensions {
-				return material.ButtonLayout(a.ui.Theme, &folderBtns[i]).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Top: unit.Dp(5), Bottom: unit.Dp(5), Left: unit.Dp(14), Right: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						lbl := a.ui.Label(unit.Sp(13), folderNames[i])
-						lbl.Color = txt
-						if active {
-							lbl.Font.Weight = font.SemiBold
-						}
-						return lbl.Layout(gtx)
-					})
-				})
-			})
+		}
+	}
+	list := material.List(a.ui.Theme, &sidebarFolderTabs)
+	return list.Layout(gtx, len(tabs), func(gtx layout.Context, i int) layout.Dimensions {
+		active := f.folder == i && tabs[i].kind != folderTabNew
+		return layout.Inset{Left: unit.Dp(4), Right: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layoutFolderTab(gtx, a, &folderBtns[i], tabs[i], active)
 		})
 	})
 }
@@ -366,12 +360,17 @@ var folderBtns []widget.Clickable
 // filterChats applies folder + search.
 func filterChats(f frame) []engine.ChatInfo {
 	q := strings.ToLower(strings.TrimSpace(f.search))
+	tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported)
+	tab := folderTab{kind: folderTabAll}
+	if f.folder >= 0 && f.folder < len(tabs) {
+		tab = tabs[f.folder]
+	}
 	out := make([]engine.ChatInfo, 0, len(f.chats))
 	for _, c := range f.chats {
 		if f.acctFilter != "" && c.AccountID != f.acctFilter {
 			continue
 		}
-		if !folderMatches(f.folder, c) {
+		if !tabMatches(tab, c) {
 			continue
 		}
 		if q != "" && !strings.Contains(strings.ToLower(c.Title), q) &&
