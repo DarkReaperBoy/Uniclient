@@ -10,6 +10,8 @@ import (
 	"unicode/utf16"
 
 	"gioui.org/font"
+	"gioui.org/io/event"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -35,6 +37,16 @@ import (
 
 // spoilerBtns are per-message clickables toggling spoiler reveal.
 var spoilerBtns = map[string]*widget.Clickable{}
+
+// linkTag marks one tappable link token; the press copies the URL
+// (slice 34 — pure-Go link interaction).
+type linkTag struct {
+	msgID string
+	url   string
+}
+
+// linkTags caches per-message link tags (index-aligned to drawn tokens).
+var linkTags = map[string][]*linkTag{}
 
 // spoilerHas reports whether any entity is a spoiler.
 func spoilerHas(entities []cores.TextEntity) bool {
@@ -209,6 +221,7 @@ type richRect struct {
 	size image.Point
 	tok  richToken
 	call op.CallOp
+	lt   *linkTag // non-nil for tappable link tokens
 }
 
 // richTextLabel renders the message body with entity formatting; plain
@@ -242,16 +255,17 @@ func (a *App) richTextLabel(gtx layout.Context, m engine.CachedMessage, size uni
 			a.spoilerRevealed[m.MsgID] = !a.spoilerRevealed[m.MsgID]
 		}
 		return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return a.flowRich(gtx, m, size, base, bg, segs)
+			// Spoiler click owns the press surface; links stay inert here.
+			return a.flowRich(gtx, m, size, base, bg, segs, false)
 		})
 	}
-	return a.flowRich(gtx, m, size, base, bg, segs)
+	return a.flowRich(gtx, m, size, base, bg, segs, true)
 }
 
 // flowRich measures each token via a macro, wraps at max width, then
 // plays the macros back with decorations (code/ spoiler pills, underline,
 // strike).
-func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp, base, bg color.NRGBA, segs []richSegment) layout.Dimensions {
+func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp, base, bg color.NRGBA, segs []richSegment, linksEnabled bool) layout.Dimensions {
 	revealed := a.spoilerRevealed[m.MsgID]
 	var tokens []richToken
 	for _, seg := range segs {
@@ -285,6 +299,19 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 		return d.Size, call
 	}
 
+	hasLinks := false
+	if linksEnabled {
+		for _, tok := range tokens {
+			if tok.style.link != "" {
+				hasLinks = true
+				break
+			}
+		}
+	}
+	if hasLinks {
+		delete(linkTags, m.MsgID) // rebuild this frame's tags
+	}
+
 	var rects []richRect
 	for _, tok := range tokens {
 		sz, call := measure(tok)
@@ -304,7 +331,16 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 		if sz.Y > lineH {
 			lineH = sz.Y
 		}
-		rects = append(rects, richRect{pos: image.Pt(x, y), size: sz, tok: tok, call: call})
+		var lt *linkTag
+		if hasLinks && tok.style.link != "" && !tok.space {
+			url := tok.style.link
+			if url == "auto" {
+				url = tok.text
+			}
+			lt = &linkTag{msgID: m.MsgID, url: url}
+			linkTags[m.MsgID] = append(linkTags[m.MsgID], lt)
+		}
+		rects = append(rects, richRect{pos: image.Pt(x, y), size: sz, tok: tok, call: call, lt: lt})
 		x += sz.X
 		if x > lineEnd {
 			lineEnd = x
@@ -327,6 +363,11 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 			paint.FillShape(gtx.Ops, fillCol, rrect.Op(gtx.Ops))
 		}
 		stack := op.Offset(r.pos).Push(gtx.Ops)
+		var clipStack clip.Stack
+		if r.lt != nil {
+			clipStack = clip.Rect{Max: r.size}.Push(gtx.Ops)
+			event.Op(gtx.Ops, r.lt)
+		}
 		r.call.Add(gtx.Ops)
 		// Underline / strike lines (approximate baselines).
 		if st.underline {
@@ -337,7 +378,23 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 			ly := r.size.Y * 2 / 5
 			paint.FillShape(gtx.Ops, base, clip.Rect{Min: image.Pt(0, ly), Max: image.Pt(r.size.X, ly+1)}.Op())
 		}
+		if r.lt != nil {
+			clipStack.Pop()
+		}
 		stack.Pop()
+	}
+
+	// Tappable links: a press on a token area copies the URL (slice 34).
+	for _, lt := range linkTags[m.MsgID] {
+		for {
+			ev, ok := gtx.Source.Event(pointer.Filter{Target: lt, Kinds: pointer.Press})
+			if !ok {
+				break
+			}
+			if pe, is := ev.(pointer.Event); is && pe.Kind == pointer.Press && pe.Buttons == pointer.ButtonPrimary {
+				a.copyTextSoon(lt.url)
+			}
+		}
 	}
 
 	return layout.Dimensions{Size: image.Pt(lineEnd, totalH)}

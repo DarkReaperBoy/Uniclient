@@ -122,7 +122,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Silent send toggle | Bell toggle in field | CORE-ONLY | SendMessage silent param (CORE-ONLY) | P2 |
 | Draft save/restore | Per-chat draft persists across restarts | PRESENT (slice 20: restore on open, flush on leave/back, clear on send — persisted via engine.SaveDraft so it survives restarts) | gui/drafts.go + gui/state.go + engine.SaveDraft | P1 |
 | Char count / limits | Counter near limit | MISSING | gui/chat.go | P3 |
-| Formatting (bold/italic/spoiler/code) | Rich text with entities + spoiler reveal | PRESENT (slice 32 render: ContentRich entity renderer — bold/italic/underline/strike/mono pills/links/mentions/quote styled word-flow, spoilers hidden + click-reveal; slice 33 compose: *bold*/_italic_/__underline__/~strike~/||spoiler||/`code`/```pre``` markers parse to entities on send, nested. Link opening later) | gui/richtext.go + gui/markdown.go + engine content_rich + SendMessage(entities) | P1 |
+| Formatting (bold/italic/spoiler/code) | Rich text with entities + spoiler reveal | PRESENT (slice 32 render: ContentRich entity renderer — bold/italic/underline/strike/mono pills/links/mentions/quote styled word-flow, spoilers hidden + click-reveal; slice 33 compose: *bold*/_italic_/__underline__/~strike~/||spoiler||/`code`/```pre``` markers parse to entities on send, nested. tappable links copy to clipboard w/ toast (slice 34; browser opening later)) | gui/richtext.go + gui/markdown.go + engine content_rich + SendMessage(entities) | P1 |
 | Webpage preview toggle | Link preview on/off in field | CORE-ONLY | SendMessage webPageUrl params (CORE-ONLY) | P2 |
 | Send-as channel (in groups) | Pick identity to post as | CORE-ONLY | engine.GetSendAs/SaveDefaultSendAs (CORE-ONLY) | P3 |
 
@@ -154,7 +154,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Reaction picker in menu | Emoji row at top of menu | PARTIAL (2026-09: quick-reaction row from GetAvailableReactions w/ TG default fallback; full tabbed picker pending) | gui/menu.go menuReactionsRow | P0 |
 | Delete dialog w/ "delete for all" | Revoke checkbox | PRESENT (slice 19: single + bulk confirm dialog, checkbox for outgoing/admin, per-message revoke) | gui/deldlg.go + engine DeleteMessage | P0 |
 | Forward picker (share box) | Choose recipients, hide-sender options (Ayu) | PARTIAL (2026-09: same-account chat list picker via layout swap; multi-pick + hide-sender options + comment pending) | gui/menu.go layoutForwardDialog + engine.ForwardMessage | P1 |
-| Copy link to message | t.me link copy | MISSING | telegram message links ≙ engine method needed | P2 |
+| Copy link to message | t.me link copy | PRESENT (slice 34: context-menu Copy Link → engine MessageLink → core ExportMessageLink; clipboard flush via frame loop) | gui/menu.go + engine MessageLink + cores ExportMessageLink | P2 |
 | Save file / save GIF / save sound | Download-to-disk actions | CORE-ONLY | engine media + DownloadFile (CORE-ONLY) | P1 |
 | Show in folder / open with | OS integration | MISSING | gui/os layer + engine media paths | P3 |
 | Report message flow | Reason picker | CORE-ONLY | engine.ReportMessage (CORE-ONLY) | P2 |

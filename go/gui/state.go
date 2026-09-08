@@ -190,6 +190,10 @@ type App struct {
 	// account while another account sits at the OTP step.
 	loginCode   string
 	loginCodeAt time.Time
+
+	// pending clipboard copy (slice 34): background goroutines queue text;
+	// the frame loop flushes it via gtx.Execute (GUI goroutine only).
+	pendingCopy string
 	notifyAt    map[string]time.Time // chatKey -> last banner (throttle, slice 22)
 
 	// spoiler reveal state (slice 32, GUI goroutine): msgID → revealed.
@@ -269,6 +273,22 @@ func (a *App) setToast(msg string) {
 	a.toastAt = time.Now()
 	a.mu.Unlock()
 	a.invalidate()
+}
+
+// copyTextSoon queues a clipboard copy from any goroutine; the next frame
+// executes clipboard.WriteCmd (gtx is only valid on the GUI loop).
+func (a *App) copyTextSoon(txt string) {
+	if txt == "" {
+		return
+	}
+	a.mu.Lock()
+	a.pendingCopy = txt
+	a.mu.Unlock()
+	shown := txt
+	if len(shown) > 48 {
+		shown = shown[:48] + "…"
+	}
+	a.setToast("Copied: " + shown)
 }
 
 // ── background refreshers ────────────────────────────────────────────────

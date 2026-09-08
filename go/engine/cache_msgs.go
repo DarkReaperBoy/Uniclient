@@ -1861,6 +1861,22 @@ type MessageContentsReader interface {
 	MessagesReadMessageContents(id []int) (interface{}, error)
 }
 
+// MessageLink returns a shareable link to one message (Telegram t.me
+// message links; channels/groups). The GUI copies it to the clipboard.
+func (e *Engine) MessageLink(accountID, chatID, msgID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	type messageLinkExporter interface {
+		ExportMessageLink(chatID string, msgID string) (string, error)
+	}
+	if ex, ok := acc.Core.(messageLinkExporter); ok {
+		return ex.ExportMessageLink(chatID, msgID)
+	}
+	return "", fmt.Errorf("core does not support message links")
+}
+
 type MessageEditorWithEntities interface {
 	EditMessageWithEntities(chatID string, msgID string, text string, entitiesJSON string) (*cores.Message, error)
 }

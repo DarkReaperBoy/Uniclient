@@ -3,9 +3,12 @@ package gui
 import (
 	"image"
 	"image/color"
+	"io"
+	"strings"
 	"time"
 
 	"gioui.org/app"
+	"gioui.org/io/clipboard"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -20,6 +23,8 @@ func (a *App) Root(gtx layout.Context) {
 	// GUI-goroutine hop: a background goroutine scheduled a chat to open
 	// (e.g. after group/channel creation). openChat must run on this loop.
 	a.consumePendingOpen()
+	// Clipboard hop (slice 34): background goroutines queue text to copy.
+	a.flushClipboard(gtx)
 
 	f := a.snapshot()
 	a.ui.paintBackground(gtx)
@@ -205,3 +210,18 @@ func (u *UI) DividerV(gtx layout.Context) layout.Dimensions {
 
 var _ = widget.Clickable{}
 var _ = app.FrameEvent{}
+
+// flushClipboard executes one queued copy (queued by copyTextSoon).
+func (a *App) flushClipboard(gtx layout.Context) {
+	a.mu.Lock()
+	txt := a.pendingCopy
+	a.pendingCopy = ""
+	a.mu.Unlock()
+	if txt == "" {
+		return
+	}
+	gtx.Execute(clipboard.WriteCmd{
+		Type: "text/plain",
+		Data: io.NopCloser(strings.NewReader(txt)),
+	})
+}

@@ -218,6 +218,20 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			})
 		}})
 	}
+	// Copy link to message (AyuGram: t.me link for channel/group posts).
+	chat := chatOf(f, m)
+	if chat.Type == engine.ChatTypeChanVal || chat.Type == engine.ChatTypeGroupVal {
+		items = append(items, menuAction{"Copy Link", func(gtx layout.Context) {
+			go func() {
+				link, err := a.eng.MessageLink(m.AccountID, m.ChatID, m.MsgID)
+				if err != nil {
+					a.setToast("Copy link failed: " + err.Error())
+					return
+				}
+				a.copyTextSoon(link)
+			}()
+		}})
+	}
 	if acts.Forward {
 		items = append(items, menuAction{"Forward", func(gtx layout.Context) {
 			a.mu.Lock()
