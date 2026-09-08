@@ -340,6 +340,8 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			d = a.unreadDivider(gtx)
 		case r.day != "":
 			d = a.dayDivider(gtx, r.day)
+		case r.album != nil:
+			d = a.albumRow(gtx, f, f.messages, r.album)
 		default:
 			d = a.messageRow(gtx, f, &f.messages[r.msgIdx])
 		}

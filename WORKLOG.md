@@ -641,3 +641,20 @@ playback, album grouping (GroupedID), stickers (webp decode), sidebar thumbs.
 - Tests: gui/chrome_test.go (separator index math, row model w/ anchored
   separator, rowIndexOf consistency, pinned preview/title). Full suite
   green under node+wasm; windows + wasm builds clean.
+
+## 2026-09-08 — AyuGram parity program, slice 12: media albums
+
+- `gui/album.go` (new): consecutive messages sharing a GroupedID render as
+  ONE bubble with Telegram's album grids — 1 full, 2 columns, 3
+  tall+stacked, 4+ 2×2 with a "+N" overflow counter on the last cell. Cells
+  cover-crop (new drawImageCover: aspect-fill + center-crop), videos carry
+  a play glyph, in-progress downloads get a veil, and each cell taps
+  straight into the media pipeline (download / cancel / open the fullscreen
+  viewer). The album bubble carries the group's caption (the member with
+  text), first-member reactions + meta + outgoing styling.
+- `gui/chrome.go`: buildChatRows collapses same-GroupedID media into album
+  rows (isAlbumMedia gate: image/GIF/video only); rowIndexOf resolves album
+  members to their row so pinned-bar jumps land on albums.
+- Tests: gui/album_test.go (grid geometry per pattern incl. rounding, overflow
+  count, media gating, grouping + member jump, caption selection). Full gui
+  suite green under node+wasm; engine green; windows + wasm builds clean.

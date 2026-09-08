@@ -45,22 +45,24 @@ func unreadSepIndex(n, unread int) int {
 	return i
 }
 
-// chatRow is one messageList row: a day divider, the unread separator, or a
-// message (msgIdx into the chronological slice).
+// chatRow is one messageList row: a day divider, the unread separator, a
+// message, or an album group (msgIdx = first member, album = member
+// indices).
 type chatRow struct {
 	day    string
 	msgIdx int // -1 for dividers/separator
 	unread bool
+	album  []int // nil unless an album row (indices into messages)
 }
 
 // buildChatRows builds the messageList row model: day dividers + messages,
-// with the unread separator anchored to its boundary message ID (so the
-// separator travels with the message across window reloads/jumps, AyuGram
-// behavior).
+// consecutive same-GroupedID media collapsed into album rows, and the
+// unread separator anchored to its boundary message ID (so the separator
+// travels with the message across window reloads/jumps, AyuGram behavior).
 func buildChatRows(messages []engine.CachedMessage, sepMsgID string) []chatRow {
 	rows := make([]chatRow, 0, len(messages)+5)
 	var lastDay string
-	for i := range messages {
+	for i := 0; i < len(messages); {
 		m := &messages[i]
 		if sepMsgID != "" && m.MsgID == sepMsgID {
 			rows = append(rows, chatRow{msgIdx: -1, unread: true})
@@ -70,15 +72,36 @@ func buildChatRows(messages []engine.CachedMessage, sepMsgID string) []chatRow {
 			rows = append(rows, chatRow{day: day, msgIdx: -1})
 			lastDay = day
 		}
+		if isAlbumMedia(m) {
+			group := []int{i}
+			j := i + 1
+			for j < len(messages) && messages[j].GroupedID == m.GroupedID && isAlbumMedia(&messages[j]) {
+				group = append(group, j)
+				j++
+			}
+			rows = append(rows, chatRow{msgIdx: i, album: group})
+			i = j
+			continue
+		}
 		rows = append(rows, chatRow{msgIdx: i})
+		i++
 	}
 	return rows
 }
 
 // rowIndexOf returns the ROW index of msgID in the model built by
-// buildChatRows (same parameters), or -1 when absent. Jumps land exactly.
+// buildChatRows (same parameters), or -1 when absent. Album members resolve
+// to their album row. Jumps land exactly.
 func rowIndexOf(messages []engine.CachedMessage, msgID, sepMsgID string) int {
 	for i, r := range buildChatRows(messages, sepMsgID) {
+		if r.album != nil {
+			for _, mi := range r.album {
+				if messages[mi].MsgID == msgID {
+					return i
+				}
+			}
+			continue
+		}
 		if r.msgIdx >= 0 && messages[r.msgIdx].MsgID == msgID {
 			return i
 		}

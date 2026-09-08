@@ -85,7 +85,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Message bubbles: reply quote | Quoted block w/ sender+text, click→jump | PARTIAL (rendered; click→jump pending) | gui/chat.go replyQuote | P0 |
 | Bubbles: forward header | "Forwarded from X" | PRESENT | gui/chat.go messageRow | P0 |
 | Bubbles: reactions strip | Emoji + counts under bubble, own highlighted | PARTIAL (2026-09: strip + own toggle + quick-reaction row in menu; custom-emoji pills skipped — need doc fetch) | gui/chat.go reactionStrip + engine reactions_json persistence + cores.UpdateReactions | P0 |
-| Bubbles: grouped/album layout | Media groups render as one grid bubble | CORE-ONLY (GroupedID CORE-ONLY) | gui/chat.go | P1 |
+| Bubbles: grouped/album layout | Media groups render as one grid bubble | PRESENT (slice 12: consecutive GroupedID media collapse into one bubble w/ Telegram grid patterns 1/2/3/4+overflow, cover-cropped cells, per-cell tap → viewer/download, caption/reactions/meta on the bubble) | gui/album.go + buildChatRows | P1 |
 | Bubbles: sender color (groups) | Per-sender accent color + admin rank | CORE-ONLY (SenderColorID/SenderRank CORE-ONLY) | gui/chat.go | P2 |
 | Service messages | Centered pill ("X joined group") | PARTIAL (rendered as plain bubble) | gui/chat.go messageRow | P1 |
 | Unread messages separator | "Unread messages" divider line | PRESENT (accent pill on hairline, anchored to the boundary message captured at open — survives window reloads/jumps) | gui/chrome.go unreadDivider | P1 |
