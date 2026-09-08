@@ -102,6 +102,10 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			a.layoutChatThemeDialog(gtx, f)
 			return
 		}
+		if f.cloudDlg != nil {
+			a.layoutCloudThemeDialog(gtx, f)
+			return
+		}
 		if f.settingsOpen {
 			a.layoutSettings(gtx, f, narrow)
 			return
@@ -160,6 +164,9 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			}
 			if f.themeDlg != nil {
 				return a.layoutChatThemeDialog(gtx, f)
+			}
+			if f.cloudDlg != nil {
+				return a.layoutCloudThemeDialog(gtx, f)
 			}
 			if f.settingsOpen {
 				return a.layoutSettings(gtx, f, narrow)

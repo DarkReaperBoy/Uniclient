@@ -80,31 +80,36 @@ type App struct {
 
 	// settings surface (AyuGram parity slice 3): open view + section, the
 	// config snapshot for the toggles, and async-loaded page data.
-	settingsOpen  bool
-	settingsSect  int
-	cfg           cfgSnapshot
-	notifyAccts   map[string]notifyAcctState
-	notifyLoaded  bool
-	blockedUsers  map[string][]cores.User
-	sessionsList  map[string][]cores.Session
-	privacyLoaded bool
-	privacyScopes map[string]map[string]string      // accountID → key → scope (slice 62)
-	privacyDlg    *privacyDlgState                  // scope picker dialog (slice 62)
-	autoDlRules   map[string]map[string]interface{} // source → rules (slice 63)
-	autoDlOn      bool
-	autoDlDlg     *autodlDlgState                      // rules editor dialog (slice 63)
-	callsList     map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
-	callsLoaded   bool
-	themeDlg      *chatThemeDlgState    // per-chat theme picker (slice 65)
-	chatThemes    []cores.ChatThemeInfo // picker data (slice 65)
-	chatThemesFor string                // account the data belongs to (slice 65)
-	chatThemesOn  bool                  // picker data loaded (slice 65)
-	cacheTotal    int64
-	cacheTags     [6]int64
-	cacheLoaded   bool
-	ghostSel      string
-	ghostFlags    map[string]engine.GhostFlags
-	ghostLoaded   bool
+	settingsOpen   bool
+	settingsSect   int
+	cfg            cfgSnapshot
+	notifyAccts    map[string]notifyAcctState
+	notifyLoaded   bool
+	blockedUsers   map[string][]cores.User
+	sessionsList   map[string][]cores.Session
+	privacyLoaded  bool
+	privacyScopes  map[string]map[string]string      // accountID → key → scope (slice 62)
+	privacyDlg     *privacyDlgState                  // scope picker dialog (slice 62)
+	autoDlRules    map[string]map[string]interface{} // source → rules (slice 63)
+	autoDlOn       bool
+	autoDlDlg      *autodlDlgState                      // rules editor dialog (slice 63)
+	callsList      map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
+	callsLoaded    bool
+	themeDlg       *chatThemeDlgState     // per-chat theme picker (slice 65)
+	chatThemes     []cores.ChatThemeInfo  // picker data (slice 65)
+	chatThemesFor  string                 // account the data belongs to (slice 65)
+	chatThemesOn   bool                   // picker data loaded (slice 65)
+	cloudThemes    []cores.CloudThemeInfo // cloud theme list (slice 66)
+	cloudThemesFor string                 // account name the list came from (slice 66)
+	cloudThemeAcct string                 // account ID the list came from (slice 66)
+	cloudThemesOn  bool                   // list loaded (slice 66)
+	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
+	cacheTotal     int64
+	cacheTags      [6]int64
+	cacheLoaded    bool
+	ghostSel       string
+	ghostFlags     map[string]engine.GhostFlags
+	ghostLoaded    bool
 	// right info panel (AyuGram parity slice 4): profile/members/media
 	panelOpen   bool
 	panelChat   chatKey
@@ -797,6 +802,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.privacyDlg = nil // slice 62: close the scope picker
 	a.autoDlDlg = nil  // slice 63: close the auto-download editor
 	a.themeDlg = nil   // slice 65: close the theme picker
+	a.cloudDlg = nil   // slice 66: close the install dialog
 	a.headerMenu = nil
 	a.profile = nil
 	a.members = nil
@@ -1053,6 +1059,7 @@ func (a *App) openSettings(section int) {
 	go a.refreshConfig()
 	go a.loadStorage()
 	go a.loadAutoDl()
+	go a.loadCloudThemes() // slice 66
 	go a.loadNotifyAccts()
 	go a.loadPrivacy()
 	go a.loadGhost()
@@ -1395,6 +1402,11 @@ func (a *App) snapshot() frame {
 		chatThemes:       a.chatThemes,
 		chatThemesFor:    a.chatThemesFor,
 		chatThemesOn:     a.chatThemesOn,
+		cloudThemes:      a.cloudThemes,
+		cloudThemesFor:   a.cloudThemesFor,
+		cloudThemeAcct:   a.cloudThemeAcct,
+		cloudThemesOn:    a.cloudThemesOn,
+		cloudDlg:         a.cloudDlg,
 		cacheTotal:       a.cacheTotal,
 		cacheTags:        a.cacheTags,
 		cacheLoaded:      a.cacheLoaded,
@@ -1511,31 +1523,36 @@ type frame struct {
 	downloads map[string]dlState
 
 	// settings surface (slice 3)
-	settingsOpen  bool
-	settingsSect  int
-	cfg           cfgSnapshot
-	notifyAccts   map[string]notifyAcctState
-	notifyLoaded  bool
-	blockedUsers  map[string][]cores.User
-	sessionsList  map[string][]cores.Session
-	privacyLoaded bool
-	privacyScopes map[string]map[string]string      // accountID → key → scope (slice 62)
-	privacyDlg    *privacyDlgState                  // scope picker dialog (slice 62)
-	autoDlRules   map[string]map[string]interface{} // source → rules (slice 63)
-	autoDlOn      bool
-	autoDlDlg     *autodlDlgState                      // rules editor dialog (slice 63)
-	callsList     map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
-	callsLoaded   bool
-	themeDlg      *chatThemeDlgState    // per-chat theme picker (slice 65)
-	chatThemes    []cores.ChatThemeInfo // picker data (slice 65)
-	chatThemesFor string                // account the data belongs to (slice 65)
-	chatThemesOn  bool                  // picker data loaded (slice 65)
-	cacheTotal    int64
-	cacheTags     [6]int64
-	cacheLoaded   bool
-	ghostSel      string
-	ghostFlags    map[string]engine.GhostFlags
-	ghostLoaded   bool
+	settingsOpen   bool
+	settingsSect   int
+	cfg            cfgSnapshot
+	notifyAccts    map[string]notifyAcctState
+	notifyLoaded   bool
+	blockedUsers   map[string][]cores.User
+	sessionsList   map[string][]cores.Session
+	privacyLoaded  bool
+	privacyScopes  map[string]map[string]string      // accountID → key → scope (slice 62)
+	privacyDlg     *privacyDlgState                  // scope picker dialog (slice 62)
+	autoDlRules    map[string]map[string]interface{} // source → rules (slice 63)
+	autoDlOn       bool
+	autoDlDlg      *autodlDlgState                      // rules editor dialog (slice 63)
+	callsList      map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
+	callsLoaded    bool
+	themeDlg       *chatThemeDlgState     // per-chat theme picker (slice 65)
+	chatThemes     []cores.ChatThemeInfo  // picker data (slice 65)
+	chatThemesFor  string                 // account the data belongs to (slice 65)
+	chatThemesOn   bool                   // picker data loaded (slice 65)
+	cloudThemes    []cores.CloudThemeInfo // cloud theme list (slice 66)
+	cloudThemesFor string                 // account name the list came from (slice 66)
+	cloudThemeAcct string                 // account ID the list came from (slice 66)
+	cloudThemesOn  bool                   // list loaded (slice 66)
+	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
+	cacheTotal     int64
+	cacheTags      [6]int64
+	cacheLoaded    bool
+	ghostSel       string
+	ghostFlags     map[string]engine.GhostFlags
+	ghostLoaded    bool
 	// right info panel (slice 4)
 	panelOpen   bool
 	panelChat   chatKey

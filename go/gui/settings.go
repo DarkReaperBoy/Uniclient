@@ -882,6 +882,10 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 		})
 	}))
+	// Cloud themes (slice 66): server-side theme list + install flow.
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.layoutCloudThemeSection(gtx, f)
+	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
