@@ -96,6 +96,84 @@ func (u *UI) applyTheme(name string) {
 	} else {
 		u.p = dark
 	}
+	// The theme switch overwrote the palette; re-tint with the stored accent.
+	if u.accentHex != "" {
+		u.applyAccent(u.accentHex)
+	}
+}
+
+// clampFontScale bounds the text scale to a sane, still-usable range.
+func clampFontScale(v float64) float64 {
+	if v < 0.8 {
+		return 0.8
+	}
+	if v > 1.4 {
+		return 1.4
+	}
+	return v
+}
+
+// applyFontScale sets the global text scale (1 = default).
+func (u *UI) applyFontScale(v float64) {
+	u.fontScale = clampFontScale(v)
+}
+
+// parseAccentHex decodes #RRGGBB into a color (A=255). False on malformed
+// input. Pure — unit-tested.
+func parseAccentHex(hex string) (color.NRGBA, bool) {
+	hex = strings.TrimSpace(hex)
+	if len(hex) != 7 || hex[0] != '#' {
+		return color.NRGBA{}, false
+	}
+	var v [3]byte
+	for i := 0; i < 3; i++ {
+		hi, ok1 := hexDigit(hex[1+i*2])
+		lo, ok2 := hexDigit(hex[2+i*2])
+		if !ok1 || !ok2 {
+			return color.NRGBA{}, false
+		}
+		v[i] = hi<<4 | lo
+	}
+	return color.NRGBA{A: 0xFF, R: v[0], G: v[1], B: v[2]}, true
+}
+
+func hexDigit(c byte) (byte, bool) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0', true
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10, true
+	case c >= 'A' && c <= 'F':
+		return c - 'A' + 10, true
+	}
+	return 0, false
+}
+
+// mixNRGBA linearly blends two colors (t=0 → a, t=1 → b).
+func mixNRGBA(a, b color.NRGBA, t float32) color.NRGBA {
+	f := func(x, y uint8) uint8 {
+		v := float32(x)*(1-t) + float32(y)*t
+		if v < 0 {
+			v = 0
+		}
+		if v > 255 {
+			v = 255
+		}
+		return uint8(v + 0.5)
+	}
+	return color.NRGBA{A: 0xFF, R: f(a.R, b.R), G: f(a.G, b.G), B: f(a.B, b.B)}
+}
+
+// applyAccent re-tints the palette's accent pair from #RRGGBB (the dim
+// variant blends toward the theme background). No-op on malformed hex.
+func (u *UI) applyAccent(hex string) {
+	c, ok := parseAccentHex(hex)
+	if !ok {
+		return
+	}
+	u.p.Accent = c
+	u.p.AccentDim = mixNRGBA(c, u.p.Background, 0.45)
+	u.accentHex = hex
 }
 
 func rgb(c uint32) color.NRGBA {
@@ -106,7 +184,9 @@ func rgb(c uint32) color.NRGBA {
 // UI wraps the material theme with our palette and helpers.
 type UI struct {
 	*material.Theme
-	p palette
+	p         palette
+	fontScale float64 // global text scale (AyuGram appearance, slice 59)
+	accentHex string  // applied accent (survives theme switches)
 }
 
 // notoEmoji is the monochrome Noto Emoji face (SIL OFL 1.1, see assets/OFL.txt).
@@ -134,6 +214,9 @@ func NewUI() *UI {
 }
 
 func (u *UI) Label(size unit.Sp, txt string) material.LabelStyle {
+	if u.fontScale != 0 && u.fontScale != 1 {
+		size = unit.Sp(float32(size) * float32(u.fontScale))
+	}
 	l := material.Label(u.Theme, size, txt)
 	l.Color = u.p.Text
 	return l

@@ -286,6 +286,8 @@ func (a *App) Start() {
 	// loop has not started yet — single-threaded at this point).
 	if cfg := eng.GetConfig(); cfg != nil {
 		a.ui.applyTheme(cfg.Theme)
+		a.ui.applyAccent(cfg.AccentColor)
+		a.ui.applyFontScale(cfg.FontScale)
 	}
 	eng.SetEventCallback(func(data []byte) { a.onEvent(data) })
 	go a.refreshAccounts()
@@ -969,6 +971,8 @@ func (a *App) loadOlder() {
 // cfgSnapshot is the frame-read copy of the engine app config.
 type cfgSnapshot struct {
 	Theme                  string
+	Accent                 string
+	FontScale              float64
 	SendReadReceipts       bool
 	SendTyping             bool
 	SendUploadProgress     bool
@@ -1029,6 +1033,8 @@ func (a *App) refreshConfig() {
 	}
 	snap := cfgSnapshot{
 		Theme:                  c.Theme,
+		Accent:                 c.AccentColor,
+		FontScale:              c.FontScale,
 		SendReadReceipts:       c.SendReadReceipts,
 		SendTyping:             c.SendTyping,
 		SendUploadProgress:     c.SendUploadProgress,
@@ -1158,12 +1164,36 @@ func (a *App) applyConfigBool(field string, v bool) {
 // applyTheme swaps the palette and persists the theme name (async).
 func (a *App) applyTheme(light bool) {
 	name := themeName(light)
-	a.ui.applyTheme(name)
+	a.ui.applyTheme(name) // re-applies the stored accent after the swap
 	go func() {
 		c := engine.ConfigChanges{Theme: name}
 		if err := a.eng.UpdateConfigFromBridge(&c); err != nil {
 			a.setToast("Theme: " + err.Error())
 		}
+	}()
+}
+
+// applyAccent tints the accent pair and persists it (appearance, slice 59).
+func (a *App) applyAccent(hex string) {
+	a.ui.applyAccent(hex)
+	go func() {
+		c := engine.ConfigChanges{AccentColor: hex}
+		if err := a.eng.UpdateConfigFromBridge(&c); err != nil {
+			a.setToast("Accent: " + err.Error())
+		}
+		a.refreshConfig()
+	}()
+}
+
+// applyFontScale sets the global text scale and persists it.
+func (a *App) applyFontScale(v float64) {
+	a.ui.applyFontScale(v)
+	go func() {
+		c := engine.ConfigChanges{FontScale: v}
+		if err := a.eng.UpdateConfigFromBridge(&c); err != nil {
+			a.setToast("Font scale: " + err.Error())
+		}
+		a.refreshConfig()
 	}()
 }
 

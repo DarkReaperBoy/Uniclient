@@ -2,6 +2,7 @@ package gui
 
 import (
 	"image"
+	"math"
 	"strings"
 
 	"gioui.org/font"
@@ -632,8 +633,39 @@ func (a *App) setPageData(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// setPageAppearance: theme (dark/light) persisted in the config.
+// accentPresets are the selectable accent colors (AyuGram appearance).
+type accentPreset struct {
+	hex  string
+	name string
+}
+
+var accents = []accentPreset{
+	{"#4f6ef7", "Blue"},
+	{"#8774e1", "Purple"},
+	{"#40a358", "Green"},
+	{"#e0851e", "Orange"},
+	{"#e1425c", "Pink"},
+	{"#df4549", "Red"},
+}
+
+// fontScaleChoices are the text-scale segments (Small/Default/Large).
+var fontScaleChoices = []struct {
+	label string
+	v     float64
+}{
+	{"Small", 0.9},
+	{"Default", 1.0},
+	{"Large", 1.2},
+}
+
+var appearanceAccentBtns []widget.Clickable
+var appearanceScaleBtns []widget.Clickable
+
+// setPageAppearance: theme (dark/light), accent color, and font scale —
+// all persisted in the config (AyuGram appearance).
 func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
+	growClickables(&appearanceAccentBtns, len(accents))
+	growClickables(&appearanceScaleBtns, len(fontScaleChoices))
 	var children []layout.FlexChild
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Appearance")
@@ -642,6 +674,78 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.toggleRow(gtx, "appearance:light", "Light theme", isLight, func(v bool) {
 			a.applyTheme(v)
+		})
+	}))
+	// Accent swatches (AyuGram "Choose accent color").
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Accent color")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			children := make([]layout.FlexChild, 0, len(accents))
+			for i, preset := range accents {
+				i, preset := i, preset
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					btn := &appearanceAccentBtns[i]
+					if btn.Clicked(gtx) {
+						a.applyAccent(preset.hex)
+					}
+					active := strings.EqualFold(strings.TrimSpace(f.cfg.Accent), preset.hex)
+					sz := gtx.Dp(unit.Dp(34))
+					c, ok := parseAccentHex(preset.hex)
+					if !ok {
+						c = a.ui.p.Accent
+					}
+					gtx.Constraints.Max = image.Pt(sz, sz)
+					gtx.Constraints.Min = image.Pt(sz, sz)
+					cl := clip.UniformRRect(image.Rectangle{Max: image.Pt(sz, sz)}, sz/2).Push(gtx.Ops)
+					paint.FillShape(gtx.Ops, c, clip.Ellipse{Min: image.Pt(0, 0), Max: image.Pt(sz, sz)}.Op(gtx.Ops))
+					cl.Pop()
+					if active {
+						// selection ring
+						ring := clip.Stroke{Width: float32(gtx.Dp(unit.Dp(2))), Path: clip.Ellipse{
+							Min: image.Pt(-gtx.Dp(unit.Dp(3)), -gtx.Dp(unit.Dp(3))),
+							Max: image.Pt(sz+gtx.Dp(unit.Dp(3)), sz+gtx.Dp(unit.Dp(3))),
+						}.Path(gtx.Ops)}.Op()
+						paint.FillShape(gtx.Ops, a.ui.p.Text, ring)
+					}
+					return layout.Inset{Right: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Dimensions{Size: image.Pt(sz, sz)}
+					})
+				}))
+			}
+			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
+		})
+	}))
+	// Font scale segments (AyuGram "Choose font size").
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Font size")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			children := make([]layout.FlexChild, 0, len(fontScaleChoices))
+			for i, ch := range fontScaleChoices {
+				i, ch := i, ch
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					btn := &appearanceScaleBtns[i]
+					if btn.Clicked(gtx) {
+						a.applyFontScale(ch.v)
+					}
+					cur := math.Abs(f.cfg.FontScale-ch.v) < 0.05
+					b := material.Button(a.ui.Theme, btn, ch.label)
+					b.Background = a.ui.p.SurfaceHi
+					b.Color = a.ui.p.TextDim
+					b.TextSize = unit.Sp(13)
+					b.CornerRadius = 10
+					b.Inset = layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(12), Right: unit.Dp(12)}
+					if cur {
+						b.Background = a.ui.p.AccentDim
+						b.Color = a.ui.p.Text
+					}
+					return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, b.Layout)
+				}))
+			}
+			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 		})
 	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
