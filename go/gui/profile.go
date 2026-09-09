@@ -161,6 +161,11 @@ func (a *App) loadPanel(k chatKey) {
 		}
 	}
 
+	// Groups in common (slice 107): DM peers only.
+	if chatType == engine.ChatTypeDMVal {
+		go a.loadCommonChats(k)
+	}
+
 	counts, _ := a.eng.GetSharedMediaCounts(k.AccountID, k.ChatID)
 	// Photos tab is prefetched (60 cells); other tabs lazy-load on
 	// first activation (slice 78).
@@ -470,6 +475,13 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 				return btn.Layout(gtx)
 			}))
 		}
+	}
+
+	// Groups in common (slice 107): DM profiles, hidden when empty.
+	if showProfile {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.layoutCommonGroups(gtx, f, k)
+		}))
 	}
 
 	// Members (groups/channels), with search (AyuGram, slice 40).

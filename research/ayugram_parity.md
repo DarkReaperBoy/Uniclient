@@ -180,7 +180,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Member context menu | Promote/restrict/ban/remove | PRESENT (slice 106: tapping a member row opens the admin menu — Promote to admin / Demote / Restrict / Ban / Unban / Remove from chat, gated on the viewer's IsAdmin/IsCreator, owner rows and self untouchable, banned rows offer Unban; every action dispatches the real engine member-admin call + panel refresh with toasts) | gui/membermenu.go + engine Promote/Demote/Restrict/Ban/Unban/RemoveMember | P2 |
 | Notifications toggle in panel | Per-chat mute switch | PRESENT (per-chat mute switch wired to engine.MuteChat) | gui/profile.go muteRow | P1 |
 | Reactions/views list | Who reacted w/ which emoji | PRESENT (slice 49: message menu 'Who reacted' → dialog w/ per-emoji tabs (engine GetMessageReactorsList w/ filter + offset paging); rows 'emoji + name'; views list later) | gui/reactors.go + engine.GetMessageReactorsList | P2 |
-| Common groups | Shared chats w/ user | CORE-ONLY | engine.GetCommonChats (CORE-ONLY) | P3 |
+| Common groups | Shared chats w/ user | PRESENT (slice 107: DM profile panel section "Groups in common (N)" — engine.GetCommonChats rows w/ member counts, streamer-masked titles, tap opens the chat (honest toast when not in the list); hidden when empty) | gui/commongroups.go + engine GetCommonChats | P3 |
 | Saved Messages | Own chat + saved sublists + tags | CORE-ONLY | engine.OpenSavedMessages/GetSavedSublists (CORE-ONLY) | P2 |
 | Poll results panel | Votes per option | PRESENT (slice 42: poll bubbles — question, tappable options, vote bars w/ percentages, quiz correct/wrong reveal, voters footer, optimistic vote overlay; slice 51: core registers OnMessagePoll → cores.UpdatePollResults (Peer+MsgID, PollID fallback), engine merges counts into cached content_raw (option-byte match, chat resolved from cache on old layers) + EventMsgEdited → live refresh) | gui/poll.go + cores OnMessagePoll + engine mergePollResults | P2 |
 | Bot info panel | Bot description + commands | CORE-ONLY | engine.GetBotManageInfo (CORE-ONLY) | P3 |
@@ -342,10 +342,10 @@ P2 = settings/extras, P3 = rare/edge.
 
 → 2026-09-08 after slices 1–9: PRESENT 24 (12%) · PARTIAL 39 (19%) · MISSING 39 (19%) · CORE-ONLY 99 (49%).
 
-- PRESENT: 109 — the parity program (slices 1-100) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking, edits history, deleted-messages browser, save-to-Downloads, takeout export…
+- PRESENT: 110 — the parity program (slices 1-100) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking, edits history, deleted-messages browser, save-to-Downloads, takeout export…
 - PARTIAL: 29 — engine-gated halves (in-app media playback waits on audio-out/streaming; 2FA; notifications sound picker; tray; read-receipt inline avatar stack later) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
 - MISSING: 10 — remaining rows need real core work (dice/games, message-shot renderer, PiP, tray, multi-window, app icon) or would be dead UI (hide sponsored/similar — nothing renders to hide; local-premium — nothing gates premium)
-- CORE-ONLY: 54 — the engine already has the functionality; the GUI just never surfaces it (slice 101: 1:1 call panel + incoming call UI; slice 102: group call screen; slice 103: device pickers + noise suppression surfaced 5 of them)
+- CORE-ONLY: 53 — the engine already has the functionality; the GUI just never surfaces it (slice 101: 1:1 call panel + incoming call UI; slice 102: group call screen; slice 103: device pickers + noise suppression surfaced 5 of them)
 
 Priorities: P0 36 · P1 57 · P2 62 · P3 43 (+3 UniClient-only rows).
 

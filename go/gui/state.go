@@ -282,6 +282,8 @@ type App struct {
 	editHistDlg  *editHistState
 	msgDetailDlg *msgDetailState  // message details (slice 105)
 	memberMenu   *memberMenuState // profile member admin menu (slice 106)
+	commonChats  []cores.Dialog   // groups in common (slice 107)
+	commonLoaded bool
 
 	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState
@@ -1672,6 +1674,8 @@ func (a *App) snapshot() frame {
 		editHistDlg:      a.editHistDlg,
 		msgDetailDlg:     a.msgDetailDlg,
 		memberMenu:       a.memberMenu,
+		commonChats:      a.commonChats,
+		commonLoaded:     a.commonLoaded,
 		deletedDlg:       a.deletedDlg,
 		seenDlg:          a.seenDlg,
 		exportDlg:        a.exportDlg,
@@ -1902,6 +1906,8 @@ type frame struct {
 	editHistDlg  *editHistState
 	msgDetailDlg *msgDetailState  // message details (slice 105)
 	memberMenu   *memberMenuState // profile member admin menu (slice 106)
+	commonChats  []cores.Dialog   // groups in common (slice 107)
+	commonLoaded bool
 
 	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState

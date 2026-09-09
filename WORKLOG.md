@@ -1511,3 +1511,13 @@ the GUI (3 P1 + 1 P2 CORE-ONLY rows in the matrix).
   self exclusion, label presence).
 - CI Verify run 34405844949 on slice 104 (2f310298): SUCCESS.
 - Parity: 109 PRESENT / 29 PARTIAL / 10 MISSING / 54 CORE-ONLY.
+
+## 2026-09-10 — slice 107 (groups in common)
+
+- **Common groups (row 150 → PRESENT)**: DM profile panels gain the
+  "Groups in common (N)" section — engine.GetCommonChats (30 max), rows
+  with avatars + member counts, streamer-masked titles, tap opens the
+  chat (honest toast when it is not in the loaded list). Hidden when the
+  list is empty; groups/channels never show it.
+- Pure gate + row derivation locked by 3 tests.
+- Parity: 110 PRESENT / 29 PARTIAL / 10 MISSING / 53 CORE-ONLY.
