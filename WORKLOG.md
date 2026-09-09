@@ -1005,3 +1005,24 @@ Session goal (owner): continue unattended, push, verify via API.
   https://darkreaperboy.github.io/Uniclient/.
 - The next release tag redeploys the site through the existing pipeline
   (release.yml web job force-pushes gh-pages; Pages picks it up).
+
+## 2026-09-09 — v0.5.0 pre-release published (session close-out)
+
+- Tagged **v0.5.0** (prerelease: true, per §1 policy) — the full release
+  pipeline ran GREEN end-to-end: test/vet/gofmt, linux amd64+arm64 (cgo,
+  UPX), windows amd64 (pure Go, UPX), android arm64 APK, web deploy, and
+  the publish job.
+- Assets live on the release page: uniclient-linux-amd64 (14.7 MB),
+  linux-arm64 (12.5 MB), windows-amd64.exe (14.6 MB), uniclient.apk
+  (20.7 MB), checksums.txt.
+- The web demo re-deployed through the pipeline and serves the new build
+  (uniclient.wasm 69 MB, HTTP 200) at
+  https://darkreaperboy.github.io/Uniclient/ — Pages was enabled earlier
+  this session, so this is the first release whose web target actually
+  serves users.
+- CI ledger this session: verify 34317867694 (slices 67–71) GREEN ·
+  34319015048 (slices 72–76) GREEN · 34319212283 (slice 77) GREEN ·
+  release 34319847283 (v0.5.0) GREEN.
+
+Session totals: 11 parity slices (67–77) + README rewrite + Pages
+deployment fix + v0.5.0 pre-release. All gates green locally and in CI.
