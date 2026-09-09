@@ -38,11 +38,13 @@ import (
 // spoilerBtns are per-message clickables toggling spoiler reveal.
 var spoilerBtns = map[string]*widget.Clickable{}
 
-// linkTag marks one tappable link token; the press copies the URL
-// (slice 34 — pure-Go link interaction).
+// linkTag marks one tappable link token; the press dispatches by kind:
+// hashtags open the in-chat tag search (slice 92), everything else
+// opens the platform browser / clipboard fallback.
 type linkTag struct {
 	msgID string
 	url   string
+	kind  string // entity type: "hashtag", "url", "mention", …
 }
 
 // linkTags caches per-message link tags (index-aligned to drawn tokens).
@@ -62,6 +64,7 @@ func spoilerHas(entities []cores.TextEntity) bool {
 type richStyle struct {
 	bold, italic, underline, strike, mono, spoiler, quote bool
 	link                                                  string
+	linkKind                                              string
 }
 
 // richSegment is a text slice with its merged style.
@@ -110,12 +113,15 @@ func applyEntity(st *richStyle, e cores.TextEntity) {
 		st.quote = true
 	case "text_url":
 		st.link = e.URL
+		st.linkKind = "text_url"
 		st.underline = true
 	case "url", "mention", "hashtag", "bot_command", "email", "phone", "cashtag":
 		st.link = "auto"
+		st.linkKind = e.Type
 		st.underline = true
 	case "mention_name", "custom_emoji", "formatted_date":
 		st.link = "auto"
+		st.linkKind = e.Type
 	}
 }
 
@@ -337,7 +343,7 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 			if url == "auto" {
 				url = tok.text
 			}
-			lt = &linkTag{msgID: m.MsgID, url: url}
+			lt = &linkTag{msgID: m.MsgID, url: url, kind: tok.style.linkKind}
 			linkTags[m.MsgID] = append(linkTags[m.MsgID], lt)
 		}
 		rects = append(rects, richRect{pos: image.Pt(x, y), size: sz, tok: tok, call: call, lt: lt})
@@ -394,7 +400,11 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 				break
 			}
 			if pe, is := ev.(pointer.Event); is && pe.Kind == pointer.Press && pe.Buttons == pointer.ButtonPrimary {
-				a.openLinkExternal(lt.url)
+				if lt.kind == "hashtag" {
+					a.openInChatSearchWithQuery(lt.url, chatKey{AccountID: m.AccountID, ChatID: m.ChatID})
+				} else {
+					a.openLinkExternal(lt.url)
+				}
 			}
 		}
 	}

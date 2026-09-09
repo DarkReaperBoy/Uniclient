@@ -1279,3 +1279,21 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   dropShadowBanned; gui row naming, header-menu presence on every
   chat type, escTarget self-handling, menu gate table. Full suite
   green; vet + gofmt clean.
+
+## 2026-09-09 — slice 92 (hashtag/tag search)
+
+- **Tag search (row 259 → PRESENT)**: engine.SearchMessagesByTag —
+  FTS narrows to the tag body (unicode61 splits on '#'), then a pure
+  post-filter (matchHashtagToken) enforces the exact '#tag' token with
+  Telegram tag chars (letters/digits/underscore, case-insensitive), so
+  "#news" never matches "newsletter" or "#news2".
+- In-chat search: a leading-# query switches to tag mode
+  (isHashtagQuery; same 2-rune minimum).
+- Hashtag taps: bubbles' #hashtag entities now carry their kind
+  (linkTag.kind via richStyle.linkKind); a tap opens the chat's tag
+  search (openInChatSearchWithQuery) instead of the browser/copy path
+  — AyuGram's tagged-messages behavior.
+- Tests: matchHashtagToken table (boundaries, continuation, case),
+  SearchMessagesByTag over seeded FTS rows (bare-word and longer-tag
+  exclusions, degenerate queries), applyEntity link kinds,
+  isHashtagQuery. Full suite green; vet + gofmt clean.

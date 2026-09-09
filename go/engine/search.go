@@ -57,10 +57,10 @@ func (e *Engine) SearchMessagesEx(query string, accountID string, limit int, cha
 	}
 
 	selectCols := `SELECT m.account_id, m.chat_id, m.msg_id, m.sender_name, m.content_text, m.timestamp,
-		        c.title
-		 FROM messages m
-		 JOIN messages_fts ON messages_fts.rowid = m.rowid
-		 LEFT JOIN chats c ON c.account_id = m.account_id AND c.chat_id = m.chat_id`
+                        c.title
+                 FROM messages m
+                 JOIN messages_fts ON messages_fts.rowid = m.rowid
+                 LEFT JOIN chats c ON c.account_id = m.account_id AND c.chat_id = m.chat_id`
 
 	where := ` WHERE messages_fts MATCH ?`
 	args := []interface{}{ftsQuery}
@@ -159,6 +159,73 @@ func (e *Engine) CountMessagesFrom(accountID, chatID, senderID string) (int, err
 	return count, err
 }
 
+// SearchMessagesByTag (matrix row 259, slice 92): messages carrying the
+// hashtag as a standalone token — "#news" matches "check #news now" but
+// not "newsletter". FTS narrows to the tag body (unicode61 treats '#' as
+// a separator, so the body word is the FTS phrase); a pure post-filter
+// then enforces the tagged token. Tag chars per Telegram: letters,
+// digits, underscore (so "#news2" must not match "#news").
+func (e *Engine) SearchMessagesByTag(accountID, chatID, tag string, limit int) ([]SearchResult, error) {
+	tag = strings.TrimSpace(tag)
+	body := strings.TrimPrefix(tag, "#")
+	if body == "" || !hasTokenRune(body) {
+		return nil, nil
+	}
+	hits, err := e.SearchMessagesEx(body, accountID, limit, chatID, "", "", "")
+	if err != nil || len(hits) == 0 {
+		return hits, err
+	}
+	out := hits[:0:0]
+	for _, h := range hits {
+		if matchHashtagToken(h.Text, body) {
+			out = append(out, h)
+		}
+	}
+	return out, nil
+}
+
+// isTagRune: characters that may continue a hashtag token.
+func isTagRune(r rune) bool {
+	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// matchHashtagToken reports whether text contains '#'+body as a
+// standalone token (case-insensitive — FTS matched the body that way).
+// Pure — locked by tests.
+func matchHashtagToken(text, body string) bool {
+	if text == "" || body == "" {
+		return false
+	}
+	lower := strings.ToLower(text)
+	needle := "#" + strings.ToLower(body)
+	n := len(needle)
+	for i := 0; i+n <= len(lower); i++ {
+		if lower[i] != '#' {
+			continue
+		}
+		if lower[i:i+n] != needle {
+			continue
+		}
+		// Token must END after the body (next rune is not a tag char).
+		rest := lower[i+n:]
+		if rest != "" {
+			if isTagRune(firstRune(rest)) {
+				continue
+			}
+		}
+		return true
+	}
+	return false
+}
+
+// firstRune decodes the first rune of s (0 for empty).
+func firstRune(s string) rune {
+	for _, r := range s {
+		return r
+	}
+	return 0
+}
+
 // SearchChats searches chat titles across all accounts.
 func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 	if limit <= 0 {
@@ -170,24 +237,24 @@ func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 
 	rows, err := e.db.Query(
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
-		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
-		        c.draft_text, c.member_count, c.parent_id,
-		        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
-		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
-		        c.is_verified, c.is_scam, c.is_fake,
-		        c.slowmode_seconds, c.slowmode_next_send_date,
-		        c.stars_to_send, c.ttl_period, c.emoji_status_id,
-		        c.story_count, c.has_unread_story, c.is_forum,
-		        c.write_restriction_type, c.write_restriction_text,
-		        c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
-		        0, c.has_active_call
-		 FROM chats c
-		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
-		 WHERE c.title LIKE '%' || ? || '%'
-		 ORDER BY c.last_msg_time DESC
-		 LIMIT ?`, query, limit)
+                        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
+                        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
+                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+                        c.draft_text, c.member_count, c.parent_id,
+                        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
+                        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
+                        c.is_verified, c.is_scam, c.is_fake,
+                        c.slowmode_seconds, c.slowmode_next_send_date,
+                        c.stars_to_send, c.ttl_period, c.emoji_status_id,
+                        c.story_count, c.has_unread_story, c.is_forum,
+                        c.write_restriction_type, c.write_restriction_text,
+                        c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
+                        0, c.has_active_call
+                 FROM chats c
+                 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+                 WHERE c.title LIKE '%' || ? || '%'
+                 ORDER BY c.last_msg_time DESC
+                 LIMIT ?`, query, limit)
 	if err != nil {
 		return nil, err
 	}

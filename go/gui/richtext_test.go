@@ -133,3 +133,42 @@ func TestUtf16Conversion(t *testing.T) {
 		t.Errorf("richIndex(3) = %d, want %d", richIndex(s, 3), len("a👍"))
 	}
 }
+
+func TestApplyEntityLinkKind(t *testing.T) {
+	// slice 92: hashtags carry their entity kind so taps can dispatch
+	// to the tag search instead of the browser.
+	var st richStyle
+	applyEntity(&st, cores.TextEntity{Type: "hashtag", Offset: 0, Length: 5})
+	if st.link != "auto" || st.linkKind != "hashtag" {
+		t.Errorf("hashtag style = %+v, want auto/hashtag", st)
+	}
+	st = richStyle{}
+	applyEntity(&st, cores.TextEntity{Type: "url", Offset: 0, Length: 5})
+	if st.link != "auto" || st.linkKind != "url" {
+		t.Errorf("url style = %+v, want auto/url", st)
+	}
+	st = richStyle{}
+	applyEntity(&st, cores.TextEntity{Type: "text_url", URL: "https://x.example", Offset: 0, Length: 5})
+	if st.link != "https://x.example" || st.linkKind != "text_url" {
+		t.Errorf("text_url style = %+v", st)
+	}
+}
+
+func TestIsHashtagQuery(t *testing.T) {
+	cases := []struct {
+		q    string
+		want bool
+	}{
+		{"", false},
+		{"#", false},
+		{"#n", true},
+		{"#news", true},
+		{"news", false},
+		{"a #news", false}, // tag mode is a leading-# query only
+	}
+	for _, tc := range cases {
+		if got := isHashtagQuery(tc.q); got != tc.want {
+			t.Errorf("isHashtagQuery(%q) = %v, want %v", tc.q, got, tc.want)
+		}
+	}
+}

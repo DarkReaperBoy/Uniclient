@@ -104,6 +104,9 @@ func (a *App) onInChatSearchChanged(q string, k chatKey) {
 	from := a.inSearchFrom
 	a.mu.Unlock()
 	key := inChatSearchKey(q, k) + "|from:" + from
+	// Hashtag queries (slice 92, matrix row 259) switch to tag search:
+	// "#news" matches the tagged token only. Same 2-rune minimum.
+	tagMode := isHashtagQuery(q)
 	a.mu.Lock()
 	a.inSearchQ = q
 	a.inChatBusy = len([]rune(q)) >= 2
@@ -122,7 +125,13 @@ func (a *App) onInChatSearchChanged(q string, k chatKey) {
 	a.mu.Unlock()
 
 	go func() {
-		hits, err := a.eng.SearchMessages(q, k.AccountID, 50, k.ChatID, "", from)
+		var hits []engine.SearchResult
+		var err error
+		if tagMode {
+			hits, err = a.eng.SearchMessagesByTag(k.AccountID, k.ChatID, q, 50)
+		} else {
+			hits, err = a.eng.SearchMessages(q, k.AccountID, 50, k.ChatID, "", from)
+		}
 		if err != nil {
 			hits = nil
 		}
@@ -135,6 +144,34 @@ func (a *App) onInChatSearchChanged(q string, k chatKey) {
 		a.mu.Unlock()
 		a.invalidate()
 	}()
+}
+
+// isHashtagQuery (pure): a tag-mode query — starts with '#' and carries
+// at least one more rune ("#n…" as-you-type).
+func isHashtagQuery(q string) bool {
+	return strings.HasPrefix(q, "#") && len([]rune(q)) >= 2
+}
+
+// openInChatSearchWithQuery opens the in-chat search seeded with a query
+// (hashtag taps, slice 92). GUI-loop only (SetText).
+func (a *App) openInChatSearchWithQuery(q string, k chatKey) {
+	a.mu.Lock()
+	wasOpen := a.inSearch
+	a.inSearch = true
+	a.mu.Unlock()
+	if !wasOpen {
+		a.mu.Lock()
+		a.inSearchQ = ""
+		a.inChatHits = nil
+		a.inChatIdx = 0
+		a.inChatBusy = false
+		a.inSearchFrom = ""
+		a.inSearchFromName = ""
+		a.mu.Unlock()
+	}
+	inSearchEd.SetText(q)
+	a.onInChatSearchChanged(q, k)
+	a.invalidate()
 }
 
 // inChatSearchStep moves to the prev (newer) / next (older) hit and jumps.

@@ -256,7 +256,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Search in current chat | In-chat results + jump + calendar picker | PRESENT (slice 18+26: header 🔍 → live scoped FTS bar w/ results panel, hit counter, ▲▼ + click-jump, from-user filter via sender picker; calendar picker remains) | gui/chatsearch.go + engine SearchMessages | P1 |
 | Search by sender/from | Filter "from user" | CORE-ONLY | engine search senderID param (CORE-ONLY) | P2 |
 | Search posts in public channels | Global post search | CORE-ONLY | engine.SearchGlobalPosts (CORE-ONLY) | P3 |
-| Hashtag/tag search | Filter by tag | MISSING | new engine search filter | P3 |
+| Hashtag/tag search | Filter by tag | PRESENT (slice 92: engine.SearchMessagesByTag — FTS body + exact '#tag' token post-filter (Telegram tag chars, case-insensitive); in-chat search switches to tag mode on a leading '#'; tapping a #hashtag in a bubble opens the chat's tag search) | engine/search.go + gui/chatsearch.go + gui/richtext.go | P3 |
 
 ## 12. Media viewer — scope: SHARED (story viewer = TG)
 
