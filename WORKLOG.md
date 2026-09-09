@@ -1026,3 +1026,30 @@ Session goal (owner): continue unattended, push, verify via API.
 
 Session totals: 11 parity slices (67–77) + README rewrite + Pages
 deployment fix + v0.5.0 pre-release. All gates green locally and in CI.
+
+## 2026-09-09 — release blockers fixed + slice 78 (shared-media tabs)
+
+- **Two release blockers fixed** (user reports, both verified end-to-end
+  with Xvfb/xdotool injection and the real binary):
+  1. **App-wide pointer-input freeze** after adding an account (auth form,
+     settings, every click dead on Linux/Windows/Android): the global
+     keyboard-shortcuts layer registered an OPAQUE window-wide hit node
+     (clip + event.Op, no pointer.PassOp) rendered last in Root — Gio's
+     hit-test walk short-circuits at opaque nodes, so everything beneath
+     stopped receiving pointer events. Fixed with a keyLayer helper
+     (pointer.PassOp) shared by the shortcuts layer and Settings;
+     regression test pins the fix (fails without PassOp).
+  2. **Web (wasm) purple-screen boot crash**: engine.Init os.MkdirAll'ed
+     on the js target (not implemented) → log.Fatal right after the first
+     frame. Fixed: build-tag ensureDir (no-op on js), vault persistence
+     split file/native vs localStorage/web (accounts and config now
+     survive page reloads), OpenDB uses ensureDir.
+- **Slice 78 — shared-media tab browser**: the profile panel's count
+  pills + 12-photo strip became the full tabbed browser (§7): chip bar
+  (Photos/Videos/GIFs/Voice/Audio/Files/Links, wrapping, active chip
+  accented); 3-column grids for visual tabs (video cells carry the play
+  badge + duration pill; tap → fullscreen viewer anchored in-tab);
+  jump-to-message rows for voice/audio/files/links (panel closes before
+  the jump on phone layout); engine GetSharedLinks + distinct gif/voice
+  sub-tab filters; lazy per-tab loads (60 media / 100 links).
+- CI Verify run 34342330119 (blockers commit c1fca15c) GREEN.
