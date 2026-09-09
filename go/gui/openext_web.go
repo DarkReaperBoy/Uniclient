@@ -14,7 +14,7 @@ import (
 func init() {
 	openExternalAsync = func(target string, done func(error)) {
 		if u, ok := sanitizeURL(target); ok {
-			if w := js.Global().Get("window"); w != js.Undefined() && w != js.Null() {
+			if w := js.Global().Get("window"); w.Type() != js.TypeUndefined && w.Type() != js.TypeNull {
 				w.Call("open", u, "_blank")
 				if done != nil {
 					done(nil)

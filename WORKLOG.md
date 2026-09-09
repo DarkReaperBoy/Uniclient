@@ -1214,3 +1214,11 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   the chat (the c1fca15c hit-test lesson, in reverse).
 - Tests: mute/read decision tables (muted, unread count, unread mark,
   read row), pool growth + distinct pairs.
+
+## 2026-09-09 — CI fix (wasm build), slice 89 note
+
+- Verify 34368893579 (slices 86+87) failed in the Web (wasm) cross-build:
+  openext_web.go compared js.Value with != (js.Value embeds funcs — not
+  comparable). Fixed with w.Type() checks. The local gate script now
+  builds the js/wasm target too, so this class of break never lands
+  again (android stays CI-gated via the release pipeline's NDK build).
