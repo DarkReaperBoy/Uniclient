@@ -976,3 +976,18 @@ Session goal (owner): continue unattended, push, verify via API.
 - Gates re-run: gofmt clean, gui vet (wasm) clean, full gui suite PASS
   under node, engine LocalRead tests PASS natively.
 - Matrix rows 53/118/231 → PRESENT.
+
+## 2026-09-09 — slice 77 (sender name colors + admin rank)
+
+- CI Verify run 34319015048 (commit fbc2ce41, slices 72–76): test/vet/gofmt
+  and the Xvfb GUI smoke GREEN at the time of writing; cross-builds in
+  flight.
+- **77 Sender name colors + rank**: group bubbles render sender names in
+  Telegram's 7-color name palette — the server color slot when the core
+  knows it (SenderColorID 0-6), otherwise a stable FNV derivation from the
+  sender id (the core returns -1 for unknown); the admin rank
+  (SenderRank: admin/owner/custom titles) is appended to the title.
+  Streamer masking preserved.
+- Char-count near limit (row 124) deliberately skipped: the 4096 limit is
+  Telegram-specific and the engine exposes no per-backend message limit —
+  a generic counter would lie on IRC/XMPP (§1.10).

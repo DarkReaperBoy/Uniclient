@@ -559,13 +559,14 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						}
 						return a.replyQuote(gtx, f, *m, *f.msgFor)
 					}),
-					// sender name in group chats (masked in streamer mode)
+					// sender name in group chats (masked in streamer mode);
+					// Telegram name color + admin rank (slice 77).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if out || m.SenderName == "" || m.IsService {
 							return layout.Dimensions{}
 						}
-						lbl := a.ui.Label(unit.Sp(13), m.SenderName)
-						lbl.Color = a.ui.p.Accent
+						lbl := a.ui.Label(unit.Sp(13), senderTitle(*m))
+						lbl.Color = senderColorFor(m.SenderColorID, m.SenderID)
 						lbl.Font.Weight = font.SemiBold
 						if f.cfg.Streamer {
 							return a.masked(gtx, lbl.Layout)
