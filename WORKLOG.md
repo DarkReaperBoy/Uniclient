@@ -1356,3 +1356,26 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   (browser path on non-deep URLs; t.me/invite links route internally,
   honest no-account toasts). Full suite green; vet + gofmt clean.
 - CI Verify GREEN on slices 93 (34377086950) and 94 (34377706476).
+
+## 2026-09-09 — v0.7.0: slices 86-95, dialog-priority regression fixed
+
+Session ledger (since v0.6.0):
+- slice 86 media OS handoff (system-player playback, browser links,
+  show-in-folder) · slice 87 local passcode lock (boot-locked PIN gate,
+  autolock) · slice 88 composer char counter · slice 89 chat-row hover
+  quick actions (mute/read) · slice 90 Ayu regex message filters +
+  quick-add · slice 91 per-chat shadow ban · slice 92 hashtag/tag
+  search (incl. bubble hashtag taps) · slice 93 layout sliders (bubble
+  radius + wide multiplier) · slice 94 folder export/import ·
+  slice 95 in-app deep-link routing.
+- Critical fix: the content-pane dialog priority (c1fca15c regression
+  that hid the autolocked PIN screen and settings-opened dialogs on
+  desktop) — extracted to pure contentDialogSurface, lock wins over
+  everything, pinned by tests. Web boot crash + wasm build fixes from
+  the prior session included.
+- Fetch-decision fix: hidden/shadow-banned rows no longer force a live
+  re-fetch on every initial load.
+- CI Verify GREEN on every slice commit this session (runs 34374607937,
+  34375695737, 34376328142, 34377086950, 34377706476, 34378611565).
+- Tagging v0.7.0 (prerelease per §1.5): 4 platform binaries + web
+  redeploy via the release pipeline.
