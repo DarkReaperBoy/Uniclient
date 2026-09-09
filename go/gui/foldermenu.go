@@ -42,6 +42,8 @@ func folderMenuItems(canLeft, canRight bool) []chatMenuAction {
 	}
 	items = append(items,
 		chatMenuAction{"Invite links", "invites"},
+		chatMenuAction{"Export folders", "exportf"},
+		chatMenuAction{"Import folders…", "importf"},
 		chatMenuAction{"Delete folder", "delete"},
 	)
 	return items
@@ -102,6 +104,19 @@ func (a *App) dispatchFolderMenuAction(f frame, m *folderMenuTarget, action stri
 		a.moveServerFolder(f, m.folder, 1)
 	case "invites":
 		a.openFolderInvites(m.folder, m.accountID)
+	case "exportf":
+		accountID := m.accountID
+		go func() {
+			blob, err := a.eng.ExportFoldersJSON(accountID)
+			if err != nil {
+				a.setToast("Export: " + err.Error())
+				return
+			}
+			a.copyTextSoon(blob)
+			a.setToast("Folders exported to clipboard")
+		}()
+	case "importf":
+		a.openFolderImportDialog(m.accountID)
 	case "delete":
 		accountID, folder := m.accountID, m.folder
 		go func() {

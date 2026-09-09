@@ -36,6 +36,7 @@ func escTarget(f frame) string {
 		f.cloudDlg != nil,
 		f.ayuFilterDlg != nil,
 		f.shadowDlg != nil,
+		f.folderImportDlg != nil,
 		f.inviteDlg != nil,
 		f.newDlg != nil,
 		f.viewer != nil,

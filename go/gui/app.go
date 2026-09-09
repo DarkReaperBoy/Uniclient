@@ -178,6 +178,8 @@ func contentDialogSurface(f frame) string {
 		return "cloudTheme"
 	case f.ayuFilterDlg != nil:
 		return "ayuFilters"
+	case f.folderImportDlg != nil:
+		return "folderImport"
 	}
 	return ""
 }
@@ -212,6 +214,8 @@ func (a *App) layoutContentPaneDialog(gtx layout.Context, f frame, surface strin
 		return a.layoutCloudThemeDialog(gtx, f)
 	case "ayuFilters":
 		return a.layoutAyuFilterDialog(gtx, f)
+	case "folderImport":
+		return a.layoutFolderImportDialog(gtx, f)
 	}
 	return a.layoutEmptyState(gtx)
 }

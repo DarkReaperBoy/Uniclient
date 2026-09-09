@@ -256,6 +256,9 @@ type App struct {
 	// Ayu shadow-ban manager dialog (slice 91, matrix row 240)
 	shadowDlg *shadowDlgState
 
+	// Folder paste-import dialog (slice 94, matrix row 67)
+	folderImportDlg *folderImportState
+
 	// emoji keyword search (slice 50): Telegram emoji keywords, fetched
 	// once per session for the emoji panel's search field.
 	emojiKws         []engine.EmojiKeywordEntry
@@ -1608,6 +1611,7 @@ func (a *App) snapshot() frame {
 		ayuFilterCount:   a.ayuFilterCount,
 		ayuFilterCountOn: a.ayuFilterCountOn,
 		shadowDlg:        a.shadowDlg,
+		folderImportDlg:  a.folderImportDlg,
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
 		schedLoad:        a.schedLoad,
@@ -1812,6 +1816,9 @@ type frame struct {
 
 	// Ayu shadow-ban manager dialog (slice 91, matrix row 240)
 	shadowDlg *shadowDlgState
+
+	// Folder paste-import dialog (slice 94, matrix row 67)
+	folderImportDlg *folderImportState
 
 	// who-reacted dialog (slice 49)
 	reactors *reactorsState

@@ -1316,3 +1316,20 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
 - Tests: label formatting, Effective* defaults/legacy-fold/override,
   clamps. Full suite green; vet + gofmt clean. CI Verify GREEN on
   slices 90 (34374607937), 91 (34375695737), 92 (34376328142).
+
+## 2026-09-09 — slice 94 (folder export/import)
+
+- **Import filters (row 67 → PRESENT)**: the folder-tab context menu
+  gains "Export folders" (all the account's dialog folders → versioned
+  JSON on the clipboard) and "Import folders…" (paste dialog —
+  content-pane replacement, Esc/Close, inline errors, busy state).
+- Engine folderio: encode/parse pure halves (envelope version guard,
+  name validation), ImportFoldersJSON skips existing names (re-import
+  is a no-op, never a duplicate), CreateFolderOpts round-trips flags +
+  chats/pinned/exclude.
+- The paste field is multi-line: Enter inserts newlines, import runs
+  from the button (no dead submit path).
+- Tests: encode/parse round-trip, validation table (garbage/wrong
+  version/empty/nameless), opts mapping, folderMenuItems order update,
+  escTarget + contentDialogSurface entries. Full suite green; vet +
+  gofmt clean.

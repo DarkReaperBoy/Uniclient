@@ -8,13 +8,13 @@ import (
 
 // Folder-tab context menu (slice 54): row derivation must drop the
 // unavailable move actions and keep the stable order
-// edit → move → invites → delete.
+// edit → move → invites → export/import (slice 94) → delete.
 func TestFolderMenuItems(t *testing.T) {
 	both := folderMenuItems(true, true)
-	if len(both) != 5 {
-		t.Fatalf("full menu = %d rows, want 5", len(both))
+	if len(both) != 7 {
+		t.Fatalf("full menu = %d rows, want 7", len(both))
 	}
-	want := []string{"edit", "moveleft", "moveright", "invites", "delete"}
+	want := []string{"edit", "moveleft", "moveright", "invites", "exportf", "importf", "delete"}
 	for i, w := range want {
 		if both[i].action != w {
 			t.Errorf("row %d = %s, want %s", i, both[i].action, w)
@@ -22,15 +22,15 @@ func TestFolderMenuItems(t *testing.T) {
 	}
 
 	leftOnly := folderMenuItems(true, false)
-	if len(leftOnly) != 4 || leftOnly[1].action != "moveleft" || leftOnly[2].action != "invites" {
+	if len(leftOnly) != 6 || leftOnly[1].action != "moveleft" || leftOnly[2].action != "invites" {
 		t.Fatalf("left-only = %+v", leftOnly)
 	}
 	rightOnly := folderMenuItems(false, true)
-	if len(rightOnly) != 4 || rightOnly[1].action != "moveright" {
+	if len(rightOnly) != 6 || rightOnly[1].action != "moveright" {
 		t.Fatalf("right-only = %+v", rightOnly)
 	}
 	none := folderMenuItems(false, false)
-	if len(none) != 3 || none[0].action != "edit" || none[1].action != "invites" || none[2].action != "delete" {
+	if len(none) != 5 || none[0].action != "edit" || none[1].action != "invites" || none[4].action != "delete" {
 		t.Fatalf("no-move = %+v", none)
 	}
 }
