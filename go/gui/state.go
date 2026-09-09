@@ -247,6 +247,12 @@ type App struct {
 	// who-reacted dialog (slice 49)
 	reactors *reactorsState
 
+	// Ayu regex message-filter editor dialog (slice 90, matrix row 238)
+	ayuFilterDlg       *ayuFilterDlgState
+	ayuFilterCount     int  // settings-row value cache
+	ayuFilterCountOn   bool // count loaded
+	ayuFilterCountBusy bool
+
 	// emoji keyword search (slice 50): Telegram emoji keywords, fetched
 	// once per session for the emoji panel's search field.
 	emojiKws         []engine.EmojiKeywordEntry
@@ -1587,6 +1593,9 @@ func (a *App) snapshot() frame {
 		schedDlg:         a.schedDlg,
 		pollDlg:          a.pollDlg,
 		reactors:         a.reactors,
+		ayuFilterDlg:     a.ayuFilterDlg,
+		ayuFilterCount:   a.ayuFilterCount,
+		ayuFilterCountOn: a.ayuFilterCountOn,
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
 		schedLoad:        a.schedLoad,
@@ -1783,6 +1792,11 @@ type frame struct {
 
 	// polls (slice 42)
 	pollDlg *pollDlgState
+
+	// Ayu regex message-filter editor dialog (slice 90, matrix row 238)
+	ayuFilterDlg     *ayuFilterDlgState
+	ayuFilterCount   int
+	ayuFilterCountOn bool
 
 	// who-reacted dialog (slice 49)
 	reactors *reactorsState

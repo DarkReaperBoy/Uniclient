@@ -76,56 +76,14 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 
 	showChat := f.selected != nil || f.auth != nil || f.showPicker
 
+	if s := contentDialogSurface(f); s != "" {
+		// Phone layout: the full-pane dialog replaces everything below
+		// the surface chain (same priority on both layouts).
+		a.layoutContentPaneDialog(gtx, f, s)
+		return
+	}
 	if narrow {
 		// Phone layout: settings, chat list, or open chat (with back button).
-		if f.newDlg != nil {
-			a.layoutNewChatDialog(gtx, f)
-			return
-		}
-		if f.contactsOpen {
-			a.layoutContacts(gtx, f)
-			return
-		}
-		if f.folderDlg != nil {
-			a.layoutFolderDialog(gtx, f)
-			return
-		}
-		if f.folderInvites != nil {
-			a.layoutFolderInvites(gtx, f)
-			return
-		}
-		if f.attachDlg != nil {
-			a.layoutAttachDialog(gtx, f)
-			return
-		}
-		if f.addMemDlg != nil {
-			a.layoutAddMemberDialog(gtx, f)
-			return
-		}
-		if f.ttlDlg != nil {
-			a.layoutTtlDialog(gtx, f)
-			return
-		}
-		if f.privacyDlg != nil {
-			a.layoutPrivacyScopeDialog(gtx, f)
-			return
-		}
-		if f.lockDlg != nil {
-			a.layoutLockDialog(gtx, f)
-			return
-		}
-		if f.autoDlDlg != nil {
-			a.layoutAutoDownloadDialog(gtx, f)
-			return
-		}
-		if f.themeDlg != nil {
-			a.layoutChatThemeDialog(gtx, f)
-			return
-		}
-		if f.cloudDlg != nil {
-			a.layoutCloudThemeDialog(gtx, f)
-			return
-		}
 		if f.settingsOpen {
 			a.layoutSettings(gtx, f, narrow)
 			return
@@ -155,53 +113,24 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			return a.ui.DividerV(gtx)
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			// Settings wins over the login pane: the sidebar gear stays
-			// reachable mid-auth (AyuGram keeps Settings reachable); its
-			// back button returns to the login form.
+			// Full-pane dialogs (contentDialogSurface — same priority
+			// as the narrow chain, including the passcode LOCK, a
+			// security gate that must never lose to a surface beneath
+			// it). Settings then wins over the login pane: the sidebar
+			// gear stays reachable mid-auth (AyuGram keeps Settings
+			// reachable); its back button returns to the login form.
+			// Regression (2026-09-09): c1fca15c put settings first
+			// here, which hid the auto-download editor (opened from
+			// settings) and the autolocked PIN screen on desktop
+			// whenever settings was open.
+			if s := contentDialogSurface(f); s != "" {
+				return a.layoutContentPaneDialog(gtx, f, s)
+			}
 			if f.settingsOpen {
 				return a.layoutSettings(gtx, f, narrow)
 			}
 			if f.auth != nil || f.showPicker {
 				return a.layoutLogin(gtx, f)
-			}
-			if f.newDlg != nil {
-				return a.layoutNewChatDialog(gtx, f)
-			}
-			if f.contactsOpen {
-				return a.layoutContacts(gtx, f)
-			}
-			if f.folderDlg != nil {
-				return a.layoutFolderDialog(gtx, f)
-			}
-			if f.folderInvites != nil {
-				return a.layoutFolderInvites(gtx, f)
-			}
-			if f.attachDlg != nil {
-				return a.layoutAttachDialog(gtx, f)
-			}
-			if f.addMemDlg != nil {
-				return a.layoutAddMemberDialog(gtx, f)
-			}
-			if f.ttlDlg != nil {
-				return a.layoutTtlDialog(gtx, f)
-			}
-			if f.privacyDlg != nil {
-				return a.layoutPrivacyScopeDialog(gtx, f)
-			}
-			if f.lockDlg != nil {
-				return a.layoutLockDialog(gtx, f)
-			}
-			if f.autoDlDlg != nil {
-				return a.layoutAutoDownloadDialog(gtx, f)
-			}
-			if f.themeDlg != nil {
-				return a.layoutChatThemeDialog(gtx, f)
-			}
-			if f.cloudDlg != nil {
-				return a.layoutCloudThemeDialog(gtx, f)
-			}
-			if f.settingsOpen {
-				return a.layoutSettings(gtx, f, narrow)
 			}
 			if f.mode == 1 {
 				return a.layoutVoice(gtx, f)
@@ -212,6 +141,79 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			return a.layoutChatView(gtx, f, narrow)
 		}),
 	)
+}
+
+// contentDialogSurface names the full-pane dialog that replaces the
+// content surface, in fixed priority order — shared verbatim by the
+// narrow and desktop chains. The passcode LOCK is a security gate: it
+// must never lose to a surface beneath it (autolock can fire while
+// settings or a chat is open). Dialogs opened from settings beat the
+// settings page. Pure — pinned by TestContentPaneDialogSurface after
+// the c1fca15c ordering regression (2026-09-09).
+func contentDialogSurface(f frame) string {
+	switch {
+	case f.newDlg != nil:
+		return "newChat"
+	case f.contactsOpen:
+		return "contacts"
+	case f.folderDlg != nil:
+		return "folder"
+	case f.folderInvites != nil:
+		return "folderInvites"
+	case f.attachDlg != nil:
+		return "attach"
+	case f.addMemDlg != nil:
+		return "addMember"
+	case f.ttlDlg != nil:
+		return "ttl"
+	case f.privacyDlg != nil:
+		return "privacy"
+	case f.lockDlg != nil:
+		return "lock"
+	case f.autoDlDlg != nil:
+		return "autoDownload"
+	case f.themeDlg != nil:
+		return "chatTheme"
+	case f.cloudDlg != nil:
+		return "cloudTheme"
+	case f.ayuFilterDlg != nil:
+		return "ayuFilters"
+	}
+	return ""
+}
+
+// layoutContentPaneDialog renders the surface named by
+// contentDialogSurface as the whole content pane.
+func (a *App) layoutContentPaneDialog(gtx layout.Context, f frame, surface string) layout.Dimensions {
+	switch surface {
+	case "newChat":
+		return a.layoutNewChatDialog(gtx, f)
+	case "contacts":
+		return a.layoutContacts(gtx, f)
+	case "folder":
+		return a.layoutFolderDialog(gtx, f)
+	case "folderInvites":
+		return a.layoutFolderInvites(gtx, f)
+	case "attach":
+		return a.layoutAttachDialog(gtx, f)
+	case "addMember":
+		return a.layoutAddMemberDialog(gtx, f)
+	case "ttl":
+		return a.layoutTtlDialog(gtx, f)
+	case "privacy":
+		return a.layoutPrivacyScopeDialog(gtx, f)
+	case "lock":
+		return a.layoutLockDialog(gtx, f)
+	case "autoDownload":
+		return a.layoutAutoDownloadDialog(gtx, f)
+	case "chatTheme":
+		return a.layoutChatThemeDialog(gtx, f)
+	case "cloudTheme":
+		return a.layoutCloudThemeDialog(gtx, f)
+	case "ayuFilters":
+		return a.layoutAyuFilterDialog(gtx, f)
+	}
+	return a.layoutEmptyState(gtx)
 }
 
 // layoutEmptyState is the "no chat selected" placeholder.

@@ -277,6 +277,13 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			}()
 		}})
 	}
+	// Ayu quick filter-add (matrix row 168): prefill a message filter
+	// from this message's text (regex-quoted, first line, capped).
+	if acts.Filter {
+		items = append(items, menuAction{"Filter Like This…", func(gtx layout.Context) {
+			a.openAyuFilterDialogPrefilled(quickFilterPattern(m.ContentText))
+		}})
+	}
 	// Ayu repeat (AyuGram "repeat message": resend as your own, no forward).
 	if !m.IsService && strings.TrimSpace(m.ContentText) != "" {
 		items = append(items, menuAction{"Repeat", func(gtx layout.Context) {

@@ -157,6 +157,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV43,
 	migrateV44,
 	migrateV45,
+	migrateV46,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -168,6 +169,18 @@ func migrateV45(tx *sql.Tx) error {
                 msg_id     TEXT NOT NULL,
                 hidden_at  INTEGER NOT NULL,
                 PRIMARY KEY (account_id, chat_id, msg_id)
+        )`)
+	return err
+}
+
+// migrateV46 creates the Ayu regex-filter table (AyuGram "message
+// filters": local hide-by-regex rules).
+func migrateV46(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS ayu_filters (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                pattern    TEXT NOT NULL,
+                enabled    INTEGER NOT NULL DEFAULT 1,
+                created_at INTEGER NOT NULL
         )`)
 	return err
 }

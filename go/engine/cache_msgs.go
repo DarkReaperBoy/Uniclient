@@ -168,7 +168,8 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 					cached := e.cacheMessage(accountID, chatID, &m)
 					result = append(result, cached)
 				}
-				return result, nil
+				// Ayu regex filters (slice 90) apply to every exit.
+				return e.applyAyuFilters(result), nil
 			} else {
 				log.Printf("[engine] GetMessages(%s, %s): core returned 0 messages", accountID, chatID)
 			}
@@ -177,7 +178,9 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 		}
 	}
 
-	return msgs, nil
+	// Ayu regex filters (slice 90): local hide-by-pattern, applied at the
+	// exits so the fetch decision above sees the unfiltered cache window.
+	return e.applyAyuFilters(msgs), nil
 }
 
 // SearchSavedMessagesByReaction performs a server-side reaction-tag search of the

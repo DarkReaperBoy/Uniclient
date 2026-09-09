@@ -1072,6 +1072,13 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyConfigBool("ayu_save_for_bots", v)
 		})
 	}))
+	// Message filters (slice 90, matrix row 238): local regex hide-rules.
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Ayu · Message filters")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.layoutAyuFilterRow(gtx, f)
+	}))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Ayu · Ghost mode")
 	}))

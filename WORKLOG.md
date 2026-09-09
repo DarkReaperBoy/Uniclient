@@ -1222,3 +1222,38 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   comparable). Fixed with w.Type() checks. The local gate script now
   builds the js/wasm target too, so this class of break never lands
   again (android stays CI-gated via the release pipeline's NDK build).
+
+## 2026-09-09 — slice 90 (Ayu regex message filters) + content-pane ordering fix
+
+- **Message filters (row 238 → PRESENT)**: Ayu settings gains "Message
+  filters" — a dialog listing local regex hide-rules with add (invalid
+  regexes rejected inline before they can break every chat load),
+  per-filter on/off, delete. Engine: ayu_filters table (v46 migration),
+  AddAyuFilter/List/SetEnabled/Remove; GetMessages filters at BOTH load
+  exits (cache window + fresh fetch) via enabledAyuRegexes; service rows
+  and media-only bubbles survive text filters. Changes re-render the
+  open chat instantly (refreshOpenChat).
+- **Quick filter add (row 168 → PRESENT)**: message context-menu
+  "Filter Like This…" opens the editor prefilled with a regex-quoted
+  first-line snippet (quickFilterPattern: collapse spaces, cap 64
+  runes, QuoteMeta — the suggestion always matches its source).
+- **Content-pane ordering regression FIXED (introduced by c1fca15c)**:
+  settings-first in the desktop chain hid every dialog opened FROM
+  settings (auto-download editor) and — worse — the autolocked PIN
+  screen whenever settings was open (the lock is a security gate).
+  Extracted the shared priority into pure contentDialogSurface(f)
+  (newChat → contacts → folder → folderInvites → attach → addMember →
+  ttl → privacy → lock → autoDl → theme → cloud → ayuFilters) used
+  verbatim by both narrow and desktop chains; lock wins over
+  everything; settings beats only login. Pinned by
+  TestContentPaneDialogSurface.
+- Fixed the dialog's event handling: submit events drain via
+  Editor.Update (the key.Filter{Focus} approach never fires), and the
+  editor clear after a successful add moved to the layout pass via a
+  clearInput flag (SetText is not goroutine-safe).
+- Tests: engine (CRUD, invalid-regex rejection, load-path filtering,
+  GetMessages gate) + gui (filterCountLabel/Text, quickFilterPattern
+  incl. quote-meta semantics, actionsFor Filter gate, escTarget
+  self-handling, contentDialogSurface incl. regression pins). Full
+  suite green (gui 323 runs, 0 fail under node+wasm); engine+utils+
+  cores+bootstrap native green; vet + gofmt clean.

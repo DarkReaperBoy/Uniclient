@@ -23,6 +23,7 @@ type msgActions struct {
 	Pin       bool
 	React     bool
 	Translate bool
+	Filter    bool // Ayu quick filter-add (matrix row 168)
 }
 
 // actionsFor derives the AyuGram message context-menu action set.
@@ -55,6 +56,7 @@ func actionsFor(m *engine.CachedMessage, caps []string) msgActions {
 		Pin:       !pending,
 		React:     hasCap("REACTIONS") && !pending,
 		Translate: strings.TrimSpace(m.ContentText) != "",
+		Filter:    strings.TrimSpace(m.ContentText) != "",
 	}
 }
 

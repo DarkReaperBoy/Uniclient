@@ -165,7 +165,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Ayu: "View deleted messages" | Deleted-msgs browser per chat | CORE-ONLY | engine.GetDeletedMessages (CORE-ONLY!) | P2 |
 | Ayu: "Hide message" (local) | Locally hide a message | PRESENT (slice 35: context-menu Hide Locally → engine HideMessage → locally_hidden_messages table (v45); GetMessages filters via NOT EXISTS; unhide supported) | gui/menu.go + engine HideMessage + v45 migration | P2 |
 | Ayu: "Repeat message" (resend) | Resend w/o forward mark | PRESENT (slice 35: context-menu Repeat → engine RepeatMessage re-sends cached text + entities as a fresh own message; media repeat later) | gui/menu.go + engine RepeatMessage | P2 |
-| Ayu: quick regex filter add | Tag msg by regex | MISSING | engine (Ayu filters feature) | P3 |
+| Ayu: quick regex filter add | Tag msg by regex | PRESENT (slice 90: context-menu "Filter Like This…" opens the filters editor prefilled with a regex-quoted first-line snippet; one press of Add applies) | gui/menu.go + gui/ayufilters.go + engine.AddAyuFilter | P3 |
 
 ## 7. Right info panel / Profile — scope: SHARED; saved messages, similar channels, bot panel = TG
 
@@ -235,7 +235,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Local Telegram Premium | Unlock premium perks locally | MISSING | engine premium APIs exist; local-premium flag new | P3 |
 | Ayu translator | Provider-based inline translation | PRESENT (slice 46: message menu Translate / Hide translation; engine TranslateText free-text path (Telegram MT translate) + message-bound fallback; italic block with caption under the bubble; target-language setting later) | gui/translate.go + engine.TranslateText | P2 |
 | Message shot | Export a message screenshot as image | MISSING (no core; needs renderer) | gui render-to-image | P3 |
-| Ayu message filters (regex) | Hide msgs by regex/author | MISSING | new engine feature | P3 |
+| Ayu message filters (regex) | Hide msgs by regex/author | PRESENT (slice 90: ayu_filters table (v46); GetMessages filters at both load exits via enabled regexes; Ayu settings → Message filters: editor with add (invalid regex rejected inline), per-filter on/off + delete; changes re-render the open chat instantly) | engine/ayufilter.go + gui/ayufilters.go | P3 |
 | Forward options (Ayu rich) | Hide sender/captions when forwarding | PRESENT (slice 23: forward picker options row feeds dropAuthor/dropCaptions for single + batch) | gui/menu.go + engine ForwardMessage(s) | P1 |
 | Shadow ban list | Per-chat local shadowban + quick menu | MISSING | new engine feature | P3 |
 | Drawer customization | Show/hide each drawer item | PRESENT (slice 38: Settings → Ayu · Drawer toggles for Saved/Contacts/Calls/Ghost/New group/New channel; hidden list persists in the vault config, rows filtered at build; Settings row always shown) | gui/drawer.go + gui/settings.go + AppConfig.drawer_hidden_items | P2 |
