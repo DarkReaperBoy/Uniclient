@@ -36,7 +36,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Phone → code steps | Step-by-step auth with progress + resend | PRESENT | gui/login.go + engine.StartAuth/SubmitAuthInput | P0 |
 | 2FA password step | Masked input, recovery | PRESENT | gui/login.go + SubmitAuthInput | P0 |
-| Signup (name/photo) | First/last name on new account | PARTIAL (name only, no photo) | gui/login.go + auth.AuthStateSignUp | P2 |
+| Signup (name/photo) | First/last name on new account | PARTIAL (name at signup; photo right after via the own-profile editor's Change photo — UploadProfilePhoto) | gui/login.go + gui/profileedit.go + auth.AuthStateSignUp | P2 |
 | QR login | Live-refreshing QR, scan from mobile | PRESENT | gui/login.go+qr.go + engine QR states | P0 |
 | Email verify / email-login | Code to email, email setup during auth | PRESENT (state machine covers it) | gui/login.go + telegram VerifyEmailDuringAuth | P2 |
 | Login code auto-fill from TG msg | Code arrives via logged-in session | PRESENT (slice 31: EventLoginCode → OTP banner with code + Use button; auto-fills the empty code field; 10-min freshness window) | gui/logincode.go + engine EventLoginCode | P3 |
@@ -289,7 +289,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Keyboard shortcuts | Ctrl+F search, Ctrl+up/down chat switch, Esc close, etc. | PARTIAL (slice 43: global key layer — Esc closes the topmost surface in AyuGram's dismissal order (menus → attach/emoji → selection → in-chat search → panel → sidebar search; dialogs/viewer/drawer self-handle first), Ctrl+F opens in-chat search or focuses the sidebar field, Ctrl+↑↓/PgUp/PgDn switch chats (wrap); Alt+jumplist, Ctrl+Tab account switch later) | gui/shortcuts.go | P2 |
 | Multi-window chats | Separate chat windows | MISSING | gui multi-window support | P3 |
 | Lock on autolock timer | Passcode relock | PRESENT (slice 87: lockTick arms the lock after the configured idle window; next frame shows the PIN screen) | gui/lock.go lockShouldAutolock/lockTick | P2 |
-| Deep links (tg://) | URL handling for join/phone | MISSING | engine ayu_url_handlers ≙ new resolver | P3 |
+| Deep links (tg://) | URL handling for join/phone | PARTIAL (slice 95: tapped t.me/+hash, t.me/joinchat/hash and tg://join?invite= links open the in-app join flow; t.me/<username> and tg://resolve?domain= resolve via global server search and open the chat (GUI-loop hop via pendingOpen); message-permalink and reserved paths honestly stay on the browser — they need server message lookups the engine does not expose) | gui/deeplink.go + gui/openext.go | P3 |
 | Bot mini-apps (webview panels) | Web apps inside chat | CORE-ONLY (pure-Go constraint: needs embedded webview ≙ decision required) | engine.RequestBotWebView (CORE-ONLY) | P3 |
 | Instant View pages | IV reader overlay | CORE-ONLY | engine.GetInstantViewPage (CORE-ONLY) | P3 |
 | Channel statistics screens | Charts dashboards | CORE-ONLY | engine stats APIs (CORE-ONLY) | P3 |

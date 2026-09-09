@@ -1333,3 +1333,26 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   version/empty/nameless), opts mapping, folderMenuItems order update,
   escTarget + contentDialogSurface entries. Full suite green; vet +
   gofmt clean.
+
+## 2026-09-09 — slice 95 (deep links)
+
+- **Deep links (row 292 → PARTIAL)**: t.me/+hash, t.me/joinchat/hash
+  and tg://join?invite=hash taps open the in-app join flow
+  (openInviteJoin); t.me/<username> and tg://resolve?domain=x resolve
+  through the global server search and open the chat via the
+  pendingOpen GUI-loop hop (openChat touches the composer — never from
+  a goroutine). Message-permalink / topic forms (t.me/user/123,
+  t.me/c/…) and reserved paths (addstickers, s/… etc.) stay on the
+  browser: they need server message lookups the engine does not expose
+  (honest split, noted in the matrix).
+- Routing lives at the top of openLinkExternal, so every tapped link
+  in the app benefits; pure classification (deepLinkTarget +
+  parseQueryPairs) locked by tests incl. tg:// query parsing and
+  last-value-wins.
+- Row 39 refreshed: signup photo is covered by the own-profile editor
+  immediately after signup.
+- Tests: invite/resolve/not-a-link tables, permalink + reserved-path
+  exclusions, query parsing; openext test updated for the new routing
+  (browser path on non-deep URLs; t.me/invite links route internally,
+  honest no-account toasts). Full suite green; vet + gofmt clean.
+- CI Verify GREEN on slices 93 (34377086950) and 94 (34377706476).

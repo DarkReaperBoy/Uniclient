@@ -140,10 +140,14 @@ func (a *App) revealMedia(path string) {
 	})
 }
 
-// openLinkExternal opens a tapped link in the platform browser (AyuGram
-// behavior); platforms or schemes without an opener fall back to the
-// slice-34 clipboard copy.
+// openLinkExternal opens a tapped link — deep links the app can act on
+// (invite joins, username resolves, slice 95) route inside; everything
+// else opens in the platform browser (AyuGram behavior); platforms or
+// schemes without an opener fall back to the slice-34 clipboard copy.
 func (a *App) openLinkExternal(url string) {
+	if a.tryDeepLink(url) {
+		return
+	}
 	if u, ok := sanitizeURL(url); ok {
 		openExternalAsync(u, func(err error) {
 			if err == nil {

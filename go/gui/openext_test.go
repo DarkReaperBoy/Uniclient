@@ -167,12 +167,31 @@ func TestOpenLinkExternal(t *testing.T) {
 		openExternalAsync = func(string, func(error)) {}
 	})
 
-	a.openLinkExternal("https://t.me/ayugram")
-	if len(targets) != 1 || targets[0] != "https://t.me/ayugram" {
+	a.openLinkExternal("https://example.com/ayugram")
+	if len(targets) != 1 || targets[0] != "https://example.com/ayugram" {
 		t.Fatalf("targets = %v, want the URL once", targets)
 	}
 	if a.toast != "Opened in browser" {
 		t.Errorf("toast = %q, want Opened in browser", a.toast)
+	}
+
+	// slice 95: deep links route INSIDE — a t.me username link resolves
+	// through the global search (no account here → honest toast, and the
+	// browser opener must NOT have been attempted).
+	a.openLinkExternal("https://t.me/ayugram")
+	if len(targets) != 1 {
+		t.Fatalf("deep link went to the browser: %v", targets)
+	}
+	if a.toast != "Connect an account first" {
+		t.Errorf("toast = %q, want Connect an account first", a.toast)
+	}
+	// Invite links open the join flow (same honest no-account path).
+	a.openLinkExternal("https://t.me/+AbCdEf12345")
+	if len(targets) != 1 {
+		t.Fatalf("invite link went to the browser: %v", targets)
+	}
+	if a.inviteDlg != nil {
+		t.Errorf("inviteDlg = %+v, want cleared on no-account", a.inviteDlg)
 	}
 
 	fail = true
