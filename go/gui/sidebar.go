@@ -99,6 +99,11 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 				return a.layoutRecentSearches(gtx, f)
 			})
 		})),
+		// Top peers strip (AyuGram, slice 72): pictured row above the list
+		// while the search field is focused and empty.
+		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
+			return a.layoutTopPeers(gtx, f)
+		})),
 		// Folder tabs (or the archive-view back row, slice 67)
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			if f.archiveView {

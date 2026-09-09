@@ -39,9 +39,12 @@ var (
 	drawerNight      = new(widget.Bool)
 	drawerGhost      = new(widget.Bool)
 	drawerStreamer   = new(widget.Bool)
+	drawerLRead      = new(widget.Bool) // AyuGram LRead: mark read locally
+	drawerSRead      = new(widget.Bool) // AyuGram SRead: send read receipts
 	drawerNightSync  bool
 	drawerGhostSync  bool
 	drawerStreamSync bool
+	drawerReadSync   bool
 	drawerList       widget.List
 )
 
@@ -68,6 +71,7 @@ func (a *App) openDrawer() {
 	drawerNightSync = false // resync switches from the config snapshot
 	drawerGhostSync = false
 	drawerStreamSync = false
+	drawerReadSync = false
 	a.invalidate()
 }
 
@@ -259,11 +263,17 @@ func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 		drawerGhost.Value = ghostAllOn(f.cfg)
 		drawerGhostSync = true
 	}
+	if !drawerReadSync {
+		drawerLRead.Value = f.cfg.LocalReadMark
+		drawerSRead.Value = f.cfg.SendReadReceipts
+		drawerReadSync = true
+	}
 	if !drawerStreamSync {
 		drawerStreamer.Value = f.cfg.Streamer
 		drawerStreamSync = true
 	}
 	prevNight, prevGhost, prevStreamer := drawerNight.Value, drawerGhost.Value, drawerStreamer.Value
+	prevLRead, prevSRead := drawerLRead.Value, drawerSRead.Value
 
 	children := a.drawerChildren(f, current)
 	dims := layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -277,6 +287,22 @@ func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	if drawerGhost.Value != prevGhost {
 		a.setGhostAll(drawerGhost.Value)
+	}
+	if drawerLRead.Value != prevLRead {
+		a.applyConfigBool("local_read_mark", drawerLRead.Value)
+		if drawerLRead.Value {
+			a.setToast("Messages marked read locally")
+		} else {
+			a.setToast("Chats stay unread until you mark them")
+		}
+	}
+	if drawerSRead.Value != prevSRead {
+		a.applyConfigBool("send_read_receipts", drawerSRead.Value)
+		if drawerSRead.Value {
+			a.setToast("Read receipts sent")
+		} else {
+			a.setToast("Read receipts hidden (ghost)")
+		}
 	}
 	if drawerStreamer.Value != prevStreamer {
 		a.applyStreamer(drawerStreamer.Value)
@@ -366,6 +392,12 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 	// AyuGram section: ghost-mode master + preferences shortcut.
 	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemGhost) {
 		rows = append(rows, a.drawerSectionLabel("AyuGram"))
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+			return a.drawerSwitchRow(gtx, iconActionDone, "Local read (LRead)", drawerLRead)
+		})
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+			return a.drawerSwitchRow(gtx, iconCommunicationChat, "Send read (SRead)", drawerSRead)
+		})
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {

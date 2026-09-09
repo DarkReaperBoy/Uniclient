@@ -954,3 +954,25 @@ Session goal (owner): continue unattended, push, verify via API.
 - Continue parity: top-peers strip (row 53), chat background (row 103),
   stories row (row 65), voice-message playback (row 135).
 - mumble/teamspeak rewrite, live-verify xmpp/bale/rubika/deltachat (§8).
+
+## 2026-09-09 — slices 72–76 (top peers, LRead/SRead, bot commands) + first CI green
+
+- CI Verify run 34317867694 (commit 555fffb7, slices 67–71): **GREEN** —
+  test/vet/gofmt, windows+wasm cross-builds, and the Xvfb GUI smoke with
+  screenshots all passed.
+- **72 Top peers strip**: pictured row above the chat list while the search
+  field is focused and empty (engine.GetTopPeers ranking); renders only
+  with an unambiguous account scope (filter set or single account); tap
+  opens the chat; scope-guarded async load.
+- **75 LRead/SRead drawer toggles**: two switches in the drawer's AyuGram
+  section. SRead = existing SendReadReceipts ghost flag; LRead = new
+  AppConfig.LocalReadMark (default on) that gates the GUI's mark-on-open
+  call — engine config round-trip tested; toggles are independent and
+  toast their effect.
+- **76 Bot commands menu**: composer "/" button (rendered only when the
+  chat has commands — GetChatBotCommands loaded lazily per chat, never a
+  dead button), panel with command/bot/description rows, tap inserts the
+  command into the composer, Esc closes.
+- Gates re-run: gofmt clean, gui vet (wasm) clean, full gui suite PASS
+  under node, engine LocalRead tests PASS natively.
+- Matrix rows 53/118/231 → PRESENT.

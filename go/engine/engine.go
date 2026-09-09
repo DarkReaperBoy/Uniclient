@@ -783,7 +783,9 @@ type ConfigChanges struct {
 	MaxCacheSize int64
 	DownloadDir  string
 	// Use pointers for booleans so zero-value (false) is distinguishable from "not set".
-	SendReadReceipts       *bool
+	SendReadReceipts *bool
+	// Local read marking (AyuGram LRead). Nil = unchanged.
+	LocalReadMark          *bool
 	SendTyping             *bool
 	SendUploadProgress     *bool
 	SendReadStories        *bool
@@ -851,6 +853,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.SendReadReceipts != nil {
 		e.config.SendReadReceipts = *changes.SendReadReceipts
+	}
+	if changes.LocalReadMark != nil {
+		e.config.LocalReadMark = *changes.LocalReadMark
 	}
 	if changes.SendTyping != nil {
 		e.config.SendTyping = *changes.SendTyping

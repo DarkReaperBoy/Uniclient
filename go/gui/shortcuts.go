@@ -55,6 +55,8 @@ func escTarget(f frame) string {
 		return "chatMenu"
 	case f.attachMenuOpen:
 		return "attach"
+	case f.botCmdsOn:
+		return "botcmds"
 	case f.emojiOpen:
 		return "emoji"
 	case f.selOn:
@@ -169,6 +171,8 @@ func (a *App) handleEscTarget(target string) {
 		a.closeChatMenu()
 	case "attach":
 		a.closeAttachMenu()
+	case "botcmds":
+		a.closeBotCmds()
 	case "emoji":
 		a.closeEmojiPanel()
 	case "selection":

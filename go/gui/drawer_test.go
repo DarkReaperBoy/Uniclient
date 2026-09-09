@@ -131,3 +131,39 @@ func TestContactChat(t *testing.T) {
 		t.Fatal("unknown user must not match")
 	}
 }
+
+// LRead/SRead drawer toggles (AyuGram parity slice 75): local read and
+// send-read are independent flags — the config layer must round-trip both.
+
+func TestLReadSReadIndependentChanges(t *testing.T) {
+	// The field-mapping layer produces distinct changes for each toggle.
+	lr := configFieldChanges("local_read_mark", false)
+	if lr == nil || lr.LocalReadMark == nil || *lr.LocalReadMark {
+		t.Fatalf("local_read_mark change: %+v", lr)
+	}
+	sr := configFieldChanges("send_read_receipts", false)
+	if sr == nil || sr.SendReadReceipts == nil || *sr.SendReadReceipts {
+		t.Fatalf("send_read_receipts change: %+v", sr)
+	}
+	// Flipping LRead must not touch SRead and vice versa.
+	if lr.SendReadReceipts != nil {
+		t.Fatal("LRead change must not carry SRead")
+	}
+	if sr.LocalReadMark != nil {
+		t.Fatal("SRead change must not carry LRead")
+	}
+}
+
+func TestGhostAllOnUnaffectedByLRead(t *testing.T) {
+	// ghostAllOn stays keyed to the send-side flags only.
+	c := cfgSnapshot{SendReadReceipts: true, SendUploadProgress: true, SendReadStories: true,
+		SendOnlinePackets: true, SendOfflineAfterOnline: true, MarkReadAfterAction: true,
+		UseScheduledMessages: true, SendWithoutSound: true}
+	if !ghostAllOn(c) {
+		t.Fatal("full send-side ghost profile must be on")
+	}
+	c.LocalReadMark = false
+	if !ghostAllOn(c) {
+		t.Fatal("LRead must not factor into the ghost master state")
+	}
+}

@@ -75,6 +75,8 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 	switch field {
 	case "send_read_receipts":
 		c.SendReadReceipts = &b
+	case "local_read_mark":
+		c.LocalReadMark = &b
 	case "send_typing":
 		c.SendTyping = &b
 	case "send_upload_progress":

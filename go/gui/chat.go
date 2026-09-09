@@ -164,6 +164,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.emojiOpen {
 		a.layoutEmojiPanel(gtx, f)
 	}
+	// Bot commands panel above the composer (slice 76).
+	if f.botCmdsOn {
+		a.layoutBotCmdsPanel(gtx, f)
+	}
 	// Delete confirm (slice 19).
 	if f.delDlg != nil {
 		a.layoutDeleteDialog(gtx, f)
@@ -951,6 +955,24 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 							btn := a.ui.IconButton(&emojiBtn, iconEmojiSmile, "Emoji")
 							btn.Color = a.ui.p.TextDim
 							if f.emojiOpen {
+								btn.Color = a.ui.p.Accent
+							}
+							return btn.Layout(gtx)
+						})
+					}),
+					// bot-commands button (slice 76): renders only when the
+					// open chat has commands (engine-loaded; never dead).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if !botCmdPanelNeeded(f.botCmds) {
+							return layout.Dimensions{}
+						}
+						if botCmdBtn.Clicked(gtx) {
+							a.toggleBotCmds()
+						}
+						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							btn := a.ui.IconButton(&botCmdBtn, iconNavMoreVert, "Bot commands")
+							btn.Color = a.ui.p.TextDim
+							if f.botCmdsOn {
 								btn.Color = a.ui.p.Accent
 							}
 							return btn.Layout(gtx)

@@ -33,7 +33,11 @@ type AppConfig struct {
 	DNSFallback  bool              `json:"dns_fallback"`
 
 	// Privacy / Ghost Mode
-	SendReadReceipts       bool `json:"send_read_receipts"`
+	SendReadReceipts bool `json:"send_read_receipts"`
+	// Local read marking (AyuGram LRead): mark chats read locally when
+	// opened. SRead (SendReadReceipts) is independent — it controls whether
+	// read receipts are SENT to the server.
+	LocalReadMark          bool `json:"local_read_mark"`
 	SendTyping             bool `json:"send_typing"`
 	SendUploadProgress     bool `json:"send_upload_progress"`
 	SendReadStories        bool `json:"send_read_stories"`
@@ -90,6 +94,7 @@ func DefaultConfig() AppConfig {
 		DNSOverrides:       make(map[string]string),
 		DNSFallback:        true,
 		SendReadReceipts:   true,
+		LocalReadMark:      true,
 		SendTyping:         true,
 		SendUploadProgress: true,
 		SendReadStories:    true,

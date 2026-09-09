@@ -63,12 +63,23 @@ type App struct {
 
 	// slow-mode countdown redraw guard (slice 69).
 	slowTickPending bool
-	toast           string
-	toastAt         time.Time
-	connecting      map[string]bool // accountID -> busy
-	sending         bool
-	loadingMsgs     bool
-	loadedOlder     int // how many pages loaded (scroll-up)
+
+	// bot commands panel (slice 76): the chat's commands, loaded lazily.
+	botCmds       []engine.BotCommandInfo
+	botCmdsFor    *chatKey
+	botCmdsLoaded bool
+	botCmdsOn     bool
+
+	// top peers strip (slice 72): search-focus rows, scoped to one account.
+	topPeers       []engine.ChatInfo
+	topPeersFor    string
+	topPeersLoaded bool
+	toast          string
+	toastAt        time.Time
+	connecting     map[string]bool // accountID -> busy
+	sending        bool
+	loadingMsgs    bool
+	loadedOlder    int // how many pages loaded (scroll-up)
 
 	// message-action state (AyuGram parity §1.11: reply/edit composer modes,
 	// context menu, forward picker, reactions).
@@ -841,6 +852,10 @@ func (a *App) openChat(k chatKey, title string) {
 	a.schedDlg = nil  // slice 20: close the schedule dialog
 	a.groupCall = nil // slice 70: live-call bar state for the new chat
 	a.callPollFor = nil
+	a.botCmds = nil // slice 76: bot commands for the new chat
+	a.botCmdsFor = nil
+	a.botCmdsLoaded = false
+	a.botCmdsOn = false
 
 	// Restore the incoming chat's draft into the composer (slice 20).
 	if next.DraftText != "" {
@@ -867,6 +882,7 @@ func (a *App) openChat(k chatKey, title string) {
 		go a.loadHdrPresence(k)
 	}
 	a.syncCallPoll() // slice 70: start the live-call poll if this chat has one
+	a.loadBotCmds(k) // slice 76: fetch the chat's bot commands
 	a.invalidate()
 	go func() {
 		msgs, err := a.eng.GetMessages(k.AccountID, k.ChatID, 0, 0, 100)
@@ -889,7 +905,14 @@ func (a *App) openChat(k chatKey, title string) {
 		}
 		a.mu.Unlock()
 		go func() {
-			_ = a.eng.MarkChatRead(k.AccountID, k.ChatID, "")
+			// LRead off (AyuGram): leave the chat unread locally —
+			// the drawer toggle gates the mark-on-open call.
+			a.mu.Lock()
+			localRead := a.cfg.LocalReadMark
+			a.mu.Unlock()
+			if localRead {
+				_ = a.eng.MarkChatRead(k.AccountID, k.ChatID, "")
+			}
 			a.refreshChats()
 		}()
 		a.invalidate()
@@ -1014,6 +1037,7 @@ type cfgSnapshot struct {
 	Accent                 string
 	FontScale              float64
 	SendReadReceipts       bool
+	LocalReadMark          bool
 	SendTyping             bool
 	SendUploadProgress     bool
 	SendReadStories        bool
@@ -1102,6 +1126,7 @@ func (a *App) refreshConfig() {
 		Accent:                 c.AccentColor,
 		FontScale:              c.FontScale,
 		SendReadReceipts:       c.SendReadReceipts,
+		LocalReadMark:          c.LocalReadMark,
 		SendTyping:             c.SendTyping,
 		SendUploadProgress:     c.SendUploadProgress,
 		SendReadStories:        c.SendReadStories,
@@ -1386,6 +1411,12 @@ func (a *App) snapshot() frame {
 		searchFor:        a.searchFor,
 		archiveView:      a.archiveView,
 		groupCall:        a.groupCall,
+		botCmds:          a.botCmds,
+		botCmdsOn:        a.botCmdsOn,
+		botCmdsLoaded:    a.botCmdsLoaded,
+		topPeers:         a.topPeers,
+		topPeersFor:      a.topPeersFor,
+		topPeersLoaded:   a.topPeersLoaded,
 		mode:             a.mode,
 		auth:             a.auth,
 		authAcct:         a.authAcct,
@@ -1525,6 +1556,16 @@ type frame struct {
 
 	// group-call live bar (slice 70): polled info for the open chat
 	groupCall *engine.GroupCallInfo
+
+	// bot commands panel (slice 76)
+	botCmds       []engine.BotCommandInfo
+	botCmdsOn     bool
+	botCmdsLoaded bool
+
+	// top peers strip (slice 72)
+	topPeers       []engine.ChatInfo
+	topPeersFor    string
+	topPeersLoaded bool
 
 	mode        int
 	auth        *engine.AuthState
