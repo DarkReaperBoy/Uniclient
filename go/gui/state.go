@@ -79,6 +79,9 @@ type App struct {
 	// call device pickers (slice 103): type → enumerated OS devices.
 	devPickers map[string]*devPickerState
 
+	// story viewer (slice 104): the open stories overlay.
+	storyView *storyViewerState
+
 	// slow-mode countdown redraw guard (slice 69).
 	slowTickPending bool
 
@@ -1540,6 +1543,10 @@ func (a *App) snapshot() frame {
 		groupCall:        a.groupCall,
 		call:             a.call,
 		hdrCaps:          a.hdrCaps,
+		joinedGC:         a.joinedGC,
+		joinedGCInfo:     a.joinedGCInfo,
+		devPickers:       a.devPickers,
+		storyView:        a.storyView,
 		botCmds:          a.botCmds,
 		botCmdsOn:        a.botCmdsOn,
 		botCmdsLoaded:    a.botCmdsLoaded,
@@ -1713,6 +1720,9 @@ type frame struct {
 
 	// call device pickers (slice 103)
 	devPickers map[string]*devPickerState
+
+	// story viewer (slice 104)
+	storyView *storyViewerState
 
 	// bot commands panel (slice 76)
 	botCmds       []engine.BotCommandInfo

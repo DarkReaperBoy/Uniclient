@@ -51,6 +51,10 @@ func (a *App) Root(gtx layout.Context) {
 	if f.viewer != nil {
 		a.layoutMediaView(gtx, f)
 	}
+	// Story viewer (slice 104): full-window overlay above the media viewer.
+	if f.storyView != nil {
+		a.layoutStoryViewer(gtx, f)
+	}
 	// 1:1 call overlay (slice 101): modal over everything except the
 	// toast + shortcut layers.
 	if f.call != nil {

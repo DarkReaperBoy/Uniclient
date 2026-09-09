@@ -106,6 +106,10 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutTopPeers(gtx, f)
 		})),
+		// Stories row (AyuGram, slice 104): horizontal story circles.
+		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
+			return a.layoutStoryStrip(gtx, f)
+		})),
 		// Folder tabs (or the archive-view back row, slice 67)
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			if f.archiveView {

@@ -62,7 +62,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Row: media preview + "Photo"/"Voice" labels | Thumb + typed last-message labels | PRESENT (typed labels via engine.MediaPreviewLabel + 34dp rounded last-message thumbs, slice 24) | gui/sidebar.go previewText + mediaThumb | P1 |
 | Row: typing preview | "typing…" animated | PRESENT | gui/sidebar.go + engine.EventTyping | P0 |
 | Row: unread reactions/mentions badge | @ badge for mentions, badge variants | PRESENT (slice 68: trailing stack @-mention pill → unread-reactions counter → unread count/mark, Telegram order) | gui/rowbadges.go | P2 |
-| Stories row + rings | Horizontal story circles w/ seen/unseen rings, story counter | CORE-ONLY (engine stories: FetchPeerStories, ChatInfo.StoryCount CORE-ONLY) | new gui/stories.go | P1 |
+| Stories row + rings | Horizontal story circles w/ seen/unseen rings, story counter | PRESENT (slice 104: horizontal strip above the folder tabs — chats with StoryCount>0, unread first, accent ring unseen / dim ring seen, real userpics + clipped name labels, streamer-masked; tap opens the story viewer) | gui/stories.go + engine ChatInfo.StoryCount/HasUnreadStory | P1 |
 | Chat row context menu | Mute (1h/8h/forever), pin, archive, read/unread, add to folder, delete/leave, block | PARTIAL (right-click menu: mute 1h/8h/forever/unmute, pin, mark read/unread, archive, delete — all real engine calls; slice 27 add-to-folder picker (server folders, account-scoped); slice 48 Block user for DMs (engine BlockUser; state-aware unblock stays in the header ⋮ menu)) | gui/chatmenu.go + engine MuteChat/PinChat/ArchiveChat/MarkChat(Unread)/DeleteChat/AddChatToFolder/BlockUser | P0 |
 | Folder context menu | Edit/delete folder, hide All-chats, import filters | PRESENT (slice 13: right-click a folder tab → full editor w/ chat picker, flags, emoticon; delete in-editor; slice 85: hide-All — "Hide \"All chats\" tab" in Main settings, persisted HideAllChats; slice 94: Export folders → clipboard JSON + Import folders… paste dialog — versioned envelope, name-dedupe re-import, folder flags/chats/pinned/exclude round-trip) | gui/folders.go + gui/foldermenu.go + gui/folderimport.go + engine/folderio.go | P2 |
 | Quick action on hover | Mute/unread toggle buttons on row hover | PRESENT (slice 89: hover shows an East-anchored overlay of two compact toggles — mute/unmute (bell / bell-off) and mark read/unread (check-circle / mark-unread); real engine MuteChat/MarkChatRead/MarkChatUnread calls + toasts + list refresh; overlay stays inside the row's hit area so hover isn't lost, renders topmost so presses don't open the chat) | gui/sidebar.go chatRow/rowQuickActions | P3 |
@@ -268,7 +268,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Zoom/pan + double-click | Gesture zoom | PRESENT (double-click zoom 1x↔2.5x anchored at cursor + drag pan w/ clamp; pinch/wheel later) | gui/mediaview.go processViewerImageEvents | P2 |
 | Download + share + delete in viewer | Toolbar actions | PRESENT (save→RequestDownload/reveal path; share→forward picker; delete→confirm dialog→engine.DeleteMessage) | gui/mediaview.go | P1 |
 | PiP floating window | Video in floating window | MISSING | gui/os window + engine video frames | P3 |
-| Story viewer | Full story playback w/ reactions/reply/share | CORE-ONLY | engine stories (CORE-ONLY) | P2 |
+| Story viewer | Full story playback w/ reactions/reply/share | PARTIAL (slice 104: full-window viewer fed by engine.FetchPeerStories — progress segments, left/right tap zones + arrow keys, caption + views/date meta, image stories render inline (async decode), video stories honestly hand off to the system player (in-app playback waits on engine streaming); reactions/reply/share remain engine-gated) | gui/stories.go + engine FetchPeerStories | P2 |
 | Streaming video in chat | Playback without full download | CORE-ONLY | engine media streaming (CORE-ONLY) | P2 |
 
 ## 13. Notifications — scope: SHARED (per-account notify config = TG)
@@ -342,10 +342,10 @@ P2 = settings/extras, P3 = rare/edge.
 
 → 2026-09-08 after slices 1–9: PRESENT 24 (12%) · PARTIAL 39 (19%) · MISSING 39 (19%) · CORE-ONLY 99 (49%).
 
-- PRESENT: 107 — the parity program (slices 1-100) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking, edits history, deleted-messages browser, save-to-Downloads, takeout export…
-- PARTIAL: 27 — engine-gated halves (in-app media playback waits on audio-out/streaming; 2FA; notifications sound picker; tray; read-receipt inline avatar stack later) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
+- PRESENT: 108 — the parity program (slices 1-100) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking, edits history, deleted-messages browser, save-to-Downloads, takeout export…
+- PARTIAL: 28 — engine-gated halves (in-app media playback waits on audio-out/streaming; 2FA; notifications sound picker; tray; read-receipt inline avatar stack later) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
 - MISSING: 10 — remaining rows need real core work (dice/games, message-shot renderer, PiP, tray, multi-window, app icon) or would be dead UI (hide sponsored/similar — nothing renders to hide; local-premium — nothing gates premium)
-- CORE-ONLY: 57 — the engine already has the functionality; the GUI just never surfaces it (slice 101: 1:1 call panel + incoming call UI; slice 102: group call screen; slice 103: device pickers + noise suppression surfaced 5 of them)
+- CORE-ONLY: 56 — the engine already has the functionality; the GUI just never surfaces it (slice 101: 1:1 call panel + incoming call UI; slice 102: group call screen; slice 103: device pickers + noise suppression surfaced 5 of them)
 
 Priorities: P0 36 · P1 57 · P2 62 · P3 43 (+3 UniClient-only rows).
 

@@ -1459,3 +1459,26 @@ the GUI (3 P1 + 1 P2 CORE-ONLY rows in the matrix).
 - Group-call admin actions (invite/recording/RTMP/title edit) remain
   engine-gated matrix rows.
 - Call rating dialog (SendCallRating) remains CORE-ONLY (P3).
+
+## 2026-09-10 — slice 104 (stories), live-core verification
+
+- **Live verification (§9 ladder, official-server rung)**: IRC core round-
+  trip PASSED against irc.libera.chat:6697 (connect, MOTD, join/send/
+  receive); GitHub core PASSED against the real API authenticated as
+  DarkReaperBoy. Both via the env-gated `go/tests/` live suite
+  (`-tags goolm,live`).
+- **Stories row (row 87 → PRESENT)**: horizontal story-circles strip above
+  the folder tabs — chats with StoryCount>0 only (dangling unread flags on
+  zero-count chats stay hidden), unread first, accent ring unseen / dim
+  ring seen, real userpics with letter fallback, clipped name labels,
+  streamer-mode masking.
+- **Story viewer (row 126 → PARTIAL)**: full-window overlay fed by
+  engine.FetchPeerStories — progress segment bar (one per story, active
+  accent), left/right tap zones + arrow keys (past-last closes, AyuGram
+  behavior), header avatar+title+close, caption + "N views · date" meta,
+  image stories decode through the shared media image cache; video stories
+  honestly hand off to the system player (in-app playback waits on engine
+  streaming). Honest loading/error/empty cards for the fetch.
+- Parity: 108 PRESENT / 28 PARTIAL / 10 MISSING / 56 CORE-ONLY.
+- CI Verify run 34404120630 on slices 101-103 (b91c0537): SUCCESS (full
+  gate + cross-builds + Xvfb GUI smoke).
