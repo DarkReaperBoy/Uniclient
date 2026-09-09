@@ -210,6 +210,18 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 		e.maxCache = cfg.MaxCacheSize
 	}
 
+	// Anti-recall settings (§52): persisted config wins, nil keys keep
+	// the engine defaults (true/true/false).
+	if cfg.AyuSaveDeleted != nil {
+		e.saveDeletedMessages = *cfg.AyuSaveDeleted
+	}
+	if cfg.AyuSaveHistory != nil {
+		e.saveMessagesHistory = *cfg.AyuSaveHistory
+	}
+	if cfg.AyuSaveForBots != nil {
+		e.saveForBots = *cfg.AyuSaveForBots
+	}
+
 	// Open SQLite database.
 	e.db, err = OpenDB(cacheDir)
 	if err != nil {
@@ -274,6 +286,33 @@ func (e *Engine) SetAntiRecallSettings(saveDeleted, saveHistory, saveForBots boo
 	e.saveDeletedMessages = saveDeleted
 	e.saveMessagesHistory = saveHistory
 	e.saveForBots = saveForBots
+}
+
+// GetAntiRecallSettings reports the live anti-recall settings (§52).
+func (e *Engine) GetAntiRecallSettings() (saveDeleted, saveHistory, saveForBots bool) {
+	e.antiRecallMu.RLock()
+	defer e.antiRecallMu.RUnlock()
+	return e.saveDeletedMessages, e.saveMessagesHistory, e.saveForBots
+}
+
+// ClearDeletedMessages removes the locally saved anti-recall copies for
+// one chat (AyuGram "clear deleted" per chat) and returns how many went.
+func (e *Engine) ClearDeletedMessages(accountID, chatID string) (int64, error) {
+	// Media rows first (no FK on messages).
+	if _, err := e.db.Exec(
+		`DELETE FROM media WHERE account_id = ? AND chat_id = ? AND msg_id IN
+                  (SELECT msg_id FROM messages WHERE account_id = ? AND chat_id = ? AND is_deleted = 1)`,
+		accountID, chatID, accountID, chatID); err != nil {
+		return 0, err
+	}
+
+	res, err := e.db.Exec(
+		`DELETE FROM messages WHERE account_id = ? AND chat_id = ? AND is_deleted = 1`,
+		accountID, chatID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // proxyConfigurable is implemented by cores that can dial through a proxy.
@@ -810,6 +849,13 @@ type ConfigChanges struct {
 	// Ayu mark strings. Nil = unchanged; "" resets to the GUI default.
 	AyuDeletedMark *string
 	AyuEditedMark  *string
+
+	// Anti-recall saving (AyuGram Ayu preferences). Nil = unchanged;
+	// the engine applies the value immediately and it persists in
+	// AppConfig so Init restores it.
+	AyuSaveDeleted *bool
+	AyuSaveHistory *bool
+	AyuSaveForBots *bool
 }
 
 // UpdateConfigFromBridge applies partial config changes from the bridge layer.
@@ -889,6 +935,26 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.NotifyMentionsOnly != nil {
 		e.config.NotifyMentionsOnly = *changes.NotifyMentionsOnly
+	}
+	// Anti-recall: engine fields (immediate effect) + config (persist).
+	// e.mu → antiRecallMu nesting is one-directional (no reverse path).
+	if changes.AyuSaveDeleted != nil {
+		e.config.AyuSaveDeleted = changes.AyuSaveDeleted
+		e.antiRecallMu.Lock()
+		e.saveDeletedMessages = *changes.AyuSaveDeleted
+		e.antiRecallMu.Unlock()
+	}
+	if changes.AyuSaveHistory != nil {
+		e.config.AyuSaveHistory = changes.AyuSaveHistory
+		e.antiRecallMu.Lock()
+		e.saveMessagesHistory = *changes.AyuSaveHistory
+		e.antiRecallMu.Unlock()
+	}
+	if changes.AyuSaveForBots != nil {
+		e.config.AyuSaveForBots = changes.AyuSaveForBots
+		e.antiRecallMu.Lock()
+		e.saveForBots = *changes.AyuSaveForBots
+		e.antiRecallMu.Unlock()
 	}
 
 	return e.vault.SetConfig(e.config)

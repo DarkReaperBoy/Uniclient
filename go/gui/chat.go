@@ -520,9 +520,11 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		bg := a.ui.p.BubbleIn
 		if out {
 			bg = a.ui.p.AccentDim
-			if deleted {
-				bg = a.ui.p.BubbleOutDim
-			}
+		}
+		// Anti-recall (Ayu, slice 80): recalled bubbles fade to half
+		// opacity across bg, text and sender name.
+		if deleted {
+			bg = deletedFade(bg, true)
 		}
 		return roundedFill(gtx, bg, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -566,7 +568,11 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 							return layout.Dimensions{}
 						}
 						lbl := a.ui.Label(unit.Sp(13), senderTitle(*m))
-						lbl.Color = senderColorFor(m.SenderColorID, m.SenderID)
+						senderCol := senderColorFor(m.SenderColorID, m.SenderID)
+						if deleted { // anti-recall fade (slice 80)
+							senderCol = deletedFade(senderCol, true)
+						}
+						lbl.Color = senderCol
 						lbl.Font.Weight = font.SemiBold
 						if f.cfg.Streamer {
 							return a.masked(gtx, lbl.Layout)
@@ -584,13 +590,16 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						bgCol := a.ui.p.BubbleIn
 						if out {
 							bgCol = a.ui.p.AccentDim
-							if deleted {
-								bgCol = a.ui.p.BubbleOutDim
-							}
+						}
+						if deleted { // anti-recall fade (slice 80)
+							bgCol = deletedFade(bgCol, true)
 						}
 						baseCol := a.ui.p.TextDim
 						if out {
 							baseCol = a.ui.p.Text
+						}
+						if deleted {
+							baseCol = deletedFade(baseCol, true)
 						}
 						return a.richTextLabel(gtx, body, unit.Sp(15), baseCol, bgCol, true)
 					}),
@@ -1099,4 +1108,13 @@ func (a *App) composerChip(gtx layout.Context, f frame) layout.Dimensions {
 			})
 		})
 	})
+}
+
+// deletedFade halves a color's alpha for anti-recall bubbles (AyuGram
+// renders recalled messages semi-transparent). Pure.
+func deletedFade(c color.NRGBA, deleted bool) color.NRGBA {
+	if !deleted {
+		return c
+	}
+	return withAlpha(c, 0x80)
 }

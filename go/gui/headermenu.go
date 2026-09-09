@@ -57,8 +57,13 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked bool) []chatMenuAc
 		items = append(items, chatMenuAction{"Mute notifications", "mute"})
 	}
 	items = append(items, chatMenuAction{"View profile", "profile"})
+	items = append(items, chatMenuAction{"Search", "search"})
+	if c.Type == engine.ChatTypeGroupVal || c.Type == engine.ChatTypeTopicVal || c.Type == engine.ChatTypeChanVal {
+		items = append(items, chatMenuAction{"Add members", "addmember"})
+	}
 	items = append(items, chatMenuAction{"Scheduled messages", "scheduled"})
 	items = append(items, chatMenuAction{"Auto-delete…", "autodelete"})
+	items = append(items, chatMenuAction{"Clear deleted messages", "cleardeleted"})
 	if c.Type == engine.ChatTypeDMVal {
 		items = append(items, chatMenuAction{"Change colors…", "theme"})
 		if blockedKnown && blocked {
@@ -115,6 +120,28 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 	case "profile":
 		a.closeHeaderMenu()
 		a.openPanel()
+	case "search":
+		a.closeHeaderMenu()
+		a.toggleInChatSearch()
+	case "addmember":
+		a.closeHeaderMenu()
+		a.openAddMemberDialog(c)
+	case "cleardeleted":
+		a.closeHeaderMenu()
+		accountID, chatID := c.AccountID, c.ChatID
+		go func() {
+			n, err := a.eng.ClearDeletedMessages(accountID, chatID)
+			if err != nil {
+				a.setToast("Clear deleted: " + err.Error())
+				return
+			}
+			if n == 0 {
+				a.setToast("No deleted messages")
+				return
+			}
+			a.setToast("Cleared " + itoa(int(n)) + " deleted message" + pluralS(int(n)))
+			a.refreshMessages()
+		}()
 	case "scheduled":
 		a.closeHeaderMenu()
 		a.openSchedPanel()

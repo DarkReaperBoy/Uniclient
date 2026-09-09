@@ -19,7 +19,7 @@ func TestHeaderMenuItemsDM(t *testing.T) {
 		for i, it := range items {
 			labels[i] = it.label
 		}
-		want := []string{"Mute notifications", "View profile", "Scheduled messages", "Auto-delete…", "Change colors…", "Block user", "Clear history", "Delete chat"}
+		want := []string{"Mute notifications", "View profile", "Search", "Scheduled messages", "Auto-delete…", "Clear deleted messages", "Change colors…", "Block user", "Clear history", "Delete chat"}
 		if len(labels) != len(want) {
 			t.Fatalf("labels = %v, want %v", labels, want)
 		}
@@ -69,6 +69,13 @@ func TestHeaderMenuItemsGroupChannel(t *testing.T) {
 	if !actions["leave"] || !actions["clear"] || !actions["profile"] {
 		t.Fatalf("group menu missing rows: %v", actions)
 	}
+	// slice 79: search + add-members on groups/channels, never DMs.
+	if !actions["search"] || !actions["addmember"] {
+		t.Fatalf("group menu missing slice-79 rows: %v", actions)
+	}
+	if items := headerMenuItems(dmChat(), false, false); containsAction(items, "addmember") {
+		t.Fatal("DM menu must not offer Add members")
+	}
 
 	c := engine.ChatInfo{AccountID: "a", ChatID: "c1", Type: engine.ChatTypeChanVal}
 	if items := headerMenuItems(c, false, false); !containsAction(items, "leave") {
@@ -94,5 +101,34 @@ func TestHeaderMenuConfirmText(t *testing.T) {
 	}
 	if title, hint := headerMenuConfirmText("zz"); title != "" || hint != "" {
 		t.Errorf("unknown confirm should be empty")
+	}
+}
+
+func TestAddMemFilter(t *testing.T) {
+	contacts := []engine.ContactInfo{
+		{UserID: "1", DisplayName: "Alice Smith", Username: "asmith", Phone: "+111"},
+		{UserID: "2", DisplayName: "Bob", Username: "bob", Phone: "+222"},
+		{UserID: "3", DisplayName: "Carol", Username: "carol"},
+	}
+	if got := addMemFilter(contacts, ""); len(got) != 3 {
+		t.Errorf("empty query → %d, want all 3", len(got))
+	}
+	if got := addMemFilter(contacts, "alice"); len(got) != 1 || got[0].UserID != "1" {
+		t.Errorf("name filter → %+v", got)
+	}
+	if got := addMemFilter(contacts, "BOB"); len(got) != 1 || got[0].UserID != "2" {
+		t.Errorf("case-insensitive filter → %+v", got)
+	}
+	if got := addMemFilter(contacts, "+222"); len(got) != 1 || got[0].UserID != "2" {
+		t.Errorf("phone filter → %+v", got)
+	}
+	if got := addMemFilter(contacts, "  zz "); len(got) != 0 {
+		t.Errorf("no match → %d, want 0", len(got))
+	}
+}
+
+func TestPluralS(t *testing.T) {
+	if pluralS(1) != "" || pluralS(2) != "s" || pluralS(0) != "s" {
+		t.Errorf("pluralS broken: %q %q %q", pluralS(1), pluralS(2), pluralS(0))
 	}
 }

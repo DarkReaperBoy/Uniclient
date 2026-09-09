@@ -58,6 +58,12 @@ type AppConfig struct {
 	AyuDeletedMark string `json:"ayu_deleted_mark,omitempty"`
 	AyuEditedMark  string `json:"ayu_edited_mark,omitempty"`
 
+	// Anti-recall saving (AyuGram Ayu preferences). Nil = engine defaults
+	// (save deleted + history on, for bots off).
+	AyuSaveDeleted *bool `json:"ayu_save_deleted,omitempty"`
+	AyuSaveHistory *bool `json:"ayu_save_history,omitempty"`
+	AyuSaveForBots *bool `json:"ayu_save_for_bots,omitempty"`
+
 	// Drawer customization (Ayu "drawer" menu): ids of hidden rows.
 	DrawerHiddenItems []string `json:"drawer_hidden_items,omitempty"`
 

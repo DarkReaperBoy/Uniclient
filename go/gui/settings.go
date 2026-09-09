@@ -102,6 +102,12 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 		c.NotifyMentionsOnly = &b
 	case "notify_previews":
 		c.NotifyPreviews = &b
+	case "ayu_save_deleted":
+		c.AyuSaveDeleted = &b
+	case "ayu_save_history":
+		c.AyuSaveHistory = &b
+	case "ayu_save_for_bots":
+		c.AyuSaveForBots = &b
 	default:
 		return nil
 	}
@@ -974,6 +980,27 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			btn := a.ui.TextButton(&ayuMarksSave, "Apply marks")
 			btn.Color = a.ui.p.Accent
 			return btn.Layout(gtx)
+		})
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Ayu · Anti-recall")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Save deleted messages", "Keep anti-recall copies of deleted messages")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_save_deleted", "Save deleted", f.cfg.AyuSaveDeleted, func(v bool) {
+			a.applyConfigBool("ayu_save_deleted", v)
+		})
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_save_history", "Save history", f.cfg.AyuSaveHistory, func(v bool) {
+			a.applyConfigBool("ayu_save_history", v)
+		})
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_save_for_bots", "Save for bots", f.cfg.AyuSaveForBots, func(v bool) {
+			a.applyConfigBool("ayu_save_for_bots", v)
 		})
 	}))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {

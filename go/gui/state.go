@@ -17,6 +17,7 @@ import (
 
 	"uniclient/cores"
 	"uniclient/engine"
+	"uniclient/utils"
 )
 
 // App is the root GUI state. Background goroutines mutate state under mu and
@@ -175,6 +176,7 @@ type App struct {
 	folderDlg        *folderDlgState
 	folderInvites    *folderInvitesState // folder invite-links dialog (slice 54)
 	attachDlg        *attachDlgState     // location/contact share dialog (slice 56)
+	addMemDlg        *addMemDlgState     // add-members picker (slice 79)
 	searchTab        int                 // search results tab (slice 57)
 	ttlDlg           *ttlDlgState        // message auto-delete dialog (slice 60)
 	// helper-panel modes & data (slice 58)
@@ -831,6 +833,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.chatMenu = nil
 	a.folderMenu = nil
 	a.attachDlg = nil
+	a.addMemDlg = nil
 	a.ttlDlg = nil
 	a.privacyDlg = nil // slice 62: close the scope picker
 	a.autoDlDlg = nil  // slice 63: close the auto-download editor
@@ -1064,6 +1067,9 @@ type cfgSnapshot struct {
 	NotifyPreviews         bool
 	AyuDeletedMark         string
 	AyuEditedMark          string
+	AyuSaveDeleted         bool
+	AyuSaveHistory         bool
+	AyuSaveForBots         bool
 	RecentSearches         []string
 	DrawerHidden           []string
 	Streamer               bool
@@ -1133,6 +1139,8 @@ func (a *App) refreshConfig() {
 	if c == nil {
 		return
 	}
+	// Anti-recall live view: nil config keys → engine defaults.
+	ard, arh, arb := antiRecallFromConfig(c)
 	snap := cfgSnapshot{
 		Theme:                  c.Theme,
 		Accent:                 c.AccentColor,
@@ -1153,6 +1161,9 @@ func (a *App) refreshConfig() {
 		NotifyPreviews:         c.NotifyPreviewsEnabled(),
 		AyuDeletedMark:         c.AyuDeletedMark,
 		AyuEditedMark:          c.AyuEditedMark,
+		AyuSaveDeleted:         ard,
+		AyuSaveHistory:         arh,
+		AyuSaveForBots:         arb,
 		RecentSearches:         c.RecentSearches,
 		DrawerHidden:           c.DrawerHiddenItems,
 		Streamer:               c.StreamerMode,
@@ -1161,6 +1172,15 @@ func (a *App) refreshConfig() {
 	a.cfg = snap
 	a.mu.Unlock()
 	a.invalidate()
+}
+
+// antiRecallFromConfig resolves the persisted anti-recall keys against
+// the engine defaults (true/true/false); nil keys mean "default". Pure.
+func antiRecallFromConfig(c *utils.AppConfig) (saveDeleted, saveHistory, saveForBots bool) {
+	saveDeleted = c.AyuSaveDeleted == nil || *c.AyuSaveDeleted
+	saveHistory = c.AyuSaveHistory == nil || *c.AyuSaveHistory
+	saveForBots = c.AyuSaveForBots != nil && *c.AyuSaveForBots
+	return
 }
 
 // loadStorage reads the cache accounting for the Data & Storage page.
@@ -1503,6 +1523,7 @@ func (a *App) snapshot() frame {
 		folderDlg:        a.folderDlg,
 		folderInvites:    a.folderInvites,
 		attachDlg:        a.attachDlg,
+		addMemDlg:        a.addMemDlg,
 		searchTab:        a.searchTab,
 		ttlDlg:           a.ttlDlg,
 		emojiMode:        a.emojiMode,
@@ -1682,6 +1703,7 @@ type frame struct {
 	folderDlg        *folderDlgState
 	folderInvites    *folderInvitesState
 	attachDlg        *attachDlgState
+	addMemDlg        *addMemDlgState
 	searchTab        int
 	ttlDlg           *ttlDlgState
 	emojiMode        int
