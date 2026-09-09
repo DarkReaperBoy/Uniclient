@@ -991,3 +991,17 @@ Session goal (owner): continue unattended, push, verify via API.
 - Char-count near limit (row 124) deliberately skipped: the 4096 limit is
   Telegram-specific and the engine exposes no per-backend message limit —
   a generic counter would lie on IRC/XMPP (§1.10).
+
+## 2026-09-09 — Pages deployment fixed (the web target actually reachable)
+
+- **Bug**: https://darkreaperboy.github.io/Uniclient/ 404'd since forever —
+  the release pipeline had been pushing the gh-pages branch correctly
+  (verified: index.html + wasm_exec.js + uniclient.wasm present, v0.4.0 web
+  job GREEN), but GitHub Pages was never ENABLED on the repo, so the branch
+  sat orphaned.
+- **Fix**: enabled Pages via the API (source: gh-pages branch, root path).
+  First build completed; the site now serves HTTP 200 (index 704B,
+  wasm_exec.js 17KB, uniclient.wasm 64MB) at
+  https://darkreaperboy.github.io/Uniclient/.
+- The next release tag redeploys the site through the existing pipeline
+  (release.yml web job force-pushes gh-pages; Pages picks it up).
