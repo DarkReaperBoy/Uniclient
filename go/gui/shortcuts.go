@@ -40,6 +40,7 @@ func escTarget(f frame) string {
 		f.deletedDlg != nil,
 		f.seenDlg != nil,
 		f.folderImportDlg != nil,
+		f.exportDlg != nil,
 		f.inviteDlg != nil,
 		f.newDlg != nil,
 		f.viewer != nil,

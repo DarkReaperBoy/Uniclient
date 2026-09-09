@@ -768,3 +768,32 @@ func sanitizeFileName(name string) string {
 	}
 	return s
 }
+
+// SupportsTakeout reports whether the account's core can run a data
+// export (the takeout interface). The GUI gates its Export-data entry
+// on this — no dead UI on cores without takeout.
+func (e *Engine) SupportsTakeout(accountID string) bool {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false
+	}
+	_, has := acc.Core.(takeoutProvider)
+	return has
+}
+
+// TakeoutAccounts lists the account IDs whose cores can run a data
+// export (the GUI's Export-data entry gate).
+func (e *Engine) TakeoutAccounts() []string {
+	var ids []string
+	e.accountsMu.RLock()
+	for id, acc := range e.accounts {
+		if acc.Core == nil {
+			continue
+		}
+		if _, has := acc.Core.(takeoutProvider); has {
+			ids = append(ids, id)
+		}
+	}
+	e.accountsMu.RUnlock()
+	return ids
+}

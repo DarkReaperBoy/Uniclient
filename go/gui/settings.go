@@ -159,6 +159,7 @@ var (
 	settingsKeyTag      struct{} // Escape-close key listener tag
 	clearTagBtns        []widget.Clickable
 	clearAllBtn         widget.Clickable
+	exportDataBtn       widget.Clickable
 	ghostResetBtn       widget.Clickable
 	ghostAcctChips      []widget.Clickable
 	settingsScroll      widget.List
@@ -857,6 +858,22 @@ func (a *App) setPageData(gtx layout.Context, f frame) layout.Dimensions {
 			}
 			a.loadStorage()
 		}()
+	}
+	// Export data wizard (slice 100, matrix row 208): takeout export for
+	// the first takeout-capable connected account (capability-gated — no
+	// dead rows on cores without takeout).
+	if exportDataBtn.Clicked(gtx) {
+		if acct := firstTakeoutAccount(f.takeoutAccts); acct != "" {
+			a.openExportDialog(acct)
+		}
+	}
+	if acct := firstTakeoutAccount(f.takeoutAccts); acct != "" {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				btn := a.ui.SurfaceButton(&exportDataBtn, "Export data")
+				return btn.Layout(gtx)
+			})
+		}))
 	}
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

@@ -180,6 +180,8 @@ func contentDialogSurface(f frame) string {
 		return "ayuFilters"
 	case f.folderImportDlg != nil:
 		return "folderImport"
+	case f.exportDlg != nil:
+		return "export"
 	}
 	return ""
 }
@@ -216,6 +218,8 @@ func (a *App) layoutContentPaneDialog(gtx layout.Context, f frame, surface strin
 		return a.layoutAyuFilterDialog(gtx, f)
 	case "folderImport":
 		return a.layoutFolderImportDialog(gtx, f)
+	case "export":
+		return a.layoutExportDialog(gtx, f)
 	}
 	return a.layoutEmptyState(gtx)
 }

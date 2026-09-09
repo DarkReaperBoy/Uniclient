@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"uniclient/cores"
 )
 
 func seedMediaRow(t *testing.T, e *Engine, msgID, localPath, fileName string) {
@@ -182,5 +184,32 @@ func TestSaveQueryShapeMatchesMediaTable(t *testing.T) {
 	).Scan(&lp, &fn)
 	if err != sql.ErrNoRows {
 		t.Fatalf("err = %v, want sql.ErrNoRows", err)
+	}
+}
+
+// takeoutStub / plainStub: capability-probe fakes for SupportsTakeout.
+type takeoutStub struct{ cores.StubCore }
+
+func (takeoutStub) InitTakeout(contacts, msgUsers, msgChats, msgMegagroups, msgChannels, files bool, fileMaxSizeBytes int64) (int64, error) {
+	return 1, nil
+}
+func (takeoutStub) FinishTakeout() error { return nil }
+
+type plainStub struct{ cores.StubCore }
+
+func TestSupportsTakeout(t *testing.T) {
+	e := newTestEngine(t)
+	e.accounts = map[string]*Account{
+		"tg":  {ID: "tg", Core: takeoutStub{}},
+		"irc": {ID: "irc", Core: plainStub{}},
+	}
+	if !e.SupportsTakeout("tg") {
+		t.Error("takeout-capable core reported unsupported")
+	}
+	if e.SupportsTakeout("irc") {
+		t.Error("plain core reported takeout support")
+	}
+	if e.SupportsTakeout("missing") {
+		t.Error("missing account reported takeout support")
 	}
 }

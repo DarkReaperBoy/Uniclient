@@ -140,6 +140,7 @@ type App struct {
 	cacheTotal     int64
 	cacheTags      [6]int64
 	cacheLoaded    bool
+	takeoutAccts   []string
 	ghostSel       string
 	ghostFlags     map[string]engine.GhostFlags
 	ghostLoaded    bool
@@ -265,6 +266,10 @@ type App struct {
 
 	// seen-by read-receipt dialog (slice 98, matrix row 97)
 	seenDlg *seenDlgState
+
+	// export-data wizard dialog (slice 100, matrix row 208)
+	exportDlg        *exportDlgState
+	exportOptsSynced bool // checkbox pool seeded for the current open
 
 	// Folder paste-import dialog (slice 94, matrix row 67)
 	folderImportDlg *folderImportState
@@ -573,6 +578,22 @@ func (a *App) onEvent(data []byte) {
 		var d engine.DownloadFailedEvent
 		if json.Unmarshal(env.Data, &d) == nil {
 			a.onDownloadFailed(d)
+		}
+	case engine.EventExportProgress:
+		var ev engine.ExportProgressEvent
+		if json.Unmarshal(env.Data, &ev) == nil {
+			a.onExportProgress(ev, env.AccountID)
+		}
+	case engine.EventExportError:
+		var ev engine.ExportErrorEvent
+		if json.Unmarshal(env.Data, &ev) == nil {
+			a.onExportError(ev, env.AccountID)
+		}
+	case engine.EventExportComplete:
+		var ev engine.ExportCompleteEvent
+		if json.Unmarshal(env.Data, &ev) == nil {
+			a.onExportComplete(ev, env.AccountID)
+			a.setToast("Export complete")
 		}
 	}
 }
@@ -1252,6 +1273,7 @@ func antiRecallFromConfig(c *utils.AppConfig) (saveDeleted, saveHistory, saveFor
 func (a *App) loadStorage() {
 	total, err1 := a.eng.GetCacheSize()
 	tags, err2 := a.eng.GetCacheSizesByTag("")
+	takeout := a.eng.TakeoutAccounts()
 	a.mu.Lock()
 	if err1 == nil {
 		a.cacheTotal = total
@@ -1259,6 +1281,7 @@ func (a *App) loadStorage() {
 	if err2 == nil {
 		a.cacheTags = tags
 	}
+	a.takeoutAccts = takeout
 	a.cacheLoaded = true
 	a.mu.Unlock()
 	a.invalidate()
@@ -1561,6 +1584,7 @@ func (a *App) snapshot() frame {
 		cacheTotal:       a.cacheTotal,
 		cacheTags:        a.cacheTags,
 		cacheLoaded:      a.cacheLoaded,
+		takeoutAccts:     a.takeoutAccts,
 		ghostSel:         a.ghostSel,
 		ghostFlags:       a.ghostFlags,
 		ghostLoaded:      a.ghostLoaded,
@@ -1630,6 +1654,7 @@ func (a *App) snapshot() frame {
 		editHistDlg:      a.editHistDlg,
 		deletedDlg:       a.deletedDlg,
 		seenDlg:          a.seenDlg,
+		exportDlg:        a.exportDlg,
 		folderImportDlg:  a.folderImportDlg,
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
@@ -1847,6 +1872,10 @@ type frame struct {
 
 	// seen-by read-receipt dialog (slice 98, matrix row 97)
 	seenDlg *seenDlgState
+
+	// export-data wizard dialog (slice 100, matrix row 208)
+	exportDlg    *exportDlgState
+	takeoutAccts []string // takeout-capable accounts (Data page gate)
 
 	// who-reacted dialog (slice 49)
 	reactors *reactorsState
