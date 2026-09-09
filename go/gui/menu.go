@@ -44,6 +44,10 @@ type menuTarget struct {
 	// shadow-ban state of msg's sender in its chat (slice 91): nil =
 	// unknown (item hidden until resolved); set by openMenu's lookup.
 	senderBanned *bool
+
+	// edits-history availability (slice 96): nil = lookup pending
+	// (item hidden); set by openMenu's HasEditRevisions lookup.
+	hasEdits *bool
 }
 
 // menu button pools (grown per frame, repo style).
@@ -160,6 +164,23 @@ func (a *App) openMenu(msg engine.CachedMessage, pos image.Point) {
 			a.mu.Lock()
 			if a.menu != nil && a.menu.msg.MsgID == msg.MsgID {
 				a.menu.senderBanned = &banned
+			}
+			a.mu.Unlock()
+			a.invalidate()
+		}()
+	}
+
+	// Edits-history availability (slice 96): resolve once per menu open;
+	// the item stays hidden while the lookup is in flight.
+	if msg.EditedAt != 0 && !msg.IsService {
+		go func() {
+			has, err := a.eng.HasEditRevisions(msg.AccountID, msg.ChatID, msg.MsgID)
+			if err != nil {
+				has = false
+			}
+			a.mu.Lock()
+			if a.menu != nil && a.menu.msg.MsgID == msg.MsgID {
+				a.menu.hasEdits = &has
 			}
 			a.mu.Unlock()
 			a.invalidate()
@@ -300,6 +321,14 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 	if acts.Filter {
 		items = append(items, menuAction{"Filter Like This…", func(gtx layout.Context) {
 			a.openAyuFilterDialogPrefilled(quickFilterPattern(m.ContentText))
+		}})
+	}
+	// Ayu edits history (matrix row 164): anti-recall kept revisions for
+	// this message — the dialog lists them newest-first.
+	if f.menu != nil && editsMenuGate(m, f.menu.hasEdits != nil, f.menu.hasEdits != nil && *f.menu.hasEdits) {
+		msg := m
+		items = append(items, menuAction{"Edits history", func(gtx layout.Context) {
+			a.openEditHistDialog(&msg)
 		}})
 	}
 	// Ayu shadow ban (matrix row 240): per-chat local ignore of the

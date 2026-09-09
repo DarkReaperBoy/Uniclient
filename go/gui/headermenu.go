@@ -64,6 +64,7 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked bool) []chatMenuAc
 	items = append(items, chatMenuAction{"Scheduled messages", "scheduled"})
 	items = append(items, chatMenuAction{"Auto-delete…", "autodelete"})
 	items = append(items, chatMenuAction{"Shadow-banned users…", "shadowbans"})
+	items = append(items, chatMenuAction{"View deleted messages…", "viewdeleted"})
 	items = append(items, chatMenuAction{"Clear deleted messages", "cleardeleted"})
 	if c.Type == engine.ChatTypeDMVal {
 		items = append(items, chatMenuAction{"Change colors…", "theme"})
@@ -127,6 +128,9 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 	case "addmember":
 		a.closeHeaderMenu()
 		a.openAddMemberDialog(c)
+	case "viewdeleted":
+		a.closeHeaderMenu()
+		a.openDeletedDialog(chatKey{AccountID: c.AccountID, ChatID: c.ChatID})
 	case "cleardeleted":
 		a.closeHeaderMenu()
 		accountID, chatID := c.AccountID, c.ChatID

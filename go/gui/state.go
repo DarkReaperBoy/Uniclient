@@ -256,6 +256,12 @@ type App struct {
 	// Ayu shadow-ban manager dialog (slice 91, matrix row 240)
 	shadowDlg *shadowDlgState
 
+	// edits-history dialog (slice 96, matrix row 164)
+	editHistDlg *editHistState
+
+	// deleted-messages browser dialog (slice 97, matrix row 165)
+	deletedDlg *deletedDlgState
+
 	// Folder paste-import dialog (slice 94, matrix row 67)
 	folderImportDlg *folderImportState
 
@@ -1611,6 +1617,8 @@ func (a *App) snapshot() frame {
 		ayuFilterCount:   a.ayuFilterCount,
 		ayuFilterCountOn: a.ayuFilterCountOn,
 		shadowDlg:        a.shadowDlg,
+		editHistDlg:      a.editHistDlg,
+		deletedDlg:       a.deletedDlg,
 		folderImportDlg:  a.folderImportDlg,
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
@@ -1819,6 +1827,12 @@ type frame struct {
 
 	// Folder paste-import dialog (slice 94, matrix row 67)
 	folderImportDlg *folderImportState
+
+	// edits-history dialog (slice 96, matrix row 164)
+	editHistDlg *editHistState
+
+	// deleted-messages browser dialog (slice 97, matrix row 165)
+	deletedDlg *deletedDlgState
 
 	// who-reacted dialog (slice 49)
 	reactors *reactorsState

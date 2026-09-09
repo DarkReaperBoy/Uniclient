@@ -194,6 +194,14 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.shadowDlg != nil {
 		a.layoutShadowDialog(gtx, f)
 	}
+	// Edits-history dialog (slice 96).
+	if f.editHistDlg != nil {
+		a.layoutEditHistDialog(gtx, f)
+	}
+	// Deleted-messages browser dialog (slice 97).
+	if f.deletedDlg != nil {
+		a.layoutDeletedDialog(gtx, f)
+	}
 	return dims
 }
 
