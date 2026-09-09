@@ -108,30 +108,33 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 		// Nearest messages strictly newer than afterMs: select ASC so we get the
 		// ones adjacent to the shown window (not the latest), then reverse to the
 		// newest-first contract below.
-		rows, err = e.db.Query(
-			`SELECT `+cols+`
+		q := `SELECT ` + cols + `
                          FROM messages
                          WHERE account_id = ? AND chat_id = ? AND timestamp > ?
                          AND NOT EXISTS (SELECT 1 FROM locally_hidden_messages h WHERE h.account_id = messages.account_id AND h.chat_id = messages.chat_id AND h.msg_id = messages.msg_id)
+                         ` + shadowBanSQL + `
                          ORDER BY timestamp ASC
-                         LIMIT ?`, accountID, chatID, afterMs, limit)
+                         LIMIT ?`
+		rows, err = e.db.Query(q, accountID, chatID, afterMs, limit)
 		reversed = true
 	} else if beforeMs > 0 {
-		rows, err = e.db.Query(
-			`SELECT `+cols+`
+		q := `SELECT ` + cols + `
                          FROM messages
                          WHERE account_id = ? AND chat_id = ? AND timestamp < ?
                          AND NOT EXISTS (SELECT 1 FROM locally_hidden_messages h WHERE h.account_id = messages.account_id AND h.chat_id = messages.chat_id AND h.msg_id = messages.msg_id)
+                         ` + shadowBanSQL + `
                          ORDER BY timestamp DESC
-                         LIMIT ?`, accountID, chatID, beforeMs, limit)
+                         LIMIT ?`
+		rows, err = e.db.Query(q, accountID, chatID, beforeMs, limit)
 	} else {
-		rows, err = e.db.Query(
-			`SELECT `+cols+`
+		q := `SELECT ` + cols + `
                          FROM messages
                          WHERE account_id = ? AND chat_id = ?
                          AND NOT EXISTS (SELECT 1 FROM locally_hidden_messages h WHERE h.account_id = messages.account_id AND h.chat_id = messages.chat_id AND h.msg_id = messages.msg_id)
+                         ` + shadowBanSQL + `
                          ORDER BY timestamp DESC
-                         LIMIT ?`, accountID, chatID, limit)
+                         LIMIT ?`
+		rows, err = e.db.Query(q, accountID, chatID, limit)
 	}
 	if err != nil {
 		return nil, err
@@ -155,7 +158,20 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 	// If cache has fewer messages than requested on initial load, fetch from
 	// core and cache. A few messages may have trickled in via the event stream
 	// but that doesn't mean we have the full history page.
-	if len(msgs) < limit && beforeMs == 0 && afterMs == 0 {
+	//
+	// Locally-hidden and shadow-banned rows already shrink the SQL page
+	// without shrinking the cache, so the decision counts the cache rows
+	// (a trimmed page in a full cache must NOT re-fetch live forever).
+	cacheShort := len(msgs) < limit
+	if cacheShort {
+		var total int
+		if err := e.db.QueryRow(
+			`SELECT COUNT(*) FROM messages WHERE account_id = ? AND chat_id = ?`,
+			accountID, chatID).Scan(&total); err == nil && total >= limit {
+			cacheShort = false
+		}
+	}
+	if cacheShort && beforeMs == 0 && afterMs == 0 {
 		if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
 			log.Printf("[engine] GetMessages(%s, %s): cache empty, fetching live from core...", accountID, chatID)
 			live, liveErr := acc.Core.GetMessages(chatID, cores.PaginationOpts{Limit: limit})
@@ -168,6 +184,9 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 					cached := e.cacheMessage(accountID, chatID, &m)
 					result = append(result, cached)
 				}
+				// Shadow bans (slice 91) apply to the fresh
+				// page too; later SQL reads exclude them.
+				result = e.dropShadowBanned(accountID, chatID, result)
 				// Ayu regex filters (slice 90) apply to every exit.
 				return e.applyAyuFilters(result), nil
 			} else {
@@ -178,8 +197,8 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 		}
 	}
 
-	// Ayu regex filters (slice 90): local hide-by-pattern, applied at the
-	// exits so the fetch decision above sees the unfiltered cache window.
+	// Ayu regex filters (slice 90): local hide-by-pattern, applied at
+	// the final exit (the fetch decision above counts raw cache rows).
 	return e.applyAyuFilters(msgs), nil
 }
 

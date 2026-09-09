@@ -158,6 +158,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV44,
 	migrateV45,
 	migrateV46,
+	migrateV47,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -181,6 +182,21 @@ func migrateV46(tx *sql.Tx) error {
                 pattern    TEXT NOT NULL,
                 enabled    INTEGER NOT NULL DEFAULT 1,
                 created_at INTEGER NOT NULL
+        )`)
+	return err
+}
+
+// migrateV47 creates the shadow-ban table (AyuGram "shadow ban":
+// per-chat local ignore list; banned senders' messages are hidden
+// locally only).
+func migrateV47(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS shadow_bans (
+                account_id  TEXT NOT NULL,
+                chat_id     TEXT NOT NULL,
+                sender_id   TEXT NOT NULL,
+                sender_name TEXT NOT NULL DEFAULT '',
+                created_at  INTEGER NOT NULL,
+                PRIMARY KEY (account_id, chat_id, sender_id)
         )`)
 	return err
 }

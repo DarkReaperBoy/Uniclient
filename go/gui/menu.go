@@ -40,6 +40,10 @@ type menuTarget struct {
 	msg    engine.CachedMessage
 	pos    image.Point
 	picker bool // full reaction-grid mode (slice 55)
+
+	// shadow-ban state of msg's sender in its chat (slice 91): nil =
+	// unknown (item hidden until resolved); set by openMenu's lookup.
+	senderBanned *bool
 }
 
 // menu button pools (grown per frame, repo style).
@@ -147,6 +151,20 @@ func (a *App) openMenu(msg engine.CachedMessage, pos image.Point) {
 	a.menu = &menuTarget{msg: msg, pos: pos}
 	a.mu.Unlock()
 	a.invalidate()
+
+	// Shadow-ban state (slice 91): resolve once per menu open so the
+	// action reflects the live ban state (label switches to Unban).
+	if msg.SenderID != "" && !msg.IsOutgoing && !msg.IsService {
+		go func() {
+			banned := a.eng.IsShadowBanned(msg.AccountID, msg.ChatID, msg.SenderID)
+			a.mu.Lock()
+			if a.menu != nil && a.menu.msg.MsgID == msg.MsgID {
+				a.menu.senderBanned = &banned
+			}
+			a.mu.Unlock()
+			a.invalidate()
+		}()
+	}
 
 	account := msg.AccountID
 	if a.menuCapsForLocked() != account {
@@ -282,6 +300,18 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 	if acts.Filter {
 		items = append(items, menuAction{"Filter Like This…", func(gtx layout.Context) {
 			a.openAyuFilterDialogPrefilled(quickFilterPattern(m.ContentText))
+		}})
+	}
+	// Ayu shadow ban (matrix row 240): per-chat local ignore of the
+	// sender. Label flips once openMenu's lookup resolves the state.
+	if f.menu != nil && shadowBanMenuGate(m, f.menu.senderBanned != nil) {
+		banned := *f.menu.senderBanned
+		label := "Shadow-ban sender"
+		if banned {
+			label = "Unshadow-ban sender"
+		}
+		items = append(items, menuAction{label, func(gtx layout.Context) {
+			a.toggleShadowBan(m, !banned)
 		}})
 	}
 	// Ayu repeat (AyuGram "repeat message": resend as your own, no forward).

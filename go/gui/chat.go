@@ -190,6 +190,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.reactors != nil {
 		a.layoutReactorsDialog(gtx, f)
 	}
+	// Ayu shadow-ban manager dialog (slice 91).
+	if f.shadowDlg != nil {
+		a.layoutShadowDialog(gtx, f)
+	}
 	return dims
 }
 

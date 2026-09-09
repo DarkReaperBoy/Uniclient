@@ -1257,3 +1257,25 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   self-handling, contentDialogSurface incl. regression pins). Full
   suite green (gui 323 runs, 0 fail under node+wasm); engine+utils+
   cores+bootstrap native green; vet + gofmt clean.
+
+## 2026-09-09 — slice 91 (Ayu shadow ban)
+
+- **Shadow ban (row 240 → PRESENT)**: per-chat local ignore list —
+  shadow_bans table (v47); GetMessages excludes banned senders in SQL
+  at all three cursor branches (windowing stays consistent — a page is
+  never short-filled), plus a Go-level filter on the live-fetch page
+  (freshly cached rows bypass SQL until the next read). Per-chat
+  scoping: a ban in one chat never leaks to another.
+- Context menu: "Shadow-ban sender" / "Unshadow-ban sender" (state-
+  aware label — openMenu resolves the ban state per open; nil state
+  hides the item). Gate pinned by shadowBanMenuGate tests.
+- Header ⋮ menu: "Shadow-banned users…" manager dialog (reactors-
+  pattern overlay): per-row Unban, honest toasts, live refresh.
+- Fetch-decision fix (benefits locally-hidden rows too): the live-
+  fetch trigger now counts raw cache rows instead of the post-hide
+  page — a full cache with hidden rows no longer re-fetches live on
+  every initial load.
+- Tests: engine CRUD + per-chat scoping + windowed exclusion +
+  dropShadowBanned; gui row naming, header-menu presence on every
+  chat type, escTarget self-handling, menu gate table. Full suite
+  green; vet + gofmt clean.
