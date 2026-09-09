@@ -276,6 +276,11 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 			})
 	})
 
+	// Member admin menu (slice 106) renders over the panel on tap.
+	if f.memberMenu != nil {
+		a.layoutMemberMenu(gtx, f)
+	}
+
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		// header (AyuGram profile cover): back/close row, then a big centered
 		// photo (96dp; real userpic via the engine avatar pipeline, letter
@@ -496,7 +501,7 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 		for i := range shown {
 			m := shown[i]
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.memberRow(gtx, m)
+				return a.memberRow(gtx, f, m)
 			}))
 		}
 		if len(shown) == 0 {
@@ -599,8 +604,14 @@ func panelRowClickable(label string) *widget.Clickable {
 	return c
 }
 
-// memberRow renders one member with an optional role badge.
-func (a *App) memberRow(gtx layout.Context, m engine.MemberInfo) layout.Dimensions {
+// memberRow renders one member with an optional role badge. Tapping opens
+// the member admin menu (slice 106) when the viewer has admin rights.
+func (a *App) memberRow(gtx layout.Context, f frame, m engine.MemberInfo) layout.Dimensions {
+	if chat, ok := panelChatOf(f); ok {
+		if btn := memberRowBtn(m.UserID); btn.Clicked(gtx) {
+			a.openMemberMenu(chat, m, image.Pt(gtx.Constraints.Max.X, 0))
+		}
+	}
 	name := m.DisplayName
 	if name == "" {
 		name = m.Username

@@ -280,7 +280,8 @@ type App struct {
 
 	// edits-history dialog (slice 96, matrix row 164)
 	editHistDlg  *editHistState
-	msgDetailDlg *msgDetailState // message details (slice 105)
+	msgDetailDlg *msgDetailState  // message details (slice 105)
+	memberMenu   *memberMenuState // profile member admin menu (slice 106)
 
 	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState
@@ -1670,6 +1671,7 @@ func (a *App) snapshot() frame {
 		shadowDlg:        a.shadowDlg,
 		editHistDlg:      a.editHistDlg,
 		msgDetailDlg:     a.msgDetailDlg,
+		memberMenu:       a.memberMenu,
 		deletedDlg:       a.deletedDlg,
 		seenDlg:          a.seenDlg,
 		exportDlg:        a.exportDlg,
@@ -1898,7 +1900,8 @@ type frame struct {
 
 	// edits-history dialog (slice 96, matrix row 164)
 	editHistDlg  *editHistState
-	msgDetailDlg *msgDetailState // message details (slice 105)
+	msgDetailDlg *msgDetailState  // message details (slice 105)
+	memberMenu   *memberMenuState // profile member admin menu (slice 106)
 
 	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState

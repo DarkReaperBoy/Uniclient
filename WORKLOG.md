@@ -1496,3 +1496,18 @@ the GUI (3 P1 + 1 P2 CORE-ONLY rows in the matrix).
   gating, media table, fallback senders); dialog follows the
   reactors/edithistory card pattern (scrim + Esc + backdrop close).
 - Parity: 108 PRESENT / 29 PARTIAL / 10 MISSING / 55 CORE-ONLY.
+
+## 2026-09-10 — slice 106 (member admin menu)
+
+- **Member context menu (row 148 → PRESENT)**: tapping a member row in the
+  profile panel opens AyuGram's admin menu — Promote to admin / Demote to
+  member / Restrict / Ban / Unban / Remove from chat. Gated on the chat's
+  IsAdmin/IsCreator (non-admins get no menu — rows stay plain); owner rows
+  and the viewer's own row are untouchable; banned members offer Unban.
+  Every action dispatches the real engine call
+  (Promote/Demote/Restrict/Ban/Unban/RemoveMember), toasts the result, and
+  refreshes the panel's member list.
+- Pure memberMenuItems locked by 5 tests (rights gate, role table, owner/
+  self exclusion, label presence).
+- CI Verify run 34405844949 on slice 104 (2f310298): SUCCESS.
+- Parity: 109 PRESENT / 29 PARTIAL / 10 MISSING / 54 CORE-ONLY.
