@@ -29,6 +29,7 @@ var (
 	panelCloseBtn widget.Clickable
 	panelBlockBtn widget.Clickable
 	panelAddBtn   widget.Clickable
+	panelShareBtn widget.Clickable // Share contact (slice 83)
 	panelScroll   widget.List
 )
 
@@ -208,6 +209,29 @@ func (a *App) panelBlockUser(k chatKey, block bool) {
 		}
 		a.loadPanel(k)
 	}()
+}
+
+// vcardFor builds a minimal vCard for a contact (pure, tested) —
+// AyuGram's Share copies contact data as text.
+func vcardFor(u engine.CachedUser) string {
+	var b strings.Builder
+	b.WriteString("BEGIN:VCARD\nVERSION:3.0\n")
+	if u.DisplayName != "" {
+		b.WriteString("FN:" + u.DisplayName + "\n")
+	}
+	if u.Phone != "" {
+		b.WriteString("TEL;TYPE=CELL:" + u.Phone + "\n")
+	}
+	if u.Username != "" {
+		b.WriteString("NICKNAME:" + u.Username + "\n")
+	}
+	b.WriteString("END:VCARD")
+	return b.String()
+}
+
+// panelShareContact copies the peer's vCard to the clipboard.
+func (a *App) panelShareContact(f frame, u engine.CachedUser) {
+	a.copyTextSoon(vcardFor(u))
 }
 
 // panelAddContact adds the DM peer to contacts.
@@ -423,6 +447,14 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 				return btn.Layout(gtx)
 			}))
 		}
+		if panelShareBtn.Clicked(gtx) {
+			a.panelShareContact(f, p)
+		}
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			btn := a.ui.TextButton(&panelShareBtn, "Share contact")
+			btn.Color = a.ui.p.Accent
+			return btn.Layout(gtx)
+		}))
 		if !p.IsContact {
 			if panelAddBtn.Clicked(gtx) {
 				a.panelAddContact(k, p)

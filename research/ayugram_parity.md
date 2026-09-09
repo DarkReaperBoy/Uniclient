@@ -95,7 +95,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Day dividers | Date pills between days | PRESENT | gui/chat.go dayDivider | P0 |
 | Delivery ticks (sent/delivered/read) | Clock→✓→✓✓→accent ✓✓ | PRESENT | gui/chat.go statusTicks | P0 |
 | Read receipt "seen" (small groups) | "Seen" time on own msgs, avatar stack | CORE-ONLY | engine.GetOutboxReadDate/GetMessageReadParticipants (CORE-ONLY) | P2 |
-| Message selection mode | Rect/ctrl/shift select, action bar (fwd/del/report) | PARTIAL (slice 14: "Select" in the context menu → check circles on rows, taps toggle; bar w/ Forward (ForwardMessages batch) / Copy / Report (slice 36, opens the slice-19 flow) / Delete; Escape cancels; rubber-band later) | gui/select.go + chat.go | P1 |
+| Message selection mode | Rect/ctrl/shift select, action bar (fwd/del/report) | PARTIAL (slice 14: "Select" in the context menu → check circles on rows, taps toggle; bar w/ Forward (ForwardMessages batch) / Copy / Report (slice 36, opens the slice-19 flow) / Delete; Escape cancels; slice 84: rubber-band — selection-mode drags over the list mark every intersecting row, pass-through overlay keeps tap-to-toggle) | gui/select.go + gui/rubberband.go | P1 |
 | Chat empty intro | "No messages here yet…" bubble | PRESENT (centered bubble when the chat has no cached messages) | gui/chrome.go emptyIntro | P2 |
 | Not-joined channel view | Channel w/o join: preview + big "Join" button | CORE-ONLY (ChatInfo.NotJoined/JoinRequest CORE-ONLY) | gui/chat.go + engine.JoinChannel | P1 |
 | Slowmode / write restriction | Composer disabled w/ countdown/text | PRESENT (slice 69: write-restricted chats swap the composer for a lock + server notice bar; slow-mode countdown pill (per-second redraw) blocks Enter + send button with a toast) | gui/slowmode.go + gui/chat.go composerBar + ChatInfo.Slowmode*/WriteRestriction* | P1 |
@@ -174,7 +174,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Right panel exists | Slide-in 3rd pane (info/media/peer) | PRESENT (desktop 3rd pane 320dp, narrow replaces pane; ⓘ toggle in chat header) | gui/profile.go | P0 |
 | Profile: cover + avatar + name + status | Big header w/ photo | PRESENT (slice 52: AyuGram-style panel header — back/close row, big centered 96dp photo (real userpic via engine avatar pipeline, letter fallback, streamer-mode neutral glyph), name + status centered below; presence from GetUserProfile) | gui/profile.go + engine.GetUserProfile | P0 |
 | Profile: bio/phone/username rows + copy | Info rows w/ icons | PRESENT (slice 26: icon rows w/ copy-on-click + toast) | gui/profile.go panelValueRow | P0 |
-| Profile: actions (add contact, share, block, edit) | Button rows | PARTIAL (add-to-contacts + block/unblock wired; share/edit later) | gui/profile.go + engine AddContactByUser/BlockUser | P1 |
+| Profile: actions (add contact, share, block, edit) | Button rows | PRESENT (add-to-contacts + block/unblock + slice 83: Share contact (vCard to clipboard); own-profile edit via the sidebar editor (slice 71)) | gui/profile.go + gui/profileedit.go + engine AddContactByUser/BlockUser | P1 |
 | Shared media tabs | Photos/Videos/Files/Links/Voice/GIFs grids w/ counts | PRESENT (slice 78: tabbed browser — Photos/Videos/GIFs thumb grids w/ play+duration overlay on video, Voice/Audio/Files/Links jump-to-message rows, lazy per-tab loads, GetSharedLinks + gif/voice sub-tab filters; pagination later) | gui/sharedtabs.go + gui/profile.go + engine GetSharedMedia/GetSharedLinks | P1 |
 | Members list (groups) | Searchable, roles, admin badges | PRESENT (200 members w/ role badges + presence; slice 40 search field filters by name/username/id once the list passes 8) | gui/profile.go memberRow + filterMembers + engine.GetChatMembers | P1 |
 | Member context menu | Promote/restrict/ban/remove | CORE-ONLY | engine admin methods (CORE-ONLY) | P2 |
@@ -207,7 +207,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Local passcode lock | Lock app w/ passcode + autolock | CORE-ONLY | engine.SetPasscode/GetPasscodeConfig (CORE-ONLY) | P2 |
 | Export data (chat history dump) | Export wizard w/ progress | CORE-ONLY | engine export.go full pipeline (CORE-ONLY!) | P2 |
 | About / FAQ | About box, versions, shortcuts | PRESENT (slice 82: app version + Go runtime version, backend list, keyboard-shortcut list synced with gui/shortcuts.go) | gui/settings.go | P2 |
-| Ayu preferences (own screen) | Ghost/spy/saving sections w/ ~90 toggles | PARTIAL (Ayu section: 9 global ghost toggles + per-account overrides + reset; spy/saving sections later) | gui/settings.go Ayu section + engine GhostFlags/SetAccountGhost | P1 |
+| Ayu preferences (own screen) | Ghost/spy/saving sections w/ ~90 toggles | PARTIAL (Ayu section: 9 global ghost toggles + per-account overrides + reset; slice 80: Anti-recall section — save deleted / save history / save for bots, persisted; remaining spy/saving toggles stay engine-gated) | gui/settings.go Ayu section + engine GhostFlags/SetAccountGhost/SetAntiRecallSettings | P1 |
 
 ## 9. Calls / Voice — scope: TG (voice-mode surfaces for other backends via wrtc)
 
@@ -220,7 +220,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Call rating dialog | Rate after call | CORE-ONLY | engine.SendCallRating (CORE-ONLY) | P3 |
 | Incoming call UI | Ringing overlay w/ accept/decline | CORE-ONLY | engine.EventIncomingCall (unused!) | P1 |
 | Video bubbles + PiP | Floating video, picture-in-picture | CORE-ONLY | engine video-frame APIs (CORE-ONLY) | P3 |
-| Call in chat header bar | Active call bar | MISSING | (see chat view row) | P1 |
+| Call in chat header bar | Active call bar | PRESENT (slice 70: group-call live bar under the chat header — title, live participant count from engine.GetGroupCall (polled), Join button → engine.JoinGroupCall) | gui/callbar.go | P1 |
 
 ## 10. Ayu-specific extras (the differentiators) — scope: TG
 

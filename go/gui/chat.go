@@ -471,6 +471,12 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		return d
 	})
 
+	// Rubber-band selection overlay (slice 84): selection-mode drags mark
+	// every visible row the rectangle touches.
+	if f.selOn {
+		a.rubberBandOverlay(gtx, f, dims.Size)
+	}
+
 	// Scroll-up pagination: at (or near) the top, load older history once.
 	if msgList.Position.First == 0 && msgList.Position.Offset <= 64 &&
 		!f.loadingOlder && len(f.messages) > 0 && a.olderExhaustedLocked() == false {

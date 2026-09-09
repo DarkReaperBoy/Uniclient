@@ -1075,3 +1075,20 @@ deployment fix + v0.5.0 pre-release. All gates green locally and in CI.
 - Root cause of the 9dc8aad0 Verify failure was a gofmt miss on
   sharedtabs_test.go (unkeyed-field edit landed after the local gate);
   fixed; current HEAD is clean.
+
+## 2026-09-09 — slices 83-84 (share contact, rubber-band selection)
+
+- **83 Share contact** (profile actions, row 177 → PRESENT): the DM
+  profile panel gains a Share button — vcardFor builds a minimal vCard
+  (FN/TEL/NICKNAME from real profile fields) and copyTextSoon puts it on
+  the clipboard (AyuGram's share-as-text).
+- **84 Rubber-band selection** (row 98 → PRESENT): in selection mode,
+  dragging over the message list draws an accent-tinted rectangle and,
+  on release, marks every visible row it intersects (rowBounds
+  hit-testing, drag-direction normalized). The overlay is a
+  pass-through hit node — bubbles keep tap-to-toggle, the wheel keeps
+  scrolling (desktop mouse drags don't scroll a Gio List anyway);
+  a plain tap produces a zero-area rect and selects nothing.
+- Matrix audit: row 223 (call bar) was stale — callbar.go (slice 70)
+  already renders the active-call bar; row 210 updated for the
+  anti-recall section.
