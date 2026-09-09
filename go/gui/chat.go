@@ -206,6 +206,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.seenDlg != nil {
 		a.layoutSeenByDialog(gtx, f)
 	}
+	// Message-details dialog (slice 105).
+	if f.msgDetailDlg != nil {
+		a.layoutMsgDetail(gtx, f)
+	}
 	return dims
 }
 

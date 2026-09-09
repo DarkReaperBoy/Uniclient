@@ -160,7 +160,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Report message flow | Reason picker | CORE-ONLY | engine.ReportMessage (CORE-ONLY) | P2 |
 | Translate message | Menu item → inline translated | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
 | Sticker pack info / add | Menu on stickers | CORE-ONLY | engine sticker APIs (CORE-ONLY) | P2 |
-| Ayu: "Message details" submenu | Views/shares/dates/size/mime/DC/sticker author | CORE-ONLY | engine has views/reactions stats (CORE-ONLY) | P2 |
+| Ayu: "Message details" submenu | Views/shares/dates/size/mime/DC/sticker author | PARTIAL (slice 105: "Message details" menu item → dialog of key/value rows from what the engine caches — identity (msg/sender IDs), sent/edited/deleted dates, delivery status, forward origin, reply-to, media name/mime/size/dimensions/duration/local path, pinned/silent/no-forwards flags; tap a row copies its value. DC/views rows honestly absent (not cached)) | gui/msgdetail.go + engine CachedMessage | P2 |
 | Ayu: "Edits history" | Revision list per message | PRESENT (slice 96: context menu "Edits history" — async HasEditRevisions gate on openMenu (pending lookup hides the item); overlay dialog lists anti-recall revisions newest-first, sender + time + preview, Load-more paging) | gui/edithistory.go + engine GetEditRevisions/HasEditRevisions | P2 |
 | Ayu: "View deleted messages" | Deleted-msgs browser per chat | PRESENT (slice 97: header ⋮ "View deleted messages…" — anti-recall copies newest-first, sender + preview + deleted-at, Clear-all reuses ClearDeletedMessages) | gui/delbrowse.go + engine GetDeletedMessages | P2 |
 | Ayu: "Hide message" (local) | Locally hide a message | PRESENT (slice 35: context-menu Hide Locally → engine HideMessage → locally_hidden_messages table (v45); GetMessages filters via NOT EXISTS; unhide supported) | gui/menu.go + engine HideMessage + v45 migration | P2 |
@@ -343,9 +343,9 @@ P2 = settings/extras, P3 = rare/edge.
 → 2026-09-08 after slices 1–9: PRESENT 24 (12%) · PARTIAL 39 (19%) · MISSING 39 (19%) · CORE-ONLY 99 (49%).
 
 - PRESENT: 108 — the parity program (slices 1-100) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking, edits history, deleted-messages browser, save-to-Downloads, takeout export…
-- PARTIAL: 28 — engine-gated halves (in-app media playback waits on audio-out/streaming; 2FA; notifications sound picker; tray; read-receipt inline avatar stack later) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
+- PARTIAL: 29 — engine-gated halves (in-app media playback waits on audio-out/streaming; 2FA; notifications sound picker; tray; read-receipt inline avatar stack later) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
 - MISSING: 10 — remaining rows need real core work (dice/games, message-shot renderer, PiP, tray, multi-window, app icon) or would be dead UI (hide sponsored/similar — nothing renders to hide; local-premium — nothing gates premium)
-- CORE-ONLY: 56 — the engine already has the functionality; the GUI just never surfaces it (slice 101: 1:1 call panel + incoming call UI; slice 102: group call screen; slice 103: device pickers + noise suppression surfaced 5 of them)
+- CORE-ONLY: 55 — the engine already has the functionality; the GUI just never surfaces it (slice 101: 1:1 call panel + incoming call UI; slice 102: group call screen; slice 103: device pickers + noise suppression surfaced 5 of them)
 
 Priorities: P0 36 · P1 57 · P2 62 · P3 43 (+3 UniClient-only rows).
 

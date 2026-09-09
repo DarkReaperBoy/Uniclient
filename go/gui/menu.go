@@ -341,6 +341,13 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.openSeenByDialog(&msg)
 		}})
 	}
+	// Message details (AyuGram, slice 105): key/value rows from the cache.
+	if msgDetailMenuGate(m) {
+		msg := m
+		items = append(items, menuAction{"Message details", func(gtx layout.Context) {
+			a.openMsgDetailDialog(&msg)
+		}})
+	}
 	// Ayu edits history (matrix row 164): anti-recall kept revisions for
 	// this message — the dialog lists them newest-first.
 	if f.menu != nil && editsMenuGate(m, f.menu.hasEdits != nil, f.menu.hasEdits != nil && *f.menu.hasEdits) {

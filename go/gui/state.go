@@ -279,7 +279,8 @@ type App struct {
 	shadowDlg *shadowDlgState
 
 	// edits-history dialog (slice 96, matrix row 164)
-	editHistDlg *editHistState
+	editHistDlg  *editHistState
+	msgDetailDlg *msgDetailState // message details (slice 105)
 
 	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState
@@ -1668,6 +1669,7 @@ func (a *App) snapshot() frame {
 		ayuFilterCountOn: a.ayuFilterCountOn,
 		shadowDlg:        a.shadowDlg,
 		editHistDlg:      a.editHistDlg,
+		msgDetailDlg:     a.msgDetailDlg,
 		deletedDlg:       a.deletedDlg,
 		seenDlg:          a.seenDlg,
 		exportDlg:        a.exportDlg,
@@ -1895,7 +1897,8 @@ type frame struct {
 	folderImportDlg *folderImportState
 
 	// edits-history dialog (slice 96, matrix row 164)
-	editHistDlg *editHistState
+	editHistDlg  *editHistState
+	msgDetailDlg *msgDetailState // message details (slice 105)
 
 	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState

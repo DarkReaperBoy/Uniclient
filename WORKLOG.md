@@ -1482,3 +1482,17 @@ the GUI (3 P1 + 1 P2 CORE-ONLY rows in the matrix).
 - Parity: 108 PRESENT / 28 PARTIAL / 10 MISSING / 56 CORE-ONLY.
 - CI Verify run 34404120630 on slices 101-103 (b91c0537): SUCCESS (full
   gate + cross-builds + Xvfb GUI smoke).
+
+## 2026-09-10 — slice 105 (message details)
+
+- **Message details (row 165 → PARTIAL)**: context-menu "Message details"
+  → dialog of key/value rows derived purely from the cached message —
+  message/sender IDs, sent/edited/deleted (anti-recall) timestamps, delivery
+  status, forward origin, reply-to, media metadata (file name, mime, size,
+  dimensions, duration, local path), pinned/silent/no-forwards flags. Tap a
+  row copies its value. DC and view counts are honestly absent (the engine
+  does not cache them — never fabricated, §1.10).
+- Rows derive via the pure msgDetailRows (locked by 7 tests incl. service
+  gating, media table, fallback senders); dialog follows the
+  reactors/edithistory card pattern (scrim + Esc + backdrop close).
+- Parity: 108 PRESENT / 29 PARTIAL / 10 MISSING / 55 CORE-ONLY.
