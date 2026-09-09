@@ -135,6 +135,12 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			return a.ui.DividerV(gtx)
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			// Settings wins over the login pane: the sidebar gear stays
+			// reachable mid-auth (AyuGram keeps Settings reachable); its
+			// back button returns to the login form.
+			if f.settingsOpen {
+				return a.layoutSettings(gtx, f, narrow)
+			}
 			if f.auth != nil || f.showPicker {
 				return a.layoutLogin(gtx, f)
 			}

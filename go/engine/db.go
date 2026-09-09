@@ -15,7 +15,7 @@ import (
 // WAL mode is enabled for concurrent read/write from multiple goroutines.
 // If the database is corrupt, it is renamed to cache.db.corrupt and recreated.
 func OpenDB(dir string) (*sql.DB, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := ensureDir(dir); err != nil {
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}
 

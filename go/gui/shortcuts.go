@@ -1,11 +1,8 @@
 package gui
 
 import (
-	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/layout"
-	"gioui.org/op/clip"
-	"image"
 
 	"uniclient/engine"
 )
@@ -120,9 +117,9 @@ func neighborChat(chats []engine.ChatInfo, cur *chatKey, delta int) (engine.Chat
 // Root so surface-local handlers consume their events first.
 func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 	{
-		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
-		event.Op(gtx.Ops, shortcutKeyTag)
-		stack.Pop()
+		// Window-wide key listener, transparent to pointer hit-testing —
+		// see keyLayer (input-freeze regression, 2026-09-09).
+		keyLayer(gtx, shortcutKeyTag)
 	}
 
 	for {

@@ -63,7 +63,7 @@ func CreateVault(path, password string) (*Vault, error) {
 
 // OpenVault opens an existing vault file with the given password.
 func OpenVault(path, password string) (*Vault, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := readVaultBytes(path)
 	if err != nil {
 		return nil, fmt.Errorf("read vault: %w", err)
 	}
@@ -184,8 +184,8 @@ func (v *Vault) Save() error {
 }
 
 func (v *Vault) flushWithExistingKey() error {
-	// Read existing salt from file
-	raw, err := os.ReadFile(v.path)
+	// Read existing salt from storage
+	raw, err := readVaultBytes(v.path)
 	if err != nil {
 		// New file — generate salt
 		salt := make([]byte, vaultSaltSize)
@@ -223,7 +223,7 @@ func (v *Vault) flush(salt []byte) error {
 	if err != nil {
 		return fmt.Errorf("marshal vault file: %w", err)
 	}
-	if err := os.WriteFile(v.path, raw, 0600); err != nil {
+	if err := writeVaultBytes(v.path, raw); err != nil {
 		return fmt.Errorf("write vault: %w", err)
 	}
 	v.dirty = false

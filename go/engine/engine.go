@@ -158,9 +158,9 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 		saveForBots:         false,
 	}
 
-	// Ensure directories exist.
+	// Ensure directories exist (no-op on js/wasm — no filesystem there).
 	for _, d := range []string{configDir, cacheDir, downloadDir, e.mediaDir} {
-		if err := os.MkdirAll(d, 0o755); err != nil {
+		if err := ensureDir(d); err != nil {
 			return nil, fmt.Errorf("create dir %s: %w", d, err)
 		}
 	}
@@ -175,7 +175,7 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 
 	// Open or create vault (stores credentials, config, and sessions).
 	vaultPath := filepath.Join(configDir, "uniclient.vault")
-	if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
+	if !utils.VaultExists(vaultPath) {
 		e.vault, err = utils.CreateVault(vaultPath, vaultPassword)
 		if err != nil {
 			return nil, fmt.Errorf("create vault: %w", err)

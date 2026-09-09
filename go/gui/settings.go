@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"gioui.org/font"
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
@@ -143,6 +144,7 @@ var (
 	settingsProfileBtns []widget.Clickable
 	settingsAddBtn      widget.Clickable
 	settingsBackBtn     widget.Clickable
+	settingsKeyTag      struct{} // Escape-close key listener tag
 	clearTagBtns        []widget.Clickable
 	clearAllBtn         widget.Clickable
 	ghostResetBtn       widget.Clickable
@@ -178,6 +180,18 @@ func settingsSwitch(key string) *widget.Bool {
 // layoutSettings: header (back + title), then rail + content (rail collapses
 // to a horizontal chip row on narrow layouts — AyuGram mobile settings).
 func (a *App) layoutSettings(gtx layout.Context, f frame, narrow bool) layout.Dimensions {
+	// Escape closes (self-handled, per escTarget's contract). Pointer-
+	// transparent via keyLayer so the sidebar stays interactive.
+	keyLayer(gtx, settingsKeyTag)
+	for {
+		ev, ok := gtx.Source.Event(key.Filter{Name: key.NameEscape})
+		if !ok {
+			break
+		}
+		if ke, is := ev.(key.Event); is && ke.State == key.Press {
+			a.closeSettings()
+		}
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.settingsHeader(gtx, f)
