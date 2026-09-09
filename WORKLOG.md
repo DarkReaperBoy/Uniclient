@@ -1135,3 +1135,8 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   before 79-80 landed).
 - Tagging v0.6.0 (prerelease per §1): 4 platform binaries + checksums +
   web redeploy via the release pipeline.
+- Release pipeline 34362784366 GREEN: v0.6.0 (prerelease) published —
+  linux amd64 (14.1 MB) + arm64 (11.9 MB), windows-amd64.exe (14.0 MB),
+  uniclient.apk (19.8 MB), checksums.txt. Web demo redeployed from the
+  release (gh-pages "Web build for v0.6.0", pages deployment
+  34363067495 GREEN; site serves the new wasm, HTTP 200).
