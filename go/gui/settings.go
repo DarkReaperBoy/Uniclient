@@ -1180,7 +1180,7 @@ func (a *App) chips(gtx layout.Context, f frame) []layout.FlexChild {
 
 // appVersion is the Uniclient version shown on the About page (bumped at
 // release time; the release pipeline tags the same number).
-const appVersion = "0.6.0-dev"
+const appVersion = "0.6.0"
 
 // aboutRow is one key/description line on the About page.
 type aboutRow struct {

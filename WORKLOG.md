@@ -1112,3 +1112,26 @@ deployment fix + v0.5.0 pre-release. All gates green locally and in CI.
 Tests: proxy segment mappings, port normalization (junk/bounds), config
 persist shape; buildFolderTabsHideAll (All gone, order preserved). Full
 suite green under node+wasm; engine+utils native green; vet + gofmt clean.
+
+## 2026-09-09 — v0.6.0: parity program complete to the engine's capability
+
+- **Linux e2e verified on the release binary** (user's top-priority
+  platform): rebuilt the Xvfb sysroot in the workspace (downloaded .debs,
+  no root), built natively with CGO against it, and drove the real app
+  through the full pointer-input regression path — welcome → picker →
+  auth form → typed phone number (275 editor pixels changed = text
+  rendered) → settings open → rail interaction → Esc back. Pointer and
+  keyboard input confirmed live at HEAD; the c1fca15c fix holds.
+- Session parity ledger: slices 78 (shared-media tabs), 79 (header menu
+  search + add-members), 80 (anti-recall styling/toggles/clear), 81
+  (music attach), 82 (about page + bubble corners), 83 (share contact),
+  84 (rubber-band selection), 85 (proxy + download path + hide-All).
+  Remaining matrix PARTIAL/MISSING rows are engine-gated (media
+  playback/call audio need streaming+audio-out APIs the cores don't
+  expose; tray/taskbar need platform shims) or P3 polish.
+- CI Verify ledger this session: 34358390858 (79-80) GREEN ·
+  34359032048 (81-82) GREEN · 34359921361 (83-84) GREEN ·
+  34360912603 (85) GREEN · 9dc8aad0 failed on a gofmt miss (fixed
+  before 79-80 landed).
+- Tagging v0.6.0 (prerelease per §1): 4 platform binaries + checksums +
+  web redeploy via the release pipeline.
