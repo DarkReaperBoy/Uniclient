@@ -99,8 +99,11 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 				return a.layoutRecentSearches(gtx, f)
 			})
 		})),
-		// Folder tabs
+		// Folder tabs (or the archive-view back row, slice 67)
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
+			if f.archiveView {
+				return a.archiveHeader(gtx, f)
+			}
 			return a.layoutFolders(gtx, f)
 		})),
 		// Chat list (scrollable)
@@ -439,12 +442,22 @@ func filterChats(f frame) []engine.ChatInfo {
 	q := strings.ToLower(strings.TrimSpace(f.search))
 	tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported)
 	tab := folderTab{kind: folderTabAll}
-	if f.folder >= 0 && f.folder < len(tabs) {
+	if f.folder >= 0 && f.folder < len(tabs) && !f.archiveView {
 		tab = tabs[f.folder]
 	}
 	out := make([]engine.ChatInfo, 0, len(f.chats))
 	for _, c := range f.chats {
 		if f.acctFilter != "" && c.AccountID != f.acctFilter {
+			continue
+		}
+		// Archive split (slice 67): the main list hides archived chats behind
+		// the collapsed Archived row (search still matches them, like
+		// Telegram); the archive view is scoped to archived chats only.
+		if f.archiveView {
+			if !c.IsArchived {
+				continue
+			}
+		} else if q == "" && c.IsArchived {
 			continue
 		}
 		if !tabMatches(tab, c) {
@@ -469,8 +482,12 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 		})
 	}
 	if len(visible) == 0 {
+		empty := "No chats here"
+		if f.archiveView {
+			empty = "No archived chats"
+		}
 		return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
-			lbl := a.ui.Dim(unit.Sp(14), "No chats here")
+			lbl := a.ui.Dim(unit.Sp(14), empty)
 			lbl.Color = a.ui.p.TextFaint
 			return lbl.Layout(gtx)
 		})
@@ -549,11 +566,27 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 	list := material.List(a.ui.Theme, &sidebarChatsList)
 	y := a.sbAboveList - sidebarChatsList.Position.Offset
 	paneW := gtx.Constraints.Max.X
-	dims := list.Layout(gtx, len(visible), func(gtx layout.Context, i int) layout.Dimensions {
-		c := visible[i]
+	// Collapsed Archived-Chats row (slice 67): first row of the main list,
+	// only when there are archived chats to show and no search is running.
+	archived := archivedChatsFor(f)
+	showArchiveRow := !f.archiveView && len(archived) > 0
+	n := len(visible)
+	if showArchiveRow {
+		n++
+	}
+	dims := list.Layout(gtx, n, func(gtx layout.Context, i int) layout.Dimensions {
+		if showArchiveRow && i == 0 {
+			d := a.archiveRow(gtx, f, archived)
+			return d
+		}
+		row := i
+		if showArchiveRow {
+			row--
+		}
+		c := visible[row]
 		selected := f.selected != nil && f.selected.AccountID == c.AccountID && f.selected.ChatID == c.ChatID
-		d := a.chatRow(gtx, f, c, selected, &chatListBtns[i])
-		a.chatRowBounds[i] = image.Rectangle{Min: image.Pt(0, y), Max: image.Pt(paneW, y+d.Size.Y)}
+		d := a.chatRow(gtx, f, c, selected, &chatListBtns[row])
+		a.chatRowBounds[row] = image.Rectangle{Min: image.Pt(0, y), Max: image.Pt(paneW, y+d.Size.Y)}
 		y += d.Size.Y
 		return d
 	})
@@ -583,6 +616,11 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 								return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 									layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 										return a.streamerTitle(gtx, f, c.Title, unit.Sp(15))
+									}),
+									// peer badges next to the title (slice 68):
+									// verified/premium icons, scam/fake tags.
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return a.layoutRowTitleBadges(gtx, rowTitleBadges(c))
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										return a.rowMetaIcons(gtx, f, c)
@@ -617,16 +655,14 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 							return a.mediaThumb(gtx, c.LastMsgThumbB64, unit.Dp(34))
 						})
 					}),
-					// unread badge (or unread-mark dot, slice 29)
+					// trailing badges (slice 68): @-mentions, unread reactions,
+					// then the unread count/mark.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if c.UnreadCount <= 0 && !c.UnreadMark {
+						if len(trailingRowBadges(c)) == 0 {
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							if rowBadgeKindFor(c) == rowBadgeCount {
-								return unreadBadge(gtx, a.ui, c.UnreadCount, c.IsMuted)
-							}
-							return unreadMarkDot(gtx, a.ui, c.IsMuted)
+							return a.layoutTrailingRowBadges(gtx, c)
 						})
 					}),
 				)

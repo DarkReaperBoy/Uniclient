@@ -45,17 +45,30 @@ type App struct {
 	searchMsgs   []engine.SearchResult
 	searchGlobal []engine.ChatInfo
 	searchFor    string
-	mode         int               // 0 chat, 1 voice
-	auth         *engine.AuthState // login flow in progress
-	authAcct     string
-	showPicker   bool
-	acctFilter   string // "" = unified list, else filter to one account
-	toast        string
-	toastAt      time.Time
-	connecting   map[string]bool // accountID -> busy
-	sending      bool
-	loadingMsgs  bool
-	loadedOlder  int // how many pages loaded (scroll-up)
+
+	mode       int               // 0 chat, 1 voice
+	auth       *engine.AuthState // login flow in progress
+	authAcct   string
+	showPicker bool
+	acctFilter string // "" = unified list, else filter to one account
+
+	// archived-chats view (slice 67): true while the sidebar shows the
+	// archived chats instead of the main list.
+	archiveView bool
+
+	// group-call live bar (slice 70): polled info for the open chat and the
+	// chat the poll loop belongs to (nil = no loop running).
+	groupCall   *engine.GroupCallInfo
+	callPollFor *chatKey
+
+	// slow-mode countdown redraw guard (slice 69).
+	slowTickPending bool
+	toast           string
+	toastAt         time.Time
+	connecting      map[string]bool // accountID -> busy
+	sending         bool
+	loadingMsgs     bool
+	loadedOlder     int // how many pages loaded (scroll-up)
 
 	// message-action state (AyuGram parity §1.11: reply/edit composer modes,
 	// context menu, forward picker, reactions).
@@ -102,6 +115,7 @@ type App struct {
 	cloudThemes    []cores.CloudThemeInfo // cloud theme list (slice 66)
 	cloudThemesFor string                 // account name the list came from (slice 66)
 	cloudThemeAcct string                 // account ID the list came from (slice 66)
+	profileEdit    *profileEditState      // own-profile editor (slice 71)
 	cloudThemesOn  bool                   // list loaded (slice 66)
 	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
 	cacheTotal     int64
@@ -369,6 +383,7 @@ func (a *App) refreshChats() {
 	a.mu.Lock()
 	a.chats = chats
 	a.mu.Unlock()
+	a.syncCallPoll() // slice 70: the live-call bar tracks the open chat
 	a.invalidate()
 }
 
@@ -823,7 +838,9 @@ func (a *App) openChat(k chatKey, title string) {
 	inSearchFromPanel = false
 	a.delDlg = nil // slice 19: close delete/report dialogs
 	a.reportDlg = nil
-	a.schedDlg = nil // slice 20: close the schedule dialog
+	a.schedDlg = nil  // slice 20: close the schedule dialog
+	a.groupCall = nil // slice 70: live-call bar state for the new chat
+	a.callPollFor = nil
 
 	// Restore the incoming chat's draft into the composer (slice 20).
 	if next.DraftText != "" {
@@ -849,6 +866,7 @@ func (a *App) openChat(k chatKey, title string) {
 	if next.Type == engine.ChatTypeDMVal && next.ChatID != "" {
 		go a.loadHdrPresence(k)
 	}
+	a.syncCallPoll() // slice 70: start the live-call poll if this chat has one
 	a.invalidate()
 	go func() {
 		msgs, err := a.eng.GetMessages(k.AccountID, k.ChatID, 0, 0, 100)
@@ -1366,6 +1384,8 @@ func (a *App) snapshot() frame {
 		searchMsgs:       a.searchMsgs,
 		searchGlobal:     a.searchGlobal,
 		searchFor:        a.searchFor,
+		archiveView:      a.archiveView,
+		groupCall:        a.groupCall,
 		mode:             a.mode,
 		auth:             a.auth,
 		authAcct:         a.authAcct,
@@ -1406,6 +1426,7 @@ func (a *App) snapshot() frame {
 		cloudThemesFor:   a.cloudThemesFor,
 		cloudThemeAcct:   a.cloudThemeAcct,
 		cloudThemesOn:    a.cloudThemesOn,
+		profileEdit:      a.profileEdit,
 		cloudDlg:         a.cloudDlg,
 		cacheTotal:       a.cacheTotal,
 		cacheTags:        a.cacheTags,
@@ -1498,14 +1519,21 @@ type frame struct {
 	searchMsgs   []engine.SearchResult
 	searchGlobal []engine.ChatInfo
 	searchFor    string
-	mode         int
-	auth         *engine.AuthState
-	authAcct     string
-	toast        string
-	toastAt      time.Time
-	connecting   map[string]bool
-	sending      bool
-	loadingMsgs  bool
+
+	// archived-chats view (slice 67)
+	archiveView bool
+
+	// group-call live bar (slice 70): polled info for the open chat
+	groupCall *engine.GroupCallInfo
+
+	mode        int
+	auth        *engine.AuthState
+	authAcct    string
+	toast       string
+	toastAt     time.Time
+	connecting  map[string]bool
+	sending     bool
+	loadingMsgs bool
 	// message-action surface
 	cMode        composerMode
 	menu         *menuTarget
@@ -1547,6 +1575,7 @@ type frame struct {
 	cloudThemeAcct string                 // account ID the list came from (slice 66)
 	cloudThemesOn  bool                   // list loaded (slice 66)
 	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
+	profileEdit    *profileEditState      // own-profile editor (slice 71)
 	cacheTotal     int64
 	cacheTags      [6]int64
 	cacheLoaded    bool

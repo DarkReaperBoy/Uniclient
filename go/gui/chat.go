@@ -96,6 +96,16 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop = a.headerH + d.Size.Y
 			return d
 		}),
+		// Group-call live bar (slice 70): under the header while the chat
+		// has an active call; participant data polled from the engine.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if chat == nil || !chat.HasActiveCall {
+				return layout.Dimensions{}
+			}
+			d := a.callBar(gtx, f, chat)
+			a.listTop += d.Size.Y
+			return d
+		}),
 		// Selection bar (AyuGram multi-select) replaces the pinned bar.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if f.selOn {
@@ -123,12 +133,18 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.ui.Divider(gtx)
 		}),
-		// Composer (or JOIN bar for not-joined previews, slice 19)
+		// Composer (JOIN bar for not-joined previews, restriction bar for
+		// write-restricted chats, input + slow-mode chip otherwise)
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if chat != nil && chat.NotJoined {
 				return a.joinBar(gtx, f, chat)
 			}
-			return a.composerBar(gtx, f)
+			if chat != nil {
+				if on, label := composerRestricted(*chat); on {
+					return a.restrictedBar(gtx, label)
+				}
+			}
+			return a.composerBar(gtx, f, chat)
 		}),
 	)
 
@@ -862,8 +878,19 @@ func (a *App) joinBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 
 // composerBar: input + send, disabled state shows progress. When a reply or
 // edit mode is active (AyuGram input field), a header chip with the quoted
-// message sits above the input row.
-func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
+// message sits above the input row. Slow-mode chats carry a countdown chip
+// that gates sending (slice 69).
+func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
+	// Slow-mode wait active → block submission (both Enter and the button).
+	blocked := false
+	if chat != nil {
+		if remain := slowmodeRemain(*chat, f.now); remain > 0 {
+			blocked = true
+			a.scheduleSlowTick(remain)
+		} else {
+			slowmodeSendBlocked = false
+		}
+	}
 	// Submit on Enter (Shift+Enter = newline) unless mobile-wide.
 	for {
 		ev, ok := composer.Update(gtx)
@@ -873,6 +900,10 @@ func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
 		if se, isSubmit := ev.(widget.SubmitEvent); isSubmit {
 			txt := strings.TrimSpace(se.Text)
 			if txt != "" && !f.sending {
+				if blocked {
+					a.slowmodeToast(chat)
+					continue
+				}
 				composer.SetText("")
 				a.sendText(txt)
 			}
@@ -881,8 +912,12 @@ func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
 	if chatSendBtn.Clicked(gtx) {
 		txt := strings.TrimSpace(composer.Text())
 		if txt != "" && !f.sending {
-			composer.SetText("")
-			a.sendText(txt)
+			if blocked {
+				a.slowmodeToast(chat)
+			} else {
+				composer.SetText("")
+				a.sendText(txt)
+			}
 		}
 	}
 
@@ -929,6 +964,14 @@ func (a *App) composerBar(gtx layout.Context, f frame) layout.Dimensions {
 								return ed.Layout(gtx)
 							})
 						})
+					}),
+					// slow-mode countdown pill (slice 69) — blocks sending
+					// while the server's wait is active.
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if chat == nil {
+							return layout.Dimensions{}
+						}
+						return a.slowmodeChip(gtx, f, chat)
 					}),
 					// silent (🔕) — send without sound (AyuGram
 					// per-message mute, slice 23).

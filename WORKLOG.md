@@ -893,3 +893,64 @@ Stage Summary:
 - **65 Per-chat themes**: DM ⋮ "Change colors…" — server chat-theme picker (emoticon chips tinted w/ message colors, Reset) → engine.SetChatTheme
 - **66 Cloud themes**: Appearance section — server theme list (GetCloudThemes was CORE-ONLY), install confirm → InstallCloudTheme + accent applied locally (persisted)
 - CI GREEN at every dispatched checkpoint: 34270604522 (s62) · 34271439394 (s62–65) · 34272135542 (s66)
+
+## 2026-09-09 — slices 67–71 (archive row, row badges, composer gating, call bar, profile editor)
+
+Session goal (owner): continue unattended, push, verify via API.
+
+### Ratings (§2.3)
+- Architecture (single Gio binary, engine/cores/gui split, snapshot pattern): 9/10 — keep & extend.
+- Sidebar/chat-view code: 8/10 — additive slices, no replacement needed.
+- README.md: 0/10 vs reality (described the deleted FFI bridge + web host) — rewritten from scratch (§10).
+
+### What I did (tests-first, all pure helpers locked in *_test.go)
+
+- **67 Archived chats**: collapsed "Archived Chats" row at the top of the
+  main list (box glyph, aggregate unread of unmuted archived chats); tap →
+  archive view (only archived chats, back row replaces folder tabs, Esc
+  exits); search from the main list still matches archived chats, the
+  archive view scopes search to itself; account filter honored.
+- **68 Row badges**: verified/premium icons + SCAM/FAKE text tags next to
+  row titles (same vocabulary as the header badges); trailing badge stack
+  in Telegram order: @-mention pill → unread-reactions counter → unread
+  count/mark.
+- **69 Composer gating**: write-restricted chats (WriteRestriction*) swap
+  the composer for a lock + server-text bar (not-joined previews keep the
+  JOIN bar); slow-mode chats show a live countdown pill (per-second
+  redraw via one pending timer) that blocks Enter + the send button with
+  an explanatory toast.
+- **70 Group-call live bar**: under the chat header while
+  ChatInfo.HasActiveCall; title/participants/RTMP status polled from
+  engine.GetGroupCall every 5s (single poll loop tracked against the open
+  chat; started/stopped from openChat + refreshChats); JOIN runs
+  engine.JoinGroupCall (creates the call when absent) and flips to the
+  Voice tab.
+- **71 Edit profile**: Settings → Main → "Edit profile" per account —
+  avatar upload via the OS picker (UploadProfilePhoto), username/bio/
+  birthday editors with client-side validation (UpdateAccountUsername/
+  UpdateBio/UpdateBirthday), server reload after every apply; name and
+  phone render read-only (no engine setter — hidden, not faked). Editor
+  text is captured on the GUI thread; engine calls + reload run in the
+  background.
+- **README rewritten** to describe the real app (Gio single binary,
+  platforms, build recipes incl. goolm + low-RAM, backend status table).
+  The old one documented the deleted bridge/proto/FFI architecture.
+- Matrix rows updated: 56/59/64/84/101/193 → PRESENT; stale search rows
+  (254/255) and not-joined row (100) verified already PRESENT (slices 16/
+  57/19); AGENTS.md checklist annotated with slices 67–71.
+
+### Verification
+- gofmt clean; `go vet -tags goolm` clean for windows (full tree) and
+  natively for engine/cores/utils/bootstrap/wrtc.
+- `go test -tags goolm`: engine, cores, utils, bootstrap PASS natively;
+  the full gui suite (incl. the 5 new test files) compiled to js/wasm and
+  executed under Node (PASS).
+- Windows amd64 + js/wasm app builds produced binaries (CGO_ENABLED=0).
+- Linux native GUI build impossible in this sandbox (no root for the Gio
+  cgo headers) — CI verify (Xvfb GUI smoke + screenshots) covers it.
+
+### Next
+- CI verify dispatch for this push, monitor to GREEN (API).
+- Continue parity: top-peers strip (row 53), chat background (row 103),
+  stories row (row 65), voice-message playback (row 135).
+- mumble/teamspeak rewrite, live-verify xmpp/bale/rubika/deltachat (§8).

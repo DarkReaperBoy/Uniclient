@@ -65,6 +65,8 @@ func escTarget(f frame) string {
 		return "panel"
 	case f.search != "":
 		return "search"
+	case f.archiveView:
+		return "archive"
 	}
 	return ""
 }
@@ -177,6 +179,8 @@ func (a *App) handleEscTarget(target string) {
 		a.closePanel()
 	case "search":
 		sidebarSearch.SetText("")
+	case "archive":
+		a.exitArchive() // slice 67: Esc leaves the archived-chats view
 	}
 }
 

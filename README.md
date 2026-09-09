@@ -1,140 +1,111 @@
 # Uniclient
 
-One pure-Go, cross-platform messenger engine that speaks many chat protocols
-through one standardized FFI bridge. Native hosts (Flutter, Qt, anything with
-a C FFI) load the c-shared library; the browser loads the js/wasm module.
-One Go core, every frontend.
+One pure-Go, cross-platform messenger. One native GUI, many chat and voice
+backends — Telegram, Matrix, IRC, GitHub, XMPP, Delta Chat, Bale, Rubika —
+each added and switched as easily as an account. The GUI mirrors AyuGram's
+layout and behavior (re-implemented from scratch, never copied) with
+Material Design visuals, built with [Gio](https://gioui.org).
 
-## The desktop app (no toolchain needed)
+**Status: pre-release.** Everything you see in the app works against real
+backends with real accounts — no demo data, no placeholder screens. What a
+backend cannot do yet is hidden, not faked. See `AGENTS.md` for the project
+constitution and the parity roadmap.
 
-**Just want to chat?** Download a binary from the
-[Releases](https://github.com/DarkReaperBoy/Uniclient/releases) page, unpack,
-and run:
+## Run it
 
-* **Windows** — double-click `Start Uniclient.bat`
-* **Linux / macOS** — `./uniclient.sh` (or `./uniclient-web`)
+Binaries land on the [Releases](https://github.com/DarkReaperBoy/Uniclient/releases)
+page for every release tag (all marked pre-release for now):
 
-Your browser opens the app at `http://127.0.0.1:8199`. Add an account with
-the **+** button (Telegram, GitHub, IRC, Matrix, XMPP, Delta Chat, Bale,
-Rubika, TeamSpeak, Mumble), pick a chat, and message. Everything stays on
-your machine: the server binds 127.0.0.1 only, and credentials live in an
-encrypted vault.
+- **Linux** (amd64/arm64) — `uniclient-linux-<arch>`. On NixOS use the flake
+  instead: `nix run github:DarkReaperBoy/Uniclient` (release binaries are
+  built against glibc CI runners and won't start under Nix's loader — the
+  flake is the supported path there).
+- **Windows** — `uniclient-windows-amd64.exe` (pure Go, no runtime deps).
+- **Android** — `uniclient.apk` (arm64).
+- **Web** — a WASM build of the same GUI, deployed to
+  `https://darkreaperboy.github.io/Uniclient/`.
 
-From source:
+One single binary per platform — the GUI, the engine host, and every core
+compile into it. Headless/CLI behavior (when present) is a flag on the same
+binary, never a second executable.
 
-```sh
-cd go && CGO_ENABLED=0 go build -tags goolm -o uniclient-web ./cmd/web
-./uniclient-web          # or: -port 9000, -dir /path/to/config, -no-browser
-```
+## Build from source
 
-A second launch detects the running instance and just opens the browser.
-
-## What's in the box
-
-| Piece | Path | What it is |
-|---|---|---|
-| Desktop app | `go/cmd/web/` | The chat app: engine + local HTTP/WS API + embedded web UI |
-| Engine | `go/engine/` | Accounts, vault, SQLite cache, media, auth, events — the layer every backend plugs into |
-| Bridge | `go/bridge/` | Protobuf request/response dispatch (`__engine` + per-core routing, 500+ methods) |
-| Cores | `go/cores/` | Protocol backends: Telegram (gotd/MTProto), Matrix (mautrix, full E2EE via goolm), IRC, XMPP, GitHub, Mumble, TeamSpeak, Bale, Rubika, DeltaChat |
-| FFI entries | `go/cmd/bridge/` | c-shared native build + js/wasm build |
-| CLI host | `go/cmd/cli/` | Headless host for driving the engine from a terminal |
-| Compat shim | `go/wrtc/` | pion/webrtc native/js API unification (calls compile everywhere, media degrades on web) |
-| Proto | `proto/` + `go/proto/` | The bridge wire contract (generated code committed) |
-
-## Build
-
-Requirements: Go 1.27+, a C compiler for the c-shared target, Node 18+ for the
-wasm smoke test.
+Requirements: Go 1.27+, and on Linux the Gio cgo headers
+(`libegl1-mesa-dev libgles-dev libx11-dev libx11-xcb-dev libxkbcommon-dev
+libxkbcommon-x11-dev libxcursor-dev libxfixes-dev libwayland-dev
+libwayland-egl-backend-dev libvulkan-dev`).
 
 ```sh
-make build        # compile everything, CGO_ENABLED=0
-make test         # test suite
-make c-shared     # dist/libuniclient.so + libuniclient.h
-make wasm         # dist/uniclient.wasm
-make cli          # dist/uniclient-cli (headless host)
-make smoke        # build + run both FFI smoke suites (C and Node)
+cd go
+
+# Linux (cgo for the GPU/window backends)
+CGO_ENABLED=1 go build -tags goolm -o uniclient ./cmd/uniclient
+
+# Windows (pure Go, cross-builds from Linux)
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -tags goolm \
+    -o uniclient.exe ./cmd/uniclient
+
+# Web (WASM, same GUI code)
+GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -tags goolm \
+    -o uniclient.wasm ./cmd/uniclient
 ```
 
-Or per-platform: `./scripts/build.sh [linux|windows|darwin|android|web|cli]`.
-The web host smoke suite lives in `scripts/smoke/smoke_web.sh`.
+The **`-tags goolm`** flag is mandatory everywhere: it selects mautrix's
+pure-Go Olm implementation so Matrix E2EE works without cgo. The only cgo
+in the tree is inside Gio's own Linux GPU shims — everything else compiles
+`CGO_ENABLED=0`.
 
-**The goolm tag is mandatory everywhere**: mautrix's default Olm
-implementation is cgo; `-tags goolm` selects the pure-Go implementation so the
-engine stays C-free. The only cgo in the repo is the export shim required by
-`-buildmode=c-shared`.
-
-**Low-RAM builds**: gotd's generated `tg` package needs ~2 GB+ to compile. The
-Makefile and build script already export the verified recipe
-(`-p 1 GOMEMLIMIT=900MiB GOGC=30`); it is harmless on big machines.
-
-## The FFI contract
-
-### Native (c-shared)
-
-```c
-void* BridgeCallWithLen(void* data, int32_t len, int32_t* outLen);  // request -> response
-void  BridgeFree(void* ptr);                                        // release a returned buffer
-void* BridgeNextEvent(int32_t* outLen);                             // pull next async event (blocks)
-void  BridgeStopEvents(void);                                       // unblock the event reader
-```
-
-Requests and events are protobufs: `BridgeRequest{core_id, method, payload}`
-→ `BridgeResponse{ok, error, error_code, payload}`. See `proto/models.proto`
-and `proto/engine.proto`. Error codes are categorized sentinels
-(`auth`, `rate_limited`, `network`, `timeout`, `not_found`, `permission`,
-`not_supported`, `unknown`) so hosts can react without string matching.
-
-A complete C-side example lives in `scripts/smoke/smoke_c.c`.
-
-### Web (js/wasm)
-
-```js
-globalThis.bridgeCall(reqBytes)          // -> Promise<Uint8Array>
-globalThis.bridgeSetEventCallback(cb)    // cb(eventBytes) | null to clear
-```
-
-`bridgeCall` is async **by design**: js/wasm is single-threaded and the engine
-does blocking filesystem work (vault, config), which can only complete when
-the JS call stack unwinds. Run it with Node's wasm bootstrap
-(`lib/wasm/wasm_exec_node.js`-style globals) for filesystem support —
-see `scripts/smoke/run_wasm.mjs`.
-
-## Smoke tests (prove the artifacts actually work)
+**Low-RAM machines**: gotd's generated `tg` package needs ~2 GB+ to compile.
+The verified recipe (`-p 1 GOMEMLIMIT=900MiB GOGC=30`) is used by CI and
+works on small runners.
 
 ```sh
-make smoke-c     # builds the .so, then a C program drives the full lifecycle:
-                 # Init -> ListAccounts -> AddAccount -> ListAccounts -> Shutdown
-make smoke-wasm  # builds the .wasm, then Node drives the same lifecycle
+go test -p 1 -tags goolm -count=1 ./...   # with GOMEMLIMIT=900MiB GOGC=30
 ```
 
-Both are wired into CI (`.github/workflows/ci.yml`) alongside the native
-gate, race detector, platform matrix (windows/darwin/linux × amd64/arm64),
-the wasm build, and the web-host smoke suite.
+## Architecture
 
-## CLI quick start
-
-```sh
-dist/uniclient-cli init          # create engine state at ~/.uniclient
-dist/uniclient-cli add telegram  # add an account
-dist/uniclient-cli accounts
-dist/uniclient-cli raw __engine ListAccounts </dev/null | xxd
+```
+go/
+  cmd/uniclient/   ONE binary. Flag-based modes. Gio window + engine host.
+  gui/             The Gio app (AyuGram layout, Material visuals). Pure UI,
+                   talks to the engine only.
+  bootstrap/       Engine wiring: engine.Init + core factory + session store.
+  engine/          Accounts, vault, SQLite cache, auth state machine, events,
+                   media, pending queue. No UI, no proto, no bridge.
+  cores/           One file set per backend, implementing cores.Core.
+  utils/           Config, vault, crypto, storage helpers.
+  wrtc/            WebRTC shim: pion natively, browser API on js/wasm.
+  tests/           Live protocol tests (env-gated, run on demand, not CI).
 ```
 
-State: `~/.uniclient/` (override with `UNICLIENT_HOME`, vault password with
-`UNICLIENT_PASSWORD`).
+Every backend renders through the same GUI. A core that lacks a feature
+returns `ErrNotSupported` and the GUI hides the action — cores are grown to
+fit the GUI, never the other way around.
 
-## Notes for core contributors
+## Backends
 
-- **Pure-Go policy**: application code compiles `CGO_ENABLED=0` across the
-  platform matrix (CI enforces it). cgo exists only in the c-shared export
-  shim and never in engine/cores code.
-- **Calls on wasm**: signaling works, media doesn't. `go/wrtc` aliases the
-  full pion/webrtc API on native platforms and stubs the native-only media
-  surface on js/wasm — the pattern the bale core established. Don't import
-  `pion/webrtc` media types directly from cores; import `uniclient/wrtc`.
-- **Sessions/credentials** live in the encrypted vault (Argon2id + AES-GCM),
-  never in plaintext files.
-- **No telemetry.** Network traffic is the messengers' protocols, full stop.
+| Core | State |
+|---|---|
+| Telegram | Most complete; 1:1 AyuGram feature parity in progress (gotd/td) |
+| Matrix | Builds; E2EE via pure-Go goolm (mautrix) |
+| IRC | Live-tested against real servers (own RFC2812+IRCv3 implementation) |
+| GitHub | Live-tested against the real API |
+| XMPP / Delta Chat / Bale / Rubika | Implemented, live verification pending |
+| TeamSpeak / Mumble | Stale; rewrite pending — hidden until then |
 
-See `AGENTS.md` for the full project constitution and roadmap context.
+Live protocol tests live in `go/tests/`, gated behind env vars
+(e.g. `UNICLIENT_LIVE_IRC=1`); they never run in CI and never need secrets
+in the repo.
+
+## For agents and contributors
+
+`AGENTS.md` is the constitution (owner requirements, architecture, testing
+ladder, release policy). `WORKLOG.md` is the session journal — the resume
+point for agents. `research/` is agent scratch space: read old notes there
+with suspicion.
+
+No telemetry. Sessions and credentials live in an encrypted vault
+(Argon2id + AES-GCM), never in plaintext files. Network traffic is the
+messengers' own protocols, full stop.

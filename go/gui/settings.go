@@ -134,17 +134,18 @@ func ghostFlagSet(g *engine.GhostFlags, field string, v bool) bool {
 // ── widget pools (frame-loop only) ────────────────────────────────────────
 
 var (
-	settingsRailBtns   []widget.Clickable
-	settingsSwitches   = map[string]*widget.Bool{}
-	settingsSynced     = map[string]bool{}
-	settingsRemoveBtns []widget.Clickable
-	settingsAddBtn     widget.Clickable
-	settingsBackBtn    widget.Clickable
-	clearTagBtns       []widget.Clickable
-	clearAllBtn        widget.Clickable
-	ghostResetBtn      widget.Clickable
-	ghostAcctChips     []widget.Clickable
-	settingsScroll     widget.List
+	settingsRailBtns    []widget.Clickable
+	settingsSwitches    = map[string]*widget.Bool{}
+	settingsSynced      = map[string]bool{}
+	settingsRemoveBtns  []widget.Clickable
+	settingsProfileBtns []widget.Clickable
+	settingsAddBtn      widget.Clickable
+	settingsBackBtn     widget.Clickable
+	clearTagBtns        []widget.Clickable
+	clearAllBtn         widget.Clickable
+	ghostResetBtn       widget.Clickable
+	ghostAcctChips      []widget.Clickable
+	settingsScroll      widget.List
 
 	// Ayu mark-string editors (settings_ayu, slice 47).
 	ayuDeletedEd   widget.Editor
@@ -300,6 +301,9 @@ func (a *App) settingsPage(gtx layout.Context, f frame) layout.Dimensions {
 	return list.Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(16), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
+				if f.profileEdit != nil {
+					return a.layoutProfileEdit(gtx, f, f.profileEdit)
+				}
 				switch f.settingsSect {
 				case setSectionMain:
 					return a.setPageMain(gtx, f)
@@ -383,6 +387,7 @@ func (a *App) toggleRow(gtx layout.Context, key, label string, value bool, apply
 // frontend, many accounts" (AGENTS.md §7).
 func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&settingsRemoveBtns, len(f.accounts))
+	growClickables(&settingsProfileBtns, len(f.accounts))
 	var children []layout.FlexChild
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Accounts")
@@ -414,6 +419,15 @@ func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 										return lbl.Layout(gtx)
 									}),
 								)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								if settingsProfileBtns[i].Clicked(gtx) {
+									a.openProfileEdit(acc.ID)
+								}
+								btn := a.ui.TextButton(&settingsProfileBtns[i], "Edit profile")
+								btn.Color = a.ui.p.Accent
+								btn.TextSize = unit.Sp(13)
+								return btn.Layout(gtx)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								if settingsRemoveBtns[i].Clicked(gtx) {

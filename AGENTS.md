@@ -357,6 +357,13 @@ is the next task.
       where functionality is missing; Telegram core+GUI = exact 1:1 first
       (folders sync, ghost mode, QR verify, message actions, settings,
       search, media...), other cores follow
+      - slices 67–71 (2026-09-09): archived-chats collapsed row + view;
+        sidebar row badges (verified/premium/scam/fake + @-mention +
+        unread-reactions); slow-mode countdown + write-restriction
+        composer; group-call live bar (GetGroupCall poll + JoinGroupCall);
+        own-profile editor (avatar/username/bio/birthday). README rewritten
+        to match the real architecture (the old one described the deleted
+        bridge).
 - [ ] mumble + teamspeak rewrite (tests first, docker-based, §8)
 - [ ] Verify xmpp / bale / rubika / deltachat cores live or replace them (§8)
 - [ ] Voice mode: real call UI on top of wrtc
