@@ -356,6 +356,9 @@ func (a *App) Start() {
 		a.ui.applyAccent(cfg.AccentColor)
 		a.ui.applyFontScale(cfg.FontScale)
 		a.ui.applyBubbleCorners(cfg.BubbleCorners == nil || *cfg.BubbleCorners)
+		// Layout tweak sliders (slice 93): the effective values fold in
+		// the legacy corners toggle for older configs.
+		a.ui.applyLayoutTweaks(utils.EffectiveBubbleRadius(*cfg), utils.EffectiveWideMultiplier(*cfg))
 	}
 	// Local passcode (slice 87): boot LOCKED when the vault has one — the
 	// lock screen renders before any chat content.
@@ -1103,6 +1106,8 @@ type cfgSnapshot struct {
 	AyuSaveHistory         bool
 	AyuSaveForBots         bool
 	BubbleCorners          bool
+	BubbleRadius           int     // slice 93 layout slider (effective, legacy-folded)
+	WideMult               float64 // slice 93 layout slider (effective)
 	DownloadDir            string
 	HideAllChats           bool
 	RecentSearches         []string
@@ -1151,6 +1156,7 @@ func (a *App) openSettings(section int) {
 	settingsSwitches = make(map[string]*widget.Bool)
 	settingsSynced = make(map[string]bool)
 	ayuMarksSynced = false
+	layoutSliderSeeded = false // slice 93: re-seed layout sliders from config
 	go a.refreshConfig()
 	go a.loadStorage()
 	go a.loadAutoDl()
@@ -1200,6 +1206,8 @@ func (a *App) refreshConfig() {
 		AyuSaveHistory:         arh,
 		AyuSaveForBots:         arb,
 		BubbleCorners:          c.BubbleCorners == nil || *c.BubbleCorners,
+		BubbleRadius:           utils.EffectiveBubbleRadius(*c),
+		WideMult:               utils.EffectiveWideMultiplier(*c),
 		DownloadDir:            c.DownloadDir,
 		HideAllChats:           c.HideAllChats,
 		RecentSearches:         c.RecentSearches,

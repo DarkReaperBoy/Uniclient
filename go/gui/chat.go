@@ -656,7 +656,9 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		})
 	}
 
-	maxW := gtx.Constraints.Max.X * 3 / 4
+	// Bubble width (AyuGram "wide multiplier", slice 93): the pane
+	// fraction is configurable 0.70..1.00; default 0.75 (the old 3/4).
+	maxW := int(float64(gtx.Constraints.Max.X) * a.ui.wideMultiplier())
 	pad := gtx.Constraints.Max.X - maxW
 
 	// Selection mode: leading check circle outside the bubble (AyuGram).

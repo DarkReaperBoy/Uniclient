@@ -1297,3 +1297,22 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   SearchMessagesByTag over seeded FTS rows (bare-word and longer-tag
   exclusions, degenerate queries), applyEntity link kinds,
   isHashtagQuery. Full suite green; vet + gofmt clean.
+
+## 2026-09-09 — slice 93 (layout tweak sliders)
+
+- **Bubble corner radius slider (row 246)**: Appearance → Layout; 0-18 dp
+  replaces the slice-82 rounded/square toggle (12 = the old rounded
+  default, 2 = near-square; legacy BubbleCorners configs fold in via
+  utils.EffectiveBubbleRadius).
+- **Wide multiplier slider**: bubble max width 70-100% of the chat pane
+  (default 0.75 = the previous fixed 3/4); chat.go computes maxW from
+  UI.wideMultiplier.
+- Both apply live (UI state on the GUI loop) and persist debounced — a
+  600 ms coalescing timer means a drag is one config write, not one per
+  frame. Config: AppConfig.BubbleRadius / WideMultiplier (+ConfigChanges
+  pointers; clamped at the engine boundary).
+- Avatars stay circular (AyuGram's own default shape) — noted honestly
+  in the matrix instead of a half-working corners knob.
+- Tests: label formatting, Effective* defaults/legacy-fold/override,
+  clamps. Full suite green; vet + gofmt clean. CI Verify GREEN on
+  slices 90 (34374607937), 91 (34375695737), 92 (34376328142).

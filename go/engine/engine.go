@@ -897,6 +897,10 @@ type ConfigChanges struct {
 	// Bubble corner style (AyuGram appearance). Nil = unchanged.
 	BubbleCorners *bool
 
+	// Layout tweak sliders (AyuGram appearance, slice 93). Nil = unchanged.
+	BubbleRadius   *int
+	WideMultiplier *float64
+
 	// Proxy settings (AyuGram Data & Storage). Nil = unchanged; the GUI
 	// also pushes the live values through SetProxy for immediate effect.
 	ProxyConfig *utils.ProxyConfig
@@ -1005,6 +1009,14 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.BubbleCorners != nil {
 		e.config.BubbleCorners = changes.BubbleCorners
+	}
+	if changes.BubbleRadius != nil {
+		v := utils.ClampBubbleRadius(*changes.BubbleRadius)
+		e.config.BubbleRadius = &v
+	}
+	if changes.WideMultiplier != nil {
+		v := utils.ClampWideMultiplier(*changes.WideMultiplier)
+		e.config.WideMultiplier = &v
 	}
 	if changes.ProxyConfig != nil {
 		e.config.ProxyConfig = *changes.ProxyConfig

@@ -910,10 +910,26 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyTheme(v)
 		})
 	}))
+	// Layout tweak sliders (AyuGram appearance, slice 93): bubble corner
+	// radius replaces the legacy rounded/square toggle (radius 12 = the
+	// old rounded default, 2 = near-square); bubble width is the "wide
+	// multiplier" (0.70..1.00 of the chat pane, default 0.75).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return a.toggleRow(gtx, "appearance:corners", "Round bubble corners", f.cfg.BubbleCorners, func(v bool) {
-			a.applyBubbleCornersUI(v)
-		})
+		return a.sectionTitle(gtx, "Layout")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layoutSliderRow(a, gtx, f, &appearanceRadiusSlider,
+			"Bubble corners", "Message-bubble corner radius",
+			bubbleRadiusSliderLabel,
+			func(v float32) int { return int(v*float32(18) + 0.5) },
+			func(dp int) { a.applyLayoutTweaksUI(dp, -1) })
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layoutSliderRow(a, gtx, f, &appearanceWideSlider,
+			"Bubble width", "How wide bubbles may stretch across the pane",
+			wideSliderLabel,
+			func(v float32) float64 { return 0.70 + float64(v)*0.30 },
+			func(w float64) { a.applyLayoutTweaksUI(-1, w) })
 	}))
 	// Accent swatches (AyuGram "Choose accent color").
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {

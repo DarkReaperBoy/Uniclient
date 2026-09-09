@@ -243,7 +243,7 @@ P2 = settings/extras, P3 = rare/edge.
 | App icon selector | Alternative app icons | MISSING | P3 (platform-dependent) | P3 |
 | Ayu deleted/edited mark strings | Customizable marks | PRESENT (slice 47: settings_ayu 'Message marks' — deleted + edited mark editors w/ Apply; AppConfig.AyuDeletedMark/AyuEditedMark (empty = defaults '— deleted'/'edited '), engine ConfigChanges pointer strings; chat meta + anti-recall bodies render through them) | gui/marks.go + gui/settings.go | P2 |
 | Hide similar channels / ads / stories | Toggle sponsored & similar | MISSING | settings_ayu + engine | P3 |
-| Wide multiplier / bubble radius / avatar corners | Layout tweak sliders | MISSING | gui/theme.go | P3 |
+| Wide multiplier / bubble radius / avatar corners | Layout tweak sliders | PARTIAL (slice 93: Appearance → Layout — bubble corner radius slider 0-18 dp (supersedes the rounded/square toggle, legacy configs fold in) + bubble width 'wide multiplier' slider 70-100% of the pane; both live-applied and persisted debounced; avatars stay circular — AyuGram's own default shape) | gui/layoutsliders.go + gui/theme.go + utils/config.go | P3 |
 | Ayu toasts + logo/userpic styling | Visual polish | PARTIAL (toast exists) | gui | P3 |
 | Ayu sqlite local DB (history storage) | Own local store for deleted/edits | CORE-ONLY (engine SQLite cache_msgs has IsDeleted/EditedAt — same role) | engine | — |
 

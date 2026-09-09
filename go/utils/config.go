@@ -67,7 +67,16 @@ type AppConfig struct {
 	AyuSaveForBots *bool `json:"ayu_save_for_bots,omitempty"`
 
 	// Bubble corner style (AyuGram appearance "Corners"). Nil = rounded.
+	// Legacy boolean kept for older configs; superseded by BubbleRadius.
 	BubbleCorners *bool `json:"bubble_corners,omitempty"`
+
+	// Layout tweak sliders (AyuGram appearance, slice 93).
+	// BubbleRadius: message-bubble corner radius, 0..18 dp; nil = derive
+	// from the legacy BubbleCorners toggle (true 12 / false 2).
+	// WideMultiplier: bubble max-width factor of the pane, 0.70..1.00;
+	// nil = 0.75 (the previous fixed 3/4).
+	BubbleRadius   *int     `json:"bubble_radius,omitempty"`
+	WideMultiplier *float64 `json:"wide_multiplier,omitempty"`
 
 	// Hide the "All chats" folder tab (AyuGram folder settings).
 	HideAllChats bool `json:"hide_all_chats,omitempty"`
@@ -180,4 +189,46 @@ func MergeDefaults(cfg *AppConfig) {
 	if !cfg.DNSFallback {
 		cfg.DNSFallback = defaults.DNSFallback
 	}
+}
+
+// ClampBubbleRadius bounds the bubble-corner slider (0..18 dp).
+func ClampBubbleRadius(v int) int {
+	if v < 0 {
+		return 0
+	}
+	if v > 18 {
+		return 18
+	}
+	return v
+}
+
+// ClampWideMultiplier bounds the bubble-width slider (0.70..1.00).
+func ClampWideMultiplier(v float64) float64 {
+	if v < 0.70 {
+		return 0.70
+	}
+	if v > 1.00 {
+		return 1.00
+	}
+	return v
+}
+
+// EffectiveBubbleRadius resolves the active bubble radius: the new
+// slider value wins; older configs derive from the corners toggle. Pure.
+func EffectiveBubbleRadius(cfg AppConfig) int {
+	if cfg.BubbleRadius != nil {
+		return ClampBubbleRadius(*cfg.BubbleRadius)
+	}
+	if cfg.BubbleCorners != nil && !*cfg.BubbleCorners {
+		return 2
+	}
+	return 12
+}
+
+// EffectiveWideMultiplier resolves the active bubble-width factor. Pure.
+func EffectiveWideMultiplier(cfg AppConfig) float64 {
+	if cfg.WideMultiplier != nil {
+		return ClampWideMultiplier(*cfg.WideMultiplier)
+	}
+	return 0.75
 }

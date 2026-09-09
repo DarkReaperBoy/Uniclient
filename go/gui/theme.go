@@ -26,6 +26,7 @@ import (
 	"gioui.org/widget/material"
 
 	"uniclient/engine"
+	"uniclient/utils"
 )
 
 // AyuGram-ish dark palette (Telegram dark + accent).
@@ -118,7 +119,22 @@ func (u *UI) applyBubbleCorners(round bool) {
 
 // bubbleRadius is the active message-bubble corner radius in dp.
 func (u *UI) bubbleRadius() int {
-	return bubbleRadiusFor(u.bubbleCornersOn)
+	return u.bubbleRadiusDp
+}
+
+// applyLayoutTweaks sets the slice-93 slider values (already clamped by
+// the engine helpers at the config boundary).
+func (u *UI) applyLayoutTweaks(radiusDp int, wideMult float64) {
+	u.bubbleRadiusDp = utils.ClampBubbleRadius(radiusDp)
+	u.wideMult = utils.ClampWideMultiplier(wideMult)
+}
+
+// wideMultiplier is the active bubble max-width factor (0.70..1.00).
+func (u *UI) wideMultiplier() float64 {
+	if u.wideMult <= 0 {
+		return 0.75
+	}
+	return u.wideMult
 }
 
 // clampFontScale bounds the text scale to a sane, still-usable range.
@@ -207,8 +223,14 @@ type UI struct {
 	fontScale float64 // global text scale (AyuGram appearance, slice 59)
 	accentHex string  // applied accent (survives theme switches)
 	// Round bubble corners (AyuGram appearance "Corners", slice 82):
-	// true = 12dp rounded, false = 2dp near-square.
+	// true = 12dp rounded, false = 2dp near-square. Superseded by the
+	// slice-93 radius slider (bubbleRadiusDp) but kept for legacy configs.
 	bubbleCornersOn bool
+	// Layout tweak sliders (AyuGram appearance, slice 93):
+	// bubble radius in dp (0..18) and the bubble max-width factor of the
+	// chat pane (0.70..1.00).
+	bubbleRadiusDp int
+	wideMult       float64
 }
 
 // notoEmoji is the monochrome Noto Emoji face (SIL OFL 1.1, see assets/OFL.txt).
