@@ -1072,6 +1072,8 @@ type cfgSnapshot struct {
 	AyuSaveHistory         bool
 	AyuSaveForBots         bool
 	BubbleCorners          bool
+	DownloadDir            string
+	HideAllChats           bool
 	RecentSearches         []string
 	DrawerHidden           []string
 	Streamer               bool
@@ -1167,6 +1169,8 @@ func (a *App) refreshConfig() {
 		AyuSaveHistory:         arh,
 		AyuSaveForBots:         arb,
 		BubbleCorners:          c.BubbleCorners == nil || *c.BubbleCorners,
+		DownloadDir:            c.DownloadDir,
+		HideAllChats:           c.HideAllChats,
 		RecentSearches:         c.RecentSearches,
 		DrawerHidden:           c.DrawerHiddenItems,
 		Streamer:               c.StreamerMode,

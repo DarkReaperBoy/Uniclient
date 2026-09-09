@@ -166,7 +166,7 @@ func (a *App) onSidebarPress(f frame, pe pointer.Event) {
 	}
 	// Folder tabs first (right-click a server folder tab → its menu).
 	if f.folderDlg == nil {
-		tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported)
+		tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported, f.cfg.HideAllChats)
 		for i, r := range a.sbTabBounds {
 			if pointInRect(pos, r) && i < len(tabs) && tabs[i].kind == folderTabServer && tabs[i].folder != nil {
 				a.openFolderMenu(*tabs[i].folder, f.foldersFor, pos)

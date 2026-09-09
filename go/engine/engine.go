@@ -222,6 +222,22 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 		e.saveForBots = *cfg.AyuSaveForBots
 	}
 
+	// Proxy settings restored from the persisted config (Mode 2 = custom).
+	if pc := cfg.ProxyConfig; pc.Host != "" || pc.Mode > 0 {
+		e.proxyMode = pc.Mode
+		e.proxyHost = pc.Host
+		e.proxyType = strings.ToLower(pc.Type)
+		e.proxyUser = pc.Username
+		e.proxyPass = pc.Password
+		if p, err := strconv.Atoi(strings.TrimSpace(pc.Port)); err == nil {
+			e.proxyPort = p
+		}
+	}
+	// Persisted download path overrides the bootstrap default.
+	if cfg.DownloadDir != "" {
+		e.downloadDir = cfg.DownloadDir
+	}
+
 	// Open SQLite database.
 	e.db, err = OpenDB(cacheDir)
 	if err != nil {
@@ -348,6 +364,28 @@ func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass
 	log.Printf("[engine] SetProxy: mode=%d type=%s host=%s:%d ipv6=%v forCalls=%v rotation=%v/%ds",
 		mode, proxyType, host, port, ipv6, forCalls, rotationEnabled, rotationTimeout)
 	e.applyProxyToAllCores()
+}
+
+// GetProxySettings reports the live proxy settings (mode 0/1/2, and
+// the custom fields). Read by the settings UI.
+func (e *Engine) GetProxySettings() (mode int, host string, port int, ptype, user, pass string) {
+	e.proxyMu.RLock()
+	defer e.proxyMu.RUnlock()
+	return e.proxyMode, e.proxyHost, e.proxyPort, e.proxyType, e.proxyUser, e.proxyPass
+}
+
+// SetDownloadDir switches the downloads directory (created when needed).
+func (e *Engine) SetDownloadDir(dir string) error {
+	if dir == "" {
+		return nil
+	}
+	if err := ensureDir(dir); err != nil {
+		return err
+	}
+	e.mu.Lock()
+	e.downloadDir = dir
+	e.mu.Unlock()
+	return nil
 }
 
 // currentProxyConfig builds the cores.ProxyConfig from the engine's stored proxy
@@ -858,6 +896,13 @@ type ConfigChanges struct {
 	AyuSaveForBots *bool
 	// Bubble corner style (AyuGram appearance). Nil = unchanged.
 	BubbleCorners *bool
+
+	// Proxy settings (AyuGram Data & Storage). Nil = unchanged; the GUI
+	// also pushes the live values through SetProxy for immediate effect.
+	ProxyConfig *utils.ProxyConfig
+
+	// Hide the "All chats" folder tab.
+	HideAllChats *bool
 }
 
 // UpdateConfigFromBridge applies partial config changes from the bridge layer.
@@ -960,6 +1005,12 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.BubbleCorners != nil {
 		e.config.BubbleCorners = changes.BubbleCorners
+	}
+	if changes.ProxyConfig != nil {
+		e.config.ProxyConfig = *changes.ProxyConfig
+	}
+	if changes.HideAllChats != nil {
+		e.config.HideAllChats = *changes.HideAllChats
 	}
 
 	return e.vault.SetConfig(e.config)

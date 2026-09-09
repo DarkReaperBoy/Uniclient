@@ -39,10 +39,14 @@ type folderTab struct {
 }
 
 // buildFolderTabs derives the tab row for the current scope.
-func buildFolderTabs(acctFilter string, folders []engine.FolderInfo, supported bool) []folderTab {
+func buildFolderTabs(acctFilter string, folders []engine.FolderInfo, supported, hideAll bool) []folderTab {
 	tabs := []folderTab{
-		{name: "All", kind: folderTabAll},
 		{name: "Unread", kind: folderTabUnread},
+	}
+	if !hideAll {
+		// AyuGram "hide all chats folder": the All tab drops, the first
+		// real folder becomes the default view.
+		tabs = append([]folderTab{{name: "All", kind: folderTabAll}}, tabs...)
 	}
 	if acctFilter != "" && supported {
 		for i := range folders {
@@ -134,7 +138,7 @@ func (a *App) refreshFolders(accountID string) {
 		if err == nil && a.acctFilter == accountID {
 			a.folders = folders
 			a.foldersSupported = supported
-			if a.folder >= len(buildFolderTabs(accountID, folders, supported)) {
+			if a.folder >= len(buildFolderTabs(accountID, folders, supported, false)) {
 				a.folder = 0
 			}
 		}

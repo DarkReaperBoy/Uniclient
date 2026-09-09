@@ -1092,3 +1092,23 @@ deployment fix + v0.5.0 pre-release. All gates green locally and in CI.
 - Matrix audit: row 223 (call bar) was stale — callbar.go (slice 70)
   already renders the active-call bar; row 210 updated for the
   anti-recall section.
+
+## 2026-09-09 — slice 85 (proxy settings, download path, hide All-chats)
+
+- **Proxy settings** (Data & Storage, row 196): mode segments
+  (Disabled / System / Custom) + type segments (SOCKS5 / HTTP / MTProto)
+  + host/port/user/pass fields. Apply pushes engine.SetProxy (live cores
+  redial through it immediately) and persists AppConfig.ProxyConfig —
+  Init restores the proxy before the first connect. engine.GetProxy
+  Settings seeds the form.
+- **Download path** (same page): editor → engine.SetDownloadDir (created
+  when needed) + persisted; Init prefers the configured path over the
+  bootstrap default.
+- **Hide All-chats** (Main → Chat folders): the toggle drops the All
+  tab from the folder bar (buildFolderTabs hideAll; Unread stays first,
+  server folders follow) — persisted HideAllChats config.
+- utils.ProxyConfig gained a Mode field (0/1/2).
+
+Tests: proxy segment mappings, port normalization (junk/bounds), config
+persist shape; buildFolderTabsHideAll (All gone, order preserved). Full
+suite green under node+wasm; engine+utils native green; vet + gofmt clean.

@@ -398,7 +398,7 @@ func (a *App) searchField(gtx layout.Context, f frame) layout.Dimensions {
 func (a *App) layoutFolders(gtx layout.Context, f frame) layout.Dimensions {
 	// Real server folders when an account is scoped and its core supports
 	// them; smart fallback tabs otherwise (AyuGram parity §2).
-	tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported)
+	tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported, f.cfg.HideAllChats)
 	for len(folderBtns) < len(tabs) {
 		folderBtns = append(folderBtns, widget.Clickable{})
 	}
@@ -445,7 +445,7 @@ var (
 // filterChats applies folder + search.
 func filterChats(f frame) []engine.ChatInfo {
 	q := strings.ToLower(strings.TrimSpace(f.search))
-	tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported)
+	tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported, f.cfg.HideAllChats)
 	tab := folderTab{kind: folderTabAll}
 	if f.folder >= 0 && f.folder < len(tabs) && !f.archiveView {
 		tab = tabs[f.folder]

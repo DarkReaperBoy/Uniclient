@@ -112,6 +112,8 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 		c.AyuSaveForBots = &b
 	case "bubble_corners":
 		c.BubbleCorners = &b
+	case "hide_all_chats":
+		c.HideAllChats = &b
 	default:
 		return nil
 	}
@@ -489,6 +491,16 @@ func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 			return btn.Layout(gtx)
 		})
 	}))
+	// Chat folders (AyuGram folder settings, slice 85): hide the All tab.
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Chat folders")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:hide_all_chats", `Hide "All chats" tab`, f.cfg.HideAllChats, func(v bool) {
+			a.applyConfigBool("hide_all_chats", v)
+		})
+	}))
+
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
@@ -751,6 +763,10 @@ func (a *App) setPageData(gtx layout.Context, f frame) layout.Dimensions {
 			)
 		}))
 	}
+	// Proxy + download path (slice 85).
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.layoutProxySection(gtx, f)
+	}))
 	// Automatic media download rows (slice 63): one per source, value
 	// summarizes the live rules; tap opens the editor dialog.
 	growClickables(&autodlRowBtns, len(autodlSourceLabels))

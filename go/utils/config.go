@@ -6,8 +6,10 @@ import (
 	"os"
 )
 
-// ProxyConfig holds proxy connection settings.
+// ProxyConfig holds proxy connection settings. Mode: 0 = disabled,
+// 1 = system, 2 = custom (the fields below apply in custom mode).
 type ProxyConfig struct {
+	Mode     int    `json:"mode,omitempty"`
 	Type     string `json:"type"`
 	Host     string `json:"host"`
 	Port     string `json:"port"`
@@ -66,6 +68,9 @@ type AppConfig struct {
 
 	// Bubble corner style (AyuGram appearance "Corners"). Nil = rounded.
 	BubbleCorners *bool `json:"bubble_corners,omitempty"`
+
+	// Hide the "All chats" folder tab (AyuGram folder settings).
+	HideAllChats bool `json:"hide_all_chats,omitempty"`
 
 	// Drawer customization (Ayu "drawer" menu): ids of hidden rows.
 	DrawerHiddenItems []string `json:"drawer_hidden_items,omitempty"`
