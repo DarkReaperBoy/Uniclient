@@ -27,7 +27,7 @@ import (
 // settingsSections is the rail, in AyuGram's order.
 var settingsSections = []string{
 	"Main", "Notifications", "Privacy & Security", "Data & Storage",
-	"Appearance", "Ayu", "About",
+	"Appearance", "Calls", "Ayu", "About",
 }
 
 const (
@@ -36,6 +36,7 @@ const (
 	setSectionPrivacy
 	setSectionData
 	setSectionAppearance
+	setSectionCalls
 	setSectionAyu
 	setSectionAbout
 )
@@ -47,6 +48,7 @@ var sectionIcons = []*widget.Icon{
 	iconActionLock,
 	iconActionBackup,
 	iconImagePalette,
+	iconHardwareHeadset, // Calls (slice 103)
 	iconActionGhost,
 	iconActionInfo,
 }
@@ -344,6 +346,8 @@ func (a *App) settingsPage(gtx layout.Context, f frame) layout.Dimensions {
 					return a.setPageData(gtx, f)
 				case setSectionAppearance:
 					return a.setPageAppearance(gtx, f)
+				case setSectionCalls:
+					return a.setPageCalls(gtx, f)
 				case setSectionAyu:
 					return a.setPageAyu(gtx, f)
 				default:

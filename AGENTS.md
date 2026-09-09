@@ -368,5 +368,11 @@ is the next task.
         architecture (the old one described the deleted bridge).
 - [ ] mumble + teamspeak rewrite (tests first, docker-based, §8)
 - [ ] Verify xmpp / bale / rubika / deltachat cores live or replace them (§8)
-- [ ] Voice mode: real call UI on top of wrtc
+- [x] Voice mode: real call UI on top of wrtc — slices 101-103 (2026-09-10):
+      1:1 call overlay (header call buttons on DMs, incoming-call ringing
+      overlay via EventIncomingCall, accept/decline/mute/camera/end,
+      elapsed timer), group-call screen (join from call bar or Voice rows,
+      participants w/ speaking states, mute/raise-hand/leave, auto-close
+      when the call ends), Calls settings section (device pickers +
+      in-call noise suppression)
 - [ ] First non-prerelease when owner approves

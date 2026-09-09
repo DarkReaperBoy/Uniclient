@@ -1379,3 +1379,83 @@ Session ledger (since v0.6.0):
   34375695737, 34376328142, 34377086950, 34377706476, 34378611565).
 - Tagging v0.7.0 (prerelease per §1.5): 4 platform binaries + web
   redeploy via the release pipeline.
+
+## 2026-09-10 — slices 101-103 (voice mode: real call UI)
+
+Session goal: the §11 unchecked "Voice mode: real call UI on top of wrtc"
+item — the engine's complete call API (1:1 + group) was never surfaced in
+the GUI (3 P1 + 1 P2 CORE-ONLY rows in the matrix).
+
+### slice 101 — 1:1 call overlay
+
+- **Header call buttons**: phone + video icons on DM chats, gated on the
+  account's CALLS capability (cached per-account on chat open, hdrCaps) and
+  non-bot peers; groups/channels keep the group-call bar. Hidden otherwise —
+  no dead buttons (§1.10).
+- **Outgoing flow**: StartCall → full-window dark call overlay (scrim over
+  everything but toast/shortcuts): peer avatar (real userpic when the chat
+  is loaded, streamer-masked), name, video tag, status line.
+- **Incoming flow**: EventIncomingCall (previously an unused event!) raises
+  the ringing overlay — green answer / red decline round controls;
+  EventCallState drives the state machine.
+- **State machine (pure, pinned by tests)**: ringing → connecting → active
+  → ended; monotonic (stale ringing never rewinds an active call; ended is
+  terminal), startedAt stamped once so the elapsed timer (1s invalidation
+  ticker, runs only while the exact session is active) is stable; the ended
+  panel freezes the call duration and auto-dismisses after 4s.
+- **Controls**: mute (SetCallMuted), camera toggle on video calls
+  (ToggleCamera), end (EndCall), decline (DeclineCall — closes the panel
+  immediately), accept (AcceptCall, optimistic connecting). Esc declines a
+  ring / cancels outgoing / dismisses the ended panel — but never silently
+  hangs up an ACTIVE call (the red button is the only way, AyuGram-safe).
+- Call-end refreshes the Voice tab's recent-calls history.
+
+### slice 102 — group call screen
+
+- **Joining is real now**: the call-bar JOIN and a new JOIN on Voice-tab
+  active-call rows record the joined call (JoinGroupCall's returned callID)
+  and the Voice tab becomes the call screen.
+- **Call screen**: title + live participant count (GetGroupCall polled
+  every 2s — faster than the bar's 5s because speaking indicators need
+  fresher data), participants list with speaking dot, mic-off/hand/video
+  icons, anonymous fallback "Participant", self sorted first with "(You)".
+- **Controls**: mute (SetCallMuted — server truth wins over the optimistic
+  local mirror once self appears in the list), raise hand (RaiseHand —
+  offered only to force-muted self: IsMuted && !CanSelfUnmute), leave
+  (LeaveGroupCall + toast + history refresh).
+- The poll closes the screen itself when the engine reports the call
+  inactive; transient fetch errors keep the last snapshot (never blanks).
+- EventGroupCallState now refreshes the chat list (HasActiveCall stays
+  current even without chat snapshots).
+
+### slice 103 — Calls settings (device pickers) + noise suppression
+
+- **Settings → Calls section** (rail order: … Appearance, Calls, Ayu … —
+  AyuGram's): mic/speaker/camera pickers over the engine's real OS device
+  enumeration (GetAudioDevices: pactl/ALSA/v4l2 on Linux; the Default
+  sentinel everywhere). Selection persists (SetCallAudioDevice) and
+  re-renders from the config snapshot; a stale current (unplugged device)
+  selects nothing.
+- **Noise suppression**: in-call toggle on the group-call screen
+  (SetNoiseSuppression), stateful label.
+- refreshConfig's inline config→snapshot mapping extracted to pure
+  cfgFromAppConfig (testable; device fields added).
+
+### verification
+
+- Tests first per §9: 25 new gui tests (state machine, gating, controls,
+  rows, pickers, labels) — one real bug caught pre-commit (the ended-state
+  duration must freeze at endedAt, not drift with `now`).
+- Full gate green: native engine/cores/utils/bootstrap + gui under
+  node+wasm; gofmt clean; vet clean (gui wasm + native pkgs).
+- wasm + windows/amd64 binaries build locally (70MB / 56MB unstripped
+  toolchain builds; CI strips+UPX).
+- Parity matrix: 107 PRESENT / 27 PARTIAL / 10 MISSING / 57 CORE-ONLY.
+
+### leftovers
+
+- 1:1 video: local camera preview rendering (engine video-frame APIs
+  remain CORE-ONLY) — the toggle dispatches, no preview yet.
+- Group-call admin actions (invite/recording/RTMP/title edit) remain
+  engine-gated matrix rows.
+- Call rating dialog (SendCallRating) remains CORE-ONLY (P3).

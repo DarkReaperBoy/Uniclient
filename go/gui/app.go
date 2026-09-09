@@ -51,6 +51,11 @@ func (a *App) Root(gtx layout.Context) {
 	if f.viewer != nil {
 		a.layoutMediaView(gtx, f)
 	}
+	// 1:1 call overlay (slice 101): modal over everything except the
+	// toast + shortcut layers.
+	if f.call != nil {
+		a.layoutCallOverlay(gtx, f)
+	}
 	if f.drawerOpen {
 		a.layoutDrawer(gtx, f)
 	}

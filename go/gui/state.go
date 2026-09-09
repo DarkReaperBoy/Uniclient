@@ -62,6 +62,23 @@ type App struct {
 	groupCall   *engine.GroupCallInfo
 	callPollFor *chatKey
 
+	// 1:1 call overlay (slice 101): the active DM call panel, fed by
+	// EventIncomingCall/EventCallState or a header StartCall.
+	call *callUI
+
+	// header call-button capability cache (slice 101): caps of the open
+	// chat's account — the phone/video buttons gate on CALLS.
+	hdrCaps    []string
+	hdrCapsFor string
+
+	// joined group call (slice 102): the call the user is in + its polled
+	// participant snapshot (the Voice tab becomes the call screen).
+	joinedGC     *joinedCall
+	joinedGCInfo *engine.GroupCallInfo
+
+	// call device pickers (slice 103): type → enumerated OS devices.
+	devPickers map[string]*devPickerState
+
 	// slow-mode countdown redraw guard (slice 69).
 	slowTickPending bool
 
@@ -595,6 +612,21 @@ func (a *App) onEvent(data []byte) {
 			a.onExportComplete(ev, env.AccountID)
 			a.setToast("Export complete")
 		}
+	// 1:1 call overlay (slice 101): ringing + state transitions.
+	case engine.EventIncomingCall:
+		var c cores.CallSession
+		if json.Unmarshal(env.Data, &c) == nil {
+			a.onIncomingCallEvent(env.AccountID, &c)
+		}
+	case engine.EventCallState:
+		var c cores.CallSession
+		if json.Unmarshal(env.Data, &c) == nil {
+			a.onCallStateEvent(env.AccountID, &c)
+		}
+	// Group-call state events keep the chat list's HasActiveCall current
+	// even without a chat snapshot (group calls start/stop at any time).
+	case engine.EventGroupCallState:
+		go a.refreshChats()
 	}
 }
 
@@ -973,6 +1005,7 @@ func (a *App) openChat(k chatKey, title string) {
 	}
 	a.syncCallPoll() // slice 70: start the live-call poll if this chat has one
 	a.loadBotCmds(k) // slice 76: fetch the chat's bot commands
+	a.loadHdrCaps(k) // slice 101: header call-button capabilities
 	a.invalidate()
 	go func() {
 		msgs, err := a.eng.GetMessages(k.AccountID, k.ChatID, 0, 0, 100)
@@ -1153,6 +1186,11 @@ type cfgSnapshot struct {
 	RecentSearches         []string
 	DrawerHidden           []string
 	Streamer               bool
+
+	// call devices (slice 103): "" = system default
+	CallInputDevice  string
+	CallOutputDevice string
+	CallCameraDevice string
 }
 
 // notifyAcctState carries per-account notification behavior for the page.
@@ -1204,6 +1242,7 @@ func (a *App) openSettings(section int) {
 	go a.loadNotifyAccts()
 	go a.loadPrivacy()
 	go a.loadGhost()
+	go a.loadCallDevices() // slice 103: call device pickers
 	a.invalidate()
 }
 
@@ -1220,40 +1259,8 @@ func (a *App) refreshConfig() {
 	if c == nil {
 		return
 	}
-	// Anti-recall live view: nil config keys → engine defaults.
-	ard, arh, arb := antiRecallFromConfig(c)
-	snap := cfgSnapshot{
-		Theme:                  c.Theme,
-		Accent:                 c.AccentColor,
-		FontScale:              c.FontScale,
-		SendReadReceipts:       c.SendReadReceipts,
-		LocalReadMark:          c.LocalReadMark,
-		SendTyping:             c.SendTyping,
-		SendUploadProgress:     c.SendUploadProgress,
-		SendReadStories:        c.SendReadStories,
-		SendOnlinePackets:      c.SendOnlinePackets,
-		SendOfflineAfterOnline: c.SendOfflineAfterOnline,
-		MarkReadAfterAction:    c.MarkReadAfterAction,
-		UseScheduledMessages:   c.UseScheduledMessages,
-		SendWithoutSound:       c.SendWithoutSound,
-		NotifyDMs:              c.NotifyDMs,
-		NotifyGroups:           c.NotifyGroups,
-		NotifyMentionsOnly:     c.NotifyMentionsOnly,
-		NotifyPreviews:         c.NotifyPreviewsEnabled(),
-		AyuDeletedMark:         c.AyuDeletedMark,
-		AyuEditedMark:          c.AyuEditedMark,
-		AyuSaveDeleted:         ard,
-		AyuSaveHistory:         arh,
-		AyuSaveForBots:         arb,
-		BubbleCorners:          c.BubbleCorners == nil || *c.BubbleCorners,
-		BubbleRadius:           utils.EffectiveBubbleRadius(*c),
-		WideMult:               utils.EffectiveWideMultiplier(*c),
-		DownloadDir:            c.DownloadDir,
-		HideAllChats:           c.HideAllChats,
-		RecentSearches:         c.RecentSearches,
-		DrawerHidden:           c.DrawerHiddenItems,
-		Streamer:               c.StreamerMode,
-	}
+	// Pure mapping lives in cfgFromAppConfig (callsettings.go, slice 103).
+	snap := cfgFromAppConfig(c)
 	a.mu.Lock()
 	a.cfg = snap
 	a.mu.Unlock()
@@ -1531,6 +1538,8 @@ func (a *App) snapshot() frame {
 		searchFor:        a.searchFor,
 		archiveView:      a.archiveView,
 		groupCall:        a.groupCall,
+		call:             a.call,
+		hdrCaps:          a.hdrCaps,
 		botCmds:          a.botCmds,
 		botCmdsOn:        a.botCmdsOn,
 		botCmdsLoaded:    a.botCmdsLoaded,
@@ -1693,6 +1702,17 @@ type frame struct {
 
 	// group-call live bar (slice 70): polled info for the open chat
 	groupCall *engine.GroupCallInfo
+
+	// 1:1 call overlay (slice 101)
+	call    *callUI
+	hdrCaps []string
+
+	// joined group call (slice 102)
+	joinedGC     *joinedCall
+	joinedGCInfo *engine.GroupCallInfo
+
+	// call device pickers (slice 103)
+	devPickers map[string]*devPickerState
 
 	// bot commands panel (slice 76)
 	botCmds       []engine.BotCommandInfo

@@ -33,6 +33,9 @@ var (
 	headerOkBtn    widget.Clickable
 
 	headerSearchBtn widget.Clickable // in-chat search toggle (slice 18)
+
+	headerVoiceCallBtn widget.Clickable // 1:1 voice call (slice 101)
+	headerVideoCallBtn widget.Clickable // 1:1 video call (slice 101)
 )
 
 // headerMenuConfirmText maps a confirm id to its dialog copy.

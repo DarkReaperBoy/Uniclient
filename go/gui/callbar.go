@@ -56,10 +56,14 @@ func (a *App) callBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 	if callJoinBtn.Clicked(gtx) {
 		acc, id, title := chat.AccountID, chat.ChatID, chat.Title
 		go func() {
-			if _, err := a.eng.JoinGroupCall(acc, id); err != nil {
+			callID, err := a.eng.JoinGroupCall(acc, id)
+			if err != nil {
 				a.setToast("Join failed: " + err.Error())
 				return
 			}
+			// Slice 102: record the joined call — the Voice tab becomes
+			// the group-call screen (participants, mute, leave).
+			a.setJoinedCall(acc, callID, id, title)
 			a.setToast(callJoinedLabel(title))
 			a.mu.Lock()
 			a.mode = 1

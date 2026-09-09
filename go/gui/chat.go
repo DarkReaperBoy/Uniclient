@@ -292,6 +292,44 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 					dot := connDotFor(acc)
 					return statusChip(gtx, a.ui, dot)
 				}),
+				// 1:1 call buttons (slice 101): phone + video for callable DMs,
+				// capability-gated (hidden otherwise — never dead UI, §1.10).
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					voice, _ := false, false
+					if chat != nil {
+						voice, _ = dmCallButtons(*chat, f.hdrCaps)
+					}
+					if !voice {
+						return layout.Dimensions{}
+					}
+					if headerVoiceCallBtn.Clicked(gtx) {
+						c := *chat
+						a.startDMCall(c, false)
+					}
+					return layout.Inset{Left: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						btn := a.ui.IconButton(&headerVoiceCallBtn, iconCommunicationCall, "Voice call")
+						btn.Color = a.ui.p.TextDim
+						return btn.Layout(gtx)
+					})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					video := false
+					if chat != nil {
+						_, video = dmCallButtons(*chat, f.hdrCaps)
+					}
+					if !video {
+						return layout.Dimensions{}
+					}
+					if headerVideoCallBtn.Clicked(gtx) {
+						c := *chat
+						a.startDMCall(c, true)
+					}
+					return layout.Inset{Left: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						btn := a.ui.IconButton(&headerVideoCallBtn, iconAVVideocam, "Video call")
+						btn.Color = a.ui.p.TextDim
+						return btn.Layout(gtx)
+					})
+				}),
 				// search — in-chat search (AyuGram, slice 18)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if headerSearchBtn.Clicked(gtx) {

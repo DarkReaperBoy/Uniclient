@@ -44,6 +44,7 @@ func escTarget(f frame) string {
 		f.inviteDlg != nil,
 		f.newDlg != nil,
 		f.viewer != nil,
+		f.call != nil, // self-handled: the call overlay has its own Esc layer (slice 101)
 		f.drawerOpen,
 		f.contactsOpen,
 		f.settingsOpen,

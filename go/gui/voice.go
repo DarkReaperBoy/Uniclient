@@ -28,6 +28,10 @@ func init() {
 // are empty, an honest empty state — no promises, no placeholders
 // (AGENTS.md §7).
 func (a *App) layoutVoice(gtx layout.Context, f frame) layout.Dimensions {
+	// Joined group call (slice 102): the tab becomes the call screen.
+	if f.joinedGC != nil {
+		return a.layoutGroupCallScreen(gtx, f)
+	}
 	active := chatsWithCalls(f)
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -291,10 +295,13 @@ func chatsWithCalls(f frame) []engine.ChatInfo {
 	return out
 }
 
-// voiceRow: one active-call row. Informational only — real call UI (join
-// screen, mic/speaker controls on wrtc) lands with the voice backends; a
-// dead "Join" button is banned (AGENTS.md §1.10).
+// voiceRow: one active-call row (slice 102: JOIN is a real action now that
+// the group-call screen exists — join, poll, and the call screen replaces
+// the tab).
 func (a *App) voiceRow(gtx layout.Context, f frame, c engine.ChatInfo) layout.Dimensions {
+	if btn := gcRowJoinBtnFor(c.ChatID); btn.Clicked(gtx) {
+		a.joinGroupCallFromVoice(c)
+	}
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -316,6 +323,11 @@ func (a *App) voiceRow(gtx layout.Context, f frame, c engine.ChatInfo) layout.Di
 								return lbl.Layout(gtx)
 							}),
 						)
+					}),
+					// JOIN (slice 102): real engine join → the call screen.
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						btn := a.ui.PrimaryButton(gcRowJoinBtnFor(c.ChatID), "JOIN")
+						return btn.Layout(gtx)
 					}),
 				)
 			})

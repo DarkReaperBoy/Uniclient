@@ -13,7 +13,7 @@ import (
 func TestSettingsSections(t *testing.T) {
 	want := []string{
 		"Main", "Notifications", "Privacy & Security", "Data & Storage",
-		"Appearance", "Ayu", "About",
+		"Appearance", "Calls", "Ayu", "About",
 	}
 	if len(settingsSections) != len(want) {
 		t.Fatalf("settingsSections len = %d, want %d", len(settingsSections), len(want))
