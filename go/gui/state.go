@@ -108,9 +108,12 @@ type App struct {
 
 	// settings surface (AyuGram parity slice 3): open view + section, the
 	// config snapshot for the toggles, and async-loaded page data.
-	settingsOpen   bool
-	settingsSect   int
-	cfg            cfgSnapshot
+	settingsOpen bool
+	settingsSect int
+	cfg          cfgSnapshot
+	// local passcode lock (slice 87): vault-backed PIN gate + editor dialog.
+	lock           *lockState
+	lockDlg        *lockDlgState
 	notifyAccts    map[string]notifyAcctState
 	notifyLoaded   bool
 	blockedUsers   map[string][]cores.User
@@ -344,6 +347,14 @@ func (a *App) Start() {
 		a.ui.applyAccent(cfg.AccentColor)
 		a.ui.applyFontScale(cfg.FontScale)
 		a.ui.applyBubbleCorners(cfg.BubbleCorners == nil || *cfg.BubbleCorners)
+	}
+	// Local passcode (slice 87): boot LOCKED when the vault has one — the
+	// lock screen renders before any chat content.
+	if data, err := eng.GetPasscodeConfig(); err != nil {
+		a.setToast("Passcode: " + err.Error())
+	} else if st := lockFromConfig(data); st != nil {
+		st.lastActive = time.Now()
+		a.lock = st
 	}
 	eng.SetEventCallback(func(data []byte) { a.onEvent(data) })
 	go a.refreshAccounts()
@@ -1487,6 +1498,8 @@ func (a *App) snapshot() frame {
 		settingsOpen:     a.settingsOpen,
 		settingsSect:     a.settingsSect,
 		cfg:              a.cfg,
+		lock:             a.lock,
+		lockDlg:          a.lockDlg,
 		notifyAccts:      a.notifyAccts,
 		notifyLoaded:     a.notifyLoaded,
 		blockedUsers:     a.blockedUsers,
@@ -1650,6 +1663,8 @@ type frame struct {
 	settingsOpen   bool
 	settingsSect   int
 	cfg            cfgSnapshot
+	lock           *lockState
+	lockDlg        *lockDlgState
 	notifyAccts    map[string]notifyAcctState
 	notifyLoaded   bool
 	blockedUsers   map[string][]cores.User

@@ -29,6 +29,18 @@ func (a *App) Root(gtx layout.Context) {
 	f := a.snapshot()
 	a.ui.paintBackground(gtx)
 
+	// Local passcode gate (slice 87): locked → ONLY the lock screen
+	// renders (no chat content is drawn while locked). Unlocked → the
+	// pass-through activity listener feeds the autolock timer.
+	if f.lock != nil {
+		if f.lock.locked {
+			a.layoutLockScreen(gtx, f)
+			return
+		}
+		a.lockActivityLayer(gtx, f)
+		a.lockTick(f)
+	}
+
 	if len(f.accounts) == 0 && f.auth == nil {
 		a.layoutWelcome(gtx, f)
 		a.layoutToast(gtx, f)
@@ -96,6 +108,10 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 		}
 		if f.privacyDlg != nil {
 			a.layoutPrivacyScopeDialog(gtx, f)
+			return
+		}
+		if f.lockDlg != nil {
+			a.layoutLockDialog(gtx, f)
 			return
 		}
 		if f.autoDlDlg != nil {
@@ -171,6 +187,9 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			}
 			if f.privacyDlg != nil {
 				return a.layoutPrivacyScopeDialog(gtx, f)
+			}
+			if f.lockDlg != nil {
+				return a.layoutLockDialog(gtx, f)
 			}
 			if f.autoDlDlg != nil {
 				return a.layoutAutoDownloadDialog(gtx, f)

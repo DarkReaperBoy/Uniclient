@@ -618,6 +618,7 @@ func (a *App) setPageNotifications(gtx layout.Context, f frame) layout.Dimension
 // setPagePrivacy: privacy scopes (slice 62), blocked users, and active
 // sessions per account.
 var privacyRowBtns []widget.Clickable
+var lockRowBtns []widget.Clickable // passcode row (slice 87)
 
 func (a *App) setPagePrivacy(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&privacyRowBtns, len(f.accounts)*len(privacyKeyLabels))
@@ -631,6 +632,49 @@ func (a *App) setPagePrivacy(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
+	// Security (slice 87): app-level local passcode lock — not per-account.
+	growClickables(&lockRowBtns, 1)
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.subHeader(gtx, "Security")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		btn := &lockRowBtns[0]
+		if btn.Clicked(gtx) {
+			a.openLockDialog()
+		}
+		bl := material.ButtonLayout(a.ui.Theme, btn)
+		bl.Background = a.ui.p.Surface
+		bl.CornerRadius = 10
+		return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					value := "Off"
+					if f.lock != nil {
+						value = "On · " + itoa(f.lock.digits) + " digits"
+						if f.lock.autolockMin > 0 {
+							value += " · auto-lock " + autolockLabel(f.lock.autolockMin)
+						}
+					}
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								gtx.Constraints.Min.X = gtx.Dp(unit.Dp(22))
+								return iconActionLock.Layout(gtx, a.ui.p.TextDim)
+							})
+						}),
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return a.ui.Label(unit.Sp(14), "Passcode Lock").Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							lbl := a.ui.Dim(unit.Sp(12), value)
+							lbl.Color = a.ui.p.TextFaint
+							return lbl.Layout(gtx)
+						}),
+					)
+				})
+			})
+		})
+	}))
 	row := 0
 	for _, acc := range f.accounts {
 		acc := acc

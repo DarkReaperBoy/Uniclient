@@ -1165,3 +1165,27 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   one-shot flow incl. failure + unmarked paths, link fallback, reveal
   toasts, Show-in-Folder menu presence). Full suite green (gui 297 runs,
   0 fail), vet + gofmt clean, native binary builds.
+
+## 2026-09-09 — slice 87 (local passcode lock)
+
+- **Passcode lock (rows 195/207/291 → PRESENT)**: vault-backed 4-6 digit
+  PIN (engine SetPasscode/GetPasscodeConfig/ClearPasscode/
+  UpdatePasscodeConfig). The app boots LOCKED and renders ONLY the lock
+  screen while locked — chat content is never drawn (screenshot-safe),
+  and the lock's opaque window-wide input registration eats presses.
+- Lock screen: PIN dots (red after a wrong try), shared 3×4 pad
+  (pinGrid) + keyboard path (digits / ⌫ / Enter), auto-submit on the
+  last digit, "Too many attempts" 30s cooldown after 5 wrong tries.
+- Autolock: 1/5/60 minutes or never, persisted in the vault record; a
+  pass-through key/pointer activity listener (lockActivityLayer,
+  pointer.PassOp — same safety as keyLayer) feeds the idle timer, so
+  network-driven repaints don't keep the app unlocked.
+- Editor dialog (Privacy & Security → Security → Passcode Lock): set
+  (new + confirm with digits picker), change (verify current first),
+  disable (verify + armed double-tap), autolock segments applied
+  immediately via UpdatePasscodeConfig. Row value summarizes state.
+- Tests (lock_test.go): hash determinism, vault mapping roundtrip +
+  clamps/defaults, feed/unlock/freeze state machine, autolock decision
+  table, dialog step machine (entry→confirm→saved, mismatch restart,
+  verify current, frozen reject), digits-changed reset, labels.
+  Full suite green, vet + gofmt clean.
