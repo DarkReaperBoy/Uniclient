@@ -3,8 +3,10 @@ package gui
 import (
 	"image"
 	"image/color"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gioui.org/f32"
 	"gioui.org/font"
@@ -920,6 +922,10 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		if se, isSubmit := ev.(widget.SubmitEvent); isSubmit {
 			txt := strings.TrimSpace(se.Text)
 			if txt != "" && !f.sending {
+				if composerOverLimit(composer.Text()) {
+					a.setToast("Message is too long (" + itoa(composerCharLimit) + " char limit)")
+					continue
+				}
 				if blocked {
 					a.slowmodeToast(chat)
 					continue
@@ -932,7 +938,9 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	if chatSendBtn.Clicked(gtx) {
 		txt := strings.TrimSpace(composer.Text())
 		if txt != "" && !f.sending {
-			if blocked {
+			if composerOverLimit(composer.Text()) {
+				a.setToast("Message is too long (" + itoa(composerCharLimit) + " char limit)")
+			} else if blocked {
 				a.slowmodeToast(chat)
 			} else {
 				composer.SetText("")
@@ -1069,9 +1077,46 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 					}),
 				)
 			}))
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+			// Char counter (slice 88, AyuGram row 124): remaining
+			// characters near the limit, red past it. The send
+			// gates above stay honest — over-limit text never
+			// leaves the composer.
+			if lbl, visible, over := charCounterState(composer.Text(), composerCharLimit); visible {
+				lbl, over := lbl, over
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: unit.Dp(2), Right: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						c := a.ui.Dim(unit.Sp(10), lbl)
+						if over {
+							c.Color = a.ui.p.Error
+						}
+						gtx.Constraints.Min.X = 0
+						return layout.E.Layout(gtx, c.Layout)
+					})
+				}))
+			}
+			return layout.Flex{Axis: layout.Vertical, Alignment: layout.End}.Layout(gtx, children...)
 		},
 	)
+}
+
+// composerCharLimit is Telegram's per-message text limit (chars).
+const composerCharLimit = 4096
+
+// charCounterState returns the remaining-chars caption and whether it
+// shows (AyuGram: only near the limit). Pure — locked by tests.
+func charCounterState(text string, limit int) (string, bool, bool) {
+	n := utf8.RuneCountInString(text)
+	remain := limit - n
+	if remain > 128 {
+		return "", false, false
+	}
+	return strconv.Itoa(remain), true, remain < 0
+}
+
+// composerOverLimit reports whether the draft exceeds the limit.
+func composerOverLimit(text string) bool {
+	_, _, over := charCounterState(text, composerCharLimit)
+	return over
 }
 
 // composerChip renders the reply/edit header above the input: title, quoted

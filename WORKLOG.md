@@ -1189,3 +1189,14 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   table, dialog step machine (entry→confirm→saved, mismatch restart,
   verify current, frozen reject), digits-changed reset, labels.
   Full suite green, vet + gofmt clean.
+
+## 2026-09-09 — slice 88 (composer char counter)
+
+- **Char counter (row 124 → PRESENT)**: the composer shows the remaining
+  character count (right-aligned, under the input) once the draft is
+  within 128 of Telegram's 4096-char limit — AyuGram's near-limit
+  behavior; the count turns red past the limit. Rune-counted (CJK-safe),
+  not bytes. Both send paths (Enter submit + send button) refuse
+  over-limit drafts with a "Message is too long" toast.
+- Tests: counter visibility thresholds (hidden / 128 / 0 / negative),
+  rune-vs-byte counting, over-limit gate.
