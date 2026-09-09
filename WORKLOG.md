@@ -1200,3 +1200,17 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   over-limit drafts with a "Message is too long" toast.
 - Tests: counter visibility thresholds (hidden / 128 / 0 / negative),
   rune-vs-byte counting, over-limit gate.
+
+## 2026-09-09 — slice 89 (chat-row hover quick actions)
+
+- **Hover quick actions (row 68 → PRESENT)**: hovering a chat row shows
+  two compact icon toggles at the row's right edge (over the badge zone):
+  mute/unmute (bell / crossed bell → engine.MuteChat toggle, forever) and
+  mark read/unread (check-circle / mark-unread → MarkChatRead/
+  MarkChatUnread). Honest toasts + list refresh after each action.
+- Layout: East-anchored Stack overlay inside the row's ButtonLayout hit
+  area (hover is not lost moving onto the buttons) rendering LAST so the
+  buttons are the topmost opaque hit nodes — their presses don't open
+  the chat (the c1fca15c hit-test lesson, in reverse).
+- Tests: mute/read decision tables (muted, unread count, unread mark,
+  read row), pool growth + distinct pairs.

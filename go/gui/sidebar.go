@@ -24,6 +24,7 @@ var (
 	sidebarChatsList   widget.List
 	sidebarFolderTabs  widget.List
 	chatListBtns       []widget.Clickable // one per visible chat row
+	rowQuickBtns       []widget.Clickable // hover quick actions, 2 per row (slice 89)
 	accountSwitchBtn   widget.Clickable
 	accountMenuBtns    []widget.Clickable
 	accountMenuOpen    bool
@@ -50,6 +51,7 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 	for len(chatListBtns) < len(visible) {
 		chatListBtns = append(chatListBtns, widget.Clickable{})
 	}
+	growClickables(&rowQuickBtns, len(visible)*2)
 
 	// Reset this frame's row-bounds bookkeeping; filled by layoutChatList.
 	a.chatRowBounds = make(map[int]image.Rectangle, len(visible))
@@ -554,7 +556,7 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 			case sbRowChat:
 				c := visible[r.chatIdx]
 				selected := f.selected != nil && f.selected.AccountID == c.AccountID && f.selected.ChatID == c.ChatID
-				d = a.chatRow(gtx, f, c, selected, &chatListBtns[r.chatIdx])
+				d = a.chatRow(gtx, f, c, selected, &chatListBtns[r.chatIdx], rowQuickPair(r.chatIdx))
 				a.chatRowBounds[r.chatIdx] = image.Rectangle{Min: image.Pt(0, y), Max: image.Pt(paneW, y+d.Size.Y)}
 				chatIdx++
 			case sbRowMsg:
@@ -590,7 +592,7 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 		}
 		c := visible[row]
 		selected := f.selected != nil && f.selected.AccountID == c.AccountID && f.selected.ChatID == c.ChatID
-		d := a.chatRow(gtx, f, c, selected, &chatListBtns[row])
+		d := a.chatRow(gtx, f, c, selected, &chatListBtns[row], rowQuickPair(row))
 		a.chatRowBounds[row] = image.Rectangle{Min: image.Pt(0, y), Max: image.Pt(paneW, y+d.Size.Y)}
 		y += d.Size.Y
 		return d
@@ -599,81 +601,197 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 }
 
 // chatRow: avatar, title, last message, time, unread badge, typing indicator.
-func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected bool, btn *widget.Clickable) layout.Dimensions {
+func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected bool, btn *widget.Clickable, quick *[2]widget.Clickable) layout.Dimensions {
 	bg := color00
+	hovered := false
 	if selected {
 		bg = a.ui.p.AccentDim
 	} else if btn.Hovered() {
+		hovered = true
 		bg = a.ui.p.SurfaceHi
 	}
 	return roundedFill(gtx, bg, 0, func(gtx layout.Context) layout.Dimensions {
 		return material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			// Hover quick actions (slice 89): an East-anchored overlay of
+			// mute/read toggles over the row's trailing badges. The overlay
+			// lives inside the row's hit area (hover is not lost moving onto
+			// the buttons) but renders last → topmost opaque hit nodes, so
+			// button presses don't open the chat.
+			return layout.Stack{Alignment: layout.E}.Layout(gtx,
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return a.chatRowBody(gtx, f, c)
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return a.rowQuickActions(gtx, c, quick, hovered && !selected)
+				}),
+			)
+		})
+	})
+}
+
+// chatRowBody is the chat row's content (avatar, title, preview, badges).
+func (a *App) chatRowBody(gtx layout.Context, f frame, c engine.ChatInfo) layout.Dimensions {
+	return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.streamerAvatar(gtx, f, c, unit.Dp(46), dotNone)
+				})
+			}),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.streamerAvatar(gtx, f, c, unit.Dp(46), dotNone)
-						})
-					}),
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return a.streamerTitle(gtx, f, c.Title, unit.Sp(15))
+							}),
+							// peer badges next to the title (slice 68):
+							// verified/premium icons, scam/fake tags.
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-									layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-										return a.streamerTitle(gtx, f, c.Title, unit.Sp(15))
-									}),
-									// peer badges next to the title (slice 68):
-									// verified/premium icons, scam/fake tags.
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return a.layoutRowTitleBadges(gtx, rowTitleBadges(c))
-									}),
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return a.rowMetaIcons(gtx, f, c)
-									}),
-								)
+								return a.layoutRowTitleBadges(gtx, rowTitleBadges(c))
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									preview := previewText(c)
-									colorT := a.ui.p.TextDim
-									if c.DraftText != "" {
-										preview = draftPreview(c.DraftText)
-										colorT = a.ui.p.Error
-									} else if a.stillTyping(chatKey{c.AccountID, c.ChatID}) {
-										preview = "typing…"
-										colorT = a.ui.p.Accent
-									}
-									lbl := a.ui.Label(unit.Sp(13), preview)
-									lbl.Color = colorT
-									lbl.MaxLines = 1
-									return lbl.Layout(gtx)
-								})
+								return a.rowMetaIcons(gtx, f, c)
 							}),
 						)
 					}),
-					// last-message media thumb (AyuGram rows, slice 24).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if c.LastMsgThumbB64 == "" {
-							return layout.Dimensions{}
-						}
-						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.mediaThumb(gtx, c.LastMsgThumbB64, unit.Dp(34))
+						return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							preview := previewText(c)
+							colorT := a.ui.p.TextDim
+							if c.DraftText != "" {
+								preview = draftPreview(c.DraftText)
+								colorT = a.ui.p.Error
+							} else if a.stillTyping(chatKey{c.AccountID, c.ChatID}) {
+								preview = "typing…"
+								colorT = a.ui.p.Accent
+							}
+							lbl := a.ui.Label(unit.Sp(13), preview)
+							lbl.Color = colorT
+							lbl.MaxLines = 1
+							return lbl.Layout(gtx)
 						})
 					}),
-					// trailing badges (slice 68): @-mentions, unread reactions,
-					// then the unread count/mark.
+				)
+			}),
+			// last-message media thumb (AyuGram rows, slice 24).
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if c.LastMsgThumbB64 == "" {
+					return layout.Dimensions{}
+				}
+				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.mediaThumb(gtx, c.LastMsgThumbB64, unit.Dp(34))
+				})
+			}),
+			// trailing badges (slice 68): @-mentions, unread reactions,
+			// then the unread count/mark.
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if len(trailingRowBadges(c)) == 0 {
+					return layout.Dimensions{}
+				}
+				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.layoutTrailingRowBadges(gtx, c)
+				})
+			}),
+		)
+	})
+}
+
+// rowQuickPair returns the idx-th row's pair of quick-action buttons.
+func rowQuickPair(idx int) *[2]widget.Clickable {
+	growClickables(&rowQuickBtns, (idx+1)*2)
+	return (*[2]widget.Clickable)(rowQuickBtns[idx*2:])
+}
+
+// rowQuickActions renders the hover overlay (mute + read toggles). Pure
+// decisions live in rowQuickMuteAction/rowQuickReadAction (locked by
+// tests); the dispatch is real engine calls with honest toasts.
+func (a *App) rowQuickActions(gtx layout.Context, c engine.ChatInfo, quick *[2]widget.Clickable, show bool) layout.Dimensions {
+	if !show || quick == nil {
+		return layout.Dimensions{}
+	}
+	muteAct := rowQuickMuteAction(c)
+	readAct := rowQuickReadAction(c)
+	if quick[0].Clicked(gtx) {
+		go func() {
+			var err error
+			if muteAct.kind == "mute" {
+				err = a.eng.MuteChat(c.AccountID, c.ChatID, true, 0)
+			} else {
+				err = a.eng.MuteChat(c.AccountID, c.ChatID, false, 0)
+			}
+			if err != nil {
+				a.setToast("Mute: " + err.Error())
+				return
+			}
+			a.setToast(muteAct.done)
+			a.refreshChats()
+		}()
+	}
+	if quick[1].Clicked(gtx) {
+		go func() {
+			var err error
+			if readAct.kind == "read" {
+				err = a.eng.MarkChatRead(c.AccountID, c.ChatID, "")
+			} else {
+				err = a.eng.MarkChatUnread(c.AccountID, c.ChatID)
+			}
+			if err != nil {
+				a.setToast("Read state: " + err.Error())
+				return
+			}
+			a.setToast(readAct.done)
+			a.refreshChats()
+		}()
+	}
+	return layout.Inset{Right: unit.Dp(8), Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return roundedFill(gtx, a.ui.p.Surface, 14, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(1)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if len(trailingRowBadges(c)) == 0 {
-							return layout.Dimensions{}
-						}
-						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.layoutTrailingRowBadges(gtx, c)
-						})
+						return a.quickIconBtn(gtx, &quick[0], muteAct.icon, muteAct.label)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.quickIconBtn(gtx, &quick[1], readAct.icon, readAct.label)
 					}),
 				)
 			})
 		})
 	})
+}
+
+// quickIconBtn: one compact hover-action icon button.
+func (a *App) quickIconBtn(gtx layout.Context, btn *widget.Clickable, icon *widget.Icon, desc string) layout.Dimensions {
+	b := a.ui.IconButton(btn, icon, desc)
+	b.Color = a.ui.p.TextDim
+	b.Background = color00
+	b.Size = unit.Dp(16)
+	b.Inset = layout.UniformInset(unit.Dp(5))
+	return b.Layout(gtx)
+}
+
+// rowQuickAction is one hover quick action's decision. Pure.
+type rowQuickAction struct {
+	kind  string // "mute" | "unmute" | "read" | "unread"
+	label string // accessibility description
+	done  string // completion toast
+	icon  *widget.Icon
+}
+
+// rowQuickMuteAction decides the row's mute toggle. Pure.
+func rowQuickMuteAction(c engine.ChatInfo) rowQuickAction {
+	if c.IsMuted {
+		return rowQuickAction{"unmute", "Unmute chat", "Unmuted", iconSocialNotif}
+	}
+	return rowQuickAction{"mute", "Mute chat", "Muted", iconSocialNotifOff}
+}
+
+// rowQuickReadAction decides the row's read toggle. Pure.
+func rowQuickReadAction(c engine.ChatInfo) rowQuickAction {
+	if c.UnreadCount > 0 || c.UnreadMark {
+		return rowQuickAction{"read", "Mark as read", "Marked as read", iconActionCheckCircle}
+	}
+	return rowQuickAction{"unread", "Mark as unread", "Marked as unread", iconContentMarkUnread}
 }
 
 // inviteRow: the "join by invite link" row at the top of search results.
