@@ -443,6 +443,9 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 	}
 	switch state {
 	case engine.DownloadNone, engine.DownloadFailed:
+		// Slice 86: a tap expresses play/view intent — the completed
+		// file hands off to the system player automatically.
+		a.setOpenOnDone(msg.AccountID, msg.ChatID, msg.MsgID, 0)
 		go func() {
 			if err := a.eng.RequestDownload(msg.AccountID, msg.ChatID, msg.MsgID, 0, 0); err != nil {
 				a.setToast("Download failed: " + err.Error())
@@ -452,13 +455,13 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 		go func() { a.eng.CancelDownload(msg.AccountID, msg.ChatID, msg.MsgID, 0) }()
 	default:
 		// Complete: photos/GIFs/videos open the fullscreen viewer; other
-		// types reveal the local path.
+		// types play in the system player (slice 86 handoff).
 		switch msg.MediaType {
 		case engine.MediaImage, engine.MediaGIF, engine.MediaVideo, engine.MediaVideoNote:
 			a.openViewerFromMsg(gtx, &msg)
 		default:
 			if msg.MediaLocalPath != "" {
-				a.setToast("Saved to " + msg.MediaLocalPath)
+				a.openMedia(msg.MediaLocalPath, true)
 			}
 		}
 	}

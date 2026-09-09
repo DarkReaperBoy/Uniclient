@@ -384,7 +384,9 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 		stack.Pop()
 	}
 
-	// Tappable links: a press on a token area copies the URL (slice 34).
+	// Tappable links: a press on a token area opens the URL in the
+	// platform browser (slice 86); platforms or schemes without an
+	// opener fall back to the clipboard copy (slice 34 behavior).
 	for _, lt := range linkTags[m.MsgID] {
 		for {
 			ev, ok := gtx.Source.Event(pointer.Filter{Target: lt, Kinds: pointer.Press})
@@ -392,7 +394,7 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 				break
 			}
 			if pe, is := ev.(pointer.Event); is && pe.Kind == pointer.Press && pe.Buttons == pointer.ButtonPrimary {
-				a.copyTextSoon(lt.url)
+				a.openLinkExternal(lt.url)
 			}
 		}
 	}

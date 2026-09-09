@@ -1140,3 +1140,28 @@ suite green under node+wasm; engine+utils native green; vet + gofmt clean.
   uniclient.apk (19.8 MB), checksums.txt. Web demo redeployed from the
   release (gh-pages "Web build for v0.6.0", pages deployment
   34363067495 GREEN; site serves the new wasm, HTTP 200).
+
+## 2026-09-09 — slice 86 (media OS handoff: playback via system player, browser links, show-in-folder)
+
+- **Playback handoff (rows 134/135/136/267)**: taps on voice/audio/video
+  (and the viewer's play button) now express play intent — the download
+  completes and the saved file opens in the system player
+  (xdg-open / open / rundll32; android honestly errors, web opens links
+  only). Photos keep the in-app viewer path; a second delivery of the
+  same completion never re-opens (one-shot openOnDone marks).
+- **Link opening (row 125)**: tapped links open the platform browser
+  (window.open on web keeps user activation); schemes outside
+  http/https/tg and opener-less platforms fall back to the slice-34
+  clipboard copy.
+- **Show in folder (row 159 → PRESENT)**: "Show in Folder" in the message
+  context menu (only when the message has a local file) + a folder button
+  in the viewer top bar reveal the saved media (xdg-open dir / open -R /
+  explorer /select). Completed documents open in the system viewer.
+- Platform layer injected via openExternalAsync/revealAsync package vars
+  (desktop / js / android files) so tests never spawn processes; opener
+  children are Run()-reaped (no zombies). Pure decision helpers
+  (sanitizeURL, openArgsFor, revealArgsFor) locked by openext_test.go.
+- Tests: 7 new (URL admission, per-OS command mapping, openOnDone
+  one-shot flow incl. failure + unmarked paths, link fallback, reveal
+  toasts, Show-in-Folder menu presence). Full suite green (gui 297 runs,
+  0 fail), vet + gofmt clean, native binary builds.

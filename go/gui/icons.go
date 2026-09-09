@@ -29,6 +29,7 @@ var (
 	iconAVMic                 = mustIcon(icons.AVMic)
 	iconFileAttach            = mustIcon(icons.FileAttachment)
 	iconFileDownload          = mustIcon(icons.FileFileDownload)
+	iconFileFolder            = mustIcon(icons.FileFolder)
 	iconAVPlayCircle          = mustIcon(icons.AVPlayCircleFilled)
 	iconAVStop                = mustIcon(icons.AVStop)
 	iconAVVideocam            = mustIcon(icons.AVVideocam)

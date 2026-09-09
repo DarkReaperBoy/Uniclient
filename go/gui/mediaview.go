@@ -55,6 +55,7 @@ var (
 	viewerCloseBtn  widget.Clickable
 	viewerSaveBtn   widget.Clickable
 	viewerShareBtn  widget.Clickable
+	viewerFolderBtn widget.Clickable
 	viewerDelBtn    widget.Clickable
 	viewerPrevBtn   widget.Clickable
 	viewerNextBtn   widget.Clickable
@@ -435,6 +436,12 @@ func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 			a.viewerShare(v, it)
 		}
 	}
+	if viewerFolderBtn.Clicked(gtx) {
+		// Slice 86: reveal the saved media in the file manager (row 159).
+		if ok && it.LocalPath != "" {
+			a.revealMedia(it.LocalPath)
+		}
+	}
 	if viewerDelBtn.Clicked(gtx) {
 		a.mu.Lock()
 		if a.viewer != nil {
@@ -476,6 +483,13 @@ func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 							}),
 						)
 					})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					// Slice 86: folder reveal only when the item has a local file.
+					if !ok || it.LocalPath == "" {
+						return layout.Dimensions{}
+					}
+					return a.viewerIconBtn(gtx, &viewerFolderBtn, iconFileFolder, "Show in folder")
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.viewerIconBtn(gtx, &viewerSaveBtn, iconFileDownload, "Save")
@@ -864,14 +878,16 @@ func (a *App) viewerShare(v *viewerState, it engine.SharedMediaItem) {
 	a.invalidate()
 }
 
-// viewerPlay: videos — download when missing, then report the local file
-// (in-app streaming playback lands with the engine streaming core).
+// viewerPlay: videos — download when missing, then hand the saved file
+// to the system player (slice 86; in-app streaming playback lands with
+// the engine streaming core).
 func (a *App) viewerPlay(v *viewerState, it engine.SharedMediaItem) {
 	if it.LocalPath != "" {
-		a.setToast("Video saved to " + it.LocalPath)
+		a.openMedia(it.LocalPath, true)
 		return
 	}
 	acct, chat, id := v.accountID, v.chatID, it.MsgID
+	a.setOpenOnDone(acct, chat, id, 0)
 	go func() {
 		if err := a.eng.RequestDownload(acct, chat, id, 0, 0); err != nil {
 			a.setToast("Download failed: " + err.Error())

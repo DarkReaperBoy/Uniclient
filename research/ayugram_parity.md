@@ -122,7 +122,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Silent send toggle | Bell toggle in field | CORE-ONLY | SendMessage silent param (CORE-ONLY) | P2 |
 | Draft save/restore | Per-chat draft persists across restarts | PRESENT (slice 20: restore on open, flush on leave/back, clear on send — persisted via engine.SaveDraft so it survives restarts) | gui/drafts.go + gui/state.go + engine.SaveDraft | P1 |
 | Char count / limits | Counter near limit | MISSING | gui/chat.go | P3 |
-| Formatting (bold/italic/spoiler/code) | Rich text with entities + spoiler reveal | PRESENT (slice 32 render: ContentRich entity renderer — bold/italic/underline/strike/mono pills/links/mentions/quote styled word-flow, spoilers hidden + click-reveal; slice 33 compose: *bold*/_italic_/__underline__/~strike~/||spoiler||/`code`/```pre``` markers parse to entities on send, nested. tappable links copy to clipboard w/ toast (slice 34; browser opening later)) | gui/richtext.go + gui/markdown.go + engine content_rich + SendMessage(entities) | P1 |
+| Formatting (bold/italic/spoiler/code) | Rich text with entities + spoiler reveal | PRESENT (slice 32 render: ContentRich entity renderer — bold/italic/underline/strike/mono pills/links/mentions/quote styled word-flow, spoilers hidden + click-reveal; slice 33 compose: *bold*/_italic_/__underline__/~strike~/||spoiler||/`code`/```pre``` markers parse to entities on send, nested. tappable links open in the platform browser — xdg-open / rundll32 / window.open — with a clipboard-copy fallback where no opener exists (slice 86; slice 34 fallback)) | gui/richtext.go + gui/openext.go + gui/markdown.go + engine content_rich + SendMessage(entities) | P1 |
 | Webpage preview toggle | Link preview on/off in field | CORE-ONLY | SendMessage webPageUrl params (CORE-ONLY) | P2 |
 | Send-as channel (in groups) | Pick identity to post as | CORE-ONLY | engine.GetSendAs/SaveDefaultSendAs (CORE-ONLY) | P3 |
 
@@ -131,9 +131,9 @@ P2 = settings/extras, P3 = rare/edge.
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
 | Photo | Image bubble, caption, tap→viewer | PRESENT (bubble → auto-download → full image; tap opens fullscreen viewer w/ zoom/pan, filmstrip, save/share/delete) | gui/media.go photoBubble + gui/mediaview.go | P0 |
-| Video / video-note (round) | Player bubble w/ cover, round crop | PARTIAL (thumb + play badge + duration pill; round-crop notes; player later) | gui/media.go videoBubble | P1 |
-| Voice message | Waveform bubble, play, speed, transcribe | PARTIAL (play badge + duration/size bubble, tap downloads; playback/waveform later) | gui/media.go voiceBubble | P1 |
-| Audio file | Music player bubble (title/artist, seek) | PARTIAL (title/duration/size row; playback later) | gui/media.go audioBubble | P2 |
+| Video / video-note (round) | Player bubble w/ cover, round crop | PARTIAL (thumb + play badge + duration pill; round-crop notes; slice 86: play → download → hands the saved file to the system player; in-app streaming player waits on the engine core) | gui/media.go videoBubble + gui/openext.go | P1 |
+| Voice message | Waveform bubble, play, speed, transcribe | PARTIAL (play badge + duration/size bubble; slice 86: tap → download → auto-plays in the system player; in-app waveform/speed wait on audio-out) | gui/media.go voiceBubble + gui/openext.go | P1 |
+| Audio file | Music player bubble (title/artist, seek) | PARTIAL (title/duration/size row; slice 86: tap → download → system player; in-app seek UI waits on audio-out) | gui/media.go audioBubble + gui/openext.go | P2 |
 | Document/file | Filename, size, progress download bar | PARTIAL (file row + live byte counter + progress bar + tap/cancel/retry) | gui/media.go fileBubble + downloadRow | P0 |
 | Sticker (animated) | Big transparent sticker, tap = reaction | CORE-ONLY | engine sticker files (CORE-ONLY) | P1 |
 | Animated custom emoji | Inline animated emoji | CORE-ONLY | engine.GetCustomEmojiFiles (CORE-ONLY) | P2 |
@@ -156,7 +156,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Forward picker (share box) | Choose recipients, hide-sender options (Ayu) | PRESENT (hide sender/captions since slice 23; slice 41: multi-pick — rows toggle recipients w/ check circles, Send bar commits to all selected, selection resets on open; comment field later) | gui/menu.go layoutForwardDialog + engine.ForwardMessage(s) | P1 |
 | Copy link to message | t.me link copy | PRESENT (slice 34: context-menu Copy Link → engine MessageLink → core ExportMessageLink; clipboard flush via frame loop) | gui/menu.go + engine MessageLink + cores ExportMessageLink | P2 |
 | Save file / save GIF / save sound | Download-to-disk actions | CORE-ONLY | engine media + DownloadFile (CORE-ONLY) | P1 |
-| Show in folder / open with | OS integration | MISSING | gui/os layer + engine media paths | P3 |
+| Show in folder / open with | OS integration | PRESENT (slice 86: "Show in Folder" message-menu row + viewer folder button reveal the saved file (xdg-open dir / open -R / explorer /select); completed documents open in the system viewer) | gui/openext.go + gui/menu.go + gui/mediaview.go | P3 |
 | Report message flow | Reason picker | CORE-ONLY | engine.ReportMessage (CORE-ONLY) | P2 |
 | Translate message | Menu item → inline translated | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
 | Sticker pack info / add | Menu on stickers | CORE-ONLY | engine sticker APIs (CORE-ONLY) | P2 |
@@ -264,7 +264,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Full-screen overlay | Photo/video/doc viewer w/ caption | PRESENT (near-black scrim, top bar w/ title+date, caption, save/share/delete, Esc/arrows) | gui/mediaview.go | P0 |
 | Prev/next + group thumbs | Navigate album/chat media | PRESENT (side chevrons + filmstrip over engine.GetSharedMedia; info-panel gallery opens it too) | gui/mediaview.go + engine GetSharedMedia | P1 |
-| Playback controls (video) | Play/pause/seek/volume/fullscreen | PARTIAL (poster + play → download pipeline + saved-path toast; in-app streaming blocked on engine media streaming CORE-ONLY) | gui/mediaview.go viewerPlay | P1 |
+| Playback controls (video) | Play/pause/seek/volume/fullscreen | PARTIAL (poster + play → download pipeline; slice 86: completion auto-opens the OS player; in-app streaming blocked on engine media streaming CORE-ONLY) | gui/mediaview.go viewerPlay + gui/openext.go | P1 |
 | Zoom/pan + double-click | Gesture zoom | PRESENT (double-click zoom 1x↔2.5x anchored at cursor + drag pan w/ clamp; pinch/wheel later) | gui/mediaview.go processViewerImageEvents | P2 |
 | Download + share + delete in viewer | Toolbar actions | PRESENT (save→RequestDownload/reveal path; share→forward picker; delete→confirm dialog→engine.DeleteMessage) | gui/mediaview.go | P1 |
 | PiP floating window | Video in floating window | MISSING | gui/os window + engine video frames | P3 |

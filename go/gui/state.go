@@ -102,6 +102,9 @@ type App struct {
 	// by engine events, and the auto-download ledger for prefetches.
 	downloads map[string]dlState // dlKey → progress
 	autoDl    map[string]bool    // msgID → prefetch already issued
+	// downloads that should auto-open in the system player on
+	// completion (slice 86: tap = play/view intent).
+	openOnDone map[string]bool // dlKey → open when EventDownloadComplete
 
 	// settings surface (AyuGram parity slice 3): open view + section, the
 	// config snapshot for the toggles, and async-loaded page data.
@@ -325,6 +328,7 @@ func New(win *app.Window, eng *engine.Engine) *App {
 		sbTabBounds:  make([]image.Rectangle, 0, 8),
 		downloads:    make(map[string]dlState),
 		autoDl:       make(map[string]bool),
+		openOnDone:   make(map[string]bool),
 		pollVotes:    make(map[string]map[int]bool),
 		translations: make(map[string]string),
 	}
@@ -587,6 +591,9 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 		a.downloads = make(map[string]dlState)
 	}
 	a.downloads[dlKey(d.AccountID, d.ChatID, d.MsgID, d.Seq)] = dlState{recv: 1, total: 1, state: engine.DownloadComplete}
+	// Slice 86: taps on playable media mark the download — completion
+	// hands the saved file to the system player.
+	wantOpen := a.consumeOpenOnDoneLocked(d.AccountID, d.ChatID, d.MsgID, d.Seq)
 	if k := a.msgFor; k != nil && k.AccountID == d.AccountID && k.ChatID == d.ChatID {
 		for i := range a.messages {
 			if a.messages[i].MsgID == d.MsgID {
@@ -612,6 +619,10 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 		}
 	}
 	a.mu.Unlock()
+	if wantOpen {
+		a.openMedia(d.LocalPath, true)
+		return
+	}
 	if isDisplayableImage(d.LocalPath) {
 		a.decodeFileAsync(d.LocalPath)
 	}

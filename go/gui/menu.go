@@ -245,6 +245,14 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			}()
 		}})
 	}
+	// OS integration (AyuGram row 159): reveal a downloaded media file in
+	// the platform file manager (slice 86).
+	if m.MediaLocalPath != "" {
+		path := m.MediaLocalPath
+		items = append(items, menuAction{"Show in Folder", func(gtx layout.Context) {
+			a.revealMedia(path)
+		}})
+	}
 	if acts.Forward {
 		items = append(items, menuAction{"Forward", func(gtx layout.Context) {
 			a.openForward([]engine.CachedMessage{m})
