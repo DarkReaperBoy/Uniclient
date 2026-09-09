@@ -94,7 +94,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Jump-to-message (reply/search click) | Scroll+highlight target | PRESENT (slice 25 reply-quote jump + slice 18/26 search-hit jump: loads window around target when out of view; highlight ring later) | gui/chrome.go jumpToMessageAt | P1 |
 | Day dividers | Date pills between days | PRESENT | gui/chat.go dayDivider | P0 |
 | Delivery ticks (sent/delivered/read) | Clock→✓→✓✓→accent ✓✓ | PRESENT | gui/chat.go statusTicks | P0 |
-| Read receipt "seen" (small groups) | "Seen" time on own msgs, avatar stack | CORE-ONLY | engine.GetOutboxReadDate/GetMessageReadParticipants (CORE-ONLY) | P2 |
+| Read receipt "seen" (small groups) | "Seen" time on own msgs, avatar stack | PARTIAL (slice 98: context menu "Seen by" on own messages in DMs/groups — dialog with last-read date + per-reader list (GetMessageReadParticipantsDetailed: name + read time); privacy errors are honest sentences; inline avatar stack later) | gui/seenby.go + engine GetOutboxReadDate/GetMessageReadParticipantsDetailed | P2 |
 | Message selection mode | Rect/ctrl/shift select, action bar (fwd/del/report) | PARTIAL (slice 14: "Select" in the context menu → check circles on rows, taps toggle; bar w/ Forward (ForwardMessages batch) / Copy / Report (slice 36, opens the slice-19 flow) / Delete; Escape cancels; slice 84: rubber-band — selection-mode drags over the list mark every intersecting row, pass-through overlay keeps tap-to-toggle) | gui/select.go + gui/rubberband.go | P1 |
 | Chat empty intro | "No messages here yet…" bubble | PRESENT (centered bubble when the chat has no cached messages) | gui/chrome.go emptyIntro | P2 |
 | Not-joined channel view | Channel w/o join: preview + big "Join" button | CORE-ONLY (ChatInfo.NotJoined/JoinRequest CORE-ONLY) | gui/chat.go + engine.JoinChannel | P1 |
@@ -155,14 +155,14 @@ P2 = settings/extras, P3 = rare/edge.
 | Delete dialog w/ "delete for all" | Revoke checkbox | PRESENT (slice 19: single + bulk confirm dialog, checkbox for outgoing/admin, per-message revoke) | gui/deldlg.go + engine DeleteMessage | P0 |
 | Forward picker (share box) | Choose recipients, hide-sender options (Ayu) | PRESENT (hide sender/captions since slice 23; slice 41: multi-pick — rows toggle recipients w/ check circles, Send bar commits to all selected, selection resets on open; comment field later) | gui/menu.go layoutForwardDialog + engine.ForwardMessage(s) | P1 |
 | Copy link to message | t.me link copy | PRESENT (slice 34: context-menu Copy Link → engine MessageLink → core ExportMessageLink; clipboard flush via frame loop) | gui/menu.go + engine MessageLink + cores ExportMessageLink | P2 |
-| Save file / save GIF / save sound | Download-to-disk actions | CORE-ONLY | engine media + DownloadFile (CORE-ONLY) | P1 |
+| Save file / save GIF / save sound | Download-to-disk actions | PRESENT (slice 99: engine SaveMessageMediaToDownloads — copies downloaded media into the user-visible downloads dir, collision-safe "name (N).ext", ErrMediaNotDownloaded sentinel; viewer Save + context-menu "Save to Downloads" (undownloaded media downloads first, completion runs the copy), toast + reveal) | engine/savetodl.go + gui/openext.go + mediaview viewerSave | P1 |
 | Show in folder / open with | OS integration | PRESENT (slice 86: "Show in Folder" message-menu row + viewer folder button reveal the saved file (xdg-open dir / open -R / explorer /select); completed documents open in the system viewer) | gui/openext.go + gui/menu.go + gui/mediaview.go | P3 |
 | Report message flow | Reason picker | CORE-ONLY | engine.ReportMessage (CORE-ONLY) | P2 |
 | Translate message | Menu item → inline translated | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
 | Sticker pack info / add | Menu on stickers | CORE-ONLY | engine sticker APIs (CORE-ONLY) | P2 |
 | Ayu: "Message details" submenu | Views/shares/dates/size/mime/DC/sticker author | CORE-ONLY | engine has views/reactions stats (CORE-ONLY) | P2 |
-| Ayu: "Edits history" | Revision list per message | CORE-ONLY | engine.GetEditRevisions/HasEditRevisions (CORE-ONLY!) | P2 |
-| Ayu: "View deleted messages" | Deleted-msgs browser per chat | CORE-ONLY | engine.GetDeletedMessages (CORE-ONLY!) | P2 |
+| Ayu: "Edits history" | Revision list per message | PRESENT (slice 96: context menu "Edits history" — async HasEditRevisions gate on openMenu (pending lookup hides the item); overlay dialog lists anti-recall revisions newest-first, sender + time + preview, Load-more paging) | gui/edithistory.go + engine GetEditRevisions/HasEditRevisions | P2 |
+| Ayu: "View deleted messages" | Deleted-msgs browser per chat | PRESENT (slice 97: header ⋮ "View deleted messages…" — anti-recall copies newest-first, sender + preview + deleted-at, Clear-all reuses ClearDeletedMessages) | gui/delbrowse.go + engine GetDeletedMessages | P2 |
 | Ayu: "Hide message" (local) | Locally hide a message | PRESENT (slice 35: context-menu Hide Locally → engine HideMessage → locally_hidden_messages table (v45); GetMessages filters via NOT EXISTS; unhide supported) | gui/menu.go + engine HideMessage + v45 migration | P2 |
 | Ayu: "Repeat message" (resend) | Resend w/o forward mark | PRESENT (slice 35: context-menu Repeat → engine RepeatMessage re-sends cached text + entities as a fresh own message; media repeat later) | gui/menu.go + engine RepeatMessage | P2 |
 | Ayu: quick regex filter add | Tag msg by regex | PRESENT (slice 90: context-menu "Filter Like This…" opens the filters editor prefilled with a regex-quoted first-line snippet; one press of Add applies) | gui/menu.go + gui/ayufilters.go + engine.AddAyuFilter | P3 |
@@ -205,7 +205,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Power saving | Power-saving toggles | CORE-ONLY | engine.SetPowerSaving (CORE-ONLY) | P3 |
 | Advanced + experimental | Debug/experimental flags | CORE-ONLY | engine.SetExperimentalFlag (CORE-ONLY) | P3 |
 | Local passcode lock | Lock app w/ passcode + autolock | PRESENT (slice 87: vault-backed 4-6 digit PIN — the app boots LOCKED and renders only the lock screen (no chat content drawn while locked); PIN pad + dots + keyboard input; auto-submit on the last digit; 30s cooldown after 5 wrong tries; autolock (1/5/60 min, never) fed by a pass-through key/pointer activity listener (network refreshes don't count); Privacy & Security → Security → Passcode Lock editor (set new + confirm, change w/ current-PIN verify, armed disable, autolock segments)) | gui/lock.go + gui/lockdlg.go + engine SetPasscode/GetPasscodeConfig/ClearPasscode/UpdatePasscodeConfig | P2 |
-| Export data (chat history dump) | Export wizard w/ progress | CORE-ONLY | engine export.go full pipeline (CORE-ONLY!) | P2 |
+| Export data (chat history dump) | Export wizard w/ progress | PRESENT (slice 100: Settings → Data "Export data" (takeout-capability-gated) — full-pane wizard: option groups map 1:1 to ExportSettings, size limit, Start/Cancel/Skip-file; live progress bar + per-file byte row from EventExportProgress; honest error cards (takeout delay, disk io); completion card with path) | gui/exportdlg.go + engine export.go | P2 |
 | About / FAQ | About box, versions, shortcuts | PRESENT (slice 82: app version + Go runtime version, backend list, keyboard-shortcut list synced with gui/shortcuts.go) | gui/settings.go | P2 |
 | Ayu preferences (own screen) | Ghost/spy/saving sections w/ ~90 toggles | PARTIAL (Ayu section: 9 global ghost toggles + per-account overrides + reset; slice 80: Anti-recall section — save deleted / save history / save for bots, persisted; remaining spy/saving toggles stay engine-gated) | gui/settings.go Ayu section + engine GhostFlags/SetAccountGhost/SetAntiRecallSettings | P1 |
 
@@ -342,10 +342,10 @@ P2 = settings/extras, P3 = rare/edge.
 
 → 2026-09-08 after slices 1–9: PRESENT 24 (12%) · PARTIAL 39 (19%) · MISSING 39 (19%) · CORE-ONLY 99 (49%).
 
-- PRESENT: 98 — the parity program (slices 1-95) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking…
-- PARTIAL: 26 — engine-gated halves (in-app media playback waits on audio-out/streaming; 2FA; notifications sound picker; tray) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
+- PRESENT: 102 — the parity program (slices 1-100) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking, edits history, deleted-messages browser, save-to-Downloads, takeout export…
+- PARTIAL: 27 — engine-gated halves (in-app media playback waits on audio-out/streaming; 2FA; notifications sound picker; tray; read-receipt inline avatar stack later) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
 - MISSING: 10 — remaining rows need real core work (dice/games, message-shot renderer, PiP, tray, multi-window, app icon) or would be dead UI (hide sponsored/similar — nothing renders to hide; local-premium — nothing gates premium)
-- CORE-ONLY: 67 — the engine already has the functionality; the GUI just never surfaces it
+- CORE-ONLY: 62 — the engine already has the functionality; the GUI just never surfaces it
 
 Priorities: P0 36 · P1 57 · P2 62 · P3 43 (+3 UniClient-only rows).
 
