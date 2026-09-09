@@ -13,6 +13,8 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+
+	"uniclient/engine"
 )
 
 // errNoOpener is returned by platforms without an opener (android).
@@ -63,6 +65,63 @@ func (a *App) consumeOpenOnDoneLocked(acct, chat, msg string, seq int) bool {
 	v := a.openOnDone[k]
 	delete(a.openOnDone, k)
 	return v
+}
+
+// setSaveOnDone marks a media download so its completion copies the file
+// into the user's Downloads directory (slice 99 — save of undownloaded
+// media: the download finishes, then the save runs).
+func (a *App) setSaveOnDone(acct, chat, msg string, seq int) {
+	a.mu.Lock()
+	if a.saveOnDone == nil {
+		a.saveOnDone = make(map[string]bool)
+	}
+	a.saveOnDone[dlKey(acct, chat, msg, seq)] = true
+	a.mu.Unlock()
+}
+
+// consumeSaveOnDoneLocked reports and clears the save mark (a.mu held).
+func (a *App) consumeSaveOnDoneLocked(acct, chat, msg string, seq int) bool {
+	if a.saveOnDone == nil {
+		return false
+	}
+	k := dlKey(acct, chat, msg, seq)
+	v := a.saveOnDone[k]
+	delete(a.saveOnDone, k)
+	return v
+}
+
+// saveMediaToDownloads copies the message's media file into the engine's
+// downloads directory (slice 99). "start-download" tells the caller to
+// kick RequestDownload — the completion path re-runs this copy.
+func (a *App) saveMediaToDownloads(acct, chat, msg string, seq int) {
+	go func() {
+		dest, err := a.eng.SaveMessageMediaToDownloads(acct, chat, msg, seq)
+		switch {
+		case err == nil:
+			a.setToast("Saved to " + dest)
+			revealAsync(dest, func(rerr error) {
+				if rerr != nil {
+					return // the toast already told the user where it landed
+				}
+				a.setToast("Saved to Downloads")
+			})
+		case errors.Is(err, engine.ErrMediaNotDownloaded):
+			a.setSaveOnDone(acct, chat, msg, seq)
+			if derr := a.eng.RequestDownload(acct, chat, msg, seq, 0); derr != nil {
+				a.setToast("Download failed: " + derr.Error())
+				return
+			}
+			a.setToast("Downloading…")
+		default:
+			a.setToast("Save failed: " + err.Error())
+		}
+	}()
+}
+
+// saveToDownloadsMenuGate (pure, testable): which messages offer
+// "Save to Downloads" — real media rows, never service rows.
+func saveToDownloadsMenuGate(m engine.CachedMessage) bool {
+	return m.HasMedia && !m.IsService
 }
 
 // sanitizeURL admits only http/https/tg links for browser opening —

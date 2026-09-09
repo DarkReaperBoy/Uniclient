@@ -284,6 +284,16 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			}()
 		}})
 	}
+	// Save to Downloads (matrix row 158, slice 99): AyuGram's save-file /
+	// save-GIF / save-sound — copies the media into the user-visible
+	// downloads directory (downloading first when needed).
+	if saveToDownloadsMenuGate(m) {
+		msg := m
+		seq := 0
+		items = append(items, menuAction{"Save to Downloads", func(gtx layout.Context) {
+			a.saveMediaToDownloads(msg.AccountID, msg.ChatID, msg.MsgID, seq)
+		}})
+	}
 	// OS integration (AyuGram row 159): reveal a downloaded media file in
 	// the platform file manager (slice 86).
 	if m.MediaLocalPath != "" {
@@ -321,6 +331,14 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 	if acts.Filter {
 		items = append(items, menuAction{"Filter Like This…", func(gtx layout.Context) {
 			a.openAyuFilterDialogPrefilled(quickFilterPattern(m.ContentText))
+		}})
+	}
+	// Read receipts (matrix row 97): who read an own message in a DM
+	// or group, with the chat's last-read date.
+	if seenByMenuGate(m, chat.Type) {
+		msg := m
+		items = append(items, menuAction{"Seen by", func(gtx layout.Context) {
+			a.openSeenByDialog(&msg)
 		}})
 	}
 	// Ayu edits history (matrix row 164): anti-recall kept revisions for

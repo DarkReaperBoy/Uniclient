@@ -202,6 +202,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.deletedDlg != nil {
 		a.layoutDeletedDialog(gtx, f)
 	}
+	// Seen-by read-receipt dialog (slice 98).
+	if f.seenDlg != nil {
+		a.layoutSeenByDialog(gtx, f)
+	}
 	return dims
 }
 

@@ -105,6 +105,7 @@ type App struct {
 	// downloads that should auto-open in the system player on
 	// completion (slice 86: tap = play/view intent).
 	openOnDone map[string]bool // dlKey → open when EventDownloadComplete
+	saveOnDone map[string]bool // dlKey → copy to Downloads on complete (slice 99)
 
 	// settings surface (AyuGram parity slice 3): open view + section, the
 	// config snapshot for the toggles, and async-loaded page data.
@@ -261,6 +262,9 @@ type App struct {
 
 	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState
+
+	// seen-by read-receipt dialog (slice 98, matrix row 97)
+	seenDlg *seenDlgState
 
 	// Folder paste-import dialog (slice 94, matrix row 67)
 	folderImportDlg *folderImportState
@@ -626,6 +630,8 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 	// Slice 86: taps on playable media mark the download — completion
 	// hands the saved file to the system player.
 	wantOpen := a.consumeOpenOnDoneLocked(d.AccountID, d.ChatID, d.MsgID, d.Seq)
+	// Slice 99: save marks copy the finished file into Downloads.
+	wantSave := a.consumeSaveOnDoneLocked(d.AccountID, d.ChatID, d.MsgID, d.Seq)
 	if k := a.msgFor; k != nil && k.AccountID == d.AccountID && k.ChatID == d.ChatID {
 		for i := range a.messages {
 			if a.messages[i].MsgID == d.MsgID {
@@ -651,6 +657,10 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 		}
 	}
 	a.mu.Unlock()
+	if wantSave {
+		a.saveMediaToDownloads(d.AccountID, d.ChatID, d.MsgID, d.Seq)
+		return
+	}
 	if wantOpen {
 		a.openMedia(d.LocalPath, true)
 		return
@@ -1619,6 +1629,7 @@ func (a *App) snapshot() frame {
 		shadowDlg:        a.shadowDlg,
 		editHistDlg:      a.editHistDlg,
 		deletedDlg:       a.deletedDlg,
+		seenDlg:          a.seenDlg,
 		folderImportDlg:  a.folderImportDlg,
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
@@ -1833,6 +1844,9 @@ type frame struct {
 
 	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState
+
+	// seen-by read-receipt dialog (slice 98, matrix row 97)
+	seenDlg *seenDlgState
 
 	// who-reacted dialog (slice 49)
 	reactors *reactorsState

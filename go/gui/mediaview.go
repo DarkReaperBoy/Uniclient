@@ -846,14 +846,26 @@ func (a *App) viewerProgress(gtx layout.Context, f frame) layout.Dimensions {
 
 // ── viewer actions (all engine-backed) ────────────────────────────────────
 
-// viewerSave starts the download when the file is missing, else reveals the
-// local path (AyuGram save → the media lands in the engine's media dir).
+// viewerSavePlan (pure, testable): what the viewer Save button does —
+// "copy" when the file is local, "download" when it must be fetched
+// first (the completion path then runs the copy).
+func viewerSavePlan(hasLocal bool) string {
+	if hasLocal {
+		return "copy"
+	}
+	return "download"
+}
+
+// viewerSave copies the media into the user's Downloads directory
+// (AyuGram save); undownloaded media downloads first, then saves
+// (slice 99).
 func (a *App) viewerSave(v *viewerState, it engine.SharedMediaItem) {
+	acct, chat, id := v.accountID, v.chatID, it.MsgID
 	if it.LocalPath != "" {
-		a.setToast("Saved to " + it.LocalPath)
+		a.saveMediaToDownloads(acct, chat, id, 0)
 		return
 	}
-	acct, chat, id := v.accountID, v.chatID, it.MsgID
+	a.setSaveOnDone(acct, chat, id, 0)
 	go func() {
 		if err := a.eng.RequestDownload(acct, chat, id, 0, 0); err != nil {
 			a.setToast("Download failed: " + err.Error())
