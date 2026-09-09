@@ -143,7 +143,14 @@ type App struct {
 	profile     *engine.CachedUser
 	members     []engine.MemberInfo
 	mediaCounts []engine.SharedMediaCountItem
-	panelRecent []engine.SharedMediaItem
+	// shared-media tab browser (slice 78): active tab + lazy per-tab
+	// item windows, reset on every panel reload.
+	panelTab         string
+	panelTabItems    map[string][]engine.SharedMediaItem
+	panelTabLoaded   map[string]bool
+	panelTabPending  map[string]bool
+	panelLinks       []engine.SharedLinkItem
+	panelLinksLoaded bool
 
 	// attach flow (AyuGram parity slice 5): OS file picker + upload pipeline
 	expl           *explorer.Explorer
@@ -833,7 +840,12 @@ func (a *App) openChat(k chatKey, title string) {
 	a.profile = nil
 	a.members = nil
 	a.mediaCounts = nil
-	a.panelRecent = nil
+	a.panelTab = ""
+	a.panelTabItems = nil
+	a.panelTabLoaded = nil
+	a.panelTabPending = nil
+	a.panelLinks = nil
+	a.panelLinksLoaded = false
 	a.pinned = nil
 	a.pinnedIdx = 0
 	a.pinnedLoaded = false
@@ -1472,7 +1484,11 @@ func (a *App) snapshot() frame {
 		profile:          a.profile,
 		members:          a.members,
 		mediaCounts:      a.mediaCounts,
-		panelRecent:      a.panelRecent,
+		panelTab:         a.panelTab,
+		panelTabItems:    a.panelTabItems,
+		panelTabLoaded:   a.panelTabLoaded,
+		panelLinks:       a.panelLinks,
+		panelLinksLoaded: a.panelLinksLoaded,
 		attachMenuOpen:   a.attachMenuOpen,
 		emojiOpen:        a.emojiOpen,
 		emojiTab:         a.emojiTab,
@@ -1638,7 +1654,12 @@ type frame struct {
 	loginCodeFresh bool
 	members        []engine.MemberInfo
 	mediaCounts    []engine.SharedMediaCountItem
-	panelRecent    []engine.SharedMediaItem
+	// shared-media tab browser (slice 78)
+	panelTab         string
+	panelTabItems    map[string][]engine.SharedMediaItem
+	panelTabLoaded   map[string]bool
+	panelLinks       []engine.SharedLinkItem
+	panelLinksLoaded bool
 
 	// attach flow (slice 5)
 	attachMenuOpen bool

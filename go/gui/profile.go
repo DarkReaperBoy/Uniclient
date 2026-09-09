@@ -161,7 +161,9 @@ func (a *App) loadPanel(k chatKey) {
 	}
 
 	counts, _ := a.eng.GetSharedMediaCounts(k.AccountID, k.ChatID)
-	recent, _ := a.eng.GetSharedMedia(k.AccountID, k.ChatID, "image", 12, 0, "")
+	// Photos tab is prefetched (60 cells); other tabs lazy-load on
+	// first activation (slice 78).
+	photos, _ := a.eng.GetSharedMedia(k.AccountID, k.ChatID, "image", 60, 0, "")
 
 	a.mu.Lock()
 	a.profile = prof
@@ -171,7 +173,12 @@ func (a *App) loadPanel(k chatKey) {
 	}
 	a.members = members
 	a.mediaCounts = counts
-	a.panelRecent = recent
+	a.panelTab = "image"
+	a.panelTabItems = map[string][]engine.SharedMediaItem{"image": photos}
+	a.panelTabLoaded = map[string]bool{"image": true}
+	a.panelTabPending = nil
+	a.panelLinks = nil
+	a.panelLinksLoaded = false
 	a.panelMuted = muted
 	a.panelLoaded = true
 	a.mu.Unlock()
@@ -241,7 +248,7 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 	body := list.Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
 		return layout.Inset{Left: unit.Dp(14), Right: unit.Dp(14), Top: unit.Dp(8), Bottom: unit.Dp(16)}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
-				return a.panelBody(gtx, f, chat)
+				return a.panelBody(gtx, f, chat, narrow)
 			})
 	})
 
@@ -350,7 +357,7 @@ func (a *App) panelSub(f frame, chat *engine.ChatInfo) string {
 }
 
 // panelBody renders the panel sections.
-func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
+func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narrow bool) layout.Dimensions {
 	k := *f.selected
 	showProfile, showMembers := panelSectionsFor(chat.Type)
 	var children []layout.FlexChild
@@ -468,18 +475,13 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo) layo
 		}
 	}
 
-	// Shared media counts + recent photos.
+	// Shared media tabs (slice 78): chip bar + tabbed grids / lists.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Shared media")
 	}))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return a.mediaCountRow(gtx, f)
+		return a.sharedMediaTabs(gtx, f, chat, narrow)
 	}))
-	if len(f.panelRecent) > 0 {
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.recentPhotosGrid(gtx, f, chat)
-		}))
-	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
@@ -636,122 +638,8 @@ func withAlpha(c color.NRGBA, alpha uint8) color.NRGBA {
 	return c
 }
 
-// mediaCountRow renders the shared-media count pills.
-func (a *App) mediaCountRow(gtx layout.Context, f frame) layout.Dimensions {
-	if len(f.mediaCounts) == 0 {
-		lbl := a.ui.Dim(unit.Sp(13), "No shared media yet")
-		return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, lbl.Layout)
-	}
-	children := make([]layout.FlexChild, 0, len(f.mediaCounts)*2)
-	for i, mc := range f.mediaCounts {
-		mc := mc
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if i > 0 {
-				return layout.Inset{Right: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Dimensions{}
-				})
-			}
-			return layout.Dimensions{}
-		}))
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Right: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						lbl := a.ui.Label(unit.Sp(11), sharedMediaLabel(mc.MediaType)+" "+itoa(mc.Count))
-						lbl.Color = a.ui.p.TextDim
-						return lbl.Layout(gtx)
-					})
-				})
-			})
-		}))
-	}
-	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
-}
-
-// sharedMediaLabel pluralizes a media count type for display.
-func sharedMediaLabel(t string) string {
-	switch t {
-	case "photo":
-		return "photos"
-	case "video":
-		return "videos"
-	case "voice":
-		return "voice"
-	case "videonote":
-		return "video messages"
-	case "sticker":
-		return "stickers"
-	case "gif":
-		return "GIFs"
-	case "audio":
-		return "audio"
-	case "file":
-		return "files"
-	}
-	return t
-}
-
 // photoGridClicks pools the info-panel gallery cell clickables.
 var photoGridClicks []widget.Clickable
-
-// recentPhotosGrid renders the latest shared photos as a thumbnail grid,
-// reusing the media-image cache (stripped thumbs decode to valid JPEG).
-// Tapping a cell opens the fullscreen media viewer at that photo (§12).
-func (a *App) recentPhotosGrid(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
-	const cols = 3
-	cell := gtx.Dp(unit.Dp(84))
-	growClickables(&photoGridClicks, len(f.panelRecent))
-	var rows []layout.FlexChild
-	for i := 0; i+0 < len(f.panelRecent); i += cols {
-		end := i + cols
-		if end > len(f.panelRecent) {
-			end = len(f.panelRecent)
-		}
-		items := f.panelRecent[i:end]
-		base := i
-		rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			cells := make([]layout.FlexChild, 0, len(items))
-			for j, it := range items {
-				it := it
-				idx := base + j
-				cells = append(cells, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Right: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Max.X = cell
-						gtx.Constraints.Max.Y = cell
-						gtx.Constraints.Min = image.Pt(cell, cell)
-						if btn := &photoGridClicks[idx]; btn.Clicked(gtx) {
-							title := ""
-							if chat != nil {
-								title = chat.Title
-							}
-							a.openViewerAt(f.panelChat, title, "image", it.MsgID)
-						}
-						bl := material.ButtonLayout(a.ui.Theme, &photoGridClicks[idx])
-						bl.Background = a.ui.p.Surface
-						bl.CornerRadius = 4
-						return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							var img *image.RGBA
-							if it.ThumbB64 != "" {
-								key := "thumb:" + it.ThumbB64
-								if img = mediaImgs.get(key); img == nil {
-									a.decodeThumbAsync(key, it.ThumbB64)
-								}
-							}
-							if img != nil {
-								return drawImageScaled(gtx, img, cell, cell, 4)
-							}
-							return roundedFill(gtx, a.ui.p.SurfaceHi, 4, func(gtx layout.Context) layout.Dimensions {
-								return layout.Dimensions{Size: image.Pt(cell, cell)}
-							})
-						})
-					})
-				}))
-			}
-			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, cells...)
-		}))
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
-}
 
 // filterMembers narrows the member list by a case-insensitive substring
 // match on display name, username, or id (AyuGram member search).

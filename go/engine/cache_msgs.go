@@ -937,19 +937,7 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 	}
 
 	// Map string filter to media_type integers.
-	var typeFilter string
-	switch mediaType {
-	case "image":
-		typeFilter = fmt.Sprintf("AND m.media_type IN (%d, %d, %d)", MediaImage, MediaGIF, MediaSticker)
-	case "video":
-		typeFilter = fmt.Sprintf("AND m.media_type IN (%d, %d)", MediaVideo, MediaVideoNote)
-	case "audio":
-		typeFilter = fmt.Sprintf("AND m.media_type IN (%d, %d)", MediaAudio, MediaVoice)
-	case "file":
-		typeFilter = fmt.Sprintf("AND m.media_type = %d", MediaFile)
-	default:
-		typeFilter = ""
-	}
+	typeFilter := sharedMediaTypeFilter(mediaType)
 
 	var queryFilter string
 	args := []interface{}{accountID, chatID}
@@ -3153,4 +3141,105 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 	}
 	e.populateMediaMetadata(msgs)
 	return msgs, nil
+}
+
+// sharedMediaTypeFilter maps a shared-media tab name to its SQL filter.
+// Mirrors AyuGram's profile media tabs; distinct tabs (Photos vs GIFs,
+// Voice vs audio files) get distinct queries.
+func sharedMediaTypeFilter(mediaType string) string {
+	switch mediaType {
+	case "image":
+		return fmt.Sprintf("AND m.media_type IN (%d, %d, %d)", MediaImage, MediaGIF, MediaSticker)
+	case "video":
+		return fmt.Sprintf("AND m.media_type IN (%d, %d)", MediaVideo, MediaVideoNote)
+	case "audio":
+		return fmt.Sprintf("AND m.media_type IN (%d, %d)", MediaAudio, MediaVoice)
+	case "gif":
+		return fmt.Sprintf("AND m.media_type = %d", MediaGIF)
+	case "voice":
+		return fmt.Sprintf("AND m.media_type = %d", MediaVoice)
+	case "file":
+		return fmt.Sprintf("AND m.media_type = %d", MediaFile)
+	}
+	return ""
+}
+
+// SharedLinkItem is one link shared in a chat (profile Links tab).
+type SharedLinkItem struct {
+	MsgID      string `json:"msg_id"`
+	Timestamp  int64  `json:"timestamp"`
+	URL        string `json:"url"`
+	SenderName string `json:"sender_name,omitempty"`
+	Text       string `json:"text,omitempty"`
+}
+
+// GetSharedLinks returns messages containing URLs, newest first
+// (AyuGram profile "Links" tab). The URL itself is extracted from the
+// message text by ExtractFirstURL.
+func (e *Engine) GetSharedLinks(accountID, chatID string, limit, offset int) ([]SharedLinkItem, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows, err := e.db.Query(`
+                SELECT msg_id, timestamp, COALESCE(content_text, ''),
+                       COALESCE(sender_name, '')
+                FROM messages
+                WHERE account_id = ? AND chat_id = ?
+                  AND (instr(lower(content_text), 'http://') > 0
+                       OR instr(lower(content_text), 'https://') > 0
+                       OR instr(lower(content_text), 'tg://') > 0)
+                ORDER BY timestamp DESC
+                LIMIT ? OFFSET ?`,
+		accountID, chatID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SharedLinkItem
+	for rows.Next() {
+		var it SharedLinkItem
+		var text, sender string
+		if err := rows.Scan(&it.MsgID, &it.Timestamp, &text, &sender); err != nil {
+			return items, err
+		}
+		it.URL = ExtractFirstURL(text)
+		if it.URL == "" {
+			continue // LIKE matched inside longer text without a clean URL
+		}
+		it.SenderName = sender
+		it.Text = text
+		items = append(items, it)
+	}
+	return items, rows.Err()
+}
+
+// ExtractFirstURL pulls the first http/https/tg URL out of a message
+// text. The URL runs to the first whitespace or bracketing rune; trailing
+// punctuation is trimmed. Pure — unit-tested.
+func ExtractFirstURL(text string) string {
+	foundAt, found := -1, ""
+	for _, prefix := range []string{"https://", "http://", "tg://"} {
+		if i := strings.Index(text, prefix); i >= 0 && (foundAt < 0 || i < foundAt) {
+			foundAt, found = i, prefix
+		}
+	}
+	if foundAt < 0 {
+		return ""
+	}
+	rest := text[foundAt:]
+	end := len(rest)
+	for j, r := range rest {
+		if r <= ' ' || strings.ContainsRune("()<>[]{}", r) {
+			end = j
+			break
+		}
+	}
+	u := strings.TrimRight(rest[:end], ".,;:")
+	if len(u) > len(found) {
+		return u
+	}
+	return ""
 }
