@@ -342,10 +342,10 @@ P2 = settings/extras, P3 = rare/edge.
 
 → 2026-09-08 after slices 1–9: PRESENT 24 (12%) · PARTIAL 39 (19%) · MISSING 39 (19%) · CORE-ONLY 99 (49%).
 
-- PRESENT: 24 — login machine, QR, day dividers, ticks, typing, toast, composer, scrolling, mode tabs, unified list, context menu, reactions strip, bubble headers, reply/edit modes, settings shell, info panel, attach flow, folder tabs, avatars, chat-row menu, media bubbles, media viewer, zoom/pan, viewer toolbar
-- PARTIAL: 39 — simplified versions (video playback, voice, folder editor, ghost shell…)
-- MISSING: 39 — needs new core work: streamer mode, message shot, regex filters, shadow ban, tray, passcode UI, deep links, selection mode…
-- CORE-ONLY: 99 — the engine already has the functionality; the GUI just never surfaces it
+- PRESENT: 98 — the parity program (slices 1-95) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking…
+- PARTIAL: 26 — engine-gated halves (in-app media playback waits on audio-out/streaming; 2FA; notifications sound picker; tray) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
+- MISSING: 10 — remaining rows need real core work (dice/games, message-shot renderer, PiP, tray, multi-window, app icon) or would be dead UI (hide sponsored/similar — nothing renders to hide; local-premium — nothing gates premium)
+- CORE-ONLY: 67 — the engine already has the functionality; the GUI just never surfaces it
 
 Priorities: P0 36 · P1 57 · P2 62 · P3 43 (+3 UniClient-only rows).
 
