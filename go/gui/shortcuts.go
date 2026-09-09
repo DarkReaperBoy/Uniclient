@@ -39,7 +39,8 @@ func escTarget(f frame) string {
 		f.editHistDlg != nil,
 		f.deletedDlg != nil,
 		f.seenDlg != nil,
-		f.msgDetailDlg != nil, // self-handled: details dialog Esc (slice 105)
+		f.msgDetailDlg != nil,  // self-handled: details dialog Esc (slice 105)
+		f.stickerSetDlg != nil, // self-handled: sticker pack Esc (slice 108)
 		f.folderImportDlg != nil,
 		f.exportDlg != nil,
 		f.inviteDlg != nil,

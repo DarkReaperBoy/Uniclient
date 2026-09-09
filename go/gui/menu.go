@@ -341,6 +341,13 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.openSeenByDialog(&msg)
 		}})
 	}
+	// Sticker pack info (AyuGram, slice 108): sticker messages with set keys.
+	if stickerPackMenuGate(m) {
+		msg := m
+		items = append(items, menuAction{"View sticker pack", func(gtx layout.Context) {
+			a.openStickerSetDialog(&msg)
+		}})
+	}
 	// Message details (AyuGram, slice 105): key/value rows from the cache.
 	if msgDetailMenuGate(m) {
 		msg := m

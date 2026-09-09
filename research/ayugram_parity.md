@@ -159,7 +159,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Show in folder / open with | OS integration | PRESENT (slice 86: "Show in Folder" message-menu row + viewer folder button reveal the saved file (xdg-open dir / open -R / explorer /select); completed documents open in the system viewer) | gui/openext.go + gui/menu.go + gui/mediaview.go | P3 |
 | Report message flow | Reason picker | CORE-ONLY | engine.ReportMessage (CORE-ONLY) | P2 |
 | Translate message | Menu item → inline translated | CORE-ONLY | engine.TranslateText (CORE-ONLY) | P2 |
-| Sticker pack info / add | Menu on stickers | CORE-ONLY | engine sticker APIs (CORE-ONLY) | P2 |
+| Sticker pack info / add | Menu on stickers | PRESENT (slice 108: sticker messages with set keys (MediaExtra) get "View sticker pack" — card dialog over engine.GetStickerSetInfo: title, count·kind·installed line, 5-column thumbnail grid, ADD TO STICKERS → engine.InstallStickerSet with live installed flip; stickers without keys or cores without the fetcher get no item) | gui/stickerset.go + engine GetStickerSetInfo/InstallStickerSet | P2 |
 | Ayu: "Message details" submenu | Views/shares/dates/size/mime/DC/sticker author | PARTIAL (slice 105: "Message details" menu item → dialog of key/value rows from what the engine caches — identity (msg/sender IDs), sent/edited/deleted dates, delivery status, forward origin, reply-to, media name/mime/size/dimensions/duration/local path, pinned/silent/no-forwards flags; tap a row copies its value. DC/views rows honestly absent (not cached)) | gui/msgdetail.go + engine CachedMessage | P2 |
 | Ayu: "Edits history" | Revision list per message | PRESENT (slice 96: context menu "Edits history" — async HasEditRevisions gate on openMenu (pending lookup hides the item); overlay dialog lists anti-recall revisions newest-first, sender + time + preview, Load-more paging) | gui/edithistory.go + engine GetEditRevisions/HasEditRevisions | P2 |
 | Ayu: "View deleted messages" | Deleted-msgs browser per chat | PRESENT (slice 97: header ⋮ "View deleted messages…" — anti-recall copies newest-first, sender + preview + deleted-at, Clear-all reuses ClearDeletedMessages) | gui/delbrowse.go + engine GetDeletedMessages | P2 |
@@ -342,10 +342,10 @@ P2 = settings/extras, P3 = rare/edge.
 
 → 2026-09-08 after slices 1–9: PRESENT 24 (12%) · PARTIAL 39 (19%) · MISSING 39 (19%) · CORE-ONLY 99 (49%).
 
-- PRESENT: 110 — the parity program (slices 1-100) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking, edits history, deleted-messages browser, save-to-Downloads, takeout export…
+- PRESENT: 111 — the parity program (slices 1-100) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking, edits history, deleted-messages browser, save-to-Downloads, takeout export…
 - PARTIAL: 29 — engine-gated halves (in-app media playback waits on audio-out/streaming; 2FA; notifications sound picker; tray; read-receipt inline avatar stack later) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
 - MISSING: 10 — remaining rows need real core work (dice/games, message-shot renderer, PiP, tray, multi-window, app icon) or would be dead UI (hide sponsored/similar — nothing renders to hide; local-premium — nothing gates premium)
-- CORE-ONLY: 53 — the engine already has the functionality; the GUI just never surfaces it (slice 101: 1:1 call panel + incoming call UI; slice 102: group call screen; slice 103: device pickers + noise suppression surfaced 5 of them)
+- CORE-ONLY: 52 — the engine already has the functionality; the GUI just never surfaces it (slice 101: 1:1 call panel + incoming call UI; slice 102: group call screen; slice 103: device pickers + noise suppression surfaced 5 of them)
 
 Priorities: P0 36 · P1 57 · P2 62 · P3 43 (+3 UniClient-only rows).
 

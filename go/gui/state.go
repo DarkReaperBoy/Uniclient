@@ -279,11 +279,12 @@ type App struct {
 	shadowDlg *shadowDlgState
 
 	// edits-history dialog (slice 96, matrix row 164)
-	editHistDlg  *editHistState
-	msgDetailDlg *msgDetailState  // message details (slice 105)
-	memberMenu   *memberMenuState // profile member admin menu (slice 106)
-	commonChats  []cores.Dialog   // groups in common (slice 107)
-	commonLoaded bool
+	editHistDlg   *editHistState
+	msgDetailDlg  *msgDetailState  // message details (slice 105)
+	memberMenu    *memberMenuState // profile member admin menu (slice 106)
+	commonChats   []cores.Dialog   // groups in common (slice 107)
+	commonLoaded  bool
+	stickerSetDlg *stickerSetDlgState // sticker pack viewer (slice 108)
 
 	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState
@@ -1676,6 +1677,7 @@ func (a *App) snapshot() frame {
 		memberMenu:       a.memberMenu,
 		commonChats:      a.commonChats,
 		commonLoaded:     a.commonLoaded,
+		stickerSetDlg:    a.stickerSetDlg,
 		deletedDlg:       a.deletedDlg,
 		seenDlg:          a.seenDlg,
 		exportDlg:        a.exportDlg,
@@ -1903,11 +1905,12 @@ type frame struct {
 	folderImportDlg *folderImportState
 
 	// edits-history dialog (slice 96, matrix row 164)
-	editHistDlg  *editHistState
-	msgDetailDlg *msgDetailState  // message details (slice 105)
-	memberMenu   *memberMenuState // profile member admin menu (slice 106)
-	commonChats  []cores.Dialog   // groups in common (slice 107)
-	commonLoaded bool
+	editHistDlg   *editHistState
+	msgDetailDlg  *msgDetailState  // message details (slice 105)
+	memberMenu    *memberMenuState // profile member admin menu (slice 106)
+	commonChats   []cores.Dialog   // groups in common (slice 107)
+	commonLoaded  bool
+	stickerSetDlg *stickerSetDlgState // sticker pack viewer (slice 108)
 
 	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState

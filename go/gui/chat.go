@@ -210,6 +210,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.msgDetailDlg != nil {
 		a.layoutMsgDetail(gtx, f)
 	}
+	// Sticker-pack dialog (slice 108).
+	if f.stickerSetDlg != nil {
+		a.layoutStickerSetDialog(gtx, f)
+	}
 	return dims
 }
 

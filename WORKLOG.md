@@ -1521,3 +1521,23 @@ the GUI (3 P1 + 1 P2 CORE-ONLY rows in the matrix).
   list is empty; groups/channels never show it.
 - Pure gate + row derivation locked by 3 tests.
 - Parity: 110 PRESENT / 29 PARTIAL / 10 MISSING / 53 CORE-ONLY.
+
+## 2026-09-10 — slice 108 (sticker packs), XMPP live-verified
+
+- **Sticker pack info/add (row 161 → PRESENT)**: sticker messages with
+  set keys (parsed from the cached MediaExtra: short name, or set ID +
+  access hash) gain "View sticker pack" — a card dialog over
+  engine.GetStickerSetInfo (title, "N stickers · kind · installed" line,
+  5-column thumbnail grid reusing the composer picker's cell renderer,
+  Esc/backdrop close) with ADD TO STICKERS → engine.InstallStickerSet
+  (live installed-state flip + toast). Stickers without keys or cores
+  without the fetcher honestly get no item (§1.10).
+- **XMPP core live verification (§9 official-server rung)**:
+  go/tests/xmpp_live_test.go dials conversations.im:5222, negotiates the
+  stream, upgrades STARTTLS, and runs the SASL handshake with throwaway
+  credentials — the server's auth-failure response proves the whole
+  pre-auth chain works (1.9s). AGENTS.md §8 updated: implementation kept.
+- Bale transport endpoints re-verified reachable (next-ws/tapi.bale.ai
+  443 via the embedded IP table); Rubika web endpoint reachable. Full
+  protocol verification stays blocked on real (geo-restricted) accounts.
+- Parity: 111 PRESENT / 29 PARTIAL / 10 MISSING / 52 CORE-ONLY.
