@@ -339,6 +339,7 @@ func (a *App) Start() {
 		a.ui.applyTheme(cfg.Theme)
 		a.ui.applyAccent(cfg.AccentColor)
 		a.ui.applyFontScale(cfg.FontScale)
+		a.ui.applyBubbleCorners(cfg.BubbleCorners == nil || *cfg.BubbleCorners)
 	}
 	eng.SetEventCallback(func(data []byte) { a.onEvent(data) })
 	go a.refreshAccounts()
@@ -1070,6 +1071,7 @@ type cfgSnapshot struct {
 	AyuSaveDeleted         bool
 	AyuSaveHistory         bool
 	AyuSaveForBots         bool
+	BubbleCorners          bool
 	RecentSearches         []string
 	DrawerHidden           []string
 	Streamer               bool
@@ -1164,6 +1166,7 @@ func (a *App) refreshConfig() {
 		AyuSaveDeleted:         ard,
 		AyuSaveHistory:         arh,
 		AyuSaveForBots:         arb,
+		BubbleCorners:          c.BubbleCorners == nil || *c.BubbleCorners,
 		RecentSearches:         c.RecentSearches,
 		DrawerHidden:           c.DrawerHiddenItems,
 		Streamer:               c.StreamerMode,

@@ -1053,3 +1053,25 @@ deployment fix + v0.5.0 pre-release. All gates green locally and in CI.
   the jump on phone layout); engine GetSharedLinks + distinct gif/voice
   sub-tab filters; lazy per-tab loads (60 media / 100 links).
 - CI Verify run 34342330119 (blockers commit c1fca15c) GREEN.
+
+## 2026-09-09 — slices 79-82 (menu completion, anti-recall Ayu styling, music attach, about page)
+
+- **79 Header ⋮ menu completion (§3 P0)**: "Search" opens the in-chat
+  search bar; "Add members" (groups/channels) opens a contact picker —
+  search filter, multi-select check circles, one engine.AddMembers call,
+  count toast, member-list refresh. DM menus never offer Add members.
+- **80 Anti-recall completion (§52, row 232)**: recalled bubbles fade to
+  50% opacity (bg, body text, sender name — deletedFade); "Clear deleted
+  messages" per chat in the header menu (engine.ClearDeletedMessages
+  removes saved copies + media rows, idempotent, honest toasts); Ayu ·
+  Anti-recall settings section (save deleted / save history / save for
+  bots) applied immediately and persisted (AyuSave* config keys, Init
+  restores).
+- **81 Music attach (row 114 P0)**: the 📎 menu gains Music — the OS
+  picker filtered to audio containers; upload path shared with File.
+- **82 About page + bubble corners (rows 209/197)**: About shows the app
+  version, Go runtime, backends, and the keyboard-shortcut list;
+  Appearance gains "Round bubble corners" (12dp ↔ 2dp, persisted).
+- Root cause of the 9dc8aad0 Verify failure was a gofmt miss on
+  sharedtabs_test.go (unkeyed-field edit landed after the local gate);
+  fixed; current HEAD is clean.

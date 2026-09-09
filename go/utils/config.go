@@ -64,6 +64,9 @@ type AppConfig struct {
 	AyuSaveHistory *bool `json:"ayu_save_history,omitempty"`
 	AyuSaveForBots *bool `json:"ayu_save_for_bots,omitempty"`
 
+	// Bubble corner style (AyuGram appearance "Corners"). Nil = rounded.
+	BubbleCorners *bool `json:"bubble_corners,omitempty"`
+
 	// Drawer customization (Ayu "drawer" menu): ids of hidden rows.
 	DrawerHiddenItems []string `json:"drawer_hidden_items,omitempty"`
 

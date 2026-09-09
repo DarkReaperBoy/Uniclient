@@ -526,7 +526,7 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		if deleted {
 			bg = deletedFade(bg, true)
 		}
-		return roundedFill(gtx, bg, 12, func(gtx layout.Context) layout.Dimensions {
+		return roundedFill(gtx, bg, unit.Dp(a.ui.bubbleRadius()), func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					// Forwarded-from header (AyuGram: "Forwarded from X"),

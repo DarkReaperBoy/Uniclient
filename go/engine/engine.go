@@ -856,6 +856,8 @@ type ConfigChanges struct {
 	AyuSaveDeleted *bool
 	AyuSaveHistory *bool
 	AyuSaveForBots *bool
+	// Bubble corner style (AyuGram appearance). Nil = unchanged.
+	BubbleCorners *bool
 }
 
 // UpdateConfigFromBridge applies partial config changes from the bridge layer.
@@ -955,6 +957,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 		e.antiRecallMu.Lock()
 		e.saveForBots = *changes.AyuSaveForBots
 		e.antiRecallMu.Unlock()
+	}
+	if changes.BubbleCorners != nil {
+		e.config.BubbleCorners = changes.BubbleCorners
 	}
 
 	return e.vault.SetConfig(e.config)

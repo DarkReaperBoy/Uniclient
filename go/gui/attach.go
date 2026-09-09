@@ -32,6 +32,10 @@ var (
 // photoExts are the image/video extensions the "Photo or Video" picker accepts.
 var photoExts = []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".mp4", ".mov", ".webm", ".mkv"}
 
+// musicExts are the audio extensions the "Music" picker accepts (AyuGram's
+// attach-menu music flow — the core sends audio/* as audio messages).
+var musicExts = []string{".mp3", ".m4a", ".flac", ".ogg", ".oga", ".opus", ".wav", ".aac", ".wma"}
+
 // attachMenuItem describes one attach-menu entry.
 type attachMenuItem struct {
 	label string
@@ -41,8 +45,9 @@ type attachMenuItem struct {
 
 func (a *App) attachMenuItems() []attachMenuItem {
 	return []attachMenuItem{
-		{label: "Photo or Video", icon: iconImagePhoto, run: func() { a.pickAndSend(true) }},
-		{label: "File", icon: iconFileAttach, run: func() { a.pickAndSend(false) }},
+		{label: "Photo or Video", icon: iconImagePhoto, run: func() { a.pickAndSendExts(photoExts) }},
+		{label: "Music", icon: iconAVNote, run: func() { a.pickAndSendExts(musicExts) }},
+		{label: "File", icon: iconFileAttach, run: func() { a.pickAndSendExts(nil) }},
 		{label: "Poll", icon: iconSocialPoll, run: func() { a.openPollDialog() }},
 		{label: "Location", icon: iconMapsPlace, run: func() { a.openAttachDialog("location") }},
 		{label: "Contact", icon: iconCommunicationContacts, run: func() { a.openAttachDialog("contact") }},
@@ -128,9 +133,10 @@ func attachMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item attac
 	})
 }
 
-// pickAndSend opens the OS file picker and uploads the selection (async).
+// pickAndSendExts opens the OS file picker (optionally filtered to exts)
+// and uploads the selection (async). nil exts = any file.
 // The composer text at attach time becomes the caption.
-func (a *App) pickAndSend(photo bool) {
+func (a *App) pickAndSendExts(exts []string) {
 	a.mu.Lock()
 	k := a.selected
 	a.sending = true
@@ -150,10 +156,6 @@ func (a *App) pickAndSend(photo bool) {
 		}()
 		if k == nil || a.expl == nil {
 			return
-		}
-		var exts []string
-		if photo {
-			exts = photoExts
 		}
 		rcs, err := a.expl.ChooseFiles(exts...)
 		if err != nil {

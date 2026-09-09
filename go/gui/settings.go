@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"runtime"
+
 	"image"
 	"math"
 	"strings"
@@ -108,6 +110,8 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 		c.AyuSaveHistory = &b
 	case "ayu_save_for_bots":
 		c.AyuSaveForBots = &b
+	case "bubble_corners":
+		c.BubbleCorners = &b
 	default:
 		return nil
 	}
@@ -846,6 +850,11 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyTheme(v)
 		})
 	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "appearance:corners", "Round bubble corners", f.cfg.BubbleCorners, func(v bool) {
+			a.applyBubbleCornersUI(v)
+		})
+	}))
 	// Accent swatches (AyuGram "Choose accent color").
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Accent color")
@@ -1153,14 +1162,39 @@ func (a *App) chips(gtx layout.Context, f frame) []layout.FlexChild {
 	return out
 }
 
-// setPageAbout: static about page.
+// appVersion is the Uniclient version shown on the About page (bumped at
+// release time; the release pipeline tags the same number).
+const appVersion = "0.6.0-dev"
+
+// aboutRow is one key/description line on the About page.
+type aboutRow struct {
+	key, desc string
+}
+
+// shortcutRows lists the global keyboard shortcuts (AyuGram About page
+// style). Pure — kept in sync with gui/shortcuts.go by tests.
+func shortcutRows() []aboutRow {
+	return []aboutRow{
+		{"Esc", "close the topmost surface (menu, panel, search…)"},
+		{"Ctrl+F", "search in the open chat, or filter the chat list"},
+		{"Ctrl+↑ / Ctrl+↓", "previous / next chat"},
+		{"Ctrl+PgUp / Ctrl+PgDn", "previous / next chat"},
+		{"Right-click", "context menu (chat row, bubble, header, folder tab)"},
+		{"/", "bot commands menu (chats with commands)"},
+	}
+}
+
+// setPageAbout: about page — version, backends, and the shortcut list.
 func (a *App) setPageAbout(gtx layout.Context, f frame) layout.Dimensions {
 	var children []layout.FlexChild
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "About")
 	}))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return a.settingRow(gtx, "Uniclient", "One frontend, every messenger backend")
+		return a.settingRow(gtx, "Uniclient "+appVersion, "One frontend, every messenger backend")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Go runtime", runtime.Version())
 	}))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.settingRow(gtx, "Backends", "Telegram · IRC · Matrix · GitHub · XMPP · Delta Chat")
@@ -1171,6 +1205,15 @@ func (a *App) setPageAbout(gtx layout.Context, f frame) layout.Dimensions {
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.settingRow(gtx, "Source", "github.com/DarkReaperBoy/Uniclient")
 	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Keyboard shortcuts")
+	}))
+	for _, r := range shortcutRows() {
+		r := r
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.bulletedRow(gtx, r.key, r.desc)
+		}))
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
@@ -1230,4 +1273,11 @@ func (a *App) loadingNote(gtx layout.Context) layout.Dimensions {
 			}),
 		)
 	})
+}
+
+// applyBubbleCornersUI swaps the corner style and persists it (appearance,
+// slice 82).
+func (a *App) applyBubbleCornersUI(round bool) {
+	a.ui.applyBubbleCorners(round)
+	a.applyConfigBool("bubble_corners", round)
 }

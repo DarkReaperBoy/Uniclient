@@ -102,6 +102,25 @@ func (u *UI) applyTheme(name string) {
 	}
 }
 
+// bubbleRadiusFor maps the corners toggle to the bubble corner radius in
+// dp (AyuGram "Corners": rounded vs square). Pure.
+func bubbleRadiusFor(round bool) int {
+	if round {
+		return 12
+	}
+	return 2
+}
+
+// applyBubbleCorners sets the corner style (AyuGram appearance, slice 82).
+func (u *UI) applyBubbleCorners(round bool) {
+	u.bubbleCornersOn = round
+}
+
+// bubbleRadius is the active message-bubble corner radius in dp.
+func (u *UI) bubbleRadius() int {
+	return bubbleRadiusFor(u.bubbleCornersOn)
+}
+
 // clampFontScale bounds the text scale to a sane, still-usable range.
 func clampFontScale(v float64) float64 {
 	if v < 0.8 {
@@ -187,6 +206,9 @@ type UI struct {
 	p         palette
 	fontScale float64 // global text scale (AyuGram appearance, slice 59)
 	accentHex string  // applied accent (survives theme switches)
+	// Round bubble corners (AyuGram appearance "Corners", slice 82):
+	// true = 12dp rounded, false = 2dp near-square.
+	bubbleCornersOn bool
 }
 
 // notoEmoji is the monochrome Noto Emoji face (SIL OFL 1.1, see assets/OFL.txt).
