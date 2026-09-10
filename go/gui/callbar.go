@@ -1,11 +1,13 @@
 package gui
 
 import (
+	"time"
+
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	"time"
 
+	"uniclient/cores"
 	"uniclient/engine"
 )
 
@@ -23,11 +25,27 @@ const callPollInterval = 5 * time.Second
 var callJoinBtn widget.Clickable
 
 // callBarPollNeeded reports whether the poll loop should fetch call info
-// for a chat (only chats with a live call).
-func callBarPollNeeded(c engine.ChatInfo) bool { return c.HasActiveCall }
+// for a chat (chats with a live call, or voice-room channels whose
+// occupancy changes as users join/leave).
+func callBarPollNeeded(c engine.ChatInfo, voiceRoom bool) bool {
+	return c.HasActiveCall || voiceRoom
+}
 
 // callBarSubtitle derives the bar's status line.
-func callBarSubtitle(c engine.ChatInfo, gc *engine.GroupCallInfo) string {
+func callBarSubtitle(c engine.ChatInfo, gc *engine.GroupCallInfo, voiceRoom bool) string {
+	if voiceRoom {
+		if gc == nil {
+			return "voice room · empty"
+		}
+		switch {
+		case gc.ParticipantsCount == 1:
+			return "voice room · 1 participant"
+		case gc.ParticipantsCount > 1:
+			return "voice room · " + itoa(gc.ParticipantsCount) + " participants"
+		default:
+			return "voice room · empty"
+		}
+	}
 	if gc == nil {
 		return "group call · live"
 	}
@@ -44,6 +62,16 @@ func callBarSubtitle(c engine.ChatInfo, gc *engine.GroupCallInfo) string {
 		label += " · live stream"
 	}
 	return label
+}
+
+// voiceRoomChat reports whether the chat is a standing voice room
+// (Mumble/TeamSpeak channel): the bar shows even when empty because
+// joining an empty room is a real action.
+func voiceRoomChat(c engine.ChatInfo, caps []string) bool {
+	if c.Type == engine.ChatTypeDMVal {
+		return false
+	}
+	return capContains(caps, cores.CapVoiceRooms)
 }
 
 // callJoinedLabel is the toast shown after a successful join.
@@ -64,7 +92,7 @@ func (a *App) callBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 			// Slice 102: record the joined call — the Voice tab becomes
 			// the group-call screen (participants, mute, leave).
 			a.setJoinedCall(acc, callID, id, title)
-			a.setToast(callJoinedLabel(title))
+			a.afterVoiceJoin(engine.ChatInfo{AccountID: acc, ChatID: id, Title: title})
 			a.mu.Lock()
 			a.mode = 1
 			a.mu.Unlock()
@@ -93,7 +121,7 @@ func (a *App) callBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 								return lbl.Layout(gtx)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								lbl := a.ui.Dim(unit.Sp(12), callBarSubtitle(*chat, f.groupCall))
+								lbl := a.ui.Dim(unit.Sp(12), callBarSubtitle(*chat, f.groupCall, voiceRoomChat(*chat, f.hdrCaps)))
 								lbl.Color = a.ui.p.Online
 								return lbl.Layout(gtx)
 							}),
@@ -130,8 +158,10 @@ func (a *App) syncCallPoll() {
 	selected := a.selected
 	var target *chatKey
 	if selected != nil {
+		caps := a.capsCached(selected.AccountID)
 		for _, c := range a.chats {
-			if c.AccountID == selected.AccountID && c.ChatID == selected.ChatID && c.HasActiveCall {
+			if c.AccountID == selected.AccountID && c.ChatID == selected.ChatID &&
+				(callBarPollNeeded(c, voiceRoomChat(c, caps))) {
 				k := *selected
 				target = &k
 				break
@@ -165,4 +195,15 @@ func (a *App) syncCallPoll() {
 			a.pollGroupCallOnce(k.AccountID, k.ChatID)
 		}
 	}(*target)
+}
+
+// capsCached returns the cached account capabilities (the header caps
+// load keeps them fresh); an empty list is conservative and honest.
+func (a *App) capsCached(accountID string) []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.hdrCapsFor == accountID {
+		return a.hdrCaps
+	}
+	return nil
 }

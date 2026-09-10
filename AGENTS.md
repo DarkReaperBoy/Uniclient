@@ -135,6 +135,9 @@ go/
                    media, pending queue. NO UI code, NO proto, NO bridge.
   cores/           One file set per backend. Implements cores.Core.
                    A core never imports another core. Never imports engine.
+  voice/           Shared opus codec + per-sender mixer (pion/opus, pure Go).
+  audio/           Platform audio devices: pulse (Linux), winmm (Windows),
+                   WebAudio (js/wasm) — all pure Go; Android stubbed honestly.
   utils/           Config, vault, crypto, storage helpers.
   wrtc/            WebRTC shim: pion natively, browser API on js/wasm.
   tests/           Live protocol tests (env-gated, run on demand, not CI).
@@ -284,15 +287,17 @@ Cores are protocol implementations behind `cores.Core`.
 | bale | Implementation exists, unverified live (geo-restricted). | own protobuf-over-websocket impl | Balethon — https://github.com/Balethon/Balethon (Python); aiobale — https://github.com/aminmadaniofficial/aiobale (client impl); web client — https://web.bale.ai/ (live reference) |
 | rubika | Implementation exists, unverified live (geo-restricted). | own impl | reverse-engineered protocol notes in research/ (verify before trusting) |
 | deltachat | Implementation exists, unverified live. | candidate stack: go-imap + go-smtp + go-crypto + modernc/sqlite | chatmail/core — https://github.com/chatmail/core (Rust official — reference only); deltachat-desktop — https://github.com/deltachat/deltachat-desktop |
-| mumble | **Live-verified 2026-09-10** (public server, official rung): full TCP chain (TLS→Version→Authenticate→CryptSetup→ServerSync), two-client text round-trip, UDP ping. OCB2 decrypt is a 1:1 port of upstream CryptStateOCB2 (pinned by TestCrypt-equivalent unit tests). Voice (UDP opus) is unit-tested but needs a real audio round-trip. | own impl | protocol docs — https://github.com/mumble-voip/mumble/tree/master/docs/dev/network-protocol; mumble desktop client — https://github.com/mumble-voip/mumble (possible voice-GUI inspiration) |
-| teamspeak | **Live-verified 2026-09-10** (public server): full 5-step init handshake, EAX fake-key stage, license chain + ECDH, encrypted command channel, initserver, 100-channel list, ACKed text send. Key derivation + license/ECDH pinned against ts3j official test vectors. | own impl | ts3j — https://github.com/Manevolent/ts3j (Java, working reference); TSLib (TS3AudioBot) — https://github.com/Splamy/TS3AudioBot; spec: ReSpeak/tsdeclarations ts3protocol.md (tsproto repo is gone) |
+| mumble | **Live-verified 2026-09-10 incl. VOICE** (public server, official rung): full TCP chain (TLS→Version→Authenticate→CryptSetup→ServerSync), two-client text round-trip, UDP ping, **two-client opus voice round-trip (75/75 packets, tone intact)**. OCB2 decrypt is a 1:1 port of upstream CryptStateOCB2. Voice rooms ship in the GUI: every channel is a standing voice room (call bar, participants, mute, speaking states) wired through the engine's shared mic→opus→speaker pipeline. | own impl | protocol docs — https://github.com/mumble-voip/mumble/tree/master/docs/dev/network-protocol; mumble desktop client — https://github.com/mumble-voip/mumble (possible voice-GUI inspiration) |
+| teamspeak | **Live-verified 2026-09-10 incl. VOICE** (public server): full 5-step init handshake, EAX fake-key stage, license chain + ECDH, encrypted command channel, initserver, 100-channel list, ACKed text send, **two-client opus voice round-trip (75/75 packets through EAX-encrypted S2C voice with generation tracking)**. Key derivation + license/ECDH pinned against ts3j official test vectors. Receive-side generation counters (ts3j RemoteCounter semantics + ±1 decrypt retry), server default-channel tracking, error-770 join semantics. | own impl | ts3j — https://github.com/Manevolent/ts3j (Java, working reference); TSLib (TS3AudioBot) — https://github.com/Splamy/TS3AudioBot; spec: ReSpeak/tsdeclarations ts3protocol.md (tsproto repo is gone) |
 
-Mumble + TeamSpeak are live-verified (2026-09-10, §9 official-server rung) —
-they ship as real backends. The §9 verification ladder for both: unit tests
-pinning crypto/packet formats → live tests against public servers
-(`go/tests/mumble_live_test.go`, `teamspeak_live_test.go`, env
-`-tags goolm,live`, never in CI). Remaining gap: real audio (opus) round-trips
-need a second human/device — the owner's live test will cover that.
+Mumble + TeamSpeak are live-verified (2026-09-10, §9 official-server rung)
+including the voice data plane — two-client opus voice round-trips on public
+servers (`go/tests/mumble_voice_live_test.go`, `teamspeak_voice_live_test.go`,
+`-tags goolm,live`, never in CI). They ship as real voice-room backends: the
+engine drives mic → pion/opus (pure Go) → core, and core → decode → mixer →
+speaker, with pure-Go audio devices on Linux (PulseAudio protocol), Windows
+(winmm syscalls) and web (WebAudio). Remaining gap: real-hardware mic/speaker
+testing (the owner's live test) + Android audio devices (honest stub today).
 
 ## 9. Testing rules
 
@@ -370,6 +375,12 @@ is the next task.
         commands "/" menu (GetChatBotCommands); top peers strip while
         searching (GetTopPeers). README rewritten to match the real
         architecture (the old one described the deleted bridge).
+- [x] Voice data plane 1:1 + live-verified (slice 110) — 2026-09-10:
+      pure-Go opus (pion/opus) + pure-Go audio devices (pulse/winmm/WebAudio),
+      engine voiceRunner (mic→VAD→opus→core, core→decode→mix→speaker),
+      voice rooms in the GUI for both backends, receive-side TS3 generation
+      tracking fixed, live two-client voice round-trips green on public
+      servers (75/75 packets each). Android audio = honest stub, top of queue.
 - [x] mumble + teamspeak rewrite (tests first, docker-based, §8) — 2026-09-10:
       both cores deep-verified against primary sources (official Mumble.proto/
       MumbleUDP.proto + upstream CryptStateOCB2.cpp; ReSpeak/tsdeclarations

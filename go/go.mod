@@ -14,10 +14,12 @@ require (
 	github.com/emersion/go-smtp v0.25.0
 	github.com/godbus/dbus/v5 v5.0.6
 	github.com/gotd/td v0.161.0
+	github.com/jfreymuth/pulse v0.1.3
 	github.com/livekit/server-sdk-go/v2 v2.18.1
 	github.com/pion/ice/v4 v4.4.2
 	github.com/pion/interceptor v0.1.48
 	github.com/pion/logging v0.2.4
+	github.com/pion/opus v0.1.1-0.20260909212711-b8ebd659d671
 	github.com/pion/rtcp v1.2.17
 	github.com/pion/rtp v1.10.5
 	github.com/pion/sctp v1.11.1
@@ -28,6 +30,7 @@ require (
 	golang.org/x/exp/shiny v0.0.0-20260824195058-e88cd73687aa
 	golang.org/x/image v0.45.0
 	golang.org/x/net v0.58.0
+	golang.org/x/sys v0.47.0
 	maunium.net/go/mautrix v0.30.0
 	modernc.org/sqlite v1.58.0
 	rsc.io/qr v0.2.0
@@ -126,7 +129,6 @@ require (
 	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297 // indirect
 	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect

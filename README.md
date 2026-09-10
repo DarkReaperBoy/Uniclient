@@ -73,8 +73,12 @@ go/
                    talks to the engine only.
   bootstrap/       Engine wiring: engine.Init + core factory + session store.
   engine/          Accounts, vault, SQLite cache, auth state machine, events,
-                   media, pending queue. No UI, no proto, no bridge.
+                   media, pending queue + the shared voice pipeline
+                   (mic → Opus → core, core → decode → mix → speaker).
   cores/           One file set per backend, implementing cores.Core.
+  voice/           Pure-Go Opus codec + per-sender mixer (pion/opus).
+  audio/           Pure-Go audio devices: PulseAudio protocol (Linux),
+                   winmm syscalls (Windows), WebAudio (js/wasm).
   utils/           Config, vault, crypto, storage helpers.
   wrtc/            WebRTC shim: pion natively, browser API on js/wasm.
   tests/           Live protocol tests (env-gated, run on demand, not CI).
@@ -93,7 +97,7 @@ fit the GUI, never the other way around.
 | IRC | Live-tested against real servers (own RFC2812+IRCv3 implementation) |
 | GitHub | Live-tested against the real API |
 | XMPP / Delta Chat / Bale / Rubika | Implemented, live verification pending |
-| TeamSpeak / Mumble | Stale; rewrite pending — hidden until then |
+| TeamSpeak / Mumble | Live-verified on public servers incl. the voice data plane: two-client opus voice round-trips (pure-Go codec + pure-Go audio devices) |
 
 Live protocol tests live in `go/tests/`, gated behind env vars
 (e.g. `UNICLIENT_LIVE_IRC=1`); they never run in CI and never need secrets

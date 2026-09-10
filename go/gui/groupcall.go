@@ -17,6 +17,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 
+	"uniclient/cores"
 	"uniclient/engine"
 )
 
@@ -146,6 +147,10 @@ func gcCountLabel(n int) string {
 		return itoa(n) + " participants"
 	}
 }
+
+// voiceRoomCaps reports whether an account's capabilities mark it as a
+// standing voice-room backend (Mumble, TeamSpeak).
+func voiceRoomCaps(caps []string) bool { return capContains(caps, cores.CapVoiceRooms) }
 
 // gcJoinedTitle picks the call's display title (server title beats chat
 // title fallback).
@@ -307,7 +312,22 @@ func (a *App) joinGroupCallFromVoice(c engine.ChatInfo) {
 			return
 		}
 		a.setJoinedCall(c.AccountID, id, c.ChatID, c.Title)
+		a.afterVoiceJoin(c)
 	}()
+}
+
+// afterVoiceJoin surfaces the join result: the toast plus — when the
+// device layer is unavailable (Android today) — an honest notice that
+// mic and speaker are off rather than a silent half-working room.
+func (a *App) afterVoiceJoin(c engine.ChatInfo) {
+	if voiceRoomCaps(a.capsCached(c.AccountID)) {
+		a.setToast("Joined the voice room " + c.Title)
+	} else {
+		a.setToast(callJoinedLabel(c.Title))
+	}
+	if err := a.eng.AudioDeviceError(); err != nil {
+		a.setToast("Microphone and speaker unavailable: " + err.Error())
+	}
 }
 
 // ── layout ────────────────────────────────────────────────────────────────
@@ -398,15 +418,17 @@ func (a *App) layoutGroupCallScreen(gtx layout.Context, f frame) layout.Dimensio
 						})
 					}))
 				}
-				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.PrimaryButton(&gcNoiseBtn, gcNoiseLabel(jc.noiseOn))
-						if jc.noiseOn {
-							btn.Background = a.ui.p.Online
-						}
-						return btn.Layout(gtx)
-					})
-				}))
+				if !voiceRoomCaps(a.capsCached(jc.accountID)) {
+					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							btn := a.ui.PrimaryButton(&gcNoiseBtn, gcNoiseLabel(jc.noiseOn))
+							if jc.noiseOn {
+								btn.Background = a.ui.p.Online
+							}
+							return btn.Layout(gtx)
+						})
+					}))
+				}
 				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 			})
 		}),

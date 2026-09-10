@@ -100,8 +100,13 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 		}),
 		// Group-call live bar (slice 70): under the header while the chat
 		// has an active call; participant data polled from the engine.
+		// Voice-room backends (Mumble/TeamSpeak) show it on every channel —
+		// a channel IS a standing voice room, empty or not.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if chat == nil || !chat.HasActiveCall {
+			if chat == nil {
+				return layout.Dimensions{}
+			}
+			if !chat.HasActiveCall && !voiceRoomChat(*chat, f.hdrCaps) {
 				return layout.Dimensions{}
 			}
 			d := a.callBar(gtx, f, chat)

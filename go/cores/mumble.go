@@ -3165,8 +3165,12 @@ type MumbleCore struct {
 	msgCounter atomic.Int64
 
 	// voice
-	voiceHandler    func(MumbleVoicePacket)
-	voiceSeqNum     atomic.Int64
+	voiceHandler func(MumbleVoicePacket)
+	voiceSeqNum  atomic.Int64
+
+	// speaking activity: session → last voice-packet arrival
+	speakingMu      sync.Mutex
+	speakingUntil   map[uint32]time.Time
 	udpPktsSent     atomic.Uint32
 	udpPktsRecv     atomic.Uint32
 	tcpPktsSent     atomic.Uint32
@@ -3598,6 +3602,7 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 		pkt.PositionZ = math.Float32frombits(binary.LittleEndian.Uint32(data[pos+8:]))
 	}
 
+	c.noteSpeaking(pkt.SenderSession, len(pkt.AudioData) > 0 && !pkt.IsTerminator)
 	if c.voiceHandler != nil {
 		c.voiceHandler(pkt)
 	}
@@ -3693,6 +3698,7 @@ func (c *MumbleCore) handleProtobufUDPPacket(data []byte) {
 		}
 	}
 
+	c.noteSpeaking(pkt.SenderSession, len(pkt.AudioData) > 0 && !pkt.IsTerminator)
 	if c.voiceHandler != nil {
 		c.voiceHandler(pkt)
 	}
@@ -4497,6 +4503,103 @@ func (c *MumbleCore) OnVoice(handler func(MumbleVoicePacket)) {
 	c.mu.Unlock()
 }
 
+// noteSpeaking records voice activity for a session (speaking shows for
+// 400 ms after the last audio packet — one 20 ms frame of slack).
+func (c *MumbleCore) noteSpeaking(session uint32, hasAudio bool) {
+	if !hasAudio {
+		return
+	}
+	c.speakingMu.Lock()
+	if c.speakingUntil == nil {
+		c.speakingUntil = make(map[uint32]time.Time)
+	}
+	c.speakingUntil[session] = time.Now().Add(400 * time.Millisecond)
+	c.speakingMu.Unlock()
+}
+
+// isSpeaking reports recent voice activity for a session.
+func (c *MumbleCore) isSpeaking(session uint32) bool {
+	c.speakingMu.Lock()
+	defer c.speakingMu.Unlock()
+	until, ok := c.speakingUntil[session]
+	return ok && time.Now().Before(until)
+}
+
+// SendVoiceFrame implements cores.VoiceCore: one 20 ms Opus packet to
+// the current channel (normal target).
+func (c *MumbleCore) SendVoiceFrame(opusData []byte) error {
+	return c.SendVoice(opusData, 0)
+}
+
+// OnVoiceFrame implements cores.VoiceCore: session-attributed Opus
+// packets. Terminators and empty audio are not forwarded.
+func (c *MumbleCore) OnVoiceFrame(handler func(sender string, opus []byte)) {
+	c.OnVoice(func(p MumbleVoicePacket) {
+		if p.IsTerminator || len(p.AudioData) == 0 {
+			return
+		}
+		handler(strconv.FormatUint(uint64(p.SenderSession), 10), p.AudioData)
+	})
+}
+
+// SetVoiceMuted implements cores.VoiceCore via the server-side
+// self-mute state.
+func (c *MumbleCore) SetVoiceMuted(muted bool) error {
+	return c.SelfMute(muted)
+}
+
+// LeaveGroupCall leaves the voice channel by moving to root.
+func (c *MumbleCore) LeaveGroupCall(callID string) error {
+	return c.EndCall(callID)
+}
+
+// GetGroupCall returns the channel's live voice session: every channel
+// is a standing voice room; participants are the users currently in
+// the channel with their mute/speaking state.
+func (c *MumbleCore) GetGroupCall(chatID string) (*CallSession, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	channelID, err := strconv.ParseUint(chatID, 10, 32)
+	if err != nil {
+		c.mu.RUnlock()
+		return nil, ErrInvalidInput
+	}
+	ch, ok := c.channels[uint32(channelID)]
+	if !ok {
+		c.mu.RUnlock()
+		return nil, ErrNotFound
+	}
+	var participants []CallParticipant
+	for _, u := range c.users {
+		if u.ChannelID != uint32(channelID) {
+			continue
+		}
+		participants = append(participants, CallParticipant{
+			UserID:      strconv.FormatUint(uint64(u.Session), 10),
+			DisplayName: u.Name,
+			IsMuted:     u.SelfMute || u.Mute || u.Suppress || u.SelfDeaf,
+			IsSpeaking:  u.Session != c.mySession && c.isSpeaking(u.Session),
+		})
+	}
+	title := ch.Name
+	c.mu.RUnlock()
+
+	return &CallSession{
+		ID:           chatID,
+		ChatID:       chatID,
+		IsGroup:      true,
+		State:        CallStateActive,
+		Participants: participants,
+		Meta: map[string]string{
+			"title":              title,
+			"participants_count": strconv.Itoa(len(participants)),
+		},
+	}, nil
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // Server Query (Unauthenticated UDP Ping)
 // ════════════════════════════════════════════════════════════════════════════════
@@ -4552,7 +4655,7 @@ func (c *MumbleCore) Name() string { return mumblePlatform }
 
 // Capabilities returns the list of supported features for Mumble.
 func (c *MumbleCore) Capabilities() []string {
-	return []string{CapText, CapChannels, CapVoice, CapAdmin, CapBlocking, CapSearch}
+	return []string{CapText, CapChannels, CapVoice, CapGroupCalls, CapVoiceRooms, CapAdmin, CapBlocking, CapSearch}
 }
 
 // Authenticate connects to a Mumble server using the provided configuration.
@@ -4686,11 +4789,12 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		}
 
 		dlg := Dialog{
-			ID:          strconv.FormatUint(uint64(ch.ID), 10),
-			Type:        ChatTypeGroup,
-			Title:       ch.Name,
-			MemberCount: memberCount,
-			Platform:    mumblePlatform,
+			ID:            strconv.FormatUint(uint64(ch.ID), 10),
+			Type:          ChatTypeGroup,
+			Title:         ch.Name,
+			MemberCount:   memberCount,
+			Platform:      mumblePlatform,
+			HasActiveCall: memberCount > 0, // occupied channel = live voice room
 		}
 		if ch.ParentID != ch.ID {
 			dlg.ParentID = strconv.FormatUint(uint64(ch.ParentID), 10)

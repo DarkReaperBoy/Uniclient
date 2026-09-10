@@ -123,6 +123,7 @@ const (
 	CapPresence     = "PRESENCE"
 	CapBase64Image  = "BASE64_IMAGE"
 	CapVoice        = "VOICE"
+	CapVoiceRooms   = "VOICE_ROOMS"
 	CapBlocking     = "BLOCKING"
 	CapLocation     = "LOCATION"
 	CapScheduled    = "SCHEDULED"
@@ -850,6 +851,20 @@ type Core interface {
 
 	// SendLocation sends a geographic location as a message.
 	SendLocation(chatID string, lat float64, lon float64) (*Message, error)
+}
+
+// VoiceCore is the engine-side surface of a live-voice backend
+// (Mumble, TeamSpeak): the engine drives the shared audio pipeline —
+// microphone frames in, Opus packets out, remote Opus in, decoded
+// mixed audio to the speaker — while the core owns the wire protocol.
+type VoiceCore interface {
+	// SendVoiceFrame sends one 20 ms Opus packet to the current channel.
+	SendVoiceFrame(opus []byte) error
+	// OnVoiceFrame registers the receiver for remote voice: one Opus
+	// packet per callback, attributed to the sender's platform user ID.
+	OnVoiceFrame(handler func(sender string, opus []byte))
+	// SetVoiceMuted toggles server-side self-mute for voice.
+	SetVoiceMuted(muted bool) error
 }
 
 type ForwardOptions struct {

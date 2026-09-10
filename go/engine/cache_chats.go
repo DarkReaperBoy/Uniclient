@@ -1823,6 +1823,13 @@ func (e *Engine) JoinGroupCall(accountID, chatID string) (string, error) {
 			return "", err
 		}
 	}
+
+	// Voice-capable backends (Mumble, TeamSpeak): start the shared
+	// mic → Opus → core / core → decode → mix → speaker pipeline.
+	if vc, ok := acc.Core.(cores.VoiceCore); ok {
+		e.startVoiceRunner(accountID, vc)
+	}
+
 	return cs.ID, nil
 }
 
@@ -2024,10 +2031,16 @@ func (e *Engine) LeaveGroupCall(accountID, callID string) error {
 	type groupCallLeaver interface {
 		LeaveGroupCall(callID string) error
 	}
+	var leaveErr error
 	if gc, ok := acc.Core.(groupCallLeaver); ok {
-		return gc.LeaveGroupCall(callID)
+		leaveErr = gc.LeaveGroupCall(callID)
+	} else {
+		leaveErr = fmt.Errorf("core does not support LeaveGroupCall")
 	}
-	return fmt.Errorf("core does not support LeaveGroupCall")
+	// Stop the live voice pipeline regardless (the room may have been
+	// left server-side by other means).
+	e.stopVoiceRunner()
+	return leaveErr
 }
 
 // GetGroupCallJoinAsPeers returns the identities the user can join a chat's
@@ -2566,6 +2579,9 @@ func (e *Engine) SetCallMuted(accountID, callID string, muted bool) error {
 	if acc.Core == nil {
 		return fmt.Errorf("account not connected: %s", accountID)
 	}
+	// Mirror the mic gate into the live voice runner (skips frames
+	// locally) alongside the core's server-side state.
+	e.setVoiceMuted(muted)
 	return acc.Core.SetCallMuted(callID, muted)
 }
 

@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/net/proxy"
 
+	"uniclient/audio"
 	"uniclient/cores"
 	"uniclient/utils"
 )
@@ -76,6 +77,12 @@ type Engine struct {
 
 	media   *MediaManager
 	avatars *avatarState
+
+	// Live voice pipeline (engine/voice.go): one active voice-room
+	// session at a time, sharing the process-wide audio devices.
+	voiceMu      sync.Mutex
+	voiceRun     *voiceRunner
+	audioSession *audio.Session
 
 	lockFile     *os.File // single-instance lock file (held open with flock)
 	shuttingDown bool
@@ -1090,6 +1097,13 @@ func (e *Engine) Shutdown() error {
 	e.mu.Lock()
 	e.shuttingDown = true
 	e.mu.Unlock()
+
+	// Tear down the live voice pipeline and release the audio devices.
+	e.stopVoiceRunner()
+	if e.audioSession != nil {
+		e.audioSession.Close()
+		e.audioSession = nil
+	}
 
 	// Stop any pending export-ready suggestion timers.
 	e.cancelAllExportSuggests()

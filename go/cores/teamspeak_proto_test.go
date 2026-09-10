@@ -457,3 +457,134 @@ func TestTS3LicenseDerivationVector(t *testing.T) {
 		t.Fatalf("shared MAC mismatch: got %x want %x", sharedMAC, wantMAC)
 	}
 }
+
+// ── receive-side generation tracking (ts3j RemoteCounter semantics) ──
+
+func TestTS3RecvGenerationTracking(t *testing.T) {
+	tc := &tsConnection{}
+
+	// Fresh connection: first packet locks in without a generation bump.
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0); g != 0 {
+		t.Fatalf("first packet gen = %d", g)
+	}
+	// Rising ids stay in generation 0.
+	for id := uint16(1); id < 200; id++ {
+		if g := tc.tsTrackRecvPID(tsPktVoice, id); g != 0 {
+			t.Fatalf("id %d: gen = %d, want 0", id, g)
+		}
+	}
+	// Wrap: last 0xFF00 → new 0x0010 bumps to generation 1.
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0xFF00); g != 0 {
+		t.Fatalf("pre-wrap gen = %d", g)
+	}
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0x0010); g != 1 {
+		t.Fatalf("post-wrap gen = %d, want 1", g)
+	}
+	for id := uint16(0x0011); id < 0x0100; id++ {
+		if g := tc.tsTrackRecvPID(tsPktVoice, id); g != 1 {
+			t.Fatalf("gen1 id %d: gen = %d", id, g)
+		}
+	}
+	// A late pre-wrap packet (0xFFF0 after the wrap) reports the current
+	// generation — ts3j's "ahead to the right" rule — and relies on the
+	// generation±1 decrypt retry to land on the old one. It must NOT
+	// advance the wrap state, so a following high id is still gen 1.
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0xFFF0); g != 1 {
+		t.Fatalf("late pre-wrap packet gen = %d, want 1 (retry resolves)", g)
+	}
+	// Second wrap.
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0xFFE0); g != 1 {
+		t.Fatalf("second pre-wrap gen = %d, want 1", g)
+	}
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0x0005); g != 2 {
+		t.Fatalf("second post-wrap gen = %d, want 2", g)
+	}
+}
+
+func TestTS3RecvGenerationPerType(t *testing.T) {
+	tc := &tsConnection{}
+	// Voice wraps; commands must be unaffected.
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0xFF00); g != 0 {
+		t.Fatalf("voice pre-wrap gen = %d", g)
+	}
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0x0020); g != 1 {
+		t.Fatalf("voice post-wrap gen = %d", g)
+	}
+	if g := tc.tsTrackRecvPID(tsPktCommand, 5); g != 0 {
+		t.Fatalf("command gen = %d", g)
+	}
+	if g := tc.tsTrackRecvPID(tsPktCommand, 6); g != 0 {
+		t.Fatalf("command gen = %d", g)
+	}
+}
+
+func TestTS3RecvGenerationDupAndJitter(t *testing.T) {
+	tc := &tsConnection{}
+	// Duplicate ids must not bump the generation.
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0xFF00); g != 0 {
+		t.Fatalf("dup base gen = %d", g)
+	}
+	for i := 0; i < 5; i++ {
+		if g := tc.tsTrackRecvPID(tsPktVoice, 0xFF00); g != 0 {
+			t.Fatalf("dup %d gen = %d", i, g)
+		}
+	}
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0x0010); g != 1 {
+		t.Fatalf("post-dup wrap gen = %d, want 1", g)
+	}
+	// Small jitter around the wrap boundary must not double-bump.
+	if g := tc.tsTrackRecvPID(tsPktVoice, 0x0008); g != 1 {
+		t.Fatalf("jitter gen = %d", g)
+	}
+}
+
+func TestTS3DecryptRecvGenerationRetry(t *testing.T) {
+	var iv [64]byte
+	for i := range iv {
+		iv[i] = byte(i * 7)
+	}
+	tc := &tsConnection{sharedIV: iv}
+
+	pktType := byte(tsPktVoice)
+	pID := uint16(0x1234)
+	meta := []byte{0x34, 0x12, 0x00}
+	payload := []byte("audio-frame-payload")
+
+	// Encrypt as the server would at generation 2 (S2C direction 0x30).
+	key, nonce := tsCreateKeyNonce(pktType, pID, 2, 0x30, iv[:])
+	mac, ciphertext := tsEAXEncrypt(key[:], nonce[:], meta, payload)
+
+	// Tracker says generation 1 (stale by one): the retry must find 2.
+	tc.pktState[pktType].recvInit = true
+	tc.pktState[pktType].lastRecvPID = pID - 1
+	tc.pktState[pktType].recvGenID = 1
+
+	plain, err := tc.tsDecryptRecv(pktType, pID, meta, ciphertext, mac)
+	if err != nil {
+		t.Fatalf("retry decrypt failed: %v", err)
+	}
+	if string(plain) != string(payload) {
+		t.Fatalf("payload mismatch: %q", plain)
+	}
+	if tc.pktState[pktType].recvGenID != 2 {
+		t.Fatalf("generation not fast-forwarded: %d", tc.pktState[pktType].recvGenID)
+	}
+
+	// Tracker ahead by one (gen 3): retry at gen 2 must succeed WITHOUT
+	// rewinding the tracker.
+	plain2, err := tc.tsDecryptRecv(pktType, pID, meta, ciphertext, mac)
+	if err != nil {
+		t.Fatalf("ahead-retry decrypt failed: %v", err)
+	}
+	if string(plain2) != string(payload) {
+		t.Fatalf("payload mismatch 2: %q", plain2)
+	}
+
+	// Tampered MAC must still fail on every generation.
+	var badMac [8]byte
+	copy(badMac[:], mac[:])
+	badMac[0] ^= 0xFF
+	if _, err := tc.tsDecryptRecv(pktType, pID, meta, ciphertext, badMac); err == nil {
+		t.Fatal("tampered packet accepted")
+	}
+}

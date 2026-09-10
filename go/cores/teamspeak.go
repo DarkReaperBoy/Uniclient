@@ -13,6 +13,7 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -1043,10 +1044,12 @@ func tsParseInit3(data []byte) (x, n [64]byte, level uint32, random2 [100]byte, 
 // ──────────────────────────── TS3 Connection State ────────────────────────────
 
 type tsPacketState struct {
-	nextSendID uint16
-	nextRecvID uint16
-	sendGenID  uint32
-	recvGenID  uint32
+	nextSendID  uint16
+	nextRecvID  uint16
+	sendGenID   uint32
+	recvGenID   uint32
+	recvInit    bool   // first packet of this type seen
+	lastRecvPID uint16 // high-water packet id in the current generation
 }
 
 type tsPendingCmd struct {
@@ -1071,6 +1074,10 @@ type tsConnection struct {
 
 	// Per-type packet counters
 	pktState [9]tsPacketState // indexed by packet type
+
+	// genMu guards receive-side generation tracking (tsTrackRecvPID);
+	// packet handlers run concurrently.
+	genMu sync.Mutex
 
 	// Crypto state
 	sharedIV  [64]byte
@@ -1130,6 +1137,16 @@ type TeamSpeakCore struct {
 	// Current channel
 	myChannelID int
 
+	// local mic mute mirror (server state set via clientupdate)
+	micMuted bool
+
+	// default channel (channel_flag_default from channellist); -1 until
+	// known. Leaving a voice room moves here.
+	defaultChannelID int
+
+	// defaultChannelMu guards defaultChannelID.
+	defaultChannelMu sync.RWMutex
+
 	session *utils.SessionStore
 
 	// Update handlers
@@ -1153,6 +1170,10 @@ type TeamSpeakCore struct {
 	// Voice state
 	voiceHandler   func(VoicePacket)
 	voiceHandlerMu sync.RWMutex
+
+	// speaking activity: clid → last voice-packet arrival
+	speakingMu    sync.Mutex
+	speakingUntil map[int]time.Time
 
 	// Bandwidth stats
 	bwStats tsBandwidthStats
@@ -1252,7 +1273,7 @@ func (t *TeamSpeakCore) Name() string { return ts3Platform }
 
 // Capabilities returns the list of supported features for the TeamSpeak core.
 func (t *TeamSpeakCore) Capabilities() []string {
-	return []string{CapText, CapChannels, CapVoice, CapAdmin, CapSessions, CapTyping}
+	return []string{CapText, CapChannels, CapVoice, CapGroupCalls, CapVoiceRooms, CapAdmin, CapSessions, CapTyping}
 }
 
 // ──────────────────────────── UDP Transport ────────────────────────────
@@ -1265,6 +1286,90 @@ func (tc *tsConnection) tsNextPktID(pType byte) uint16 {
 		tc.pktState[idx].sendGenID++
 	}
 	return id
+}
+
+// tsTrackRecvPID maintains receive-side generation state for one packet
+// type, mirroring ts3j's RemoteCounter: a 16-bit packet ID that wraps
+// (high → low) bumps recvGenID; a late pre-wrap packet resolves to the
+// generation it belongs to. The returned generation is the one to
+// decrypt with. Without this, any stream crossing 65536 packets (about
+// 22 minutes of 50 pkt/s voice) fails EAX decryption forever.
+func (tc *tsConnection) tsTrackRecvPID(pktType byte, pID uint16) uint32 {
+	tc.genMu.Lock()
+	defer tc.genMu.Unlock()
+	idx := pktType & 0x0f
+	st := &tc.pktState[idx]
+	if !st.recvInit {
+		st.recvInit = true
+		st.lastRecvPID = pID
+		return st.recvGenID
+	}
+	if pID == st.lastRecvPID {
+		return st.recvGenID // duplicate or retransmission
+	}
+	switch {
+	case pID > st.lastRecvPID:
+		// Ahead in the current generation (ts3j: "outside the buffer to
+		// the right"). Covers small reordering jitter backwards as well
+		// via the retry path below when it is really a late packet.
+		st.lastRecvPID = pID
+	case st.lastRecvPID > 0xC000 && pID < 0x4000:
+		// High → low: the 16-bit id wrapped; a new generation begins.
+		st.recvGenID++
+		st.lastRecvPID = pID
+	default:
+		// Small backward step inside the same generation (reorder).
+		// Deliberately no state change.
+	}
+	return st.recvGenID
+}
+
+// tsDecryptRecv decrypts an S2C packet of pktType with EAX, retrying
+// the neighboring generations when the tracked one fails its MAC
+// (robust against reordering exactly at a wrap boundary, the TSLib
+// behavior). A success at gen+1 fast-forwards the tracker.
+func (tc *tsConnection) tsDecryptRecv(pktType byte, pID uint16, meta, data []byte, mac [8]byte) ([]byte, error) {
+	gen := tc.tsTrackRecvPID(pktType, pID)
+	key := tsRecvKey(pktType, pID, gen, tc.sharedIV[:])
+	nonce := tsRecvNonce(pktType, pID, gen, tc.sharedIV[:])
+	plain, err := tsEAXDecrypt(key[:], nonce[:], meta, data, mac)
+	if err == nil {
+		return plain, nil
+	}
+	for _, alt := range [...]uint32{gen + 1, func() uint32 {
+		if gen > 0 {
+			return gen - 1
+		}
+		return 0
+	}()} {
+		if alt == gen {
+			continue
+		}
+		key = tsRecvKey(pktType, pID, alt, tc.sharedIV[:])
+		nonce = tsRecvNonce(pktType, pID, alt, tc.sharedIV[:])
+		plain, err = tsEAXDecrypt(key[:], nonce[:], meta, data, mac)
+		if err == nil {
+			if alt > gen {
+				tc.genMu.Lock()
+				tc.pktState[pktType&0x0f].recvGenID = alt
+				tc.pktState[pktType&0x0f].lastRecvPID = pID
+				tc.genMu.Unlock()
+			}
+			return plain, nil
+		}
+	}
+	return nil, err
+}
+
+// tsRecvKey/tsRecvNonce derive the S2C EAX material (0x30 MAC type).
+func tsRecvKey(pktType byte, pID uint16, gen uint32, iv []byte) (key [16]byte) {
+	k, _ := tsCreateKeyNonce(pktType, pID, gen, 0x30, iv)
+	return k
+}
+
+func tsRecvNonce(pktType byte, pID uint16, gen uint32, iv []byte) (nonce [16]byte) {
+	_, n := tsCreateKeyNonce(pktType, pID, gen, 0x30, iv)
+	return n
 }
 
 // tsDebug enables verbose packet logging when UNICLIENT_TS3_DEBUG is set.
@@ -1508,8 +1613,7 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 		if flags&tsFlagUnencrypted != 0 {
 			plaintext = data
 		} else if tc.cryptoOK {
-			key, nonce := tsCreateKeyNonce(packetType, pID, tc.pktState[packetType].recvGenID, 0x30, tc.sharedIV[:])
-			plaintext, err = tsEAXDecrypt(key[:], nonce[:], meta, data, mac)
+			plaintext, err = tc.tsDecryptRecv(packetType, pID, meta, data, mac)
 			if err != nil {
 				fmt.Printf("[TS3 RX] cmd decrypt FAIL pID=%d type=0x%02x err=%v\n", pID, pType, err)
 				return
@@ -1548,12 +1652,10 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 				// Early ACKs: try fake decrypt first, fallback to real
 				ackPlain, err = tsEAXDecrypt(tsFakeKey[:], tsFakeNonce[:], meta, data, mac)
 				if err != nil && tc.cryptoOK {
-					key, nonce := tsCreateKeyNonce(tsPktAck, pID, tc.pktState[tsPktAck].recvGenID, 0x30, tc.sharedIV[:])
-					ackPlain, err = tsEAXDecrypt(key[:], nonce[:], meta, data, mac)
+					ackPlain, err = tc.tsDecryptRecv(tsPktAck, pID, meta, data, mac)
 				}
 			} else if tc.cryptoOK {
-				key, nonce := tsCreateKeyNonce(tsPktAck, pID, tc.pktState[tsPktAck].recvGenID, 0x30, tc.sharedIV[:])
-				ackPlain, err = tsEAXDecrypt(key[:], nonce[:], meta, data, mac)
+				ackPlain, err = tc.tsDecryptRecv(tsPktAck, pID, meta, data, mac)
 			} else {
 				ackPlain, err = tsEAXDecrypt(tsFakeKey[:], tsFakeNonce[:], meta, data, mac)
 			}
@@ -2275,6 +2377,11 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 				order:        order,
 			}
 			t.channels[cid] = ch
+			if e["channel_flag_default"] == "1" {
+				t.defaultChannelMu.Lock()
+				t.defaultChannelID = cid
+				t.defaultChannelMu.Unlock()
+			}
 		}
 		t.channelsMu.Unlock()
 	case "channellistfinished":
@@ -3123,11 +3230,12 @@ func (t *TeamSpeakCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 
 	for _, ch := range t.channels {
 		d := Dialog{
-			ID:          fmt.Sprintf("ch:%d", ch.cid),
-			Type:        ChatTypeChannel,
-			Title:       ch.name,
-			MemberCount: ch.totalClients,
-			Platform:    ts3Platform,
+			ID:            fmt.Sprintf("ch:%d", ch.cid),
+			Type:          ChatTypeChannel,
+			Title:         ch.name,
+			MemberCount:   ch.totalClients,
+			Platform:      ts3Platform,
+			HasActiveCall: ch.totalClients > 0, // occupied channel = live voice room
 		}
 		if ch.pid > 0 {
 			d.ParentID = fmt.Sprintf("ch:%d", ch.pid)
@@ -3525,19 +3633,9 @@ func (t *TeamSpeakCore) StartCall(_ string, _ bool) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
 }
 
-// JoinGroupCall is not supported on TeamSpeak and returns an unsupported error.
-func (t *TeamSpeakCore) JoinGroupCall(_ string) (*CallSession, error) {
-	return nil, fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
-}
-
-// EndCall is not supported on TeamSpeak and returns an unsupported error.
-func (t *TeamSpeakCore) EndCall(_ string) error {
-	return fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
-}
-
-// SetCallMuted is not supported on TeamSpeak and returns an unsupported error.
-func (t *TeamSpeakCore) SetCallMuted(_ string, _ bool) error {
-	return fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
+// EndCall leaves the voice room (same as LeaveGroupCall).
+func (t *TeamSpeakCore) EndCall(callID string) error {
+	return t.LeaveGroupCall(callID)
 }
 
 // ToggleCamera toggles the camera on/off for an active call.
@@ -4218,7 +4316,207 @@ func (t *TeamSpeakCore) SetInputMuted(muted bool) error {
 	if muted {
 		v = "1"
 	}
+	t.mu.Lock()
+	t.micMuted = muted
+	t.mu.Unlock()
 	return t.tsClientUpdate("client_input_muted=" + v)
+}
+
+// noteSpeaking records voice activity for a client (speaking shows for
+// 400 ms after the last voice packet).
+func (t *TeamSpeakCore) noteSpeaking(clid int) {
+	t.speakingMu.Lock()
+	if t.speakingUntil == nil {
+		t.speakingUntil = make(map[int]time.Time)
+	}
+	t.speakingUntil[clid] = time.Now().Add(400 * time.Millisecond)
+	t.speakingMu.Unlock()
+}
+
+// isSpeaking reports recent voice activity for a client.
+func (t *TeamSpeakCore) isSpeaking(clid int) bool {
+	t.speakingMu.Lock()
+	defer t.speakingMu.Unlock()
+	until, ok := t.speakingUntil[clid]
+	return ok && time.Now().Before(until)
+}
+
+// SendVoiceFrame implements cores.VoiceCore: one 20 ms Opus voice
+// packet to the current channel.
+func (t *TeamSpeakCore) SendVoiceFrame(opusData []byte) error {
+	return t.SendVoice(tsCodecOpusVoice, opusData)
+}
+
+// OnVoiceFrame implements cores.VoiceCore: client-attributed Opus
+// voice packets (whisper included).
+func (t *TeamSpeakCore) OnVoiceFrame(handler func(sender string, opus []byte)) {
+	t.OnVoice(func(p VoicePacket) {
+		if len(p.AudioData) == 0 {
+			return
+		}
+		handler(strconv.Itoa(p.SenderClientID), p.AudioData)
+	})
+}
+
+// SetVoiceMuted implements cores.VoiceCore via the server-side
+// client_input_muted state.
+func (t *TeamSpeakCore) SetVoiceMuted(muted bool) error {
+	return t.SetInputMuted(muted)
+}
+
+// tsParseChannelChatID extracts the numeric channel id from a chat id
+// ("ch:<cid>").
+func tsParseChannelChatID(chatID string) (int, error) {
+	if !strings.HasPrefix(chatID, "ch:") {
+		return 0, ErrInvalidInput
+	}
+	cid, err := strconv.Atoi(strings.TrimPrefix(chatID, "ch:"))
+	if err != nil {
+		return 0, ErrInvalidInput
+	}
+	return cid, nil
+}
+
+// JoinGroupCall joins a channel's voice room by moving into it.
+func (t *TeamSpeakCore) JoinGroupCall(chatID string) (*CallSession, error) {
+	t.mu.RLock()
+	if !t.authed {
+		t.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	t.mu.RUnlock()
+	cid, err := tsParseChannelChatID(chatID)
+	if err != nil {
+		return nil, err
+	}
+	if err := t.JoinChannel(cid, ""); err != nil {
+		// TS3 error 770 "already member of channel": the join already
+		// took effect (re-join, or the connect-time placement) — that IS
+		// the requested state.
+		var te *tsError
+		if !errors.As(err, &te) || te.ID != 770 {
+			return nil, err
+		}
+	}
+	return &CallSession{
+		ID:      chatID,
+		ChatID:  chatID,
+		IsGroup: true,
+		State:   CallStateActive,
+	}, nil
+}
+
+// DefaultChannelID returns the server's default channel id (-1 until the
+// channel list lands). The default channel is where clients land on
+// connect — leaving a voice room moves back here. A hard-coded 0 is
+// wrong: default channel ids are server-specific (live servers return
+// "invalid channelID" for cid=0).
+func (t *TeamSpeakCore) DefaultChannelID() int {
+	t.defaultChannelMu.RLock()
+	defer t.defaultChannelMu.RUnlock()
+	return t.defaultChannelID
+}
+
+// LeaveGroupCall leaves the voice room by moving back to the default
+// channel.
+func (t *TeamSpeakCore) LeaveGroupCall(callID string) error {
+	t.mu.RLock()
+	if !t.authed {
+		t.mu.RUnlock()
+		return ErrAuth
+	}
+	t.mu.RUnlock()
+	cid := t.DefaultChannelID()
+	if cid < 0 {
+		// Channel list not synced (fresh reconnect) — staying put is
+		// safer than guessing a channel id.
+		return nil
+	}
+	return t.JoinChannel(cid, "")
+}
+
+// SetCallMuted toggles the microphone in the current voice session.
+func (t *TeamSpeakCore) SetCallMuted(callID string, muted bool) error {
+	t.mu.RLock()
+	if !t.authed {
+		t.mu.RUnlock()
+		return ErrAuth
+	}
+	t.mu.RUnlock()
+	return t.SetInputMuted(muted)
+}
+
+// GetGroupCall returns the channel's live voice session: participants
+// are the clients currently in the channel with mute/speaking state.
+func (t *TeamSpeakCore) GetGroupCall(chatID string) (*CallSession, error) {
+	t.mu.RLock()
+	if !t.authed {
+		t.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	t.mu.RUnlock()
+	cid, err := tsParseChannelChatID(chatID)
+	if err != nil {
+		return nil, err
+	}
+	t.channelsMu.RLock()
+	ch, hasCh := t.channels[cid]
+	var title string
+	if hasCh {
+		title = ch.name
+	}
+	t.channelsMu.RUnlock()
+
+	t.clientInfoMu.RLock()
+	var participants []CallParticipant
+	selfSeen := false
+	for _, cl := range t.clientInfo {
+		if cl.channelID != cid {
+			continue
+		}
+		if cl.clid == t.myClientID {
+			selfSeen = true
+		}
+		participants = append(participants, CallParticipant{
+			UserID:      strconv.Itoa(cl.clid),
+			DisplayName: cl.nickname,
+			IsMuted:     cl.clid == t.myClientID && t.selfMuted(),
+			IsSpeaking:  cl.clid != t.myClientID && t.isSpeaking(cl.clid),
+		})
+	}
+	t.clientInfoMu.RUnlock()
+
+	// The server never sends the local client's own enter-view event —
+	// add ourselves so the room lists every member (Mumble parity).
+	if !selfSeen && t.myChannelID == cid {
+		participants = append(participants, CallParticipant{
+			UserID:      strconv.Itoa(t.myClientID),
+			DisplayName: t.myName,
+			IsMuted:     t.selfMuted(),
+			IsSpeaking:  false,
+		})
+	}
+
+	return &CallSession{
+		ID:           chatID,
+		ChatID:       chatID,
+		IsGroup:      true,
+		State:        CallStateActive,
+		Participants: participants,
+		Meta: map[string]string{
+			"title":              title,
+			"participants_count": strconv.Itoa(len(participants)),
+		},
+	}, nil
+}
+
+// selfMuted reports whether the mic is muted locally (the engine runner
+// mirrors its own mute state; the server state is authoritative for
+// other clients).
+func (t *TeamSpeakCore) selfMuted() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.micMuted
 }
 
 // SetOutputMuted mutes or unmutes the client's audio output.
@@ -5677,13 +5975,6 @@ func (t *TeamSpeakCore) OnVoice(handler func(VoicePacket)) {
 
 // tsHandleVoicePacket parses and dispatches incoming voice data.
 func (t *TeamSpeakCore) tsHandleVoicePacket(packetType byte, flags byte, plaintext []byte) {
-	t.voiceHandlerMu.RLock()
-	handler := t.voiceHandler
-	t.voiceHandlerMu.RUnlock()
-	if handler == nil {
-		return // no voice handler registered
-	}
-
 	isWhisper := packetType == tsPktVoiceWhisper
 	hasServerFlag := flags&tsFlagCompressed != 0
 
@@ -5712,6 +6003,15 @@ func (t *TeamSpeakCore) tsHandleVoicePacket(packetType byte, flags byte, plainte
 
 	audioData := make([]byte, audioEnd-audioStart)
 	copy(audioData, plaintext[audioStart:audioEnd])
+
+	t.noteSpeaking(clientID)
+
+	t.voiceHandlerMu.RLock()
+	handler := t.voiceHandler
+	t.voiceHandlerMu.RUnlock()
+	if handler == nil {
+		return // no voice handler registered
+	}
 
 	vp := VoicePacket{
 		SenderClientID: clientID,

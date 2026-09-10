@@ -1631,3 +1631,102 @@ hard-verification gaps and 5 real bugs** that only live testing could find.
   stays in the CI verify workflow). gofmt clean.
 - windows/amd64 + js/wasm cross-builds verified locally.
 - Parity matrix unchanged (voice slices are backend work, not GUI rows).
+
+## 2026-09-10 — slice 110: voice becomes real (opus + audio devices + live voice round-trips)
+
+The owner's directive: 1:1 the Teamspeak/Mumble protocols first and
+foremost and test on public servers before their own live test. Slice
+109 verified the control channels; this slice completes the VOICE data
+plane end-to-end and live-verifies it on public servers.
+
+### research (primary sources)
+
+- Pure-Go Opus: pion/opus master (b8ebd659d671, MIT) now ships a full
+  RFC 6716 encoder + decoder (the v0.1.0 tag predates the encoder —
+  pinned to the commit, not the tag). Round-trip quality verified in
+  unit tests (440 Hz magnitude 0.25 vs 0.0002 for harmonics).
+- Pure-Go audio I/O: jfreymuth/pulse v0.1.3 (PulseAudio native
+  protocol, MIT) for Linux capture+playback — no cgo, no new build
+  headers, PipeWire-compatible (the owner's NixOS path). Windows gets
+  winmm waveIn/waveOut via golang.org/x/sys/windows syscalls (pure Go,
+  CGO_ENABLED=0 preserved). Web gets WebAudio + getUserMedia via
+  syscall/js. Android audio is stubbed with an honest error (top of the
+  voice backlog — OpenSL ES via purego is the planned route).
+- ts3j's RemoteCounter semantics studied for receive-side generation
+  tracking (monotone forward = same generation; high→low = wrap).
+
+### new packages
+
+- `go/voice/`: opus codec wrapper (mono 48 kHz, 20 ms frames, VoIP
+  profile) + per-sender Mixer (volume, levels, clip-safe sum). 12 unit
+  tests incl. Goertzel tone verification and a 4-goroutine race test.
+- `go/audio/`: device layer — Session{StartMic,StartPlayback}. Linux
+  pulse / Windows winmm / WebAudio / Android-stub; live loopback test
+  (UNICLIENT_AUDIO_LIVE=1) for real hardware.
+
+### protocol bugs fixed (found building the voice path)
+
+6. **TS3 receive generation counters never advanced**: recvGenID was
+   never updated on receive — after 65536 packets (~22 min of voice at
+   50 pps) EAX decryption fails forever. Fixed: tsTrackRecvPID (ts3j
+   RemoteCounter semantics: forward move = same gen, high→low = wrap,
+   late pre-wrap resolved by the ±1 decrypt retry) + genMu (packet
+   handlers run concurrently). 5 unit tests pin the tracker; the retry
+   is pinned against synthetic EAX vectors.
+7. **TS3 default-channel assumption**: LeaveGroupCall moved to cid 0 —
+   live servers return "invalid channelID" (default channel ids are
+   server-specific). Fixed: channellist's channel_flag_default is now
+   tracked (DefaultChannelID()).
+8. **TS3 join-error 770**: "already member of channel" failed the join
+   — it IS the requested state. JoinGroupCall now treats it as success.
+9. **TS3 self missing from room members**: the server never sends your
+   own enter-view event; GetGroupCall adds the local client explicitly.
+
+### voice rooms (engine + GUI)
+
+- cores.VoiceCore interface (SendVoiceFrame/OnVoiceFrame/SetVoiceMuted)
+  implemented by both Mumble and TeamSpeak.
+- Speaking trackers in both cores (400 ms activity window, updated
+  BEFORE handler dispatch so speaking works pre-join).
+- engine/voice.go: voiceRunner — mic → VAD (hangover + terminator) →
+  opus → core.SendVoiceFrame; OnVoiceFrame → per-sender decode → Mixer
+  → speaker; stale-sender janitor; honest AudioDeviceError() for the
+  platforms without devices. VAD gate locked by 2 unit tests.
+- Mumble: GetGroupCall (channel users as participants with mute/speak
+  state), LeaveGroupCall, CapGroupCalls + CapVoiceRooms, HasActiveCall
+  on occupied channels.
+- TeamSpeak: JoinGroupCall/LeaveGroupCall/GetGroupCall/SetCallMuted
+  implemented (were ErrNotSupported stubs), same caps.
+- GUI: every voice-room channel shows the call bar (empty rooms too —
+  joining an empty room is real); join → group-call screen reuses the
+  slice-102 surface (participants, mute, leave); noise-suppression
+  button hidden on voice-room accounts (honest, §1.10); Android join
+  surfaces "Microphone and speaker unavailable" instead of a silent
+  half-working room. 5 new GUI tests (subtitle, voiceRoomChat, poll).
+
+### live verification (§9 official-server rung — THE voice proof)
+
+- **Mumble** (murmur.libresilicon.com): two guests, same channel; A
+  streams 1.5 s of opus-encoded 440 Hz; **B receives 75/75 packets and
+  decodes 1.50 s with 440 Hz at 0.2511 vs 0.0002 for harmonics** — the
+  tone survives the full chain (voice packet format, OCB2/TCP-tunnel,
+  routing, decode) essentially perfectly.
+- **TeamSpeak** (ts.arcticblaze.net): same shape over the EAX-encrypted
+  voice channel — **75/75 packets, identical decode fidelity** — S2C
+  voice decryption with generation tracking verified against real
+  server data.
+- All previous live tests re-verified green (mumble connect/text/ping,
+  TS handshake/text).
+
+### gate
+
+- scripts/dev-test.sh: ALL GATES GREEN (native engine/cores/utils/
+  bootstrap + gui under node+wasm + vet + gofmt).
+- windows/amd64 + js/wasm cross-builds verified locally.
+
+### next
+
+- Android audio devices (OpenSL ES via purego) — the one honest stub
+  left in the voice path.
+- Real-hardware voice test with the owner (mic/speaker on NixOS via
+  PulseAudio/PipeWire).
