@@ -3,6 +3,7 @@ package gui
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"gioui.org/f32"
 	"gioui.org/layout"
@@ -454,11 +456,18 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 	case engine.DownloadInProgress:
 		go func() { a.eng.CancelDownload(msg.AccountID, msg.ChatID, msg.MsgID, 0) }()
 	default:
-		// Complete: photos/GIFs/videos open the fullscreen viewer; other
-		// types play in the system player (slice 86 handoff).
+		// Complete: photos/GIFs/videos open the fullscreen viewer; voice
+		// notes and Opus audio play IN-APP (slice 113); other types fall
+		// back to the system player (slice 86 handoff).
 		switch msg.MediaType {
 		case engine.MediaImage, engine.MediaGIF, engine.MediaVideo, engine.MediaVideoNote:
 			a.openViewerFromMsg(gtx, &msg)
+		case engine.MediaVoice, engine.MediaAudio:
+			if msg.MediaLocalPath != "" && engine.IsOpusOgg(msg.MediaLocalPath) {
+				a.toggleVoicePlayback(&msg)
+			} else if msg.MediaLocalPath != "" {
+				a.openMedia(msg.MediaLocalPath, true)
+			}
 		default:
 			if msg.MediaLocalPath != "" {
 				a.openMedia(msg.MediaLocalPath, true)
@@ -627,46 +636,304 @@ func (a *App) durationBadge(gtx layout.Context, m *engine.CachedMessage) layout.
 	)
 }
 
-// voiceBubble: play circle + duration + size.
+// voiceBubble: in-app player (slice 113) — play/pause circle, waveform
+// strip with live progress, speed chip, elapsed/total label. Playback
+// runs through the engine's Ogg/Opus media player; non-Opus files (or
+// platforms without the audio backend) keep the system-player handoff.
 func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
+	st := a.eng.MediaState()
+	active := st.Playing || st.Paused
+	mine := active && st.AccountID == m.AccountID && st.ChatID == m.ChatID && st.MsgID == m.MsgID
+	playing := mine && st.Playing && !st.Paused
+
+	total := float64(m.MediaDuration)
+	if mine && st.Duration > 0 {
+		total = st.Duration
+	}
+	pos := 0.0
+	if mine {
+		pos = st.Position
+	}
+	speed := 1.0
+	if mine {
+		speed = st.Speed
+	}
+
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			// Play / pause circle.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				btn := mediaPlayClickable(m.AccountID + "|" + m.ChatID + "|" + m.MsgID)
+				d := gtx.Dp(unit.Dp(44))
+				if btn.Clicked(gtx) {
+					a.toggleVoicePlayback(m)
+				}
 				return layout.Inset{Right: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return drawPlayBadge(gtx, gtx.Dp(unit.Dp(44)))
+					dims := btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						if playing {
+							return drawPauseBadge(gtx, d)
+						}
+						return drawPlayBadge(gtx, d)
+					})
+					a.startPlaybackTickerIfNeeded()
+					return dims
 				})
 			}),
+			// Waveform + labels.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						lbl := a.ui.Label(unit.Sp(13), fmtDur(m.MediaDuration))
-						return lbl.Layout(gtx)
+						return a.voiceWaveform(gtx, m, pos, total, playing)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						sub := "Voice message"
-						if m.MediaFileSize > 0 {
-							sub += " · " + fmtBytes(m.MediaFileSize)
-						}
-						lbl := a.ui.Dim(unit.Sp(10), sub)
-						return lbl.Layout(gtx)
+						return layout.Inset{Top: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Label(unit.Sp(12), fmtPlaybackTime(pos, total))
+									return lbl.Layout(gtx)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									sub := "Voice message"
+									if m.MediaFileSize > 0 {
+										sub += " · " + fmtBytes(m.MediaFileSize)
+									}
+									lbl := a.ui.Dim(unit.Sp(10), sub)
+									return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, lbl.Layout)
+								}),
+							)
+						})
 					}),
 				)
+			}),
+			// Speed chip.
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				clk := mediaPlayClickable(m.AccountID + "|" + m.ChatID + "|" + m.MsgID + "|speed")
+				if clk.Clicked(gtx) {
+					a.eng.CycleMediaSpeed()
+				}
+				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return drawSpeedChip(gtx, a.ui, a.ui.p.Accent, speed)
+					})
+				})
 			}),
 		)
 	})
 }
 
+// toggleVoicePlayback: download-first, then in-app play/pause; the
+// system player stays the fallback for non-Opus files and platforms
+// without the audio backend.
+func (a *App) toggleVoicePlayback(m *engine.CachedMessage) {
+	st := a.eng.MediaState()
+	mine := (st.Playing || st.Paused) && st.AccountID == m.AccountID && st.ChatID == m.ChatID && st.MsgID == m.MsgID
+	if mine {
+		a.eng.TogglePauseMedia()
+		a.invalidate()
+		return
+	}
+	if m.MediaLocalPath == "" {
+		// Not downloaded yet — the normal tap flow (download then open)
+		// takes over.
+		return
+	}
+	if !engine.IsOpusOgg(m.MediaLocalPath) {
+		if m.MediaLocalPath != "" {
+			a.openMedia(m.MediaLocalPath, true)
+		}
+		return
+	}
+	go func() {
+		if err := a.eng.PlayMedia(m.AccountID, m.ChatID, m.MsgID, m.MediaLocalPath); err != nil {
+			a.setToast("Playback failed: " + err.Error())
+			return
+		}
+		a.startPlaybackTickerIfNeeded()
+	}()
+	a.invalidate()
+}
+
+// startPlaybackTickerIfNeeded redraws ~4×/s while media plays so the
+// waveform progress and elapsed label stay live (same pattern as the
+// call elapsed ticker).
+func (a *App) startPlaybackTickerIfNeeded() {
+	a.mu.Lock()
+	if a.mediaTickerOn {
+		a.mu.Unlock()
+		return
+	}
+	a.mediaTickerOn = true
+	a.mu.Unlock()
+	go func() {
+		t := time.NewTicker(250 * time.Millisecond)
+		defer t.Stop()
+		for range t.C {
+			st := a.eng.MediaState()
+			if !st.Playing || st.Paused {
+				a.mu.Lock()
+				a.mediaTickerOn = false
+				a.mu.Unlock()
+				return
+			}
+			a.invalidate()
+		}
+	}()
+}
+
+// voiceWaveform draws the amplitude strip: real bars when the message
+// carries waveform data, a plain progress track otherwise (§1.10 — no
+// fake waveforms). The played portion is accent-tinted.
+func (a *App) voiceWaveform(gtx layout.Context, m *engine.CachedMessage, pos, total float64, playing bool) layout.Dimensions {
+	const nBars = 44
+	w := gtx.Dp(unit.Dp(150))
+	h := gtx.Dp(unit.Dp(26))
+	progress := 0.0
+	if total > 0 {
+		progress = pos / total
+		if progress < 0 {
+			progress = 0
+		}
+		if progress > 1 {
+			progress = 1
+		}
+	}
+
+	// Amplitudes: the cached waveform (Telegram sends ~100 bytes of
+	// 0..31 amplitudes) downsampled to nBars; flat mid bars when absent.
+	wf := m.VoiceWaveform()
+	amps := make([]float32, nBars)
+	if len(wf) > 0 {
+		mx := float32(1)
+		for _, b := range wf {
+			if float32(b) > mx {
+				mx = float32(b)
+			}
+		}
+		for i := 0; i < nBars; i++ {
+			src := i * len(wf) / nBars
+			amps[i] = float32(wf[src]) / mx
+		}
+	} else {
+		for i := range amps {
+			amps[i] = 0.35
+		}
+	}
+
+	bw := float32(w) / float32(nBars)
+	for i := 0; i < nBars; i++ {
+		bh := amps[i] * float32(h)
+		if bh < 2 {
+			bh = 2
+		}
+		x := float32(i) * bw
+		col := a.ui.p.TextDim
+		if float32(i)/float32(nBars) <= float32(progress) && progress > 0 {
+			col = a.ui.p.Accent
+			col.A = 0xFF
+		}
+		bar := clip.UniformRRect(image.Rect(0, 0, max(int(bw-bw*0.35), 1), int(bh)), 1).Push(gtx.Ops)
+		paint.FillShape(gtx.Ops, col, clip.Rect{
+			Min: image.Pt(int(x), int((float32(h)-bh)/2)),
+			Max: image.Pt(int(x)+max(int(bw-bw*0.35), 1), int((float32(h)+bh)/2)),
+		}.Op())
+		bar.Pop()
+	}
+	if playing {
+		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(250 * time.Millisecond)})
+	}
+	return layout.Dimensions{Size: image.Pt(w, h)}
+}
+
+// fmtPlaybackTime renders "0:03 / 0:12" (position + total).
+func fmtPlaybackTime(pos, total float64) string {
+	p := fmtDur(int(pos + 0.5))
+	t := fmtDur(int(total + 0.5))
+	return p + " / " + t
+}
+
+// drawPauseBadge renders a translucent circle with white pause bars.
+func drawPauseBadge(gtx layout.Context, diameter int) layout.Dimensions {
+	if diameter <= 0 {
+		return layout.Dimensions{}
+	}
+	c := float32(diameter) / 2
+	r := c - 1
+
+	circle := clip.Ellipse{Min: image.Pt(0, 0), Max: image.Pt(diameter, diameter)}.Push(gtx.Ops)
+	paint.Fill(gtx.Ops, color.NRGBA{A: 0x99})
+	circle.Pop()
+
+	s := r * 0.5
+	for _, dx := range []float32{-s * 0.45, s * 0.25} {
+		bar := clip.UniformRRect(image.Rect(0, 0, int(s*0.4), int(s*1.3)), 1).Push(gtx.Ops)
+		paint.FillShape(gtx.Ops, color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}, clip.Rect{
+			Min: image.Pt(int(c+dx), int(c-s*0.65)),
+			Max: image.Pt(int(c+dx+s*0.4), int(c+s*0.65)),
+		}.Op())
+		bar.Pop()
+	}
+	return layout.Dimensions{Size: image.Pt(diameter, diameter)}
+}
+
+// drawSpeedChip renders the small "1×" / "1.5×" speed toggle chip.
+func drawSpeedChip(gtx layout.Context, u *UI, accent color.NRGBA, speed float64) layout.Dimensions {
+	lbl := u.Label(unit.Sp(10), fmtSpeed(speed))
+	lbl.Color = accent
+	return lbl.Layout(gtx)
+}
+
+func fmtSpeed(s float64) string {
+	switch s {
+	case 1:
+		return "1×"
+	case 1.5:
+		return "1.5×"
+	case 2:
+		return "2×"
+	case 0.5:
+		return "0.5×"
+	default:
+		return fmt.Sprintf("%g×", s)
+	}
+}
+
+// mediaPlayClickables keeps one stable clickable per player control.
+var mediaPlayClickables = make(map[string]*widget.Clickable)
+
+func mediaPlayClickable(key string) *widget.Clickable {
+	if c, ok := mediaPlayClickables[key]; ok {
+		return c
+	}
+	if len(mediaPlayClickables) > 512 {
+		mediaPlayClickables = make(map[string]*widget.Clickable)
+	}
+	c := new(widget.Clickable)
+	mediaPlayClickables[key] = c
+	return c
+}
+
 // audioBubble: music-file row (title, duration, size).
 func (a *App) audioBubble(gtx layout.Context, m *engine.CachedMessage) layout.Dimensions {
 	title := mediaTitle(m)
+	st := a.eng.MediaState()
+	mine := (st.Playing || st.Paused) && st.AccountID == m.AccountID && st.ChatID == m.ChatID && st.MsgID == m.MsgID && st.Duration > 0
+
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Dp(unit.Dp(28))
-				return iconAVNote.Layout(gtx, a.ui.p.Accent)
+				return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					if mine && st.Playing && !st.Paused {
+						return drawPauseBadge(gtx, gtx.Dp(unit.Dp(32)))
+					}
+					if mine {
+						return drawPlayBadge(gtx, gtx.Dp(unit.Dp(32)))
+					}
+					gtx.Constraints.Min.X = gtx.Dp(unit.Dp(28))
+					return iconAVNote.Layout(gtx, a.ui.p.Accent)
+				})
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							lbl := a.ui.Label(unit.Sp(13), title)
@@ -674,7 +941,12 @@ func (a *App) audioBubble(gtx layout.Context, m *engine.CachedMessage) layout.Di
 							return lbl.Layout(gtx)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							// While this file plays in-app, show the live
+							// elapsed/total line (slice 113).
 							sub := fmtDur(m.MediaDuration)
+							if mine {
+								sub = fmtPlaybackTime(st.Position, st.Duration)
+							}
 							if m.MediaFileSize > 0 {
 								sub += " · " + fmtBytes(m.MediaFileSize)
 							}

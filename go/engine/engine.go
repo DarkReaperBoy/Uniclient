@@ -78,6 +78,12 @@ type Engine struct {
 	media   *MediaManager
 	avatars *avatarState
 
+	// In-app media player (engine/mediaplayer.go): voice notes and
+	// audio files decoded from Ogg/Opus and played through the pure-Go
+	// audio devices. One playback at a time.
+	mediaMu     sync.Mutex
+	mediaPlayer *mediaPlayer
+
 	// Live voice pipeline (engine/voice.go): one active voice-room
 	// session at a time, sharing the process-wide audio devices.
 	voiceMu      sync.Mutex

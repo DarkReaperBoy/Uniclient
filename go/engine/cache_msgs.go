@@ -1056,6 +1056,17 @@ func extractWaveform(contentRaw []byte) []byte {
 	return data
 }
 
+// VoiceWaveform returns the voice-note amplitude strip (raw bytes,
+// 0..31 per sample as Telegram sends them) parsed from the cached
+// message content. nil when the message carries no waveform — callers
+// must render a plain progress track then (§1.10: no fake data).
+func (m *CachedMessage) VoiceWaveform() []byte {
+	if m == nil || len(m.ContentRaw) == 0 {
+		return nil
+	}
+	return extractWaveform(m.ContentRaw)
+}
+
 type SharedMediaCountItem struct {
 	MediaType string `json:"media_type"`
 	Count     int    `json:"count"`

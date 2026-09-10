@@ -1828,3 +1828,53 @@ client bugs — measured, not guessed:
   honestly with the server's policy reason and will pass on any
   fresh IP / after the window resets.
 - gates: dev-test.sh ALL GREEN.
+
+## 2026-09-10 (cont.) — slice 113: IN-APP voice-note player (waveform, progress, speed)
+
+The voice parity row flips PARTIAL → PRESENT: the slice-110 audio
+device layer (pulse/winmm/WebAudio, pure Go) now feeds a real media
+player, so voice notes and Opus music play inside the app instead of
+handing off to the system player.
+
+### engine
+
+- `engine/ogg.go`: minimal Ogg container demuxer (RFC 3533) — page
+  parsing with the Ogg CRC-32 variant, lacing-table packet
+  reassembly across page boundaries. Validated against REAL
+  ffmpeg-encoded Opus files: all page CRCs verify, OpusHead/OpusTags
+  structure, 101 packets / 2.02 s decoded in the pinned test.
+- `engine/mediaplayer.go`: PlayMedia/TogglePauseMedia/StopMedia/
+  CycleMediaSpeed/MediaState — decode-all → pull-mode playback with
+  fractional position + linear-interpolation speed resampling
+  (1×/1.5×/2×/0.5×), throttled ~4 Hz EventPlaybackState progress
+  events, honest no-device state (never claims playing without a
+  backend), non-Opus files rejected to the system-player path. A
+  fill-callback self-deadlock (emit under lock) was caught by the
+  tests and fixed before commit.
+- `CachedMessage.VoiceWaveform()`: waveform bytes parsed from the
+  cached content (the Telegram Extra the core already stores).
+
+### gui
+
+- voiceBubble → full player: play/pause circle (pause bars drawn
+  live), real waveform strip from the message's cached Telegram
+  waveform (plain flat track when absent — §1.10, no fake data),
+  accent-tinted progress, "0:03 / 0:12" elapsed label, speed chip
+  cycling 1×→1.5×→2×→0.5×. 250 ms repaint ticker while playing
+  (call-timer pattern).
+- audioBubble: live elapsed/total + play/pause state while its file
+  plays in-app.
+- Tap handling: voice/audio with a downloaded Ogg/Opus file toggle
+  in-app playback; everything else keeps the slice-86 system-player
+  handoff.
+
+### verification
+
+- Unit (engine): ogg round-trip, cross-page reassembly, CRC
+  corruption rejection, CRC spec vector, REAL ffmpeg-file demux+decode;
+  player play/progress/pause/resume/speed/completion/stop, honest
+  no-device state, non-Opus rejection, event emission. All green.
+- Unit (gui, node+wasm): playback time format, speed ladder,
+  waveform extraction (incl. nil-safety), clickable identity. Green.
+- gates: dev-test.sh ALL GREEN; js/wasm + windows/amd64 builds OK.
+- parity: voice row PARTIAL → PRESENT (112 / 27 / 10 / 51).

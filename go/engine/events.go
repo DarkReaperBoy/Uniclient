@@ -41,6 +41,10 @@ const (
 	// login UI fills+submits it on the in-progress flow, mirroring AyuGram
 	// Account::handleLoginCode (intro_code.cpp:59-62).
 	EventLoginCode = "login_code"
+	// EventPlaybackState carries the in-app media player snapshot
+	// (voice notes / audio files): state changes plus throttled ~4 Hz
+	// progress while playing.
+	EventPlaybackState = "playback_state"
 )
 
 // EngineEvent is the envelope for all events pushed to the host.

@@ -57,6 +57,10 @@ type App struct {
 	// archived chats instead of the main list.
 	archiveView bool
 
+	// in-app media player redraw loop (slice 113): true while the
+	// 250 ms playback ticker runs (progress/waveform repaints).
+	mediaTickerOn bool
+
 	// group-call live bar (slice 70): polled info for the open chat and the
 	// chat the poll loop belongs to (nil = no loop running).
 	groupCall   *engine.GroupCallInfo

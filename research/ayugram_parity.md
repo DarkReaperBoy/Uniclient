@@ -132,8 +132,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Photo | Image bubble, caption, tap→viewer | PRESENT (bubble → auto-download → full image; tap opens fullscreen viewer w/ zoom/pan, filmstrip, save/share/delete) | gui/media.go photoBubble + gui/mediaview.go | P0 |
 | Video / video-note (round) | Player bubble w/ cover, round crop | PARTIAL (thumb + play badge + duration pill; round-crop notes; slice 86: play → download → hands the saved file to the system player; in-app streaming player waits on the engine core) | gui/media.go videoBubble + gui/openext.go | P1 |
-| Voice message | Waveform bubble, play, speed, transcribe | PARTIAL (play badge + duration/size bubble; slice 86: tap → download → auto-plays in the system player; in-app waveform/speed wait on audio-out) | gui/media.go voiceBubble + gui/openext.go | P1 |
-| Audio file | Music player bubble (title/artist, seek) | PARTIAL (title/duration/size row; slice 86: tap → download → system player; in-app seek UI waits on audio-out) | gui/media.go audioBubble + gui/openext.go | P2 |
+| Voice message | Waveform bubble, play, speed, transcribe | PRESENT (slice 113: IN-APP player — play/pause circle, real waveform strip from the message's cached Telegram waveform data (plain track when absent, §1.10) with accent-tinted progress, elapsed/total label, speed chip (1×/1.5×/2×/0.5×); engine Ogg/Opus demuxer + decoder (RFC 3533 pages CRC-verified against real ffmpeg encoders) → pure-Go audio devices; non-Opus/no-audio platforms keep the system-player handoff; music bubbles show live elapsed + play/pause state too; transcribe stays engine-gated) | gui/media.go voiceBubble/audioBubble + engine/mediaplayer.go + engine/ogg.go | P1 || Audio file | Music player bubble (title/artist, seek) | PARTIAL (title/duration/size row; slice 86: tap → download → system player; in-app seek UI waits on audio-out) | gui/media.go audioBubble + gui/openext.go | P2 |
 | Document/file | Filename, size, progress download bar | PARTIAL (file row + live byte counter + progress bar + tap/cancel/retry) | gui/media.go fileBubble + downloadRow | P0 |
 | Sticker (animated) | Big transparent sticker, tap = reaction | CORE-ONLY | engine sticker files (CORE-ONLY) | P1 |
 | Animated custom emoji | Inline animated emoji | CORE-ONLY | engine.GetCustomEmojiFiles (CORE-ONLY) | P2 |
@@ -342,10 +341,10 @@ P2 = settings/extras, P3 = rare/edge.
 
 → 2026-09-08 after slices 1–9: PRESENT 24 (12%) · PARTIAL 39 (19%) · MISSING 39 (19%) · CORE-ONLY 99 (49%).
 
-- PRESENT: 111 — the parity program (slices 1-100) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking, edits history, deleted-messages browser, save-to-Downloads, takeout export…
-- PARTIAL: 29 — engine-gated halves (in-app media playback waits on audio-out/streaming; 2FA; notifications sound picker; tray; read-receipt inline avatar stack later) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
+- PRESENT: 112 — the parity program (slices 1-113) surfaced the engine: reactions, folders, media, drafts, scheduled, polls, search, ghost, Ayu marks/anti-recall, message filters, shadow ban, tag search, layout sliders, folder import/export, deep links, passcode lock, hover actions, shared-media tabs, proxy/autodownload, privacy scopes, cloud themes, streamer masking, edits history, deleted-messages browser, save-to-Downloads, takeout export, IN-APP voice-note player (waveform/progress/speed, slice 113)…
+- PARTIAL: 27 — engine-gated halves (2FA; notifications sound picker; tray; read-receipt inline avatar stack later) or honest scope cuts (avatar corners stay circular; deep-link message permalinks stay on the browser)
 - MISSING: 10 — remaining rows need real core work (dice/games, message-shot renderer, PiP, tray, multi-window, app icon) or would be dead UI (hide sponsored/similar — nothing renders to hide; local-premium — nothing gates premium)
-- CORE-ONLY: 52 — the engine already has the functionality; the GUI just never surfaces it (slice 101: 1:1 call panel + incoming call UI; slice 102: group call screen; slice 103: device pickers + noise suppression surfaced 5 of them)
+- CORE-ONLY: 51 — the engine already has the functionality; the GUI just never surfaces it (slice 101: 1:1 call panel + incoming call UI; slice 102: group call screen; slice 103: device pickers + noise suppression surfaced 5 of them)
 
 Priorities: P0 36 · P1 57 · P2 62 · P3 43 (+3 UniClient-only rows).
 
