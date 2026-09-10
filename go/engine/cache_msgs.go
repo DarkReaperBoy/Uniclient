@@ -2073,7 +2073,7 @@ func (e *Engine) RepeatMessage(accountID, chatID, msgID string) (string, error) 
 	if len(rich) > 0 {
 		_ = json.Unmarshal(rich, &entities)
 	}
-	return e.SendMessage(accountID, chatID, text, "", entities, false, 0, "", "", false, false, false, false)
+	return e.SendMessage(accountID, chatID, text, "", entities, false, 0, "", "", false, false, false, false, false)
 }
 
 // MessageLink returns a shareable link to one message (Telegram t.me

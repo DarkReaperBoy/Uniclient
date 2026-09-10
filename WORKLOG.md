@@ -2020,3 +2020,35 @@ renders the text under the waveform, pending state included.
 - gates: native tests green; gofmt clean; vet clean; js/wasm +
   windows/amd64 binaries build.
 - parity: Saved Messages CORE-ONLY → PARTIAL (119 / 31 / 10 / 40).
+
+## 2026-09-10 (cont.) — slice 117: WEBPAGE PREVIEWS (composer toggle + bubble card)
+
+### real core gap fixed
+
+- Preview-off was IMPOSSIBLE before: the plain send path never set
+  noWebpage. Now engine no_webpage → sendExtras → req.SetNoWebpage(true).
+  sendExtras extracted from executePending so the contract is unit-pinned
+  (was inline, untestable).
+
+### gui
+
+- Composer 🔗 toggle (link icon): visible only while the text contains an
+  http(s)/www link (§1.10); off state renders red; per-chat remembered;
+  toasts on switch; the send path passes it as the new SendMessage
+  noWebpage param (engine signature +3 internal callers updated).
+- webPageBlock above the message text: thumb (stripped b64 via
+  mediaThumb), small-caps site, 2-line title, 2-line description,
+  duration pill; tap opens the URL through openext. parseWebPage reads
+  the wp_* Extra the telegram core has cached all along.
+
+### verification
+
+- Unit (engine): SendMessage persists NoWebpage in the pending payload;
+  sendExtras round-trips silent/schedule/topic/webpage flags incl.
+  no_webpage; default has no no_webpage extra. Green.
+- Unit (gui, node+wasm): wp_* parsing (full/absent/url-only), hostname,
+  display-title fallbacks, composedHasLink ladder (schemes + www, bare
+  domains excluded). Green.
+- gates: native tests green (bootstrap e2e call updated for the new
+  param); gofmt clean; vet clean; js/wasm + windows/amd64 build.
+- parity: webpage rows CORE-ONLY → PRESENT ×2 (126 / 32 / 10 / 32).

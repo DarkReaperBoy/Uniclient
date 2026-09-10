@@ -170,7 +170,7 @@ func (a *App) sendTextScheduled(text string, scheduleDate int64, silent bool) {
 		if hasMarkdown(text) {
 			sendText, sendEnts = parseMarkdown(text)
 		}
-		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, silent, scheduleDate, "", "", false, false, false, false); err != nil {
+		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, silent, scheduleDate, "", "", false, false, false, false, false); err != nil {
 			a.setToast("Schedule failed: " + err.Error())
 			return
 		}

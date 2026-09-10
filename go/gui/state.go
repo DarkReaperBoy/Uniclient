@@ -1098,7 +1098,7 @@ func (a *App) sendText(text string) {
 		if hasMarkdown(text) {
 			sendText, sendEnts = parseMarkdown(text)
 		}
-		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, silent, 0, "", "", false, false, false, false); err != nil {
+		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, silent, 0, "", "", false, false, false, false, a.linkPreviewOffFor(k)); err != nil {
 			a.setToast("Send failed: " + err.Error())
 			return
 		}

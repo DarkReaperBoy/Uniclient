@@ -2122,6 +2122,11 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 	if _, ok := msg.Extra["silent"]; ok {
 		req.SetSilent(true)
 	}
+	// Link preview off (AyuGram composer toggle): Telegram generates the
+	// preview by default; no_webpage suppresses it for this message.
+	if _, ok := msg.Extra["no_webpage"]; ok {
+		req.SetNoWebpage(true)
+	}
 	if scheduleDate > 0 {
 		req.SetScheduleDate(scheduleDate)
 	}

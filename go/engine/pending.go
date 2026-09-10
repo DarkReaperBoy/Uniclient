@@ -43,6 +43,7 @@ type sendPayload struct {
 	ForceSmallMedia bool               `json:"force_small_media,omitempty"`
 	InvertMedia     bool               `json:"invert_media,omitempty"`
 	WebPageOptional bool               `json:"web_page_optional,omitempty"`
+	NoWebpage       bool               `json:"no_webpage,omitempty"`
 }
 
 type sendContactPayload struct {
@@ -152,7 +153,7 @@ func getChatLock(accountID, chatID string) *sync.Mutex {
 
 // SendMessage queues a message for sending through the pending queue.
 // Returns the local_id for optimistic UI display.
-func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities []cores.TextEntity, silent bool, scheduleDate int64, topicRootID string, webPageUrl string, forceLargeMedia bool, forceSmallMedia bool, invertMedia bool, webPageOptional bool) (string, error) {
+func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities []cores.TextEntity, silent bool, scheduleDate int64, topicRootID string, webPageUrl string, forceLargeMedia bool, forceSmallMedia bool, invertMedia bool, webPageOptional bool, noWebpage bool) (string, error) {
 	log.Printf("[engine] SendMessage(%s, %s): text=%q replyToID=%q silent=%v scheduleDate=%d topicRootID=%q", accountID, chatID, text, replyToID, silent, scheduleDate, topicRootID)
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -174,6 +175,7 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities
 		ForceSmallMedia: forceSmallMedia,
 		InvertMedia:     invertMedia,
 		WebPageOptional: webPageOptional,
+		NoWebpage:       noWebpage,
 	})
 
 	// Write to pending table.
@@ -808,6 +810,41 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 	return err
 }
 
+// sendExtras builds the OutgoingMessage.Extra map for a send payload —
+// the contract the cores read (silent, schedule, topic, web-page preview
+// flags incl. no_webpage). Pinned by engine/webpage_test.go.
+func sendExtras(p sendPayload) map[string]interface{} {
+	extra := map[string]interface{}{}
+	if p.Silent {
+		extra["silent"] = true
+	}
+	if p.ScheduleDate > 0 {
+		extra["schedule_date"] = p.ScheduleDate
+	}
+	if p.TopicRootID != "" {
+		extra["topic_root_id"] = p.TopicRootID
+	}
+	if p.WebPageUrl != "" {
+		extra["web_page_url"] = p.WebPageUrl
+	}
+	if p.ForceLargeMedia {
+		extra["force_large_media"] = true
+	}
+	if p.ForceSmallMedia {
+		extra["force_small_media"] = true
+	}
+	if p.InvertMedia {
+		extra["invert_media"] = true
+	}
+	if p.WebPageOptional {
+		extra["web_page_optional"] = true
+	}
+	if p.NoWebpage {
+		extra["no_webpage"] = true
+	}
+	return extra
+}
+
 // executePending dispatches the actual core call.
 func (e *Engine) executePending(acc *Account, chatID, localID, action string, payload []byte) error {
 	switch action {
@@ -815,31 +852,7 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		var p sendPayload
 		json.Unmarshal(payload, &p)
 
-		extra := map[string]interface{}{}
-		if p.Silent {
-			extra["silent"] = true
-		}
-		if p.ScheduleDate > 0 {
-			extra["schedule_date"] = p.ScheduleDate
-		}
-		if p.TopicRootID != "" {
-			extra["topic_root_id"] = p.TopicRootID
-		}
-		if p.WebPageUrl != "" {
-			extra["web_page_url"] = p.WebPageUrl
-		}
-		if p.ForceLargeMedia {
-			extra["force_large_media"] = true
-		}
-		if p.ForceSmallMedia {
-			extra["force_small_media"] = true
-		}
-		if p.InvertMedia {
-			extra["invert_media"] = true
-		}
-		if p.WebPageOptional {
-			extra["web_page_optional"] = true
-		}
+		extra := sendExtras(p)
 		msg := cores.OutgoingMessage{Text: p.Text, ReplyToID: p.ReplyToID, Entities: p.Entities, Extra: extra}
 		log.Printf("[engine] executePending SEND: chatID=%s replyToID=%q text=%q silent=%v scheduleDate=%d topicRootID=%q", chatID, p.ReplyToID, p.Text, p.Silent, p.ScheduleDate, p.TopicRootID)
 

@@ -29,6 +29,7 @@ var (
 	msgList     widget.List
 	joinBarBtn  widget.Clickable // JOIN (not-joined channels, slice 19)
 	silentBtn   widget.Clickable // per-message silent (slice 23)
+	linkPrevBtn widget.Clickable // link-preview toggle (slice 117)
 )
 
 func init() {
@@ -625,6 +626,11 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.pollBlock(gtx, m)
 					}),
+					// Link preview card (slice 117): thumb + site + title +
+					// description above the text, tap opens the URL.
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.webPageBlock(gtx, m)
+					}),
 					// Media attachment (AyuGram: photo/video/voice/audio/file bubble,
 					// driven by the engine download pipeline).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -1124,6 +1130,38 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 							btn.Color = a.ui.p.TextDim
 							if on {
 								btn.Color = a.ui.p.Accent
+							}
+							return btn.Layout(gtx)
+						})
+					}),
+					// link preview toggle — visible only while the text contains a
+					// link (AyuGram/Telegram preview toggle, slice 117): off sends
+					// with no_webpage.
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if !composedHasLink(composer.Text()) || f.msgFor == nil {
+							return layout.Dimensions{}
+						}
+						k := f.msgFor
+						if linkPrevBtn.Clicked(gtx) {
+							linkPreviewMu.Lock()
+							linkPreview[k.String()] = !linkPreview[k.String()]
+							off := linkPreview[k.String()]
+							linkPreviewMu.Unlock()
+							if off {
+								a.setToast("Link preview off")
+							} else {
+								a.setToast("Link preview on")
+							}
+							a.invalidate()
+						}
+						linkPreviewMu.Lock()
+						off := linkPreview[k.String()]
+						linkPreviewMu.Unlock()
+						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							btn := a.ui.IconButton(&linkPrevBtn, iconContentLink, "Toggle link preview")
+							btn.Color = a.ui.p.TextDim
+							if off {
+								btn.Color = a.ui.p.Error
 							}
 							return btn.Layout(gtx)
 						})

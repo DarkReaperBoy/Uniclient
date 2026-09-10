@@ -308,7 +308,7 @@ func TestEngineEndToEnd(t *testing.T) {
 
 	// Send a message into the first chat and expect the echo.
 	first := chats[0]
-	_, err = eng.SendMessage(id, first.ChatID, "hello e2e", "", nil, false, 0, "", "", false, false, false, false)
+	_, err = eng.SendMessage(id, first.ChatID, "hello e2e", "", nil, false, 0, "", "", false, false, false, false, false)
 	if err != nil {
 		t.Fatalf("SendMessage: %v", err)
 	}
