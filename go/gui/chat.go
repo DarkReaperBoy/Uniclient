@@ -99,6 +99,15 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop = a.headerH + d.Size.Y
 			return d
 		}),
+		// Forum topic bar (slice 118): the open topic's identity strip.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if chat == nil || !chat.IsForum || f.forumTopic == "" {
+				return layout.Dimensions{}
+			}
+			d := a.topicBar(gtx, f)
+			a.listTop += d.Size.Y
+			return d
+		}),
 		// Group-call live bar (slice 70): under the header while the chat
 		// has an active call; participant data polled from the engine.
 		// Voice-room backends (Mumble/TeamSpeak) show it on every channel —
@@ -134,8 +143,11 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
-		// Messages
+		// Messages — or the forum topic list on a forum's root view (slice 118).
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if chat != nil && chat.IsForum && f.forumTopic == "" {
+				return a.topicListPane(gtx, f, chat)
+			}
 			return a.messageList(gtx, f, chat)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -145,6 +157,9 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 		// write-restricted chats, recording panel while a voice note is
 		// captured, input + slow-mode chip otherwise)
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if chat != nil && chat.IsForum && f.forumTopic == "" {
+				return layout.Dimensions{} // topic list view: no composer
+			}
 			if chat != nil && chat.NotJoined {
 				return a.joinBar(gtx, f, chat)
 			}
@@ -163,6 +178,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	// Context menu on top of everything in the pane.
 	if f.menu != nil {
 		a.layoutContextMenu(gtx, f)
+	}
+	// Forum topic dialog (slice 118): create/edit/actions.
+	if f.forumDlg != nil {
+		a.layoutForumDialog(gtx, f)
 	}
 	// Chat-header "..." menu.
 	if f.headerMenu != nil {

@@ -2052,3 +2052,38 @@ renders the text under the waveform, pending state included.
 - gates: native tests green (bootstrap e2e call updated for the new
   param); gofmt clean; vet clean; js/wasm + windows/amd64 build.
 - parity: webpage rows CORE-ONLY → PRESENT ×2 (126 / 32 / 10 / 32).
+
+## 2026-09-10 (cont.) — slice 118: FORUM TOPICS (topic list + topic view + CRUD)
+
+### engine
+
+- `engine/topics.go`: GetTopicMessages — topic-scoped message pages over
+  the messages cache's topic_id column (hide/shadow-ban aware, beforeMs
+  paging, populate* hydration, Ayu-filter exit). Empty topic id = the
+  plain chat page.
+
+### gui
+
+- Forum chats open on the TOPIC LIST (gui/topics.go): pinned-first then
+  activity ordering, colored icon circles (Telegram's 7 topic colors +
+  accent fallback), unread badges, honest loading/empty states, "+ New
+  topic" row → create dialog (title editor + icon-color chips → engine
+  CreateForumTopic).
+- Tapping a topic scopes the whole pane: topic bar under the header
+  (back button, icon, title, ⋯ actions), message list filtered by
+  topic, composer sends with topicRootID, scroll-up loads older topic
+  pages (loadOlder/refreshMessages topic-aware via topicScopeFor).
+- Topic actions dialog: pin/unpin, close/reopen, rename, delete history
+  (engine forum CRUD); openChat resets topic state and loads the list
+  for forums.
+
+### verification
+
+- Unit (engine): topic filtering (by topic, paging, unscoped fallback),
+  locally-hidden exclusion. Green.
+- Unit (gui, node+wasm): topic ordering (pinned, activity, General,
+  no-mutation, all-pinned), color mapping + fallback, General predicate,
+  subtitles. Green.
+- gates: native tests green; gofmt clean; vet clean (one self-assign
+  caught+fixed); js/wasm + windows/amd64 build.
+- parity: forum topics CORE-ONLY → PARTIAL (126 / 33 / 10 / 31).

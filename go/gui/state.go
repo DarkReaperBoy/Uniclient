@@ -76,6 +76,15 @@ type App struct {
 	savedCap    map[string]bool
 	savedChatID map[string]string
 
+	// forum topics (slice 118): the open topic ("" = topic list view),
+	// the cached topic list + default icons, and the topic dialog.
+	forumTopic  string
+	forumTopics []cores.ForumTopic
+	forumLoaded bool
+	forumFor    string
+	forumIcons  []cores.ForumTopicIconInfo
+	forumDlg    *forumDlgState
+
 	// group-call live bar (slice 70): polled info for the open chat and the
 	// chat the poll loop belongs to (nil = no loop running).
 	groupCall   *engine.GroupCallInfo
@@ -526,7 +535,13 @@ func (a *App) refreshMessages() {
 	if k == nil {
 		return
 	}
-	msgs, err := a.eng.GetMessages(k.AccountID, k.ChatID, 0, 0, 100)
+	var msgs []engine.CachedMessage
+	var err error
+	if topic := a.topicScopeFor(k); topic != "" {
+		msgs, err = a.eng.GetTopicMessages(k.AccountID, k.ChatID, topic, 0, 100)
+	} else {
+		msgs, err = a.eng.GetMessages(k.AccountID, k.ChatID, 0, 0, 100)
+	}
 	if err != nil {
 		log.Printf("gui: messages: %v", err)
 	}
@@ -535,6 +550,19 @@ func (a *App) refreshMessages() {
 		msgs[i], msgs[j] = msgs[j], msgs[i]
 	}
 	a.mergeMessages(k, msgs)
+}
+
+// topicScopeFor returns the open forum topic for the chat ("" = none).
+func (a *App) topicScopeFor(k *chatKey) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if k == nil || a.forumTopic == "" || a.selected == nil {
+		return ""
+	}
+	if a.selected.String() != k.String() {
+		return ""
+	}
+	return a.forumTopic
 }
 
 // mergeMessages installs a fresh newest window (oldest-first slice), keeping
@@ -948,6 +976,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.cMode = composerMode{}
 	a.menu = nil
 	a.fwd = nil
+	a.forumTopic = "" // slice 118: forum chats open on the topic list
+	a.forumDlg = nil
 	a.hdrPresence = nil // slice 28: refetch presence for the new peer
 	a.selOn = false
 	a.sel = nil
@@ -1022,9 +1052,12 @@ func (a *App) openChat(k chatKey, title string) {
 	if next.Type == engine.ChatTypeDMVal && next.ChatID != "" {
 		go a.loadHdrPresence(k)
 	}
-	a.syncCallPoll() // slice 70: start the live-call poll if this chat has one
-	a.loadBotCmds(k) // slice 76: fetch the chat's bot commands
-	a.loadHdrCaps(k) // slice 101: header call-button capabilities
+	a.syncCallPoll()  // slice 70: start the live-call poll if this chat has one
+	a.loadBotCmds(k)  // slice 76: fetch the chat's bot commands
+	a.loadHdrCaps(k)  // slice 101: header call-button capabilities
+	if next.IsForum { // slice 118: forums open on the topic list
+		go a.loadForumTopics(k)
+	}
 	a.invalidate()
 	go func() {
 		msgs, err := a.eng.GetMessages(k.AccountID, k.ChatID, 0, 0, 100)
@@ -1098,7 +1131,7 @@ func (a *App) sendText(text string) {
 		if hasMarkdown(text) {
 			sendText, sendEnts = parseMarkdown(text)
 		}
-		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, silent, 0, "", "", false, false, false, false, a.linkPreviewOffFor(k)); err != nil {
+		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, silent, 0, a.topicScopeFor(k), "", false, false, false, false, a.linkPreviewOffFor(k)); err != nil {
 			a.setToast("Send failed: " + err.Error())
 			return
 		}
@@ -1150,7 +1183,13 @@ func (a *App) loadOlder() {
 	oldest := a.messages[0].Timestamp
 	a.mu.Unlock()
 	go func() {
-		older, err := a.eng.GetMessages(k.AccountID, k.ChatID, oldest, 0, 50)
+		var older []engine.CachedMessage
+		var err error
+		if topic := a.topicScopeFor(&k); topic != "" {
+			older, err = a.eng.GetTopicMessages(k.AccountID, k.ChatID, topic, oldest, 50)
+		} else {
+			older, err = a.eng.GetMessages(k.AccountID, k.ChatID, oldest, 0, 50)
+		}
 		a.mu.Lock()
 		a.loadingOlder = false
 		if err == nil {
@@ -1569,6 +1608,11 @@ func (a *App) snapshot() frame {
 		transcribeCap:    a.transcribeCapFor(a.msgFor),
 		savedMsgAccts:    savedRowAccounts(a.accounts, a.savedCap),
 		savedChatID:      a.savedChatID,
+		forumTopic:       a.forumTopic,
+		forumTopics:      a.forumTopics,
+		forumLoaded:      a.forumLoaded,
+		forumIcons:       a.forumIcons,
+		forumDlg:         a.forumDlg,
 		topPeers:         a.topPeers,
 		topPeersFor:      a.topPeersFor,
 		topPeersLoaded:   a.topPeersLoaded,
@@ -1761,6 +1805,14 @@ type frame struct {
 	// accountID to saved chat id (avatar predicate, forward pinning).
 	savedMsgAccts []string
 	savedChatID   map[string]string
+
+	// forum topics (slice 118): the open topic, the list, load state,
+	// the icon set and the dialog.
+	forumTopic  string
+	forumTopics []cores.ForumTopic
+	forumLoaded bool
+	forumIcons  []cores.ForumTopicIconInfo
+	forumDlg    *forumDlgState
 
 	// top peers strip (slice 72)
 	topPeers       []engine.ChatInfo
