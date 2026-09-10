@@ -156,6 +156,7 @@ type xmppFeatures struct {
 	SM         *xml.Name       `xml:"urn:xmpp:sm:3 sm"`
 	CSI        *xml.Name       `xml:"urn:xmpp:csi:0 csi"`
 	RosterVer  *xml.Name       `xml:"urn:xmpp:features:rosterver ver"`
+	IBR        *xml.Name       `xml:"http://jabber.org/features/iq-register register"`
 	InnerXML   string          `xml:",innerxml"`
 }
 
@@ -345,6 +346,9 @@ type XMPPCore struct {
 	password string
 	tlsMode  string // "starttls", "direct", "none"
 	saslMech string // preferred mechanism
+	// wantRegister: XEP-0077 in-band registration requested — create
+	// the account on the next connect (pre-SASL), then authenticate.
+	wantRegister bool
 
 	// Server features
 	features      xmppFeatures
@@ -518,6 +522,9 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 		c.tlsMode = "starttls"
 	}
 	c.saslMech = cfg.Extra["mechanism"]
+	// XEP-0077: register the account in-band before SASL, then continue
+	// authenticating with the new credentials on the same stream.
+	c.wantRegister = cfg.Extra["register"] == "true" || cfg.Extra["register"] == "1"
 	if svc := cfg.Extra["muc_service"]; svc != "" {
 		c.mucService = svc
 	}
@@ -542,6 +549,17 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 
 	// Connect
 	if err := c.connectAndAuth(); err != nil {
+		// Close the socket: the login flow may retry Authenticate (the
+		// optional register step) and must not leak the half-open stream.
+		c.mu.Lock()
+		if c.conn != nil {
+			c.conn.Close()
+			c.conn = nil
+			c.tlsConn = nil
+			c.reader = nil
+			c.decoder = nil
+		}
+		c.mu.Unlock()
 		return fmt.Errorf("%w: %v", ErrAuth, err)
 	}
 
@@ -673,6 +691,21 @@ func (c *XMPPCore) connectAndAuth() error {
 		if err := c.startTLS(); err != nil {
 			return err
 		}
+	}
+
+	// XEP-0077 in-band registration (pre-SASL, same stream): the account
+	// is created server-side and the stream continues straight into SASL
+	// with the new credentials.
+	c.mu.RLock()
+	wantReg := c.wantRegister
+	c.mu.RUnlock()
+	if wantReg {
+		if err := c.registerPreAuth(); err != nil {
+			return err
+		}
+		c.mu.Lock()
+		c.wantRegister = false // registered; retries are plain logins
+		c.mu.Unlock()
 	}
 
 	// SASL authentication
@@ -825,6 +858,11 @@ func (c *XMPPCore) parseStreamFeatures(data string) error {
 	// Roster versioning
 	if strings.Contains(featXML, "rosterver") {
 		feats.RosterVer = &xml.Name{}
+	}
+
+	// In-band registration advertised (XEP-0077)
+	if strings.Contains(featXML, "jabber.org/features/iq-register") {
+		feats.IBR = &xml.Name{}
 	}
 
 	feats.InnerXML = featXML
@@ -4737,6 +4775,89 @@ func (c *XMPPCore) QueryMAMPage(jid string, limit int, after string) ([]Message,
 // XMPP-specific: Registration (XEP-0077)
 // ---------------------------------------------------------------------------
 
+// buildIBRStanza constructs the XEP-0077 account-creation IQ. Both the
+// username and the password are XML-escaped.
+func buildIBRStanza(id, username, password string) string {
+	return fmt.Sprintf(
+		`<iq type='set' id='%s'><query xmlns='%s'><username>%s</username><password>%s</password></query></iq>`,
+		xmlEscape(id), nsRegister, xmlEscape(username), xmlEscape(password),
+	)
+}
+
+// parseIBRResponse classifies a raw IQ answer to an in-band registration
+// request. A plain type='result' is success; type='error' is surfaced with
+// its defined condition; and a result whose payload only carries an
+// out-of-band URL (jabber:x:oob) means the server wants registration via
+// a website instead.
+func parseIBRResponse(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return errors.New("ibr: empty response")
+	}
+	if !strings.Contains(raw, "type='result'") && !strings.Contains(raw, `type="result"`) {
+		// error (or garbage): extract the defined condition + text.
+		cond := "unknown"
+		for _, c := range []string{
+			"conflict", "not-allowed", "forbidden", "not-acceptable",
+			"registration-required", "service-unavailable", "bad-request",
+			"policy-violation", "not-authorized", "jid-malformed",
+		} {
+			if strings.Contains(raw, "<"+c) {
+				cond = c
+				break
+			}
+		}
+		text := ""
+		if s := strings.Index(raw, "<text"); s >= 0 {
+			if a := strings.Index(raw[s:], ">"); a >= 0 {
+				rest := raw[s+a+1:]
+				if e := strings.Index(rest, "</text>"); e >= 0 {
+					text = strings.TrimSpace(xmlUnescape(rest[:e]))
+				}
+			}
+		}
+		if text != "" {
+			return fmt.Errorf("ibr: %s: %s", cond, text)
+		}
+		return fmt.Errorf("ibr: server rejected registration (%s): %.200s", cond, raw)
+	}
+	// Result: success — unless it is only an out-of-band redirect.
+	if !strings.Contains(raw, nsRegister) {
+		// Not a register payload at all: treat as failure with detail.
+		return fmt.Errorf("ibr: unexpected result payload: %.200s", raw)
+	}
+	if u := extractXMLContent(raw, "url"); u != "" && !strings.Contains(raw, "<username>") {
+		return fmt.Errorf("ibr: server requires web registration at %s (out-of-band)", xmlUnescape(u))
+	}
+	return nil
+}
+
+// registerPreAuth performs XEP-0077 in-band registration on the CURRENT
+// pre-authentication stream (after STARTTLS, before SASL). On success the
+// server keeps the stream open for immediate authentication with the new
+// credentials — exactly the flow of upstream clients (Conversations et al).
+func (c *XMPPCore) registerPreAuth() error {
+	c.mu.RLock()
+	local := c.bareJID
+	advertised := c.features.IBR != nil
+	c.mu.RUnlock()
+	if at := strings.Index(local, "@"); at > 0 {
+		local = local[:at]
+	}
+	_ = advertised // some servers accept XEP-0077 without advertising it;
+	//              the response is authoritative either way
+
+	stanza := buildIBRStanza(c.nextIQID(), local, c.password)
+	if err := c.sendRawStanza(stanza); err != nil {
+		return fmt.Errorf("ibr send: %w", err)
+	}
+	resp, err := c.readRawIQResponse()
+	if err != nil {
+		return fmt.Errorf("ibr: %w", err)
+	}
+	return parseIBRResponse(resp)
+}
+
 // RegisterAccount registers a new account on the XMPP server.
 func (c *XMPPCore) RegisterAccount(server, username, password string) error {
 	inner := fmt.Sprintf(
@@ -5262,6 +5383,17 @@ func xmlEscape(s string) string {
 	b.Grow(len(s) + 10)
 	xml.EscapeText(&b, []byte(s))
 	return b.String()
+}
+
+// xmlUnescape reverses the five basic XML entities.
+func xmlUnescape(s string) string {
+	if !strings.Contains(s, "&") {
+		return s
+	}
+	r := strings.NewReplacer(
+		"&lt;", "<", "&gt;", ">", "&quot;", `"`, "&apos;", "'", "&amp;", "&",
+	)
+	return r.Replace(s)
 }
 
 func extractXMLContent(xmlStr, elemName string) string {

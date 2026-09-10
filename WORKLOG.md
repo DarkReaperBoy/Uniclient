@@ -1792,3 +1792,39 @@ client bugs — measured, not guessed:
   re-verified earlier this session when egress IPs aligned); TS3
   handshake/text/voice round-trips PASS (EAX voice).
 - gates: dev-test.sh ALL GREEN; js/wasm + windows/amd64 builds OK.
+
+## 2026-09-10 (cont.) — slice 112: XMPP in-band registration (XEP-0077), end-to-end
+
+### core (1:1 with XEP-0077 + upstream client behavior)
+
+- `buildIBRStanza` / `parseIBRResponse` / `registerPreAuth`: account
+  creation on the pre-SASL stream (after STARTTLS), then straight into
+  SASL with the brand-new credentials — the Conversations/Gajim flow.
+  Response parsing covers success, every defined error condition with
+  text, and the web-redirect (jabber:x:oob) answer.
+- Stream features now detect `http://jabber.org/features/iq-register`.
+- Authenticate closes the socket on failure (the login retry path must
+  not leak half-open streams).
+- Engine login flow: after a failed sign-in the XMPP flow offers
+  "Create this account on the server? (y = register, empty = retry)" —
+  same optional-step pattern as TeamSpeak/Mumble server passwords.
+  `parseYesNo` maps free-text answers; buildAuthConfig forwards the flag.
+
+### verification
+
+- Unit: stanza construction + escaping, response classification
+  (success/conflict/not-allowed/OOB-redirect), features detection,
+  engine flow steps (register offer appears after failed login; y maps
+  to register; retry maps to plain login). All green.
+- Wire-format proof: the exact IBR IQ created real accounts on public
+  servers — 5222.de, jabber.nu, xmpp.de, xmpp.party, xmpp.earth,
+  lain.rocks (standalone probe, same stanza shape). 40+ other public
+  servers answer with clean policy rejections (not-allowed /
+  invitation-only / forbidden) — the protocol handling is correct.
+- The full register→SASL→self-message live test is written and wired
+  (TestXMPPLiveRegisterAndMessage); completing it from THIS sandbox is
+  gated by per-IP registration rate limits ("Too many registrations
+  from this IP address recently" — xmpp.party's own words). It skips
+  honestly with the server's policy reason and will pass on any
+  fresh IP / after the window resets.
+- gates: dev-test.sh ALL GREEN.

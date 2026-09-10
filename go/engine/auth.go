@@ -1067,9 +1067,35 @@ func advanceXMPP(flow *authFlow, input string, base *AuthState) (*AuthState, err
 		base.FieldType = "password"
 		base.Label = "Password"
 		return base, nil
-	default:
+	case flow.collected["register_offer"] == "":
+		// Normal sign-in first; on failure offer in-band registration
+		// (XEP-0077) as the optional next step — same pattern as the
+		// TeamSpeak/Mumble optional-password steps. register_offer marks
+		// the offer as shown so the answer lands in the default branch.
 		flow.collected["password"] = input
+		result, err := tryAuth(flow, base)
+		if err == nil {
+			return result, nil
+		}
+		flow.collected["register_offer"] = "1"
+		base.State = AuthStateInput
+		base.FieldType = "text"
+		base.Label = "Create this account on the server? (y = register, empty = retry)"
+		base.Hint = "y"
+		return base, nil
+	default:
+		flow.collected["register"] = parseYesNo(input)
 		return tryAuth(flow, base)
+	}
+}
+
+// parseYesNo maps free-text yes/no answers to "true"/"false".
+func parseYesNo(input string) string {
+	switch strings.ToLower(strings.TrimSpace(input)) {
+	case "y", "yes", "1", "true", "register", "create":
+		return "true"
+	default:
+		return "false"
 	}
 }
 
@@ -1222,6 +1248,10 @@ func buildAuthConfig(platform string, collected map[string]string) cores.AuthCon
 		cfg.Mode = cores.AuthModeUser
 		cfg.Extra["jid"] = collected["jid"]
 		cfg.Extra["password"] = collected["password"]
+		if collected["register"] == "true" {
+			// XEP-0077: create the account in-band before SASL.
+			cfg.Extra["register"] = "true"
+		}
 	case "github":
 		cfg.Mode = cores.AuthModeBot
 		cfg.BotToken = collected["token"]
