@@ -24,6 +24,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -90,6 +91,69 @@ const (
 	mumbleMsgSuggestConfig          = 25
 	mumbleMsgPluginDataTransmission = 26
 )
+
+// mumbleMsgName returns a human-readable name for a TCP message type ID
+// (debug logging only).
+func mumbleMsgName(t uint16) string {
+	switch t {
+	case mumbleMsgVersion:
+		return "Version"
+	case mumbleMsgUDPTunnel:
+		return "UDPTunnel"
+	case mumbleMsgAuthenticate:
+		return "Authenticate"
+	case mumbleMsgPing:
+		return "Ping"
+	case mumbleMsgReject:
+		return "Reject"
+	case mumbleMsgServerSync:
+		return "ServerSync"
+	case mumbleMsgChannelRemove:
+		return "ChannelRemove"
+	case mumbleMsgChannelState:
+		return "ChannelState"
+	case mumbleMsgUserRemove:
+		return "UserRemove"
+	case mumbleMsgUserState:
+		return "UserState"
+	case mumbleMsgBanList:
+		return "BanList"
+	case mumbleMsgTextMessage:
+		return "TextMessage"
+	case mumbleMsgPermissionDenied:
+		return "PermissionDenied"
+	case mumbleMsgACL:
+		return "ACL"
+	case mumbleMsgQueryUsers:
+		return "QueryUsers"
+	case mumbleMsgCryptSetup:
+		return "CryptSetup"
+	case mumbleMsgContextActionModify:
+		return "ContextActionModify"
+	case mumbleMsgContextAction:
+		return "ContextAction"
+	case mumbleMsgUserList:
+		return "UserList"
+	case mumbleMsgVoiceTarget:
+		return "VoiceTarget"
+	case mumbleMsgPermissionQuery:
+		return "PermissionQuery"
+	case mumbleMsgCodecVersion:
+		return "CodecVersion"
+	case mumbleMsgUserStats:
+		return "UserStats"
+	case mumbleMsgRequestBlob:
+		return "RequestBlob"
+	case mumbleMsgServerConfig:
+		return "ServerConfig"
+	case mumbleMsgSuggestConfig:
+		return "SuggestConfig"
+	case mumbleMsgPluginDataTransmission:
+		return "PluginDataTransmission"
+	default:
+		return "Unknown"
+	}
+}
 
 // Permission bits
 const (
@@ -556,7 +620,10 @@ func mumbleVarintDecode(data []byte, pos int) (int64, int, error) {
 		}
 		return -v, newPos, nil
 	case b&0xFC == 0xFC: // 111111xx — -1 to -4
-		return int64(^(b & 0x03)), pos + 1, nil
+		// NB: the unary NOT must run in int64 — ^byte(0) is 0xFF (255),
+		// whereas the C++ reference (~(v & 0x03) on a 64-bit int) yields
+		// the negative values. int64(^byte(0)) would be +255, wrong.
+		return ^int64(b & 0x03), pos + 1, nil
 	default:
 		return 0, pos, fmt.Errorf("mumbleVarintDecode: invalid prefix 0x%02x", b)
 	}
@@ -728,71 +795,103 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
+	plainLen := len(src) - 4
 	ivByte := src[0]
-	tagCheck := src[1:4]
-	ciphertext := src[4:]
-	plainLen := len(ciphertext)
 
-	// Reconstruct full IV from single byte
-	var iv [16]byte
-	copy(iv[:], cs.decryptIV[:])
+	// 1:1 port of CryptStateOCB2::decrypt (mumble-voip/mumble
+	// src/crypto/CryptStateOCB2.cpp): save/restore IV semantics, the ±30
+	// late-packet window, and the decrypt_history replay guard keyed on
+	// (iv[0], iv[1]).
+	var saveIV [16]byte
+	copy(saveIV[:], cs.decryptIV[:])
+	restore := false
+	lost, late := 0, 0
 
-	diff := int(ivByte) - int(cs.decryptIV[0])
-	if diff < 0 {
-		diff += 256
-	}
-
-	if diff == 1 {
-		// In order — most common case
-		iv[0] = ivByte
-	} else if diff > 128 {
-		// Late packet (negative diff, wrapped around)
-		// Temporarily adjust IV
-		copy(iv[:], cs.decryptIV[:])
-		iv[0] = ivByte
-		// Decrement byte 1 to go back
+	if (cs.decryptIV[0]+1)&0xFF == ivByte {
+		// In order as expected.
 		if ivByte > cs.decryptIV[0] {
-			// Late by (256 - diff) packets, IV byte[1] was one less
+			cs.decryptIV[0] = ivByte
+		} else if ivByte < cs.decryptIV[0] {
+			cs.decryptIV[0] = ivByte
 			for i := 1; i < 16; i++ {
-				iv[i]--
-				if iv[i] != 0xFF {
+				cs.decryptIV[i]++
+				if cs.decryptIV[i] != 0 {
 					break
 				}
 			}
+		} else {
+			return 0, errors.New("mumbleCryptState: duplicate packet")
 		}
-	} else if diff > 1 {
-		// Lost packets — gap
-		lostCount := diff - 1
-		cs.lost += uint32(lostCount)
-		iv[0] = ivByte
-		// Advance the higher IV bytes for the gap
-		for i := 0; i < lostCount; i++ {
-			cs.incrementIV(cs.decryptIV[:])
-		}
-		// Now decryptIV should be one behind
-		cs.incrementIV(cs.decryptIV[:])
-		copy(iv[:], cs.decryptIV[:])
 	} else {
-		// diff == 0, duplicate
-		return 0, errors.New("mumbleCryptState: duplicate packet")
+		// Out of order or a repeat.
+		diff := int(ivByte) - int(cs.decryptIV[0])
+		if diff > 128 {
+			diff -= 256
+		} else if diff < -128 {
+			diff += 256
+		}
+
+		switch {
+		case ivByte < cs.decryptIV[0] && diff > -30 && diff < 0:
+			// Late packet, but no wraparound.
+			late = 1
+			lost = -1
+			cs.decryptIV[0] = ivByte
+			restore = true
+		case ivByte > cs.decryptIV[0] && diff > -30 && diff < 0:
+			// Last was 0x02, here comes 0xff from last round.
+			late = 1
+			lost = -1
+			cs.decryptIV[0] = ivByte
+			for i := 1; i < 16; i++ {
+				if cs.decryptIV[i]--; cs.decryptIV[i] != 0xFF {
+					break
+				}
+			}
+			restore = true
+		case ivByte > cs.decryptIV[0] && diff > 0:
+			// Lost a few packets, but beyond that we're good.
+			lost = int(ivByte) - int(cs.decryptIV[0]) - 1
+			cs.decryptIV[0] = ivByte
+		case ivByte < cs.decryptIV[0] && diff > 0:
+			// Lost a few packets, and wrapped around.
+			lost = 256 - int(cs.decryptIV[0]) + int(ivByte) - 1
+			cs.decryptIV[0] = ivByte
+			for i := 1; i < 16; i++ {
+				cs.decryptIV[i]++
+				if cs.decryptIV[i] != 0 {
+					break
+				}
+			}
+		default:
+			return 0, errors.New("mumbleCryptState: duplicate or out-of-window packet")
+		}
+
+		if cs.decryptHist[cs.decryptIV[0]] == cs.decryptIV[1] {
+			copy(cs.decryptIV[:], saveIV[:])
+			return 0, errors.New("mumbleCryptState: replayed packet")
+		}
 	}
 
-	var tag [ocb2TagSize]byte
-	tag[0] = tagCheck[0]
-	tag[1] = tagCheck[1]
-	tag[2] = tagCheck[2]
-	ok := ocb2Decrypt(cs.cipher, dst[:plainLen], ciphertext, iv[:], tag[:3])
+	var tag [3]byte
+	copy(tag[:], src[1:4])
+	ok := ocb2Decrypt(cs.cipher, dst[:plainLen], src[4:], cs.decryptIV[:], tag[:])
 	if !ok {
+		copy(cs.decryptIV[:], saveIV[:])
 		return 0, errors.New("mumbleCryptState: decrypt failed")
 	}
+	cs.decryptHist[cs.decryptIV[0]] = cs.decryptIV[1]
 
-	if diff >= 1 && diff <= 128 {
-		copy(cs.decryptIV[:], iv[:])
-		cs.good++
-	} else {
-		cs.late++
+	if restore {
+		copy(cs.decryptIV[:], saveIV[:])
 	}
 
+	if late > 0 {
+		cs.late++
+	} else if lost > 0 {
+		cs.lost += uint32(lost)
+	}
+	cs.good++
 	return plainLen, nil
 }
 
@@ -3222,6 +3321,15 @@ func (c *MumbleCore) saveSession() error {
 // TCP Transport
 // ════════════════════════════════════════════════════════════════════════════════
 
+// mumbleDebug enables verbose TCP message logging when UNICLIENT_MUMBLE_DEBUG is set.
+var mumbleDebug = os.Getenv("UNICLIENT_MUMBLE_DEBUG") != ""
+
+func mumbleLogf(format string, args ...interface{}) {
+	if mumbleDebug {
+		fmt.Printf("[MUMBLE] "+format+"\n", args...)
+	}
+}
+
 func (c *MumbleCore) tcpSend(msgType uint16, payload []byte) error {
 	c.mu.Lock()
 	conn := c.tlsConn
@@ -3775,6 +3883,13 @@ func (c *MumbleCore) attemptAutoReconnect() {
 }
 
 func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
+	if mumbleDebug {
+		if msgType == mumbleMsgUDPTunnel {
+			mumbleLogf("RX type=%d (UDPTunnel) len=%d", msgType, len(payload))
+		} else {
+			mumbleLogf("RX type=%d (%s) len=%d", msgType, mumbleMsgName(msgType), len(payload))
+		}
+	}
 	switch msgType {
 	case mumbleMsgVersion:
 		var msg mumbleVersion

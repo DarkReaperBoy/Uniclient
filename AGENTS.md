@@ -284,11 +284,15 @@ Cores are protocol implementations behind `cores.Core`.
 | bale | Implementation exists, unverified live (geo-restricted). | own protobuf-over-websocket impl | Balethon — https://github.com/Balethon/Balethon (Python); aiobale — https://github.com/aminmadaniofficial/aiobale (client impl); web client — https://web.bale.ai/ (live reference) |
 | rubika | Implementation exists, unverified live (geo-restricted). | own impl | reverse-engineered protocol notes in research/ (verify before trusting) |
 | deltachat | Implementation exists, unverified live. | candidate stack: go-imap + go-smtp + go-crypto + modernc/sqlite | chatmail/core — https://github.com/chatmail/core (Rust official — reference only); deltachat-desktop — https://github.com/deltachat/deltachat-desktop |
-| mumble | **Broken/stale — owner called it out.** Rewrite tests-first (docker mumble-server) or keep hidden. | evaluate layeh/gumble — https://github.com/layeh/gumble; may need own impl | protocol docs — https://github.com/mumble-voip/mumble/tree/master/docs/dev/network-protocol; mumble desktop client — https://github.com/mumble-voip/mumble (possible voice-GUI inspiration) |
-| teamspeak | **Broken/stale — same as mumble.** | RE candidates: ts3j — https://github.com/Manevolent/ts3j; gospeak — https://github.com/NicolasHaas/gospeak; go-ts3 — https://github.com/rocketsciencegg/go-ts3; tsclientlib — https://github.com/ReSpeak/tsclientlib | TS3AudioBot — https://github.com/Splamy/TS3AudioBot (best-effort RE sources) |
+| mumble | **Live-verified 2026-09-10** (public server, official rung): full TCP chain (TLS→Version→Authenticate→CryptSetup→ServerSync), two-client text round-trip, UDP ping. OCB2 decrypt is a 1:1 port of upstream CryptStateOCB2 (pinned by TestCrypt-equivalent unit tests). Voice (UDP opus) is unit-tested but needs a real audio round-trip. | own impl | protocol docs — https://github.com/mumble-voip/mumble/tree/master/docs/dev/network-protocol; mumble desktop client — https://github.com/mumble-voip/mumble (possible voice-GUI inspiration) |
+| teamspeak | **Live-verified 2026-09-10** (public server): full 5-step init handshake, EAX fake-key stage, license chain + ECDH, encrypted command channel, initserver, 100-channel list, ACKed text send. Key derivation + license/ECDH pinned against ts3j official test vectors. | own impl | ts3j — https://github.com/Manevolent/ts3j (Java, working reference); TSLib (TS3AudioBot) — https://github.com/Splamy/TS3AudioBot; spec: ReSpeak/tsdeclarations ts3protocol.md (tsproto repo is gone) |
 
-Mumble + TeamSpeak stay hidden behind an env flag until rewritten — do not
-ship them as "working".
+Mumble + TeamSpeak are live-verified (2026-09-10, §9 official-server rung) —
+they ship as real backends. The §9 verification ladder for both: unit tests
+pinning crypto/packet formats → live tests against public servers
+(`go/tests/mumble_live_test.go`, `teamspeak_live_test.go`, env
+`-tags goolm,live`, never in CI). Remaining gap: real audio (opus) round-trips
+need a second human/device — the owner's live test will cover that.
 
 ## 9. Testing rules
 
@@ -366,8 +370,20 @@ is the next task.
         commands "/" menu (GetChatBotCommands); top peers strip while
         searching (GetTopPeers). README rewritten to match the real
         architecture (the old one described the deleted bridge).
-- [ ] mumble + teamspeak rewrite (tests first, docker-based, §8)
+- [x] mumble + teamspeak rewrite (tests first, docker-based, §8) — 2026-09-10:
+      both cores deep-verified against primary sources (official Mumble.proto/
+      MumbleUDP.proto + upstream CryptStateOCB2.cpp; ReSpeak/tsdeclarations
+      ts3protocol.md + ts3j/TSLib references) and LIVE-VERIFIED against public
+      servers (murmur.libresilicon.com, ts.arcticblaze.net): full handshakes,
+      two-client text round-trips, encrypted command channel. 3 real protocol
+      bugs fixed (TS3 init version constant, handshake pID accounting after
+      fragmented initivexpand2, unbounded step-127 recursion; Mumble varint
+      -1..-4 decode, OCB2 decrypt 1:1 port with replay-history guard). 30+
+      new unit tests pinning crypto/packet formats against official test
+      vectors. Both backends now selectable in the GUI picker.
 - [ ] Verify xmpp / bale / rubika / deltachat cores live or replace them (§8)
+      (XMPP pre-auth chain verified 2026-09-10; bale/rubika geo-blocked;
+      deltachat needs real email accounts)
 - [x] Voice mode: real call UI on top of wrtc — slices 101-103 (2026-09-10):
       1:1 call overlay (header call buttons on DMs, incoming-call ringing
       overlay via EventIncomingCall, accept/decline/mute/camera/end,

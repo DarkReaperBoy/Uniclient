@@ -11,6 +11,38 @@
 
 Complete reverse-engineered spec for the Mumble VoIP protocol. See also: `research/ice_protocol.md` for Murmur admin via ZeroC Ice RPC.
 
+## VERIFIED FINDINGS (2026-09-10, live against murmur.libresilicon.com:64738)
+
+- **The TCP control chain works 1:1 against a real public Murmur**:
+  TLS connect (self-signed accepted, client cert offered) → Version →
+  Authenticate → CryptSetup → CodecVersion → ChannelState → PermissionQuery
+  → UserState → ServerSync → ServerConfig, full guest login in ~1.3s.
+- **Murmur does NOT echo text messages back to the sender** —
+  `msgTextMessage` explicitly removes uSource from the recipient set
+  (verified in upstream Messages.cpp). A single-client "echo round-trip"
+  is impossible by design; the live test uses two clients (A sends, B
+  receives — verified working, both in the Update event flow and the
+  local message cache).
+- **UDP ping verified live** (4 zero bytes + 8 random ident; 24-byte
+  reply: version + ident + users + max users + bandwidth). Sandbox note:
+  UDP egress to arbitrary hosts is allowed from the dev sandbox — the
+  Mumble UDP voice channel (OCB2) is testable in principle, but voice
+  round-trips need a second client with audio.
+- **OCB2 decrypt was rewritten as a 1:1 port of upstream
+  CryptStateOCB2::decrypt** (save/restore IV semantics, the ±30 late
+  window, and the `decrypt_history` replay guard keyed on (iv[0], iv[1])).
+  The previous rewrite accepted out-of-window late packets and lacked the
+  history replay check — pinned now by unit tests mirroring upstream
+  TestCrypt.cpp (OOO window, 512-packet replay attack, tamper detection).
+- **Mumble varint 0xFC..0xFF (-1..-4) decoding was broken** (returned
+  +252..255): Go's `^byte(0)` is 0xFF, not -1 like C++ `~` on a 64-bit
+  int. Fixed to `^int64(b & 0x03)`; pinned by round-trip tests.
+- Protobuf field numbers/messages verified against the official
+  Mumble.proto/MumbleUDP.proto fetched from mumble-voip/mumble master
+  (26 TCP message types, protobuf-UDP Audio since 1.5).
+- Public servers verified reachable + working: murmur.libresilicon.com,
+  194.180.16.113, 5.75.154.30, 84.38.65.32 (all :64738).
+
 Sources: official Mumble.proto, MumbleUDP.proto, MumbleProtocol.h, CryptStateOCB2.cpp,
 PacketDataStream.h, ACL.h, and docs/dev/network-protocol/ from
 mumble-voip/mumble (GitHub master branch).

@@ -45,6 +45,7 @@ const (
 	tsHeaderS2C      = 11
 	tsVersionTS      = 1466672534 // 3.0.19.3 build timestamp
 	tsEpochOffset    = 1356998400
+	tsInitVersion    = 1566914096 // 3.5.0 [Stable] build timestamp — accepted by live servers
 )
 
 // Packet types
@@ -1266,8 +1267,27 @@ func (tc *tsConnection) tsNextPktID(pType byte) uint16 {
 	return id
 }
 
+// tsDebug enables verbose packet logging when UNICLIENT_TS3_DEBUG is set.
+var tsDebug = os.Getenv("UNICLIENT_TS3_DEBUG") != ""
+
+func tsLogf(format string, args ...interface{}) {
+	if tsDebug {
+		fmt.Printf("[TS3] "+format+"\n", args...)
+	}
+}
+
 // tsSendRaw sends a raw UDP packet.
 func (tc *tsConnection) tsSendRaw(pkt []byte) error {
+	if tsDebug && len(pkt) >= 12 {
+		pt := pkt[12]
+		pID := binary.BigEndian.Uint16(pkt[8:10])
+		cID := binary.BigEndian.Uint16(pkt[10:12])
+		preview := pkt[13:]
+		if len(preview) > 24 {
+			preview = preview[:24]
+		}
+		tsLogf("TX type=0x%02x pID=%d cID=%d len=%d data=%x", pt, pID, cID, len(pkt)-13, preview)
+	}
 	_, err := tc.conn.WriteToUDP(pkt, tc.addr)
 	return err
 }
@@ -1461,12 +1481,18 @@ func (tc *tsConnection) tsReceiveLoop(ctx context.Context) {
 func (tc *tsConnection) tsHandlePacket(raw []byte) {
 	mac, pID, pType, data, err := tsParseS2CPacket(raw)
 	if err != nil {
-		fmt.Printf("[TS3 RX] parse error: %v\n", err)
+		tsLogf("RX parse error: %v", err)
 		return
 	}
 
 	flags := pType & 0xf0
 	packetType := pType & 0x0f
+
+	preview := data
+	if len(preview) > 24 {
+		preview = preview[:24]
+	}
+	tsLogf("RX type=0x%02x pID=%d len=%d mac=%x data=%x", pType, pID, len(data), mac[:4], preview)
 
 	// Track received bandwidth
 	if tc.owner != nil {
@@ -1726,6 +1752,13 @@ func (t *TeamSpeakCore) tsConnect(addr string) error {
 
 // tsHandshake performs the full TS3 init handshake (steps 0-4) + high-level handshake.
 func (t *TeamSpeakCore) tsHandshake(nickname string) error {
+	return t.tsHandshakeRetry(nickname, 5)
+}
+
+// tsHandshakeRetry bounds the number of full restarts a server can force
+// with step-127 responses (some servers signal "restart" on every attempt;
+// without a bound the handshake would recurse forever).
+func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) error {
 	tc := t.tsConn
 
 	// Generate or load identity
@@ -1737,9 +1770,13 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 		tc.identity = id
 	}
 
-	// tsproto uses current time as "version" field (not the build timestamp)
+	// Version for Init packets: the client build timestamp. A fixed real
+	// value (3.5.0 [Stable], 1566914096 — the constant TSLib uses) works
+	// live against public servers; time-derived values get rejected with
+	// init error 522 (client_version_outdated) or a step-127 restart loop
+	// (verified 2026-09 against ts.arcticblaze.net:9987).
+	version := uint32(tsInitVersion)
 	timestamp := uint32(time.Now().Unix())
-	version := timestamp - tsEpochOffset
 
 	var random0 [4]byte
 	rand.Read(random0[:])
@@ -1835,9 +1872,14 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 		x, n, level, random2, err = tsParseInit3(data)
 		if err != nil {
 			if strings.Contains(err.Error(), "step 127") {
-				// Server says retry — start over
+				// Server says restart — per spec §2.4 note. Sleep briefly
+				// (ts3j waits 1s) and start over with fresh randoms.
 				cancelRecv()
-				return t.tsHandshake(nickname)
+				if restartsLeft <= 1 {
+					return fmt.Errorf("%w: server keeps requesting handshake restart (step 127)", ErrNetwork)
+				}
+				time.Sleep(1 * time.Second)
+				return t.tsHandshakeRetry(nickname, restartsLeft-1)
 			}
 			if attempt < 4 {
 				continue
@@ -1880,6 +1922,12 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 	var initivCmd tsIncomingCmd
 	var fragBuf []byte // reassembly buffer for fragmented commands
 	var fragmenting bool
+	// Track the highest command pID consumed by the handshake: the
+	// server's command counter continues from there (initivexpand2 may
+	// span several fragmented pIDs; the next real command — initserver —
+	// continues the sequence). Hardcoding nextRecvID=1 stalls the queue
+	// forever when initivexpand2 takes 2+ pIDs (verified live).
+	maxCmdPID := uint16(0)
 	for attempt := 0; attempt < 20; attempt++ {
 		buf := make([]byte, 4096)
 		tc.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
@@ -1903,16 +1951,22 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 				continue
 			}
 
-			// ACK it
+			// ACK it (with an incrementing ACK pID, fake-encrypted
+			// like the handshake commands per spec §3)
 			ackData := make([]byte, 2)
 			binary.BigEndian.PutUint16(ackData, pID)
+			ackPID := tc.tsNextPktID(tsPktAck)
 			ackMeta := make([]byte, 5)
-			binary.BigEndian.PutUint16(ackMeta[0:2], 0)
+			binary.BigEndian.PutUint16(ackMeta[0:2], ackPID)
 			binary.BigEndian.PutUint16(ackMeta[2:4], 0)
 			ackMeta[4] = tsPktAck
 			ackMAC, ackCipher := tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], ackMeta, ackData)
-			ackPkt := tsBuildC2SPacket(ackMAC, 0, 0, tsPktAck, ackCipher)
+			ackPkt := tsBuildC2SPacket(ackMAC, ackPID, 0, tsPktAck, ackCipher)
 			tc.tsSendRaw(ackPkt)
+
+			if pID > maxCmdPID {
+				maxCmdPID = pID
+			}
 
 			// Handle fragmentation
 			isFragmented := flags&tsFlagFragmented != 0
@@ -1936,6 +1990,10 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 			name, params := tsParseCommand(plaintext)
 			initivCmd = tsIncomingCmd{name: name, params: params, raw: string(plaintext)}
 			break
+		} else if pktType == tsPktPing {
+			// Pong the server's handshake-phase pings so it does not
+			// consider us dead mid-handshake (spec §4.3).
+			_ = tc.tsSendPong(pID)
 		} else if pktType == tsPktInit {
 			if len(data) > 0 && data[0] == 127 {
 				cancelRecv()
@@ -2073,11 +2131,16 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 		}
 	}
 
-	// ACK pID counter also starts at 1 (first ACK was for initivexpand2)
-	tc.pktState[tsPktAck].nextSendID = 1
-	// Incoming command counter: initivexpand2 was pID=0, next server command is pID=1
-	tc.pktState[tsPktCommand].nextRecvID = 1
-	// Incoming ACK counter: ACK for clientek will be pID=0
+	// Counters: the handshake consumed command pIDs 0..maxCmdPID
+	// (initivexpand2 fragments) and issued ACKs 0..ackCount-1 via
+	// tsNextPktID, so both counters already hold the right next values.
+	// The incoming command sequence continues at maxCmdPID+1 — the next
+	// server command (initserver) resumes the same counter (verified
+	// live: with a 2-fragment initivexpand2 the server's initserver
+	// arrived at pID 2, not 1).
+	tc.pktState[tsPktCommand].nextRecvID = maxCmdPID + 1
+	// Incoming ACK counter: the server ACKed our clientek from its own
+	// ACK counter which started at 0.
 	tc.pktState[tsPktAck].nextRecvID = 0
 
 	// Now start the receive loop for encrypted command exchange

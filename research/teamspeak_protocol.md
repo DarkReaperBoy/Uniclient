@@ -11,6 +11,38 @@
 
 Reverse-engineered from tsproto (Rust reference implementation) and verified against avanor-gaming.de:9987.
 Updated 2026-04-09: rewritten for real UDP client protocol (replaces old ServerQuery doc).
+Updated 2026-09-10: **LIVE-VERIFIED against a real public server** (see "Verified findings"
+below). The authoritative spec is ReSpeak/tsdeclarations `ts3protocol.md`
+(https://github.com/ReSpeak/tsdeclarations/blob/master/ts3protocol.md) — the
+ReSpeak/tsproto repo itself is gone (404); ts3j (Manevolent/ts3j) and
+TSLib (Splamy/TS3AudioBot) remain as working reference implementations.
+
+## VERIFIED FINDINGS (2026-09-10, live against ts.arcticblaze.net:9987)
+
+- **Init version field MUST be a real client build timestamp.** A fixed
+  value of `1566914096` (3.5.0 [Stable], the constant TSLib uses) works.
+  Time-derived values (`now - 1356998400`) are rejected: either init error
+  522 (`client_version_outdated`, arrives as a 5-byte init1: step + u32
+  error code) or a permanent step-127 restart loop.
+- **you.are.bot:9987 answers init0/init1 but ALWAYS answers init2 with step
+  127** (restart) regardless of version — some servers just do this; the
+  step-127 restart must be bounded (5 restarts) or the client loops forever.
+- **initivexpand2 arrives fragmented AND the fragments consume command
+  packet IDs.** With a 2-fragment initivexpand2 (pIDs 0 and 1), the next
+  server command (initserver) arrives at pID 2 — the client's next-receive
+  counter must be set to last-consumed-pID + 1, not hardcoded 1, or the
+  receive queue stalls forever (this was the last handshake bug).
+- **The server ACKs clientek (our pID 1) and pings (0x84, unencrypted) during
+  connection setup; pongs must use the sharedMAC** — the ping/pong channel is
+  a good liveness indicator mid-handshake.
+- Server command bursts arrive out of order and heavily fragmented +
+  compressed (0x52 = Compressed|Fragmented Command, QuickLZ level 1).
+- **Round-trip verified live**: full handshake → initserver → 100-channel
+  channellist → ACKed text message send, all through the EAX-encrypted
+  command channel.
+- Key derivation, license chain + ECDH shared-secret derivation pinned by
+  unit tests against ts3j's official test vectors (EncryptionTest.java,
+  CryptoInit2Test.java) — see `go/cores/teamspeak_proto_test.go`.
 
 ## Overview
 

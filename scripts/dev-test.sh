@@ -57,6 +57,12 @@ GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags goolm -count=1 -exec "$WASM_RUNN
 rm -rf "$(dirname "$WASM_RUNNER")"
 
 echo "== vet + gofmt =="
-CGO_ENABLED=1 go vet -tags goolm ./...
+# Native vet for every package that builds without system dev headers; the
+# GUI needs xkbcommon/wayland cgo headers on linux (absent on sandboxes) —
+# vet it under js/wasm instead (same source, pure Go). Full native vet runs
+# in the CI verify workflow (§5).
+CGO_ENABLED=0 go vet -tags goolm ./engine/... ./cores/... ./utils/... ./bootstrap/... ./wrtc/... 2>/dev/null || \
+        CGO_ENABLED=0 go vet -tags goolm ./engine/... ./cores/... ./utils/... ./bootstrap/...
+GOOS=js GOARCH=wasm CGO_ENABLED=0 go vet -tags goolm ./gui/... ./cmd/...
 test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
 echo "ALL GATES GREEN"

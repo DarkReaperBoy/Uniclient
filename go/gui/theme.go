@@ -438,14 +438,17 @@ type platformMeta struct {
 
 // platforms is the picker list (order = display order). Every entry must
 // be a real, factory-supported backend (tested in theme_test.go against
-// bootstrap.SupportedPlatforms). Hidden/stale cores (teamspeak, mumble) are
-// excluded until rewritten. No fake/demo entries — AGENTS.md §1.10.
+// bootstrap.SupportedPlatforms). Mumble and TeamSpeak are live-verified
+// against public servers (2026-09-10, research/mumble_protocol.md +
+// research/teamspeak_protocol.md). No fake/demo entries — AGENTS.md §1.10.
 var platforms = []platformMeta{
 	{ID: "telegram", Title: "Telegram", Desc: "MTProto via gotd. Calls, folders, full parity work.", Letter: "T"},
 	{ID: "irc", Title: "IRC", Desc: "IRCv3, SASL, verified against real servers.", Letter: "I"},
 	{ID: "matrix", Title: "Matrix", Desc: "mautrix, E2EE via goolm (pure Go).", Letter: "M"},
 	{ID: "github", Title: "GitHub", Desc: "Issues, PRs, notifications as chats.", Letter: "G"},
 	{ID: "xmpp", Title: "XMPP", Desc: "mellium-based core.", Letter: "X"},
+	{ID: "mumble", Title: "Mumble", Desc: "VoIP: channels, text chat, OCB2 voice crypto. Live-verified.", Letter: "U"},
+	{ID: "teamspeak", Title: "TeamSpeak 3", Desc: "TS3 client protocol: EAX-encrypted commands, voice. Live-verified.", Letter: "S"},
 	{ID: "deltachat", Title: "Delta Chat", Desc: "Email-based chat (IMAP/SMTP).", Letter: "Δ"},
 	{ID: "bale", Title: "Bale", Desc: "Iranian messenger (experimental).", Letter: "B"},
 	{ID: "rubika", Title: "Rubika", Desc: "Iranian messenger (experimental).", Letter: "R"},
@@ -456,9 +459,6 @@ func platformTitle(id string) string {
 		if p.ID == id {
 			return p.Title
 		}
-	}
-	if id == "teamspeak" || id == "mumble" {
-		return id // hidden from picker; may appear on existing accounts
 	}
 	return id
 }

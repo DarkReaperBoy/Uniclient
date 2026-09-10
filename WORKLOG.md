@@ -1541,3 +1541,93 @@ the GUI (3 P1 + 1 P2 CORE-ONLY rows in the matrix).
   443 via the embedded IP table); Rubika web endpoint reachable. Full
   protocol verification stays blocked on real (geo-restricted) accounts.
 - Parity: 111 PRESENT / 29 PARTIAL / 10 MISSING / 52 CORE-ONLY.
+
+## 2026-09-10 — slice 109: mumble + teamspeak live-verified (1:1 protocol)
+
+The owner's directive: 1:1 the Teamspeak/Mumble protocols first and foremost,
+test on public servers before their own live test. Both cores were rated
+"broken/stale" in §8 — the honest rating after this session: **the protocol
+implementations were structurally sound and nearly 1:1 already, but had
+hard-verification gaps and 5 real bugs** that only live testing could find.
+
+### research (primary sources, not the old notes)
+
+- Official Mumble.proto + MumbleUDP.proto fetched from mumble-voip/mumble
+  master; every message field number in our protobuf codec verified against
+  them (all match).
+- Upstream CryptStateOCB2.cpp decrypt algorithm ported 1:1 (save/restore IV,
+  ±30 late window, decrypt_history replay guard).
+- ReSpeak/tsproto is GONE (404). The authoritative TS3 spec is
+  ReSpeak/tsdeclarations ts3protocol.md; working reference impls: ts3j
+  (Manevolent/ts3j) + TSLib (Splamy/TS3AudioBot) — both cloned and used for
+  test vectors.
+
+### live verification (§9 official-server rung)
+
+- **Mumble** (murmur.libresilicon.com:64738): full TCP chain in 1.3s
+  (TLS→Version→Authenticate→CryptSetup→CodecVersion→ChannelState→
+  PermissionQuery→UserState→ServerSync→ServerConfig). Two-client text
+  round-trip: A joins Root, B joins Root, A sends → B receives (Murmur never
+  echoes to the sender — verified in upstream Messages.cpp: msgTextMessage
+  removes uSource from the recipient set; the old single-client echo test
+  expectation was wrong, not the core). UDP ping verified (12→24 byte
+  legacy format). 3 more public Murmurs verified reachable.
+- **TeamSpeak** (ts.arcticblaze.net:9987): FULL client protocol — 5-step
+  init handshake (TS3INIT1, random exchange, RSA puzzle level 10000),
+  fragmented+fake-encrypted initivexpand2 (EAX decrypt verified on real
+  server data), license chain verification, Curve25519 ECDH, clientek with
+  ECDSA proof, encrypted clientinit, initserver, 100-channel channellist,
+  ACKed server-text send. you.are.bot:9987 documented as a permanent
+  step-127 server (tests skip it).
+
+### bugs fixed (each found by live testing)
+
+1. **TS3 init version**: time-derived `now - 1356998400` is rejected by
+   live servers (init error 522 client_version_outdated, or a permanent
+   step-127 loop). Fixed: fixed real build timestamp 1566914096 (3.5.0
+   [Stable], TSLib's constant).
+2. **TS3 handshake pID accounting**: initivexpand2 arrives fragmented and
+   its fragments consume command pIDs (0 and 1 for a 2-fragment burst) —
+   the next server command (initserver) continues at pID 2. Hardcoding
+   nextRecvID=1 stalled the receive queue forever ("timeout waiting for
+   initserver" while initserver sat in the queue). Fixed: track the highest
+   consumed pID, continue from maxCmdPID+1.
+3. **TS3 step-127 restart**: unbounded recursion when a server keeps
+   demanding restarts. Fixed: bounded to 5 restarts with 1s sleep (ts3j
+   behavior).
+4. **Mumble varint -1..-4**: decode returned +252..255 (Go `^byte(0)` is
+   0xFF, not -1 like C++ `~` on int64). Fixed to `^int64(b&0x03)`.
+5. **Mumble OCB2 decrypt**: rewritten as a 1:1 port of upstream
+   CryptStateOCB2::decrypt — the old rewrite accepted out-of-window late
+   packets (no ±30 bound) and had no decrypt_history replay guard.
+
+### tests (§9: unit + live, both env-gated properly)
+
+- 30 new unit tests: `cores/mumble_proto_test.go` (OCB2 round-trip, OOO
+  30-window, 512-packet replay attack, tamper detection — mirroring
+  upstream TestCrypt.cpp; varint round-trips incl. negatives; protobuf
+  wire-format checks; message-ID table) and `cores/teamspeak_proto_test.go`
+  (key derivation against ts3j's official EncryptionTest vector, EAX
+  round-trip + tamper, init0/1/2/3/4 byte-exact layouts, fake-key/root-key
+  constants, command escaping, license chain + ECDH against ts3j's
+  CryptoInit2Test vector, identity sign/verify, UID format).
+- Live tests: `tests/mumble_live_test.go` (connect chain, two-client
+  round-trip, UDP ping), `tests/teamspeak_live_test.go` (full handshake,
+  channel list + text send) — `-tags goolm,live`, never in CI.
+- UNICLIENT_TS3_DEBUG / UNICLIENT_MUMBLE_DEBUG env vars added for packet
+  tracing (debug-only, zero overhead when off).
+
+### GUI
+
+- Mumble + TeamSpeak 3 added to the backend picker (theme.go) — they were
+  hidden as "stale"; both are live-verified now. Engine auth flows already
+  existed (server → username → optional password).
+
+### gate
+
+- scripts/dev-test.sh: full gate green (native engine/cores/utils/bootstrap
+  + gui under node+wasm). dev-test.sh vet step fixed to vet the GUI under
+  js/wasm (sandbox lacks xkbcommon/wayland dev headers; full native vet
+  stays in the CI verify workflow). gofmt clean.
+- windows/amd64 + js/wasm cross-builds verified locally.
+- Parity matrix unchanged (voice slices are backend work, not GUI rows).
