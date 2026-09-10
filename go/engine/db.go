@@ -159,6 +159,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV45,
 	migrateV46,
 	migrateV47,
+	migrateV48,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -197,6 +198,24 @@ func migrateV47(tx *sql.Tx) error {
                 sender_name TEXT NOT NULL DEFAULT '',
                 created_at  INTEGER NOT NULL,
                 PRIMARY KEY (account_id, chat_id, sender_id)
+        )`)
+	return err
+}
+
+// migrateV48 creates the voice-message transcriptions table (Telegram
+// messages.transcribeAudio + updateTranscribedAudio, AyuGram voice bubbles).
+// One row per message; the latest write wins (the server may refine the
+// text across several pushes while pending).
+func migrateV48(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS message_transcriptions (
+                account_id       TEXT NOT NULL,
+                chat_id          TEXT NOT NULL,
+                msg_id           TEXT NOT NULL,
+                transcription_id INTEGER NOT NULL DEFAULT 0,
+                pending          INTEGER NOT NULL DEFAULT 0,
+                text             TEXT NOT NULL DEFAULT '',
+                created_at       INTEGER NOT NULL,
+                PRIMARY KEY (account_id, chat_id, msg_id)
         )`)
 	return err
 }

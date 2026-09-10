@@ -80,6 +80,12 @@ const (
 	// engine merges them into the cached content_raw so poll bubbles
 	// re-render with live results (AyuGram polls refresh in place).
 	UpdatePollResults UpdateType = "poll_results"
+	// UpdateTranscription carries the text of a voice-message
+	// transcription (tg.updateTranscribedAudio) — pushed after
+	// messages.transcribeAudio, possibly several times (pending=true
+	// means more updates will follow). Mirrors Telegram Desktop's
+	// Media::transcribed() refresh path for voice bubbles.
+	UpdateTranscription UpdateType = "transcription"
 )
 
 // CallState represents the current phase of a voice or video call.
@@ -657,7 +663,21 @@ type Update struct {
 	NotifySettings   *NotifySettingsUpdate   `json:"notify_settings,omitempty"`
 	GroupCallMessage *GroupCallMessageUpdate `json:"group_call_message,omitempty"`
 	LoginCode        string                  `json:"login_code,omitempty"` // login_code update: the pushed login code
-	Platform         string                  `json:"platform"`
+	// Transcription carries the voice-message transcription payload for
+	// UpdateTranscription updates.
+	Transcription *TranscriptionUpdate `json:"transcription,omitempty"`
+	Platform      string               `json:"platform"`
+}
+
+// TranscriptionUpdate is the payload of UpdateTranscription: the text (or
+// partial text, while Pending) for one voice message. The same transcription
+// can be delivered more than once as the server refines it — the last write
+// wins, exactly like Telegram Desktop's transcribedText cache.
+type TranscriptionUpdate struct {
+	MessageID       string `json:"message_id"`
+	TranscriptionID int64  `json:"transcription_id,omitempty"`
+	Pending         bool   `json:"pending"`
+	Text            string `json:"text,omitempty"`
 }
 
 // GroupCallMessageUpdate carries an ephemeral message posted into a group call's

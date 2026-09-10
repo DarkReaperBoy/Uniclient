@@ -1922,3 +1922,56 @@ back.
 - gates: native tests (engine/cores/utils/bootstrap, goolm) green;
   gofmt clean; js/wasm + windows/amd64 binaries build.
 - parity: voice-recording row CORE-ONLY → PRESENT (113 / 27 / 10 / 50).
+
+## 2026-09-10 (cont.) — slice 115: VOICE-NOTE TRANSCRIPTION (A→A on bubbles)
+
+The voice trilogy closes: record (114) → play (113) → transcribe. The
+"A→A" glyph on voice bubbles runs Telegram's messages.transcribeAudio and
+renders the text under the waveform, pending state included.
+
+### engine + core
+
+- `cores/base.go`: UpdateTranscription update type + TranscriptionUpdate
+  payload (MessageID, TranscriptionID, Pending, Text).
+- `cores/telegram.go`: dispatcher.OnTranscribedAudio (tg.updateTranscribed
+  Audio) → fired as the new update (peer→chatID via the existing
+  peerToID); multiple pushes allowed — latest wins, exactly Telegram.
+- `engine/db.go`: migration V48 — message_transcriptions table (one row
+  per message; upsert = latest write wins).
+- `engine/transcription.go`: TranscriptionSupported (VoiceTranscriber
+  gate), TranscribeVoiceNote (core call + store; server errors pass
+  through verbatim — premium/forbidden reasons stay visible),
+  GetCachedTranscription, populateTranscriptions (one query hydrates the
+  chat's messages — wired into both GetMessages exits), and
+  handleTranscriptionUpdate (unsolicited updates for never-requested
+  messages are ignored, matching Telegram Desktop) → EventMsgTranscribed.
+- CachedMessage gains TranscriptionText / TranscriptionPending.
+
+### gui
+
+- `gui/transcribe.go`: the "A→A" glyph (Material pill, drawn from
+  shapes — never copied assets) renders only for voice messages on
+  VoiceTranscriber accounts with no text yet (per-frame capability from
+  the refreshAccounts cache); tap → transcribeVoiceNote (async, toast on
+  error); transcriptBlock under the waveform — "Transcribing…" while
+  pending, collapsed 3 lines + More/Less chip for long texts.
+- Frame carries transcribeCap for the open chat's account;
+  EventMsgTranscribed refreshes the open chat.
+
+### verification
+
+- Unit (engine): final/pending round-trips, pending→final flip via the
+  update handler + event payload, unsolicited-update ignore, capability
+  gate, core-error honesty (no row on failure), hydration into
+  GetMessages rows. Green.
+- Unit (gui, node+wasm): glyph visibility rules (capability, media type,
+  already-transcribed, pending), pending/partial/final text routing,
+  collapse-depth ladder, clickable stability, capability cache reads.
+  Green.
+- gates: native tests (engine/cores/utils/bootstrap, goolm) green;
+  gofmt clean; vet clean (native + gui); js/wasm + windows/amd64
+  binaries build.
+- parity: transcription row CORE-ONLY → PRESENT; audit fixed 8 more
+  stale rows (global chat search P0, global message search, translate
+  message, translate bar, edit history, emoji autocomplete, poll,
+  search-by-sender) → 119 PRESENT / 30 PARTIAL / 10 MISSING / 41 CORE-ONLY.

@@ -920,6 +920,30 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
+	// Voice-note transcription results (tg.updateTranscribedAudio): the
+	// server pushes these after messages.transcribeAudio — possibly several
+	// times while Pending, with the final text last. The engine stores the
+	// latest text per message and refreshes the voice bubble.
+	dispatcher.OnTranscribedAudio(func(ctx context.Context, e tg.Entities, u *tg.UpdateTranscribedAudio) error {
+		chatID := peerToID(u.Peer)
+		if chatID == "" || u.MsgID == 0 {
+			return nil
+		}
+		t.fireUpdate(Update{
+			Type:    UpdateTranscription,
+			ChatID:  chatID,
+			Message: nil,
+			Transcription: &TranscriptionUpdate{
+				MessageID:       strconv.Itoa(u.MsgID),
+				TranscriptionID: u.TranscriptionID,
+				Pending:         u.Pending,
+				Text:            u.Text,
+			},
+			Platform: tgPlatform,
+		})
+		return nil
+	})
+
 	// Reaction notification handlers — fire synthetic messages with Extra fields
 	// so the host notification system can distinguish reactions from regular messages.
 

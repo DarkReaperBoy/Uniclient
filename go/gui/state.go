@@ -66,6 +66,11 @@ type App struct {
 	voiceRec         voiceRecState
 	voiceRecTickerOn bool
 
+	// voice-note transcription (slice 115): expanded-text state per
+	// message key + per-account capability cache.
+	transcriptOpen map[string]bool
+	transcribeCap  map[string]bool
+
 	// group-call live bar (slice 70): polled info for the open chat and the
 	// chat the poll loop belongs to (nil = no loop running).
 	groupCall   *engine.GroupCallInfo
@@ -469,8 +474,15 @@ func (a *App) copyTextSoon(txt string) {
 
 func (a *App) refreshAccounts() {
 	accs := a.eng.ListAccounts()
+	// Voice-transcription capability (slice 115), re-checked with the
+	// account list: cores come and go with connection state.
+	caps := make(map[string]bool, len(accs))
+	for _, acc := range accs {
+		caps[acc.ID] = a.eng.TranscriptionSupported(acc.ID)
+	}
 	a.mu.Lock()
 	a.accounts = accs
+	a.transcribeCap = caps
 	a.mu.Unlock()
 	a.invalidate()
 }
@@ -565,6 +577,13 @@ func (a *App) onEvent(data []byte) {
 	case engine.EventMsgReceived, engine.EventMsgEdited, engine.EventMsgDeleted, engine.EventMsgStatus:
 		a.onMessageEvent(env.Type, env.AccountID, env.Data)
 		go a.refreshChats()
+	case engine.EventMsgTranscribed:
+		// Voice-note transcription landed (slice 115): the open chat's
+		// voice bubbles re-render with the stored text.
+		var t engine.MsgTranscribedEvent
+		if json.Unmarshal(env.Data, &t) == nil {
+			a.onMessageEvent(env.Type, env.AccountID, env.Data)
+		}
 	case engine.EventTyping:
 		var t engine.TypingEvent
 		if json.Unmarshal(env.Data, &t) == nil {
@@ -1564,6 +1583,7 @@ func (a *App) snapshot() frame {
 		botCmds:          a.botCmds,
 		botCmdsOn:        a.botCmdsOn,
 		botCmdsLoaded:    a.botCmdsLoaded,
+		transcribeCap:    a.transcribeCapFor(a.msgFor),
 		topPeers:         a.topPeers,
 		topPeersFor:      a.topPeersFor,
 		topPeersLoaded:   a.topPeersLoaded,
@@ -1747,6 +1767,10 @@ type frame struct {
 	botCmds       []engine.BotCommandInfo
 	botCmdsOn     bool
 	botCmdsLoaded bool
+
+	// voice-note transcription (slice 115): the open chat's account can
+	// transcribe (engine VoiceTranscriber).
+	transcribeCap bool
 
 	// top peers strip (slice 72)
 	topPeers       []engine.ChatInfo

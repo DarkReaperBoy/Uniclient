@@ -679,7 +679,7 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 					return dims
 				})
 			}),
-			// Waveform + labels.
+			// Waveform + labels (+ transcription block, slice 115).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -703,6 +703,9 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 							)
 						})
 					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.transcriptBlock(gtx, m)
+					}),
 				)
 			}),
 			// Speed chip.
@@ -714,6 +717,21 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return drawSpeedChip(gtx, a.ui, a.ui.p.Accent, speed)
+					})
+				})
+			}),
+			// Transcribe glyph (slice 115): "A→A" while untranscribed.
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if !transcribeWanted(m, f.transcribeCap) {
+					return layout.Dimensions{}
+				}
+				clk := transcribeClickable(transcriptKey(m))
+				if clk.Clicked(gtx) {
+					a.transcribeVoiceNote(m)
+				}
+				return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return drawTranscribeGlyph(gtx, a.ui, a.ui.p.AccentDim, a.ui.p.Text)
 					})
 				})
 			}),

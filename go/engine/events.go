@@ -45,6 +45,10 @@ const (
 	// (voice notes / audio files): state changes plus throttled ~4 Hz
 	// progress while playing.
 	EventPlaybackState = "playback_state"
+	// EventMsgTranscribed carries a voice-message transcription result
+	// (messages.transcribeAudio / updateTranscribedAudio): the engine stored
+	// the text; the open chat re-renders the voice bubble with it.
+	EventMsgTranscribed = "msg_transcribed"
 )
 
 // EngineEvent is the envelope for all events pushed to the host.
@@ -94,6 +98,15 @@ type MsgEditedEvent struct {
 	NewText    string          `json:"new_text"`
 	EditedAt   int64           `json:"edited_at"`
 	ContentRaw json.RawMessage `json:"content_raw,omitempty"`
+}
+
+// MsgTranscribedEvent is the payload of EventMsgTranscribed.
+type MsgTranscribedEvent struct {
+	AccountID string `json:"account_id"`
+	ChatID    string `json:"chat_id"`
+	MsgID     string `json:"msg_id"`
+	Text      string `json:"text"`
+	Pending   bool   `json:"pending"`
 }
 
 type MsgDeletedEvent struct {
@@ -261,6 +274,13 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 				chatID = u.Message.ChatID
 			}
 			e.mergePollResults(accountID, chatID, u.Message.ID, u.Message.Extra)
+		}
+
+	case cores.UpdateTranscription:
+		// Voice-note transcription result (tg.updateTranscribedAudio):
+		// update the stored row and re-render the bubble.
+		if u.Transcription != nil {
+			e.handleTranscriptionUpdate(accountID, u.ChatID, u.Transcription)
 		}
 
 	case cores.UpdateReadState:

@@ -59,6 +59,11 @@ type CachedMessage struct {
 	IsSilent             bool  `json:"is_silent,omitempty"`
 	ScheduleRepeatPeriod int   `json:"schedule_repeat_period,omitempty"`
 
+	// Voice-message transcription (slice 115): the stored text ("" when
+	// none was requested) and whether the server is still working on it.
+	TranscriptionText    string `json:"transcription_text,omitempty"`
+	TranscriptionPending bool   `json:"transcription_pending,omitempty"`
+
 	// Media metadata (populated from media table join).
 	MediaType          int    `json:"media_type,omitempty"`
 	MediaFileName      string `json:"media_file_name,omitempty"`
@@ -154,6 +159,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 	e.populateReplyPreviews(msgs)
 	e.populateAdminRanks(accountID, chatID, msgs)
 	e.populateSenderNoForwards(accountID, msgs)
+	e.populateTranscriptions(accountID, chatID, msgs)
 
 	// If cache has fewer messages than requested on initial load, fetch from
 	// core and cache. A few messages may have trickled in via the event stream
@@ -187,6 +193,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 				// Shadow bans (slice 91) apply to the fresh
 				// page too; later SQL reads exclude them.
 				result = e.dropShadowBanned(accountID, chatID, result)
+				e.populateTranscriptions(accountID, chatID, result)
 				// Ayu regex filters (slice 90) apply to every exit.
 				return e.applyAyuFilters(result), nil
 			} else {
