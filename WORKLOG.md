@@ -1975,3 +1975,48 @@ renders the text under the waveform, pending state included.
   stale rows (global chat search P0, global message search, translate
   message, translate bar, edit history, emoji autocomplete, poll,
   search-by-sender) → 119 PRESENT / 30 PARTIAL / 10 MISSING / 41 CORE-ONLY.
+
+## 2026-09-10 (cont.) — slice 116: SAVED MESSAGES surface (sidebar + forward + avatar)
+
+### real engine bug found and fixed
+
+- `OpenSavedMessages`' INSERT OR IGNORE omitted the NOT NULL `updated_at`
+  column → the constraint violation was silently swallowed by OR IGNORE →
+  the Saved Messages chat row NEVER actually landed (the method "worked"
+  only because the server-synced self chat usually existed already).
+  Caught by the new idempotency unit test; the insert now carries
+  updated_at and surfaces real errors.
+
+### engine
+
+- `SavedMessagesSupported` / `SavedMessagesChatID` (selfIDer capability
+  probe) — the GUI's gating + bookmark-avatar predicate.
+- OpenSavedMessages: fixed insert + typed errors.
+
+### gui
+
+- Pinned "Saved Messages" row above the folder tabs (one per capable
+  account; account-name subtitle only when several; hidden while
+  searching / archive view): bookmark avatar (accent circle + Material
+  glyph), tap → engine ensures the chat exists → opens it.
+- chatAvatar special-case: the saved chat renders the bookmark avatar
+  everywhere (chat rows, header, dialogs).
+- Forward picker: the saved chat is pinned FIRST among candidates
+  (buildForwardCandidates, pure + unit-tested); openForward ensures the
+  chat exists before the dialog renders.
+- Drawer "Saved Messages" upgraded from the find-in-list stub (which
+  told the user to "forward something to yourself first") to the
+  engine-backed flow.
+
+### verification
+
+- Unit (engine): capability gates (selfIDer vs plain vs missing),
+  SavedMessagesChatID, OpenSavedMessages idempotency (catches the fixed
+  INSERT bug — row count 1, title correct). Green.
+- Unit (gui, node+wasm): row-account selection, saved-chat predicate,
+  forward-candidate build (pinning, source exclusion, dedup, cross-
+  account exclusion), multi-account subtitles, target-account pick.
+  Green.
+- gates: native tests green; gofmt clean; vet clean; js/wasm +
+  windows/amd64 binaries build.
+- parity: Saved Messages CORE-ONLY → PARTIAL (119 / 31 / 10 / 40).

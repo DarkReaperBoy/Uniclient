@@ -94,23 +94,23 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 	}
 	rows, err := e.db.Query(
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
-		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
-		        c.draft_text, c.member_count, c.parent_id,
-		        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
-		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
-		        c.is_verified, c.is_scam, c.is_fake,
-		        c.slowmode_seconds, c.slowmode_next_send_date,
-		        c.stars_to_send, c.ttl_period, c.emoji_status_id,
-		        c.story_count, c.has_unread_story, c.is_forum,
-		        c.write_restriction_type, c.write_restriction_text,
-		        c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
-		        0, c.has_active_call
-		 FROM chats c
-		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
-		 ORDER BY c.is_archived ASC, c.is_pinned DESC, c.last_msg_time DESC
-		 LIMIT ? OFFSET ?`, limit, offset)
+                        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
+                        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
+                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+                        c.draft_text, c.member_count, c.parent_id,
+                        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
+                        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
+                        c.is_verified, c.is_scam, c.is_fake,
+                        c.slowmode_seconds, c.slowmode_next_send_date,
+                        c.stars_to_send, c.ttl_period, c.emoji_status_id,
+                        c.story_count, c.has_unread_story, c.is_forum,
+                        c.write_restriction_type, c.write_restriction_text,
+                        c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
+                        0, c.has_active_call
+                 FROM chats c
+                 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+                 ORDER BY c.is_archived ASC, c.is_pinned DESC, c.last_msg_time DESC
+                 LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -134,24 +134,24 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 	}
 	rows, err := e.db.Query(
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
-		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
-		        c.draft_text, c.member_count, c.parent_id,
-		        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
-		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
-		        c.is_verified, c.is_scam, c.is_fake,
-		        c.slowmode_seconds, c.slowmode_next_send_date,
-		        c.stars_to_send, c.ttl_period, c.emoji_status_id,
-		        c.story_count, c.has_unread_story, c.is_forum,
-		        c.write_restriction_type, c.write_restriction_text,
-		        c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
-		        0, c.has_active_call
-		 FROM chats c
-		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
-		 WHERE c.account_id = ? AND c.is_archived = ?
-		 ORDER BY c.is_pinned DESC, c.last_msg_time DESC
-		 LIMIT ? OFFSET ?`, accountID, archivedInt, limit, offset)
+                        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
+                        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
+                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+                        c.draft_text, c.member_count, c.parent_id,
+                        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
+                        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
+                        c.is_verified, c.is_scam, c.is_fake,
+                        c.slowmode_seconds, c.slowmode_next_send_date,
+                        c.stars_to_send, c.ttl_period, c.emoji_status_id,
+                        c.story_count, c.has_unread_story, c.is_forum,
+                        c.write_restriction_type, c.write_restriction_text,
+                        c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
+                        0, c.has_active_call
+                 FROM chats c
+                 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+                 WHERE c.account_id = ? AND c.is_archived = ?
+                 ORDER BY c.is_pinned DESC, c.last_msg_time DESC
+                 LIMIT ? OFFSET ?`, accountID, archivedInt, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -299,60 +299,60 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 
 	_, err := e.db.Exec(
 		`INSERT INTO chats (account_id, chat_id, type, title, last_msg_id, last_msg_text,
-		                     last_msg_time, last_msg_sender, last_msg_is_outgoing,
-		                     last_msg_status, last_msg_media_type, last_msg_thumb_b64,
-		                     unread_count, is_muted, is_pinned,
-		                     is_archived, member_count, parent_id,
-		                     unread_mark, unread_mention_count, unread_reaction_count,
-		                     is_verified, is_scam, is_fake,
-		                     slowmode_seconds, slowmode_next_send_date, stars_to_send, ttl_period,
-		                     emoji_status_id, story_count, has_unread_story, is_forum,
-		                     write_restriction_type, write_restriction_text,
-		                     not_joined, join_request, can_post, is_admin, is_creator, no_forwards, username, has_active_call, access_hash, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(account_id, chat_id) DO UPDATE SET
-		     type = excluded.type,
-		     title = excluded.title,
-		     last_msg_id = COALESCE(excluded.last_msg_id, chats.last_msg_id),
-		     last_msg_text = COALESCE(excluded.last_msg_text, chats.last_msg_text),
-		     last_msg_time = MAX(COALESCE(excluded.last_msg_time, 0), COALESCE(chats.last_msg_time, 0)),
-		     last_msg_sender = COALESCE(excluded.last_msg_sender, chats.last_msg_sender),
-		     last_msg_is_outgoing = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_is_outgoing ELSE chats.last_msg_is_outgoing END,
-		     last_msg_status = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_status ELSE chats.last_msg_status END,
-		     last_msg_media_type = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_media_type ELSE chats.last_msg_media_type END,
-		     last_msg_thumb_b64 = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_thumb_b64 ELSE chats.last_msg_thumb_b64 END,
-		     unread_count = excluded.unread_count,
-		     is_muted = excluded.is_muted,
-		     is_pinned = excluded.is_pinned,
-		     is_archived = excluded.is_archived,
-		     member_count = excluded.member_count,
-		     parent_id = excluded.parent_id,
-		     unread_mark = excluded.unread_mark,
-		     unread_mention_count = excluded.unread_mention_count,
-		     unread_reaction_count = excluded.unread_reaction_count,
-		     is_verified = excluded.is_verified,
-		     is_scam = excluded.is_scam,
-		     is_fake = excluded.is_fake,
-		     slowmode_seconds = excluded.slowmode_seconds,
-		     slowmode_next_send_date = excluded.slowmode_next_send_date,
-		     stars_to_send = excluded.stars_to_send,
-		     ttl_period = excluded.ttl_period,
-		     emoji_status_id = excluded.emoji_status_id,
-		     story_count = excluded.story_count,
-		     has_unread_story = excluded.has_unread_story,
-		     is_forum = excluded.is_forum,
-		     write_restriction_type = excluded.write_restriction_type,
-		     write_restriction_text = excluded.write_restriction_text,
-		     not_joined = excluded.not_joined,
-		     join_request = excluded.join_request,
-		     can_post = excluded.can_post,
-		     is_admin = excluded.is_admin,
-		     is_creator = excluded.is_creator,
-		     no_forwards = excluded.no_forwards,
-		     has_active_call = excluded.has_active_call,
-		     username = COALESCE(excluded.username, chats.username),
-		     access_hash = CASE WHEN excluded.access_hash != 0 THEN excluded.access_hash ELSE chats.access_hash END,
-		     updated_at = excluded.updated_at`,
+                                     last_msg_time, last_msg_sender, last_msg_is_outgoing,
+                                     last_msg_status, last_msg_media_type, last_msg_thumb_b64,
+                                     unread_count, is_muted, is_pinned,
+                                     is_archived, member_count, parent_id,
+                                     unread_mark, unread_mention_count, unread_reaction_count,
+                                     is_verified, is_scam, is_fake,
+                                     slowmode_seconds, slowmode_next_send_date, stars_to_send, ttl_period,
+                                     emoji_status_id, story_count, has_unread_story, is_forum,
+                                     write_restriction_type, write_restriction_text,
+                                     not_joined, join_request, can_post, is_admin, is_creator, no_forwards, username, has_active_call, access_hash, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(account_id, chat_id) DO UPDATE SET
+                     type = excluded.type,
+                     title = excluded.title,
+                     last_msg_id = COALESCE(excluded.last_msg_id, chats.last_msg_id),
+                     last_msg_text = COALESCE(excluded.last_msg_text, chats.last_msg_text),
+                     last_msg_time = MAX(COALESCE(excluded.last_msg_time, 0), COALESCE(chats.last_msg_time, 0)),
+                     last_msg_sender = COALESCE(excluded.last_msg_sender, chats.last_msg_sender),
+                     last_msg_is_outgoing = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_is_outgoing ELSE chats.last_msg_is_outgoing END,
+                     last_msg_status = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_status ELSE chats.last_msg_status END,
+                     last_msg_media_type = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_media_type ELSE chats.last_msg_media_type END,
+                     last_msg_thumb_b64 = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_thumb_b64 ELSE chats.last_msg_thumb_b64 END,
+                     unread_count = excluded.unread_count,
+                     is_muted = excluded.is_muted,
+                     is_pinned = excluded.is_pinned,
+                     is_archived = excluded.is_archived,
+                     member_count = excluded.member_count,
+                     parent_id = excluded.parent_id,
+                     unread_mark = excluded.unread_mark,
+                     unread_mention_count = excluded.unread_mention_count,
+                     unread_reaction_count = excluded.unread_reaction_count,
+                     is_verified = excluded.is_verified,
+                     is_scam = excluded.is_scam,
+                     is_fake = excluded.is_fake,
+                     slowmode_seconds = excluded.slowmode_seconds,
+                     slowmode_next_send_date = excluded.slowmode_next_send_date,
+                     stars_to_send = excluded.stars_to_send,
+                     ttl_period = excluded.ttl_period,
+                     emoji_status_id = excluded.emoji_status_id,
+                     story_count = excluded.story_count,
+                     has_unread_story = excluded.has_unread_story,
+                     is_forum = excluded.is_forum,
+                     write_restriction_type = excluded.write_restriction_type,
+                     write_restriction_text = excluded.write_restriction_text,
+                     not_joined = excluded.not_joined,
+                     join_request = excluded.join_request,
+                     can_post = excluded.can_post,
+                     is_admin = excluded.is_admin,
+                     is_creator = excluded.is_creator,
+                     no_forwards = excluded.no_forwards,
+                     has_active_call = excluded.has_active_call,
+                     username = COALESCE(excluded.username, chats.username),
+                     access_hash = CASE WHEN excluded.access_hash != 0 THEN excluded.access_hash ELSE chats.access_hash END,
+                     updated_at = excluded.updated_at`,
 		accountID, d.ID, chatType, d.Title, lastMsgID, lastMsgText,
 		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, lastMsgStatus, lastMsgMediaType, lastMsgThumbB64,
 		d.UnreadCount, boolToInt(d.IsMuted), boolToInt(d.IsPinned),
@@ -453,12 +453,12 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 	}
 	e.db.Exec(
 		`INSERT OR IGNORE INTO chats
-		 (account_id, chat_id, type, title, avatar_path,
-		  last_msg_id, last_msg_text, last_msg_sender, last_msg_time, last_msg_is_outgoing,
-		  last_msg_status, last_msg_media_type, last_msg_thumb_b64,
-		  unread_count, is_muted, is_pinned, is_archived,
-		  draft_text, member_count, parent_id, updated_at)
-		 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, '', 0, '', ?)`,
+                 (account_id, chat_id, type, title, avatar_path,
+                  last_msg_id, last_msg_text, last_msg_sender, last_msg_time, last_msg_is_outgoing,
+                  last_msg_status, last_msg_media_type, last_msg_thumb_b64,
+                  unread_count, is_muted, is_pinned, is_archived,
+                  draft_text, member_count, parent_id, updated_at)
+                 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, '', 0, '', ?)`,
 		accountID, chatID, chatType, title,
 		msg.ID, msgPreviewText(msg), msg.SenderName, msg.Timestamp.UnixMilli(), boolToInt(msg.IsOutgoing),
 		msgStatusFromCore(msg.Status), msgMediaType, msgThumbB64, now)
@@ -491,11 +491,11 @@ func (e *Engine) updateChatLastMessage(accountID, chatID, msgID, text, sender st
 	}
 	e.db.Exec(
 		`UPDATE chats SET last_msg_id = ?, last_msg_text = ?, last_msg_sender = ?,
-		                  last_msg_time = ?, last_msg_is_outgoing = ?,
-		                  last_msg_status = ?,
-		                  last_msg_media_type = ?, last_msg_thumb_b64 = ?,
-		                  updated_at = ?
-		 WHERE account_id = ? AND chat_id = ? AND (last_msg_time IS NULL OR last_msg_time <= ?)`,
+                                  last_msg_time = ?, last_msg_is_outgoing = ?,
+                                  last_msg_status = ?,
+                                  last_msg_media_type = ?, last_msg_thumb_b64 = ?,
+                                  updated_at = ?
+                 WHERE account_id = ? AND chat_id = ? AND (last_msg_time IS NULL OR last_msg_time <= ?)`,
 		msgID, text, sender, timeMs, outgoing, status, mediaType, thumbB64,
 		time.Now().UnixMilli(), accountID, chatID, timeMs)
 	e.emitChatUpdate(accountID, chatID)
@@ -576,7 +576,6 @@ func (e *Engine) OpenSavedMessages(accountID string) (string, error) {
 	if !ok || acc.Core == nil {
 		return "", fmt.Errorf("account not found: %s", accountID)
 	}
-	type selfIDer interface{ SelfUserID() string }
 	s, ok := acc.Core.(selfIDer)
 	if !ok {
 		return "", fmt.Errorf("platform does not support self-user ID")
@@ -590,13 +589,51 @@ func (e *Engine) OpenSavedMessages(accountID string) (string, error) {
 	e.db.QueryRow("SELECT COUNT(*) FROM chats WHERE account_id = ? AND chat_id = ?",
 		accountID, selfID).Scan(&exists)
 	if exists == 0 {
-		e.db.Exec(
-			`INSERT OR IGNORE INTO chats (account_id, chat_id, type, title, unread_count, is_pinned, is_archived, last_msg_time)
-			 VALUES (?, ?, 1, 'Saved Messages', 0, 0, 0, ?)`,
-			accountID, selfID, time.Now().UnixMilli())
+		// updated_at is NOT NULL without a default: omitting it made the old
+		// INSERT OR IGNORE a silent no-op (real bug, caught by the unit test —
+		// the Saved Messages chat row never actually landed).
+		if _, err := e.db.Exec(
+			`INSERT OR IGNORE INTO chats (account_id, chat_id, type, title, unread_count, is_pinned, is_archived, last_msg_time, updated_at)
+                         VALUES (?, ?, 1, 'Saved Messages', 0, 0, 0, ?, ?)`,
+			accountID, selfID, time.Now().UnixMilli(), time.Now().UnixMilli()); err != nil {
+			return "", fmt.Errorf("saved messages: %w", err)
+		}
 	}
 	e.emitChatUpdate(accountID, selfID)
 	return selfID, nil
+}
+
+// selfIDer is the core capability behind Saved Messages: the account's own
+// user id (the Saved Messages chat is the self-DM).
+type selfIDer interface{ SelfUserID() string }
+
+// SavedMessagesSupported reports whether the account's core exposes its own
+// user id — the prerequisite for the Saved Messages surface.
+func (e *Engine) SavedMessagesSupported(accountID string) bool {
+	e.accountsMu.RLock()
+	acc := e.accounts[accountID]
+	e.accountsMu.RUnlock()
+	if acc == nil || acc.Core == nil {
+		return false
+	}
+	s, ok := acc.Core.(selfIDer)
+	return ok && s.SelfUserID() != ""
+}
+
+// SavedMessagesChatID returns the account's Saved Messages chat id (the
+// self-DM peer), "" when unsupported — the GUI's bookmark-avatar predicate.
+func (e *Engine) SavedMessagesChatID(accountID string) string {
+	e.accountsMu.RLock()
+	acc := e.accounts[accountID]
+	e.accountsMu.RUnlock()
+	if acc == nil || acc.Core == nil {
+		return ""
+	}
+	s, ok := acc.Core.(selfIDer)
+	if !ok {
+		return ""
+	}
+	return s.SelfUserID()
 }
 
 // RemoveBotFromMenu removes a bot from the side/attach menu.
@@ -1468,22 +1505,22 @@ func (e *Engine) GetTopPeers(accountID string, limit int) ([]ChatInfo, error) {
 	for _, pid := range peerIDs {
 		rows, err := e.db.Query(
 			`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
-			        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-			        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-			        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
-			        c.draft_text, c.member_count, c.parent_id,
-			        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
-			        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
-			        c.is_verified, c.is_scam, c.is_fake,
-			        c.slowmode_seconds, c.slowmode_next_send_date,
-			        c.stars_to_send, c.ttl_period, c.emoji_status_id,
-			        c.story_count, c.has_unread_story, c.is_forum,
-			        c.write_restriction_type, c.write_restriction_text,
-			        c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
-			        0, c.has_active_call
-			 FROM chats c
-			 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
-			 WHERE c.account_id = ? AND c.chat_id = ?`, accountID, pid)
+                                c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
+                                c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
+                                c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+                                c.draft_text, c.member_count, c.parent_id,
+                                COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
+                                c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
+                                c.is_verified, c.is_scam, c.is_fake,
+                                c.slowmode_seconds, c.slowmode_next_send_date,
+                                c.stars_to_send, c.ttl_period, c.emoji_status_id,
+                                c.story_count, c.has_unread_story, c.is_forum,
+                                c.write_restriction_type, c.write_restriction_text,
+                                c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
+                                0, c.has_active_call
+                         FROM chats c
+                         LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+                         WHERE c.account_id = ? AND c.chat_id = ?`, accountID, pid)
 		if err != nil {
 			continue
 		}
@@ -1587,17 +1624,17 @@ func (e *Engine) SetChatTTL(accountID, chatID string, ttlSeconds int) error {
 func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	row := e.db.QueryRow(
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
-		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
-		        c.draft_text, c.member_count, c.parent_id,
-		        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
-		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
-		        c.is_verified, c.is_scam, c.is_fake, c.is_admin, c.is_creator,
-		        c.ttl_period
-		 FROM chats c
-		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
-		 WHERE c.account_id = ? AND c.chat_id = ?`, accountID, chatID)
+                        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
+                        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
+                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+                        c.draft_text, c.member_count, c.parent_id,
+                        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
+                        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
+                        c.is_verified, c.is_scam, c.is_fake, c.is_admin, c.is_creator,
+                        c.ttl_period
+                 FROM chats c
+                 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+                 WHERE c.account_id = ? AND c.chat_id = ?`, accountID, chatID)
 
 	var c ChatInfo
 	var avatarPath, lastMsgID, lastMsgText, lastMsgSender, draftText, parentID sql.NullString

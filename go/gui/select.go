@@ -127,7 +127,13 @@ func (a *App) openForward(msgs []engine.CachedMessage) {
 	fwdSel = map[string]bool{}
 	a.mu.Lock()
 	a.fwd = msgs
+	capOK := a.savedCap
 	a.mu.Unlock()
+	// Saved Messages as a forward target (slice 116): ensure the saved chat
+	// exists before the picker renders.
+	if len(msgs) > 0 && capOK[msgs[0].AccountID] {
+		a.ensureForwardSavedChat(msgs[0])
+	}
 	a.invalidate()
 }
 

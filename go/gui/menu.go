@@ -678,13 +678,9 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 	srcs := f.fwd
 	m := srcs[0]
 
-	// Candidates: chats on the same account as the source message.
-	var candidates []engine.ChatInfo
-	for _, c := range f.chats {
-		if c.AccountID == m.AccountID && !(c.ChatID == m.ChatID) {
-			candidates = append(candidates, c)
-		}
-	}
+	// Candidates: chats on the same account as the source message, with the
+	// account's Saved Messages chat pinned first (slice 116).
+	candidates := buildForwardCandidates(f.chats, m, f.savedChatID[m.AccountID])
 	growClickables(&fwdChatBtns, len(candidates))
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,

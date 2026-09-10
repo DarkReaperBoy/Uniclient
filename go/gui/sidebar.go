@@ -110,6 +110,11 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutStoryStrip(gtx, f)
 		})),
+		// Saved Messages shortcut (AyuGram, slice 116): pinned rows above
+		// the folder tabs, one per capable account.
+		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
+			return a.layoutSavedRow(gtx, f)
+		})),
 		// Folder tabs (or the archive-view back row, slice 67)
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			if f.archiveView {

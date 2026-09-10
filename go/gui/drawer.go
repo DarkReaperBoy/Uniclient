@@ -250,7 +250,11 @@ func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	if drawerSavedBtn.Clicked(gtx) {
 		a.closeDrawer()
-		a.openSavedMessages(f)
+		if id := savedTargetAccount(f); id != "" {
+			a.openSavedMessages(id)
+		} else {
+			a.setToast("No saved-messages capable account")
+		}
 	}
 
 	// Switches: sync from the snapshot on open, then let the user drive.

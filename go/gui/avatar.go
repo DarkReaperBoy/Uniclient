@@ -24,6 +24,14 @@ import (
 // chatAvatar renders the chat's real userpic when available (letter
 // fallback), with the optional connection dot.
 func (a *App) chatAvatar(gtx layout.Context, c engine.ChatInfo, sizeDp unit.Dp, dot connDot) layout.Dimensions {
+	// Saved Messages chat (slice 116): the bookmark avatar everywhere the
+	// saved chat renders (rows, headers, forward picker).
+	a.mu.Lock()
+	savedID := a.savedChatID[c.AccountID]
+	a.mu.Unlock()
+	if savedID != "" && savedID == c.ChatID {
+		return drawBookmarkAvatar(gtx, a.ui, sizeDp)
+	}
 	var d layout.Dimensions
 	if img := a.avatarImage(c.AvatarPath, ""); img != nil {
 		d = avatarFromImage(gtx, a, img, sizeDp, dot)

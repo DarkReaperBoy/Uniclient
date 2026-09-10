@@ -71,6 +71,11 @@ type App struct {
 	transcriptOpen map[string]bool
 	transcribeCap  map[string]bool
 
+	// Saved Messages (slice 116): per-account capability + the saved
+	// chat id (self-DM), refreshed with the account list.
+	savedCap    map[string]bool
+	savedChatID map[string]string
+
 	// group-call live bar (slice 70): polled info for the open chat and the
 	// chat the poll loop belongs to (nil = no loop running).
 	groupCall   *engine.GroupCallInfo
@@ -474,15 +479,22 @@ func (a *App) copyTextSoon(txt string) {
 
 func (a *App) refreshAccounts() {
 	accs := a.eng.ListAccounts()
-	// Voice-transcription capability (slice 115), re-checked with the
-	// account list: cores come and go with connection state.
+	// Per-account capabilities, re-checked with the account list (cores
+	// come and go with connection state): voice transcription (slice
+	// 115) + Saved Messages (slice 116).
 	caps := make(map[string]bool, len(accs))
+	savedCap := make(map[string]bool, len(accs))
+	savedChat := make(map[string]string, len(accs))
 	for _, acc := range accs {
 		caps[acc.ID] = a.eng.TranscriptionSupported(acc.ID)
+		savedCap[acc.ID] = a.eng.SavedMessagesSupported(acc.ID)
+		savedChat[acc.ID] = a.eng.SavedMessagesChatID(acc.ID)
 	}
 	a.mu.Lock()
 	a.accounts = accs
 	a.transcribeCap = caps
+	a.savedCap = savedCap
+	a.savedChatID = savedChat
 	a.mu.Unlock()
 	a.invalidate()
 }
@@ -892,35 +904,6 @@ func (a *App) removeAccount(id string) {
 		a.refreshAccounts()
 		a.refreshChats()
 	}()
-}
-
-// openSavedMessages opens the account's self chat (AyuGram "Saved
-// messages"). Falls back to the first connected account's self chat.
-func (a *App) openSavedMessages(f frame) {
-	scope := a.acctFilterLocked()
-	var found *engine.ChatInfo
-	for i := range f.chats {
-		c := f.chats[i]
-		if c.IsSelf && (scope == "" || c.AccountID == scope) {
-			cc := c
-			found = &cc
-			break
-		}
-	}
-	if found == nil {
-		for i := range f.chats {
-			if f.chats[i].IsSelf {
-				cc := f.chats[i]
-				found = &cc
-				break
-			}
-		}
-	}
-	if found == nil {
-		a.setToast("No saved-messages chat yet — forward something to yourself first")
-		return
-	}
-	a.openChat(chatKey{AccountID: found.AccountID, ChatID: found.ChatID}, found.Title)
 }
 
 // consumePendingOpen runs a background-scheduled openChat on the GUI loop
@@ -1584,6 +1567,8 @@ func (a *App) snapshot() frame {
 		botCmdsOn:        a.botCmdsOn,
 		botCmdsLoaded:    a.botCmdsLoaded,
 		transcribeCap:    a.transcribeCapFor(a.msgFor),
+		savedMsgAccts:    savedRowAccounts(a.accounts, a.savedCap),
+		savedChatID:      a.savedChatID,
 		topPeers:         a.topPeers,
 		topPeersFor:      a.topPeersFor,
 		topPeersLoaded:   a.topPeersLoaded,
@@ -1771,6 +1756,11 @@ type frame struct {
 	// voice-note transcription (slice 115): the open chat's account can
 	// transcribe (engine VoiceTranscriber).
 	transcribeCap bool
+
+	// Saved Messages (slice 116): capable account ids (sidebar rows) +
+	// accountID to saved chat id (avatar predicate, forward pinning).
+	savedMsgAccts []string
+	savedChatID   map[string]string
 
 	// top peers strip (slice 72)
 	topPeers       []engine.ChatInfo
