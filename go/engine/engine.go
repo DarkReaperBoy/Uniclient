@@ -84,6 +84,11 @@ type Engine struct {
 	mediaMu     sync.Mutex
 	mediaPlayer *mediaPlayer
 
+	// Voice-note recorder (engine/voicerec.go): hold-to-record capture
+	// from the mic layer, encoded with the pure-Go Opus encoder.
+	recMu         sync.Mutex
+	voiceRecorder *voiceRecorder
+
 	// Live voice pipeline (engine/voice.go): one active voice-room
 	// session at a time, sharing the process-wide audio devices.
 	voiceMu      sync.Mutex

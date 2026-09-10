@@ -61,6 +61,11 @@ type App struct {
 	// 250 ms playback ticker runs (progress/waveform repaints).
 	mediaTickerOn bool
 
+	// hold-to-record voice notes (slice 114): gesture state + the
+	// 100 ms repaint ticker while capturing.
+	voiceRec         voiceRecState
+	voiceRecTickerOn bool
+
 	// group-call live bar (slice 70): polled info for the open chat and the
 	// chat the poll loop belongs to (nil = no loop running).
 	groupCall   *engine.GroupCallInfo

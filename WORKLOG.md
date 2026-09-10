@@ -1878,3 +1878,47 @@ handing off to the system player.
   waveform extraction (incl. nil-safety), clickable identity. Green.
 - gates: dev-test.sh ALL GREEN; js/wasm + windows/amd64 builds OK.
 - parity: voice row PARTIAL → PRESENT (112 / 27 / 10 / 51).
+
+## 2026-09-10 (cont.) — slice 114: HOLD-TO-RECORD voice notes (mic → Opus → Ogg → send)
+
+The recording side of voice parity: the slice-110 mic layer now feeds a
+real recorder, so the composer's mic button captures, previews and sends
+Telegram-shaped voice notes — the player from slice 113 demuxes them
+back.
+
+### engine
+
+- `engine/voicerec.go`: hold-to-record capture — mic (20 ms s16le mono
+  frames) → pure-Go Opus encoder (24 kbit/s) → Ogg/Opus writer reusing
+  the player's own page builder (OpusHead/OpusTags + 25-packet pages
+  with running granule positions, the layout ffmpeg produces). Live
+  RMS level (smoothed 0.7/0.3) for the UI bars; 0.9 s minimum duration
+  (Telegram's floor — accidental taps are discarded, the GUI hints).
+- API: VoiceRecordingSupported (UploadWithOptions gate — Telegram +
+  Bale), Start/VoiceRecording/Stop/Cancel, SendVoiceNote →
+  UploadFileEx(IsVoice + duration). Honest no-mic errors (§1.10 — two
+  gates: the GUI hides the affordance, the engine refuses to start).
+
+### gui
+
+- Mic button in the composer (visible only when the input is empty AND
+  the account's core sends voice notes); press-and-hold gesture
+  (pointer.Press/Release + drag tracking) with slide-←-to-cancel
+  (drag-back threshold, red cancel zone), pulsing red dot, live level
+  bars, elapsed 0:SS label, 100 ms repaint ticker while recording.
+- Release ≥ 0.9 s → StopVoiceRecording → SendVoiceNote; shorter →
+  toast hint; cancel path discards.
+
+### verification
+
+- Unit (engine): full encode→container round-trip — the recorder's
+  output is demuxed by the player's own demuxer and decoded back to
+  PCM (440 Hz tone survives, CRCs verify); level math + smoothing;
+  min-duration discard; no-mic honesty; state snapshot; empty-capture
+  writer rejection. All green.
+- Unit (gui, node+wasm): mic-button visibility rules, drag/cancel
+  thresholds, panel routing (recording panel replaces the composer),
+  clickable identity, level clamping. Green.
+- gates: native tests (engine/cores/utils/bootstrap, goolm) green;
+  gofmt clean; js/wasm + windows/amd64 binaries build.
+- parity: voice-recording row CORE-ONLY → PRESENT (113 / 27 / 10 / 50).

@@ -141,7 +141,8 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			return a.ui.Divider(gtx)
 		}),
 		// Composer (JOIN bar for not-joined previews, restriction bar for
-		// write-restricted chats, input + slow-mode chip otherwise)
+		// write-restricted chats, recording panel while a voice note is
+		// captured, input + slow-mode chip otherwise)
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if chat != nil && chat.NotJoined {
 				return a.joinBar(gtx, f, chat)
@@ -150,6 +151,9 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 				if on, label := composerRestricted(*chat); on {
 					return a.restrictedBar(gtx, label)
 				}
+			}
+			if a.voiceRecActive() {
+				return a.voiceRecPanel(gtx, f, chat)
 			}
 			return a.composerBar(gtx, f, chat)
 		}),
@@ -1069,6 +1073,16 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 								btn.Color = a.ui.p.Accent
 							}
 							return btn.Layout(gtx)
+						})
+					}),
+					// hold-to-record mic (slice 114): only when the composer
+					// is empty and the account's core sends voice notes.
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if !a.voiceRecWanted(f) {
+							return layout.Dimensions{}
+						}
+						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.voiceRecMicButton(gtx, f)
 						})
 					}),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
