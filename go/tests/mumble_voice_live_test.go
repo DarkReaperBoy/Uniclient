@@ -209,4 +209,18 @@ collect:
 		t.Fatalf("440 Hz tone did not survive the round-trip: 440=%.4f 880=%.4f 300=%.4f", m440, m880, m300)
 	}
 	t.Log("VOICE ROUND-TRIP OK: opus payload decoded with the tone intact")
+
+	// Report which transport carried the audio (encrypted UDP when the
+	// network allows it; the TCP tunnel fallback otherwise) and why:
+	// pathSeen=true + udp=false means the socket path works but the
+	// crypto bootstrap could not complete — on NAT pools that egress
+	// TCP and UDP from different source IPs, murmur's unknown-peer
+	// match cannot associate the two and silently drops our encrypted
+	// pings (verified on this very sandbox: TCP 47.57.242.119 vs UDP
+	// 8.212.10.159/47.57.232.232). The TCP tunnel is then the honest
+	// degraded mode — exactly the upstream client's fallback.
+	us, _, pathA, udpOK := coreA.MumbleUDPStats()
+	_, urB, pathB, udpOKB := coreB.MumbleUDPStats()
+	t.Logf("transport: A udp=%v (path=%v, %d pkts sent), B udp=%v (path=%v, %d UDP pkts received)",
+		udpOK, pathA, us, udpOKB, pathB, urB)
 }

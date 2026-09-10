@@ -2,6 +2,8 @@ package cores
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/rand"
 	"encoding/binary"
 	"testing"
 )
@@ -358,5 +360,112 @@ func TestMumbleUDPPingFormat(t *testing.T) {
 	binary.BigEndian.PutUint32(resp[20:24], 72000)
 	if len(req) != 12 || len(resp) != 24 {
 		t.Fatal("ping format length mismatch")
+	}
+}
+
+// TestOCB2OfficialVectors pins ocb2Encrypt/ocb2Decrypt against the
+// draft-krovetz-ocb-00 vectors used by upstream TestCrypt::testvectors.
+// If this fails, every encrypted UDP packet we send is unreadable to
+// real Murmur servers (tag mismatch → silent drop).
+func TestOCB2OfficialVectors(t *testing.T) {
+	key := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Empty message: tag BF3108130773AD5EC70EC69E7875A7B0.
+	var tag [16]byte
+	ocb2Encrypt(block, nil, nil, key, tag[:])
+	wantBlank := []byte{0xBF, 0x31, 0x08, 0x13, 0x07, 0x73, 0xAD, 0x5E, 0xC7, 0x0E, 0xC6, 0x9E, 0x78, 0x75, 0xA7, 0xB0}
+	if !bytes.Equal(tag[:], wantBlank) {
+		t.Fatalf("blank tag mismatch:\n got %x\nwant %x", tag[:], wantBlank)
+	}
+
+	// 40-byte message 0..39.
+	src := make([]byte, 40)
+	for i := range src {
+		src[i] = byte(i)
+	}
+	ct := make([]byte, 40)
+	ocb2Encrypt(block, ct, src, key, tag[:])
+	wantTag := []byte{0x9D, 0xB0, 0xCD, 0xF8, 0x80, 0xF7, 0x3E, 0x3E, 0x10, 0xD4, 0xEB, 0x32, 0x17, 0x76, 0x66, 0x88}
+	if !bytes.Equal(tag[:], wantTag) {
+		t.Fatalf("40-byte tag mismatch:\n got %x\nwant %x", tag[:], wantTag)
+	}
+	wantCT := []byte{0xF7, 0x5D, 0x6B, 0xC8, 0xB4, 0xDC, 0x8D, 0x66, 0xB8, 0x36, 0xA2, 0xB0, 0x8B, 0x32, 0xA6, 0x36, 0x9F, 0x1C, 0xD3, 0xC5, 0x22, 0x8D, 0x79, 0xFD, 0x6C, 0x26, 0x7F, 0x5F, 0x6A, 0xA7, 0xB2, 0x31, 0xC7, 0xDF, 0xB9, 0xD5, 0x99, 0x51, 0xAE, 0x9C}
+	if !bytes.Equal(ct, wantCT) {
+		t.Fatalf("40-byte ciphertext mismatch:\n got %x\nwant %x", ct, wantCT)
+	}
+
+	// Decrypt round-trip of the same vector through ocb2Decrypt.
+	pt := make([]byte, 40)
+	if !ocb2Decrypt(block, pt, wantCT, key, wantTag) {
+		t.Fatal("vector decrypt failed")
+	}
+	if !bytes.Equal(pt, src) {
+		t.Fatalf("vector plaintext mismatch:\n got %x\nwant %x", pt, src)
+	}
+}
+
+// TestOCB2ClientServerDirections simulates the full crypt handshake
+// exactly as Murmur does it: the server generates key+nonces; the
+// client encrypts with client_nonce as its initial IV, the server
+// decrypts the same stream with client_nonce as its decrypt IV. If the
+// first packet fails, every encrypted UDP datagram is silently dropped
+// by real servers.
+func TestOCB2ClientServerDirections(t *testing.T) {
+	key := make([]byte, 16)
+	clientNonce := make([]byte, 16)
+	serverNonce := make([]byte, 16)
+	rand.Read(key)
+	rand.Read(clientNonce)
+	rand.Read(serverNonce)
+
+	// Client state: encrypt from client_nonce, decrypt from server_nonce.
+	client := &mumbleCryptState{}
+	if err := client.init(key, clientNonce, serverNonce); err != nil {
+		t.Fatal(err)
+	}
+	// Server state (mirrors murmur): the server's OWN encryption IV is
+	// server_nonce (its stream to us), and its decryption IV for OUR
+	// stream is client_nonce — the nonce pair from the client's
+	// perspective, swapped.
+	server := &mumbleCryptState{}
+	if err := server.init(key, serverNonce, clientNonce); err != nil {
+		t.Fatal(err)
+	}
+
+	// Client → server: 5 packets.
+	for i := 0; i < 5; i++ {
+		plain := []byte{1, 0x08, byte(i), 0x01}
+		wire := make([]byte, mumbleCryptoOverhead+len(plain))
+		n := client.encrypt(wire, plain)
+		if n != len(wire) {
+			t.Fatalf("packet %d: encrypt wrote %d, want %d", i, n, len(wire))
+		}
+		got := make([]byte, len(wire))
+		pLen, err := server.decrypt(got, wire)
+		if err != nil {
+			t.Fatalf("packet %d: server-side decrypt failed: %v (real murmur would silently drop it)", i, err)
+		}
+		if !bytes.Equal(got[:pLen], plain) {
+			t.Fatalf("packet %d: plaintext mismatch: %x vs %x", i, got[:pLen], plain)
+		}
+	}
+
+	// Server → client: the reply direction.
+	for i := 0; i < 5; i++ {
+		plain := []byte{1, 0x08, byte(i), 0x01}
+		wire := make([]byte, mumbleCryptoOverhead+len(plain))
+		server.encrypt(wire, plain)
+		got := make([]byte, len(wire))
+		pLen, err := client.decrypt(got, wire)
+		if err != nil {
+			t.Fatalf("reply %d: client-side decrypt failed: %v", i, err)
+		}
+		if !bytes.Equal(got[:pLen], plain) {
+			t.Fatalf("reply %d: plaintext mismatch", i)
+		}
 	}
 }

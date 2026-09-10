@@ -42,7 +42,7 @@ import (
 const (
 	mumbleDefaultPort    = 64738
 	mumbleMaxMsgBuffer   = 500
-	mumblePingInterval   = 15 * time.Second
+	mumblePingInterval   = 5 * time.Second
 	mumbleReadTimeout    = 5 * time.Second
 	mumbleDialTimeout    = 10 * time.Second
 	mumbleMaxUDPSize     = 1024
@@ -738,9 +738,12 @@ func ocb2Decrypt(ciph cipher.Block, plain, encrypted, nonce, tag []byte) bool {
 
 // CryptState manages OCB2-AES128 encryption state for the UDP channel
 type mumbleCryptState struct {
-	key         [16]byte
-	encryptIV   [16]byte
-	decryptIV   [16]byte
+	key       [16]byte
+	encryptIV [16]byte
+	decryptIV [16]byte
+	// initial nonces from CryptSetup (diagnostics + self-checks)
+	initEncrypt [16]byte
+	initDecrypt [16]byte
 	cipher      cipher.Block
 	decryptHist [256]byte
 	good        uint32
@@ -757,6 +760,8 @@ func (cs *mumbleCryptState) init(key, clientNonce, serverNonce []byte) error {
 	copy(cs.key[:], key)
 	copy(cs.encryptIV[:], clientNonce) // we encrypt with client nonce
 	copy(cs.decryptIV[:], serverNonce) // we decrypt with server nonce
+	copy(cs.initEncrypt[:], clientNonce)
+	copy(cs.initDecrypt[:], serverNonce)
 	var err error
 	cs.cipher, err = aes.NewCipher(cs.key[:])
 	return err
@@ -3152,6 +3157,13 @@ type MumbleCore struct {
 	cryptReady bool
 	udpReady   bool
 
+	// udpPathSeen: a plaintext packet (raw ping reply) arrived on the
+	// core UDP socket. The socket path works even when the crypto
+	// bootstrap cannot (e.g. NAT pools that egress TCP and UDP from
+	// different source IPs — murmur's unknown-peer match then can't
+	// associate the two). Distinct from udpReady (crypto confirmed).
+	udpPathSeen bool
+
 	// caches
 	channels       map[uint32]*mumbleChannel
 	users          map[uint32]*mumbleUser
@@ -3169,8 +3181,11 @@ type MumbleCore struct {
 	voiceSeqNum  atomic.Int64
 
 	// speaking activity: session → last voice-packet arrival
-	speakingMu      sync.Mutex
-	speakingUntil   map[uint32]time.Time
+	speakingMu    sync.Mutex
+	speakingUntil map[uint32]time.Time
+
+	// lastResyncReq throttles client-initiated crypt resync requests.
+	lastResyncReq   atomic.Value // time.Time
 	udpPktsSent     atomic.Uint32
 	udpPktsRecv     atomic.Uint32
 	tcpPktsSent     atomic.Uint32
@@ -3442,12 +3457,52 @@ func (c *MumbleCore) udpRecvLoop() {
 			}
 		}
 
+		if mumbleDebug {
+			preview := buf[:n]
+			if len(preview) > 12 {
+				preview = preview[:12]
+			}
+			mumbleLogf("UDP RX len=%d head=%x", n, preview)
+		}
 		if n < mumbleCryptoOverhead {
+			continue
+		}
+
+		// Plaintext passthrough detection: a 24-byte datagram starting
+		// with a murmur 1.x/0.x version word (0x0001xxxx / 0x0000xxxx)
+		// is a RAW ping reply — murmur's stateless extended-info answer
+		// (or the diagnostic probe's). It is not OCB2-encrypted: trying
+		// to decrypt it would fail and wrongly trigger a crypt resync.
+		// False-positive odds for real encrypted traffic are 2^-16.
+		if n == 24 && buf[0] == 0 && buf[1] <= 1 {
+			c.mu.Lock()
+			if !c.udpPathSeen {
+				c.udpPathSeen = true
+			}
+			c.mu.Unlock()
+			if mumbleDebug {
+				mumbleLogf("UDP RX raw ping reply (plaintext): socket path OK")
+			}
 			continue
 		}
 
 		pLen, err := c.crypt.decrypt(plain, buf[:n])
 		if err != nil {
+			if mumbleDebug {
+				mumbleLogf("UDP RX decrypt FAIL: %v", err)
+			}
+			// Out of the ±30 late window or a replay: our decrypt state
+			// is behind the server. Ask for a resync (empty CryptSetup
+			// over TCP, the upstream client's move) — throttled to at
+			// most one request per second so a broken link can't spam.
+			var last time.Time
+			if v := c.lastResyncReq.Load(); v != nil {
+				last, _ = v.(time.Time)
+			}
+			if last.IsZero() || time.Since(last) > time.Second {
+				c.lastResyncReq.Store(time.Now())
+				go c.RequestNonceResync()
+			}
 			continue
 		}
 
@@ -3811,6 +3866,11 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 	// Send initial UDP ping to check connectivity
 	c.sendUDPPing()
 
+	// One stateless raw ping on the same socket: its reply (if any)
+	// flips udpPathSeen — the honest "path works, crypto unconfirmed"
+	// signal that separates NAT/egress divergence from a dead path.
+	c.sendRawUDPPathProbe()
+
 	c.mu.Lock()
 	c.authed = true
 	c.autoReconnect = true
@@ -3903,6 +3963,9 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 			c.mu.Lock()
 			c.serverVersion = msg
 			c.mu.Unlock()
+			if mumbleDebug {
+				mumbleLogf("server version: v1=0x%08x v2=0x%016x release=%q os=%q", msg.VersionV1, msg.VersionV2, msg.Release, msg.OS)
+			}
 		}
 
 	case mumbleMsgUDPTunnel:
@@ -3987,6 +4050,9 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 	case mumbleMsgCryptSetup:
 		var msg mumbleCryptSetupMsg
 		if err := msg.unmarshal(payload); err == nil {
+			if mumbleDebug {
+				mumbleLogf("CryptSetup: key=%x client_nonce=%x server_nonce=%x", msg.Key, msg.ClientNonce, msg.ServerNonce)
+			}
 			if len(msg.Key) == 16 && len(msg.ClientNonce) == 16 && len(msg.ServerNonce) == 16 {
 				if err := c.crypt.init(msg.Key, msg.ClientNonce, msg.ServerNonce); err == nil {
 					c.mu.Lock()
@@ -3999,6 +4065,23 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 				copy(c.crypt.decryptIV[:], msg.ServerNonce)
 				c.crypt.resync++
 				c.crypt.mu.Unlock()
+			} else {
+				// Empty CryptSetup (or client_nonce-only, which the server
+				// does not send) = the server lost our UDP crypto state
+				// (heavy loss moved our encrypt IV out of its ±30 window)
+				// and requests a resync. Replying with our current encrypt
+				// IV lets it resync decryption of our stream — without
+				// this the server would silently drop our voice forever
+				// (Mumble.proto: "Either side may request a resync by
+				// sending the message without any values filled.").
+				c.crypt.mu.Lock()
+				reply := &mumbleCryptSetupMsg{ClientNonce: append([]byte(nil), c.crypt.encryptIV[:]...)}
+				c.crypt.resync++
+				c.crypt.mu.Unlock()
+				_ = c.tcpSend(mumbleMsgCryptSetup, reply.marshal())
+				if mumbleDebug {
+					mumbleLogf("crypt resync request answered")
+				}
 			}
 		}
 
@@ -4400,16 +4483,95 @@ func (c *MumbleCore) sendTCPPing() {
 }
 
 func (c *MumbleCore) sendUDPPing() {
+	c.mu.RLock()
+	conn := c.udpConn
+	cryptReady := c.cryptReady
+	c.mu.RUnlock()
+	if conn == nil || !cryptReady {
+		// No UDP socket / no crypto yet — the TCP Ping keepalive covers
+		// liveness until the next attempt.
+		return
+	}
+
 	ts := uint64(time.Now().UnixMilli())
 	e := getPBEncoder()
 	e.writeUint64(1, ts)
-	e.writeBool(2, true)
+	// NOTE: request_extended_information (field 2) must stay FALSE for
+	// the authenticated UDP ping — murmur answers authenticated pings
+	// only when they are pure connectivity probes (Server.cpp: the
+	// Ping case is gated on !requestAdditionalInformation). Setting it
+	// makes the server decrypt our packet and then silently drop it,
+	// so udpReady never flips and ALL voice tunnels over TCP. The
+	// extended-info ping is a different (unauthenticated) message.
 	pb := e.bytes()
 	data := make([]byte, 1+len(pb))
 	data[0] = 1
 	copy(data[1:], pb)
 	putPBEncoder(e)
-	c.udpSend(data)
+
+	// The connectivity probe MUST ride the real UDP socket: this is how
+	// the server learns our UDP address:port. Routing it through
+	// udpSend's TCP-tunnel fallback (the old behavior) deadlocks the
+	// bootstrap — udpReady could never flip, so every voice packet
+	// tunneled over TCP forever.
+	encrypted := make([]byte, mumbleCryptoOverhead+len(data))
+	c.crypt.encrypt(encrypted, data)
+	if mumbleDebug {
+		preview := encrypted
+		if len(preview) > 16 {
+			preview = preview[:16]
+		}
+		mumbleLogf("UDP TX ping: len=%d head=%x plain=%x", len(encrypted), preview, data)
+		// Self-check: simulate murmur decrypting this exact packet.
+		// Murmur's decrypt IV for our stream is the client_nonce it
+		// generated — our INITIAL encrypt IV (before any increment), so
+		// the first packet (+1) lands exactly in its in-order window.
+		c.crypt.mu.Lock()
+		simKey := c.crypt.key
+		simCliNonce := c.crypt.initEncrypt
+		simSrvNonce := c.crypt.initDecrypt
+		c.crypt.mu.Unlock()
+		srv := &mumbleCryptState{}
+		if err := srv.init(simKey[:], simSrvNonce[:], simCliNonce[:]); err == nil {
+			got := make([]byte, len(encrypted))
+			if pLen, err := srv.decrypt(got, encrypted); err == nil {
+				mumbleLogf("self-check: server-side decrypt OK (%d bytes: %x)", pLen, got[:pLen])
+			} else {
+				mumbleLogf("self-check: server-side decrypt FAIL: %v", err)
+			}
+		}
+	}
+	if _, err := conn.Write(encrypted); err == nil {
+		c.udpPktsSent.Add(1)
+	}
+	if mumbleDebug && os.Getenv("UNICLIENT_MUMBLE_UDP_PROBE") != "" {
+		// Diagnostic: a raw unauthenticated ping on the same socket —
+		// if the server answers this but not the encrypted one, the
+		// socket path is fine and the drop is crypto-side.
+		c.sendRawUDPPathProbe()
+	}
+}
+
+// sendRawUDPPathProbe sends one stateless extended-info ping (the same
+// 12-byte datagram MumbleServerPing uses) on the CORE UDP socket. Any
+// reply flips udpPathSeen: the socket path works even when the OCB2
+// bootstrap cannot complete (NAT pools egressing TCP and UDP from
+// different source IPs — murmur's unknown-peer match then cannot
+// associate the two). Zero protocol impact: murmur handles raw pings
+// statelessly (allowping) and ignores them otherwise; the official
+// client sends the identical datagram from its server-info dialog.
+func (c *MumbleCore) sendRawUDPPathProbe() {
+	c.mu.RLock()
+	conn := c.udpConn
+	c.mu.RUnlock()
+	if conn == nil {
+		return
+	}
+	req := make([]byte, 12) // 4 zero bytes + 8 random ident
+	rand.Read(req[4:])
+	if _, err := conn.Write(req); err == nil && mumbleDebug {
+		mumbleLogf("UDP TX raw path-probe ping sent on core socket")
+	}
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -6183,6 +6345,22 @@ func OCB2Encrypt(ciph cipher.Block, dst, src, nonce, tag []byte) {
 // OCB2Decrypt is an exported wrapper for testing.
 func OCB2Decrypt(ciph cipher.Block, plain, encrypted, nonce, tag []byte) bool {
 	return ocb2Decrypt(ciph, plain, encrypted, nonce, tag)
+}
+
+// MumbleUDPStats reports the live UDP transport counters (packets
+// sent/received over real encrypted UDP), whether the socket path
+// itself is confirmed (any plaintext/raw reply seen — the path works
+// even when the crypto bootstrap cannot, e.g. NAT pools that egress
+// TCP and UDP from different source IPs), and whether the encrypted
+// UDP path is confirmed working. Voice falls back to the TCP tunnel
+// unless the last one is true; diagnostics and live tests use these
+// to tell which transport served the audio and WHY.
+func (c *MumbleCore) MumbleUDPStats() (sent, recv int64, pathSeen, udpReady bool) {
+	c.mu.RLock()
+	ready := c.udpReady
+	path := c.udpPathSeen
+	c.mu.RUnlock()
+	return int64(c.udpPktsSent.Load()), int64(c.udpPktsRecv.Load()), path, ready
 }
 
 // DebugBuildVoicePacket returns the raw bytes of a voice packet for debugging.

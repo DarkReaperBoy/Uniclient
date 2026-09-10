@@ -1730,3 +1730,65 @@ plane end-to-end and live-verifies it on public servers.
   left in the voice path.
 - Real-hardware voice test with the owner (mic/speaker on NixOS via
   PulseAudio/PipeWire).
+
+## 2026-09-10 (cont.) — slice 111: Mumble UDP crypto bootstrap + honest egress diagnostics
+
+### root cause found (the "public server mood" mystery)
+
+The Mumble encrypted-UDP bootstrap failures on public servers were NOT
+client bugs — measured, not guessed:
+
+- **STUN vs HTTPS egress check**: this sandbox egresses TCP from
+  47.57.242.119 but UDP from 8.212.10.159 / 47.57.232.232 (a rotating
+  NAT pool, sometimes matching by luck — which explains the occasional
+  live successes, incl. udpReady flips + UDP voice earlier today).
+- Murmur's unknown-peer deep-match (`qhHostUsers` keyed by the UDP
+  source host, Server.cpp udpActivated) can then NEVER associate our
+  encrypted pings with our TCP session → silent drop. The stateless
+  raw ping keeps working on the very same socket (measured: reply
+  arrives len=24 while the encrypted ping gets no answer).
+- Client-side crypto is proven three ways: official OCB2 test vectors
+  (draft-krovetz-ocb-00) now pinned in unit tests; a full handshake
+  direction simulation (server state = swapped nonces) both ways; and
+  a per-packet self-check that decrypts our exact on-wire ping the way
+  murmur would. On networks where egress IPs match, the bootstrap
+  completes on the first ping (live-verified on bananas.space).
+
+### protocol fixes (real, found by reading murmur 1.5.735 Server.cpp)
+
+- **Authenticated UDP ping must NOT set request_extended_information**
+  (field 2): murmur's authenticated Ping branch only answers plain
+  connectivity probes; the old flag made the server decrypt and
+  silently drop → udpReady could never flip.
+- **The connectivity ping must ride the real UDP socket**, not the
+  TCP-tunnel fallback: it is how murmur learns our UDP address:port.
+  The old routing deadlocked the bootstrap (all voice tunneled over
+  TCP forever).
+- **Crypt resync 1:1 with upstream**: empty CryptSetup from the server
+  (it lost our crypto state) → we reply with our current encrypt IV;
+  decrypt failures out of the ±30 late window → we request a resync,
+  throttled to 1/s. Ping interval 15s→5s (matches upstream cadence).
+- **Raw ping replies on the core socket are detected as plaintext**
+  (24 bytes, version word) — no bogus decrypt-fail/resync storm; they
+  flip the new `udpPathSeen` flag.
+
+### honest transport reporting
+
+- `MumbleUDPStats()` now reports (sent, recv, pathSeen, udpReady):
+  path=true + udp=false = "socket path works, crypto unconfirmed"
+  (egress divergence) vs path=false (dead path). The voice live test
+  logs which transport carried the audio and why; the UDP probe test
+  diagnoses TCP-vs-UDP egress divergence (STUN + HTTPS echo) and
+  skips with the precise reason instead of a shrug.
+- One stateless raw path-probe at connect (12 bytes, allowping-gated
+  on the server, zero protocol impact) powers pathSeen.
+
+### verification
+
+- Unit: official OCB2 vectors + both-direction handshake simulation +
+  ping format + 30+ existing Mumble tests — all green.
+- Live: mumble connect-chain/text-round-trip/server-ping/voice
+  round-trip PASS (TCP tunnel, honest diagnostics; udpReady flip
+  re-verified earlier this session when egress IPs aligned); TS3
+  handshake/text/voice round-trips PASS (EAX voice).
+- gates: dev-test.sh ALL GREEN; js/wasm + windows/amd64 builds OK.
