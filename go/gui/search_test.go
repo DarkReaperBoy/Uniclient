@@ -17,7 +17,7 @@ func TestBuildSearchRows(t *testing.T) {
 	global := []engine.ChatInfo{{ChatID: "g1", Title: "Public"}, {ChatID: "g2", Title: "Room"}}
 
 	t.Run("full model", func(t *testing.T) {
-		rows := buildSearchRows(visible, msgs, global, "")
+		rows := buildSearchRows(visible, msgs, nil, global, "")
 		if len(rows) != 8 { // 3 headers + 1 chat + 2 msgs + 2 globals
 			t.Fatalf("rows = %d, want 8", len(rows))
 		}
@@ -36,14 +36,14 @@ func TestBuildSearchRows(t *testing.T) {
 	})
 
 	t.Run("only local", func(t *testing.T) {
-		rows := buildSearchRows(visible, nil, nil, "")
+		rows := buildSearchRows(visible, nil, nil, nil, "")
 		if len(rows) != 2 {
 			t.Fatalf("rows = %d, want 2", len(rows))
 		}
 	})
 
 	t.Run("empty search results", func(t *testing.T) {
-		if rows := buildSearchRows(nil, nil, nil, ""); len(rows) != 0 {
+		if rows := buildSearchRows(nil, nil, nil, nil, ""); len(rows) != 0 {
 			t.Fatalf("rows = %d, want 0", len(rows))
 		}
 	})

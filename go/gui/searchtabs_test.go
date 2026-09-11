@@ -10,7 +10,7 @@ func searchFixtureRows() []sbRow {
 	visible := []engine.ChatInfo{{ChatID: "c1"}, {ChatID: "c2"}}
 	msgs := []engine.SearchResult{{MsgID: "m1"}, {MsgID: "m2"}}
 	global := []engine.ChatInfo{{ChatID: "g1"}}
-	return buildSearchRows(visible, msgs, global, "")
+	return buildSearchRows(visible, msgs, nil, global, "")
 }
 
 // Search results tabs (slice 57): All keeps the unified sections, Chats

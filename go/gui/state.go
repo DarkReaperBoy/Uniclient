@@ -43,8 +43,10 @@ type App struct {
 	folder   int
 	search   string
 
-	// global search results (slice 16): message hits + server chat hits
+	// global search results (slice 16): message hits + server chat hits;
+	// posts (slice 138): public-post hits for hashtag queries.
 	searchMsgs   []engine.SearchResult
+	searchPosts  []engine.SearchResult
 	searchGlobal []engine.ChatInfo
 	searchFor    string
 
@@ -1666,6 +1668,7 @@ func (a *App) snapshot() frame {
 		folder:           a.folder,
 		search:           a.search,
 		searchMsgs:       a.searchMsgs,
+		searchPosts:      a.searchPosts,
 		searchGlobal:     a.searchGlobal,
 		searchFor:        a.searchFor,
 		archiveView:      a.archiveView,
@@ -1848,6 +1851,7 @@ type frame struct {
 	search     string
 
 	searchMsgs   []engine.SearchResult
+	searchPosts  []engine.SearchResult
 	searchGlobal []engine.ChatInfo
 	searchFor    string
 

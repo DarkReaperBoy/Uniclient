@@ -3,6 +3,7 @@ package gui
 import (
 	"log"
 	"strings"
+	"unicode/utf8"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -40,8 +41,9 @@ type sbRow struct {
 
 // buildSearchRows builds the sidebar list rows for an active search:
 // [Chats header + local matches] [Messages header + message hits]
-// [Global header + server chat hits]. Pure — unit-tested.
-func buildSearchRows(visible []engine.ChatInfo, msgs []engine.SearchResult, global []engine.ChatInfo, acctFilter string) []sbRow {
+// [Posts header + public-post hits] [Global header + server chat hits].
+// Pure — unit-tested.
+func buildSearchRows(visible []engine.ChatInfo, msgs []engine.SearchResult, posts []engine.SearchResult, global []engine.ChatInfo, acctFilter string) []sbRow {
 	var rows []sbRow
 	if len(visible) > 0 {
 		rows = append(rows, sbRow{kind: sbRowHeader, title: "Chats"})
@@ -56,6 +58,15 @@ func buildSearchRows(visible []engine.ChatInfo, msgs []engine.SearchResult, glob
 			rows = append(rows, sbRow{kind: sbRowMsg, msg: &m, listIdx: i})
 		}
 	}
+	// Public-post hits (slice 138): hashtag queries also search public
+	// channel posts server-side; rows reuse the message renderer.
+	if len(posts) > 0 {
+		rows = append(rows, sbRow{kind: sbRowHeader, title: "Posts"})
+		for i := range posts {
+			p := posts[i]
+			rows = append(rows, sbRow{kind: sbRowMsg, msg: &p, listIdx: i})
+		}
+	}
 	if len(global) > 0 {
 		rows = append(rows, sbRow{kind: sbRowHeader, title: "Global results"})
 		for i := range global {
@@ -64,6 +75,18 @@ func buildSearchRows(visible []engine.ChatInfo, msgs []engine.SearchResult, glob
 		}
 	}
 	return rows
+}
+
+// postsSearchQuery gates the public-post search: channels.searchPosts is
+// hashtag-scoped on the wire (tdesktop queries it for '#' queries only).
+// The term after '#' must begin with a non-space rune.
+// Pure — unit-tested.
+func postsSearchQuery(q string) bool {
+	if len(q) < 2 || q[0] != '#' {
+		return false
+	}
+	r, size := utf8.DecodeRuneInString(q[1:])
+	return size > 0 && r != ' ' && r != '\t' && r != '\n'
 }
 
 // searchGlobalScope filters global results to the scoped account (results
@@ -115,6 +138,7 @@ func filterSearchRows(rows []sbRow, tab int) []sbRow {
 	}
 	keepChat := tab == searchTabChats
 	keepMsg := tab == searchTabMsgs || tab == searchTabLinks || tab == searchTabFiles
+	keepPosts := tab == searchTabMsgs // post hits have no link/file kinds
 	out := make([]sbRow, 0, len(rows))
 	headerFor := -1 // -1: none pending, -2: emitted
 	for _, r := range rows {
@@ -124,7 +148,8 @@ func filterSearchRows(rows []sbRow, tab int) []sbRow {
 		case sbRowHeader:
 			headerFor = -2
 			if (keepChat && (r.title == "Chats" || r.title == "Global results")) ||
-				(keepMsg && r.title == "Messages") {
+				(keepMsg && r.title == "Messages") ||
+				(keepPosts && r.title == "Posts") {
 				headerFor = len(out)
 				out = append(out, r)
 			}
@@ -151,6 +176,7 @@ func (a *App) onSearchChanged(q string) {
 	if len([]rune(q)) < 2 {
 		a.mu.Lock()
 		a.searchMsgs = nil
+		a.searchPosts = nil
 		a.searchGlobal = nil
 		a.searchFor = q
 		a.mu.Unlock()
@@ -199,6 +225,28 @@ func (a *App) onSearchChanged(q string) {
 		}
 		a.mu.Unlock()
 		a.invalidate()
+
+		// Public-post search (slice 138): hashtag queries hit
+		// channels.searchPosts server-side per account.
+		if postsSearchQuery(q) {
+			var posts []engine.SearchResult
+			for _, accID := range accounts {
+				if acct != "" && accID != acct {
+					continue
+				}
+				hits, err := a.eng.SearchGlobalPostMessages(accID, q, 20)
+				if err != nil {
+					continue // best-effort, same as chat search
+				}
+				posts = append(posts, hits...)
+			}
+			a.mu.Lock()
+			if a.searchFor == q {
+				a.searchPosts = posts
+			}
+			a.mu.Unlock()
+			a.invalidate()
+		}
 	}()
 }
 

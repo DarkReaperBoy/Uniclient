@@ -523,9 +523,10 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 	}
 
 	// Global search: message + server-chat result sections under the local
-	// matches (slice 16).
+	// matches (slice 16); hashtag queries add the public-Posts section
+	// (slice 138).
 	global := searchGlobalScope(f.searchGlobal, f.acctFilter)
-	rows := buildSearchRows(visible, f.searchMsgs, global, f.acctFilter)
+	rows := buildSearchRows(visible, f.searchMsgs, f.searchPosts, global, f.acctFilter)
 	rows = filterSearchRows(rows, f.searchTab)
 	// Invite links: the query itself can be a t.me/+hash join link
 	// (slice 24) — surface the join row above the results.
