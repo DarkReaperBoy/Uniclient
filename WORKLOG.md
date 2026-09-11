@@ -2679,3 +2679,31 @@ placeholders, now real):
 
 Gate: gofmt/vet/test all green (7 packages, goolm tag). Parity rows updated
 (inline bots, webpage card).
+
+## 2026-09-11 — slice 131: live locations (send + countdown + stop sharing)
+
+The last engine-gated row of the location feature set (parity doc had it
+as the honest remainder of slice 129):
+
+- SEND: attach-menu Location dialog gains "Share live location" (toggle,
+  resets on open) + the tdesktop presets 15 minutes / 1 hour / 8 hours →
+  engine.SendLiveLocation → core SendLiveLocation
+  (messages.sendMedia InputMediaGeoLive{GeoPoint, Period}).
+- BUBBLE: live cards show a countdown chip ("live · 12m left", rounded-up
+  minutes, "ended" once elapsed; unknown period = plain "live") ticking
+  against the message timestamp with a 30s invalidate re-arm. Remote
+  shares move via message EDITS — new coords → new tile key → the slice-129
+  per-point tile cache refetches automatically; no new plumbing needed.
+- STOP SHARING: own live cards render the chip as a Stop button →
+  engine.StopLiveLocation → core StopLiveLocation (messages.editMessage
+  InputMediaGeoLive{Stopped} — core.telegram.org/api/live-location
+  semantics); toast on both outcomes. Proximity-alert radius intentionally
+  omitted (desktop has no GPS; honest scope).
+- RPC hygiene (§8): SendLocation held t.mu across its send RPC via
+  withPeer's lock — converted to the snapshot pattern (unlock before the
+  RPC, withAPI for the client). New methods follow it by construction.
+- Tests first: liveRemainingText/liveAge truth tables (incl. clock-skew
+  clamp, round-up), preset table, liveLocationMedia/liveStopMedia builders
+  (flag correctness via gotd getters).
+
+Gate: gofmt/vet/test green (engine, cores, gui); local Xvfb boot clean.

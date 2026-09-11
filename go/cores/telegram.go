@@ -36736,13 +36736,18 @@ func (t *TelegramCore) MarkUnread(chatID string, unread bool) error {
 
 // SendLocation sends a geographic location to a chat.
 func (t *TelegramCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
+	// withAPI rule: never hold t.mu across the send RPC.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return nil, err
 	}
-	defer unlock()
+	unlock()
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
+	}
 
-	result, err := t.api.MessagesSendMedia(t.ctx, &tg.MessagesSendMediaRequest{
+	result, err := api.MessagesSendMedia(ctx, &tg.MessagesSendMediaRequest{
 		Peer: inputPeer,
 		Media: &tg.InputMediaGeoPoint{
 			GeoPoint: &tg.InputGeoPoint{
@@ -36758,6 +36763,81 @@ func (t *TelegramCore) SendLocation(chatID string, lat float64, lon float64) (*M
 	}
 
 	return t.extractMessageFromUpdates(result, chatID), nil
+}
+
+// liveLocationMedia builds the live-location share media (pure —
+// unit-tested): InputMediaGeoLive with the point and validity period.
+func liveLocationMedia(lat, lon float64, period int) tg.InputMediaClass {
+	m := &tg.InputMediaGeoLive{
+		GeoPoint: &tg.InputGeoPoint{Lat: lat, Long: lon},
+	}
+	m.SetPeriod(period)
+	return m
+}
+
+// liveStopMedia builds the stop-sharing edit media (pure — unit-tested):
+// InputMediaGeoLive with the stopped flag and no coordinates
+// (core.telegram.org/api/live-location).
+func liveStopMedia() tg.InputMediaClass {
+	m := &tg.InputMediaGeoLive{}
+	m.SetStopped(true)
+	return m
+}
+
+// SendLiveLocation shares a live location valid for period seconds
+// (Telegram presets: 900 / 3600 / 28800).
+func (t *TelegramCore) SendLiveLocation(chatID string, lat float64, lon float64, period int) (*Message, error) {
+	// withAPI rule: never hold t.mu across the send RPC.
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	unlock()
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := api.MessagesSendMedia(ctx, &tg.MessagesSendMediaRequest{
+		Peer:     inputPeer,
+		Media:    liveLocationMedia(lat, lon, period),
+		RandomID: time.Now().UnixNano(),
+		Message:  "",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send live location: %w", err)
+	}
+
+	return t.extractMessageFromUpdates(result, chatID), nil
+}
+
+// StopLiveLocation stops an outgoing live-location share
+// (messages.editMessage with InputMediaGeoLive{Stopped}).
+func (t *TelegramCore) StopLiveLocation(chatID, msgID string) error {
+	// withAPI rule: never hold t.mu across the edit RPC.
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return err
+	}
+	unlock()
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
+	id, err := strconv.Atoi(msgID)
+	if err != nil {
+		return fmt.Errorf("invalid message ID: %s", msgID)
+	}
+
+	_, err = api.MessagesEditMessage(ctx, &tg.MessagesEditMessageRequest{
+		Peer:  inputPeer,
+		ID:    id,
+		Media: liveStopMedia(),
+	})
+	if err != nil {
+		return fmt.Errorf("stop live location: %w", err)
+	}
+	return nil
 }
 
 // TerminateSession terminates a specific active session by its hash.

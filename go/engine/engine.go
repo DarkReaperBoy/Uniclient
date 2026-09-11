@@ -2582,6 +2582,41 @@ func (e *Engine) SendLocation(accountID, chatID string, lat, lon float64) error 
 	return err
 }
 
+// SendLiveLocation shares a live location valid for periodSec seconds
+// (slice 131: Telegram live locations — 15m/1h/8h presets).
+func (e *Engine) SendLiveLocation(accountID, chatID string, lat, lon float64, periodSec int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type liveLocationSender interface {
+		SendLiveLocation(chatID string, lat float64, lon float64, period int) (*cores.Message, error)
+	}
+	ls, ok := acc.Core.(liveLocationSender)
+	if !ok {
+		return fmt.Errorf("platform does not support live locations")
+	}
+	_, err := ls.SendLiveLocation(chatID, lat, lon, periodSec)
+	return err
+}
+
+// StopLiveLocation stops one of the account's outgoing live-location
+// shares (slice 131).
+func (e *Engine) StopLiveLocation(accountID, chatID, msgID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type liveLocationStopper interface {
+		StopLiveLocation(chatID, msgID string) error
+	}
+	ls, ok := acc.Core.(liveLocationStopper)
+	if !ok {
+		return fmt.Errorf("platform does not support live locations")
+	}
+	return ls.StopLiveLocation(chatID, msgID)
+}
+
 func (e *Engine) UpdateChannelColor(accountID, chatID string, colorIndex int, backgroundEmojiID int64) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

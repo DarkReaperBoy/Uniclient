@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	_ "image/png" // map-tile web files decode as PNG/JPEG (jpeg registered by media.go)
 
@@ -325,6 +326,25 @@ func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessag
 			sub = g.coordLabel()
 		}
 	}
+	// Live chip (slice 131): countdown badge top-right; own shares render
+	// it as a Stop button (messages.editMessage GeoLive stopped).
+	mkey := m.AccountID + "|" + m.ChatID + "|" + m.MsgID
+	stopBtn := liveStopClickable(mkey)
+	ownLive := g != nil && g.Live && m.IsOutgoing
+	if ownLive && stopBtn.Clicked(gtx) {
+		go func() {
+			if err := a.eng.StopLiveLocation(m.AccountID, m.ChatID, m.MsgID); err != nil {
+				a.setToast("Stop live location failed: " + err.Error())
+				return
+			}
+			a.setToast("Live location stopped")
+		}()
+	}
+	// Countdown ticks: re-render at the next minute boundary while live.
+	if g != nil && g.Live && g.Period > 0 && liveAge(time.Now().Unix(), m.Timestamp) < g.Period {
+		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(30 * time.Second)})
+	}
+
 	return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.Stack{}.Layout(gtx,
 			layout.Expanded(func(gtx layout.Context) layout.Dimensions {
@@ -332,6 +352,20 @@ func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessag
 					return drawTileCover(gtx, tile, w, h)
 				}
 				return layout.Dimensions{}
+			}),
+			// Live badge / Stop chip pinned top-right.
+			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+				if ownLive {
+					return layout.Inset{Top: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						btn := material.Button(a.ui.Theme, stopBtn, "stop")
+						btn.CornerRadius = 8
+						btn.TextSize = unit.Sp(10)
+						btn.Inset = layout.UniformInset(unit.Dp(4))
+						btn.Background = a.ui.p.Accent
+						return btn.Layout(gtx)
+					})
+				}
+				return a.overlayBadge(gtx, liveBadgeText(g, m.Timestamp, time.Now().Unix()))
 			}),
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 				if tile != nil {
@@ -421,15 +455,78 @@ func (a *App) overlayBadge(gtx layout.Context, text string) layout.Dimensions {
 	})
 }
 
-// liveBadgeText is the live-location chip label ("" when not live).
-func liveBadgeText(g *geoData) string {
+// liveBadgeText is the live-location chip label ("" when not live) —
+// slice 131: the countdown ticks against the message timestamp (now
+// injected for determinism in tests).
+func liveBadgeText(g *geoData, msgTs, now int64) string {
 	if g == nil || !g.Live {
 		return ""
 	}
 	if g.Period > 0 {
-		return "live · " + itoa(g.Period/60) + "m"
+		return liveRemainingText(g.Period, liveAge(now, msgTs))
 	}
 	return "live"
+}
+
+// liveAge is seconds since the share started, clamped at zero (clock-skew
+// protection). Pure — unit-tested.
+func liveAge(now, msgTs int64) int {
+	if now <= msgTs {
+		return 0
+	}
+	return int(now - msgTs)
+}
+
+// liveRemainingText renders the live countdown: minutes rounded up, the
+// honest "ended" once the period elapsed. Pure — unit-tested.
+func liveRemainingText(period, ageSec int) string {
+	if period <= 0 {
+		return "live"
+	}
+	remaining := period - ageSec
+	if remaining <= 0 {
+		return "ended"
+	}
+	return "live · " + itoa((remaining+59)/60) + "m left"
+}
+
+// liveDurationChoice is one tdesktop live-location preset.
+type liveDurationChoice struct {
+	minutes int
+	label   string
+}
+
+// liveDurationChoices: 15 minutes, 1 hour, 8 hours (tdesktop presets).
+var liveDurationChoices = []liveDurationChoice{
+	{15, "15 minutes"},
+	{60, "1 hour"},
+	{480, "8 hours"},
+}
+
+// liveDurationClickables pools the preset chips.
+var liveDurationBtns []widget.Clickable
+
+// liveDurationSelected is the picked preset index (session state).
+var liveDurationSelected = 0
+
+// attachDlgLiveBtn toggles the "share live location" mode; attachDlgLiveOn
+// is the toggle's state (reset when the dialog opens).
+var attachDlgLiveBtn widget.Clickable
+var attachDlgLiveOn bool
+
+// attachDlgStopBtn stops an outgoing share from the bubble chip.
+var liveStopBtns = map[string]*widget.Clickable{}
+
+func liveStopClickable(key string) *widget.Clickable {
+	if c, ok := liveStopBtns[key]; ok {
+		return c
+	}
+	if len(liveStopBtns) > 256 {
+		liveStopBtns = make(map[string]*widget.Clickable)
+	}
+	c := new(widget.Clickable)
+	liveStopBtns[key] = c
+	return c
 }
 
 // contactBubble: person card — avatar circle, name, phone.
@@ -519,6 +616,8 @@ func init() {
 
 // openAttachDialog opens the location/contact helper (needs an open chat).
 func (a *App) openAttachDialog(kind string) {
+	attachDlgLiveOn = false // live mode never leaks across dialog opens
+	liveDurationSelected = 0
 	a.mu.Lock()
 	account := ""
 	if a.selected != nil {
@@ -559,7 +658,9 @@ func (a *App) closeAttachDialog() {
 	a.invalidate()
 }
 
-// sendLocationFromDialog validates the editors and sends (async).
+// sendLocationFromDialog validates the editors and sends (async). With the
+// live toggle armed it shares a live location for the picked preset
+// (slice 131).
 func (a *App) sendLocationFromDialog(f frame) {
 	if f.selected == nil {
 		return
@@ -570,8 +671,18 @@ func (a *App) sendLocationFromDialog(f frame) {
 		return
 	}
 	accountID, chatID := f.selected.AccountID, f.selected.ChatID
+	period := 0
+	if attachDlgLiveOn && liveDurationSelected < len(liveDurationChoices) {
+		period = liveDurationChoices[liveDurationSelected].minutes * 60
+	}
 	a.closeAttachDialog()
 	go func() {
+		if period > 0 {
+			if err := a.eng.SendLiveLocation(accountID, chatID, lat, lon, period); err != nil {
+				a.setToast("Send live location failed: " + err.Error())
+			}
+			return
+		}
 		if err := a.eng.SendLocation(accountID, chatID, lat, lon); err != nil {
 			a.setToast("Send location failed: " + err.Error())
 		}
@@ -621,6 +732,17 @@ func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions 
 	if attachDlgSendBtn.Clicked(gtx) {
 		a.sendLocationFromDialog(f)
 	}
+	if attachDlgLiveBtn.Clicked(gtx) {
+		attachDlgLiveOn = !attachDlgLiveOn
+	}
+	if attachDlgLiveOn {
+		growClickables(&liveDurationBtns, len(liveDurationChoices))
+		for i := range liveDurationChoices {
+			if liveDurationBtns[i].Clicked(gtx) {
+				liveDurationSelected = i
+			}
+		}
+	}
 	growClickables(&attachDlgRowBtns, len(st.contacts))
 
 	title := "Send Location"
@@ -660,7 +782,11 @@ func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions 
 									if st.kind != "location" {
 										return layout.Dimensions{}
 									}
-									bl := material.Button(a.ui.Theme, &attachDlgSendBtn, "Send")
+									label := "Send"
+									if attachDlgLiveOn {
+										label = "Share live"
+									}
+									bl := material.Button(a.ui.Theme, &attachDlgSendBtn, label)
 									bl.Background = a.ui.p.Accent
 									bl.CornerRadius = 10
 									return bl.Layout(gtx)
@@ -711,8 +837,58 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 				lbl.Color = a.ui.p.TextFaint
 				return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, lbl.Layout)
 			}),
+			// Live-location toggle (slice 131, tdesktop parity).
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					btn := material.Button(a.ui.Theme, &attachDlgLiveBtn, "Share live location")
+					btn.CornerRadius = 10
+					btn.TextSize = unit.Sp(13)
+					if attachDlgLiveOn {
+						btn.Background = a.ui.p.Accent
+					} else {
+						btn.Background = a.ui.p.SurfaceHi
+						btn.Color = a.ui.p.Text
+					}
+					return btn.Layout(gtx)
+				})
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if !attachDlgLiveOn {
+					return layout.Dimensions{}
+				}
+				// Preset chips: 15 minutes / 1 hour / 8 hours.
+				return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceBetween}.Layout(gtx,
+						flexChildrenOf(len(liveDurationChoices), func(gtx layout.Context, i int) layout.Dimensions {
+							c := liveDurationChoices[i]
+							btn := material.Button(a.ui.Theme, &liveDurationBtns[i], c.label)
+							btn.CornerRadius = 12
+							btn.TextSize = unit.Sp(12)
+							btn.Inset = layout.UniformInset(unit.Dp(6))
+							if i == liveDurationSelected {
+								btn.Background = a.ui.p.AccentDim
+							} else {
+								btn.Background = a.ui.p.SurfaceHi
+								btn.Color = a.ui.p.Text
+							}
+							return btn.Layout(gtx)
+						})...)
+				})
+			}),
 		)
 	})
+}
+
+// flexChildrenOf builds layout.Flex children over n indexes.
+func flexChildrenOf(n int, fn func(gtx layout.Context, i int) layout.Dimensions) []layout.FlexChild {
+	children := make([]layout.FlexChild, 0, n)
+	for i := 0; i < n; i++ {
+		i := i
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return fn(gtx, i)
+		}))
+	}
+	return children
 }
 
 // contactDlgList: the account's contacts; tap one to share.

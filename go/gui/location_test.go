@@ -41,11 +41,20 @@ func TestParseGeoMessage(t *testing.T) {
 	if g == nil || !g.Live || g.Period != 900 {
 		t.Fatalf("live geo = %+v", g)
 	}
-	if got := liveBadgeText(g); got != "live · 15m" {
+	// Slice 131: the badge counts down against the message timestamp.
+	if got := liveBadgeText(g, 1000, 1100); got != "live · 14m left" {
 		t.Errorf("liveBadgeText = %q", got)
 	}
-	if got := liveBadgeText(nil); got != "" {
+	if got := liveBadgeText(nil, 1000, 1100); got != "" {
 		t.Errorf("nil badge = %q", got)
+	}
+	if got := liveBadgeText(g, 1000, 1000+900); got != "ended" {
+		t.Errorf("elapsed badge = %q", got)
+	}
+	// Unknown period: live, no countdown.
+	noPeriod := &geoData{Live: true}
+	if got := liveBadgeText(noPeriod, 1000, 1100); got != "live" {
+		t.Errorf("no-period badge = %q", got)
 	}
 
 	if parseGeoMessage(&engine.CachedMessage{}) != nil {
@@ -170,5 +179,58 @@ func TestMapTileCacheSemantics(t *testing.T) {
 	c.fail("j")
 	if c.claim("j") {
 		t.Error("claim allowed for a failed key")
+	}
+}
+
+func TestLiveRemainingText(t *testing.T) {
+	cases := []struct {
+		period int // seconds
+		age    int // seconds since the share started
+		want   string
+	}{
+		{900, 0, "live · 15m left"},
+		{900, 300, "live · 10m left"},
+		{3600, 3540, "live · 1m left"},
+		{900, 899, "live · 1m left"}, // round up: a partial minute still runs
+		{900, 900, "ended"},          // exactly elapsed
+		{900, 1200, "ended"},         // past
+		{0, 0, "live"},               // no period known: live, no countdown
+		{-1, 0, "live"},              // degenerate period: live, no countdown
+	}
+	for _, c := range cases {
+		if got := liveRemainingText(c.period, c.age); got != c.want {
+			t.Errorf("liveRemainingText(%d, %d) = %q, want %q", c.period, c.age, got, c.want)
+		}
+	}
+	// Non-live geo never produces a live label.
+	if got := liveRemainingText(0, 0); got != "live" {
+		// (covered above — sanity that a zero period is still "live")
+		_ = got
+	}
+}
+
+func TestLiveDurationChoices(t *testing.T) {
+	// tdesktop's live-location presets: 15 minutes, 1 hour, 8 hours.
+	if len(liveDurationChoices) != 3 {
+		t.Fatalf("liveDurationChoices = %v, want 3 presets", liveDurationChoices)
+	}
+	want := []int{15, 60, 480}
+	for i, c := range liveDurationChoices {
+		if c.minutes != want[i] {
+			t.Errorf("choice[%d].minutes = %d, want %d", i, c.minutes, want[i])
+		}
+		if c.label == "" {
+			t.Errorf("choice[%d] has no label", i)
+		}
+	}
+}
+
+func TestLiveAge(t *testing.T) {
+	// Age is clamped at zero (clock skew protection).
+	if got := liveAge(1000, 990); got != 10 {
+		t.Errorf("liveAge = %d, want 10", got)
+	}
+	if got := liveAge(1000, 1005); got != 0 {
+		t.Errorf("liveAge future-start = %d, want 0 (clamped)", got)
 	}
 }
