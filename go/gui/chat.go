@@ -199,6 +199,8 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.botCmdsOn {
 		a.layoutBotCmdsPanel(gtx, f)
 	}
+	// Inline ":shortcode" emoji autocomplete strip (AyuGram composer).
+	a.layoutEmojiAutocomplete(gtx, f)
 	// Delete confirm (slice 19).
 	if f.delDlg != nil {
 		a.layoutDeleteDialog(gtx, f)

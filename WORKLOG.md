@@ -2131,3 +2131,26 @@ Fresh VM (reset): no Go, no Gio dev libs. Rebuilt without root:
   -gcflags="all=-c=1" fits. This is now in devroot-setup.sh output.
 - Full gate green: go build/test -tags goolm all packages ok
   (audio bootstrap cores engine gui utils voice).
+
+## 2026-09-11 — slice 119: inline ":shortcode" emoji autocomplete
+
+AyuGram composer parity: while the caret sits inside a ":token" (colon that
+starts a fresh token — not glued to a word, so URLs/times/"a:b" stay quiet,
+but an emoji followed by ":next" chains), a strip of matching emoji renders
+above the composer (same chrome family as the bot-commands panel); tapping
+one replaces the whole ":token" with the emoji at the caret.
+
+- gui/emojicomplete.go: emojiAutocompleteQuery (pure caret-token scanner,
+  rune-offset replace range), emojiAutocompleteMatches (exact keyword first,
+  then prefixes, deduped, capped 32; same Telegram keyword table as the
+  emoji-panel search — engine GetEmojiKeywords), visibility predicate
+  (hidden while the emoji picker / attach menu is open or a text selection
+  is active), per-frame derived state — nothing to invalidate.
+- Replacement via Editor SetCaret(range)+Insert round-trip (tested).
+- gui/emojicomplete_test.go: 13 query cases (incl. URL/time guards, chain
+  after replaced emoji, caret mid-token), ranking/dedupe/case-insensitivity,
+  editor round-trip, visibility predicate. All green; gofmt + vet clean;
+  full gui+engine suites green.
+- parity: Emoji autocomplete PARTIAL → PRESENT (127 / 32 / 10 / 31).
+- Header "..." menu row corrected to PRESENT (search-in-chat via chatsearch.go
+  + Add members via addmember.go were already shipped; the note was stale).
