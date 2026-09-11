@@ -1104,42 +1104,67 @@ func (c *XMPPCore) readSASLElement() (elemName, content string, err error) {
 
 	var buf bytes.Buffer
 	buf.Grow(512)
-	saslTags := [3]string{"challenge", "success", "failure"}
 	for {
 		b, readErr := c.reader.ReadByte()
 		if readErr != nil {
 			return "", "", fmt.Errorf("sasl read: %w", readErr)
 		}
 		buf.WriteByte(b)
-
 		if b != '>' {
 			continue
 		}
+		if name, content, ok := saslElementMatch(buf.String()); ok {
+			return name, content, nil
+		}
+	}
+}
 
-		data := buf.String()
-		for _, tag := range saslTags {
-			if strings.Contains(data, "<"+tag+"/>") {
-				return tag, "", nil
+// saslElementMatch reports the SASL element completed by this buffer
+// (checked each time a '>' byte lands). Handles both the attributed
+// self-closing form real servers send (<success xmlns='...'/> — the old
+// literal "<success/>" check never matched it and successful logins timed
+// out) and the content form (<challenge>b64</challenge>). Pure.
+func saslElementMatch(data string) (name, content string, ok bool) {
+	tags := [3]string{"challenge", "success", "failure"}
+	// Self-closing element (with or without attributes): the buffer ends
+	// with "/>"; the element name sits between its "<" and the "/>".
+	if strings.HasSuffix(data, "/>") {
+		if lt := strings.LastIndex(data, "<"); lt >= 0 {
+			inner := data[lt+1 : len(data)-2] // strip "/>"
+			tag := inner
+			if sp := strings.IndexAny(inner, " \t\r\n"); sp >= 0 {
+				tag = inner[:sp]
 			}
-			closeTag := "</" + tag + ">"
-			if strings.Contains(data, closeTag) {
-				startIdx := strings.Index(data, "<"+tag)
-				if startIdx < 0 {
-					continue
-				}
-				rest := data[startIdx+1+len(tag):]
-				gt := strings.IndexByte(rest, '>')
-				if gt < 0 {
-					continue
-				}
-				rest = rest[gt+1:]
-				endIdx := strings.Index(rest, closeTag)
-				if endIdx >= 0 {
-					return tag, rest[:endIdx], nil
+			for _, t := range tags {
+				if tag == t {
+					return t, "", true
 				}
 			}
 		}
 	}
+	// Closed element with content.
+	for _, t := range tags {
+		closeTag := "</" + t + ">"
+		if !strings.Contains(data, closeTag) {
+			continue
+		}
+		startIdx := strings.Index(data, "<"+t)
+		if startIdx < 0 {
+			continue
+		}
+		rest := data[startIdx+1+len(t):]
+		gt := strings.IndexByte(rest, '>')
+		if gt < 0 {
+			continue
+		}
+		rest = rest[gt+1:]
+		endIdx := strings.Index(rest, closeTag)
+		if endIdx < 0 {
+			continue
+		}
+		return t, rest[:endIdx], true
+	}
+	return "", "", false
 }
 
 func (c *XMPPCore) readSASLChallenge() ([]byte, error) {
@@ -1207,8 +1232,21 @@ func (c *XMPPCore) readRawIQResponse() (string, error) {
 			return "", fmt.Errorf("read iq: %w", err)
 		}
 		buf.WriteByte(b)
-		if b == '>' && bytes.Contains(buf.Bytes(), endTag) {
+		if b != '>' {
+			continue
+		}
+		if bytes.Contains(buf.Bytes(), endTag) {
 			return buf.String(), nil
+		}
+		// Self-closing result: <iq .../> — real servers send these for
+		// session/ping/carbon acks; the first '>' of the stanza is its
+		// last byte when no child element follows.
+		data := buf.String()
+		if i := strings.Index(data, "<iq"); i >= 0 && strings.HasSuffix(data, "/>") {
+			rest := data[i:]
+			if gt := strings.IndexByte(rest, '>'); gt == len(rest)-1 {
+				return data, nil
+			}
 		}
 	}
 }
@@ -4784,6 +4822,106 @@ func buildIBRStanza(id, username, password string) string {
 	)
 }
 
+// ibrFormField is one field of a data-form registration (XEP-0077 §4 +
+// jabber:x:data): var name, field type, current value (hidden fields carry
+// constants to pass through) and the required flag.
+type ibrFormField struct {
+	Var      string
+	Type     string
+	Value    string
+	Required bool
+}
+
+// buildIBRGetStanza constructs the registration-form GET (the first half
+// of the XEP-0077 dance: the server answers with either legacy fields or
+// an x:data form).
+func buildIBRGetStanza(id string) string {
+	return fmt.Sprintf(`<iq type='get' id='%s'><query xmlns='%s'/></iq>`, xmlEscape(id), nsRegister)
+}
+
+// parseIBRForm extracts the data-form fields from a registration-form GET
+// response; ok is false for legacy (field-element) forms and error
+// responses. Pure — unit-tested.
+func parseIBRForm(raw string) (fields []ibrFormField, ok bool) {
+	// Locate the x:data form.
+	xStart := -1
+	for _, marker := range []string{"<x xmlns='jabber:x:data'", `<x xmlns="jabber:x:data"`} {
+		if i := strings.Index(raw, marker); i >= 0 && (xStart < 0 || i < xStart) {
+			xStart = i
+		}
+	}
+	if xStart < 0 || !strings.Contains(raw, "type='form'") && !strings.Contains(raw, `type="form"`) {
+		return nil, false
+	}
+	rest := raw[xStart:]
+	if e := strings.Index(rest, "</x>"); e >= 0 {
+		rest = rest[:e]
+	}
+	// Walk the fields.
+	for {
+		f := strings.Index(rest, "<field")
+		if f < 0 {
+			break
+		}
+		rest = rest[f:]
+		end := strings.Index(rest, "</field>")
+		selfClose := strings.Index(rest, "/>")
+		if end < 0 && selfClose < 0 {
+			break
+		}
+		var body string
+		if end >= 0 && (selfClose < 0 || end < selfClose) {
+			body = rest[:end]
+			rest = rest[end+len("</field>"):]
+		} else {
+			body = rest[:selfClose]
+			rest = rest[selfClose+2:]
+		}
+		fld := ibrFormField{}
+		if v := extractXMLAttr(body, "field", "var"); v != "" {
+			fld.Var = v
+		}
+		if v := extractXMLAttr(body, "field", "type"); v != "" {
+			fld.Type = v
+		}
+		if strings.Contains(body, "<required") {
+			fld.Required = true
+		}
+		if val := extractXMLContent(body, "value"); val != "" {
+			fld.Value = xmlUnescape(val)
+		}
+		if fld.Var != "" {
+			fields = append(fields, fld)
+		}
+	}
+	return fields, len(fields) > 0
+}
+
+// buildIBRDataFormSubmit constructs the x:data registration submit from
+// the server's form fields: username/password filled, hidden constants
+// passed through, unanswerable fields omitted (the server's error names
+// whatever it truly required). Pure — unit-tested.
+func buildIBRDataFormSubmit(id string, fields []ibrFormField, username, password string) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf(`<iq type='set' id='%s'><query xmlns='%s'><x xmlns='jabber:x:data' type='submit'>`, xmlEscape(id), nsRegister))
+	for _, f := range fields {
+		switch f.Var {
+		case "username":
+			b.WriteString(fmt.Sprintf("<field var='username'><value>%s</value></field>", xmlEscape(username)))
+		case "password":
+			b.WriteString(fmt.Sprintf("<field var='password'><value>%s</value></field>", xmlEscape(password)))
+		default:
+			// Hidden/constants ride along untouched; anything we cannot
+			// answer honestly is left out.
+			if f.Type == "hidden" && f.Value != "" {
+				b.WriteString(fmt.Sprintf("<field var='%s' type='hidden'><value>%s</value></field>", xmlEscape(f.Var), xmlEscape(f.Value)))
+			}
+		}
+	}
+	b.WriteString(`</x></query></iq>`)
+	return b.String()
+}
+
 // parseIBRResponse classifies a raw IQ answer to an in-band registration
 // request. A plain type='result' is success; type='error' is surfaced with
 // its defined condition; and a result whose payload only carries an
@@ -4847,7 +4985,28 @@ func (c *XMPPCore) registerPreAuth() error {
 	_ = advertised // some servers accept XEP-0077 without advertising it;
 	//              the response is authoritative either way
 
-	stanza := buildIBRStanza(c.nextIQID(), local, c.password)
+	// XEP-0077 two-step: GET the form first — modern servers (ejabberd/
+	// MongooseIM form-based IBR, e.g. sure.im) reject the legacy payload
+	// with "Use proper DataForm registration"; the GET answer tells us
+	// which shape to submit.
+	if err := c.sendRawStanza(buildIBRGetStanza(c.nextIQID())); err != nil {
+		return fmt.Errorf("ibr get send: %w", err)
+	}
+	formResp, err := c.readRawIQResponse()
+	if err != nil {
+		return fmt.Errorf("ibr get: %w", err)
+	}
+	if strings.Contains(formResp, "type='error'") || strings.Contains(formResp, `type="error"`) {
+		// Server refuses registration outright — classify like a submit error.
+		return parseIBRResponse(formResp)
+	}
+
+	var stanza string
+	if fields, hasForm := parseIBRForm(formResp); hasForm {
+		stanza = buildIBRDataFormSubmit(c.nextIQID(), fields, local, c.password)
+	} else {
+		stanza = buildIBRStanza(c.nextIQID(), local, c.password)
+	}
 	if err := c.sendRawStanza(stanza); err != nil {
 		return fmt.Errorf("ibr send: %w", err)
 	}

@@ -77,3 +77,115 @@ func TestXMPPFeaturesAdvertiseIBR(t *testing.T) {
 		t.Fatal("IBR must be nil when not advertised")
 	}
 }
+
+// ── data-form registration (XEP-0077 §4 with jabber:x:data) ───────────────
+// Modern servers (ejabberd/MongooseIM with form-based IBR, e.g. sure.im)
+// reject the legacy <username/><password/> payload with "Use proper
+// DataForm registration" and answer the form GET with an x:data form.
+
+func TestXMPPParseIBRForm(t *testing.T) {
+	// Data-form GET response.
+	raw := `<iq id='f1' type='result'><query xmlns='jabber:iq:register'>` +
+		`<x xmlns='jabber:x:data' type='form'>` +
+		`<field var='FORM_TYPE' type='hidden'><value>urn:xmpp:ibr-token:0</value></field>` +
+		`<field var='username' type='text-single' label='Username'><required/></field>` +
+		`<field var='password' type='text-private' label='Password'><required/></field>` +
+		`</x></query></iq>`
+	fields, ok := parseIBRForm(raw)
+	if !ok || len(fields) != 3 {
+		t.Fatalf("parseIBRForm = %+v ok=%v, want 3 fields", fields, ok)
+	}
+	if fields[0].Var != "FORM_TYPE" || fields[0].Type != "hidden" || fields[0].Value != "urn:xmpp:ibr-token:0" {
+		t.Errorf("FORM_TYPE field wrong: %+v", fields[0])
+	}
+	if !fields[1].Required || fields[1].Var != "username" {
+		t.Errorf("username field wrong: %+v", fields[1])
+	}
+	if fields[2].Var != "password" || fields[2].Type != "text-private" {
+		t.Errorf("password field wrong: %+v", fields[2])
+	}
+
+	// Legacy form → ok=false.
+	legacy := `<iq id='f2' type='result'><query xmlns='jabber:iq:register'><instructions>Choose a username.</instructions><username/><password/></query></iq>`
+	if _, ok := parseIBRForm(legacy); ok {
+		t.Error("legacy form parsed as data form")
+	}
+	// Error response → not a form.
+	if _, ok := parseIBRForm(`<iq id='f3' type='error'><error type='cancel'><not-allowed xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error></iq>`); ok {
+		t.Error("error response parsed as data form")
+	}
+}
+
+func TestXMPPBuildIBRDataFormSubmit(t *testing.T) {
+	fields := []ibrFormField{
+		{Var: "FORM_TYPE", Type: "hidden", Value: "urn:xmpp:ibr-token:0"},
+		{Var: "username", Type: "text-single", Required: true},
+		{Var: "password", Type: "text-private", Required: true},
+		{Var: "email", Type: "text-single"}, // unknown → omitted
+	}
+	stanza := buildIBRDataFormSubmit("s7", fields, "alice", "s3cret")
+	if !strings.Contains(stanza, `<iq type='set' id='s7'><query xmlns='jabber:iq:register'>`) {
+		t.Errorf("envelope wrong: %s", stanza)
+	}
+	if !strings.Contains(stanza, `<x xmlns='jabber:x:data' type='submit'>`) {
+		t.Errorf("submit form missing: %s", stanza)
+	}
+	if !strings.Contains(stanza, `<field var='FORM_TYPE' type='hidden'><value>urn:xmpp:ibr-token:0</value></field>`) {
+		t.Errorf("FORM_TYPE not passed through: %s", stanza)
+	}
+	if !strings.Contains(stanza, `<field var='username'><value>alice</value></field>`) {
+		t.Errorf("username not filled: %s", stanza)
+	}
+	if !strings.Contains(stanza, `<field var='password'><value>s3cret</value></field>`) {
+		t.Errorf("password not filled: %s", stanza)
+	}
+	if strings.Contains(stanza, "email") {
+		t.Errorf("unanswerable field must be omitted: %s", stanza)
+	}
+	// Values are XML-escaped.
+	stanza = buildIBRDataFormSubmit("s8", fields, `a&b`, `p<"'>`)
+	if !strings.Contains(stanza, `<value>a&amp;b</value>`) {
+		t.Errorf("username not escaped: %s", stanza)
+	}
+	if !strings.Contains(stanza, `<value>p&lt;&#34;&#39;&gt;</value>`) {
+		t.Errorf("password not escaped: %s", stanza)
+	}
+}
+
+func TestXMPPBuildIBRGetStanza(t *testing.T) {
+	stanza := buildIBRGetStanza("g1")
+	want := `<iq type='get' id='g1'><query xmlns='jabber:iq:register'/></iq>`
+	if stanza != want {
+		t.Fatalf("GET stanza mismatch:\n got %s\nwant %s", stanza, want)
+	}
+}
+
+func TestSASLElementMatch(t *testing.T) {
+	// The wire format real servers use: self-closing WITH the xmlns
+	// attribute — the old code only matched the literal <success/> and
+	// would time out on every real successful login.
+	cases := []struct {
+		data    string
+		name    string
+		content string
+	}{
+		{`<success xmlns='urn:ietf:params:xml:ns:xmpp-sasl'/>`, "success", ""},
+		{`<success/>`, "success", ""},
+		{`<success xmlns="urn:ietf:params:xml:ns:xmpp-sasl"></success>`, "success", ""},
+		{`<challenge xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>Y2hhbGxlbmdl</challenge>`, "challenge", "Y2hhbGxlbmdl"},
+		{`<failure xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><not-authorized/></failure>`, "failure", "<not-authorized/>"},
+	}
+	for _, c := range cases {
+		name, content, ok := saslElementMatch(c.data)
+		if !ok || name != c.name || content != c.content {
+			t.Errorf("saslElementMatch(%q) = %q,%q,%v want %q,%q", c.data, name, content, ok, c.name, c.content)
+		}
+	}
+	// Incomplete buffers must not match.
+	if _, _, ok := saslElementMatch(`<success xml`); ok {
+		t.Error("partial element matched")
+	}
+	if _, _, ok := saslElementMatch(`<stream:features>`); ok {
+		t.Error("non-SASL element matched")
+	}
+}
