@@ -97,6 +97,8 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 		Theme:                  c.Theme,
 		Accent:                 c.AccentColor,
 		FontScale:              c.FontScale,
+		FontPath:               c.FontPath,
+		MonoFontPath:           c.MonoFontPath,
 		SendReadReceipts:       c.SendReadReceipts,
 		LocalReadMark:          c.LocalReadMark,
 		SendTyping:             c.SendTyping,

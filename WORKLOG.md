@@ -3233,3 +3233,37 @@ PARTIAL / 9 MISSING / 25 CORE-ONLY.
 
 Next candidates: business section, Windows taskbar overlay badge,
 message-shot renderer, dice/games rendering (lottie decision).
+
+## 2026-09-12 — slice 146: custom fonts (interface + mono)
+
+tdesktop's font box: pick a .ttf/.otf for the UI and optionally a mono
+variant — applied at runtime, persisted, restored at boot.
+
+- RATING (§1.14): theme collection building 8/10 (NewUI's inline
+  gofont+notoemoji assembly) → extracted to shared baseFontCollection()
+  + extended; persistence plumbing 9/10 (pointer-field ConfigChanges
+  pattern already established) → reused.
+- DESIGN: override by FACE SWAPPING, not shadowing — swapCollectionFaces
+  replaces the face objects inside gofont.Collection() while keeping
+  every descriptor (typeface/weight/style), so gio's matching behaves
+  exactly as stock (fontscan map + face dedup make duplicate-family
+  shadowing nondeterministic — swapping is deterministic). Single-file
+  fonts collapse weight variants onto one face (no synthetic bold —
+  same honest behavior as tdesktop single-file fonts).
+- GUI (gui/fontpick.go): Appearance → Fonts rows (current name, Pick,
+  Reset when set); pick via the existing explorer picker (.ttf/.otf);
+  parse+apply (theme Shaper rebuild) + persist AppConfig
+  font_path/mono_font_path (*string changes: nil=unchanged, ""=reset);
+  boot restore with silent fallback when the file is missing; parse
+  failures keep the defaults with an honest toast.
+- Tests-first: swapCollectionFaces (descriptors untouched, count kept,
+  default family swapped, mono family only with a mono face, nil
+  no-op), isFontPath (case-insensitive exts), fontFileName.
+- Gate: gofmt/vet/test green (goolm); windows + wasm + native green;
+  Xvfb boot clean. Slice 145 CI dispatched, pending check.
+
+Parity: Font row PARTIAL→PRESENT. 152 PRESENT / 32 PARTIAL / 9 MISSING /
+25 CORE-ONLY.
+
+Next candidates: business section, message-shot renderer, custom mute
+durations, Alt+jumplist/Ctrl+Tab shortcuts.

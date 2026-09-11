@@ -1157,6 +1157,16 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 		})
 	}))
+	// Custom fonts (slice 146, tdesktop's font box): pick .ttf/.otf
+	// for the UI (+ optional mono), applied at runtime and persisted.
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Fonts")
+	}))
+	fontRows := a.fontSettingsRows(gtx, f)
+	for _, r := range fontRows {
+		r := r
+		children = append(children, r)
+	}
 	// Cloud themes (slice 66): server-side theme list + install flow.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.layoutCloudThemeSection(gtx, f)

@@ -475,6 +475,12 @@ func (a *App) Start() {
 		a.ui.applyTheme(cfg.Theme)
 		a.ui.applyAccent(cfg.AccentColor)
 		a.ui.applyFontScale(cfg.FontScale)
+		// Custom fonts (slice 146): restore the picked files (parse
+		// failures fall back to defaults silently — the paths survive
+		// for a later re-try when the file returns).
+		if cfg.FontPath != "" || cfg.MonoFontPath != "" {
+			_ = a.ui.applyUserFonts(cfg.FontPath, cfg.MonoFontPath)
+		}
 		a.psLoad() // power saving (slice 135): restore the animation gates
 		a.ui.applyBubbleCorners(cfg.BubbleCorners == nil || *cfg.BubbleCorners)
 		// Layout tweak sliders (slice 93): the effective values fold in
@@ -1323,6 +1329,8 @@ type cfgSnapshot struct {
 	Theme                  string
 	Accent                 string
 	FontScale              float64
+	FontPath               string
+	MonoFontPath           string
 	SendReadReceipts       bool
 	LocalReadMark          bool
 	SendTyping             bool

@@ -902,10 +902,13 @@ func (e *Engine) UpdateConfig(changes *utils.AppConfig) error {
 // ConfigChanges holds partial config updates from the bridge layer.
 // Zero values are treated as "no change" (except MaxCacheSize where 0 means unlimited).
 type ConfigChanges struct {
-	Theme        string
-	AccentColor  string
-	FontScale    float64
-	Language     string
+	Theme       string
+	AccentColor string
+	FontScale   float64
+	Language    string
+	// Custom fonts (slice 146): nil = unchanged; non-nil ("" = reset).
+	FontPath     *string
+	MonoFontPath *string
 	MaxCacheSize int64
 	DownloadDir  string
 	// Use pointers for booleans so zero-value (false) is distinguishable from "not set".
@@ -978,6 +981,12 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.FontScale != 0 {
 		e.config.FontScale = changes.FontScale
+	}
+	if changes.FontPath != nil {
+		e.config.FontPath = *changes.FontPath
+	}
+	if changes.MonoFontPath != nil {
+		e.config.MonoFontPath = *changes.MonoFontPath
 	}
 	if changes.Language != "" {
 		e.config.Language = changes.Language

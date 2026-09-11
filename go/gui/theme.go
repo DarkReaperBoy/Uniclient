@@ -13,9 +13,6 @@ import (
 
 	_ "embed"
 
-	"gioui.org/font"
-	"gioui.org/font/gofont"
-	"gioui.org/font/opentype"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -245,14 +242,7 @@ func NewUI() *UI {
 	// gio v0.10.2 leaves the shaper empty — register the Go font collection
 	// (embedded, works on every platform incl. Windows/WASM) and allow system
 	// fonts as additional fallbacks.
-	collection := gofont.Collection()
-	if face, err := opentype.Parse(notoEmoji); err == nil {
-		collection = append(collection, font.FontFace{
-			Font: font.Font{Typeface: "NotoEmoji"},
-			Face: face,
-		})
-	}
-	th.Shaper = text.NewShaper(text.WithCollection(collection))
+	th.Shaper = text.NewShaper(text.WithCollection(baseFontCollection()))
 	th.TextSize = unit.Sp(15)
 	return &UI{Theme: th, p: dark}
 }
