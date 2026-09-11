@@ -63,6 +63,10 @@ func (a *App) Root(gtx layout.Context) {
 	if f.drawerOpen {
 		a.layoutDrawer(gtx, f)
 	}
+	// Hover chat-preview popup (slice 145): window-level overlay — the
+	// sidebar renders before the chat pane, so drawing there would land
+	// underneath it. Passive card (no input areas).
+	a.layoutChatPeek(gtx, f)
 	a.layoutToast(gtx, f)
 	// Global keyboard layer (slice 43): registered last so surface-local
 	// key handlers consume their events first.

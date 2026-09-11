@@ -116,6 +116,7 @@ func (a *App) dispatchChatAction(c engine.ChatInfo, action string) {
 
 // openChatMenu opens the chat-row menu at pos.
 func (a *App) openChatMenu(c engine.ChatInfo, pos image.Point) {
+	a.hideChatPeek() // the menu replaces the hover preview
 	a.mu.Lock()
 	a.chatMenu = &chatMenuTarget{chat: c, pos: pos}
 	a.mu.Unlock()
@@ -137,12 +138,21 @@ func (a *App) processSidebarEvents(gtx layout.Context, f frame) {
 	event.Op(gtx.Ops, sidebarPaneTag)
 	stack.Pop()
 	for {
-		ev, ok := gtx.Source.Event(pointer.Filter{Target: sidebarPaneTag, Kinds: pointer.Press})
+		ev, ok := gtx.Source.Event(pointer.Filter{Target: sidebarPaneTag, Kinds: pointer.Press | pointer.Move})
 		if !ok {
 			break
 		}
-		if pe, is := ev.(pointer.Event); is && pe.Kind == pointer.Press {
+		pe, is := ev.(pointer.Event)
+		if !is {
+			continue
+		}
+		switch pe.Kind {
+		case pointer.Press:
 			a.onSidebarPress(f, pe)
+		case pointer.Move:
+			// Hover peek anchor (slice 145): remember where the mouse
+			// rests in sidebar coords (the sidebar starts at window 0,0).
+			a.hoverPos = image.Pt(int(pe.Position.X), int(pe.Position.Y))
 		}
 	}
 }

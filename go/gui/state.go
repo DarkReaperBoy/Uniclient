@@ -410,6 +410,16 @@ type App struct {
 	pendingCopy string
 	notifyAt    map[string]time.Time // chatKey -> last banner (throttle, slice 22)
 
+	// hover chat-preview popup (slice 145): the row under the mouse, the
+	// rest position, and the visible peek card. hoverFrame is the
+	// per-frame marker (GUI goroutine); the rest are a.mu-guarded.
+	hoverChatKey string
+	hoverSince   time.Time
+	hoverPos     image.Point // last mouse position in sidebar coords (Move events)
+	hoverFrame   bool        // some row reported hover this frame (GUI goroutine)
+	chatPeek     *chatPeekState
+	sidebarW     int // rendered sidebar width (peek anchors beside it)
+
 	// spoiler reveal state (slice 32, GUI goroutine): msgID → revealed.
 	spoilerRevealed map[string]bool
 
@@ -1037,6 +1047,8 @@ func (a *App) consumePendingOpen() {
 }
 
 func (a *App) openChat(k chatKey, title string) {
+	a.hideChatPeek() // the chat's own content replaces the hover preview
+
 	// Draft flush: persist whatever the composer holds for the chat we are
 	// LEAVING, then restore the new chat's draft (slice 20). Runs on the
 	// GUI goroutine, so touching the composer editor is safe.
@@ -1790,6 +1802,9 @@ func (a *App) snapshot() frame {
 		cloudThemesOn:    a.cloudThemesOn,
 		profileEdit:      a.profileEdit,
 		stickerMgr:       a.stickerMgr,
+		chatPeek:         a.chatPeek,
+		sidebarW:         a.sidebarW,
+		hoverPos:         a.hoverPos,
 		folderMgr:        a.folderMgr,
 		premiumPage:      a.premiumPage,
 		starsPage:        a.starsPage,
@@ -2019,11 +2034,14 @@ type frame struct {
 	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
 	profileEdit    *profileEditState      // own-profile editor (slice 71)
 	stickerMgr     *stickerMgrState       // stickers & emoji manager (slice 139)
-	folderMgr      *folderMgrState        // chat-folders manager (slice 142)
-	premiumPage    *premiumPageState      // Telegram Premium page (slice 143)
-	starsPage      *starsPageState        // Telegram Stars page (slice 144)
-	langCode       string                 // active language (slice 140)
-	langStrings    map[string]string      // pack overrides
+	chatPeek       *chatPeekState         // hover preview (slice 145)
+	sidebarW       int
+	hoverPos       image.Point
+	folderMgr      *folderMgrState   // chat-folders manager (slice 142)
+	premiumPage    *premiumPageState // Telegram Premium page (slice 143)
+	starsPage      *starsPageState   // Telegram Stars page (slice 144)
+	langCode       string            // active language (slice 140)
+	langStrings    map[string]string // pack overrides
 	langs          []engine.LanguageInfo
 	langsLoaded    bool
 	langsFor       string

@@ -3201,3 +3201,35 @@ Parity: Stars row CORE-ONLY→PARTIAL (gifting + withdraw remain).
 
 Next candidates: business section (CORE-ONLY), chat preview popup,
 Windows taskbar overlay badge, 2FA completion, message-shot renderer.
+
+## 2026-09-12 — slice 145: hover chat-preview popup
+
+tdesktop's chat preview: rest the mouse on a chat row and a compact card
+floats beside the sidebar with the chat's last messages.
+
+- RATING (§1.14): engine.GetMessages(beforeMs=0) 9/10 — the latest-page
+  branch is a pure local SQLite read (perfect for a passive peek, no
+  network) → keep; sidebar hover plumbing 8/10 — rows already track
+  btn.Hovered() (slice 89 quick actions) and the pane already owns a
+  pointer input area (chatmenu press routing) → extend both.
+- GUI (gui/chatpeek.go): 600ms hover delay (AfterFunc re-armed per chat
+  key, stale-key guarded under a.mu); peek card = title + last 3 cached
+  lines (You/sender prefix, media typed labels, 48-rune clamp, service
+  rows dropped, display-order flip); passive overlay at the WINDOW level
+  (sidebar renders before the chat pane — drawing there would land
+  underneath; app.go renders it above everything but toast/shortcuts);
+  anchor = mouse Y (pane-level pointer.Move filter) - h/5, clamped;
+  hides on row-hover end (per-frame marker reset/check around the row
+  list), chat open, chat-menu open; selected chat never peeks.
+- Tests-first: peekMsgLine (prefixes, media labels, clamps), peekLines
+  (order flip, service drop, max clamp, nil), peekAnchorY (clamps),
+  delay bounds (400-900ms window).
+- Gate: gofmt/vet/test green (goolm); windows + wasm + native builds
+  green; Xvfb GUI boot clean. Slice 144 verify CI (67f6763f): GREEN
+  via API — the gofmt-gate failure of slice 143 is resolved on main.
+
+Parity: Chat-preview-popup row CORE-ONLY→PRESENT. 151 PRESENT / 33
+PARTIAL / 9 MISSING / 25 CORE-ONLY.
+
+Next candidates: business section, Windows taskbar overlay badge,
+message-shot renderer, dice/games rendering (lottie decision).

@@ -47,6 +47,9 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 	// Route sidebar presses (chat-row context menu, menu dismissal).
 	a.processSidebarEvents(gtx, f)
 
+	// Hover peek (slice 145): the preview anchors beside this pane.
+	a.sidebarW = gtx.Constraints.Max.X
+
 	// Pre-size the per-row clickables.
 	visible := filterChats(f)
 	for len(chatListBtns) < len(visible) {
@@ -592,6 +595,7 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 	if showArchiveRow {
 		n++
 	}
+	a.resetChatHoverFrame() // hover peek (slice 145): rows mark hover below
 	dims := list.Layout(gtx, n, func(gtx layout.Context, i int) layout.Dimensions {
 		if showArchiveRow && i == 0 {
 			d := a.archiveRow(gtx, f, archived)
@@ -608,6 +612,7 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 		y += d.Size.Y
 		return d
 	})
+	a.checkChatHoverFrame() // no hovered row this frame → hide the peek
 	// Timed-mute countdown (slice 136): while any visible row shows a
 	// remaining-mute chip, re-render at the next minute boundary so the
 	// label ticks down; once one expires, pull the swept chat list so the
@@ -635,6 +640,9 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 	} else if btn.Hovered() {
 		hovered = true
 		bg = a.ui.p.SurfaceHi
+		// Hover peek (slice 145): resting the mouse arms the preview
+		// timer; the selected chat never peeks (its content is visible).
+		a.noteChatHover(c)
 	}
 	return roundedFill(gtx, bg, 0, func(gtx layout.Context) layout.Dimensions {
 		return material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
