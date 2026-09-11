@@ -163,6 +163,8 @@ type App struct {
 	// local passcode lock (slice 87): vault-backed PIN gate + editor dialog.
 	lock           *lockState
 	lockDlg        *lockDlgState
+	twofaDlg       *twofaDlgState                      // cloud-password editor dialog (slice 120)
+	twofaStates    map[string]cores.CloudPasswordState // accountID → live 2FA state (slice 120)
 	notifyAccts    map[string]notifyAcctState
 	notifyLoaded   bool
 	blockedUsers   map[string][]cores.User
@@ -992,6 +994,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.addMemDlg = nil
 	a.ttlDlg = nil
 	a.privacyDlg = nil // slice 62: close the scope picker
+	a.twofaDlg = nil   // slice 120: close the 2FA editor
 	a.autoDlDlg = nil  // slice 63: close the auto-download editor
 	a.themeDlg = nil   // slice 65: close the theme picker
 	a.cloudDlg = nil   // slice 66: close the install dialog
@@ -1395,12 +1398,14 @@ func (a *App) loadNotifyAccts() {
 	a.invalidate()
 }
 
-// loadPrivacy reads blocked users, active sessions, and privacy scopes
-// per account (scopes: slice 62).
+// loadPrivacy reads blocked users, active sessions, privacy scopes, and
+// the cloud-password (2FA) state per account (scopes: slice 62; 2FA:
+// slice 120).
 func (a *App) loadPrivacy() {
 	blocked := make(map[string][]cores.User)
 	sessions := make(map[string][]cores.Session)
 	scopes := make(map[string]map[string]string)
+	twofa := make(map[string]cores.CloudPasswordState)
 	for _, acc := range a.eng.ListAccounts() {
 		if bl, err := a.eng.GetBlockedUsers(acc.ID); err == nil {
 			blocked[acc.ID] = bl
@@ -1411,9 +1416,13 @@ func (a *App) loadPrivacy() {
 		if sc, err := a.eng.GetPrivacyScopes(acc.ID); err == nil {
 			scopes[acc.ID] = sc
 		}
+		if st, err := a.eng.GetCloudPasswordState(acc.ID); err == nil {
+			twofa[acc.ID] = st
+		}
 	}
 	a.mu.Lock()
-	a.blockedUsers, a.sessionsList, a.privacyScopes, a.privacyLoaded = blocked, sessions, scopes, true
+	a.blockedUsers, a.sessionsList, a.privacyScopes, a.twofaStates = blocked, sessions, scopes, twofa
+	a.privacyLoaded = true
 	a.mu.Unlock()
 	a.invalidate()
 }
@@ -1638,6 +1647,8 @@ func (a *App) snapshot() frame {
 		cfg:              a.cfg,
 		lock:             a.lock,
 		lockDlg:          a.lockDlg,
+		twofaDlg:         a.twofaDlg,
+		twofaStates:      a.twofaStates,
 		notifyAccts:      a.notifyAccts,
 		notifyLoaded:     a.notifyLoaded,
 		blockedUsers:     a.blockedUsers,
@@ -1849,6 +1860,8 @@ type frame struct {
 	cfg            cfgSnapshot
 	lock           *lockState
 	lockDlg        *lockDlgState
+	twofaDlg       *twofaDlgState // cloud-password editor (slice 120)
+	twofaStates    map[string]cores.CloudPasswordState
 	notifyAccts    map[string]notifyAcctState
 	notifyLoaded   bool
 	blockedUsers   map[string][]cores.User

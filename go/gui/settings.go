@@ -681,12 +681,45 @@ func (a *App) setPagePrivacy(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 	row := 0
+	twofaRow := 0 // separate index: twofaRowBtns is its own pool (slice 120)
 	for _, acc := range f.accounts {
 		acc := acc
 		blocked := f.blockedUsers[acc.ID]
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.subHeader(gtx, accountName(acc)+" ("+platformTitle(acc.Platform)+")")
 		}))
+		// Two-Step Verification (slice 120): cloud-password editor,
+		// capability-gated — cores without the surface get no row.
+		growClickables(&twofaRowBtns, len(f.accounts))
+		if twofaSupportedFor(a, acc.ID) {
+			btn := &twofaRowBtns[twofaRow]
+			twofaRow++
+			st := f.twofaStates[acc.ID]
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if btn.Clicked(gtx) {
+					a.openTwoFADialog(acc.ID)
+				}
+				bl := material.ButtonLayout(a.ui.Theme, btn)
+				bl.Background = a.ui.p.Surface
+				bl.CornerRadius = 10
+				return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									return a.ui.Label(unit.Sp(14), "Two-Step Verification").Layout(gtx)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Dim(unit.Sp(12), twofaRowValue(st))
+									lbl.Color = a.ui.p.TextFaint
+									return lbl.Layout(gtx)
+								}),
+							)
+						})
+					})
+				})
+			}))
+		}
 		// Privacy scope rows (slice 62): live server-side scope per key;
 		// tapping opens the picker dialog (gui/privacy.go).
 		accScopes := f.privacyScopes[acc.ID]

@@ -2154,3 +2154,29 @@ one replaces the whole ":token" with the emoji at the caret.
 - parity: Emoji autocomplete PARTIAL → PRESENT (127 / 32 / 10 / 31).
 - Header "..." menu row corrected to PRESENT (search-in-chat via chatsearch.go
   + Add members via addmember.go were already shipped; the note was stale).
+
+## 2026-09-11 — slice 120: Two-Step Verification settings (2FA GUI)
+
+The whole core+engine surface already existed (cores/telegram.go
+CloudPassword* family, engine/cache_users.go wrappers incl.
+SetCloudPasswordEmail/Confirm/Resend/Cancel) — this slice is the GUI:
+
+- gui/twofa.go: full 2FA editor dialog (content-pane surface "twofa",
+  ordered AFTER the lock gate in contentDialogSurface): state card
+  (On/Off, hint, recovery email, unconfirmed pattern, pending reset
+  date), set/change password form (current gated on live HasPassword,
+  new+repeat+hint, masked fields), disable flow w/ warning line,
+  recovery-email lifecycle (set/change → server sends code → code step
+  w/ confirm/resend/cancel). Every mutation async w/ honest toasts and
+  server-truth state refresh; busy flag guards double-submits.
+- Capabilities: new CapCloudPassword ("CLOUD_PASSWORD") constant;
+  telegram core lists it. Settings row hidden for cores without it.
+- gui/settings.go: per-account "Two-Step Verification" row (value On/Off
+  from live state) in Privacy & Security; own clickable pool (index bug
+  avoided: shared counter with privacy rows would have overflowed).
+- loadPrivacy now also fetches per-account cloud-password state.
+- tests: action-list derivation, form validation (current required /
+  match / short / empty), email-flow advance, state summary, surface
+  ordering (lock gate outranks 2FA editor), row value, email sanity
+  check. Full gate green (gofmt/vet/test -tags goolm all packages).
+- parity: Privacy & security PARTIAL → PRESENT (128 / 31 / 10 / 31).

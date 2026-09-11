@@ -279,7 +279,7 @@ func (t *TelegramCore) Capabilities() []string {
 		CapText, CapChannels, CapTopics, CapCalls, CapGroupCalls,
 		CapReactions, CapReadReceipts, CapTyping, CapPolls, CapStickers,
 		CapFolders, CapAdmin, CapSessions, CapBase64Image, CapScheduled,
-		CapSearch, CapBlocking, CapFileTransfer,
+		CapSearch, CapBlocking, CapFileTransfer, CapCloudPassword,
 	}
 }
 
