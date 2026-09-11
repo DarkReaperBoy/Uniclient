@@ -104,14 +104,16 @@ this list wins.
     a stretch of work with unpushed commits. (The GitHub token is provided
     by the owner out-of-band at session start; it must NEVER be written
     into any repo file, log, or doc.)
-16. **TeamSpeak & Mumble: 1:1 protocol first and foremost.** For these two
-    cores, wire-level 1:1 compatibility with the official protocol/clients
-    is the absolute top priority — port the official crypto and packet
-    formats exactly, pin them against upstream test vectors, and **test on
-    public servers before the owner's live test**. The owner will run their
-    own live test on their own and report results when the time comes; the
-    job until then is protocol-perfect, public-server-verified cores (§9
-    ladder to the official-server rung every time the protocol changes).
+16. **TeamSpeak & Mumble: 1:1 wire compatibility.** For these two cores,
+    wire-level 1:1 compatibility with the official protocol/clients is the
+    quality bar — port the official crypto and packet formats exactly, pin
+    them against upstream test vectors, and **test on public servers before
+    the owner's live test**. The owner will run their own live test on
+    their own and report results when the time comes. This is a quality
+    requirement, not a scheduling priority: the agent works through the
+    objective list (§11) in its own order and applies this bar whenever a
+    TS/Mumble protocol change is made (§9 ladder to the official-server
+    rung every time the protocol changes).
 
 ## 2. Workflow (mandatory order of operations)
 

@@ -2105,3 +2105,11 @@ against the md files and included where missing:
   live test (owner tests on their own and reports when the time comes).
 
 No code changed in this commit. Token verified absent from all repo files.
+
+## 2026-09-11 — §1.16 reworded: priority removed
+
+Owner: "remove the first and foremost, i want you doing on your own
+objective list order." — §1.16 is now a quality bar (1:1 wire compat,
+public-server testing before the owner's live test) applied whenever a
+TS/Mumble protocol change happens, NOT a scheduling priority. Work order
+follows the agent's own objective list (§11).
