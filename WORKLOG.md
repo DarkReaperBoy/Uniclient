@@ -2210,3 +2210,22 @@ AyuGram notifications parity completed:
 - Header-menu test expectations extended; full gate green
   (gofmt/vet/test -tags goolm, all packages).
 - parity: Notifications section PARTIAL → PRESENT (129 / 30 / 10 / 31).
+
+## 2026-09-11 — slice 122 (stage A): lottie package — .tgs container + JSON model
+
+Foundation for animated .tgs stickers (P1, last big parity item):
+pure-Go Bodymovin subset parser, no new dependencies.
+
+- go/lottie/model.go: Animation/Asset/Layer/Transform/Prop/Keyframe/Shape
+  model; layer types (precomp/solid/null/shape), shape items (gr/rc/el/
+  sh/fl/st/tr/tm/gf), duration + clamped frame-at helpers.
+- go/lottie/parse.go: ParseTgs (gzip→JSON, rejects non-gzip/garbage) +
+  ParseAnimationJSON; static vs animated props, keyframes with bezier
+  easing controls + spatial tangents (to/ti), end-value completion from
+  the next key, path-vertex flattening, image/text layers rejected
+  (.tgs never has them — fail loudly over render-wrong).
+- Tests: container round-trip + rejection paths, full document decode
+  (header/assets/layer/transform/shapes/easing/tangents), duration math.
+  Green.
+- Next stage: keyframe interpolation (linear/bezier/hold + spatial) and
+  transform composition, then the Gio renderer + sticker-bubble wiring.
