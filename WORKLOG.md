@@ -2113,3 +2113,21 @@ objective list order." — §1.16 is now a quality bar (1:1 wire compat,
 public-server testing before the owner's live test) applied whenever a
 TS/Mumble protocol change happens, NOT a scheduling priority. Work order
 follows the agent's own objective list (§11).
+
+## 2026-09-11 — sandbox dev environment rebuilt from zero (no sudo)
+
+Fresh VM (reset): no Go, no Gio dev libs. Rebuilt without root:
+
+- Go 1.27.1 → ~/.local/go (go.mod needs 1.27).
+- ~/.local/sysroot: apt download + dpkg -x of libxkbcommon(-x11)-dev,
+  libwayland-dev, libegl-dev/libglvnd-dev, libxcursor-dev, libxfixes-dev,
+  libx11-xcb-dev, libxcb-xkb-dev (+ runtimes), libvulkan-dev from the
+  Debian pool, KHR/khrplatform.h from the Khronos EGL registry.
+  All .pc prefixes repointed at the sysroot; dangling .so symlinks
+  resolved against system copies; xkbcommon-x11.pc xcb deps made public
+  (Requires) so final links resolve -lxcb-xkb.
+- scripts/devroot-setup.sh commits all of this; emits devroot.env.
+- gotd tg OOM (3.5GB RAM < 4GB needed): GOGC=20 + -p 1 +
+  -gcflags="all=-c=1" fits. This is now in devroot-setup.sh output.
+- Full gate green: go build/test -tags goolm all packages ok
+  (audio bootstrap cores engine gui utils voice).
