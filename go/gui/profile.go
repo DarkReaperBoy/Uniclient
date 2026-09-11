@@ -166,6 +166,14 @@ func (a *App) loadPanel(k chatKey) {
 		go a.loadCommonChats(k)
 	}
 
+	// Bot info panel (slice 133): the bot's chat commands.
+	var botCmds []engine.BotCommandInfo
+	if prof != nil && prof.IsBot {
+		if cmds, err := a.eng.GetChatBotCommands(k.AccountID, k.ChatID); err == nil {
+			botCmds = cmds
+		}
+	}
+
 	counts, _ := a.eng.GetSharedMediaCounts(k.AccountID, k.ChatID)
 	// Photos tab is prefetched (60 cells); other tabs lazy-load on
 	// first activation (slice 78).
@@ -178,6 +186,7 @@ func (a *App) loadPanel(k chatKey) {
 		a.hdrPresence = prof
 	}
 	a.members = members
+	a.panelBotCmds = botCmds
 	a.mediaCounts = counts
 	a.panelTab = "image"
 	a.panelTabItems = map[string][]engine.SharedMediaItem{"image": photos}
@@ -439,6 +448,11 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.panelValueRow(gtx, iconActionInfo, "Bio", p.Bio)
 			}))
+		}
+		// Bot info sections (slice 133, tdesktop bot profile): description,
+		// commands (tap inserts into the composer), privacy-policy link.
+		if p.IsBot {
+			children = append(children, a.botPanelSections(gtx, f, p)...)
 		}
 		// Block / unblock + add contact actions.
 		if panelBlockBtn.Clicked(gtx) {
@@ -716,3 +730,72 @@ func filterMembers(members []engine.MemberInfo, q string) []engine.MemberInfo {
 
 // memberSearchEd filters the info panel's member list (slice 40).
 var memberSearchEd widget.Editor
+
+// botPanelCmdClickables pools the command-row clickables.
+var botPanelCmdBtns []widget.Clickable
+
+// botPrivacyBtn opens the bot's privacy policy.
+var botPrivacyBtn widget.Clickable
+
+// botPanelSections builds the bot-only profile sections: "What can this
+// bot do?" description, the command list (tap → composer insert, the
+// slice-76 wire), and the privacy-policy row (browser handoff).
+func (a *App) botPanelSections(gtx layout.Context, f frame, p engine.CachedUser) []layout.FlexChild {
+	var children []layout.FlexChild
+	if p.BotDescription != "" {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.sectionTitle(gtx, "What can this bot do?")
+		}))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				lbl := a.ui.Dim(unit.Sp(13), p.BotDescription)
+				lbl.Color = a.ui.p.Text
+				return lbl.Layout(gtx)
+			})
+		}))
+	}
+	cmds := f.panelBotCmds
+	if len(cmds) > 0 {
+		growClickables(&botPanelCmdBtns, len(cmds))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.sectionTitle(gtx, "Commands ("+itoa(len(cmds))+")")
+		}))
+		for i := range cmds {
+			c := cmds[i]
+			cl := &botPanelCmdBtns[i]
+			if cl.Clicked(gtx) {
+				a.insertBotCommand(c.Command)
+				a.closePanel()
+				return nil
+			}
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					btn := material.Button(a.ui.Theme, cl, botCmdTitle(c))
+					btn.CornerRadius = 8
+					btn.Inset = layout.UniformInset(unit.Dp(7))
+					btn.TextSize = unit.Sp(13)
+					btn.Background = a.ui.p.SurfaceHi
+					btn.Color = a.ui.p.Accent
+					return btn.Layout(gtx)
+				})
+			}))
+		}
+	}
+	if p.BotPrivacyURL != "" {
+		if botPrivacyBtn.Clicked(gtx) {
+			openExternalAsync(p.BotPrivacyURL, func(err error) {
+				if err != nil {
+					a.setToast("Open privacy policy failed: " + err.Error())
+				}
+			})
+		}
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				btn := a.ui.TextButton(&botPrivacyBtn, "Privacy policy")
+				btn.Color = a.ui.p.Accent
+				return btn.Layout(gtx)
+			})
+		}))
+	}
+	return children
+}

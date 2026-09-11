@@ -2730,3 +2730,24 @@ The last CORE-ONLY content row flips PRESENT:
   ContentRich per frame).
 
 Gate: gofmt/vet/test green; local Xvfb boot clean; binary links.
+
+## 2026-09-11 — slice 133: bot info panel (description + commands + privacy)
+
+The owner's tested path is bot chats — the profile panel now carries the
+bot's own info (tdesktop bot profile):
+
+- CORE: users.getFullUser's bot_info folds into the User through the pure
+  applyBotInfoFields helper (description, privacy-policy URL, web-app menu
+  button text; value- and nil-safe; tested with a truth table including
+  the default-menu-button non-leak).
+- ENGINE: users table gains bot_description + bot_privacy_url
+  (migrateV49, duplicate-column-tolerant); UpsertUser COALESCE-keeps old
+  values (profile refreshes never blank the fields); GetUser scans them
+  into CachedUser.
+- GUI: bot profile panels render "What can this bot do?" (description),
+  the chat's commands as accent rows — tap inserts into the composer and
+  closes the panel (reuses the slice-76 "/" menu wire) — and a
+  privacy-policy row (openext browser handoff, toast on failure). Commands
+  load with the panel (engine.GetChatBotCommands, bots only).
+
+Gate: gofmt/vet/test green (gui, engine, cores); local Xvfb boot clean.

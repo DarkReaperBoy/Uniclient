@@ -21222,6 +21222,26 @@ func (t *TelegramCore) ToggleForumTabs(chatID string, enabled bool, tabs bool) e
 }
 
 // GetFullUser returns full profile information for a user by their ID.
+// applyBotInfoFields folds a bot_info payload into the user profile:
+// description ("What can this bot do?"), privacy-policy URL and the web-app
+// menu-button label. Pure — unit-tested.
+func applyBotInfoFields(cu *User, bi *tg.BotInfo) {
+	if cu == nil || bi == nil {
+		return
+	}
+	if d, ok := bi.GetDescription(); ok && d != "" {
+		cu.BotDescription = d
+	}
+	if pp, ok := bi.GetPrivacyPolicyURL(); ok && pp != "" {
+		cu.BotPrivacyURL = pp
+	}
+	if mb, ok := bi.GetMenuButton(); ok {
+		if webApp, ok := mb.(*tg.BotMenuButton); ok {
+			cu.BotMenuText = webApp.Text
+		}
+	}
+}
+
 func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 	// withAPI rule: the UsersGetFullUser RPC (plus the timezone-list fetch
 	// below for business-hours users) runs WITHOUT t.mu held.
@@ -21244,11 +21264,7 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 			cu := t.convertUser(user)
 			cu.Bio = result.FullUser.About
 			if bi, ok := result.FullUser.GetBotInfo(); ok {
-				if mb, ok := bi.GetMenuButton(); ok {
-					if webApp, ok := mb.(*tg.BotMenuButton); ok {
-						cu.BotMenuText = webApp.Text
-					}
-				}
+				applyBotInfoFields(cu, &bi)
 			}
 			if bday, ok := result.FullUser.GetBirthday(); ok {
 				cu.BirthdayDay = bday.Day

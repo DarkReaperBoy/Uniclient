@@ -213,6 +213,8 @@ type App struct {
 	profile     *engine.CachedUser
 	members     []engine.MemberInfo
 	mediaCounts []engine.SharedMediaCountItem
+	// slice 133: bot info panel — the chat's bot commands (tap inserts).
+	panelBotCmds []engine.BotCommandInfo
 	// shared-media tab browser (slice 78): active tab + lazy per-tab
 	// item windows, reset on every panel reload.
 	panelTab         string
@@ -1704,6 +1706,7 @@ func (a *App) snapshot() frame {
 		panelLoaded:      a.panelLoaded,
 		panelMuted:       a.panelMuted,
 		profile:          a.profile,
+		panelBotCmds:     a.panelBotCmds,
 		members:          a.members,
 		mediaCounts:      a.mediaCounts,
 		panelTab:         a.panelTab,
@@ -1918,6 +1921,8 @@ type frame struct {
 	panelLoaded bool
 	panelMuted  bool
 	profile     *engine.CachedUser
+	// slice 133: bot info panel — the chat's bot commands.
+	panelBotCmds []engine.BotCommandInfo
 
 	// header presence (slice 28): DM peer online/last-seen for the header
 	hdrPresence *engine.CachedUser

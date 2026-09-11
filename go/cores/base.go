@@ -177,6 +177,8 @@ type User struct {
 	IsFake                 bool            `json:"is_fake,omitempty"`
 	EmojiStatusID          string          `json:"emoji_status_id,omitempty"`
 	BotMenuText            string          `json:"bot_menu_text,omitempty"`
+	BotDescription         string          `json:"bot_description,omitempty"`
+	BotPrivacyURL          string          `json:"bot_privacy_url,omitempty"`
 	Role                   string          `json:"role,omitempty"`
 	Platform               string          `json:"platform"`
 	StoryCount             int             `json:"story_count,omitempty"`

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // OpenDB opens (or creates) the SQLite cache database at dir/cache.db.
@@ -160,6 +161,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV46,
 	migrateV47,
 	migrateV48,
+	migrateV49,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -206,6 +208,22 @@ func migrateV47(tx *sql.Tx) error {
 // messages.transcribeAudio + updateTranscribedAudio, AyuGram voice bubbles).
 // One row per message; the latest write wins (the server may refine the
 // text across several pushes while pending).
+// migrateV49 adds the bot-info columns to users (slice 133: bot
+// description + privacy-policy URL for the profile panel).
+func migrateV49(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN bot_description TEXT`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN bot_privacy_url TEXT`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
+}
+
 func migrateV48(tx *sql.Tx) error {
 	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS message_transcriptions (
                 account_id       TEXT NOT NULL,

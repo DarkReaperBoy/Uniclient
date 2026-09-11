@@ -29,6 +29,8 @@ type CachedUser struct {
 	IsContact              bool   `json:"is_contact"`
 	IsBlocked              bool   `json:"is_blocked"`
 	BotMenuText            string `json:"bot_menu_text,omitempty"`
+	BotDescription         string `json:"bot_description,omitempty"`
+	BotPrivacyURL          string `json:"bot_privacy_url,omitempty"`
 	LastSeen               int64  `json:"last_seen,omitempty"`
 	LastSeenKind           string `json:"last_seen_kind,omitempty"`
 	HasPersonalPhoto       bool   `json:"has_personal_photo,omitempty"`
@@ -58,8 +60,8 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 	}
 
 	_, err := e.db.Exec(
-		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen, last_seen_kind, has_personal_photo, personal_photo_id, fallback_photo_id, userpic_photo_id, video_start_position, birthday_day, birthday_month, birthday_year, personal_channel_id, personal_channel_name, voice_messages_forbidden, contact_require_premium, note, business_hours, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, bot_description, bot_privacy_url, last_seen, last_seen_kind, has_personal_photo, personal_photo_id, fallback_photo_id, userpic_photo_id, video_start_position, birthday_day, birthday_month, birthday_year, personal_channel_id, personal_channel_name, voice_messages_forbidden, contact_require_premium, note, business_hours, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, user_id) DO UPDATE SET
 		     display_name = excluded.display_name,
 		     username = excluded.username,
@@ -70,6 +72,8 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 		     is_contact = excluded.is_contact,
 		     is_blocked = excluded.is_blocked,
 		     bot_menu_text = COALESCE(NULLIF(excluded.bot_menu_text, ''), users.bot_menu_text),
+		     bot_description = COALESCE(NULLIF(excluded.bot_description, ''), users.bot_description),
+		     bot_privacy_url = COALESCE(NULLIF(excluded.bot_privacy_url, ''), users.bot_privacy_url),
 		     last_seen = COALESCE(excluded.last_seen, users.last_seen),
 		     last_seen_kind = COALESCE(NULLIF(excluded.last_seen_kind, ''), users.last_seen_kind),
 		     has_personal_photo = excluded.has_personal_photo,
@@ -88,7 +92,8 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 		     business_hours = COALESCE(NULLIF(excluded.business_hours, ''), users.business_hours),
 		     updated_at = excluded.updated_at`,
 		accountID, u.ID, u.DisplayName, u.Username, u.Phone, u.Bio,
-		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), u.BotMenuText, lastSeen,
+		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), u.BotMenuText,
+		u.BotDescription, u.BotPrivacyURL, lastSeen,
 		u.LastSeenKind, boolToInt(u.HasPersonalPhoto), u.PersonalPhotoId, u.FallbackPhotoId, u.UserpicPhotoId, u.VideoStartPosition,
 		u.BirthdayDay, u.BirthdayMonth, u.BirthdayYear, u.PersonalChannelID, u.PersonalChannelName,
 		boolToInt(u.VoiceMessagesForbidden), boolToInt(u.ContactRequirePremium), u.Note, u.BusinessHours, now)
@@ -99,6 +104,7 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	var u CachedUser
 	var displayName, username, phone, bio, avatarPath, botMenuText sql.NullString
+	var botDescription, botPrivacyURL sql.NullString
 	var personalChannelID, personalChannelName sql.NullString
 	var lastSeenKind, note, businessHours sql.NullString
 	var personalPhotoId, fallbackPhotoId, userpicPhotoId sql.NullString
@@ -108,7 +114,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 
 	err := e.db.QueryRow(
 		`SELECT account_id, user_id, display_name, username, phone, bio, avatar_path,
-		        is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen,
+		        is_bot, is_online, is_contact, is_blocked, bot_menu_text,
+		        bot_description, bot_privacy_url, last_seen,
 		        last_seen_kind, has_personal_photo,
 		        personal_photo_id, fallback_photo_id, userpic_photo_id, video_start_position,
 		        birthday_day, birthday_month, birthday_year,
@@ -119,7 +126,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 		 FROM users WHERE account_id = ? AND user_id = ?`,
 		accountID, userID).Scan(
 		&u.AccountID, &u.UserID, &displayName, &username, &phone, &bio, &avatarPath,
-		&isBot, &isOnline, &isContact, &isBlocked, &botMenuText, &lastSeen,
+		&isBot, &isOnline, &isContact, &isBlocked, &botMenuText,
+		&botDescription, &botPrivacyURL, &lastSeen,
 		&lastSeenKind, &hasPersonalPhoto,
 		&personalPhotoId, &fallbackPhotoId, &userpicPhotoId, &u.VideoStartPosition,
 		&u.BirthdayDay, &u.BirthdayMonth, &u.BirthdayYear,
@@ -141,6 +149,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	u.IsContact = isContact == 1
 	u.IsBlocked = isBlocked == 1
 	u.BotMenuText = botMenuText.String
+	u.BotDescription = botDescription.String
+	u.BotPrivacyURL = botPrivacyURL.String
 	u.LastSeenKind = lastSeenKind.String
 	u.HasPersonalPhoto = hasPersonalPhoto == 1
 	u.PersonalPhotoId = personalPhotoId.String
