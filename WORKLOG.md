@@ -2469,3 +2469,40 @@ CORE-ONLY. Remaining top items: emoji-panel animated previews, live
 location map tiles, retract/stop poll live-test on a real account,
 bale/rubika vantage problem, in-app video blocked (see
 research/video_player.md).
+
+## 2026-09-11 — freeze fix: bot-chat click (owner report) — RPC hygiene
+
+Owner report: "clicking on a telegram bot chat froze the client". Root cause
+(found by audit, proven by a failing test):
+
+- ~840 TelegramCore methods held t.mu across t.api.* RPCs. t.ctx carries no
+  deadline and gotd 0.161 runs NO heartbeat by default, so a half-open TCP
+  connection (network switch / suspend-resume / NAT drop) hangs RPCs FOREVER,
+  pinning t.mu. Go's fair RWMutex then starves every queued writer and every
+  later reader — any GUI-goroutine core call freezes the window.
+- The exact trigger path: clicking a bot chat fires GetMessages +
+  GetPinnedMessages + GetFullUser (DM) + GetChatBotCommands concurrently —
+  4 RPC-holding readers at once; Logout even held the WRITE lock across its
+  RPC (worst variant). GetFullUser could chain a SECOND RPC
+  (help.getTimezonesList for business-hours users) under the same lock.
+
+Fix (two layers, following the file's own GetAdminRanks precedent):
+
+1. rpcGuard invoker (single choke point, all t.api creation sites): every
+   RPC gets a 60s deadline (tdesktop's default request timeout) unless the
+   caller already set one — dead connections surface as errors, never hangs.
+2. Snapshot pattern (withAPI) on the chat-open hot path: GetMessages,
+   GetPinnedMessages, GetFullUser, GetChatBotCommands, MarkAsRead hold t.mu
+   only long enough to snapshot authed/api/ctx; RPCs run unlocked. Logout
+   snapshots under the write lock and runs auth.logOut after releasing.
+
+Tests (cores/telegram_freeze_test.go): stuckInvoker (ctx-ignoring worst
+case) + hungInvoker (gotd-accurate ctx-honoring). Proven non-vacuous: with
+the pre-fix RLock-across-RPC pattern restored, the GetMessages subtest FAILS
+with "t.mu write lock starved for 2s" — the exact freeze mechanism. Post-fix:
+all 6 hot-path subtests + Logout + 3 rpcGuard deadline tests + withAPI auth
+test green; full gofmt/vet/test gate green across all 8 packages.
+
+Next: continue §11 topmost unchecked items (inline keyboard rendering for
+bot messages is the natural follow-up — the GUI currently ignores
+m.Extra["inline_keyboard"] entirely, noticed during this audit).

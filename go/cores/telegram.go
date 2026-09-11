@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/url"
 
+	"github.com/gotd/td/bin"
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
@@ -1274,7 +1275,7 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 	go func() {
 		defer t.wg.Done()
 		errCh <- t.client.Run(t.ctx, func(ctx context.Context) error {
-			api := tg.NewClient(t.client)
+			api := t.guardedClient()
 			up := uploader.NewUploader(api)
 			sndr := message.NewSender(api).WithUploader(up)
 
@@ -1881,15 +1882,22 @@ func isContextErr(err error) bool {
 
 // Logout signs out of the current Telegram session and closes the connection.
 func (t *TelegramCore) Logout() error {
+	// Snapshot under the write lock, run the logout RPC AFTER releasing:
+	// holding the WRITE lock across an RPC blocks every reader (the whole
+	// core) for the RPC's entire duration — the worst freeze variant.
 	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if t.api != nil && t.authed {
-		t.api.AuthLogOut(t.ctx)
-	}
+	api, ctx := t.api, t.ctx
 	t.authed = false
-	if t.cancel != nil {
-		t.cancel()
+	t.api = nil
+	t.sender = nil
+	cancel := t.cancel
+	t.mu.Unlock()
+
+	if api != nil {
+		_, _ = api.AuthLogOut(ctx)
+	}
+	if cancel != nil {
+		cancel()
 	}
 	return nil
 }
@@ -2164,10 +2172,11 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 
 // GetMessages retrieves messages from a chat with pagination support.
 func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// Snapshot auth + api under a brief lock; the history RPCs run unlocked
+	// (withAPI rule) so a slow/hung getHistory can never pin t.mu.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	peer, err := t.resolvePeer(chatID)
@@ -2195,14 +2204,14 @@ func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Messag
 	}
 
 	// Try getHistory first (works for user mode), fall back to search (works for bots)
-	result, err := t.api.MessagesGetHistory(t.ctx, &tg.MessagesGetHistoryRequest{
+	result, err := api.MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{
 		Peer:     inputPeer,
 		Limit:    limit,
 		OffsetID: offsetID,
 	})
 	if err != nil {
 		// Bots get BOT_METHOD_INVALID for getHistory — fallback to search
-		result, err = t.api.MessagesSearch(t.ctx, &tg.MessagesSearchRequest{
+		result, err = api.MessagesSearch(ctx, &tg.MessagesSearchRequest{
 			Peer:     inputPeer,
 			Q:        "",
 			Filter:   &tg.InputMessagesFilterEmpty{},
@@ -2219,10 +2228,9 @@ func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Messag
 
 // GetPinnedMessages returns all pinned messages in a chat.
 func (t *TelegramCore) GetPinnedMessages(chatID string) ([]Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	if err != nil {
+		return nil, err
 	}
 
 	peer, err := t.resolvePeer(chatID)
@@ -2234,7 +2242,7 @@ func (t *TelegramCore) GetPinnedMessages(chatID string) ([]Message, error) {
 		return nil, err
 	}
 
-	result, err := t.api.MessagesSearch(t.ctx, &tg.MessagesSearchRequest{
+	result, err := api.MessagesSearch(ctx, &tg.MessagesSearchRequest{
 		Peer:   inputPeer,
 		Q:      "",
 		Filter: &tg.InputMessagesFilterPinned{},
@@ -2582,10 +2590,9 @@ func (t *TelegramCore) UnpinMessage(chatID string, msgID string) error {
 
 // MarkAsRead marks all messages in a chat as read.
 func (t *TelegramCore) MarkAsRead(chatID string, upToMsgID string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	if err != nil {
+		return err
 	}
 
 	peer, err := t.resolvePeer(chatID)
@@ -2600,7 +2607,7 @@ func (t *TelegramCore) MarkAsRead(chatID string, upToMsgID string) error {
 	// Channels/supergroups use channels.readHistory
 	if ch, ok := peer.(*tg.PeerChannel); ok {
 		hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-		_, err = t.api.ChannelsReadHistory(t.ctx, &tg.ChannelsReadHistoryRequest{
+		_, err = api.ChannelsReadHistory(ctx, &tg.ChannelsReadHistoryRequest{
 			Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 			MaxID:   id,
 		})
@@ -2609,7 +2616,7 @@ func (t *TelegramCore) MarkAsRead(chatID string, upToMsgID string) error {
 
 	// Regular chats/DMs use messages.readHistory
 	inputPeer, _ := t.toInputPeer(peer)
-	_, err = t.api.MessagesReadHistory(t.ctx, &tg.MessagesReadHistoryRequest{
+	_, err = api.MessagesReadHistory(ctx, &tg.MessagesReadHistoryRequest{
 		Peer:  inputPeer,
 		MaxID: id,
 	})
@@ -12385,8 +12392,8 @@ func tgUserID(s string) (int64, error) {
 	return id, nil
 }
 
-// withPeer acquires a read lock, checks auth, resolves the peer, and returns the input peer.
-// Caller must NOT hold t.mu. The lock is held for the duration via the returned unlock func.
+// withPeer resolves a chat ID under a brief read lock and returns the input
+// peer with the release func — RPCs must run AFTER the release (see withAPI).
 func (t *TelegramCore) withPeer(chatID string) (tg.InputPeerClass, func(), error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -12404,6 +12411,67 @@ func (t *TelegramCore) withPeer(chatID string) (tg.InputPeerClass, func(), error
 		return nil, nil, err
 	}
 	return inputPeer, t.mu.RUnlock, nil
+}
+
+// ── RPC hygiene: deadlines + lock-free hot paths ──────────────────────────
+//
+// Freeze class this section eliminates (owner-reported: clicking a Telegram
+// bot chat froze the client): ~840 core methods held t.mu across t.api.*
+// RPCs. t.ctx carries no deadline, gotd 0.161 runs no heartbeat by default,
+// so a half-open TCP connection (network switch, suspend/resume, NAT drop)
+// hangs RPCs FOREVER — pinning t.mu. Go's RWMutex is fair: one queued writer
+// then blocks every new reader, and any GUI-goroutine core call freezes the
+// window. Two complementary fixes, both following the file's own GetAdminRanks
+// precedent:
+//
+//  1. rpcGuard (below): every t.api call goes through one guarded invoker —
+//     each RPC gets a 60s deadline (tdesktop's default request timeout), so
+//     even a dead connection returns an error instead of hanging forever.
+//  2. withAPI / snapshot rewrites on the chat-open hot path: the lock is held
+//     only long enough to snapshot authed/api/ctx, never across the RPC.
+
+// rpcTimeout bounds a single MTProto RPC when the caller set no deadline of
+// its own. Generous by design: the biggest legit RPCs (full history page,
+// instant-view fetch, 1MB file chunk on a slow link) all finish well inside
+// 60s; anything longer is a dead connection, not slowness.
+const rpcTimeout = 60 * time.Second
+
+// rpcGuard wraps the gotd invoker so every API call carries a deadline.
+type rpcGuard struct {
+	next    tg.Invoker
+	timeout time.Duration // 0 → rpcTimeout (injectable for tests)
+}
+
+func (g rpcGuard) Invoke(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
+	if _, ok := ctx.Deadline(); !ok {
+		timeout := g.timeout
+		if timeout <= 0 {
+			timeout = rpcTimeout
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return g.next.Invoke(ctx, input, output)
+}
+
+// guardedClient wraps the live gotd client in the deadline-guarded API
+// client used for t.api / t.preAuthAPI everywhere.
+func (t *TelegramCore) guardedClient() *tg.Client {
+	return tg.NewClient(rpcGuard{next: t.client})
+}
+
+// withAPI snapshots the live API client + session context under a brief
+// read lock. Rule: never hold t.mu across a network RPC — a hung or slow RPC
+// would pin the mutex and starve queued writers plus every later reader.
+// The returned client and ctx stay valid for the whole post-auth session.
+func (t *TelegramCore) withAPI() (*tg.Client, context.Context, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, nil, ErrAuth
+	}
+	return t.api, t.ctx, nil
 }
 
 // resolvePeer resolves a chat ID string to a tg.PeerClass.
@@ -14625,7 +14693,7 @@ func (t *TelegramCore) StartQRAuth() (tokenURL string, expiresSecs int, err erro
 	go func() {
 		defer t.wg.Done()
 		errCh <- t.client.Run(t.ctx, func(ctx context.Context) error {
-			api := tg.NewClient(t.client)
+			api := t.guardedClient()
 			up := uploader.NewUploader(api)
 			sndr := message.NewSender(api).WithUploader(up)
 
@@ -21136,17 +21204,18 @@ func (t *TelegramCore) ToggleForumTabs(chatID string, enabled bool, tabs bool) e
 
 // GetFullUser returns full profile information for a user by their ID.
 func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: the UsersGetFullUser RPC (plus the timezone-list fetch
+	// below for business-hours users) runs WITHOUT t.mu held.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	id, err := tgUserID(userID)
 	if err != nil {
 		return nil, err
 	}
 	hash := t.getCachedUserHash(id)
-	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: id, AccessHash: hash})
+	result, err := api.UsersGetFullUser(ctx, &tg.InputUser{UserID: id, AccessHash: hash})
 	if err != nil {
 		return nil, err
 	}
@@ -21257,10 +21326,12 @@ type BotCommandEntry struct {
 // For DM bots: returns the bot's commands from UsersGetFullUser.
 // For groups/channels: returns all bot commands from MessagesGetFullChat/ChannelsGetFullChannel.
 func (t *TelegramCore) GetChatBotCommands(chatID string) ([]BotCommandEntry, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: the full-user/full-chat RPCs run WITHOUT t.mu held —
+	// opening a bot chat fires this alongside GetMessages + GetFullUser, and
+	// three concurrent RLock-across-RPC holders were the reported freeze.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -21272,7 +21343,7 @@ func (t *TelegramCore) GetChatBotCommands(chatID string) ([]BotCommandEntry, err
 	switch p := peer.(type) {
 	case *tg.PeerUser:
 		hash := t.getCachedUserHash(p.UserID)
-		result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: p.UserID, AccessHash: hash})
+		result, err := api.UsersGetFullUser(ctx, &tg.InputUser{UserID: p.UserID, AccessHash: hash})
 		if err != nil {
 			return nil, err
 		}
@@ -21306,7 +21377,7 @@ func (t *TelegramCore) GetChatBotCommands(chatID string) ([]BotCommandEntry, err
 		return entries, nil
 
 	case *tg.PeerChat:
-		result, err := t.api.MessagesGetFullChat(t.ctx, p.ChatID)
+		result, err := api.MessagesGetFullChat(ctx, p.ChatID)
 		if err != nil {
 			return nil, err
 		}
@@ -21325,7 +21396,7 @@ func (t *TelegramCore) GetChatBotCommands(chatID string) ([]BotCommandEntry, err
 
 	case *tg.PeerChannel:
 		hash, _ := t.resolveChannelAccessHash(p.ChannelID)
-		result, err := t.api.ChannelsGetFullChannel(t.ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash})
+		result, err := api.ChannelsGetFullChannel(ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash})
 		if err != nil {
 			return nil, err
 		}
@@ -30556,7 +30627,7 @@ func (t *TelegramCore) ensurePreAuthAPI() (*tg.Client, context.Context, error) {
 	go func() {
 		defer t.wg.Done()
 		errCh <- t.client.Run(ctx, func(rctx context.Context) error {
-			api := tg.NewClient(t.client)
+			api := t.guardedClient()
 			t.mu.Lock()
 			t.preAuthAPI = api
 			t.mu.Unlock()
