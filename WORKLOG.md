@@ -2229,3 +2229,14 @@ pure-Go Bodymovin subset parser, no new dependencies.
   Green.
 - Next stage: keyframe interpolation (linear/bezier/hold + spatial) and
   transform composition, then the Gio renderer + sticker-bubble wiring.
+
+## 2026-09-11 — slice 122 (stage B): lottie keyframe + transform engine
+
+- PropValueAt/PropVecAt: keyframe segment resolution (before/after span
+  clamps, hold keyframes, end-value completion), per-dimension bezier
+  easing via easingBezier (Newton-Raphson cubic-bezier timing solver),
+  spatial (positional) bezier interpolation with to/ti tangents.
+- affine matrix type + parent-chain composition; TransformAt implements
+  the Bodymovin order p' = R·S·(p − anchor) + position with opacity
+  normalized to 0..1 — anchor-maps-to-position pinned by test.
+- All pure math, 4 test functions green.
