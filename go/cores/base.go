@@ -494,6 +494,30 @@ type StickerPackSummary struct {
 	Installed  bool          `json:"installed"`
 }
 
+// StarsTxn is one Telegram Stars transaction on the user's balance:
+// a signed nanostar amount, the counterparty (or the bought product's
+// title), and its state flags.
+type StarsTxn struct {
+	ID          string
+	NanoStars   int64  // signed: positive = received, negative = spent
+	Date        int64  // unix
+	PeerTitle   string // counterparty display name ("" when unresolvable)
+	Title       string // bought-product title (bot transactions)
+	Description string
+	Refund      bool
+	Pending     bool
+	Failed      bool
+	Gift        bool
+}
+
+// StarsStatus is the user's Telegram Stars balance + transaction
+// history page (payments.getStarsTransactions with Peer=self).
+type StarsStatus struct {
+	BalanceNano int64
+	Txns        []StarsTxn
+	NextOffset  string
+}
+
 // PremiumPlanOption is one Telegram Premium subscription option
 // (help.getPremiumPromo PeriodOptions): duration, price and the payment
 // deep link that opens the subscribe flow.

@@ -3153,3 +3153,51 @@ intentionally out — dead UI). 150 PRESENT / 32 PARTIAL / 9 MISSING /
 Next candidates: stars balance + transactions (CORE-ONE), business
 section (CORE-ONLY), chat preview popup on hover, Windows taskbar
 overlay badge, 2FA completion.
+
+## 2026-09-12 — slice 144: Telegram Stars page + dead-clickable fixes
+
+The Stars box (balance + transaction history) plus a real bug class
+fixed: visible controls whose Clickable was checked but never rendered.
+
+- RESEARCH: gotd v0.161.0 PaymentsStarsStatus verified — Balance +
+  History []StarsTransaction (ID, signed nanostar Amount, Date,
+  StarsTransactionPeer wrapping PeerUser/PeerChannel/PeerChat, optional
+  Title/Description behind Flags bits 0/1, Refund/Pending/Failed/Gift),
+  names resolved from the response's Users/Chats; NextOffset pagination;
+  inbound/outbound filter flags. No topup-URL RPC exists in gotd — the
+  Buy button is honestly omitted (purchase runs through the store/bot).
+- BUG FIX (found while writing the stars tabs): slices 139+140 shipped
+  DEAD CLICKABLES — sticker-mgr Stickers/Emoji tab buttons and account
+  chips, and every language row: Clicked(gtx) was checked but the
+  clickable was never wrapped in material.ButtonLayout, so no pointer
+  events ever arrived (§1.10 violation: visible controls that do
+  nothing). Fixed all five surfaces (sticker tabs+chips, language rows,
+  folder-mgr chips, premium chips; stars written correctly from the
+  start). Unit tests can't catch this class (it needs a render + pointer
+  event) — the guard is review: every Clicked() must have its
+  ButtonLayout/IconButton render in the same row.
+- Also: slice 143's verify CI went RED on the gofmt gate
+  (cores/telegram_premium_test.go + engine/premium_business.go were
+  committed unformatted); both gofmt'd in this slice's tree — the gate
+  is green locally now, and this push carries the fix.
+- CORE: StarsTxn/StarsStatus types; starsStatusFromWire (pure — signed
+  nanostars, peer-name resolution, flag carry-through) + GetMyStars
+  (payments.getStarsTransactions Peer=InputPeerSelf, withAPI, in/out
+  filters).
+- ENGINE: GetMyStars seam (nil for cores without stars — honest hide).
+- GUI (gui/settingsstars.go): Settings → Main "Telegram Stars" entry
+  card (Telegram accounts only) → page: balance card, filter tabs,
+  transaction rows (title priority, description/date subtitle, status
+  chips, signed amount), load-more, account chips, reload.
+- Tests-first: cores wire mapping (names, signs, flags, nil-safety,
+  conditional-field flags set like the decoder does) + gui formatting
+  (nanostar→trimmed decimals), amount labels, title priority, status
+  chips, filter tabs.
+- Gate: gofmt/vet/test green (goolm); windows + wasm cross-builds green;
+  Xvfb GUI boot clean.
+
+Parity: Stars row CORE-ONLY→PARTIAL (gifting + withdraw remain).
+150 PRESENT / 33 PARTIAL / 9 MISSING / 26 CORE-ONLY.
+
+Next candidates: business section (CORE-ONLY), chat preview popup,
+Windows taskbar overlay badge, 2FA completion, message-shot renderer.

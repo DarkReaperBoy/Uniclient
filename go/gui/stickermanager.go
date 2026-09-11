@@ -19,6 +19,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
+	"gioui.org/widget/material"
 
 	"uniclient/cores"
 )
@@ -474,7 +475,10 @@ func (a *App) acctChipsFlexChildren(gtx layout.Context, f frame, st *stickerMgrS
 				txtCol = a.ui.p.Accent
 			}
 			return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return roundedFill(gtx, bg, 14, func(gtx layout.Context) layout.Dimensions {
+				bl := material.ButtonLayout(a.ui.Theme, &stickerMgrAcctBtns[i])
+				bl.Background = bg
+				bl.CornerRadius = 14
+				return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						lbl := a.ui.Label(unit.Sp(12), accountName(acc))
 						lbl.Color = txtCol
@@ -497,7 +501,12 @@ func (a *App) mgrTabChild(gtx layout.Context, idx int, label string, active bool
 			txtCol = a.ui.p.Accent
 		}
 		return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return roundedFill(gtx, bg, 16, func(gtx layout.Context) layout.Dimensions {
+			// ButtonLayout renders the clickable's event area — a bare
+			// roundedFill would leave Clicked() dead (§1.10).
+			bl := material.ButtonLayout(a.ui.Theme, &stickerMgrTabBtns[idx])
+			bl.Background = bg
+			bl.CornerRadius = 16
+			return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					lbl := a.ui.Label(unit.Sp(13), label)
 					lbl.Color = txtCol

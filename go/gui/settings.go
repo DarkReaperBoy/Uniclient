@@ -351,6 +351,9 @@ func (a *App) settingsPage(gtx layout.Context, f frame) layout.Dimensions {
 				if f.premiumPage != nil {
 					return a.layoutPremiumPage(gtx, f)
 				}
+				if f.starsPage != nil {
+					return a.layoutStarsPage(gtx, f)
+				}
 				switch f.settingsSect {
 				case setSectionMain:
 					return a.setPageMain(gtx, f)
@@ -548,6 +551,14 @@ func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 	if premiumEntryVisible(f.accounts) {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.premiumEntryRow(gtx, f)
+		}))
+	}
+
+	// Telegram Stars entry (slice 144, tdesktop's Stars box): balance
+	// + transaction history. Telegram-platform accounts only.
+	if premiumEntryVisible(f.accounts) {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.starsEntryRow(gtx, f)
 		}))
 	}
 

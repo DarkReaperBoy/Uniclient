@@ -447,7 +447,10 @@ func (a *App) folderMgrAcctChips(gtx layout.Context, f frame, st *folderMgrState
 				txtCol = a.ui.p.Accent
 			}
 			return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return roundedFill(gtx, bg, 14, func(gtx layout.Context) layout.Dimensions {
+				bl := material.ButtonLayout(a.ui.Theme, &folderMgrAcctBtns[i])
+				bl.Background = bg
+				bl.CornerRadius = 14
+				return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						lbl := a.ui.Label(unit.Sp(12), accountName(acc))
 						lbl.Color = txtCol

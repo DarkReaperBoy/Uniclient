@@ -14,6 +14,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
+	"gioui.org/widget/material"
 
 	"uniclient/engine"
 )
@@ -161,7 +162,12 @@ func (a *App) langRow(gtx layout.Context, f frame, l engine.LanguageInfo, i int,
 		if active {
 			bg = a.ui.p.AccentDim
 		}
-		return roundedFill(gtx, bg, 10, func(gtx layout.Context) layout.Dimensions {
+		// ButtonLayout renders the clickable's event area — a bare
+		// roundedFill would leave Clicked() dead (§1.10).
+		bl := material.ButtonLayout(a.ui.Theme, &langRowBtns[i])
+		bl.Background = bg
+		bl.CornerRadius = 10
+		return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {

@@ -25242,6 +25242,89 @@ func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, 
 	}, nil
 }
 
+// starsStatusFromWire maps the payments.getStarsTransactions payload
+// (Peer=self) onto the typed status — signed nanostar amounts carried
+// through, counterparty names resolved from the response's users/chats.
+// Pure.
+func starsStatusFromWire(res *tg.PaymentsStarsStatus) StarsStatus {
+	if res == nil {
+		return StarsStatus{}
+	}
+	names := map[int64]string{}
+	for _, u := range res.Users {
+		if user, ok := u.(*tg.User); ok {
+			names[user.ID] = userDisplayName(user)
+		}
+	}
+	for _, c := range res.Chats {
+		switch ch := c.(type) {
+		case *tg.Channel:
+			names[ch.ID] = ch.Title
+		case *tg.Chat:
+			names[ch.ID] = ch.Title
+		}
+	}
+	out := StarsStatus{NextOffset: res.NextOffset}
+	if res.Balance != nil {
+		out.BalanceNano = res.Balance.GetAmount()
+	}
+	for _, tx := range res.History {
+		t := StarsTxn{
+			ID:        tx.ID,
+			NanoStars: tx.Amount.GetAmount(),
+			Date:      int64(tx.Date),
+			Refund:    tx.Refund,
+			Pending:   tx.Pending,
+			Failed:    tx.Failed,
+			Gift:      tx.Gift,
+		}
+		if title, ok := tx.GetTitle(); ok {
+			t.Title = title
+		}
+		if desc, ok := tx.GetDescription(); ok {
+			t.Description = desc
+		}
+		if sp, ok := tx.Peer.(*tg.StarsTransactionPeer); ok {
+			switch p := sp.Peer.(type) {
+			case *tg.PeerUser:
+				t.PeerTitle = names[p.UserID]
+			case *tg.PeerChannel:
+				t.PeerTitle = names[p.ChannelID]
+			case *tg.PeerChat:
+				t.PeerTitle = names[p.ChatID]
+			}
+		}
+		out.Txns = append(out.Txns, t)
+	}
+	return out
+}
+
+// GetMyStars returns the user's own Telegram Stars balance and
+// transaction history (payments.getStarsTransactions with Peer=self).
+// filter: "" all, "in" incoming only, "out" outgoing only.
+func (t *TelegramCore) GetMyStars(offset, filter string) (StarsStatus, error) {
+	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	if err != nil {
+		return StarsStatus{}, err
+	}
+	req := &tg.PaymentsGetStarsTransactionsRequest{
+		Peer:   &tg.InputPeerSelf{},
+		Offset: offset,
+		Limit:  30,
+	}
+	switch filter {
+	case "in":
+		req.Inbound = true
+	case "out":
+		req.Outbound = true
+	}
+	res, err := api.PaymentsGetStarsTransactions(ctx, req)
+	if err != nil {
+		return StarsStatus{}, fmt.Errorf("get stars transactions: %w", err)
+	}
+	return starsStatusFromWire(res), nil
+}
+
 // GetStarsTransactions returns the Stars transaction history for the channel's
 // balance — the earn section's transaction list (info_channel_earn_list.cpp:1288).
 func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, filter string) (map[string]interface{}, error) {

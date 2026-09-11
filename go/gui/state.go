@@ -208,6 +208,7 @@ type App struct {
 	stickerMgr        *stickerMgrState       // stickers & emoji manager (slice 139)
 	folderMgr         *folderMgrState        // chat-folders manager (slice 142)
 	premiumPage       *premiumPageState      // Telegram Premium page (slice 143)
+	starsPage         *starsPageState        // Telegram Stars page (slice 144)
 	langCode          string                 // active language (slice 140)
 	langStrings       map[string]string      // pack overrides (copy-on-write)
 	langStringsLoaded bool                   // restore-once guard
@@ -1791,6 +1792,7 @@ func (a *App) snapshot() frame {
 		stickerMgr:       a.stickerMgr,
 		folderMgr:        a.folderMgr,
 		premiumPage:      a.premiumPage,
+		starsPage:        a.starsPage,
 		langCode:         a.langCode,
 		langStrings:      a.langStrings,
 		langs:            a.langs,
@@ -2019,6 +2021,7 @@ type frame struct {
 	stickerMgr     *stickerMgrState       // stickers & emoji manager (slice 139)
 	folderMgr      *folderMgrState        // chat-folders manager (slice 142)
 	premiumPage    *premiumPageState      // Telegram Premium page (slice 143)
+	starsPage      *starsPageState        // Telegram Stars page (slice 144)
 	langCode       string                 // active language (slice 140)
 	langStrings    map[string]string      // pack overrides
 	langs          []engine.LanguageInfo
