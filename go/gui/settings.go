@@ -337,6 +337,9 @@ func (a *App) settingsPage(gtx layout.Context, f frame) layout.Dimensions {
 				if f.profileEdit != nil {
 					return a.layoutProfileEdit(gtx, f, f.profileEdit)
 				}
+				if f.stickerMgr != nil {
+					return a.layoutStickerMgr(gtx, f)
+				}
 				switch f.settingsSect {
 				case setSectionMain:
 					return a.setPageMain(gtx, f)
@@ -507,6 +510,15 @@ func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyConfigBool("hide_all_chats", v)
 		})
 	}))
+
+	// Stickers and Emoji manager entry (slice 139, tdesktop "Stickers
+	// and Emoji"): per-account set manager. Hidden without accounts
+	// (nothing to manage — §1.10 honest states).
+	if len(f.accounts) > 0 {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.stickerMgrEntryRow(gtx, f)
+		}))
+	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }

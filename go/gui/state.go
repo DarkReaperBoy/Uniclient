@@ -205,6 +205,7 @@ type App struct {
 	cloudThemesFor string                 // account name the list came from (slice 66)
 	cloudThemeAcct string                 // account ID the list came from (slice 66)
 	profileEdit    *profileEditState      // own-profile editor (slice 71)
+	stickerMgr     *stickerMgrState       // stickers & emoji manager (slice 139)
 	cloudThemesOn  bool                   // list loaded (slice 66)
 	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
 	cacheTotal     int64
@@ -1739,6 +1740,7 @@ func (a *App) snapshot() frame {
 		cloudThemeAcct:   a.cloudThemeAcct,
 		cloudThemesOn:    a.cloudThemesOn,
 		profileEdit:      a.profileEdit,
+		stickerMgr:       a.stickerMgr,
 		cloudDlg:         a.cloudDlg,
 		cacheTotal:       a.cacheTotal,
 		cacheTags:        a.cacheTags,
@@ -1957,6 +1959,7 @@ type frame struct {
 	cloudThemesOn  bool                   // list loaded (slice 66)
 	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
 	profileEdit    *profileEditState      // own-profile editor (slice 71)
+	stickerMgr     *stickerMgrState       // stickers & emoji manager (slice 139)
 	cacheTotal     int64
 	cacheTags      [6]int64
 	cacheLoaded    bool

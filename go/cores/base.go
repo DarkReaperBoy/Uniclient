@@ -485,6 +485,10 @@ type StickerPackSummary struct {
 	Count      int           `json:"count"`
 	Animated   bool          `json:"animated"`
 	Video      bool          `json:"video"`
+	Archived   bool          `json:"archived"`
+	Masks      bool          `json:"masks,omitempty"`
+	Emojis     bool          `json:"emojis,omitempty"`
+	Official   bool          `json:"official,omitempty"`
 	ThumbB64   string        `json:"thumb_b64"`
 	Stickers   []StickerInfo `json:"stickers"`
 	Installed  bool          `json:"installed"`

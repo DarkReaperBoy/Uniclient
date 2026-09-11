@@ -2933,3 +2933,49 @@ Next candidates (by owner value): sticker/emoji manager settings
 section (installed sets: archive/reorder/delete), chat preview popup on
 row hover, Windows taskbar overlay badge, 2FA completion, dice/games
 message rendering (needs a lottie dice pack renderer decision).
+
+## 2026-09-11 — slice 139: Stickers and Emoji manager (Settings)
+
+tdesktop's "Stickers and Emoji" settings page, per-account, honest end to
+end (research: gotd v0.161.0 schema re-verified —
+messages.installStickerSet carries the Archived bool;
+messages.getArchivedStickers returns covered rows; stickerSet#2dd14edc
+has NO set-level animated/video flags, so those derive from cover
+documents' attributes).
+
+- RATING (§1.14): telegram core sticker methods 7/10 — full surface but
+  t.mu-across-RPC debt on every method (freeze-class, §8) and no archive
+  support → keep + extend + withAPI conversion (7 methods converted:
+  GetInstalledStickerPacks, GetFeaturedStickerPacks, SearchStickerSets,
+  InstallStickerSet, UninstallStickerSet, ReorderStickerSets + the two
+  new ones). Engine fetcher layer 9/10 → extended.
+- CORE: new pure helpers (installedSetSummary, stickerSetCoveredSummary,
+  coveredDocs, mergeArchivedStickerSets, stickerSetInstallRequest) +
+  GetStickerSetSummaries (lightweight 2-RPC listing: getAllStickers +
+  getArchivedStickers, no per-set fetch — the picker's N+1 stays where
+  per-sticker data is needed) + ArchiveStickerSet (installStickerSet
+  Archived flag). StickerPackSummary gains Archived/Masks/Emojis/Official.
+- ENGINE: StickerSetSummariesFetcher + StickerSetArchiver interfaces and
+  passthroughs.
+- GUI (gui/stickermanager.go): Settings → Main entry card → manager page
+  riding the settings shell scroll (profileEdit pattern): Stickers/Emoji
+  tabs, account chips when several accounts, live server search (stale-key
+  drop, 2-rune min) with Add, Trending (featured minus known) with Add,
+  installed rows w/ move up/down + Archive + Delete, Archived section w/
+  Restore + Delete, emoji tab (lazy-loaded) w/ Delete. Every action
+  reloads from the server. Unsupported platforms show the engine error.
+- Tests-first: cores mapping (covered variants, flag bits, merge dedup,
+  archive request) + engine passthrough (stub cores) + gui pure helpers
+  (split, move order, subtitles, filter, featured-visible, search merge,
+  set order). All failing first, green after.
+
+Gate: gofmt/vet/test green (incl. -tags goolm); wasm + windows
+cross-builds green; Xvfb GUI boot clean (single-command harness — the
+sandbox reaps background Xvfb between tool calls, that was the earlier
+boot failure, not a regression).
+
+Parity: Chat-settings row CORE-ONLY→PARTIAL. 148 PRESENT / 32 PARTIAL /
+9 MISSING / 30 CORE-ONLY by row count.
+
+Next candidates: language switch (P2), folders settings CRUD (P2), chat
+preview popup on hover, Windows taskbar overlay badge, 2FA completion.

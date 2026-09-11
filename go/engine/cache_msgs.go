@@ -1600,6 +1600,49 @@ type InstalledStickerPacksFetcher interface {
 	GetInstalledStickerPacks() ([]cores.StickerPackSummary, error)
 }
 
+// StickerSetSummariesFetcher is the manager's lightweight listing:
+// installed + archived set rows in one call, no per-set sticker fetch
+// (slice 139).
+type StickerSetSummariesFetcher interface {
+	GetStickerSetSummaries() ([]cores.StickerPackSummary, error)
+}
+
+func (e *Engine) GetStickerSetSummaries(accountID string) ([]cores.StickerPackSummary, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StickerSetSummariesFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support sticker sets")
+	}
+	return fetcher.GetStickerSetSummaries()
+}
+
+// StickerSetArchiver hides/restores an installed set without deleting it
+// (messages.installStickerSet Archived flag, tdesktop semantics).
+type StickerSetArchiver interface {
+	ArchiveStickerSet(setID, accessHash int64, archived bool) error
+}
+
+func (e *Engine) ArchiveStickerSet(accountID string, setID, accessHash int64, archived bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	archiver, ok := acc.Core.(StickerSetArchiver)
+	if !ok {
+		return fmt.Errorf("platform does not support archiving sticker sets")
+	}
+	return archiver.ArchiveStickerSet(setID, accessHash, archived)
+}
+
 func (e *Engine) GetInstalledStickerPacks(accountID string) ([]cores.StickerPackSummary, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
