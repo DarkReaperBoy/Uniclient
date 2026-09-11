@@ -96,6 +96,57 @@ func chatSwitchAction(name key.Name, ctrl bool) int {
 	return 0
 }
 
+// accountScopeCycle steps the account scope through "" (all chats) and
+// every account ID in list order, wrapping. Pure — unit-tested.
+func accountScopeCycle(accounts []engine.AccountInfo, cur string, delta int) string {
+	if len(accounts) == 0 || delta == 0 {
+		return cur
+	}
+	scopes := make([]string, 0, len(accounts)+1)
+	scopes = append(scopes, "")
+	for _, acc := range accounts {
+		scopes = append(scopes, acc.ID)
+	}
+	idx := 0
+	for i, s := range scopes {
+		if s == cur {
+			idx = i
+			break
+		}
+	}
+	next := ((idx+delta)%len(scopes) + len(scopes)) % len(scopes)
+	return scopes[next]
+}
+
+// accountSwitchStep maps a Tab key press to an account-scope step
+// (+1 Ctrl+Tab, -1 Ctrl+Shift+Tab, 0 otherwise). Pure — unit-tested.
+func accountSwitchStep(name key.Name, ctrl, shift bool) int {
+	if !ctrl || name != key.NameTab {
+		return 0
+	}
+	if shift {
+		return -1
+	}
+	return 1
+}
+
+// switchAccountScope applies one account-scope step (the same path as
+// the sidebar/tray account rows).
+func (a *App) switchAccountScope(delta int) {
+	a.mu.Lock()
+	next := accountScopeCycle(a.accounts, a.acctFilter, delta)
+	if next == a.acctFilter {
+		a.mu.Unlock()
+		return
+	}
+	a.acctFilter = next
+	a.folder = 0
+	scope := next
+	a.mu.Unlock()
+	a.refreshFolders(scope)
+	a.invalidate()
+}
+
 // neighborChat picks the chat delta steps away from the current one in the
 // list (wrapping). cur == nil selects the first (delta > 0) or last chat.
 // Pure — unit-tested.
@@ -162,6 +213,19 @@ func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 		}
 		if step := chatSwitchAction(ke.Name, ke.Modifiers.Contain(key.ModCtrl)); step != 0 {
 			a.handleChatSwitch(f, step)
+		}
+	}
+	// Ctrl+Tab / Ctrl+Shift+Tab (slice 147): cycle the account scope
+	// ("" = all chats, then each account, wrapping).
+	for {
+		ev, ok := gtx.Source.Event(key.Filter{Name: key.NameTab, Required: key.ModCtrl})
+		if !ok {
+			break
+		}
+		if ke, is := ev.(key.Event); is && ke.State == key.Press {
+			if step := accountSwitchStep(ke.Name, true, ke.Modifiers.Contain(key.ModShift)); step != 0 {
+				a.switchAccountScope(step)
+			}
 		}
 	}
 }

@@ -3267,3 +3267,28 @@ Parity: Font row PARTIAL→PRESENT. 152 PRESENT / 32 PARTIAL / 9 MISSING /
 
 Next candidates: business section, message-shot renderer, custom mute
 durations, Alt+jumplist/Ctrl+Tab shortcuts.
+
+## 2026-09-12 — slice 147: Ctrl+Tab account cycling + session wrap
+
+- Ctrl+Tab / Ctrl+Shift+Tab cycle the account scope: "" (all chats) →
+  each account in list order, wrapping (accountScopeCycle, pure —
+  negative-safe modulo, unknown-scope fallback); rides the same
+  acctFilter + refreshFolders path as the sidebar account menu and the
+  tray rows; Tab key filter distinct from the generic ctrl filter (no
+  event conflict).
+- Tests-first: scope-cycle table (forward/backward/wrap/multi-step/
+  unknown/empty), key→step mapping.
+- Gate: gofmt/vet/test green (goolm); windows + wasm + native green;
+  Xvfb boot clean. Slice 146 verify CI (513bbd16): GREEN via API.
+
+Session summary (slices 141-147): notification click-to-open + per-chat
+banner replacement (live dbus wire test), Chat Folders manager,
+Telegram Premium page, Telegram Stars page, dead-clickable fixes across
+slices 139/140, hover chat-preview popup, custom fonts (interface +
+mono), Ctrl+Tab account cycling.
+
+Parity: 152 PRESENT / 32 PARTIAL / 9 MISSING / 25 CORE-ONLY.
+
+Next candidates: business section (away/greeting/work-hours editors —
+core RPCs exist), message-shot renderer, custom mute durations,
+Alt+jumplist, Windows taskbar overlay badge.
