@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	"sort"
 	"strings"
 
 	"gioui.org/f32"
@@ -26,10 +27,13 @@ import (
 // menu gains a Poll entry that opens a creation dialog (question, options,
 // anonymous/multiple/quiz toggles) wired to engine CreatePollEx; received
 // polls render as an interactive bubble — question, tappable options, vote
-// bars with percentages once voted, quiz correct/wrong reveal, and a
-// vote-count footer. Votes go through engine VotePoll with an optimistic
-// local overlay (the core does not yet surface UpdateMessagePoll — counts
-// refresh on the next history reload).
+// bars with percentages once voted, quiz correct/wrong reveal + solution
+// line, and a vote-count footer. Telegram vote semantics (slice 124):
+// single polls vote once and tap-own-choice retracts; multiple polls
+// toggle options with the full set on the wire (VotePollMulti); quizzes
+// lock after the answer; the creator can Stop poll from the context menu.
+// Optimistic overlays mirror server truth (UpdateMessagePoll merges
+// counts into the cache).
 
 // ── model ──────────────────────────────────────────────────────────────────
 
@@ -50,6 +54,7 @@ type pollData struct {
 	Quiz        bool
 	Closed      bool
 	Public      bool
+	Solution    string // quiz explanation, shown after voting
 }
 
 // rawEnvelope decodes just the Extra map of a marshaled cores.Message.
@@ -96,6 +101,7 @@ func parsePollMessage(m *engine.CachedMessage) *pollData {
 	d.Multiple, _ = env.Extra["poll_multiple"].(bool)
 	d.Closed, _ = env.Extra["poll_closed"].(bool)
 	d.Public, _ = env.Extra["poll_public"].(bool)
+	d.Solution = strVal(env.Extra["poll_solution"])
 	if tv, ok := extraNum(env.Extra["poll_total_voters"]); ok {
 		d.TotalVoters = int(tv)
 	}
@@ -124,15 +130,31 @@ func parsePollMessage(m *engine.CachedMessage) *pollData {
 // poll: an option voted locally that the server has not counted yet gets
 // its Chosen flag and a +1 on the counters. Pure — unit-tested.
 func applyPollOverlay(d *pollData, votes map[int]bool) {
-	if d == nil || len(votes) == 0 {
+	if d == nil || votes == nil {
 		return
 	}
+	// The overlay is the user's FULL current vote set (supersedes the
+	// server's Chosen snapshot): additions gain a voter, retractions
+	// drop one, counts never go negative.
+	added, removed := 0, 0
 	for i := range d.Options {
-		if votes[i] && !d.Options[i].Chosen {
+		was, now := d.Options[i].Chosen, votes[i]
+		switch {
+		case now && !was:
 			d.Options[i].Chosen = true
 			d.Options[i].Voters++
-			d.TotalVoters++
+			added++
+		case !now && was:
+			d.Options[i].Chosen = false
+			if d.Options[i].Voters > 0 {
+				d.Options[i].Voters--
+			}
+			removed++
 		}
+	}
+	d.TotalVoters += added - removed
+	if d.TotalVoters < 0 {
+		d.TotalVoters = 0
 	}
 }
 
@@ -201,55 +223,205 @@ func pollIsBody(m *engine.CachedMessage) bool {
 
 // ── voting ─────────────────────────────────────────────────────────────────
 
-// votePollOption casts a vote for option idx (engine VotePoll) and records
-// the optimistic overlay so the bubble reflects it immediately. Single
-// polls lock after the first vote (Telegram default: no revoting);
-// multiple polls accept one vote per option.
-func (a *App) votePollOption(m *engine.CachedMessage, d *pollData, idx int) {
-	if m == nil || d == nil || idx < 0 || idx >= len(d.Options) || d.Closed {
+// pollTapAction decides what a tap on option idx does (Telegram
+// semantics, pure — unit-tested):
+//
+//	"vote"    single poll, first vote
+//	"retract" single poll, tapping own choice takes it back (non-quiz)
+//	"toggle"  multiple poll: flip idx within the vote set
+//	"none"    closed / quiz-locked / switching options / invalid
+func pollTapAction(d *pollData, overlay map[int]bool, idx int) string {
+	if d == nil || idx < 0 || idx >= len(d.Options) || d.Closed {
+		return "none"
+	}
+	chosen := func(i int) bool { return d.Options[i].Chosen }
+	if overlay != nil {
+		chosen = func(i int) bool { return overlay[i] }
+	}
+	if d.Multiple {
+		return "toggle"
+	}
+	if d.Quiz {
+		for i := range d.Options {
+			if chosen(i) {
+				return "none" // quizzes lock after the first answer
+			}
+		}
+		return "vote"
+	}
+	mine := -1
+	for i := range d.Options {
+		if chosen(i) {
+			mine = i
+			break
+		}
+	}
+	switch {
+	case mine < 0:
+		return "vote"
+	case mine == idx:
+		return "retract"
+	default:
+		return "none" // single polls cannot switch to another option
+	}
+}
+
+// nextMultiVoteSet flips idx inside cur and returns the sorted full set
+// (sendVote semantics: the whole set goes on the wire). Pure.
+func nextMultiVoteSet(cur map[int]bool, idx int) []int {
+	next := make(map[int]bool, len(cur)+1)
+	for i, v := range cur {
+		if v {
+			next[i] = true
+		}
+	}
+	if next[idx] {
+		delete(next, idx)
+	} else {
+		next[idx] = true
+	}
+	out := make([]int, 0, len(next))
+	for i := range next {
+		out = append(out, i)
+	}
+	sort.Ints(out)
+	return out
+}
+
+// tapPollOption handles a tap on poll option idx: first vote, retraction
+// (non-quiz single polls) or set-toggle (multiple polls, full set on the
+// wire via VotePollMulti). Optimistic overlay mirrors the server truth.
+func (a *App) tapPollOption(m *engine.CachedMessage, d *pollData, idx int) {
+	if m == nil || d == nil {
 		return
 	}
 	k := pollVoteKey(m)
-	a.mu.Lock()
-	voted := a.pollVotes[k]
-	already := voted[idx]
-	if !d.Multiple && len(voted) > 0 {
-		already = true
+	overlay := a.pollVotesFor(k)
+	switch pollTapAction(d, overlay, idx) {
+	case "none":
+		return
+	case "vote":
+		msg := *m
+		go func() {
+			if err := a.eng.VotePoll(msg.AccountID, msg.ChatID, msg.MsgID, idx); err != nil {
+				a.setToast("Vote failed: " + err.Error())
+				return
+			}
+			a.setPollOverlay(k, map[int]bool{idx: true})
+		}()
+	case "retract":
+		msg := *m
+		go func() {
+			if err := a.eng.RetractPollVote(msg.AccountID, msg.ChatID, msg.MsgID); err != nil {
+				a.setToast("Retract failed: " + err.Error())
+				return
+			}
+			a.setPollOverlay(k, map[int]bool{}) // explicitly empty = retracted
+		}()
+	case "toggle":
+		cur := overlay
+		if cur == nil {
+			cur = make(map[int]bool, len(d.Options))
+			for i, o := range d.Options {
+				if o.Chosen {
+					cur[i] = true
+				}
+			}
+		}
+		next := nextMultiVoteSet(cur, idx)
+		msg := *m
+		go func() {
+			if err := a.eng.VotePollMulti(msg.AccountID, msg.ChatID, msg.MsgID, next); err != nil {
+				a.setToast("Vote failed: " + err.Error())
+				return
+			}
+			set := make(map[int]bool, len(next))
+			for _, i := range next {
+				set[i] = true
+			}
+			a.setPollOverlay(k, set)
+		}()
 	}
-	a.mu.Unlock()
-	if already {
+}
+
+// pollEffectiveClosed folds the optimistic stop overlay into the poll
+// state (a server-confirmed stop stays locally closed until the poll
+// update lands). Pure.
+func pollEffectiveClosed(d *pollData, stopped bool) bool {
+	if d == nil {
+		return false
+	}
+	return d.Closed || stopped
+}
+
+// stopPollMessage closes an own open poll through the engine and pins the
+// optimistic closed overlay.
+func (a *App) stopPollMessage(m *engine.CachedMessage) {
+	if m == nil {
 		return
 	}
-	msg := *m
-
+	k := pollVoteKey(m)
+	accountID, chatID, msgID := m.AccountID, m.ChatID, m.MsgID
 	go func() {
-		if err := a.eng.VotePoll(msg.AccountID, msg.ChatID, msg.MsgID, idx); err != nil {
-			a.setToast("Vote failed: " + err.Error())
+		if err := a.eng.StopPoll(accountID, chatID, msgID); err != nil {
+			a.setToast("Stop poll failed: " + err.Error())
 			return
 		}
 		a.mu.Lock()
-		if a.pollVotes == nil {
-			a.pollVotes = make(map[string]map[int]bool)
+		if a.pollStopped == nil {
+			a.pollStopped = make(map[string]bool)
 		}
-		if a.pollVotes[k] == nil {
-			a.pollVotes[k] = make(map[int]bool)
-		}
-		a.pollVotes[k][idx] = true
+		a.pollStopped[k] = true
 		a.mu.Unlock()
 		a.invalidate()
+		a.setToast("Poll stopped")
 	}()
+}
+
+// stopPollMenuGate: the creator's own, still-open polls offer Stop poll.
+func stopPollMenuGate(m *engine.CachedMessage) bool {
+	if m == nil || !m.IsOutgoing || !pollIsBody(m) {
+		return false
+	}
+	d := parsePollMessage(m)
+	return d != nil && !d.Closed
 }
 
 // pollVotesFor returns a copy of the overlay votes for a message key.
 func (a *App) pollVotesFor(key string) map[int]bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	src := a.pollVotes[key]
+	src, ok := a.pollVotes[key]
+	if !ok {
+		return nil // no overlay this session — server truth stands
+	}
 	out := make(map[int]bool, len(src))
 	for i, v := range src {
 		out[i] = v
 	}
 	return out
+}
+
+// setPollOverlay stores the user's full vote set for a poll (empty map =
+// explicitly retracted) and repaints.
+func (a *App) setPollOverlay(key string, votes map[int]bool) {
+	a.mu.Lock()
+	if a.pollVotes == nil {
+		a.pollVotes = make(map[string]map[int]bool)
+	}
+	if votes == nil {
+		votes = make(map[int]bool)
+	}
+	a.pollVotes[key] = votes
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// pollStoppedFor reports the optimistic stop overlay for a poll.
+func (a *App) pollStoppedFor(key string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.pollStopped[key]
 }
 
 // ── poll option clickables (stable per poll+option) ────────────────────────
@@ -278,6 +450,7 @@ func (a *App) pollBlock(gtx layout.Context, m *engine.CachedMessage) layout.Dime
 		return layout.Dimensions{}
 	}
 	applyPollOverlay(d, a.pollVotesFor(pollVoteKey(m)))
+	d.Closed = pollEffectiveClosed(d, a.pollStoppedFor(pollVoteKey(m)))
 
 	voted := false
 	for _, o := range d.Options {
@@ -316,6 +489,17 @@ func (a *App) pollBlock(gtx layout.Context, m *engine.CachedMessage) layout.Dime
 			return lbl.Layout(gtx)
 		})
 	}))
+	// Quiz explanation (AyuGram: the solution line appears once voted).
+	if d.Quiz && voted && d.Solution != "" {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				lbl := a.ui.Dim(unit.Sp(12), d.Solution)
+				lbl.Color = a.ui.p.TextDim
+				lbl.MaxLines = 3
+				return lbl.Layout(gtx)
+			})
+		}))
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
@@ -324,9 +508,8 @@ func (a *App) pollBlock(gtx layout.Context, m *engine.CachedMessage) layout.Dime
 // chosen answer highlighted, and quiz correct/wrong marks revealed.
 func (a *App) pollOptionRow(gtx layout.Context, m *engine.CachedMessage, d *pollData, opt pollOption, idx int, baseKey string, showResults, voted bool) layout.Dimensions {
 	btn := pollOptClickable(baseKey + "|" + itoa(idx))
-	canVote := !voted || d.Multiple
-	if !d.Closed && canVote && btn.Clicked(gtx) {
-		a.votePollOption(m, d, idx)
+	if !d.Closed && btn.Clicked(gtx) {
+		a.tapPollOption(m, d, idx) // vote / retract / toggle, locks inside
 	}
 
 	if !showResults {

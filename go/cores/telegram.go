@@ -1136,6 +1136,9 @@ func (t *TelegramCore) initClient() {
 			if tv, ok := res.GetTotalVoters(); ok {
 				extra["poll_total_voters"] = tv
 			}
+			if sol, ok := res.GetSolution(); ok && sol != "" {
+				extra["poll_solution"] = sol
+			}
 		}
 		if poll, ok := u.GetPoll(); ok {
 			if poll.Closed {
@@ -13079,6 +13082,9 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 			m.Extra["poll_options"] = opts
 			if tv, ok := res.GetTotalVoters(); ok {
 				m.Extra["poll_total_voters"] = tv
+			}
+			if sol, ok := res.GetSolution(); ok && sol != "" {
+				m.Extra["poll_solution"] = sol
 			}
 			if rv, ok := res.GetRecentVoters(); ok && len(rv) > 0 {
 				voterIDs := make([]string, 0, len(rv))

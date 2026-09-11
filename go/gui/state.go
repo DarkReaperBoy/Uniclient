@@ -290,8 +290,9 @@ type App struct {
 	schedDlg *schedDlgState
 
 	// polls (AyuGram parity slice 42): creation dialog + optimistic votes
-	pollDlg   *pollDlgState
-	pollVotes map[string]map[int]bool
+	pollDlg     *pollDlgState
+	pollVotes   map[string]map[int]bool
+	pollStopped map[string]bool // pollVoteKey → optimistic stop overlay (slice 124)
 
 	// translations (AyuGram Ayu translator, slice 46): shown message
 	// translations, keyed account|chat|msg.

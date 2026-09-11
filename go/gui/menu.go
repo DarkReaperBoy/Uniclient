@@ -348,6 +348,14 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.openStickerSetDialog(&msg)
 		}})
 	}
+	// Stop poll (AyuGram parity, slice 124): the creator of an open poll
+	// closes it from the context menu.
+	if stopPollMenuGate(&m) {
+		msg := m
+		items = append(items, menuAction{"Stop poll", func(gtx layout.Context) {
+			a.stopPollMessage(&msg)
+		}})
+	}
 	// Message details (AyuGram, slice 105): key/value rows from the cache.
 	if msgDetailMenuGate(m) {
 		msg := m

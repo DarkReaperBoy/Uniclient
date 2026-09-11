@@ -407,6 +407,9 @@ func (e *Engine) mergePollResults(accountID, chatID, msgID string, extra map[str
 	if closed, ok := extra["poll_closed"].(bool); ok && closed {
 		msg.Extra["poll_closed"] = true
 	}
+	if sol, ok := extra["poll_solution"].(string); ok && sol != "" {
+		msg.Extra["poll_solution"] = sol
+	}
 	if merge, ok := extra["poll_results_merge"].([]interface{}); ok {
 		cur, _ := msg.Extra["poll_options"].([]interface{})
 		for _, mo := range merge {
