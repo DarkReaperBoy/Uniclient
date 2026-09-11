@@ -2411,3 +2411,27 @@ Status of the §11 "verify xmpp/bale/rubika/deltachat" item: XMPP done
 (local-server + live pre-auth + data-form IBR); bale/rubika remain
 geo-blocked; deltachat needs a local IMAP/SMTP harness (next session
 candidate) or real email accounts.
+
+## 2026-09-11 — Delta Chat verified: local IMAP+SMTP server harness
+
+cores/deltachat_localserver_test.go — the §9 "dockerized server" rung,
+offline: emersion's go-imap imapserver + go-smtp server libraries (the
+independent server stack real Go mail servers use) with a self-signed
+STARTTLS cert and accept_invalid_certs. The harness verifies, in 0.07s:
+
+1. AUTH CHAIN — connectIMAP (DialTLS fail → DialStartTLS succeed) + LOGIN
+   + LIST + DeltaChat folder CREATE, ×3 connections (main ops + the IDLE
+   inbox/DC pair) — the exact real-server flow.
+2. SEND CHAIN — sendEmail: EHLO + AUTH PLAIN + MAIL FROM/RCPT TO/DATA;
+   the received mail carries Chat-Version + Autocrypt + both recipients
+   (peer + BCC self).
+3. RECEIVE PATH — SELECT + FETCH (ENVELOPE/FLAGS/BODY[HEADER]/BODY[]) →
+   processIncomingEmail builds the chat from the pre-loaded email.
+
+Harness gotcha worth remembering: imapserver's
+FetchResponseWriter.Close() MUST be called after each message — skipping
+it holds the connection's response-encoder mutex and deadlocks the tagged
+completion (found via wire debug + goroutine dump).
+
+§8/§11 updated: xmpp + deltachat local-server-verified; bale/rubika stay
+geo-blocked (need a non-geo vantage or the owner's live test).
