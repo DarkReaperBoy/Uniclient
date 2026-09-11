@@ -180,41 +180,49 @@ type App struct {
 	tray      *trayController
 	accentNow color.NRGBA
 	// local passcode lock (slice 87): vault-backed PIN gate + editor dialog.
-	lock           *lockState
-	lockDlg        *lockDlgState
-	twofaDlg       *twofaDlgState                      // cloud-password editor dialog (slice 120)
-	twofaStates    map[string]cores.CloudPasswordState // accountID → live 2FA state (slice 120)
-	soundPicker    *soundPickerState                   // notification-sound picker (slice 121)
-	notifyAccts    map[string]notifyAcctState
-	notifyLoaded   bool
-	blockedUsers   map[string][]cores.User
-	sessionsList   map[string][]cores.Session
-	privacyLoaded  bool
-	privacyScopes  map[string]map[string]string      // accountID → key → scope (slice 62)
-	privacyDlg     *privacyDlgState                  // scope picker dialog (slice 62)
-	autoDlRules    map[string]map[string]interface{} // source → rules (slice 63)
-	autoDlOn       bool
-	autoDlDlg      *autodlDlgState                      // rules editor dialog (slice 63)
-	callsList      map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
-	callsLoaded    bool
-	themeDlg       *chatThemeDlgState     // per-chat theme picker (slice 65)
-	chatThemes     []cores.ChatThemeInfo  // picker data (slice 65)
-	chatThemesFor  string                 // account the data belongs to (slice 65)
-	chatThemesOn   bool                   // picker data loaded (slice 65)
-	cloudThemes    []cores.CloudThemeInfo // cloud theme list (slice 66)
-	cloudThemesFor string                 // account name the list came from (slice 66)
-	cloudThemeAcct string                 // account ID the list came from (slice 66)
-	profileEdit    *profileEditState      // own-profile editor (slice 71)
-	stickerMgr     *stickerMgrState       // stickers & emoji manager (slice 139)
-	cloudThemesOn  bool                   // list loaded (slice 66)
-	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
-	cacheTotal     int64
-	cacheTags      [6]int64
-	cacheLoaded    bool
-	takeoutAccts   []string
-	ghostSel       string
-	ghostFlags     map[string]engine.GhostFlags
-	ghostLoaded    bool
+	lock              *lockState
+	lockDlg           *lockDlgState
+	twofaDlg          *twofaDlgState                      // cloud-password editor dialog (slice 120)
+	twofaStates       map[string]cores.CloudPasswordState // accountID → live 2FA state (slice 120)
+	soundPicker       *soundPickerState                   // notification-sound picker (slice 121)
+	notifyAccts       map[string]notifyAcctState
+	notifyLoaded      bool
+	blockedUsers      map[string][]cores.User
+	sessionsList      map[string][]cores.Session
+	privacyLoaded     bool
+	privacyScopes     map[string]map[string]string      // accountID → key → scope (slice 62)
+	privacyDlg        *privacyDlgState                  // scope picker dialog (slice 62)
+	autoDlRules       map[string]map[string]interface{} // source → rules (slice 63)
+	autoDlOn          bool
+	autoDlDlg         *autodlDlgState                      // rules editor dialog (slice 63)
+	callsList         map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
+	callsLoaded       bool
+	themeDlg          *chatThemeDlgState     // per-chat theme picker (slice 65)
+	chatThemes        []cores.ChatThemeInfo  // picker data (slice 65)
+	chatThemesFor     string                 // account the data belongs to (slice 65)
+	chatThemesOn      bool                   // picker data loaded (slice 65)
+	cloudThemes       []cores.CloudThemeInfo // cloud theme list (slice 66)
+	cloudThemesFor    string                 // account name the list came from (slice 66)
+	cloudThemeAcct    string                 // account ID the list came from (slice 66)
+	profileEdit       *profileEditState      // own-profile editor (slice 71)
+	stickerMgr        *stickerMgrState       // stickers & emoji manager (slice 139)
+	langCode          string                 // active language (slice 140)
+	langStrings       map[string]string      // pack overrides (copy-on-write)
+	langStringsLoaded bool                   // restore-once guard
+	langs             []engine.LanguageInfo  // available languages
+	langsLoaded       bool
+	langsFor          string
+	langsErr          string
+	langApplying      bool
+	cloudThemesOn     bool                // list loaded (slice 66)
+	cloudDlg          *cloudThemeDlgState // install confirm dialog (slice 66)
+	cacheTotal        int64
+	cacheTags         [6]int64
+	cacheLoaded       bool
+	takeoutAccts      []string
+	ghostSel          string
+	ghostFlags        map[string]engine.GhostFlags
+	ghostLoaded       bool
 	// right info panel (AyuGram parity slice 4): profile/members/media
 	panelOpen   bool
 	panelChat   chatKey
@@ -459,6 +467,10 @@ func (a *App) Start() {
 		// Layout tweak sliders (slice 93): the effective values fold in
 		// the legacy corners toggle for older configs.
 		a.ui.applyLayoutTweaks(utils.EffectiveBubbleRadius(*cfg), utils.EffectiveWideMultiplier(*cfg))
+		// Language (slice 140): restore the persisted choice. Pack
+		// strings load lazily once an account connects (the override
+		// needs a core); the code itself drives the Language card now.
+		a.langCode = cfg.Language
 	}
 	// Local passcode (slice 87): boot LOCKED when the vault has one — the
 	// lock screen renders before any chat content.
@@ -541,8 +553,42 @@ func (a *App) refreshAccounts() {
 	a.savedCap = savedCap
 	a.savedChatID = savedChat
 	a.mu.Unlock()
-	a.updateTray() // slice 137: tray account rows
+	a.ensureLangStrings() // slice 140: restore pack strings once a core exists
+	a.updateTray()        // slice 137: tray account rows
 	a.invalidate()
+}
+
+// ensureLangStrings lazily loads the persisted language's pack strings
+// once an account core exists (after boot or a fresh login).
+func (a *App) ensureLangStrings() {
+	a.mu.Lock()
+	code := a.langCode
+	loaded := a.langStringsLoaded
+	acc := ""
+	for _, cand := range a.accounts {
+		if cand.Platform == "telegram" || cand.Platform == "Telegram" {
+			acc = cand.ID
+			break
+		}
+	}
+	if acc == "" && len(a.accounts) > 0 {
+		acc = a.accounts[0].ID
+	}
+	a.mu.Unlock()
+	if loaded || code == "" || code == "en" || acc == "" {
+		return
+	}
+	a.mu.Lock()
+	a.langStringsLoaded = true
+	a.mu.Unlock()
+	go func() {
+		if m, err := a.eng.GetLangStrings(acc, code, langKeysForSettings()); err == nil {
+			a.mu.Lock()
+			a.langStrings = m
+			a.mu.Unlock()
+			a.invalidate()
+		}
+	}()
 }
 
 func (a *App) refreshChats() {
@@ -1741,6 +1787,13 @@ func (a *App) snapshot() frame {
 		cloudThemesOn:    a.cloudThemesOn,
 		profileEdit:      a.profileEdit,
 		stickerMgr:       a.stickerMgr,
+		langCode:         a.langCode,
+		langStrings:      a.langStrings,
+		langs:            a.langs,
+		langsLoaded:      a.langsLoaded,
+		langsFor:         a.langsFor,
+		langsErr:         a.langsErr,
+		langApplying:     a.langApplying,
 		cloudDlg:         a.cloudDlg,
 		cacheTotal:       a.cacheTotal,
 		cacheTags:        a.cacheTags,
@@ -1960,6 +2013,13 @@ type frame struct {
 	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
 	profileEdit    *profileEditState      // own-profile editor (slice 71)
 	stickerMgr     *stickerMgrState       // stickers & emoji manager (slice 139)
+	langCode       string                 // active language (slice 140)
+	langStrings    map[string]string      // pack overrides
+	langs          []engine.LanguageInfo
+	langsLoaded    bool
+	langsFor       string
+	langsErr       string
+	langApplying   bool
 	cacheTotal     int64
 	cacheTags      [6]int64
 	cacheLoaded    bool

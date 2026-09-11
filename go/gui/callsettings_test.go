@@ -96,7 +96,8 @@ func TestSettingsCallsSectionOrder(t *testing.T) {
 	if found == -1 {
 		t.Fatal("Calls section missing from the settings rail")
 	}
-	if settingsSections[found-1] != "Appearance" || settingsSections[found+1] != "Ayu" {
+	// slice 140: Language slots in after Calls (tdesktop's position).
+	if settingsSections[found-1] != "Appearance" || settingsSections[found+1] != "Language" {
 		t.Fatalf("Calls neighbors = %q / %q", settingsSections[found-1], settingsSections[found+1])
 	}
 }

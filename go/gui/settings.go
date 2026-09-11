@@ -24,10 +24,11 @@ import (
 // a real engine call (config, cache accounting, blocked users, sessions,
 // ghost flags — §1.10: no dead UI).
 
-// settingsSections is the rail, in AyuGram's order.
+// settingsSections is the rail, in AyuGram's order (Language between
+// Calls and Ayu, tdesktop's position).
 var settingsSections = []string{
 	"Main", "Notifications", "Privacy & Security", "Data & Storage",
-	"Appearance", "Calls", "Ayu", "About",
+	"Appearance", "Calls", "Language", "Ayu", "About",
 }
 
 const (
@@ -37,6 +38,7 @@ const (
 	setSectionData
 	setSectionAppearance
 	setSectionCalls
+	setSectionLanguage
 	setSectionAyu
 	setSectionAbout
 )
@@ -49,6 +51,7 @@ var sectionIcons = []*widget.Icon{
 	iconActionBackup,
 	iconImagePalette,
 	iconHardwareHeadset, // Calls (slice 103)
+	iconActionSchedule,  // Language (slice 140)
 	iconActionGhost,
 	iconActionInfo,
 }
@@ -274,9 +277,11 @@ func (a *App) settingsRail(gtx layout.Context, f frame, narrow bool) layout.Dime
 		axis = layout.Horizontal
 	}
 	flex := layout.Flex{Axis: axis}
+	labels := settingsRailLabels(f.langStrings)
 	children := make([]layout.FlexChild, 0, len(settingsSections))
-	for i, title := range settingsSections {
-		i, title := i, title
+	for i := range settingsSections {
+		i := i
+		title := labels[i]
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			btn := &settingsRailBtns[i]
 			if btn.Clicked(gtx) {
@@ -353,6 +358,8 @@ func (a *App) settingsPage(gtx layout.Context, f frame) layout.Dimensions {
 					return a.setPageAppearance(gtx, f)
 				case setSectionCalls:
 					return a.setPageCalls(gtx, f)
+				case setSectionLanguage:
+					return a.setPageLanguage(gtx, f)
 				case setSectionAyu:
 					return a.setPageAyu(gtx, f)
 				default:

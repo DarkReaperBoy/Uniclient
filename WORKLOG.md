@@ -2979,3 +2979,39 @@ Parity: Chat-settings row CORE-ONLY→PARTIAL. 148 PRESENT / 32 PARTIAL /
 
 Next candidates: language switch (P2), folders settings CRUD (P2), chat
 preview popup on hover, Windows taskbar overlay badge, 2FA completion.
+
+## 2026-09-11 — slice 140: Language switch (settings + localization core)
+
+tdesktop's Language box, honest scope: the cloud language list + switch
+flow, and a localization core that renders pack-backed strings with an
+embedded-English fallback (exactly tdesktop's missing-key behavior).
+
+- RESEARCH: fetched the upstream
+  telegramdesktop/tdesktop Telegram/Resources/langs/lang.strings and
+  pinned the REAL key names (lng_settings_section_notify,
+  lng_settings_section_privacy, lng_settings_data_storage,
+  lng_settings_calls, lng_settings_language, lng_menu_about, lng_cancel,
+  lng_close, lng_languages_none, …) — no guessed keys.
+- GUI CORE (gui/lang.go): langTr (override-with-fallback, pure),
+  langKeysForSettings (fixed consumed key set), settingsRailLabels
+  (rail through the pack), language row labels/badges/filter/name
+  helpers. All unit-tested first.
+- GUI SECTION (gui/languagesettings.go): Language in the rail after
+  Calls (tdesktop position; two pinned-order tests updated). Current-
+  language card, search field, language rows (native name leads,
+  English name + code sub-line, official/beta/RTL badge chips, active
+  check). Tap applies: engine.SetLanguage (server pack load) +
+  engine.GetLangStrings(keys) (client overrides) + persisted
+  AppConfig.Language + toast. Boot restores the code; pack strings
+  lazy-load once an account core exists (refreshAccounts hook).
+- State: langCode/langStrings (copy-on-write)/langs* on App + frame
+  snapshot; ensureLangStrings restore-once guard.
+- Tests-first: lang fallback/override, key-set pinning, rail labels
+  (fallback + German override), row label/badges/filter/name. Two
+  existing rail-order tests updated to the new 9-section order.
+
+Gate: gofmt/vet/test green (-tags goolm); wasm + windows cross-builds
+green. Verify CI for slice 139 (cf0815d6): GREEN via API.
+
+Parity: Language row CORE-ONLY→PRESENT. 149 PRESENT / 32 PARTIAL /
+9 MISSING / 29 CORE-ONLY by row count.
