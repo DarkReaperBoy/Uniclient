@@ -2087,3 +2087,21 @@ renders the text under the waveform, pending state included.
 - gates: native tests green; gofmt clean; vet clean (one self-assign
   caught+fixed); js/wasm + windows/amd64 build.
 - parity: forum topics CORE-ONLY → PARTIAL (126 / 33 / 10 / 31).
+
+## 2026-09-11 — owner instructions codified into AGENTS.md
+
+The owner re-issued two standing directives and asked for them to be checked
+against the md files and included where missing:
+
+- **Push-as-you-go** (was absent everywhere): new §1.15 owner requirement +
+  §2 step 8 — commit and push to `main` after every small unit of progress,
+  because the agent VM may reset and delete local files at any moment; only
+  pushed work survives. Explicit note that the GitHub token is delivered
+  out-of-band and must never appear in any repo file.
+- **TeamSpeak/Mumble 1:1 protocol first and foremost** (existed only as a
+  historical session note in WORKLOG slice 109, not as a standing rule):
+  new §1.16 owner requirement — wire-level 1:1 compat is the top priority
+  for these two cores, verified on public servers BEFORE the owner's own
+  live test (owner tests on their own and reports when the time comes).
+
+No code changed in this commit. Token verified absent from all repo files.

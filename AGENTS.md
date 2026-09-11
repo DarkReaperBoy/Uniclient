@@ -96,6 +96,22 @@ this list wins.
     the *best* plan, not the fastest. Only then write code — tests first
     (§9), then verify against something real (§9 ladder). The order is
     mandatory: research → think → rate → plan → tests → code → verify.
+15. **Push to GitHub constantly as you go.** After every small unit of
+    progress — a passing test, a fixed bug, a working feature, a completed
+    slice — commit **and push to `main` immediately**. The VM running the
+    agent may reset and delete all local files at any moment; **only what
+    is pushed to GitHub survives**. Never bank up work locally, never end
+    a stretch of work with unpushed commits. (The GitHub token is provided
+    by the owner out-of-band at session start; it must NEVER be written
+    into any repo file, log, or doc.)
+16. **TeamSpeak & Mumble: 1:1 protocol first and foremost.** For these two
+    cores, wire-level 1:1 compatibility with the official protocol/clients
+    is the absolute top priority — port the official crypto and packet
+    formats exactly, pin them against upstream test vectors, and **test on
+    public servers before the owner's live test**. The owner will run their
+    own live test on their own and report results when the time comes; the
+    job until then is protocol-perfect, public-server-verified cores (§9
+    ladder to the official-server rung every time the protocol changes).
 
 ## 2. Workflow (mandatory order of operations)
 
@@ -121,6 +137,9 @@ non-trivial task follows this order. Never jump straight to code.
 7. **Verify for real** — run the §9 ladder: unit → dockerized server →
    official server. "It compiles" is not done. "Works against a real
    server" is done.
+8. **Push immediately** — every unit of progress (a green test, a fix, a
+   slice) is committed and pushed to GitHub at once (§1.15). The VM may
+   reset between breaths; unpushed work is lost work.
 
 ## 3. Architecture
 
