@@ -3015,3 +3015,59 @@ green. Verify CI for slice 139 (cf0815d6): GREEN via API.
 
 Parity: Language row CORE-ONLY→PRESENT. 149 PRESENT / 32 PARTIAL /
 9 MISSING / 29 CORE-ONLY by row count.
+
+## 2026-09-12 — slice 141: notification click-to-open + per-chat banner replacement
+
+Interactive notification banners (tdesktop behavior), completing the
+Linux half of the P1 notifications row: sounds were already real (slice
+121), the missing piece was actions.
+
+- RESEARCH: freedesktop notification spec re-read from primary source —
+  actions are (key,label) pairs with the reserved `default` key mapping
+  to the whole-body click on every major server; the client learns
+  clicks through org.freedesktop.Notifications.ActionInvoked(id u,
+  action_key s) and cleanup through NotificationClosed(id u, reason u)
+  signals; Notify's replaces_id > 0 swaps a live banner in place (the
+  tdesktop "never stack per chat" behavior). godbus v5.2.2 verified in
+  the module cache: SessionBus() caches a process-wide shared conn
+  (unresettable), Signal(ch) registers a caller-owned channel closed by
+  the conn, AddMatchSender matches well-known names by current owner.
+- RATING (§1.14): notify.go gating 9/10 keep+extend; notify_linux.go 7/10
+  (single method call, no actions/replaces/signals, SessionBus cache
+  hazard) keep+extend; dbus live-test harness (tray_live_test.go) 8/10 —
+  reusable but leaked its daemon (--fork kills only the printed parent;
+  fixed in place, benefits the tray tests too).
+- GUI (gui/notify.go): notifyDefaultActions ([default, "Open chat"]);
+  notifyIconURI (peer avatar → file:// URI → image-path hint);
+  notifyOpenAction — banner click raises the window (ActionRaise) and
+  schedules the chat open through the pendingOpen GUI-loop hop (openChat
+  touches the composer editor; never from the dbus demux goroutine).
+- TRANSPORT (gui/notify_linux.go): notifyBus — banner-id → click-handler
+  map + chat-key → live-id map; subscribe installs path/interface/sender
+  match rules once and demuxes ActionInvoked (dispatch off the demux
+  goroutine) / NotificationClosed (entry cleanup); Notify now carries
+  replaces_id (per-chat in-place update; the replaced id's handler is
+  dropped), the action list, image-path + desktop-entry hints;
+  dbusSession switched SessionBus → ConnectSessionBus (fresh
+  Dial+Auth+Hello; no shared-cache hazard). notify_other.go keeps the
+  honest never-invokes stub.
+- TESTS-FIRST: pure (all platforms) notifyDefaultActions shape,
+  notifyOpenAction hop (schedule + title + repeat), notifyIconURI; LIVE
+  (linux, private dbus-daemon + fake org.freedesktop.Notifications
+  server): fresh banner (replaces 0, actions, hints, avatar URI),
+  ActionInvoked → handler fires, second banner for the same chat
+  replaces in place AND re-arms its handler, a different chat never
+  cross-replaces, NotificationClosed cleans up (next banner fresh),
+  unknown-id signals are dropped safely. startPrivateBus de-forked so
+  cleanup kills the real daemon; -count=3 stable (resetNotifyGlobals
+  re-arms the package globals).
+- Gate: gofmt/vet/test green (incl. -tags goolm); windows + wasm
+  cross-builds green; Xvfb GUI boot clean.
+
+Parity: notifications row text updated (sounds 121 + click-to-open 141
+on Linux; windows/wasm/android transports remain). Counts unchanged:
+149 PRESENT / 32 PARTIAL / 9 MISSING / 29 CORE-ONLY.
+
+Next candidates: folders settings box (P2, CORE-ONLY row — list +
+suggested folders), chat preview popup on hover, Windows taskbar
+overlay badge, 2FA completion.

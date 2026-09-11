@@ -9,6 +9,7 @@ package gui
 // dbus-daemon binary exists (hermetic otherwise — own bus, own socket).
 
 import (
+	"bufio"
 	"os/exec"
 	"strings"
 	"testing"
@@ -30,7 +31,10 @@ func (w *liveTrayWatcher) RegisterStatusNotifierItem(service string) *dbus.Error
 	return nil
 }
 
-// startPrivateBus launches an isolated session bus. Returns the address
+// startPrivateBus launches an isolated session bus. No --fork: the
+// launched process IS the daemon, so the cleanup kill actually reaps it
+// (with --fork, the printed-parent exits immediately and the real daemon
+// leaked — each test run left a dbus-daemon behind). Returns the address
 // and a cleanup func.
 func startPrivateBus(t *testing.T) (string, func()) {
 	t.Helper()
@@ -38,17 +42,23 @@ func startPrivateBus(t *testing.T) (string, func()) {
 	if err != nil {
 		t.Skip("no dbus-daemon binary in PATH")
 	}
-	cmd := exec.Command(bin, "--session", "--print-address=1", "--fork")
-	out, err := cmd.Output()
+	cmd := exec.Command(bin, "--session", "--print-address=1")
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		t.Skipf("dbus-daemon stdout pipe: %v", err)
+	}
+	if err := cmd.Start(); err != nil {
 		t.Skipf("dbus-daemon failed to start: %v", err)
 	}
-	addr := strings.TrimSpace(string(out))
-	if addr == "" {
-		t.Skip("dbus-daemon printed no address")
+	line, err := bufio.NewReader(stdout).ReadString('\n')
+	if err != nil || strings.TrimSpace(line) == "" {
+		_ = cmd.Process.Kill()
+		t.Skipf("dbus-daemon printed no address (%v)", err)
 	}
+	addr := strings.TrimSpace(line)
 	return addr, func() {
 		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
 	}
 }
 

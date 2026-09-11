@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"gioui.org/io/system"
+
 	"uniclient/engine"
 )
 
@@ -16,6 +18,38 @@ import (
 
 // notifyThrottle bounds banners per chat (bursty chats notify once).
 const notifyThrottle = 5 * time.Second
+
+// notifyDefaultActions: the freedesktop action pair for chat banners —
+// the reserved "default" action is the whole-body click on every major
+// server (GNOME, KDE), so one pair covers tdesktop's tap-to-open.
+var notifyDefaultActions = []string{"default", "Open chat"}
+
+// notifyIconURI (pure, testable): the banner's image hint — the chat
+// avatar as a file URI when the engine has downloaded one, empty (server
+// default) otherwise.
+func notifyIconURI(chat engine.ChatInfo) string {
+	if chat.AvatarPath == "" {
+		return ""
+	}
+	return "file://" + chat.AvatarPath
+}
+
+// notifyOpenAction builds the banner-click handler: raise the window and
+// schedule the chat open on the GUI loop (the pendingOpen hop — openChat
+// touches the composer editor and must never run from the dbus demux
+// goroutine). Safe on a zero App (no window → no raise).
+func notifyOpenAction(a *App, k chatKey, title string) func(string) {
+	return func(string) {
+		if w := a.win; w != nil {
+			w.Perform(system.ActionRaise)
+		}
+		a.mu.Lock()
+		a.pendingOpen = &k
+		a.pendingTitle = title
+		a.mu.Unlock()
+		a.invalidate()
+	}
+}
 
 // shouldNotifyChat (pure, testable): config + mute + open-chat gating.
 func shouldNotifyChat(cfg cfgSnapshot, chat engine.ChatInfo, open bool) bool {
@@ -120,8 +154,14 @@ func (a *App) maybeNotify(m engine.MsgReceivedEvent) {
 		}
 		playNotifySound(sound)
 	}()
+	// The banner itself (slice 141): click-to-open through the freedesktop
+	// default action, per-chat in-place replacement (banners never stack
+	// for one chat), the peer avatar as the image hint.
 	go func() {
-		if err := notifyDesktop(title, body); err != nil {
+		if err := notifyDesktop(title, body, key, notifyIconURI(chat),
+			notifyDefaultActions, notifyOpenAction(a, chatKey{
+				AccountID: m.AccountID, ChatID: m.ChatID,
+			}, title)); err != nil {
 			log.Printf("gui: notify: %v", err)
 		}
 	}()
