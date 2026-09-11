@@ -125,6 +125,7 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 		RecentSearches:         c.RecentSearches,
 		DrawerHidden:           c.DrawerHiddenItems,
 		Streamer:               c.StreamerMode,
+		SystemTray:             utils.EffectiveSystemTray(*c),
 		CallInputDevice:        c.CallInputDevice,
 		CallOutputDevice:       c.CallOutputDevice,
 		CallCameraDevice:       c.CallCameraDevice,

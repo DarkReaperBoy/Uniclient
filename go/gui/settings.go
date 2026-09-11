@@ -116,6 +116,8 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 		c.BubbleCorners = &b
 	case "hide_all_chats":
 		c.HideAllChats = &b
+	case "system_tray":
+		c.SystemTray = &b
 	default:
 		return nil
 	}
@@ -537,6 +539,13 @@ func (a *App) setPageNotifications(gtx layout.Context, f frame) layout.Dimension
 			a.applyConfigBool("notify_previews", v)
 		})
 	}))
+	// System tray icon (slice 137): live start/stop; only on platforms
+	// that have a tray (web/Android render no dead toggle, §1.10).
+	if traySupportedOn {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.toggleRow(gtx, "cfg:system_tray", "System tray icon", c.SystemTray, a.applySystemTray)
+		}))
+	}
 	// Notification sound picker (slice 121): synthesized chimes with
 	// preview; per-chat overrides live in the chat header menu.
 	growClickables(&notifySoundRowBtn, 1)

@@ -936,6 +936,10 @@ type ConfigChanges struct {
 	// Streamer mode (Ayu): blur names/photos in the UI. Nil = unchanged.
 	StreamerMode *bool
 
+	// System tray icon (slice 137). Nil = unchanged; the GUI starts or
+	// stops its tray controller from the effective value.
+	SystemTray *bool
+
 	// Ayu mark strings. Nil = unchanged; "" resets to the GUI default.
 	AyuDeletedMark *string
 	AyuEditedMark  *string
@@ -990,6 +994,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.StreamerMode != nil {
 		e.config.StreamerMode = *changes.StreamerMode
+	}
+	if changes.SystemTray != nil {
+		e.config.SystemTray = changes.SystemTray
 	}
 	if changes.NotifyPreviews != nil {
 		e.config.NotifyPreviews = changes.NotifyPreviews

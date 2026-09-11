@@ -62,6 +62,7 @@ func run(w *app.Window, dir, password string) error {
 
 	ui := gui.New(w, eng)
 	ui.Start()
+	defer ui.Shutdown() // release the tray icon on exit (slice 137)
 
 	var ops op.Ops
 	for {

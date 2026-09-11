@@ -59,6 +59,10 @@ type AppConfig struct {
 	// Streamer mode (Ayu): blur names and photos in the UI for streams.
 	StreamerMode bool `json:"streamer_mode"`
 
+	// System tray icon (slice 137): nil = default ON (tdesktop parity);
+	// the toggle starts/stops the tray controller live.
+	SystemTray *bool `json:"system_tray,omitempty"`
+
 	// Ayu mark strings (settings_ayu): "" = the GUI defaults
 	// ("— deleted", "edited ").
 	AyuDeletedMark string `json:"ayu_deleted_mark,omitempty"`
@@ -237,4 +241,10 @@ func EffectiveWideMultiplier(cfg AppConfig) float64 {
 		return ClampWideMultiplier(*cfg.WideMultiplier)
 	}
 	return 0.75
+}
+
+// EffectiveSystemTray resolves whether the tray icon is on: nil defaults
+// to ON (tdesktop ships a tray by default). Pure.
+func EffectiveSystemTray(cfg AppConfig) bool {
+	return cfg.SystemTray == nil || *cfg.SystemTray
 }

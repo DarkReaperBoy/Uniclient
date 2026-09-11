@@ -12,7 +12,8 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.0
-	github.com/godbus/dbus/v5 v5.0.6
+	github.com/godbus/dbus/v5 v5.2.2
+	github.com/gogpu/systray v0.3.0
 	github.com/gotd/td v0.161.0
 	github.com/jfreymuth/pulse v0.1.3
 	github.com/livekit/server-sdk-go/v2 v2.18.1
@@ -66,6 +67,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-text/typesetting v0.3.4 // indirect
+	github.com/go-webgpu/goffi v0.6.3 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/cel-go v0.28.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect

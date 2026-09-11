@@ -3,6 +3,7 @@ package gui
 import (
 	"encoding/json"
 	"image"
+	"image/color"
 	"log"
 	"sync"
 	"time"
@@ -170,6 +171,12 @@ type App struct {
 	settingsOpen bool
 	settingsSect int
 	cfg          cfgSnapshot
+
+	// system tray (slice 137): nil while off/unsupported. accentNow is the
+	// accent snapshot the tray icon re-renders from (kept race-free: the
+	// UI goroutine refreshes it inside snapshot()).
+	tray      *trayController
+	accentNow color.NRGBA
 	// local passcode lock (slice 87): vault-backed PIN gate + editor dialog.
 	lock           *lockState
 	lockDlg        *lockDlgState
@@ -459,9 +466,16 @@ func (a *App) Start() {
 		a.lock = st
 	}
 	eng.SetEventCallback(func(data []byte) { a.onEvent(data) })
+	a.startTrayIfNeeded() // slice 137: tray icon (config-gated)
 	go a.refreshAccounts()
 	go a.refreshChats()
 	go eng.ConnectAllAccounts()
+}
+
+// Shutdown releases app-owned background resources (the tray icon).
+// Called from the window event loop's exit path (DestroyEvent).
+func (a *App) Shutdown() {
+	a.stopTray()
 }
 
 // ListenEvents forwards window events to the file explorer (it must see
@@ -524,6 +538,7 @@ func (a *App) refreshAccounts() {
 	a.savedCap = savedCap
 	a.savedChatID = savedChat
 	a.mu.Unlock()
+	a.updateTray() // slice 137: tray account rows
 	a.invalidate()
 }
 
@@ -536,6 +551,7 @@ func (a *App) refreshChats() {
 	a.chats = chats
 	a.mu.Unlock()
 	a.syncCallPoll() // slice 70: the live-call bar tracks the open chat
+	a.updateTray()   // slice 137: unread badge on the tray icon
 	a.invalidate()
 }
 
@@ -1271,6 +1287,7 @@ type cfgSnapshot struct {
 	RecentSearches         []string
 	DrawerHidden           []string
 	Streamer               bool
+	SystemTray             bool // effective (nil = on)
 
 	// call devices (slice 103): "" = system default
 	CallInputDevice  string
@@ -1349,6 +1366,7 @@ func (a *App) refreshConfig() {
 	a.mu.Lock()
 	a.cfg = snap
 	a.mu.Unlock()
+	a.updateTray() // slice 137: ghost/streamer checkbox state
 	a.invalidate()
 }
 
@@ -1501,6 +1519,24 @@ func (a *App) applyConfigBool(field string, v bool) {
 	}()
 }
 
+// applySystemTray persists the tray toggle and starts/stops the tray after
+// the write lands (slice 137).
+func (a *App) applySystemTray(v bool) {
+	go func() {
+		c := configFieldChanges("system_tray", v)
+		if err := a.eng.UpdateConfigFromBridge(c); err != nil {
+			a.setToast("Settings: " + err.Error())
+			return
+		}
+		a.refreshConfig()
+		if v {
+			a.startTrayIfNeeded()
+		} else {
+			a.stopTray()
+		}
+	}()
+}
+
 // applyTheme swaps the palette and persists the theme name (async).
 func (a *App) applyTheme(light bool) {
 	name := themeName(light)
@@ -1611,6 +1647,11 @@ func (a *App) onUserStatus(accountID string, s engine.UserStatusEvent) {
 func (a *App) snapshot() frame {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	// Tray accent stash (slice 137): the UI goroutine owns palette reads;
+	// mirroring it here keeps updateTray's background reads race-free.
+	if a.ui != nil {
+		a.accentNow = a.ui.p.Accent
+	}
 	f := frame{
 		showPicker:       a.showPicker,
 		acctFilter:       a.acctFilter,
