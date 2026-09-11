@@ -52,16 +52,17 @@ func TestInlineFetchKey(t *testing.T) {
 }
 
 func TestInlineResultThumb(t *testing.T) {
-	if inlineResultThumb(cores.InlineBotResult{}) != "" {
-		t.Error("result without thumb yielded a thumb")
+	// Slice 130: the thumb route is b64 bytes first, the engine's HTTP
+	// fetcher for URL-only results, none last (urlthumb_test.go covers
+	// inlineThumbSource in depth; this pins the panel-level contract).
+	if src, _ := inlineThumbSource(cores.InlineBotResult{}); src != thumbSrcNone {
+		t.Errorf("result without thumb yielded a route: %v", src)
 	}
-	if got := inlineResultThumb(cores.InlineBotResult{ThumbB64: "QUJD"}); got != "QUJD" {
-		t.Errorf("b64 thumb = %q, want QUJD", got)
+	if src, _ := inlineThumbSource(cores.InlineBotResult{ThumbB64: "QUJD"}); src != thumbSrcB64 {
+		t.Errorf("b64 thumb not routed to the b64 path: %v", src)
 	}
-	// HTTP-only thumbs (plain BotInlineResult) need a URL fetcher this build
-	// does not have — the panel renders those rows text-only (honest §1.10).
-	if got := inlineResultThumb(cores.InlineBotResult{ThumbURL: "https://x/t.png"}); got != "" {
-		t.Errorf("url thumb leaked into the b64 path: %q", got)
+	if src, url := inlineThumbSource(cores.InlineBotResult{ThumbURL: "https://x/t.png"}); src != thumbSrcURL || url != "https://x/t.png" {
+		t.Errorf("url thumb not routed to the fetcher: %v %q", src, url)
 	}
 }
 

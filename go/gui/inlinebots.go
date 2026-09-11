@@ -78,10 +78,18 @@ func inlineFetchKey(account, bot, query string) string {
 	return account + "|" + bot + "|" + query
 }
 
-// inlineResultThumb returns the renderable b64 thumbnail (media results
-// carry stripped thumbs); "" when only an HTTP URL exists (no fetcher).
-func inlineResultThumb(r cores.InlineBotResult) string {
-	return r.ThumbB64
+// inlineResultThumbWidget renders one result's thumbnail through the
+// b64 route (stripped bytes, no network) or the URL route (engine HTTP
+// fetcher, slice 130). Empty box when neither exists (honest §1.10).
+func (a *App) inlineResultThumbWidget(gtx layout.Context, r cores.InlineBotResult, sizeDp unit.Dp) layout.Dimensions {
+	src, url := inlineThumbSource(r)
+	switch src {
+	case thumbSrcB64:
+		return a.mediaThumb(gtx, r.ThumbB64, sizeDp)
+	case thumbSrcURL:
+		return a.urlThumb(gtx, url, sizeDp)
+	}
+	return layout.Dimensions{}
 }
 
 // inlineResultSubtitle is the row's second line (description, trimmed).
@@ -386,11 +394,12 @@ func (a *App) inlineGalleryRow(gtx layout.Context, m *inlinePanelModel, row int)
 				btn := material.ButtonLayout(a.ui.Theme, cl)
 				btn.CornerRadius = 8
 				return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					if th := inlineResultThumb(r); th != "" {
-						return a.mediaThumb(gtx, th, unit.Dp(96))
-					}
+					d := a.inlineResultThumbWidget(gtx, r, unit.Dp(96))
 					// Honest placeholder: an empty square keeps the grid shape.
-					return layout.Dimensions{Size: image.Pt(side, side)}
+					if d.Size == (image.Point{}) {
+						d = layout.Dimensions{Size: image.Pt(side, side)}
+					}
+					return d
 				})
 			})
 		}))
@@ -446,10 +455,7 @@ func (a *App) inlineResultRow(gtx layout.Context, cl *widget.Clickable, r cores.
 		return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if th := inlineResultThumb(r); th != "" {
-						return a.mediaThumb(gtx, th, unit.Dp(40))
-					}
-					return layout.Dimensions{}
+					return a.inlineResultThumbWidget(gtx, r, unit.Dp(40))
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,

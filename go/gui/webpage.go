@@ -3,6 +3,7 @@ package gui
 import (
 	"bytes"
 	"encoding/json"
+	"image"
 	"strings"
 	"sync"
 
@@ -32,6 +33,13 @@ type webPageData struct {
 	Width       int
 	Height      int
 	Duration    int
+	PhotoID     string // slice 130: the page photo's download coords
+	PhotoExtra  string
+}
+
+// hasPhotoID reports whether the card can ensure a full-res photo thumb.
+func (w *webPageData) hasPhotoID() bool {
+	return w != nil && w.PhotoID != "" && w.PhotoExtra != ""
 }
 
 // parseWebPage extracts the preview from a cached message's raw Extra
@@ -61,6 +69,8 @@ func parseWebPage(m *engine.CachedMessage) *webPageData {
 	wp.Description, _ = env.Extra["wp_description"].(string)
 	wp.Type, _ = env.Extra["wp_type"].(string)
 	wp.ThumbB64, _ = env.Extra["wp_thumb_b64"].(string)
+	wp.PhotoID, _ = env.Extra["wp_photo_id"].(string)
+	wp.PhotoExtra, _ = env.Extra["wp_photo_extra"].(string)
 	if v, ok := env.Extra["wp_photo_w"].(float64); ok {
 		wp.Width = int(v)
 	}
@@ -142,6 +152,68 @@ func webPageClickable(key string) *widget.Clickable {
 	return c
 }
 
+// webPhotoEnsured guards one EnsureWebPagePhoto call per message (the
+// engine method is idempotent, but it hits the DB — the GUI must not call
+// it every frame). Failures pin permanently: no retry churn.
+var (
+	webPhotoMu     sync.Mutex
+	webPhotoDone   = map[string]bool{}
+	webPhotoFailed = map[string]bool{}
+)
+
+// ensureWebPagePhoto resolves the card's full-res photo into the download
+// pipeline (dice-style media-row rewrite, engine slice 130).
+func (a *App) ensureWebPagePhoto(m *engine.CachedMessage, wp *webPageData) {
+	if m == nil || wp == nil || !wp.hasPhotoID() {
+		return
+	}
+	// Already downloaded? Nothing to ensure.
+	if m.HasMedia && m.MediaDownloadState == engine.DownloadComplete && m.MediaLocalPath != "" {
+		return
+	}
+	key := m.AccountID + "|" + m.ChatID + "|" + m.MsgID
+	webPhotoMu.Lock()
+	if webPhotoDone[key] || webPhotoFailed[key] {
+		webPhotoMu.Unlock()
+		return
+	}
+	webPhotoDone[key] = true
+	webPhotoMu.Unlock()
+	go func() {
+		if err := a.eng.EnsureWebPagePhoto(m.AccountID, m.ChatID, m.MsgID); err != nil {
+			webPhotoMu.Lock()
+			webPhotoFailed[key] = true
+			webPhotoMu.Unlock()
+		}
+	}()
+}
+
+// webPageThumbWidget renders the card thumbnail: the downloaded full-res
+// photo when complete, the inline stripped thumb until then, nothing when
+// the page has neither (honest).
+func (a *App) webPageThumbWidget(gtx layout.Context, m *engine.CachedMessage, wp *webPageData) layout.Dimensions {
+	if m == nil || wp == nil {
+		return layout.Dimensions{}
+	}
+	if m.HasMedia && m.MediaDownloadState == engine.DownloadComplete &&
+		m.MediaLocalPath != "" && isDisplayableImage(m.MediaLocalPath) {
+		key := "file:" + m.MediaLocalPath
+		if img := mediaImgs.get(key); img != nil {
+			return drawImageRRectCover(gtx, img, gtx.Dp(unit.Dp(52)))
+		}
+		a.decodeFileAsync(m.MediaLocalPath)
+		// Stripped thumb while the decode runs.
+		if wp.ThumbB64 != "" {
+			return a.mediaThumb(gtx, wp.ThumbB64, unit.Dp(52))
+		}
+		return layout.Dimensions{}
+	}
+	if wp.ThumbB64 != "" {
+		return a.mediaThumb(gtx, wp.ThumbB64, unit.Dp(52))
+	}
+	return layout.Dimensions{}
+}
+
 // webPageBlock renders the link-preview card above the message text:
 // thumbnail (when cached), site name (small, dim), title (semi-bold),
 // description (2 lines), optional duration pill. Tap opens the URL in the
@@ -152,6 +224,7 @@ func (a *App) webPageBlock(gtx layout.Context, m *engine.CachedMessage) layout.D
 		return layout.Dimensions{}
 	}
 	key := m.AccountID + "|" + m.ChatID + "|" + m.MsgID
+	a.ensureWebPagePhoto(m, wp)
 	btn := webPageClickable(key)
 	if btn.Clicked(gtx) {
 		openExternalAsync(wp.URL, func(err error) {
@@ -166,10 +239,10 @@ func (a *App) webPageBlock(gtx layout.Context, m *engine.CachedMessage) layout.D
 			return roundedFill(gtx, a.ui.p.SurfaceHi, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
 				return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					row := []layout.FlexChild{}
-					if wp.ThumbB64 != "" {
+					if thumb := a.webPageThumbWidget(gtx, m, wp); thumb.Size != (image.Point{}) {
 						row = append(row, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return a.mediaThumb(gtx, wp.ThumbB64, unit.Dp(52))
+								return a.webPageThumbWidget(gtx, m, wp)
 							})
 						}))
 					}

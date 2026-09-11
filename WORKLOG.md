@@ -2641,3 +2641,41 @@ CORE-ONLY. Next top candidates: animated custom emoji in message text
 pure-Go HTTP image fetcher (unlocks inline-bot URL thumbs + link-preview
 remote thumbs), live-location streaming (editMessageGeo), tray/badge
 platform work.
+
+## 2026-09-11 — slice 130: pure-Go HTTP image fetcher + full-res thumb routes
+
+Two long-standing "honest fallback" gaps closed (both were §1.10-compliant
+placeholders, now real):
+
+- ENGINE HTTP IMAGE FETCHER (engine/httpimg.go): FetchHTTPImage(url, cap) —
+  shared client (10s deadline, 5-redirect cap), LimitReader size enforcement
+  (+ early Content-Length reject), content sniff (image/*; octet-stream only
+  with image-ish URL extension — webp/avif are not in Go's sniff table),
+  256-entry LRU + in-flight dedup. Pure Go, account-independent; on js/wasm
+  it rides the browser fetch transport (CORS failures stay honest errors).
+  Tests: httptest server covering valid/oversize/wrong-type/404/redirect
+  chain/loop-reject/cache-hit-once/dedup + pure policy tables.
+- INLINE-BOT URL THUMBS (gui/urlthumb.go + inlinebots.go): BotInlineResult
+  thumbs that arrive as plain http(s) URLs now fetch (512 KiB cap) through
+  the engine fetcher and render in gallery grid cells + article rows —
+  claim/store/fail cache (mapTiles pattern), placeholder box while in
+  flight, pinned fallback on failure.
+- WEBPAGE CARD FULL-RES PHOTOS: tdesktop uses Telegram's own CDN photo, so
+  the core now exports wp_photo_id + wp_photo_extra (MessageMediaWebPage
+  conversion; flag-guarded via gotd setters in tests); engine
+  EnsureWebPagePhoto rewrites a standard media row (dice pattern — works
+  for already-cached messages too, no re-fetch needed) and prefetches at
+  priority 2; the GUI card renders the downloaded file (mediaImgs decode
+  pipeline), stripped b64 stays the instant fallback; chat.go mediaBlock
+  skips webpage-card messages so the photo never double-renders as a bubble.
+- RPC HYGIENE while on the download path (§8 rule): DownloadFile and
+  DownloadChatAvatar held t.mu across their entire STREAMED downloads
+  (minutes-scale) — both converted to withAPI snapshots. This was the exact
+  freeze-class violation the owner's bug report was about; downloads were
+  still exposed to it.
+- Environment: sandbox reset again — devroot rebuilt (Go 1.27.1 + full
+  X11/Wayland/EGL/Vulkan sysroot incl. runtime libs + glvnd vendor JSON);
+  local Xvfb GUI boot verified clean (12s run, no errors).
+
+Gate: gofmt/vet/test all green (7 packages, goolm tag). Parity rows updated
+(inline bots, webpage card).

@@ -56,6 +56,22 @@ func TestParseWebPage(t *testing.T) {
 	if wp2 == nil || wp2.URL != "https://x.org" {
 		t.Fatalf("url-only parse = %+v", wp2)
 	}
+
+	// Slice 130: the page photo's download coordinates ride along and
+	// hasPhotoID gates the ensure path.
+	m3 := wpMessage(map[string]interface{}{
+		"wp_url":         "https://x.org/p",
+		"wp_photo_id":    "9001",
+		"wp_photo_extra": "279031:OQ==",
+	})
+	wp3 := parseWebPage(m3)
+	if wp3 == nil || !wp3.hasPhotoID() || wp3.PhotoID != "9001" || wp3.PhotoExtra != "279031:OQ==" {
+		t.Fatalf("photo coords parse = %+v", wp3)
+	}
+	m4 := wpMessage(map[string]interface{}{"wp_url": "https://x.org/q"})
+	if wp4 := parseWebPage(m4); wp4 != nil && wp4.hasPhotoID() {
+		t.Fatal("photo-less webpage reports a photo ID")
+	}
 }
 
 func TestWebPageCardHostname(t *testing.T) {

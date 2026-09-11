@@ -2941,10 +2941,12 @@ func (t *TelegramCore) SendMediaAlbum(chatID string, items []AlbumItem, silent b
 
 // DownloadFile downloads a file from Telegram by its file reference.
 func (t *TelegramCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule (2026-09-11 freeze fix): downloads stream many chunk
+	// RPCs and can legitimately run for minutes — never pin t.mu across
+	// them (a queued writer would starve every reader and freeze the GUI).
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 
 	fileID, err := tgUserID(fileRef.ID)
@@ -2991,7 +2993,7 @@ func (t *TelegramCore) DownloadFile(fileRef FileRef, dest string, progress func(
 	defer f.Close()
 
 	d := downloader.NewDownloader()
-	_, err = d.Download(t.api, location).Stream(t.ctx, f)
+	_, err = d.Download(api, location).Stream(ctx, f)
 	if err != nil {
 		os.Remove(dest)
 		return fmt.Errorf("download: %w", err)
@@ -3003,31 +3005,24 @@ func (t *TelegramCore) DownloadFile(fileRef FileRef, dest string, progress func(
 // DownloadChatAvatar downloads the profile photo for a chat/user and saves it to destPath.
 // Uses InputPeerPhotoFileLocation to fetch the photo from the correct DC.
 func (t *TelegramCore) DownloadChatAvatar(chatID, destPath string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
-	}
-
-	peer, err := t.resolvePeer(chatID)
+	// withAPI rule: avatar downloads stream chunk RPCs — never pin t.mu
+	// across them. Peer resolution runs under withPeer's short window.
+	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return fmt.Errorf("resolve peer: %w", err)
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return fmt.Errorf("input peer: %w", err)
 	}
 
 	// Look up cached photo ID for this peer.
 	var rawID int64
-	switch p := peer.(type) {
-	case *tg.PeerUser:
+	switch p := inputPeer.(type) {
+	case *tg.InputPeerUser:
 		rawID = p.UserID
-	case *tg.PeerChat:
+	case *tg.InputPeerChat:
 		rawID = p.ChatID
-	case *tg.PeerChannel:
+	case *tg.InputPeerChannel:
 		rawID = p.ChannelID
 	}
+	unlock()
 
 	t.peerMu.RLock()
 	photoID, ok := t.peerPhotoID[rawID]
@@ -3036,6 +3031,10 @@ func (t *TelegramCore) DownloadChatAvatar(chatID, destPath string) error {
 		return fmt.Errorf("no photo for peer %s", chatID)
 	}
 
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
 	location := &tg.InputPeerPhotoFileLocation{
 		Peer:    inputPeer,
 		PhotoID: photoID,
@@ -3048,7 +3047,7 @@ func (t *TelegramCore) DownloadChatAvatar(chatID, destPath string) error {
 	defer f.Close()
 
 	d := downloader.NewDownloader()
-	_, err = d.Download(t.api, location).Stream(t.ctx, f)
+	_, err = d.Download(api, location).Stream(ctx, f)
 	if err != nil {
 		os.Remove(destPath)
 		return fmt.Errorf("download avatar: %w", err)
@@ -13361,6 +13360,19 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 								m.Extra["wp_photo_h"] = s.H
 								break
 							}
+						}
+						// Slice 130: export the photo's download
+						// coordinates so the engine can pull the
+						// full-resolution thumb through the standard
+						// media pipeline (tdesktop renders the
+						// Telegram-hosted page photo, not the site's
+						// original image). No attachment is created —
+						// the link-preview card owns the render and
+						// EnsureWebPagePhoto builds the media row.
+						if photo.ID != 0 {
+							m.Extra["wp_photo_id"] = strconv.FormatInt(photo.ID, 10)
+							m.Extra["wp_photo_extra"] = encodeFileExtra(photo.AccessHash, photo.FileReference)
+							t.cacheFileInfo(photo.ID, photo.AccessHash, photo.FileReference)
 						}
 					}
 				}

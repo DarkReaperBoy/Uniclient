@@ -684,9 +684,11 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						return a.webPageBlock(gtx, m)
 					}),
 					// Media attachment (AyuGram: photo/video/voice/audio/file bubble,
-					// driven by the engine download pipeline).
+					// driven by the engine download pipeline). A link-preview card
+					// owns its message's only media row (the page photo, slice 130)
+					// — never double-render it as a photo bubble.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if !m.HasMedia || m.MediaType == 0 {
+						if !m.HasMedia || m.MediaType == 0 || parseWebPage(m) != nil {
 							return layout.Dimensions{}
 						}
 						return a.mediaBlock(gtx, f, m)
