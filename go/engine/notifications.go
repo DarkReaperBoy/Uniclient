@@ -381,3 +381,38 @@ func (e *Engine) GetMutedChatsByType(accountID string) (map[string]int, error) {
 	}
 	return result, nil
 }
+
+type chatNotifySoundGetter interface {
+	GetChatNotifySound(chatID string) (string, error)
+}
+
+type chatNotifySoundSetter interface {
+	SetChatNotifySound(chatID, kind string) error
+}
+
+// GetChatNotifySound reads one chat's notification-sound override kind
+// ("" = none set; "default"/"none"/"gentle") (slice 121).
+func (e *Engine) GetChatNotifySound(accountID, chatID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	g, ok := acc.Core.(chatNotifySoundGetter)
+	if !ok {
+		return "", fmt.Errorf("core does not support per-chat notify sounds")
+	}
+	return g.GetChatNotifySound(chatID)
+}
+
+// SetChatNotifySound overrides one chat's notification sound kind (slice 121).
+func (e *Engine) SetChatNotifySound(accountID, chatID, kind string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	s, ok := acc.Core.(chatNotifySoundSetter)
+	if !ok {
+		return fmt.Errorf("core does not support per-chat notify sounds")
+	}
+	return s.SetChatNotifySound(chatID, kind)
+}

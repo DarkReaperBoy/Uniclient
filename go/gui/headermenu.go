@@ -61,6 +61,7 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked bool) []chatMenuAc
 	}
 	items = append(items, chatMenuAction{"View profile", "profile"})
 	items = append(items, chatMenuAction{"Search", "search"})
+	items = append(items, chatMenuAction{"Notification sound…", "notifsound"})
 	if c.Type == engine.ChatTypeGroupVal || c.Type == engine.ChatTypeTopicVal || c.Type == engine.ChatTypeChanVal {
 		items = append(items, chatMenuAction{"Add members", "addmember"})
 	}
@@ -128,6 +129,9 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 	case "search":
 		a.closeHeaderMenu()
 		a.toggleInChatSearch()
+	case "notifsound":
+		a.closeHeaderMenu()
+		a.openSoundPickerChat(c.AccountID, c.ChatID)
 	case "addmember":
 		a.closeHeaderMenu()
 		a.openAddMemberDialog(c)

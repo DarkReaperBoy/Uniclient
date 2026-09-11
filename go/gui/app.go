@@ -181,6 +181,8 @@ func contentDialogSurface(f frame) string {
 		return "lock"
 	case f.twofaDlg != nil:
 		return "twofa"
+	case f.soundPicker != nil:
+		return "sound"
 	case f.autoDlDlg != nil:
 		return "autoDownload"
 	case f.themeDlg != nil:
@@ -219,6 +221,8 @@ func (a *App) layoutContentPaneDialog(gtx layout.Context, f frame, surface strin
 		return a.layoutPrivacyScopeDialog(gtx, f)
 	case "twofa":
 		return a.layoutTwoFADialog(gtx, f)
+	case "sound":
+		return a.layoutSoundPicker(gtx, f)
 	case "lock":
 		return a.layoutLockDialog(gtx, f)
 	case "autoDownload":

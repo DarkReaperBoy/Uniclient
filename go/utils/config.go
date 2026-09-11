@@ -88,6 +88,8 @@ type AppConfig struct {
 	NotifyDMs          bool `json:"notify_dms"`
 	NotifyGroups       bool `json:"notify_groups"`
 	NotifyMentionsOnly bool `json:"notify_mentions_only"`
+	// Notification sound kind (""/default | gentle | none).
+	NotifySound string `json:"notify_sound,omitempty"`
 
 	// Notification content privacy (AyuGram/Telegram "show previews"):
 	// nil = default (show message text in banners).

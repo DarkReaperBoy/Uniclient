@@ -111,6 +111,15 @@ func (a *App) maybeNotify(m engine.MsgReceivedEvent) {
 	if cfg.NotifyPreviews && m.Message.SenderName != "" && title != m.Message.SenderName {
 		body = m.Message.SenderName + ": " + body
 	}
+	// Notification sound (slice 121): per-chat override wins over the
+	// global config kind; the banner itself is independent of it.
+	go func() {
+		sound := notifySoundFor(cfg.NotifySound, "")
+		if kind, err := a.eng.GetChatNotifySound(m.AccountID, m.ChatID); err == nil {
+			sound = notifySoundFor(cfg.NotifySound, kind)
+		}
+		playNotifySound(sound)
+	}()
 	go func() {
 		if err := notifyDesktop(title, body); err != nil {
 			log.Printf("gui: notify: %v", err)

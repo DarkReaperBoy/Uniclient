@@ -537,6 +537,34 @@ func (a *App) setPageNotifications(gtx layout.Context, f frame) layout.Dimension
 			a.applyConfigBool("notify_previews", v)
 		})
 	}))
+	// Notification sound picker (slice 121): synthesized chimes with
+	// preview; per-chat overrides live in the chat header menu.
+	growClickables(&notifySoundRowBtn, 1)
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		btn := &notifySoundRowBtn[0]
+		if btn.Clicked(gtx) {
+			a.openSoundPickerGlobal()
+		}
+		bl := material.ButtonLayout(a.ui.Theme, btn)
+		bl.Background = a.ui.p.Surface
+		bl.CornerRadius = 10
+		return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return a.ui.Label(unit.Sp(14), "Notification sound").Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							lbl := a.ui.Dim(unit.Sp(12), notifySoundLabel(c.NotifySound))
+							lbl.Color = a.ui.p.TextFaint
+							return lbl.Layout(gtx)
+						}),
+					)
+				})
+			})
+		})
+	}))
 	if !f.notifyLoaded {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.loadingNote(gtx)

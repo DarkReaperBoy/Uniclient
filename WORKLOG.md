@@ -2180,3 +2180,33 @@ SetCloudPasswordEmail/Confirm/Resend/Cancel) — this slice is the GUI:
   ordering (lock gate outranks 2FA editor), row value, email sanity
   check. Full gate green (gofmt/vet/test -tags goolm all packages).
 - parity: Privacy & security PARTIAL → PRESENT (128 / 31 / 10 / 31).
+
+## 2026-09-11 — slice 121: notification sounds + per-chat overrides
+
+AyuGram notifications parity completed:
+
+- gui/notifysound.go: pure-Go synthesized chimes (48kHz mono int16) —
+  Default = two-tone ding (E6→G6, exponential decay, 50ms overlap,
+  fade-in), Gentle = soft A5 with slow attack; "none" = silence. Player
+  feeds the slice-110 audio backends (pulse/winmm/WebAudio; Android
+  honest-stub = no sound), replaces a running chime instead of stacking,
+  stops pulling after the sample tail. Kind round-trip, labels,
+  effective-sound resolution (per-chat override wins over global config)
+  all pure and tested (11 test functions).
+- maybeNotify now plays the effective sound (async per-chat resolution,
+  global config fallback) alongside the banner.
+- Notifications settings: "Notification sound" row + picker dialog with
+  per-kind Play preview (content-pane surface "sound").
+- Chat header ⋮ menu: "Notification sound…" → per-chat picker with
+  live kind, per-row preview, and "Reset to defaults"
+  (engine ResetPeerNotifySettings).
+- cores/telegram_notify_sound.go: Get/SetChatNotifySound —
+  read-modify-write over account.getNotifySettings →
+  account.updateNotifySettings so mute/silent survive a sound change
+  (official-client shape); NotificationSoundLocal{Gentle} maps the
+  custom chime. Engine wrappers in engine/notifications.go.
+- Config: AppConfig.NotifySound + ConfigChanges.NotifySound (nil =
+  unchanged) + cfgSnapshot.NotifySound; UpdateConfigFromBridge applies.
+- Header-menu test expectations extended; full gate green
+  (gofmt/vet/test -tags goolm, all packages).
+- parity: Notifications section PARTIAL → PRESENT (129 / 30 / 10 / 31).

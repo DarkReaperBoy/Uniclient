@@ -896,6 +896,9 @@ type ConfigChanges struct {
 	// Notification content privacy (AyuGram "show previews"). Nil = unchanged.
 	NotifyPreviews *bool
 
+	// Notification sound kind (slice 121). Nil = unchanged.
+	NotifySound *string
+
 	// Drawer customization (Ayu): ids of hidden drawer rows. Nil = unchanged.
 	DrawerHiddenItems []string
 
@@ -959,6 +962,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.NotifyPreviews != nil {
 		e.config.NotifyPreviews = changes.NotifyPreviews
+	}
+	if changes.NotifySound != nil {
+		e.config.NotifySound = *changes.NotifySound
 	}
 	if changes.AyuDeletedMark != nil {
 		e.config.AyuDeletedMark = *changes.AyuDeletedMark

@@ -111,6 +111,7 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 		NotifyGroups:           c.NotifyGroups,
 		NotifyMentionsOnly:     c.NotifyMentionsOnly,
 		NotifyPreviews:         c.NotifyPreviewsEnabled(),
+		NotifySound:            c.NotifySound,
 		AyuDeletedMark:         c.AyuDeletedMark,
 		AyuEditedMark:          c.AyuEditedMark,
 		AyuSaveDeleted:         ard,

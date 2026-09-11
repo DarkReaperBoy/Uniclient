@@ -165,6 +165,7 @@ type App struct {
 	lockDlg        *lockDlgState
 	twofaDlg       *twofaDlgState                      // cloud-password editor dialog (slice 120)
 	twofaStates    map[string]cores.CloudPasswordState // accountID → live 2FA state (slice 120)
+	soundPicker    *soundPickerState                   // notification-sound picker (slice 121)
 	notifyAccts    map[string]notifyAcctState
 	notifyLoaded   bool
 	blockedUsers   map[string][]cores.User
@@ -993,11 +994,12 @@ func (a *App) openChat(k chatKey, title string) {
 	a.attachDlg = nil
 	a.addMemDlg = nil
 	a.ttlDlg = nil
-	a.privacyDlg = nil // slice 62: close the scope picker
-	a.twofaDlg = nil   // slice 120: close the 2FA editor
-	a.autoDlDlg = nil  // slice 63: close the auto-download editor
-	a.themeDlg = nil   // slice 65: close the theme picker
-	a.cloudDlg = nil   // slice 66: close the install dialog
+	a.privacyDlg = nil  // slice 62: close the scope picker
+	a.twofaDlg = nil    // slice 120: close the 2FA editor
+	a.soundPicker = nil // slice 121: close the sound picker
+	a.autoDlDlg = nil   // slice 63: close the auto-download editor
+	a.themeDlg = nil    // slice 65: close the theme picker
+	a.cloudDlg = nil    // slice 66: close the install dialog
 	a.headerMenu = nil
 	a.profile = nil
 	a.members = nil
@@ -1234,6 +1236,7 @@ type cfgSnapshot struct {
 	NotifyGroups           bool
 	NotifyMentionsOnly     bool
 	NotifyPreviews         bool
+	NotifySound            string // slice 121: default | gentle | none
 	AyuDeletedMark         string
 	AyuEditedMark          string
 	AyuSaveDeleted         bool
@@ -1649,6 +1652,7 @@ func (a *App) snapshot() frame {
 		lockDlg:          a.lockDlg,
 		twofaDlg:         a.twofaDlg,
 		twofaStates:      a.twofaStates,
+		soundPicker:      a.soundPicker,
 		notifyAccts:      a.notifyAccts,
 		notifyLoaded:     a.notifyLoaded,
 		blockedUsers:     a.blockedUsers,
@@ -1862,6 +1866,7 @@ type frame struct {
 	lockDlg        *lockDlgState
 	twofaDlg       *twofaDlgState // cloud-password editor (slice 120)
 	twofaStates    map[string]cores.CloudPasswordState
+	soundPicker    *soundPickerState
 	notifyAccts    map[string]notifyAcctState
 	notifyLoaded   bool
 	blockedUsers   map[string][]cores.User
