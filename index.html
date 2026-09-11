@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uniclient</title>
+<style>
+  html, body { margin:0; height:100%; background:#17212B; }
+  canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+</style>
+</head>
+<body>
+<script src="wasm_exec.js"></script>
+<script>
+(async () => {
+  const go = new Go();
+  const resp = await fetch("uniclient.wasm");
+  if (!resp.ok) { document.body.textContent = "failed to load uniclient.wasm"; return; }
+  const bytes = await resp.arrayBuffer();
+  const { instance } = await WebAssembly.instantiate(bytes, go.importObject);
+  go.run(instance);
+})();
+</script>
+</body>
+</html>
