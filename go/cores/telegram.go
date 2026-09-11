@@ -36229,11 +36229,16 @@ func (t *TelegramCore) GetSessions() ([]Session, error) {
 
 // MuteChat enables or disables notifications for a chat.
 func (t *TelegramCore) MuteChat(chatID string, muted bool) error {
+	// withAPI rule: never hold t.mu across the notify-settings RPC.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
 	}
-	defer unlock()
+	unlock()
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
 
 	settings := tg.InputPeerNotifySettings{}
 	if muted {
@@ -36242,7 +36247,7 @@ func (t *TelegramCore) MuteChat(chatID string, muted bool) error {
 		settings.SetMuteUntil(0) // unmute
 	}
 
-	_, err = t.api.AccountUpdateNotifySettings(t.ctx, &tg.AccountUpdateNotifySettingsRequest{
+	_, err = api.AccountUpdateNotifySettings(ctx, &tg.AccountUpdateNotifySettingsRequest{
 		Peer:     &tg.InputNotifyPeer{Peer: inputPeer},
 		Settings: settings,
 	})
@@ -36251,16 +36256,21 @@ func (t *TelegramCore) MuteChat(chatID string, muted bool) error {
 
 // MuteChatFor mutes a chat for a specific duration in seconds.
 func (t *TelegramCore) MuteChatFor(chatID string, durationSeconds int32) error {
+	// withAPI rule: never hold t.mu across the notify-settings RPC.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
 	}
-	defer unlock()
+	unlock()
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
 
 	settings := tg.InputPeerNotifySettings{}
 	settings.SetMuteUntil(int(time.Now().Unix()) + int(durationSeconds))
 
-	_, err = t.api.AccountUpdateNotifySettings(t.ctx, &tg.AccountUpdateNotifySettingsRequest{
+	_, err = api.AccountUpdateNotifySettings(ctx, &tg.AccountUpdateNotifySettingsRequest{
 		Peer:     &tg.InputNotifyPeer{Peer: inputPeer},
 		Settings: settings,
 	})

@@ -414,7 +414,7 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 			panelSynced[key] = true
 		}
 		prev := sw.Value
-		d := a.muteRow(gtx, sw)
+		d := a.muteRowWithPicker(gtx, f, k, sw)
 		if sw.Value != prev {
 			a.setChatMuted(k, !sw.Value)
 		}

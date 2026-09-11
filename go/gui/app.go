@@ -179,6 +179,8 @@ func contentDialogSurface(f frame) string {
 		return "privacy"
 	case f.lockDlg != nil:
 		return "lock"
+	case f.muteDlg != nil:
+		return "mute"
 	case f.twofaDlg != nil:
 		return "twofa"
 	case f.soundPicker != nil:
@@ -217,6 +219,8 @@ func (a *App) layoutContentPaneDialog(gtx layout.Context, f frame, surface strin
 		return a.layoutAddMemberDialog(gtx, f)
 	case "ttl":
 		return a.layoutTtlDialog(gtx, f)
+	case "mute":
+		return a.layoutMuteDialog(gtx, f)
 	case "privacy":
 		return a.layoutPrivacyScopeDialog(gtx, f)
 	case "twofa":

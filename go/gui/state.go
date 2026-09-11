@@ -250,6 +250,7 @@ type App struct {
 	addMemDlg        *addMemDlgState     // add-members picker (slice 79)
 	searchTab        int                 // search results tab (slice 57)
 	ttlDlg           *ttlDlgState        // message auto-delete dialog (slice 60)
+	muteDlg          *muteDlgState       // mute-duration picker (slice 134)
 	// helper-panel modes & data (slice 58)
 	emojiMode      int // panel: 0 emoji, 1 stickers, 2 gifs
 	stickerPacks   []cores.StickerPackSummary
@@ -1707,6 +1708,7 @@ func (a *App) snapshot() frame {
 		panelMuted:       a.panelMuted,
 		profile:          a.profile,
 		panelBotCmds:     a.panelBotCmds,
+		muteDlg:          a.muteDlg,
 		members:          a.members,
 		mediaCounts:      a.mediaCounts,
 		panelTab:         a.panelTab,
@@ -1963,6 +1965,7 @@ type frame struct {
 	addMemDlg        *addMemDlgState
 	searchTab        int
 	ttlDlg           *ttlDlgState
+	muteDlg          *muteDlgState
 	emojiMode        int
 	stickerPacks     []cores.StickerPackSummary
 	stickerPackIdx   int

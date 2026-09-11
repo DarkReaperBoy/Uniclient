@@ -277,7 +277,7 @@ P2 = settings/extras, P3 = rare/edge.
 | System desktop notifications | Native banners + sounds + actions | PARTIAL (slice 22: Linux DBus org.freedesktop.Notifications banners w/ config gating (DMs/groups/mentions-only), per-chat mute, 5s throttle; windows/wasm/android stubs; sounds + click-actions remain) | gui/notify.go + gui/notify_linux.go | P1 |
 | Tray icon + tray menu (w/ ghost/streamer toggles, accounts) | Sys-tray integration | MISSING | new gui/tray.go (Gio has no tray; needs platform shim) | P2 |
 | Unread badge on taskbar/dock | Count badge | MISSING | platform-specific | P2 |
-| Per-chat notification settings UI | Mute duration picker, exceptions | CORE-ONLY | engine notify settings APIs (CORE-ONLY) | P2 |
+| Per-chat notification settings UI | Mute duration picker, exceptions | PARTIAL (slice 134: the notifications row gains a ⏰ chip → "Mute for…" picker with tdesktop's presets — 1 hour / 8 hours / 2 days / until turned back on + Unmute — riding engine.MuteChat(duration) → account.updateNotifySettings mute_until; the switch stays instant on/off; remaining-time display + custom durations + per-chat sound/vibrate exception editors still open) | gui/mutedlg.go + engine MuteChat + core MuteChatFor (withAPI-converted) | P2 |
 | Notification content privacy | Show/hide message text in banner | PRESENT (slice 45: Settings → Notifications "Message previews" toggle; banners fall back to "New message" with no sender prefix while off; AppConfig.NotifyPreviews *bool (nil = show), engine ConfigChanges round-trip) | gui/notify.go + gui/settings.go + utils AppConfig.NotifyPreviews | P2 |
 
 ## 14. Misc / platform — scope: mixed (tagged inline where TG-specific)

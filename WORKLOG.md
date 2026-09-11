@@ -2751,3 +2751,23 @@ bot's own info (tdesktop bot profile):
   load with the panel (engine.GetChatBotCommands, bots only).
 
 Gate: gofmt/vet/test green (gui, engine, cores); local Xvfb boot clean.
+
+## 2026-09-11 — slice 134: mute-duration picker
+
+The notifications row's switch only did instant forever/unmute; tdesktop
+offers durations:
+
+- GUI: ⏰ chip on the notifications row opens "Mute for…" — 1 hour /
+  8 hours / 2 days / until turned back on + Unmute rows (content-pane
+  dialog, Esc + Cancel, toasts on apply). Timed picks ride
+  engine.MuteChat(muted, duration) → core MuteChatFor
+  (account.updateNotifySettings mute_until); forever keeps the plain
+  switch semantics. The dialog gates BELOW the passcode lock (security
+  gate wins — pinned by test).
+- RPC hygiene (§8): MuteChat + MuteChatFor held withPeer's t.mu across
+  the notify-settings RPC — converted to the snapshot pattern.
+- Remaining (documented in parity row): remaining-time display on the
+  row (needs notify-settings polling), custom durations, per-chat
+  sound/vibrate exception editors.
+
+Gate: gofmt/vet/test green; local Xvfb boot clean.
