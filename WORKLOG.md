@@ -2260,3 +2260,44 @@ pure-Go Bodymovin subset parser, no new dependencies.
 - Render smoke test: full document (group/parent chain/fill+stroke)
   draws every frame without panicking, emits fills AND strokes; fit
   scale/letterbox math pinned.
+
+## 2026-09-11 — session wrap: slices 119-121 shipped + lottie engine (122 A/B/C)
+
+Full gate green across all 8 packages (gofmt/vet/test -tags goolm),
+everything pushed as it landed (§1.15). Session summary:
+
+- slice 119: inline ":shortcode" emoji autocomplete (composer strip,
+  token scanner + keyword ranking, tap-replaces-token).
+- slice 120: Two-Step Verification settings dialog (state card,
+  set/change/disable, recovery-email lifecycle) over the pre-existing
+  core+engine CloudPassword surface; new CapCloudPassword gate.
+- slice 121: notification sounds — pure-Go synthesized chimes, global
+  picker w/ preview, per-chat overrides via account.get/updateNotify
+  Settings read-modify-write, effective-sound resolution at notify time.
+- slice 122 (A/B/C): go/lottie — complete pure-Go .tgs/Lottie subset
+  engine: parser (gzip container, full document model, no duplicate-tag
+  data loss), keyframe interpolation (bezier easing, holds, spatial
+  tangents), transform composition (parent chains), Gio renderer
+  (shape/solid/null/precomp layers, rect/ellipse/path geometry, fills +
+  strokes, letterboxed fit). 14 test functions green.
+
+### Next agent: wire .tgs playback into the sticker bubble (top of queue)
+
+The lottie engine is DONE and tested; the remaining work is GUI wiring:
+1. Sticker messages (MediaSticker + mime application/x-tgsticker) auto-
+   download their document (RequestDownload, like photoBubble's prefetch)
+   and keep falling back to the static webp thumb until complete.
+2. New gui/tgsplayer.go: per-msgID decoded *lottie.Animation cache;
+   when MediaLocalPath is set + IsTgs (gzip magic / mime), ParseTgs once;
+   a bubble widget that calls lottie.Draw(anim, frameAt(now-start),
+   ops, rect) with a ~1/fr invalidation clock while visible (see the
+   voice-player's clocking in gui/media.go for the pattern); loop at
+   anim.Duration().
+3. Add a "sticker" kind to mediaBlockKind (engine.MediaSticker →
+   dedicated bubble, tap = replay from frame 0), sizes ~256dp.
+4. Same player can later serve the emoji panel's animated previews and
+   animated custom emoji (custemoji.go).
+
+Parity after this session: 129 PRESENT / 30 PARTIAL / 10 MISSING / 31
+CORE-ONLY. Remaining P1s: animated sticker bubble wiring (above),
+in-app video player (needs a pure-Go decoder decision).
