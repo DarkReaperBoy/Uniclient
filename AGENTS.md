@@ -307,7 +307,7 @@ Cores are protocol implementations behind `cores.Core`.
 | xmpp | **Local-server-verified 2026-09-11** (independent mini-server harness: SASL PLAIN + bind + session + message round-trip, 0.2s, in CI) incl. two real auth bugs fixed (attributed self-closing SASL success / IQ results); live pre-auth chain verified (conversations.im); data-form IBR implemented (sure.im accepts structurally — public servers gate registrations by policy). | own impl | Smack — https://github.com/igniterealtime/Smack (Java); Conversations — https://codeberg.org/iNPUTmice/Conversations (Android, "just works" behavior reference — not looks) |
 | bale | Implementation exists, unverified live (geo-restricted). | own protobuf-over-websocket impl | Balethon — https://github.com/Balethon/Balethon (Python); aiobale — https://github.com/aminmadaniofficial/aiobale (client impl); web client — https://web.bale.ai/ (live reference) |
 | rubika | Implementation exists, unverified live (geo-restricted). | own impl | reverse-engineered protocol notes in research/ (verify before trusting) |
-| deltachat | Implementation exists, unverified live. | candidate stack: go-imap + go-smtp + go-crypto + modernc/sqlite | chatmail/core — https://github.com/chatmail/core (Rust official — reference only); deltachat-desktop — https://github.com/deltachat/deltachat-desktop |
+| deltachat | **Local-server-verified 2026-09-11** (emersion go-imap/go-smtp server harness w/ self-signed STARTTLS: IMAP auth chain incl. IDLE pair + DeltaChat folder setup, SMTP send with DC headers, receive path SELECT+FETCH→chat build — 0.07s, in CI). Real email account live test still pending. | go-imap + go-smtp + go-crypto + modernc/sqlite (current impl) | chatmail/core — https://github.com/chatmail/core (Rust official — reference only); deltachat-desktop — https://github.com/deltachat/deltachat-desktop |
 | mumble | **Live-verified 2026-09-10 incl. VOICE** (public server, official rung): full TCP chain (TLS→Version→Authenticate→CryptSetup→ServerSync), two-client text round-trip, UDP ping, **two-client opus voice round-trip (75/75 packets, tone intact)**. OCB2 decrypt is a 1:1 port of upstream CryptStateOCB2. Voice rooms ship in the GUI: every channel is a standing voice room (call bar, participants, mute, speaking states) wired through the engine's shared mic→opus→speaker pipeline. | own impl | protocol docs — https://github.com/mumble-voip/mumble/tree/master/docs/dev/network-protocol; mumble desktop client — https://github.com/mumble-voip/mumble (possible voice-GUI inspiration) |
 | teamspeak | **Live-verified 2026-09-10 incl. VOICE** (public server): full 5-step init handshake, EAX fake-key stage, license chain + ECDH, encrypted command channel, initserver, 100-channel list, ACKed text send, **two-client opus voice round-trip (75/75 packets through EAX-encrypted S2C voice with generation tracking)**. Key derivation + license/ECDH pinned against ts3j official test vectors. Receive-side generation counters (ts3j RemoteCounter semantics + ±1 decrypt retry), server default-channel tracking, error-770 join semantics. | own impl | ts3j — https://github.com/Manevolent/ts3j (Java, working reference); TSLib (TS3AudioBot) — https://github.com/Splamy/TS3AudioBot; spec: ReSpeak/tsdeclarations ts3protocol.md (tsproto repo is gone) |
 
@@ -413,9 +413,12 @@ is the next task.
       -1..-4 decode, OCB2 decrypt 1:1 port with replay-history guard). 30+
       new unit tests pinning crypto/packet formats against official test
       vectors. Both backends now selectable in the GUI picker.
-- [ ] Verify xmpp / bale / rubika / deltachat cores live or replace them (§8)
-      (XMPP pre-auth chain verified 2026-09-10; bale/rubika geo-blocked;
-      deltachat needs real email accounts)
+- [~] Verify xmpp / bale / rubika / deltachat cores live or replace them (§8)
+      (XMPP local-server-verified 2026-09-11 incl. 2 real auth-chain bug
+      fixes + data-form IBR + live pre-auth chain; DELTACHAT
+      local-server-verified 2026-09-11 (auth+send+receive); bale/rubika
+      remain geo-blocked — replace-or-keep decision needs a
+      non-geo-blocked vantage or owner's live test)
 - [x] Voice mode: real call UI on top of wrtc — slices 101-103 (2026-09-10):
       1:1 call overlay (header call buttons on DMs, incoming-call ringing
       overlay via EventIncomingCall, accept/decline/mute/camera/end,
