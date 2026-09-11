@@ -348,6 +348,9 @@ func (a *App) settingsPage(gtx layout.Context, f frame) layout.Dimensions {
 				if f.folderMgr != nil {
 					return a.layoutFolderMgr(gtx, f)
 				}
+				if f.premiumPage != nil {
+					return a.layoutPremiumPage(gtx, f)
+				}
 				switch f.settingsSect {
 				case setSectionMain:
 					return a.setPageMain(gtx, f)
@@ -536,6 +539,15 @@ func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 	if len(f.accounts) > 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.folderMgrEntryRow(gtx, f)
+		}))
+	}
+
+	// Telegram Premium entry (slice 143, tdesktop's Premium box):
+	// subscription status, plans, limits. Telegram-platform accounts only
+	// (premium is a Telegram surface — no dead UI for other platforms).
+	if premiumEntryVisible(f.accounts) {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.premiumEntryRow(gtx, f)
 		}))
 	}
 

@@ -494,6 +494,26 @@ type StickerPackSummary struct {
 	Installed  bool          `json:"installed"`
 }
 
+// PremiumPlanOption is one Telegram Premium subscription option
+// (help.getPremiumPromo PeriodOptions): duration, price and the payment
+// deep link that opens the subscribe flow.
+type PremiumPlanOption struct {
+	Months             int
+	Currency           string // ISO 4217
+	Amount             int64  // smallest units of Currency
+	BotURL             string // payment deep link
+	StoreProduct       string // official-app store product, if any
+	Current            bool   // the option in use right now
+	CanPurchaseUpgrade bool
+}
+
+// PremiumPromo is the premium promotional state: the server's own
+// subscription-status sentence plus the purchasable plans.
+type PremiumPromo struct {
+	StatusText string
+	Options    []PremiumPlanOption
+}
+
 type AttachMenuBotInfo struct {
 	BotID     int64  `json:"bot_id"`
 	ShortName string `json:"short_name"`

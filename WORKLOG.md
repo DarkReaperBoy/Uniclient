@@ -3107,3 +3107,49 @@ PARTIAL / 9 MISSING / 28 CORE-ONLY.
 Next candidates: chat preview popup on hover, Windows taskbar overlay
 badge, premium settings section (CORE-ONE row: GetPremiumFeatures),
 stars balance (CORE-ONLY), business section (CORE-ONLY).
+
+## 2026-09-12 — slice 143: Telegram Premium settings page
+
+tdesktop's Premium box, honest end to end: subscription status from the
+server, purchasable plans with the payment deep link, and the
+free-vs-premium limits comparison.
+
+- RESEARCH: gotd v0.161.0 HelpPremiumPromo verified in the module cache —
+  StatusText (the server's own subscription sentence), PeriodOptions →
+  PremiumSubscriptionOption{Months, Currency, Amount (smallest units),
+  BotURL (payment deep link), StoreProduct, Current,
+  CanPurchaseUpgrade}; currency exponents per the Telegram currencies
+  table (0: JPY/KRW/VND/CLP/DJF/GNF/PYG/UGX; 3: BHD/IQD/JOD/KWD/LYD/OMR/
+  TND; 2 otherwise). Limits: engine.GetAllFolderLimits already ships the
+  full free-vs-premium map from appconfig.
+- RATING (§1.14): core premium surface 6/10 (HelpGetPremiumPromo exists
+  but returns the raw wire type and holds t.mu across the RPC) → add the
+  withAPI-converted GetPremiumPromo alongside (legacy untouched); engine
+  premium seams 7/10 → extend with premiumPromoGetter; GUI: new page.
+- CORE: PremiumPlanOption + PremiumPromo types (base.go);
+  premiumPlansFromPromo (pure) + GetPremiumPromo (withAPI).
+- ENGINE: GetPremiumPromo passthrough (nil for cores without premium —
+  the GUI hides honestly).
+- GUI (gui/settingspremium.go): Settings → Main "Telegram Premium" entry
+  card (Telegram-platform accounts only) → page: status card (Active
+  badge from AccountInfo.IsPremium; server StatusText otherwise), plan
+  rows (duration label, currency-correct price, Current badge, Subscribe
+  → openLinkExternal), "Limits with Premium" comparison rows, account
+  chips, reload.
+- Tests-first: cores mapping (fields, flags, order, nil-safety); gui
+  currency exponents, price formatting (zero/triple-decimal + whole-unit
+  cases), plan labels/subtitle, limits rows (fixed order, unknown keys
+  skipped, missing keys degrade).
+- Gate: gofmt/vet/test green (goolm); windows + wasm cross-builds green
+  (low-memory recipe after an OOM kill on the cold cache); Xvfb GUI boot
+  clean. NOTE: sandbox disk filled mid-slice (7GB go build cache) —
+  cleaned; future agents watch `df -h /`.
+- Slice 142 verify CI (0980f4ab): GREEN via API.
+
+Parity: Premium-section row CORE-ONLY→PARTIAL (local premium
+intentionally out — dead UI). 150 PRESENT / 32 PARTIAL / 9 MISSING /
+27 CORE-ONLY.
+
+Next candidates: stars balance + transactions (CORE-ONE), business
+section (CORE-ONLY), chat preview popup on hover, Windows taskbar
+overlay badge, 2FA completion.

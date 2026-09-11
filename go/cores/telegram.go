@@ -30474,6 +30474,41 @@ func (t *TelegramCore) HelpGetPeerProfileColors(hash int) (tg.HelpPeerColorsClas
 	return t.api.HelpGetPeerProfileColors(t.ctx, hash)
 }
 
+// premiumPlansFromPromo maps the help.getPremiumPromo payload onto the
+// display-ready premium state. Pure.
+func premiumPlansFromPromo(promo *tg.HelpPremiumPromo) PremiumPromo {
+	if promo == nil {
+		return PremiumPromo{}
+	}
+	out := PremiumPromo{StatusText: promo.StatusText}
+	for _, o := range promo.PeriodOptions {
+		out.Options = append(out.Options, PremiumPlanOption{
+			Months:             o.Months,
+			Currency:           o.Currency,
+			Amount:             o.Amount,
+			BotURL:             o.BotURL,
+			StoreProduct:       o.StoreProduct,
+			Current:            o.Current,
+			CanPurchaseUpgrade: o.CanPurchaseUpgrade,
+		})
+	}
+	return out
+}
+
+// GetPremiumPromo returns the premium promotional state (subscription
+// status sentence + purchasable plans) for the account.
+func (t *TelegramCore) GetPremiumPromo() (PremiumPromo, error) {
+	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	if err != nil {
+		return PremiumPromo{}, err
+	}
+	promo, err := api.HelpGetPremiumPromo(ctx)
+	if err != nil {
+		return PremiumPromo{}, fmt.Errorf("get premium promo: %w", err)
+	}
+	return premiumPlansFromPromo(promo), nil
+}
+
 // HelpGetPremiumPromo returns Premium promotional info.
 func (t *TelegramCore) HelpGetPremiumPromo() (*tg.HelpPremiumPromo, error) {
 	t.mu.RLock()
