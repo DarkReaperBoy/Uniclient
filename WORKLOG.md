@@ -2435,3 +2435,37 @@ completion (found via wire debug + goroutine dump).
 
 §8/§11 updated: xmpp + deltachat local-server-verified; bale/rubika stay
 geo-blocked (need a non-geo vantage or the owner's live test).
+
+## 2026-09-11 — session wrap: slices 123-126 + core verifications + v0.8.0
+
+Session summary (everything pushed as it landed, §1.15):
+
+- slice 123: animated .tgs sticker playback — the slice-122 lottie engine
+  wired into chat bubbles (frame clock, bare sticker rows w/ meta pill,
+  webp static path, auto-download, tap-to-replay, path-change re-parse).
+- video-player research verdict: no pure-Go full H.264/VP9 decoder exists
+  (hi264=IDR-only, gomedia=cgo, vp8=codec mismatch) — system-player
+  handoff stays the honest ceiling; documented in research/video_player.md.
+- slice 124: poll completeness — retract (tap own choice), multiple-poll
+  set voting via VotePollMulti, Stop poll context action, quiz solution
+  line (core caches + engine merges poll_solution).
+- slice 125: dice emoji games — MessageMediaDice → engine EnsureDiceSticker
+  → standard download pipeline → lottie playback (roll loops, outcome
+  holds final frame); tdesktop pack mapping semantics.
+- slice 126: forward comment field (comment-first commit plan).
+- XMPP: data-form IBR (XEP-0077 GET→submit, jabber:x:data) + TWO REAL
+  auth-chain bugs fixed (attributed self-closing SASL success, self-closing
+  IQ results) + local-server harness proving SASL+bind+session+message
+  round-trip in 0.2s.
+- Delta Chat: local IMAP+SMTP server harness (emersion server libs +
+  self-signed STARTTLS) proving auth chain + SMTP send + receive path in
+  0.07s.
+- Verify workflow dispatched on the final commit: ALL GREEN (test/vet/
+  gofmt, windows+wasm cross-builds, Xvfb GUI smoke w/ screenshots).
+  Tagged v0.8.0 (prerelease, per §1) — release.yml building.
+
+Parity after this session: 136 PRESENT / 31 PARTIAL / 12 MISSING / 37
+CORE-ONLY. Remaining top items: emoji-panel animated previews, live
+location map tiles, retract/stop poll live-test on a real account,
+bale/rubika vantage problem, in-app video blocked (see
+research/video_player.md).
