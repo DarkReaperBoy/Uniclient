@@ -444,6 +444,7 @@ func (a *App) Start() {
 		a.ui.applyTheme(cfg.Theme)
 		a.ui.applyAccent(cfg.AccentColor)
 		a.ui.applyFontScale(cfg.FontScale)
+		a.psLoad() // power saving (slice 135): restore the animation gates
 		a.ui.applyBubbleCorners(cfg.BubbleCorners == nil || *cfg.BubbleCorners)
 		// Layout tweak sliders (slice 93): the effective values fold in
 		// the legacy corners toggle for older configs.

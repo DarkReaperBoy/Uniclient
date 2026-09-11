@@ -696,9 +696,31 @@ func (e *Engine) UpdatePasscodeConfig(updates map[string]interface{}) error {
 // (auto power saving) from the host UI. forceAll maps to the host
 // PowerSaving::SetForceAll: when set, every flag is treated as enabled.
 func (e *Engine) SetPowerSaving(flags int, forceAll bool) {
+	e.mu.Lock()
 	e.powerSavingFlags = flags
 	e.powerSavingForceAll = forceAll
+	// Persist (slice 135): restored by Init like every other toggle —
+	// power saving must survive restarts to save any power.
+	if e.config != nil {
+		e.config.PowerSavingFlags = flags
+		e.config.PowerSavingForceAll = forceAll
+		if e.vault != nil {
+			_ = e.vault.SetConfig(e.config)
+		}
+	}
+	e.mu.Unlock()
 	log.Printf("[engine] SetPowerSaving: flags=0x%X forceAll=%v", flags, forceAll)
+}
+
+// GetPowerSaving returns the stored power-saving state (false ok when the
+// engine has no config yet — defaults are off).
+func (e *Engine) GetPowerSaving() (flags int, forceAll bool, ok bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.config == nil {
+		return 0, false, false
+	}
+	return e.config.PowerSavingFlags, e.config.PowerSavingForceAll, true
 }
 
 func (e *Engine) SetExperimentalFlag(id string, value bool) {

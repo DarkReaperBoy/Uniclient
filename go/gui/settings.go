@@ -992,6 +992,15 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyTheme(v)
 		})
 	}))
+	// Power saving (slice 135, tdesktop parity): master toggle — blocks
+	// chat animation loops (stickers, dice, inline custom emoji render
+	// their first frame, no re-arm). Persisted through AppConfig.
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "appearance:powersave", "Power saving", powerSaving.forceAll, func(v bool) {
+			a.psSet(powerSaving.flags, v)
+		})
+	}))
+
 	// Layout tweak sliders (AyuGram appearance, slice 93): bubble corner
 	// radius replaces the legacy rounded/square toggle (radius 12 = the
 	// old rounded default, 2 = near-square); bubble width is the "wide

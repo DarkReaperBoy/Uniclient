@@ -204,6 +204,11 @@ func drawEmojiArt(gtx layout.Context, e *emojiArt, side int) bool {
 		if e.anim == nil {
 			return false
 		}
+		// Power saving (slice 135): first frame, no re-arm.
+		if powerSavingBlocks(powerSaving.flags, powerSaving.forceAll, psClassEmoji) {
+			lottie.Draw(e.anim, 0, gtx.Ops, image.Rect(0, 0, side, side))
+			return true
+		}
 		frame := tgsLoopFrame(e.anim, time.Since(e.start))
 		lottie.Draw(e.anim, frame, gtx.Ops, image.Rect(0, 0, side, side))
 		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(tgsFrameInterval(e.anim.FrameRate))})

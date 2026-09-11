@@ -2771,3 +2771,56 @@ offers durations:
   sound/vibrate exception editors.
 
 Gate: gofmt/vet/test green; local Xvfb boot clean.
+
+## 2026-09-11 — slice 135: power saving made real
+
+engine.SetPowerSaving existed as a write-only surface; now it gates the
+GUI's animation loops:
+
+- GATES: stickers/dice (stickerBubble) and inline custom emoji
+  (drawEmojiArt) render their first frame statically — no
+  InvalidateCmd re-arm, no per-frame CPU — while power saving is on
+  (force-all semantics; per-class flag bits in place for finer rows).
+- SETTINGS: master toggle in Appearance; engine.SetPowerSaving persists
+  through AppConfig (power_saving_flags/force_all), Init restores,
+  GetPowerSaving surfaces the state; psLoad runs with the theme restore
+  before the first frame.
+- Pure helper powerSavingBlocks tested against the tdesktop bit layout.
+
+Gate: gofmt/vet/test green (gui, engine, utils); local Xvfb boot clean.
+
+## 2026-09-11 — session wrap: slices 130-135, all CI-verified
+
+Session summary (continuation after the owner's freeze report — the
+freeze fix itself landed last session):
+
+- slice 130: pure-Go HTTP image fetcher (engine.FetchHTTPImage) +
+  inline-bot URL thumbs + full-res webpage card photos (dice-style media
+  row; mediaBlock gated for webpage cards).
+- slice 131: live locations — send (15m/1h/8h presets), countdown chip,
+  Stop-sharing button; remote shares move via message edits.
+- slice 132: inline animated custom emoji in message text (lottie per-doc
+  clocks, static webp, honest webm fallback) + §8 sweep over five
+  document-fetch methods.
+- slice 133: bot info panel — description ("What can this bot do?"),
+  tappable command rows, privacy-policy link; migrateV49.
+- slice 134: mute-duration picker (tdesktop presets) + §8 conversion of
+  the notify-settings RPCs; gates below the passcode lock.
+- slice 135: power saving — real animation gates + persisted master
+  toggle.
+- §8 withAPI conversions this session (freeze-class hygiene):
+  DownloadFile, DownloadChatAvatar, SendLocation, SendLiveLocation,
+  StopLiveLocation, MuteChat, MuteChatFor, GetCustomEmojiFiles,
+  GetCustomEmojiThumbs, GetStickerFiles, GetGifFiles, GetSavedRingtones
+  (+downloadSmallFile snapshot param).
+- Environment: sandbox reset absorbed twice; devroot recipe committed
+  (devroot.env) for the next agent.
+
+Every slice: tests-first, full gate green, pushed immediately, verify CI
+dispatched — all runs GREEN (checked via API). Parity now 144 PRESENT /
+31 PARTIAL / 11 MISSING / 32 CORE-ONLY by row count.
+
+Next candidates (by owner value): remaining-time display on muted chats
+(needs notify-settings polling), chat preview popup (hover peek), global
+post search, sticker/emoji manager settings section, tray/badge platform
+work (dbus StatusNotifier + Windows Shell_NotifyIcon).

@@ -25,6 +25,10 @@ type AppConfig struct {
 	FontScale   float64 `json:"font_scale"`
 	Language    string  `json:"language"`
 
+	// Power saving (slice 135, tdesktop PowerSaving semantics)
+	PowerSavingFlags    int  `json:"power_saving_flags"`
+	PowerSavingForceAll bool `json:"power_saving_force_all"`
+
 	// Downloads
 	DownloadDir  string `json:"download_dir"`
 	MaxCacheSize int64  `json:"max_cache_size"` // bytes, 0 = unlimited, default 1GB

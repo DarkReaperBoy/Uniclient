@@ -406,6 +406,12 @@ func (a *App) stickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage
 			w, h := stickerBox(maxSide, int(p.anim.Width), int(p.anim.Height))
 			if w > 0 && h > 0 {
 				elapsed := time.Since(p.start)
+				// Power saving (slice 135): the first frame renders
+				// statically with no re-arm — loops are the battery cost.
+				if powerSavingBlocks(powerSaving.flags, powerSaving.forceAll, psClassStickers) {
+					lottie.Draw(p.anim, 0, gtx.Ops, image.Rect(0, 0, w, h))
+					return layout.Dimensions{Size: image.Pt(w, h)}
+				}
 				frame := tgsFrameAt(p.anim, elapsed, hold)
 				lottie.Draw(p.anim, frame, gtx.Ops, image.Rect(0, 0, w, h))
 				if !hold || elapsed < p.anim.Duration() {
