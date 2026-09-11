@@ -65,6 +65,7 @@ type richStyle struct {
 	bold, italic, underline, strike, mono, spoiler, quote bool
 	link                                                  string
 	linkKind                                              string
+	emojiDoc                                              int64 // custom-emoji document (slice 132)
 }
 
 // richSegment is a text slice with its merged style.
@@ -122,6 +123,9 @@ func applyEntity(st *richStyle, e cores.TextEntity) {
 	case "mention_name", "custom_emoji", "formatted_date":
 		st.link = "auto"
 		st.linkKind = e.Type
+		if e.Type == "custom_emoji" && e.DocumentID != 0 {
+			st.emojiDoc = e.DocumentID
+		}
 	}
 }
 
@@ -227,7 +231,8 @@ type richRect struct {
 	size image.Point
 	tok  richToken
 	call op.CallOp
-	lt   *linkTag // non-nil for tappable link tokens
+	lt   *linkTag  // non-nil for tappable link tokens
+	art  *emojiArt // inline custom-emoji artwork (slice 132)
 }
 
 // richTextLabel renders the message body with entity formatting; plain
@@ -238,6 +243,7 @@ func (a *App) richTextLabel(gtx layout.Context, m engine.CachedMessage, size uni
 	if len(m.ContentRich) > 0 {
 		_ = json.Unmarshal(m.ContentRich, &entities)
 	}
+	a.ensureEmojiArt(&m, entities)
 	segs := parseRichSegments(m.ContentText, entities)
 	if len(segs) == 0 {
 		lbl := a.ui.Label(size, m.ContentText)
@@ -277,6 +283,8 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 	for _, seg := range segs {
 		tokens = append(tokens, splitTokens(seg)...)
 	}
+	fontPx := gtx.Dp(unit.Dp(float32(size)))
+	artSide := emojiArtSide(fontPx)
 
 	maxW := gtx.Constraints.Max.X
 	x, y := 0, 0
@@ -320,7 +328,19 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 
 	var rects []richRect
 	for _, tok := range tokens {
+		var art *emojiArt
 		sz, call := measure(tok)
+		if tok.style.emojiDoc != 0 && !tok.space && artSide > 0 {
+			art = emojiArts.get(tok.style.emojiDoc)
+			if art.kind == emojiArtLottie || art.kind == emojiArtRaster {
+				// Inline artwork token: a side×side square replaces the
+				// base-glyph text measure.
+				sz = image.Pt(artSide, artSide)
+				call = op.CallOp{}
+			} else {
+				art = nil // unknown/unsupported/failed: keep the glyph
+			}
+		}
 		if tok.space {
 			if x == 0 {
 				continue // no leading spaces after wrap
@@ -346,7 +366,7 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 			lt = &linkTag{msgID: m.MsgID, url: url, kind: tok.style.linkKind}
 			linkTags[m.MsgID] = append(linkTags[m.MsgID], lt)
 		}
-		rects = append(rects, richRect{pos: image.Pt(x, y), size: sz, tok: tok, call: call, lt: lt})
+		rects = append(rects, richRect{pos: image.Pt(x, y), size: sz, tok: tok, call: call, lt: lt, art: art})
 		x += sz.X
 		if x > lineEnd {
 			lineEnd = x
@@ -374,7 +394,15 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 			clipStack = clip.Rect{Max: r.size}.Push(gtx.Ops)
 			event.Op(gtx.Ops, r.lt)
 		}
-		r.call.Add(gtx.Ops)
+		if r.art != nil {
+			// Inline custom-emoji artwork (animated lottie or static
+			// raster) in the token box; base glyph stayed the fallback.
+			if !drawEmojiArt(gtx, r.art, r.size.X) {
+				r.call.Add(gtx.Ops)
+			}
+		} else {
+			r.call.Add(gtx.Ops)
+		}
 		// Underline / strike lines (approximate baselines).
 		if st.underline {
 			ly := r.size.Y - gtx.Dp(unit.Dp(2))

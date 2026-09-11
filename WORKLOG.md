@@ -2707,3 +2707,26 @@ as the honest remainder of slice 129):
   (flag correctness via gotd getters).
 
 Gate: gofmt/vet/test green (engine, cores, gui); local Xvfb boot clean.
+
+## 2026-09-11 — slice 132: inline animated custom emoji in message text
+
+The last CORE-ONLY content row flips PRESENT:
+
+- RICHTEXT: MessageEntityCustomEmoji entities now carry their document ID
+  into the token flow; a ready artwork token renders as a side×side square
+  (1.35x the font box, tdesktop proportions) INSTEAD of the base-glyph
+  text macro — .tgs lottie animates inline on a per-DOCUMENT clock (shared
+  across messages and chats, frame re-arm), webp/png render statically,
+  video/webm honestly stays the base glyph (no pure-Go webm decoder, §1.1).
+- FETCH: batched per message (all unknown docIDs in one
+  engine.GetCustomEmojiFiles call), per-message in-flight guard, per-doc
+  failure pin (no retry churn), 512-entry cache. The pre-fetch state IS
+  the current rendering (base emoji) — an honest transition, not a stub.
+- RPC HYGIENE (§8, same sweep): GetCustomEmojiFiles, GetCustomEmojiThumbs,
+  GetStickerFiles, GetGifFiles, GetSavedRingtones (+cachedRingtonePath,
+  downloadSmallFile now takes the api/ctx snapshot) — all previously held
+  t.mu across MULTI-RPC document fetch + streamed downloads.
+- Entity parse hoisted to richTextLabel (flowRich no longer re-unmarshals
+  ContentRich per frame).
+
+Gate: gofmt/vet/test green; local Xvfb boot clean; binary links.

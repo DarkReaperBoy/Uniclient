@@ -16586,12 +16586,13 @@ func (t *TelegramCore) GetInstalledEmojiSets() ([]EmojiSetSummary, error) {
 }
 
 func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiThumb, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: one documents RPC plus streamed thumb downloads —
+	// never pin t.mu across them.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	docs, err := t.api.MessagesGetCustomEmojiDocuments(t.ctx, documentIDs)
+	docs, err := api.MessagesGetCustomEmojiDocuments(ctx, documentIDs)
 	if err != nil {
 		return nil, fmt.Errorf("get custom emoji documents: %w", err)
 	}
@@ -16643,7 +16644,7 @@ func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiT
 		}
 	}
 	for _, nd := range needDownload {
-		buf, err := t.downloadSmallFile(nd.loc, 64*1024)
+		buf, err := t.downloadSmallFile(api, ctx, nd.loc, 64*1024)
 		if err != nil || len(buf) == 0 {
 			continue
 		}
@@ -16659,12 +16660,13 @@ func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiT
 }
 
 func (t *TelegramCore) GetCustomEmojiFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: this makes a documents RPC plus one streamed download
+	// per emoji — never pin t.mu across them.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	docs, err := t.api.MessagesGetCustomEmojiDocuments(t.ctx, documentIDs)
+	docs, err := api.MessagesGetCustomEmojiDocuments(ctx, documentIDs)
 	if err != nil {
 		return nil, fmt.Errorf("get custom emoji documents: %w", err)
 	}
@@ -16679,7 +16681,7 @@ func (t *TelegramCore) GetCustomEmojiFiles(documentIDs []int64) ([]CustomEmojiFi
 			AccessHash:    d.AccessHash,
 			FileReference: d.FileReference,
 		}
-		buf, err := t.downloadSmallFile(loc, 512*1024)
+		buf, err := t.downloadSmallFile(api, ctx, loc, 512*1024)
 		if err != nil || len(buf) == 0 {
 			continue
 		}
@@ -16751,10 +16753,12 @@ func (t *TelegramCore) GetCustomEmojiSetInfo(documentID int64) (setID int64, acc
 	return 0, 0, "", "", 0, false, nil
 }
 
-func (t *TelegramCore) downloadSmallFile(loc tg.InputFileLocationClass, maxBytes int) ([]byte, error) {
+// downloadSmallFile streams a bounded file using the given client snapshot
+// (withAPI rule: callers must not hold t.mu across the streamed RPCs).
+func (t *TelegramCore) downloadSmallFile(api *tg.Client, ctx context.Context, loc tg.InputFileLocationClass, maxBytes int) ([]byte, error) {
 	var buf bytes.Buffer
 	d := downloader.NewDownloader()
-	_, err := d.Download(t.api, loc).Stream(t.ctx, &buf)
+	_, err := d.Download(api, loc).Stream(ctx, &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -16922,10 +16926,10 @@ func (t *TelegramCore) RemoveRecentSticker(fileID int64, extra string) error {
 }
 
 func (t *TelegramCore) GetStickerFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: streamed downloads must not pin t.mu.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	var result []CustomEmojiFile
 	for _, docID := range documentIDs {
@@ -16939,7 +16943,7 @@ func (t *TelegramCore) GetStickerFiles(documentIDs []int64) ([]CustomEmojiFile, 
 			AccessHash:    accessHash,
 			FileReference: fileRef,
 		}
-		buf, err := t.downloadSmallFile(loc, 512*1024)
+		buf, err := t.downloadSmallFile(api, ctx, loc, 512*1024)
 		if err != nil || len(buf) == 0 {
 			continue
 		}
@@ -17008,10 +17012,10 @@ func (t *TelegramCore) GetSavedGifs() ([]GifInfo, error) {
 }
 
 func (t *TelegramCore) GetGifFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: streamed downloads must not pin t.mu.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	var result []CustomEmojiFile
 	for _, docID := range documentIDs {
@@ -17025,7 +17029,7 @@ func (t *TelegramCore) GetGifFiles(documentIDs []int64) ([]CustomEmojiFile, erro
 			AccessHash:    accessHash,
 			FileReference: fileRef,
 		}
-		buf, err := t.downloadSmallFile(loc, 10*1024*1024)
+		buf, err := t.downloadSmallFile(api, ctx, loc, 10*1024*1024)
 		if err != nil || len(buf) == 0 {
 			continue
 		}
@@ -36484,12 +36488,12 @@ func (t *TelegramCore) SetReactionsNotifySettings(reactionsEnabled bool, reactio
 
 // GetSavedRingtones returns a simplified list of saved ringtones.
 func (t *TelegramCore) GetSavedRingtones() ([]map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: ringtone downloads stream — never pin t.mu.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	result, err := t.api.AccountGetSavedRingtones(t.ctx, 0)
+	result, err := api.AccountGetSavedRingtones(ctx, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -36523,7 +36527,7 @@ func (t *TelegramCore) GetSavedRingtones() ([]map[string]interface{}, error) {
 		// notification sound player needs a real file path). Ringtones are tiny
 		// (Telegram caps them at ~5s / a few hundred KB), so a small download is
 		// cheap and the result is cached on disk between calls.
-		if path := t.cachedRingtonePath(d); path != "" {
+		if path := t.cachedRingtonePath(api, ctx, d); path != "" {
 			tone["file_path"] = path
 		}
 		tones = append(tones, tone)
@@ -36535,8 +36539,8 @@ func (t *TelegramCore) GetSavedRingtones() ([]map[string]interface{}, error) {
 // downloading it to the OS temp dir on first use (skipped if already cached).
 // Returns "" on any failure so callers fall back to the default sound — the
 // same graceful degradation AyuGram's lookupSound() applies for an unavailable
-// ringtone. Caller holds t.mu.RLock.
-func (t *TelegramCore) cachedRingtonePath(d *tg.Document) string {
+// ringtone. Runs on the caller's withAPI snapshot (never under t.mu).
+func (t *TelegramCore) cachedRingtonePath(api *tg.Client, ctx context.Context, d *tg.Document) string {
 	ext := ".ogg"
 	switch d.MimeType {
 	case "audio/mpeg", "audio/mp3":
@@ -36559,7 +36563,7 @@ func (t *TelegramCore) cachedRingtonePath(d *tg.Document) string {
 	}
 	// 4 MB cap comfortably exceeds Telegram's ringtone size limit without
 	// risking a truncated (corrupt) file.
-	data, err := t.downloadSmallFile(loc, 4*1024*1024)
+	data, err := t.downloadSmallFile(api, ctx, loc, 4*1024*1024)
 	if err != nil || len(data) == 0 {
 		return ""
 	}

@@ -350,7 +350,8 @@ type App struct {
 	// custom-emoji reaction thumbnails (slice 53), cached per session.
 	customThumbs         map[int64]cores.CustomEmojiThumb
 	customThumbsFetching map[string]bool
-	customThumbWant      []int64 // pending batch (consumed by customThumbFor)
+	emojiArtFetching     map[string]bool // slice 132: per-message inline custom-emoji batch guard
+	customThumbWant      []int64         // pending batch (consumed by customThumbFor)
 	customThumbWantAcc   string
 
 	// per-message silent sends (AyuGram 🔕, slice 23): sticky toggle
