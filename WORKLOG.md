@@ -2301,3 +2301,38 @@ The lottie engine is DONE and tested; the remaining work is GUI wiring:
 Parity after this session: 129 PRESENT / 30 PARTIAL / 10 MISSING / 31
 CORE-ONLY. Remaining P1s: animated sticker bubble wiring (above),
 in-app video player (needs a pure-Go decoder decision).
+
+## 2026-09-11 — slice 123: animated .tgs sticker playback in chat
+
+The slice-122 lottie engine meets the GUI (top of the last session's queue):
+
+- gui/tgsplayer.go: per-msgID tgsPlayer cache (parse-once, retryable read
+  guard, permanent failParse → static fallback, replay clock); pure
+  detection (isTgsMime, gzipMagic container sniff, stickerRenderKind
+  tgs/webm/static), playback math (tgsFrameInterval clamps 20–60fps,
+  tgsLoopFrame loop-at-duration, stickerBox aspect-true ~256dp box);
+  stickerBubble widget — animated frame draw on the animation's own clock
+  via op.InvalidateCmd scheduling, static .webp from the downloaded file,
+  inline thumb while downloading/parsing; bareStickerBubble — bubble-less
+  sticker rows (AyuGram): forwarded/reply surfaces kept, artwork bare with
+  a translucent meta pill (time + ticks + deleted mark) overlaid SE,
+  reactions strip below; actMedia: tap = replay (.tgs) / fullscreen
+  viewer (.webp) / system handoff (.webm).
+- media.go: "sticker" bubble kind; auto-download extended to stickers
+  (autoDownloadable); .webp added to imageExts (webp decoder was already
+  registered by custemoji.go — static sticker files now decode inline;
+  benefits mediaview/alumni paths too).
+- chat.go: messageRow routes bare sticker messages before bubble chrome;
+  meta construction extracted to messageMetaLabel (shared with the pill).
+- Tests first: gui/tgsplayer_test.go — 12 test functions (mime/magic/
+  render-kind truth tables, parseTgsBytes accept/reject incl. degenerate
+  docs, interval clamps, loop math incl. exact-wrap + degenerate, cache
+  semantics incl. prune + read guard, bare gating incl. poll bodies,
+  auto-downloadable set, meta label, sticker box aspect).
+- Full gate green (gofmt/vet/test -tags goolm, all 8 packages); linux
+  build verified.
+- parity: Sticker (animated) CORE-ONLY → PRESENT (130 / 29 / 10 / 31).
+
+Next top of queue: in-app video player (pure-Go decoder decision — needs
+research), then remaining P1 PARTIALs (poll retract/stop, selection-mode
+comment field, live location rendering).
