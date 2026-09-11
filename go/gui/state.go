@@ -119,6 +119,16 @@ type App struct {
 	botCmdsLoaded bool
 	botCmdsOn     bool
 
+	// inline bot results (slice 128): live @bot query panel state. The
+	// fetch flow guards by key (account|bot|query) + in-flight flag +
+	// throttle; inlineForOffset tracks the next page for "More".
+	inlineRes       *cores.InlineBotResults
+	inlineForKey    string
+	inlineForOffset string
+	inlineBusy      bool
+	inlineLastAsk   time.Time
+	inlineBotIDs    map[string]string // username → resolved bot id (per session)
+
 	// top peers strip (slice 72): search-focus rows, scoped to one account.
 	topPeers       []engine.ChatInfo
 	topPeersFor    string
@@ -1034,6 +1044,10 @@ func (a *App) openChat(k chatKey, title string) {
 	a.botCmdsLoaded = false
 	a.botCmdsOn = false
 	replyKbdUsedFor = "" // slice 127: single_use reply keyboard resets per chat
+	a.inlineRes = nil    // slice 128: inline-bot panel resets per chat
+	a.inlineForKey = ""
+	a.inlineForOffset = ""
+	a.inlineBusy = false
 
 	// Restore the incoming chat's draft into the composer (slice 20).
 	if next.DraftText != "" {

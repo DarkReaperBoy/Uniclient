@@ -2545,3 +2545,39 @@ rendered any of it. A bot chat with no buttons is half a bot chat.
 Full gate green (gofmt/vet/test, 8 packages). Verify workflow on the
 freeze-fix commit ran GREEN on GitHub (test/vet/gofmt, windows+wasm
 cross-builds, Xvfb GUI smoke w/ screenshots) before this slice landed.
+
+## 2026-09-11 — slice 128: inline bot results (@bot query panel)
+
+The second half of the bot-chat experience (the freeze audit surfaced both
+gaps): the core/engine had carried GetInlineBotResultsFull /
+SendInlineBotResult since the callback work — nothing in the GUI ever
+queried an inline bot.
+
+- gui/inlinebots.go: typing "@bot query" in the composer resolves the bot
+  username once (engine.ResolveUsername, cached per session), then queries
+  live (engine.GetInlineBotResultsFull) with a key guard (account|bot|
+  query) + in-flight flag + 400ms throttle; a throttled call re-arms a
+  frame at the throttle deadline so the FINAL query always fetches when
+  typing stops mid-window (the subtle one).
+- Panel above the composer (emoji-autocomplete chrome family): gallery
+  responses render a 4-wide grid of square thumb cells (b64 stripped
+  thumbs — the core fills them for media results); articles render
+  title+description rows; URL-only thumbs (plain BotInlineResult) render
+  text-only — this build has no HTTP image fetcher and a missing thumbnail
+  is honest (§1.10); switch_pm becomes a row that opens the bot's chat
+  (global search by the composer's own @bot + pendingOpen hop);
+  next_offset becomes a "More results" row appending the next page.
+- Tap sends (engine.SendInlineBotResult) and clears the composer query —
+  tdesktop behavior.
+- Core hygiene while there: GetInlineBotResultsFull's RLock-across-RPC +
+  unlock/relock dance around withPeer replaced by the withAPI snapshot
+  rule (same freeze class as the bot-chat freeze).
+- Tests first (gui/inlinebots_test.go): 6 test functions — @bot query
+  parsing truth table (start-of-message rule, terminator rule, official
+  3-char bots like @gif, malformed), fetch key, thumb shaping (b64 only,
+  URL thumbs don't leak), subtitle trim, panel model, More gating. Caught
+  two real bugs during review: the unclaimed fetch key (results always
+  dropped) and the NextOffset refetch loop.
+- parity: Inline bot results CORE-ONLY → PRESENT (138 / 31 / 12 / 35).
+
+Full gate green (gofmt/vet/test, 8 packages).

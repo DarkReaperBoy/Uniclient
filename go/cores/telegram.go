@@ -22311,10 +22311,11 @@ func (t *TelegramCore) GetInlineBotResults(botID string, query string) (int, err
 
 // GetInlineBotResultsFull queries an inline bot and returns structured results.
 func (t *TelegramCore) GetInlineBotResultsFull(botID string, query string, offset string, chatID string) (*InlineBotResults, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: run the query RPC unlocked (the old RLock-across-RPC +
+	// relock dance around withPeer was both racy and a freeze hazard).
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	bid, err := tgUserID(botID)
 	if err != nil {
@@ -22323,17 +22324,16 @@ func (t *TelegramCore) GetInlineBotResultsFull(botID string, query string, offse
 	bhash := t.getCachedUserHash(bid)
 	peer := tg.InputPeerClass(&tg.InputPeerSelf{})
 	if chatID != "" {
-		t.mu.RUnlock()
-		inputPeer, unlock, perr := t.withPeer(chatID)
-		if perr == nil {
+		if inputPeer, unlock, perr := t.withPeer(chatID); perr == nil {
 			peer = inputPeer
 			unlock()
 		}
-		t.mu.RLock()
 	}
-	result, err := t.api.MessagesGetInlineBotResults(t.ctx, &tg.MessagesGetInlineBotResultsRequest{
-		Bot:  &tg.InputUser{UserID: bid, AccessHash: bhash},
-		Peer: peer, Query: query, Offset: offset,
+	result, err := api.MessagesGetInlineBotResults(ctx, &tg.MessagesGetInlineBotResultsRequest{
+		Bot:    &tg.InputUser{UserID: bid, AccessHash: bhash},
+		Peer:   peer,
+		Query:  query,
+		Offset: offset,
 	})
 	if err != nil {
 		return nil, err

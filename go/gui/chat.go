@@ -211,6 +211,8 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.botCmdsOn {
 		a.layoutBotCmdsPanel(gtx, f)
 	}
+	// Inline bot results panel (slice 128): "@bot query" live results.
+	a.layoutInlineResults(gtx, f)
 	// Inline ":shortcode" emoji autocomplete strip (AyuGram composer).
 	a.layoutEmojiAutocomplete(gtx, f)
 	// Delete confirm (slice 19).
