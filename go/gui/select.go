@@ -32,6 +32,42 @@ var (
 	selBarXBtn    widget.Clickable
 )
 
+// fwdComment is the forward picker's optional comment (AyuGram share
+// sheet, slice 126): shipped as its own message before the forwarded
+// batch in every picked recipient chat.
+var fwdComment widget.Editor
+
+// forward commit step kinds (pure plan, unit-tested).
+const (
+	fwdStepComment = iota
+	fwdStepForward
+)
+
+type fwdCommitStep struct {
+	kind int
+	text string
+	ids  []string
+}
+
+// trimForwardComment normalizes the comment box text (whitespace-only
+// counts as no comment). Pure.
+func trimForwardComment(s string) string {
+	return strings.TrimSpace(s)
+}
+
+// forwardCommitSteps plans one recipient's commit: the comment message
+// first (Telegram share-sheet semantics), then the forward batch. Pure.
+func forwardCommitSteps(comment string, ids []string) []fwdCommitStep {
+	var steps []fwdCommitStep
+	if c := trimForwardComment(comment); c != "" {
+		steps = append(steps, fwdCommitStep{kind: fwdStepComment, text: c})
+	}
+	if len(ids) > 0 {
+		steps = append(steps, fwdCommitStep{kind: fwdStepForward, ids: ids})
+	}
+	return steps
+}
+
 var selectionKeyTag = new(struct{})
 
 // ── state transitions ─────────────────────────────────────────────────────
@@ -125,6 +161,7 @@ func (a *App) reportSelected() {
 // recipient selection (slice 41).
 func (a *App) openForward(msgs []engine.CachedMessage) {
 	fwdSel = map[string]bool{}
+	fwdComment.SetText("")
 	a.mu.Lock()
 	a.fwd = msgs
 	capOK := a.savedCap

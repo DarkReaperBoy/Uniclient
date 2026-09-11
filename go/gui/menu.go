@@ -738,6 +738,18 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 					)
 				})
 		}),
+		// Forward comment (AyuGram share sheet, slice 126): optional message
+		// shipped before the forwarded batch in each recipient chat.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(8), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					ed := a.ui.Editor(&fwdComment, "Add a comment…")
+					fwdComment.SingleLine = false
+					return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(8)).Layout(gtx, ed.Layout)
+					})
+				})
+		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(candidates) == 0 {
 				return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -824,6 +836,7 @@ func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engin
 	a.mu.Unlock()
 	fwdSel = map[string]bool{}
 	a.invalidate()
+	comment := trimForwardComment(fwdComment.Text())
 	go func() {
 		ids := make([]string, len(srcs))
 		for k := range srcs {
@@ -831,15 +844,27 @@ func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engin
 		}
 		ok := 0
 		for _, dst := range dsts {
-			var err error
-			if len(srcs) == 1 {
-				err = a.eng.ForwardMessage(srcs[0].AccountID, srcs[0].ChatID, srcs[0].MsgID, dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0)
-			} else {
-				err = a.eng.ForwardMessages(srcs[0].AccountID, srcs[0].ChatID, ids, dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0)
+			failed := false
+			// Comment first (Telegram share-sheet semantics), then the batch.
+			for _, step := range forwardCommitSteps(comment, ids) {
+				var err error
+				switch step.kind {
+				case fwdStepComment:
+					_, err = a.eng.SendMessage(srcs[0].AccountID, dst.ChatID, step.text, "", nil, false, 0, "", "", false, false, false, false, false)
+				case fwdStepForward:
+					if len(step.ids) == 1 {
+						err = a.eng.ForwardMessage(srcs[0].AccountID, srcs[0].ChatID, step.ids[0], dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0)
+					} else {
+						err = a.eng.ForwardMessages(srcs[0].AccountID, srcs[0].ChatID, step.ids, dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0)
+					}
+				}
+				if err != nil {
+					a.setToast("Forward failed: " + err.Error())
+					failed = true
+					break
+				}
 			}
-			if err != nil {
-				a.setToast("Forward failed: " + err.Error())
-			} else {
+			if !failed {
 				ok++
 			}
 		}
