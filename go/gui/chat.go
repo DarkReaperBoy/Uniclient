@@ -153,6 +153,18 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.ui.Divider(gtx)
 		}),
+		// Bot reply keyboard (slice 127): the chat's active custom
+		// keyboard under the composer area — latest keyboard message
+		// wins, a later keyboard_hide clears it, single_use hides it
+		// after one tap.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if chat != nil && chat.IsForum && f.forumTopic == "" {
+				return layout.Dimensions{}
+			}
+			kbd, singleUse, _, src := activeReplyKbd(f.messages)
+			replyKbdSingleUse = singleUse
+			return a.layoutReplyKeyboard(gtx, f, kbd, src)
+		}),
 		// Composer (JOIN bar for not-joined previews, restriction bar for
 		// write-restricted chats, recording panel while a voice note is
 		// captured, input + slow-mode chip otherwise)
@@ -730,6 +742,12 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.translationBlock(gtx, m)
 					}),
+					// Inline keyboard (slice 127): bot button rows below the
+					// content (callback/url/copy/switch_inline/game/buy —
+					// tdesktop HistoryView placement).
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.layoutInlineKeyboard(gtx, m)
+					}),
 					// Reactions strip (AyuGram parity: emoji + count, own highlighted).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if len(m.Reactions) == 0 {
@@ -1122,7 +1140,7 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 						return roundedFill(gtx, a.ui.p.SurfaceHi, 14, func(gtx layout.Context) layout.Dimensions {
 							gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(44))
 							return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								ed := a.ui.Editor(&composer, "Write a message…")
+								ed := a.ui.Editor(&composer, botKbdComposerHint(f))
 								return ed.Layout(gtx)
 							})
 						})

@@ -2506,3 +2506,42 @@ test green; full gofmt/vet/test gate green across all 8 packages.
 Next: continue §11 topmost unchecked items (inline keyboard rendering for
 bot messages is the natural follow-up — the GUI currently ignores
 m.Extra["inline_keyboard"] entirely, noticed during this audit).
+
+## 2026-09-11 — slice 127: bot keyboards (inline + reply markup) rendered
+
+The freeze-fix audit exposed this gap: the Telegram core has parsed
+ReplyInlineMarkup / ReplyKeyboardMarkup / ReplyKeyboardHide into message
+Extra (and carried BotCallback RPCs) since the callback work — the GUI never
+rendered any of it. A bot chat with no buttons is half a bot chat.
+
+- gui/botkbd.go: parse Extra["inline_keyboard"] /
+  Extra["reply_keyboard"] (rawEnvelope pattern like polls/dice); action
+  classification is a pure function (botKbdActionFor) so the tap executor
+  stays thin and the mapping is unit-tested.
+- Inline keyboards render as bot-defined button rows below the bubble
+  content (tdesktop HistoryView placement), accent-filled; URL-ish buttons
+  tint like links. Tap actions: callback/game → engine.BotCallback
+  (messages.getBotCallbackAnswer; answer text as toast — alert answers get
+  the "Bot:" prefix — answer URL opens); url/url_auth/web_view/
+  simple_web_view → openLinkExternal (WebApps need a webview: the
+  system-browser handoff is the honest pure-Go ceiling, same policy as the
+  video player); copy → clipboard; switch_inline same_peer inserts into the
+  composer, otherwise clipboard + toast (tdesktop's chat-switch picker is
+  out of scope); buy toasts the honest payments-unsupported sentence.
+- Reply keyboards render as a panel under the composer: the LATEST
+  keyboard-carrying message in the loaded window wins; a later
+  keyboard_hide clears it (tdesktop semantics); single_use hides the panel
+  after one text tap (consumption resets on chat switch); the markup's
+  placeholder replaces the composer hint. Only actionable buttons render —
+  text sends, webview opens; request_phone/location/poll/peer are omitted
+  rather than shown dead (§1.10). force_reply stays unwired (the reply chip
+  already communicates that state).
+- Tests first (gui/botkbd_test.go): 8 test functions — parse truth tables
+  (both markups, none/malformed/empty cases), replyKbdActive semantics
+  (persist past plain messages, hide clears, newer keyboard wins),
+  action-classification table, renderable gating, hint override.
+- parity: Bot keyboard CORE-ONLY → PRESENT (137 / 31 / 12 / 36).
+
+Full gate green (gofmt/vet/test, 8 packages). Verify workflow on the
+freeze-fix commit ran GREEN on GitHub (test/vet/gofmt, windows+wasm
+cross-builds, Xvfb GUI smoke w/ screenshots) before this slice landed.

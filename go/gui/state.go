@@ -1033,6 +1033,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.botCmdsFor = nil
 	a.botCmdsLoaded = false
 	a.botCmdsOn = false
+	replyKbdUsedFor = "" // slice 127: single_use reply keyboard resets per chat
 
 	// Restore the incoming chat's draft into the composer (slice 20).
 	if next.DraftText != "" {
