@@ -206,6 +206,7 @@ type App struct {
 	cloudThemeAcct    string                 // account ID the list came from (slice 66)
 	profileEdit       *profileEditState      // own-profile editor (slice 71)
 	stickerMgr        *stickerMgrState       // stickers & emoji manager (slice 139)
+	folderMgr         *folderMgrState        // chat-folders manager (slice 142)
 	langCode          string                 // active language (slice 140)
 	langStrings       map[string]string      // pack overrides (copy-on-write)
 	langStringsLoaded bool                   // restore-once guard
@@ -1787,6 +1788,7 @@ func (a *App) snapshot() frame {
 		cloudThemesOn:    a.cloudThemesOn,
 		profileEdit:      a.profileEdit,
 		stickerMgr:       a.stickerMgr,
+		folderMgr:        a.folderMgr,
 		langCode:         a.langCode,
 		langStrings:      a.langStrings,
 		langs:            a.langs,
@@ -2013,6 +2015,7 @@ type frame struct {
 	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
 	profileEdit    *profileEditState      // own-profile editor (slice 71)
 	stickerMgr     *stickerMgrState       // stickers & emoji manager (slice 139)
+	folderMgr      *folderMgrState        // chat-folders manager (slice 142)
 	langCode       string                 // active language (slice 140)
 	langStrings    map[string]string      // pack overrides
 	langs          []engine.LanguageInfo

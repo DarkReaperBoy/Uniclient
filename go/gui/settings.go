@@ -345,6 +345,9 @@ func (a *App) settingsPage(gtx layout.Context, f frame) layout.Dimensions {
 				if f.stickerMgr != nil {
 					return a.layoutStickerMgr(gtx, f)
 				}
+				if f.folderMgr != nil {
+					return a.layoutFolderMgr(gtx, f)
+				}
 				switch f.settingsSect {
 				case setSectionMain:
 					return a.setPageMain(gtx, f)
@@ -524,6 +527,15 @@ func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 	if len(f.accounts) > 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.stickerMgrEntryRow(gtx, f)
+		}))
+	}
+
+	// Chat-folders manager entry (slice 142, tdesktop's "Filter chats"
+	// box): folder CRUD + reorder + server-suggested folders. Hidden
+	// without accounts (same honest-state rule).
+	if len(f.accounts) > 0 {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.folderMgrEntryRow(gtx, f)
 		}))
 	}
 

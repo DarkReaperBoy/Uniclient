@@ -153,6 +153,13 @@ func (a *App) openFolderDlg() {
 	a.mu.Lock()
 	acc := a.acctFilter
 	a.mu.Unlock()
+	a.openFolderDlgFor(acc)
+}
+
+// openFolderDlgFor opens the create dialog for an explicit account
+// (the folders manager opens it for its own account — the sidebar's
+// acctFilter is not the manager's business).
+func (a *App) openFolderDlgFor(acc string) {
 	st := &folderDlgState{
 		accountID: acc,
 		include:   map[string]bool{},
@@ -173,8 +180,14 @@ func (a *App) openFolderDlgEdit(folder engine.FolderInfo) {
 	a.mu.Lock()
 	cur := a.acctFilter
 	a.mu.Unlock()
+	a.openFolderDlgEditFor(cur, folder)
+}
+
+// openFolderDlgEditFor opens the editor on an existing folder for an
+// explicit account (the folders manager).
+func (a *App) openFolderDlgEditFor(accountID string, folder engine.FolderInfo) {
 	st := &folderDlgState{
-		accountID:    cur,
+		accountID:    accountID,
 		editing:      folder.ID,
 		include:      map[string]bool{},
 		exclude:      map[string]bool{},

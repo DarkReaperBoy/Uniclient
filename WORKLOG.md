@@ -3071,3 +3071,39 @@ on Linux; windows/wasm/android transports remain). Counts unchanged:
 Next candidates: folders settings box (P2, CORE-ONLY row — list +
 suggested folders), chat preview popup on hover, Windows taskbar
 overlay badge, 2FA completion.
+
+## 2026-09-12 — slice 142: Chat Folders manager (Settings)
+
+tdesktop's "Filter chats" box, surfaces the last CORE-ONLY folder row:
+the manager sub-page + the server's suggested folders.
+
+- RATING (§1.14): engine folder surface (GetFolders/GetSuggestedFolders/
+  Create/Edit/Delete/ReorderDialogFilters) 9/10 — complete, tested →
+  keep; GUI folder editor (folders.go) 8/10 — full-featured dialog →
+  reuse as-is (openFolderDlgFor/EditFor variants added for explicit
+  accounts); no new engine/core code needed (pure GUI slice over
+  existing surface).
+- GUI (gui/foldermgr.go): Settings → Main "Chat Folders" entry card →
+  manager sub-page (sticker-mgr shell pattern): header w/ back+reload,
+  account chips (multi-account), folder rows (emoticon chip, name,
+  chat count / invite-link-folder subtitle, Edit → full folder editor,
+  ▲▼ reorder via ReorderDialogFilters with numeric-ID guard, Delete),
+  "Create new folder" row, Suggested section — engine.GetSuggestedFolders
+  w/ already-created names hidden (folderSuggestsVisible), tap seeds the
+  standard editor with the suggestion's rules + name
+  (openFolderDlgSuggested — tdesktop's suggested-filter flow).
+- folders.go: openFolderDlg/openFolderDlgEdit now delegate to explicit-
+  account variants (the manager opens dialogs for ITS account, not the
+  sidebar's acctFilter).
+- Tests-first (gui/foldermgr_test.go): chats-label plural, suggested
+  dedupe (name collision, no-folder, empty cases), reorder swap math
+  (adjacent moves + clamps + input immutability). All green.
+- Gate: gofmt/vet/test green (goolm); windows + wasm cross-builds green;
+  Xvfb GUI boot clean. Slice 141 verify CI (5ad6193c): GREEN via API.
+
+Parity: Folders-settings row CORE-ONLY→PRESENT. 150 PRESENT / 32
+PARTIAL / 9 MISSING / 28 CORE-ONLY.
+
+Next candidates: chat preview popup on hover, Windows taskbar overlay
+badge, premium settings section (CORE-ONE row: GetPremiumFeatures),
+stars balance (CORE-ONLY), business section (CORE-ONLY).
