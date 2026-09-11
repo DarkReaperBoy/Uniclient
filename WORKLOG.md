@@ -2336,3 +2336,78 @@ The slice-122 lottie engine meets the GUI (top of the last session's queue):
 Next top of queue: in-app video player (pure-Go decoder decision — needs
 research), then remaining P1 PARTIALs (poll retract/stop, selection-mode
 comment field, live location rendering).
+
+## 2026-09-11 — slice 124: poll completeness (retract / multi-vote / stop / solution)
+
+The engine+core surface already existed (VotePollMulti, RetractPollVote,
+StopPoll, CreatePollWithRevoting) — the GUI semantics were the gap:
+
+- gui/poll.go: Telegram vote semantics (pure pollTapAction, unit-tested):
+  single polls vote once and tap-own-choice RETRACTS (RetractPollVote);
+  multiple polls toggle options with the full set on the wire per tap
+  (VotePollMulti via nextMultiVoteSet); quizzes lock after the answer;
+  closed polls ignore taps. Optimistic overlay switched to
+  replace-with-delta counting (retractions decrement, applyPollOverlay
+  rewrite; pollVotesFor now distinguishes nil=no-op from empty=retracted).
+- Stop poll: context-menu item for own open polls (stopPollMenuGate) →
+  engine.StopPoll + optimistic pollStopped overlay (pollEffectiveClosed).
+- Quiz solution: cores caches res.Solution both at message parse and in
+  UpdateMessagePoll (extra["poll_solution"]); engine mergePollResults
+  folds it; the bubble shows the explanation line after voting.
+- Tests first: 7 new/extended test functions. Full gate green.
+
+## 2026-09-11 — slice 125: dice emoji games as animated .tgs
+
+- cores/telegram_dice.go: MessageMediaDice parsed (dice_emoji + dice_value,
+  application/x-dice attachment → new MediaDice=13); GetDiceStickers maps
+  messages.getStickerSet(inputStickerSetDice) to values exactly like
+  tdesktop's stickers_dice_pack ("#"→roll, "1".."6"→outcomes; slot machines
+  positional) — verified against the tdesktop source.
+- engine/dice.go: EnsureDiceSticker resolves the message's value to the
+  pack document, rewrites the media row (remote_ref/extra/mime tgs) into
+  the STANDARD download pipeline, memoizes packs per account+emoji,
+  re-arms on value swaps (the roll→outcome edit rewrites to the outcome
+  document).
+- gui/dice.go + tgsplayer.go: dice render bare like stickers; roll (value
+  0) loops; outcome plays ONCE and HOLDS its final frame (tgsFrameAt hold
+  mode); emoji-glyph honest fallback pre-download; slot machines stay
+  text (no fake collage, §1.10); player re-parses when the source file
+  changes (value swap). 8 new test functions; full gate green.
+
+## 2026-09-11 — slice 126: forward comment field
+
+- The forward picker gained an optional comment editor (Telegram
+  share-sheet semantics): forwardCommitSteps plans comment-message-first
+  then the forward batch per recipient; commit sends the comment via
+  engine.SendMessage before ForwardMessage(s). Pure plan + trim tested.
+
+## 2026-09-11 — XMPP verified: local-server harness + two REAL auth bugs fixed
+
+The §9 ladder's dockerized-server rung, offline edition: a minimal but
+REAL XMPP server (cores/xmpp_localserver_test.go — independent protocol
+implementation: stream negotiation, SASL PLAIN, bind, session, roster/
+carbons/disco/bookmarks IQ traffic, message echo) verifies the FULL chain
+in 0.2s, in CI, no secrets. It caught two latent bugs that would break
+REAL logins (live tests only ever exercised FAILED auth):
+
+1. readSASLElement only matched the literal <success/> — real servers
+   send <success xmlns='...'/> (attributed, self-closing) → every
+   successful SASL login timed out after 15s. Fixed via pure
+   saslElementMatch (both forms + content form).
+2. readRawIQResponse only matched </iq> — self-closing <iq .../>
+   results (session/ping/carbon acks) stalled 15s each. Fixed with a
+   self-closing-aware check.
+
+Also: XEP-0077 now does the proper two-step GET→submit and supports
+data-form registration (jabber:x:data) — sure.im accepted the form
+structurally (progressed from "bad-request: Use proper DataForm
+registration" to its captcha policy), conversations.im/jabber.de/
+pimux.de/jabber.cz/xmpp.jp/trashserver.net all gate IBR by policy
+(invitation/captcha) — the full public-server registration test
+Skip()s honestly there. Pre-auth chain re-verified live
+(conversations.im, 1.3-2.6s).
+
+Status of the §11 "verify xmpp/bale/rubika/deltachat" item: XMPP done
+(local-server + live pre-auth + data-form IBR); bale/rubika remain
+geo-blocked; deltachat needs a local IMAP/SMTP harness (next session
+candidate) or real email accounts.
