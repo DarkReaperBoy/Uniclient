@@ -330,7 +330,7 @@ func mediaBlockKind(mt int) string {
 		return "voice"
 	case engine.MediaAudio:
 		return "audio"
-	case engine.MediaSticker:
+	case engine.MediaSticker, engine.MediaDice:
 		return "sticker"
 	case engine.MediaLocation:
 		return "location"
@@ -467,7 +467,12 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 		switch msg.MediaType {
 		case engine.MediaImage, engine.MediaGIF, engine.MediaVideo, engine.MediaVideoNote:
 			a.openViewerFromMsg(gtx, &msg)
-		case engine.MediaSticker:
+		case engine.MediaSticker, engine.MediaDice:
+			if msg.MediaType == engine.MediaDice &&
+				(state == engine.DownloadNone || state == engine.DownloadFailed) {
+				a.ensureDiceSticker(&msg) // resolve + download (tap retries)
+				return
+			}
 			switch stickerRenderKind(&msg) {
 			case stickerKindTgs:
 				a.replaySticker(&msg)

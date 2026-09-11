@@ -78,6 +78,10 @@ type Engine struct {
 	media   *MediaManager
 	avatars *avatarState
 
+	// Dice sticker packs (engine/dice.go): per account+emoji memoization of
+	// messages.getStickerSet(inputStickerSetDice) results.
+	dicePacks map[string]*dicePackCache
+
 	// In-app media player (engine/mediaplayer.go): voice notes and
 	// audio files decoded from Ogg/Opus and played through the pure-Go
 	// audio devices. One playback at a time.

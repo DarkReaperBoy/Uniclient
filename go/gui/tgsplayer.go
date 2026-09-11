@@ -114,6 +114,25 @@ func tgsLoopFrame(anim *lottie.Animation, elapsed time.Duration) float64 {
 	return anim.FrameAt(e)
 }
 
+// tgsFrameAt resolves the frame for an elapsed time, looping by default
+// or holding the final frame (dice outcomes rest on their value face).
+func tgsFrameAt(anim *lottie.Animation, elapsed time.Duration, hold bool) float64 {
+	if hold {
+		if anim == nil {
+			return 0
+		}
+		dur := anim.Duration()
+		if dur > 0 && elapsed > dur {
+			elapsed = dur
+		}
+		if elapsed < 0 {
+			elapsed = 0
+		}
+		return anim.FrameAt(elapsed)
+	}
+	return tgsLoopFrame(anim, elapsed)
+}
+
 // stickerBox returns the pixel box for a sticker of w0×h0 animation units
 // inside a maxSide square (AyuGram sticker size ~256dp), aspect-true with
 // a square fallback for degenerate dims.
@@ -148,9 +167,10 @@ func stickerBox(maxSide, w0, h0 int) (int, int) {
 type tgsPlayer struct {
 	anim    *lottie.Animation
 	start   time.Time
-	parsed  bool // anim successfully parsed (anim != nil)
-	failed  bool // permanently unplayable (bad container/document)
-	reading bool // async file read + parse in flight
+	path    string // source file (a changed path re-parses: dice value swaps)
+	parsed  bool   // anim successfully parsed (anim != nil)
+	failed  bool   // permanently unplayable (bad container/document)
+	reading bool   // async file read + parse in flight
 }
 
 // tgsPlayerCache keeps per-msgID players; pruned wholesale when oversized
@@ -179,7 +199,7 @@ func (c *tgsPlayerCache) get(msgID string) *tgsPlayer {
 }
 
 // setAnim publishes a parsed animation and starts its clock.
-func (c *tgsPlayerCache) setAnim(msgID string, anim *lottie.Animation) {
+func (c *tgsPlayerCache) setAnim(msgID, path string, anim *lottie.Animation) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	p := c.players[msgID]
@@ -188,7 +208,17 @@ func (c *tgsPlayerCache) setAnim(msgID string, anim *lottie.Animation) {
 		c.players[msgID] = p
 	}
 	p.anim, p.parsed, p.reading, p.failed = anim, true, false, false
+	p.path = path
 	p.start = time.Now()
+}
+
+// reset clears a parsed animation (new source file for the message).
+func (c *tgsPlayerCache) reset(msgID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if p := c.players[msgID]; p != nil {
+		p.anim, p.parsed, p.path, p.failed, p.reading = nil, false, "", false, false
+	}
 }
 
 // failParse pins the message to the static fallback (no re-parse churn).
@@ -257,6 +287,11 @@ func (a *App) ensureTgsAnim(m *engine.CachedMessage) {
 		return
 	}
 	p := tgsPlayers.get(m.MsgID)
+	if p.parsed && p.path != m.MediaLocalPath {
+		// New file for the same message (dice value swap): re-parse.
+		tgsPlayers.reset(m.MsgID)
+		p = tgsPlayers.get(m.MsgID)
+	}
 	if p.parsed || p.failed {
 		return
 	}
@@ -275,7 +310,7 @@ func (a *App) ensureTgsAnim(m *engine.CachedMessage) {
 			tgsPlayers.failParse(msgID) // static fallback, permanently
 			return
 		}
-		tgsPlayers.setAnim(msgID, anim)
+		tgsPlayers.setAnim(msgID, path, anim)
 		a.invalidate()
 	}()
 }
@@ -298,7 +333,8 @@ func isBareStickerMsg(m *engine.CachedMessage) bool {
 	if m == nil || m.IsService {
 		return false
 	}
-	return m.MediaType == engine.MediaSticker && m.ContentText == "" && !pollIsBody(m)
+	return (m.MediaType == engine.MediaSticker || m.MediaType == engine.MediaDice) &&
+		m.ContentText == "" && !pollIsBody(m)
 }
 
 // autoDownloadable reports which media types prefetch as they scroll into
@@ -337,17 +373,44 @@ func (a *App) stickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage
 
 	kind := stickerRenderKind(m)
 
+	// Dice messages resolve their pack document through the engine before
+	// the download pipeline can run; the emoji glyph is the honest
+	// pre-download state (slot machines stay textual — no fake collage).
+	if m.MediaType == engine.MediaDice {
+		info, hasDice := parseDiceMessage(m)
+		if !hasDice {
+			return layout.Dimensions{}
+		}
+		if !diceAnimated(info.Emoji) {
+			return a.diceFallback(gtx, info, state)
+		}
+		a.ensureDiceSticker(m)
+		if state != engine.DownloadComplete || m.MediaLocalPath == "" {
+			return a.diceFallback(gtx, info, state)
+		}
+	}
+
 	// Animated: parse once the document is local, then draw the looping
-	// frame on the animation's own clock.
+	// frame on the animation's own clock (dice outcomes hold their final
+	// frame instead of looping).
+	hold := false
+	if m.MediaType == engine.MediaDice {
+		if info, ok := parseDiceMessage(m); ok {
+			hold = diceHoldLastFrame(info.Value)
+		}
+	}
 	if kind == stickerKindTgs && state == engine.DownloadComplete && m.MediaLocalPath != "" {
 		a.ensureTgsAnim(m)
 		p := tgsPlayers.get(m.MsgID)
 		if p.parsed && p.anim != nil {
 			w, h := stickerBox(maxSide, int(p.anim.Width), int(p.anim.Height))
 			if w > 0 && h > 0 {
-				frame := tgsLoopFrame(p.anim, time.Since(p.start))
+				elapsed := time.Since(p.start)
+				frame := tgsFrameAt(p.anim, elapsed, hold)
 				lottie.Draw(p.anim, frame, gtx.Ops, image.Rect(0, 0, w, h))
-				gtx.Execute(op.InvalidateCmd{At: time.Now().Add(tgsFrameInterval(p.anim.FrameRate))})
+				if !hold || elapsed < p.anim.Duration() {
+					gtx.Execute(op.InvalidateCmd{At: time.Now().Add(tgsFrameInterval(p.anim.FrameRate))})
+				}
 				return layout.Dimensions{Size: image.Pt(w, h)}
 			}
 		}

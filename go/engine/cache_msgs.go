@@ -1103,6 +1103,7 @@ func (e *Engine) GetSharedMediaCounts(accountID, chatID string) ([]SharedMediaCo
 		MediaVoice:     "voice",
 		MediaVideoNote: "videonote",
 		MediaSticker:   "sticker",
+		MediaDice:      "dice",
 		MediaGIF:       "gif",
 		MediaFile:      "file",
 	}
@@ -1197,6 +1198,8 @@ func mediaPreviewLabel(att cores.FileRef) (emoji, label string) {
 		return "🖼", "Sticker"
 	case MediaGIF:
 		return "🎞", "GIF"
+	case MediaDice:
+		return "🎲", "Dice"
 	case MediaPoll:
 		return "📊", "Poll"
 	case MediaLocation:
@@ -1230,6 +1233,8 @@ func guessMediaType(mime, name string) int {
 		return MediaPoll
 	case mime == "application/x-invoice":
 		return MediaInvoice
+	case mime == "application/x-dice":
+		return MediaDice
 	case mime == "image/gif":
 		return MediaGIF
 	case mime == "image/webp":

@@ -13105,6 +13105,16 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 			}
 
 			m.Attachments = []FileRef{{MimeType: "application/x-poll", Name: "poll"}}
+		case *tg.MessageMediaDice:
+			// Dice / emoji games (slice 125): the animation document lives in
+			// the per-emoji dice pack, resolved lazily by the engine
+			// (EnsureDiceSticker rewrites this media row to the real .tgs).
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			m.Extra["dice_emoji"] = md.Emoticon
+			m.Extra["dice_value"] = md.Value
+			m.Attachments = []FileRef{{MimeType: "application/x-dice", Name: md.Emoticon}}
 		case *tg.MessageMediaGeo:
 			if gp, ok := md.Geo.(*tg.GeoPoint); ok {
 				if m.Extra == nil {

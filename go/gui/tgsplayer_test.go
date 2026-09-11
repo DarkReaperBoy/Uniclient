@@ -185,7 +185,7 @@ func TestTgsPlayerCache(t *testing.T) {
 
 	// setAnim publishes the animation and marks parsed.
 	anim := &lottie.Animation{FrameRate: 30, InPoint: 0, OutPoint: 90}
-	c.setAnim("m1", anim)
+	c.setAnim("m1", "/tmp/a.tgs", anim)
 	if p := c.get("m1"); !p.parsed || p.anim != anim {
 		t.Error("setAnim did not publish parsed state")
 	}
