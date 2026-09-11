@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"strings"
+	"time"
 
 	"gioui.org/font"
 	"gioui.org/layout"
@@ -606,6 +607,21 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 		y += d.Size.Y
 		return d
 	})
+	// Timed-mute countdown (slice 136): while any visible row shows a
+	// remaining-mute chip, re-render at the next minute boundary so the
+	// label ticks down; once one expires, pull the swept chat list so the
+	// row flips to unmuted without waiting for the next server event.
+	if mutedRowHasTimedMute(visible) {
+		now := time.Now()
+		nextMinute := now.Truncate(time.Minute).Add(time.Minute + 50*time.Millisecond)
+		gtx.Execute(op.InvalidateCmd{At: nextMinute})
+		for i := range visible {
+			if visible[i].IsMuted && visible[i].MuteUntil > 0 && visible[i].MuteUntil <= now.Unix() {
+				go a.refreshChats()
+				break
+			}
+		}
+	}
 	return dims
 }
 

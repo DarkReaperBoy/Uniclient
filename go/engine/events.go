@@ -330,12 +330,48 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 
 	case cores.UpdateNotifySettings:
 		if u.NotifySettings != nil {
+			e.applyNotifySettings(accountID, u.NotifySettings)
 			e.emitEvent(EventNotifySettings, accountID, map[string]interface{}{
-				"peer_type": u.NotifySettings.PeerType,
-				"peer_id":   u.NotifySettings.PeerID,
-				"muted":     u.NotifySettings.Muted,
+				"peer_type":  u.NotifySettings.PeerType,
+				"peer_id":    u.NotifySettings.PeerID,
+				"muted":      u.NotifySettings.Muted,
+				"mute_until": u.NotifySettings.MuteUntil,
 			})
 		}
+	}
+}
+
+// notifyPeerChatID maps a notify-settings peer (tg peer kinds) onto the
+// engine's chat-id conventions: users are bare ids, basic groups negative,
+// channels -100-prefixed. Default-scope pushes have no chat row → "".
+func notifyPeerChatID(peerType string, peerID int64) string {
+	switch peerType {
+	case "user":
+		return strconv.FormatInt(peerID, 10)
+	case "group":
+		return strconv.FormatInt(-peerID, 10)
+	case "channel":
+		return strconv.FormatInt(-1000000000000-peerID, 10)
+	}
+	return ""
+}
+
+// applyNotifySettings mirrors a server-pushed notify-settings change
+// (cross-device sync: mute from the phone, desktop follows) into the chat
+// cache, timed expiry included.
+func (e *Engine) applyNotifySettings(accountID string, ns *cores.NotifySettingsUpdate) {
+	chatID := notifyPeerChatID(ns.PeerType, ns.PeerID)
+	if chatID == "" {
+		return
+	}
+	muteUntil := int64(0)
+	if ns.Muted && ns.MuteUntil > 0 {
+		muteUntil = int64(ns.MuteUntil)
+	}
+	if _, err := e.db.Exec(
+		"UPDATE chats SET is_muted = ?, mute_until = ? WHERE account_id = ? AND chat_id = ?",
+		boolToInt(ns.Muted), muteUntil, accountID, chatID); err == nil {
+		e.emitChatUpdate(accountID, chatID)
 	}
 }
 

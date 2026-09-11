@@ -816,13 +816,20 @@ func (t *TelegramCore) initClient() {
 			return nil
 		}
 		muted := u.NotifySettings.MuteUntil > 0
+		muteUntil := int32(0)
+		if muted && u.NotifySettings.MuteUntil < 2000000000 {
+			// int32-max sentinel (2147483647) = "until turned back on":
+			// normalize to our forever encoding (MuteUntil 0).
+			muteUntil = int32(u.NotifySettings.MuteUntil)
+		}
 		t.fireUpdate(Update{
 			Type:     UpdateNotifySettings,
 			Platform: tgPlatform,
 			NotifySettings: &NotifySettingsUpdate{
-				PeerType: peerType,
-				PeerID:   peerID,
-				Muted:    muted,
+				PeerType:  peerType,
+				PeerID:    peerID,
+				Muted:     muted,
+				MuteUntil: muteUntil,
 			},
 		})
 		return nil

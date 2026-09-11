@@ -9,10 +9,12 @@ package gui
 
 import (
 	"image"
+	"time"
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -194,6 +196,8 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 var muteClockBtn widget.Clickable
 
 // muteRowWithPicker renders the notifications row with the duration chip.
+// While a timed mute is active the label gains a "Muted until …" subtitle
+// (slice 136) that re-renders on the minute.
 func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widget.Bool) layout.Dimensions {
 	if muteClockBtn.Clicked(gtx) {
 		title := ""
@@ -207,6 +211,25 @@ func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widg
 		a.mu.Unlock()
 		a.openMuteDialog(k, title)
 	}
+	// Timed-mute subtitle + minute-boundary tick.
+	sub := ""
+	var muteUntil int64
+	a.mu.Lock()
+	for i := range a.chats {
+		if a.chats[i].AccountID == k.AccountID && a.chats[i].ChatID == k.ChatID {
+			if a.chats[i].IsMuted && a.chats[i].MuteUntil > 0 {
+				muteUntil = a.chats[i].MuteUntil
+				sub = "Muted until " + formatMutedUntil(muteUntil, time.Now().Unix())
+			}
+			break
+		}
+	}
+	a.mu.Unlock()
+	if muteUntil > 0 {
+		now := time.Now()
+		nextMinute := now.Truncate(time.Minute).Add(time.Minute + 50*time.Millisecond)
+		gtx.Execute(op.InvalidateCmd{At: nextMinute})
+	}
 	return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -214,8 +237,19 @@ func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widg
 			}),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					lbl := a.ui.Label(unit.Sp(14), "Notifications")
-					return lbl.Layout(gtx)
+					title := a.ui.Label(unit.Sp(14), "Notifications")
+					if sub == "" {
+						return title.Layout(gtx)
+					}
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return title.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							lbl := a.ui.Dim(unit.Sp(11), sub)
+							return lbl.Layout(gtx)
+						}),
+					)
 				})
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {

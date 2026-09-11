@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/proxy"
@@ -77,6 +78,10 @@ type Engine struct {
 
 	media   *MediaManager
 	avatars *avatarState
+
+	// muteSweepLast timestamps the last timed-mute expiry sweep (unix
+	// seconds) so chat-list reads don't re-run the tiny UPDATE constantly.
+	muteSweepLast atomic.Int64
 
 	// Dice sticker packs (engine/dice.go): per account+emoji memoization of
 	// messages.getStickerSet(inputStickerSetDice) results.

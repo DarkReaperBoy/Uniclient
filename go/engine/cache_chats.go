@@ -20,23 +20,27 @@ import (
 
 // ChatInfo is the cached chat data returned to the UI.
 type ChatInfo struct {
-	AccountID            string `json:"account_id"`
-	ChatID               string `json:"chat_id"`
-	Type                 int    `json:"type"`
-	Title                string `json:"title"`
-	AvatarPath           string `json:"avatar_path,omitempty"`
-	LastMsgID            string `json:"last_msg_id,omitempty"`
-	LastMsgText          string `json:"last_msg_text,omitempty"`
-	LastMsgTime          int64  `json:"last_msg_time,omitempty"`
-	LastMsgSender        string `json:"last_msg_sender,omitempty"`
-	LastMsgIsOutgoing    bool   `json:"last_msg_is_outgoing,omitempty"`
-	LastMsgStatus        int    `json:"last_msg_status,omitempty"`
-	LastMsgMediaType     int    `json:"last_msg_media_type,omitempty"`
-	LastMsgThumbB64      string `json:"last_msg_thumb_b64,omitempty"`
-	UnreadCount          int    `json:"unread_count"`
-	IsMuted              bool   `json:"is_muted"`
-	IsPinned             bool   `json:"is_pinned"`
-	IsArchived           bool   `json:"is_archived"`
+	AccountID         string `json:"account_id"`
+	ChatID            string `json:"chat_id"`
+	Type              int    `json:"type"`
+	Title             string `json:"title"`
+	AvatarPath        string `json:"avatar_path,omitempty"`
+	LastMsgID         string `json:"last_msg_id,omitempty"`
+	LastMsgText       string `json:"last_msg_text,omitempty"`
+	LastMsgTime       int64  `json:"last_msg_time,omitempty"`
+	LastMsgSender     string `json:"last_msg_sender,omitempty"`
+	LastMsgIsOutgoing bool   `json:"last_msg_is_outgoing,omitempty"`
+	LastMsgStatus     int    `json:"last_msg_status,omitempty"`
+	LastMsgMediaType  int    `json:"last_msg_media_type,omitempty"`
+	LastMsgThumbB64   string `json:"last_msg_thumb_b64,omitempty"`
+	UnreadCount       int    `json:"unread_count"`
+	IsMuted           bool   `json:"is_muted"`
+	IsPinned          bool   `json:"is_pinned"`
+	IsArchived        bool   `json:"is_archived"`
+	// MuteUntil is the Unix-seconds expiry of a timed mute (0 = muted
+	// forever or not muted). The server unmutes automatically at this
+	// instant; the engine's list sweep mirrors that locally.
+	MuteUntil            int64  `json:"mute_until,omitempty"`
 	DraftText            string `json:"draft_text,omitempty"`
 	MemberCount          int    `json:"member_count,omitempty"`
 	ParentID             string `json:"parent_id,omitempty"`
@@ -87,8 +91,26 @@ func chatTypeToInt(ct cores.ChatType) int {
 	}
 }
 
+// sweepExpiredTimedMutes clears timed mutes whose deadline has passed
+// (the server unmutes automatically at mute_until; mirror that locally).
+// Throttled to one sweep per 15s so the list hot path stays cheap.
+func (e *Engine) sweepExpiredTimedMutes() {
+	now := time.Now().Unix()
+	last := e.muteSweepLast.Load()
+	if now-last < 15 {
+		return
+	}
+	if !e.muteSweepLast.CompareAndSwap(last, now) {
+		return
+	}
+	e.db.Exec(
+		"UPDATE chats SET is_muted = 0, mute_until = 0 WHERE is_muted = 1 AND mute_until > 0 AND mute_until <= ?",
+		now)
+}
+
 // GetUnifiedChatList returns chats from all accounts, sorted by pinned then time.
 func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
+	e.sweepExpiredTimedMutes()
 	if limit <= 0 {
 		limit = 50
 	}
@@ -96,7 +118,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
                         c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
                         c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
                         c.draft_text, c.member_count, c.parent_id,
                         COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
                         c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
@@ -125,6 +147,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 
 // GetChatList returns chats for a single account.
 func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int) ([]ChatInfo, error) {
+	e.sweepExpiredTimedMutes()
 	if limit <= 0 {
 		limit = 50
 	}
@@ -136,7 +159,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
                         c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
                         c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
                         c.draft_text, c.member_count, c.parent_id,
                         COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
                         c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
@@ -212,7 +235,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 			&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
 			&lastMsgIsOutgoing, &c.LastMsgStatus, &c.LastMsgMediaType, &lastMsgThumbB64,
-			&c.UnreadCount, &isMuted, &isPinned, &isArchived,
+			&c.UnreadCount, &isMuted, &isPinned, &isArchived, &c.MuteUntil,
 			&draftText, &memberCount, &parentID, &isBot, &isContact, &isBlocked,
 			&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 			&isVerified, &isScam, &isFake,
@@ -323,6 +346,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
                      last_msg_thumb_b64 = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_thumb_b64 ELSE chats.last_msg_thumb_b64 END,
                      unread_count = excluded.unread_count,
                      is_muted = excluded.is_muted,
+                     mute_until = CASE WHEN excluded.is_muted = 0 THEN 0 ELSE chats.mute_until END,
                      is_pinned = excluded.is_pinned,
                      is_archived = excluded.is_archived,
                      member_count = excluded.member_count,
@@ -677,13 +701,18 @@ func (e *Engine) SaveDraft(accountID, chatID, text string) error {
 }
 
 // MuteChat sets the muted state for a chat.
-// If durationSeconds > 0, mutes for that duration (only supported on some platforms).
+// If durationSeconds > 0, mutes for that duration (only supported on some platforms)
+// and records the expiry so the UI can show the remaining time.
 // If durationSeconds == 0 and muted == true, mutes forever.
 // If muted == false, unmutes regardless of durationSeconds.
 func (e *Engine) MuteChat(accountID, chatID string, muted bool, durationSeconds int32) error {
+	muteUntil := int64(0)
+	if muted && durationSeconds > 0 {
+		muteUntil = time.Now().Unix() + int64(durationSeconds)
+	}
 	_, err := e.db.Exec(
-		"UPDATE chats SET is_muted = ? WHERE account_id = ? AND chat_id = ?",
-		boolToInt(muted), accountID, chatID)
+		"UPDATE chats SET is_muted = ?, mute_until = ? WHERE account_id = ? AND chat_id = ?",
+		boolToInt(muted), muteUntil, accountID, chatID)
 	if err != nil {
 		return err
 	}
@@ -1507,7 +1536,7 @@ func (e *Engine) GetTopPeers(accountID string, limit int) ([]ChatInfo, error) {
 			`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
                                 c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
                                 c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-                                c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+                                c.unread_count, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
                                 c.draft_text, c.member_count, c.parent_id,
                                 COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
                                 c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
@@ -1626,7 +1655,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
                         c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
                         c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
                         c.draft_text, c.member_count, c.parent_id,
                         COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
                         c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
@@ -1648,7 +1677,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 		&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
 		&lastMsgIsOutgoing, &c.LastMsgStatus, &c.LastMsgMediaType, &lastMsgThumbB64,
-		&c.UnreadCount, &isMuted, &isPinned, &isArchived,
+		&c.UnreadCount, &isMuted, &isPinned, &isArchived, &c.MuteUntil,
 		&draftText, &memberCount, &parentID, &isBot, &isContact, &isBlocked,
 		&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 		&isVerified, &isScam, &isFake, &isAdminInt, &isCreatorInt,

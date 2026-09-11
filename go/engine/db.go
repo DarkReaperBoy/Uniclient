@@ -162,6 +162,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV47,
 	migrateV48,
 	migrateV49,
+	migrateV50,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -217,6 +218,19 @@ func migrateV49(tx *sql.Tx) error {
 		}
 	}
 	if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN bot_privacy_url TEXT`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateV50 adds the chats.mute_until column (slice 136: timed mutes —
+// Unix seconds of expiry, 0 = muted forever / no deadline). The chat list
+// sweep auto-unmutes rows whose deadline has passed (the server does the
+// same at mute_until).
+func migrateV50(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN mute_until INTEGER NOT NULL DEFAULT 0`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
 			return err
 		}

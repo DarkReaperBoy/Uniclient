@@ -704,6 +704,9 @@ type NotifySettingsUpdate struct {
 	PeerType string `json:"peer_type"` // "user", "group", "channel", or "default_private", "default_group", "default_channel"
 	PeerID   int64  `json:"peer_id,omitempty"`
 	Muted    bool   `json:"muted"`
+	// MuteUntil is the server's timed-mute deadline (Unix seconds, 0 =
+	// muted forever or unmuted) — cross-device sync of "Mute for 1h".
+	MuteUntil int32 `json:"mute_until,omitempty"`
 }
 
 // VerificationInfo represents an interactive device verification event.
