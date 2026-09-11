@@ -17,6 +17,7 @@ set -e
 ROOT="$HOME/.local"
 SYSROOT="$ROOT/sysroot"
 WORK="$(mktemp -d)"
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
 trap 'rm -rf "$WORK"' EXIT
 
 # --- Go toolchain (go.mod needs go 1.27) -----------------------------------
@@ -92,7 +93,7 @@ for link in *.so; do
 done
 
 # --- emit the env -----------------------------------------------------------
-ENVF="$(dirname "$0")/../devroot.env"
+ENVF="$REPO/devroot.env"
 cat > "$ENVF" <<EOF
 export PATH="$ROOT/go/bin:\$PATH"
 export PKG_CONFIG_PATH="$PCDIR"
