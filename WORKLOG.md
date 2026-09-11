@@ -2605,3 +2605,39 @@ RPC needs.
   (gofmt/vet/test, 8 packages).
 - parity: Location row engine-gated tiles → rendered (live-location
   STREAMING still engine-gated — the honest remainder).
+
+## 2026-09-11 — session wrap: freeze fix + bot UX (slices 127-129), all CI-verified
+
+Session summary (owner report: "clicking on a telegram bot chat froze the
+client"):
+
+- FREEZE FIX: ~840 TelegramCore methods held t.mu across no-deadline RPCs;
+  gotd 0.161 has no heartbeat, so half-open connections hung RPCs forever,
+  pinning the mutex (fair RWMutex → queued writer starves every reader →
+  GUI freeze). Fixed at two layers: rpcGuard invoker (60s deadline on every
+  t.api call, all 4 client-creation sites) + withAPI snapshot rewrites on
+  the chat-open hot path (GetMessages/GetPinnedMessages/GetFullUser/
+  GetChatBotCommands/MarkAsRead/Logout — Logout held the WRITE lock).
+  Regression tests prove non-vacuity (restoring the pre-fix pattern fails
+  with "t.mu write lock starved for 2s"). AGENTS.md §8 now enforces the
+  rule for future edits.
+- slice 127: bot keyboards — inline keyboards (callback/url/copy/
+  switch_inline/game/buy wired to real actions) + reply keyboards under
+  the composer (latest-wins, keyboard_hide clears, single_use, placeholder
+  hint).
+- slice 128: inline bot results — "@bot query" live panel (resolve → query
+  → grid/rows/switch_pm/More; tap sends). Core's GetInlineBotResultsFull
+  converted to withAPI. Two bugs caught in review before shipping
+  (unclaimed fetch key, NextOffset refetch loop).
+- slice 129: real map tiles on location cards — Telegram's own
+  upload.getWebFile geo tiles (tdesktop mechanism), geo_access_hash parsed,
+  per-point cache, venue captions; UploadGetWebFile converted to withAPI.
+- CI: verify workflow dispatched after every push — 4/4 GREEN (test/vet/
+  gofmt, windows+wasm cross-builds, Xvfb GUI smoke w/ screenshots).
+
+Parity after this session: 138 PRESENT / 31 PARTIAL / 12 MISSING / 35
+CORE-ONLY. Next top candidates: animated custom emoji in message text
+(lottie engine exists, needs document fetch + richtext integration), a
+pure-Go HTTP image fetcher (unlocks inline-bot URL thumbs + link-preview
+remote thumbs), live-location streaming (editMessageGeo), tray/badge
+platform work.

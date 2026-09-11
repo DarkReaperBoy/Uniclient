@@ -297,6 +297,12 @@ Cores are protocol implementations behind `cores.Core`.
 - **Go beyond what's provided.** The repo's code, libs and samples are
   starting points; do your own research. Use web search / RTFM whenever
   uncertain — old research notes may be stale or hallucinated.
+- **Never hold `t.mu` across an RPC** (telegram.go withAPI rule, 2026-09-11
+  freeze fix): ~840 legacy methods still hold the RLock across `t.api.*`
+  calls — every touched method must be converted to the snapshot pattern
+  (`api, ctx, err := t.withAPI()`; see the RPC-hygiene section in
+  telegram.go). New code must never regress this. Every RPC is
+  deadline-bounded by the rpcGuard invoker — keep it that way.
 
 | Core | State (2026-09) | Go base / candidates | Reference material (read-only) |
 |---|---|---|---|
