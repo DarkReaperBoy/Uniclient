@@ -207,7 +207,7 @@ func (a *App) decodeFileAsync(path string) {
 }
 
 // imageExts are the formats the stdlib decoders here can display.
-var imageExts = map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true}
+var imageExts = map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
 
 // isDisplayableImage reports whether a local media path can be shown inline.
 func isDisplayableImage(path string) bool {
@@ -330,6 +330,8 @@ func mediaBlockKind(mt int) string {
 		return "voice"
 	case engine.MediaAudio:
 		return "audio"
+	case engine.MediaSticker:
+		return "sticker"
 	case engine.MediaLocation:
 		return "location"
 	case engine.MediaContact:
@@ -368,8 +370,8 @@ func (a *App) mediaBlock(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		state = st.state
 	}
 
-	// AyuGram auto-downloads photos/GIFs as they scroll into view.
-	if (m.MediaType == engine.MediaImage || m.MediaType == engine.MediaGIF) &&
+	// AyuGram auto-downloads photos/GIFs/stickers as they scroll into view.
+	if autoDownloadable(m.MediaType) &&
 		state == engine.DownloadNone && a.markAutoDl(m.MsgID) {
 		msg := *m
 		go func() {
@@ -390,6 +392,8 @@ func (a *App) mediaBlock(gtx layout.Context, f frame, m *engine.CachedMessage) l
 				return a.voiceBubble(gtx, f, m)
 			case "audio":
 				return a.audioBubble(gtx, m)
+			case "sticker":
+				return a.stickerBubble(gtx, f, m, state)
 			case "location":
 				return a.locationBubble(gtx, m)
 			case "contact":
@@ -457,11 +461,27 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 		go func() { a.eng.CancelDownload(msg.AccountID, msg.ChatID, msg.MsgID, 0) }()
 	default:
 		// Complete: photos/GIFs/videos open the fullscreen viewer; voice
-		// notes and Opus audio play IN-APP (slice 113); other types fall
-		// back to the system player (slice 86 handoff).
+		// notes and Opus audio play IN-APP (slice 113); stickers replay
+		// (.tgs) / view (.webp) / hand off (.webm) (slice 123); other
+		// types fall back to the system player (slice 86 handoff).
 		switch msg.MediaType {
 		case engine.MediaImage, engine.MediaGIF, engine.MediaVideo, engine.MediaVideoNote:
 			a.openViewerFromMsg(gtx, &msg)
+		case engine.MediaSticker:
+			switch stickerRenderKind(&msg) {
+			case stickerKindTgs:
+				a.replaySticker(&msg)
+			case stickerKindStatic:
+				if msg.MediaLocalPath != "" && isDisplayableImage(msg.MediaLocalPath) {
+					a.openViewerFromMsg(gtx, &msg)
+				} else if msg.MediaLocalPath != "" {
+					a.openMedia(msg.MediaLocalPath, true)
+				}
+			default: // webm video sticker: system player
+				if msg.MediaLocalPath != "" {
+					a.openMedia(msg.MediaLocalPath, true)
+				}
+			}
 		case engine.MediaVoice, engine.MediaAudio:
 			if msg.MediaLocalPath != "" && engine.IsOpusOgg(msg.MediaLocalPath) {
 				a.toggleVoicePlayback(&msg)

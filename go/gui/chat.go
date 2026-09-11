@@ -617,6 +617,23 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		text = deletedMarkText(text, f.cfg.AyuDeletedMark)
 	}
 
+	// Bubble width (AyuGram "wide multiplier", slice 93): the pane
+	// fraction is configurable 0.70..1.00; default 0.75 (the old 3/4).
+	maxW := int(float64(gtx.Constraints.Max.X) * a.ui.wideMultiplier())
+	pad := gtx.Constraints.Max.X - maxW
+
+	// Stickers render without bubble chrome (AyuGram): bare artwork with
+	// a translucent meta pill overlaid bottom-right (slice 123).
+	if isBareStickerMsg(m) {
+		bubble := func(gtx layout.Context) layout.Dimensions {
+			return a.bareStickerBubble(gtx, f, m, out, deleted)
+		}
+		if out {
+			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(pad)}.Layout(gtx, bubble)
+		}
+		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, bubble)
+	}
+
 	bubble := func(gtx layout.Context) layout.Dimensions {
 		bg := a.ui.p.BubbleIn
 		if out {
@@ -724,13 +741,7 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								meta := fmtTime(m.Timestamp)
-								if m.EditedAt != 0 {
-									meta = editedMark(f.cfg.AyuEditedMark) + fmtTime(m.EditedAt)
-								}
-								if sm := scheduledMetaLabel(*m); sm != "" {
-									meta = sm + " · " + meta
-								}
+								meta := messageMetaLabel(*m, f.cfg.AyuEditedMark)
 								lbl := a.ui.Dim(unit.Sp(10), meta)
 								lbl.Color = a.ui.p.TextFaint
 								return lbl.Layout(gtx)
@@ -749,11 +760,6 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 			})
 		})
 	}
-
-	// Bubble width (AyuGram "wide multiplier", slice 93): the pane
-	// fraction is configurable 0.70..1.00; default 0.75 (the old 3/4).
-	maxW := int(float64(gtx.Constraints.Max.X) * a.ui.wideMultiplier())
-	pad := gtx.Constraints.Max.X - maxW
 
 	// Selection mode: leading check circle outside the bubble (AyuGram).
 	if f.selOn {
