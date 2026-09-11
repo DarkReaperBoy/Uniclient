@@ -2824,3 +2824,112 @@ Next candidates (by owner value): remaining-time display on muted chats
 (needs notify-settings polling), chat preview popup (hover peek), global
 post search, sticker/emoji manager settings section, tray/badge platform
 work (dbus StatusNotifier + Windows Shell_NotifyIcon).
+
+## 2026-09-11 — slice 136: timed-mute remaining-time display
+
+Mute-for-1h was already settable (slice 134) but invisible afterwards —
+now the countdown is everywhere tdesktop shows it:
+
+- ENGINE: chats.mute_until (migrateV50, unix seconds; 0 = forever).
+  MuteChat(dur>0) stores now+dur; unmute/forever clear it. The dialog
+  upsert keeps timed mutes across core refreshes (CASE on
+  excluded.is_muted so core-side unmutes still win). A throttled (15s)
+  expiry sweep on both list-read paths auto-unmutes rows whose deadline
+  passed — mirroring the server, which unmutes at mute_until itself.
+- CROSS-DEVICE: cores.NotifySettingsUpdate carries MuteUntil (int32-max
+  "forever" sentinel normalized to 0); engine applyNotifySettings maps
+  tg peer kinds (user/group/channel) onto chat-id conventions and
+  updates the cache — mutes made on the phone appear on desktop with
+  their expiry.
+- GUI: chat-row trailing badge gains the timed-mute countdown chip
+  (tdesktop's clock badge — "59m"/"23h"/"3d", single unit floored, min
+  1m — rendered FIRST in the badge order); profile notifications row
+  shows "Muted until 15:04 / Sep 12, 15:04 / Sep 12, 2027"; the sidebar
+  re-renders on the minute while any row is timed-muted and pulls a
+  fresh (swept) list at expiry.
+- Tests: engine store/clear/expire/sweep/peer-map/handleUpdate; gui
+  label/until-format/badge-order/tick predicate.
+
+Gate: gofmt/vet/test green; Xvfb boot clean (EGL vendor-dir fix found
+and committed into devroot.env — the sandbox lost /usr/share/glvnd).
+
+## 2026-09-11 — slice 137: system tray (Linux SNI + Windows) + unread badge
+
+The tray was one of the two remaining platform-completeness MISSING
+rows (P2). Shipped for real, pure Go end to end:
+
+- DEPENDENCY (rated 8/10, kept per §1.12): github.com/gogpu/systray
+  v0.3.0 — freedesktop StatusNotifierItem + com.canonical.dbusmenu on
+  godbus (Linux), Shell_NotifyIconW via x/sys/windows (Windows), MIT.
+  Vetted against the freedesktop SNI spec text: correct
+  org.kde.StatusNotifierItem-PID-ID bus naming, watcher-restart
+  re-registration (NameOwnerChanged), full dbusmenu method set
+  (GetLayout/GetGroupProperties/Event/EventGroup/AboutToShow(Group),
+  LayoutUpdated + ItemsPropertiesUpdated), nil-safe after a failed
+  Create, watcher-absence is non-fatal. godbus v5.0.6 → v5.2.2 (the
+  notify banners build unchanged).
+- ICON (gui/trayicon.go): rendered programmatically — rounded accent
+  tile (follows the user's accent), original speech-bubble mark, unread
+  badge with a built-in 3x5 pixel-font counter ("99+" clamp),
+  deterministic, unit-tested (badge presence, digit differences,
+  determinism). No binary assets in the repo.
+- MENU (gui/tray.go, AyuGram layout): Show UniClient (ActionRaise),
+  per-account rows with unread counts (tap scopes the sidebar — same
+  path as the drawer rows), Ghost mode + Streamer mode live checkboxes
+  (same engine calls as the drawer toggles), Quit (ActionClose →
+  normal DestroyEvent shutdown). Updates ride the existing
+  refreshChats/refreshAccounts/refreshConfig hooks; the accent restash
+  in snapshot() keeps background reads race-free. tray_stub.go is the
+  honest absence on web/Android (no tray surfaces at all — the settings
+  toggle hides there, §1.10).
+- SETTINGS: "System tray icon" in Notifications (AppConfig.SystemTray,
+  nil = default ON like tdesktop; live start/stop).
+- VERIFICATION (§9 ladder, real-server rung for D-Bus): tray_live_test
+  boots a private dbus-daemon + a fake StatusNotifierWatcher and proves
+  the actual wire round-trips: registration, SNI property reads,
+  dbusmenu GetLayout with the AyuGram menu, in-place relabels after
+  sync, tooltip update. Xvfb GUI boot clean; wasm + windows
+  cross-builds green.
+
+Parity: tray MISSING→PRESENT; taskbar/dock badge MISSING→PARTIAL (the
+tray-icon counter is the tdesktop tray behavior; Windows taskbar
+overlay + dock badges remain).
+
+## 2026-09-11 — slice 138: global post search (hashtag → channels.searchPosts)
+
+- Sidebar search: '#hashtag' queries now also run
+  engine.SearchGlobalPostMessages per account (the core's
+  channels.searchPosts path — exactly what tdesktop triggers for
+  hashtag queries); hits render as a "Posts" section between Messages
+  and Global results, using the message-row renderer (chat title +
+  snippet + time; tap opens the channel).
+- postsSearchQuery gate (pure, tested): '#' followed by a non-space
+  rune; the wire API is hashtag-scoped so plain queries stay on
+  chat/message search — no wasted RPCs.
+- Tabs: Posts survives on All + Messages, hidden on Chats/Links/Files
+  (post hits carry no link/file kinds).
+- buildSearchRows extended (pure, unit-tested); state/frame/snapshot
+  plumbing; stale-run drop + short-query reset behave like the other
+  sections.
+
+Parity: "Search posts in public channels" CORE-ONLY→PRESENT.
+
+## 2026-09-11 — session wrap: slices 136-138 (tray + timed mutes + post search)
+
+- slice 136: timed-mute countdown everywhere + cross-device mute sync.
+- slice 137: real system tray (Linux SNI/dbusmenu, Windows
+  Shell_NotifyIcon) with unread badge, Ayu menu, live toggles —
+  verified against a real dbus-daemon, not just compiled.
+- slice 138: hashtag-driven global post search.
+- Environment notes for the next agent (devroot.env updated): the
+  sandbox lost /usr/share/glvnd — export
+  __EGL_VENDOR_LIBRARY_DIRS=/home/z/.local/sysroot/usr/share/glvnd/egl_vendor.d
+  for Xvfb boots; libolm-dev + libolm3 extracted into the sysroot
+  again after the reset.
+- Parity after this session: 147 PRESENT / 32 PARTIAL / 9 MISSING /
+  31 CORE-ONLY by row count.
+
+Next candidates (by owner value): sticker/emoji manager settings
+section (installed sets: archive/reorder/delete), chat preview popup on
+row hover, Windows taskbar overlay badge, 2FA completion, dice/games
+message rendering (needs a lottie dice pack renderer decision).
