@@ -2581,3 +2581,27 @@ queried an inline bot.
 - parity: Inline bot results CORE-ONLY → PRESENT (138 / 31 / 12 / 35).
 
 Full gate green (gofmt/vet/test, 8 packages).
+
+## 2026-09-11 — slice 129: real map tiles on location cards
+
+Location bubbles were an icon card; the engine's GetMapTile (upload.getWebFile
++ InputWebFileGeoPointLocation — the exact tdesktop mechanism, no third-party
+tile CDN) sat unused, and the core never even parsed the geo access hash the
+RPC needs.
+
+- core: geo_access_hash now parsed for MessageMediaGeo / GeoLive / Venue
+  (venue title + address were already there, plain shares now surface them).
+- gui/location.go: the location card renders the Telegram-served map tile
+  (440×220 @ zoom 15, cover-fitted with rounded corners via a local
+  drawTileCover — the rect sibling of avatar.go's square cover), centered
+  pin, bottom caption pill (address or coords); the pre-fetch state is the
+  honest icon card; failed points pin to the fallback (no retry churn);
+  per-point tile cache with busy/failed semantics (unit-tested, claim
+  rejects cached tiles).
+- engine-side hygiene while there: UploadGetWebFile now follows the withAPI
+  snapshot rule (tiles can be slow; never pin t.mu).
+- Tests: parse access-hash/venue truth table, tile key, cache semantics
+  (claim/store/fail, double-claim, cached-tile claim). Full gate green
+  (gofmt/vet/test, 8 packages).
+- parity: Location row engine-gated tiles → rendered (live-location
+  STREAMING still engine-gated — the honest remainder).

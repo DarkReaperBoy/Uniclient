@@ -395,7 +395,7 @@ func (a *App) mediaBlock(gtx layout.Context, f frame, m *engine.CachedMessage) l
 			case "sticker":
 				return a.stickerBubble(gtx, f, m, state)
 			case "location":
-				return a.locationBubble(gtx, m)
+				return a.locationBubble(gtx, f, m)
 			case "contact":
 				return a.contactBubble(gtx, m)
 			default:

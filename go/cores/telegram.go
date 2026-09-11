@@ -13190,6 +13190,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				}
 				m.Extra["geo_lat"] = gp.Lat
 				m.Extra["geo_long"] = gp.Long
+				m.Extra["geo_access_hash"] = gp.AccessHash
 				if m.Text == "" {
 					m.Text = "📍 Location"
 				}
@@ -13202,6 +13203,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				}
 				m.Extra["geo_lat"] = gp.Lat
 				m.Extra["geo_long"] = gp.Long
+				m.Extra["geo_access_hash"] = gp.AccessHash
 				m.Extra["geo_live"] = true
 				m.Extra["geo_period"] = md.Period
 				if heading, ok := md.GetHeading(); ok {
@@ -13219,6 +13221,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				}
 				m.Extra["geo_lat"] = gp.Lat
 				m.Extra["geo_long"] = gp.Long
+				m.Extra["geo_access_hash"] = gp.AccessHash
 				m.Extra["venue_title"] = md.Title
 				m.Extra["venue_address"] = md.Address
 				if m.Text == "" {
@@ -34337,12 +34340,12 @@ func (t *TelegramCore) UploadGetFileHashes(request *tg.UploadGetFileHashesReques
 
 // UploadGetWebFile downloads a web file from Telegram.
 func (t *TelegramCore) UploadGetWebFile(request *tg.UploadGetWebFileRequest) (*tg.UploadWebFile, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: map-tile web files can be slow; never pin t.mu.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	return t.api.UploadGetWebFile(t.ctx, request)
+	return api.UploadGetWebFile(ctx, request)
 }
 
 // UploadReuploadCDNFile re-uploads a file to the CDN.

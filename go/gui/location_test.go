@@ -2,6 +2,7 @@ package gui
 
 import (
 	"encoding/json"
+	"image"
 	"testing"
 
 	"uniclient/engine"
@@ -102,5 +103,72 @@ func TestParseCoords(t *testing.T) {
 	}
 	if _, _, err := parseCoords("1", "x"); err == nil || err.Error() != "longitude" {
 		t.Errorf("lon err = %v", err)
+	}
+}
+
+// ── map tiles (slice 129) ──────────────────────────────────────────────────
+
+func TestParseGeoAccessHashAndVenue(t *testing.T) {
+	m := &engine.CachedMessage{ContentRaw: geoRaw(t, map[string]interface{}{
+		"geo_lat": 41.0082, "geo_long": 28.9784,
+		"geo_access_hash": float64(1234567890),
+		"venue_title":     "Hagia Sophia", "venue_address": "Sultan Ahmet",
+	})}
+	g := parseGeoMessage(m)
+	if g == nil {
+		t.Fatal("venue geo parse = nil")
+	}
+	if g.AccHash != 1234567890 {
+		t.Errorf("AccHash = %d, want 1234567890", g.AccHash)
+	}
+	if g.Venue != "Hagia Sophia" || g.Address != "Sultan Ahmet" {
+		t.Errorf("venue = %q / %q", g.Venue, g.Address)
+	}
+	// Plain shares carry the hash too (tiles need it), no venue.
+	m2 := &engine.CachedMessage{ContentRaw: geoRaw(t, map[string]interface{}{
+		"geo_lat": 1.5, "geo_long": -2.25, "geo_access_hash": float64(-7),
+	})}
+	g2 := parseGeoMessage(m2)
+	if g2 == nil || g2.AccHash != -7 || g2.Venue != "" {
+		t.Errorf("plain geo = %+v", g2)
+	}
+}
+
+func TestMapTileKey(t *testing.T) {
+	if got := mapTileKey(nil); got != "" {
+		t.Errorf("nil geo key = %q", got)
+	}
+	g := &geoData{Lat: 41.0082, Long: 28.9784}
+	k := mapTileKey(g)
+	if k != mapTileKey(&geoData{Lat: 41.0082, Long: 28.9784}) {
+		t.Error("same point → different keys")
+	}
+	if k == mapTileKey(&geoData{Lat: 41.0083, Long: 28.9784}) {
+		t.Error("different point → same key")
+	}
+}
+
+func TestMapTileCacheSemantics(t *testing.T) {
+	c := &mapTileCache{tiles: map[string]*image.RGBA{}, busy: map[string]bool{}, failed: map[string]bool{}}
+	if c.get("k") != nil {
+		t.Error("empty cache returned a tile")
+	}
+	if !c.claim("k") {
+		t.Fatal("first claim failed")
+	}
+	if c.claim("k") {
+		t.Error("double claim allowed while busy")
+	}
+	img := image.NewRGBA(image.Rect(0, 0, 4, 2))
+	c.store("k", img)
+	if c.get("k") != img {
+		t.Error("stored tile not returned")
+	}
+	if c.claim("k") {
+		t.Error("claim allowed with a cached tile")
+	}
+	c.fail("j")
+	if c.claim("j") {
+		t.Error("claim allowed for a failed key")
 	}
 }
