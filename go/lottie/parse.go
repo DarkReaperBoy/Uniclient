@@ -109,6 +109,11 @@ type rawTransform struct {
 	SkewAxis json.RawMessage `json:"sa"`
 }
 
+// rawShape carries one JSON key exactly once; the meaning of shared keys
+// ("s" size/scale/trim-start, "e" trim-end/gradient-end, "r" corner/
+// rotation, "o" opacity/trim-offset) is resolved per item type in
+// parseShape. Duplicate json tags in a single struct would silently drop
+// data (later fields win), so this shape is deliberate.
 type rawShape struct {
 	Type     string          `json:"ty"`
 	Name     string          `json:"nm"`
@@ -117,40 +122,65 @@ type rawShape struct {
 	Position json.RawMessage `json:"p"`
 	Size     json.RawMessage `json:"s"`
 	Round    json.RawMessage `json:"r"`
-	// path
+	Anchor   json.RawMessage `json:"a"`
+	End      json.RawMessage `json:"e"`
 	Vertices json.RawMessage `json:"ks"`
-	// fill/stroke
 	Color    json.RawMessage `json:"c"`
 	Opacity  json.RawMessage `json:"o"`
 	Width    json.RawMessage `json:"w"`
 	LineCap  json.Number     `json:"lc"`
 	LineJoin json.Number     `json:"lj"`
-	// gradient
 	GradType json.Number     `json:"t"`
-	Start    json.RawMessage `json:"s"`
-	End      json.RawMessage `json:"e"`
 	Colors   json.RawMessage `json:"g"`
-	// trim
-	TrimStart json.RawMessage `json:"s"`
-	TrimEnd   json.RawMessage `json:"e"`
-	TrimOff   json.RawMessage `json:"o"`
-	// group transform ("tr") items: anchor
-	Anchor json.RawMessage `json:"a"`
 }
 
-func numOr(n json.Number, def float64) float64 {
-	if n == "" {
-		return def
+// parseShape converts one raw shape item recursively.
+func parseShape(rs rawShape) Shape {
+	sh := Shape{Type: rs.Type, Name: rs.Name, Hidden: rs.Hidden}
+	switch rs.Type {
+	case ShapeGroup:
+		for _, it := range rs.Items {
+			sh.Items = append(sh.Items, parseShape(it))
+		}
+	case ShapeRect:
+		sh.Position = parsePropRaw(rs.Position)
+		sh.Size = parsePropRaw(rs.Size)
+		sh.Round = parsePropRaw(rs.Round)
+	case ShapeEllipse:
+		sh.Position = parsePropRaw(rs.Position)
+		sh.Size = parsePropRaw(rs.Size)
+	case ShapePath:
+		sh.PathProp = parsePropRaw(rs.Vertices)
+	case ShapeFill:
+		sh.Color = parsePropRaw(rs.Color)
+		sh.Opacity = parsePropRaw(rs.Opacity)
+	case ShapeStroke:
+		sh.Color = parsePropRaw(rs.Color)
+		sh.Opacity = parsePropRaw(rs.Opacity)
+		sh.Width = parsePropRaw(rs.Width)
+		sh.LineCap = int(numOr(rs.LineCap, 1))
+		sh.LineJoin = int(numOr(rs.LineJoin, 1))
+	case ShapeGradient:
+		sh.GradType = int(numOr(rs.GradType, 1))
+		sh.Start = parsePropRaw(rs.Size) // "s" = gradient start
+		sh.End = parsePropRaw(rs.End)    // "e" = gradient end
+		sh.Colors = parsePropRaw(rs.Colors)
+	case ShapeTrim:
+		sh.TrimStart = parsePropRaw(rs.Size)  // "s"
+		sh.TrimEnd = parsePropRaw(rs.End)     // "e"
+		sh.TrimOff = parsePropRaw(rs.Opacity) // "o"
+	case ShapeTransform:
+		sh.Transform = parseTransform(rawTransform{
+			Opacity:  rs.Opacity,  // "o"
+			Rotation: rs.Round,    // "r"
+			Position: rs.Position, // "p"
+			Anchor:   rs.Anchor,   // "a"
+			Scale:    rs.Size,     // "s"
+		})
 	}
-	f, err := n.Float64()
-	if err != nil {
-		return def
-	}
-	return f
+	return sh
 }
 
-// parseLayer converts one raw layer; image and text layers are rejected
-// (.tgs never contains them; better to fail loudly than render wrong).
 func parseLayer(l rawLayer) (Layer, error) {
 	ty := int(numOr(l.Type, -1))
 	switch ty {
@@ -318,51 +348,14 @@ func floatSlice(raw json.RawMessage) []float64 {
 	return out
 }
 
-// parseShape converts one raw shape item recursively.
-func parseShape(rs rawShape) Shape {
-	sh := Shape{Type: rs.Type, Name: rs.Name, Hidden: rs.Hidden}
-	switch rs.Type {
-	case ShapeGroup:
-		for _, it := range rs.Items {
-			sh.Items = append(sh.Items, parseShape(it))
-		}
-	case ShapeRect:
-		sh.Position = parsePropRaw(rs.Position)
-		sh.Size = parsePropRaw(rs.Size)
-		sh.Round = parsePropRaw(rs.Round)
-	case ShapeEllipse:
-		sh.Position = parsePropRaw(rs.Position)
-		sh.Size = parsePropRaw(rs.Size)
-	case ShapePath:
-		sh.PathProp = parsePropRaw(rs.Vertices)
-	case ShapeFill, ShapeStroke:
-		sh.Color = parsePropRaw(rs.Color)
-		sh.Opacity = parsePropRaw(rs.Opacity)
-		if rs.Type == ShapeStroke {
-			sh.Width = parsePropRaw(rs.Width)
-			sh.LineCap = int(numOr(rs.LineCap, 1))
-			sh.LineJoin = int(numOr(rs.LineJoin, 1))
-		}
-	case ShapeGradient:
-		sh.GradType = int(numOr(rs.GradType, 1))
-		sh.Start = parsePropRaw(rs.Start)
-		sh.End = parsePropRaw(rs.End)
-		sh.Colors = parsePropRaw(rs.Colors)
-	case ShapeTrim:
-		sh.TrimStart = parsePropRaw(rs.TrimStart)
-		sh.TrimEnd = parsePropRaw(rs.TrimEnd)
-		sh.TrimOff = parsePropRaw(rs.TrimOff)
-	case ShapeTransform:
-		// "tr" items carry p/a/s (shared JSON keys with size/round on
-		// geometry items — same key, different meaning) plus r for
-		// rotation and o for opacity.
-		sh.Transform = parseTransform(rawTransform{
-			Opacity:  rs.Opacity,
-			Rotation: rs.Round,
-			Position: rs.Position,
-			Anchor:   rs.Anchor,
-			Scale:    rs.Size,
-		})
+// numOr parses a json.Number with a default for absent/invalid values.
+func numOr(n json.Number, def float64) float64 {
+	if n == "" {
+		return def
 	}
-	return sh
+	f, err := n.Float64()
+	if err != nil {
+		return def
+	}
+	return f
 }

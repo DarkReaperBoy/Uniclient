@@ -2240,3 +2240,23 @@ pure-Go Bodymovin subset parser, no new dependencies.
   the Bodymovin order p' = R·S·(p − anchor) + position with opacity
   normalized to 0..1 — anchor-maps-to-position pinned by test.
 - All pure math, 4 test functions green.
+
+## 2026-09-11 — slice 122 (stage C): lottie renderer (Gio ops)
+
+- render.go: Draw(anim, frame, ops, rect) — letterboxed fit of the
+  animation viewport, layer walk in reverse order (bodymovin: first
+  layer on top) with in/out point culling, parent-chain composition,
+  null/solid/precomp (recursive, depth-gated at 8) layer types.
+- Shapes: groups with their internal "tr" transform applied, rect
+  (rounded via cubics), ellipse (4-cubic approximation, k=0.5523),
+  bezier paths (static vertex form), fills + strokes with opacity
+  multiplied down the hierarchy; stroke widths scale with the composed
+  matrix. Geometry paints with the first fill/stroke FOLLOWING it in
+  the item list (bodymovin style resolution).
+- Fixed a silent-data-loss parser bug found by the render smoke test:
+  duplicate JSON tags in one struct ("s"/"e"/"o" on multiple fields)
+  make Go's decoder keep only the last field — rawShape now carries
+  each key exactly once with per-type interpretation in parseShape.
+- Render smoke test: full document (group/parent chain/fill+stroke)
+  draws every frame without panicking, emits fills AND strokes; fit
+  scale/letterbox math pinned.
