@@ -4172,3 +4172,52 @@ chats, app icon selector, suggestions cards (P3s); the "Hide similar
 channels / ads" row's ads half is PRESENT via slice 163 + the no-ads
 lever — the hide-similar toggle is moot now that the block exists
 (honest display, no dead toggle).
+
+## 2026-09-12 — session wrap (slices 163-167)
+
+Session summary, in order:
+
+1. Environment re-provisioned after a VM reset (devroot-setup.sh: Go
+   1.27.1 + CGO sysroot); full build + tests + gofmt/vet green before
+   any work. Repo moved to a persistent home (the prior session's
+   clone held uncommitted slice-163 core work — recovered and finished).
+
+2. Slice 163 — sponsored messages: recovered the prior session's core
+   (4 compile errors fixed against the pinned gotd schema), built the
+   engine layer (5-min per-chat cache, one-shot view reporting,
+   click/report/toggle routing) + the GUI (channel ad cards below the
+   last post, bot-chat top bar, iterative ad-report chain, about-ads
+   box, Premium no-ads lever w/ error revert).
+
+3. Slice 164 — story viewer completion: reactions (stories.sendReaction
+   w/ ReactionEmpty removal, withAPI + channel peers), inline reply
+   (story:<id> → inputReplyToStory), share (stories.exportStoryLink →
+   clipboard), own-reaction state from StoryItem.SentReaction, honest
+   own-story gating (§1.10).
+
+4. Slice 165 — account-switcher unread badges: the bar avatar wears the
+   current account's unread badge; every dropdown row carries its own.
+
+5. Slice 166 — the tdesktop jumplist family (researched from
+   core/shortcuts.cpp defaults): Ctrl+1..8 pinned chats, Ctrl+9
+   archive, Ctrl+0 Saved Messages, Ctrl+J contacts, Ctrl+R read,
+   Alt+↑/↓ chat switch, Ctrl+Alt+Home/End first/last.
+
+6. Slice 167 — similar-channels block: recommendation cards under the
+   channel footer (access hashes cached for dialog-less opens, withAPI
+   conversion of the core fetch).
+
+Disk incident: root fs filled mid-session (dist verification binaries
++ stale caches); cleaned, kept the go-build cache.
+
+Verification: full repo tests green locally after every slice;
+gofmt/vet clean; windows + wasm cross-builds green (slices 163/164);
+Xvfb GUI smoke boots (slices 163/164); verify workflow dispatched on
+HEAD (5eb2f03e) at session end — status checked via API.
+
+Parity after this session: Story viewer PRESENT, Keyboard shortcuts
+PRESENT, Account switcher PRESENT, Sponsored messages PRESENT, Similar
+channels PRESENT. Remaining MISSING: PiP (blocked on pure-Go video
+decode), multi-window chats, app icon selector, suggestions cards —
+all P3. The program continues (next session: multi-window chats or app
+icons; withAPI backlog continues per-touch).
