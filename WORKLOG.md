@@ -3563,3 +3563,26 @@ Parity: Voice tab / call list PARTIAL→PRESENT (calls box landed).
 Parity: Chat settings PARTIAL (Messages section landed; swipe quick
 action + corner buttons remain); Ayu preferences PARTIAL (General
 section landed).
+
+## 2026-09-12 — slice 156: forum subsection tabs (Top mode)
+
+- tdesktop SubsectionTabs (history_view_subsection_tabs.cpp), the Top
+  placement: a horizontal topic tab strip under the chat header of a
+  forum chat. 'All topics' pseudo-tab (back to the topic list) then one
+  tab per cached topic in the loaded pinned-first order — taps ride the
+  existing openForumTopic / backToForumTopics paths.
+- Tab visuals: colored icon circle (topicColor), title, closed lock
+  marker, accent unread pill ('99+' clamp — tray semantics), active
+  highlight; horizontal material.List scroller; listTop accounting
+  keeps the message-list jump offset correct.
+- Honest scope (documented): reorderable tabs (SubsectionSliderReorder)
+  and Left/Bottom placements remain tdesktop extras; the ForumTabs
+  channel flag is not engine-surfaced — the strip renders for every
+  forum until the flag lands.
+- Tests-first: tab construction + order, active selection (list/topic
+  view, stale id deactivation), hidden-topic skip, closed/unread/color
+  carry-over, badge clamp.
+- Gate: gofmt/vet/test green (goolm); windows + wasm green.
+
+Parity: Forum topics view PARTIAL→PRESENT (subsection tabs landed;
+reorder/placement modes remain).
