@@ -9,7 +9,30 @@
 
 # Bale Protocol Research
 
-<!-- Last updated: 2026-04-06 -->
+<!-- Last updated: 2026-09-12 -->
+
+**LIVE VERIFICATION 2026-09-12** (from a non-geo-blocked vantage; tests/bale_live_test.go, `-tags goolm,live`):
+- Unary gRPC-Web pre-auth chain VERIFIED against production:
+  `POST https://next-ws.bale.ai/bale.auth.v1.Auth/StartPhoneAuth`
+  with a deliberately invalid phone → server answered
+  `bale gRPC error: PHONE_NUMBER_INVALID` in ~1s — proving the core's
+  protobuf field-map encode, gRPC-Web 5-byte framing, HTTP transport,
+  trailer parsing, and error mapping all work on the real wire.
+- Re-verified against the CURRENT production web client
+  (web.bale.ai index.4402958e45.js): grpc base `https://next-ws.bale.ai`,
+  ws `wss://next-ws.bale.ai/ws/` (the exact pair the core uses);
+  StartPhoneAuth wire layout 1=phone int64, 2=appId int32, 3=apiKey
+  string, 4=deviceHash bytes, 5=deviceTitle, 9=sendCodeType, 10=options
+  packed; ValidateCode 1=transactionHash, 2=code, 3=isJwt BoolValue,
+  4=futureAuthTokens, 5=language — all match the core's encoding
+  (ASCII string ≡ bytes; {"0":1} ≡ packed [1]; {"1":1} ≡ BoolValue true).
+- The app credentials {id:4, apiKey:C28D46DC...E7D} are present verbatim
+  in the production bundle (so is an {id:2, D5E18686...} pair).
+- Production bundle services seen: bale.auth.v1.Auth, bale.users.v1.Users,
+  bale.ramz.v1.Ramz, bale.fanoos.v1.fanoos, bale.feedback.v1.FeedBack,
+  bale.report.v1.Report (+ messaging via dynamic chunks).
+- Remaining: real phone + OTP sign-in (owner's live test) and the
+  authenticated WS streaming surface.
 
 ## Overview
 

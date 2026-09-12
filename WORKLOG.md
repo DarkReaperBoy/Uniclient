@@ -3697,3 +3697,39 @@ Kept and extended (per §1.12 policy: good rating → keep).
 Parity/§8 status: rubika moves to "pre-auth chain LIVE-verified
 2026-09-12" — same rung XMPP holds. Remaining: real phone+OTP sign-in
 (owner's live test), post-auth RPC surface (dialogs, messages, voice).
+
+## 2026-09-12 — Bale core: LIVE-verified unary pre-auth chain vs production
+
+Context: §8 listed bale as "unverified live (geo-restricted)". This VM is
+not geo-blocked for bale.ai — independent research against the CURRENT
+production web client (web.bale.ai, index.4402958e45.js), then a live
+test.
+
+Research findings (primary sources, re-verified today):
+- Production transport pair confirmed: grpc https://next-ws.bale.ai,
+  ws wss://next-ws.bale.ai/ws/ — exactly what the core uses.
+- StartPhoneAuth / ValidateCode protobuf wire layouts extracted from
+  the generated client code in the bundle and cross-checked against the
+  core's field maps: all equivalent on the wire (ASCII-string deviceHash
+  ≡ bytes; options {"0":1} ≡ packed [1]; isJwt {"1":1} ≡ BoolValue true).
+- App credentials {id:4, apiKey:C28D46DC...E7D} exist verbatim in the
+  production bundle.
+
+No core code changes needed for the auth chain — the reverse-engineered
+wire format was already correct. (Earlier fear of mismatched ValidateCode
+field order turned out to be a different service's message; the
+auth.v1.ValidateCode layout matches.)
+
+Verification (§9 official-server rung, pre-auth):
+- go/tests/bale_live_test.go — GREEN vs production in ~1.2s: Authenticate
+  with phone "1" → StartPhoneAuth → server answered structured
+  `bale gRPC error: PHONE_NUMBER_INVALID` — the full protobuf →
+  gRPC-Web framing → HTTP → trailer parse → error map chain works.
+- Full suite still green; gofmt/vet clean.
+
+Rating per §2: bale core auth/transport design 8/10 — wire-accurate
+against today's production client; kept as-is.
+
+§8 status: bale moves to "pre-auth chain LIVE-verified 2026-09-12".
+Remaining: real phone+OTP (owner's live test), authenticated WS
+streaming, post-auth RPC surface.
