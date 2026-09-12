@@ -50,6 +50,7 @@ func escTarget(f frame) string {
 		f.call != nil,      // self-handled: the call overlay has its own Esc layer (slice 101)
 		f.drawerOpen,
 		f.contactsOpen,
+		f.callsBoxOpen,
 		f.settingsOpen,
 		f.schedPanel:
 		return "" // those surfaces consume Esc in their own layouts

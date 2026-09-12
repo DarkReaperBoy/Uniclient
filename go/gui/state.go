@@ -307,6 +307,22 @@ type App struct {
 	pendingOpen  *chatKey
 	pendingTitle string
 
+	// the Calls box (AyuGram parity slice 154): per-account call-history
+	// page — grouped rows, redial, clear-all, group-calls subsection.
+	callsBoxOpen     bool
+	callsBoxFor      string
+	callsBoxRows     []callBoxRow
+	callsBoxBusy     bool
+	callsBoxDone     bool
+	callsBoxLoad     bool
+	callsBoxMenu     *callsBoxMenuTarget
+	callsRowMenu     *callsRowMenuTarget
+	callsClearDlg    bool
+	callsDelDlg      int // rowIdx of the delete confirm; -1 none
+	callsRowBounds   []image.Rectangle
+	callsBoxMenuRect image.Rectangle
+	callsRowMenuRect image.Rectangle
+
 	// in-chat search (AyuGram parity slice 18): scoped FTS + jump nav
 	inSearch         bool
 	inSearchQ        string
@@ -1905,6 +1921,16 @@ func (a *App) snapshot() frame {
 		addDlgBusy:       a.addDlgBusy,
 		newDlg:           a.newDlg,
 		newDlgErr:        a.newDlgErr,
+		callsBoxOpen:     a.callsBoxOpen,
+		callsBoxFor:      a.callsBoxFor,
+		callsBoxRows:     a.callsBoxRows,
+		callsBoxBusy:     a.callsBoxBusy,
+		callsBoxDone:     a.callsBoxDone,
+		callsBoxLoad:     a.callsBoxLoad,
+		callsBoxMenu:     a.callsBoxMenu,
+		callsRowMenu:     a.callsRowMenu,
+		callsClearDlg:    a.callsClearDlg,
+		callsDelDlg:      a.callsDelDlg,
 		inSearch:         a.inSearch,
 		inSearchQ:        a.inSearchQ,
 		inChatHits:       a.inChatHits,
@@ -2164,6 +2190,18 @@ type frame struct {
 	addDlgBusy   bool
 	newDlg       *newChatDlg
 	newDlgErr    string
+
+	// the Calls box (slice 154)
+	callsBoxOpen  bool
+	callsBoxFor   string
+	callsBoxRows  []callBoxRow
+	callsBoxBusy  bool
+	callsBoxDone  bool
+	callsBoxLoad  bool
+	callsBoxMenu  *callsBoxMenuTarget
+	callsRowMenu  *callsRowMenuTarget
+	callsClearDlg bool
+	callsDelDlg   int
 
 	// in-chat search (slice 18)
 	inSearch         bool

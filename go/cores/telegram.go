@@ -31139,26 +31139,27 @@ func (t *TelegramCore) MessagesDeleteFactCheck(request *tg.MessagesDeleteFactChe
 
 // MessagesDeletePhoneCallHistory deletes the phone call history.
 func (t *TelegramCore) MessagesDeletePhoneCallHistory(request *tg.MessagesDeletePhoneCallHistoryRequest) (*tg.MessagesAffectedFoundMessages, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	return t.api.MessagesDeletePhoneCallHistory(t.ctx, request)
+	return api.MessagesDeletePhoneCallHistory(ctx, request)
 }
 
 func (t *TelegramCore) ClearCallHistory(revoke bool) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the delete-phone-call-history
+	// RPC loop.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	req := &tg.MessagesDeletePhoneCallHistoryRequest{}
 	if revoke {
 		req.SetRevoke(true)
 	}
 	for {
-		result, err := t.api.MessagesDeletePhoneCallHistory(t.ctx, req)
+		result, err := api.MessagesDeletePhoneCallHistory(ctx, req)
 		if err != nil {
 			return fmt.Errorf("clear call history: %w", err)
 		}
@@ -31182,13 +31183,14 @@ type CallHistoryEntry struct {
 }
 
 func (t *TelegramCore) GetCallHistory(offsetID int, limit int) ([]CallHistoryEntry, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the messages.search RPC (the
+	// calls box paginates this on scroll — slice 154).
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
-	result, err := t.api.MessagesSearch(t.ctx, &tg.MessagesSearchRequest{
+	result, err := api.MessagesSearch(ctx, &tg.MessagesSearchRequest{
 		Peer:     &tg.InputPeerEmpty{},
 		Q:        "",
 		Filter:   &tg.InputMessagesFilterPhoneCalls{},

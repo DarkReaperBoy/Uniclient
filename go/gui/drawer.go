@@ -217,12 +217,12 @@ func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 		a.openContacts(acc)
 	}
 	if drawerCalls.Clicked(gtx) {
+		acc := a.acctFilterLocked()
+		if acc == "" {
+			acc = currentAccount(f).ID
+		}
 		a.closeDrawer()
-		a.mu.Lock()
-		a.mode = 1
-		a.mu.Unlock()
-		go a.loadCalls() // slice 64: recent calls for the Voice tab
-		a.invalidate()
+		a.openCallsBox(acc) // slice 154: the Calls box (tdesktop main-menu behavior)
 	}
 	if drawerSettings.Clicked(gtx) {
 		a.closeDrawer()

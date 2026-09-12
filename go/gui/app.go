@@ -169,6 +169,8 @@ func contentDialogSurface(f frame) string {
 		return "newChat"
 	case f.contactsOpen:
 		return "contacts"
+	case f.callsBoxOpen:
+		return "callsBox"
 	case f.folderDlg != nil:
 		return "folder"
 	case f.folderInvites != nil:
@@ -213,6 +215,8 @@ func (a *App) layoutContentPaneDialog(gtx layout.Context, f frame, surface strin
 		return a.layoutNewChatDialog(gtx, f)
 	case "contacts":
 		return a.layoutContacts(gtx, f)
+	case "callsBox":
+		return a.layoutCallsBox(gtx, f)
 	case "folder":
 		return a.layoutFolderDialog(gtx, f)
 	case "folderInvites":
