@@ -685,6 +685,37 @@ type SuggestedFolder struct {
 	Description string `json:"description"`
 }
 
+// PromoSuggestion mirrors help.getPromoData's pending_suggestion entries
+// plus the custom card (slice 171, tdesktop dialogs/suggestions).
+type PromoSuggestion struct {
+	Key         string `json:"key"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	URL         string `json:"url,omitempty"`
+}
+
+// PromoSuggestionsSnapshot is the server's suggestion state.
+type PromoSuggestionsSnapshot struct {
+	Pending []string         `json:"pending"`
+	Custom  *PromoSuggestion `json:"custom,omitempty"`
+}
+
+// BirthdayContact is a contact whose birthday is today (client-side
+// filter over contacts.getContacts user.birthday).
+type BirthdayContact struct {
+	UserID   int64  `json:"user_id"`
+	Name     string `json:"name"`
+	Username string `json:"username,omitempty"`
+}
+
+// SelfSuggestionState is the self-user gating state for the setup
+// suggestions (own birthday / own userpic).
+type SelfSuggestionState struct {
+	PhotoSet        bool `json:"photo_set"`
+	BirthdaySet     bool `json:"birthday_set"`
+	BirthdayIsToday bool `json:"birthday_is_today"`
+}
+
 type ChatlistInviteLink struct {
 	URL       string   `json:"url"`
 	Title     string   `json:"title"`

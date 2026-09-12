@@ -128,6 +128,12 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 			}
 			return a.layoutFolders(gtx, f)
 		})),
+		// Top-bar suggestion card (tdesktop dialogs/suggestions, slice
+		// 171): one server/local suggestion above the dialog rows;
+		// renders nothing when nothing is pending (honest empty §1.10).
+		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
+			return a.layoutSuggestionBar(gtx, f)
+		})),
 		// Chat list (scrollable)
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return a.layoutChatList(gtx, f, visible)

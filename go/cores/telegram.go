@@ -38048,3 +38048,115 @@ func (t *TelegramCore) ApplyGiftCode(slug string) error {
 	_, err = api.PaymentsApplyGiftCode(ctx, slug)
 	return err
 }
+
+// ── Suggestions (help.getPromoData family, slice 171) ─────────────────────
+//
+// tdesktop dialogs/suggestions parity: the server drives a set of
+// pending suggestion KEYS (help.getPromoData → pending_suggestions,
+// refreshed hourly) plus one optional custom card
+// (custom_pending_suggestion: title/description/url). Known keys get
+// local renderers (birthday contacts, birthday setup, premium offer,
+// userpic setup); unknown keys stay hidden — tdesktop behavior. The
+// birthday-contacts card is local data: contacts whose user.birthday is
+// today. Dismissal rides help.dismissSuggestion (async on the server;
+// the GUI keeps the local dismissal regardless).
+
+// GetPromoSuggestions fetches the server's pending-suggestion state.
+func (t *TelegramCore) GetPromoSuggestions() (PromoSuggestionsSnapshot, error) {
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return PromoSuggestionsSnapshot{}, err
+	}
+	res, err := api.HelpGetPromoData(ctx)
+	if err != nil {
+		return PromoSuggestionsSnapshot{}, fmt.Errorf("get promo data: %w", err)
+	}
+	result, ok := res.(*tg.HelpPromoData)
+	if !ok {
+		return PromoSuggestionsSnapshot{}, nil // promoEmpty → no suggestions
+	}
+	snap := PromoSuggestionsSnapshot{Pending: result.GetPendingSuggestions()}
+	if custom, ok := result.GetCustomPendingSuggestion(); ok {
+		snap.Custom = &PromoSuggestion{
+			Key:         "custom",
+			Title:       plainText(custom.Title),
+			Description: plainText(custom.Description),
+			URL:         custom.URL,
+		}
+	}
+	return snap, nil
+}
+
+// DismissSuggestion hides a suggestion server-side
+// (help.dismissSuggestion with inputPeerEmpty, the tdesktop form).
+func (t *TelegramCore) DismissSuggestion(key string) error {
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
+	_, err = api.HelpDismissSuggestion(ctx, &tg.HelpDismissSuggestionRequest{
+		Peer:       &tg.InputPeerEmpty{},
+		Suggestion: key,
+	})
+	return err
+}
+
+// GetTodayBirthdayContacts lists contacts whose birthday is today
+// (contacts.getBirthdays — the dedicated RPC tdesktop's
+// promo_suggestions refreshes daily).
+func (t *TelegramCore) GetTodayBirthdayContacts() ([]BirthdayContact, error) {
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
+	}
+	result, err := api.ContactsGetBirthdays(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get birthdays: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	now := time.Now()
+	var out []BirthdayContact
+	for _, cb := range result.Contacts {
+		if cb.Birthday.Day == now.Day() && cb.Birthday.Month == int(now.Month()) {
+			out = append(out, BirthdayContact{
+				UserID: cb.ContactID,
+				Name:   t.getCachedUserName(cb.ContactID),
+			})
+		}
+	}
+	return out, nil
+}
+
+// GetSelfSuggestionState reports the own-user gating state for the
+// setup suggestions (photo set, birthday set, birthday is today).
+func (t *TelegramCore) GetSelfSuggestionState() (SelfSuggestionState, error) {
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return SelfSuggestionState{}, err
+	}
+	var st SelfSuggestionState
+	users, err := api.UsersGetUsers(ctx, []tg.InputUserClass{&tg.InputUserSelf{}})
+	if err == nil {
+		if len(users) > 0 {
+			if user, ok := users[0].(*tg.User); ok {
+				_, st.PhotoSet = user.GetPhoto()
+			}
+		}
+	}
+	full, err := api.UsersGetFullUser(ctx, &tg.InputUser{UserID: t.selfID})
+	if err == nil && full != nil {
+		if b, ok := full.FullUser.GetBirthday(); ok {
+			st.BirthdaySet = true
+			now := time.Now()
+			st.BirthdayIsToday = b.Day == now.Day() && b.Month == int(now.Month())
+		}
+	}
+	return st, nil
+}
+
+// plainText flattens a TextWithEntities to its text content.
+func plainText(twe tg.TextWithEntities) string {
+	return twe.Text
+}

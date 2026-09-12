@@ -4445,3 +4445,42 @@ the Xvfb GUI smoke + artifacts.
 
 Parity: "App icon selector" MISSING → PRESENT. Remaining MISSING: PiP
 (blocked on pure-Go video decode), suggestions cards — both P3.
+
+## 2026-09-13 — slice 171: chat-list top-bar suggestions (AyuGram parity)
+
+Research (primary sources via GitHub API, AyuGramDesktop dev):
+dialogs/suggestions/suggestion.cpp AllSpecs() defines the priority
+order (BIRTHDAY_CONTACTS_TODAY > BIRTHDAY_SETUP > CUSTOM_PROMO >
+GIFT_AUCTIONS > LOW_CREDITS_SUBS > PREMIUM_GRACE > PREMIUM_OFFER >
+UNREVIEWED_AUTH > USERPIC_SETUP); data/components/promo_suggestions.cpp
+maps help.getPromoData pending_suggestions + custom_pending_suggestion,
+refreshes hourly, dismisses via help.dismissSuggestion(inputPeerEmpty).
+Birthdays ride the dedicated contacts.getBirthdays RPC (checked daily).
+
+Implementation (tests first — 5 decision-suite cases):
+- cores: GetPromoSuggestions (help.getPromoData → keys + custom card),
+  DismissSuggestion, GetTodayBirthdayContacts
+  (contacts.getBirthdays + day/month filter + cached display names),
+  GetSelfSuggestionState (users.getUsers photo flag +
+  users.getFullUser birthday). All on the withAPI snapshot pattern.
+- engine/suggestionstate.go: capability-sniffed aggregate per account
+  (GetSuggestionState) + DismissSuggestion with immediate local
+  dismissal (server dismiss async, best-effort).
+- gui/suggestionbar.go: the card above the dialog rows (below folder
+  tabs): leading glyph + title + description + X close (toast), tap
+  routes to a REAL action — birthday contact → openChat, BIRTHDAY_SETUP
+  / USERPIC_SETUP → own profile editor, PREMIUM_OFFER → Premium page,
+  custom → openLinkExternal. Hourly refetch, per-account state cache.
+  Keys without local surface (gift auctions / low credits / premium
+  grace / unreviewed auth) stay hidden — exactly tdesktop's
+  unknown-key behavior; nothing renders without real data (§1.10).
+- The birthday card shows from LOCAL birthday data even without the
+  server key (tdesktop shows it while the set is unknown; ours is
+  definitive).
+
+Verification: full local gate ALL GREEN (native + wasm gui + vet +
+gofmt). The RPC surfaces need the owner's live test (signed-in
+account); the decision layer is fully unit-pinned.
+
+Parity: "Suggestions (birthday/premium/promo)" MISSING → PRESENT.
+Remaining MISSING: PiP only (blocked on pure-Go video decode, P3).
