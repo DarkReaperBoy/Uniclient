@@ -117,6 +117,7 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 		AyuImproveLinkPreviews: c.AyuImproveLinkPreviews,
 		AyuHideSimilar:         c.AyuHideSimilarChannels,
 		AyuCollapseSimilar:     utils.EffectiveCollapseSimilar(*c),
+		AyuAppIcon:             c.AyuAppIcon,
 		SendReadReceipts:       c.SendReadReceipts,
 		LocalReadMark:          c.LocalReadMark,
 		SendTyping:             c.SendTyping,

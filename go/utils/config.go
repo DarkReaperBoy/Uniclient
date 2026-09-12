@@ -63,6 +63,9 @@ type AppConfig struct {
 	AyuHideSimilarChannels     bool  `json:"ayu_hide_similar_channels,omitempty"`
 	AyuCollapseSimilarChannels *bool `json:"ayu_collapse_similar_channels,omitempty"`
 
+	// AyuGram app icon set (slice 170, ayu_settings.h appIcon): the
+	// selected icon-set ID; "" = default set.
+	AyuAppIcon string `json:"ayu_app_icon,omitempty"`
 	// Power saving (slice 135, tdesktop PowerSaving semantics)
 	PowerSavingFlags    int  `json:"power_saving_flags"`
 	PowerSavingForceAll bool `json:"power_saving_force_all"`

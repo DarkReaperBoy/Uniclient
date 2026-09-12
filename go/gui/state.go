@@ -609,6 +609,7 @@ func (a *App) Shutdown() {
 	}
 	a.stopTray()
 	stopTaskbar() // release the Windows overlay COM reference (slice 153)
+	stopAppIcon() // close the X11 helper connection / free live HICONs (slice 170)
 }
 
 // ListenEvents forwards window events to the file explorer (it must see
@@ -622,6 +623,13 @@ func (a *App) ListenEvents(evt event.Event) {
 	// the badge is a singleton and separate windows must not hijack it.
 	if ev, ok := evt.(app.ViewEvent); ok && !a.isSeparate() {
 		taskbarSetWindow(ev)
+		// App icon set (slice 170): capture the native handle and apply
+		// the configured set (WM_SETICON on Windows, _NET_WM_ICON on X11).
+		a.mu.Lock()
+		set := effectiveAppIconSet(a.cfg)
+		accent := a.accentNow
+		a.mu.Unlock()
+		appiconSetWindow(ev, set, accent)
 	}
 }
 
@@ -1513,8 +1521,9 @@ type cfgSnapshot struct {
 	CornerReaction         bool            // effective (nil = on, tdesktop default)
 	LocalPremium           map[string]bool // AyuGram local premium per account
 	AyuImproveLinkPreviews bool
-	AyuHideSimilar         bool // AyuGram hideSimilarChannels (slice 169)
-	AyuCollapseSimilar     bool // effective collapse (nil = on, AyuGram default)
+	AyuHideSimilar         bool   // AyuGram hideSimilarChannels (slice 169)
+	AyuCollapseSimilar     bool   // effective collapse (nil = on, AyuGram default)
+	AyuAppIcon             string // AyuGram appIcon set ID (slice 170)
 
 	// call devices (slice 103): "" = system default
 	CallInputDevice  string
@@ -1591,9 +1600,17 @@ func (a *App) refreshConfig() {
 	// Pure mapping lives in cfgFromAppConfig (callsettings.go, slice 103).
 	snap := cfgFromAppConfig(c)
 	a.mu.Lock()
+	prevIcon := a.cfg.AyuAppIcon
 	a.cfg = snap
+	accent := a.accentNow
 	a.mu.Unlock()
 	a.updateTray() // slice 137: ghost/streamer checkbox state
+	// App icon set (slice 170): re-apply when the configured set changed
+	// (the default set re-renders with the live accent on every refresh
+	// — cheap, deduped inside the apply layer).
+	if prevIcon != snap.AyuAppIcon || snap.AyuAppIcon == "" || snap.AyuAppIcon == "default" {
+		go applyAppIconRuntime(effectiveAppIconSet(snap), accent)
+	}
 	a.invalidate()
 }
 

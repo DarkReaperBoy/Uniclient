@@ -4401,3 +4401,47 @@ GREEN), CI verify dispatched and SUCCESS on each pushed SHA.
 Parity impact: none of these are features — pure freeze-class hardening.
 Remaining parity MISSING unchanged: PiP (blocked on pure-Go video
 decode), app icon selector, suggestions cards — all P3.
+
+## 2026-09-13 — slice 170: app icon selector (AyuGram parity)
+
+Research (primary sources, GitHub API on AyuGramDesktop dev):
+ayu_settings.h `appIcon` + ayu/ui/components/icon_picker.cpp — 12 icon
+sets in a 4-column grid (kColumns=4), cached previews, apply-on-click
+(OverrideApplicationIcon + tray refresh; on Windows also the taskbar
+resource reload).
+
+Implementation (tests first — 13 new cases, all failing pre-impl):
+- gui/appicon.go: 12-set registry + programmatic renderer (slice-137
+  tile+mark geometry recolored per set; default set follows the live
+  accent via a sentinel tile, stand-in Material blue for previews).
+  _NET_WM_ICON payload builder. Picker grid math (4 columns).
+- gui/appicon_apply_windows.go: WM_SETICON (ICON_BIG 48 + ICON_SMALL
+  32) via the slice-153 CreateDIBSection+CreateIconIndirect syscall
+  path; previous HICON pair destroyed after install (caller owns).
+- gui/appicon_apply_linux.go: _NET_WM_ICON via github.com/jezek/xgb
+  (pure Go — was already in the graph through the tray's systray dep;
+  promoted to direct). Sizes capped 128/64/48/32: one ChangeProperty
+  must stay under the core protocol's 16-bit request length — a 256px
+  icon alone overflows it (live-verified: BadLength under Xvfb before
+  the cap, property lands after).
+- gui/appicon_picker.go: Ayu · App icon settings section (title + grid
+  + captions), accent selection ring, apply-on-click →
+  ConfigChanges.AyuAppIcon → refreshConfig hook re-applies runtime icon
+  + tray re-render. Hidden on js/wasm + Android (appIconPickerSupported
+  = false — honest absence §1.10).
+- Tray (slice 137 integration): tray icon now renders the selected set
+  (AyuGram tray = current app logo) with the unread badge on top; sync
+  dedupes on set id too.
+- Shutdown: stopAppIcon frees HICONs / closes the xgb helper conn.
+
+Plumbing: AppConfig.AyuAppIcon + engine ConfigChanges.AyuAppIcon +
+cfgSnapshot.AyuAppIcon.
+
+Verification: full local gates green (gofmt/vet, native suites, wasm
+gui suite); LIVE X11 rung — app booted under Xvfb, window tree walked
+with xgb, _NET_WM_ICON present (128x128 first icon, type CARDINAL,
+fmt 32). Windows cross-build (goolm) green; CI verify dispatched for
+the Xvfb GUI smoke + artifacts.
+
+Parity: "App icon selector" MISSING → PRESENT. Remaining MISSING: PiP
+(blocked on pure-Go video decode), suggestions cards — both P3.

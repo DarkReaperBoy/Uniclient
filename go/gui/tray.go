@@ -45,6 +45,7 @@ type trayController struct {
 	// last rendered icon state (dedupes regeneration)
 	iconCount  int
 	iconAccent color.NRGBA
+	iconSetID  string // selected app icon set (slice 170)
 
 	once sync.Once
 }
@@ -60,7 +61,13 @@ func startTray(a *App) *trayController {
 	c.tray.OnClick(func() { // hosts that send Activate despite ItemIsMenu
 		c.showWindow()
 	})
-	c.tray.SetIcon(renderTrayIconPNG(128, c.iconAccent, 0))
+	{
+		a.mu.Lock()
+		set := effectiveAppIconSet(a.cfg)
+		a.mu.Unlock()
+		c.iconSetID = set.ID
+		c.tray.SetIcon(renderTrayIconForSetPNG(128, set, c.iconAccent, 0))
+	}
 	c.buildMenu(traySnapshot{})
 	go func() {
 		if err := c.tray.Run(); err != nil {
@@ -106,16 +113,20 @@ func (c *trayController) buildMenu(snap traySnapshot) {
 
 // sync pushes a fresh snapshot: badge icon, tooltip, account labels,
 // checkbox states. Cheap when nothing changed.
-func (c *trayController) sync(snap traySnapshot, accent color.NRGBA) {
+func (c *trayController) sync(snap traySnapshot, accent color.NRGBA, iconSetCfg cfgSnapshot) {
 	c.mu.Lock()
 	prev := c.snap
 	c.snap = snap
 	c.mu.Unlock()
 
-	if snap.TotalUnread != c.iconCount || accent != c.iconAccent {
+	set := effectiveAppIconSet(iconSetCfg)
+	if snap.TotalUnread != c.iconCount || accent != c.iconAccent || set.ID != c.iconSetID {
 		c.iconCount = snap.TotalUnread
 		c.iconAccent = accent
-		c.tray.SetIcon(renderTrayIconPNG(128, accent, snap.TotalUnread))
+		c.iconSetID = set.ID
+		// Slice 170: the tray shows the selected app icon set (AyuGram's
+		// tray uses the current app logo) with the unread badge on top.
+		c.tray.SetIcon(renderTrayIconForSetPNG(128, set, accent, snap.TotalUnread))
 	}
 
 	tooltip := "Uniclient"
@@ -227,6 +238,7 @@ func (a *App) updateTray() {
 	a.mu.Lock()
 	snap := traySnapshotFrom(a.accounts, a.chats, a.cfg)
 	accent := a.accentNow
+	cfg := a.cfg
 	tr := a.tray
 	a.mu.Unlock()
 	// Windows taskbar overlay badge (slice 153): the same unread total
@@ -236,7 +248,7 @@ func (a *App) updateTray() {
 	if tr == nil {
 		return
 	}
-	tr.sync(snap, accent)
+	tr.sync(snap, accent, cfg)
 }
 
 // startTrayIfNeeded boots the tray when the config enables it.

@@ -201,7 +201,7 @@ func TestTrayLiveSyncUpdates(t *testing.T) {
 		c.sync(traySnapshot{
 			Accounts:    []trayAccount{{ID: "a1", Name: "@alice", Unread: 4}},
 			TotalUnread: 4,
-		}, a.ui.p.Accent)
+		}, a.ui.p.Accent, cfgSnapshot{})
 		time.Sleep(100 * time.Millisecond) // property writes settle
 
 		mobj := wconn.Object(svc, "/MenuBar")
@@ -221,7 +221,7 @@ func TestTrayLiveSyncUpdates(t *testing.T) {
 		c.sync(traySnapshot{
 			Accounts:    []trayAccount{{ID: "a1", Name: "@alice", Unread: 12}},
 			TotalUnread: 12,
-		}, a.ui.p.Accent)
+		}, a.ui.p.Accent, cfgSnapshot{})
 		time.Sleep(100 * time.Millisecond)
 		if err := mobj.Call("com.canonical.dbusmenu.GetLayout", 0,
 			int32(0), int32(-1), []string{}).Store(&rev, &layout); err != nil {

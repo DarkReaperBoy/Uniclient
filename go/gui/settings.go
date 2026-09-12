@@ -1230,6 +1230,22 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyConfigBool("ayu_improve_link_previews", v)
 		})
 	}))
+	// Ayu · App icon (slice 170, ayu_settings.h appIcon + icon_picker.cpp):
+	// 12-set preview grid, apply-on-click — runtime window icon via
+	// WM_SETICON (Windows) / _NET_WM_ICON (X11); hidden where neither
+	// exists (js/wasm, Android) per §1.10.
+	if appIconPickerSupported {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.sectionTitle(gtx, "Ayu · App icon")
+		}))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.settingRow(gtx, "App icon", "Change the window and tray icon (applies immediately)")
+		}))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.layoutAppIconPicker(gtx, f)
+		}))
+	}
+
 	// Ayu · Channels (slice 169, primary source ayu_settings.h):
 	// hideSimilarChannels + collapseSimilarChannels (default ON).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {

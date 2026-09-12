@@ -54,58 +54,8 @@ func renderTrayIconPNG(px int, accent color.NRGBA, count int) []byte {
 	if px < 16 {
 		px = 16
 	}
-	img := image.NewNRGBA(image.Rect(0, 0, px, px))
-	f := float64(px)
-
-	// Rounded-square tile: corner radius ≈ 22% of the size (Material
-	// launcher-icon geometry).
-	tile := roundedTileMask(px, int(math.Round(f*0.22)))
-
-	// Slightly darkened accent for the tile bottom (subtle depth without
-	// a gradient library): blend accent toward black by 18%.
-	dark := shade(accent, 0.82)
-
-	// The brand mark: a speech bubble — a rounded-rect body with a tail
-	// triangle pointing down-left, drawn in white on the tile.
-	bubble := bubbleMask(px)
-
-	// Badge (count > 0): filled circle with white digits, anchored in the
-	// bottom-right corner, slightly overlapping the tile edge.
-	label := trayCountLabel(count)
-	var badge *image.Alpha
-	if label != "" {
-		badge = badgeMask(px, len(label))
-	}
-
-	for y := 0; y < px; y++ {
-		for x := 0; x < px; x++ {
-			var c color.NRGBA
-			switch {
-			case badge != nil && badge.AlphaAt(x, y).A > 0:
-				c = badgeColor(accent)
-			case tile.AlphaAt(x, y).A > 0 && bubble.AlphaAt(x, y).A > 0:
-				c = color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}
-			case tile.AlphaAt(x, y).A > 0:
-				// Vertical two-tone: bottom 45% slightly darker.
-				if float64(y)/f > 0.55 {
-					c = dark
-				} else {
-					c = accent
-				}
-			default:
-				continue // fully transparent outside the tile
-			}
-			i := img.PixOffset(x, y)
-			img.Pix[i] = c.R
-			img.Pix[i+1] = c.G
-			img.Pix[i+2] = c.B
-			img.Pix[i+3] = 0xFF
-		}
-	}
-
-	if label != "" {
-		drawTrayDigits(img, px, label)
-	}
+	white := color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}
+	img := renderIconTile(px, accent, white, nil, count)
 	var buf bytes.Buffer
 	_ = png.Encode(&buf, img)
 	return buf.Bytes()

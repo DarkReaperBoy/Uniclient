@@ -1018,6 +1018,8 @@ type ConfigChanges struct {
 	// AyuGram similar-channels settings (slice 169). Nil = unchanged.
 	AyuHideSimilarChannels     *bool
 	AyuCollapseSimilarChannels *bool
+	// AyuGram app icon set (slice 170). Nil = unchanged.
+	AyuAppIcon *string
 	// Custom fonts (slice 146): nil = unchanged; non-nil ("" = reset).
 	FontPath     *string
 	MonoFontPath *string
@@ -1126,6 +1128,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.AyuCollapseSimilarChannels != nil {
 		e.config.AyuCollapseSimilarChannels = changes.AyuCollapseSimilarChannels
+	}
+	if changes.AyuAppIcon != nil {
+		e.config.AyuAppIcon = *changes.AyuAppIcon
 	}
 	if changes.MaxCacheSize > 0 {
 		e.config.MaxCacheSize = changes.MaxCacheSize
