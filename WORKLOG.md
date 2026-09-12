@@ -3823,3 +3823,37 @@ clean; Xvfb GUI smoke boots the binary (window + screenshot, no panic).
 Parity note: the reaction picker's emoji set rides the existing
 availEmojis loader (account reactions list + built-in fallback set),
 matching how the context-menu quick-reactions row already behaves.
+
+## 2026-09-12 — slice 160: Linux Unity launcher badge (dbus, tdesktop 1:1)
+
+Research (primary source: tdesktop dev branch,
+platform/linux/main_window_linux.cpp updateUnityCounter): the
+com.canonical.Unity.LauncherEntry protocol — Update signal on
+/com/canonical/unity/launcherentry/<djb2("application://<desktop>.desktop")>
+carrying (s app_id, a{sv} props) with count int64 (9999 clamp) +
+count-visible bool. Understood by Ubuntu Dock/Dash-to-Dock, KDE Plasma
+taskbar, and libunity-compatible docks. Qt≥6.6 path
+(qApp->setBadgeNumber) resolves to the same protocol underneath.
+
+Implementation (tests first: gui/launcherbadge_test.go — 5 pure suites
++ a WIRE suite):
+- gui/launcherbadge_linux.go: djb2 hash, launcherEntryPath,
+  unityBadgeProps (tdesktop counterSlice clamp), and
+  updateTaskbarBadge emitting the Update signal through the session
+  bus (godbus — pure Go, no libunity link). Rides the same entry point
+  as the Windows overlay badge (slice 153): updateTray →
+  updateTaskbarBadge(TotalUnread), independent of the tray toggle.
+- taskbar_stub.go retagged !windows && !linux (the old comment said
+  the Unity badge "stays a documented future" — now real).
+- Bug caught by the wire test: the object path used the gui's itoa
+  helper — which is the unread-badge 999+ label formatter, not an
+  integer formatter ("999+" is not a valid path element). Now
+  strconv.FormatUint.
+
+Verification (§9 ladder, dockerized-equivalent rung — hermetic private
+dbus-daemon): TestLauncherBadgeWire GREEN — a monitor connection on a
+real private bus catches the Update signal with the exact tdesktop wire
+form: djb2-derived path, com.canonical.Unity.LauncherEntry.Update
+name, app_id "application://uniclient.desktop", count 42/visible true,
+then the zero-count clearing signal. Full repo tests green; gofmt/vet
+clean; windows + wasm cross-builds green; Xvfb GUI smoke boots.
