@@ -87,6 +87,12 @@ type Engine struct {
 	// messages.getStickerSet(inputStickerSetDice) results.
 	dicePacks map[string]*dicePackCache
 
+	// Sponsored messages (engine/sponsored.go): per account+chat 5-minute
+	// cache of channels.getSponsoredMessages results, with one-shot
+	// view-reporting per window.
+	sponsoredMu    sync.Mutex
+	sponsoredCache map[string]*sponsoredCacheEntry
+
 	// In-app media player (engine/mediaplayer.go): voice notes and
 	// audio files decoded from Ogg/Opus and played through the pure-Go
 	// audio devices. One playback at a time.

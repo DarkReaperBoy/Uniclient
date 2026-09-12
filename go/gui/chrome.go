@@ -46,13 +46,16 @@ func unreadSepIndex(n, unread int) int {
 }
 
 // chatRow is one messageList row: a day divider, the unread separator, a
-// message, or an album group (msgIdx = first member, album = member
-// indices).
+// message, an album group (msgIdx = first member, album = member
+// indices), or a sponsored row (spHead caption / spIdx 1-based ad index,
+// slice 163 — appended after all message rows).
 type chatRow struct {
 	day    string
 	msgIdx int // -1 for dividers/separator
 	unread bool
 	album  []int // nil unless an album row (indices into messages)
+	spHead bool  // the "Sponsored" caption row
+	spIdx  int   // 0 = not sponsored; N = sponsored item N-1
 }
 
 // buildChatRows builds the messageList row model: day dividers + messages,

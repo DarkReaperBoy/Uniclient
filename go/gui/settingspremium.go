@@ -109,6 +109,10 @@ var (
 	premiumReloadBt widget.Clickable
 	premiumSubBtns  []widget.Clickable // plan subscribe buttons
 	premiumAcctBtns []widget.Clickable
+
+	// noAdsRevert: failed no-ads toggles revert their switch on the next
+	// layout pass (GUI-thread drain; key → revert flag).
+	noAdsRevert map[string]bool
 )
 
 // openPremiumPage starts the page for an account and loads its data.
@@ -249,6 +253,16 @@ func (a *App) layoutPremiumPage(gtx layout.Context, f frame) layout.Dimensions {
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.premiumStatusCard(gtx, f, st)
 	}))
+
+	// No-ads lever (slice 163): account.toggleSponsoredMessages — the
+	// Premium perk that turns sponsored messages off account-wide. Only
+	// server-premium accounts see it (local premium does not grant
+	// server-side perks, §1.10 honesty).
+	if serverPremium(f, st.accountID) {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.premiumNoAdsRow(gtx, st)
+		}))
+	}
 
 	// plans (the server's own order)
 	if st.promo != nil {
@@ -527,4 +541,94 @@ func premiumEntryVisible(accounts []engine.AccountInfo) bool {
 		}
 	}
 	return false
+}
+
+// serverPremium: the account's SERVER-granted premium flag (the local
+// premium view does not count — server perks need a subscription).
+func serverPremium(f frame, accountID string) bool {
+	for _, acc := range f.accounts {
+		if acc.ID == accountID {
+			return acc.IsPremium
+		}
+	}
+	return false
+}
+
+// premiumNoAdsRow: the Premium "No ads" lever —
+// account.toggleSponsoredMessages(false) hides sponsored messages
+// account-wide. The switch defaults to ON (ads shown, the account
+// default); flipping it OFF is a Premium perk, errors revert the switch.
+func (a *App) premiumNoAdsRow(gtx layout.Context, st *premiumPageState) layout.Dimensions {
+	key := "no_ads:" + st.accountID
+	sw := settingsSwitch(key)
+	// Drain a queued revert (failed toggle) on the GUI thread.
+	a.mu.Lock()
+	if noAdsRevert[key] {
+		delete(noAdsRevert, key)
+		sw.Value = true
+	}
+	a.mu.Unlock()
+	if !settingsSynced[key] {
+		sw.Value = true // ads shown is the account default
+		settingsSynced[key] = true
+	}
+	prev := sw.Value
+	dims := layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return iconToggleStar.Layout(gtx, a.ui.p.Accent)
+						})
+					}),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.Label(unit.Sp(14), "Sponsored messages")
+								return lbl.Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								lbl := a.ui.Dim(unit.Sp(11), "Premium perk — turn off to hide ads in channels and bots")
+								lbl.Color = a.ui.p.TextDim
+								return lbl.Layout(gtx)
+							}),
+						)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						tg := material.Switch(a.ui.Theme, sw, "")
+						tg.Color.Enabled = a.ui.p.Accent
+						tg.Color.Disabled = a.ui.p.SurfaceHi
+						tg.Color.Track = a.ui.p.SurfaceHi
+						return tg.Layout(gtx)
+					}),
+				)
+			})
+		})
+	})
+	if sw.Value != prev {
+		enabled := sw.Value
+		acc := st.accountID
+		go func() {
+			if err := a.eng.ToggleSponsoredMessages(acc, enabled); err != nil {
+				a.setToast("Sponsored messages: " + err.Error())
+				// Revert the switch on failure — queued and drained on the
+				// GUI thread (the switch widget is frame-thread state).
+				a.mu.Lock()
+				if noAdsRevert == nil {
+					noAdsRevert = map[string]bool{}
+				}
+				noAdsRevert[key] = true
+				a.mu.Unlock()
+				a.invalidate()
+				return
+			}
+			state := "shown"
+			if !enabled {
+				state = "hidden"
+			}
+			a.setToast("Sponsored messages " + state + " for this account")
+		}()
+	}
+	return dims
 }

@@ -3972,3 +3972,87 @@ TestEffectiveAccountPremium.
 
 Verification: full repo tests green; gofmt/vet clean; Xvfb GUI smoke
 boots.
+## 2026-09-12 — slice 163 (planned): story viewer completion — reactions, reply, share
+
+Research (primary sources, verified against the pinned gotd v0.161.0 schema):
+stories.sendReaction#7fd736b2 (peer, story_id, reaction, add_to_recent);
+inputReplyToStory#5881323a — SendMessage already wires it via the
+"story:<id>" ReplyToID convention (cores/telegram.go SendMessage);
+stories.exportStoryLink → ExportedStoryLink.link (raw RPC wrapper already
+generated at telegram.go:34425 but unused); StoryItem.SentReaction
+(ReactionClass) carries the own-reaction state on fetch. tdesktop story
+viewer behavior: bottom bar with views/reactions counts, heart reaction
+button (own reaction filled; tapping again removes), inline reply field
+(InputReplyToStory), share via the exported story link.
+
+Ratings (§1.14): viewer shell 7/10 keep+extend; core story RPC surface
+6/10 — ReactToStory is legacy lock-across-RPC + user-peers-only (convert
+touched methods to withAPI per §8 freeze rule, generalize to
+resolvePeer); engine plumbing 7/10 keep+extend.
+
+Plan: tests first (gui visibility/toggle semantics + engine routing),
+then core (withAPI ReactToStory incl. channels + ReactionEmpty removal,
+ExportStoryLink, sent_reaction pass-through), engine (StoryLinkExporter),
+GUI (viewer action row: heart + emoji strip, reply composer, share =
+copy link + toast; own stories hide react/reply per §1.10). Verify:
+build + full tests + gofmt/vet + windows/wasm cross-builds + Xvfb smoke.
+Push. Parity row "Story viewer" PARTIAL → PRESENT (forward-to-chat share
+stays noted scope).
+
+## 2026-09-12 — slice 163: sponsored messages (channels + bots, the full ad surface)
+
+Recovered and finished the core layer a prior session left uncommitted
+(telegram_sponsored.go + tests were complete but had 4 compile errors:
+SetMedia/SetFullscreen bool args, GetPostsBetween two-value return,
+flag-gated GetSponsorInfo/GetAdditionalInfo, plus d.Thumbnails →
+d.Thumbs and a non-existent ReportResultInternal type in the test).
+Fixed against the pinned gotd v0.161.0 schema; tests now green.
+
+Research (primary sources): tdesktop data/components/sponsored_messages
++ ui/chat/sponsored_message_bar (bot placement = history_view_top_
+controls TOP bar, channels = below all other posts) + menu/menu_
+sponsored (report chain + about box); AyuGram keeps tdesktop's sponsored
+UI (Resources/icons/sponsored present; no client-side hide toggle in
+ayu_settings.h) — so 1:1 = render them properly, not hide them.
+
+Engine (engine/sponsored.go, tests-first): GetSponsoredMessages with a
+5-minute per-account+chat cache (expiry → refetch, errors never serve
+stale); MarkSponsoredViewed one-shot per window per ad; Click /
+Report / Toggle routing with honest unsupported errors; invalidateSponsoredCache.
+
+GUI (gui/sponsored.go + rows in chat.go + settingspremium.go):
+- channels: appendSponsoredRows extends the message-list row model —
+  caption row ("Sponsored" + About ads link) + one message-like card
+  per ad (sponsor photo avatar w/ letter fallback, title +
+  Recommended badge, sponsor/additional info subtitle, body, media
+  poster w/ play glyph for video ads, action button, Report ad link);
+  the whole card is a material.ButtonLayout click target →
+  openLinkExternal (deep links route in-app) + click report.
+- bots: layoutSponsoredBar top bar (Sponsored badge + title +
+  one-line message + button), same click/view wiring.
+- viewSponsoredMessage fires once per loaded window per ad when the
+  row/bar actually lays out (App ledger + engine dedup, both guards).
+- report chain: sponsoredDlgState dialog — option list → submit → next
+  chain or "Thanks. The ad was reported." toast (the engine walks
+  messages.reportSponsoredMessage).
+- about-ads box: promote.telegram.org explanation + link button.
+- Premium page no-ads lever: account.toggleSponsoredMessages toggle
+  (server-premium accounts only — local premium does NOT grant server
+  perks); failed toggles revert the switch through a GUI-thread drain
+  queue (no cross-goroutine widget writes).
+
+Ratings (§1.14): engine 7/10 keep+extend (interface-routed, cached);
+core 8/10 (withAPI-clean throughout, pure conversion locked by tests);
+GUI surfaces follow the established row/bar/dialog idioms.
+
+Verification: full repo tests green (new: engine sponsored cache/view/
+routing suite, gui eligibility/row-model/view-ledger suite, core
+conversion suite); gofmt/vet clean; windows + wasm cross-builds green
+(-gcflags=all=-c=1 low-memory recipe); Xvfb GUI smoke boots (vault +
+cache dirs created, ran until timeout kill).
+
+Parity: "Sponsored messages (ads)" MISSING → PRESENT; posts_between
+interleaving + the similar-channels block stay engine-gated (honest
+scope). Next: the planned story-viewer completion slice (reactions/
+reply/share — schema verified: stories.sendReaction, inputReplyToStory
+already wired in SendMessage, stories.exportStoryLink).

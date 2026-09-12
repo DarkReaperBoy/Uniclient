@@ -164,6 +164,16 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
+		// Bot-chat sponsored bar (slice 163): the ad strip below the
+		// header bars, above the messages (tdesktop top controls).
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if chat == nil || !chat.IsBot || len(f.sponsored) == 0 {
+				return layout.Dimensions{}
+			}
+			d := a.layoutSponsoredBar(gtx, f)
+			a.listTop += d.Size.Y
+			return d
+		}),
 		// Messages — or the forum topic list on a forum's root view (slice 118).
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if chat != nil && chat.IsForum && f.forumTopic == "" {
@@ -243,6 +253,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	// Report flow (slice 19).
 	if f.reportDlg != nil {
 		a.layoutReportDialog(gtx, f)
+	}
+	// Sponsored report/about dialog (slice 163).
+	if f.sponsoredDlg != nil {
+		a.layoutSponsoredDialog(gtx, f)
 	}
 	// Schedule dialog (slice 20).
 	if f.schedDlg != nil {
@@ -548,8 +562,9 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	}
 
 	// Build the row model: day dividers + messages + the unread separator
-	// anchored to its boundary message.
-	rows := buildChatRows(f.messages, f.unreadSepMsgID)
+	// anchored to its boundary message, then the sponsored block below the
+	// last post of broadcast channels (slice 163).
+	rows := appendSponsoredRows(buildChatRows(f.messages, f.unreadSepMsgID), chat, f.forumTopic, f.sponsored)
 
 	if f.loadingMsgs {
 		// loading indicator at top
@@ -589,6 +604,10 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			d = a.unreadDivider(gtx)
 		case r.day != "":
 			d = a.dayDivider(gtx, r.day)
+		case r.spHead:
+			d = a.sponsoredHeaderRow(gtx, f)
+		case r.spIdx > 0:
+			d = a.sponsoredAdRow(gtx, f, r.spIdx)
 		case r.album != nil:
 			d = a.albumRow(gtx, f, f.messages, r.album)
 		default:

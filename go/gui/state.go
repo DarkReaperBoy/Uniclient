@@ -122,6 +122,14 @@ type App struct {
 	botCmdsLoaded bool
 	botCmdsOn     bool
 
+	// sponsored messages (slice 163): the open chat's ad block (engine
+	// caches 5 minutes per chat) + the per-visit view-report ledger +
+	// the report/about dialog.
+	sponsored       []cores.SponsoredMessageInfo
+	sponsoredFor    string
+	sponsoredViewed map[string]bool
+	sponsoredDlg    *sponsoredDlgState
+
 	// inline bot results (slice 128): live @bot query panel state. The
 	// fetch flow guards by key (account|bot|query) + in-flight flag +
 	// throttle; inlineForOffset tracks the next page for "More".
@@ -1179,6 +1187,10 @@ func (a *App) openChat(k chatKey, title string) {
 	a.botCmdsFor = nil
 	a.botCmdsLoaded = false
 	a.botCmdsOn = false
+	a.sponsored = nil // slice 163: sponsored block for the new chat
+	a.sponsoredFor = ""
+	a.sponsoredViewed = nil
+	a.sponsoredDlg = nil
 	replyKbdUsedFor = "" // slice 127: single_use reply keyboard resets per chat
 	a.inlineRes = nil    // slice 128: inline-bot panel resets per chat
 	a.inlineForKey = ""
@@ -1209,10 +1221,11 @@ func (a *App) openChat(k chatKey, title string) {
 	if next.Type == engine.ChatTypeDMVal && next.ChatID != "" {
 		go a.loadHdrPresence(k)
 	}
-	a.syncCallPoll()  // slice 70: start the live-call poll if this chat has one
-	a.loadBotCmds(k)  // slice 76: fetch the chat's bot commands
-	a.loadHdrCaps(k)  // slice 101: header call-button capabilities
-	if next.IsForum { // slice 118: forums open on the topic list
+	a.syncCallPoll()   // slice 70: start the live-call poll if this chat has one
+	a.loadBotCmds(k)   // slice 76: fetch the chat's bot commands
+	a.loadSponsored(k) // slice 163: fetch the chat's sponsored messages
+	a.loadHdrCaps(k)   // slice 101: header call-button capabilities
+	if next.IsForum {  // slice 118: forums open on the topic list
 		go a.loadForumTopics(k)
 	}
 	a.invalidate()
@@ -1814,6 +1827,8 @@ func (a *App) snapshot() frame {
 		devPickers:       a.devPickers,
 		storyView:        a.storyView,
 		botCmds:          a.botCmds,
+		sponsored:        a.sponsored,
+		sponsoredDlg:     a.sponsoredDlg,
 		botCmdsOn:        a.botCmdsOn,
 		botCmdsLoaded:    a.botCmdsLoaded,
 		transcribeCap:    a.transcribeCapFor(a.msgFor),
@@ -2041,6 +2056,10 @@ type frame struct {
 	botCmds       []engine.BotCommandInfo
 	botCmdsOn     bool
 	botCmdsLoaded bool
+
+	// sponsored messages (slice 163): the open chat's ad block + dialog.
+	sponsored    []cores.SponsoredMessageInfo
+	sponsoredDlg *sponsoredDlgState
 
 	// voice-note transcription (slice 115): the open chat's account can
 	// transcribe (engine VoiceTranscriber).
