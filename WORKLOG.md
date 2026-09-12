@@ -3420,3 +3420,35 @@ a small "Seen 12:34" row with the reader avatar under the bubble meta.
 - Gate: gofmt/vet/test green (goolm); windows + wasm + native green.
 
 Parity: Read receipt PARTIAL→PRESENT.
+
+## 2026-09-12 — slice 153: Windows taskbar overlay badge
+
+tdesktop's unread count on the Windows taskbar button.
+
+- Deep-researched the ITaskbarList3 vtable layout against the mingw-w64
+  shobjidl.h ABI (Wine's IDL ORDER DIFFERS — Wine lists
+  ThumbBarUpdateButtons before ThumbBarSetImageList and SetOverlayIcon
+  at 14; the real SDK has SetOverlayIcon at 18 with
+  ThumbBarUpdateButtons/SetImageList swapped). SetOverlayIcon = index
+  18 (IUnknown 0-2, HrInit 3, ITaskbarList 4-7, MarkFullscreenWindow
+  8, ITaskbarList3 9-20). HrInit called before use; Release on exit.
+- Pure-Go COM: CoInitializeEx (mode-tolerant) + CoCreateInstance
+  (CLSCTX_ALL), vtable calls via syscall.SyscallN — no cgo (§1).
+- Overlay icon: composed in-process (rounded accent tile + the tray
+  glyph digits, trayCountLabel '99+' semantics), RGBA→HICON via
+  CreateDIBSection (32bpp top-down BGRA) + CreateIconIndirect; mask +
+  color bitmaps + HICON tracked and destroyed on change/exit.
+- HWND from gio's Win32ViewEvent captured in ListenEvents; badge
+  updates ride updateTray's snapshot (TotalUnread + accent) INDEPENDENT
+  of the tray toggle (updateTray reshaped: badge first, tray sync
+  after); COM released at app Shutdown.
+- Non-Windows platforms: honest no-op stubs (Linux docks have no
+  freedesktop badge standard — Unity launcher API documented as future;
+  macOS banned). Composition lives in the shared taskbaricon.go so the
+  tile renders unit-test everywhere.
+- Tests: overlay tile geometry (sizes, opaque center, transparent
+  corners, 99+ clamp). Windows surface blind-compiled (GOOS=windows
+  build green); live behavior = the owner's live test.
+- Gate: gofmt/vet/test green (goolm); windows + wasm + native green.
+
+Parity: Unread badge on taskbar/dock PARTIAL→PRESENT.

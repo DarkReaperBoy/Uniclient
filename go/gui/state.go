@@ -525,6 +525,7 @@ func (a *App) Start() {
 // Called from the window event loop's exit path (DestroyEvent).
 func (a *App) Shutdown() {
 	a.stopTray()
+	stopTaskbar() // release the Windows overlay COM reference (slice 153)
 }
 
 // ListenEvents forwards window events to the file explorer (it must see
@@ -532,6 +533,11 @@ func (a *App) Shutdown() {
 func (a *App) ListenEvents(evt event.Event) {
 	if a.expl != nil {
 		a.expl.ListenEvents(evt)
+	}
+	// Windows taskbar overlay badge (slice 153): capture the native
+	// window handle when the view event carries one.
+	if ev, ok := evt.(app.ViewEvent); ok {
+		taskbarSetWindow(ev)
 	}
 }
 

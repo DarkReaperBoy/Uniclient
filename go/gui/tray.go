@@ -225,14 +225,17 @@ func (c *trayController) stop() {
 // Called from the refresh paths (accounts/chats/config changes).
 func (a *App) updateTray() {
 	a.mu.Lock()
-	tr := a.tray
-	if tr == nil {
-		a.mu.Unlock()
-		return
-	}
 	snap := traySnapshotFrom(a.accounts, a.chats, a.cfg)
 	accent := a.accentNow
+	tr := a.tray
 	a.mu.Unlock()
+	// Windows taskbar overlay badge (slice 153): the same unread total
+	// rides the taskbar button; independent of the tray icon so it works
+	// with the tray turned off too.
+	updateTaskbarBadge(snap.TotalUnread, accent)
+	if tr == nil {
+		return
+	}
 	tr.sync(snap, accent)
 }
 
@@ -265,4 +268,6 @@ func (a *App) stopTray() {
 	if tr != nil {
 		tr.stop()
 	}
+	// the taskbar overlay is independent of the tray icon — it keeps
+	// running until app Shutdown (slice 153)
 }
