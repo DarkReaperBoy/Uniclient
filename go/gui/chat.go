@@ -550,7 +550,14 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	// anchored to its boundary message, then the sponsored block below the
 	// last post of broadcast channels (slice 163).
 	rows := appendSponsoredRows(buildChatRows(f.messages, f.unreadSepMsgID), chat, f.forumTopic, f.sponsored)
-	rows = appendSimilarRow(rows, chat, f.forumTopic, len(f.similar))
+	// Similar-channels gating (slice 169): AyuGram hide/collapse settings
+	// + the per-chat expanded override.
+	simKey := ""
+	if f.selected != nil {
+		simKey = f.selected.AccountID + "|" + f.selected.ChatID
+	}
+	simCollapsed := !similarEffectiveExpanded(a.similarExpanded, simKey, similarExpandedDefault(f.cfg.AyuCollapseSimilar))
+	rows = appendSimilarRow(rows, chat, f.forumTopic, len(f.similar), f.cfg.AyuHideSimilar, simCollapsed)
 
 	if f.loadingMsgs {
 		// loading indicator at top
@@ -596,6 +603,8 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			d = a.sponsoredAdRow(gtx, f, r.spIdx)
 		case r.simBlock:
 			d = a.layoutSimilarBlock(gtx, f)
+		case r.simCollapsed:
+			d = a.layoutSimilarCollapsed(gtx, f)
 		case r.album != nil:
 			d = a.albumRow(gtx, f, f.messages, r.album)
 		default:

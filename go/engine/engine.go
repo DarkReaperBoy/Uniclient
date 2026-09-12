@@ -1015,6 +1015,9 @@ type ConfigChanges struct {
 	CornerReaction *bool
 	// Ayu improve link previews (slice 155). Nil = unchanged.
 	AyuImproveLinkPreviews *bool
+	// AyuGram similar-channels settings (slice 169). Nil = unchanged.
+	AyuHideSimilarChannels     *bool
+	AyuCollapseSimilarChannels *bool
 	// Custom fonts (slice 146): nil = unchanged; non-nil ("" = reset).
 	FontPath     *string
 	MonoFontPath *string
@@ -1117,6 +1120,12 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.AyuImproveLinkPreviews != nil {
 		e.config.AyuImproveLinkPreviews = *changes.AyuImproveLinkPreviews
+	}
+	if changes.AyuHideSimilarChannels != nil {
+		e.config.AyuHideSimilarChannels = *changes.AyuHideSimilarChannels
+	}
+	if changes.AyuCollapseSimilarChannels != nil {
+		e.config.AyuCollapseSimilarChannels = changes.AyuCollapseSimilarChannels
 	}
 	if changes.MaxCacheSize > 0 {
 		e.config.MaxCacheSize = changes.MaxCacheSize

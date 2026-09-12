@@ -150,8 +150,11 @@ type App struct {
 	sponsoredDlg    *sponsoredDlgState
 
 	// similar channels (slice 167): the open channel's recommendations.
-	similar    []engine.SimilarChannelInfo
-	similarFor string
+	// similarExpanded (slice 169): per-chat expanded overrides (key
+	// account|chat); absent = the collapse-config default.
+	similar         []engine.SimilarChannelInfo
+	similarFor      string
+	similarExpanded map[string]bool
 
 	// inline bot results (slice 128): live @bot query panel state. The
 	// fetch flow guards by key (account|bot|query) + in-flight flag +
@@ -507,23 +510,24 @@ type App struct {
 
 func New(win *app.Window, eng *engine.Engine) *App {
 	a := &App{
-		win:          win,
-		ui:           NewUI(),
-		eng:          eng,
-		expl:         explorer.NewExplorer(win),
-		typing:       make(map[string]time.Time),
-		connecting:   make(map[string]bool),
-		rowBounds:    make(map[int]image.Rectangle),
-		sbTabBounds:  make([]image.Rectangle, 0, 8),
-		downloads:    make(map[string]dlState),
-		autoDl:       make(map[string]bool),
-		openOnDone:   make(map[string]bool),
-		pollVotes:    make(map[string]map[int]bool),
-		translations: make(map[string]string),
-		transChatOn:  make(map[string]bool),
-		transTarget:  "en",
-		transAsked:   make(map[string]bool),
-		seenInline:   make(map[string]*seenInlineState),
+		win:             win,
+		ui:              NewUI(),
+		eng:             eng,
+		expl:            explorer.NewExplorer(win),
+		typing:          make(map[string]time.Time),
+		connecting:      make(map[string]bool),
+		rowBounds:       make(map[int]image.Rectangle),
+		sbTabBounds:     make([]image.Rectangle, 0, 8),
+		downloads:       make(map[string]dlState),
+		autoDl:          make(map[string]bool),
+		openOnDone:      make(map[string]bool),
+		pollVotes:       make(map[string]map[int]bool),
+		translations:    make(map[string]string),
+		transChatOn:     make(map[string]bool),
+		transTarget:     "en",
+		transAsked:      make(map[string]bool),
+		seenInline:      make(map[string]*seenInlineState),
+		similarExpanded: make(map[string]bool),
 	}
 	a.wid.init()
 	return a
@@ -1260,6 +1264,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.sponsoredDlg = nil
 	a.similar = nil // slice 167: similar-channels block for the new chat
 	a.similarFor = ""
+	// similarExpanded persists across chats deliberately (per-channel
+	// runtime state, tdesktop SimilarExpanded parity — not reset on switch).
 	replyKbdUsedFor = "" // slice 127: single_use reply keyboard resets per chat
 	a.inlineRes = nil    // slice 128: inline-bot panel resets per chat
 	a.inlineForKey = ""
@@ -1507,6 +1513,8 @@ type cfgSnapshot struct {
 	CornerReaction         bool            // effective (nil = on, tdesktop default)
 	LocalPremium           map[string]bool // AyuGram local premium per account
 	AyuImproveLinkPreviews bool
+	AyuHideSimilar         bool // AyuGram hideSimilarChannels (slice 169)
+	AyuCollapseSimilar     bool // effective collapse (nil = on, AyuGram default)
 
 	// call devices (slice 103): "" = system default
 	CallInputDevice  string

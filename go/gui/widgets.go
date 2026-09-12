@@ -250,7 +250,9 @@ type widgets struct {
 	sharedRowClicks []widget.Clickable
 
 	// similar.go
-	similarCardBtns []widget.Clickable
+	similarCardBtns    []widget.Clickable
+	similarExpandBtn   widget.Clickable // slice 169: collapsed-bar expander
+	similarCollapseBtn widget.Clickable // slice 169: expanded-block collapser
 
 	// sponsored.go
 	sponsoredAboutBtn   widget.Clickable

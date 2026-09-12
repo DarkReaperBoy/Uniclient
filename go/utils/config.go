@@ -56,6 +56,13 @@ type AppConfig struct {
 	// getBetterLinkPreview: fixupx / kktiktok / vxreddit / kkclip / phixiv).
 	AyuImproveLinkPreviews bool `json:"ayu_improve_link_previews,omitempty"`
 
+	// AyuGram similar-channels settings (slice 169, primary source
+	// ayu_settings.h): hideSimilarChannels (default false) never renders
+	// the recommendations block; collapseSimilarChannels (default TRUE)
+	// starts every channel's block collapsed — nil = collapsed.
+	AyuHideSimilarChannels     bool  `json:"ayu_hide_similar_channels,omitempty"`
+	AyuCollapseSimilarChannels *bool `json:"ayu_collapse_similar_channels,omitempty"`
+
 	// Power saving (slice 135, tdesktop PowerSaving semantics)
 	PowerSavingFlags    int  `json:"power_saving_flags"`
 	PowerSavingForceAll bool `json:"power_saving_force_all"`
@@ -279,4 +286,11 @@ func EffectiveWideMultiplier(cfg AppConfig) float64 {
 // to ON (tdesktop ships a tray by default). Pure.
 func EffectiveSystemTray(cfg AppConfig) bool {
 	return cfg.SystemTray == nil || *cfg.SystemTray
+}
+
+// EffectiveCollapseSimilar resolves the similar-channels initial state:
+// nil defaults to COLLAPSED (AyuGram ships collapseSimilarChannels ON).
+// Pure.
+func EffectiveCollapseSimilar(cfg AppConfig) bool {
+	return cfg.AyuCollapseSimilarChannels == nil || *cfg.AyuCollapseSimilarChannels
 }

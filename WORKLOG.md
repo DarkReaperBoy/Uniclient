@@ -4266,3 +4266,39 @@ Parity: "Multi-window chats" MISSING → PRESENT. Remaining MISSING: PiP
 (blocked on pure-Go video decode), app icon selector, suggestions
 cards, hide sponsored/similar toggle (now real — blocks render since
 slices 163/167), dice/games, message-shot renderer (P3s).
+
+## 2026-09-13 — slice 169: AyuGram similar-channels settings (hide + collapse)
+
+Research (primary source: AyuGramDesktop dev branch ayu_settings.h —
+read via the GitHub API): hideSimilarChannels (default false) and
+collapseSimilarChannels (default TRUE); the per-channel expanded state
+is tdesktop's runtime ChannelDataFlag::SimilarExpanded (in-memory, not
+persisted). Note: AyuGram has NO hide-sponsored setting (that's
+Premium-only; we already ship the no-ads lever) — the earlier worklog
+hypothesis about a hide-sponsored toggle was wrong; the real settings
+are the similar-channels pair.
+
+Config: AppConfig.AyuHideSimilarChannels (bool) +
+AyuCollapseSimilarChannels (*bool, nil = collapsed — the
+EffectiveCollapseSimilar helper mirrors EffectiveSystemTray's
+nil-default idiom); engine ConfigChanges + apply; cfgSnapshot copies
+both (collapse effective).
+
+GUI (tests first — similar_settings_test.go): similarBlockMode /
+similarExpandedDefault / similarEffectiveExpanded pure decisions;
+appendSimilarRow gained hide+collapsed (chatRow.simCollapsed row
+kind); the collapsed compact bar (caption + count + Show expander) and
+a Hide collapser on the expanded block; per-chat expanded map
+(a.similarExpanded, runtime only — deliberately NOT reset on chat
+switch); Settings → Ayu gains the "Ayu · Channels" section with both
+toggles riding applyConfigBool/configFieldChanges.
+
+Verification: linux build green; gofmt/vet clean; full repo suite
+green. Slice 168's verify workflow run completed SUCCESS on CI
+(75a14ccb) — quality gate + windows/wasm cross-builds + Xvfb GUI smoke
+all green, closing that slice's local-disk gap.
+
+Parity: "Similar channels block" PRESENT gains the settings half
+(slice 169). Remaining MISSING: PiP (blocked on pure-Go video decode),
+app icon selector, suggestions cards — all P3; everything else on the
+matrix is PRESENT/PARTIAL/CORE-ONLY.

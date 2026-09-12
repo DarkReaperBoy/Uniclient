@@ -117,6 +117,10 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 		c.AyuSaveForBots = &b
 	case "ayu_improve_link_previews":
 		c.AyuImproveLinkPreviews = &b
+	case "ayu_hide_similar_channels":
+		c.AyuHideSimilarChannels = &b
+	case "ayu_collapse_similar_channels":
+		c.AyuCollapseSimilarChannels = &b
 	case "corner_reply":
 		c.CornerReply = &b
 	case "bubble_corners":
@@ -1224,6 +1228,27 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.toggleRow(gtx, "cfg:ayu_improve_link_previews", "Improve previews", f.cfg.AyuImproveLinkPreviews, func(v bool) {
 			a.applyConfigBool("ayu_improve_link_previews", v)
+		})
+	}))
+	// Ayu · Channels (slice 169, primary source ayu_settings.h):
+	// hideSimilarChannels + collapseSimilarChannels (default ON).
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Ayu · Channels")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Hide similar channels", "Never show the recommendations block under channel posts")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_hide_similar_channels", "Hide similar", f.cfg.AyuHideSimilar, func(v bool) {
+			a.applyConfigBool("ayu_hide_similar_channels", v)
+		})
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Collapse similar channels", "Start every channel's block collapsed to a compact bar")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_collapse_similar_channels", "Collapse similar", f.cfg.AyuCollapseSimilar, func(v bool) {
+			a.applyConfigBool("ayu_collapse_similar_channels", v)
 		})
 	}))
 	// Ayu mark strings (AyuGram settings_ayu: deleted/edited marks, slice 47).

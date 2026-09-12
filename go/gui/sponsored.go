@@ -63,13 +63,15 @@ func appendSponsoredRows(rows []chatRow, chat *engine.ChatInfo, forumTopic strin
 	return rows
 }
 
-// appendSimilarRow appends the similar-channels block row (slice 167)
-// after the sponsored block — the broadcast-channel footer surface.
-func appendSimilarRow(rows []chatRow, chat *engine.ChatInfo, forumTopic string, similar int) []chatRow {
-	if chat == nil || chat.Type != engine.ChatTypeChanVal || forumTopic != "" || similar <= 0 {
+// appendSimilarRow appends the similar-channels block row after the
+// sponsored block — the broadcast-channel footer surface. hide (AyuGram
+// hideSimilarChannels) drops it; collapsed (AyuGram collapseSimilarChannels)
+// renders the compact bar (slice 169).
+func appendSimilarRow(rows []chatRow, chat *engine.ChatInfo, forumTopic string, similar int, hide, collapsed bool) []chatRow {
+	if chat == nil || chat.Type != engine.ChatTypeChanVal || forumTopic != "" || similar <= 0 || hide {
 		return rows
 	}
-	return append(rows, chatRow{msgIdx: -1, simBlock: true})
+	return append(rows, chatRow{msgIdx: -1, simBlock: !collapsed, simCollapsed: collapsed})
 }
 
 // sponsoredEligible: sponsored messages surface in broadcast channels

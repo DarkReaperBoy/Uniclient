@@ -115,6 +115,8 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 		CornerReaction:         effectiveCornerReaction(c.CornerReaction),
 		LocalPremium:           c.LocalPremium,
 		AyuImproveLinkPreviews: c.AyuImproveLinkPreviews,
+		AyuHideSimilar:         c.AyuHideSimilarChannels,
+		AyuCollapseSimilar:     utils.EffectiveCollapseSimilar(*c),
 		SendReadReceipts:       c.SendReadReceipts,
 		LocalReadMark:          c.LocalReadMark,
 		SendTyping:             c.SendTyping,
