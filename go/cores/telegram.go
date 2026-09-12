@@ -13972,6 +13972,16 @@ func userAvatarStrippedB64(u *tg.User) string {
 // entry (tiny ~100-byte JPEG thumbnail delivered inline with the message). When
 // found, it inflates it to a valid JPEG and returns the base64 encoding. Works
 // for both Photo.Sizes and Document.Thumbs.
+// storyReactionEmoticon maps a wire reaction to its emoji string —
+// custom-emoji reactions (premium) map to empty (not representable as a
+// plain emoticon; the viewer treats empty as "no plain reaction").
+func storyReactionEmoticon(r tg.ReactionClass) string {
+	if e, ok := r.(*tg.ReactionEmoji); ok {
+		return e.Emoticon
+	}
+	return ""
+}
+
 func extractStrippedThumbB64(sizes []tg.PhotoSizeClass) string {
 	for _, s := range sizes {
 		if stripped, ok := s.(*tg.PhotoStrippedSize); ok && len(stripped.Bytes) > 0 {
@@ -23416,6 +23426,7 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 		Views         int              `json:"views"`
 		Forwards      int              `json:"forwards,omitempty"`
 		Reactions     int              `json:"reactions,omitempty"`
+		SentReaction  string           `json:"sent_reaction,omitempty"`
 		Pinned        bool             `json:"pinned"`
 		Edited        bool             `json:"edited"`
 		NoForwards    bool             `json:"no_forwards,omitempty"`
@@ -23463,6 +23474,9 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 			if rc, ok := views.GetReactionsCount(); ok {
 				item.Reactions = rc
 			}
+		}
+		if sent, ok := si.GetSentReaction(); ok && sent != nil {
+			item.SentReaction = storyReactionEmoticon(sent)
 		}
 
 		switch md := si.Media.(type) {
@@ -27078,24 +27092,60 @@ func (t *TelegramCore) GetStoryViews(ids []int) (int, error) {
 	return total, nil
 }
 
-// ReactToStory adds an emoji reaction to a story.
+// ReactToStory adds an emoji reaction to a story — or removes it when the
+// emoji is empty (tdesktop tap-again semantics: ReactionEmpty). Users and
+// channels both react through the resolved input peer. withAPI rule: the
+// RLock is never held across the RPC.
 func (t *TelegramCore) ReactToStory(userID string, storyID int, emoji string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
-	}
-	uid, err := tgUserID(userID)
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
 	}
-	uhash := t.getCachedUserHash(uid)
-	_, err = t.api.StoriesSendReaction(t.ctx, &tg.StoriesSendReactionRequest{
-		Peer:     &tg.InputPeerUser{UserID: uid, AccessHash: uhash},
+	peer, err := t.resolvePeer(userID)
+	if err != nil {
+		return fmt.Errorf("resolve peer: %w", err)
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return fmt.Errorf("input peer: %w", err)
+	}
+	var reaction tg.ReactionClass
+	if emoji == "" {
+		reaction = &tg.ReactionEmpty{}
+	} else {
+		reaction = &tg.ReactionEmoji{Emoticon: emoji}
+	}
+	_, err = api.StoriesSendReaction(ctx, &tg.StoriesSendReactionRequest{
+		Peer:     inputPeer,
 		StoryID:  storyID,
-		Reaction: &tg.ReactionEmoji{Emoticon: emoji},
+		Reaction: reaction,
 	})
 	return err
+}
+
+// ExportStoryLink returns the public deep link of a story
+// (stories.exportStoryLink) — the story viewer's share surface.
+func (t *TelegramCore) ExportStoryLink(peerID string, storyID int) (string, error) {
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return "", err
+	}
+	peer, err := t.resolvePeer(peerID)
+	if err != nil {
+		return "", fmt.Errorf("resolve peer: %w", err)
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return "", fmt.Errorf("input peer: %w", err)
+	}
+	res, err := api.StoriesExportStoryLink(ctx, &tg.StoriesExportStoryLinkRequest{
+		Peer: inputPeer,
+		ID:   storyID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("export story link: %w", err)
+	}
+	return res.Link, nil
 }
 
 // GetPinnedStories returns the pinned stories of a user or channel.

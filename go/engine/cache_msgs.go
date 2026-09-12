@@ -3189,6 +3189,27 @@ func (e *Engine) ReactToStory(accountID, userID string, storyID int, emoji strin
 	return reactor.ReactToStory(userID, storyID, emoji)
 }
 
+type StoryLinkExporter interface {
+	ExportStoryLink(peerID string, storyID int) (string, error)
+}
+
+// ExportStoryLink returns the public deep link of a story
+// (stories.exportStoryLink) — the share surface for the story viewer.
+func (e *Engine) ExportStoryLink(accountID, peerID string, storyID int) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	exporter, ok := acc.Core.(StoryLinkExporter)
+	if !ok {
+		return "", fmt.Errorf("platform does not support story links")
+	}
+	return exporter.ExportStoryLink(peerID, storyID)
+}
+
 type StealthModeActivator interface {
 	ActivateStealthMode() error
 }

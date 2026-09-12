@@ -4056,3 +4056,45 @@ interleaving + the similar-channels block stay engine-gated (honest
 scope). Next: the planned story-viewer completion slice (reactions/
 reply/share — schema verified: stories.sendReaction, inputReplyToStory
 already wired in SendMessage, stories.exportStoryLink).
+
+## 2026-09-12 — slice 164: story viewer completion — reactions, reply, share
+
+Research recap (recorded in the slice plan above; all verified against
+the pinned gotd v0.161.0 schema + tdesktop story_view behavior):
+stories.sendReaction#7fd736b2 (peer, story_id, reaction — empty
+ReactionEmpty removes); inputReplyToStory#5881323a — cores.SendMessage
+already wires it via the "story:<id>" ReplyToID convention;
+stories.exportStoryLink → ExportedStoryLink.link; StoryItem.SentReaction
+carries the own-reaction state on fetch.
+
+Core: ReactToStory converted off the legacy lock-across-RPC pattern
+(§8 freeze rule) to withAPI + general resolvePeer (channels react too,
+not just users) + removal support; ExportStoryLink added (withAPI);
+FetchPeerStoriesData now emits sent_reaction + reactions counts
+(storyReactionEmoticon: custom-emoji reactions honestly map to "" —
+not representable as a plain emoticon).
+
+Engine: StoryLinkExporter + ExportStoryLink routing; ReactToStory
+already routed (tests locked: react/remove/unsupported/missing-account).
+
+GUI (gui/stories.go): the viewer's bottom action bar — views/reactions
+stats; the reaction heart (sent emoji on the accent circle when
+reacted, dim ❤️ otherwise — tap-again removes, optimistic flip with
+error revert); the emoji strip (favoriteReactionChoices of the
+account's available reactions, lazily loaded with the menu idiom); the
+reply composer (inline editor + send, Enter submits, "story:<id>"
+ReplyToID → InputReplyToStory, toast on success/failure); share
+(stories.exportStoryLink → clipboard + "Story link copied" toast).
+Own stories (chatID == account SelfUserID) hide react/reply per §1.10
+and keep share. The composer owns the keyboard while armed (the
+viewer's per-frame focus clear and arrow navigation stand down).
+
+Verification: new suites green (gui: parseStories reactions contract,
+heart-action semantics, reply id, own-visibility; engine: react/remove/
+export routing; core: storyReactionEmoticon); full repo tests, gofmt/
+vet clean; windows + wasm cross-builds green; Xvfb GUI smoke boots.
+
+Parity: "Story viewer" PARTIAL → PRESENT (reactions/reply/share were
+the engine-gated remainder). Next candidates from the matrix:
+Alt+jumplist (keyboard row), account-bar unread dots (P1 row),
+multi-window chats, app icon selector.

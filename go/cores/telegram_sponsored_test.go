@@ -176,3 +176,15 @@ func TestParseReportResult(t *testing.T) {
 		t.Errorf("option[1] = %+v", opts[1])
 	}
 }
+
+func TestStoryReactionEmoticon(t *testing.T) {
+	if got := storyReactionEmoticon(&tg.ReactionEmoji{Emoticon: "🔥"}); got != "🔥" {
+		t.Errorf("emoji reaction = %q, want 🔥", got)
+	}
+	if got := storyReactionEmoticon(&tg.ReactionCustomEmoji{DocumentID: 5}); got != "" {
+		t.Errorf("custom emoji reaction must map to empty (not representable), got %q", got)
+	}
+	if got := storyReactionEmoticon(nil); got != "" {
+		t.Errorf("nil reaction = %q, want empty", got)
+	}
+}

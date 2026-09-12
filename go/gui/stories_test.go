@@ -120,3 +120,56 @@ func TestStoryRingUnread(t *testing.T) {
 		t.Fatal("unread flag → accent ring")
 	}
 }
+
+func TestParseStoriesReactions(t *testing.T) {
+	// Slice 164: the fetch contract grows reactions + the own reaction.
+	in := `[
+		{"id":1,"date":1700000000,"caption":"Hi","media_type":"photo","views":42,"reactions":3,"sent_reaction":"🔥"}
+	]`
+	items, err := parseStories(in)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("items = %d", len(items))
+	}
+	if items[0].Reactions != 3 {
+		t.Errorf("reactions = %d, want 3", items[0].Reactions)
+	}
+	if items[0].SentReaction != "🔥" {
+		t.Errorf("sent reaction = %q, want 🔥", items[0].SentReaction)
+	}
+}
+
+func TestStoryHeartAction(t *testing.T) {
+	// No reaction yet → the tap opens the picker.
+	if emoji, open := storyHeartAction(""); !open || emoji != "" {
+		t.Errorf("unreacted tap = (%q,%v), want picker", emoji, open)
+	}
+	// A sent reaction → tap-again removes it (empty emoji).
+	if emoji, open := storyHeartAction("🔥"); open || emoji != "" {
+		t.Errorf("reacted tap = (%q,%v), want remove", emoji, open)
+	}
+}
+
+func TestStoryReplyID(t *testing.T) {
+	if got := storyReplyID(17); got != "story:17" {
+		t.Errorf("reply id = %q, want story:17", got)
+	}
+}
+
+func TestStoryOwnActionVisibility(t *testing.T) {
+	// Own stories: chatID == the account's SelfUserID → react/reply stay
+	// hidden (§1.10); peers' stories get them.
+	f := frame{accounts: []engine.AccountInfo{
+		{ID: "tg", SelfUserID: "42"},
+	}}
+	sv := &storyViewerState{accountID: "tg", chatID: "42"}
+	if !storyViewerOwn(f, sv) {
+		t.Error("own story not detected")
+	}
+	sv2 := &storyViewerState{accountID: "tg", chatID: "100"}
+	if storyViewerOwn(f, sv2) {
+		t.Error("peer's story misdetected as own")
+	}
+}
