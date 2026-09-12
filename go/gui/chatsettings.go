@@ -128,6 +128,13 @@ func (a *App) layoutMessagesSection(gtx layout.Context, f frame) layout.Dimensio
 				)
 			})
 		}),
+		// Corner reply button (tdesktop cornerReply, default ON): the
+		// fast-reply pill on hovered incoming bubbles.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.toggleRow(gtx, "cfg:corner_reply", "Reply button in the corner", f.cfg.CornerReply, func(v bool) {
+				a.applyConfigBool("corner_reply", v)
+			})
+		}),
 	)
 }
 

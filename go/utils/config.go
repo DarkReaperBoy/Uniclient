@@ -35,6 +35,11 @@ type AppConfig struct {
 	// Enter newline, Ctrl+Enter sends.
 	ComposerSubmit string `json:"composer_submit,omitempty"`
 
+	// Corner reply button (tdesktop Messages setting cornerReply, slice
+	// 157): show the fast-reply pill on hovered incoming bubbles. Nil =
+	// tdesktop default ON.
+	CornerReply *bool `json:"corner_reply,omitempty"`
+
 	// Ayu "Improve link previews" (slice 155): rewrite outgoing links of
 	// big platforms to their preview-friendly mirrors (Ayu
 	// getBetterLinkPreview: fixupx / kktiktok / vxreddit / kkclip / phixiv).

@@ -75,17 +75,25 @@ func growClickables(pool *[]widget.Clickable, n int) {
 // processPaneEvents registers chat-pane pointer interest and routes presses:
 // right-click on a message row opens the context menu; any press outside an
 // open menu closes it. Context menus never block the chat (AyuGram).
+// Move/Enter/Leave events feed the corner-reply hover tracking (slice 157)
+// through the same rowBounds hit-test.
 func (a *App) processPaneEvents(gtx layout.Context, f frame) {
 	stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 	event.Op(gtx.Ops, chatPaneTag)
 	stack.Pop()
 	for {
-		ev, ok := gtx.Source.Event(pointer.Filter{Target: chatPaneTag, Kinds: pointer.Press})
+		ev, ok := gtx.Source.Event(pointer.Filter{Target: chatPaneTag, Kinds: pointer.Press | pointer.Move | pointer.Enter | pointer.Leave})
 		if !ok {
 			break
 		}
-		if pe, is := ev.(pointer.Event); is && pe.Kind == pointer.Press {
+		pe, is := ev.(pointer.Event)
+		if !is {
+			continue
+		}
+		if pe.Kind == pointer.Press {
 			a.onPanePress(f, pe)
+		} else {
+			a.notePaneHover(f, pe)
 		}
 	}
 }

@@ -117,6 +117,8 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 		c.AyuSaveForBots = &b
 	case "ayu_improve_link_previews":
 		c.AyuImproveLinkPreviews = &b
+	case "corner_reply":
+		c.CornerReply = &b
 	case "bubble_corners":
 		c.BubbleCorners = &b
 	case "hide_all_chats":

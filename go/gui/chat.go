@@ -841,7 +841,13 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 	if out {
 		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(pad)}.Layout(gtx, bubble)
 	}
-	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, bubble)
+	// Corner reply button (slice 157): incoming rows carry the NE-anchored
+	// fast-reply pill when hovered (tdesktop cornerReply).
+	canReply := cornerReplyCanSend(f, m)
+	row := func(gtx layout.Context) layout.Dimensions {
+		return a.cornerReplyOverlay(gtx, f, m, canReply, bubble)
+	}
+	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, row)
 }
 
 // replyQuote renders the quoted reply block inside a bubble. The cached

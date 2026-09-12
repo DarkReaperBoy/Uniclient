@@ -100,6 +100,7 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 		FontPath:               c.FontPath,
 		MonoFontPath:           c.MonoFontPath,
 		ComposerSubmit:         c.ComposerSubmit,
+		CornerReply:            effectiveCornerReply(c.CornerReply),
 		AyuImproveLinkPreviews: c.AyuImproveLinkPreviews,
 		SendReadReceipts:       c.SendReadReceipts,
 		LocalReadMark:          c.LocalReadMark,

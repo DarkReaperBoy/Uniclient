@@ -911,6 +911,9 @@ type ConfigChanges struct {
 	// Composer submit mode (tdesktop Messages setting, slice 155).
 	// Nil = unchanged; "" = Enter sends, "ctrl-enter" = Ctrl+Enter sends.
 	ComposerSubmit *string
+	// Corner reply button (slice 157). Nil = unchanged; effective
+	// default ON (tdesktop).
+	CornerReply *bool
 	// Ayu improve link previews (slice 155). Nil = unchanged.
 	AyuImproveLinkPreviews *bool
 	// Custom fonts (slice 146): nil = unchanged; non-nil ("" = reset).
@@ -1003,6 +1006,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.ComposerSubmit != nil {
 		e.config.ComposerSubmit = *changes.ComposerSubmit
+	}
+	if changes.CornerReply != nil {
+		e.config.CornerReply = changes.CornerReply
 	}
 	if changes.AyuImproveLinkPreviews != nil {
 		e.config.AyuImproveLinkPreviews = *changes.AyuImproveLinkPreviews
