@@ -793,6 +793,16 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 							}),
 						)
 					}),
+					// Inline read receipt (slice 152): tdesktop's DM "Seen"
+					// row w/ reader avatar under the last own message.
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						chat := chatOf(f, *m)
+						if !seenInlineGate(*m, chat.Type, m.MsgID == msgFrameLastOwn) {
+							return layout.Dimensions{}
+						}
+						a.ensureSeenInline(m)
+						return a.layoutSeenInline(gtx, f, m)
+					}),
 				)
 			})
 		})

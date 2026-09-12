@@ -337,6 +337,9 @@ type App struct {
 	transChatOn map[string]bool
 	transTarget string
 	transAsked  map[string]bool
+	// inline read receipt (slice 152): per-chat cached seen-state for
+	// the last own DM message.
+	seenInline map[string]*seenInlineState
 
 	// who-reacted dialog (slice 49)
 	reactors *reactorsState
@@ -472,6 +475,7 @@ func New(win *app.Window, eng *engine.Engine) *App {
 		transChatOn:  make(map[string]bool),
 		transTarget:  "en",
 		transAsked:   make(map[string]bool),
+		seenInline:   make(map[string]*seenInlineState),
 	}
 }
 
@@ -1830,6 +1834,7 @@ func (a *App) snapshot() frame {
 		businessPage:     a.businessPage,
 		transChatOn:      a.transChatOn,
 		transTarget:      a.transTarget,
+		seenInline:       a.seenInline,
 		langCode:         a.langCode,
 		langStrings:      a.langStrings,
 		langs:            a.langs,
@@ -2059,14 +2064,15 @@ type frame struct {
 	chatPeek       *chatPeekState         // hover preview (slice 145)
 	sidebarW       int
 	hoverPos       image.Point
-	folderMgr      *folderMgrState    // chat-folders manager (slice 142)
-	premiumPage    *premiumPageState  // Telegram Premium page (slice 143)
-	starsPage      *starsPageState    // Telegram Stars page (slice 144)
-	businessPage   *businessPageState // Telegram Business page (slice 148)
-	transChatOn    map[string]bool    // chat-wide translate bar (slice 150)
-	transTarget    string             // translation target language (slice 150)
-	langCode       string             // active language (slice 140)
-	langStrings    map[string]string  // pack overrides
+	folderMgr      *folderMgrState             // chat-folders manager (slice 142)
+	premiumPage    *premiumPageState           // Telegram Premium page (slice 143)
+	starsPage      *starsPageState             // Telegram Stars page (slice 144)
+	businessPage   *businessPageState          // Telegram Business page (slice 148)
+	transChatOn    map[string]bool             // chat-wide translate bar (slice 150)
+	transTarget    string                      // translation target language (slice 150)
+	seenInline     map[string]*seenInlineState // inline read receipt (slice 152)
+	langCode       string                      // active language (slice 140)
+	langStrings    map[string]string           // pack overrides
 	langs          []engine.LanguageInfo
 	langsLoaded    bool
 	langsFor       string

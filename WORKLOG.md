@@ -3403,3 +3403,20 @@ long-word hard-split, manual rounded-rect rasterizer.
 - Gate: gofmt/vet/test green (goolm); windows + wasm + native green.
 
 Parity: Message shot MISSING→PRESENT.
+
+## 2026-09-12 — slice 152: inline read receipt ("Seen" + avatar row)
+
+tdesktop's DM behavior: the last own outgoing message in a DM carries
+a small "Seen 12:34" row with the reader avatar under the bubble meta.
+
+- Gate (pure, tested): own + non-service + last-own + DM-only (groups
+  keep the slice-98 dialog — tdesktop shows the stack in DMs).
+- State: per-chat cached seenInline entry (msgID-keyed; refetch when the
+  last own message changes; fetching dedup); data rides
+  GetOutboxReadDate + GetMessageReadParticipantsDetailed.
+- Render: 14px reader avatars (up to 3 + "+n"), "Seen HH:MM" caption
+  (plain "Seen" without a resolved date); privacy/other errors render
+  nothing inline (the dialog keeps the honest sentence — §1.10).
+- Gate: gofmt/vet/test green (goolm); windows + wasm + native green.
+
+Parity: Read receipt PARTIAL→PRESENT.
