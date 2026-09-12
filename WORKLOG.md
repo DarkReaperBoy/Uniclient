@@ -3356,3 +3356,24 @@ Alt+jumplist, Windows taskbar overlay badge, chat-wide translate bar.
 
 Parity: Per-chat notification settings PARTIAL (custom durations done;
 per-chat sound/vibrate exception editors remain).
+
+## 2026-09-12 — slice 150: chat-wide translate bar + target-language picker
+
+tdesktop's "Translate to …?" strip over the message list.
+
+- The header ⋮ menu gains a state-aware entry ("Translate to…" /
+  "Hide translations", pure — tested). Turning it on renders the bar
+  between the search bar and the message list: "Translate to <lang>"
+  opens a 20-language chip picker (tdesktop's curated list, ISO 639-1),
+  "Show original" turns it off; the picked target persists
+  (AppConfig.TranslateTarget → engine ConfigChanges → boot restore).
+- While on, every rendered text bubble lazily fetches its translation
+  (dedup set, silent failure — no per-message toast spam) into the
+  slice-46 Ayu translator block; per-message context-menu toggles ride
+  the same configured target (was hardcoded "en").
+- Tests-first: language list sanity + name/normalize helpers, chat-key
+  stability, header-menu state-awareness; DM menu expectation updated.
+- Gate: gofmt/vet/test green (goolm); windows + wasm + native green;
+  Xvfb smoke boots. Slice 148 verify CI: GREEN via API.
+
+Parity: Translate bar PARTIAL→PRESENT.

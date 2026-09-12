@@ -20,12 +20,15 @@ type ProxyConfig struct {
 // AppConfig holds the application configuration.
 type AppConfig struct {
 	// Display
-	Theme        string  `json:"theme"`
-	AccentColor  string  `json:"accent_color"`
-	FontScale    float64 `json:"font_scale"`
-	Language     string  `json:"language"`
-	FontPath     string  `json:"font_path,omitempty"`      // custom UI font file (slice 146)
-	MonoFontPath string  `json:"mono_font_path,omitempty"` // custom mono font file
+	Theme       string  `json:"theme"`
+	AccentColor string  `json:"accent_color"`
+	FontScale   float64 `json:"font_scale"`
+	Language    string  `json:"language"`
+	// Chat-wide translation target language (slice 150, tdesktop
+	// translate bar). ISO 639-1; empty = "en".
+	TranslateTarget string `json:"translate_target,omitempty"`
+	FontPath        string `json:"font_path,omitempty"`      // custom UI font file (slice 146)
+	MonoFontPath    string `json:"mono_font_path,omitempty"` // custom mono font file
 
 	// Power saving (slice 135, tdesktop PowerSaving semantics)
 	PowerSavingFlags    int  `json:"power_saving_flags"`

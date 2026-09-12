@@ -906,6 +906,8 @@ type ConfigChanges struct {
 	AccentColor string
 	FontScale   float64
 	Language    string
+	// Chat-wide translation target (slice 150). Zero value = unchanged.
+	TranslateTarget string
 	// Custom fonts (slice 146): nil = unchanged; non-nil ("" = reset).
 	FontPath     *string
 	MonoFontPath *string
@@ -990,6 +992,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.Language != "" {
 		e.config.Language = changes.Language
+	}
+	if changes.TranslateTarget != "" {
+		e.config.TranslateTarget = changes.TranslateTarget
 	}
 	if changes.MaxCacheSize > 0 {
 		e.config.MaxCacheSize = changes.MaxCacheSize

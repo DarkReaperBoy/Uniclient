@@ -143,6 +143,16 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
+		// Chat-wide translate bar (slice 150): tdesktop's "Translate to
+		// …" strip between the search bar and the message list.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if f.selected == nil || !chatTranslateOn(f, f.selected) {
+				return layout.Dimensions{}
+			}
+			d := a.layoutTranslateBar(gtx, f, *f.selected)
+			a.listTop += d.Size.Y
+			return d
+		}),
 		// Messages — or the forum topic list on a forum's root view (slice 118).
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if chat != nil && chat.IsForum && f.forumTopic == "" {
@@ -742,8 +752,13 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						}
 						return a.richTextLabel(gtx, body, unit.Sp(15), baseCol, bgCol, true)
 					}),
-					// Translation block (Ayu translator, slice 46).
+					// Translation block (Ayu translator, slice 46) — shown for
+					// per-message toggles AND the chat-wide bar (slice 150),
+					// which also lazily fetches every text message's result.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if chatTranslateOn(f, &chatKey{AccountID: m.AccountID, ChatID: m.ChatID}) {
+							a.ensureAutoTranslation(m)
+						}
 						return a.translationBlock(gtx, m)
 					}),
 					// Inline keyboard (slice 127): bot button rows below the

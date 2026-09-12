@@ -61,7 +61,7 @@ func TestHeaderMenuHasViewDeleted(t *testing.T) {
 		{AccountID: "a", ChatID: "g1", Type: engine.ChatTypeGroupVal},
 		{AccountID: "a", ChatID: "c1", Type: engine.ChatTypeChanVal},
 	} {
-		if !containsAction(headerMenuItems(c, false, false), "viewdeleted") {
+		if !containsAction(headerMenuItems(c, false, false, false), "viewdeleted") {
 			t.Errorf("chat type %d: view-deleted item missing", c.Type)
 		}
 	}

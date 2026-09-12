@@ -17,9 +17,19 @@ import (
 // support) and the result renders as an italic block under the bubble body.
 // The menu entry toggles to "Hide translation" while one is shown.
 
-// translateTo is the target language (AyuGram default = app language; the
-// settings row lands with the language switch).
-const translateTo = "en"
+// translateTargetOf returns the effective target language for a
+// per-message translation (the persisted chat-wide target, slice 150;
+// English default — AyuGram's app-language default lands with the
+// language switch).
+func (a *App) translateTargetOf() string {
+	a.mu.Lock()
+	t := a.transTarget
+	a.mu.Unlock()
+	if t == "" {
+		return "en"
+	}
+	return t
+}
 
 // transKey identifies one message's shown translation.
 func transKey(m *engine.CachedMessage) string {
@@ -45,7 +55,7 @@ func (a *App) toggleTranslation(m *engine.CachedMessage) {
 	msg := *m
 	text := strings.TrimSpace(msg.ContentText)
 	go func() {
-		out, err := a.eng.TranslateText(msg.AccountID, msg.ChatID, msg.MsgID, translateTo, text)
+		out, err := a.eng.TranslateText(msg.AccountID, msg.ChatID, msg.MsgID, a.translateTargetOf(), text)
 		if err != nil {
 			a.setToast("Translate failed: " + err.Error())
 			return

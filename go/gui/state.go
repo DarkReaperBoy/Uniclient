@@ -332,6 +332,11 @@ type App struct {
 	// translations (AyuGram Ayu translator, slice 46): shown message
 	// translations, keyed account|chat|msg.
 	translations map[string]string
+	// chat-wide translate bar (slice 150): per-chat on-flag + the
+	// persisted target language + the auto-fetch dedup set.
+	transChatOn map[string]bool
+	transTarget string
+	transAsked  map[string]bool
 
 	// who-reacted dialog (slice 49)
 	reactors *reactorsState
@@ -464,6 +469,9 @@ func New(win *app.Window, eng *engine.Engine) *App {
 		openOnDone:   make(map[string]bool),
 		pollVotes:    make(map[string]map[int]bool),
 		translations: make(map[string]string),
+		transChatOn:  make(map[string]bool),
+		transTarget:  "en",
+		transAsked:   make(map[string]bool),
 	}
 }
 
@@ -491,6 +499,8 @@ func (a *App) Start() {
 		// strings load lazily once an account connects (the override
 		// needs a core); the code itself drives the Language card now.
 		a.langCode = cfg.Language
+		// Chat-wide translation target (slice 150): restore persisted.
+		a.transTarget = normalizeTransTarget(cfg.TranslateTarget)
 	}
 	// Local passcode (slice 87): boot LOCKED when the vault has one — the
 	// lock screen renders before any chat content.
@@ -1818,6 +1828,8 @@ func (a *App) snapshot() frame {
 		premiumPage:      a.premiumPage,
 		starsPage:        a.starsPage,
 		businessPage:     a.businessPage,
+		transChatOn:      a.transChatOn,
+		transTarget:      a.transTarget,
 		langCode:         a.langCode,
 		langStrings:      a.langStrings,
 		langs:            a.langs,
@@ -2051,6 +2063,8 @@ type frame struct {
 	premiumPage    *premiumPageState  // Telegram Premium page (slice 143)
 	starsPage      *starsPageState    // Telegram Stars page (slice 144)
 	businessPage   *businessPageState // Telegram Business page (slice 148)
+	transChatOn    map[string]bool    // chat-wide translate bar (slice 150)
+	transTarget    string             // translation target language (slice 150)
 	langCode       string             // active language (slice 140)
 	langStrings    map[string]string  // pack overrides
 	langs          []engine.LanguageInfo

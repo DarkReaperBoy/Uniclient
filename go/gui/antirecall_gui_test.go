@@ -73,7 +73,7 @@ func TestHeaderMenuClearDeleted(t *testing.T) {
 		{AccountID: "a", ChatID: "g1", Type: engine.ChatTypeGroupVal},
 		{AccountID: "a", ChatID: "c1", Type: engine.ChatTypeChanVal},
 	} {
-		items := headerMenuItems(c, false, false)
+		items := headerMenuItems(c, false, false, false)
 		if !containsAction(items, "cleardeleted") {
 			t.Errorf("type %d menu missing Clear deleted messages", c.Type)
 		}

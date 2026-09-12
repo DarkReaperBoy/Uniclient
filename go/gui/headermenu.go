@@ -52,7 +52,7 @@ func headerMenuConfirmText(id string) (title, hint string) {
 }
 
 // headerMenuItems derives the peer-menu rows (pure, tested).
-func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked bool) []chatMenuAction {
+func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn bool) []chatMenuAction {
 	var items []chatMenuAction
 	if c.IsMuted {
 		items = append(items, chatMenuAction{"Unmute", "unmute"})
@@ -61,6 +61,12 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked bool) []chatMenuAc
 	}
 	items = append(items, chatMenuAction{"View profile", "profile"})
 	items = append(items, chatMenuAction{"Search", "search"})
+	// Chat-wide translate bar (slice 150): state-aware label.
+	if transOn {
+		items = append(items, chatMenuAction{"Hide translations", "transoff"})
+	} else {
+		items = append(items, chatMenuAction{"Translate to…", "transon"})
+	}
 	items = append(items, chatMenuAction{"Notification sound…", "notifsound"})
 	if c.Type == engine.ChatTypeGroupVal || c.Type == engine.ChatTypeTopicVal || c.Type == engine.ChatTypeChanVal {
 		items = append(items, chatMenuAction{"Add members", "addmember"})
@@ -132,6 +138,9 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 	case "notifsound":
 		a.closeHeaderMenu()
 		a.openSoundPickerChat(c.AccountID, c.ChatID)
+	case "transon", "transoff":
+		a.closeHeaderMenu()
+		a.toggleChatTranslate(chatKey{AccountID: c.AccountID, ChatID: c.ChatID})
 	case "addmember":
 		a.closeHeaderMenu()
 		a.openAddMemberDialog(c)
@@ -262,7 +271,8 @@ func (a *App) runHeaderConfirm(action string) {
 // plus its confirm dialog.
 func (a *App) layoutHeaderMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.headerMenu
-	items := headerMenuItems(m.chat, f.profile != nil, f.profile != nil && f.profile.IsBlocked)
+	items := headerMenuItems(m.chat, f.profile != nil, f.profile != nil && f.profile.IsBlocked,
+		f.selected != nil && chatTranslateOn(f, f.selected))
 	growClickables(&headerMenuBtns, len(items))
 
 	menuW := gtx.Dp(unit.Dp(220))

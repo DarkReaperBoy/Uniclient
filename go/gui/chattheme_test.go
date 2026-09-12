@@ -32,11 +32,11 @@ func TestChatThemeDlgStateFields(t *testing.T) {
 // The DM ⋮ menu offers "Change colors…" but group/channel menus don't
 // (slice 65).
 func TestHeaderMenuHasThemeItem(t *testing.T) {
-	if !containsAction(headerMenuItems(dmChat(), false, false), "theme") {
+	if !containsAction(headerMenuItems(dmChat(), false, false, false), "theme") {
 		t.Fatal("DM menu missing Change colors")
 	}
 	g := engine.ChatInfo{AccountID: "a", ChatID: "g1", Type: engine.ChatTypeGroupVal}
-	if containsAction(headerMenuItems(g, false, false), "theme") {
+	if containsAction(headerMenuItems(g, false, false, false), "theme") {
 		t.Fatal("group menu should not offer Change colors")
 	}
 }

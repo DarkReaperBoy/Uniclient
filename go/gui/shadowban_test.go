@@ -33,7 +33,7 @@ func TestHeaderMenuHasShadowBans(t *testing.T) {
 		{AccountID: "a", ChatID: "g1", Type: engine.ChatTypeGroupVal},
 		{AccountID: "a", ChatID: "c1", Type: engine.ChatTypeChanVal},
 	} {
-		if !containsAction(headerMenuItems(c, false, false), "shadowbans") {
+		if !containsAction(headerMenuItems(c, false, false, false), "shadowbans") {
 			t.Errorf("chat type %d: shadow-ban manager missing", c.Type)
 		}
 	}
