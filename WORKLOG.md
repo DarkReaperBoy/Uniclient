@@ -3342,3 +3342,17 @@ regex incl. blocked variants).
 
 Next candidates: message-shot renderer, custom mute durations,
 Alt+jumplist, Windows taskbar overlay badge, chat-wide translate bar.
+
+## 2026-09-12 — slice 149: custom mute durations
+
+- The "Mute for…" picker gains a Custom… row (tdesktop's box has the
+  same entry): reveals a text field accepting "2h", "45m", "1h30m",
+  "2d 3h 5m" or plain seconds; lenient parse (case/whitespace
+  insensitive), past-2038 durations cap to Telegram's int32 forever
+  semantics. Rides the same applyMutePreset → engine.MuteChat path as
+  the presets; error text under the field on bad input.
+- Tests-first: parse table + cap semantics (5000d→forever, 1000d real).
+- Gate: gofmt/vet/test green (goolm); full suite green.
+
+Parity: Per-chat notification settings PARTIAL (custom durations done;
+per-chat sound/vibrate exception editors remain).

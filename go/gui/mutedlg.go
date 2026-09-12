@@ -9,6 +9,8 @@ package gui
 
 import (
 	"image"
+	"strconv"
+	"strings"
 	"time"
 
 	"gioui.org/io/event"
@@ -41,6 +43,65 @@ func mutePresetAction(secs int) (muted bool, duration int32) {
 	return true, int32(secs)
 }
 
+// parseCustomMuteDuration parses a user-typed mute duration: unit
+// suffixes h/m/s/d (combinable, whitespace-insensitive) or a plain
+// number of seconds. Zero/negative results reject; absurd durations
+// (past 2038 when added to now — Telegram's int32 forever semantics)
+// cap to forever (0). Pure — unit-tested.
+func parseCustomMuteDuration(s string) (int, bool) {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return 0, false
+	}
+	// plain number = seconds
+	if n, err := strconv.Atoi(s); err == nil {
+		return customMuteCap(n)
+	}
+	total := 0
+	rest := s
+	consumed := false
+	for rest != "" {
+		// find the next unit letter
+		idx := strings.IndexAny(rest, "smhd")
+		if idx <= 0 {
+			return 0, false // no number before a unit, or trailing junk
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(rest[:idx]))
+		if err != nil {
+			return 0, false
+		}
+		unit := rest[idx]
+		switch unit {
+		case 's':
+			total += n
+		case 'm':
+			total += n * 60
+		case 'h':
+			total += n * 3600
+		case 'd':
+			total += n * 86400
+		}
+		consumed = true
+		rest = strings.TrimSpace(rest[idx+1:])
+	}
+	if !consumed {
+		return 0, false
+	}
+	return customMuteCap(total)
+}
+
+// customMuteCap clamps a duration to the forever value when it would
+// overflow Telegram's int32 mute_until unix time.
+func customMuteCap(secs int) (int, bool) {
+	if secs <= 0 {
+		return 0, false
+	}
+	if time.Now().Unix()+int64(secs) > 1<<31-1 {
+		return 0, true // forever
+	}
+	return secs, true
+}
+
 // muteDlgState is the open mute picker.
 type muteDlgState struct {
 	accountID string
@@ -54,6 +115,19 @@ var (
 	muteDlgUnmuteBtn widget.Clickable
 	muteDlgKeyTag    = new(struct{})
 )
+
+// Custom-duration entry (slice 149): "Custom…" reveals a text field.
+var (
+	muteDlgCustomBtn  widget.Clickable
+	muteDlgCustomEd   widget.Editor
+	muteDlgCustomGo   widget.Clickable
+	muteDlgCustomOpen bool
+	muteDlgCustomErr  string
+)
+
+func init() {
+	muteDlgCustomEd.SingleLine = true
+}
 
 // openMuteDialog opens the mute-duration picker for the open chat.
 func (a *App) openMuteDialog(k chatKey, title string) {
@@ -133,6 +207,24 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	if muteDlgUnmuteBtn.Clicked(gtx) {
 		a.applyUnmute(st.accountID, st.chatID)
 		return layout.Dimensions{}
+	}
+	if muteDlgCustomBtn.Clicked(gtx) {
+		muteDlgCustomOpen = !muteDlgCustomOpen
+		if muteDlgCustomOpen {
+			muteDlgCustomEd.SetText("")
+			muteDlgCustomErr = ""
+		}
+		a.invalidate()
+	}
+	if muteDlgCustomGo.Clicked(gtx) {
+		if secs, ok := parseCustomMuteDuration(muteDlgCustomEd.Text()); ok {
+			muteDlgCustomOpen = false
+			muteDlgCustomErr = ""
+			a.applyMutePreset(st.accountID, st.chatID, secs)
+			return layout.Dimensions{}
+		}
+		muteDlgCustomErr = "Use a duration like 2h, 45m, 1h30m or seconds"
+		a.invalidate()
 	}
 
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
