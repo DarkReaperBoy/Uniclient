@@ -4302,3 +4302,24 @@ Parity: "Similar channels block" PRESENT gains the settings half
 (slice 169). Remaining MISSING: PiP (blocked on pure-Go video decode),
 app icon selector, suggestions cards — all P3; everything else on the
 matrix is PRESENT/PARTIAL/CORE-ONLY.
+
+## 2026-09-13 — withAPI batch: 735 strict-shape legacy conversions
+
+The §8 freeze-rule backlog: convert_withapi.py (strict-shape matcher —
+top RLock/defer + auth guard + exactly one t.api call) converted 735
+legacy telegram.go methods to the withAPI snapshot pattern in one
+pass. 65 follow-up compile fixes where the original code redeclared
+err after the inserted snapshot (`:=` → `=`, same scope — semantics
+identical; the fixer lives at scripts/ fix-redecl inline, the scanner
+at scripts/scan_lock_across_rpc.py).
+
+Result: 784 of the core's methods now use t.withAPI(); the scanner
+finds 77 remaining lock-across-RPC functions (multi-RPC flows, call
+write-lock state machines — SendMessage, the group-call family, cloud
+password flows, profile photo uploads) that need careful manual
+conversion; they stay on the per-touch backlog.
+
+Verification: gofmt clean (whole repo), vet clean, linux build green,
+FULL repo test suite green after the mass rewrite.
+
+AGENTS.md §8 note updated to the new counts.
