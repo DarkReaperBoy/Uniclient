@@ -37486,12 +37486,12 @@ func (t *TelegramCore) ValidatePaymentInfo(chatID, msgID string, info map[string
 
 // GetConnectedBots returns business bots connected to this account as simplified maps.
 func (t *TelegramCore) GetConnectedBots() ([]map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	result, err := t.api.AccountGetConnectedBots(t.ctx)
+	result, err := api.AccountGetConnectedBots(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -37531,20 +37531,18 @@ func (t *TelegramCore) GetConnectedBots() ([]map[string]interface{}, error) {
 
 // ToggleConnectedBotPaused pauses or resumes a connected bot for a specific peer.
 func (t *TelegramCore) ToggleConnectedBotPaused(chatID string, paused bool) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
-	}
-	peer, err := t.resolvePeer(chatID)
+	// withAPI rule: never hold t.mu across the RPC (peer resolved under
+	// withPeer's own short lock, released before the call).
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
 	}
-	inputPeer, err := t.toInputPeer(peer)
+	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
 	}
-	_, err = t.api.AccountToggleConnectedBotPaused(t.ctx, &tg.AccountToggleConnectedBotPausedRequest{
+	unlock() // peer snapshot in hand — release before the RPC
+	_, err = api.AccountToggleConnectedBotPaused(ctx, &tg.AccountToggleConnectedBotPausedRequest{
 		Peer:   inputPeer,
 		Paused: paused,
 	})
@@ -37553,28 +37551,26 @@ func (t *TelegramCore) ToggleConnectedBotPaused(chatID string, paused bool) erro
 
 // DisablePeerConnectedBot removes a connected bot from a specific peer.
 func (t *TelegramCore) DisablePeerConnectedBot(chatID string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
-	}
-	peer, err := t.resolvePeer(chatID)
+	// withAPI rule: never hold t.mu across the RPC (peer resolved under
+	// withPeer's own short lock, released before the call).
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
 	}
-	inputPeer, err := t.toInputPeer(peer)
+	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
 	}
-	_, err = t.api.AccountDisablePeerConnectedBot(t.ctx, inputPeer)
+	unlock() // peer snapshot in hand — release before the RPC
+	_, err = api.AccountDisablePeerConnectedBot(ctx, inputPeer)
 	return err
 }
 
 func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int, excludePinned bool) ([]SavedSublistInfo, int, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, 0, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, 0, err
 	}
 
 	if limit <= 0 {
@@ -37591,7 +37587,7 @@ func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int, exclude
 		req.SetExcludePinned(true)
 	}
 
-	result, err := t.api.MessagesGetSavedDialogs(t.ctx, req)
+	result, err := api.MessagesGetSavedDialogs(ctx, req)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -37701,13 +37697,13 @@ func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int, exclude
 }
 
 func (t *TelegramCore) GetPinnedSavedSublists() ([]SavedSublistInfo, int, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, 0, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, 0, err
 	}
 
-	result, err := t.api.MessagesGetPinnedSavedDialogs(t.ctx)
+	result, err := api.MessagesGetPinnedSavedDialogs(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -37817,10 +37813,10 @@ func (t *TelegramCore) GetPinnedSavedSublists() ([]SavedSublistInfo, int, error)
 }
 
 func (t *TelegramCore) GetSavedReactionTags(sublistPeerID string) ([]SavedReactionTagInfo, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	req := &tg.MessagesGetSavedReactionTagsRequest{
@@ -37835,7 +37831,7 @@ func (t *TelegramCore) GetSavedReactionTags(sublistPeerID string) ([]SavedReacti
 		}
 	}
 
-	result, err := t.api.MessagesGetSavedReactionTags(t.ctx, req)
+	result, err := api.MessagesGetSavedReactionTags(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -37865,10 +37861,10 @@ func (t *TelegramCore) GetSavedReactionTags(sublistPeerID string) ([]SavedReacti
 }
 
 func (t *TelegramCore) RenameSavedReactionTag(emoji string, customID int64, title string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 
 	req := &tg.MessagesUpdateSavedReactionTagRequest{}
@@ -37883,19 +37879,19 @@ func (t *TelegramCore) RenameSavedReactionTag(emoji string, customID int64, titl
 		req.SetTitle(title)
 	}
 
-	_, err := t.api.MessagesUpdateSavedReactionTag(t.ctx, req)
+	_, err = api.MessagesUpdateSavedReactionTag(ctx, req)
 	return err
 }
 
 // GetThemeBySlug resolves a cloud theme by its URL slug and returns its info.
 func (t *TelegramCore) GetThemeBySlug(slug string, isDark bool) (*CloudThemeInfo, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	format := "tdesktop"
-	th, err := t.api.AccountGetTheme(t.ctx, &tg.AccountGetThemeRequest{
+	th, err := api.AccountGetTheme(ctx, &tg.AccountGetThemeRequest{
 		Format: format,
 		Theme:  &tg.InputThemeSlug{Slug: slug},
 	})
@@ -37931,12 +37927,12 @@ func (t *TelegramCore) GetThemeBySlug(slug string, isDark bool) (*CloudThemeInfo
 
 // CheckGiftCode returns information about a Telegram Premium gift code.
 func (t *TelegramCore) CheckGiftCode(slug string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	result, err := t.api.PaymentsCheckGiftCode(t.ctx, slug)
+	result, err := api.PaymentsCheckGiftCode(ctx, slug)
 	if err != nil {
 		return nil, err
 	}
@@ -37955,11 +37951,11 @@ func (t *TelegramCore) CheckGiftCode(slug string) (map[string]interface{}, error
 
 // ApplyGiftCode redeems a Telegram Premium gift code.
 func (t *TelegramCore) ApplyGiftCode(slug string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	_, err := t.api.PaymentsApplyGiftCode(t.ctx, slug)
+	_, err = api.PaymentsApplyGiftCode(ctx, slug)
 	return err
 }
