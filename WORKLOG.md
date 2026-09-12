@@ -3923,3 +3923,32 @@ corner reaction, swipe action, react-with) + cross-platform dock badge
 complete; AyuGram 1:1 program continues (next candidates: Ayu
 spy/saving engine-gated toggles, Alt+jumplist, multi-window chats,
 PiP — see the parity matrix MISSING/PARTIAL rows).
+
+## 2026-09-12 — slice 161: message-permalink deep links (t.me/user/123, t.me/c/…, tg:// post)
+
+tdesktop routes message permalinks in-app; UniClient previously left
+them on the browser ("engine does not expose message lookups"). The
+engine exposes them now.
+
+Implementation (tests first: deeplink_test.go permalink suites):
+- deepLinkTarget grows a third return (post id): t.me/<user>/<msg>,
+  t.me/c/<channelID>/<msg>, tg://resolve?domain=<user>&post=<msg> →
+  kind "permalink"; topic (3-segment) and comment-thread forms stay
+  browser (honest scope — topic views don't cross-load by message id);
+  non-numeric ids stay browser.
+- cores/telegram.go GetMessageByID (withAPI-clean): -100 chats go
+  through channels.getMessages (InputChannel + access hash); other
+  peers through messages.getMessages (no peer field — ids resolve
+  globally); the shared converter entity-caches + maps.
+- engine GetMessageTimestamp: cache-first; on miss the core fetch
+  lands the message in the cache (window loads then include it).
+- GUI: resolveDeepLinkPermalink — username form via global search,
+  c/ form requires the chat in the dialogs (no access hash in the
+  link; honest toast otherwise); openPermalinkTarget fetches the ts
+  then pendingOpen + pendingJump; openChat's first-load goroutine
+  consumes pendingJump → jumpToMessageAt (loads a window around the
+  message when the initial 100 don't cover it).
+
+Verification: deeplink suites green (2 stale expectations updated to
+the new routing); full repo tests, gofmt/vet green; Xvfb GUI smoke
+boots.

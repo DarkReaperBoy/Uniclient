@@ -306,6 +306,7 @@ type App struct {
 	newDlgErr    string
 	pendingOpen  *chatKey
 	pendingTitle string
+	pendingJump  *jumpReq // permalink deep-link jump after the chat opens (slice 161)
 
 	// the Calls box (AyuGram parity slice 154): per-account call-history
 	// page — grouped rows, redial, clear-all, group-calls subsection.
@@ -1076,6 +1077,13 @@ func (a *App) removeAccount(id string) {
 
 // consumePendingOpen runs a background-scheduled openChat on the GUI loop
 // (set by the new group/channel creation flow).
+// jumpReq is a deferred jump-to-message: set by permalink deep links,
+// consumed after the target chat's first message load (slice 161).
+type jumpReq struct {
+	msgID string
+	ts    int64
+}
+
 func (a *App) consumePendingOpen() {
 	a.mu.Lock()
 	k := a.pendingOpen
@@ -1220,6 +1228,11 @@ func (a *App) openChat(k chatKey, title string) {
 		a.messages = msgs
 		a.msgFor = &k
 		a.loadingMsgs = false
+		// Permalink deep-link jump (slice 161): fire once the first
+		// window is in — jumpToMessageAt loads a window around the
+		// message when it is not among these rows.
+		pj := a.pendingJump
+		a.pendingJump = nil
 		// Anchor the unread separator to the boundary message (only
 		// on the first load of this visit, before the read receipt).
 		if a.unreadSepMsgID == "" && a.unreadAtOpen > 0 {
@@ -1228,6 +1241,9 @@ func (a *App) openChat(k chatKey, title string) {
 			}
 		}
 		a.mu.Unlock()
+		if pj != nil {
+			a.jumpToMessageAt(pj.msgID, pj.ts)
+		}
 		go func() {
 			// LRead off (AyuGram): leave the chat unread locally —
 			// the drawer toggle gates the mark-on-open call.

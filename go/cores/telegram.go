@@ -2178,6 +2178,61 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 }
 
 // GetMessages retrieves messages from a chat with pagination support.
+// GetMessageByID fetches one message by its id in a chat — permalink
+// resolution (t.me/user/123, t.me/c/1234/567). Channels must go through
+// channels.getMessages (messages.getMessages rejects channel peers);
+// both paths map + entity-cache through the shared converter.
+func (t *TelegramCore) GetMessageByID(chatID string, msgID string) (*Message, error) {
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
+	}
+	id, err := tgMsgID(msgID)
+	if err != nil {
+		return nil, err
+	}
+	ids := []tg.InputMessageClass{&tg.InputMessageID{ID: id}}
+
+	var result tg.MessagesMessagesClass
+	if strings.HasPrefix(chatID, "-100") {
+		peer, err := t.resolvePeer(chatID)
+		if err != nil {
+			return nil, err
+		}
+		ch, ok := peer.(*tg.PeerChannel)
+		if !ok {
+			return nil, fmt.Errorf("chat %s is not a channel", chatID)
+		}
+		hash, err := t.resolveChannelAccessHash(ch.ChannelID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve channel %d access hash: %w", ch.ChannelID, err)
+		}
+		result, err = api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
+			Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+			ID:      ids,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("get channel message: %w", err)
+		}
+	} else {
+		// messages.getMessages takes no peer — message IDs resolve
+		// globally for the account (DMs and basic groups).
+		var err error
+		result, err = api.MessagesGetMessages(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("get message: %w", err)
+		}
+	}
+
+	msgs := t.convertMessages(result)
+	if len(msgs) == 0 {
+		return nil, fmt.Errorf("message %s not found", msgID)
+	}
+	m := msgs[0]
+	return &m, nil
+}
+
 func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	// Snapshot auth + api under a brief lock; the history RPCs run unlocked
 	// (withAPI rule) so a slow/hung getHistory can never pin t.mu.

@@ -97,6 +97,42 @@ type CachedMessage struct {
 //   - else: the most recent messages (initial load).
 //
 // Falls back to fetching from the core if cache is empty on initial load.
+// GetMessageTimestamp resolves a message's timestamp for permalink
+// jumps (t.me/user/123, t.me/c/...): the local cache first; on miss the
+// core fetches the message by id and it lands in the cache (future
+// window loads include it). Returns 0 when unresolvable.
+func (e *Engine) GetMessageTimestamp(accountID, chatID, msgID string) (int64, error) {
+	var ts int64
+	err := e.db.QueryRow(
+		`SELECT timestamp FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+		accountID, chatID, msgID,
+	).Scan(&ts)
+	if err == nil {
+		return ts, nil
+	}
+
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 0, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type messageByIDGetter interface {
+		GetMessageByID(chatID string, msgID string) (*cores.Message, error)
+	}
+	g, ok := acc.Core.(messageByIDGetter)
+	if !ok {
+		return 0, fmt.Errorf("platform does not support message-id lookup")
+	}
+	msg, err := g.GetMessageByID(chatID, msgID)
+	if err != nil {
+		return 0, err
+	}
+	if msg == nil {
+		return 0, fmt.Errorf("message %s not found", msgID)
+	}
+	cm := e.cacheMessage(accountID, chatID, msg)
+	return cm.Timestamp, nil
+}
+
 func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, limit int) ([]CachedMessage, error) {
 	if limit <= 0 {
 		limit = 50
