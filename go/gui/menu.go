@@ -270,6 +270,14 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.toggleTranslation(&m)
 		}})
 	}
+	// Message shot (AyuGram "take message screenshot", slice 151):
+	// render the message into a shareable PNG via the save picker.
+	if strings.TrimSpace(m.ContentText) != "" || m.MediaThumbB64 != "" {
+		msg := m
+		items = append(items, menuAction{"Message shot…", func(gtx layout.Context) {
+			a.saveMessageShot(msg)
+		}})
+	}
 	// Copy link to message (AyuGram: t.me link for channel/group posts).
 	chat := chatOf(f, m)
 	if chat.Type == engine.ChatTypeChanVal || chat.Type == engine.ChatTypeGroupVal {

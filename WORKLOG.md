@@ -3377,3 +3377,29 @@ tdesktop's "Translate to …?" strip over the message list.
   Xvfb smoke boots. Slice 148 verify CI: GREEN via API.
 
 Parity: Translate bar PARTIAL→PRESENT.
+
+## 2026-09-12 — slice 151: message shot (offscreen message→PNG renderer)
+
+AyuGram's "take message screenshot": the message context menu gains
+"Message shot…" — the message composes into a shareable PNG fully
+offscreen (no window, no GPU): forward header, reply quote with accent
+bar, sender name with the Telegram sender color, entity-styled body
+(bold/italic/strike-through/mono/link-underlined-accent/spoiler
+concealed with the bubble color; entity offsets are UTF-16 code units —
+boundary-sweep span combiner), decoded photo thumb (aspect-kept,
+registry decoders), edited+timestamp footer. Pure-Go text via the
+x/image gofont faces (16px body, 13px meta), greedy word-wrap with
+long-word hard-split, manual rounded-rect rasterizer.
+
+- Tests-first: entity splitting (plain/bold/overlap/UTF-16/link), word
+  wrap (budget, content preservation, hard-split), filename
+  sanitization, render geometry + PNG encode, quote/forward expansion.
+- Visual verification: sample render written to /tmp and inspected via
+  VLM — bubble, quote bar, colored sender, styled runs, timestamp all
+  confirmed, no overlap artifacts.
+- Save flow rides the explorer CreateFile save picker (the attach
+  picker's cousin); honest refusal when the message has no renderable
+  content (§1.10).
+- Gate: gofmt/vet/test green (goolm); windows + wasm + native green.
+
+Parity: Message shot MISSING→PRESENT.
