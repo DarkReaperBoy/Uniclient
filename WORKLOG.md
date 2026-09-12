@@ -3489,3 +3489,41 @@ Next candidates: Alt+jumplist (Windows COM: ICustomDestinationList +
 IShellLink — blind), calls box (unified searchable call history),
 chat-settings link-preview/message-actions rows, forum subsection tabs,
 Ayu spy/saving toggles (engine-gated), Linux Unity launcher badge.
+
+## 2026-09-12 — slice 154: the Calls box (tdesktop calls_box_controller 1:1)
+
+tdesktop's Calls box, source-level parity against
+calls/calls_box_controller.cpp (+ its box UI: ClearCallsBox,
+AddCreateCallButton context, group-calls slide-wrap).
+
+- Research: full read of the controller — pagination
+  (kFirstPageCount=20 / kPerPageCount=100 via
+  messages.search(inputMessagesFilterPhoneCalls, offset_id)),
+  Row::canAddItem grouping (peer × date × direction), status strings
+  (lng_call_box_status_today/yesterday/date/group), redial right-action
+  (phone/camera per CallType), rowClicked → showPeerHistory at maxItemId,
+  rowContextMenu (Delete / Show in chat), Clear-all (attention item,
+  only when rows exist) → deletePhoneCallHistory revoke loop, group-calls
+  subsection (channels with an active call), "No calls here yet" empty.
+- New gui/callsbox.go (+ state/routing/drawer wiring): per-account page
+  opened from the drawer Calls row (acctFilter/current scope, the
+  contacts pattern). Grouped rows w/ Material call-made/received/missed
+  arrows (missed red), avatar (real image when the engine cached one),
+  redial → engine.StartCall → slice-101 call overlay, row click →
+  openChat + jumpToMessageAt, right-click pane routing (chatPaneTag
+  pattern) → Show in chat / Delete confirm (revoke checkbox, engine
+  DeleteMessage per grouped msg id), header ⋮ menu (Call settings →
+  setSectionCalls; Clear all → ClearCallsBox-style confirm →
+  engine.ClearCallHistory(revoke) + first-page reload), group-calls
+  subsection (HasActiveCall chats of the account; join action), Esc
+  self-handled, contentDialogSurface right after contacts (pinned).
+- RPC hygiene (§8 freeze rule): GetCallHistory, ClearCallHistory,
+  MessagesDeletePhoneCallHistory converted to withAPI — lock-across-RPC
+  scan clean for all three.
+- Tests-first: grouping (merge same peer+day+dir; split day/dir/peer;
+  newest-first), status phrases, next-offset, header menu items,
+  routing priority, escTarget self-handling, direction mapping.
+- Gate: gofmt/vet/test green (goolm); windows + wasm cross-builds green;
+  Xvfb boot smoke green (window renders, dark palette + accent pixels).
+
+Parity: Voice tab / call list PARTIAL→PRESENT (calls box landed).
