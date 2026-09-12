@@ -1994,10 +1994,10 @@ func (t *TelegramCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 
 // SendMessage sends a text message to the specified chat.
 func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.sender == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	peer, err := t.resolvePeer(chatID)
@@ -2122,7 +2122,7 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 		} else if topicRootID > 0 {
 			mediaReq.SetReplyTo(&tg.InputReplyToMessage{TopMsgID: topicRootID})
 		}
-		result, err := t.api.MessagesSendMedia(t.ctx, mediaReq)
+		result, err := api.MessagesSendMedia(ctx, mediaReq)
 		if err != nil {
 			return nil, fmt.Errorf("send message with web page: %w", err)
 		}
@@ -2170,7 +2170,7 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 		req.SetReplyTo(&tg.InputReplyToMessage{TopMsgID: topicRootID})
 	}
 
-	result, err := t.api.MessagesSendMessage(t.ctx, req)
+	result, err := api.MessagesSendMessage(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("send message: %w", err)
 	}

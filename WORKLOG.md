@@ -4323,3 +4323,18 @@ Verification: gofmt clean (whole repo), vet clean, linux build green,
 FULL repo test suite green after the mass rewrite.
 
 AGENTS.md §8 note updated to the new counts.
+
+## 2026-09-13 — withAPI: SendMessage converted (manual, complex shape)
+
+The highest-traffic remaining violation: SendMessage held the RLock
+across BOTH send paths (web-page media + plain text). Converted to the
+snapshot pattern — the t.sender guard is covered by the withAPI
+invariant (api+sender set/cleared together under t.mu in auth/Logout/
+teardown). 76 complex-shaped violations remain (scan_lock_across_rpc).
+
+Also this session: an editor quirk space-mangled the worktree copy of
+telegram.go mid-edit (the committed blob stayed tab-clean — verified
+via git show + grep count); re-gofmt'd and re-verified. Committed
+2f38b02c's gofmt gate will pass.
+
+Verification: cores suite green, vet clean, build green.
