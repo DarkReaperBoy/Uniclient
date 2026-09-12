@@ -100,6 +100,16 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop = a.headerH + d.Size.Y
 			return d
 		}),
+		// Forum subsection tabs (slice 156): horizontal topic tab strip
+		// under the header — "All topics" + one tab per cached topic.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if chat == nil || !chat.IsForum {
+				return layout.Dimensions{}
+			}
+			d := a.layoutTopicTabs(gtx, f, chat)
+			a.listTop += d.Size.Y
+			return d
+		}),
 		// Forum topic bar (slice 118): the open topic's identity strip.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if chat == nil || !chat.IsForum || f.forumTopic == "" {
