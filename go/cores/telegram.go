@@ -2439,10 +2439,10 @@ func (t *TelegramCore) DeleteMessage(chatID string, msgID string) error {
 // revoke flag from DeleteMessagesBox's checkbox to messages.deleteMessages.
 // Channel/supergroup deletes are always for everyone, so revoke is moot there.
 func (t *TelegramCore) DeleteMessageRevoke(chatID string, msgID string, revoke bool) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 
 	peer, err := t.resolvePeer(chatID)
@@ -2459,12 +2459,12 @@ func (t *TelegramCore) DeleteMessageRevoke(chatID string, msgID string, revoke b
 	switch p := peer.(type) {
 	case *tg.PeerChannel:
 		hash, _ := t.resolveChannelAccessHash(p.ChannelID)
-		_, err = t.api.ChannelsDeleteMessages(t.ctx, &tg.ChannelsDeleteMessagesRequest{
+		_, err = api.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{
 			Channel: &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash},
 			ID:      []int{id},
 		})
 	default:
-		_, err = t.api.MessagesDeleteMessages(t.ctx, &tg.MessagesDeleteMessagesRequest{
+		_, err = api.MessagesDeleteMessages(ctx, &tg.MessagesDeleteMessagesRequest{
 			ID:     []int{id},
 			Revoke: revoke,
 		})
@@ -3241,10 +3241,10 @@ func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string
 }
 
 func (t *TelegramCore) SendContact(chatID string, phone string, firstName string, lastName string, userID string) (*Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.sender == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	peer, err := t.resolvePeer(chatID)
@@ -3265,7 +3265,7 @@ func (t *TelegramCore) SendContact(chatID string, phone string, firstName string
 		media.Vcard = "BEGIN:VCARD\nVERSION:3.0\nFN:" + firstName + " " + lastName + "\nTEL:" + phone + "\nEND:VCARD"
 	}
 
-	result, err := t.api.MessagesSendMedia(t.ctx, &tg.MessagesSendMediaRequest{
+	result, err := api.MessagesSendMedia(ctx, &tg.MessagesSendMediaRequest{
 		Peer:     inputPeer,
 		Media:    media,
 		Message:  "",
@@ -30462,12 +30462,12 @@ type WallpaperInfo struct {
 }
 
 func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	resp, err := t.api.AccountGetWallPapers(t.ctx, 0)
+	resp, err := api.AccountGetWallPapers(ctx, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -30548,7 +30548,7 @@ func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {
 					FileReference: doc.FileReference,
 					ThumbSize:     bestPhotoSize.Type,
 				}
-				result, err := t.api.UploadGetFile(t.ctx, &tg.UploadGetFileRequest{
+				result, err := api.UploadGetFile(ctx, &tg.UploadGetFileRequest{
 					Location: loc,
 					Limit:    262144,
 				})
@@ -32998,13 +32998,13 @@ func (t *TelegramCore) MessagesToggleBotInAttachMenu(request *tg.MessagesToggleB
 // MarkAllStoriesRead fetches all active stories and sends read receipts for
 // each peer that has unread stories (stories.readStories per peer).
 func (t *TelegramCore) MarkAllStoriesRead() error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 
-	result, err := t.api.StoriesGetAllStories(t.ctx, &tg.StoriesGetAllStoriesRequest{})
+	result, err := api.StoriesGetAllStories(ctx, &tg.StoriesGetAllStoriesRequest{})
 	if err != nil {
 		return err
 	}
@@ -33039,7 +33039,7 @@ func (t *TelegramCore) MarkAllStoriesRead() error {
 			continue
 		}
 		inputPeer := t.peerToInputPeer(ps.Peer)
-		t.api.StoriesReadStories(t.ctx, &tg.StoriesReadStoriesRequest{
+		api.StoriesReadStories(ctx, &tg.StoriesReadStoriesRequest{
 			Peer:  inputPeer,
 			MaxID: maxStoryID,
 		})
@@ -35100,10 +35100,10 @@ func (t *TelegramCore) GetChatInfo(chatID string) (*Dialog, error) {
 
 // EditChatTitle changes the title of a group or channel.
 func (t *TelegramCore) EditChatTitle(chatID string, title string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -35112,12 +35112,12 @@ func (t *TelegramCore) EditChatTitle(chatID string, title string) error {
 	switch p := peer.(type) {
 	case *tg.PeerChannel:
 		hash, _ := t.resolveChannelAccessHash(p.ChannelID)
-		_, err = t.api.ChannelsEditTitle(t.ctx, &tg.ChannelsEditTitleRequest{
+		_, err = api.ChannelsEditTitle(ctx, &tg.ChannelsEditTitleRequest{
 			Channel: &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash}, Title: title,
 		})
 		return err
 	case *tg.PeerChat:
-		_, err = t.api.MessagesEditChatTitle(t.ctx, &tg.MessagesEditChatTitleRequest{
+		_, err = api.MessagesEditChatTitle(ctx, &tg.MessagesEditChatTitleRequest{
 			ChatID: p.ChatID, Title: title,
 		})
 		return err
@@ -35140,10 +35140,10 @@ func (t *TelegramCore) EditChatDescription(chatID string, description string) er
 
 // LeaveChat leaves a basic group chat.
 func (t *TelegramCore) LeaveChat(chatID string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -35152,14 +35152,14 @@ func (t *TelegramCore) LeaveChat(chatID string) error {
 	switch p := peer.(type) {
 	case *tg.PeerChannel:
 		hash, _ := t.resolveChannelAccessHash(p.ChannelID)
-		_, err = t.api.ChannelsLeaveChannel(t.ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash})
+		_, err = api.ChannelsLeaveChannel(ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash})
 		return err
 	case *tg.PeerChat:
 		// Leave basic group by removing self
-		me, _ := t.api.UsersGetUsers(t.ctx, []tg.InputUserClass{&tg.InputUserSelf{}})
+		me, _ := api.UsersGetUsers(ctx, []tg.InputUserClass{&tg.InputUserSelf{}})
 		if len(me) > 0 {
 			if u, ok := me[0].(*tg.User); ok {
-				_, err = t.api.MessagesDeleteChatUser(t.ctx, &tg.MessagesDeleteChatUserRequest{
+				_, err = api.MessagesDeleteChatUser(ctx, &tg.MessagesDeleteChatUserRequest{
 					ChatID: p.ChatID, UserID: &tg.InputUser{UserID: u.ID},
 				})
 				return err
@@ -35417,10 +35417,10 @@ func (t *TelegramCore) GetAdminsWithInvites(chatID string) ([]map[string]interfa
 
 // AddMembers adds one or more users to a group or channel.
 func (t *TelegramCore) AddMembers(chatID string, userIDs []string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -35438,7 +35438,7 @@ func (t *TelegramCore) AddMembers(chatID string, userIDs []string) error {
 			uhash := t.getCachedUserHash(id)
 			users = append(users, &tg.InputUser{UserID: id, AccessHash: uhash})
 		}
-		_, err = t.api.ChannelsInviteToChannel(t.ctx, &tg.ChannelsInviteToChannelRequest{
+		_, err = api.ChannelsInviteToChannel(ctx, &tg.ChannelsInviteToChannelRequest{
 			Channel: &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash}, Users: users,
 		})
 		return err
@@ -35449,7 +35449,7 @@ func (t *TelegramCore) AddMembers(chatID string, userIDs []string) error {
 				return err
 			}
 			uhash := t.getCachedUserHash(id)
-			_, err = t.api.MessagesAddChatUser(t.ctx, &tg.MessagesAddChatUserRequest{
+			_, err = api.MessagesAddChatUser(ctx, &tg.MessagesAddChatUserRequest{
 				ChatID: p.ChatID, UserID: &tg.InputUser{UserID: id, AccessHash: uhash}, FwdLimit: 100,
 			})
 			if err != nil {
@@ -35463,10 +35463,10 @@ func (t *TelegramCore) AddMembers(chatID string, userIDs []string) error {
 
 // RemoveMember removes a user from a group or channel.
 func (t *TelegramCore) RemoveMember(chatID string, userID string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -35480,14 +35480,14 @@ func (t *TelegramCore) RemoveMember(chatID string, userID string) error {
 	switch p := peer.(type) {
 	case *tg.PeerChannel:
 		hash, _ := t.resolveChannelAccessHash(p.ChannelID)
-		_, err = t.api.ChannelsEditBanned(t.ctx, &tg.ChannelsEditBannedRequest{
+		_, err = api.ChannelsEditBanned(ctx, &tg.ChannelsEditBannedRequest{
 			Channel:      &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash},
 			Participant:  &tg.InputPeerUser{UserID: uid, AccessHash: uhash},
 			BannedRights: tg.ChatBannedRights{ViewMessages: true, UntilDate: 0},
 		})
 		return err
 	case *tg.PeerChat:
-		_, err = t.api.MessagesDeleteChatUser(t.ctx, &tg.MessagesDeleteChatUserRequest{
+		_, err = api.MessagesDeleteChatUser(ctx, &tg.MessagesDeleteChatUserRequest{
 			ChatID: p.ChatID, UserID: &tg.InputUser{UserID: uid, AccessHash: uhash},
 		})
 		return err
@@ -35829,10 +35829,10 @@ func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note, not
 
 // SuggestContactPhoto suggests a profile photo for a contact.
 func (t *TelegramCore) SuggestContactPhoto(userID string, photoData []byte) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	uid, err := tgUserID(userID)
 	if err != nil {
@@ -35840,11 +35840,11 @@ func (t *TelegramCore) SuggestContactPhoto(userID string, photoData []byte) erro
 	}
 	uhash := t.getCachedUserHash(uid)
 	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload("photo.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
+	upload, err := u.Upload(ctx, uploader.NewUpload("photo.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
-	_, err = t.api.PhotosUploadContactProfilePhoto(t.ctx, &tg.PhotosUploadContactProfilePhotoRequest{
+	_, err = api.PhotosUploadContactProfilePhoto(ctx, &tg.PhotosUploadContactProfilePhotoRequest{
 		Suggest: true,
 		UserID:  &tg.InputUser{UserID: uid, AccessHash: uhash},
 		File:    upload,
@@ -35854,10 +35854,10 @@ func (t *TelegramCore) SuggestContactPhoto(userID string, photoData []byte) erro
 
 // SetPersonalContactPhoto sets a personal profile photo for a contact (only visible to you).
 func (t *TelegramCore) SetPersonalContactPhoto(userID string, photoData []byte) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	uid, err := tgUserID(userID)
 	if err != nil {
@@ -35865,11 +35865,11 @@ func (t *TelegramCore) SetPersonalContactPhoto(userID string, photoData []byte) 
 	}
 	uhash := t.getCachedUserHash(uid)
 	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload("photo.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
+	upload, err := u.Upload(ctx, uploader.NewUpload("photo.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
-	_, err = t.api.PhotosUploadContactProfilePhoto(t.ctx, &tg.PhotosUploadContactProfilePhotoRequest{
+	_, err = api.PhotosUploadContactProfilePhoto(ctx, &tg.PhotosUploadContactProfilePhotoRequest{
 		UserID: &tg.InputUser{UserID: uid, AccessHash: uhash},
 		File:   upload,
 	})
@@ -37007,13 +37007,13 @@ func (t *TelegramCore) UploadRingtone(fileName, mimeType string, data []byte) (m
 
 // DeleteRingtone unsaves a notification ringtone by document ID.
 func (t *TelegramCore) DeleteRingtone(documentID int64) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 
-	tones, err := t.api.AccountGetSavedRingtones(t.ctx, 0)
+	tones, err := api.AccountGetSavedRingtones(ctx, 0)
 	if err != nil {
 		return fmt.Errorf("get saved ringtones: %w", err)
 	}
@@ -37027,7 +37027,7 @@ func (t *TelegramCore) DeleteRingtone(documentID int64) error {
 		if !ok || d.ID != documentID {
 			continue
 		}
-		_, err := t.api.AccountSaveRingtone(t.ctx, &tg.AccountSaveRingtoneRequest{
+		_, err := api.AccountSaveRingtone(ctx, &tg.AccountSaveRingtoneRequest{
 			ID:     &tg.InputDocument{ID: d.ID, AccessHash: d.AccessHash, FileReference: d.FileReference},
 			Unsave: true,
 		})

@@ -4338,3 +4338,21 @@ via git show + grep count); re-gofmt'd and re-verified. Committed
 2f38b02c's gofmt gate will pass.
 
 Verification: cores suite green, vet clean, build green.
+
+## 2026-09-13 — withAPI: eleven more manual conversions
+
+DeleteMessageRevoke (2-RPC channel/chat branches), SendContact,
+EditChatTitle, LeaveChat, AddMembers, RemoveMember,
+SuggestContactPhoto, SetPersonalContactPhoto, DeleteRingtone,
+GetWallpapers, MarkAllStoriesRead — all off the RLock-across-RPC
+pattern (65 violations remain; the group-call write-lock family +
+cloud-password flows stay for careful per-touch work).
+
+Verification: build green; cores+engine suites green (one engine
+timing flake under combined load, green standalone + on re-run);
+gofmt/vet clean. Full-suite rerun hit a full root fs (go-build cache
+grew to 7.7G) — TempDir failures only, no code failures; CI verify
+dispatched for the pushed commit.
+
+Editor quirk note (again): MultiEdit space-mangles the whole worktree
+telegram.go — always gofmt -w after edits to it.
