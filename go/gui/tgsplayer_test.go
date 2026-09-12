@@ -10,6 +10,7 @@ import (
 	"compress/gzip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -52,6 +53,9 @@ func TestIsTgsMime(t *testing.T) {
 }
 
 func TestGzipMagic(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("filesystem sniffing needs a real FS — none on js/wasm")
+	}
 	dir := t.TempDir()
 	gz := filepath.Join(dir, "anim.tgs")
 	if err := os.WriteFile(gz, gzipTgs(t, sampleTgsJSON), 0o600); err != nil {
@@ -80,6 +84,9 @@ func TestGzipMagic(t *testing.T) {
 }
 
 func TestStickerRenderKind(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("path sniffing needs a real FS — none on js/wasm")
+	}
 	dir := t.TempDir()
 	gzPath := filepath.Join(dir, "sniffed")
 	if err := os.WriteFile(gzPath, gzipTgs(t, sampleTgsJSON), 0o600); err != nil {

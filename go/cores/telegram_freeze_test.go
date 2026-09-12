@@ -230,3 +230,56 @@ func TestWithAPIRejectsUnauthed(t *testing.T) {
 		t.Fatalf("withAPI on unauthed core = %v, want ErrAuth", err)
 	}
 }
+
+// TestReadPathRPCsDoNotPinMutex: the account/peer read-family methods
+// (privacy + gift settings, emoji sets, app-config probes, participant
+// lists, folder edits, user photos, global search) must issue their RPCs
+// without holding t.mu — same freeze class as the chat-open hot paths.
+// Pins the withAPI batch that emptied the read half of the scanner list.
+func TestReadPathRPCsDoNotPinMutex(t *testing.T) {
+	cases := []struct {
+		what string
+		call func(tc *TelegramCore)
+	}{
+		{"GetInstalledEmojiSets", func(tc *TelegramCore) { _, _ = tc.GetInstalledEmojiSets() }},
+		{"SetHideReadMarks", func(tc *TelegramCore) { _ = tc.SetHideReadMarks(true) }},
+		{"GetCustomEmojiSetInfo", func(tc *TelegramCore) { _, _, _, _, _, _, _ = tc.GetCustomEmojiSetInfo(1) }},
+		{"GetGiveawayConfig", func(tc *TelegramCore) { _, _ = tc.GetGiveawayConfig() }},
+		{"GetContentSettings", func(tc *TelegramCore) { _, _, _, _ = tc.GetContentSettings() }},
+		{"GetAvailableReactionEmojis", func(tc *TelegramCore) { _, _ = tc.GetAvailableReactionEmojis() }},
+		{"GetPremiumStatus", func(tc *TelegramCore) { _, _, _ = tc.GetPremiumStatus() }},
+		{"GetAllFolderLimits", func(tc *TelegramCore) { _, _ = tc.GetAllFolderLimits() }},
+		{"SetMessagesPrivacy", func(tc *TelegramCore) { _ = tc.SetMessagesPrivacy("everyone", 0) }},
+		{"SetGiftSettings", func(tc *TelegramCore) { _ = tc.SetGiftSettings(true, true, true, true, true, true) }},
+		{"SetPersonalChannel", func(tc *TelegramCore) { _ = tc.SetPersonalChannel("@channel") }},
+		{"GetDefaultBannedRights", func(tc *TelegramCore) { _, _ = tc.GetDefaultBannedRights("-1001234567890") }},
+		{"AddChatToFolder", func(tc *TelegramCore) { _ = tc.AddChatToFolder("123", 2) }},
+		{"GetParticipantsByRole", func(tc *TelegramCore) { _, _, _ = tc.GetParticipantsByRole("-1001234567890", "members", "", 10, 0) }},
+		{"GetUserPhotoAtIndex", func(tc *TelegramCore) { _, _, _ = tc.GetUserPhotoAtIndex("123", 0) }},
+		{"SearchGlobalPostMessages", func(tc *TelegramCore) { _, _ = tc.SearchGlobalPostMessages("test", 5) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.what, func(t *testing.T) {
+			release := make(chan struct{})
+			defer close(release)
+			inv := &stuckInvoker{release: release}
+			core := newFrozenCore(inv)
+			done := make(chan struct{})
+			go func() {
+				// Post-release, the unstuck RPC returns nil results and some
+				// call paths legitimately panic on them — that is cleanup
+				// noise, not the failure under test. Swallow it.
+				defer func() { _ = recover() }()
+				tc.call(core)
+				close(done)
+			}()
+			waitRPCInFlight(t, inv, 1)
+			probeWriterAcquired(t, core, tc.what)
+			select {
+			case <-done:
+				t.Fatalf("%s returned while its RPC is stuck — call did not reach the network path", tc.what)
+			default:
+			}
+		})
+	}
+}

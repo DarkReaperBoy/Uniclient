@@ -16581,13 +16581,12 @@ func (t *TelegramCore) GetStickerSuggestions(emoji string) ([]StickerInfo, error
 
 // GetInstalledEmojiSets returns the user's installed custom emoji sticker sets with thumbnails.
 func (t *TelegramCore) GetInstalledEmojiSets() ([]EmojiSetSummary, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
-	result, err := t.api.MessagesGetEmojiStickers(t.ctx, 0)
+	result, err := api.MessagesGetEmojiStickers(ctx, 0)
 	if err != nil {
 		return nil, fmt.Errorf("get emoji stickers: %w", err)
 	}
@@ -16608,7 +16607,7 @@ func (t *TelegramCore) GetInstalledEmojiSets() ([]EmojiSetSummary, error) {
 			Installed:  installed,
 		}
 
-		setResult, err := t.api.MessagesGetStickerSet(t.ctx, &tg.MessagesGetStickerSetRequest{
+		setResult, err := api.MessagesGetStickerSet(ctx, &tg.MessagesGetStickerSetRequest{
 			Stickerset: &tg.InputStickerSetID{ID: s.ID, AccessHash: s.AccessHash},
 		})
 		if err != nil {
@@ -16777,12 +16776,11 @@ func (t *TelegramCore) GetCustomEmojiFiles(documentIDs []int64) ([]CustomEmojiFi
 }
 
 func (t *TelegramCore) GetCustomEmojiSetInfo(documentID int64) (setID int64, accessHash int64, title string, shortName string, count int32, found bool, err error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return 0, 0, "", "", 0, false, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return 0, 0, "", "", 0, false, err
 	}
-	docs, err := t.api.MessagesGetCustomEmojiDocuments(t.ctx, []int64{documentID})
+	docs, err := api.MessagesGetCustomEmojiDocuments(ctx, []int64{documentID})
 	if err != nil {
 		return 0, 0, "", "", 0, false, fmt.Errorf("get custom emoji doc: %w", err)
 	}
@@ -16798,7 +16796,7 @@ func (t *TelegramCore) GetCustomEmojiSetInfo(documentID int64) (setID int64, acc
 			}
 			switch ss := sticker.Stickerset.(type) {
 			case *tg.InputStickerSetID:
-				result, getErr := t.api.MessagesGetStickerSet(t.ctx, &tg.MessagesGetStickerSetRequest{
+				result, getErr := api.MessagesGetStickerSet(ctx, &tg.MessagesGetStickerSetRequest{
 					Stickerset: ss,
 				})
 				if getErr != nil {
@@ -16809,7 +16807,7 @@ func (t *TelegramCore) GetCustomEmojiSetInfo(documentID int64) (setID int64, acc
 				}
 				return ss.ID, ss.AccessHash, "", "", 0, true, nil
 			case *tg.InputStickerSetShortName:
-				result, getErr := t.api.MessagesGetStickerSet(t.ctx, &tg.MessagesGetStickerSetRequest{
+				result, getErr := api.MessagesGetStickerSet(ctx, &tg.MessagesGetStickerSetRequest{
 					Stickerset: ss,
 				})
 				if getErr != nil {
@@ -17534,13 +17532,12 @@ func (t *TelegramCore) DeleteFolder(filterID int) error {
 }
 
 func (t *TelegramCore) AddChatToFolder(chatID string, folderID int) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 
-	result, err := t.api.MessagesGetDialogFilters(t.ctx)
+	result, err := api.MessagesGetDialogFilters(ctx)
 	if err != nil {
 		return fmt.Errorf("get dialog filters: %w", err)
 	}
@@ -17564,7 +17561,7 @@ func (t *TelegramCore) AddChatToFolder(chatID string, folderID int) error {
 			}
 			filter.IncludePeers = append(filter.IncludePeers, inputPeer)
 			filter.SetFlags()
-			_, err = t.api.MessagesUpdateDialogFilter(t.ctx, &tg.MessagesUpdateDialogFilterRequest{
+			_, err = api.MessagesUpdateDialogFilter(ctx, &tg.MessagesUpdateDialogFilterRequest{
 				ID: folderID, Filter: filter,
 			})
 			return err
@@ -17579,7 +17576,7 @@ func (t *TelegramCore) AddChatToFolder(chatID string, folderID int) error {
 			}
 			filter.IncludePeers = append(filter.IncludePeers, inputPeer)
 			filter.SetFlags()
-			_, err = t.api.MessagesUpdateDialogFilter(t.ctx, &tg.MessagesUpdateDialogFilterRequest{
+			_, err = api.MessagesUpdateDialogFilter(ctx, &tg.MessagesUpdateDialogFilterRequest{
 				ID: folderID, Filter: filter,
 			})
 			return err
@@ -18974,10 +18971,9 @@ func formatRestrictionDate(unixTime int) string {
 }
 
 func (t *TelegramCore) GetDefaultBannedRights(chatID string) (*DefaultBannedRights, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	peer, err := t.resolvePeer(chatID)
@@ -18990,7 +18986,7 @@ func (t *TelegramCore) GetDefaultBannedRights(chatID string) (*DefaultBannedRigh
 	switch p := peer.(type) {
 	case *tg.PeerChannel:
 		hash, _ := t.resolveChannelAccessHash(p.ChannelID)
-		result, err := t.api.ChannelsGetFullChannel(t.ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash})
+		result, err := api.ChannelsGetFullChannel(ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash})
 		if err != nil {
 			return nil, err
 		}
@@ -19032,7 +19028,7 @@ func (t *TelegramCore) GetDefaultBannedRights(chatID string) (*DefaultBannedRigh
 			}
 		}
 	case *tg.PeerChat:
-		result, err := t.api.MessagesGetFullChat(t.ctx, p.ChatID)
+		result, err := api.MessagesGetFullChat(ctx, p.ChatID)
 		if err != nil {
 			return nil, err
 		}
@@ -19652,10 +19648,9 @@ type ParticipantExtra struct {
 }
 
 func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, offset int) ([]User, map[int64]ParticipantExtra, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, nil, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -19690,7 +19685,7 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 			if batch <= 0 {
 				break
 			}
-			res, err := t.api.MessagesGetChatInviteImporters(t.ctx, &tg.MessagesGetChatInviteImportersRequest{
+			res, err := api.MessagesGetChatInviteImporters(ctx, &tg.MessagesGetChatInviteImportersRequest{
 				Requested:  true,
 				Peer:       inputPeer,
 				Q:          query,
@@ -19751,7 +19746,7 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 		filter = &tg.ChannelParticipantsSearch{Q: query}
 	}
 
-	result, err := t.api.ChannelsGetParticipants(t.ctx, &tg.ChannelsGetParticipantsRequest{
+	result, err := api.ChannelsGetParticipants(ctx, &tg.ChannelsGetParticipantsRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 		Filter:  filter,
 		Offset:  offset,
@@ -21012,18 +21007,17 @@ func (t *TelegramCore) GetGiveawayPeriodMax() (int, error) {
 // CountriesMax,AddPeersMax,PeriodMax}() which all read the same appConfig object
 // (api/api_premium.cpp:689-715). Fallbacks match the C++ constants.
 func (t *TelegramCore) GetGiveawayConfig() (map[string]int, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
 	cfg := map[string]int{
 		"boosts_per_premium": 4,
 		"countries_max":      10,
 		"add_peers_max":      10,
 		"period_max":         604800,
 	}
-	if !t.authed || t.api == nil {
-		return cfg, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return cfg, err
 	}
-	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	result, err := api.HelpGetAppConfig(ctx, 0)
 	if err != nil {
 		return cfg, nil
 	}
@@ -21796,17 +21790,16 @@ func (t *TelegramCore) GetBackgroundEmojiList() ([]int64, error) {
 }
 
 func (t *TelegramCore) GetContentSettings() (sensitiveEnabled bool, sensitiveCanChange bool, ageVerifyNeeded bool, err error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return false, false, false, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return false, false, false, err
 	}
-	cs, err := t.api.AccountGetContentSettings(t.ctx)
+	cs, err := api.AccountGetContentSettings(ctx)
 	if err != nil {
 		return false, false, false, err
 	}
 	if !cs.SensitiveCanChange {
-		result, err2 := t.api.HelpGetAppConfig(t.ctx, 0)
+		result, err2 := api.HelpGetAppConfig(ctx, 0)
 		if err2 == nil {
 			if cfg, ok := result.(*tg.HelpAppConfig); ok && cfg.Config != nil {
 				if obj, ok2 := cfg.Config.(*tg.JSONObject); ok2 {
@@ -21879,17 +21872,16 @@ func (t *TelegramCore) GetUserPhotos(userID string, limit int) (int, error) {
 
 // GetUserPhotoAtIndex downloads the profile photo at a specific index and returns its path and photo ID.
 func (t *TelegramCore) GetUserPhotoAtIndex(userID string, index int) (string, string, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return "", "", ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return "", "", err
 	}
 	id, err := tgUserID(userID)
 	if err != nil {
 		return "", "", err
 	}
 	hash := t.getCachedUserHash(id)
-	result, err := t.api.PhotosGetUserPhotos(t.ctx, &tg.PhotosGetUserPhotosRequest{
+	result, err := api.PhotosGetUserPhotos(ctx, &tg.PhotosGetUserPhotosRequest{
 		UserID: &tg.InputUser{UserID: id, AccessHash: hash},
 		Offset: index,
 		Limit:  1,
@@ -21962,7 +21954,7 @@ func (t *TelegramCore) GetUserPhotoAtIndex(userID string, index int) (string, st
 	}
 	defer f.Close()
 	d := downloader.NewDownloader()
-	_, err = d.Download(t.api, location).Stream(t.ctx, f)
+	_, err = d.Download(api, location).Stream(ctx, f)
 	if err != nil {
 		os.Remove(destPath)
 		return "", photoId, err
@@ -22882,14 +22874,13 @@ func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit i
 
 // GetAvailableReactionEmojis returns all available reaction emoji strings (top reactions first, then remaining).
 func (t *TelegramCore) GetAvailableReactionEmojis() ([]string, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	seen := make(map[string]bool)
 	var emojis []string
-	topResult, err := t.api.MessagesGetTopReactions(t.ctx, &tg.MessagesGetTopReactionsRequest{
+	topResult, err := api.MessagesGetTopReactions(ctx, &tg.MessagesGetTopReactionsRequest{
 		Limit: 50,
 		Hash:  0,
 	})
@@ -22904,7 +22895,7 @@ func (t *TelegramCore) GetAvailableReactionEmojis() ([]string, error) {
 			}
 		}
 	}
-	availResult, err := t.api.MessagesGetAvailableReactions(t.ctx, 0)
+	availResult, err := api.MessagesGetAvailableReactions(ctx, 0)
 	if err == nil {
 		if avail, ok := availResult.(*tg.MessagesAvailableReactions); ok {
 			for _, r := range avail.Reactions {
@@ -24114,12 +24105,11 @@ func (t *TelegramCore) GetGiftSettings() (showIcon bool, disallowLimited, disall
 }
 
 func (t *TelegramCore) SetGiftSettings(showIcon, acceptLimited, acceptUnlimited, acceptUnique, acceptChannels, acceptPremium bool) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	s, err := t.api.AccountGetGlobalPrivacySettings(t.ctx)
+	s, err := api.AccountGetGlobalPrivacySettings(ctx)
 	if err != nil {
 		return err
 	}
@@ -24131,7 +24121,7 @@ func (t *TelegramCore) SetGiftSettings(showIcon, acceptLimited, acceptUnlimited,
 		DisallowStargiftsFromChannels: !acceptChannels,
 		DisallowPremiumGifts:          !acceptPremium,
 	})
-	_, err = t.api.AccountSetGlobalPrivacySettings(t.ctx, *s)
+	_, err = api.AccountSetGlobalPrivacySettings(ctx, *s)
 	return err
 }
 
@@ -25186,17 +25176,16 @@ func (t *TelegramCore) GetHideReadMarks() (bool, error) {
 }
 
 func (t *TelegramCore) SetHideReadMarks(hide bool) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	s, err := t.api.AccountGetGlobalPrivacySettings(t.ctx)
+	s, err := api.AccountGetGlobalPrivacySettings(ctx)
 	if err != nil {
 		return err
 	}
 	s.SetHideReadMarks(hide)
-	_, err = t.api.AccountSetGlobalPrivacySettings(t.ctx, *s)
+	_, err = api.AccountSetGlobalPrivacySettings(ctx, *s)
 	return err
 }
 
@@ -25221,12 +25210,11 @@ func (t *TelegramCore) GetMessagesPrivacy() (option string, chargeStars int64, e
 }
 
 func (t *TelegramCore) SetMessagesPrivacy(option string, chargeStars int64) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	s, err := t.api.AccountGetGlobalPrivacySettings(t.ctx)
+	s, err := api.AccountGetGlobalPrivacySettings(ctx)
 	if err != nil {
 		return err
 	}
@@ -25244,7 +25232,7 @@ func (t *TelegramCore) SetMessagesPrivacy(option string, chargeStars int64) erro
 		}
 		s.SetNoncontactPeersPaidStars(chargeStars)
 	}
-	_, err = t.api.AccountSetGlobalPrivacySettings(t.ctx, *s)
+	_, err = api.AccountSetGlobalPrivacySettings(ctx, *s)
 	return err
 }
 
@@ -25817,13 +25805,12 @@ func (t *TelegramCore) GetBroadcastRevenueWithdrawalUrl(chatID, password string)
 }
 
 func (t *TelegramCore) GetPremiumStatus() (premiumPossible bool, premiumCanBuy bool, err error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return false, false, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return false, false, err
 	}
 	blocked := false
-	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	result, err := api.HelpGetAppConfig(ctx, 0)
 	if err == nil {
 		if cfg, ok := result.(*tg.HelpAppConfig); ok {
 			if jv := cfg.Config; jv != nil {
@@ -25841,7 +25828,7 @@ func (t *TelegramCore) GetPremiumStatus() (premiumPossible bool, premiumCanBuy b
 	}
 	premiumPossible = !blocked
 	selfPremium := false
-	users, err2 := t.api.UsersGetUsers(t.ctx, []tg.InputUserClass{&tg.InputUserSelf{}})
+	users, err2 := api.UsersGetUsers(ctx, []tg.InputUserClass{&tg.InputUserSelf{}})
 	if err2 == nil && len(users) > 0 {
 		if u, ok := users[0].(*tg.User); ok {
 			selfPremium = u.Premium
@@ -25914,18 +25901,17 @@ func (t *TelegramCore) GetFolderLimits() (freeLimit, premiumLimit int, err error
 }
 
 func (t *TelegramCore) GetAllFolderLimits() (map[string]int, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
 	limits := map[string]int{
 		"free_limit": 10, "premium_limit": 20,
 		"chats_per_folder_free": 100, "chats_per_folder_premium": 200,
 		"shared_folders_free": 2, "shared_folders_premium": 20,
 		"links_per_folder_free": 3, "links_per_folder_premium": 20,
 	}
-	if !t.authed || t.api == nil {
-		return limits, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return limits, err
 	}
-	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	result, err := api.HelpGetAppConfig(ctx, 0)
 	if err != nil {
 		return limits, nil
 	}
@@ -28852,12 +28838,11 @@ func (t *TelegramCore) AccountUpdatePersonalChannel(channel tg.InputChannelClass
 }
 
 func (t *TelegramCore) SetPersonalChannel(channelUsername string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	resolved, err := t.api.ContactsResolveUsername(t.ctx, &tg.ContactsResolveUsernameRequest{
+	resolved, err := api.ContactsResolveUsername(ctx, &tg.ContactsResolveUsernameRequest{
 		Username: strings.TrimPrefix(channelUsername, "@"),
 	})
 	if err != nil {
@@ -28866,7 +28851,7 @@ func (t *TelegramCore) SetPersonalChannel(channelUsername string) error {
 	t.cacheEntities(resolved.Users, resolved.Chats)
 	for _, c := range resolved.Chats {
 		if ch, ok := c.(*tg.Channel); ok {
-			_, err := t.api.AccountUpdatePersonalChannel(t.ctx, &tg.InputChannel{
+			_, err := api.AccountUpdatePersonalChannel(ctx, &tg.InputChannel{
 				ChannelID:  ch.ID,
 				AccessHash: ch.AccessHash,
 			})
@@ -36214,21 +36199,20 @@ func (t *TelegramCore) SearchGlobalPosts(query string, opts PaginationOpts) ([]D
 
 // SearchGlobalPostMessages searches public channel posts and returns individual messages.
 func (t *TelegramCore) SearchGlobalPostMessages(query string, limit int) ([]Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	if limit <= 0 {
 		limit = 20
 	}
-	result, err := t.api.ChannelsSearchPosts(t.ctx, &tg.ChannelsSearchPostsRequest{
+	result, err := api.ChannelsSearchPosts(ctx, &tg.ChannelsSearchPostsRequest{
 		Hashtag:    query,
 		OffsetPeer: &tg.InputPeerEmpty{},
 		Limit:      limit,
 	})
 	if err != nil {
-		result, err = t.api.MessagesSearchGlobal(t.ctx, &tg.MessagesSearchGlobalRequest{
+		result, err = api.MessagesSearchGlobal(ctx, &tg.MessagesSearchGlobalRequest{
 			Q:          query,
 			Filter:     &tg.InputMessagesFilterEmpty{},
 			OffsetPeer: &tg.InputPeerEmpty{},

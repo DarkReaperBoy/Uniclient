@@ -1,3 +1,5 @@
+//go:build linux
+
 package gui
 
 // Unity launcher-entry badge (slice 160): the Linux dock unread-count
