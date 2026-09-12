@@ -34,6 +34,9 @@ type AppConfig struct {
 	// "" (default) = Enter sends, Shift+Enter newline; "ctrl-enter" =
 	// Enter newline, Ctrl+Enter sends.
 	ComposerSubmit string `json:"composer_submit,omitempty"`
+	// SwipeAction is the dialog-row swipe quick action: "mute" | "pin" |
+	// "read" | "archive" | "delete" | "disabled" (tdesktop default).
+	SwipeAction string `json:"swipe_action,omitempty"`
 
 	// Corner reply button (tdesktop Messages setting cornerReply, slice
 	// 157): show the fast-reply pill on hovered incoming bubbles. Nil =
@@ -154,6 +157,7 @@ func DefaultConfig() AppConfig {
 		SendOnlinePackets:  true,
 		NotifyDMs:          true,
 		NotifyGroups:       true,
+		SwipeAction:        "disabled", // tdesktop quickDialogAction default
 	}
 }
 

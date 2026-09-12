@@ -570,7 +570,7 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 			case sbRowChat:
 				c := visible[r.chatIdx]
 				selected := f.selected != nil && f.selected.AccountID == c.AccountID && f.selected.ChatID == c.ChatID
-				d = a.chatRow(gtx, f, c, selected, &chatListBtns[r.chatIdx], rowQuickPair(r.chatIdx))
+				d = a.chatRow(gtx, f, c, selected, &chatListBtns[r.chatIdx], rowQuickPair(r.chatIdx), r.chatIdx)
 				a.chatRowBounds[r.chatIdx] = image.Rectangle{Min: image.Pt(0, y), Max: image.Pt(paneW, y+d.Size.Y)}
 				chatIdx++
 			case sbRowMsg:
@@ -607,12 +607,15 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 		}
 		c := visible[row]
 		selected := f.selected != nil && f.selected.AccountID == c.AccountID && f.selected.ChatID == c.ChatID
-		d := a.chatRow(gtx, f, c, selected, &chatListBtns[row], rowQuickPair(row))
+		d := a.chatRow(gtx, f, c, selected, &chatListBtns[row], rowQuickPair(row), row)
 		a.chatRowBounds[row] = image.Rectangle{Min: image.Pt(0, y), Max: image.Pt(paneW, y+d.Size.Y)}
 		y += d.Size.Y
 		return d
 	})
 	a.checkChatHoverFrame() // no hovered row this frame → hide the peek
+	// Swipe quick actions (slice 158): pass-through drag layer over the
+	// plain chat list (rows keep hover/clicks; the list keeps scrolling).
+	a.processSidebarSwipe(gtx, f, dims.Size)
 	// Timed-mute countdown (slice 136): while any visible row shows a
 	// remaining-mute chip, re-render at the next minute boundary so the
 	// label ticks down; once one expires, pull the swept chat list so the
@@ -632,7 +635,7 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 }
 
 // chatRow: avatar, title, last message, time, unread badge, typing indicator.
-func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected bool, btn *widget.Clickable, quick *[2]widget.Clickable) layout.Dimensions {
+func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected bool, btn *widget.Clickable, quick *[2]widget.Clickable, rowIdx int) layout.Dimensions {
 	bg := color00
 	hovered := false
 	if selected {
@@ -646,19 +649,24 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 	}
 	return roundedFill(gtx, bg, 0, func(gtx layout.Context) layout.Dimensions {
 		return material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			// Hover quick actions (slice 89): an East-anchored overlay of
-			// mute/read toggles over the row's trailing badges. The overlay
-			// lives inside the row's hit area (hover is not lost moving onto
-			// the buttons) but renders last → topmost opaque hit nodes, so
-			// button presses don't open the chat.
-			return layout.Stack{Alignment: layout.E}.Layout(gtx,
-				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return a.chatRowBody(gtx, f, c)
-				}),
-				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return a.rowQuickActions(gtx, c, quick, hovered && !selected)
-				}),
-			)
+			// Swipe quick actions (slice 158): while this row is being
+			// swiped the body slides right and the action strip paints
+			// behind it; a leftward drag shows the swipe-back hint.
+			return a.swipeRowShift(gtx, f, c, rowIdx, func(gtx layout.Context) layout.Dimensions {
+				// Hover quick actions (slice 89): an East-anchored overlay of
+				// mute/read toggles over the row's trailing badges. The overlay
+				// lives inside the row's hit area (hover is not lost moving onto
+				// the buttons) but renders last → topmost opaque hit nodes, so
+				// button presses don't open the chat.
+				return layout.Stack{Alignment: layout.E}.Layout(gtx,
+					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+						return a.chatRowBody(gtx, f, c)
+					}),
+					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+						return a.rowQuickActions(gtx, c, quick, hovered && !selected)
+					}),
+				)
+			})
 		})
 	})
 }

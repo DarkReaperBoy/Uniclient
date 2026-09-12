@@ -90,6 +90,32 @@ func improveLinkHost(host string) string {
 
 var composerSubmitBtns [2]widget.Clickable // Enter | Ctrl+Enter
 
+// swipeActionBtns: one chip per quick action (tdesktop radioenum group).
+var swipeActionBtns [6]widget.Clickable
+
+// swipeActionOptions mirrors tdesktop's QuickDialogAction radio (order
+// per settings_chat.cpp: Mute, Pin, Read, Archive, Delete, Disabled).
+var swipeActionOptions = []struct {
+	value, label string
+}{
+	{"disabled", "Disabled"},
+	{"mute", "Mute"},
+	{"pin", "Pin"},
+	{"read", "Read"},
+	{"archive", "Archive"},
+	{"delete", "Delete"},
+}
+
+// swipeActionOptionLabel finds the chip label for a stored value.
+func swipeActionOptionLabel(v string) string {
+	for _, o := range swipeActionOptions {
+		if o.value == v {
+			return o.label
+		}
+	}
+	return "Disabled"
+}
+
 // layoutMessagesSection renders the tdesktop "Messages" section rows on
 // the Appearance page: Send message with (Enter / Ctrl+Enter chips).
 func (a *App) layoutMessagesSection(gtx layout.Context, f frame) layout.Dimensions {
@@ -133,6 +159,48 @@ func (a *App) layoutMessagesSection(gtx layout.Context, f frame) layout.Dimensio
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.toggleRow(gtx, "cfg:corner_reply", "Reply button in the corner", f.cfg.CornerReply, func(v bool) {
 				a.applyConfigBool("corner_reply", v)
+			})
+		}),
+		// Quick actions (tdesktop SetupChatListQuickAction, slice 158):
+		// the swipe-able dialog-row action. Disabled is the tdesktop
+		// default; each action is state-aware per row (Mute↔Unmute…).
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.sectionTitle(gtx, "Quick actions")
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.settingRow(gtx, "Swipe action", "Swipe a chat row right to "+strings.ToLower(swipeActionOptionLabel(f.cfg.SwipeAction))+" it; swipe left to go back")
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			cur := effectiveSwipeAction(f.cfg.SwipeAction)
+			for i, o := range swipeActionOptions {
+				o := o
+				if swipeActionBtns[i].Clicked(gtx) {
+					v := o.value
+					go func() {
+						c := engine.ConfigChanges{SwipeAction: &v}
+						if err := a.eng.UpdateConfigFromBridge(&c); err != nil {
+							a.setToast("Swipe action: " + err.Error())
+							return
+						}
+						a.refreshConfig()
+					}()
+				}
+			}
+			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(8), Left: unit.Dp(14), Right: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				flex := layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}
+				var children []layout.FlexChild
+				for i, o := range swipeActionOptions {
+					o := o
+					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if len(children) > 0 {
+							return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return a.submitModeChip(gtx, &swipeActionBtns[i], o.label, cur == o.value)
+							})
+						}
+						return a.submitModeChip(gtx, &swipeActionBtns[i], o.label, cur == o.value)
+					}))
+				}
+				return flex.Layout(gtx, children...)
 			})
 		}),
 	)

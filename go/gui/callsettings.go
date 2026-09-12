@@ -91,6 +91,16 @@ func devPickerCfgField(typ string) string {
 
 // cfgFromAppConfig is the pure config → snapshot mapping (extracted from
 // refreshConfig for testability).
+// effectiveSwipeAction normalizes the stored swipe-action config: unknown
+// or empty values mean "disabled" (the tdesktop default).
+func effectiveSwipeAction(v string) string {
+	switch v {
+	case "mute", "pin", "read", "archive", "delete":
+		return v
+	}
+	return "disabled"
+}
+
 func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 	ard, arh, arb := antiRecallFromConfig(c)
 	return cfgSnapshot{
@@ -100,6 +110,7 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 		FontPath:               c.FontPath,
 		MonoFontPath:           c.MonoFontPath,
 		ComposerSubmit:         c.ComposerSubmit,
+		SwipeAction:            effectiveSwipeAction(c.SwipeAction),
 		CornerReply:            effectiveCornerReply(c.CornerReply),
 		AyuImproveLinkPreviews: c.AyuImproveLinkPreviews,
 		SendReadReceipts:       c.SendReadReceipts,

@@ -911,6 +911,7 @@ type ConfigChanges struct {
 	// Composer submit mode (tdesktop Messages setting, slice 155).
 	// Nil = unchanged; "" = Enter sends, "ctrl-enter" = Ctrl+Enter sends.
 	ComposerSubmit *string
+	SwipeAction    *string
 	// Corner reply button (slice 157). Nil = unchanged; effective
 	// default ON (tdesktop).
 	CornerReply *bool
@@ -1006,6 +1007,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.ComposerSubmit != nil {
 		e.config.ComposerSubmit = *changes.ComposerSubmit
+	}
+	if changes.SwipeAction != nil {
+		e.config.SwipeAction = *changes.SwipeAction
 	}
 	if changes.CornerReply != nil {
 		e.config.CornerReply = changes.CornerReply

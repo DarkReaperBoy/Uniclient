@@ -3733,3 +3733,52 @@ against today's production client; kept as-is.
 §8 status: bale moves to "pre-auth chain LIVE-verified 2026-09-12".
 Remaining: real phone+OTP (owner's live test), authenticated WS
 streaming, post-auth RPC surface.
+
+## 2026-09-12 — slice 158: swipe quick actions on chat rows (tdesktop swipe_handler 1:1)
+
+Research (primary source: tdesktop dev branch, fetched + read this
+session): dialogs_quick_action.cpp/.h, ui/controls/swipe_handler.cpp,
+dialogs_layout.cpp paint path, core_settings default, settings_chat
+SetupChatListQuickAction. Full mechanics extracted: direction lock at
+|dx|-|dy|>1px; 50dp threshold; ratio = dx/thr clamped [0,1.5];
+DampedOverswipe = 16·ln(1+shift/10); release at ratio>=1 fires;
+snap-back anim; state-aware labels via ResolveQuickDialogLabel;
+QuickDialogAction enum (Mute/Pin/Read/Archive/Delete/Disabled, default
+Disabled); single configured action per swipe; strip bg windowBgActive
+(red for Delete, gray for Disabled); SwipeActionFont 13→5 shrinking;
+reach circle on threshold cross; swipe-back nav on the opposite
+direction.
+
+Implementation (tests first: gui/swipeaction_test.go — 8 pure-func
+suites, all green before wiring):
+- gui/swipeaction.go: gesture layer + rendering. Pass-through pointer
+  overlay over the plain chat list (the rubber-band pattern, slice 84):
+  rows keep hover/clicks, list keeps wheel scrolling. Direction lock,
+  ratio tracking, overswipe damping (exact tdesktop curve), fire on
+  release, 220ms ease-out snap-back animation, swipe-back hint arrow
+  during leftward drags.
+- chatRow: body wrapped in swipeRowShift — the row slides right, the
+  action strip paints behind (accent / attention-red / gray; icon +
+  shrinking label + reach circle). The strip resolves state-aware
+  labels per row (mute↔unmute, pin↔unpin, read↔unread,
+  archive↔unarchive) against engine.ChatInfo.
+- performSwipeAction: real engine calls (MuteChat/PinChat/
+  MarkChatRead/Unread/ArchiveChat/DeleteChat) + success toast +
+  refreshChats. Swipe LEFT: exitArchive / back to All tab (tdesktop
+  closes folders/forums).
+- Settings → Chat → Quick actions: six-option chip picker (Disabled
+  default), persisted SwipeAction config end-to-end (utils → engine
+  ConfigChanges → cfgSnapshot).
+- Two gesture-state bugs found by the tests and fixed before wiring:
+  swipeDirLock lost the drag sign (vertical returned -1); the first
+  damping attempt overshot tdesktop's curve (44px vs 20px at 1.5x) —
+  now the exact 16·ln(1+s/10) port.
+
+Verification: gui suite green (all 8 new suites + full package);
+gofmt/vet clean; full repo build green; Xvfb GUI smoke boots the real
+binary with the swipe layer wired (window found, screenshot taken, no
+panic).
+
+Rating per §2: the sidebar's existing event architecture (chatRowBounds
+pane bookkeeping + pass-through overlays) 9/10 — the swipe layer plugged
+in without touching the row pipeline; kept and extended.

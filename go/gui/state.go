@@ -1403,7 +1403,8 @@ type cfgSnapshot struct {
 	Streamer               bool
 	SystemTray             bool // effective (nil = on)
 	ComposerSubmit         string
-	CornerReply            bool // effective (nil = on, tdesktop default)
+	SwipeAction            string // "" = disabled
+	CornerReply            bool   // effective (nil = on, tdesktop default)
 	AyuImproveLinkPreviews bool
 
 	// call devices (slice 103): "" = system default
