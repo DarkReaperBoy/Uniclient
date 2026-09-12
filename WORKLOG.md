@@ -3609,3 +3609,40 @@ reorder/placement modes remain).
 
 Parity: Chat settings PARTIAL (corner reply landed; swipe quick action
 + corner reaction remain).
+
+## 2026-09-12 — session wrap (slices 154-157)
+
+Session summary: the Calls box (tdesktop calls_box_controller 1:1 —
+grouped rows, redial, show-in-chat jump, per-group delete w/ revoke,
+Clear-all through deletePhoneCallHistory, group-calls subsection,
+20+100 pagination); the Chat-settings Messages section ('Send message
+with' Enter/Ctrl+Enter end-to-end incl. the focus-gated Ctrl+Enter key
+layer + unified submit gate) + Ayu 'Improve link previews' (host-swap
+mirror rewrite of outgoing links); forum subsection tabs (Top mode —
+topic tab strip under the chat header); the corner reply button
+(fast-reply pill on hovered incoming bubbles via pane hover routing).
+
+Also: GetCallHistory / ClearCallHistory / MessagesDeletePhoneCallHistory
+converted to the withAPI snapshot pattern (§8 freeze rule — lock scan
+clean for all three; ~837 legacy conversions remain on the backlog).
+
+Local-toolchain note (reprovisioned after VM reset): Go 1.27.1 at
+/tmp/goroot, module cache at /tmp/gomodcache (survived), sysroot debs
+at /tmp/sysroot/root, dev env script at
+/home/z/my-project/scripts/devroot.sh (source it, build with
+-tags goolm); watch /tmp disk — go clean -cache when the rootfs fills
+(the build cache alone grows to ~7.5GB).
+
+Verify CI status at session end: all four slices GREEN via API
+(d6512034, c5c918b8, f3563cc5, bc65a1ab — full gate + windows/wasm
+cross-builds + Xvfb GUI smoke w/ screenshot artifacts).
+
+Parity after this session: 151 PRESENT / 26 PARTIAL / 5 MISSING /
+16 CORE-ONLY (rows moved: Voice tab/call list PARTIAL→PRESENT, forum
+topics view PARTIAL→PRESENT, Chat settings + Ayu preferences advanced).
+
+Next candidates: swipe-based quick action on new message (dialog-row
+swipe gesture layer), corner reaction button (needs a default-reaction
+selection concept), Ayu spy/saving engine-gated toggles, Alt+jumplist
+(Windows COM ICustomDestinationList, blind), Linux Unity launcher
+badge (dbus), remaining ~837 withAPI conversions.
