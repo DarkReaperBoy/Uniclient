@@ -19,6 +19,8 @@ package cores
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -281,6 +283,27 @@ func TestReadPathRPCsDoNotPinMutex(t *testing.T) {
 			_, _ = tc.SendMediaAlbum("123", items, false, 0)
 		}},
 		{"SendImageBase64", func(tc *TelegramCore) { _, _ = tc.SendImageBase64("123", "aVBORw==", "cap") }},
+		// batch 3d: RPCs that flow through uploader/downloader objects (no
+		// direct t.api. call — invisible to the v1 co-occurrence scanner;
+		// found by the v2 lock-state audit)
+		{"GetDifferenceCheck", func(tc *TelegramCore) { _ = tc.GetDifferenceCheck() }},
+		{"DownloadWallpaperDocument", func(tc *TelegramCore) { _, _ = tc.DownloadWallpaperDocument(1, 2, []byte("ref")) }},
+		{"UploadFile", func(tc *TelegramCore) {
+			_, _ = tc.UploadFile("123", FileUpload{Name: "f.png", MimeType: "image/png", Size: 4, Reader: bytes.NewReader([]byte{0x89, 'P', 'N', 'G'})}, nil)
+		}},
+		{"UploadFileWithOptions", func(tc *TelegramCore) {
+			_, _ = tc.UploadFileWithOptions("123", FileUpload{Name: "f.png", MimeType: "image/png", Size: 4, Reader: bytes.NewReader([]byte{0x89, 'P', 'N', 'G'})}, UploadOptions{}, nil)
+		}},
+		{"SendStoryWithPhoto", func(tc *TelegramCore) {
+			_, _ = tc.SendStoryWithPhoto("cap", []byte{0x89, 'P', 'N', 'G'}, StoryPostOptions{})
+		}},
+		{"SendStoryWithVideoFile", func(tc *TelegramCore) {
+			tmp := filepath.Join(os.TempDir(), "freeze_story.mp4")
+			if err := os.WriteFile(tmp, []byte("\x00\x00\x00\x18ftypmp42"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, _ = tc.SendStoryWithVideoFile("cap", tmp, StoryPostOptions{})
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.what, func(t *testing.T) {

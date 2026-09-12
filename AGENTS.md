@@ -298,14 +298,17 @@ Cores are protocol implementations behind `cores.Core`.
   starting points; do your own research. Use web search / RTFM whenever
   uncertain — old research notes may be stale or hallucinated.
 - **Never hold `t.mu` across an RPC** (telegram.go withAPI rule, 2026-09-11
-  freeze fix): 735 strict-shape legacy methods were batch-converted to the
-  snapshot pattern on 2026-09-13 (784 total now use `t.withAPI()`); ~77
-  complex-shaped ones remain (multi-RPC flows, call-state write locks —
-  `scripts/scan_lock_across_rpc.py` lists them) — every touched method
-  must be converted to the snapshot pattern
-  (`api, ctx, err := t.withAPI()`; see the RPC-hygiene section in
-  telegram.go). New code must never regress this. Every RPC is
-  deadline-bounded by the rpcGuard invoker — keep it that way.
+  freeze fix): COMPLETE as of 2026-09-13 — every core method now uses the
+  snapshot pattern (`api, ctx, err := t.withAPI()`, or
+  `api, ctx, sender, err := t.withSenderAPI()` for the message.Builder
+  upload paths; `withPeer` resolves peers unlocked too). Batches: 735
+  strict-shape (batch 1), 34 read/password/upload flows (batches 3-3c),
+  and the object-RPC stragglers the co-occurrence scanner could not see
+  (uploader/downloader streams, story sends, wallpaper download —
+  batch 3d, found by the lock-state audit). The v2 scanner
+  (lock-state machine, not co-occurrence) reports ZERO remaining.
+  New code must never regress this. Every RPC is deadline-bounded by
+  the rpcGuard invoker — keep it that way.
 
 | Core | State (2026-09) | Go base / candidates | Reference material (read-only) |
 |---|---|---|---|

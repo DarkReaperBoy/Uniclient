@@ -2696,10 +2696,13 @@ func (t *TelegramCore) GetReadState(chatID string) (*ReadState, error) {
 
 // UploadFile uploads a file to Telegram and sends it to the specified chat.
 func (t *TelegramCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC. The uploader streams
+	// many chunk RPCs and the send flows through the message.Builder, so
+	// this path snapshots api+ctx+sender together (they are set and
+	// cleared as a group under t.mu).
+	api, ctx, sender, err := t.withSenderAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	peer, err := t.resolvePeer(chatID)
@@ -2707,12 +2710,12 @@ func (t *TelegramCore) UploadFile(chatID string, file FileUpload, progress func(
 		return nil, err
 	}
 
-	u := uploader.NewUploader(t.api)
+	u := uploader.NewUploader(api)
 	if progress != nil {
 		u = u.WithProgress(&uploadProgress{callback: progress, total: file.Size})
 	}
 
-	upload, err := u.Upload(t.ctx, uploader.NewUpload(file.Name, io.NopCloser(file.Reader), file.Size))
+	upload, err := u.Upload(ctx, uploader.NewUpload(file.Name, io.NopCloser(file.Reader), file.Size))
 	if err != nil {
 		return nil, fmt.Errorf("upload: %w", err)
 	}
@@ -2721,7 +2724,7 @@ func (t *TelegramCore) UploadFile(chatID string, file FileUpload, progress func(
 	if err != nil {
 		return nil, err
 	}
-	target := t.sender.To(inputPeer)
+	target := sender.To(inputPeer)
 
 	var result tg.UpdatesClass
 
@@ -2730,34 +2733,34 @@ func (t *TelegramCore) UploadFile(chatID string, file FileUpload, progress func(
 	switch {
 	case strings.HasPrefix(file.MimeType, "image/"):
 		photo := message.UploadedPhoto(upload)
-		result, err = target.Media(t.ctx, photo)
+		result, err = target.Media(ctx, photo)
 
 	case strings.HasPrefix(file.MimeType, "video/"):
 		doc := message.UploadedDocument(upload).
 			MIME(file.MimeType).
 			Filename(file.Name).
 			Video()
-		result, err = target.Media(t.ctx, doc)
+		result, err = target.Media(ctx, doc)
 
 	case file.MimeType == "audio/ogg" || file.MimeType == "audio/opus" || strings.HasSuffix(file.Name, ".ogg"):
 		doc := message.UploadedDocument(upload).
 			MIME("audio/ogg").
 			Filename(file.Name).
 			Voice()
-		result, err = target.Media(t.ctx, doc)
+		result, err = target.Media(ctx, doc)
 
 	case strings.HasPrefix(file.MimeType, "audio/"):
 		doc := message.UploadedDocument(upload).
 			MIME(file.MimeType).
 			Filename(file.Name).
 			Audio()
-		result, err = target.Media(t.ctx, doc)
+		result, err = target.Media(ctx, doc)
 
 	default:
 		doc := message.UploadedDocument(upload).
 			MIME(file.MimeType).
 			Filename(file.Name)
-		result, err = target.Media(t.ctx, doc)
+		result, err = target.Media(ctx, doc)
 	}
 
 	if err != nil {
@@ -2770,10 +2773,11 @@ func (t *TelegramCore) UploadFile(chatID string, file FileUpload, progress func(
 // UploadFileWithOptions uploads a file with extended options (voice, video note,
 // silent, schedule, caption). Used by the resend-as-own pipeline.
 func (t *TelegramCore) UploadFileWithOptions(chatID string, file FileUpload, opts UploadOptions, progress func(sent, total int64)) (*Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC — snapshot api+ctx+
+	// sender (set/cleared together under t.mu) and stream unlocked.
+	api, ctx, sender, err := t.withSenderAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	peer, err := t.resolvePeer(chatID)
@@ -2781,12 +2785,12 @@ func (t *TelegramCore) UploadFileWithOptions(chatID string, file FileUpload, opt
 		return nil, err
 	}
 
-	u := uploader.NewUploader(t.api)
+	u := uploader.NewUploader(api)
 	if progress != nil {
 		u = u.WithProgress(&uploadProgress{callback: progress, total: file.Size})
 	}
 
-	upload, err := u.Upload(t.ctx, uploader.NewUpload(file.Name, io.NopCloser(file.Reader), file.Size))
+	upload, err := u.Upload(ctx, uploader.NewUpload(file.Name, io.NopCloser(file.Reader), file.Size))
 	if err != nil {
 		return nil, fmt.Errorf("upload: %w", err)
 	}
@@ -2805,7 +2809,7 @@ func (t *TelegramCore) UploadFileWithOptions(chatID string, file FileUpload, opt
 			info, _ := coverFile.Stat()
 			coverName := info.Name()
 			coverSize := info.Size()
-			thumbUpload, err = u.Upload(t.ctx, uploader.NewUpload(coverName, coverFile, coverSize))
+			thumbUpload, err = u.Upload(ctx, uploader.NewUpload(coverName, coverFile, coverSize))
 			if err != nil {
 				coverFile.Close()
 				thumbUpload = nil
@@ -2845,7 +2849,7 @@ func (t *TelegramCore) UploadFileWithOptions(chatID string, file FileUpload, opt
 		media = message.UploadedDocument(upload, caption...).MIME(file.MimeType).Filename(file.Name)
 	}
 
-	builder := t.sender.To(inputPeer).CloneBuilder()
+	builder := sender.To(inputPeer).CloneBuilder()
 	if opts.Silent {
 		builder = builder.Silent()
 	}
@@ -2853,7 +2857,7 @@ func (t *TelegramCore) UploadFileWithOptions(chatID string, file FileUpload, opt
 		builder = builder.ScheduleTS(int(opts.ScheduleDate))
 	}
 
-	result, err := builder.Media(t.ctx, media)
+	result, err := builder.Media(ctx, media)
 	if err != nil {
 		return nil, fmt.Errorf("send file: %w", err)
 	}
@@ -12454,22 +12458,23 @@ func tgUserID(s string) (int64, error) {
 // withPeer resolves a chat ID under a brief read lock and returns the input
 // peer with the release func — RPCs must run AFTER the release (see withAPI).
 func (t *TelegramCore) withPeer(chatID string) (tg.InputPeerClass, func(), error) {
-	t.mu.RLock()
-	if !t.authed || t.api == nil {
-		t.mu.RUnlock()
-		return nil, nil, ErrAuth
+	// withAPI rule: never hold t.mu across an RPC. resolvePeer may itself
+	// RPC (@username resolution) and toInputPeer may RPC (access-hash
+	// misses), so the auth gate is a brief snapshot and the resolution
+	// runs unlocked — the returned release func is a no-op kept for the
+	// call-shape compatibility of the 796 converted methods.
+	if _, _, err := t.withAPI(); err != nil {
+		return nil, nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
-		t.mu.RUnlock()
 		return nil, nil, err
 	}
 	inputPeer, err := t.toInputPeer(peer)
 	if err != nil {
-		t.mu.RUnlock()
 		return nil, nil, err
 	}
-	return inputPeer, t.mu.RUnlock, nil
+	return inputPeer, func() {}, nil
 }
 
 // ── RPC hygiene: deadlines + lock-free hot paths ──────────────────────────
@@ -12531,6 +12536,20 @@ func (t *TelegramCore) withAPI() (*tg.Client, context.Context, error) {
 		return nil, nil, ErrAuth
 	}
 	return t.api, t.ctx, nil
+}
+
+// withSenderAPI snapshots the live API client, session context AND the
+// gotd message sender under one brief read lock — the sender variant of
+// withAPI for the upload paths that send through the high-level
+// message.Builder (api and sender are set and cleared together under
+// t.mu in auth/Logout/teardown, so the pair snapshot is consistent).
+func (t *TelegramCore) withSenderAPI() (*tg.Client, context.Context, *message.Sender, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, nil, nil, ErrAuth
+	}
+	return t.api, t.ctx, t.sender, nil
 }
 
 // resolvePeer resolves a chat ID string to a tg.PeerClass.
@@ -25100,18 +25119,17 @@ func (t *TelegramCore) GetContactIDs() (int, error) {
 
 // GetDifferenceCheck fetches accumulated updates since the last known state.
 func (t *TelegramCore) GetDifferenceCheck() error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	// Get current state first
-	state, err := t.api.UpdatesGetState(t.ctx)
+	state, err := api.UpdatesGetState(ctx)
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
 	}
 	// Get difference from current state (should return empty)
-	_, err = t.api.UpdatesGetDifference(t.ctx, &tg.UpdatesGetDifferenceRequest{
+	_, err = api.UpdatesGetDifference(ctx, &tg.UpdatesGetDifferenceRequest{
 		Pts: state.Pts, Date: state.Date, Qts: state.Qts,
 	})
 	return err
@@ -26804,8 +26822,8 @@ func (t *TelegramCore) storyPrivacyRules(opts StoryPostOptions) []tg.InputPrivac
 	return rules
 }
 
-func (t *TelegramCore) sendStoryCommon(req *tg.StoriesSendStoryRequest) (int, error) {
-	result, err := t.api.StoriesSendStory(t.ctx, req)
+func (t *TelegramCore) sendStoryCommon(api *tg.Client, ctx context.Context, req *tg.StoriesSendStoryRequest) (int, error) {
+	result, err := api.StoriesSendStory(ctx, req)
 	if err != nil {
 		return 0, err
 	}
@@ -26824,13 +26842,12 @@ func (t *TelegramCore) sendStoryCommon(req *tg.StoriesSendStoryRequest) (int, er
 
 // SendStoryWithPhoto uploads a photo and posts it as a story.
 func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts StoryPostOptions) (int, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return 0, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return 0, err
 	}
-	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload("story.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
+	u := uploader.NewUploader(api)
+	upload, err := u.Upload(ctx, uploader.NewUpload("story.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
 	if err != nil {
 		return 0, fmt.Errorf("upload: %w", err)
 	}
@@ -26858,7 +26875,7 @@ func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts St
 	if !opts.AllowSharing {
 		req.SetNoforwards(true)
 	}
-	return t.sendStoryCommon(req)
+	return t.sendStoryCommon(api, ctx, req)
 }
 
 // trimVideoWithFFmpeg trims a video using ffmpeg based on start/end ratios (0.0-1.0).
@@ -26915,10 +26932,9 @@ func overlayVideoWithFFmpeg(videoPath string, overlayPNG []byte) (string, error)
 
 // SendStoryWithVideoFile reads a video from disk and posts it as a story.
 func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opts StoryPostOptions) (int, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return 0, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return 0, err
 	}
 
 	actualVideoPath := videoPath
@@ -26944,8 +26960,8 @@ func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opt
 		return 0, fmt.Errorf("read video: %w", err)
 	}
 
-	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload(filepath.Base(videoPath), io.NopCloser(bytes.NewReader(videoData)), int64(len(videoData))))
+	u := uploader.NewUploader(api)
+	upload, err := u.Upload(ctx, uploader.NewUpload(filepath.Base(videoPath), io.NopCloser(bytes.NewReader(videoData)), int64(len(videoData))))
 	if err != nil {
 		return 0, fmt.Errorf("upload video: %w", err)
 	}
@@ -26961,7 +26977,7 @@ func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opt
 	}
 
 	if len(opts.OverlayData) > 0 && !overlayApplied {
-		thumbUpload, thumbErr := u.Upload(t.ctx, uploader.NewUpload("thumb.png", io.NopCloser(bytes.NewReader(opts.OverlayData)), int64(len(opts.OverlayData))))
+		thumbUpload, thumbErr := u.Upload(ctx, uploader.NewUpload("thumb.png", io.NopCloser(bytes.NewReader(opts.OverlayData)), int64(len(opts.OverlayData))))
 		if thumbErr == nil {
 			media.SetThumb(thumbUpload)
 		}
@@ -26991,7 +27007,7 @@ func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opt
 	if !opts.AllowSharing {
 		req.SetNoforwards(true)
 	}
-	return t.sendStoryCommon(req)
+	return t.sendStoryCommon(api, ctx, req)
 }
 
 // SendStory publishes a new story.
@@ -30532,10 +30548,9 @@ func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {
 }
 
 func (t *TelegramCore) DownloadWallpaperDocument(docID int64, accessHash int64, fileRef []byte) ([]byte, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	loc := &tg.InputDocumentFileLocation{
 		ID:            docID,
@@ -30544,7 +30559,7 @@ func (t *TelegramCore) DownloadWallpaperDocument(docID int64, accessHash int64, 
 	}
 	var buf bytes.Buffer
 	d := downloader.NewDownloader()
-	_, err := d.Download(t.api, loc).Stream(t.ctx, &buf)
+	_, err = d.Download(api, loc).Stream(ctx, &buf)
 	if err != nil {
 		return nil, fmt.Errorf("download wallpaper doc: %w", err)
 	}

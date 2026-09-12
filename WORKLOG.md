@@ -4356,3 +4356,48 @@ dispatched for the pushed commit.
 
 Editor quirk note (again): MultiEdit space-mangles the whole worktree
 telegram.go — always gofmt -w after edits to it.
+
+## 2026-09-13 — withAPI program COMPLETE: zero lock-across-RPC violations
+
+The §8 freeze-rule backlog is cleared. Two findings drove the final push:
+
+1. The v1 scanner flagged co-occurrence of t.mu and t.api in a function
+   body — 30 of its "31 remaining" were FALSE positives (brief-snapshot
+   pattern already compliant). Rewrote it as a v2 lock-state machine
+   (line-level acquire/release tracking; a violation = a t.api call on a
+   lexically-held line).
+2. The real stragglers were RPCs flowing through helper OBJECTS
+   (uploader.NewUploader(u).Upload, downloader.Download().Stream) — no
+   `t.api.` token, invisible to both scanners. A deep audit for locked-
+   region calls into RPC-capable helpers surfaced them.
+
+Batches this session (tests-first each time — every case starved the
+2s write-lock probe pre-fix, green post-fix; 41 pinned cases total in
+TestReadPathRPCsDoNotPinMutex):
+- batch 3 (16): settings/emoji/folder/participants/global-search reads
+- batch 3b (7): cloud-password + SRP flows (withdrawal URLs, ownership
+  transfer)
+- batch 3c (11): photo management + theme/document uploads (uploader
+  chunk streams were the worst remaining offenders)
+- batch 3d (6): GetDifferenceCheck, DownloadWallpaperDocument,
+  UploadFile, UploadFileWithOptions (new withSenderAPI helper —
+  snapshots api+ctx+sender together, they are set/cleared as a group),
+  SendStoryWithPhoto/WithVideoFile (sendStoryCommon now takes the
+  snapshot pair)
+- withPeer: no longer holds RLock across resolvePeer's @username RPC
+  (release func is now a no-op; call shape kept for the 796 users)
+
+Also fixed pre-existing local-gate breaks found along the way:
+- gui/launcherbadge_test.go imported godbus untagged while every symbol
+  it tests lives in _linux.go → js/wasm test build broke since slice 160;
+  renamed launcherbadge_linux_test.go + //go:build linux.
+- tgsplayer TestGzipMagic/TestStickerRenderKind used t.TempDir()
+  (not implemented on js) → skip with reason on js/wasm.
+
+Verification per commit: gofmt/vet clean, native engine+cores+utils+
+bootstrap suites green, wasm gui suite green (dev-test.sh ALL GATES
+GREEN), CI verify dispatched and SUCCESS on each pushed SHA.
+
+Parity impact: none of these are features — pure freeze-class hardening.
+Remaining parity MISSING unchanged: PiP (blocked on pure-Go video
+decode), app icon selector, suggestions cards — all P3.
