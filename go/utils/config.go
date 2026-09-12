@@ -30,6 +30,16 @@ type AppConfig struct {
 	FontPath        string `json:"font_path,omitempty"`      // custom UI font file (slice 146)
 	MonoFontPath    string `json:"mono_font_path,omitempty"` // custom mono font file
 
+	// Composer submit mode (tdesktop Messages setting, slice 155):
+	// "" (default) = Enter sends, Shift+Enter newline; "ctrl-enter" =
+	// Enter newline, Ctrl+Enter sends.
+	ComposerSubmit string `json:"composer_submit,omitempty"`
+
+	// Ayu "Improve link previews" (slice 155): rewrite outgoing links of
+	// big platforms to their preview-friendly mirrors (Ayu
+	// getBetterLinkPreview: fixupx / kktiktok / vxreddit / kkclip / phixiv).
+	AyuImproveLinkPreviews bool `json:"ayu_improve_link_previews,omitempty"`
+
 	// Power saving (slice 135, tdesktop PowerSaving semantics)
 	PowerSavingFlags    int  `json:"power_saving_flags"`
 	PowerSavingForceAll bool `json:"power_saving_force_all"`

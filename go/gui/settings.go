@@ -115,6 +115,8 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 		c.AyuSaveHistory = &b
 	case "ayu_save_for_bots":
 		c.AyuSaveForBots = &b
+	case "ayu_improve_link_previews":
+		c.AyuImproveLinkPreviews = &b
 	case "bubble_corners":
 		c.BubbleCorners = &b
 	case "hide_all_chats":
@@ -1097,6 +1099,11 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			func(v float32) float64 { return 0.70 + float64(v)*0.30 },
 			func(w float64) { a.applyLayoutTweaksUI(-1, w) })
 	}))
+	// Messages section (tdesktop Chat settings, slice 155): the
+	// composer submit mode (Send with Enter / Ctrl+Enter).
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.layoutMessagesSection(gtx, f)
+	}))
 	// Accent swatches (AyuGram "Choose accent color").
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Accent color")
@@ -1203,6 +1210,20 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 		{"send_without_sound", "Send without sound"},
 	}
 	var children []layout.FlexChild
+	// Ayu · General (AyuGram settings_general, slice 155): improve link
+	// previews — outgoing links of big platforms are rewritten to their
+	// preview-friendly mirrors.
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Ayu · General")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Improve link previews", "Send links via preview-friendly mirrors (X, TikTok, Reddit, Instagram, Pixiv)")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_improve_link_previews", "Improve previews", f.cfg.AyuImproveLinkPreviews, func(v bool) {
+			a.applyConfigBool("ayu_improve_link_previews", v)
+		})
+	}))
 	// Ayu mark strings (AyuGram settings_ayu: deleted/edited marks, slice 47).
 	if !ayuMarksSynced {
 		ayuDeletedEd.SetText(f.cfg.AyuDeletedMark)

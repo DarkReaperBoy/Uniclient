@@ -1280,6 +1280,11 @@ func (a *App) sendText(text string) {
 		if hasMarkdown(text) {
 			sendText, sendEnts = parseMarkdown(text)
 		}
+		// Ayu improve link previews (slice 155): rewrite matching hosts in
+		// the outgoing text so Telegram renders the richer mirror embeds.
+		if cfg := a.eng.GetConfig(); cfg != nil && cfg.AyuImproveLinkPreviews {
+			sendText = improveLinkURLs(sendText)
+		}
 		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, silent, 0, a.topicScopeFor(k), "", false, false, false, false, a.linkPreviewOffFor(k)); err != nil {
 			a.setToast("Send failed: " + err.Error())
 			return
@@ -1397,6 +1402,8 @@ type cfgSnapshot struct {
 	DrawerHidden           []string
 	Streamer               bool
 	SystemTray             bool // effective (nil = on)
+	ComposerSubmit         string
+	AyuImproveLinkPreviews bool
 
 	// call devices (slice 103): "" = system default
 	CallInputDevice  string

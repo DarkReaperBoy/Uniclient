@@ -908,6 +908,11 @@ type ConfigChanges struct {
 	Language    string
 	// Chat-wide translation target (slice 150). Zero value = unchanged.
 	TranslateTarget string
+	// Composer submit mode (tdesktop Messages setting, slice 155).
+	// Nil = unchanged; "" = Enter sends, "ctrl-enter" = Ctrl+Enter sends.
+	ComposerSubmit *string
+	// Ayu improve link previews (slice 155). Nil = unchanged.
+	AyuImproveLinkPreviews *bool
 	// Custom fonts (slice 146): nil = unchanged; non-nil ("" = reset).
 	FontPath     *string
 	MonoFontPath *string
@@ -995,6 +1000,12 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.TranslateTarget != "" {
 		e.config.TranslateTarget = changes.TranslateTarget
+	}
+	if changes.ComposerSubmit != nil {
+		e.config.ComposerSubmit = *changes.ComposerSubmit
+	}
+	if changes.AyuImproveLinkPreviews != nil {
+		e.config.AyuImproveLinkPreviews = *changes.AyuImproveLinkPreviews
 	}
 	if changes.MaxCacheSize > 0 {
 		e.config.MaxCacheSize = changes.MaxCacheSize

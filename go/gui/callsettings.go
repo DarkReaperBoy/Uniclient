@@ -99,6 +99,8 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 		FontScale:              c.FontScale,
 		FontPath:               c.FontPath,
 		MonoFontPath:           c.MonoFontPath,
+		ComposerSubmit:         c.ComposerSubmit,
+		AyuImproveLinkPreviews: c.AyuImproveLinkPreviews,
 		SendReadReceipts:       c.SendReadReceipts,
 		LocalReadMark:          c.LocalReadMark,
 		SendTyping:             c.SendTyping,

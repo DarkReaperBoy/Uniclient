@@ -10,6 +10,7 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/font"
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -1055,12 +1056,57 @@ func (a *App) joinBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 // edit mode is active (AyuGram input field), a header chip with the quoted
 // message sits above the input row. Slow-mode chats carry a countdown chip
 // that gates sending (slice 69).
-func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
-	// Slow-mode wait active → block submission (both Enter and the button).
-	blocked := false
+// composerSubmitKeyTag listens for Ctrl+Enter submits (slice 155).
+var composerSubmitKeyTag = new(struct{})
+
+// trySubmitComposer sends the composer's current text through the shared
+// gate — length limit, slow-mode wait, in-flight guard — shared by the
+// Enter SubmitEvent, the send button, and the Ctrl+Enter shortcut
+// (slice 155). Returns true when a send started.
+func (a *App) trySubmitComposer(f frame, chat *engine.ChatInfo) bool {
+	txt := strings.TrimSpace(composer.Text())
+	if txt == "" || f.sending {
+		return false
+	}
+	if composerOverLimit(composer.Text()) {
+		a.setToast("Message is too long (" + itoa(composerCharLimit) + " char limit)")
+		return false
+	}
 	if chat != nil {
 		if remain := slowmodeRemain(*chat, f.now); remain > 0 {
-			blocked = true
+			a.slowmodeToast(chat)
+			return false
+		}
+	}
+	composer.SetText("")
+	a.sendText(txt)
+	return true
+}
+
+func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
+	// Composer submit mode (tdesktop Messages setting, slice 155): Enter
+	// submits by default; "ctrl-enter" moves submission to Ctrl+Enter and
+	// makes Enter a newline.
+	composer.Submit = composerSubmitSends(f.cfg.ComposerSubmit)
+	// Ctrl+Enter submits (both modes — tdesktop behavior); only while the
+	// composer holds focus so other editors (search, dialogs) keep it.
+	keyLayer(gtx, composerSubmitKeyTag)
+	for _, name := range []key.Name{key.NameReturn, key.NameEnter} {
+		for {
+			ev, ok := gtx.Source.Event(key.Filter{Name: name, Required: key.ModCtrl})
+			if !ok {
+				break
+			}
+			if ke, is := ev.(key.Event); is && ke.State == key.Press && gtx.Source.Focused(&composer) {
+				a.trySubmitComposer(f, chat)
+			}
+		}
+	}
+
+	// Slow-mode wait active → the shared gate blocks submission; keep
+	// the countdown ticker armed while the wait runs.
+	if chat != nil {
+		if remain := slowmodeRemain(*chat, f.now); remain > 0 {
 			a.scheduleSlowTick(remain)
 		} else {
 			slowmodeSendBlocked = false
@@ -1073,33 +1119,13 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			break
 		}
 		if se, isSubmit := ev.(widget.SubmitEvent); isSubmit {
-			txt := strings.TrimSpace(se.Text)
-			if txt != "" && !f.sending {
-				if composerOverLimit(composer.Text()) {
-					a.setToast("Message is too long (" + itoa(composerCharLimit) + " char limit)")
-					continue
-				}
-				if blocked {
-					a.slowmodeToast(chat)
-					continue
-				}
-				composer.SetText("")
-				a.sendText(txt)
+			if txt := strings.TrimSpace(se.Text); txt != "" {
+				a.trySubmitComposer(f, chat)
 			}
 		}
 	}
 	if chatSendBtn.Clicked(gtx) {
-		txt := strings.TrimSpace(composer.Text())
-		if txt != "" && !f.sending {
-			if composerOverLimit(composer.Text()) {
-				a.setToast("Message is too long (" + itoa(composerCharLimit) + " char limit)")
-			} else if blocked {
-				a.slowmodeToast(chat)
-			} else {
-				composer.SetText("")
-				a.sendText(txt)
-			}
-		}
+		a.trySubmitComposer(f, chat)
 	}
 
 	return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
