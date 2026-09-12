@@ -17,6 +17,7 @@ package cores
 //      returns an error instead of hanging forever.
 
 import (
+	"bytes"
 	"context"
 	"sync/atomic"
 	"testing"
@@ -264,6 +265,22 @@ func TestReadPathRPCsDoNotPinMutex(t *testing.T) {
 		{"GetStarsRevenueWithdrawalUrl", func(tc *TelegramCore) { _, _ = tc.GetStarsRevenueWithdrawalUrl("-1001234567890", "pw", 0) }},
 		{"GetBroadcastRevenueWithdrawalUrl", func(tc *TelegramCore) { _, _ = tc.GetBroadcastRevenueWithdrawalUrl("-1001234567890", "pw") }},
 		{"TransferChannelOwnership", func(tc *TelegramCore) { _ = tc.TransferChannelOwnership("-1001234567890", "123", "pw") }},
+		// batch 3c: upload + photo-management family (uploader streams many
+		// chunk RPCs under the old RLock — worst offenders after passwords)
+		{"UploadProfilePhoto", func(tc *TelegramCore) { _ = tc.UploadProfilePhoto([]byte{0x89, 'P', 'N', 'G'}) }},
+		{"SetBotPhoto", func(tc *TelegramCore) { _ = tc.SetBotPhoto("123", []byte{0x89, 'P', 'N', 'G'}) }},
+		{"UploadFallbackPhoto", func(tc *TelegramCore) { _ = tc.UploadFallbackPhoto([]byte{0x89, 'P', 'N', 'G'}) }},
+		{"DeleteFallbackPhoto", func(tc *TelegramCore) { _ = tc.DeleteFallbackPhoto() }},
+		{"DeleteProfilePhotos", func(tc *TelegramCore) { _ = tc.DeleteProfilePhotos() }},
+		{"EditChannelPhoto", func(tc *TelegramCore) { _ = tc.EditChannelPhoto("-1001234567890", []byte{0x89, 'P', 'N', 'G'}) }},
+		{"EditChannelVideoPhoto", func(tc *TelegramCore) { _ = tc.EditChannelVideoPhoto("-1001234567890", []byte{0, 0, 0, 1}) }},
+		{"CreateCloudThemeWithData", func(tc *TelegramCore) { _, _ = tc.CreateCloudThemeWithData("t", "s", []byte("theme")) }},
+		{"UpdateCloudThemeWithData", func(tc *TelegramCore) { _, _ = tc.UpdateCloudThemeWithData(1, 2, "t", "s", []byte("theme")) }},
+		{"SendMediaAlbum", func(tc *TelegramCore) {
+			items := []AlbumItem{{Upload: FileUpload{Name: "a.png", MimeType: "image/png", Size: 4, Reader: bytes.NewReader([]byte{0x89, 'P', 'N', 'G'})}, IsPhoto: true}}
+			_, _ = tc.SendMediaAlbum("123", items, false, 0)
+		}},
+		{"SendImageBase64", func(tc *TelegramCore) { _, _ = tc.SendImageBase64("123", "aVBORw==", "cap") }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.what, func(t *testing.T) {

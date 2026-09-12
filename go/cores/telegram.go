@@ -2926,10 +2926,9 @@ func (t *TelegramCore) buildStyledCaption(text, entitiesJSON string) []styling.S
 
 // SendMediaAlbum sends multiple media items as a single album (grouped message).
 func (t *TelegramCore) SendMediaAlbum(chatID string, items []AlbumItem, silent bool, scheduleDate int64) ([]*Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	peer, err := t.resolvePeer(chatID)
@@ -2941,11 +2940,11 @@ func (t *TelegramCore) SendMediaAlbum(chatID string, items []AlbumItem, silent b
 		return nil, err
 	}
 
-	u := uploader.NewUploader(t.api)
+	u := uploader.NewUploader(api)
 	var multiMedia []tg.InputSingleMedia
 
 	for _, item := range items {
-		upload, err := u.Upload(t.ctx, uploader.NewUpload(item.Upload.Name, io.NopCloser(item.Upload.Reader), item.Upload.Size))
+		upload, err := u.Upload(ctx, uploader.NewUpload(item.Upload.Name, io.NopCloser(item.Upload.Reader), item.Upload.Size))
 		if err != nil {
 			return nil, fmt.Errorf("upload album item %s: %w", item.Upload.Name, err)
 		}
@@ -2989,7 +2988,7 @@ func (t *TelegramCore) SendMediaAlbum(chatID string, items []AlbumItem, silent b
 		req.SetFlags()
 	}
 
-	result, err := t.api.MessagesSendMultiMedia(t.ctx, req)
+	result, err := api.MessagesSendMultiMedia(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("send album: %w", err)
 	}
@@ -3200,10 +3199,9 @@ func (t *TelegramCore) GetUserAvatarThumb(userID string) (string, error) {
 
 // SendImageBase64 sends a base64-encoded image as a photo message.
 func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	imgData, err := base64.StdEncoding.DecodeString(b64)
@@ -3217,13 +3215,13 @@ func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string
 	}
 	inputPeer, _ := t.toInputPeer(peer)
 
-	u := uploader.NewUploader(t.api)
-	upload, err := u.FromBytes(t.ctx, "image.png", imgData)
+	u := uploader.NewUploader(api)
+	upload, err := u.FromBytes(ctx, "image.png", imgData)
 	if err != nil {
 		return nil, fmt.Errorf("upload image: %w", err)
 	}
 
-	updates, err := t.api.MessagesSendMedia(t.ctx, &tg.MessagesSendMediaRequest{
+	updates, err := api.MessagesSendMedia(ctx, &tg.MessagesSendMediaRequest{
 		Peer:     inputPeer,
 		Media:    &tg.InputMediaUploadedPhoto{File: upload},
 		Message:  caption,
@@ -24632,17 +24630,16 @@ func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) 
 
 // UploadProfilePhoto uploads and sets a new profile photo.
 func (t *TelegramCore) UploadProfilePhoto(pngData []byte) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload("profile.png", io.NopCloser(bytes.NewReader(pngData)), int64(len(pngData))))
+	u := uploader.NewUploader(api)
+	upload, err := u.Upload(ctx, uploader.NewUpload("profile.png", io.NopCloser(bytes.NewReader(pngData)), int64(len(pngData))))
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
-	_, err = t.api.PhotosUploadProfilePhoto(t.ctx, &tg.PhotosUploadProfilePhotoRequest{
+	_, err = api.PhotosUploadProfilePhoto(ctx, &tg.PhotosUploadProfilePhotoRequest{
 		File: upload,
 	})
 	return err
@@ -24650,24 +24647,23 @@ func (t *TelegramCore) UploadProfilePhoto(pngData []byte) error {
 
 // SetBotPhoto uploads and sets a photo for a bot.
 func (t *TelegramCore) SetBotPhoto(chatID string, pngData []byte) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
 		return fmt.Errorf("parse bot user ID: %w", err)
 	}
 	hash := t.getCachedUserHash(id)
-	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload("bot_photo.png", io.NopCloser(bytes.NewReader(pngData)), int64(len(pngData))))
+	u := uploader.NewUploader(api)
+	upload, err := u.Upload(ctx, uploader.NewUpload("bot_photo.png", io.NopCloser(bytes.NewReader(pngData)), int64(len(pngData))))
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
 	req := &tg.PhotosUploadProfilePhotoRequest{File: upload}
 	req.SetBot(&tg.InputUser{UserID: id, AccessHash: hash})
-	_, err = t.api.PhotosUploadProfilePhoto(t.ctx, req)
+	_, err = api.PhotosUploadProfilePhoto(ctx, req)
 	return err
 }
 
@@ -24689,30 +24685,28 @@ func (t *TelegramCore) SetEmojiProfilePhoto(documentID int64) error {
 
 // UploadFallbackPhoto uploads a public fallback photo visible to non-contacts.
 func (t *TelegramCore) UploadFallbackPhoto(pngData []byte) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload("fallback.png", io.NopCloser(bytes.NewReader(pngData)), int64(len(pngData))))
+	u := uploader.NewUploader(api)
+	upload, err := u.Upload(ctx, uploader.NewUpload("fallback.png", io.NopCloser(bytes.NewReader(pngData)), int64(len(pngData))))
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
 	req := &tg.PhotosUploadProfilePhotoRequest{File: upload}
 	req.SetFallback(true)
-	_, err = t.api.PhotosUploadProfilePhoto(t.ctx, req)
+	_, err = api.PhotosUploadProfilePhoto(ctx, req)
 	return err
 }
 
 // DeleteFallbackPhoto removes the public fallback photo.
 func (t *TelegramCore) DeleteFallbackPhoto() error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: t.selfID, AccessHash: 0})
+	result, err := api.UsersGetFullUser(ctx, &tg.InputUser{UserID: t.selfID, AccessHash: 0})
 	if err != nil {
 		return err
 	}
@@ -24724,7 +24718,7 @@ func (t *TelegramCore) DeleteFallbackPhoto() error {
 	if !ok {
 		return nil
 	}
-	_, err = t.api.PhotosDeletePhotos(t.ctx, []tg.InputPhotoClass{
+	_, err = api.PhotosDeletePhotos(ctx, []tg.InputPhotoClass{
 		&tg.InputPhoto{ID: ph.ID, AccessHash: ph.AccessHash, FileReference: ph.FileReference},
 	})
 	return err
@@ -24873,13 +24867,12 @@ func (t *TelegramCore) UpdateChannelEmojiStatus(chatID string, documentID int64)
 
 // DeleteProfilePhotos removes one or more profile photos.
 func (t *TelegramCore) DeleteProfilePhotos() error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	// Get current photos first
-	result, err := t.api.PhotosGetUserPhotos(t.ctx, &tg.PhotosGetUserPhotosRequest{
+	result, err := api.PhotosGetUserPhotos(ctx, &tg.PhotosGetUserPhotosRequest{
 		UserID: &tg.InputUserSelf{}, Limit: 1,
 	})
 	if err != nil {
@@ -24903,7 +24896,7 @@ func (t *TelegramCore) DeleteProfilePhotos() error {
 	if len(photos) == 0 {
 		return nil
 	}
-	_, err = t.api.PhotosDeletePhotos(t.ctx, photos[:1])
+	_, err = api.PhotosDeletePhotos(ctx, photos[:1])
 	return err
 }
 
@@ -26391,10 +26384,9 @@ func (t *TelegramCore) DeleteChatUser(chatID string, userID string) error {
 
 // EditChannelPhoto changes the photo of a channel or supergroup.
 func (t *TelegramCore) EditChannelPhoto(chatID string, photoData []byte) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -26405,12 +26397,12 @@ func (t *TelegramCore) EditChannelPhoto(chatID string, photoData []byte) error {
 		return fmt.Errorf("not a channel")
 	}
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload("photo.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
+	u := uploader.NewUploader(api)
+	upload, err := u.Upload(ctx, uploader.NewUpload("photo.png", io.NopCloser(bytes.NewReader(photoData)), int64(len(photoData))))
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
-	_, err = t.api.ChannelsEditPhoto(t.ctx, &tg.ChannelsEditPhotoRequest{
+	_, err = api.ChannelsEditPhoto(ctx, &tg.ChannelsEditPhotoRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 		Photo:   &tg.InputChatUploadedPhoto{File: upload},
 	})
@@ -26419,10 +26411,9 @@ func (t *TelegramCore) EditChannelPhoto(chatID string, photoData []byte) error {
 
 // EditChannelVideoPhoto sets an animated video profile photo for a channel or supergroup.
 func (t *TelegramCore) EditChannelVideoPhoto(chatID string, videoData []byte) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -26433,15 +26424,15 @@ func (t *TelegramCore) EditChannelVideoPhoto(chatID string, videoData []byte) er
 		return fmt.Errorf("not a channel")
 	}
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload("video.mp4", io.NopCloser(bytes.NewReader(videoData)), int64(len(videoData))))
+	u := uploader.NewUploader(api)
+	upload, err := u.Upload(ctx, uploader.NewUpload("video.mp4", io.NopCloser(bytes.NewReader(videoData)), int64(len(videoData))))
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
 	photo := &tg.InputChatUploadedPhoto{}
 	photo.SetVideo(upload)
 	photo.SetVideoStartTs(0.0)
-	_, err = t.api.ChannelsEditPhoto(t.ctx, &tg.ChannelsEditPhotoRequest{
+	_, err = api.ChannelsEditPhoto(ctx, &tg.ChannelsEditPhotoRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 		Photo:   photo,
 	})
@@ -28080,19 +28071,18 @@ func (t *TelegramCore) DeleteCloudTheme(themeID int64) error {
 }
 
 func (t *TelegramCore) CreateCloudThemeWithData(title, slug string, themeData []byte) (*CloudThemeInfo, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
-	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload(slug+".tdesktop-theme", io.NopCloser(bytes.NewReader(themeData)), int64(len(themeData))))
+	u := uploader.NewUploader(api)
+	upload, err := u.Upload(ctx, uploader.NewUpload(slug+".tdesktop-theme", io.NopCloser(bytes.NewReader(themeData)), int64(len(themeData))))
 	if err != nil {
 		return nil, fmt.Errorf("upload theme file: %w", err)
 	}
 
-	doc, err := t.api.AccountUploadTheme(t.ctx, &tg.AccountUploadThemeRequest{
+	doc, err := api.AccountUploadTheme(ctx, &tg.AccountUploadThemeRequest{
 		File:     upload,
 		FileName: slug + ".tdesktop-theme",
 		MimeType: "application/x-tgtheme-tdesktop",
@@ -28116,7 +28106,7 @@ func (t *TelegramCore) CreateCloudThemeWithData(title, slug string, themeData []
 		FileReference: d.FileReference,
 	})
 
-	theme, err := t.api.AccountCreateTheme(t.ctx, req)
+	theme, err := api.AccountCreateTheme(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("account create theme: %w", err)
 	}
@@ -28147,19 +28137,18 @@ func (t *TelegramCore) CreateCloudThemeWithData(title, slug string, themeData []
 }
 
 func (t *TelegramCore) UpdateCloudThemeWithData(themeID, accessHash int64, title, slug string, themeData []byte) (*CloudThemeInfo, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
-	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload(slug+".tdesktop-theme", io.NopCloser(bytes.NewReader(themeData)), int64(len(themeData))))
+	u := uploader.NewUploader(api)
+	upload, err := u.Upload(ctx, uploader.NewUpload(slug+".tdesktop-theme", io.NopCloser(bytes.NewReader(themeData)), int64(len(themeData))))
 	if err != nil {
 		return nil, fmt.Errorf("upload theme file: %w", err)
 	}
 
-	doc, err := t.api.AccountUploadTheme(t.ctx, &tg.AccountUploadThemeRequest{
+	doc, err := api.AccountUploadTheme(ctx, &tg.AccountUploadThemeRequest{
 		File:     upload,
 		FileName: slug + ".tdesktop-theme",
 		MimeType: "application/x-tgtheme-tdesktop",
@@ -28187,7 +28176,7 @@ func (t *TelegramCore) UpdateCloudThemeWithData(themeID, accessHash int64, title
 		FileReference: d.FileReference,
 	})
 
-	theme, err := t.api.AccountUpdateTheme(t.ctx, req)
+	theme, err := api.AccountUpdateTheme(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("account update theme: %w", err)
 	}
