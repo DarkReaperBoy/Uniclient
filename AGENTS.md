@@ -393,6 +393,15 @@ is the next task.
       where functionality is missing; Telegram core+GUI = exact 1:1 first
       (folders sync, ghost mode, QR verify, message actions, settings,
       search, media...), other cores follow
+      - slices 158–160 (2026-09-12): swipe quick actions on chat rows
+        (tdesktop swipe_handler 1:1 — gesture layer, action strip,
+        state-aware labels, swipe-back nav, persisted Settings picker);
+        corner reaction button + favorite-reaction selection (tdesktop
+        cornerReaction 1:1 — full-list toggle semantics,
+        messages.setDefaultReaction, per-account "React with" picker);
+        Linux Unity launcher badge (com.canonical.Unity.LauncherEntry
+        Update signal via godbus, wire-verified vs a private
+        dbus-daemon)
       - slices 148–153 (2026-09-12): Telegram Business settings section
         (hours/location/greeting/away/quick replies/intro — the five
         account.updateBusiness* RPCs + the implicit quick-reply shortcut

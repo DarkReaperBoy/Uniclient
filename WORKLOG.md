@@ -3857,3 +3857,69 @@ form: djb2-derived path, com.canonical.Unity.LauncherEntry.Update
 name, app_id "application://uniclient.desktop", count 42/visible true,
 then the zero-count clearing signal. Full repo tests green; gofmt/vet
 clean; windows + wasm cross-builds green; Xvfb GUI smoke boots.
+
+## 2026-09-12 — session wrap (bale/rubika live verification + slices 158-160 + withAPI batch)
+
+Session summary, in order:
+
+1. Environment re-provisioned after a VM reset: Go 1.27.1 at /tmp/goroot,
+   sysroot rebuilt (EGL/wayland/xkb dev debs + runtime .so copies),
+   module cache survived; full build + tests + gofmt/vet green before
+   any work started.
+
+2. RUBIKA core — LIVE-verified pre-auth chain vs production (iranlms.ir
+   reachable from this VM; the geo-block is gone). Independent research
+   against the production web client bundle re-derived the live socket
+   set (jsocket*, NOT the stale nsocket1-5 — NXDOMAIN). Two real bugs
+   fixed: WS "connected" state never fired while healthy (the read loop
+   blocks for the socket's lifetime); fallback socket list dead hosts +
+   blind pick[0] (now jsocket5-first + TCP probe). 3 live tests green
+   (DC discovery; encrypted sendCode round-trip → structured
+   INVALID_INPUT; WS dial+handShake). Research doc updated with the
+   verified wire facts.
+
+3. BALE core — LIVE-verified unary pre-auth chain vs production
+   (next-ws.bale.ai). Wire layouts + app credentials cross-checked
+   against the production bundle — the core's encoding was already
+   correct; no changes needed. Live test green: StartPhoneAuth with an
+   invalid phone → structured PHONE_NUMBER_INVALID in ~1s (full
+   protobuf → gRPC-Web → HTTP → trailer-parse → error-map round-trip).
+
+4. Slice 158 — swipe quick actions on chat rows (tdesktop
+   swipe_handler/quick_action 1:1): direction lock, 50dp threshold,
+   exact DampedOverswipe ln curve, fire-on-release, snap-back anim;
+   pass-through overlay; sliding row + action strip (state-aware
+   labels, reach circle, shrinking label); swipe-back nav; Settings
+   picker persisted. Tests caught 2 gesture-math bugs before wiring.
+
+5. Slice 159 — corner reaction button (tdesktop cornerReaction 1:1,
+   default ON): NE pill beside the reply pill toggling the account's
+   favorite reaction (full-list sendReaction semantics); favorite =
+   server-side reactions_default (👍 fallback) via
+   messages.setDefaultReaction; core additions all withAPI-clean
+   (ReactToMessageList, GetDefaultReaction, SetDefaultReaction
+   converted). Settings: toggle + per-account "React with" picker.
+
+6. Slice 160 — Linux Unity launcher badge (tdesktop
+   updateUnityCounter 1:1): com.canonical.Unity.LauncherEntry Update
+   signal via godbus; djb2 entry path; 9999-clamped count +
+   count-visible; same entry point as the Windows overlay badge.
+   Wire-verified against a private dbus-daemon (signal round-trip incl.
+   the zero-count clearing). The wire test caught itoa misuse ("999+"
+   is not a valid path element).
+
+7. withAPI batch: 13 more RPCs converted off the legacy
+   lock-across-RPC pattern (scanner: 823 → 813; ~813 remain — every
+   remaining method reads core state beyond the auth guard, so bulk
+   conversion is unsafe; hand conversion continues per-touch).
+
+Verification: full repo tests green locally all session; gofmt/vet
+clean; windows + wasm cross-builds green; Xvfb GUI smoke boots the
+binary after every slice; verify workflow dispatched on HEAD
+(7dd03656) at session end — status checked via API.
+
+Parity after this session: the Messages section rows (corner reply,
+corner reaction, swipe action, react-with) + cross-platform dock badge
+complete; AyuGram 1:1 program continues (next candidates: Ayu
+spy/saving engine-gated toggles, Alt+jumplist, multi-window chats,
+PiP — see the parity matrix MISSING/PARTIAL rows).
