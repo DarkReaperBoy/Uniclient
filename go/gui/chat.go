@@ -839,13 +839,19 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, row)
 	}
 	if out {
-		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(pad)}.Layout(gtx, bubble)
+		// Own rows get the corner reaction pill too (tdesktop canReact).
+		a.loadFavoriteReaction(m.AccountID)
+		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(pad)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return a.cornerButtonsOverlay(gtx, f, m, false, bubble)
+		})
 	}
-	// Corner reply button (slice 157): incoming rows carry the NE-anchored
-	// fast-reply pill when hovered (tdesktop cornerReply).
+	// Corner buttons (slices 157+159): incoming rows carry the NE-anchored
+	// favorite-reaction pill + fast-reply pill when hovered (tdesktop
+	// cornerReaction + cornerReply).
 	canReply := cornerReplyCanSend(f, m)
+	a.loadFavoriteReaction(m.AccountID)
 	row := func(gtx layout.Context) layout.Dimensions {
-		return a.cornerReplyOverlay(gtx, f, m, canReply, bubble)
+		return a.cornerButtonsOverlay(gtx, f, m, canReply, bubble)
 	}
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, row)
 }

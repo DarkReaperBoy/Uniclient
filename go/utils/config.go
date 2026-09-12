@@ -42,6 +42,9 @@ type AppConfig struct {
 	// 157): show the fast-reply pill on hovered incoming bubbles. Nil =
 	// tdesktop default ON.
 	CornerReply *bool `json:"corner_reply,omitempty"`
+	// CornerReaction gates the hover pill that toggles the favorite
+	// reaction (tdesktop cornerReaction, default ON → nil).
+	CornerReaction *bool `json:"corner_reaction,omitempty"`
 
 	// Ayu "Improve link previews" (slice 155): rewrite outgoing links of
 	// big platforms to their preview-friendly mirrors (Ayu

@@ -1405,6 +1405,7 @@ type cfgSnapshot struct {
 	ComposerSubmit         string
 	SwipeAction            string // "" = disabled
 	CornerReply            bool   // effective (nil = on, tdesktop default)
+	CornerReaction         bool   // effective (nil = on, tdesktop default)
 	AyuImproveLinkPreviews bool
 
 	// call devices (slice 103): "" = system default

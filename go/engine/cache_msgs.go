@@ -2856,6 +2856,32 @@ type DefaultReactionSetter interface {
 	SetDefaultReaction(emoji string) error
 }
 
+// ReactionListSender sets a message's own reactions to a full list
+// (toggle semantics — the corner reaction button, slice 159).
+type ReactionListSender interface {
+	ReactToMessageList(chatID string, msgID string, emojis []string) error
+}
+
+// DefaultReactionGetter reads the account's default (favorite) reaction
+// emoji from help.getConfig reactions_default.
+type DefaultReactionGetter interface {
+	GetDefaultReaction() (string, error)
+}
+
+// GetDefaultReaction reads the account's default (favorite) reaction
+// emoji (help.getConfig reactions_default; "" = server default unset).
+func (e *Engine) GetDefaultReaction(accountID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	g, ok := acc.Core.(DefaultReactionGetter)
+	if !ok {
+		return "", nil // platform without server-side favorite reactions
+	}
+	return g.GetDefaultReaction()
+}
+
 func (e *Engine) SetDefaultReaction(accountID, emoji string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

@@ -68,8 +68,9 @@ type deletePayload struct {
 
 // reactPayload is the serialized payload for a "react" action.
 type reactPayload struct {
-	MsgID string `json:"msg_id"`
-	Emoji string `json:"emoji"`
+	MsgID  string   `json:"msg_id"`
+	Emoji  string   `json:"emoji,omitempty"`  // single-reaction form
+	Emojis []string `json:"emojis,omitempty"` // full-list form (toggle semantics, slice 159)
 }
 
 // forwardPayload is the serialized payload for a "forward" action.
@@ -685,6 +686,31 @@ func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []str
 }
 
 // ReactToMessage queues a reaction toggle on a message.
+// ReactToMessageList sets a message's own reactions to exactly the given
+// emoji list (tdesktop toggleReaction semantics — the corner reaction
+// button, slice 159). Empty list removes all own reactions.
+func (e *Engine) ReactToMessageList(accountID, chatID, msgID string, emojis []string) error {
+	localID := generateLocalID()
+	now := time.Now().UnixMilli()
+
+	payload, _ := json.Marshal(reactPayload{MsgID: msgID, Emojis: emojis})
+
+	_, err := e.db.Exec(
+		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		accountID, chatID, localID, ActionReact, payload, PendingQueued, now)
+	if err != nil {
+		return err
+	}
+
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		e.processPendingItem(accountID, chatID, localID, ActionReact, payload)
+	}()
+	return nil
+}
+
 func (e *Engine) ReactToMessage(accountID, chatID, msgID, emoji string) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
@@ -931,6 +957,13 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 	case ActionReact:
 		var p reactPayload
 		json.Unmarshal(payload, &p)
+		if len(p.Emojis) > 0 || p.Emoji == "" {
+			// Full-list form (corner reaction toggle, slice 159): an empty
+			// list removes all own reactions.
+			if lister, ok := acc.Core.(ReactionListSender); ok {
+				return lister.ReactToMessageList(chatID, p.MsgID, p.Emojis)
+			}
+		}
 		return acc.Core.ReactToMessage(chatID, p.MsgID, p.Emoji)
 
 	case ActionForward:

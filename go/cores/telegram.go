@@ -24251,14 +24251,76 @@ func (t *TelegramCore) GetDefaultHistoryTTL() (int, error) {
 	return result.Period, nil
 }
 
-// SetDefaultReaction sets the default emoji reaction for new messages.
+// SetDefaultReaction sets the default emoji reaction for new messages
+// (the account's "favorite" reaction — tdesktop Reactions::setFavorite).
 func (t *TelegramCore) SetDefaultReaction(emoji string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	_, err := t.api.MessagesSetDefaultReaction(t.ctx, &tg.ReactionEmoji{Emoticon: emoji})
+	_, err = api.MessagesSetDefaultReaction(ctx, &tg.ReactionEmoji{Emoticon: emoji})
+	return err
+}
+
+// GetDefaultReaction reads the account's default (favorite) reaction from
+// help.getConfig reactions_default (tdesktop favoriteId; fallback 👍 is the
+// caller's). Returns "" when the config omits it.
+func (t *TelegramCore) GetDefaultReaction() (string, error) {
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return "", err
+	}
+	result, err := api.HelpGetConfig(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get config: %w", err)
+	}
+	if reaction, ok := result.GetReactionsDefault(); ok {
+		if emoji, ok := reaction.(*tg.ReactionEmoji); ok {
+			return emoji.Emoticon, nil
+		}
+	}
+	return "", nil
+}
+
+// ReactToMessageList sets the message's own reactions to exactly the given
+// emoji list — tdesktop toggleReaction semantics: the GUI computes the new
+// list (favorite added/removed) and sends it whole. An empty list removes
+// all own reactions. Custom-emoji reactions pass as "custom_<docID>".
+func (t *TelegramCore) ReactToMessageList(chatID string, msgID string, emojis []string) error {
+	// withAPI rule: never hold t.mu across the RPC (the corner reaction
+	// button fires these on hover taps — slice 159).
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
+	peer := tg.InputPeerClass(&tg.InputPeerEmpty{})
+	if inputPeer, unlock, perr := t.withPeer(chatID); perr == nil {
+		peer = inputPeer
+		unlock()
+	} else {
+		return perr
+	}
+	id, err := tgMsgID(msgID)
+	if err != nil {
+		return err
+	}
+	reactions := make([]tg.ReactionClass, 0, len(emojis))
+	for _, emoji := range emojis {
+		if strings.HasPrefix(emoji, "custom_") {
+			if docID, perr := strconv.ParseInt(emoji[7:], 10, 64); perr == nil {
+				reactions = append(reactions, &tg.ReactionCustomEmoji{DocumentID: docID})
+				continue
+			}
+		}
+		reactions = append(reactions, &tg.ReactionEmoji{Emoticon: emoji})
+	}
+	_, err = api.MessagesSendReaction(ctx, &tg.MessagesSendReactionRequest{
+		Peer:     peer,
+		MsgID:    id,
+		Reaction: reactions,
+	})
 	return err
 }
 

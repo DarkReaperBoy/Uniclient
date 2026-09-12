@@ -112,6 +112,7 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 		ComposerSubmit:         c.ComposerSubmit,
 		SwipeAction:            effectiveSwipeAction(c.SwipeAction),
 		CornerReply:            effectiveCornerReply(c.CornerReply),
+		CornerReaction:         effectiveCornerReaction(c.CornerReaction),
 		AyuImproveLinkPreviews: c.AyuImproveLinkPreviews,
 		SendReadReceipts:       c.SendReadReceipts,
 		LocalReadMark:          c.LocalReadMark,

@@ -3782,3 +3782,44 @@ panic).
 Rating per §2: the sidebar's existing event architecture (chatRowBounds
 pane bookkeeping + pass-through overlays) 9/10 — the swipe layer plugged
 in without touching the row pipeline; kept and extended.
+
+## 2026-09-12 — slice 159: corner reaction button + favorite-reaction selection
+
+Research (primary source: tdesktop dev branch): core_settings.h
+(_cornerReaction default TRUE), settings_chat.cpp
+(lng_settings_chat_corner_reaction "Reaction button in the corner",
+next to cornerReply in the Messages section), history_view_list_widget
+reactionButtonParameters (same hover-corner mechanism as the reply
+button), history_inner_widget toggleFavoriteReaction (toggle semantics:
+favorite added when absent, removed when own), data_message_reactions
+favoriteId/setFavorite (server-side default via config
+reactions_default, saved through messages.setDefaultReaction, fallback
+👍 ConfigDefaultReactionEmoji).
+
+Implementation (tests first: gui/cornerreaction_test.go — 5 suites):
+- gui/cornerreaction.go: the pill (NE-anchored beside the reply pill,
+  [fav][Reply] stack order), renders on hovered bubbles for incoming
+  AND own rows (tdesktop canReact), never in selection/service rows.
+  Tap computes the new own-reaction list (pure
+  toggleOwnReactionEmojis) and sends it whole.
+- cores/telegram.go: ReactToMessageList (full-list sendReaction; empty
+  list removes all own reactions; custom_emoji passthrough),
+  GetDefaultReaction (help.getConfig reactions_default), and
+  SetDefaultReaction converted to the withAPI snapshot pattern (§8
+  freeze rule — 3 more RPCs off the legacy lock list).
+- engine: ReactToMessageList through the pending queue (reactPayload
+  gains the emojis list; single-emoji back-compat preserved),
+  GetDefaultReaction passthrough.
+- gui/chat.go: incoming rows wrap with cornerButtonsOverlay (reply +
+  reaction pills); own rows wrap for the reaction pill alone.
+- Settings → Chat → Messages: "Reaction button in the corner" toggle
+  (CornerReaction config, default ON end-to-end) + Quick actions
+  "React with" per-account emoji-chip picker (server favorite loaded
+  lazily, applied via messages.setDefaultReaction, 👍 fallback).
+
+Verification: all 5 new suites green; full repo tests green; gofmt/vet
+clean; Xvfb GUI smoke boots the binary (window + screenshot, no panic).
+
+Parity note: the reaction picker's emoji set rides the existing
+availEmojis loader (account reactions list + built-in fallback set),
+matching how the context-menu quick-reactions row already behaves.

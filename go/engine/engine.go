@@ -914,7 +914,8 @@ type ConfigChanges struct {
 	SwipeAction    *string
 	// Corner reply button (slice 157). Nil = unchanged; effective
 	// default ON (tdesktop).
-	CornerReply *bool
+	CornerReply    *bool
+	CornerReaction *bool
 	// Ayu improve link previews (slice 155). Nil = unchanged.
 	AyuImproveLinkPreviews *bool
 	// Custom fonts (slice 146): nil = unchanged; non-nil ("" = reset).
@@ -1010,6 +1011,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.SwipeAction != nil {
 		e.config.SwipeAction = *changes.SwipeAction
+	}
+	if changes.CornerReaction != nil {
+		e.config.CornerReaction = changes.CornerReaction
 	}
 	if changes.CornerReply != nil {
 		e.config.CornerReply = changes.CornerReply

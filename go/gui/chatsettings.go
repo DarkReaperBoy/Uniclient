@@ -161,6 +161,13 @@ func (a *App) layoutMessagesSection(gtx layout.Context, f frame) layout.Dimensio
 				a.applyConfigBool("corner_reply", v)
 			})
 		}),
+		// Corner reaction button (tdesktop cornerReaction, default ON,
+		// slice 159): the favorite-reaction pill on hovered bubbles.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.toggleRow(gtx, "cfg:corner_reaction", "Reaction button in the corner", f.cfg.CornerReaction, func(v bool) {
+				a.applyConfigBool("corner_reaction", v)
+			})
+		}),
 		// Quick actions (tdesktop SetupChatListQuickAction, slice 158):
 		// the swipe-able dialog-row action. Disabled is the tdesktop
 		// default; each action is state-aware per row (Mute↔Unmute…).
@@ -203,8 +210,107 @@ func (a *App) layoutMessagesSection(gtx layout.Context, f frame) layout.Dimensio
 				return flex.Layout(gtx, children...)
 			})
 		}),
+		// React with (tdesktop favorite reaction, slice 159): the emoji the
+		// corner pill toggles. Per Telegram account (server-side default
+		// via help.getConfig reactions_default, saved through
+		// messages.setDefaultReaction); 👍 is the fallback.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.layoutReactWithRow(gtx, f)
+		}),
 	)
 }
+
+// layoutReactWithRow renders the per-account favorite-reaction picker.
+func (a *App) layoutReactWithRow(gtx layout.Context, f frame) layout.Dimensions {
+	var tgAccounts []engine.AccountInfo
+	for _, acc := range f.accounts {
+		if platformOf(f, acc.ID) == "telegram" {
+			tgAccounts = append(tgAccounts, acc)
+		}
+	}
+	if len(tgAccounts) == 0 {
+		return layout.Dimensions{} // nothing reacts without a Telegram account
+	}
+	children := []layout.FlexChild{
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.settingRow(gtx, "React with", "The emoji the corner reaction button toggles (the account's default reaction)")
+		}),
+	}
+	for _, acc := range tgAccounts {
+		acc := acc
+		a.loadFavoriteReaction(acc.ID)
+		fav := favoriteReactionOrDefault(favoriteReactionFor(acc.ID))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(8), Left: unit.Dp(14), Right: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						who := accountName(acc)
+						if len(tgAccounts) == 1 {
+							who = "Default reaction"
+						}
+						lbl := a.ui.Dim(unit.Sp(11), who)
+						lbl.Color = a.ui.p.TextFaint
+						return lbl.Layout(gtx)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							choices := favoriteReactionChoices(a.availEmojis)
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Spacing: layout.Spacing(4)}.Layout(gtx, favoriteChipRow(a, gtx, acc.ID, fav, choices)...)
+						})
+					}),
+				)
+			})
+		}))
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+// favoriteChipRow builds the emoji chip widgets for one account.
+func favoriteChipRow(a *App, gtx layout.Context, accountID, fav string, choices []string) []layout.FlexChild {
+	growClickables(&reactWithBtns, len(choices))
+	var out []layout.FlexChild
+	for i, emoji := range choices {
+		i, emoji := i, emoji
+		out = append(out, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			btn := &reactWithBtns[i]
+			if btn.Clicked(gtx) {
+				a.applyFavoriteReaction(accountID, emoji)
+			}
+			b := material.Button(a.ui.Theme, btn, emoji)
+			if fav == emoji {
+				b.Background = a.ui.p.Accent
+			} else {
+				b.Background = a.ui.p.SurfaceHi
+			}
+			b.TextSize = unit.Sp(15)
+			b.CornerRadius = 14
+			b.Inset = layout.UniformInset(unit.Dp(5))
+			return b.Layout(gtx)
+		}))
+	}
+	return out
+}
+
+// favoriteReactionChoices merges the account's available reaction emojis
+// with the fallback set (deduped, 👍 first).
+func favoriteReactionChoices(avail []string) []string {
+	seen := map[string]bool{}
+	choices := []string{"👍"}
+	seen["👍"] = true
+	for _, e := range avail {
+		if !seen[e] {
+			seen[e] = true
+			choices = append(choices, e)
+		}
+	}
+	if len(choices) > 12 {
+		choices = choices[:12]
+	}
+	return choices
+}
+
+// reactWithBtns pools the picker chips.
+var reactWithBtns []widget.Clickable
 
 // submitModeChip renders one segmented option chip (material clickable).
 func (a *App) submitModeChip(gtx layout.Context, btn *widget.Clickable, label string, active bool) layout.Dimensions {
