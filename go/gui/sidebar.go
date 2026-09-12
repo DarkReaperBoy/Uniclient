@@ -178,7 +178,20 @@ func (a *App) layoutAccountBar(gtx layout.Context, f frame) func(gtx layout.Cont
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									name := accountName(current)
 									return layout.Inset{Right: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-										return a.ui.Avatar(gtx, name, unit.Dp(38), connDotFor(current))
+										// per-account unread badge on the bar avatar (AyuGram
+										// account-rail parity, slice 165)
+										unread := accountUnread(f.chats, current.ID)
+										if unread <= 0 {
+											return a.ui.Avatar(gtx, name, unit.Dp(38), connDotFor(current))
+										}
+										return layout.Stack{Alignment: layout.NE}.Layout(gtx,
+											layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+												return a.ui.Avatar(gtx, name, unit.Dp(38), connDotFor(current))
+											}),
+											layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+												return unreadBadge(gtx, a.ui, unread, false)
+											}),
+										)
 									})
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -282,6 +295,16 @@ func (a *App) accountMenu(gtx layout.Context, f frame) layout.Dimensions {
 						lbl.Color = a.ui.p.Accent
 					}
 					return menuRow(gtx, a.ui, &accountMenuBtns[i+1], lbl)
+				}),
+				// per-account unread badge (slice 165 — the switcher's
+				// per-account unread dots, drawer-row parity)
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if unread := accountUnread(f.chats, acc.ID); unread > 0 {
+						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return unreadBadge(gtx, a.ui, unread, false)
+						})
+					}
+					return layout.Dimensions{}
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					btn := a.ui.IconButton(&accountMenuRemove[i], iconActionDelete, "Remove account")

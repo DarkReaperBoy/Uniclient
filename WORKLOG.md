@@ -4098,3 +4098,17 @@ Parity: "Story viewer" PARTIAL → PRESENT (reactions/reply/share were
 the engine-gated remainder). Next candidates from the matrix:
 Alt+jumplist (keyboard row), account-bar unread dots (P1 row),
 multi-window chats, app icon selector.
+
+## 2026-09-12 — slice 165: account-switcher unread badges (bar avatar + dropdown rows)
+
+The P1 "Account switcher" row's last PARTIAL bit: per-account unread
+dots on the switcher surface itself. The bar avatar now wears the
+current account's unread badge (NE Stack overlay over the 38dp avatar,
+AyuGram account-rail parity) and every account-menu dropdown row
+carries its own trailing unreadBadge (drawer-row parity, slice 36
+idiom — accountUnread was already pure + tested). Conn dot stays at
+the avatar's bottom-right; the badge sits top-right, no overlap.
+
+Verification: GUI suite green; gofmt/vet clean; builds green.
+
+Parity: "Account switcher" PARTIAL → PRESENT.
