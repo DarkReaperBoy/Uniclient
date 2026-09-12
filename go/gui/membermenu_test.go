@@ -16,7 +16,7 @@ import (
 func memberActions(labels []chatMenuAction) []string {
 	var out []string
 	for _, a := range labels {
-		out = append(out, a.action)
+		out = append(out, a.id)
 	}
 	return out
 }
@@ -99,7 +99,7 @@ func TestMemberMenuLabels(t *testing.T) {
 	member := engine.MemberInfo{UserID: "7", Role: "member"}
 	for _, it := range memberMenuItems(member, chat, "") {
 		if it.label == "" {
-			t.Fatalf("action %q has no label", it.action)
+			t.Fatalf("action %q has no label", it.id)
 		}
 	}
 }

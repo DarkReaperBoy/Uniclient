@@ -34,7 +34,7 @@ func TestHeaderMenuItemsDM(t *testing.T) {
 		c := dmChat()
 		c.IsMuted = true
 		items := headerMenuItems(c, false, false, false)
-		if items[0].label != "Unmute" || items[0].action != "unmute" {
+		if items[0].label != "Unmute" || items[0].id != "unmute" {
 			t.Fatalf("first item = %+v", items[0])
 		}
 	})
@@ -43,10 +43,10 @@ func TestHeaderMenuItemsDM(t *testing.T) {
 		items := headerMenuItems(dmChat(), true, true, false)
 		found := false
 		for _, it := range items {
-			if it.action == "unblock" {
+			if it.id == "unblock" {
 				found = true
 			}
-			if it.action == "block" {
+			if it.id == "block" {
 				t.Fatal("block should not appear when blocked state is known")
 			}
 		}
@@ -61,7 +61,7 @@ func TestHeaderMenuItemsGroupChannel(t *testing.T) {
 	items := headerMenuItems(g, false, false, false)
 	actions := map[string]bool{}
 	for _, it := range items {
-		actions[it.action] = true
+		actions[it.id] = true
 	}
 	if actions["block"] || actions["delete"] {
 		t.Fatalf("group menu has DM-only rows: %v", actions)
@@ -85,7 +85,7 @@ func TestHeaderMenuItemsGroupChannel(t *testing.T) {
 
 func containsAction(items []chatMenuAction, action string) bool {
 	for _, it := range items {
-		if it.action == action {
+		if it.id == action {
 			return true
 		}
 	}

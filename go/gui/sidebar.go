@@ -3,10 +3,12 @@ package gui
 import (
 	"image"
 	"image/color"
+	"runtime"
 	"strings"
 	"time"
 
 	"gioui.org/font"
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -536,11 +538,20 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 		})
 	}
 
-	// Click handling.
+	// Click handling. Update (not Clicked) so the click's modifier set is
+	// available: Ctrl+click opens the chat in its own window (slice 168,
+	// tdesktop Window::IsCtrlPressed parity).
 	for i := range visible {
-		if i < len(chatListBtns) && chatListBtns[i].Clicked(gtx) {
+		if i >= len(chatListBtns) {
+			break
+		}
+		if click, ok := chatListBtns[i].Update(gtx); ok {
 			c := visible[i]
 			k := chatKey{c.AccountID, c.ChatID}
+			if click.Modifiers.Contain(key.ModCtrl) && separateWindowSupported(runtime.GOOS) {
+				a.openSeparateWindow(k, c.Title)
+				continue
+			}
 			a.mu.Lock()
 			a.folder = f.folder // keep
 			a.mu.Unlock()

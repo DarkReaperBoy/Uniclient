@@ -4221,3 +4221,48 @@ channels PRESENT. Remaining MISSING: PiP (blocked on pure-Go video
 decode), multi-window chats, app icon selector, suggestions cards —
 all P3. The program continues (next session: multi-window chats or app
 icons; withAPI backlog continues per-touch).
+
+## 2026-09-13 — slice 168: multi-window separate chat windows
+
+Recovered the prior session's uncommitted ground work (App.wid instance
+commit 6647243d had landed; app.go/lock.go/state.go carried the
+cross-window hops + lock-bus wiring uncommitted) and finished the slice:
+
+- gui/separate.go: per-chat native Gio windows (tdesktop
+  SeparateType::Chat). One window per chat INCLUDING the main window —
+  takeovers deselect everywhere else (pendingDeselect hops, each App
+  mutates only on its own GUI loop). Frames serialize on frameMu so
+  residual package-level widget state stays safe. Process-wide
+  passcode lock via a lock bus (lock/unlock + activity keepalives,
+  lockEngaged boot decision). Registry: chatKey → live window,
+  reopen = close + remap on top, sepMoveRegistry retargets on
+  in-window chat switches. Honest empty surface after a takeover.
+- Entry points (this session): chat-row context menu "Open in separate
+  window" first row (chatMenuItems gained separateSupported; the
+  chatMenuAction.action field renamed to id across foldermenu/
+  headermenu/membermenu + their tests), and Ctrl+click on a chat row —
+  sidebar rows consume widget.Clickable.Update so the click's modifier
+  set is readable (IsCtrlPressed semantics; no stale key-tracking
+  state).
+- deselectIfShowing: the caller's own window deselects the chat it is
+  handing over (was missing — shouldDeselectMainForSeparate had no
+  production caller).
+- cmd/uniclient/main.go: main-window DestroyEvent closes every
+  separate window and waits for their loops before engine teardown.
+- Platform gate: linux + windows only; js/wasm and Android hide the
+  entry points (Gio exposes one window there — honest absence, §1.10).
+
+Tests: separate_test.go (platform gate, menu row first+absent,
+one-window-per-chat decision, app mode, title rule) + updated
+chatmenu/headermenu/membermenu/foldermenu suites for the id rename.
+
+Verification: linux build green (GOGC=20 -p1 all=-c=1); gofmt/vet
+clean; full repo test suite green; windows + wasm cross-builds
+dispatched to the verify workflow (local disk filled mid-cross-build —
+/tmp build dirs cleaned; the CI run is the sanctioned path on this
+machine, AGENTS.md §5).
+
+Parity: "Multi-window chats" MISSING → PRESENT. Remaining MISSING: PiP
+(blocked on pure-Go video decode), app icon selector, suggestions
+cards, hide sponsored/similar toggle (now real — blocks render since
+slices 163/167), dice/games, message-shot renderer (P3s).

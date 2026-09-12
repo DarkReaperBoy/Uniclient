@@ -183,7 +183,7 @@ func (a *App) layoutMemberMenu(gtx layout.Context, f frame) layout.Dimensions {
 					btn := &a.wid.memberMenuBtns[i]
 					if btn.Clicked(gtx) {
 						st := *m
-						a.dispatchMemberMenu(&st, items[i].action)
+						a.dispatchMemberMenu(&st, items[i].id)
 					}
 					gtx.Constraints.Min.Y = rowH
 					return memberMenuRow(gtx, a, btn, items[i], rowH)
@@ -207,7 +207,7 @@ func memberMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item chatM
 	return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(9)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			lbl := a.ui.Label(unit.Sp(14), item.label)
-			switch item.action {
+			switch item.id {
 			case "ban", "remove":
 				lbl.Color = a.ui.p.Error
 			default:

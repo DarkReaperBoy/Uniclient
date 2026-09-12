@@ -165,7 +165,7 @@ func (a *App) layoutFolderMenu(gtx layout.Context, f frame) layout.Dimensions {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				btn := &folderMenuBtns[i]
 				if btn.Clicked(gtx) {
-					action := items[i].action
+					action := items[i].id
 					a.closeFolderMenu()
 					a.dispatchFolderMenuAction(f, m, action)
 				}

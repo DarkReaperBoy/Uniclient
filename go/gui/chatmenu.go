@@ -2,6 +2,7 @@ package gui
 
 import (
 	"image"
+	"runtime"
 
 	"gioui.org/io/event"
 	"gioui.org/io/pointer"
@@ -31,15 +32,21 @@ type chatMenuTarget struct {
 	folderPick bool
 }
 
-// chatMenuAction is one menu row: a label plus the engine action id.
+// chatMenuAction is one menu row: a label plus the row id (the engine
+// action, or "separate" for the multi-window row).
 type chatMenuAction struct {
-	label  string
-	action string
+	label string
+	id    string
 }
 
 // chatMenuItems derives the action rows for a chat (flags decide labels).
-func chatMenuItems(c engine.ChatInfo) []chatMenuAction {
+// separateSupported prepends the multi-window row (slice 168, tdesktop
+// Filler::addNewWindow) on platforms that can host extra windows.
+func chatMenuItems(c engine.ChatInfo, separateSupported bool) []chatMenuAction {
 	var items []chatMenuAction
+	if separateSupported {
+		items = append(items, chatMenuAction{"Open in separate window", "separate"})
+	}
 	if c.IsMuted {
 		items = append(items, chatMenuAction{"Unmute", "unmute"})
 	} else {
@@ -204,7 +211,7 @@ func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 	// so the row only appears when the chat belongs to that account.
 	folders := foldersForAccount(f, m.AccountID)
 	hasFolders := f.foldersSupported && len(folders) > 0
-	items := chatMenuItems(m)
+	items := chatMenuItems(m, separateWindowSupported(runtime.GOOS))
 	if hasFolders {
 		items = append(items, chatMenuAction{"Add to folder", "addfolder"})
 	}
@@ -239,8 +246,13 @@ func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				btn := &a.wid.chatMenuBtns[i]
 				if btn.Clicked(gtx) {
-					chat, action := m, items[i].action
-					if action == "addfolder" {
+					chat, action := m, items[i].id
+					if action == "separate" {
+						// Slice 168: open the chat in its own
+						// window (tdesktop Filler::addNewWindow).
+						a.closeChatMenu()
+						a.openSeparateWindow(chatKey{chat.AccountID, chat.ChatID}, chat.Title)
+					} else if action == "addfolder" {
 						a.openChatFolderPick(chat)
 					} else {
 						a.closeChatMenu()

@@ -337,6 +337,7 @@ func lockKeyInput(a *App, st *lockState, ke key.Event, now time.Time) {
 	case key.NameEnter, key.NameReturn:
 		if lockTryAttempt(st, now) {
 			a.setToast("Unlocked")
+			a.broadcastLockState(false) // unlock everywhere (slice 168)
 		}
 		a.invalidate()
 	default:
@@ -372,6 +373,7 @@ func (a *App) layoutLockScreen(gtx layout.Context, f frame) layout.Dimensions {
 	if !frozen && len(st.input) == st.digits {
 		if lockTryAttempt(st, now) {
 			a.setToast("Unlocked")
+			a.broadcastLockState(false) // unlock everywhere (slice 168)
 			a.invalidate()
 			return layout.Dimensions{Size: gtx.Constraints.Max}
 		}
@@ -462,6 +464,9 @@ func (a *App) lockActivityLayer(gtx layout.Context, f frame) {
 	}
 	if active {
 		f.lock.lastActive = time.Now()
+		// Cross-window keepalive (slice 168): activity in ANY window
+		// resets every window's autolock idle timer.
+		lockBroadcastAll(false, true)
 	}
 }
 
@@ -471,6 +476,36 @@ func (a *App) lockTick(f frame) {
 		f.lock.locked = true
 		f.lock.input = ""
 		f.lock.wrong = false
+		// Process-wide lock (slice 168): every window locks.
+		a.broadcastLockState(true)
 		a.invalidate()
 	}
+}
+
+// broadcastLockState pushes this window's lock flip to every other window
+// (hop-based: the receiving loops apply pendingLock on their next frame).
+func (a *App) broadcastLockState(locked bool) {
+	if a.lock == nil {
+		return
+	}
+	lockBroadcastAll(locked, false)
+}
+
+// onLockBroadcast applies bus notifications on the broadcaster's loop —
+// it must ONLY queue hops on this App, never mutate it directly (its own
+// GUI loop may be mid-frame under frameMu on another goroutine).
+func (a *App) onLockBroadcast(locked, activity bool) {
+	if activity {
+		a.mu.Lock()
+		if a.lock != nil && !a.lock.locked {
+			a.lock.lastActive = time.Now()
+		}
+		a.mu.Unlock()
+		return
+	}
+	v := locked
+	a.mu.Lock()
+	a.pendingLock = &v
+	a.mu.Unlock()
+	a.invalidate()
 }

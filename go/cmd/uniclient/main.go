@@ -71,6 +71,11 @@ func run(w *app.Window, dir, password string) error {
 		ui.ListenEvents(e)
 		switch e := e.(type) {
 		case app.DestroyEvent:
+			// Multi-window chats (slice 168): closing the main window quits
+			// the app — close every separate window and wait for their loops
+			// to exit before the engine tears down (no live frames race the
+			// shutdown).
+			gui.CloseSeparateWindowsAndWait()
 			return e.Err
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)

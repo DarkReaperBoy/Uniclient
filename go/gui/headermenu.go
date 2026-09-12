@@ -295,7 +295,7 @@ func (a *App) layoutHeaderMenu(gtx layout.Context, f frame) layout.Dimensions {
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					btn := &a.wid.headerMenuBtns[i]
 					if btn.Clicked(gtx) {
-						a.dispatchHeaderMenu(m.chat, items[i].action)
+						a.dispatchHeaderMenu(m.chat, items[i].id)
 					}
 					return headerMenuRow(gtx, a, btn, items[i], rowH)
 				}))
@@ -325,7 +325,7 @@ func headerMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item chatM
 	return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(9)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			lbl := a.ui.Label(unit.Sp(14), item.label)
-			switch item.action {
+			switch item.id {
 			case "clear", "leave", "delete", "block":
 				lbl.Color = a.ui.p.Error
 			default:

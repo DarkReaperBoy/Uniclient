@@ -16,21 +16,21 @@ func TestFolderMenuItems(t *testing.T) {
 	}
 	want := []string{"edit", "moveleft", "moveright", "invites", "exportf", "importf", "delete"}
 	for i, w := range want {
-		if both[i].action != w {
-			t.Errorf("row %d = %s, want %s", i, both[i].action, w)
+		if both[i].id != w {
+			t.Errorf("row %d = %s, want %s", i, both[i].id, w)
 		}
 	}
 
 	leftOnly := folderMenuItems(true, false)
-	if len(leftOnly) != 6 || leftOnly[1].action != "moveleft" || leftOnly[2].action != "invites" {
+	if len(leftOnly) != 6 || leftOnly[1].id != "moveleft" || leftOnly[2].id != "invites" {
 		t.Fatalf("left-only = %+v", leftOnly)
 	}
 	rightOnly := folderMenuItems(false, true)
-	if len(rightOnly) != 6 || rightOnly[1].action != "moveright" {
+	if len(rightOnly) != 6 || rightOnly[1].id != "moveright" {
 		t.Fatalf("right-only = %+v", rightOnly)
 	}
 	none := folderMenuItems(false, false)
-	if len(none) != 5 || none[0].action != "edit" || none[1].action != "invites" || none[4].action != "delete" {
+	if len(none) != 5 || none[0].id != "edit" || none[1].id != "invites" || none[4].id != "delete" {
 		t.Fatalf("no-move = %+v", none)
 	}
 }

@@ -34,6 +34,21 @@ type App struct {
 	// multi-window chats — each window owns its widgets).
 	wid widgets
 
+	// separate: non-nil in a separate chat window (slice 168) — the chat
+	// this window renders. Main-window-only surfaces never draw there.
+	separate *chatKey
+
+	// cross-window hops (applied on this App's own GUI loop):
+	// pendingDeselect deselects a chat taken over by another window;
+	// pendingLock applies the shared passcode state.
+	pendingDeselect *chatKey
+	pendingLock     *bool
+
+	// engine event subscription (multi-window fan-out, slice 168) and the
+	// lock-bus unsubscribe.
+	sepSub    *engine.EventSubscription
+	lockUnsub func()
+
 	mu sync.Mutex // guards everything below
 
 	// world state
@@ -517,6 +532,16 @@ func New(win *app.Window, eng *engine.Engine) *App {
 // Start boots the app: initial data pull + event subscription + reconnect.
 func (a *App) Start() {
 	eng := a.eng
+	// Register for engine events (multi-window fan-out; SetEventCallback
+	// would replace every subscriber).
+	a.sepSub = eng.Subscribe(func(data []byte) { a.onEvent(data) })
+	// Lock bus (slice 168): the passcode state is process-wide.
+	a.lockUnsub = lockBroadcastShare(a.onLockBroadcast)
+	if !a.isSeparate() {
+		sepMu.Lock()
+		mainRef = a
+		sepMu.Unlock()
+	}
 	// Apply the persisted theme before the first frame renders (the frame
 	// loop has not started yet — single-threaded at this point).
 	if cfg := eng.GetConfig(); cfg != nil {
@@ -542,15 +567,28 @@ func (a *App) Start() {
 		a.transTarget = normalizeTransTarget(cfg.TranslateTarget)
 	}
 	// Local passcode (slice 87): boot LOCKED when the vault has one — the
-	// lock screen renders before any chat content.
+	// lock screen renders before any chat content. Separate windows (slice
+	// 168) honor the SHARED state instead: a fresh window boots unlocked
+	// while the app is unlocked (the bus keeps it in step afterwards).
 	if data, err := eng.GetPasscodeConfig(); err != nil {
 		a.setToast("Passcode: " + err.Error())
 	} else if st := lockFromConfig(data); st != nil {
-		st.lastActive = time.Now()
-		a.lock = st
+		if !a.isSeparate() {
+			lockEngaged.Store(true)
+			st.lastActive = time.Now()
+			a.lock = st
+		} else if lockEngaged.Load() {
+			st.lastActive = time.Now()
+			a.lock = st
+		}
 	}
-	eng.SetEventCallback(func(data []byte) { a.onEvent(data) })
-	a.startTrayIfNeeded() // slice 137: tray icon (config-gated)
+	if a.isSeparate() {
+		// Separate windows ride the main window's connections: no tray, no
+		// account (re)connect, no second DBus notification server.
+		go a.refreshAccounts()
+		go a.refreshChats()
+		return
+	}
 	go a.refreshAccounts()
 	go a.refreshChats()
 	go eng.ConnectAllAccounts()
@@ -559,6 +597,12 @@ func (a *App) Start() {
 // Shutdown releases app-owned background resources (the tray icon).
 // Called from the window event loop's exit path (DestroyEvent).
 func (a *App) Shutdown() {
+	if a.lockUnsub != nil {
+		a.lockUnsub()
+	}
+	if a.isSeparate() {
+		return // tray + taskbar are main-window-owned singletons
+	}
 	a.stopTray()
 	stopTaskbar() // release the Windows overlay COM reference (slice 153)
 }
@@ -570,8 +614,9 @@ func (a *App) ListenEvents(evt event.Event) {
 		a.expl.ListenEvents(evt)
 	}
 	// Windows taskbar overlay badge (slice 153): capture the native
-	// window handle when the view event carries one.
-	if ev, ok := evt.(app.ViewEvent); ok {
+	// window handle when the view event carries one. Main window only —
+	// the badge is a singleton and separate windows must not hijack it.
+	if ev, ok := evt.(app.ViewEvent); ok && !a.isSeparate() {
 		taskbarSetWindow(ev)
 	}
 }
@@ -1131,6 +1176,18 @@ func (a *App) openChat(k chatKey, title string) {
 		}
 	}
 	a.mu.Unlock()
+	// Separate window (slice 168): retarget this window — title follows
+	// the chat, the registry entry moves, and any other window currently
+	// showing k deselects (one window per chat).
+	if a.isSeparate() {
+		oldK := chatKey{}
+		if prev != nil {
+			oldK = *prev
+		}
+		a.sepMoveRegistry(oldK, k)
+		a.win.Option(app.Title(separateWindowTitle(title)))
+		a.queueDeselectElsewhere(k)
+	}
 	if prev != nil && (prev.AccountID != k.AccountID || prev.ChatID != k.ChatID) {
 		a.flushDraft(*prev)
 	}

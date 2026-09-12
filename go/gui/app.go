@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"gioui.org/app"
@@ -17,17 +18,55 @@ import (
 	"gioui.org/widget"
 )
 
+// frameMu serializes the frame loops of all live windows (slice 168): each
+// window's Root runs under it, so residual package-level state (lottie
+// players, art caches, static tables) is never touched by two frames at
+// once. Per-window state lives on each App (a.wid).
+var frameMu sync.Mutex
+
 // Root renders the whole app: welcome screen (no accounts + no auth flow),
 // or main layout (sidebar + chat view / voice view), plus toast overlay.
 func (a *App) Root(gtx layout.Context) {
+	frameMu.Lock()
+	defer frameMu.Unlock()
+
 	// GUI-goroutine hop: a background goroutine scheduled a chat to open
 	// (e.g. after group/channel creation). openChat must run on this loop.
 	a.consumePendingOpen()
+	// Cross-window hops (slice 168): takeovers + the shared passcode state.
+	a.consumeCrossWindowHops()
 	// Clipboard hop (slice 34): background goroutines queue text to copy.
 	a.flushClipboard(gtx)
 
 	f := a.snapshot()
 	a.ui.paintBackground(gtx)
+
+	// Separate chat window (slice 168): the chat surface + its overlays
+	// only — no sidebar, drawer, settings or voice tab ever renders here.
+	if a.isSeparate() {
+		if f.lock != nil && f.lock.locked {
+			a.layoutLockScreen(gtx, f)
+			return
+		}
+		if len(f.accounts) == 0 && f.auth == nil {
+			a.layoutSeparateEmpty(gtx)
+			a.layoutToast(gtx, f)
+			return
+		}
+		a.separateChatView(gtx, f)
+		if f.viewer != nil {
+			a.layoutMediaView(gtx, f)
+		}
+		if f.storyView != nil {
+			a.layoutStoryViewer(gtx, f)
+		}
+		if f.call != nil {
+			a.layoutCallOverlay(gtx, f)
+		}
+		a.layoutToast(gtx, f)
+		a.layoutShortcuts(gtx, f)
+		return
+	}
 
 	// Local passcode gate (slice 87): locked → ONLY the lock screen
 	// renders (no chat content is drawn while locked). Unlocked → the
