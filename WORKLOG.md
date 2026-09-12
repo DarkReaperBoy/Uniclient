@@ -3527,3 +3527,39 @@ AddCreateCallButton context, group-calls slide-wrap).
   Xvfb boot smoke green (window renders, dark palette + accent pixels).
 
 Parity: Voice tab / call list PARTIAL→PRESENT (calls box landed).
+
+## 2026-09-12 — slice 155: Chat settings Messages section + Ayu improve link previews
+
+- tdesktop Messages section (settings_chat.cpp, lng_settings_send_enter):
+  'Send message with' — Enter (default, InputSubmitSettings::Enter) or
+  Ctrl+Enter. Appearance page carries the segmented picker; the mode
+  persists as AppConfig.ComposerSubmit through ConfigChanges. In
+  ctrl-enter mode the gio editor Submit is disabled (Enter inserts a
+  newline) and a focus-gated Ctrl+Enter key layer (Return + Enter
+  filters, keyLayer pattern) submits — active in both modes, matching
+  tdesktop where Ctrl+Enter always submits.
+- Composer send paths unified: trySubmitComposer (length limit,
+  slow-mode gate, in-flight guard) now backs SubmitEvent, the send
+  button, and Ctrl+Enter. No behavior change in the default mode.
+- Ayu 'Improve link previews' (ayu settings_general.cpp +
+  telegram_helpers getBetterLinkPreview): outgoing http(s) links of
+  twitter/x (fixupx.com), tiktok incl. subdomains (kktiktok.com),
+  reddit (vxreddit.com), instagram (kkclip.com), pixiv (phixiv.net)
+  are rewritten host-only — path/query survive; applied in sendText
+  after markdown composition, config-gated; toggle in the Ayu · General
+  section.
+- Skipped after research: 'Quick action on new message' (tdesktop's is
+  a dialog-row SWIPE gesture — SwipeContextData/Lottie reveal; needs
+  the row-gesture layer, tracked as follow-up) and the corner
+  reply/reaction buttons (replyButtonManager floating-corner work).
+  No dead UI shipped (§1.10).
+- Tests-first: submit-mode mapping, host table (case-insensitivity,
+  tiktok subdomain suffix rule, non-matches incl. api.twitter.com and
+  old.reddit.com), URL rewrite with path/query survival, untouched
+  text, config dispatch key, label rendering.
+- Gate: gofmt/vet/test green (goolm); windows + wasm cross-builds
+  green.
+
+Parity: Chat settings PARTIAL (Messages section landed; swipe quick
+action + corner buttons remain); Ayu preferences PARTIAL (General
+section landed).
