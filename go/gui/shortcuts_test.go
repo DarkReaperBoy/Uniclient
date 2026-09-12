@@ -129,7 +129,7 @@ func TestChatSwitchAction(t *testing.T) {
 		{key.NameLeftArrow, true, 0},
 	}
 	for _, c := range cases {
-		if got := chatSwitchAction(c.name, c.ctrl); got != c.want {
+		if got := chatSwitchAction(c.name, c.ctrl, false); got != c.want {
 			t.Errorf("chatSwitchAction(%q,%v) = %d, want %d", c.name, c.ctrl, got, c.want)
 		}
 	}
@@ -170,5 +170,111 @@ func TestNeighborChat(t *testing.T) {
 	}
 	if _, ok := neighborChat(chats[:1], &chatKey{AccountID: "a", ChatID: "1"}, 1); ok {
 		t.Error("single-chat list has no neighbor")
+	}
+}
+
+// ── slice 166: the tdesktop jumplist family ───────────────────────────────
+
+func TestChatSwitchActionAltArrows(t *testing.T) {
+	// Alt+Up/Down switch chats too (tdesktop ChatNext/ChatPrevious).
+	cases := []struct {
+		name key.Name
+		ctrl bool
+		alt  bool
+		want int
+	}{
+		{key.NameUpArrow, false, true, -1},
+		{key.NameDownArrow, false, true, 1},
+		{key.NameUpArrow, false, false, 0},
+		{key.NameDownArrow, false, false, 0},
+		{key.NamePageUp, false, true, 0}, // Alt+PgUp is not a tdesktop binding
+		{key.NameLeftArrow, false, true, 0},
+	}
+	for _, c := range cases {
+		if got := chatSwitchAction(c.name, c.ctrl, c.alt); got != c.want {
+			t.Errorf("chatSwitchAction(%q,%v,%v) = %d, want %d", c.name, c.ctrl, c.alt, got, c.want)
+		}
+	}
+}
+
+func TestJumplistDigit(t *testing.T) {
+	cases := []struct {
+		name key.Name
+		ctrl bool
+		want int
+	}{
+		{"1", true, 1},
+		{"8", true, 8},
+		{"9", true, 9},  // ShowArchive
+		{"0", true, 10}, // ChatSelf (Saved Messages)
+		{"1", false, 0},
+		{"9", false, 0},
+		{"A", true, 0},
+	}
+	for _, c := range cases {
+		if got := jumplistDigit(c.name, c.ctrl); got != c.want {
+			t.Errorf("jumplistDigit(%q,%v) = %d, want %d", c.name, c.ctrl, got, c.want)
+		}
+	}
+}
+
+func TestPinnedJumpChat(t *testing.T) {
+	// The visible list is pinned-first; ChatPinned1..8 jump into that
+	// pinned prefix.
+	chats := []engine.ChatInfo{
+		{ChatID: "p1", IsPinned: true},
+		{ChatID: "p2", IsPinned: true},
+		{ChatID: "p3", IsPinned: true},
+		{ChatID: "a", IsPinned: false},
+		{ChatID: "b", IsPinned: false},
+	}
+	if c, ok := pinnedJumpChat(chats, 1); !ok || c.ChatID != "p1" {
+		t.Errorf("pinned 1 = %v,%v", c.ChatID, ok)
+	}
+	if c, ok := pinnedJumpChat(chats, 3); !ok || c.ChatID != "p3" {
+		t.Errorf("pinned 3 = %v,%v", c.ChatID, ok)
+	}
+	if _, ok := pinnedJumpChat(chats, 4); ok {
+		t.Error("pinned 4 must not resolve (only 3 pinned)")
+	}
+	if _, ok := pinnedJumpChat(chats, 0); ok {
+		t.Error("index 0 must not resolve")
+	}
+}
+
+func TestChatEdgeAction(t *testing.T) {
+	// Ctrl+Alt+Home/End = ChatFirst/ChatLast (1 = first, 2 = last).
+	cases := []struct {
+		name key.Name
+		ctrl bool
+		alt  bool
+		want int
+	}{
+		{key.NameHome, true, true, 1},
+		{key.NameEnd, true, true, 2},
+		{key.NameHome, true, false, 0},
+		{key.NameHome, false, true, 0},
+		{key.NameEnd, true, false, 0},
+	}
+	for _, c := range cases {
+		if got := chatEdgeAction(c.name, c.ctrl, c.alt); got != c.want {
+			t.Errorf("chatEdgeAction(%q,%v,%v) = %d, want %d", c.name, c.ctrl, c.alt, got, c.want)
+		}
+	}
+}
+
+func TestJumplistSpecialKeys(t *testing.T) {
+	// Ctrl+J = ShowContacts, Ctrl+R = ReadChat (plain bool predicates).
+	if !showContactsKey("J", true) {
+		t.Error("Ctrl+J must trigger contacts")
+	}
+	if showContactsKey("J", false) || showContactsKey("K", true) {
+		t.Error("only Ctrl+J triggers contacts")
+	}
+	if !readChatKey("R", true) {
+		t.Error("Ctrl+R must trigger read")
+	}
+	if readChatKey("R", false) || readChatKey("T", true) {
+		t.Error("only Ctrl+R triggers read")
 	}
 }

@@ -4112,3 +4112,30 @@ the avatar's bottom-right; the badge sits top-right, no overlap.
 Verification: GUI suite green; gofmt/vet clean; builds green.
 
 Parity: "Account switcher" PARTIAL → PRESENT.
+
+## 2026-09-12 — slice 166: the tdesktop jumplist shortcut family
+
+Research (primary source: tdesktop core/shortcuts.cpp defaults — the
+worklog's "Alt+jumplist" note resolved to the real bindings):
+Ctrl+1..8 = ChatPinned1..8 (jump to the Nth pinned chat), Ctrl+9 =
+ShowArchive, Ctrl+0 = ChatSelf, Ctrl+J = ShowContacts, Ctrl+R =
+ReadChat, Alt+Up/Down = ChatNext/ChatPrevious, Ctrl+Alt+Home/End =
+ChatFirst/ChatLast.
+
+Implementation (tests first — 6 new/extended suites): the global key
+layer's Ctrl catch-all now routes the family: jumplistDigit maps the
+digits (1..8 pinned, 9 archive, 10 self); pinnedJumpChat walks the
+pinned prefix of the visible list; chatEdgeAction handles
+Ctrl+Alt+Home/End; showContactsKey/readChatKey gate Ctrl+J/Ctrl+R;
+chatSwitchAction grew the alt parameter (Alt+↑/↓ ride the same
+handleChatSwitch). Handlers: handleJumplistDigit (archive view flip /
+openSavedMessages with the open-chat account fallback /
+pinned-chat openChat), handleChatEdge, handleReadChat
+(engine.MarkChatRead, fire-and-forget).
+
+Verification: full repo tests green; gofmt/vet clean; Xvfb smoke not
+re-run for this GUI-only key-layer change (build + suite cover it;
+the layer is the same mechanism as slices 43/147, both smoke-verified).
+
+Parity: "Keyboard shortcuts" PARTIAL → PRESENT (Alt+jumplist was the
+noted remainder).

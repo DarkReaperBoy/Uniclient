@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"log"
+
 	"gioui.org/io/key"
 	"gioui.org/layout"
 
@@ -84,17 +86,88 @@ func escTarget(f frame) string {
 
 // chatSwitchAction maps a ctrl-modified key press to a chat-list step
 // (+1 next, -1 previous, 0 none). Pure — unit-tested.
-func chatSwitchAction(name key.Name, ctrl bool) int {
+// chatSwitchAction: Ctrl+Up/Down/PgUp/PgDn and Alt+Up/Down (tdesktop
+// ChatNext/ChatPrevious bindings) step through the chat list.
+func chatSwitchAction(name key.Name, ctrl, alt bool) int {
+	if ctrl {
+		switch name {
+		case key.NameUpArrow, key.NamePageUp:
+			return -1
+		case key.NameDownArrow, key.NamePageDown:
+			return 1
+		}
+		return 0
+	}
+	if alt {
+		switch name {
+		case key.NameUpArrow:
+			return -1
+		case key.NameDownArrow:
+			return 1
+		}
+	}
+	return 0
+}
+
+// jumplistDigit maps the tdesktop Ctrl+digit family: 1..8 = jump to the
+// Nth pinned chat (ChatPinned1..8), 9 = ShowArchive, 10 = ChatSelf
+// (Saved Messages); 0 = not a jumplist key.
+func jumplistDigit(name key.Name, ctrl bool) int {
 	if !ctrl {
 		return 0
 	}
+	if len(name) != 1 || name[0] < '0' || name[0] > '9' {
+		return 0
+	}
+	d := int(name[0] - '0')
+	if d == 0 {
+		return 10 // ChatSelf
+	}
+	return d
+}
+
+// pinnedJumpChat resolves the Nth pinned chat of the visible list (the
+// list is pinned-first, so this walks the pinned prefix).
+func pinnedJumpChat(chats []engine.ChatInfo, n int) (engine.ChatInfo, bool) {
+	if n <= 0 {
+		return engine.ChatInfo{}, false
+	}
+	seen := 0
+	for _, c := range chats {
+		if !c.IsPinned {
+			continue
+		}
+		seen++
+		if seen == n {
+			return c, true
+		}
+	}
+	return engine.ChatInfo{}, false
+}
+
+// chatEdgeAction: Ctrl+Alt+Home = ChatFirst (1), Ctrl+Alt+End =
+// ChatLast (2).
+func chatEdgeAction(name key.Name, ctrl, alt bool) int {
+	if !ctrl || !alt {
+		return 0
+	}
 	switch name {
-	case key.NameUpArrow, key.NamePageUp:
-		return -1
-	case key.NameDownArrow, key.NamePageDown:
+	case key.NameHome:
 		return 1
+	case key.NameEnd:
+		return 2
 	}
 	return 0
+}
+
+// showContactsKey: Ctrl+J = ShowContacts.
+func showContactsKey(name key.Name, ctrl bool) bool {
+	return ctrl && name == "J"
+}
+
+// readChatKey: Ctrl+R = ReadChat (mark the open chat read).
+func readChatKey(name key.Name, ctrl bool) bool {
+	return ctrl && name == "R"
 }
 
 // accountScopeCycle steps the account scope through "" (all chats) and
@@ -212,7 +285,43 @@ func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 		if !is || ke.State != key.Press {
 			continue
 		}
-		if step := chatSwitchAction(ke.Name, ke.Modifiers.Contain(key.ModCtrl)); step != 0 {
+		ctrl := ke.Modifiers.Contain(key.ModCtrl)
+		alt := ke.Modifiers.Contain(key.ModAlt)
+		if step := chatSwitchAction(ke.Name, ctrl, alt); step != 0 {
+			a.handleChatSwitch(f, step)
+			continue
+		}
+		// Slice 166: the tdesktop jumplist family.
+		if edge := chatEdgeAction(ke.Name, ctrl, alt); edge != 0 {
+			a.handleChatEdge(f, edge)
+			continue
+		}
+		if n := jumplistDigit(ke.Name, ctrl); n != 0 {
+			a.handleJumplistDigit(f, n)
+			continue
+		}
+		if showContactsKey(ke.Name, ctrl) {
+			if acc := currentAccount(f); acc.ID != "" {
+				a.openContacts(acc.ID)
+			}
+			continue
+		}
+		if readChatKey(ke.Name, ctrl) {
+			a.handleReadChat(f)
+			continue
+		}
+	}
+	// Alt+Up/Down (tdesktop ChatNext/ChatPrevious) ride the same switch.
+	for {
+		ev, ok := gtx.Source.Event(key.Filter{Required: key.ModAlt})
+		if !ok {
+			break
+		}
+		ke, is := ev.(key.Event)
+		if !is || ke.State != key.Press {
+			continue
+		}
+		if step := chatSwitchAction(ke.Name, false, true); step != 0 {
 			a.handleChatSwitch(f, step)
 		}
 	}
@@ -278,4 +387,60 @@ func (a *App) handleChatSwitch(f frame, step int) {
 		return
 	}
 	a.openChat(chatKey{AccountID: c.AccountID, ChatID: c.ChatID}, c.Title)
+}
+
+// handleChatEdge jumps to the first (which=1) or last (which=2) chat of
+// the visible list (tdesktop ChatFirst/ChatLast, Ctrl+Alt+Home/End).
+func (a *App) handleChatEdge(f frame, which int) {
+	visible := filterChats(f)
+	if len(visible) == 0 {
+		return
+	}
+	c := visible[0]
+	if which == 2 {
+		c = visible[len(visible)-1]
+	}
+	a.openChat(chatKey{AccountID: c.AccountID, ChatID: c.ChatID}, c.Title)
+}
+
+// handleJumplistDigit: Ctrl+1..8 jump to the Nth pinned chat
+// (ChatPinned1..8); Ctrl+9 opens the archive view (ShowArchive); Ctrl+0
+// opens Saved Messages (ChatSelf).
+func (a *App) handleJumplistDigit(f frame, n int) {
+	switch {
+	case n == 9: // ShowArchive
+		a.mu.Lock()
+		a.archiveView = true
+		a.mu.Unlock()
+		a.invalidate()
+	case n == 10: // ChatSelf → Saved Messages
+		accID := ""
+		if sel := f.selected; sel != nil {
+			accID = sel.AccountID
+		} else if len(f.savedMsgAccts) > 0 {
+			accID = f.savedMsgAccts[0]
+		} else if acc := currentAccount(f); acc.ID != "" {
+			accID = acc.ID
+		}
+		if accID != "" {
+			a.openSavedMessages(accID)
+		}
+	default: // ChatPinned1..8
+		if c, ok := pinnedJumpChat(filterChats(f), n); ok {
+			a.openChat(chatKey{AccountID: c.AccountID, ChatID: c.ChatID}, c.Title)
+		}
+	}
+}
+
+// handleReadChat marks the open chat read (tdesktop ReadChat, Ctrl+R).
+func (a *App) handleReadChat(f frame) {
+	if f.selected == nil {
+		return
+	}
+	acc, chat := f.selected.AccountID, f.selected.ChatID
+	go func() {
+		if err := a.eng.MarkChatRead(acc, chat, ""); err != nil {
+			log.Printf("gui: read chat shortcut: %v", err)
+		}
+	}()
 }
