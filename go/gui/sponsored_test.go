@@ -98,3 +98,23 @@ func TestSponsoredViewOnce(t *testing.T) {
 		t.Fatal("a different ad must still report")
 	}
 }
+
+func TestAppendSimilarRow(t *testing.T) {
+	// Slice 167: the similar-channels block appends after the sponsored
+	// block for broadcast channels only.
+	chan1 := &engine.ChatInfo{Type: engine.ChatTypeChanVal}
+	base := []chatRow{{msgIdx: 0}}
+	if got := appendSimilarRow(append([]chatRow{}, base...), chan1, "", 3); len(got) != len(base)+1 || !got[len(got)-1].simBlock {
+		t.Fatalf("channel with similar rows = %v", got)
+	}
+	if got := appendSimilarRow(append([]chatRow{}, base...), chan1, "", 0); len(got) != len(base) {
+		t.Fatal("no recommendations must not append")
+	}
+	bot := &engine.ChatInfo{Type: engine.ChatTypeDMVal, IsBot: true}
+	if got := appendSimilarRow(append([]chatRow{}, base...), bot, "", 3); len(got) != len(base) {
+		t.Fatal("non-channel must not append")
+	}
+	if got := appendSimilarRow(append([]chatRow{}, base...), chan1, "12", 3); len(got) != len(base) {
+		t.Fatal("topic view must not append")
+	}
+}

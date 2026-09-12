@@ -50,12 +50,13 @@ func unreadSepIndex(n, unread int) int {
 // indices), or a sponsored row (spHead caption / spIdx 1-based ad index,
 // slice 163 — appended after all message rows).
 type chatRow struct {
-	day    string
-	msgIdx int // -1 for dividers/separator
-	unread bool
-	album  []int // nil unless an album row (indices into messages)
-	spHead bool  // the "Sponsored" caption row
-	spIdx  int   // 0 = not sponsored; N = sponsored item N-1
+	day      string
+	msgIdx   int // -1 for dividers/separator
+	unread   bool
+	album    []int // nil unless an album row (indices into messages)
+	spHead   bool  // the "Sponsored" caption row
+	spIdx    int   // 0 = not sponsored; N = sponsored item N-1
+	simBlock bool  // the similar-channels block (slice 167)
 }
 
 // buildChatRows builds the messageList row model: day dividers + messages,

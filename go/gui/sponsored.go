@@ -71,6 +71,15 @@ func appendSponsoredRows(rows []chatRow, chat *engine.ChatInfo, forumTopic strin
 	return rows
 }
 
+// appendSimilarRow appends the similar-channels block row (slice 167)
+// after the sponsored block — the broadcast-channel footer surface.
+func appendSimilarRow(rows []chatRow, chat *engine.ChatInfo, forumTopic string, similar int) []chatRow {
+	if chat == nil || chat.Type != engine.ChatTypeChanVal || forumTopic != "" || similar <= 0 {
+		return rows
+	}
+	return append(rows, chatRow{msgIdx: -1, simBlock: true})
+}
+
 // sponsoredEligible: sponsored messages surface in broadcast channels
 // (below the last post) and bot chats (top bar) — the wire contract's
 // two placements.

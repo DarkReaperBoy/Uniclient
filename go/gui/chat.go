@@ -565,6 +565,7 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	// anchored to its boundary message, then the sponsored block below the
 	// last post of broadcast channels (slice 163).
 	rows := appendSponsoredRows(buildChatRows(f.messages, f.unreadSepMsgID), chat, f.forumTopic, f.sponsored)
+	rows = appendSimilarRow(rows, chat, f.forumTopic, len(f.similar))
 
 	if f.loadingMsgs {
 		// loading indicator at top
@@ -608,6 +609,8 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			d = a.sponsoredHeaderRow(gtx, f)
 		case r.spIdx > 0:
 			d = a.sponsoredAdRow(gtx, f, r.spIdx)
+		case r.simBlock:
+			d = a.layoutSimilarBlock(gtx, f)
 		case r.album != nil:
 			d = a.albumRow(gtx, f, f.messages, r.album)
 		default:

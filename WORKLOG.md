@@ -4139,3 +4139,36 @@ the layer is the same mechanism as slices 43/147, both smoke-verified).
 
 Parity: "Keyboard shortcuts" PARTIAL → PRESENT (Alt+jumplist was the
 noted remainder).
+
+## 2026-09-12 — slice 167: similar-channels block (broadcast channel footer)
+
+The last CORE-ONLY→renderable surface of the matrix's channel footer:
+channels.getChannelRecommendations (engine + core existed from the
+giveaway work; only rendering was missing).
+
+Core: GetSimilarChannels converted to the withAPI snapshot pattern
+(§8) and now caches each recommended channel's access hash
+(cacheChannelHash) so a tap can open the channel without a prior
+dialog (resolvePeer needs the hash).
+
+GUI (gui/similar.go): loadSimilar rides the openChat flow (channel
+chats only); the block renders as one appended message-list row
+(appendSimilarRow — broadcast channels, no topic views) after the
+sponsored block: "Similar channels" caption + horizontal card row
+(stripped-thumb avatar w/ letter fallback, single-line title, member
+count); tap → pendingOpen hop (same mechanism as the deep-link opens).
+
+Also this session: disk filled up (9.9G root, dist binaries + stale
+caches) — cleaned /tmp build dirs + ms-playwright/puppeteer caches;
+kept the 7G go-build cache for rebuild speed.
+
+Verification: full repo tests green (new AppendSimilarRow suite);
+gofmt/vet clean; Xvfb smoke skipped for this row-append change (same
+layout path as slice 163's rows, smoke-verified then).
+
+Parity: "Similar channels block" CORE-ONLY → PRESENT. Remaining
+MISSING rows: PiP (blocked on pure-Go video decode), multi-window
+chats, app icon selector, suggestions cards (P3s); the "Hide similar
+channels / ads" row's ads half is PRESENT via slice 163 + the no-ads
+lever — the hide-similar toggle is moot now that the block exists
+(honest display, no dead toggle).

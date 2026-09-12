@@ -19892,10 +19892,10 @@ func (t *TelegramCore) GetCommonChats(userID string, limit int) ([]Dialog, error
 
 // GetSimilarChannels returns channels recommended as similar to the given channel.
 func (t *TelegramCore) GetSimilarChannels(chatID string) ([]Dialog, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: the RLock is never held across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -19906,7 +19906,7 @@ func (t *TelegramCore) GetSimilarChannels(chatID string) ([]Dialog, error) {
 		return nil, fmt.Errorf("not a channel")
 	}
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	result, err := t.api.ChannelsGetChannelRecommendations(t.ctx, &tg.ChannelsGetChannelRecommendationsRequest{
+	result, err := api.ChannelsGetChannelRecommendations(ctx, &tg.ChannelsGetChannelRecommendationsRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 	})
 	if err != nil {
@@ -19941,6 +19941,9 @@ func (t *TelegramCore) GetSimilarChannels(chatID string) ([]Dialog, error) {
 		if channel.ParticipantsCount > 0 {
 			d.MemberCount = channel.ParticipantsCount
 		}
+		// Cache the access hash so the recommended channel's ID resolves
+		// later (open on tap without a prior dialog).
+		t.cacheChannelHash(channel.ID, channel.AccessHash)
 		dialogs = append(dialogs, d)
 	}
 	return dialogs, nil
