@@ -3586,3 +3586,26 @@ section landed).
 
 Parity: Forum topics view PARTIAL→PRESENT (subsection tabs landed;
 reorder/placement modes remain).
+
+## 2026-09-12 — slice 157: corner reply button (tdesktop fast reply)
+
+- tdesktop fast-reply pill (HistoryView ReplyButton::Manager,
+  Message::replyButtonParameters, lng_fast_reply "Reply",
+  displayFastReply semantics): compact accent 'Reply' pill anchored
+  North-East on hovered INCOMING bubbles; tap = startReply.
+- Hover tracking: the chat-pane pointer filter now carries
+  Move/Enter/Leave and feeds notePaneHover, which maps the pointer to
+  a message through the SAME rowBounds hit-test the context menu uses
+  — no per-row clickables, hit tree untouched (links/quotes/keyboards/
+  right-clicks/selection all preserved).
+- Gate (pure, tested): setting on (cornerReply, default ON) + regular
+  incoming + chat allows sending + not in selection mode; own and
+  service rows excluded.
+- Config plumbing: AppConfig.CornerReply (*bool, nil = ON),
+  ConfigChanges + engine apply + cfgSnapshot effective value +
+  configFieldChanges key + Messages-section toggle row.
+- Tests-first: effective default, gate matrix, config dispatch.
+- Gate: gofmt/vet/test green (goolm); windows + wasm green.
+
+Parity: Chat settings PARTIAL (corner reply landed; swipe quick action
++ corner reaction remain).
