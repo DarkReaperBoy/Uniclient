@@ -194,6 +194,7 @@ func (a *App) openStickerMgr(accountID string) {
 	a.mu.Lock()
 	a.stickerMgr = &stickerMgrState{accountID: accountID, loading: true}
 	a.profileEdit = nil // one sub-page at a time (settings shell)
+	a.businessPage = nil
 	a.mu.Unlock()
 	stickerMgrSearchEd.SetText("")
 	go a.loadStickerMgr(accountID)

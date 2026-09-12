@@ -538,6 +538,23 @@ type PremiumPromo struct {
 	Options    []PremiumPlanOption
 }
 
+// TimezoneInfo is one entry of help.getTimezonesList — the business
+// opening-hours timezone picker (id + localized name + UTC offset).
+type TimezoneInfo struct {
+	ID        string
+	Name      string
+	UtcOffset int // seconds
+}
+
+// QuickReplyInfo is one quick-reply shortcut (messages.getQuickReplies):
+// id, user-visible name, message count and the top message's text.
+type QuickReplyInfo struct {
+	ID         int
+	Name       string
+	Count      int
+	TopMessage string
+}
+
 type AttachMenuBotInfo struct {
 	BotID     int64  `json:"bot_id"`
 	ShortName string `json:"short_name"`

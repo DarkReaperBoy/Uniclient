@@ -3292,3 +3292,53 @@ Parity: 152 PRESENT / 32 PARTIAL / 9 MISSING / 25 CORE-ONLY.
 Next candidates: business section (away/greeting/work-hours editors —
 core RPCs exist), message-shot renderer, custom mute durations,
 Alt+jumplist, Windows taskbar overlay badge.
+
+## 2026-09-12 — slice 148: Telegram Business settings section
+
+tdesktop's Settings → Telegram Business, per-account: opening hours,
+location, greeting messages, away messages, quick replies, intro.
+
+- RATING (§1.14): engine business surface 8/10 (capability interfaces
+  existed, nothing implemented them → implemented against them, added
+  typed tz/quick-reply helpers) → keep + extend; premium/stars sub-page
+  pattern 9/10 → reused for the page shell; bizWeeklyOpen cross-midnight
+  semantics re-verified against core.telegram.org/api/business (fresh
+  research, not stale notes).
+- CORE (cores/telegram_business.go): read model from users.getFullUser
+  (self) + messages.getQuickReplies (greeting/away texts resolve through
+  the shortcut list); write path = the five account.updateBusiness* RPCs
+  (withAPI rule, unlocked); greeting/away message text is saved INTO a
+  quick-reply shortcut (existing → replace its messages, absent → create
+  by name then resolve the fresh ID — tdesktop's flow); GetTimezones
+  (help.getTimezonesList), GetQuickReplies, CreateQuickReply (sendMessage
+  w/ inputQuickReplyShortcut), RenameQuickReply; pure builders
+  (buildWorkHours/Location/Greeting/Away/Intro, sanitizeShortcutName,
+  lenient map readers) unit-tested against the TL schema.
+- ENGINE: GetTimezones/GetQuickReplies/CreateQuickReply/RenameQuickReply
+  added to premium_business.go (interface + honest nil fallbacks); the
+  pre-existing GetBusinessInfo/SetBusinessFeature generic surface now
+  has a live implementation.
+- GUI (gui/business.go): Settings → Main entry card (Telegram accounts
+  only, §1.10) → per-account page — expandable editors: Location
+  (address + optional lat/lon), Opening hours (24/7 preset, per-day
+  interval rows w/ add/remove, lenient "9:00" parsing, searchable
+  timezone picker), Greeting (text, recipient checkboxes, 7/14/21/28
+  inactivity chips), Away (text, recipients, schedule segments
+  always/outside-hours/custom date range, offline-only), Quick replies
+  manager (rows w/ message previews, create/rename/delete), Intro
+  (title + description). Premium-gate note for non-premium accounts;
+  honest "Not set"/"Off" subtitles. bizWeek model (wire ↔ per-day
+  intervals, cross-midnight split, merge/normalize, summary renderer)
+  unit-tested; editor text captured on the UI goroutine (the
+  profileedit.go pattern), only RPCs run in the background.
+- Gate: gofmt/vet/test green (goolm); windows + wasm + native green;
+  Xvfb GUI smoke boots (window + real screenshots, welcome screen
+  verified via VLM). Local dev note: tg compiles on this 3.5GB box with
+  `-gcflags="github.com/gotd/td/tg=-c=1" GOGC=20`; no-swap, no-root.
+
+Parity: Business row CORE-ONLY→PARTIAL. 144 PRESENT / 32 PARTIAL /
+7 MISSING / 16 CORE-ONLY (199 tracked rows, count method: status-cell
+regex incl. blocked variants).
+
+Next candidates: message-shot renderer, custom mute durations,
+Alt+jumplist, Windows taskbar overlay badge, chat-wide translate bar.

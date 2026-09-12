@@ -93,6 +93,7 @@ func (a *App) openFolderMgr(accountID string) {
 	a.folderMgr = &folderMgrState{accountID: accountID, loading: true}
 	a.profileEdit = nil // one sub-page at a time (settings shell)
 	a.stickerMgr = nil
+	a.businessPage = nil
 	a.mu.Unlock()
 	go a.loadFolderMgr(accountID)
 	a.invalidate()

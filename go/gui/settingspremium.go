@@ -118,6 +118,7 @@ func (a *App) openPremiumPage(accountID string) {
 	a.profileEdit = nil // one sub-page at a time (settings shell)
 	a.stickerMgr = nil
 	a.folderMgr = nil
+	a.businessPage = nil
 	a.mu.Unlock()
 	go a.loadPremiumPage(accountID)
 	a.invalidate()

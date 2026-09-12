@@ -354,6 +354,9 @@ func (a *App) settingsPage(gtx layout.Context, f frame) layout.Dimensions {
 				if f.starsPage != nil {
 					return a.layoutStarsPage(gtx, f)
 				}
+				if f.businessPage != nil {
+					return a.layoutBusinessPage(gtx, f)
+				}
 				switch f.settingsSect {
 				case setSectionMain:
 					return a.setPageMain(gtx, f)
@@ -559,6 +562,15 @@ func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 	if premiumEntryVisible(f.accounts) {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.starsEntryRow(gtx, f)
+		}))
+	}
+
+	// Telegram Business entry (slice 148, tdesktop's Business box):
+	// opening hours, location, greeting/away messages, quick replies,
+	// intro. Telegram-platform accounts only (§1.10).
+	if premiumEntryVisible(f.accounts) {
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.businessEntryRow(gtx, f)
 		}))
 	}
 

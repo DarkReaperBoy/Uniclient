@@ -136,6 +136,7 @@ func (a *App) openStarsPage(accountID string) {
 	a.profileEdit = nil // one sub-page at a time (settings shell)
 	a.stickerMgr = nil
 	a.folderMgr = nil
+	a.businessPage = nil
 	a.premiumPage = nil
 	a.mu.Unlock()
 	go a.loadStarsPage(accountID, "", false)

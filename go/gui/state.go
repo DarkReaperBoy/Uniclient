@@ -209,6 +209,7 @@ type App struct {
 	folderMgr         *folderMgrState        // chat-folders manager (slice 142)
 	premiumPage       *premiumPageState      // Telegram Premium page (slice 143)
 	starsPage         *starsPageState        // Telegram Stars page (slice 144)
+	businessPage      *businessPageState     // Telegram Business page (slice 148)
 	langCode          string                 // active language (slice 140)
 	langStrings       map[string]string      // pack overrides (copy-on-write)
 	langStringsLoaded bool                   // restore-once guard
@@ -1816,6 +1817,7 @@ func (a *App) snapshot() frame {
 		folderMgr:        a.folderMgr,
 		premiumPage:      a.premiumPage,
 		starsPage:        a.starsPage,
+		businessPage:     a.businessPage,
 		langCode:         a.langCode,
 		langStrings:      a.langStrings,
 		langs:            a.langs,
@@ -2045,11 +2047,12 @@ type frame struct {
 	chatPeek       *chatPeekState         // hover preview (slice 145)
 	sidebarW       int
 	hoverPos       image.Point
-	folderMgr      *folderMgrState   // chat-folders manager (slice 142)
-	premiumPage    *premiumPageState // Telegram Premium page (slice 143)
-	starsPage      *starsPageState   // Telegram Stars page (slice 144)
-	langCode       string            // active language (slice 140)
-	langStrings    map[string]string // pack overrides
+	folderMgr      *folderMgrState    // chat-folders manager (slice 142)
+	premiumPage    *premiumPageState  // Telegram Premium page (slice 143)
+	starsPage      *starsPageState    // Telegram Stars page (slice 144)
+	businessPage   *businessPageState // Telegram Business page (slice 148)
+	langCode       string             // active language (slice 140)
+	langStrings    map[string]string  // pack overrides
 	langs          []engine.LanguageInfo
 	langsLoaded    bool
 	langsFor       string

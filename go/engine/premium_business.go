@@ -67,6 +67,22 @@ type businessLinkDeleter interface {
 	DeleteBusinessLink(slug string) error
 }
 
+type timezonesGetter interface {
+	GetTimezones() ([]cores.TimezoneInfo, error)
+}
+
+type quickRepliesGetter interface {
+	GetQuickReplies() ([]cores.QuickReplyInfo, error)
+}
+
+type quickReplyCreator interface {
+	CreateQuickReply(name, text string) (int, error)
+}
+
+type quickReplyRenamer interface {
+	RenameQuickReply(id int, name string) error
+}
+
 // GetMyStars returns the account's own Stars balance + transaction
 // history; nil status for cores without stars (the GUI hides honestly).
 func (e *Engine) GetMyStars(accountID, offset, filter string) (*cores.StarsStatus, error) {
@@ -278,4 +294,60 @@ func (e *Engine) DeleteBusinessChatLink(accountID, slug string) error {
 		return fmt.Errorf("core does not support business link deletion")
 	}
 	return d.DeleteBusinessLink(slug)
+}
+
+// GetTimezones returns the server timezone list for the business
+// opening-hours picker; nil for cores without it (the editor falls back
+// to a plain ID field, honest scope).
+func (e *Engine) GetTimezones(accountID string) ([]cores.TimezoneInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	g, ok := acc.Core.(timezonesGetter)
+	if !ok {
+		return nil, nil
+	}
+	return g.GetTimezones()
+}
+
+// GetQuickReplies lists the account's quick reply shortcuts; nil for
+// cores without them (the section hides honestly).
+func (e *Engine) GetQuickReplies(accountID string) ([]cores.QuickReplyInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	g, ok := acc.Core.(quickRepliesGetter)
+	if !ok {
+		return nil, nil
+	}
+	return g.GetQuickReplies()
+}
+
+// CreateQuickReply creates a shortcut with its first message, returning
+// the new shortcut ID.
+func (e *Engine) CreateQuickReply(accountID, name, text string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	c, ok := acc.Core.(quickReplyCreator)
+	if !ok {
+		return 0, fmt.Errorf("core does not support quick replies")
+	}
+	return c.CreateQuickReply(name, text)
+}
+
+// RenameQuickReply renames a quick reply shortcut.
+func (e *Engine) RenameQuickReply(accountID string, id int, name string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	r, ok := acc.Core.(quickReplyRenamer)
+	if !ok {
+		return fmt.Errorf("core does not support quick replies")
+	}
+	return r.RenameQuickReply(id, name)
 }

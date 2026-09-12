@@ -67,6 +67,7 @@ func init() {
 func (a *App) openProfileEdit(accountID string) {
 	a.mu.Lock()
 	a.profileEdit = &profileEditState{accountID: accountID}
+	a.businessPage = nil // one sub-page at a time (settings shell)
 	a.mu.Unlock()
 	profileEdSynced = false
 	go a.loadProfileEdit(accountID)
