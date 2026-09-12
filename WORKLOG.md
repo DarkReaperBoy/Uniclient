@@ -3452,3 +3452,40 @@ tdesktop's unread count on the Windows taskbar button.
 - Gate: gofmt/vet/test green (goolm); windows + wasm + native green.
 
 Parity: Unread badge on taskbar/dock PARTIAL→PRESENT.
+
+## 2026-09-12 — session wrap (slices 148-153)
+
+Session summary: Telegram Business settings section (location, opening
+hours w/ timezone picker, greeting, away, quick replies manager, intro —
+engine business surface finally implemented end-to-end); custom mute
+durations in the Mute-for picker; chat-wide translate bar + persisted
+target-language picker (20 languages); message shot renderer (offscreen
+pure-Go composition: entity styling, quote/forward blocks, photo thumb,
+verified visually via VLM); inline DM read receipt ("Seen HH:MM" +
+reader avatar on the last own message); Windows taskbar overlay badge
+(pure-Go ITaskbarList3 COM with the vtable ABI double-verified against
+mingw-w64 — Wine's IDL ordering is wrong, SetOverlayIcon = 18).
+
+Local-toolchain note for future small-VM sessions: tg compiles at
+~3.5GB RAM with `-gcflags="github.com/gotd/td/tg=-c=1" GOGC=20 -p 1`
+(full local gate possible — no CI needed for iteration); the Xvfb GUI
+smoke needs `__EGL_VENDOR_LIBRARY_FILENAMES=<sysroot>/.../50_mesa.json`
+(glvnd can't find the Mesa vendor without it) and everything must run
+in ONE bash call (the sandbox reaps background processes between
+calls). Scripts: /home/z/my-project/scripts/guismoke.sh + eglprobe.c
+patterns.
+
+Verify CI status at session end: slices 148-152 GREEN via API; 153
+dispatched (see final check below).
+
+Parity: 150 PRESENT / 27 PARTIAL / 6 MISSING / 16 CORE-ONLY
+(199 tracked rows; count method: status-cell regex incl. blocked
+variants). Rows moved this session: Business CORE-ONLY→PARTIAL, custom
+mute (partial credit), Translate bar PARTIAL→PRESENT, Message shot
+MISSING→PRESENT, Read receipt PARTIAL→PRESENT, Taskbar badge
+PARTIAL→PRESENT.
+
+Next candidates: Alt+jumplist (Windows COM: ICustomDestinationList +
+IShellLink — blind), calls box (unified searchable call history),
+chat-settings link-preview/message-actions rows, forum subsection tabs,
+Ayu spy/saving toggles (engine-gated), Linux Unity launcher badge.

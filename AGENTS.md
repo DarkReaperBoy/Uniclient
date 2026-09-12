@@ -393,6 +393,15 @@ is the next task.
       where functionality is missing; Telegram core+GUI = exact 1:1 first
       (folders sync, ghost mode, QR verify, message actions, settings,
       search, media...), other cores follow
+      - slices 148–153 (2026-09-12): Telegram Business settings section
+        (hours/location/greeting/away/quick replies/intro — the five
+        account.updateBusiness* RPCs + the implicit quick-reply shortcut
+        flow); custom mute durations; chat-wide translate bar with the
+        persisted 20-language target picker; message shot (offscreen
+        message→PNG, pure-Go Go-font composition); inline DM read
+        receipt (Seen + reader avatar); Windows taskbar overlay badge
+        (pure-Go ITaskbarList3 COM, vtable pinned vs mingw-w64 ABI —
+        Wine's IDL order is WRONG, SetOverlayIcon is index 18)
       - slices 67–76 (2026-09-09): archived-chats collapsed row + view;
         sidebar row badges (verified/premium/scam/fake + @-mention +
         unread-reactions); slow-mode countdown + write-restriction
