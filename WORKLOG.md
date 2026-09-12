@@ -3952,3 +3952,23 @@ Implementation (tests first: deeplink_test.go permalink suites):
 Verification: deeplink suites green (2 stale expectations updated to
 the new routing); full repo tests, gofmt/vet green; Xvfb GUI smoke
 boots.
+
+## 2026-09-12 — slice 162: AyuGram local premium (per-account, honest labeling)
+
+The Premium page's status card gains the AyuGram "local premium"
+switch: a per-account client-side premium view. The engine flips
+IsPremium in ListAccounts when the flag is on (star badge, presence
+rendering, premium page status all follow); the status card labels it
+honestly — "Active locally (Ayu) — server perks need a subscription"
+and an "Active (local)" badge — so the client-side view is never
+mistaken for a server-granted subscription (§1.10 honesty).
+
+Plumbing: utils AppConfig.LocalPremium (per-account map, persisted
+through the vault config path); engine SetLocalPremium/
+localPremiumSnapshot/LocalPremiumFor; cfgSnapshot carries the map;
+the switch rides the settingsSwitch + settingsSynced idiom keyed
+"local_premium:<account>". Pure resolution locked by
+TestEffectiveAccountPremium.
+
+Verification: full repo tests green; gofmt/vet clean; Xvfb GUI smoke
+boots.

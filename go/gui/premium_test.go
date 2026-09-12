@@ -124,3 +124,25 @@ func TestPremiumPlanSubtitle(t *testing.T) {
 		t.Fatalf("subtitle = %q, want 39.99 USD", got)
 	}
 }
+
+// effectiveAccountPremium resolves the client-side premium view:
+// server premium OR the per-account local flag (AyuGram local premium,
+// slice 162). Pure.
+func effectiveAccountPremium(serverPremium bool, local map[string]bool, accountID string) bool {
+	return serverPremium || local[accountID]
+}
+
+func TestEffectiveAccountPremium(t *testing.T) {
+	if !effectiveAccountPremium(true, nil, "a1") {
+		t.Error("server premium always wins")
+	}
+	if !effectiveAccountPremium(false, map[string]bool{"a1": true}, "a1") {
+		t.Error("local flag flips the view")
+	}
+	if effectiveAccountPremium(false, map[string]bool{"a2": true}, "a1") {
+		t.Error("another account's flag must not leak")
+	}
+	if effectiveAccountPremium(false, nil, "a1") {
+		t.Error("no flags, no premium")
+	}
+}

@@ -290,7 +290,21 @@ func (a *App) premiumStatusCard(gtx layout.Context, f frame, st *premiumPageStat
 			break
 		}
 	}
-	return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	// AyuGram local premium: client-side view only — the status line
+	// stays honest about what is local vs server-granted.
+	localOn := f.cfg.LocalPremium[st.accountID]
+	if localOn {
+		premium = true
+	}
+	// The switch mirrors the effective flag until toggled (the
+	// settingsSwitch + settingsSynced idiom from toggleRow).
+	localPremBtn := settingsSwitch("local_premium:" + st.accountID)
+	if !settingsSynced["local_premium:"+st.accountID] {
+		localPremBtn.Value = localOn
+		settingsSynced["local_premium:"+st.accountID] = true
+	}
+	localPremPrev := localPremBtn.Value
+	dims := layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -307,8 +321,12 @@ func (a *App) premiumStatusCard(gtx layout.Context, f frame, st *premiumPageStat
 							}),
 						}
 						if premium {
+							state := "Active on this account"
+							if localOn {
+								state = "Active locally (Ayu) — server perks need a subscription"
+							}
 							lines = append(lines, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								lbl := a.ui.Dim(unit.Sp(11), "Active on this account")
+								lbl := a.ui.Dim(unit.Sp(11), state)
 								lbl.Color = a.ui.p.Accent
 								return lbl.Layout(gtx)
 							}))
@@ -324,18 +342,43 @@ func (a *App) premiumStatusCard(gtx layout.Context, f frame, st *premiumPageStat
 						if !premium {
 							return layout.Dimensions{}
 						}
+						badge := "Active"
+						if localOn {
+							badge = "Active (local)"
+						}
 						return roundedFill(gtx, a.ui.p.AccentDim, 10, func(gtx layout.Context) layout.Dimensions {
 							return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								lbl := a.ui.Label(unit.Sp(12), "Active")
+								lbl := a.ui.Label(unit.Sp(12), badge)
 								lbl.Color = a.ui.p.Accent
 								return lbl.Layout(gtx)
 							})
+						})
+					}),
+					// AyuGram local premium toggle: client-side premium
+					// view (star badge, presence, premium affordances);
+					// server-side perks stay server-truth.
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							b := material.Switch(a.ui.Theme, localPremBtn, "Local premium")
+							b.Color.Enabled = a.ui.p.Accent
+							return b.Layout(gtx)
 						})
 					}),
 				)
 			})
 		})
 	})
+	if localPremBtn.Value != localPremPrev {
+		go func() {
+			if err := a.eng.SetLocalPremium(st.accountID, localPremBtn.Value); err != nil {
+				a.setToast("Local premium: " + err.Error())
+				return
+			}
+			a.refreshConfig()
+			a.refreshAccounts()
+		}()
+	}
+	return dims
 }
 
 // premiumPlanRow: one subscription option — duration, price, Subscribe

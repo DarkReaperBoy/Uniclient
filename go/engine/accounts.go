@@ -126,6 +126,9 @@ func (e *Engine) migrateAccountsToVault() {
 
 // ListAccounts returns info about all accounts, sorted by sort_order.
 func (e *Engine) ListAccounts() []AccountInfo {
+	// AyuGram local premium: the client-side premium view (snapshot the
+	// flags before the accounts lock — e.mu and accountsMu never nest).
+	localPrem := e.localPremiumSnapshot()
 	e.accountsMu.RLock()
 	defer e.accountsMu.RUnlock()
 
@@ -140,7 +143,7 @@ func (e *Engine) ListAccounts() []AccountInfo {
 			SortOrder:   acc.SortOrder,
 			ConnState:   int(acc.ConnState),
 			IsVerified:  acc.IsVerified,
-			IsPremium:   acc.IsPremium,
+			IsPremium:   acc.IsPremium || localPrem[acc.ID],
 		}
 		type selfIDer interface{ SelfUserID() string }
 		if s, ok := acc.Core.(selfIDer); ok {

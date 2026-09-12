@@ -835,6 +835,51 @@ func (e *Engine) isActiveChat(accountID, chatID string) bool {
 
 // AddRecentSearch records a submitted search query (Telegram recents):
 // dedupes case-insensitively, moves to front, caps at 8 entries.
+// SetLocalPremium turns the per-account client-side premium view on or
+// off (AyuGram local premium) and persists it. The account list and the
+// premium page reflect it immediately; server-side premium perks stay
+// server-truth.
+func (e *Engine) SetLocalPremium(accountID string, on bool) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.config == nil {
+		return fmt.Errorf("config not loaded")
+	}
+	if e.config.LocalPremium == nil {
+		e.config.LocalPremium = make(map[string]bool)
+	}
+	if on {
+		e.config.LocalPremium[accountID] = true
+	} else {
+		delete(e.config.LocalPremium, accountID)
+		if len(e.config.LocalPremium) == 0 {
+			e.config.LocalPremium = nil
+		}
+	}
+	return e.vault.SetConfig(e.config)
+}
+
+// localPremiumSnapshot copies the per-account local-premium flags.
+func (e *Engine) localPremiumSnapshot() map[string]bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.config == nil || len(e.config.LocalPremium) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(e.config.LocalPremium))
+	for k, v := range e.config.LocalPremium {
+		out[k] = v
+	}
+	return out
+}
+
+// LocalPremiumFor reports the per-account local-premium flag.
+func (e *Engine) LocalPremiumFor(accountID string) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.config != nil && e.config.LocalPremium[accountID]
+}
+
 func (e *Engine) AddRecentSearch(query string) error {
 	query = strings.TrimSpace(query)
 	if query == "" {

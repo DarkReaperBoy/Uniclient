@@ -45,6 +45,11 @@ type AppConfig struct {
 	// CornerReaction gates the hover pill that toggles the favorite
 	// reaction (tdesktop cornerReaction, default ON → nil).
 	CornerReaction *bool `json:"corner_reaction,omitempty"`
+	// LocalPremium (AyuGram): per-account client-side premium view —
+	// the app treats the account as premium locally (star badge,
+	// presence rendering, premium page status); server-side perks stay
+	// server-truth. Keyed by account ID.
+	LocalPremium map[string]bool `json:"local_premium,omitempty"`
 
 	// Ayu "Improve link previews" (slice 155): rewrite outgoing links of
 	// big platforms to their preview-friendly mirrors (Ayu
