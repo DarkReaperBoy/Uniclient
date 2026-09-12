@@ -1102,7 +1102,7 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			func(w float64) { a.applyLayoutTweaksUI(-1, w) })
 	}))
 	// Messages section (tdesktop Chat settings, slice 155): the
-	// composer submit mode (Send with Enter / Ctrl+Enter).
+	// a.wid.composer submit mode (Send with Enter / Ctrl+Enter).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.layoutMessagesSection(gtx, f)
 	}))

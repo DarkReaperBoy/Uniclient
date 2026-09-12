@@ -9,7 +9,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	"uniclient/cores"
 	"uniclient/engine"
@@ -31,10 +30,7 @@ type reactorsState struct {
 }
 
 var (
-	reactorsClose   widget.Clickable
-	reactorsTabs    []widget.Clickable
-	reactorsMoreBtn widget.Clickable
-	reactorsKeyTag  = new(struct{})
+	reactorsKeyTag = new(struct{})
 )
 
 // reactorTabs (pure, testable): the emoji tabs for a message's reactions,
@@ -161,12 +157,12 @@ func (a *App) layoutReactorsDialog(gtx layout.Context, f frame) layout.Dimension
 			a.closeReactors()
 		}
 	}
-	if reactorsClose.Clicked(gtx) {
+	if a.wid.reactorsClose.Clicked(gtx) {
 		a.closeReactors()
 	}
-	growClickables(&reactorsTabs, len(d.emojis))
-	for i := range reactorsTabs {
-		if reactorsTabs[i].Clicked(gtx) {
+	growClickables(&a.wid.reactorsTabs, len(d.emojis))
+	for i := range a.wid.reactorsTabs {
+		if a.wid.reactorsTabs[i].Clicked(gtx) {
 			a.mu.Lock()
 			if a.reactors != nil && a.reactors.sel != i {
 				a.reactors.sel = i
@@ -177,7 +173,7 @@ func (a *App) layoutReactorsDialog(gtx layout.Context, f frame) layout.Dimension
 			}
 		}
 	}
-	if reactorsMoreBtn.Clicked(gtx) && d.offset != "" {
+	if a.wid.reactorsMoreBtn.Clicked(gtx) && d.offset != "" {
 		a.loadReactors(d.offset)
 	}
 
@@ -197,7 +193,7 @@ func (a *App) layoutReactorsDialog(gtx layout.Context, f frame) layout.Dimension
 								return lbl.Layout(gtx)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								btn := a.ui.IconButton(&reactorsClose, iconContentClear, "Close")
+								btn := a.ui.IconButton(&a.wid.reactorsClose, iconContentClear, "Close")
 								btn.Color = a.ui.p.TextDim
 								return btn.Layout(gtx)
 							}),
@@ -230,7 +226,7 @@ func (a *App) layoutReactorsDialog(gtx layout.Context, f frame) layout.Dimension
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.TextButton(&reactorsMoreBtn, "Load more")
+							btn := a.ui.TextButton(&a.wid.reactorsMoreBtn, "Load more")
 							btn.Color = a.ui.p.Accent
 							return btn.Layout(gtx)
 						})

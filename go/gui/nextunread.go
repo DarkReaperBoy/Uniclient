@@ -6,7 +6,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	"uniclient/engine"
 )
@@ -17,8 +16,6 @@ import (
 // while any chat in the current scope holds unread messages; clicking it
 // jumps to (and opens) the next unread chat below the viewport,
 // wrapping around.
-
-var nextUnreadBtn widget.Clickable
 
 // nextUnreadIndex returns the index of the next chat with unread content
 // at or after `from`, wrapping around once; -1 when none is unread.
@@ -75,7 +72,7 @@ func (a *App) layoutNextUnreadBtn(gtx layout.Context, f frame, visible []engine.
 	if !hasUnreadChats(visible) {
 		return
 	}
-	if nextUnreadBtn.Clicked(gtx) {
+	if a.wid.nextUnreadBtn.Clicked(gtx) {
 		a.gotoNextUnread(visible)
 	}
 
@@ -86,7 +83,7 @@ func (a *App) layoutNextUnreadBtn(gtx layout.Context, f frame, visible []engine.
 	defer op.Offset(pos).Push(gtx.Ops).Pop()
 	gtx.Constraints = layout.Constraints{Max: image.Pt(btnSz, btnSz), Min: image.Pt(btnSz, btnSz)}
 	bg := a.ui.p.Accent
-	if nextUnreadBtn.Hovered() {
+	if a.wid.nextUnreadBtn.Hovered() {
 		bg = a.ui.p.AccentDim
 	}
 	_ = roundedFill(gtx, bg, 21, func(gtx layout.Context) layout.Dimensions {

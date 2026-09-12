@@ -143,15 +143,14 @@ func (a *App) applyFavoriteReaction(accountID, emoji string) {
 
 // ── pill widgets ─────────────────────────────────────────────────────────
 
-// msgReactBtns pools the pill clickables keyed by chat/message.
-var msgReactBtns = map[string]*widget.Clickable{}
+// a.wid.msgReactBtns pools the pill clickables keyed by chat/message.
 
-func msgReactBtn(key string) *widget.Clickable {
-	if btn, ok := msgReactBtns[key]; ok {
+func (a *App) msgReactBtn(key string) *widget.Clickable {
+	if btn, ok := a.wid.msgReactBtns[key]; ok {
 		return btn
 	}
 	btn := new(widget.Clickable)
-	msgReactBtns[key] = btn
+	a.wid.msgReactBtns[key] = btn
 	return btn
 }
 
@@ -165,7 +164,7 @@ func (a *App) layoutCornerReaction(gtx layout.Context, f frame, m *engine.Cached
 	if m.MsgID != hoveredMsgID() {
 		return layout.Dimensions{}
 	}
-	btn := msgReactBtn(m.AccountID + "/" + m.ChatID + "/" + m.MsgID)
+	btn := a.msgReactBtn(m.AccountID + "/" + m.ChatID + "/" + m.MsgID)
 	fav := favoriteReactionOrDefault(favoriteReactionFor(m.AccountID))
 	own := ownHasReaction(m.Reactions, fav)
 	if btn.Clicked(gtx) {

@@ -10,14 +10,14 @@ import (
 )
 
 // Composer gating (AyuGram parity slice 69): chats that the engine reports
-// as write-restricted swap the composer for an honest notice bar, and
+// as write-restricted swap the a.wid.composer for an honest notice bar, and
 // slow-mode chats show a live countdown that blocks sending until the wait
 // expires. Both states come straight from ChatInfo — the engine keeps them
 // in sync from the server.
 
 const composerRestrictedDefault = "You can't send messages in this chat"
 
-// composerRestricted reports whether the composer must be replaced by a
+// composerRestricted reports whether the a.wid.composer must be replaced by a
 // notice bar, and which label to show. Not-joined channel previews keep the
 // JOIN bar (slice 19) — the two gates never overlap.
 func composerRestricted(c engine.ChatInfo) (bool, string) {
@@ -63,7 +63,7 @@ func slowmodeLabel(d time.Duration) string {
 	}
 }
 
-// restrictedBar replaces the composer when writing is disallowed.
+// restrictedBar replaces the a.wid.composer when writing is disallowed.
 func (a *App) restrictedBar(gtx layout.Context, label string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(10), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
@@ -84,7 +84,7 @@ func (a *App) restrictedBar(gtx layout.Context, label string) layout.Dimensions 
 
 var slowmodeSendBlocked bool // guards Enter-submission while waiting
 
-// slowmodeChip renders the countdown pill shown inside the composer while
+// slowmodeChip renders the countdown pill shown inside the a.wid.composer while
 // a slow-mode wait is active; it also requests the next-second redraw.
 func (a *App) slowmodeChip(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	remain := slowmodeRemain(*chat, f.now)
@@ -129,7 +129,7 @@ func (a *App) scheduleSlowTick(remain time.Duration) {
 	})
 }
 
-// sendBlockedBySlowmode is consulted by the composer's submit path.
+// sendBlockedBySlowmode is consulted by the a.wid.composer's submit path.
 func sendBlockedBySlowmode() bool { return slowmodeSendBlocked }
 
 // slowmodeToast explains a blocked send attempt.

@@ -51,18 +51,7 @@ type menuTarget struct {
 }
 
 // menu button pools (grown per frame, repo style).
-var (
-	menuBtns      []widget.Clickable // action rows
-	menuReactBtns []widget.Clickable // quick-reaction pills
-	menuPickBtns  []widget.Clickable // full-picker grid cells (slice 55)
-	reactList     widget.List        // picker grid scroller
-	fwdChatBtns   []widget.Clickable // forward picker rows
-	fwdCancelBtn  widget.Clickable
-	chipCancelBtn widget.Clickable // reply/edit header close
-
-	fwdHideAuthor   widget.Bool // forward options (AyuGram)
-	fwdHideCaptions widget.Bool
-)
+var ()
 
 func growClickables(pool *[]widget.Clickable, n int) {
 	for len(*pool) < n {
@@ -257,7 +246,7 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 	if acts.Edit {
 		items = append(items, menuAction{"Edit", func(gtx layout.Context) {
 			a.startEdit(&m)
-			gtx.Execute(key.FocusCmd{Tag: &composer})
+			gtx.Execute(key.FocusCmd{Tag: &a.wid.composer})
 		}})
 	}
 	if acts.Copy {
@@ -462,8 +451,8 @@ func (a *App) layoutContextMenu(gtx layout.Context, f frame) layout.Dimensions {
 		quick, more = quickReactions(reacts)
 	}
 	nReact := len(quick)
-	growClickables(&menuBtns, len(items))
-	growClickables(&menuReactBtns, nReact)
+	growClickables(&a.wid.menuBtns, len(items))
+	growClickables(&a.wid.menuReactBtns, nReact)
 
 	menuW := gtx.Dp(unit.Dp(200))
 	rowH := gtx.Dp(unit.Dp(36))
@@ -504,7 +493,7 @@ func (a *App) layoutContextMenu(gtx layout.Context, f frame) layout.Dimensions {
 	for i := range items {
 		i := i
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.menuItemRow(gtx, &menuBtns[i], items[i], rowH)
+			return a.menuItemRow(gtx, &a.wid.menuBtns[i], items[i], rowH)
 		}))
 	}
 	return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
@@ -526,7 +515,7 @@ func quickReactions(reacts []string) ([]string, bool) {
 // when more reactions exist, the ⋯ toggle that swaps the menu into the
 // full picker (AyuGram quick bar + expandable grid).
 func (a *App) menuReactionsRow(gtx layout.Context, f frame, emojis []string, more bool, m *engine.CachedMessage) layout.Dimensions {
-	growClickables(&menuReactBtns, len(emojis)+1)
+	growClickables(&a.wid.menuReactBtns, len(emojis)+1)
 	return layout.Inset{
 		Top: unit.Dp(8), Bottom: unit.Dp(4), Left: unit.Dp(8), Right: unit.Dp(8),
 	}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -534,7 +523,7 @@ func (a *App) menuReactionsRow(gtx layout.Context, f frame, emojis []string, mor
 		for i, emoji := range emojis {
 			i, emoji := i, emoji
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := &menuReactBtns[i]
+				btn := &a.wid.menuReactBtns[i]
 				if btn.Clicked(gtx) {
 					msg, emoji := *m, emoji
 					go func() {
@@ -555,7 +544,7 @@ func (a *App) menuReactionsRow(gtx layout.Context, f frame, emojis []string, mor
 		}
 		if more {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := &menuReactBtns[len(emojis)]
+				btn := &a.wid.menuReactBtns[len(emojis)]
 				if btn.Clicked(gtx) {
 					a.openReactionPicker()
 				}
@@ -590,7 +579,7 @@ func (a *App) layoutReactionPicker(gtx layout.Context, f frame) layout.Dimension
 	m := f.menu.msg
 	emojis := f.availEmojis
 	n := len(emojis)
-	growClickables(&menuPickBtns, n)
+	growClickables(&a.wid.menuPickBtns, n)
 
 	const cols = 8
 	const cellDp = unit.Dp(34)
@@ -634,8 +623,8 @@ func (a *App) layoutReactionPicker(gtx layout.Context, f frame) layout.Dimension
 				})
 			}),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				reactList.Axis = layout.Vertical
-				lt := material.List(a.ui.Theme, &reactList)
+				a.wid.reactList.Axis = layout.Vertical
+				lt := material.List(a.ui.Theme, &a.wid.reactList)
 				return lt.Layout(gtx, emojiRowCount(len(emojis), cols), func(gtx layout.Context, row int) layout.Dimensions {
 					children := make([]layout.FlexChild, 0, cols)
 					for c := 0; c < cols; c++ {
@@ -645,7 +634,7 @@ func (a *App) layoutReactionPicker(gtx layout.Context, f frame) layout.Dimension
 						}
 						idx, emoji := idx, emojis[idx]
 						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							btn := &menuPickBtns[idx]
+							btn := &a.wid.menuPickBtns[idx]
 							if btn.Clicked(gtx) {
 								msg, emoji := m, emoji
 								go func() {
@@ -705,7 +694,7 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 	// Candidates: chats on the same account as the source message, with the
 	// account's Saved Messages chat pinned first (slice 116).
 	candidates := buildForwardCandidates(f.chats, m, f.savedChatID[m.AccountID])
-	growClickables(&fwdChatBtns, len(candidates))
+	growClickables(&a.wid.fwdChatBtns, len(candidates))
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -720,13 +709,13 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 							return a.ui.H3(title).Layout(gtx)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							if fwdCancelBtn.Clicked(gtx) {
+							if a.wid.fwdCancelBtn.Clicked(gtx) {
 								a.mu.Lock()
 								a.fwd = nil
 								a.mu.Unlock()
 								a.invalidate()
 							}
-							btn := a.ui.IconButton(&fwdCancelBtn, iconContentClear, "Cancel")
+							btn := a.ui.IconButton(&a.wid.fwdCancelBtn, iconContentClear, "Cancel")
 							btn.Color = a.ui.p.TextDim
 							return btn.Layout(gtx)
 						}),
@@ -740,13 +729,13 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 				func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							chk := material.CheckBox(a.ui.Theme, &fwdHideAuthor, "Hide sender")
+							chk := material.CheckBox(a.ui.Theme, &a.wid.fwdHideAuthor, "Hide sender")
 							chk.Color = a.ui.p.Accent
 							return chk.Layout(gtx)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Left: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								chk := material.CheckBox(a.ui.Theme, &fwdHideCaptions, "Hide captions")
+								chk := material.CheckBox(a.ui.Theme, &a.wid.fwdHideCaptions, "Hide captions")
 								chk.Color = a.ui.p.Accent
 								return chk.Layout(gtx)
 							})
@@ -759,8 +748,8 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(8), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
-					ed := a.ui.Editor(&fwdComment, "Add a comment…")
-					fwdComment.SingleLine = false
+					ed := a.ui.Editor(&a.wid.fwdComment, "Add a comment…")
+					a.wid.fwdComment.SingleLine = false
 					return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
 						return layout.UniformInset(unit.Dp(8)).Layout(gtx, ed.Layout)
 					})
@@ -773,12 +762,12 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 					return lbl.Layout(gtx)
 				})
 			}
-			list := &fwdList
+			list := &a.wid.fwdList
 			list.Axis = layout.Vertical
 			ml := material.List(a.ui.Theme, list)
 			return ml.Layout(gtx, len(candidates), func(gtx layout.Context, i int) layout.Dimensions {
 				c := candidates[i]
-				btn := &fwdChatBtns[i]
+				btn := &a.wid.fwdChatBtns[i]
 				if btn.Clicked(gtx) {
 					// Multi-pick (AyuGram, slice 41): rows toggle recipients.
 					fwdSel[c.ChatID] = !fwdSel[c.ChatID]
@@ -810,7 +799,7 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 		}),
 		// Send bar: commit the selection (slice 41).
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if fwdSendBtn.Clicked(gtx) {
+			if a.wid.fwdSendBtn.Clicked(gtx) {
 				a.forwardToSelection(srcs, candidates)
 			}
 			count := 0
@@ -820,7 +809,7 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 				}
 			}
 			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(10), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.PrimaryButton(&fwdSendBtn, "Send")
+				btn := a.ui.PrimaryButton(&a.wid.fwdSendBtn, "Send")
 				if count == 0 {
 					btn.Background = a.ui.p.SurfaceHi
 					btn.Color = a.ui.p.TextFaint
@@ -852,7 +841,7 @@ func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engin
 	a.mu.Unlock()
 	fwdSel = map[string]bool{}
 	a.invalidate()
-	comment := trimForwardComment(fwdComment.Text())
+	comment := trimForwardComment(a.wid.fwdComment.Text())
 	go func() {
 		ids := make([]string, len(srcs))
 		for k := range srcs {
@@ -869,9 +858,9 @@ func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engin
 					_, err = a.eng.SendMessage(srcs[0].AccountID, dst.ChatID, step.text, "", nil, false, 0, "", "", false, false, false, false, false)
 				case fwdStepForward:
 					if len(step.ids) == 1 {
-						err = a.eng.ForwardMessage(srcs[0].AccountID, srcs[0].ChatID, step.ids[0], dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0)
+						err = a.eng.ForwardMessage(srcs[0].AccountID, srcs[0].ChatID, step.ids[0], dst.ChatID, a.wid.fwdHideAuthor.Value, a.wid.fwdHideCaptions.Value, false, 0)
 					} else {
-						err = a.eng.ForwardMessages(srcs[0].AccountID, srcs[0].ChatID, step.ids, dst.ChatID, fwdHideAuthor.Value, fwdHideCaptions.Value, false, 0)
+						err = a.eng.ForwardMessages(srcs[0].AccountID, srcs[0].ChatID, step.ids, dst.ChatID, a.wid.fwdHideAuthor.Value, a.wid.fwdHideCaptions.Value, false, 0)
 					}
 				}
 				if err != nil {
@@ -890,9 +879,5 @@ func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engin
 	}()
 }
 
-var fwdList widget.List
-
 // fwdSel is the forward picker's recipient selection (chat IDs, slice 41).
 var fwdSel = map[string]bool{}
-
-var fwdSendBtn widget.Clickable

@@ -198,7 +198,7 @@ func callSub(e engine.CallHistoryEntry, now time.Time) string {
 // when it exists in the loaded list; the missed state tints the label red
 // like AyuGram's calls list.
 func (a *App) callRow(gtx layout.Context, f frame, accountID string, e engine.CallHistoryEntry) layout.Dimensions {
-	if callRowBtn(e).Clicked(gtx) {
+	if a.callRowBtn(e).Clicked(gtx) {
 		if chat, ok := findChatByPeer(f, accountID, e.PeerID); ok {
 			a.openChat(chatKey{AccountID: accountID, ChatID: e.PeerID}, chat.Title)
 		} else {
@@ -210,7 +210,7 @@ func (a *App) callRow(gtx layout.Context, f frame, accountID string, e engine.Ca
 		name = "Unknown"
 	}
 	return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		bl := material.ButtonLayout(a.ui.Theme, callRowBtn(e))
+		bl := material.ButtonLayout(a.ui.Theme, a.callRowBtn(e))
 		bl.Background = a.ui.p.Surface
 		bl.CornerRadius = 12
 		return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -268,19 +268,18 @@ func findChatByPeer(f frame, accountID, peerID string) (engine.ChatInfo, bool) {
 	return engine.ChatInfo{}, false
 }
 
-// callBtnPool keyed by "acct/msg" keeps one clickable per rendered call
+// a.wid.callBtnPool keyed by "acct/msg" keeps one clickable per rendered call
 // row without a per-entry allocation in the frame snapshot.
-var callBtnPool = map[string]*widget.Clickable{}
 
-func callRowBtn(e engine.CallHistoryEntry) *widget.Clickable {
+func (a *App) callRowBtn(e engine.CallHistoryEntry) *widget.Clickable {
 	key := e.PeerID + "/" + e.MsgID
-	if btn, ok := callBtnPool[key]; ok {
+	if btn, ok := a.wid.callBtnPool[key]; ok {
 		return btn
 	}
 	btn := new(widget.Clickable)
-	callBtnPool[key] = btn
-	if len(callBtnPool) > 512 {
-		callBtnPool = map[string]*widget.Clickable{key: btn}
+	a.wid.callBtnPool[key] = btn
+	if len(a.wid.callBtnPool) > 512 {
+		a.wid.callBtnPool = map[string]*widget.Clickable{key: btn}
 	}
 	return btn
 }
@@ -299,7 +298,7 @@ func chatsWithCalls(f frame) []engine.ChatInfo {
 // the group-call screen exists — join, poll, and the call screen replaces
 // the tab).
 func (a *App) voiceRow(gtx layout.Context, f frame, c engine.ChatInfo) layout.Dimensions {
-	if btn := gcRowJoinBtnFor(c.ChatID); btn.Clicked(gtx) {
+	if btn := a.gcRowJoinBtnFor(c.ChatID); btn.Clicked(gtx) {
 		a.joinGroupCallFromVoice(c)
 	}
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -326,7 +325,7 @@ func (a *App) voiceRow(gtx layout.Context, f frame, c engine.ChatInfo) layout.Di
 					}),
 					// JOIN (slice 102): real engine join → the call screen.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.PrimaryButton(gcRowJoinBtnFor(c.ChatID), "JOIN")
+						btn := a.ui.PrimaryButton(a.gcRowJoinBtnFor(c.ChatID), "JOIN")
 						return btn.Layout(gtx)
 					}),
 				)

@@ -11,7 +11,6 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	"uniclient/engine"
 )
@@ -24,17 +23,8 @@ import (
 // engine.DeleteScheduledMessages.
 
 var (
-	schedPanelBack  widget.Clickable
-	schedRowSend    []widget.Clickable
-	schedRowResched []widget.Clickable
-	schedRowDelete  []widget.Clickable
-	schedPanelList  widget.List
-	schedPanelTag   = new(struct{})
+	schedPanelTag = new(struct{})
 )
-
-func init() {
-	schedPanelList.Axis = layout.Vertical
-}
 
 // openSchedPanel loads the scheduled list for the open chat.
 func (a *App) openSchedPanel() {
@@ -135,12 +125,12 @@ func (a *App) openReschedDialog(m engine.CachedMessage) {
 	a.mu.Unlock()
 	if m.ScheduleDate > 0 {
 		w := time.Unix(m.ScheduleDate, 0)
-		schedDateEd.SetText(w.Format("2006-01-02"))
-		schedTimeEd.SetText(w.Format("15:04"))
+		a.wid.schedDateEd.SetText(w.Format("2006-01-02"))
+		a.wid.schedTimeEd.SetText(w.Format("15:04"))
 	} else {
 		now := time.Now().Add(time.Hour)
-		schedDateEd.SetText(now.Format("2006-01-02"))
-		schedTimeEd.SetText(now.Format("15:04"))
+		a.wid.schedDateEd.SetText(now.Format("2006-01-02"))
+		a.wid.schedTimeEd.SetText(now.Format("15:04"))
 	}
 	a.invalidate()
 }
@@ -186,23 +176,23 @@ func (a *App) layoutSchedPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 			a.closeSchedPanel()
 		}
 	}
-	if schedPanelBack.Clicked(gtx) {
+	if a.wid.schedPanelBack.Clicked(gtx) {
 		a.closeSchedPanel()
 	}
 
 	msgs := f.schedMsgs
-	growClickables(&schedRowSend, len(msgs))
-	growClickables(&schedRowResched, len(msgs))
-	growClickables(&schedRowDelete, len(msgs))
+	growClickables(&a.wid.schedRowSend, len(msgs))
+	growClickables(&a.wid.schedRowResched, len(msgs))
+	growClickables(&a.wid.schedRowDelete, len(msgs))
 	for i, m := range msgs {
 		i, m := i, m
-		if schedRowSend[i].Clicked(gtx) {
+		if a.wid.schedRowSend[i].Clicked(gtx) {
 			a.schedSendNow(m)
 		}
-		if schedRowResched[i].Clicked(gtx) {
+		if a.wid.schedRowResched[i].Clicked(gtx) {
 			a.openReschedDialog(m)
 		}
-		if schedRowDelete[i].Clicked(gtx) {
+		if a.wid.schedRowDelete[i].Clicked(gtx) {
 			a.schedDelete(m)
 		}
 	}
@@ -219,7 +209,7 @@ func (a *App) layoutSchedPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 				func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.IconButton(&schedPanelBack, iconNavigationBack, "Back to chat")
+							btn := a.ui.IconButton(&a.wid.schedPanelBack, iconNavigationBack, "Back to chat")
 							btn.Color = a.ui.p.TextDim
 							return btn.Layout(gtx)
 						}),
@@ -260,7 +250,7 @@ func (a *App) layoutSchedPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 				})
 			}
 			return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return schedPanelList.Layout(gtx, len(msgs), func(gtx layout.Context, i int) layout.Dimensions {
+				return a.wid.schedPanelList.Layout(gtx, len(msgs), func(gtx layout.Context, i int) layout.Dimensions {
 					return a.schedRow(gtx, msgs[i], i)
 				})
 			})
@@ -288,16 +278,16 @@ func (a *App) schedRow(gtx layout.Context, m engine.CachedMessage, i int) layout
 							return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										btn := a.ui.TextButton(&schedRowSend[i], "Send now")
+										btn := a.ui.TextButton(&a.wid.schedRowSend[i], "Send now")
 										btn.Color = a.ui.p.Accent
 										return btn.Layout(gtx)
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										btn := a.ui.TextButton(&schedRowResched[i], "Reschedule")
+										btn := a.ui.TextButton(&a.wid.schedRowResched[i], "Reschedule")
 										return btn.Layout(gtx)
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										btn := a.ui.TextButton(&schedRowDelete[i], "Delete")
+										btn := a.ui.TextButton(&a.wid.schedRowDelete[i], "Delete")
 										btn.Color = a.ui.p.Error
 										return btn.Layout(gtx)
 									}),

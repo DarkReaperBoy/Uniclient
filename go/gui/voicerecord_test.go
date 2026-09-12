@@ -56,7 +56,7 @@ func TestVoiceRecTrackDrag(t *testing.T) {
 }
 
 // TestVoiceRecPanelRouting: with the engine recorder idle the panel
-// falls back to the plain composer (also proves no panic without a
+// falls back to the plain a.wid.composer (also proves no panic without a
 // running engine recorder).
 func TestVoiceRecPanelRouting(t *testing.T) {
 	a := &App{}
@@ -69,15 +69,17 @@ func TestVoiceRecPanelRouting(t *testing.T) {
 }
 
 func TestVoiceRecClickablesStable(t *testing.T) {
+	a := &App{}
+	a.wid.init()
 	f1 := frame{msgFor: &chatKey{AccountID: "a", ChatID: "c1"}}
 	f2 := frame{msgFor: &chatKey{AccountID: "a", ChatID: "c2"}}
-	if voiceRecClickable(f1) != voiceRecClickable(f1) {
+	if a.voiceRecClickable(f1) != a.voiceRecClickable(f1) {
 		t.Fatal("clickable must be stable per chat")
 	}
-	if voiceRecClickable(f1) == voiceRecClickable(f2) {
+	if a.voiceRecClickable(f1) == a.voiceRecClickable(f2) {
 		t.Fatal("different chats must get different clickables")
 	}
-	if voiceRecClickable(frame{}) == nil {
+	if a.voiceRecClickable(frame{}) == nil {
 		t.Fatal("fallback clickable must exist")
 	}
 }

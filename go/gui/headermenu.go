@@ -26,17 +26,7 @@ type headerMenuTarget struct {
 }
 
 // header menu button pool.
-var (
-	headerMenuBtns []widget.Clickable
-	headerMoreBtn  widget.Clickable
-	headerCxlBtn   widget.Clickable
-	headerOkBtn    widget.Clickable
-
-	headerSearchBtn widget.Clickable // in-chat search toggle (slice 18)
-
-	headerVoiceCallBtn widget.Clickable // 1:1 voice call (slice 101)
-	headerVideoCallBtn widget.Clickable // 1:1 video call (slice 101)
-)
+var ()
 
 // headerMenuConfirmText maps a confirm id to its dialog copy.
 func headerMenuConfirmText(id string) (title, hint string) {
@@ -273,7 +263,7 @@ func (a *App) layoutHeaderMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.headerMenu
 	items := headerMenuItems(m.chat, f.profile != nil, f.profile != nil && f.profile.IsBlocked,
 		f.selected != nil && chatTranslateOn(f, f.selected))
-	growClickables(&headerMenuBtns, len(items))
+	growClickables(&a.wid.headerMenuBtns, len(items))
 
 	menuW := gtx.Dp(unit.Dp(220))
 	rowH := gtx.Dp(unit.Dp(36))
@@ -303,7 +293,7 @@ func (a *App) layoutHeaderMenu(gtx layout.Context, f frame) layout.Dimensions {
 			for i := range items {
 				i := i
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					btn := &headerMenuBtns[i]
+					btn := &a.wid.headerMenuBtns[i]
 					if btn.Clicked(gtx) {
 						a.dispatchHeaderMenu(m.chat, items[i].action)
 					}
@@ -349,10 +339,10 @@ func headerMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item chatM
 // layoutHeaderConfirm: centered confirmation card for destructive actions.
 func (a *App) layoutHeaderConfirm(gtx layout.Context, f frame, action string) {
 	title, hint := headerMenuConfirmText(action)
-	if headerCxlBtn.Clicked(gtx) {
+	if a.wid.headerCxlBtn.Clicked(gtx) {
 		a.closeHeaderMenu()
 	}
-	if headerOkBtn.Clicked(gtx) {
+	if a.wid.headerOkBtn.Clicked(gtx) {
 		a.runHeaderConfirm(action)
 	}
 
@@ -381,13 +371,13 @@ func (a *App) layoutHeaderConfirm(gtx layout.Context, f frame, action string) {
 						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 								return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.TextButton(&headerCxlBtn, "Cancel")
+									btn := a.ui.TextButton(&a.wid.headerCxlBtn, "Cancel")
 									btn.Color = a.ui.p.Text
 									return btn.Layout(gtx)
 								})
 							}),
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-								btn := a.ui.PrimaryButton(&headerOkBtn, "Confirm")
+								btn := a.ui.PrimaryButton(&a.wid.headerOkBtn, "Confirm")
 								btn.Background = a.ui.p.Error
 								return btn.Layout(gtx)
 							}),

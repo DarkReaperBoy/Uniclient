@@ -15,7 +15,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	"uniclient/engine"
 )
@@ -31,7 +30,6 @@ type seenDlgState struct {
 }
 
 var (
-	seenDlgClose  widget.Clickable
 	seenDlgKeyTag = new(struct{})
 )
 
@@ -149,7 +147,7 @@ func (a *App) layoutSeenByDialog(gtx layout.Context, f frame) layout.Dimensions 
 			a.closeSeenByDialog()
 		}
 	}
-	if seenDlgClose.Clicked(gtx) {
+	if a.wid.seenDlgClose.Clicked(gtx) {
 		a.closeSeenByDialog()
 	}
 
@@ -168,7 +166,7 @@ func (a *App) layoutSeenByDialog(gtx layout.Context, f frame) layout.Dimensions 
 								return lbl.Layout(gtx)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								btn := a.ui.IconButton(&seenDlgClose, iconContentClear, "Close")
+								btn := a.ui.IconButton(&a.wid.seenDlgClose, iconContentClear, "Close")
 								btn.Color = a.ui.p.TextDim
 								return btn.Layout(gtx)
 							}),

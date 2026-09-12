@@ -25,17 +25,7 @@ import (
 var (
 	panelSwitches = map[string]*widget.Bool{}
 	panelSynced   = map[string]bool{}
-	panelInfoBtn  widget.Clickable
-	panelCloseBtn widget.Clickable
-	panelBlockBtn widget.Clickable
-	panelAddBtn   widget.Clickable
-	panelShareBtn widget.Clickable // Share contact (slice 83)
-	panelScroll   widget.List
 )
-
-func init() {
-	panelScroll.Axis = layout.Vertical
-}
 
 func panelSwitch(key string) *widget.Bool {
 	if s, ok := panelSwitches[key]; ok {
@@ -272,7 +262,7 @@ func isPanelSubCount(sub string) bool {
 // layoutInfoPanel renders the panel as a full pane (narrow) or inside the
 // caller-provided column (desktop side pane).
 func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo, narrow bool) layout.Dimensions {
-	if panelCloseBtn.Clicked(gtx) {
+	if a.wid.panelCloseBtn.Clicked(gtx) {
 		a.closePanel()
 	}
 
@@ -282,7 +272,7 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 		sub = a.panelSub(f, chat)
 	}
 
-	list := material.List(a.ui.Theme, &panelScroll)
+	list := material.List(a.ui.Theme, &a.wid.panelScroll)
 	body := list.Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
 		return layout.Inset{Left: unit.Dp(14), Right: unit.Dp(14), Top: unit.Dp(8), Bottom: unit.Dp(16)}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
@@ -310,7 +300,7 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 									if !narrow {
 										return layout.Dimensions{}
 									}
-									btn := a.ui.IconButton(&panelCloseBtn, iconNavigationBack, "Back")
+									btn := a.ui.IconButton(&a.wid.panelCloseBtn, iconNavigationBack, "Back")
 									btn.Color = a.ui.p.TextDim
 									return btn.Layout(gtx)
 								}),
@@ -321,7 +311,7 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 									if narrow {
 										return layout.Dimensions{}
 									}
-									btn := a.ui.IconButton(&panelCloseBtn, iconContentClear, "Close")
+									btn := a.ui.IconButton(&a.wid.panelCloseBtn, iconContentClear, "Close")
 									btn.Color = a.ui.p.TextDim
 									return btn.Layout(gtx)
 								}),
@@ -450,41 +440,41 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 			}))
 		}
 		// Bot info sections (slice 133, tdesktop bot profile): description,
-		// commands (tap inserts into the composer), privacy-policy link.
+		// commands (tap inserts into the a.wid.composer), privacy-policy link.
 		if p.IsBot {
 			children = append(children, a.botPanelSections(gtx, f, p)...)
 		}
 		// Block / unblock + add contact actions.
-		if panelBlockBtn.Clicked(gtx) {
+		if a.wid.panelBlockBtn.Clicked(gtx) {
 			a.panelBlockUser(k, !p.IsBlocked)
 		}
 		if !p.IsBlocked {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.TextButton(&panelBlockBtn, "Block user")
+				btn := a.ui.TextButton(&a.wid.panelBlockBtn, "Block user")
 				btn.Color = a.ui.p.Error
 				return btn.Layout(gtx)
 			}))
 		} else {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.TextButton(&panelBlockBtn, "Unblock user")
+				btn := a.ui.TextButton(&a.wid.panelBlockBtn, "Unblock user")
 				btn.Color = a.ui.p.Accent
 				return btn.Layout(gtx)
 			}))
 		}
-		if panelShareBtn.Clicked(gtx) {
+		if a.wid.panelShareBtn.Clicked(gtx) {
 			a.panelShareContact(f, p)
 		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := a.ui.TextButton(&panelShareBtn, "Share contact")
+			btn := a.ui.TextButton(&a.wid.panelShareBtn, "Share contact")
 			btn.Color = a.ui.p.Accent
 			return btn.Layout(gtx)
 		}))
 		if !p.IsContact {
-			if panelAddBtn.Clicked(gtx) {
+			if a.wid.panelAddBtn.Clicked(gtx) {
 				a.panelAddContact(k, p)
 			}
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.TextButton(&panelAddBtn, "Add to contacts")
+				btn := a.ui.TextButton(&a.wid.panelAddBtn, "Add to contacts")
 				btn.Color = a.ui.p.Accent
 				return btn.Layout(gtx)
 			}))
@@ -500,7 +490,7 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 
 	// Members (groups/channels), with search (AyuGram, slice 40).
 	if showMembers {
-		shown := filterMembers(f.members, memberSearchEd.Text())
+		shown := filterMembers(f.members, a.wid.memberSearchEd.Text())
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			n := itoa(len(f.members))
 			return a.sectionTitle(gtx, "Members ("+n+")")
@@ -509,7 +499,7 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					for {
-						ev, ok := memberSearchEd.Update(gtx)
+						ev, ok := a.wid.memberSearchEd.Update(gtx)
 						if !ok {
 							break
 						}
@@ -517,7 +507,7 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 							a.invalidate()
 						}
 					}
-					ed := a.ui.Editor(&memberSearchEd, "Search members")
+					ed := a.ui.Editor(&a.wid.memberSearchEd, "Search members")
 					return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
 						return layout.UniformInset(unit.Dp(6)).Layout(gtx, ed.Layout)
 					})
@@ -576,7 +566,7 @@ func (a *App) muteRow(gtx layout.Context, sw *widget.Bool) layout.Dimensions {
 // panelValueRow renders an icon + label + value row.
 func (a *App) panelValueRow(gtx layout.Context, ic *widget.Icon, label, value string) layout.Dimensions {
 	// Copy on click (AyuGram info rows, slice 26).
-	btn := panelRowClickable(label)
+	btn := a.panelRowClickable(label)
 	if btn.Clicked(gtx) {
 		if value != "" {
 			gtx.Execute(clipboard.WriteCmd{
@@ -615,18 +605,17 @@ func (a *App) panelValueRow(gtx layout.Context, ic *widget.Icon, label, value st
 	})
 }
 
-// panelRowClickables: per-label copy clickables for info rows.
-var panelRowClickables = map[string]*widget.Clickable{}
+// a.wid.panelRowClickables: per-label copy clickables for info rows.
 
-func panelRowClickable(label string) *widget.Clickable {
-	if c, ok := panelRowClickables[label]; ok {
+func (a *App) panelRowClickable(label string) *widget.Clickable {
+	if c, ok := a.wid.panelRowClickables[label]; ok {
 		return c
 	}
-	if len(panelRowClickables) > 32 {
-		panelRowClickables = make(map[string]*widget.Clickable)
+	if len(a.wid.panelRowClickables) > 32 {
+		a.wid.panelRowClickables = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	panelRowClickables[label] = c
+	a.wid.panelRowClickables[label] = c
 	return c
 }
 
@@ -634,7 +623,7 @@ func panelRowClickable(label string) *widget.Clickable {
 // the member admin menu (slice 106) when the viewer has admin rights.
 func (a *App) memberRow(gtx layout.Context, f frame, m engine.MemberInfo) layout.Dimensions {
 	if chat, ok := panelChatOf(f); ok {
-		if btn := memberRowBtn(m.UserID); btn.Clicked(gtx) {
+		if btn := a.memberRowBtn(m.UserID); btn.Clicked(gtx) {
 			a.openMemberMenu(chat, m, image.Pt(gtx.Constraints.Max.X, 0))
 		}
 	}
@@ -707,8 +696,7 @@ func withAlpha(c color.NRGBA, alpha uint8) color.NRGBA {
 	return c
 }
 
-// photoGridClicks pools the info-panel gallery cell clickables.
-var photoGridClicks []widget.Clickable
+// a.wid.photoGridClicks pools the info-panel gallery cell clickables.
 
 // filterMembers narrows the member list by a case-insensitive substring
 // match on display name, username, or id (AyuGram member search).
@@ -728,17 +716,14 @@ func filterMembers(members []engine.MemberInfo, q string) []engine.MemberInfo {
 	return out
 }
 
-// memberSearchEd filters the info panel's member list (slice 40).
-var memberSearchEd widget.Editor
+// a.wid.memberSearchEd filters the info panel's member list (slice 40).
 
 // botPanelCmdClickables pools the command-row clickables.
-var botPanelCmdBtns []widget.Clickable
 
-// botPrivacyBtn opens the bot's privacy policy.
-var botPrivacyBtn widget.Clickable
+// a.wid.botPrivacyBtn opens the bot's privacy policy.
 
 // botPanelSections builds the bot-only profile sections: "What can this
-// bot do?" description, the command list (tap → composer insert, the
+// bot do?" description, the command list (tap → a.wid.composer insert, the
 // slice-76 wire), and the privacy-policy row (browser handoff).
 func (a *App) botPanelSections(gtx layout.Context, f frame, p engine.CachedUser) []layout.FlexChild {
 	var children []layout.FlexChild
@@ -756,13 +741,13 @@ func (a *App) botPanelSections(gtx layout.Context, f frame, p engine.CachedUser)
 	}
 	cmds := f.panelBotCmds
 	if len(cmds) > 0 {
-		growClickables(&botPanelCmdBtns, len(cmds))
+		growClickables(&a.wid.botPanelCmdBtns, len(cmds))
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.sectionTitle(gtx, "Commands ("+itoa(len(cmds))+")")
 		}))
 		for i := range cmds {
 			c := cmds[i]
-			cl := &botPanelCmdBtns[i]
+			cl := &a.wid.botPanelCmdBtns[i]
 			if cl.Clicked(gtx) {
 				a.insertBotCommand(c.Command)
 				a.closePanel()
@@ -782,7 +767,7 @@ func (a *App) botPanelSections(gtx layout.Context, f frame, p engine.CachedUser)
 		}
 	}
 	if p.BotPrivacyURL != "" {
-		if botPrivacyBtn.Clicked(gtx) {
+		if a.wid.botPrivacyBtn.Clicked(gtx) {
 			openExternalAsync(p.BotPrivacyURL, func(err error) {
 				if err != nil {
 					a.setToast("Open privacy policy failed: " + err.Error())
@@ -791,7 +776,7 @@ func (a *App) botPanelSections(gtx layout.Context, f frame, p engine.CachedUser)
 		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.TextButton(&botPrivacyBtn, "Privacy policy")
+				btn := a.ui.TextButton(&a.wid.botPrivacyBtn, "Privacy policy")
 				btn.Color = a.ui.p.Accent
 				return btn.Layout(gtx)
 			})

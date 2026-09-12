@@ -32,10 +32,7 @@ type chatThemeDlgState struct {
 }
 
 var (
-	chatThemeDlgCancelBtn widget.Clickable
-	chatThemeResetBtn     widget.Clickable
-	chatThemeChipBtns     []widget.Clickable
-	chatThemeDlgKeyTag    = new(struct{})
+	chatThemeDlgKeyTag = new(struct{})
 )
 
 // openChatThemeDialog opens the picker and loads the account's themes.
@@ -109,7 +106,7 @@ func (a *App) layoutChatThemeDialog(gtx layout.Context, f frame) layout.Dimensio
 	if f.chatThemesFor != st.accountID {
 		themes = nil
 	}
-	growClickables(&chatThemeChipBtns, len(themes))
+	growClickables(&a.wid.chatThemeChipBtns, len(themes))
 
 	// Esc closes (self-handled).
 	{
@@ -126,10 +123,10 @@ func (a *App) layoutChatThemeDialog(gtx layout.Context, f frame) layout.Dimensio
 			a.closeChatThemeDialog()
 		}
 	}
-	if chatThemeDlgCancelBtn.Clicked(gtx) {
+	if a.wid.chatThemeDlgCancelBtn.Clicked(gtx) {
 		a.closeChatThemeDialog()
 	}
-	if chatThemeResetBtn.Clicked(gtx) {
+	if a.wid.chatThemeResetBtn.Clicked(gtx) {
 		accountID, chatID, title := st.accountID, st.chatID, st.title
 		a.closeChatThemeDialog()
 		a.applyChatTheme(accountID, chatID, "", title)
@@ -177,7 +174,7 @@ func (a *App) layoutChatThemeDialog(gtx layout.Context, f frame) layout.Dimensio
 									i := i
 									th := themes[i]
 									cells = append(cells, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										btn := &chatThemeChipBtns[i]
+										btn := &a.wid.chatThemeChipBtns[i]
 										if btn.Clicked(gtx) {
 											accountID, chatID, emoticon, title := st.accountID, st.chatID, th.Emoticon, st.title
 											a.closeChatThemeDialog()
@@ -196,7 +193,7 @@ func (a *App) layoutChatThemeDialog(gtx layout.Context, f frame) layout.Dimensio
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								bl := material.Button(a.ui.Theme, &chatThemeResetBtn, "Reset")
+								bl := material.Button(a.ui.Theme, &a.wid.chatThemeResetBtn, "Reset")
 								bl.Background = a.ui.p.SurfaceHi
 								bl.Color = a.ui.p.Text
 								bl.CornerRadius = 10
@@ -206,7 +203,7 @@ func (a *App) layoutChatThemeDialog(gtx layout.Context, f frame) layout.Dimensio
 								return layout.Dimensions{}
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								bl := material.Button(a.ui.Theme, &chatThemeDlgCancelBtn, "Cancel")
+								bl := material.Button(a.ui.Theme, &a.wid.chatThemeDlgCancelBtn, "Cancel")
 								bl.Background = a.ui.p.SurfaceHi
 								bl.Color = a.ui.p.Text
 								bl.CornerRadius = 10

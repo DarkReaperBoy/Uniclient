@@ -5,16 +5,15 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/engine"
 )
 
-// Inline emoji autocomplete (AyuGram parity, the ":shortcode" composer
+// Inline emoji autocomplete (AyuGram parity, the ":shortcode" a.wid.composer
 // behavior): while the caret sits inside a ":token" (colon at a word start,
 // at least one shortcode char after it), a strip of matching emoji appears
-// above the composer; tapping one replaces the whole ":token" with the emoji.
+// above the a.wid.composer; tapping one replaces the whole ":token" with the emoji.
 // Matches come from the same Telegram keyword table the emoji panel's search
 // uses (engine GetEmojiKeywords / MessagesGetEmojiKeywords), so this works
 // on every backend that provides keywords and stays hidden elsewhere (§1.10:
@@ -104,35 +103,33 @@ func emojiAutocompleteMatches(kws []engine.EmojiKeywordEntry, q string, cap int)
 }
 
 // emojiAutocompleteVisible: the strip shows only with a live token and no
-// competing composer panels (emoji picker / attach menu own that space).
+// competing a.wid.composer panels (emoji picker / attach menu own that space).
 func emojiAutocompleteVisible(emojiOpen, attachOpen bool) bool {
 	return !emojiOpen && !attachOpen
 }
 
 // ── state + panel ─────────────────────────────────────────────────────────
 
-var emojiAcBtns []widget.Clickable
-
-// applyEmojiAutocomplete replaces ":token" [start,caret) in the composer with
+// applyEmojiAutocomplete replaces ":token" [start,caret) in the a.wid.composer with
 // the chosen emoji (the Editor's Insert replaces the active selection).
 func (a *App) applyEmojiAutocomplete(start, caret int, emoji string) {
-	composer.SetCaret(start, caret)
-	composer.Insert(emoji)
+	a.wid.composer.SetCaret(start, caret)
+	a.wid.composer.Insert(emoji)
 	a.invalidate()
 }
 
-// layoutEmojiAutocomplete renders the suggestion strip above the composer.
-// Derived per-frame from the composer state — no panel state to invalidate:
+// layoutEmojiAutocomplete renders the suggestion strip above the a.wid.composer.
+// Derived per-frame from the a.wid.composer state — no panel state to invalidate:
 // the strip appears while a token is active and vanishes the moment it is not.
 func (a *App) layoutEmojiAutocomplete(gtx layout.Context, f frame) layout.Dimensions {
 	if !emojiAutocompleteVisible(f.emojiOpen, f.attachMenuOpen) {
 		return layout.Dimensions{}
 	}
-	start, end := composer.Selection()
+	start, end := a.wid.composer.Selection()
 	if start != end {
 		return layout.Dimensions{} // active text selection: don't fight it
 	}
-	query, _, active := emojiAutocompleteQuery(composer.Text(), end)
+	query, _, active := emojiAutocompleteQuery(a.wid.composer.Text(), end)
 	if !active {
 		return layout.Dimensions{}
 	}
@@ -148,16 +145,16 @@ func (a *App) layoutEmojiAutocomplete(gtx layout.Context, f frame) layout.Dimens
 		return layout.Dimensions{}
 	}
 
-	growClickables(&emojiAcBtns, len(sugg))
+	growClickables(&a.wid.emojiAcBtns, len(sugg))
 	for i := range sugg {
-		if emojiAcBtns[i].Clicked(gtx) {
+		if a.wid.emojiAcBtns[i].Clicked(gtx) {
 			// Replace the whole ":token" — the caret may have moved since
 			// the query was computed, so re-derive the replacement range.
-			s, e := composer.Selection()
+			s, e := a.wid.composer.Selection()
 			if s != e {
 				return layout.Dimensions{}
 			}
-			_, rs, ok := emojiAutocompleteQuery(composer.Text(), e)
+			_, rs, ok := emojiAutocompleteQuery(a.wid.composer.Text(), e)
 			if !ok {
 				return layout.Dimensions{}
 			}
@@ -166,14 +163,14 @@ func (a *App) layoutEmojiAutocomplete(gtx layout.Context, f frame) layout.Dimens
 		}
 	}
 
-	// Horizontal strip anchored above the composer (same chrome family as
+	// Horizontal strip anchored above the a.wid.composer (same chrome family as
 	// the bot-commands panel), scrollable when long.
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				list := material.List(a.ui.Theme, &emojiAcList)
+				list := material.List(a.ui.Theme, &a.wid.emojiAcList)
 				return list.Layout(gtx, len(sugg), func(gtx layout.Context, i int) layout.Dimensions {
-					return material.ButtonLayout(a.ui.Theme, &emojiAcBtns[i]).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return material.ButtonLayout(a.ui.Theme, &a.wid.emojiAcBtns[i]).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							lbl := a.ui.Label(unit.Sp(22), sugg[i])
 							return lbl.Layout(gtx)
@@ -183,10 +180,4 @@ func (a *App) layoutEmojiAutocomplete(gtx layout.Context, f frame) layout.Dimens
 			})
 		})
 	})
-}
-
-var emojiAcList widget.List
-
-func init() {
-	emojiAcList.Axis = layout.Horizontal
 }

@@ -30,6 +30,10 @@ type App struct {
 	ui  *UI
 	eng *engine.Engine
 
+	// wid is this window's interactive widget state (slice 168:
+	// multi-window chats — each window owns its widgets).
+	wid widgets
+
 	mu sync.Mutex // guards everything below
 
 	// world state
@@ -155,9 +159,9 @@ type App struct {
 	loadingMsgs    bool
 	loadedOlder    int // how many pages loaded (scroll-up)
 
-	// message-action state (AyuGram parity §1.11: reply/edit composer modes,
+	// message-action state (AyuGram parity §1.11: reply/edit a.wid.composer modes,
 	// context menu, forward picker, reactions).
-	cMode        composerMode           // reply/edit header above the composer
+	cMode        composerMode           // reply/edit header above the a.wid.composer
 	menu         *menuTarget            // open message context menu (copy)
 	fwd          []engine.CachedMessage // forward picker sources (1 or batch)
 	menuCaps     []string               // capabilities cached for the menu's account
@@ -487,7 +491,7 @@ type App struct {
 }
 
 func New(win *app.Window, eng *engine.Engine) *App {
-	return &App{
+	a := &App{
 		win:          win,
 		ui:           NewUI(),
 		eng:          eng,
@@ -506,6 +510,8 @@ func New(win *app.Window, eng *engine.Engine) *App {
 		transAsked:   make(map[string]bool),
 		seenInline:   make(map[string]*seenInlineState),
 	}
+	a.wid.init()
+	return a
 }
 
 // Start boots the app: initial data pull + event subscription + reconnect.
@@ -1112,9 +1118,9 @@ func (a *App) consumePendingOpen() {
 func (a *App) openChat(k chatKey, title string) {
 	a.hideChatPeek() // the chat's own content replaces the hover preview
 
-	// Draft flush: persist whatever the composer holds for the chat we are
+	// Draft flush: persist whatever the a.wid.composer holds for the chat we are
 	// LEAVING, then restore the new chat's draft (slice 20). Runs on the
-	// GUI goroutine, so touching the composer editor is safe.
+	// GUI goroutine, so touching the a.wid.composer editor is safe.
 	a.mu.Lock()
 	prev := a.selected
 	var next engine.ChatInfo
@@ -1203,11 +1209,11 @@ func (a *App) openChat(k chatKey, title string) {
 	a.inlineForOffset = ""
 	a.inlineBusy = false
 
-	// Restore the incoming chat's draft into the composer (slice 20).
+	// Restore the incoming chat's draft into the a.wid.composer (slice 20).
 	if next.DraftText != "" {
-		composer.SetText(next.DraftText)
+		a.wid.composer.SetText(next.DraftText)
 	} else {
-		composer.SetText("")
+		a.wid.composer.SetText("")
 	}
 	// Unread snapshot BEFORE the read receipt fires (openChat marks read
 	// right after the first load) — the separator position for this visit.
@@ -1279,7 +1285,7 @@ func (a *App) openChat(k chatKey, title string) {
 	}()
 }
 
-// sendText routes the composer submit through the active reply/edit mode
+// sendText routes the a.wid.composer submit through the active reply/edit mode
 // (AyuGram input field: reply header → SendMessage(replyToID), edit header
 // → EditMessage). Runs the engine call on a background goroutine.
 func (a *App) sendText(text string) {
@@ -1337,12 +1343,12 @@ func (a *App) startReply(m *engine.CachedMessage) {
 	a.invalidate()
 }
 
-// startEdit enters edit mode and prefills the composer with the original text.
+// startEdit enters edit mode and prefills the a.wid.composer with the original text.
 func (a *App) startEdit(m *engine.CachedMessage) {
 	a.mu.Lock()
 	a.cMode.startEdit(m)
 	a.mu.Unlock()
-	composer.SetText(m.ContentText)
+	a.wid.composer.SetText(m.ContentText)
 	// Focus is executed by the menu's Edit action via key.FocusCmd (gio
 	// v0.10.2 editors take focus through commands, not methods).
 	a.invalidate()
@@ -1355,7 +1361,7 @@ func (a *App) cancelComposerMode() {
 	a.cMode.cancel()
 	a.mu.Unlock()
 	if editing {
-		composer.SetText("")
+		a.wid.composer.SetText("")
 	}
 	a.invalidate()
 }

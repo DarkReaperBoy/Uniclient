@@ -6,7 +6,7 @@ import (
 	"uniclient/engine"
 )
 
-// Bot commands menu (AyuGram parity slice 76): the composer's "/" button
+// Bot commands menu (AyuGram parity slice 76): the a.wid.composer's "/" button
 // lists the chat's bot commands (engine.GetChatBotCommands); tapping one
 // inserts it. Pure derivations locked here.
 
@@ -51,7 +51,7 @@ func TestBotCmdPanelNeeded(t *testing.T) {
 
 func TestBotCmdInsertText(t *testing.T) {
 	if got := botCmdInsertText("", "start"); got != "/start " {
-		t.Fatalf("empty composer: %q", got)
+		t.Fatalf("empty a.wid.composer: %q", got)
 	}
 	if got := botCmdInsertText("hello ", "help"); got != "hello /help " {
 		t.Fatalf("append: %q", got)

@@ -24,19 +24,18 @@ import (
 // caption is the group member carrying text. GroupedID flows from the cores
 // through CachedMessage — pure GUI work (§1.10: engine-backed only).
 
-// albumCellClicks pools per-cell clickables (msgID-keyed, pruned like
-// reactionClicks).
-var albumCellClicks = map[string]*widget.Clickable{}
+// a.wid.albumCellClicks pools per-cell clickables (msgID-keyed, pruned like
+// a.wid.reactionClicks).
 
-func albumCellClickable(key string) *widget.Clickable {
-	if c, ok := albumCellClicks[key]; ok {
+func (a *App) albumCellClickable(key string) *widget.Clickable {
+	if c, ok := a.wid.albumCellClicks[key]; ok {
 		return c
 	}
-	if len(albumCellClicks) > 512 {
-		albumCellClicks = make(map[string]*widget.Clickable)
+	if len(a.wid.albumCellClicks) > 512 {
+		a.wid.albumCellClicks = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	albumCellClicks[key] = c
+	a.wid.albumCellClicks[key] = c
 	return c
 }
 
@@ -239,7 +238,7 @@ func (a *App) albumCell(gtx layout.Context, f frame, m *engine.CachedMessage, ce
 		state = st.state
 	}
 
-	btn := albumCellClickable(m.MsgID)
+	btn := a.albumCellClickable(m.MsgID)
 	if btn.Clicked(gtx) {
 		a.actMedia(gtx, m, state)
 	}

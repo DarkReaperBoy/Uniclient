@@ -124,16 +124,9 @@ type msgDetailState struct {
 }
 
 var (
-	detailCloseBtn  widget.Clickable
 	detailKeyTag    = new(struct{})
-	detailList      widget.List
-	detailCopyBtn   widget.Clickable
 	detailCopyField int // index of the last copied row
 )
-
-func init() {
-	detailList.Axis = layout.Vertical
-}
 
 // openMsgDetailDialog shows the details dialog for a message.
 func (a *App) openMsgDetailDialog(m *engine.CachedMessage) {
@@ -197,12 +190,12 @@ func (a *App) layoutMsgDetail(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	paintFill(gtx.Ops, scrimColor(), gtx.Constraints.Max)
 
-	if detailCloseBtn.Clicked(gtx) {
+	if a.wid.detailCloseBtn.Clicked(gtx) {
 		a.closeMsgDetailDialog()
 	}
-	growClickables(&detailRowBtns, len(rows))
+	growClickables(&a.wid.detailRowBtns, len(rows))
 	for i := range rows {
-		if btn := &detailRowBtns[i]; btn.Clicked(gtx) {
+		if btn := &a.wid.detailRowBtns[i]; btn.Clicked(gtx) {
 			a.copyTextSoon(rows[i].value)
 			a.setToast("Copied")
 		}
@@ -227,7 +220,7 @@ func (a *App) layoutMsgDetail(gtx layout.Context, f frame) layout.Dimensions {
 								return lbl.Layout(gtx)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								btn := a.ui.IconButton(&detailCloseBtn, iconContentClear, "Close")
+								btn := a.ui.IconButton(&a.wid.detailCloseBtn, iconContentClear, "Close")
 								btn.Color = a.ui.p.TextDim
 								return btn.Layout(gtx)
 							}),
@@ -246,14 +239,14 @@ func (a *App) layoutMsgDetail(gtx layout.Context, f frame) layout.Dimensions {
 							lbl.Color = a.ui.p.TextFaint
 							return lbl.Layout(gtx)
 						}
-						list := material.List(a.ui.Theme, &detailList)
+						list := material.List(a.ui.Theme, &a.wid.detailList)
 						maxH := gtx.Constraints.Max.Y - gtx.Dp(unit.Dp(180))
 						if maxH < gtx.Dp(unit.Dp(120)) {
 							maxH = gtx.Dp(unit.Dp(120))
 						}
 						gtx.Constraints.Max.Y = maxH
 						return list.Layout(gtx, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
-							return a.detailRowWidget(gtx, rows[i], &detailRowBtns[i])
+							return a.detailRowWidget(gtx, rows[i], &a.wid.detailRowBtns[i])
 						})
 					}),
 				)
@@ -287,7 +280,6 @@ func (a *App) detailRowWidget(gtx layout.Context, r detailRow, btn *widget.Click
 	})
 }
 
-var detailRowBtns []widget.Clickable
 var detailBgTag = new(struct{})
 
 // scrimColor: the dialog backdrop.

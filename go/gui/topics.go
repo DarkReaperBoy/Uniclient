@@ -19,7 +19,7 @@ import (
 // Forum topics (slice 118, Telegram forum parity): a forum chat opens on
 // its topic list (pinned first, then by activity) instead of the raw message
 // stream; tapping a topic scopes the view to that topic (topic bar, messages
-// filtered by the cached topic_id, composer sends with topicRootID). Topic
+// filtered by the cached topic_id, a.wid.composer sends with topicRootID). Topic
 // management rides the engine's forum CRUD: create (title + icon color),
 // pin/unpin, close/reopen, rename, delete history.
 
@@ -93,18 +93,6 @@ type forumDlgState struct {
 // forumDlgColorSel is the create dialog's selected icon color.
 var forumDlgColorSel = 0x6FB9F0
 
-var (
-	forumTitleEd   widget.Editor
-	forumCreateBtn widget.Clickable
-	forumCancelBtn widget.Clickable
-	forumNewBtn    widget.Clickable
-	forumMenuBtn   widget.Clickable
-	forumBackBtn   widget.Clickable
-	forumActBtns   []widget.Clickable
-	forumTopicBtns []widget.Clickable
-	forumIconChips []widget.Clickable
-)
-
 // loadForumTopics fetches the chat's topic list + default icons (async).
 func (a *App) loadForumTopics(k chatKey) {
 	go func() {
@@ -167,7 +155,7 @@ func (a *App) backToForumTopics() {
 
 // createForumTopic commits the create dialog (engine CreateForumTopic).
 func (a *App) createForumTopic(k chatKey) {
-	title := forumTitleEd.Text()
+	title := a.wid.forumTitleEd.Text()
 	if title == "" {
 		a.setToast("Topic title required")
 		return
@@ -188,7 +176,7 @@ func (a *App) createForumTopic(k chatKey) {
 
 // renameForumTopic commits the edit dialog (engine EditForumTopic).
 func (a *App) renameForumTopic(k chatKey, t cores.ForumTopic) {
-	title := forumTitleEd.Text()
+	title := a.wid.forumTitleEd.Text()
 	if title == "" {
 		a.setToast("Topic title required")
 		return
@@ -243,23 +231,23 @@ func (a *App) applyForumAction(k chatKey, t cores.ForumTopic, action string) {
 // topicListPane replaces the message list on a forum's root view.
 func (a *App) topicListPane(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	topics := sortForumTopics(f.forumTopics)
-	for len(forumTopicBtns) < len(topics) {
-		forumTopicBtns = append(forumTopicBtns, widget.Clickable{})
+	for len(a.wid.forumTopicBtns) < len(topics) {
+		a.wid.forumTopicBtns = append(a.wid.forumTopicBtns, widget.Clickable{})
 	}
 	rows := make([]layout.FlexChild, 0, len(topics)+2)
 
 	// New topic row.
 	rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		if forumNewBtn.Clicked(gtx) {
+		if a.wid.forumNewBtn.Clicked(gtx) {
 			forumDlgColorSel = 0x6FB9F0
 			a.mu.Lock()
 			a.forumDlg = &forumDlgState{mode: "create", colorID: 0x6FB9F0}
 			a.mu.Unlock()
-			forumTitleEd.SetText("")
+			a.wid.forumTitleEd.SetText("")
 			a.invalidate()
 		}
 		return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(4), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			btn := a.ui.TextButton(&forumNewBtn, "+ New topic")
+			btn := a.ui.TextButton(&a.wid.forumNewBtn, "+ New topic")
 			btn.Color = a.ui.p.Accent
 			return btn.Layout(gtx)
 		})
@@ -289,7 +277,7 @@ func (a *App) topicListPane(gtx layout.Context, f frame, chat *engine.ChatInfo) 
 		i := i
 		tp := topics[i]
 		rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := &forumTopicBtns[i]
+			btn := &a.wid.forumTopicBtns[i]
 			if btn.Clicked(gtx) {
 				a.openForumTopic(tp.ID)
 			}
@@ -350,10 +338,10 @@ func (a *App) topicBar(gtx layout.Context, f frame) layout.Dimensions {
 			break
 		}
 	}
-	if forumBackBtn.Clicked(gtx) {
+	if a.wid.forumBackBtn.Clicked(gtx) {
 		a.backToForumTopics()
 	}
-	if forumMenuBtn.Clicked(gtx) && tp != nil {
+	if a.wid.forumMenuBtn.Clicked(gtx) && tp != nil {
 		a.mu.Lock()
 		a.forumDlg = &forumDlgState{mode: "actions", topic: tp}
 		a.mu.Unlock()
@@ -362,7 +350,7 @@ func (a *App) topicBar(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.IconButton(&forumBackBtn, iconNavigationBack, "Back to topics")
+				btn := a.ui.IconButton(&a.wid.forumBackBtn, iconNavigationBack, "Back to topics")
 				btn.Color = a.ui.p.TextDim
 				return btn.Layout(gtx)
 			}),
@@ -390,7 +378,7 @@ func (a *App) topicBar(gtx layout.Context, f frame) layout.Dimensions {
 				if tp == nil {
 					return layout.Dimensions{}
 				}
-				btn := a.ui.IconButton(&forumMenuBtn, iconNavMoreVert, "Topic actions")
+				btn := a.ui.IconButton(&a.wid.forumMenuBtn, iconNavMoreVert, "Topic actions")
 				btn.Color = a.ui.p.TextDim
 				return btn.Layout(gtx)
 			}),
@@ -421,8 +409,8 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 		if d.topic.IsClosed {
 			actions[1].label = "Reopen topic"
 		}
-		for len(forumActBtns) < len(actions) {
-			forumActBtns = append(forumActBtns, widget.Clickable{})
+		for len(a.wid.forumActBtns) < len(actions) {
+			a.wid.forumActBtns = append(a.wid.forumActBtns, widget.Clickable{})
 		}
 		paintScrimRect(gtx)
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -438,7 +426,7 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 					for i, act := range actions {
 						i, act := i, act
 						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							btn := &forumActBtns[i]
+							btn := &a.wid.forumActBtns[i]
 							if btn.Clicked(gtx) {
 								a.applyForumAction(k, *d.topic, act.key)
 							}
@@ -452,13 +440,13 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 						}))
 					}
 					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if forumCancelBtn.Clicked(gtx) {
+						if a.wid.forumCancelBtn.Clicked(gtx) {
 							a.mu.Lock()
 							a.forumDlg = nil
 							a.mu.Unlock()
 							a.invalidate()
 						}
-						btn := a.ui.TextButton(&forumCancelBtn, "Cancel")
+						btn := a.ui.TextButton(&a.wid.forumCancelBtn, "Cancel")
 						return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, btn.Layout)
 					}))
 					return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -469,25 +457,25 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 
 	// Create / edit mode: title editor + color chips + commit.
 	if !d.synced {
-		forumTitleEd.SetText(d.title)
+		a.wid.forumTitleEd.SetText(d.title)
 		d.synced = true
 	}
-	if forumCreateBtn.Clicked(gtx) {
+	if a.wid.forumCreateBtn.Clicked(gtx) {
 		if d.mode == "edit" && d.topic != nil {
 			a.renameForumTopic(k, *d.topic)
 		} else {
 			a.createForumTopic(k)
 		}
 	}
-	if forumCancelBtn.Clicked(gtx) {
+	if a.wid.forumCancelBtn.Clicked(gtx) {
 		a.mu.Lock()
 		a.forumDlg = nil
 		a.mu.Unlock()
 		a.invalidate()
 	}
 	colors := []int{0x6FB9F0, 0xFFD67E, 0xCB86DB, 0x8EEE98, 0xFF93B2, 0xFB6F5F}
-	for len(forumIconChips) < len(colors) {
-		forumIconChips = append(forumIconChips, widget.Clickable{})
+	for len(a.wid.forumIconChips) < len(colors) {
+		a.wid.forumIconChips = append(a.wid.forumIconChips, widget.Clickable{})
 	}
 	paintScrimRect(gtx)
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -505,7 +493,7 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.ui.Editor(&forumTitleEd, "Topic title").Layout(gtx)
+							return a.ui.Editor(&a.wid.forumTitleEd, "Topic title").Layout(gtx)
 						})
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -514,7 +502,7 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 							for i, cid := range colors {
 								i, cid := i, cid
 								chips = append(chips, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									btn := &forumIconChips[i]
+									btn := &a.wid.forumIconChips[i]
 									if btn.Clicked(gtx) {
 										forumDlgColorSel = cid
 										a.invalidate()
@@ -542,11 +530,11 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.TextButton(&forumCancelBtn, "Cancel")
+									btn := a.ui.TextButton(&a.wid.forumCancelBtn, "Cancel")
 									return btn.Layout(gtx)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.PrimaryButton(&forumCreateBtn, "Save")
+									btn := a.ui.PrimaryButton(&a.wid.forumCreateBtn, "Save")
 									return btn.Layout(gtx)
 								}),
 							)

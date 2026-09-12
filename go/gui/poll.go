@@ -426,17 +426,15 @@ func (a *App) pollStoppedFor(key string) bool {
 
 // ── poll option clickables (stable per poll+option) ────────────────────────
 
-var pollClicks = make(map[string]*widget.Clickable)
-
-func pollOptClickable(key string) *widget.Clickable {
-	if c, ok := pollClicks[key]; ok {
+func (a *App) pollOptClickable(key string) *widget.Clickable {
+	if c, ok := a.wid.pollClicks[key]; ok {
 		return c
 	}
-	if len(pollClicks) > 512 {
-		pollClicks = make(map[string]*widget.Clickable)
+	if len(a.wid.pollClicks) > 512 {
+		a.wid.pollClicks = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	pollClicks[key] = c
+	a.wid.pollClicks[key] = c
 	return c
 }
 
@@ -507,7 +505,7 @@ func (a *App) pollBlock(gtx layout.Context, m *engine.CachedMessage) layout.Dime
 // voting (or once closed) a Telegram-style bar with the vote share, the
 // chosen answer highlighted, and quiz correct/wrong marks revealed.
 func (a *App) pollOptionRow(gtx layout.Context, m *engine.CachedMessage, d *pollData, opt pollOption, idx int, baseKey string, showResults, voted bool) layout.Dimensions {
-	btn := pollOptClickable(baseKey + "|" + itoa(idx))
+	btn := a.pollOptClickable(baseKey + "|" + itoa(idx))
 	if !d.Closed && btn.Clicked(gtx) {
 		a.tapPollOption(m, d, idx) // vote / retract / toggle, locks inside
 	}
@@ -662,19 +660,10 @@ type pollDlgState struct {
 }
 
 var (
-	pollDlgCancel   widget.Clickable
-	pollDlgCreate   widget.Clickable
-	pollQEd         widget.Editor
-	pollOptEds      []widget.Editor
-	pollAddOptBtn   widget.Clickable
-	pollDelOptBtns  []widget.Clickable
-	pollAnonSw      widget.Bool
-	pollMultiSw     widget.Bool
-	pollQuizSw      widget.Bool
-	pollQuizWas     bool // previous-frame values for change detection
-	pollMultiWas    bool
-	pollCorrectBtns []widget.Clickable
-	pollKeyTag      = new(struct{})
+	pollOptEds   []widget.Editor
+	pollQuizWas  bool // previous-frame values for change detection
+	pollMultiWas bool
+	pollKeyTag   = new(struct{})
 )
 
 const pollMaxOptions = 10
@@ -704,13 +693,13 @@ func (a *App) openPollDialog() {
 	if len(pollOptEds) < 2 {
 		pollOptEds = make([]widget.Editor, 2)
 	}
-	pollQEd.SetText("")
+	a.wid.pollQEd.SetText("")
 	for i := range pollOptEds {
 		pollOptEds[i].SetText("")
 	}
-	pollAnonSw.Value = true
-	pollMultiSw.Value = false
-	pollQuizSw.Value = false
+	a.wid.pollAnonSw.Value = true
+	a.wid.pollMultiSw.Value = false
+	a.wid.pollQuizSw.Value = false
 	pollQuizWas, pollMultiWas = false, false
 	a.invalidate()
 }
@@ -737,7 +726,7 @@ func (a *App) submitPollDialog() {
 	a.mu.Unlock()
 	a.invalidate()
 
-	q := strings.TrimSpace(pollQEd.Text())
+	q := strings.TrimSpace(a.wid.pollQEd.Text())
 	opts := make([]string, 0, len(pollOptEds))
 	for i := range pollOptEds {
 		if t := strings.TrimSpace(pollOptEds[i].Text()); t != "" {
@@ -757,9 +746,9 @@ func (a *App) submitPollDialog() {
 	acc, chat := k.AccountID, k.ChatID
 	go func() {
 		_, err := a.eng.CreatePollEx(acc, chat, q, opts, engine.PollOptions{
-			Anonymous:      pollAnonSw.Value,
-			MultipleChoice: pollMultiSw.Value,
-			Quiz:           pollQuizSw.Value,
+			Anonymous:      a.wid.pollAnonSw.Value,
+			MultipleChoice: a.wid.pollMultiSw.Value,
+			Quiz:           a.wid.pollQuizSw.Value,
 			CorrectOption:  correct,
 		})
 		a.mu.Lock()
@@ -792,21 +781,21 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 			a.closePollDialog()
 		}
 	}
-	if pollDlgCancel.Clicked(gtx) {
+	if a.wid.pollDlgCancel.Clicked(gtx) {
 		a.closePollDialog()
 	}
-	if pollDlgCreate.Clicked(gtx) {
+	if a.wid.pollDlgCreate.Clicked(gtx) {
 		a.submitPollDialog()
 	}
-	if pollAddOptBtn.Clicked(gtx) && len(pollOptEds) < pollMaxOptions {
+	if a.wid.pollAddOptBtn.Clicked(gtx) && len(pollOptEds) < pollMaxOptions {
 		pollOptEds = append(pollOptEds, widget.Editor{})
 		a.invalidate()
 	}
-	growClickables(&pollDelOptBtns, len(pollOptEds))
-	for i := range pollDelOptBtns {
-		if pollDelOptBtns[i].Clicked(gtx) && len(pollOptEds) > 2 {
+	growClickables(&a.wid.pollDelOptBtns, len(pollOptEds))
+	for i := range a.wid.pollDelOptBtns {
+		if a.wid.pollDelOptBtns[i].Clicked(gtx) && len(pollOptEds) > 2 {
 			pollOptEds = append(pollOptEds[:i], pollOptEds[i+1:]...)
-			pollDelOptBtns = pollDelOptBtns[:len(pollOptEds)]
+			a.wid.pollDelOptBtns = a.wid.pollDelOptBtns[:len(pollOptEds)]
 			a.mu.Lock()
 			if a.pollDlg != nil && a.pollDlg.correct == i {
 				a.pollDlg.correct = 0
@@ -817,14 +806,14 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	// Quiz and multiple answers are mutually exclusive (Telegram rule);
 	// widget.Bool has no change event — track the previous values.
-	if pollQuizSw.Value != pollQuizWas || pollMultiSw.Value != pollMultiWas {
-		if pollQuizSw.Value && !pollQuizWas {
-			pollMultiSw.Value = false
+	if a.wid.pollQuizSw.Value != pollQuizWas || a.wid.pollMultiSw.Value != pollMultiWas {
+		if a.wid.pollQuizSw.Value && !pollQuizWas {
+			a.wid.pollMultiSw.Value = false
 		}
-		if pollMultiSw.Value && !pollMultiWas {
-			pollQuizSw.Value = false
+		if a.wid.pollMultiSw.Value && !pollMultiWas {
+			a.wid.pollQuizSw.Value = false
 		}
-		pollQuizWas, pollMultiWas = pollQuizSw.Value, pollMultiSw.Value
+		pollQuizWas, pollMultiWas = a.wid.pollQuizSw.Value, a.wid.pollMultiSw.Value
 		a.invalidate()
 	}
 
@@ -849,7 +838,7 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 								return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									ed := a.ui.Editor(&pollQEd, "Question")
+									ed := a.ui.Editor(&a.wid.pollQEd, "Question")
 									return ed.Layout(gtx)
 								})
 							})
@@ -857,7 +846,7 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 					}),
 					// Option editors + add/remove + quiz-correct marks.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						growClickables(&pollCorrectBtns, len(pollOptEds))
+						growClickables(&a.wid.pollCorrectBtns, len(pollOptEds))
 						rows := make([]layout.FlexChild, 0, len(pollOptEds)+1)
 						for i := range pollOptEds {
 							i := i
@@ -883,15 +872,15 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 												return layout.Dimensions{}
 											}
 											return layout.Inset{Left: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-												return a.ui.IconButton(&pollDelOptBtns[i], iconContentClear, "Remove option").Layout(gtx)
+												return a.ui.IconButton(&a.wid.pollDelOptBtns[i], iconContentClear, "Remove option").Layout(gtx)
 											})
 										}),
 										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											if !pollQuizSw.Value {
+											if !a.wid.pollQuizSw.Value {
 												return layout.Dimensions{}
 											}
 											return layout.Inset{Left: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-												if pollCorrectBtns[i].Clicked(gtx) {
+												if a.wid.pollCorrectBtns[i].Clicked(gtx) {
 													a.mu.Lock()
 													if a.pollDlg != nil {
 														a.pollDlg.correct = i
@@ -899,7 +888,7 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 													a.mu.Unlock()
 													a.invalidate()
 												}
-												btn := a.ui.IconButton(&pollCorrectBtns[i], iconNavigationCheck, "Correct answer")
+												btn := a.ui.IconButton(&a.wid.pollCorrectBtns[i], iconNavigationCheck, "Correct answer")
 												if d.correct == i {
 													btn.Color = a.ui.p.Online
 												} else {
@@ -917,7 +906,7 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 								if len(pollOptEds) >= pollMaxOptions {
 									return layout.Dimensions{}
 								}
-								btn := a.ui.TextButton(&pollAddOptBtn, "Add option")
+								btn := a.ui.TextButton(&a.wid.pollAddOptBtn, "Add option")
 								btn.Color = a.ui.p.Accent
 								return btn.Layout(gtx)
 							})
@@ -929,13 +918,13 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.pollSwitchRow(gtx, &pollAnonSw, "Anonymous poll")
+									return a.pollSwitchRow(gtx, &a.wid.pollAnonSw, "Anonymous poll")
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.pollSwitchRow(gtx, &pollMultiSw, "Multiple answers")
+									return a.pollSwitchRow(gtx, &a.wid.pollMultiSw, "Multiple answers")
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.pollSwitchRow(gtx, &pollQuizSw, "Quiz mode")
+									return a.pollSwitchRow(gtx, &a.wid.pollQuizSw, "Quiz mode")
 								}),
 							)
 						})
@@ -945,12 +934,12 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.TextButton(&pollDlgCancel, "Cancel")
+									btn := a.ui.TextButton(&a.wid.pollDlgCancel, "Cancel")
 									btn.Color = a.ui.p.TextDim
 									return btn.Layout(gtx)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.TextButton(&pollDlgCreate, label)
+									btn := a.ui.TextButton(&a.wid.pollDlgCreate, label)
 									btn.Color = a.ui.p.Accent
 									return btn.Layout(gtx)
 								}),

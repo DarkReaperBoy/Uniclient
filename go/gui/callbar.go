@@ -5,7 +5,6 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	"uniclient/cores"
 	"uniclient/engine"
@@ -21,8 +20,6 @@ import (
 // the engine or the bar is omitted.
 
 const callPollInterval = 5 * time.Second
-
-var callJoinBtn widget.Clickable
 
 // callBarPollNeeded reports whether the poll loop should fetch call info
 // for a chat (chats with a live call, or voice-room channels whose
@@ -81,7 +78,7 @@ func callJoinedLabel(title string) string {
 
 // callBar renders the live bar under the chat header.
 func (a *App) callBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
-	if callJoinBtn.Clicked(gtx) {
+	if a.wid.callJoinBtn.Clicked(gtx) {
 		acc, id, title := chat.AccountID, chat.ChatID, chat.Title
 		go func() {
 			callID, err := a.eng.JoinGroupCall(acc, id)
@@ -128,7 +125,7 @@ func (a *App) callBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 						)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.PrimaryButton(&callJoinBtn, "JOIN")
+						btn := a.ui.PrimaryButton(&a.wid.callJoinBtn, "JOIN")
 						return btn.Layout(gtx)
 					}),
 				)

@@ -12,19 +12,19 @@ package gui
 //     url_auth / web_view / simple_web_view open in the platform browser
 //     (WebApps need a webview — the system-browser handoff is the honest
 //     pure-Go ceiling, same policy as the video player); copy buttons copy;
-//     switch_inline same_peer inserts into the composer, otherwise the
+//     switch_inline same_peer inserts into the a.wid.composer, otherwise the
 //     "@bot query" text goes to the clipboard (tdesktop switches chats via
 //     a picker — honest approximation); buy explains itself (payments are
 //     out of scope for this build).
-//   - REPLY keyboards: a panel under the composer for the chat's LATEST
+//   - REPLY keyboards: a panel under the a.wid.composer for the chat's LATEST
 //     keyboard-carrying message; keyboard_hide clears it; single_use hides
-//     it after one tap; the markup's placeholder replaces the composer
+//     it after one tap; the markup's placeholder replaces the a.wid.composer
 //     hint. Only buttons the app can act on render (text sends, web_view
 //     opens); request_phone / request_location / request_poll /
 //     request_peer are omitted rather than shown dead (§1.10).
 //
 // force_reply (ReplyKeyboardForceReply) is not wired: it only styles the
-// composer hint while a reply is pending, and the reply chip already
+// a.wid.composer hint while a reply is pending, and the reply chip already
 // communicates that state.
 
 import (
@@ -140,7 +140,7 @@ func parseReplyKeyboard(m *engine.CachedMessage) (kbd *botKbd, singleUse bool, p
 }
 
 // replyKbdActive reports whether the loaded window leaves a reply keyboard
-// active (thin wrapper over activeReplyKbd; the composer wiring needs the
+// active (thin wrapper over activeReplyKbd; the a.wid.composer wiring needs the
 // full tuple).
 func replyKbdActive(msgs []engine.CachedMessage) *botKbd {
 	kbd, _, _, _ := activeReplyKbd(msgs)
@@ -182,7 +182,7 @@ func activeReplyKbd(msgs []engine.CachedMessage) (kbd *botKbd, singleUse bool, p
 	return active, su, ph, srcMsg
 }
 
-// botKbdHint picks the composer hint: the reply keyboard's placeholder when
+// botKbdHint picks the a.wid.composer hint: the reply keyboard's placeholder when
 // present, the default otherwise.
 func botKbdHint(placeholder, def string) string {
 	if p := strings.TrimSpace(placeholder); p != "" {
@@ -191,7 +191,7 @@ func botKbdHint(placeholder, def string) string {
 	return def
 }
 
-// botKbdComposerHint resolves the composer hint for a frame: the active
+// botKbdComposerHint resolves the a.wid.composer hint for a frame: the active
 // reply keyboard's placeholder (tdesktop) or the default text.
 func botKbdComposerHint(f frame) string {
 	_, _, ph, _ := activeReplyKbd(f.messages)
@@ -272,7 +272,7 @@ func (a *App) botKbdExec(m *engine.CachedMessage, act botKbdAction) {
 		if act.Payload == "" {
 			return
 		}
-		composer.Insert(act.Payload + " ")
+		a.wid.composer.Insert(act.Payload + " ")
 	case "clipboard":
 		if act.Payload == "" {
 			return
@@ -302,7 +302,7 @@ var (
 	inlineKbdBtns [][]widget.Clickable // per-row button pools
 	replyKbdBtns  [][]widget.Clickable
 
-	// Reply-keyboard session state (package-level like the other composer
+	// Reply-keyboard session state (package-level like the other a.wid.composer
 	// chrome; touched only on the GUI goroutine).
 	replyKbdSingleUse bool   // the active keyboard is single_use
 	replyKbdUsedFor   string // msgID whose single_use keyboard was consumed ("" = none)
@@ -381,7 +381,7 @@ func rowFlexChildren(kbd *botKbd, pool [][]widget.Clickable, a *App) []layout.Fl
 	return children
 }
 
-// layoutReplyKeyboard renders the reply-keyboard panel under the composer
+// layoutReplyKeyboard renders the reply-keyboard panel under the a.wid.composer
 // (the chat's active keyboard). Taps act on the button; single_use marks
 // the keyboard consumed so the panel disappears.
 func (a *App) layoutReplyKeyboard(gtx layout.Context, f frame, kbd *botKbd, src *engine.CachedMessage) layout.Dimensions {

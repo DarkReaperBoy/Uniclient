@@ -116,7 +116,7 @@ func (a *App) setGhostAll(v bool) {
 
 // layoutDrawer renders the scrim + left panel over the whole window.
 func (a *App) layoutDrawer(gtx layout.Context, f frame) layout.Dimensions {
-	// Steal keyboard focus from the composer so Escape reaches us first.
+	// Steal keyboard focus from the a.wid.composer so Escape reaches us first.
 	gtx.Execute(key.FocusCmd{Tag: nil})
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)

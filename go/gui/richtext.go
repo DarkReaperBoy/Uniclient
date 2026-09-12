@@ -35,8 +35,7 @@ import (
 // Spoilers start hidden (gray pill, glyphs in bubble color) and reveal on
 // a click anywhere in the text block.
 
-// spoilerBtns are per-message clickables toggling spoiler reveal.
-var spoilerBtns = map[string]*widget.Clickable{}
+// a.wid.spoilerBtns are per-message clickables toggling spoiler reveal.
 
 // linkTag marks one tappable link token; the press dispatches by kind:
 // hashtags open the in-chat tag search (slice 92), everything else
@@ -255,10 +254,10 @@ func (a *App) richTextLabel(gtx layout.Context, m engine.CachedMessage, size uni
 	}
 
 	if clickable && spoilerHas(entities) {
-		btn := spoilerBtns[m.MsgID]
+		btn := a.wid.spoilerBtns[m.MsgID]
 		if btn == nil {
 			btn = new(widget.Clickable)
-			spoilerBtns[m.MsgID] = btn
+			a.wid.spoilerBtns[m.MsgID] = btn
 		}
 		if btn.Clicked(gtx) {
 			if a.spoilerRevealed == nil {

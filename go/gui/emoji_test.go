@@ -6,7 +6,7 @@ import (
 	"gioui.org/layout"
 )
 
-// Emoji picker pure helpers (gui/emoji.go, §4 composer helpers).
+// Emoji picker pure helpers (gui/emoji.go, §4 a.wid.composer helpers).
 
 func TestEmojiRowCount(t *testing.T) {
 	cases := []struct {

@@ -15,7 +15,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	"uniclient/engine"
 )
@@ -30,8 +29,6 @@ type editHistState struct {
 }
 
 var (
-	editHistClose  widget.Clickable
-	editHistMore   widget.Clickable
 	editHistKeyTag = new(struct{})
 )
 
@@ -140,10 +137,10 @@ func (a *App) layoutEditHistDialog(gtx layout.Context, f frame) layout.Dimension
 			a.closeEditHistDialog()
 		}
 	}
-	if editHistClose.Clicked(gtx) {
+	if a.wid.editHistClose.Clicked(gtx) {
 		a.closeEditHistDialog()
 	}
-	if editHistMore.Clicked(gtx) && d.more && !d.busy {
+	if a.wid.editHistMore.Clicked(gtx) && d.more && !d.busy {
 		a.loadEditHist(len(d.revisions))
 	}
 
@@ -162,7 +159,7 @@ func (a *App) layoutEditHistDialog(gtx layout.Context, f frame) layout.Dimension
 								return lbl.Layout(gtx)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								btn := a.ui.IconButton(&editHistClose, iconContentClear, "Close")
+								btn := a.ui.IconButton(&a.wid.editHistClose, iconContentClear, "Close")
 								btn.Color = a.ui.p.TextDim
 								return btn.Layout(gtx)
 							}),
@@ -201,7 +198,7 @@ func (a *App) layoutEditHistDialog(gtx layout.Context, f frame) layout.Dimension
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.TextButton(&editHistMore, "Load more")
+							btn := a.ui.TextButton(&a.wid.editHistMore, "Load more")
 							btn.Color = a.ui.p.Accent
 							return btn.Layout(gtx)
 						})

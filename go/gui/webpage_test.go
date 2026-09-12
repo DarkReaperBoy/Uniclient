@@ -9,7 +9,7 @@ import (
 
 // Webpage previews (slice 117) — pure logic: Extra parsing (the same
 // content_raw contract as poll/location bubbles), link detection for the
-// composer toggle, card visibility. Engine-side no_webpage wiring is pinned
+// a.wid.composer toggle, card visibility. Engine-side no_webpage wiring is pinned
 // in engine/webpage_test.go.
 
 func wpMessage(extra map[string]interface{}) *engine.CachedMessage {

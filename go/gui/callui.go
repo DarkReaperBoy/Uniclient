@@ -216,13 +216,6 @@ func callElapsedTickerWanted(c *callUI, accountID, callID string) bool {
 // ── button pool ───────────────────────────────────────────────────────────
 
 var (
-	callAcceptBtn  widget.Clickable
-	callDeclineBtn widget.Clickable
-	callMuteBtn    widget.Clickable
-	callCamBtn     widget.Clickable
-	callEndBtn     widget.Clickable
-	callCloseBtn   widget.Clickable
-
 	callKeyTag = new(bool) // overlay keyboard layer
 )
 
@@ -449,7 +442,7 @@ func (a *App) closeCallPanel() {
 func (a *App) layoutCallOverlay(gtx layout.Context, f frame) layout.Dimensions {
 	c := f.call
 
-	// Keep keyboard focus out of the covered composer.
+	// Keep keyboard focus out of the covered a.wid.composer.
 	gtx.Execute(key.FocusCmd{Tag: nil})
 
 	// Keyboard: Escape declines an incoming ring, cancels an outgoing
@@ -486,22 +479,22 @@ func (a *App) layoutCallOverlay(gtx layout.Context, f frame) layout.Dimensions {
 	paintFill(gtx.Ops, scrim, gtx.Constraints.Max)
 
 	ct := c.controls()
-	if ct.accept && callAcceptBtn.Clicked(gtx) {
+	if ct.accept && a.wid.callAcceptBtn.Clicked(gtx) {
 		a.acceptCall()
 	}
-	if ct.decline && callDeclineBtn.Clicked(gtx) {
+	if ct.decline && a.wid.callDeclineBtn.Clicked(gtx) {
 		a.declineCall()
 	}
-	if ct.mute && callMuteBtn.Clicked(gtx) {
+	if ct.mute && a.wid.callMuteBtn.Clicked(gtx) {
 		a.toggleCallMute()
 	}
-	if ct.camera && callCamBtn.Clicked(gtx) {
+	if ct.camera && a.wid.callCamBtn.Clicked(gtx) {
 		a.toggleCallCamera()
 	}
-	if ct.end && callEndBtn.Clicked(gtx) {
+	if ct.end && a.wid.callEndBtn.Clicked(gtx) {
 		a.endCall()
 	}
-	if ct.close && callCloseBtn.Clicked(gtx) {
+	if ct.close && a.wid.callCloseBtn.Clicked(gtx) {
 		a.closeCallPanel()
 	}
 
@@ -572,29 +565,29 @@ func (a *App) layoutCallControls(gtx layout.Context, c *callUI, ct callControls)
 	switch {
 	case ct.accept || ct.decline:
 		if ct.accept {
-			add(&callAcceptBtn, iconCommunicationCall, "Answer", a.ui.p.Online, white)
+			add(&a.wid.callAcceptBtn, iconCommunicationCall, "Answer", a.ui.p.Online, white)
 		}
 		if ct.decline {
-			add(&callDeclineBtn, iconContentClear, "Decline", a.ui.p.Error, white)
+			add(&a.wid.callDeclineBtn, iconContentClear, "Decline", a.ui.p.Error, white)
 		}
 	case ct.end:
 		if ct.mute {
 			if c.muted {
-				add(&callMuteBtn, iconAVMicOff, "Unmute", a.ui.p.Accent, white)
+				add(&a.wid.callMuteBtn, iconAVMicOff, "Unmute", a.ui.p.Accent, white)
 			} else {
-				add(&callMuteBtn, iconAVMic, "Mute", a.ui.p.Accent, white)
+				add(&a.wid.callMuteBtn, iconAVMic, "Mute", a.ui.p.Accent, white)
 			}
 		}
 		if ct.camera {
 			if c.camOn {
-				add(&callCamBtn, iconAVVideocamOff, "Turn camera off", a.ui.p.Accent, white)
+				add(&a.wid.callCamBtn, iconAVVideocamOff, "Turn camera off", a.ui.p.Accent, white)
 			} else {
-				add(&callCamBtn, iconAVVideocam, "Turn camera on", a.ui.p.Accent, white)
+				add(&a.wid.callCamBtn, iconAVVideocam, "Turn camera on", a.ui.p.Accent, white)
 			}
 		}
-		add(&callEndBtn, iconCommunicationCallEnd, "Hang up", a.ui.p.Error, white)
+		add(&a.wid.callEndBtn, iconCommunicationCallEnd, "Hang up", a.ui.p.Error, white)
 	case ct.close:
-		add(&callCloseBtn, iconContentClear, "Close", a.ui.p.SurfaceHi, white)
+		add(&a.wid.callCloseBtn, iconContentClear, "Close", a.ui.p.SurfaceHi, white)
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 }

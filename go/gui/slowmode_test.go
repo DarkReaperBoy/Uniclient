@@ -7,8 +7,8 @@ import (
 	"uniclient/engine"
 )
 
-// Slowmode + write-restriction composer gating (AyuGram parity slice 69):
-// the composer swaps to a restricted bar / countdown. Pure derivations.
+// Slowmode + write-restriction a.wid.composer gating (AyuGram parity slice 69):
+// the a.wid.composer swaps to a restricted bar / countdown. Pure derivations.
 
 func TestSlowmodeRemain(t *testing.T) {
 	now := time.Unix(1_000_000, 0)

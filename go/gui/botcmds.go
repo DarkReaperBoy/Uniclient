@@ -6,28 +6,16 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/engine"
 )
 
 // Bot commands menu (AyuGram parity slice 76): a "/" button in the
-// composer (only for chats that have bot commands — engine
+// a.wid.composer (only for chats that have bot commands — engine
 // GetChatBotCommands, loaded lazily per chat) opens a panel listing every
 // command with its description; tapping a row inserts the command into
-// the composer. No commands → no button, never a dead control (§1.10).
-
-var (
-	botCmdBtn   widget.Clickable
-	botCmdBtns  []widget.Clickable
-	botCmdClose widget.Clickable
-	botCmdList  widget.List
-)
-
-func init() {
-	botCmdList.Axis = layout.Vertical
-}
+// the a.wid.composer. No commands → no button, never a dead control (§1.10).
 
 // botCmdTitle renders the command chip (slash prefixed, never doubled).
 func botCmdTitle(c engine.BotCommandInfo) string {
@@ -60,7 +48,7 @@ func botCmdPanelNeeded(cmds []engine.BotCommandInfo) bool {
 	return len(cmds) > 0
 }
 
-// botCmdInsertText merges a tapped command into the composer's current
+// botCmdInsertText merges a tapped command into the a.wid.composer's current
 // text (the editor keeps the cursor; this is the fallback merge).
 func botCmdInsertText(current, cmd string) string {
 	cmd = strings.TrimSpace(cmd)
@@ -122,25 +110,25 @@ func (a *App) loadBotCmds(k chatKey) {
 	}()
 }
 
-// layoutBotCmdsPanel: the popup above the composer listing the commands.
+// layoutBotCmdsPanel: the popup above the a.wid.composer listing the commands.
 func (a *App) layoutBotCmdsPanel(gtx layout.Context, f frame) layout.Dimensions {
 	cmds := f.botCmds
-	growClickables(&botCmdBtns, len(cmds))
+	growClickables(&a.wid.botCmdBtns, len(cmds))
 	for i := range cmds {
-		if botCmdBtns[i].Clicked(gtx) {
+		if a.wid.botCmdBtns[i].Clicked(gtx) {
 			cmd := botCmdTitle(cmds[i])
 			a.insertBotCommand(cmd)
 			break
 		}
 	}
-	if botCmdClose.Clicked(gtx) {
+	if a.wid.botCmdClose.Clicked(gtx) {
 		a.closeBotCmds()
 	}
 	if len(cmds) == 0 {
 		return layout.Dimensions{}
 	}
 
-	// Panel anchored above the composer, right-aligned like the emoji
+	// Panel anchored above the a.wid.composer, right-aligned like the emoji
 	// picker; height capped so long command lists scroll.
 	maxH := gtx.Dp(unit.Dp(240))
 	if maxH > gtx.Constraints.Max.Y/2 {
@@ -150,10 +138,10 @@ func (a *App) layoutBotCmdsPanel(gtx layout.Context, f frame) layout.Dimensions 
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				list := material.List(a.ui.Theme, &botCmdList)
+				list := material.List(a.ui.Theme, &a.wid.botCmdList)
 				return list.Layout(gtx, len(cmds), func(gtx layout.Context, i int) layout.Dimensions {
 					c := cmds[i]
-					return material.ButtonLayout(a.ui.Theme, &botCmdBtns[i]).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return material.ButtonLayout(a.ui.Theme, &a.wid.botCmdBtns[i]).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -181,11 +169,11 @@ func (a *App) layoutBotCmdsPanel(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// insertBotCommand puts the tapped command into the composer (GUI thread).
+// insertBotCommand puts the tapped command into the a.wid.composer (GUI thread).
 func (a *App) insertBotCommand(cmd string) {
 	if cmd == "" {
 		return
 	}
-	composer.Insert(cmd + " ")
+	a.wid.composer.Insert(cmd + " ")
 	a.closeBotCmds()
 }

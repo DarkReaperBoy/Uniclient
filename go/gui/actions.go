@@ -7,7 +7,7 @@ import (
 )
 
 // Message-action layer — mirrors AyuGramDesktop's context menu + reply/edit
-// composer header (research/ayugram_parity.md §3/§4, top gaps 1/7/8).
+// a.wid.composer header (research/ayugram_parity.md §3/§4, top gaps 1/7/8).
 //
 // Everything here gates on real state: menu actions are derived from the
 // message flags and the account's backend capabilities, so the GUI never

@@ -102,17 +102,19 @@ func TestTranscriptClickablesStable(t *testing.T) {
 	m1 := voiceMsg()
 	m2 := voiceMsg()
 	m2.MsgID = "2"
+	a := &App{}
+	a.wid.init()
 	k1, k2 := transcriptKey(m1), transcriptKey(m2)
 	if k1 == k2 {
 		t.Fatal("different messages must key differently")
 	}
-	if transcribeClickable(k1) != transcribeClickable(k1) {
+	if a.transcribeClickable(k1) != a.transcribeClickable(k1) {
 		t.Fatal("clickable must be stable per message")
 	}
-	if transcribeClickable(k1) == transcribeClickable(k2) {
+	if a.transcribeClickable(k1) == a.transcribeClickable(k2) {
 		t.Fatal("different messages must get different clickables")
 	}
-	if transcriptExpandClickable(k1) != transcriptExpandClickable(k1) {
+	if a.transcriptExpandClickable(k1) != a.transcriptExpandClickable(k1) {
 		t.Fatal("expand clickable must be stable per message")
 	}
 }

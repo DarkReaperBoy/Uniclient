@@ -51,21 +51,6 @@ var (
 )
 
 // viewer button pool (package-level, like the menu buttons).
-var (
-	viewerCloseBtn  widget.Clickable
-	viewerSaveBtn   widget.Clickable
-	viewerShareBtn  widget.Clickable
-	viewerFolderBtn widget.Clickable
-	viewerDelBtn    widget.Clickable
-	viewerPrevBtn   widget.Clickable
-	viewerNextBtn   widget.Clickable
-	viewerPlayBtn   widget.Clickable
-	viewerDelYesBtn widget.Clickable
-	viewerDelNoBtn  widget.Clickable
-	filmClicks      []widget.Clickable // filmstrip thumbnails
-)
-
-var filmList widget.List
 
 // ── pure helpers (unit-tested in mediaview_test.go) ──────────────────────
 
@@ -193,7 +178,7 @@ func viewerIsVideo(it engine.SharedMediaItem) bool {
 // ── App state transitions ─────────────────────────────────────────────────
 
 // openViewerFromMsg opens the viewer on a tapped message's media. gtx is
-// the frame context: opening the overlay clears the composer focus so the
+// the frame context: opening the overlay clears the a.wid.composer focus so the
 // viewer's Escape/arrow keys are not consumed by the editor underneath.
 func (a *App) openViewerFromMsg(gtx layout.Context, m *engine.CachedMessage) {
 	kind := viewerKindFor(m.MediaType)
@@ -335,7 +320,7 @@ func (a *App) viewerCurrent(f frame) (engine.SharedMediaItem, int, bool) {
 func (a *App) layoutMediaView(gtx layout.Context, f frame) layout.Dimensions {
 	v := f.viewer
 
-	// Keep keyboard focus out of the (covered) composer while viewing; the
+	// Keep keyboard focus out of the (covered) a.wid.composer while viewing; the
 	// router dedups unchanged focus, so this is cheap.
 	gtx.Execute(key.FocusCmd{Tag: nil})
 
@@ -423,26 +408,26 @@ func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 	v := f.viewer
 	it, _, ok := a.viewerCurrent(f)
 
-	if viewerCloseBtn.Clicked(gtx) {
+	if a.wid.viewerCloseBtn.Clicked(gtx) {
 		a.closeViewer()
 	}
-	if viewerSaveBtn.Clicked(gtx) {
+	if a.wid.viewerSaveBtn.Clicked(gtx) {
 		if ok {
 			a.viewerSave(v, it)
 		}
 	}
-	if viewerShareBtn.Clicked(gtx) {
+	if a.wid.viewerShareBtn.Clicked(gtx) {
 		if ok {
 			a.viewerShare(v, it)
 		}
 	}
-	if viewerFolderBtn.Clicked(gtx) {
+	if a.wid.viewerFolderBtn.Clicked(gtx) {
 		// Slice 86: reveal the saved media in the file manager (row 159).
 		if ok && it.LocalPath != "" {
 			a.revealMedia(it.LocalPath)
 		}
 	}
-	if viewerDelBtn.Clicked(gtx) {
+	if a.wid.viewerDelBtn.Clicked(gtx) {
 		a.mu.Lock()
 		if a.viewer != nil {
 			a.viewer.deleting = true
@@ -455,7 +440,7 @@ func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					btn := a.ui.IconButton(&viewerCloseBtn, iconContentClear, "Close")
+					btn := a.ui.IconButton(&a.wid.viewerCloseBtn, iconContentClear, "Close")
 					btn.Color = a.ui.p.Text
 					btn.Background = a.ui.p.SurfaceHi
 					return btn.Layout(gtx)
@@ -489,16 +474,16 @@ func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 					if !ok || it.LocalPath == "" {
 						return layout.Dimensions{}
 					}
-					return a.viewerIconBtn(gtx, &viewerFolderBtn, iconFileFolder, "Show in folder")
+					return a.viewerIconBtn(gtx, &a.wid.viewerFolderBtn, iconFileFolder, "Show in folder")
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.viewerIconBtn(gtx, &viewerSaveBtn, iconFileDownload, "Save")
+					return a.viewerIconBtn(gtx, &a.wid.viewerSaveBtn, iconFileDownload, "Save")
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.viewerIconBtn(gtx, &viewerShareBtn, iconSocialShare, "Share")
+					return a.viewerIconBtn(gtx, &a.wid.viewerShareBtn, iconSocialShare, "Share")
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.viewerIconBtn(gtx, &viewerDelBtn, iconActionDelete, "Delete")
+					return a.viewerIconBtn(gtx, &a.wid.viewerDelBtn, iconActionDelete, "Delete")
 				}),
 			)
 		})
@@ -515,13 +500,13 @@ func (a *App) viewerIconBtn(gtx layout.Context, btn *widget.Clickable, icon *wid
 // chevrons, and (videos) the play affordance wired to the download pipeline.
 func (a *App) viewerCenter(gtx layout.Context, f frame) layout.Dimensions {
 	it, _, ok := a.viewerCurrent(f)
-	if viewerPrevBtn.Clicked(gtx) {
+	if a.wid.viewerPrevBtn.Clicked(gtx) {
 		a.viewerStep(-1)
 	}
-	if viewerNextBtn.Clicked(gtx) {
+	if a.wid.viewerNextBtn.Clicked(gtx) {
 		a.viewerStep(1)
 	}
-	if viewerPlayBtn.Clicked(gtx) && ok {
+	if a.wid.viewerPlayBtn.Clicked(gtx) && ok {
 		a.viewerPlay(f.viewer, it)
 	}
 
@@ -543,10 +528,10 @@ func (a *App) viewerCenter(gtx layout.Context, f frame) layout.Dimensions {
 			// Side chevrons (desktop + touch).
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return a.viewerChevron(gtx, &viewerPrevBtn, iconNavChevronLeft, "Previous")
+					return a.viewerChevron(gtx, &a.wid.viewerPrevBtn, iconNavChevronLeft, "Previous")
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return a.viewerChevron(gtx, &viewerNextBtn, iconNavChevronRight, "Next")
+					return a.viewerChevron(gtx, &a.wid.viewerNextBtn, iconNavChevronRight, "Next")
 				}),
 			)
 		}),
@@ -641,7 +626,7 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 		dx := (boxW - d) / 2
 		dy := (boxH - d) / 2
 		off := op.Offset(image.Pt(dx, dy)).Push(gtx.Ops)
-		btn := material.ButtonLayout(a.ui.Theme, &viewerPlayBtn)
+		btn := material.ButtonLayout(a.ui.Theme, &a.wid.viewerPlayBtn)
 		btn.Background = color.NRGBA{} // transparent: the badge paints itself
 		btn.CornerRadius = 36
 		dims := btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -773,18 +758,18 @@ func (a *App) viewerFilmstrip(gtx layout.Context, f frame) layout.Dimensions {
 	if n == 0 {
 		return layout.Dimensions{}
 	}
-	growClickables(&filmClicks, n)
+	growClickables(&a.wid.filmClicks, n)
 	const thumb = unit.Dp(52)
 	rowH := gtx.Dp(thumb) + gtx.Dp(unit.Dp(8))
 	gtx.Constraints.Max.Y = rowH
 	gtx.Constraints.Min.Y = rowH
 
-	list := &filmList
+	list := &a.wid.filmList
 	list.Axis = layout.Horizontal
 	ml := material.List(a.ui.Theme, list)
 	return ml.Layout(gtx, n, func(gtx layout.Context, i int) layout.Dimensions {
 		it := v.items[i]
-		btn := &filmClicks[i]
+		btn := &a.wid.filmClicks[i]
 		if btn.Clicked(gtx) {
 			a.viewerSetIndex(i)
 		}
@@ -936,7 +921,7 @@ func (a *App) viewerCancelDelete() {
 // top); the backdrop press cancels.
 func (a *App) viewerDeleteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	it, _, ok := a.viewerCurrent(f)
-	if viewerDelYesBtn.Clicked(gtx) {
+	if a.wid.viewerDelYesBtn.Clicked(gtx) {
 		if ok {
 			a.viewerDeleteConfirmed(f.viewer, it)
 		} else {
@@ -944,7 +929,7 @@ func (a *App) viewerDeleteDialog(gtx layout.Context, f frame) layout.Dimensions 
 		}
 		return layout.Dimensions{}
 	}
-	if viewerDelNoBtn.Clicked(gtx) {
+	if a.wid.viewerDelNoBtn.Clicked(gtx) {
 		a.viewerCancelDelete()
 	}
 
@@ -977,13 +962,13 @@ func (a *App) viewerDeleteDialog(gtx layout.Context, f frame) layout.Dimensions 
 						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 								return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.TextButton(&viewerDelNoBtn, "Cancel")
+									btn := a.ui.TextButton(&a.wid.viewerDelNoBtn, "Cancel")
 									btn.Color = a.ui.p.Text
 									return btn.Layout(gtx)
 								})
 							}),
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-								btn := a.ui.PrimaryButton(&viewerDelYesBtn, "Delete")
+								btn := a.ui.PrimaryButton(&a.wid.viewerDelYesBtn, "Delete")
 								btn.Background = a.ui.p.Error
 								return btn.Layout(gtx)
 							}),

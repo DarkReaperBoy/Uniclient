@@ -37,23 +37,22 @@ type joinedCall struct {
 }
 
 var (
-	gcList       widget.List
-	gcMuteBtn    widget.Clickable
-	gcHandBtn    widget.Clickable
-	gcNoiseBtn   widget.Clickable
-	gcLeaveBtn   widget.Clickable
-	gcRowJoinMap = map[string]*widget.Clickable{} // chatID → join button
+	gcList     widget.List
+	gcMuteBtn  widget.Clickable
+	gcHandBtn  widget.Clickable
+	gcNoiseBtn widget.Clickable
+	gcLeaveBtn widget.Clickable
 )
 
 // gcRowJoinBtnFor returns the per-row join clickable (pool keyed by chat).
-func gcRowJoinBtnFor(chatID string) *widget.Clickable {
-	if btn, ok := gcRowJoinMap[chatID]; ok {
+func (a *App) gcRowJoinBtnFor(chatID string) *widget.Clickable {
+	if btn, ok := a.wid.gcRowJoinMap[chatID]; ok {
 		return btn
 	}
 	btn := new(widget.Clickable)
-	gcRowJoinMap[chatID] = btn
-	if len(gcRowJoinMap) > 64 {
-		gcRowJoinMap = map[string]*widget.Clickable{chatID: btn}
+	a.wid.gcRowJoinMap[chatID] = btn
+	if len(a.wid.gcRowJoinMap) > 64 {
+		a.wid.gcRowJoinMap = map[string]*widget.Clickable{chatID: btn}
 	}
 	return btn
 }

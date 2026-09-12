@@ -18,7 +18,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	"uniclient/engine"
 )
@@ -34,9 +33,6 @@ type deletedDlgState struct {
 }
 
 var (
-	deletedDlgClose  widget.Clickable
-	deletedDlgMore   widget.Clickable
-	deletedDlgClear  widget.Clickable
 	deletedDlgKeyTag = new(struct{})
 )
 
@@ -168,13 +164,13 @@ func (a *App) layoutDeletedDialog(gtx layout.Context, f frame) layout.Dimensions
 			a.closeDeletedDialog()
 		}
 	}
-	if deletedDlgClose.Clicked(gtx) {
+	if a.wid.deletedDlgClose.Clicked(gtx) {
 		a.closeDeletedDialog()
 	}
-	if deletedDlgMore.Clicked(gtx) && d.more && !d.busy {
+	if a.wid.deletedDlgMore.Clicked(gtx) && d.more && !d.busy {
 		a.loadDeleted(false)
 	}
-	if deletedDlgClear.Clicked(gtx) && len(d.msgs) > 0 {
+	if a.wid.deletedDlgClear.Clicked(gtx) && len(d.msgs) > 0 {
 		k := d.chat
 		go a.clearDeletedFromDialog(k)
 	}
@@ -194,7 +190,7 @@ func (a *App) layoutDeletedDialog(gtx layout.Context, f frame) layout.Dimensions
 								return lbl.Layout(gtx)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								btn := a.ui.IconButton(&deletedDlgClose, iconContentClear, "Close")
+								btn := a.ui.IconButton(&a.wid.deletedDlgClose, iconContentClear, "Close")
 								btn.Color = a.ui.p.TextDim
 								return btn.Layout(gtx)
 							}),
@@ -233,7 +229,7 @@ func (a *App) layoutDeletedDialog(gtx layout.Context, f frame) layout.Dimensions
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.TextButton(&deletedDlgMore, "Load more")
+							btn := a.ui.TextButton(&a.wid.deletedDlgMore, "Load more")
 							btn.Color = a.ui.p.Accent
 							return btn.Layout(gtx)
 						})
@@ -243,7 +239,7 @@ func (a *App) layoutDeletedDialog(gtx layout.Context, f frame) layout.Dimensions
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.TextButton(&deletedDlgClear, "Clear all")
+							btn := a.ui.TextButton(&a.wid.deletedDlgClear, "Clear all")
 							btn.Color = a.ui.p.Error
 							return btn.Layout(gtx)
 						})

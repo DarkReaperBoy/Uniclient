@@ -5,14 +5,13 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/cores"
 )
 
 // Stickers & GIFs panel tabs (AyuGram parity, matrix "Emoji picker panel"):
-// the composer helper panel gains a top-level mode row — Emoji / Stickers /
+// the a.wid.composer helper panel gains a top-level mode row — Emoji / Stickers /
 // GIFs. The sticker tab lists installed sticker packs as chips (plus a
 // Recent pseudo-pack) over a grid of static sticker thumbnails; tapping a
 // sticker sends it (engine SendSticker). The GIF tab grids the account's
@@ -25,15 +24,6 @@ const (
 	panelModeEmoji = iota
 	panelModeStickers
 	panelModeGifs
-)
-
-var (
-	stickerPackBtns  []widget.Clickable
-	stickerCellBtns  []widget.Clickable
-	gifCellBtns      []widget.Clickable
-	stickerPacksList widget.List
-	stickerGridList  widget.List
-	gifGridList      widget.List
 )
 
 // stickerTab is one pack chip + its stickers.
@@ -160,7 +150,7 @@ func panelAccountID(f frame) string {
 // panel body.
 func (a *App) layoutPanelModeRow(gtx layout.Context, f frame) layout.Dimensions {
 	labels := [...]string{"Emoji", "Stickers", "GIFs"}
-	growClickables(&stickerModeBtns, len(labels))
+	growClickables(&a.wid.stickerModeBtns, len(labels))
 	acc := panelAccountID(f)
 	if f.emojiMode == panelModeStickers {
 		a.ensureStickerPacks(acc)
@@ -171,7 +161,7 @@ func (a *App) layoutPanelModeRow(gtx layout.Context, f frame) layout.Dimensions 
 	for i, label := range labels {
 		i, label := i, label
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := &stickerModeBtns[i]
+			btn := &a.wid.stickerModeBtns[i]
 			if btn.Clicked(gtx) {
 				a.setPanelMode(i)
 			}
@@ -194,8 +184,6 @@ func (a *App) layoutPanelModeRow(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-var stickerModeBtns []widget.Clickable
-
 // layoutStickerMode: pack chips + sticker grid.
 func (a *App) layoutStickerMode(gtx layout.Context, f frame) layout.Dimensions {
 	tabs, sel := stickerTabs(f.stickerPacks, f.recentStickers, a.stickerPackIdx)
@@ -205,22 +193,22 @@ func (a *App) layoutStickerMode(gtx layout.Context, f frame) layout.Dimensions {
 	if len(tabs) == 0 {
 		return a.centeredStateLabel(gtx, "No stickers yet")
 	}
-	growClickables(&stickerPackBtns, len(tabs))
+	growClickables(&a.wid.stickerPackBtns, len(tabs))
 	var stickers []cores.StickerInfo
 	if sel >= 0 && sel < len(tabs) {
 		stickers = tabs[sel].stickers
 	}
-	growClickables(&stickerCellBtns, len(stickers))
+	growClickables(&a.wid.stickerCellBtns, len(stickers))
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		// pack chips
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(40))
 			return layout.Inset{Left: unit.Dp(4), Right: unit.Dp(4), Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				stickerPacksList.Axis = layout.Horizontal
-				tl := material.List(a.ui.Theme, &stickerPacksList)
+				a.wid.stickerPacksList.Axis = layout.Horizontal
+				tl := material.List(a.ui.Theme, &a.wid.stickerPacksList)
 				return tl.Layout(gtx, len(tabs), func(gtx layout.Context, i int) layout.Dimensions {
-					btn := &stickerPackBtns[i]
+					btn := &a.wid.stickerPackBtns[i]
 					if btn.Clicked(gtx) {
 						a.mu.Lock()
 						a.stickerPackIdx = i
@@ -253,8 +241,8 @@ func (a *App) layoutStickerMode(gtx layout.Context, f frame) layout.Dimensions {
 			const cols = 5
 			const cellDp = unit.Dp(60)
 			rows := emojiRowCount(len(stickers), cols)
-			stickerGridList.Axis = layout.Vertical
-			gl := material.List(a.ui.Theme, &stickerGridList)
+			a.wid.stickerGridList.Axis = layout.Vertical
+			gl := material.List(a.ui.Theme, &a.wid.stickerGridList)
 			return gl.Layout(gtx, rows, func(gtx layout.Context, r int) layout.Dimensions {
 				children := make([]layout.FlexChild, 0, cols)
 				for c := 0; c < cols; c++ {
@@ -264,7 +252,7 @@ func (a *App) layoutStickerMode(gtx layout.Context, f frame) layout.Dimensions {
 					}
 					st := stickers[idx]
 					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						btn := &stickerCellBtns[idx]
+						btn := &a.wid.stickerCellBtns[idx]
 						if btn.Clicked(gtx) {
 							a.sendStickerFile(f, st.FileID)
 						}
@@ -311,12 +299,12 @@ func (a *App) layoutGifMode(gtx layout.Context, f frame) layout.Dimensions {
 	if len(gifs) == 0 {
 		return a.centeredStateLabel(gtx, "No saved GIFs")
 	}
-	growClickables(&gifCellBtns, len(gifs))
+	growClickables(&a.wid.gifCellBtns, len(gifs))
 	const cols = 4
 	const cellDp = unit.Dp(76)
 	rows := emojiRowCount(len(gifs), cols)
-	gifGridList.Axis = layout.Vertical
-	gl := material.List(a.ui.Theme, &gifGridList)
+	a.wid.gifGridList.Axis = layout.Vertical
+	gl := material.List(a.ui.Theme, &a.wid.gifGridList)
 	return gl.Layout(gtx, rows, func(gtx layout.Context, r int) layout.Dimensions {
 		children := make([]layout.FlexChild, 0, cols)
 		for c := 0; c < cols; c++ {
@@ -326,7 +314,7 @@ func (a *App) layoutGifMode(gtx layout.Context, f frame) layout.Dimensions {
 			}
 			g := gifs[idx]
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := &gifCellBtns[idx]
+				btn := &a.wid.gifCellBtns[idx]
 				if btn.Clicked(gtx) {
 					a.sendStickerFile(f, g.FileID)
 				}

@@ -329,7 +329,7 @@ func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessag
 	// Live chip (slice 131): countdown badge top-right; own shares render
 	// it as a Stop button (messages.editMessage GeoLive stopped).
 	mkey := m.AccountID + "|" + m.ChatID + "|" + m.MsgID
-	stopBtn := liveStopClickable(mkey)
+	stopBtn := a.liveStopClickable(mkey)
 	ownLive := g != nil && g.Live && m.IsOutgoing
 	if ownLive && stopBtn.Clicked(gtx) {
 		go func() {
@@ -504,28 +504,25 @@ var liveDurationChoices = []liveDurationChoice{
 }
 
 // liveDurationClickables pools the preset chips.
-var liveDurationBtns []widget.Clickable
 
 // liveDurationSelected is the picked preset index (session state).
 var liveDurationSelected = 0
 
-// attachDlgLiveBtn toggles the "share live location" mode; attachDlgLiveOn
+// a.wid.attachDlgLiveBtn toggles the "share live location" mode; attachDlgLiveOn
 // is the toggle's state (reset when the dialog opens).
-var attachDlgLiveBtn widget.Clickable
 var attachDlgLiveOn bool
 
 // attachDlgStopBtn stops an outgoing share from the bubble chip.
-var liveStopBtns = map[string]*widget.Clickable{}
 
-func liveStopClickable(key string) *widget.Clickable {
-	if c, ok := liveStopBtns[key]; ok {
+func (a *App) liveStopClickable(key string) *widget.Clickable {
+	if c, ok := a.wid.liveStopBtns[key]; ok {
 		return c
 	}
-	if len(liveStopBtns) > 256 {
-		liveStopBtns = make(map[string]*widget.Clickable)
+	if len(a.wid.liveStopBtns) > 256 {
+		a.wid.liveStopBtns = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	liveStopBtns[key] = c
+	a.wid.liveStopBtns[key] = c
 	return c
 }
 
@@ -600,19 +597,8 @@ type attachDlgState struct {
 }
 
 var (
-	attachDlgCloseBtn widget.Clickable
-	attachDlgSendBtn  widget.Clickable
-	attachDlgRowBtns  []widget.Clickable
-	attachLatEditor   widget.Editor
-	attachLonEditor   widget.Editor
-	attachDlgKeyTag   = new(struct{})
-	attachDlgContacts widget.List
+	attachDlgKeyTag = new(struct{})
 )
-
-func init() {
-	attachLatEditor.SingleLine = true
-	attachLonEditor.SingleLine = true
-}
 
 // openAttachDialog opens the location/contact helper (needs an open chat).
 func (a *App) openAttachDialog(kind string) {
@@ -665,7 +651,7 @@ func (a *App) sendLocationFromDialog(f frame) {
 	if f.selected == nil {
 		return
 	}
-	lat, lon, err := parseCoords(attachLatEditor.Text(), attachLonEditor.Text())
+	lat, lon, err := parseCoords(a.wid.attachLatEditor.Text(), a.wid.attachLonEditor.Text())
 	if err != nil {
 		a.setToast("Invalid " + err.Error())
 		return
@@ -706,7 +692,7 @@ func (a *App) sendContactFromDialog(f frame, c engine.ContactInfo) {
 }
 
 // layoutAttachDialog renders the location/contact helper (content-pane
-// replacement, like the other composer dialogs).
+// replacement, like the other a.wid.composer dialogs).
 func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.attachDlg
 
@@ -726,24 +712,24 @@ func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions 
 		}
 	}
 
-	if attachDlgCloseBtn.Clicked(gtx) {
+	if a.wid.attachDlgCloseBtn.Clicked(gtx) {
 		a.closeAttachDialog()
 	}
-	if attachDlgSendBtn.Clicked(gtx) {
+	if a.wid.attachDlgSendBtn.Clicked(gtx) {
 		a.sendLocationFromDialog(f)
 	}
-	if attachDlgLiveBtn.Clicked(gtx) {
+	if a.wid.attachDlgLiveBtn.Clicked(gtx) {
 		attachDlgLiveOn = !attachDlgLiveOn
 	}
 	if attachDlgLiveOn {
-		growClickables(&liveDurationBtns, len(liveDurationChoices))
+		growClickables(&a.wid.liveDurationBtns, len(liveDurationChoices))
 		for i := range liveDurationChoices {
-			if liveDurationBtns[i].Clicked(gtx) {
+			if a.wid.liveDurationBtns[i].Clicked(gtx) {
 				liveDurationSelected = i
 			}
 		}
 	}
-	growClickables(&attachDlgRowBtns, len(st.contacts))
+	growClickables(&a.wid.attachDlgRowBtns, len(st.contacts))
 
 	title := "Send Location"
 	if st.kind == "contact" {
@@ -786,7 +772,7 @@ func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions 
 									if attachDlgLiveOn {
 										label = "Share live"
 									}
-									bl := material.Button(a.ui.Theme, &attachDlgSendBtn, label)
+									bl := material.Button(a.ui.Theme, &a.wid.attachDlgSendBtn, label)
 									bl.Background = a.ui.p.Accent
 									bl.CornerRadius = 10
 									return bl.Layout(gtx)
@@ -795,7 +781,7 @@ func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions 
 									return layout.Dimensions{}
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									bl := material.Button(a.ui.Theme, &attachDlgCloseBtn, "Close")
+									bl := material.Button(a.ui.Theme, &a.wid.attachDlgCloseBtn, "Close")
 									bl.Background = a.ui.p.SurfaceHi
 									bl.Color = a.ui.p.Text
 									bl.CornerRadius = 10
@@ -817,7 +803,7 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 					return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						ed := a.ui.Editor(&attachLatEditor, "Latitude (e.g. 41.0082)")
+						ed := a.ui.Editor(&a.wid.attachLatEditor, "Latitude (e.g. 41.0082)")
 						return ed.Layout(gtx)
 					})
 				})
@@ -826,7 +812,7 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 						return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							ed := a.ui.Editor(&attachLonEditor, "Longitude (e.g. 28.9784)")
+							ed := a.ui.Editor(&a.wid.attachLonEditor, "Longitude (e.g. 28.9784)")
 							return ed.Layout(gtx)
 						})
 					})
@@ -840,7 +826,7 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 			// Live-location toggle (slice 131, tdesktop parity).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					btn := material.Button(a.ui.Theme, &attachDlgLiveBtn, "Share live location")
+					btn := material.Button(a.ui.Theme, &a.wid.attachDlgLiveBtn, "Share live location")
 					btn.CornerRadius = 10
 					btn.TextSize = unit.Sp(13)
 					if attachDlgLiveOn {
@@ -861,7 +847,7 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceBetween}.Layout(gtx,
 						flexChildrenOf(len(liveDurationChoices), func(gtx layout.Context, i int) layout.Dimensions {
 							c := liveDurationChoices[i]
-							btn := material.Button(a.ui.Theme, &liveDurationBtns[i], c.label)
+							btn := material.Button(a.ui.Theme, &a.wid.liveDurationBtns[i], c.label)
 							btn.CornerRadius = 12
 							btn.TextSize = unit.Sp(12)
 							btn.Inset = layout.UniformInset(unit.Dp(6))
@@ -902,14 +888,14 @@ func (a *App) contactDlgList(gtx layout.Context, f frame, st *attachDlgState) la
 	if len(st.contacts) == 0 {
 		return a.centeredStateLabel(gtx, "No contacts")
 	}
-	attachDlgContacts.Axis = layout.Vertical
-	lt := material.List(a.ui.Theme, &attachDlgContacts)
+	a.wid.attachDlgContacts.Axis = layout.Vertical
+	lt := material.List(a.ui.Theme, &a.wid.attachDlgContacts)
 	return lt.Layout(gtx, len(st.contacts), func(gtx layout.Context, i int) layout.Dimensions {
 		c := st.contacts[i]
-		if attachDlgRowBtns[i].Clicked(gtx) {
+		if a.wid.attachDlgRowBtns[i].Clicked(gtx) {
 			a.sendContactFromDialog(f, c)
 		}
-		bl := material.ButtonLayout(a.ui.Theme, &attachDlgRowBtns[i])
+		bl := material.ButtonLayout(a.ui.Theme, &a.wid.attachDlgRowBtns[i])
 		bl.Background = a.ui.p.SurfaceHi
 		bl.CornerRadius = 10
 		return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

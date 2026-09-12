@@ -82,14 +82,16 @@ func TestVoiceWaveformExtraction(t *testing.T) {
 // same message → same clickable (state survives across frames), and
 // the reset guard keeps the map bounded.
 func TestMediaPlayClickableStable(t *testing.T) {
+	a := &App{}
+	a.wid.init()
 	key := "a|c|m1"
-	c1 := mediaPlayClickable(key)
-	c2 := mediaPlayClickable(key)
+	c1 := a.mediaPlayClickable(key)
+	c2 := a.mediaPlayClickable(key)
 	if c1 != c2 {
 		t.Fatal("clickable must be stable per key")
 	}
 	// Distinct controls (play button vs speed chip) get distinct ones.
-	if mediaPlayClickable(key+"|speed") == c1 {
+	if a.mediaPlayClickable(key+"|speed") == c1 {
 		t.Fatal("speed chip must have its own clickable")
 	}
 }

@@ -9,7 +9,6 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/engine"
@@ -209,7 +208,7 @@ func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 	if hasFolders {
 		items = append(items, chatMenuAction{"Add to folder", "addfolder"})
 	}
-	growClickables(&chatMenuBtns, len(items))
+	growClickables(&a.wid.chatMenuBtns, len(items))
 
 	menuW := gtx.Dp(unit.Dp(210))
 	rowH := gtx.Dp(unit.Dp(36))
@@ -238,7 +237,7 @@ func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 		for i := range items {
 			i := i
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := &chatMenuBtns[i]
+				btn := &a.wid.chatMenuBtns[i]
 				if btn.Clicked(gtx) {
 					chat, action := m, items[i].action
 					if action == "addfolder" {
@@ -265,8 +264,6 @@ func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-var chatMenuBtns []widget.Clickable
-
 // foldersForAccount returns the frame's server folders when they were
 // loaded for the given account (folders are fetched per account scope).
 func foldersForAccount(f frame, accountID string) []engine.FolderInfo {
@@ -289,7 +286,7 @@ func (a *App) openChatFolderPick(chat engine.ChatInfo) {
 // layoutFolderPickMenu: the account's folders; clicking one adds the chat.
 func (a *App) layoutFolderPickMenu(gtx layout.Context, f frame, m engine.ChatInfo) layout.Dimensions {
 	folders := foldersForAccount(f, m.AccountID)
-	growClickables(&chatMenuBtns, len(folders)+1)
+	growClickables(&a.wid.chatMenuBtns, len(folders)+1)
 
 	menuW := gtx.Dp(unit.Dp(210))
 	rowH := gtx.Dp(unit.Dp(36))
@@ -313,12 +310,12 @@ func (a *App) layoutFolderPickMenu(gtx layout.Context, f frame, m engine.ChatInf
 
 	// Cancel row sits last (AyuGram dialogs put the negative action last).
 	cancelIdx := len(folders)
-	if chatMenuBtns[cancelIdx].Clicked(gtx) {
+	if a.wid.chatMenuBtns[cancelIdx].Clicked(gtx) {
 		a.closeChatMenu()
 	}
 	for i, fo := range folders {
 		i, fo := i, fo
-		if chatMenuBtns[i].Clicked(gtx) {
+		if a.wid.chatMenuBtns[i].Clicked(gtx) {
 			chat := m
 			folder := fo
 			a.closeChatMenu()
@@ -346,7 +343,7 @@ func (a *App) layoutFolderPickMenu(gtx layout.Context, f frame, m engine.ChatInf
 		for i, name := range rows {
 			i := i
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := &chatMenuBtns[i]
+				btn := &a.wid.chatMenuBtns[i]
 				bl := material.ButtonLayout(a.ui.Theme, btn)
 				bl.Background = a.ui.p.Surface
 				bl.CornerRadius = 8

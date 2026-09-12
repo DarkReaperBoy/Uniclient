@@ -26,7 +26,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/cores"
@@ -46,14 +45,7 @@ type sponsoredDlgState struct {
 }
 
 var (
-	sponsoredAdClicks   []widget.Clickable // per-ad card clicks
-	sponsoredBarClick   widget.Clickable   // bot-bar whole-bar click
-	sponsoredReportBtn  widget.Clickable   // row "Report" link
-	sponsoredAboutBtn   widget.Clickable   // row "About" link
-	sponsoredDlgCancel  widget.Clickable
-	sponsoredDlgPromote widget.Clickable
-	sponsoredOptBtns    []widget.Clickable
-	sponsoredDlgKeyTag  = new(struct{})
+	sponsoredDlgKeyTag = new(struct{})
 )
 
 // appendSponsoredRows appends the sponsored block rows (caption + one row
@@ -228,7 +220,7 @@ func (a *App) sponsoredReportStep(option string) {
 // sponsoredHeaderRow: the "Sponsored" caption + the About link that
 // opens the about-ads box (tdesktop's section caption).
 func (a *App) sponsoredHeaderRow(gtx layout.Context, f frame) layout.Dimensions {
-	if sponsoredAboutBtn.Clicked(gtx) {
+	if a.wid.sponsoredAboutBtn.Clicked(gtx) {
 		a.openSponsoredAbout()
 	}
 	return layout.Inset{Top: unit.Dp(16), Bottom: unit.Dp(4), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -240,7 +232,7 @@ func (a *App) sponsoredHeaderRow(gtx layout.Context, f frame) layout.Dimensions 
 			}),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return layout.Dimensions{} }),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.TextButton(&sponsoredAboutBtn, "About ads")
+				btn := a.ui.TextButton(&a.wid.sponsoredAboutBtn, "About ads")
 				return btn.Layout(gtx)
 			}),
 		)
@@ -261,8 +253,8 @@ func (a *App) sponsoredAdRow(gtx layout.Context, f frame, idx1 int) layout.Dimen
 		acc, chat = f.selected.AccountID, f.selected.ChatID
 	}
 
-	growClickables(&sponsoredAdClicks, idx1)
-	btn := &sponsoredAdClicks[idx1-1]
+	growClickables(&a.wid.sponsoredAdClicks, idx1)
+	btn := &a.wid.sponsoredAdClicks[idx1-1]
 	if btn.Clicked(gtx) {
 		a.sponsoredClick(*ad, acc, chat, false)
 	}
@@ -391,7 +383,7 @@ func (a *App) sponsoredBody(gtx layout.Context, f frame, ad *cores.SponsoredMess
 			if !ad.CanReport {
 				return layout.Dimensions{}
 			}
-			if sponsoredReportBtn.Clicked(gtx) {
+			if a.wid.sponsoredReportBtn.Clicked(gtx) {
 				acc, chat := "", ""
 				if f.selected != nil {
 					acc, chat = f.selected.AccountID, f.selected.ChatID
@@ -399,7 +391,7 @@ func (a *App) sponsoredBody(gtx layout.Context, f frame, ad *cores.SponsoredMess
 				a.openSponsoredReport(*ad, acc, chat)
 			}
 			return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.TextButton(&sponsoredReportBtn, "Report ad")
+				btn := a.ui.TextButton(&a.wid.sponsoredReportBtn, "Report ad")
 				return btn.Layout(gtx)
 			})
 		}),
@@ -460,7 +452,7 @@ func (a *App) layoutSponsoredBar(gtx layout.Context, f frame) layout.Dimensions 
 		acc, chat = f.selected.AccountID, f.selected.ChatID
 	}
 
-	if sponsoredBarClick.Clicked(gtx) {
+	if a.wid.sponsoredBarClick.Clicked(gtx) {
 		a.sponsoredClick(*ad, acc, chat, false)
 	}
 	if a.sponsoredViewOnce(ad.RandomID) && acc != "" {
@@ -472,7 +464,7 @@ func (a *App) layoutSponsoredBar(gtx layout.Context, f frame) layout.Dimensions 
 	}
 
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Top: unit.Dp(6), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		bl := material.ButtonLayout(a.ui.Theme, &sponsoredBarClick)
+		bl := material.ButtonLayout(a.ui.Theme, &a.wid.sponsoredBarClick)
 		bl.Background = a.ui.p.Surface
 		bl.CornerRadius = 10
 		return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -543,16 +535,16 @@ func (a *App) layoutSponsoredDialog(gtx layout.Context, f frame) layout.Dimensio
 			a.closeSponsoredDialog()
 		}
 	}
-	if sponsoredDlgCancel.Clicked(gtx) {
+	if a.wid.sponsoredDlgCancel.Clicked(gtx) {
 		a.closeSponsoredDialog()
 	}
-	if sponsoredDlgPromote.Clicked(gtx) {
+	if a.wid.sponsoredDlgPromote.Clicked(gtx) {
 		a.openLinkExternal("https://promote.telegram.org")
 	}
 
-	growClickables(&sponsoredOptBtns, len(d.options))
+	growClickables(&a.wid.sponsoredOptBtns, len(d.options))
 	for i := range d.options {
-		if sponsoredOptBtns[i].Clicked(gtx) {
+		if a.wid.sponsoredOptBtns[i].Clicked(gtx) {
 			opt := d.options[i].Option
 			go a.sponsoredReportStep(opt)
 			break
@@ -582,7 +574,7 @@ func (a *App) layoutSponsoredDialog(gtx layout.Context, f frame) layout.Dimensio
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.TextButton(&sponsoredDlgCancel, "Close")
+							btn := a.ui.TextButton(&a.wid.sponsoredDlgCancel, "Close")
 							if d.busy {
 								btn.Color = a.ui.p.TextFaint
 							}
@@ -606,7 +598,7 @@ func (a *App) sponsoredDialogBody(gtx layout.Context, f frame, d *sponsoredDlgSt
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.PrimaryButton(&sponsoredDlgPromote, "promote.telegram.org")
+						btn := a.ui.PrimaryButton(&a.wid.sponsoredDlgPromote, "promote.telegram.org")
 						return btn.Layout(gtx)
 					})
 				}),

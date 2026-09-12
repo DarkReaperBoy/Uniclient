@@ -1,6 +1,6 @@
 package gui
 
-// Inline bot results tests (slice 128): composer query parsing (@bot at
+// Inline bot results tests (slice 128): a.wid.composer query parsing (@bot at
 // message start, terminated by a space), fetch-key guarding, and the
 // thumb/model shaping the panel renders from.
 

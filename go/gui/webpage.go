@@ -17,7 +17,7 @@ import (
 // Webpage/link previews (slice 117, Telegram parity rows "Webpage preview
 // toggle" + "Webpage/link preview card"): messages carrying a link preview
 // render the site card (thumb + site + title + description) above the text,
-// and the composer gains the preview on/off toggle (link icon, visible only
+// and the a.wid.composer gains the preview on/off toggle (link icon, visible only
 // while the text contains a link — §1.10 honest gating). The core already
 // caches wp_* fields in the message Extra (content_raw); sending without a
 // preview rides the new no_webpage flag (engine → SetNoWebpage).
@@ -109,7 +109,7 @@ func (w *webPageData) displayTitle() string {
 	return w.hostname()
 }
 
-// composedHasLink reports whether the composer text carries an http(s)/www
+// composedHasLink reports whether the a.wid.composer text carries an http(s)/www
 // link — the gate for the preview toggle. Pure — unit-tested.
 func composedHasLink(text string) bool {
 	for _, prefix := range []string{"https://", "http://", "www."} {
@@ -120,7 +120,7 @@ func composedHasLink(text string) bool {
 	return false
 }
 
-// linkPreviewOff tracks the composer's preview toggle per chat (Telegram
+// linkPreviewOff tracks the a.wid.composer's preview toggle per chat (Telegram
 // remembers per chat; resets are per session). Keyed by chatKey.String().
 var (
 	linkPreviewMu sync.Mutex
@@ -137,18 +137,17 @@ func (a *App) linkPreviewOffFor(k *chatKey) bool {
 	return linkPreview[k.String()]
 }
 
-// webPageClickables pools the card clickables per message.
-var webPageClickables = map[string]*widget.Clickable{}
+// a.wid.webPageClickables pools the card clickables per message.
 
-func webPageClickable(key string) *widget.Clickable {
-	if c, ok := webPageClickables[key]; ok {
+func (a *App) webPageClickable(key string) *widget.Clickable {
+	if c, ok := a.wid.webPageClickables[key]; ok {
 		return c
 	}
-	if len(webPageClickables) > 512 {
-		webPageClickables = make(map[string]*widget.Clickable)
+	if len(a.wid.webPageClickables) > 512 {
+		a.wid.webPageClickables = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	webPageClickables[key] = c
+	a.wid.webPageClickables[key] = c
 	return c
 }
 
@@ -225,7 +224,7 @@ func (a *App) webPageBlock(gtx layout.Context, m *engine.CachedMessage) layout.D
 	}
 	key := m.AccountID + "|" + m.ChatID + "|" + m.MsgID
 	a.ensureWebPagePhoto(m, wp)
-	btn := webPageClickable(key)
+	btn := a.webPageClickable(key)
 	if btn.Clicked(gtx) {
 		openExternalAsync(wp.URL, func(err error) {
 			if err != nil {

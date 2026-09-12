@@ -110,24 +110,14 @@ type muteDlgState struct {
 }
 
 var (
-	muteDlgCancelBtn widget.Clickable
-	muteDlgRowBtns   []widget.Clickable
-	muteDlgUnmuteBtn widget.Clickable
-	muteDlgKeyTag    = new(struct{})
+	muteDlgKeyTag = new(struct{})
 )
 
 // Custom-duration entry (slice 149): "Custom…" reveals a text field.
 var (
-	muteDlgCustomBtn  widget.Clickable
-	muteDlgCustomEd   widget.Editor
-	muteDlgCustomGo   widget.Clickable
 	muteDlgCustomOpen bool
 	muteDlgCustomErr  string
 )
-
-func init() {
-	muteDlgCustomEd.SingleLine = true
-}
 
 // openMuteDialog opens the mute-duration picker for the open chat.
 func (a *App) openMuteDialog(k chatKey, title string) {
@@ -178,7 +168,7 @@ func (a *App) applyUnmute(accountID, chatID string) {
 // like the other header dialogs).
 func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.muteDlg
-	growClickables(&muteDlgRowBtns, len(mutePresets))
+	growClickables(&a.wid.muteDlgRowBtns, len(mutePresets))
 
 	// Esc closes (self-handled).
 	{
@@ -195,29 +185,29 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 			a.closeMuteDialog()
 		}
 	}
-	if muteDlgCancelBtn.Clicked(gtx) {
+	if a.wid.muteDlgCancelBtn.Clicked(gtx) {
 		a.closeMuteDialog()
 	}
 	for i := range mutePresets {
-		if muteDlgRowBtns[i].Clicked(gtx) {
+		if a.wid.muteDlgRowBtns[i].Clicked(gtx) {
 			a.applyMutePreset(st.accountID, st.chatID, mutePresets[i].secs)
 			return layout.Dimensions{}
 		}
 	}
-	if muteDlgUnmuteBtn.Clicked(gtx) {
+	if a.wid.muteDlgUnmuteBtn.Clicked(gtx) {
 		a.applyUnmute(st.accountID, st.chatID)
 		return layout.Dimensions{}
 	}
-	if muteDlgCustomBtn.Clicked(gtx) {
+	if a.wid.muteDlgCustomBtn.Clicked(gtx) {
 		muteDlgCustomOpen = !muteDlgCustomOpen
 		if muteDlgCustomOpen {
-			muteDlgCustomEd.SetText("")
+			a.wid.muteDlgCustomEd.SetText("")
 			muteDlgCustomErr = ""
 		}
 		a.invalidate()
 	}
-	if muteDlgCustomGo.Clicked(gtx) {
-		if secs, ok := parseCustomMuteDuration(muteDlgCustomEd.Text()); ok {
+	if a.wid.muteDlgCustomGo.Clicked(gtx) {
+		if secs, ok := parseCustomMuteDuration(a.wid.muteDlgCustomEd.Text()); ok {
 			muteDlgCustomOpen = false
 			muteDlgCustomErr = ""
 			a.applyMutePreset(st.accountID, st.chatID, secs)
@@ -251,7 +241,7 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 							return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 								flexChildrenOf(len(mutePresets), func(gtx layout.Context, i int) layout.Dimensions {
 									return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-										btn := material.Button(a.ui.Theme, &muteDlgRowBtns[i], mutePresets[i].label)
+										btn := material.Button(a.ui.Theme, &a.wid.muteDlgRowBtns[i], mutePresets[i].label)
 										btn.CornerRadius = 10
 										btn.Inset = layout.UniformInset(unit.Dp(9))
 										btn.Background = a.ui.p.SurfaceHi
@@ -263,7 +253,7 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.TextButton(&muteDlgUnmuteBtn, "Unmute")
+							btn := a.ui.TextButton(&a.wid.muteDlgUnmuteBtn, "Unmute")
 							btn.Color = a.ui.p.Accent
 							return btn.Layout(gtx)
 						})
@@ -272,7 +262,7 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 						return layout.Dimensions{}
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						btn := material.Button(a.ui.Theme, &muteDlgCancelBtn, "Cancel")
+						btn := material.Button(a.ui.Theme, &a.wid.muteDlgCancelBtn, "Cancel")
 						btn.Background = a.ui.p.SurfaceHi
 						btn.Color = a.ui.p.Text
 						btn.CornerRadius = 10
@@ -284,14 +274,13 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// muteClockBtn opens the picker from the notifications row.
-var muteClockBtn widget.Clickable
+// a.wid.muteClockBtn opens the picker from the notifications row.
 
 // muteRowWithPicker renders the notifications row with the duration chip.
 // While a timed mute is active the label gains a "Muted until …" subtitle
 // (slice 136) that re-renders on the minute.
 func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widget.Bool) layout.Dimensions {
-	if muteClockBtn.Clicked(gtx) {
+	if a.wid.muteClockBtn.Clicked(gtx) {
 		title := ""
 		a.mu.Lock()
 		for i := range a.chats {
@@ -345,7 +334,7 @@ func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widg
 				})
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := a.ui.IconButton(&muteClockBtn, iconActionSchedule, "Mute duration")
+				btn := a.ui.IconButton(&a.wid.muteClockBtn, iconActionSchedule, "Mute duration")
 				btn.Color = a.ui.p.TextDim
 				return btn.Layout(gtx)
 			}),

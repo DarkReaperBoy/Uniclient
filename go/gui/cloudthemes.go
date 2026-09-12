@@ -9,7 +9,6 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/cores"
@@ -30,10 +29,7 @@ type cloudThemeDlgState struct {
 }
 
 var (
-	cloudThemeDlgInstallBtn widget.Clickable
-	cloudThemeDlgCancelBtn  widget.Clickable
-	cloudThemeRowBtns       []widget.Clickable
-	cloudThemeDlgKeyTag     = new(struct{})
+	cloudThemeDlgKeyTag = new(struct{})
 )
 
 // argbToHex converts a Telegram 0xAARRGGBB color to "#RRGGBB" (" " for
@@ -112,7 +108,7 @@ func (a *App) applyCloudTheme(accountID string, th cores.CloudThemeInfo) {
 // layoutCloudThemeSection renders the Appearance page's cloud-theme rows
 // (slice 66).
 func (a *App) layoutCloudThemeSection(gtx layout.Context, f frame) layout.Dimensions {
-	growClickables(&cloudThemeRowBtns, len(f.cloudThemes))
+	growClickables(&a.wid.cloudThemeRowBtns, len(f.cloudThemes))
 	var children []layout.FlexChild
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Cloud themes")
@@ -135,7 +131,7 @@ func (a *App) layoutCloudThemeSection(gtx layout.Context, f frame) layout.Dimens
 	for i, th := range f.cloudThemes {
 		i, th := i, th
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := &cloudThemeRowBtns[i]
+			btn := &a.wid.cloudThemeRowBtns[i]
 			if btn.Clicked(gtx) {
 				a.openCloudThemeDialog(f.cloudThemeAcct, th)
 			}
@@ -207,10 +203,10 @@ func (a *App) layoutCloudThemeDialog(gtx layout.Context, f frame) layout.Dimensi
 			a.closeCloudThemeDialog()
 		}
 	}
-	if cloudThemeDlgCancelBtn.Clicked(gtx) {
+	if a.wid.cloudThemeDlgCancelBtn.Clicked(gtx) {
 		a.closeCloudThemeDialog()
 	}
-	if cloudThemeDlgInstallBtn.Clicked(gtx) {
+	if a.wid.cloudThemeDlgInstallBtn.Clicked(gtx) {
 		accountID, th := st.accountID, st.theme
 		a.closeCloudThemeDialog()
 		a.applyCloudTheme(accountID, th)
@@ -234,7 +230,7 @@ func (a *App) layoutCloudThemeDialog(gtx layout.Context, f frame) layout.Dimensi
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								bl := material.Button(a.ui.Theme, &cloudThemeDlgInstallBtn, "Install")
+								bl := material.Button(a.ui.Theme, &a.wid.cloudThemeDlgInstallBtn, "Install")
 								bl.Background = a.ui.p.Accent
 								bl.Color = rgb(0x0D1821)
 								bl.CornerRadius = 10
@@ -242,7 +238,7 @@ func (a *App) layoutCloudThemeDialog(gtx layout.Context, f frame) layout.Dimensi
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									bl := material.Button(a.ui.Theme, &cloudThemeDlgCancelBtn, "Cancel")
+									bl := material.Button(a.ui.Theme, &a.wid.cloudThemeDlgCancelBtn, "Cancel")
 									bl.Background = a.ui.p.SurfaceHi
 									bl.Color = a.ui.p.Text
 									bl.CornerRadius = 10

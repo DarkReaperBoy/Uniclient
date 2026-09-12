@@ -25,7 +25,6 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 )
 
@@ -193,7 +192,6 @@ func lockBackspace(st *lockState) {
 var (
 	lockKeyTag      = new(struct{})
 	lockActivityTag = new(struct{})
-	lockPadBtns     []widget.Clickable // 0-9 + backspace (index 10)
 )
 
 // lockDots renders the PIN progress dots: filled per typed digit, red
@@ -231,7 +229,7 @@ func (a *App) pinDots(gtx layout.Context, n, filled int, wrong bool) layout.Dime
 // when disabled. The clickable pool is shared: only one pad surface is
 // visible per frame.
 func (a *App) pinGrid(gtx layout.Context, disabled bool, feed func(k string)) layout.Dimensions {
-	growClickables(&lockPadBtns, 11)
+	growClickables(&a.wid.lockPadBtns, 11)
 
 	const keyDp = 72
 	const gapDp = 14
@@ -250,7 +248,7 @@ func (a *App) pinGrid(gtx layout.Context, disabled bool, feed func(k string)) la
 					if k == "" {
 						return layout.Dimensions{Size: image.Pt(keySz, keySz)}
 					}
-					btn := &lockPadBtns[lockPadIndex(k)]
+					btn := &a.wid.lockPadBtns[lockPadIndex(k)]
 					if btn.Clicked(gtx) && !disabled {
 						feed(lockKeyOf(k))
 					}

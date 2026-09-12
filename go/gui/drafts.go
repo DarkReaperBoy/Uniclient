@@ -19,7 +19,7 @@ import (
 )
 
 // Drafts + scheduled messages (AyuGram parity, matrix #drafts/#scheduled):
-// the composer's text persists per chat via engine.SaveDraft (restored on
+// the a.wid.composer's text persists per chat via engine.SaveDraft (restored on
 // open, saved on leave, cleared on send; rows show a "Draft: …" preview),
 // and the ⏰ button schedules the composed text with SendMessage's
 // scheduleDate. Scheduled messages render their planned time in the meta.
@@ -33,15 +33,8 @@ type schedDlgState struct {
 }
 
 var (
-	schedDlgCancel     widget.Clickable
-	schedDlgSend       widget.Clickable
-	schedDlgWhenOnline widget.Clickable
-	schedDlgPresets    [3]widget.Clickable
-	schedDlgSilent     widget.Bool
-	schedDateEd        widget.Editor
-	schedTimeEd        widget.Editor
-	schedKeyTag        = new(struct{})
-	composerSchedBtn   widget.Clickable // ⏰ next to send
+	schedDlgPresets [3]widget.Clickable
+	schedKeyTag     = new(struct{})
 )
 
 // schedulePresets (pure, testable): the quick choices AyuGram offers.
@@ -87,10 +80,10 @@ func draftPreview(text string) string {
 	return "Draft: " + string(r)
 }
 
-// flushDraft persists the composer's current text as the chat's draft
+// flushDraft persists the a.wid.composer's current text as the chat's draft
 // (called when leaving a chat; GUI goroutine).
 func (a *App) flushDraft(k chatKey) {
-	text := strings.TrimSpace(composer.Text())
+	text := strings.TrimSpace(a.wid.composer.Text())
 	a.mu.Lock()
 	var prev engine.ChatInfo
 	for _, c := range a.chats {
@@ -127,8 +120,8 @@ func (a *App) openScheduleDialog() {
 	a.schedDlg = &schedDlgState{preset: 1, when: time.Now().Add(2 * time.Hour)}
 	a.mu.Unlock()
 	now := time.Now()
-	schedDateEd.SetText(now.Format("2006-01-02"))
-	schedTimeEd.SetText(now.Add(2 * time.Hour).Format("15:04"))
+	a.wid.schedDateEd.SetText(now.Format("2006-01-02"))
+	a.wid.schedTimeEd.SetText(now.Add(2 * time.Hour).Format("15:04"))
 	a.invalidate()
 }
 
@@ -193,7 +186,7 @@ func (a *App) sendWhenOnline() {
 	}
 	a.schedDlg.busy = true
 	a.mu.Unlock()
-	text := strings.TrimSpace(composer.Text())
+	text := strings.TrimSpace(a.wid.composer.Text())
 	if text == "" {
 		a.setToast("Nothing to schedule")
 		a.mu.Lock()
@@ -202,8 +195,8 @@ func (a *App) sendWhenOnline() {
 		a.invalidate()
 		return
 	}
-	composer.SetText("")
-	a.sendTextScheduled(text, schedWhenOnline, schedDlgSilent.Value)
+	a.wid.composer.SetText("")
+	a.sendTextScheduled(text, schedWhenOnline, a.wid.schedDlgSilent.Value)
 	a.mu.Lock()
 	a.schedDlg = nil
 	a.mu.Unlock()
@@ -226,7 +219,7 @@ func (a *App) submitScheduleDialog() {
 	if p, ok := schedulePresetWhen(preset, time.Now()); ok {
 		when = p.Unix()
 	} else {
-		w, ok := parseScheduleInput(schedDateEd.Text(), schedTimeEd.Text())
+		w, ok := parseScheduleInput(a.wid.schedDateEd.Text(), a.wid.schedTimeEd.Text())
 		if !ok {
 			a.setToast("Enter date as YYYY-MM-DD and time as HH:MM")
 			return
@@ -258,7 +251,7 @@ func (a *App) submitScheduleDialog() {
 		}()
 		return
 	}
-	text := strings.TrimSpace(composer.Text())
+	text := strings.TrimSpace(a.wid.composer.Text())
 	if text == "" {
 		a.setToast("Nothing to schedule")
 		return
@@ -266,8 +259,8 @@ func (a *App) submitScheduleDialog() {
 	a.mu.Lock()
 	a.schedDlg.busy = true
 	a.mu.Unlock()
-	composer.SetText("")
-	a.sendTextScheduled(text, when, schedDlgSilent.Value)
+	a.wid.composer.SetText("")
+	a.sendTextScheduled(text, when, a.wid.schedDlgSilent.Value)
 	a.mu.Lock()
 	a.schedDlg = nil
 	a.mu.Unlock()
@@ -302,13 +295,13 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 			a.closeScheduleDialog()
 		}
 	}
-	if schedDlgCancel.Clicked(gtx) {
+	if a.wid.schedDlgCancel.Clicked(gtx) {
 		a.closeScheduleDialog()
 	}
-	if schedDlgSend.Clicked(gtx) {
+	if a.wid.schedDlgSend.Clicked(gtx) {
 		a.submitScheduleDialog()
 	}
-	if schedDlgWhenOnline.Clicked(gtx) {
+	if a.wid.schedDlgWhenOnline.Clicked(gtx) {
 		a.sendWhenOnline()
 	}
 	for i := range schedDlgPresets {
@@ -319,8 +312,8 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 			}
 			a.mu.Unlock()
 			if p, ok := schedulePresetWhen(i, time.Now()); ok {
-				schedDateEd.SetText(p.Format("2006-01-02"))
-				schedTimeEd.SetText(p.Format("15:04"))
+				a.wid.schedDateEd.SetText(p.Format("2006-01-02"))
+				a.wid.schedTimeEd.SetText(p.Format("15:04"))
 			}
 			a.invalidate()
 		}
@@ -352,7 +345,7 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 					// Send when online (AyuGram schedule option, slice 39).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.TextButton(&schedDlgWhenOnline, "Send when they're online")
+							btn := a.ui.TextButton(&a.wid.schedDlgWhenOnline, "Send when they're online")
 							btn.Color = a.ui.p.Accent
 							return btn.Layout(gtx)
 						})
@@ -380,7 +373,7 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 									return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 										return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											ed := a.ui.Editor(&schedDateEd, "YYYY-MM-DD")
+											ed := a.ui.Editor(&a.wid.schedDateEd, "YYYY-MM-DD")
 											return ed.Layout(gtx)
 										})
 									})
@@ -395,7 +388,7 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 									gtx.Constraints.Max.X = gtx.Dp(unit.Dp(110))
 									return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 										return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											ed := a.ui.Editor(&schedTimeEd, "HH:MM")
+											ed := a.ui.Editor(&a.wid.schedTimeEd, "HH:MM")
 											return ed.Layout(gtx)
 										})
 									})
@@ -412,7 +405,7 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 									return lbl.Layout(gtx)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									tg := material.Switch(a.ui.Theme, &schedDlgSilent, "")
+									tg := material.Switch(a.ui.Theme, &a.wid.schedDlgSilent, "")
 									tg.Color.Enabled = a.ui.p.Accent
 									tg.Color.Disabled = a.ui.p.SurfaceHi
 									tg.Color.Track = a.ui.p.SurfaceHi
@@ -425,14 +418,14 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 						return layout.Inset{Top: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.TextButton(&schedDlgCancel, "Cancel")
+									btn := a.ui.TextButton(&a.wid.schedDlgCancel, "Cancel")
 									if d.busy {
 										btn.Color = a.ui.p.TextFaint
 									}
 									return btn.Layout(gtx)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.PrimaryButton(&schedDlgSend, label)
+									btn := a.ui.PrimaryButton(&a.wid.schedDlgSend, label)
 									return btn.Layout(gtx)
 								}),
 							)
@@ -482,7 +475,7 @@ func scheduledMetaLabel(m engine.CachedMessage) string {
 	return lbl
 }
 
-// scheduleHint is used by the composer row (pure).
+// scheduleHint is used by the a.wid.composer row (pure).
 func scheduleHint(when time.Time) string {
 	return fmt.Sprintf("Send at %s", when.Format("15:04"))
 }

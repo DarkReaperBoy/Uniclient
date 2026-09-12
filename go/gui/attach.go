@@ -22,12 +22,7 @@ import (
 // menu (Photo or Video / File); picks go through the OS dialog
 // (gioui.org/x/explorer); uploads run through the engine media pipeline —
 // single file → UploadFileEx, multiple → SendMediaAlbumFromPaths (album).
-// The composer text at attach time becomes the caption (AyuGram behavior).
-
-var (
-	attachBtn      widget.Clickable
-	attachMenuBtns []widget.Clickable
-)
+// The a.wid.composer text at attach time becomes the caption (AyuGram behavior).
 
 // photoExts are the image/video extensions the "Photo or Video" picker accepts.
 var photoExts = []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".mp4", ".mov", ".webm", ".mkv"}
@@ -73,10 +68,10 @@ func (a *App) closeAttachMenu() {
 }
 
 // layoutAttachMenu renders the popup anchored bottom-left of the chat column
-// (above the composer). Records its rect for outside-press dismissal.
+// (above the a.wid.composer). Records its rect for outside-press dismissal.
 func (a *App) layoutAttachMenu(gtx layout.Context, f frame) layout.Dimensions {
 	items := a.attachMenuItems()
-	growClickables(&attachMenuBtns, len(items))
+	growClickables(&a.wid.attachMenuBtns, len(items))
 
 	menuW := gtx.Dp(unit.Dp(210))
 	rowH := gtx.Dp(unit.Dp(40))
@@ -92,7 +87,7 @@ func (a *App) layoutAttachMenu(gtx layout.Context, f frame) layout.Dimensions {
 		for i := range items {
 			i := i
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := &attachMenuBtns[i]
+				btn := &a.wid.attachMenuBtns[i]
 				if btn.Clicked(gtx) {
 					run := items[i].run
 					a.closeAttachMenu()
@@ -135,15 +130,15 @@ func attachMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item attac
 
 // pickAndSendExts opens the OS file picker (optionally filtered to exts)
 // and uploads the selection (async). nil exts = any file.
-// The composer text at attach time becomes the caption.
+// The a.wid.composer text at attach time becomes the caption.
 func (a *App) pickAndSendExts(exts []string) {
 	a.mu.Lock()
 	k := a.selected
 	a.sending = true
 	a.mu.Unlock()
-	caption := strings.TrimSpace(composer.Text())
+	caption := strings.TrimSpace(a.wid.composer.Text())
 	if caption != "" {
-		composer.SetText("") // frame thread
+		a.wid.composer.SetText("") // frame thread
 	}
 	a.invalidate()
 

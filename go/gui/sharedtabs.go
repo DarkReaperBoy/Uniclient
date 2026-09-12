@@ -196,18 +196,17 @@ func (a *App) loadPanelTab(k chatKey, tab string) {
 
 // ── layout ────────────────────────────────────────────────────────────────
 
-// sharedTabClicks pools the chip clickables per chat+tab.
-var sharedTabClicks = map[string]*widget.Clickable{}
+// a.wid.sharedTabClicks pools the chip clickables per chat+tab.
 
-func sharedTabClickable(key string) *widget.Clickable {
-	if c, ok := sharedTabClicks[key]; ok {
+func (a *App) sharedTabClickable(key string) *widget.Clickable {
+	if c, ok := a.wid.sharedTabClicks[key]; ok {
 		return c
 	}
-	if len(sharedTabClicks) > 24 {
-		sharedTabClicks = make(map[string]*widget.Clickable)
+	if len(a.wid.sharedTabClicks) > 24 {
+		a.wid.sharedTabClicks = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	sharedTabClicks[key] = c
+	a.wid.sharedTabClicks[key] = c
 	return c
 }
 
@@ -282,7 +281,7 @@ func (a *App) sharedChipBar(gtx layout.Context, f frame, k chatKey, tabs []share
 			t := tabs[i]
 			cells = append(cells, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				key := k.ChatID + ":" + t.key
-				btn := sharedTabClickable(key)
+				btn := a.sharedTabClickable(key)
 				if btn.Clicked(gtx) {
 					a.sharedTabClick(k, t.key)
 				}
@@ -322,7 +321,7 @@ func (a *App) sharedMediaGrid(gtx layout.Context, f frame, k chatKey, chat *engi
 	}
 	const cols = 3
 	cell := gtx.Dp(unit.Dp(84))
-	growClickables(&photoGridClicks, len(items))
+	growClickables(&a.wid.photoGridClicks, len(items))
 	var rows []layout.FlexChild
 	for i := 0; i < len(items); i += cols {
 		end := i + cols
@@ -341,14 +340,14 @@ func (a *App) sharedMediaGrid(gtx layout.Context, f frame, k chatKey, chat *engi
 						gtx.Constraints.Max.X = cell
 						gtx.Constraints.Max.Y = cell
 						gtx.Constraints.Min = image.Pt(cell, cell)
-						if btn := &photoGridClicks[idx]; btn.Clicked(gtx) {
+						if btn := &a.wid.photoGridClicks[idx]; btn.Clicked(gtx) {
 							title := ""
 							if chat != nil {
 								title = chat.Title
 							}
 							a.openViewerAt(k, title, tab, it.MsgID)
 						}
-						bl := material.ButtonLayout(a.ui.Theme, &photoGridClicks[idx])
+						bl := material.ButtonLayout(a.ui.Theme, &a.wid.photoGridClicks[idx])
 						bl.Background = a.ui.p.Surface
 						bl.CornerRadius = 4
 						return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -436,9 +435,8 @@ func (a *App) tabRowIcon(tab string, it engine.SharedMediaItem) *widget.Icon {
 	return iconFileAttach
 }
 
-// sharedRowClicks pools the media/link row clickables (index-scoped per
+// a.wid.sharedRowClicks pools the media/link row clickables (index-scoped per
 // render, reset when the pool outgrows 128).
-var sharedRowClicks []widget.Clickable
 
 // sharedMediaList renders the voice / audio / file tabs as tap-to-jump
 // rows (AyuGram's lists: icon, title, duration·size·date).
@@ -448,15 +446,15 @@ func (a *App) sharedMediaList(gtx layout.Context, f frame, k chatKey, tab string
 		lbl := a.ui.Dim(unit.Sp(13), "No "+tabLabelFor(tab)+" yet")
 		return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, lbl.Layout)
 	}
-	growClickables(&sharedRowClicks, len(items))
+	growClickables(&a.wid.sharedRowClicks, len(items))
 	children := make([]layout.FlexChild, 0, len(items))
 	for i, it := range items {
 		it := it
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if btn := &sharedRowClicks[i]; btn.Clicked(gtx) {
+			if btn := &a.wid.sharedRowClicks[i]; btn.Clicked(gtx) {
 				a.jumpFromPanel(narrow, it.MsgID, it.Timestamp)
 			}
-			bl := material.ButtonLayout(a.ui.Theme, &sharedRowClicks[i])
+			bl := material.ButtonLayout(a.ui.Theme, &a.wid.sharedRowClicks[i])
 			bl.Background = a.ui.p.Surface
 			bl.CornerRadius = 8
 			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -501,15 +499,15 @@ func (a *App) sharedLinksList(gtx layout.Context, f frame, k chatKey, narrow boo
 		lbl := a.ui.Dim(unit.Sp(13), "No links yet")
 		return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(6)}.Layout(gtx, lbl.Layout)
 	}
-	growClickables(&sharedRowClicks, len(items))
+	growClickables(&a.wid.sharedRowClicks, len(items))
 	children := make([]layout.FlexChild, 0, len(items))
 	for i, it := range items {
 		it := it
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if btn := &sharedRowClicks[i]; btn.Clicked(gtx) {
+			if btn := &a.wid.sharedRowClicks[i]; btn.Clicked(gtx) {
 				a.jumpFromPanel(narrow, it.MsgID, it.Timestamp)
 			}
-			bl := material.ButtonLayout(a.ui.Theme, &sharedRowClicks[i])
+			bl := material.ButtonLayout(a.ui.Theme, &a.wid.sharedRowClicks[i])
 			bl.Background = a.ui.p.Surface
 			bl.CornerRadius = 8
 			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

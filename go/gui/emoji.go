@@ -8,14 +8,13 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/engine"
 )
 
-// Emoji picker (AyuGram parity §4 "composer helpers" / top-gap #15): the 😊
-// button next to the composer opens a category-tabbed emoji panel above the
+// Emoji picker (AyuGram parity §4 "a.wid.composer helpers" / top-gap #15): the 😊
+// button next to the a.wid.composer opens a category-tabbed emoji panel above the
 // input; taps insert at the caret (widget.Editor.Insert) and keep the panel
 // open for multi-insert, with a backspace key. Emoji are plain text rendered
 // through the Noto Emoji fallback face registered in theme.go — no engine
@@ -91,16 +90,6 @@ var emojiCategories = []emojiCategory{
 }
 
 // emoji button pool.
-var (
-	emojiBtn       widget.Clickable // the 😊 composer toggle
-	emojiBackspace widget.Clickable
-	emojiCellBtns  []widget.Clickable
-	emojiSearchEd  widget.Editor // panel search (keyword -> emoji, slice 50)
-	emojiTabBtns   []widget.Clickable
-)
-
-var emojiList widget.List // grid scroller
-var emojiTabsList widget.List
 
 // ── pure helpers (unit-tested) ────────────────────────────────────────────
 
@@ -154,19 +143,19 @@ func (a *App) setEmojiTab(i int) {
 	a.invalidate()
 }
 
-// insertEmoji inserts one emoji at the composer caret (AyuGram: panel stays
+// insertEmoji inserts one emoji at the a.wid.composer caret (AyuGram: panel stays
 // open for multi-insert). Called from the GUI goroutine.
 func (a *App) insertEmoji(e string) {
 	if e == "" {
 		return
 	}
-	composer.Insert(e)
+	a.wid.composer.Insert(e)
 	a.invalidate()
 }
 
-// emojiBackspace deletes the cluster before the caret.
+// a.wid.emojiBackspace deletes the cluster before the caret.
 func (a *App) emojiBackspaceAt() {
-	composer.Delete(-1)
+	a.wid.composer.Delete(-1)
 	a.invalidate()
 }
 
@@ -249,14 +238,14 @@ func (a *App) ensureEmojiKeywords(accountID string) {
 
 // ── layout ────────────────────────────────────────────────────────────────
 
-// layoutEmojiPanel renders the category-tabbed emoji grid above the composer.
+// layoutEmojiPanel renders the category-tabbed emoji grid above the a.wid.composer.
 // Records its rect for outside-press dismissal (menu.go onPanePress).
 func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 	cat := emojiCategorySafe(f.emojiTab)
 
 	// Search (slice 50): while the field has a query the grid shows keyword
 	// matches from the engine (Telegram emoji keywords), fetched lazily.
-	query := strings.TrimSpace(emojiSearchEd.Text())
+	query := strings.TrimSpace(a.wid.emojiSearchEd.Text())
 	var results []string
 	searching := len([]rune(query)) >= 2
 	if searching {
@@ -278,10 +267,10 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 	if n < 1 {
 		n = 1
 	}
-	growClickables(&emojiCellBtns, n)
-	growClickables(&emojiTabBtns, len(emojiCategories))
+	growClickables(&a.wid.emojiCellBtns, n)
+	growClickables(&a.wid.emojiTabBtns, len(emojiCategories))
 
-	if emojiBackspace.Clicked(gtx) {
+	if a.wid.emojiBackspace.Clicked(gtx) {
 		a.emojiBackspaceAt()
 	}
 
@@ -318,7 +307,7 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 				return layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
 						return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							ed := a.ui.Editor(&emojiSearchEd, "Search emoji")
+							ed := a.ui.Editor(&a.wid.emojiSearchEd, "Search emoji")
 							ed.TextSize = unit.Sp(13)
 							return ed.Layout(gtx)
 						})
@@ -332,10 +321,10 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 				}
 				gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(44))
 				return layout.Inset{Left: unit.Dp(4), Right: unit.Dp(4), Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					emojiTabsList.Axis = layout.Horizontal
-					tl := material.List(a.ui.Theme, &emojiTabsList)
+					a.wid.emojiTabsList.Axis = layout.Horizontal
+					tl := material.List(a.ui.Theme, &a.wid.emojiTabsList)
 					return tl.Layout(gtx, len(emojiCategories), func(gtx layout.Context, i int) layout.Dimensions {
-						btn := &emojiTabBtns[i]
+						btn := &a.wid.emojiTabBtns[i]
 						if btn.Clicked(gtx) {
 							a.setEmojiTab(i)
 						}
@@ -385,11 +374,11 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 					})
 				}
 				rows := emojiRowCount(n, cols)
-				emojiList.Axis = layout.Vertical
-				gl := material.List(a.ui.Theme, &emojiList)
+				a.wid.emojiList.Axis = layout.Vertical
+				gl := material.List(a.ui.Theme, &a.wid.emojiList)
 				return gl.Layout(gtx, rows, func(gtx layout.Context, r int) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, cellsForRow(emojis, r*cols, cols, func(gtx layout.Context, idx int, e string) layout.Dimensions {
-						btn := &emojiCellBtns[idx]
+						btn := &a.wid.emojiCellBtns[idx]
 						if btn.Clicked(gtx) {
 							a.insertEmoji(e)
 						}
@@ -422,7 +411,7 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 							return layout.Dimensions{}
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.IconButton(&emojiBackspace, iconContentBackspace, "Backspace")
+							btn := a.ui.IconButton(&a.wid.emojiBackspace, iconContentBackspace, "Backspace")
 							btn.Color = a.ui.p.TextDim
 							btn.Background = a.ui.p.SurfaceHi
 							btn.Size = unit.Dp(20)

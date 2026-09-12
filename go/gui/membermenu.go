@@ -69,7 +69,6 @@ func memberMenuItems(m engine.MemberInfo, chat engine.ChatInfo, selfID string) [
 }
 
 // member menu button pool.
-var memberMenuBtns []widget.Clickable
 
 // openMemberMenu opens the member menu at pos (profile-panel coords).
 func (a *App) openMemberMenu(chat engine.ChatInfo, m engine.MemberInfo, pos image.Point) {
@@ -149,7 +148,7 @@ func (a *App) layoutMemberMenu(gtx layout.Context, f frame) layout.Dimensions {
 		a.closeMemberMenu() // stale state — the viewer's rights changed
 		return layout.Dimensions{}
 	}
-	growClickables(&memberMenuBtns, len(items))
+	growClickables(&a.wid.memberMenuBtns, len(items))
 
 	menuW := gtx.Dp(unit.Dp(200))
 	rowH := gtx.Dp(unit.Dp(36))
@@ -181,7 +180,7 @@ func (a *App) layoutMemberMenu(gtx layout.Context, f frame) layout.Dimensions {
 			for i := range items {
 				i := i
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					btn := &memberMenuBtns[i]
+					btn := &a.wid.memberMenuBtns[i]
 					if btn.Clicked(gtx) {
 						st := *m
 						a.dispatchMemberMenu(&st, items[i].action)
@@ -235,16 +234,15 @@ func panelChatOf(f frame) (engine.ChatInfo, bool) {
 }
 
 // memberRowBtn pools member-row clickables by user ID.
-var memberRowBtns = map[string]*widget.Clickable{}
 
-func memberRowBtn(userID string) *widget.Clickable {
-	if btn, ok := memberRowBtns[userID]; ok {
+func (a *App) memberRowBtn(userID string) *widget.Clickable {
+	if btn, ok := a.wid.memberRowBtns[userID]; ok {
 		return btn
 	}
 	btn := new(widget.Clickable)
-	memberRowBtns[userID] = btn
-	if len(memberRowBtns) > 512 {
-		memberRowBtns = map[string]*widget.Clickable{userID: btn}
+	a.wid.memberRowBtns[userID] = btn
+	if len(a.wid.memberRowBtns) > 512 {
+		a.wid.memberRowBtns = map[string]*widget.Clickable{userID: btn}
 	}
 	return btn
 }

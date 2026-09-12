@@ -1,7 +1,7 @@
 package gui
 
 // Composer char counter (slice 88, AyuGram parity row 124): the remaining
-// character count appears under the composer near Telegram's per-message
+// character count appears under the a.wid.composer near Telegram's per-message
 // limit and turns red past it; the send paths refuse over-limit drafts.
 
 import (

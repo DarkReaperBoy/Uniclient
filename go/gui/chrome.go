@@ -10,7 +10,6 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/engine"
@@ -24,10 +23,6 @@ import (
 // faked (§1.10).
 
 // chrome button pool.
-var (
-	pinnedBarBtn   widget.Clickable
-	pinnedCycleBtn widget.Clickable
-)
 
 // ── pure helpers (unit-tested) ────────────────────────────────────────────
 
@@ -185,9 +180,9 @@ func (a *App) jumpToMessageAt(msgID string, tsFallback int64) {
 	}
 
 	if row := rowIndexOf(msgs, msgID, sepMsgID); row >= 0 {
-		msgList.Position.First = row
-		msgList.Position.Offset = 0
-		msgList.Position.BeforeEnd = true
+		a.wid.msgList.Position.First = row
+		a.wid.msgList.Position.Offset = 0
+		a.wid.msgList.Position.BeforeEnd = true
 		a.invalidate()
 		return
 	}
@@ -229,9 +224,9 @@ func (a *App) jumpToMessageAt(msgID string, tsFallback int64) {
 			a.messages = win
 			a.olderDone = false
 			if row := rowIndexOf(win, msgID, a.unreadSepMsgID); row >= 0 {
-				msgList.Position.First = row
-				msgList.Position.Offset = 0
-				msgList.Position.BeforeEnd = true
+				a.wid.msgList.Position.First = row
+				a.wid.msgList.Position.Offset = 0
+				a.wid.msgList.Position.BeforeEnd = true
 			}
 		}
 		a.mu.Unlock()
@@ -248,12 +243,12 @@ func (a *App) pinnedBar(gtx layout.Context, f frame) layout.Dimensions {
 	if len(f.pinned) == 0 {
 		return layout.Dimensions{}
 	}
-	if pinnedBarBtn.Clicked(gtx) {
+	if a.wid.pinnedBarBtn.Clicked(gtx) {
 		if f.pinnedIdx >= 0 && f.pinnedIdx < len(f.pinned) {
 			a.jumpToMessageAt(f.pinned[f.pinnedIdx].MsgID, f.pinned[f.pinnedIdx].Timestamp)
 		}
 	}
-	if pinnedCycleBtn.Clicked(gtx) {
+	if a.wid.pinnedCycleBtn.Clicked(gtx) {
 		a.cyclePinned()
 	}
 
@@ -264,7 +259,7 @@ func (a *App) pinnedBar(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.pinned[idx]
 	preview := pinnedPreview(&m)
 
-	bl := material.ButtonLayout(a.ui.Theme, &pinnedBarBtn)
+	bl := material.ButtonLayout(a.ui.Theme, &a.wid.pinnedBarBtn)
 	bl.Background = a.ui.p.Surface
 	bl.CornerRadius = 0
 	return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -299,10 +294,10 @@ func (a *App) pinnedBar(gtx layout.Context, f frame) layout.Dimensions {
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Left: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							if pinnedCycleBtn.Clicked(gtx) {
+							if a.wid.pinnedCycleBtn.Clicked(gtx) {
 								a.cyclePinned()
 							}
-							btn := a.ui.IconButton(&pinnedCycleBtn, iconNavChevronRight, "Next pinned")
+							btn := a.ui.IconButton(&a.wid.pinnedCycleBtn, iconNavChevronRight, "Next pinned")
 							btn.Color = a.ui.p.TextDim
 							btn.Size = unit.Dp(18)
 							btn.Inset = layout.UniformInset(unit.Dp(6))

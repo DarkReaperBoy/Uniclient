@@ -73,15 +73,6 @@ func topicTabBadgeText(n int) string {
 
 // ── widgets ──────────────────────────────────────────────────────────────
 
-var (
-	topicTabList widget.List // horizontal strip scroller
-	topicTabBtns []widget.Clickable
-)
-
-func init() {
-	topicTabList.Axis = layout.Horizontal
-}
-
 // layoutTopicTabs renders the subsection tab strip for a forum chat.
 // Runs on the GUI goroutine; taps dispatch through the existing
 // openForumTopic / backToForumTopics paths.
@@ -90,10 +81,10 @@ func (a *App) layoutTopicTabs(gtx layout.Context, f frame, chat *engine.ChatInfo
 		return layout.Dimensions{}
 	}
 	tabs := topicTabsFor(f.forumTopics, f.forumTopic)
-	growClickables(&topicTabBtns, len(tabs))
+	growClickables(&a.wid.topicTabBtns, len(tabs))
 	for i, tab := range tabs {
 		i, tab := i, tab
-		if topicTabBtns[i].Clicked(gtx) {
+		if a.wid.topicTabBtns[i].Clicked(gtx) {
 			if tab.topicID == "" {
 				a.backToForumTopics()
 			} else if tab.topicID != f.forumTopic {
@@ -102,8 +93,8 @@ func (a *App) layoutTopicTabs(gtx layout.Context, f frame, chat *engine.ChatInfo
 		}
 	}
 	return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4), Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return material.List(a.ui.Theme, &topicTabList).Layout(gtx, len(tabs), func(gtx layout.Context, idx int) layout.Dimensions {
-			return a.topicTabChip(gtx, &topicTabBtns[idx], tabs[idx])
+		return material.List(a.ui.Theme, &a.wid.topicTabList).Layout(gtx, len(tabs), func(gtx layout.Context, idx int) layout.Dimensions {
+			return a.topicTabChip(gtx, &a.wid.topicTabBtns[idx], tabs[idx])
 		})
 	})
 }

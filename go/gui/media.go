@@ -341,19 +341,18 @@ func mediaBlockKind(mt int) string {
 	}
 }
 
-// mediaClicks pools whole-bubble clickables (msgID-keyed, pruned like
-// reactionClicks when rows scroll away for good).
-var mediaClicks = map[string]*widget.Clickable{}
+// a.wid.mediaClicks pools whole-bubble clickables (msgID-keyed, pruned like
+// a.wid.reactionClicks when rows scroll away for good).
 
-func mediaClickable(key string) *widget.Clickable {
-	if c, ok := mediaClicks[key]; ok {
+func (a *App) mediaClickable(key string) *widget.Clickable {
+	if c, ok := a.wid.mediaClicks[key]; ok {
 		return c
 	}
-	if len(mediaClicks) > 512 {
-		mediaClicks = make(map[string]*widget.Clickable)
+	if len(a.wid.mediaClicks) > 512 {
+		a.wid.mediaClicks = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	mediaClicks[key] = c
+	a.wid.mediaClicks[key] = c
 	return c
 }
 
@@ -379,7 +378,7 @@ func (a *App) mediaBlock(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		}()
 	}
 
-	btn := mediaClickable(m.MsgID)
+	btn := a.mediaClickable(m.MsgID)
 	dims := btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		var children []layout.FlexChild
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -688,7 +687,7 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			// Play / pause circle.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := mediaPlayClickable(m.AccountID + "|" + m.ChatID + "|" + m.MsgID)
+				btn := a.mediaPlayClickable(m.AccountID + "|" + m.ChatID + "|" + m.MsgID)
 				d := gtx.Dp(unit.Dp(44))
 				if btn.Clicked(gtx) {
 					a.toggleVoicePlayback(m)
@@ -735,7 +734,7 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 			}),
 			// Speed chip.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				clk := mediaPlayClickable(m.AccountID + "|" + m.ChatID + "|" + m.MsgID + "|speed")
+				clk := a.mediaPlayClickable(m.AccountID + "|" + m.ChatID + "|" + m.MsgID + "|speed")
 				if clk.Clicked(gtx) {
 					a.eng.CycleMediaSpeed()
 				}
@@ -750,7 +749,7 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 				if !transcribeWanted(m, f.transcribeCap) {
 					return layout.Dimensions{}
 				}
-				clk := transcribeClickable(transcriptKey(m))
+				clk := a.transcribeClickable(transcriptKey(m))
 				if clk.Clicked(gtx) {
 					a.transcribeVoiceNote(m)
 				}
@@ -940,18 +939,17 @@ func fmtSpeed(s float64) string {
 	}
 }
 
-// mediaPlayClickables keeps one stable clickable per player control.
-var mediaPlayClickables = make(map[string]*widget.Clickable)
+// a.wid.mediaPlayClickables keeps one stable clickable per player control.
 
-func mediaPlayClickable(key string) *widget.Clickable {
-	if c, ok := mediaPlayClickables[key]; ok {
+func (a *App) mediaPlayClickable(key string) *widget.Clickable {
+	if c, ok := a.wid.mediaPlayClickables[key]; ok {
 		return c
 	}
-	if len(mediaPlayClickables) > 512 {
-		mediaPlayClickables = make(map[string]*widget.Clickable)
+	if len(a.wid.mediaPlayClickables) > 512 {
+		a.wid.mediaPlayClickables = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	mediaPlayClickables[key] = c
+	a.wid.mediaPlayClickables[key] = c
 	return c
 }
 

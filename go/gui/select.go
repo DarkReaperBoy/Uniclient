@@ -11,7 +11,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
-	"gioui.org/widget"
 
 	"uniclient/engine"
 )
@@ -24,18 +23,10 @@ import (
 // per-visit GUI state over the real cached messages — nothing faked.
 
 // selection button pool.
-var (
-	selBarFwdBtn  widget.Clickable
-	selBarDelBtn  widget.Clickable
-	selBarCopyBtn widget.Clickable
-	selBarRptBtn  widget.Clickable
-	selBarXBtn    widget.Clickable
-)
 
-// fwdComment is the forward picker's optional comment (AyuGram share
+// a.wid.fwdComment is the forward picker's optional comment (AyuGram share
 // sheet, slice 126): shipped as its own message before the forwarded
 // batch in every picked recipient chat.
-var fwdComment widget.Editor
 
 // forward commit step kinds (pure plan, unit-tested).
 const (
@@ -161,7 +152,7 @@ func (a *App) reportSelected() {
 // recipient selection (slice 41).
 func (a *App) openForward(msgs []engine.CachedMessage) {
 	fwdSel = map[string]bool{}
-	fwdComment.SetText("")
+	a.wid.fwdComment.SetText("")
 	a.mu.Lock()
 	a.fwd = msgs
 	capOK := a.savedCap
@@ -249,19 +240,19 @@ func (a *App) copySelectedText(gtx layout.Context) {
 // bar while selecting: "N selected" + Forward / Delete / Copy / ✕. Escape
 // cancels.
 func (a *App) layoutSelBar(gtx layout.Context, f frame) layout.Dimensions {
-	if selBarFwdBtn.Clicked(gtx) {
+	if a.wid.selBarFwdBtn.Clicked(gtx) {
 		a.forwardSelected()
 	}
-	if selBarDelBtn.Clicked(gtx) {
+	if a.wid.selBarDelBtn.Clicked(gtx) {
 		a.deleteSelected()
 	}
-	if selBarCopyBtn.Clicked(gtx) {
+	if a.wid.selBarCopyBtn.Clicked(gtx) {
 		a.copySelectedText(gtx)
 	}
-	if selBarRptBtn.Clicked(gtx) {
+	if a.wid.selBarRptBtn.Clicked(gtx) {
 		a.reportSelected()
 	}
-	if selBarXBtn.Clicked(gtx) {
+	if a.wid.selBarXBtn.Clicked(gtx) {
 		a.cancelSelection()
 	}
 
@@ -295,34 +286,34 @@ func (a *App) layoutSelBar(gtx layout.Context, f frame) layout.Dimensions {
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.TextButton(&selBarFwdBtn, "Forward")
+						btn := a.ui.TextButton(&a.wid.selBarFwdBtn, "Forward")
 						btn.Color = a.ui.p.Text
 						return btn.Layout(gtx)
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.TextButton(&selBarCopyBtn, "Copy")
+						btn := a.ui.TextButton(&a.wid.selBarCopyBtn, "Copy")
 						btn.Color = a.ui.p.Text
 						return btn.Layout(gtx)
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.TextButton(&selBarRptBtn, "Report")
+						btn := a.ui.TextButton(&a.wid.selBarRptBtn, "Report")
 						btn.Color = a.ui.p.Error
 						return btn.Layout(gtx)
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.TextButton(&selBarDelBtn, "Delete")
+						btn := a.ui.TextButton(&a.wid.selBarDelBtn, "Delete")
 						btn.Color = a.ui.p.Error
 						return btn.Layout(gtx)
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					btn := a.ui.IconButton(&selBarXBtn, iconContentClear, "Cancel selection")
+					btn := a.ui.IconButton(&a.wid.selBarXBtn, iconContentClear, "Cancel selection")
 					btn.Color = a.ui.p.TextDim
 					btn.Size = unit.Dp(18)
 					btn.Inset = layout.UniformInset(unit.Dp(6))

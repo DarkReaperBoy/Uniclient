@@ -18,8 +18,8 @@ import (
 )
 
 // Hold-to-record voice notes (slice 114). The mic button sits in the
-// composer (text empty + the account supports voice notes); press-and-
-// hold captures through the engine recorder while the composer row
+// a.wid.composer (text empty + the account supports voice notes); press-and-
+// hold captures through the engine recorder while the a.wid.composer row
 // becomes the recording panel (red dot, elapsed, level bars, slide-to-
 // cancel hint). Release sends (≥ 0.9 s), slide left (or a pointercancel)
 // discards. Platforms without a microphone keep the button but the
@@ -47,7 +47,7 @@ func (a *App) voiceRecActive() bool {
 	return a.eng.VoiceRecording().Active
 }
 
-// voiceRecWanted: the mic button renders when the composer is empty,
+// voiceRecWanted: the mic button renders when the a.wid.composer is empty,
 // nothing is being recorded, and the chat's core can send voice notes.
 func (a *App) voiceRecWanted(f frame) bool {
 	if f.msgFor == nil || a.voiceRec.active || f.sending {
@@ -59,12 +59,12 @@ func (a *App) voiceRecWanted(f frame) bool {
 	return a.eng.VoiceRecordingSupported(f.msgFor.AccountID)
 }
 
-// voiceRecPanel replaces the composer while recording.
+// voiceRecPanel replaces the a.wid.composer while recording.
 func (a *App) voiceRecPanel(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	rec := a.eng.VoiceRecording()
 	if !rec.Active {
 		// The engine stopped (min-duration discard, error): back to the
-		// composer.
+		// a.wid.composer.
 		a.voiceRec.active = false
 		return a.composerBar(gtx, f, chat)
 	}
@@ -174,7 +174,7 @@ func (a *App) voiceRecFinish(f frame, cancel bool) {
 // voiceRecMicButton renders the hold-to-record mic control and drives
 // the press that starts the capture.
 func (a *App) voiceRecMicButton(gtx layout.Context, f frame) layout.Dimensions {
-	clk := voiceRecClickable(f)
+	clk := a.voiceRecClickable(f)
 	dims := clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		btn := a.ui.IconButton(clk, iconAVMic, "Record voice message")
 		btn.Color = a.ui.p.TextDim
@@ -306,21 +306,20 @@ func drawRecDot(gtx layout.Context, d int, now time.Time) layout.Dimensions {
 	return layout.Dimensions{Size: image.Pt(d, d)}
 }
 
-// voiceRecClickables keeps one stable clickable per chat mic button.
-var voiceRecClickables = make(map[string]*widget.Clickable)
+// a.wid.voiceRecClickables keeps one stable clickable per chat mic button.
 
-func voiceRecClickable(f frame) *widget.Clickable {
+func (a *App) voiceRecClickable(f frame) *widget.Clickable {
 	key := "mic"
 	if f.msgFor != nil {
 		key = f.msgFor.String()
 	}
-	if c, ok := voiceRecClickables[key]; ok {
+	if c, ok := a.wid.voiceRecClickables[key]; ok {
 		return c
 	}
-	if len(voiceRecClickables) > 128 {
-		voiceRecClickables = make(map[string]*widget.Clickable)
+	if len(a.wid.voiceRecClickables) > 128 {
+		a.wid.voiceRecClickables = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	voiceRecClickables[key] = c
+	a.wid.voiceRecClickables[key] = c
 	return c
 }

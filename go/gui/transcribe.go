@@ -69,33 +69,31 @@ func transcriptKey(m *engine.CachedMessage) string {
 	return m.AccountID + "|" + m.ChatID + "|" + m.MsgID
 }
 
-// transcribeClickables pools the glyph buttons per message.
-var transcribeClickables = map[string]*widget.Clickable{}
+// a.wid.transcribeClickables pools the glyph buttons per message.
 
-func transcribeClickable(key string) *widget.Clickable {
-	if c, ok := transcribeClickables[key]; ok {
+func (a *App) transcribeClickable(key string) *widget.Clickable {
+	if c, ok := a.wid.transcribeClickables[key]; ok {
 		return c
 	}
-	if len(transcribeClickables) > 512 {
-		transcribeClickables = make(map[string]*widget.Clickable)
+	if len(a.wid.transcribeClickables) > 512 {
+		a.wid.transcribeClickables = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	transcribeClickables[key] = c
+	a.wid.transcribeClickables[key] = c
 	return c
 }
 
-// transcriptExpandClickables pools the expand/collapse chips per message.
-var transcriptExpandClickables = map[string]*widget.Clickable{}
+// a.wid.transcriptExpandClickables pools the expand/collapse chips per message.
 
-func transcriptExpandClickable(key string) *widget.Clickable {
-	if c, ok := transcriptExpandClickables[key]; ok {
+func (a *App) transcriptExpandClickable(key string) *widget.Clickable {
+	if c, ok := a.wid.transcriptExpandClickables[key]; ok {
 		return c
 	}
-	if len(transcriptExpandClickables) > 512 {
-		transcriptExpandClickables = make(map[string]*widget.Clickable)
+	if len(a.wid.transcriptExpandClickables) > 512 {
+		a.wid.transcriptExpandClickables = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	transcriptExpandClickables[key] = c
+	a.wid.transcriptExpandClickables[key] = c
 	return c
 }
 
@@ -167,7 +165,7 @@ func (a *App) transcriptBlock(gtx layout.Context, m *engine.CachedMessage) layou
 				if m.TranscriptionPending || len([]rune(m.TranscriptionText)) <= transcriptCollapseLen {
 					return layout.Dimensions{}
 				}
-				clk := transcriptExpandClickable(key)
+				clk := a.transcriptExpandClickable(key)
 				if clk.Clicked(gtx) {
 					a.mu.Lock()
 					if a.transcriptOpen == nil {

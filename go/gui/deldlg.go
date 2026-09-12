@@ -8,7 +8,6 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/engine"
@@ -26,12 +25,6 @@ type delDlgState struct {
 	revoke bool
 	busy   bool
 }
-
-var (
-	delDlgCancel widget.Clickable
-	delDlgDelete widget.Clickable
-	delDlgChk    widget.Bool
-)
 
 // chatOf finds the ChatInfo for a message's chat (zero value if unknown).
 func chatOf(f frame, m engine.CachedMessage) engine.ChatInfo {
@@ -66,7 +59,7 @@ func (a *App) openDeleteDialog(msgs []engine.CachedMessage, chat engine.ChatInfo
 	a.delDlg = &delDlgState{msgs: msgs, chat: chat}
 	a.menu = nil
 	a.mu.Unlock()
-	delDlgChk.Value = false
+	a.wid.delDlgChk.Value = false
 	a.invalidate()
 }
 
@@ -95,7 +88,7 @@ func (a *App) submitDeleteDialog() {
 		return
 	}
 	d := *a.delDlg
-	d.revoke = delDlgChk.Value
+	d.revoke = a.wid.delDlgChk.Value
 	a.delDlg.busy = true
 	a.mu.Unlock()
 
@@ -139,10 +132,10 @@ func deleteDialogHint(revokeAvailable bool) string {
 // layoutDeleteDialog renders the centered confirm card over the chat pane.
 func (a *App) layoutDeleteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.delDlg
-	if delDlgCancel.Clicked(gtx) {
+	if a.wid.delDlgCancel.Clicked(gtx) {
 		a.closeDeleteDialog()
 	}
-	if delDlgDelete.Clicked(gtx) {
+	if a.wid.delDlgDelete.Clicked(gtx) {
 		a.submitDeleteDialog()
 	}
 
@@ -176,7 +169,7 @@ func (a *App) layoutDeleteDialog(gtx layout.Context, f frame) layout.Dimensions 
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							chk := material.CheckBox(a.ui.Theme, &delDlgChk, "Also delete for everyone")
+							chk := material.CheckBox(a.ui.Theme, &a.wid.delDlgChk, "Also delete for everyone")
 							chk.Color = a.ui.p.Accent
 							return chk.Layout(gtx)
 						})
@@ -185,14 +178,14 @@ func (a *App) layoutDeleteDialog(gtx layout.Context, f frame) layout.Dimensions 
 						return layout.Inset{Top: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.TextButton(&delDlgCancel, "Cancel")
+									btn := a.ui.TextButton(&a.wid.delDlgCancel, "Cancel")
 									if d.busy {
 										btn.Color = a.ui.p.TextFaint
 									}
 									return btn.Layout(gtx)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.TextButton(&delDlgDelete, label)
+									btn := a.ui.TextButton(&a.wid.delDlgDelete, label)
 									btn.Color = a.ui.p.Error
 									return btn.Layout(gtx)
 								}),

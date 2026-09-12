@@ -21,22 +21,9 @@ import (
 // and jump-to-message. Escape closes.
 
 var (
-	inSearchEd        widget.Editor
-	inSearchCloseBtn  widget.Clickable
-	inSearchPrevBtn   widget.Clickable
-	inSearchNextBtn   widget.Clickable
-	inSearchRows      []widget.Clickable
-	inSearchList      widget.List
 	inSearchKeyTag    = new(struct{})
-	inSearchFromBtn   widget.Clickable // 👤 from-user filter (slice 26)
-	inSearchFromRows  []widget.Clickable
-	inSearchFromList  widget.List
 	inSearchFromPanel bool // frame-loop: user picker open
 )
-
-func init() {
-	inSearchList.Axis = layout.Vertical
-}
 
 // inChatSearchKey: the staleness guard key for async result writes.
 func inChatSearchKey(q string, k chatKey) string {
@@ -74,7 +61,7 @@ func (a *App) toggleInChatSearch() {
 	a.inSearchFromName = ""
 	a.mu.Unlock()
 	if !opening {
-		inSearchEd.SetText("")
+		a.wid.inSearchEd.SetText("")
 	}
 	a.invalidate()
 }
@@ -92,7 +79,7 @@ func (a *App) closeInChatSearch() {
 	a.inChatIdx = 0
 	a.inChatBusy = false
 	a.mu.Unlock()
-	inSearchEd.SetText("")
+	a.wid.inSearchEd.SetText("")
 	a.invalidate()
 }
 
@@ -169,7 +156,7 @@ func (a *App) openInChatSearchWithQuery(q string, k chatKey) {
 		a.inSearchFromName = ""
 		a.mu.Unlock()
 	}
-	inSearchEd.SetText(q)
+	a.wid.inSearchEd.SetText(q)
 	a.onInChatSearchChanged(q, k)
 	a.invalidate()
 }
@@ -199,7 +186,7 @@ func (a *App) inChatSearchStep(delta int) {
 // layoutInChatSearch renders the search bar + result rows below the chat
 // header. Returns the block height for listTop accounting.
 func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.Dimensions {
-	// Escape closes (registered within the pane; the composer keeps focus).
+	// Escape closes (registered within the pane; the a.wid.composer keeps focus).
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, inSearchKeyTag)
@@ -217,34 +204,34 @@ func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.
 
 	// Editor change events.
 	for {
-		ev, ok := inSearchEd.Update(gtx)
+		ev, ok := a.wid.inSearchEd.Update(gtx)
 		if !ok {
 			break
 		}
 		if _, is := ev.(widget.ChangeEvent); is {
-			a.onInChatSearchChanged(inSearchEd.Text(), k)
+			a.onInChatSearchChanged(a.wid.inSearchEd.Text(), k)
 		}
 	}
 
-	if inSearchCloseBtn.Clicked(gtx) {
+	if a.wid.inSearchCloseBtn.Clicked(gtx) {
 		a.closeInChatSearch()
 	}
-	if inSearchPrevBtn.Clicked(gtx) {
+	if a.wid.inSearchPrevBtn.Clicked(gtx) {
 		a.inChatSearchStep(-1)
 	}
-	if inSearchNextBtn.Clicked(gtx) {
+	if a.wid.inSearchNextBtn.Clicked(gtx) {
 		a.inChatSearchStep(1)
 	}
-	if inSearchFromBtn.Clicked(gtx) {
+	if a.wid.inSearchFromBtn.Clicked(gtx) {
 		inSearchFromPanel = !inSearchFromPanel
 		a.invalidate()
 	}
 
 	hits := f.inChatHits
-	growClickables(&inSearchRows, len(hits))
+	growClickables(&a.wid.inSearchRows, len(hits))
 	for i, r := range hits {
 		i, r := i, r
-		if inSearchRows[i].Clicked(gtx) {
+		if a.wid.inSearchRows[i].Clicked(gtx) {
 			a.mu.Lock()
 			a.inChatIdx = i
 			a.mu.Unlock()
@@ -285,7 +272,7 @@ func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.
 func (a *App) inChatSearchBar(gtx layout.Context, f frame) layout.Dimensions {
 	// Keep the keyboard in the search editor while the bar is open (the
 	// router dedups unchanged focus, so this is cheap).
-	gtx.Execute(key.FocusCmd{Tag: &inSearchEd})
+	gtx.Execute(key.FocusCmd{Tag: &a.wid.inSearchEd})
 	return insetAll(gtx, unit.Dp(8), 4, 4, 4, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -296,7 +283,7 @@ func (a *App) inChatSearchBar(gtx layout.Context, f frame) layout.Dimensions {
 						})
 					}),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						ed := a.ui.Editor(&inSearchEd, "Search in this chat")
+						ed := a.ui.Editor(&a.wid.inSearchEd, "Search in this chat")
 						return ed.Layout(gtx)
 					}),
 					// Position counter.
@@ -326,7 +313,7 @@ func (a *App) inChatSearchBar(gtx layout.Context, f frame) layout.Dimensions {
 						return layout.Dimensions{}
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.IconButton(&inSearchFromBtn, iconSocialPerson, "Search from a person")
+						btn := a.ui.IconButton(&a.wid.inSearchFromBtn, iconSocialPerson, "Search from a person")
 						btn.Color = a.ui.p.TextDim
 						if f.inSearchFrom != "" || inSearchFromPanel {
 							btn.Color = a.ui.p.Accent
@@ -334,13 +321,13 @@ func (a *App) inChatSearchBar(gtx layout.Context, f frame) layout.Dimensions {
 						return btn.Layout(gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.ui.IconButton(&inSearchPrevBtn, iconNavChevronLeft, "Newer hit").Layout(gtx)
+						return a.ui.IconButton(&a.wid.inSearchPrevBtn, iconNavChevronLeft, "Newer hit").Layout(gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.ui.IconButton(&inSearchNextBtn, iconNavChevronRight, "Older hit").Layout(gtx)
+						return a.ui.IconButton(&a.wid.inSearchNextBtn, iconNavChevronRight, "Older hit").Layout(gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.ui.IconButton(&inSearchCloseBtn, iconContentClear, "Close search").Layout(gtx)
+						return a.ui.IconButton(&a.wid.inSearchCloseBtn, iconContentClear, "Close search").Layout(gtx)
 					}),
 				)
 			})
@@ -362,8 +349,8 @@ func (a *App) inChatSearchResults(gtx layout.Context, f frame, hits []engine.Sea
 		})
 	}
 	return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return inSearchList.Layout(gtx, len(hits), func(gtx layout.Context, i int) layout.Dimensions {
-			return a.inChatSearchRow(gtx, hits[i], &inSearchRows[i], i == f.inChatIdx)
+		return a.wid.inSearchList.Layout(gtx, len(hits), func(gtx layout.Context, i int) layout.Dimensions {
+			return a.inChatSearchRow(gtx, hits[i], &a.wid.inSearchRows[i], i == f.inChatIdx)
 		})
 	})
 }
@@ -411,14 +398,14 @@ func searchSnippet(text string) string {
 // inChatFromPicker: sender list derived from the loaded window.
 func (a *App) inChatFromPicker(gtx layout.Context, f frame, k chatKey) layout.Dimensions {
 	senders := searchSenders(f.messages)
-	growClickables(&inSearchFromRows, len(senders)+1)
+	growClickables(&a.wid.inSearchFromRows, len(senders)+1)
 	// "Everyone" clears the filter.
-	if inSearchFromRows[0].Clicked(gtx) {
+	if a.wid.inSearchFromRows[0].Clicked(gtx) {
 		a.setInSearchFrom(k, "", "")
 	}
 	for i, u := range senders {
 		i, u := i, u
-		if inSearchFromRows[i+1].Clicked(gtx) {
+		if a.wid.inSearchFromRows[i+1].Clicked(gtx) {
 			name := u.DisplayName
 			if name == "" {
 				name = u.UserID
@@ -435,7 +422,7 @@ func (a *App) inChatFromPicker(gtx layout.Context, f frame, k chatKey) layout.Di
 			gtx.Constraints.Max.Y = maxH
 			return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
 				return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return inSearchFromList.Layout(gtx, len(senders)+1, func(gtx layout.Context, i int) layout.Dimensions {
+					return a.wid.inSearchFromList.Layout(gtx, len(senders)+1, func(gtx layout.Context, i int) layout.Dimensions {
 						return a.inChatFromRow(gtx, i, senders, f)
 					})
 				})
@@ -447,14 +434,14 @@ func (a *App) inChatFromRow(gtx layout.Context, i int, senders []engine.MemberIn
 	// Row 0: Everyone.
 	if i == 0 {
 		active := f.inSearchFrom == ""
-		return a.inChatFromCell(gtx, &inSearchFromRows[0], "Everyone", active)
+		return a.inChatFromCell(gtx, &a.wid.inSearchFromRows[0], "Everyone", active)
 	}
 	u := senders[i-1]
 	name := u.DisplayName
 	if name == "" {
 		name = u.UserID
 	}
-	return a.inChatFromCell(gtx, &inSearchFromRows[i], name, f.inSearchFrom == u.UserID)
+	return a.inChatFromCell(gtx, &a.wid.inSearchFromRows[i], name, f.inSearchFrom == u.UserID)
 }
 
 func (a *App) inChatFromCell(gtx layout.Context, btn *widget.Clickable, label string, active bool) layout.Dimensions {
@@ -484,6 +471,6 @@ func (a *App) setInSearchFrom(k chatKey, id, name string) {
 	a.mu.Unlock()
 	inSearchFromPanel = false
 	a.invalidate()
-	q := inSearchEd.Text()
+	q := a.wid.inSearchEd.Text()
 	a.onInChatSearchChanged(q, k)
 }

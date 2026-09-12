@@ -36,7 +36,7 @@ func notifyIconURI(chat engine.ChatInfo) string {
 
 // notifyOpenAction builds the banner-click handler: raise the window and
 // schedule the chat open on the GUI loop (the pendingOpen hop — openChat
-// touches the composer editor and must never run from the dbus demux
+// touches the a.wid.composer editor and must never run from the dbus demux
 // goroutine). Safe on a zero App (no window → no raise).
 func notifyOpenAction(a *App, k chatKey, title string) func(string) {
 	return func(string) {

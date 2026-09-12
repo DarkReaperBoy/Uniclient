@@ -15,7 +15,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/engine"
@@ -83,9 +82,6 @@ func normalizeTransTarget(code string) string {
 // ── state ────────────────────────────────────────────────────────────────
 
 var (
-	transBarOffBtn   widget.Clickable // Show original (turn off)
-	transBarLangBtn  widget.Clickable // opens/closes the picker
-	transLangBtns    []widget.Clickable
 	transPickerOpen  bool
 	transAutoFetched bool // reset when the bar opens (session)
 )
@@ -193,10 +189,10 @@ func (a *App) ensureAutoTranslation(m *engine.CachedMessage) {
 // layoutTranslateBar renders the chat-wide translate bar under the
 // header (tdesktop position): target language + picker + Show original.
 func (a *App) layoutTranslateBar(gtx layout.Context, f frame, k chatKey) layout.Dimensions {
-	if transBarOffBtn.Clicked(gtx) {
+	if a.wid.transBarOffBtn.Clicked(gtx) {
 		a.toggleChatTranslate(k)
 	}
-	if transBarLangBtn.Clicked(gtx) {
+	if a.wid.transBarLangBtn.Clicked(gtx) {
 		transPickerOpen = !transPickerOpen
 		a.invalidate()
 	}
@@ -205,7 +201,7 @@ func (a *App) layoutTranslateBar(gtx layout.Context, f frame, k chatKey) layout.
 	// language picker (revealed under the bar)
 	var pickerDims layout.Dimensions
 	if transPickerOpen {
-		growClickables(&transLangBtns, len(transLangs))
+		growClickables(&a.wid.transLangBtns, len(transLangs))
 		rows := []layout.FlexChild{}
 		for i := 0; i < len(transLangs); i += 4 {
 			end := i + 4
@@ -215,12 +211,12 @@ func (a *App) layoutTranslateBar(gtx layout.Context, f frame, k chatKey) layout.
 			var chips []layout.FlexChild
 			for j := i; j < end; j++ {
 				j := j
-				if transLangBtns[j].Clicked(gtx) {
+				if a.wid.transLangBtns[j].Clicked(gtx) {
 					a.setTransTarget(transLangs[j].code)
 				}
 				chips = append(chips, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					active := transLangs[j].code == target
-					bl := material.ButtonLayout(a.ui.Theme, &transLangBtns[j])
+					bl := material.ButtonLayout(a.ui.Theme, &a.wid.transLangBtns[j])
 					bl.CornerRadius = 12
 					if active {
 						bl.Background = a.ui.p.Accent
@@ -260,7 +256,7 @@ func (a *App) layoutTranslateBar(gtx layout.Context, f frame, k chatKey) layout.
 			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := a.ui.TextButton(&transBarLangBtn, "Translate to "+transLangName(target))
+			btn := a.ui.TextButton(&a.wid.transBarLangBtn, "Translate to "+transLangName(target))
 			btn.Color = a.ui.p.Accent
 			btn.TextSize = unit.Sp(13)
 			btn.Font.Weight = font.SemiBold
@@ -270,7 +266,7 @@ func (a *App) layoutTranslateBar(gtx layout.Context, f frame, k chatKey) layout.
 			return layout.Dimensions{}
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := a.ui.TextButton(&transBarOffBtn, "Show original")
+			btn := a.ui.TextButton(&a.wid.transBarOffBtn, "Show original")
 			btn.Color = a.ui.p.TextDim
 			btn.TextSize = unit.Sp(13)
 			return btn.Layout(gtx)

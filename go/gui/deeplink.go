@@ -231,7 +231,7 @@ func (a *App) openPermalinkTarget(accountID, chatID, title, msgID string) {
 
 // resolveDeepLinkUser opens a public username link: global search on
 // the active account, first hit schedules the chat open (the GUI loop's
-// consumePendingOpen hop — openChat touches the composer editor and
+// consumePendingOpen hop — openChat touches the a.wid.composer editor and
 // must not run from this goroutine).
 func (a *App) resolveDeepLinkUser(name string) {
 	acc := inviteScopeAccount(a.snapshotForInvite())

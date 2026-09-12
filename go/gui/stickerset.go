@@ -16,7 +16,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/cores"
@@ -95,16 +94,8 @@ func stickerPackKindLabel(s *cores.StickerSetResult) string {
 // ── state transitions ─────────────────────────────────────────────────────
 
 var (
-	stickerSetCloseBtn   widget.Clickable
-	stickerSetInstallBtn widget.Clickable
-	stickerSetGrid       widget.List
-	stickerSetCellBtns   []widget.Clickable
-	stickerSetKeyTag     = new(struct{})
+	stickerSetKeyTag = new(struct{})
 )
-
-func init() {
-	stickerSetGrid.Axis = layout.Vertical
-}
 
 // openStickerSetDialog opens the pack viewer for a sticker message.
 func (a *App) openStickerSetDialog(m *engine.CachedMessage) {
@@ -199,7 +190,7 @@ func (a *App) layoutStickerSetDialog(gtx layout.Context, f frame) layout.Dimensi
 		}
 	}
 
-	if stickerSetCloseBtn.Clicked(gtx) {
+	if a.wid.stickerSetCloseBtn.Clicked(gtx) {
 		a.closeStickerSetDialog()
 	}
 
@@ -220,8 +211,8 @@ func (a *App) layoutStickerSetDialog(gtx layout.Context, f frame) layout.Dimensi
 		cardW = gtx.Constraints.Max.X - gtx.Dp(unit.Dp(32))
 	}
 
-	growClickables(&stickerSetCellBtns, len(stickers))
-	if d.set != nil && !d.set.Installed && stickerSetInstallBtn.Clicked(gtx) {
+	growClickables(&a.wid.stickerSetCellBtns, len(stickers))
+	if d.set != nil && !d.set.Installed && a.wid.stickerSetInstallBtn.Clicked(gtx) {
 		a.installStickerSet(d)
 	}
 
@@ -239,7 +230,7 @@ func (a *App) layoutStickerSetDialog(gtx layout.Context, f frame) layout.Dimensi
 								return lbl.Layout(gtx)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								btn := a.ui.IconButton(&stickerSetCloseBtn, iconContentClear, "Close")
+								btn := a.ui.IconButton(&a.wid.stickerSetCloseBtn, iconContentClear, "Close")
 								btn.Color = a.ui.p.TextDim
 								return btn.Layout(gtx)
 							}),
@@ -277,7 +268,7 @@ func (a *App) layoutStickerSetDialog(gtx layout.Context, f frame) layout.Dimensi
 											return layout.Dimensions{}
 										}
 										return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											btn := a.ui.PrimaryButton(&stickerSetInstallBtn, "ADD TO STICKERS")
+											btn := a.ui.PrimaryButton(&a.wid.stickerSetInstallBtn, "ADD TO STICKERS")
 											return btn.Layout(gtx)
 										})
 									}),
@@ -286,7 +277,7 @@ func (a *App) layoutStickerSetDialog(gtx layout.Context, f frame) layout.Dimensi
 						})
 					}),
 					// Sticker grid (5 columns, thumbnails only — the
-					// composer picker's cell rendering).
+					// a.wid.composer picker's cell rendering).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if len(stickers) == 0 {
 							return layout.Dimensions{}
@@ -296,7 +287,7 @@ func (a *App) layoutStickerSetDialog(gtx layout.Context, f frame) layout.Dimensi
 						rows := emojiRowCount(len(stickers), cols)
 						maxH := gtx.Dp(unit.Dp(240))
 						gtx.Constraints.Max.Y = maxH
-						gl := material.List(a.ui.Theme, &stickerSetGrid)
+						gl := material.List(a.ui.Theme, &a.wid.stickerSetGrid)
 						return gl.Layout(gtx, rows, func(gtx layout.Context, r int) layout.Dimensions {
 							children := make([]layout.FlexChild, 0, cols)
 							for c := 0; c < cols; c++ {

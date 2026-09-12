@@ -1,9 +1,9 @@
 package gui
 
 // inlinebots.go — slice 128: inline bot results (AyuGram/tdesktop parity row
-// §4 119, CORE-ONLY until now). Typing "@bot query" in the composer queries
+// §4 119, CORE-ONLY until now). Typing "@bot query" in the a.wid.composer queries
 // the bot live (messages.getInlineBotResults via engine.GetInlineBotResults
-// Full) and shows the results in a panel above the composer:
+// Full) and shows the results in a panel above the a.wid.composer:
 //
 //   - gallery results (photos) as a square thumb grid (b64 stripped thumbs —
 //     the core fills them for BotInlineMediaResult);
@@ -14,8 +14,8 @@ package gui
 //   - next_offset becomes a "More" row that appends the next page.
 //
 // Tapping a result sends it (engine.SendInlineBotResult) and clears the
-// composer query — tdesktop behavior. The panel derives from the live
-// composer text per frame (emoji-autocomplete pattern): it appears only
+// a.wid.composer query — tdesktop behavior. The panel derives from the live
+// a.wid.composer text per frame (emoji-autocomplete pattern): it appears only
 // while an "@bot " query is active and hides the moment the text changes
 // shape; fetches are guarded by key + in-flight flag + 400ms throttle.
 
@@ -36,7 +36,7 @@ import (
 
 // ── query parsing (pure) ───────────────────────────────────────────────────
 
-// inlineBotQuery parses an inline-bot query from the composer text:
+// inlineBotQuery parses an inline-bot query from the a.wid.composer text:
 // "@<bot> <query>" with the @token at the START of the message (tdesktop
 // semantics) and terminated by a space (still-typed usernames never
 // trigger). The query may be empty — bots return default results then.
@@ -130,13 +130,13 @@ func inlineMoreAvailable(res *cores.InlineBotResults) bool {
 // inlineFetchThrottle bounds query refreshes while typing.
 const inlineFetchThrottle = 400 * time.Millisecond
 
-// ensureInlineResults derives the composer's inline query and keeps the
+// ensureInlineResults derives the a.wid.composer's inline query and keeps the
 // results fresh: resolve the bot username once (cached), fetch on key
 // change with an in-flight guard + throttle, append on offset change.
 // Throttled calls re-arm a frame at the throttle deadline so the final
 // query still fetches when typing stops mid-window.
 func (a *App) ensureInlineResults(gtx layout.Context, f frame) {
-	bot, query, ok := inlineBotQuery(composer.Text())
+	bot, query, ok := inlineBotQuery(a.wid.composer.Text())
 	if !ok || f.selected == nil {
 		a.clearInlineResults()
 		return
@@ -208,7 +208,7 @@ func (a *App) ensureInlineResults(gtx layout.Context, f frame) {
 
 // ensureInlineMore appends the next page when the "More" row is tapped.
 func (a *App) ensureInlineMore(f frame) {
-	bot, query, ok := inlineBotQuery(composer.Text())
+	bot, query, ok := inlineBotQuery(a.wid.composer.Text())
 	if !ok || f.selected == nil {
 		return
 	}
@@ -258,7 +258,7 @@ func (a *App) clearInlineResults() {
 	a.mu.Unlock()
 }
 
-// sendInlineResult sends one tapped result and clears the composer query.
+// sendInlineResult sends one tapped result and clears the a.wid.composer query.
 func (a *App) sendInlineResult(f frame, m *inlinePanelModel, r cores.InlineBotResult) {
 	if f.selected == nil || m == nil {
 		return
@@ -271,29 +271,17 @@ func (a *App) sendInlineResult(f frame, m *inlinePanelModel, r cores.InlineBotRe
 			return
 		}
 	}()
-	composer.SetText("")
+	a.wid.composer.SetText("")
 	a.clearInlineResults()
 	a.invalidate()
 }
 
 // ── panel ──────────────────────────────────────────────────────────────────
 
-var (
-	inlineGridBtns []widget.Clickable
-	inlineRowBtns  []widget.Clickable
-	inlineMoreBtn  widget.Clickable
-	inlinePMBtn    widget.Clickable
-	inlineList     widget.List
-)
-
-func init() {
-	inlineList.Axis = layout.Vertical
-}
-
-// layoutInlineResults renders the results panel above the composer. The
-// panel derives from the live composer text: no query, no panel.
+// layoutInlineResults renders the results panel above the a.wid.composer. The
+// panel derives from the live a.wid.composer text: no query, no panel.
 func (a *App) layoutInlineResults(gtx layout.Context, f frame) layout.Dimensions {
-	_, _, ok := inlineBotQuery(composer.Text())
+	_, _, ok := inlineBotQuery(a.wid.composer.Text())
 	if !ok {
 		return layout.Dimensions{}
 	}
@@ -308,11 +296,11 @@ func (a *App) layoutInlineResults(gtx layout.Context, f frame) layout.Dimensions
 	}
 
 	// Interactions.
-	growClickables(&inlineRowBtns, len(m.Results)+boolToIntGUI(m.SwitchPM != "")+boolToIntGUI(inlineMoreAvailable(res)))
-	growClickables(&inlineGridBtns, len(m.Results))
+	growClickables(&a.wid.inlineRowBtns, len(m.Results)+boolToIntGUI(m.SwitchPM != "")+boolToIntGUI(inlineMoreAvailable(res)))
+	growClickables(&a.wid.inlineGridBtns, len(m.Results))
 	rowIdx := 0
 	if m.SwitchPM != "" {
-		if inlinePMBtn.Clicked(gtx) {
+		if a.wid.inlinePMBtn.Clicked(gtx) {
 			a.openBotChatByUsername(f, m.SwitchPM)
 			return layout.Dimensions{}
 		}
@@ -320,19 +308,19 @@ func (a *App) layoutInlineResults(gtx layout.Context, f frame) layout.Dimensions
 	for i := range m.Results {
 		r := m.Results[i]
 		if m.Gallery {
-			if inlineGridBtns[i].Clicked(gtx) {
+			if a.wid.inlineGridBtns[i].Clicked(gtx) {
 				a.sendInlineResult(f, m, r)
 				return layout.Dimensions{}
 			}
 		} else {
-			if inlineRowBtns[rowIdx].Clicked(gtx) {
+			if a.wid.inlineRowBtns[rowIdx].Clicked(gtx) {
 				a.sendInlineResult(f, m, r)
 				return layout.Dimensions{}
 			}
 			rowIdx++
 		}
 	}
-	if inlineMoreAvailable(res) && inlineMoreBtn.Clicked(gtx) {
+	if inlineMoreAvailable(res) && a.wid.inlineMoreBtn.Clicked(gtx) {
 		a.ensureInlineMore(f)
 		return layout.Dimensions{}
 	}
@@ -345,7 +333,7 @@ func (a *App) layoutInlineResults(gtx layout.Context, f frame) layout.Dimensions
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				list := material.List(a.ui.Theme, &inlineList)
+				list := material.List(a.ui.Theme, &a.wid.inlineList)
 				if m.Gallery {
 					return list.Layout(gtx, galleryRows(m), func(gtx layout.Context, row int) layout.Dimensions {
 						return a.inlineGalleryRow(gtx, m, row)
@@ -382,7 +370,7 @@ func (a *App) inlineGalleryRow(gtx layout.Context, m *inlinePanelModel, row int)
 			break
 		}
 		r := m.Results[i]
-		cl := &inlineGridBtns[i]
+		cl := &a.wid.inlineGridBtns[i]
 		cells = append(cells, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				side := gtx.Constraints.Max.X
@@ -413,14 +401,14 @@ func (a *App) inlineListRows(gtx layout.Context, f frame, m *inlinePanelModel, r
 	rowIdx := 0
 	for i := range m.Results {
 		r := m.Results[i]
-		cl := &inlineRowBtns[rowIdx]
+		cl := &a.wid.inlineRowBtns[rowIdx]
 		rowIdx++
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.inlineResultRow(gtx, cl, r)
 		}))
 	}
 	if m.SwitchPM != "" {
-		cl := &inlinePMBtn
+		cl := &a.wid.inlinePMBtn
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				btn := material.Button(a.ui.Theme, cl, m.SwitchPM)
@@ -435,7 +423,7 @@ func (a *App) inlineListRows(gtx layout.Context, f frame, m *inlinePanelModel, r
 	if inlineMoreAvailable(res) {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				btn := material.Button(a.ui.Theme, &inlineMoreBtn, "More results")
+				btn := material.Button(a.ui.Theme, &a.wid.inlineMoreBtn, "More results")
 				btn.CornerRadius = 8
 				btn.Inset = layout.UniformInset(unit.Dp(8))
 				btn.TextSize = unit.Sp(13)
@@ -487,8 +475,8 @@ func (a *App) openBotChatByUsername(f frame, label string) {
 	}
 	acc := f.selected.AccountID
 	// The label is the bot's switch-pm text; the bot username comes from
-	// the composer query itself.
-	bot, _, ok := inlineBotQuery(composer.Text())
+	// the a.wid.composer query itself.
+	bot, _, ok := inlineBotQuery(a.wid.composer.Text())
 	if !ok {
 		return
 	}

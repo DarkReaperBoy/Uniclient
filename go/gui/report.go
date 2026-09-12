@@ -9,7 +9,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 
 	"uniclient/cores"
@@ -33,11 +32,7 @@ type reportDlgState struct {
 }
 
 var (
-	reportCancelBtn widget.Clickable
-	reportSendBtn   widget.Clickable
-	reportOptBtns   []widget.Clickable
-	reportCommentEd widget.Editor
-	reportKeyTag    = new(struct{})
+	reportKeyTag = new(struct{})
 )
 
 // msgIDInt parses a message ID to int (0 on failure).
@@ -69,7 +64,7 @@ func (a *App) openReportDialog(msgs []engine.CachedMessage) {
 	a.reportDlg = &reportDlgState{msgs: msgs}
 	a.menu = nil
 	a.mu.Unlock()
-	reportCommentEd.SetText("")
+	a.wid.reportCommentEd.SetText("")
 	a.invalidate()
 	a.reportStep(nil, "")
 }
@@ -165,7 +160,7 @@ func (a *App) reportSendComment() {
 	}
 	chosen := a.reportDlg.chosen
 	a.mu.Unlock()
-	a.reportStep(chosen, reportCommentEd.Text())
+	a.reportStep(chosen, a.wid.reportCommentEd.Text())
 }
 
 // layoutReportDialog renders the report card over the chat pane.
@@ -186,14 +181,14 @@ func (a *App) layoutReportDialog(gtx layout.Context, f frame) layout.Dimensions 
 			a.closeReportDialog()
 		}
 	}
-	if reportCancelBtn.Clicked(gtx) {
+	if a.wid.reportCancelBtn.Clicked(gtx) {
 		a.closeReportDialog()
 	}
-	if reportSendBtn.Clicked(gtx) {
+	if a.wid.reportSendBtn.Clicked(gtx) {
 		a.reportSendComment()
 	}
 
-	growClickables(&reportOptBtns, len(d.options))
+	growClickables(&a.wid.reportOptBtns, len(d.options))
 
 	paintScrimRect(gtx)
 
@@ -219,7 +214,7 @@ func (a *App) layoutReportDialog(gtx layout.Context, f frame) layout.Dimensions 
 						return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.TextButton(&reportCancelBtn, "Cancel")
+									btn := a.ui.TextButton(&a.wid.reportCancelBtn, "Cancel")
 									return btn.Layout(gtx)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -227,7 +222,7 @@ func (a *App) layoutReportDialog(gtx layout.Context, f frame) layout.Dimensions 
 									if d.busy {
 										label = "Reporting…"
 									}
-									btn := a.ui.PrimaryButton(&reportSendBtn, label)
+									btn := a.ui.PrimaryButton(&a.wid.reportSendBtn, label)
 									return btn.Layout(gtx)
 								}),
 							)
@@ -238,7 +233,7 @@ func (a *App) layoutReportDialog(gtx layout.Context, f frame) layout.Dimensions 
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.TextButton(&reportCancelBtn, "Cancel")
+							btn := a.ui.TextButton(&a.wid.reportCancelBtn, "Cancel")
 							if d.busy {
 								btn.Color = a.ui.p.TextFaint
 							}
@@ -275,7 +270,7 @@ func (a *App) reportDialogBody(gtx layout.Context, f frame, d *reportDlgState) l
 		for i, opt := range d.options {
 			i, opt := i, opt
 			rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				btn := &reportOptBtns[i]
+				btn := &a.wid.reportOptBtns[i]
 				if btn.Clicked(gtx) {
 					a.reportPickOption(opt)
 				}
@@ -306,7 +301,7 @@ func (a *App) reportDialogBody(gtx layout.Context, f frame, d *reportDlgState) l
 			return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 					return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						ed := a.ui.Editor(&reportCommentEd, hint)
+						ed := a.ui.Editor(&a.wid.reportCommentEd, hint)
 						return ed.Layout(gtx)
 					})
 				})

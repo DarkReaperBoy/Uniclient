@@ -14,14 +14,14 @@ import (
 )
 
 // Chat settings (AyuGram parity slice 155): the tdesktop "Messages"
-// section of Chat settings — the composer submit mode (Enter vs
+// section of Chat settings — the a.wid.composer submit mode (Enter vs
 // Ctrl+Enter, tdesktop's send-submit-way radio) — plus AyuGram's
 // "Improve link previews" (Ayu preferences → General): outgoing links of
 // big platforms are rewritten to their preview-friendly mirrors (Ayu
 // getBetterLinkPreview: fixupx/kktiktok/vxreddit/kkclip/phixiv) so
 // Telegram renders richer embeds.
 
-// composerSubmitSends reports whether plain Enter submits the composer
+// composerSubmitSends reports whether plain Enter submits the a.wid.composer
 // (tdesktop default; "" and "enter" both mean Enter). "ctrl-enter" moves
 // submission to Ctrl+Enter and makes Enter a newline.
 func composerSubmitSends(mode string) bool {
@@ -138,7 +138,7 @@ func (a *App) layoutMessagesSection(gtx layout.Context, f frame) layout.Dimensio
 			return a.sectionTitle(gtx, "Messages")
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.settingRow(gtx, "Send message with", "Enter or Ctrl+Enter submits the composer; the other inserts a newline")
+			return a.settingRow(gtx, "Send message with", "Enter or Ctrl+Enter submits the a.wid.composer; the other inserts a newline")
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(8), Left: unit.Dp(14), Right: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -267,12 +267,12 @@ func (a *App) layoutReactWithRow(gtx layout.Context, f frame) layout.Dimensions 
 
 // favoriteChipRow builds the emoji chip widgets for one account.
 func favoriteChipRow(a *App, gtx layout.Context, accountID, fav string, choices []string) []layout.FlexChild {
-	growClickables(&reactWithBtns, len(choices))
+	growClickables(&a.wid.reactWithBtns, len(choices))
 	var out []layout.FlexChild
 	for i, emoji := range choices {
 		i, emoji := i, emoji
 		out = append(out, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := &reactWithBtns[i]
+			btn := &a.wid.reactWithBtns[i]
 			if btn.Clicked(gtx) {
 				a.applyFavoriteReaction(accountID, emoji)
 			}
@@ -309,8 +309,7 @@ func favoriteReactionChoices(avail []string) []string {
 	return choices
 }
 
-// reactWithBtns pools the picker chips.
-var reactWithBtns []widget.Clickable
+// a.wid.reactWithBtns pools the picker chips.
 
 // submitModeChip renders one segmented option chip (material clickable).
 func (a *App) submitModeChip(gtx layout.Context, btn *widget.Clickable, label string, active bool) layout.Dimensions {

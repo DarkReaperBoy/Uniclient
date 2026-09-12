@@ -56,17 +56,16 @@ func commonGroupRows(ds []cores.Dialog) []commonGroupRow {
 	return rows
 }
 
-// commonGroupBtns pools the row clickables by dialog ID.
-var commonGroupBtns = map[string]*widget.Clickable{}
+// a.wid.commonGroupBtns pools the row clickables by dialog ID.
 
-func commonGroupBtn(id string) *widget.Clickable {
-	if btn, ok := commonGroupBtns[id]; ok {
+func (a *App) commonGroupBtn(id string) *widget.Clickable {
+	if btn, ok := a.wid.commonGroupBtns[id]; ok {
 		return btn
 	}
 	btn := new(widget.Clickable)
-	commonGroupBtns[id] = btn
-	if len(commonGroupBtns) > 128 {
-		commonGroupBtns = map[string]*widget.Clickable{id: btn}
+	a.wid.commonGroupBtns[id] = btn
+	if len(a.wid.commonGroupBtns) > 128 {
+		a.wid.commonGroupBtns = map[string]*widget.Clickable{id: btn}
 	}
 	return btn
 }
@@ -102,11 +101,11 @@ func (a *App) layoutCommonGroups(gtx layout.Context, f frame, k chatKey) layout.
 	for _, r := range rows {
 		r := r
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if btn := commonGroupBtn(r.id); btn.Clicked(gtx) {
+			if btn := a.commonGroupBtn(r.id); btn.Clicked(gtx) {
 				a.openCommonGroup(f, k.AccountID, r.id)
 			}
 			return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				mbl := material.ButtonLayout(a.ui.Theme, commonGroupBtn(r.id))
+				mbl := material.ButtonLayout(a.ui.Theme, a.commonGroupBtn(r.id))
 				mbl.Background = a.ui.p.Surface
 				mbl.CornerRadius = 8
 				return mbl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

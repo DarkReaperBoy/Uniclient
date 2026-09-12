@@ -32,18 +32,8 @@ type addMemDlgState struct {
 }
 
 var (
-	addMemCloseBtn widget.Clickable
-	addMemAddBtn   widget.Clickable
-	addMemRowBtns  []widget.Clickable
-	addMemSearchEd widget.Editor
-	addMemList     widget.List
-	addMemKeyTag   = new(struct{})
+	addMemKeyTag = new(struct{})
 )
-
-func init() {
-	addMemSearchEd.SingleLine = true
-	addMemList.Axis = layout.Vertical
-}
 
 // addMemFilter narrows contacts by a case-insensitive substring match on
 // display name, username, or phone. Pure — locked by tests.
@@ -165,7 +155,7 @@ func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensio
 		}
 	}
 
-	if addMemCloseBtn.Clicked(gtx) {
+	if a.wid.addMemCloseBtn.Clicked(gtx) {
 		a.closeAddMemberDialog()
 	}
 	selCount := 0
@@ -174,12 +164,12 @@ func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensio
 			selCount++
 		}
 	}
-	if addMemAddBtn.Clicked(gtx) && selCount > 0 {
+	if a.wid.addMemAddBtn.Clicked(gtx) && selCount > 0 {
 		a.addMembersFromDialog()
 	}
 
-	shown := addMemFilter(st.contacts, addMemSearchEd.Text())
-	growClickables(&addMemRowBtns, len(shown))
+	shown := addMemFilter(st.contacts, a.wid.addMemSearchEd.Text())
+	growClickables(&a.wid.addMemRowBtns, len(shown))
 
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Max.X = gtx.Dp(unit.Dp(360))
@@ -211,7 +201,7 @@ func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensio
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							for {
-								ev, ok := addMemSearchEd.Update(gtx)
+								ev, ok := a.wid.addMemSearchEd.Update(gtx)
 								if !ok {
 									break
 								}
@@ -219,7 +209,7 @@ func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensio
 									a.invalidate()
 								}
 							}
-							ed := a.ui.Editor(&addMemSearchEd, "Search contacts")
+							ed := a.ui.Editor(&a.wid.addMemSearchEd, "Search contacts")
 							return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 								return layout.UniformInset(unit.Dp(6)).Layout(gtx, ed.Layout)
 							})
@@ -236,7 +226,7 @@ func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensio
 						return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									bl := material.Button(a.ui.Theme, &addMemAddBtn, "Add")
+									bl := material.Button(a.ui.Theme, &a.wid.addMemAddBtn, "Add")
 									bl.Background = a.ui.p.Accent
 									if selCount == 0 {
 										bl.Background = a.ui.p.SurfaceHi
@@ -248,7 +238,7 @@ func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensio
 									return layout.Dimensions{}
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									bl := material.Button(a.ui.Theme, &addMemCloseBtn, "Close")
+									bl := material.Button(a.ui.Theme, &a.wid.addMemCloseBtn, "Close")
 									bl.Background = a.ui.p.SurfaceHi
 									bl.Color = a.ui.p.Text
 									bl.CornerRadius = 10
@@ -277,10 +267,10 @@ func (a *App) addMemContactList(gtx layout.Context, f frame, st *addMemDlgState,
 	if len(shown) == 0 {
 		return a.centeredStateLabel(gtx, "No contacts match")
 	}
-	lt := material.List(a.ui.Theme, &addMemList)
+	lt := material.List(a.ui.Theme, &a.wid.addMemList)
 	return lt.Layout(gtx, len(shown), func(gtx layout.Context, i int) layout.Dimensions {
 		c := shown[i]
-		if addMemRowBtns[i].Clicked(gtx) {
+		if a.wid.addMemRowBtns[i].Clicked(gtx) {
 			a.mu.Lock()
 			if st.sel == nil {
 				st.sel = make(map[string]bool)
@@ -292,7 +282,7 @@ func (a *App) addMemContactList(gtx layout.Context, f frame, st *addMemDlgState,
 			a.invalidate()
 		}
 		sel := st.sel[c.UserID]
-		bl := material.ButtonLayout(a.ui.Theme, &addMemRowBtns[i])
+		bl := material.ButtonLayout(a.ui.Theme, &a.wid.addMemRowBtns[i])
 		bl.Background = a.ui.p.SurfaceHi
 		if sel {
 			bl.Background = withAlpha(a.ui.p.Accent, 0x33)

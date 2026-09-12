@@ -19,8 +19,6 @@ import (
 	"uniclient/engine"
 )
 
-var similarCardBtns []widget.Clickable
-
 // loadSimilar fetches the recommendations for the open channel chat.
 func (a *App) loadSimilar(k chatKey) {
 	go func() {
@@ -61,9 +59,9 @@ func (a *App) layoutSimilarBlock(gtx layout.Context, f frame) layout.Dimensions 
 	if len(f.similar) == 0 || f.selected == nil {
 		return layout.Dimensions{}
 	}
-	growClickables(&similarCardBtns, len(f.similar))
+	growClickables(&a.wid.similarCardBtns, len(f.similar))
 	for i := range f.similar {
-		if similarCardBtns[i].Clicked(gtx) {
+		if a.wid.similarCardBtns[i].Clicked(gtx) {
 			c := f.similar[i]
 			a.mu.Lock()
 			k := chatKey{AccountID: f.selected.AccountID, ChatID: c.ChatID}
@@ -88,7 +86,7 @@ func (a *App) layoutSimilarBlock(gtx layout.Context, f frame) layout.Dimensions 
 						i := i
 						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return a.similarCard(gtx, &f.similar[i], &similarCardBtns[i])
+								return a.similarCard(gtx, &f.similar[i], &a.wid.similarCardBtns[i])
 							})
 						}))
 					}

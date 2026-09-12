@@ -86,15 +86,14 @@ func (a *App) notePaneHover(f frame, pe pointer.Event) {
 
 // ── pill widgets ─────────────────────────────────────────────────────────
 
-// msgReplyBtns pools the pill clickables keyed by chat/message.
-var msgReplyBtns = map[string]*widget.Clickable{}
+// a.wid.msgReplyBtns pools the pill clickables keyed by chat/message.
 
-func msgReplyBtn(key string) *widget.Clickable {
-	if btn, ok := msgReplyBtns[key]; ok {
+func (a *App) msgReplyBtn(key string) *widget.Clickable {
+	if btn, ok := a.wid.msgReplyBtns[key]; ok {
 		return btn
 	}
 	btn := new(widget.Clickable)
-	msgReplyBtns[key] = btn
+	a.wid.msgReplyBtns[key] = btn
 	return btn
 }
 
@@ -108,7 +107,7 @@ func (a *App) layoutCornerReply(gtx layout.Context, f frame, m *engine.CachedMes
 	if m.MsgID != hoveredMsgID() {
 		return layout.Dimensions{}
 	}
-	btn := msgReplyBtn(m.AccountID + "/" + m.ChatID + "/" + m.MsgID)
+	btn := a.msgReplyBtn(m.AccountID + "/" + m.ChatID + "/" + m.MsgID)
 	if btn.Clicked(gtx) {
 		a.startReply(m)
 		return layout.Dimensions{}

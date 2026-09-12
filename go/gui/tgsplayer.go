@@ -174,7 +174,7 @@ type tgsPlayer struct {
 }
 
 // tgsPlayerCache keeps per-msgID players; pruned wholesale when oversized
-// (same policy as mediaClicks — scrolling chats churn entries).
+// (same policy as a.wid.mediaClicks — scrolling chats churn entries).
 type tgsPlayerCache struct {
 	mu      sync.Mutex
 	players map[string]*tgsPlayer

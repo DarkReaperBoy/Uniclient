@@ -23,23 +23,8 @@ import (
 )
 
 // Chat view widgets.
-var (
-	chatBackBtn widget.Clickable
-	chatSendBtn widget.Clickable
-	composer    widget.Editor
-	msgList     widget.List
-	joinBarBtn  widget.Clickable // JOIN (not-joined channels, slice 19)
-	silentBtn   widget.Clickable // per-message silent (slice 23)
-	linkPrevBtn widget.Clickable // link-preview toggle (slice 117)
-)
 
-func init() {
-	composer.SingleLine = false
-	msgList.Axis = layout.Vertical
-	msgList.ScrollToEnd = true // stick to bottom, AyuGram-style
-}
-
-// layoutChatView: header, message list (scrollable), composer, plus the
+// layoutChatView: header, message list (scrollable), a.wid.composer, plus the
 // message-action overlay layer (context menu, forward picker swap).
 func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Dimensions {
 	if f.selected == nil {
@@ -85,7 +70,7 @@ func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Di
 	return chatPane(gtx)
 }
 
-// chatPaneColumn renders the chat column (header + messages + composer) plus
+// chatPaneColumn renders the chat column (header + messages + a.wid.composer) plus
 // the overlay menu — the non-panel layout of the chat view.
 func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo, narrow bool) layout.Dimensions {
 	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -185,7 +170,7 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			return a.ui.Divider(gtx)
 		}),
 		// Bot reply keyboard (slice 127): the chat's active custom
-		// keyboard under the composer area — latest keyboard message
+		// keyboard under the a.wid.composer area — latest keyboard message
 		// wins, a later keyboard_hide clears it, single_use hides it
 		// after one tap.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -201,7 +186,7 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 		// captured, input + slow-mode chip otherwise)
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if chat != nil && chat.IsForum && f.forumTopic == "" {
-				return layout.Dimensions{} // topic list view: no composer
+				return layout.Dimensions{} // topic list view: no a.wid.composer
 			}
 			if chat != nil && chat.NotJoined {
 				return a.joinBar(gtx, f, chat)
@@ -230,21 +215,21 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.headerMenu != nil {
 		a.layoutHeaderMenu(gtx, f)
 	}
-	// Attach popup above the composer.
+	// Attach popup above the a.wid.composer.
 	if f.attachMenuOpen {
 		a.layoutAttachMenu(gtx, f)
 	}
-	// Emoji picker above the composer.
+	// Emoji picker above the a.wid.composer.
 	if f.emojiOpen {
 		a.layoutEmojiPanel(gtx, f)
 	}
-	// Bot commands panel above the composer (slice 76).
+	// Bot commands panel above the a.wid.composer (slice 76).
 	if f.botCmdsOn {
 		a.layoutBotCmdsPanel(gtx, f)
 	}
 	// Inline bot results panel (slice 128): "@bot query" live results.
 	a.layoutInlineResults(gtx, f)
-	// Inline ":shortcode" emoji autocomplete strip (AyuGram composer).
+	// Inline ":shortcode" emoji autocomplete strip (AyuGram a.wid.composer).
 	a.layoutEmojiAutocomplete(gtx, f)
 	// Delete confirm (slice 19).
 	if f.delDlg != nil {
@@ -390,12 +375,12 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 					if !voice {
 						return layout.Dimensions{}
 					}
-					if headerVoiceCallBtn.Clicked(gtx) {
+					if a.wid.headerVoiceCallBtn.Clicked(gtx) {
 						c := *chat
 						a.startDMCall(c, false)
 					}
 					return layout.Inset{Left: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.IconButton(&headerVoiceCallBtn, iconCommunicationCall, "Voice call")
+						btn := a.ui.IconButton(&a.wid.headerVoiceCallBtn, iconCommunicationCall, "Voice call")
 						btn.Color = a.ui.p.TextDim
 						return btn.Layout(gtx)
 					})
@@ -408,22 +393,22 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 					if !video {
 						return layout.Dimensions{}
 					}
-					if headerVideoCallBtn.Clicked(gtx) {
+					if a.wid.headerVideoCallBtn.Clicked(gtx) {
 						c := *chat
 						a.startDMCall(c, true)
 					}
 					return layout.Inset{Left: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.IconButton(&headerVideoCallBtn, iconAVVideocam, "Video call")
+						btn := a.ui.IconButton(&a.wid.headerVideoCallBtn, iconAVVideocam, "Video call")
 						btn.Color = a.ui.p.TextDim
 						return btn.Layout(gtx)
 					})
 				}),
 				// search — in-chat search (AyuGram, slice 18)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if headerSearchBtn.Clicked(gtx) {
+					if a.wid.headerSearchBtn.Clicked(gtx) {
 						a.toggleInChatSearch()
 					}
-					btn := a.ui.IconButton(&headerSearchBtn, iconActionSearch, "Search in chat")
+					btn := a.ui.IconButton(&a.wid.headerSearchBtn, iconActionSearch, "Search in chat")
 					btn.Color = a.ui.p.TextDim
 					if f.inSearch {
 						btn.Color = a.ui.p.Accent
@@ -432,27 +417,27 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 				}),
 				// info (ⓘ) — right panel toggle (AyuGram)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if panelInfoBtn.Clicked(gtx) {
+					if a.wid.panelInfoBtn.Clicked(gtx) {
 						if f.panelOpen {
 							a.closePanel()
 						} else {
 							a.openPanel()
 						}
 					}
-					btn := a.ui.IconButton(&panelInfoBtn, iconActionInfo, "Chat info")
+					btn := a.ui.IconButton(&a.wid.panelInfoBtn, iconActionInfo, "Chat info")
 					btn.Color = a.ui.p.TextDim
 					return btn.Layout(gtx)
 				}),
 				// "..." — peer menu (AyuGram ⋮)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if headerMoreBtn.Clicked(gtx) {
+					if a.wid.headerMoreBtn.Clicked(gtx) {
 						if chat != nil {
 							c := *chat
 							a.openHeaderMenu(c, image.Pt(gtx.Constraints.Max.X, a.headerH))
 						}
 					}
 					return layout.Inset{Left: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.IconButton(&headerMoreBtn, iconNavMoreVert, "Chat menu")
+						btn := a.ui.IconButton(&a.wid.headerMoreBtn, iconNavMoreVert, "Chat menu")
 						btn.Color = a.ui.p.TextDim
 						return btn.Layout(gtx)
 					})
@@ -468,7 +453,7 @@ func backIf(narrow bool, gtx layout.Context, a *App) layout.FlexChild {
 			return layout.Dimensions{}
 		})
 	}
-	if chatBackBtn.Clicked(gtx) {
+	if a.wid.chatBackBtn.Clicked(gtx) {
 		a.mu.Lock()
 		prev := a.selected
 		a.selected = nil
@@ -481,7 +466,7 @@ func backIf(narrow bool, gtx layout.Context, a *App) layout.FlexChild {
 	}
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			btn := a.ui.IconButton(&chatBackBtn, iconNavigationBack, "Back")
+			btn := a.ui.IconButton(&a.wid.chatBackBtn, iconNavigationBack, "Back")
 			btn.Color = a.ui.p.TextDim
 			return btn.Layout(gtx)
 		})
@@ -594,9 +579,9 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	// Reset this frame's row bounds; refill as visible rows lay out.
 	a.rowBounds = make(map[int]image.Rectangle, len(rows))
 	paneW := gtx.Constraints.Max.X
-	y := -msgList.Position.Offset
+	y := -a.wid.msgList.Position.Offset
 
-	list := material.List(a.ui.Theme, &msgList)
+	list := material.List(a.ui.Theme, &a.wid.msgList)
 	dims := list.Layout(gtx, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
 		r := rows[i]
 		var d layout.Dimensions
@@ -630,7 +615,7 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	}
 
 	// Scroll-up pagination: at (or near) the top, load older history once.
-	if msgList.Position.First == 0 && msgList.Position.Offset <= 64 &&
+	if a.wid.msgList.Position.First == 0 && a.wid.msgList.Position.Offset <= 64 &&
 		!f.loadingOlder && len(f.messages) > 0 && a.olderExhaustedLocked() == false {
 		a.loadOlder()
 	}
@@ -885,7 +870,7 @@ func (a *App) replyQuote(gtx layout.Context, f frame, m engine.CachedMessage, k 
 	if i := strings.IndexByte(m.ReplyPreview, '\n'); i >= 0 {
 		sender, body = m.ReplyPreview[:i], m.ReplyPreview[i+1:]
 	}
-	btn := replyQuoteClickable(k.String() + "/" + m.MsgID)
+	btn := a.replyQuoteClickable(k.String() + "/" + m.MsgID)
 	if btn.Clicked(gtx) && m.ReplyToID != "" {
 		a.jumpToMessageAt(m.ReplyToID, m.Timestamp)
 	}
@@ -918,35 +903,33 @@ func (a *App) replyQuote(gtx layout.Context, f frame, m engine.CachedMessage, k 
 	})
 }
 
-// replyQuoteClicks: per-message clickables for the reply-quote
+// a.wid.replyQuoteClicks: per-message clickables for the reply-quote
 // click-to-jump (AyuGram quote navigation, slice 25).
-var replyQuoteClicks = map[string]*widget.Clickable{}
 
-func replyQuoteClickable(msgID string) *widget.Clickable {
-	if c, ok := replyQuoteClicks[msgID]; ok {
+func (a *App) replyQuoteClickable(msgID string) *widget.Clickable {
+	if c, ok := a.wid.replyQuoteClicks[msgID]; ok {
 		return c
 	}
-	if len(replyQuoteClicks) > 512 {
-		replyQuoteClicks = make(map[string]*widget.Clickable)
+	if len(a.wid.replyQuoteClicks) > 512 {
+		a.wid.replyQuoteClicks = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	replyQuoteClicks[msgID] = c
+	a.wid.replyQuoteClicks[msgID] = c
 	return c
 }
 
-// reactionClicks holds per-(message,emoji) pill clickables, pruned when the
+// a.wid.reactionClicks holds per-(message,emoji) pill clickables, pruned when the
 // map outgrows the open chat (rows scroll out and never come back).
-var reactionClicks = map[string]*widget.Clickable{}
 
-func reactionClickable(key string) *widget.Clickable {
-	if c, ok := reactionClicks[key]; ok {
+func (a *App) reactionClickable(key string) *widget.Clickable {
+	if c, ok := a.wid.reactionClicks[key]; ok {
 		return c
 	}
-	if len(reactionClicks) > 512 {
-		reactionClicks = make(map[string]*widget.Clickable)
+	if len(a.wid.reactionClicks) > 512 {
+		a.wid.reactionClicks = make(map[string]*widget.Clickable)
 	}
 	c := new(widget.Clickable)
-	reactionClicks[key] = c
+	a.wid.reactionClicks[key] = c
 	return c
 }
 
@@ -973,7 +956,7 @@ func (a *App) reactionStrip(gtx layout.Context, f frame, m *engine.CachedMessage
 		}
 		key := m.MsgID + "|" + react
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := reactionClickable(key)
+			btn := a.reactionClickable(key)
 			if canReact && btn.Clicked(gtx) {
 				msg := *m
 				go func() {
@@ -1065,11 +1048,11 @@ func check(gtx layout.Context, c color.NRGBA, size int, dx int) layout.Dimension
 	return layout.Dimensions{Size: image.Pt(size, size)}
 }
 
-// joinBar: the JOIN action shown instead of the composer for not-joined
+// joinBar: the JOIN action shown instead of the a.wid.composer for not-joined
 // channel previews (AyuGram preview behavior, slice 19). Joins via
 // engine.JoinChannel; the engine re-sync flips the chat to joined.
 func (a *App) joinBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
-	if joinBarBtn.Clicked(gtx) {
+	if a.wid.joinBarBtn.Clicked(gtx) {
 		acc, id := chat.AccountID, chat.ChatID
 		title := chat.Title
 		go func() {
@@ -1089,7 +1072,7 @@ func (a *App) joinBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 					return lbl.Layout(gtx)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					btn := a.ui.PrimaryButton(&joinBarBtn, "JOIN")
+					btn := a.ui.PrimaryButton(&a.wid.joinBarBtn, "JOIN")
 					return btn.Layout(gtx)
 				}),
 			)
@@ -1103,16 +1086,16 @@ func (a *App) joinBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 // composerSubmitKeyTag listens for Ctrl+Enter submits (slice 155).
 var composerSubmitKeyTag = new(struct{})
 
-// trySubmitComposer sends the composer's current text through the shared
+// trySubmitComposer sends the a.wid.composer's current text through the shared
 // gate — length limit, slow-mode wait, in-flight guard — shared by the
 // Enter SubmitEvent, the send button, and the Ctrl+Enter shortcut
 // (slice 155). Returns true when a send started.
 func (a *App) trySubmitComposer(f frame, chat *engine.ChatInfo) bool {
-	txt := strings.TrimSpace(composer.Text())
+	txt := strings.TrimSpace(a.wid.composer.Text())
 	if txt == "" || f.sending {
 		return false
 	}
-	if composerOverLimit(composer.Text()) {
+	if composerOverLimit(a.wid.composer.Text()) {
 		a.setToast("Message is too long (" + itoa(composerCharLimit) + " char limit)")
 		return false
 	}
@@ -1122,7 +1105,7 @@ func (a *App) trySubmitComposer(f frame, chat *engine.ChatInfo) bool {
 			return false
 		}
 	}
-	composer.SetText("")
+	a.wid.composer.SetText("")
 	a.sendText(txt)
 	return true
 }
@@ -1131,9 +1114,9 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	// Composer submit mode (tdesktop Messages setting, slice 155): Enter
 	// submits by default; "ctrl-enter" moves submission to Ctrl+Enter and
 	// makes Enter a newline.
-	composer.Submit = composerSubmitSends(f.cfg.ComposerSubmit)
+	a.wid.composer.Submit = composerSubmitSends(f.cfg.ComposerSubmit)
 	// Ctrl+Enter submits (both modes — tdesktop behavior); only while the
-	// composer holds focus so other editors (search, dialogs) keep it.
+	// a.wid.composer holds focus so other editors (search, dialogs) keep it.
 	keyLayer(gtx, composerSubmitKeyTag)
 	for _, name := range []key.Name{key.NameReturn, key.NameEnter} {
 		for {
@@ -1141,7 +1124,7 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			if !ok {
 				break
 			}
-			if ke, is := ev.(key.Event); is && ke.State == key.Press && gtx.Source.Focused(&composer) {
+			if ke, is := ev.(key.Event); is && ke.State == key.Press && gtx.Source.Focused(&a.wid.composer) {
 				a.trySubmitComposer(f, chat)
 			}
 		}
@@ -1158,7 +1141,7 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	}
 	// Submit on Enter (Shift+Enter = newline) unless mobile-wide.
 	for {
-		ev, ok := composer.Update(gtx)
+		ev, ok := a.wid.composer.Update(gtx)
 		if !ok {
 			break
 		}
@@ -1168,7 +1151,7 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			}
 		}
 	}
-	if chatSendBtn.Clicked(gtx) {
+	if a.wid.chatSendBtn.Clicked(gtx) {
 		a.trySubmitComposer(f, chat)
 	}
 
@@ -1184,22 +1167,22 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.End}.Layout(gtx,
 					// attach (📎) — file/photo picker menu (AyuGram)
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if attachBtn.Clicked(gtx) {
+						if a.wid.attachBtn.Clicked(gtx) {
 							a.toggleAttachMenu()
 						}
 						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.IconButton(&attachBtn, iconFileAttach, "Attach")
+							btn := a.ui.IconButton(&a.wid.attachBtn, iconFileAttach, "Attach")
 							btn.Color = a.ui.p.TextDim
 							return btn.Layout(gtx)
 						})
 					}),
 					// emoji (😊) — picker panel (AyuGram)
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if emojiBtn.Clicked(gtx) {
+						if a.wid.emojiBtn.Clicked(gtx) {
 							a.toggleEmojiPanel()
 						}
 						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.IconButton(&emojiBtn, iconEmojiSmile, "Emoji")
+							btn := a.ui.IconButton(&a.wid.emojiBtn, iconEmojiSmile, "Emoji")
 							btn.Color = a.ui.p.TextDim
 							if f.emojiOpen {
 								btn.Color = a.ui.p.Accent
@@ -1213,11 +1196,11 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 						if !botCmdPanelNeeded(f.botCmds) {
 							return layout.Dimensions{}
 						}
-						if botCmdBtn.Clicked(gtx) {
+						if a.wid.botCmdBtn.Clicked(gtx) {
 							a.toggleBotCmds()
 						}
 						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.IconButton(&botCmdBtn, iconNavMoreVert, "Bot commands")
+							btn := a.ui.IconButton(&a.wid.botCmdBtn, iconNavMoreVert, "Bot commands")
 							btn.Color = a.ui.p.TextDim
 							if f.botCmdsOn {
 								btn.Color = a.ui.p.Accent
@@ -1225,7 +1208,7 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 							return btn.Layout(gtx)
 						})
 					}),
-					// hold-to-record mic (slice 114): only when the composer
+					// hold-to-record mic (slice 114): only when the a.wid.composer
 					// is empty and the account's core sends voice notes.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if !a.voiceRecWanted(f) {
@@ -1239,7 +1222,7 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 						return roundedFill(gtx, a.ui.p.SurfaceHi, 14, func(gtx layout.Context) layout.Dimensions {
 							gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(44))
 							return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								ed := a.ui.Editor(&composer, botKbdComposerHint(f))
+								ed := a.ui.Editor(&a.wid.composer, botKbdComposerHint(f))
 								return ed.Layout(gtx)
 							})
 						})
@@ -1255,7 +1238,7 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 					// silent (🔕) — send without sound (AyuGram
 					// per-message mute, slice 23).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if silentBtn.Clicked(gtx) {
+						if a.wid.silentBtn.Clicked(gtx) {
 							a.mu.Lock()
 							a.silentNext = !a.silentNext
 							on := a.silentNext
@@ -1270,7 +1253,7 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 						on := a.silentNext
 						a.mu.Unlock()
 						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.IconButton(&silentBtn, iconSocialNotif, "Send without sound")
+							btn := a.ui.IconButton(&a.wid.silentBtn, iconSocialNotif, "Send without sound")
 							btn.Color = a.ui.p.TextDim
 							if on {
 								btn.Color = a.ui.p.Accent
@@ -1282,11 +1265,11 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 					// link (AyuGram/Telegram preview toggle, slice 117): off sends
 					// with no_webpage.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if !composedHasLink(composer.Text()) || f.msgFor == nil {
+						if !composedHasLink(a.wid.composer.Text()) || f.msgFor == nil {
 							return layout.Dimensions{}
 						}
 						k := f.msgFor
-						if linkPrevBtn.Clicked(gtx) {
+						if a.wid.linkPrevBtn.Clicked(gtx) {
 							linkPreviewMu.Lock()
 							linkPreview[k.String()] = !linkPreview[k.String()]
 							off := linkPreview[k.String()]
@@ -1302,7 +1285,7 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 						off := linkPreview[k.String()]
 						linkPreviewMu.Unlock()
 						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.IconButton(&linkPrevBtn, iconContentLink, "Toggle link preview")
+							btn := a.ui.IconButton(&a.wid.linkPrevBtn, iconContentLink, "Toggle link preview")
 							btn.Color = a.ui.p.TextDim
 							if off {
 								btn.Color = a.ui.p.Error
@@ -1313,11 +1296,11 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 					// schedule (⏰) — schedule the composed
 					// message (AyuGram, slice 20).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if composerSchedBtn.Clicked(gtx) {
+						if a.wid.composerSchedBtn.Clicked(gtx) {
 							a.openScheduleDialog()
 						}
 						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.IconButton(&composerSchedBtn, iconActionSchedule, "Schedule message")
+							btn := a.ui.IconButton(&a.wid.composerSchedBtn, iconActionSchedule, "Schedule message")
 							btn.Color = a.ui.p.TextDim
 							if f.schedDlg != nil {
 								btn.Color = a.ui.p.Accent
@@ -1332,7 +1315,7 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 								ld.Color = a.ui.p.Accent
 								return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, ld.Layout)
 							}
-							btn := material.IconButton(a.ui.Theme, &chatSendBtn, iconContentSend, "Send")
+							btn := material.IconButton(a.ui.Theme, &a.wid.chatSendBtn, iconContentSend, "Send")
 							btn.Background = a.ui.p.Accent
 							btn.Color = rgb(0x0D1821)
 							btn.Size = unit.Dp(22)
@@ -1345,8 +1328,8 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			// Char counter (slice 88, AyuGram row 124): remaining
 			// characters near the limit, red past it. The send
 			// gates above stay honest — over-limit text never
-			// leaves the composer.
-			if lbl, visible, over := charCounterState(composer.Text(), composerCharLimit); visible {
+			// leaves the a.wid.composer.
+			if lbl, visible, over := charCounterState(a.wid.composer.Text(), composerCharLimit); visible {
 				lbl, over := lbl, over
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Top: unit.Dp(2), Right: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -1387,7 +1370,7 @@ func composerOverLimit(text string) bool {
 // composerChip renders the reply/edit header above the input: title, quoted
 // preview, and a close (cancel) button — AyuGram's InputField header bar.
 func (a *App) composerChip(gtx layout.Context, f frame) layout.Dimensions {
-	if chipCancelBtn.Clicked(gtx) {
+	if a.wid.chipCancelBtn.Clicked(gtx) {
 		a.cancelComposerMode()
 	}
 	title, preview := f.cMode.header()
@@ -1414,7 +1397,7 @@ func (a *App) composerChip(gtx layout.Context, f frame) layout.Dimensions {
 						)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.IconButton(&chipCancelBtn, iconContentClear, "Cancel")
+						btn := a.ui.IconButton(&a.wid.chipCancelBtn, iconContentClear, "Cancel")
 						btn.Color = a.ui.p.TextDim
 						btn.Size = unit.Dp(18)
 						btn.Inset = layout.UniformInset(unit.Dp(6))

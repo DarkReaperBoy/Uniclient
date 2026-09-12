@@ -54,20 +54,11 @@ type storyViewerState struct {
 	loading   bool
 	err       string
 	reactOpen bool // the emoji strip is armed (slice 164)
-	replyOn   bool // the reply composer is armed (slice 164)
+	replyOn   bool // the reply a.wid.composer is armed (slice 164)
 }
 
 // slice 164 widgets: reaction heart / reply / share + the emoji strip
-// pills + the inline reply composer.
-var (
-	storyReactBtn      widget.Clickable
-	storyReplyBtn      widget.Clickable
-	storyShareBtn      widget.Clickable
-	storyReplySendBtn  widget.Clickable
-	storyReplyXBtn     widget.Clickable
-	storyReactEmojiBtn []widget.Clickable
-	storyReplyEd       widget.Editor
-)
+// pills + the inline reply a.wid.composer.
 
 // storyStripChats picks the chats that appear in the stories row — only
 // chats with stories, unread first (AyuGram order).
@@ -136,19 +127,10 @@ func storyMetaLine(s storyItem, now time.Time) string {
 // ── state transitions ─────────────────────────────────────────────────────
 
 var (
-	storyStripList widget.List
-	storyPrevBtn   widget.Clickable
-	storyNextBtn   widget.Clickable
-	storyCloseBtn  widget.Clickable
-	storyPlayBtn   widget.Clickable
-	storyTapL      = new(bool) // left tap zone
-	storyTapR      = new(bool) // right tap zone
-	storyKeyTag    = new(bool) // viewer keyboard layer
+	storyTapL   = new(bool) // left tap zone
+	storyTapR   = new(bool) // right tap zone
+	storyKeyTag = new(bool) // viewer keyboard layer
 )
-
-func init() {
-	storyStripList.Axis = layout.Horizontal
-}
 
 // openStoryViewer fetches a chat's stories and opens the viewer (slice 104).
 func (a *App) openStoryViewer(c engine.ChatInfo) {
@@ -220,11 +202,11 @@ func (a *App) layoutStoryStrip(gtx layout.Context, f frame) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 	return layout.Inset{Left: unit.Dp(10), Right: unit.Dp(10), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		list := material.List(a.ui.Theme, &storyStripList)
+		list := material.List(a.ui.Theme, &a.wid.storyStripList)
 		return list.Layout(gtx, len(chats), func(gtx layout.Context, i int) layout.Dimensions {
 			c := chats[i]
 			key := "story:" + c.AccountID + "/" + c.ChatID
-			btn := storyStripBtn(key)
+			btn := a.storyStripBtn(key)
 			if btn.Clicked(gtx) {
 				if f.cfg.Streamer {
 					a.setToast("Stories hidden in streamer mode")
@@ -295,16 +277,15 @@ func paintRing(gtx layout.Context, c color.NRGBA, size int, w int) {
 }
 
 // storyStripBtn pools the strip clickables.
-var storyStripBtns = map[string]*widget.Clickable{}
 
-func storyStripBtn(key string) *widget.Clickable {
-	if btn, ok := storyStripBtns[key]; ok {
+func (a *App) storyStripBtn(key string) *widget.Clickable {
+	if btn, ok := a.wid.storyStripBtns[key]; ok {
 		return btn
 	}
 	btn := new(widget.Clickable)
-	storyStripBtns[key] = btn
-	if len(storyStripBtns) > 128 {
-		storyStripBtns = map[string]*widget.Clickable{key: btn}
+	a.wid.storyStripBtns[key] = btn
+	if len(a.wid.storyStripBtns) > 128 {
+		a.wid.storyStripBtns = map[string]*widget.Clickable{key: btn}
 	}
 	return btn
 }
@@ -314,7 +295,7 @@ func storyStripBtn(key string) *widget.Clickable {
 // layoutStoryViewer: full-window story playback overlay (slice 104).
 func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 	sv := f.storyView
-	// Slice 164: the reply composer owns the keyboard while armed —
+	// Slice 164: the reply a.wid.composer owns the keyboard while armed —
 	// keep its focus instead of clearing it.
 	if !sv.replyOn {
 		gtx.Execute(key.FocusCmd{Tag: nil})
@@ -341,7 +322,7 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 				a.closeStoryViewer()
 			case key.NameLeftArrow:
 				if sv.replyOn {
-					continue // the reply composer owns the caret keys
+					continue // the reply a.wid.composer owns the caret keys
 				}
 				a.storyAdvance(-1)
 			case key.NameRightArrow:
@@ -356,16 +337,16 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 	// Backdrop.
 	paintFill(gtx.Ops, color.NRGBA{R: 0x05, G: 0x08, B: 0x0C, A: 0xF6}, gtx.Constraints.Max)
 
-	if storyCloseBtn.Clicked(gtx) {
+	if a.wid.storyCloseBtn.Clicked(gtx) {
 		a.closeStoryViewer()
 	}
-	if storyPrevBtn.Clicked(gtx) {
+	if a.wid.storyPrevBtn.Clicked(gtx) {
 		a.storyAdvance(-1)
 	}
-	if storyNextBtn.Clicked(gtx) {
+	if a.wid.storyNextBtn.Clicked(gtx) {
 		a.storyAdvance(1)
 	}
-	if storyPlayBtn.Clicked(gtx) {
+	if a.wid.storyPlayBtn.Clicked(gtx) {
 		if it := sv.current(); it != nil && isVideoStory(*it) && it.LocalPath != "" {
 			go a.openMedia(it.LocalPath, true) // system player (slice 86 pipeline)
 		}
@@ -437,7 +418,7 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 									return layout.Dimensions{}
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									btn := a.ui.IconButton(&storyCloseBtn, iconContentClear, "Close")
+									btn := a.ui.IconButton(&a.wid.storyCloseBtn, iconContentClear, "Close")
 									btn.Color = a.ui.p.TextDim
 									return btn.Layout(gtx)
 								}),
@@ -548,14 +529,14 @@ func storyReplyID(storyID int) string {
 // the reaction heart, reply toggle and share right. Own stories hide
 // react/reply (you cannot react to or reply your own story, §1.10) and
 // keep share. Arming the heart opens the emoji strip; arming reply
-// opens the inline composer (InputReplyToStory).
+// opens the inline a.wid.composer (InputReplyToStory).
 func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, it *storyItem) layout.Dimensions {
 	if it == nil {
 		return layout.Dimensions{}
 	}
 	own := sv.chatID != "" && sv.chatID == accountByID(f, sv.accountID).SelfUserID
 
-	if storyReactBtn.Clicked(gtx) {
+	if a.wid.storyReactBtn.Clicked(gtx) {
 		emoji, open := storyHeartAction(it.SentReaction)
 		if open {
 			sv.reactOpen = !sv.reactOpen
@@ -566,28 +547,28 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 		}
 		a.invalidate()
 	}
-	if storyReplyBtn.Clicked(gtx) {
+	if a.wid.storyReplyBtn.Clicked(gtx) {
 		sv.replyOn = !sv.replyOn
 		sv.reactOpen = false
 		if sv.replyOn {
-			gtx.Execute(key.FocusCmd{Tag: &storyReplyEd})
+			gtx.Execute(key.FocusCmd{Tag: &a.wid.storyReplyEd})
 		}
 		a.invalidate()
 	}
-	if storyShareBtn.Clicked(gtx) {
+	if a.wid.storyShareBtn.Clicked(gtx) {
 		a.storyShare(sv, it)
 	}
-	if storyReplySendBtn.Clicked(gtx) {
+	if a.wid.storyReplySendBtn.Clicked(gtx) {
 		a.storySendReply(sv, it)
 	}
-	if storyReplyXBtn.Clicked(gtx) {
+	if a.wid.storyReplyXBtn.Clicked(gtx) {
 		sv.replyOn = false
 		a.invalidate()
 	}
-	// Enter submits the reply (Shift+Enter newline — the composer idiom).
+	// Enter submits the reply (Shift+Enter newline — the a.wid.composer idiom).
 	// Editor events come from Editor.Update, not key.Filters.
 	for {
-		ev, ok := storyReplyEd.Update(gtx)
+		ev, ok := a.wid.storyReplyEd.Update(gtx)
 		if !ok {
 			break
 		}
@@ -598,7 +579,7 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 
 	return layout.Inset{Left: unit.Dp(24), Right: unit.Dp(24), Bottom: unit.Dp(24)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical, Alignment: layout.End}.Layout(gtx,
-			// Reply composer above the bar.
+			// Reply a.wid.composer above the bar.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if !sv.replyOn || own {
 					return layout.Dimensions{}
@@ -640,7 +621,7 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.IconButton(&storyReplyBtn, iconContentReply, "Reply to story")
+							btn := a.ui.IconButton(&a.wid.storyReplyBtn, iconContentReply, "Reply to story")
 							btn.Color = color.NRGBA{R: 0xF2, G: 0xF5, B: 0xF7, A: 0xFF}
 							btn.Background = color.NRGBA{A: 0x2A}
 							btn.Size = unit.Dp(20)
@@ -649,7 +630,7 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							btn := a.ui.IconButton(&storyShareBtn, iconSocialShare, "Share story")
+							btn := a.ui.IconButton(&a.wid.storyShareBtn, iconSocialShare, "Share story")
 							btn.Color = color.NRGBA{R: 0xF2, G: 0xF5, B: 0xF7, A: 0xFF}
 							btn.Background = color.NRGBA{A: 0x2A}
 							btn.Size = unit.Dp(20)
@@ -674,7 +655,7 @@ func (a *App) storyHeartButton(gtx layout.Context, it *storyItem) layout.Dimensi
 		bg = a.ui.p.Accent
 	}
 	size := gtx.Dp(unit.Dp(36))
-	return material.ButtonLayout(a.ui.Theme, &storyReactBtn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	return material.ButtonLayout(a.ui.Theme, &a.wid.storyReactBtn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, bg, 18, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints = layout.Constraints{Min: image.Pt(size, size), Max: image.Pt(size, size)}
 			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -689,9 +670,9 @@ func (a *App) storyHeartButton(gtx layout.Context, it *storyItem) layout.Dimensi
 // the same source as the message quick-reaction bar).
 func (a *App) storyReactStrip(gtx layout.Context, f frame, sv *storyViewerState, it *storyItem) layout.Dimensions {
 	emojis := favoriteReactionChoices(a.availEmojisFor(sv.accountID))
-	growClickables(&storyReactEmojiBtn, len(emojis))
+	growClickables(&a.wid.storyReactEmojiBtn, len(emojis))
 	for i, e := range emojis {
-		if storyReactEmojiBtn[i].Clicked(gtx) {
+		if a.wid.storyReactEmojiBtn[i].Clicked(gtx) {
 			a.storyReact(sv, it, e)
 			a.mu.Lock()
 			sv.reactOpen = false
@@ -705,7 +686,7 @@ func (a *App) storyReactStrip(gtx layout.Context, f frame, sv *storyViewerState,
 		i, e := i, e
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Right: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				bl := material.ButtonLayout(a.ui.Theme, &storyReactEmojiBtn[i])
+				bl := material.ButtonLayout(a.ui.Theme, &a.wid.storyReactEmojiBtn[i])
 				bl.Background = color.NRGBA{A: 0x30}
 				bl.CornerRadius = 16
 				return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -730,19 +711,19 @@ func (a *App) storyReplyComposer(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					storyReplyEd.SingleLine = true
-					ed := material.Editor(a.ui.Theme, &storyReplyEd, "Reply to story…")
+					a.wid.storyReplyEd.SingleLine = true
+					ed := material.Editor(a.ui.Theme, &a.wid.storyReplyEd, "Reply to story…")
 					ed.TextSize = unit.Sp(14)
 					ed.Color = color.NRGBA{R: 0xF2, G: 0xF5, B: 0xF7, A: 0xFF}
 					ed.HintColor = a.ui.p.TextFaint
 					return ed.Layout(gtx)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if strings.TrimSpace(storyReplyEd.Text()) == "" {
+					if strings.TrimSpace(a.wid.storyReplyEd.Text()) == "" {
 						return layout.Dimensions{}
 					}
 					return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						bl := material.ButtonLayout(a.ui.Theme, &storyReplySendBtn)
+						bl := material.ButtonLayout(a.ui.Theme, &a.wid.storyReplySendBtn)
 						bl.Background = a.ui.p.Accent
 						bl.CornerRadius = 16
 						return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -754,7 +735,7 @@ func (a *App) storyReplyComposer(gtx layout.Context) layout.Dimensions {
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Left: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.IconButton(&storyReplyXBtn, iconContentClear, "Cancel reply")
+						btn := a.ui.IconButton(&a.wid.storyReplyXBtn, iconContentClear, "Cancel reply")
 						btn.Color = a.ui.p.TextDim
 						btn.Background = color.NRGBA{}
 						btn.Size = unit.Dp(16)
@@ -783,14 +764,14 @@ func (a *App) storyReact(sv *storyViewerState, it *storyItem, emoji string) {
 	}()
 }
 
-// storySendReply sends the composer text as a reply to the current story
+// storySendReply sends the a.wid.composer text as a reply to the current story
 // (the "story:<id>" ReplyToID convention → InputReplyToStory).
 func (a *App) storySendReply(sv *storyViewerState, it *storyItem) {
-	text := strings.TrimSpace(storyReplyEd.Text())
+	text := strings.TrimSpace(a.wid.storyReplyEd.Text())
 	if text == "" {
 		return
 	}
-	storyReplyEd.SetText("")
+	a.wid.storyReplyEd.SetText("")
 	sv.replyOn = false
 	a.invalidate()
 	go func() {
@@ -914,7 +895,7 @@ func (a *App) storyMedia(gtx layout.Context, f frame, sv *storyViewerState, it *
 						return layout.Dimensions{}
 					}
 					return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.PrimaryButton(&storyPlayBtn, "PLAY IN SYSTEM PLAYER")
+						btn := a.ui.PrimaryButton(&a.wid.storyPlayBtn, "PLAY IN SYSTEM PLAYER")
 						return btn.Layout(gtx)
 					})
 				}),
