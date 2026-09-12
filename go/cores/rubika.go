@@ -18,7 +18,9 @@ import (
 	"hash"
 	"io"
 	mrand "math/rand"
+	"net"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -663,6 +665,23 @@ func (r *RubikaCore) getDCs() error {
 	return nil
 }
 
+// wsHostReachable does a TCP probe on the wss URL's host:port.
+func wsHostReachable(wssURL string, timeout time.Duration) bool {
+	u, err := neturl.Parse(wssURL)
+	if err != nil {
+		return false
+	}
+	if u.Port() == "" {
+		u.Host = u.Hostname() + ":443"
+	}
+	conn, err := net.DialTimeout("tcp", u.Host, timeout)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
 // useFallbackDCs sets hardcoded API and WebSocket endpoints for when DC discovery
 // DNS (getdcmess.iranlms.ir) is blocked outside Iran.
 func (r *RubikaCore) useFallbackDCs() error {
@@ -679,12 +698,17 @@ func (r *RubikaCore) useFallbackDCs() error {
 		"https://messengerg2c9.iranlms.ir/",
 		"https://messengerg2c10.iranlms.ir/",
 	}
+	// 2026-09-12 live verification: nsocket1..5.iranlms.ir are NXDOMAIN
+	// (stale); jsocket1..5 + nsocket6..N resolve. The production web client's
+	// own hardcoded default is wss://jsocket5.iranlms.ir:80 — mirror that set.
 	fallbackSockets := []string{
-		"wss://nsocket1.iranlms.ir/",
-		"wss://nsocket2.iranlms.ir/",
-		"wss://nsocket3.iranlms.ir/",
-		"wss://nsocket4.iranlms.ir/",
-		"wss://nsocket5.iranlms.ir/",
+		"wss://jsocket5.iranlms.ir:80",
+		"wss://jsocket1.iranlms.ir:80",
+		"wss://jsocket2.iranlms.ir:80",
+		"wss://jsocket3.iranlms.ir:80",
+		"wss://jsocket4.iranlms.ir:80",
+		"wss://nsocket6.iranlms.ir:80",
+		"wss://nsocket7.iranlms.ir:80",
 	}
 	fallbackStorages := []string{
 		"https://shadow1.iranlms.ir/",
@@ -720,10 +744,15 @@ func (r *RubikaCore) useFallbackDCs() error {
 		r.apiPriority = []string{"1"}
 	}
 
-	// Set WebSocket URL — try first available
+	// Set WebSocket URL — first reachable (TCP probe, 3s) wins
 	for _, url := range fallbackSockets {
-		r.wssURL = url
-		break
+		if wsHostReachable(url, 3*time.Second) {
+			r.wssURL = url
+			break
+		}
+	}
+	if r.wssURL == "" {
+		r.wssURL = fallbackSockets[0]
 	}
 
 	// Set storage URLs
@@ -1517,6 +1546,9 @@ func (r *RubikaCore) authUser(cfg AuthConfig) error {
 	r.apiTmp("registerDevice", r.buildDeviceInfo())
 
 	phone := normalizeRubikaPhone(cfg.Phone)
+	if phone == "" {
+		return fmt.Errorf("%w: phone number required", ErrAuth)
+	}
 
 	sendCodeInput := map[string]interface{}{
 		"phone_number": phone,
@@ -3106,10 +3138,12 @@ func (r *RubikaCore) wsLoop() {
 			}
 			continue
 		}
-		// Connected successfully — reset backoff
+		// Connected successfully — reset backoff. (The "connected"
+		// state itself is fired from inside wsConnect, because the read
+		// loop blocks for the socket's whole lifetime and only returns on
+		// error/ctx-done — firing it here would never run while healthy.)
 		backoff = 3 * time.Second
 		retries = 0
-		r.fireConnState("connected")
 	}
 }
 
@@ -3148,6 +3182,13 @@ func (r *RubikaCore) wsConnect() error {
 		wsCancel()
 		return fmt.Errorf("ws handshake: %w", err)
 	}
+
+	// The connection is live from here, but the read loop below blocks
+	// for the whole lifetime of the socket — wsLoop can only observe
+	// "connected" if we fire it here, right after the handshake write.
+	// (2026-09-12 live test caught this: a healthy socket surfaced as
+	// permanently "connecting"/"disconnected" in the GUI.)
+	r.fireConnState("connected")
 
 	// Start keepalive
 	go r.wsKeepAlive(wsCtx, conn)

@@ -3646,3 +3646,54 @@ swipe gesture layer), corner reaction button (needs a default-reaction
 selection concept), Ayu spy/saving engine-gated toggles, Alt+jumplist
 (Windows COM ICustomDestinationList, blind), Linux Unity launcher
 badge (dbus), remaining ~837 withAPI conversions.
+
+## 2026-09-12 — Rubika core: LIVE-verified pre-auth chain vs production + 2 core bugs fixed
+
+Context: AGENTS.md §8 listed rubika as "unverified live (geo-restricted)".
+This VM turns out NOT geo-blocked for iranlms.ir — independent research
+against the CURRENT production web client bundle
+(web.rubika.ir/main-es2015.6421623571994c9dd619.js) + live endpoint
+probes, then a new env-gated live test suite.
+
+Research findings (primary sources, all re-verified today):
+- getdcmess.iranlms.ir DC discovery works and returns the live API map
+  (messengerg2c1..44), socket map, storage map; default_socket "8"
+  → wss://nsocket7.iranlms.ir:80.
+- The production web client's hardcoded DefaultSocketUrl is
+  wss://jsocket5.iranlms.ir:80 — NOT nsocket1..5 (all NXDOMAIN, stale).
+- Web client handShake frame format matches the core's implementation
+  exactly ({api_version, auth, data:"", method:"handShake"}); keepalive
+  is a bare "{}" text frame; api_version constant is "5" by default with
+  a config-driven upgrade path to "6" — production accepts "6" (proven).
+
+Code changes (tests first: tests/rubika_live_test.go, -tags goolm,live):
+- FIXED core bug 1: wsConnect never surfaced the "connected" state while
+  healthy — the read loop blocks for the socket's whole lifetime and only
+  returns on error/ctx-done, so wsLoop's post-return fireConnState never
+  ran. Now fired right after the handShake write succeeds. A live
+  production socket previously showed as permanently disconnected in the
+  GUI.
+- FIXED core bug 2: fallback socket list used dead nsocket1..5 hosts;
+  now jsocket5-first (the web client's own default) + nsocket6/7, and
+  useFallbackDCs TCP-probes the list instead of blindly taking [0].
+- Hardened: authUser rejects an empty phone with a clean
+  "phone number required" auth error instead of an INVALID_INPUT from
+  the server.
+
+Verification (§9 ladder, official-server rung for the pre-auth chain):
+- go/tests/rubika_live_test.go — 3/3 GREEN against production in ~9s:
+  DC discovery real data; full encrypted round-trip (tmp-session
+  registerDevice + sendCode w/ deliberately invalid phone → structured
+  INVALID_INPUT, proving encrypt→POST→decrypt→error-map); WS dial +
+  TLS + upgrade + handShake → connected state within 3s.
+- Full suite go test -tags goolm ./... green; gofmt/vet clean.
+
+Rating per §2 (rate before code): rubika core design 7/10 — the wire
+protocol implementation (crypto, framing, auth flow modeled on rubpy)
+was already accurate; the failures found were operational state
+reporting and stale fallback data, both small fixes, not replacements.
+Kept and extended (per §1.12 policy: good rating → keep).
+
+Parity/§8 status: rubika moves to "pre-auth chain LIVE-verified
+2026-09-12" — same rung XMPP holds. Remaining: real phone+OTP sign-in
+(owner's live test), post-auth RPC surface (dialogs, messages, voice).

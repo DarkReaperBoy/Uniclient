@@ -9,8 +9,16 @@
 
 # Rubika Protocol — Reverse-Engineered Specification
 
-**Sources**: rubpy library (github.com/shayanheidari01/rubika) + official Rubika JS web client (m.rubika.ir/static/js/main.5a6e7f59.js)
-**Last updated**: 2026-04-13
+**Sources**: rubpy library (github.com/shayanheidari01/rubika) + official Rubika JS web client (m.rubika.ir/static/js/main.5a6e7f59.js); re-verified 2026-09-12 against the CURRENT production web client bundle (web.rubika.ir/main-es2015.6421623571994c9dd619.js) and live endpoints.
+**Last updated**: 2026-09-12
+
+**LIVE VERIFICATION 2026-09-12** (from a non-geo-blocked vantage; tests/rubika_live_test.go, `-tags goolm,live`):
+- DC discovery works: getdcmess.iranlms.ir returns the real API map (messengerg2c1..44), socket map (jsocket1..5, msocket1, nsocket6..N — **NOT nsocket1..5, those are NXDOMAIN**), storage map (messanger1..N). default_socket="8" → wss://nsocket7.iranlms.ir:80.
+- The production web client's hardcoded DefaultSocketUrl = `wss://jsocket5.iranlms.ir:80`; DefaultApiUrl = `https://messengerg2c1.iranlms.ir`. The core's fallback list was updated to match (jsocket5-first + TCP probe).
+- Full encrypted request round-trip VERIFIED against production: tmp-session registerDevice + sendCode(bogus phone) → server answered `status_det=INVALID_INPUT` — decryptable, structured. AES-256-CBC zero-IV + passphrase key derivation + api_version "6" all confirmed on the wire.
+- WS transport VERIFIED: dial + TLS + upgrade + handShake frame → connection stays open, keepalive `{}` every 10s. (Found + fixed a core bug: "connected" state was fired only after the read loop returned, i.e. never while healthy.)
+- The web client's own ApiVersion constant is "5" with a localStorage-config upgrade path to "6"; the core's "6" is accepted by production servers either way.
+- Core auth remaining: a real phone + OTP (owner's live test) — the pre-auth chain is proven, same rung XMPP reached.
 
 ---
 
@@ -1045,7 +1053,7 @@ Getting the wrong param name = silent failure or cryptic error.
 - Service discovery via `getdcmess.iranlms.ir` (getDCs) and `servicesbase.iranlms.ir` (getBaseInfo).
 
 ### WebSocket
-- Endpoint: `wss://nsocketXX.iranlms.ir:80/` (WSS on port 80, not 443).
+- Endpoint: `wss://jsocket1..5.iranlms.ir:80` / `wss://nsocket6..N.iranlms.ir:80` (WSS on port 80, not 443). **nsocket1..5 are NXDOMAIN (stale)** — verified 2026-09-12; the production web client defaults to jsocket5. Handshake frame: `{api_version:"6", auth:<auth>, data:"", method:"handShake"}` — matches the current web client exactly.
 - Must send `handShake` method with auth token after connecting.
 - Heartbeat: send empty `{}` every ~30 seconds.
 
