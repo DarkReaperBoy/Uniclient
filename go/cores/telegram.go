@@ -15412,12 +15412,11 @@ func (t *TelegramCore) DemoteAdmin(chatID, userID string) error {
 // TransferChannelOwnership transfers channel/group ownership to another user.
 // Requires the current owner's 2FA password for verification.
 func (t *TelegramCore) TransferChannelOwnership(chatID, userID, password string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	pw, err := t.api.AccountGetPassword(t.ctx)
+	pw, err := api.AccountGetPassword(ctx)
 	if err != nil {
 		return fmt.Errorf("get password params: %w", err)
 	}
@@ -15438,7 +15437,7 @@ func (t *TelegramCore) TransferChannelOwnership(chatID, userID, password string)
 		return fmt.Errorf("invalid user ID: %w", err)
 	}
 	inputUser := &tg.InputUser{UserID: uid, AccessHash: t.getCachedUserHash(uid)}
-	_, err = t.api.MessagesEditChatCreator(t.ctx, &tg.MessagesEditChatCreatorRequest{
+	_, err = api.MessagesEditChatCreator(ctx, &tg.MessagesEditChatCreatorRequest{
 		Peer:     inputPeer,
 		UserID:   inputUser,
 		Password: srpCheck,
@@ -23888,12 +23887,11 @@ func (t *TelegramCore) GetCloudPasswordState() (CloudPasswordState, error) {
 }
 
 func (t *TelegramCore) CheckCloudPassword(password string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	pw, err := t.api.AccountGetPassword(t.ctx)
+	pw, err := api.AccountGetPassword(ctx)
 	if err != nil {
 		return err
 	}
@@ -23901,17 +23899,16 @@ func (t *TelegramCore) CheckCloudPassword(password string) error {
 	if err != nil {
 		return fmt.Errorf("SRP computation failed: %w", err)
 	}
-	_, err = t.api.AccountGetPasswordSettings(t.ctx, srpCheck)
+	_, err = api.AccountGetPasswordSettings(ctx, srpCheck)
 	return err
 }
 
 func (t *TelegramCore) SetCloudPassword(currentPassword, newPassword, hint, email string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	pw, err := t.api.AccountGetPassword(t.ctx)
+	pw, err := api.AccountGetPassword(ctx)
 	if err != nil {
 		return err
 	}
@@ -23951,7 +23948,7 @@ func (t *TelegramCore) SetCloudPassword(currentPassword, newPassword, hint, emai
 	if email != "" {
 		newSettings.SetEmail(email)
 	}
-	_, err = t.api.AccountUpdatePasswordSettings(t.ctx, &tg.AccountUpdatePasswordSettingsRequest{
+	_, err = api.AccountUpdatePasswordSettings(ctx, &tg.AccountUpdatePasswordSettingsRequest{
 		Password:    oldCheck,
 		NewSettings: *newSettings,
 	})
@@ -23963,12 +23960,11 @@ func (t *TelegramCore) RemoveCloudPassword(currentPassword string) error {
 }
 
 func (t *TelegramCore) SetCloudPasswordEmail(currentPassword, email string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
-	pw, err := t.api.AccountGetPassword(t.ctx)
+	pw, err := api.AccountGetPassword(ctx)
 	if err != nil {
 		return err
 	}
@@ -23984,7 +23980,7 @@ func (t *TelegramCore) SetCloudPasswordEmail(currentPassword, email string) erro
 	}
 	newSettings := tg.AccountPasswordInputSettings{}
 	newSettings.SetEmail(email)
-	_, err = t.api.AccountUpdatePasswordSettings(t.ctx, &tg.AccountUpdatePasswordSettingsRequest{
+	_, err = api.AccountUpdatePasswordSettings(ctx, &tg.AccountUpdatePasswordSettingsRequest{
 		Password:    oldCheck,
 		NewSettings: newSettings,
 	})
@@ -24002,14 +23998,13 @@ func (t *TelegramCore) CheckRecoveryPassword(code string) error {
 }
 
 func (t *TelegramCore) RecoverPasswordWithCode(code, newPassword, hint string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	req := &tg.AuthRecoverPasswordRequest{Code: code}
 	if newPassword != "" {
-		pw, err := t.api.AccountGetPassword(t.ctx)
+		pw, err := api.AccountGetPassword(ctx)
 		if err != nil {
 			return err
 		}
@@ -24032,7 +24027,7 @@ func (t *TelegramCore) RecoverPasswordWithCode(code, newPassword, hint string) e
 		settings.SetHint(hint)
 		req.SetNewSettings(settings)
 	}
-	_, err := t.api.AuthRecoverPassword(t.ctx, req)
+	_, err = api.AuthRecoverPassword(ctx, req)
 	return err
 }
 
@@ -25518,10 +25513,9 @@ func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, fi
 // Stars balance, gated on the user's 2FA password (Api::HandleWithdrawalButton →
 // info_channel_earn_list.cpp:917).
 func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amount int64) (string, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return "", ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return "", err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -25531,7 +25525,7 @@ func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amo
 	if err != nil {
 		return "", err
 	}
-	stats, err := t.api.PaymentsGetStarsRevenueStats(t.ctx, &tg.PaymentsGetStarsRevenueStatsRequest{Peer: inputPeer})
+	stats, err := api.PaymentsGetStarsRevenueStats(ctx, &tg.PaymentsGetStarsRevenueStatsRequest{Peer: inputPeer})
 	if err != nil {
 		return "", fmt.Errorf("get revenue stats: %w", err)
 	}
@@ -25544,7 +25538,7 @@ func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amo
 	if amount <= 0 || amount > avail {
 		amount = avail
 	}
-	pw, err := t.api.AccountGetPassword(t.ctx)
+	pw, err := api.AccountGetPassword(ctx)
 	if err != nil {
 		return "", fmt.Errorf("get password params: %w", err)
 	}
@@ -25552,7 +25546,7 @@ func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amo
 	if err != nil {
 		return "", fmt.Errorf("SRP computation failed: %w", err)
 	}
-	res, err := t.api.PaymentsGetStarsRevenueWithdrawalURL(t.ctx, &tg.PaymentsGetStarsRevenueWithdrawalURLRequest{
+	res, err := api.PaymentsGetStarsRevenueWithdrawalURL(ctx, &tg.PaymentsGetStarsRevenueWithdrawalURLRequest{
 		Peer:     inputPeer,
 		Amount:   amount,
 		Password: srpCheck,
@@ -25764,10 +25758,9 @@ func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, li
 // amount=0 (Api::HandleWithdrawalButton → api_earn.cpp:103, currencyReceiver path:
 // flags=f_ton, amount=0).
 func (t *TelegramCore) GetBroadcastRevenueWithdrawalUrl(chatID, password string) (string, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return "", ErrAuth
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return "", err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -25777,14 +25770,14 @@ func (t *TelegramCore) GetBroadcastRevenueWithdrawalUrl(chatID, password string)
 	if err != nil {
 		return "", err
 	}
-	stats, err := t.api.PaymentsGetStarsRevenueStats(t.ctx, &tg.PaymentsGetStarsRevenueStatsRequest{Ton: true, Peer: inputPeer})
+	stats, err := api.PaymentsGetStarsRevenueStats(ctx, &tg.PaymentsGetStarsRevenueStatsRequest{Ton: true, Peer: inputPeer})
 	if err != nil {
 		return "", fmt.Errorf("get revenue stats: %w", err)
 	}
 	if stats.Status.AvailableBalance.GetAmount() <= 0 {
 		return "", fmt.Errorf("no balance available to withdraw")
 	}
-	pw, err := t.api.AccountGetPassword(t.ctx)
+	pw, err := api.AccountGetPassword(ctx)
 	if err != nil {
 		return "", fmt.Errorf("get password params: %w", err)
 	}
@@ -25792,7 +25785,7 @@ func (t *TelegramCore) GetBroadcastRevenueWithdrawalUrl(chatID, password string)
 	if err != nil {
 		return "", fmt.Errorf("SRP computation failed: %w", err)
 	}
-	res, err := t.api.PaymentsGetStarsRevenueWithdrawalURL(t.ctx, &tg.PaymentsGetStarsRevenueWithdrawalURLRequest{
+	res, err := api.PaymentsGetStarsRevenueWithdrawalURL(ctx, &tg.PaymentsGetStarsRevenueWithdrawalURLRequest{
 		Ton:      true,
 		Peer:     inputPeer,
 		Amount:   0, // currency: f_amount not set (api_earn.cpp:110-112)

@@ -257,6 +257,13 @@ func TestReadPathRPCsDoNotPinMutex(t *testing.T) {
 		{"GetParticipantsByRole", func(tc *TelegramCore) { _, _, _ = tc.GetParticipantsByRole("-1001234567890", "members", "", 10, 0) }},
 		{"GetUserPhotoAtIndex", func(tc *TelegramCore) { _, _, _ = tc.GetUserPhotoAtIndex("123", 0) }},
 		{"SearchGlobalPostMessages", func(tc *TelegramCore) { _, _ = tc.SearchGlobalPostMessages("test", 5) }},
+		{"CheckCloudPassword", func(tc *TelegramCore) { _ = tc.CheckCloudPassword("pw") }},
+		{"SetCloudPassword", func(tc *TelegramCore) { _ = tc.SetCloudPassword("", "new", "hint", "") }},
+		{"SetCloudPasswordEmail", func(tc *TelegramCore) { _ = tc.SetCloudPasswordEmail("", "a@b.c") }},
+		{"RecoverPasswordWithCode", func(tc *TelegramCore) { _ = tc.RecoverPasswordWithCode("12345", "", "") }},
+		{"GetStarsRevenueWithdrawalUrl", func(tc *TelegramCore) { _, _ = tc.GetStarsRevenueWithdrawalUrl("-1001234567890", "pw", 0) }},
+		{"GetBroadcastRevenueWithdrawalUrl", func(tc *TelegramCore) { _, _ = tc.GetBroadcastRevenueWithdrawalUrl("-1001234567890", "pw") }},
+		{"TransferChannelOwnership", func(tc *TelegramCore) { _ = tc.TransferChannelOwnership("-1001234567890", "123", "pw") }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.what, func(t *testing.T) {
