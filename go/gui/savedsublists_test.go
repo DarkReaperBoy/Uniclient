@@ -59,3 +59,37 @@ func TestSavedSublistPreview(t *testing.T) {
 		t.Errorf("empty preview = %q", got)
 	}
 }
+
+// TestSavedTagBarTitle (slice 199): the tag scope's bar title.
+func TestSavedTagBarTitle(t *testing.T) {
+	if got := savedTagBarTitle("🔥", "Important"); got != "Tag 🔥 · Important" {
+		t.Errorf("titled = %q", got)
+	}
+	if got := savedTagBarTitle("🔥", ""); got != "Tag 🔥" {
+		t.Errorf("bare emoji = %q", got)
+	}
+}
+
+// TestSavedTagRowLabel (slice 199): tag row titles with fallbacks.
+func TestSavedTagRowLabel(t *testing.T) {
+	if got := savedTagRowLabel(cores.SavedReactionTagInfo{Emoji: "❤", Title: "Favorites"}); got != "Favorites" {
+		t.Errorf("titled = %q", got)
+	}
+	if got := savedTagRowLabel(cores.SavedReactionTagInfo{Emoji: "❤"}); got != "❤" {
+		t.Errorf("fallback = %q, want the emoji", got)
+	}
+}
+
+// TestTagsSectionVisible (slice 199): honest premium gating.
+func TestTagsSectionVisible(t *testing.T) {
+	tags := []cores.SavedReactionTagInfo{{Emoji: "🔥", Count: 3}}
+	if tagsSectionVisible(true, tags) != true {
+		t.Error("premium with tags must show the section")
+	}
+	if tagsSectionVisible(false, tags) {
+		t.Error("non-premium must never see the section (dead UI ban)")
+	}
+	if tagsSectionVisible(true, nil) {
+		t.Error("no tags on the server = no section (nothing to show)")
+	}
+}

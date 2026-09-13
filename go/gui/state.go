@@ -16,6 +16,7 @@ import (
 
 	"gioui.org/x/explorer"
 
+	"strconv"
 	"uniclient/cores"
 	"uniclient/engine"
 	"uniclient/utils"
@@ -394,6 +395,8 @@ type App struct {
 	savedListsLoaded bool
 	savedListsErr    string
 	savedScope       *savedScopeState
+	savedTags        []cores.SavedReactionTagInfo
+	savedTagsLoaded  bool
 
 	// drafts + scheduled send (AyuGram parity slice 20)
 	schedDlg *schedDlgState
@@ -822,6 +825,8 @@ func (a *App) refreshMessages() {
 	var err error
 	if ts := a.threadScopeFor(k); ts != nil && ts.discussionChat != "" {
 		msgs, err = a.eng.GetThreadMessages(k.AccountID, ts.discussionChat, ts.rootID, 0, 100)
+	} else if ss := a.savedScopeFor(k); ss != nil && ss.tag != "" {
+		msgs, err = a.eng.SearchSavedMessagesByReaction(k.AccountID, k.ChatID, "", []string{ss.tag}, 0, 100)
 	} else if ss := a.savedScopeFor(k); ss != nil {
 		msgs, err = a.eng.GetSavedSublistMessages(k.AccountID, k.ChatID, ss.peerID, 0, 100)
 	} else if topic := a.topicScopeFor(k); topic != "" {
@@ -1574,6 +1579,16 @@ func (a *App) loadOlder() {
 		if ts := a.threadScopeFor(&k); ts != nil && ts.discussionChat != "" {
 			// Slice 195: the comment thread pages from the thread filter.
 			older, err = a.eng.GetThreadMessages(k.AccountID, ts.discussionChat, ts.rootID, oldest, 50)
+		} else if ss := a.savedScopeFor(&k); ss != nil && ss.tag != "" {
+			// Slice 199: the tag scope pages through the server-side tag
+			// search (offsetID = the window's oldest message id).
+			oldestID := 0
+			if len(a.messages) > 0 {
+				if v, err := strconv.ParseInt(a.messages[0].MsgID, 10, 64); err == nil {
+					oldestID = int(v)
+				}
+			}
+			older, err = a.eng.SearchSavedMessagesByReaction(k.AccountID, k.ChatID, "", []string{ss.tag}, oldestID, 50)
 		} else if ss := a.savedScopeFor(&k); ss != nil {
 			// Slice 197: the saved sublist pages from the saved_peer filter.
 			older, err = a.eng.GetSavedSublistMessages(k.AccountID, k.ChatID, ss.peerID, oldest, 50)
@@ -2226,6 +2241,8 @@ func (a *App) snapshot() frame {
 		savedListsLoaded: a.savedListsLoaded,
 		savedListsErr:    a.savedListsErr,
 		savedScope:       a.savedScope,
+		savedTags:        a.savedTags,
+		savedTagsLoaded:  a.savedTagsLoaded,
 		schedDlg:         a.schedDlg,
 		pollDlg:          a.pollDlg,
 		reactors:         a.reactors,
@@ -2553,6 +2570,8 @@ type frame struct {
 	savedListsLoaded bool
 	savedListsErr    string
 	savedScope       *savedScopeState
+	savedTags        []cores.SavedReactionTagInfo
+	savedTagsLoaded  bool
 
 	// scheduled send (slice 20)
 	schedDlg *schedDlgState

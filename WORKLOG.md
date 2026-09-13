@@ -5441,3 +5441,27 @@ Saved Messages row: sublists PRESENT (pin reorder + tag lists remain).
 
 Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
 Chat background row → PRESENT (gap 16 closed).
+
+## 2026-09-14 — slice 199: Saved Messages reaction tags (premium)
+
+- The slice-116-era claim "saved-tags search already shipped" was
+  false — SearchSavedMessagesByReaction + GetSavedReactionTags sat in
+  engine+core with ZERO GUI callers (dead surface, found by the gap-7
+  deep-dive). This slice wires both into the slice-197 Lists pane.
+- GUI: savedScopeState gains the tag discriminator (tag != "" = tag
+  scope, peerID ""); openSavedTag loads the server-side
+  saved_reaction search (SearchSavedMessagesByReaction — engine
+  caches the rows so media/reply metadata renders); refreshMessages
+  + loadOlder branch through the tag search (offsetID paging: the
+  window's oldest message id); the bar shows "Tag <emoji> · <name>".
+- The Lists pane gains the Tags section (tagsSectionVisible: premium
+  account AND non-empty tag list — honest gating, §1.10): one row per
+  savedReactionTag (emoji glyph, name-or-emoji fallback, count badge),
+  fetched alongside the sublists (separate goroutine — a tag failure
+  never blocks the list).
+- Tests first: TestSavedTagBarTitle, TestSavedTagRowLabel,
+  TestTagsSectionVisible (premium/empty/non-premium gating).
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok.
+
+Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.

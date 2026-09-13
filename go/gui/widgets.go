@@ -367,6 +367,7 @@ type widgets struct {
 	savedListBtn     widget.Clickable
 	savedBackBtn     widget.Clickable
 	savedListRowBtns []widget.Clickable
+	savedTagRowBtns  []widget.Clickable
 	forumCancelBtn   widget.Clickable
 	forumCreateBtn   widget.Clickable
 	forumIconChips   []widget.Clickable
