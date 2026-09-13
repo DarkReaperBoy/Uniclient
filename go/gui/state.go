@@ -380,6 +380,11 @@ type App struct {
 	// restrict/ban box (slice 191, member menu)
 	restrictDlg *restrictDlgState
 
+	// signup photo staging (slice 193): path + temp + preview b64
+	signupPhotoPath string
+	signupPhotoTemp []string
+	signupPhotoB64  string
+
 	// drafts + scheduled send (AyuGram parity slice 20)
 	schedDlg *schedDlgState
 
@@ -1156,6 +1161,9 @@ func (a *App) submitAuth(input string) {
 		a.mu.Unlock()
 		a.invalidate()
 		if st != nil && st.State == engine.AuthStateReady {
+			// Slice 193: a photo staged during signup uploads immediately
+			// after the account exists (tdesktop's signup-photo flow).
+			a.signupConsumePhoto(id)
 			go func() {
 				_ = a.eng.ConnectAccount(id)
 			}()
@@ -1175,6 +1183,7 @@ func (a *App) authBack() {
 
 func (a *App) authCancel() {
 	id := a.authAcctLocked()
+	a.signupResetPhoto() // slice 193: drop the staged signup photo
 	a.eng.CancelAuth(id)
 	a.mu.Lock()
 	a.auth = nil
@@ -2168,6 +2177,8 @@ func (a *App) snapshot() frame {
 		reportDlg:        a.reportDlg,
 		clearDlg:         a.clearDlg,
 		restrictDlg:      a.restrictDlg,
+		signupPhotoPath:  a.signupPhotoPath,
+		signupPhotoB64:   a.signupPhotoB64,
 		schedDlg:         a.schedDlg,
 		pollDlg:          a.pollDlg,
 		reactors:         a.reactors,
@@ -2481,6 +2492,10 @@ type frame struct {
 
 	// restrict/ban box (slice 191)
 	restrictDlg *restrictDlgState
+
+	// signup photo staging (slice 193)
+	signupPhotoPath string
+	signupPhotoB64  string
 
 	// scheduled send (slice 20)
 	schedDlg *schedDlgState

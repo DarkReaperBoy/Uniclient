@@ -5219,3 +5219,33 @@ Parity: PRESENT 168 · PARTIAL 24 · MISSING 1 · CORE-ONLY 6.
   GUI smoke (#17212B dominant, welcome + click-through picker).
 
 Parity: PRESENT 168 · PARTIAL 25 · MISSING 1 · CORE-ONLY 5.
+
+## 2026-09-13 — slice 193: signup photo + split name fields
+
+- Parity row "Signup (name/photo)" (P2) — the photo-at-signup half.
+  Rating (§1.14): the generic single-input auth card was fine for
+  code/password steps but structurally wrong for signup (4/10 for this
+  step — replaced for the signup state only, kept everywhere else).
+- REAL BUG fixed by the slice: the engine expects "first\nlast" for
+  signup (splitSignUpInput splits on \n), but the GUI's single-line
+  editor can never contain a newline — every "John Smith" became a
+  FIRST name of "John Smith". The dedicated card submits the true shape.
+- gui/signupcard.go: First name (required) + Last name (optional)
+  editors (Enter hops first→last→submit via key.FocusCmd), the photo
+  circle (OS picker through a.expl.ChooseFiles; staged base64 preview
+  through the shared avatar machinery — avatarImage + avatarFromImage,
+  async decode; initials placeholder before a pick), Create account.
+- Ready hop: submitAuth's AuthStateReady branch consumes the staged
+  photo (UploadProfilePhoto + temp cleanup + toast + refreshAccounts);
+  authCancel drops it. App/frame staging fields + snapshot.
+- Parity row "Advanced + experimental" re-marked CORE-ONLY-BY-DESIGN:
+  engine.SetExperimentalFlag exists but nothing is experimentally gated
+  — a Settings surface today would be dead UI (§1.10 ban). Flips when a
+  real experimental feature lands.
+- Tests first: gui/signupcard_test.go (name-input composition incl.
+  trims + first-only, name validation, photo hint states). Green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok · linux build ok · js/wasm + windows builds ok · Xvfb
+  GUI smoke (#17212B dominant).
+
+Parity: PRESENT 170 · PARTIAL 23 · MISSING 1 · CORE-ONLY 4 (+1 by-design).
