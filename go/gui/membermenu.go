@@ -87,12 +87,21 @@ func (a *App) closeMemberMenu() {
 }
 
 // dispatchMemberMenu runs one admin action and refreshes the panel.
+// Restrict and Ban open their boxes (slice 191) instead of firing instantly.
 func (a *App) dispatchMemberMenu(st *memberMenuState, action string) {
 	a.closeMemberMenu()
 	if st == nil {
 		return
 	}
 	chat, m := st.chat, st.member
+	switch action {
+	case "restrict":
+		a.openRestrictDialog(chat, m)
+		return
+	case "ban":
+		a.openBanDialog(chat, m)
+		return
+	}
 	go func() {
 		var err error
 		var verb string

@@ -134,6 +134,12 @@ type widgets struct {
 	clearDlgChk    widget.Bool
 	clearDlgClear  widget.Clickable
 
+	// restrictdlg.go
+	restrictDlgCancel  widget.Clickable
+	restrictDlgApply   widget.Clickable
+	restrictDlgDurBtns []widget.Clickable
+	restrictDlgSw      []widget.Bool
+
 	// drafts.go
 	composerSchedBtn   widget.Clickable
 	schedDateEd        widget.Editor

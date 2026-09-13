@@ -413,6 +413,11 @@ type MemberInfo struct {
 	PromotedBy   string `json:"promoted_by,omitempty"`
 	PromotedByID string `json:"promoted_by_id,omitempty"`
 	PromotedDate int64  `json:"promoted_date,omitempty"`
+	// Current banned rights for restricted/banned members (tdesktop
+	// EditRestrictedBox initializes from these; nil = all allowed) plus the
+	// restriction's until-timestamp (unix seconds, 0 = forever).
+	BannedRights *DefaultBannedRights `json:"banned_rights,omitempty"`
+	BannedUntil  int                  `json:"banned_until,omitempty"`
 	// Row-action gating flags (mirror AyuGram canAddOrEditAdmin/canRestrict/etc).
 	IsSelf       bool `json:"is_self,omitempty"`
 	IsCreator    bool `json:"is_creator,omitempty"`
@@ -538,10 +543,53 @@ func (e *Engine) GetChatMembersByRole(accountID, chatID, role, query string, lim
 			mi.IsCreator = ex.IsCreator
 			mi.CanEditAdmin = ex.CanEditAdmin
 			mi.CanRestrict = ex.CanRestrict
+			mi.BannedRights = bannedRightsFromCores(ex.BannedRights)
+			mi.BannedUntil = ex.BannedUntil
 		}
 		members = append(members, mi)
 	}
 	return &ParticipantsByRoleResult{Members: members, Total: len(members)}, nil
+}
+
+// memberFromExtra mirrors one ParticipantExtra's permission/ban fields onto
+// a MemberInfo (pure — the GetParticipants mirror path, isolated for tests).
+func memberFromExtra(userID, role string, ex cores.ParticipantExtra) MemberInfo {
+	return MemberInfo{
+		UserID:       userID,
+		Role:         role,
+		CanRestrict:  ex.CanRestrict,
+		CanEditAdmin: ex.CanEditAdmin,
+		IsSelf:       ex.IsSelf,
+		IsCreator:    ex.IsCreator,
+		CustomRank:   ex.CustomRank,
+		BannedRights: bannedRightsFromCores(ex.BannedRights),
+		BannedUntil:  ex.BannedUntil,
+	}
+}
+
+// bannedRightsFromCores converts the core-facing rights struct into the
+// engine-facing one (field-identical, package-distinct). Pure.
+func bannedRightsFromCores(br *cores.DefaultBannedRights) *DefaultBannedRights {
+	if br == nil {
+		return nil
+	}
+	return &DefaultBannedRights{
+		SendPlain:       br.SendPlain,
+		SendPhotos:      br.SendPhotos,
+		SendVideos:      br.SendVideos,
+		SendRoundvideos: br.SendRoundvideos,
+		SendAudios:      br.SendAudios,
+		SendVoices:      br.SendVoices,
+		SendDocs:        br.SendDocs,
+		SendStickers:    br.SendStickers,
+		EmbedLinks:      br.EmbedLinks,
+		SendPolls:       br.SendPolls,
+		InviteUsers:     br.InviteUsers,
+		ManageTopics:    br.ManageTopics,
+		PinMessages:     br.PinMessages,
+		EditRank:        br.EditRank,
+		ChangeInfo:      br.ChangeInfo,
+	}
 }
 
 // GetOnlineCount returns the number of online members in a chat.
@@ -849,6 +897,22 @@ func (e *Engine) BanMember(accountID, chatID, userID string) error {
 		return fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	return acc.Core.BanMember(chatID, userID)
+}
+
+// BanMemberUntil bans a member until a unix timestamp (0 = forever).
+// Wraps the duration-aware core variant (slice 191 ban box).
+func (e *Engine) BanMemberUntil(accountID, chatID, userID string, untilDate int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type banUntil interface {
+		BanMemberUntil(chatID, userID string, untilDate int) error
+	}
+	if b, ok := acc.Core.(banUntil); ok {
+		return b.BanMemberUntil(chatID, userID, untilDate)
+	}
+	return fmt.Errorf("platform does not support timed ban")
 }
 
 func (e *Engine) RemoveMember(accountID, chatID, userID string) error {

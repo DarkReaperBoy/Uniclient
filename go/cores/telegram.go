@@ -19773,6 +19773,33 @@ type ParticipantExtra struct {
 	IsCreator    bool
 	CanEditAdmin bool
 	CanRestrict  bool
+	// The participant's CURRENT banned rights + until timestamp (unix
+	// seconds), set for restricted/banned rows so the GUI restrict box
+	// initializes from server state (tdesktop EditRestrictedBox).
+	BannedRights *DefaultBannedRights
+	BannedUntil  int
+}
+
+// bannedRightsFromTG normalizes tg.ChatBannedRights (true = banned on the
+// wire) into DefaultBannedRights (same polarity). Pure.
+func bannedRightsFromTG(br tg.ChatBannedRights) *DefaultBannedRights {
+	return &DefaultBannedRights{
+		SendPlain:       br.SendPlain,
+		SendPhotos:      br.SendPhotos,
+		SendVideos:      br.SendVideos,
+		SendRoundvideos: br.SendRoundvideos,
+		SendAudios:      br.SendAudios,
+		SendVoices:      br.SendVoices,
+		SendDocs:        br.SendDocs,
+		SendStickers:    br.SendStickers,
+		EmbedLinks:      br.EmbedLinks,
+		SendPolls:       br.SendPolls,
+		InviteUsers:     br.InviteUsers,
+		ManageTopics:    br.ManageTopics,
+		PinMessages:     br.PinMessages,
+		EditRank:        br.EditRank,
+		ChangeInfo:      br.ChangeInfo,
+	}
 }
 
 func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, offset int) ([]User, map[int64]ParticipantExtra, error) {
@@ -19938,6 +19965,8 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 					PromotedDate: pt.Date,
 					IsSelf:       peer.UserID == t.selfID,
 					CanRestrict:  selfCreator || selfBanUsers,
+					BannedRights: bannedRightsFromTG(pt.BannedRights),
+					BannedUntil:  pt.BannedRights.UntilDate,
 				}
 			}
 		}
@@ -35719,6 +35748,16 @@ func (t *TelegramCore) BanMember(chatID string, userID string) error {
 		BannedRights: tg.ChatBannedRights{ViewMessages: true, UntilDate: 0},
 	})
 	return err
+}
+
+// BanMemberUntil bans a participant until the given unix timestamp (0 =
+// forever — Telegram semantics). Mirrors tdesktop's ban box with a
+// duration: channels.editBannedParticipant with ViewMessages + UntilDate.
+func (t *TelegramCore) BanMemberUntil(chatID, userID string, untilDate int) error {
+	return t.RestrictUser(chatID, userID, tg.ChatBannedRights{
+		ViewMessages: true,
+		UntilDate:    untilDate,
+	})
 }
 
 // DeleteParticipantHistory deletes all messages sent by a participant in a

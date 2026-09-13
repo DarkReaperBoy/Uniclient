@@ -116,6 +116,11 @@ func (a *App) Root(gtx layout.Context) {
 	if f.clearDlg != nil {
 		a.layoutClearDialog(gtx, f)
 	}
+	// Restrict/ban box (slice 191): window-level modal — the trigger is the
+	// profile-panel member menu.
+	if f.restrictDlg != nil {
+		a.layoutRestrictDialog(gtx, f)
+	}
 	if f.drawerOpen {
 		a.layoutDrawer(gtx, f)
 	}

@@ -5140,3 +5140,41 @@ Parity: unchanged counts (a PARTIAL row's topic half filled).
   (wasm needed -gcflags=all=-c=1 on the 3GB box — OOM otherwise).
 
 Parity: PRESENT 167 · PARTIAL 24 · MISSING 1 · CORE-ONLY 7.
+
+## 2026-09-13 — slice 191: restrict + ban boxes (moderation row → PRESENT)
+
+- Parity row "Moderation (admin log, restrictions)" — the restrict-box
+  half (the admin-log half landed slice 177; the row was stale CORE-ONLY).
+  Rating (§1.14): the slice-106 member menu + PromoteAdminWithRights/
+  RestrictMemberWithRights engine surface were sound but GUI-unsurfaced
+  (7/10 — extended, not replaced).
+- Core: cores.ParticipantExtra grows BannedRights/BannedUntil (parsed from
+  ChannelParticipantBanned.BannedRights/UntilDate through
+  bannedRightsFromTG); TelegramCore.BanMemberUntil (ViewMessages +
+  UntilDate through RestrictUser — gotd's EncodeBare auto-SetFlags
+  verified, so no flag pitfall). Wire check: channels.editBanned
+  with-rights path was already live-tested shape-wise.
+- Engine: MemberInfo.BannedRights/BannedUntil (bannedRightsFromCores
+  converts the cores struct), mirrored in GetParticipantsByRole;
+  memberFromExtra isolates the mirror for tests; BanMemberUntil wrapper
+  (typed interface, honest unsupported error).
+- GUI: gui/restrictdlg.go — Restrict box (title "Restrict <name>", the
+  tdesktop duration ladder Forever/1h/8h/2d/1w/1m/3m/6m/1y as chips, 15
+  permission switches labeled positively, allowed↔banned inversion at
+  the wire — partial maps never ban by omission) + Ban box (duration +
+  confirm). Window-level modals; switch values snapshotted under the
+  GUI lock at apply; toasts + panel member-list reload.
+- membermenu.go: Restrict/Ban now open the boxes (instant RestrictMember
+  path retired; promote/demote/unban/remove stay instant — tdesktop
+  fires those directly too).
+- Tests first: gui/restrictdlg_test.go (duration matrix, until-date math
+  incl. forever=0, permission-row table vs DefaultBannedRights fields,
+  inversion with omission semantics — caught a real bug: missing keys
+  must mean allowed, not banned; initial-rights resolution) +
+  engine/restrict_test.go (BanMemberUntil arg pass-through + unsupported
+  errors; ParticipantExtra→MemberInfo mirror). Green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok · linux build ok · js/wasm + windows builds ok · Xvfb GUI
+  smoke (25s+, #17212B dominant).
+
+Parity: PRESENT 168 · PARTIAL 24 · MISSING 1 · CORE-ONLY 6.
