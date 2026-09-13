@@ -17,6 +17,7 @@ package gui
 // paths stay on the browser. Pure classification in deepLinkTarget.
 
 import (
+	"strconv"
 	"strings"
 
 	"uniclient/engine"
@@ -148,12 +149,16 @@ func isAllDigits(s string) bool {
 	return true
 }
 
-// permalinkChatID maps a "c/<channelID>" permalink ref onto the engine's
-// -100 chat-ID convention; username refs return "". Pure — locked by
-// tests.
+// permalinkChatID maps a "c/<channelID>" permalink ref onto the app-wide
+// channel-ID convention (-1000000000000 - channelID — the exact string
+// every Dialog/ChatInfo carries; the old "-100"+id form never matched a
+// real dialog id, so t.me/c/ links always missed). Username refs return
+// "". Pure — locked by tests.
 func permalinkChatID(ref string) string {
 	if strings.HasPrefix(ref, "c/") && isAllDigits(ref[2:]) {
-		return "-100" + ref[2:]
+		if id, err := strconv.ParseInt(ref[2:], 10, 64); err == nil {
+			return strconv.FormatInt(-1000000000000-id, 10)
+		}
 	}
 	return ""
 }

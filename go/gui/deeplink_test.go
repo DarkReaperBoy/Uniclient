@@ -186,11 +186,20 @@ func TestDeepLinkTargetCommentPermalink(t *testing.T) {
 }
 
 func TestPermalinkChatRef(t *testing.T) {
-	// The c/<channelID> form maps onto the -100 chat-ID convention.
-	if got := permalinkChatID("c/123456"); got != "-100123456" {
-		t.Errorf("permalinkChatID(c/123456) = %q", got)
+	// The c/<channelID> form maps onto the app-wide channel-ID convention
+	// (-1000000000000 - channelID, the same string every Dialog/ChatInfo
+	// carries). The old "-100"+id mapping never matched a real dialog id,
+	// so t.me/c/ links always missed (fixed 2026-09-14, slice 196.1).
+	if got := permalinkChatID("c/123456"); got != "-1000000123456" {
+		t.Errorf("permalinkChatID(c/123456) = %q, want -1000000123456", got)
 	}
 	if got := permalinkChatID("durov"); got != "" {
 		t.Errorf("username ref has no direct chat id: %q", got)
+	}
+	if got := permalinkChatID("c/"); got != "" {
+		t.Errorf("empty channel id must not map: %q", got)
+	}
+	if got := permalinkChatID("c/abc"); got != "" {
+		t.Errorf("non-numeric channel id must not map: %q", got)
 	}
 }

@@ -5351,3 +5351,15 @@ Parity: PRESENT 178 (89%) · PARTIAL 16 · MISSING 1 · CORE-ONLY 5
 
 Parity: PRESENT 179 (90%) · PARTIAL 15 · MISSING 1 · CORE-ONLY 5.
 Deep links PARTIAL → PRESENT (gap 13 closed).
+
+## 2026-09-14 — slice 196.1: private-permalink channel-id bug fix
+
+- Found while researching saved-sublists peer ids: permalinkChatID mapped
+  t.me/c/<channelID> refs to "-100"+id, but the app-wide channel-ID
+  convention is -1000000000000-channelID (peerToID, every Dialog and
+  ChatInfo row) — so EVERY private-channel permalink
+  (t.me/c/123456/789) failed the dialog lookup and toasted "Channel not
+  found in your chats" (slice-161 regression, never live-tested).
+- permalinkChatID now maps through strconv to the -1e12-id form; the
+  pure test pins the mapped value plus the empty/non-numeric guards.
+- Gate: gofmt clean · vet clean · go test -tags goolm ./... 8/8 ok.
