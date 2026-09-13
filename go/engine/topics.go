@@ -22,7 +22,7 @@ func (e *Engine) GetTopicMessages(accountID, chatID, topicID string, beforeMs in
 
 	q := `SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		content_text, content_raw, content_rich, timestamp, edited_at,
-		status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json
+		status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards
 		FROM messages
 		WHERE account_id = ? AND chat_id = ? AND topic_id = ?
 		AND NOT EXISTS (SELECT 1 FROM locally_hidden_messages h WHERE h.account_id = messages.account_id AND h.chat_id = messages.chat_id AND h.msg_id = messages.msg_id)
@@ -33,7 +33,7 @@ func (e *Engine) GetTopicMessages(accountID, chatID, topicID string, beforeMs in
 	if beforeMs > 0 {
 		q = `SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			content_text, content_raw, content_rich, timestamp, edited_at,
-			status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json
+			status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards
 			FROM messages
 			WHERE account_id = ? AND chat_id = ? AND topic_id = ? AND timestamp < ?
 			AND NOT EXISTS (SELECT 1 FROM locally_hidden_messages h WHERE h.account_id = messages.account_id AND h.chat_id = messages.chat_id AND h.msg_id = messages.msg_id)

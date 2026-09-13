@@ -5006,3 +5006,35 @@ Parity: PRESENT 170 (84%) · PARTIAL 24 · MISSING 1 · CORE-ONLY 5.
   ./... 8/8 ok · linux build ok · js/wasm + windows builds ok.
 
 Parity: unchanged counts (row already PRESENT — interaction added).
+
+## 2026-09-13 — slice 187: channel-post view counts (eye glyph + refresh)
+
+- Parity rows "Ayu: Message details" (views/shares half) + the channel
+  post meta row. Rating (§1.14): the core already surfaced Views/Forwards
+  on every Message conversion (8/10 — kept); the dead single-message
+  GetMessageViews RPC wrapper was replaced by the batched form the
+  feature actually needs (§1.12 disposability applies to dead code too).
+- cores: GetMessagesViewsBatch — ONE messages.getMessagesViews RPC for
+  the whole visible window, withAPI-converted (§8), returns
+  msg-id→views AND msg-id→forwards maps.
+- engine: migrateV51 (messages.views + messages.forwards), ingest writes
+  them, every read path (window/topic/pinned/deleted-search) selects +
+  scans them into CachedMessage; RefreshMessageViews — channel-gated
+  (chats.type), newest-60 post ids, batch RPC, transactional update,
+  emitChatUpdate only when a counter actually moved.
+- gui: the bubble meta row grows tdesktop's eye-glyph counter block
+  (views always when counted, forwards beside when non-zero,
+  viewsCountLabel compact 1.2K/15K/1.2M formatting); Message-details
+  dialog gains Views/Forwards rows; syncViewsRefresh ticker — refresh on
+  channel open + every 30s while it stays open, counters merged into the
+  open window IN PLACE (no wholesale reload racing message events).
+- Tests first: engine/msgviews_test.go (cache round-trip through
+  cacheMessage→GetMessages; refresh pass with a fake core — changed
+  counting, unchanged second pass = 0 changed + 1 RPC, non-channel
+  no-RPC gate, missing-account no-op) + gui/msgviews_test.go (the
+  compact label ladder). All green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm ./...
+  8/8 ok · linux build + Xvfb GUI smoke (25s+, #17212B dominant, 815
+  colors) · js/wasm build ok · windows build ok.
+
+Parity: unchanged counts (a PARTIAL row's halves filled; no flips).

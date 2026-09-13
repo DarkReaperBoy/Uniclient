@@ -43,6 +43,7 @@ var (
 	iconActionBackup          = mustIcon(icons.ActionBackup)
 	iconImagePalette          = mustIcon(icons.ImagePalette)
 	iconActionGhost           = mustIcon(icons.ActionVisibilityOff)
+	iconActionViews           = mustIcon(icons.ActionVisibility)
 	iconActionInfo            = mustIcon(icons.ActionInfoOutline)
 	iconImagePhoto            = mustIcon(icons.ImagePhoto)
 	iconNavChevronLeft        = mustIcon(icons.NavigationChevronLeft)

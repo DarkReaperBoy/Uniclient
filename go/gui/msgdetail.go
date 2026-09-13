@@ -86,6 +86,14 @@ func msgDetailRows(m engine.CachedMessage, now time.Time) []detailRow {
 	add("Status", detailStatusText(m.Status))
 	add("Forwarded from", m.ForwardFrom)
 	add("Reply to", m.ReplyToID)
+	// Channel-post counters (slice 187): views/forwards are now cached
+	// and refreshed while the channel is open.
+	if m.Views > 0 {
+		add("Views", viewsCountLabel(m.Views))
+	}
+	if m.Forwards > 0 {
+		add("Forwards", viewsCountLabel(m.Forwards))
+	}
 	if m.HasMedia || m.MediaFileName != "" || m.MediaFileSize > 0 {
 		add("File", m.MediaFileName)
 		add("Type", m.MediaMimeType)

@@ -837,12 +837,39 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						}
 						return a.reactionStrip(gtx, f, m)
 					}),
-					// meta: auto-delete timer (slice 182) + time + edited + status ticks
+					// meta: auto-delete timer (slice 182) + channel-post views
+					// (slice 187) + time + edited + status ticks
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						msgTTL, _ := parseTTLExtras(m)
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return a.layoutTTLTimer(gtx, msgTTL)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								// Channel-post counters (tdesktop's eye
+								// glyph row): views always when counted,
+								// forwards beside when non-zero.
+								if m.Views <= 0 {
+									return layout.Dimensions{}
+								}
+								return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return iconActionViews.Layout(gtx, a.ui.p.TextFaint)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											lbl := a.ui.Dim(unit.Sp(10), viewsCountLabel(m.Views))
+											return layout.Inset{Left: unit.Dp(2)}.Layout(gtx, lbl.Layout)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											if m.Forwards <= 0 {
+												return layout.Dimensions{}
+											}
+											lbl := a.ui.Dim(unit.Sp(10), viewsCountLabel(m.Forwards))
+											return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, lbl.Layout)
+										}),
+									)
+								})
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								meta := messageMetaLabel(*m, f.cfg.AyuEditedMark)

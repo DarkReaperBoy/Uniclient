@@ -17859,28 +17859,51 @@ func (t *TelegramCore) GetOnlineCount(chatID string) (int, error) {
 	return result.Onlines, nil
 }
 
-// GetMessageViews returns the view counts for specified messages.
-func (t *TelegramCore) GetMessageViews(chatID string, msgID string) ([]int, error) {
+// GetMessagesViewsBatch returns view + forward counts for a batch of
+// channel posts in ONE RPC (messages.getMessagesViews — tdesktop's
+// refresh mechanism for the visible history window). The returned maps
+// key by the string message id; ids that fail to parse are skipped
+// honestly. withAPI-converted (§8).
+func (t *TelegramCore) GetMessagesViewsBatch(chatID string, msgIDs []string) (views, forwards map[string]int, err error) {
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, nil, err
+	}
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer unlock()
-	id, err := tgMsgID(msgID)
-	if err != nil {
-		return nil, err
+
+	ids := make([]int, 0, len(msgIDs))
+	idStr := make([]string, 0, len(msgIDs))
+	for _, s := range msgIDs {
+		id, perr := tgMsgID(s)
+		if perr != nil {
+			continue
+		}
+		ids = append(ids, id)
+		idStr = append(idStr, s)
 	}
-	result, err := t.api.MessagesGetMessagesViews(t.ctx, &tg.MessagesGetMessagesViewsRequest{
-		Peer: inputPeer, ID: []int{id}, Increment: false,
+	if len(ids) == 0 {
+		return map[string]int{}, map[string]int{}, nil
+	}
+	result, err := api.MessagesGetMessagesViews(ctx, &tg.MessagesGetMessagesViewsRequest{
+		Peer: inputPeer, ID: ids, Increment: false,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var views []int
-	for _, v := range result.Views {
-		views = append(views, v.Views)
+	views = make(map[string]int, len(ids))
+	forwards = make(map[string]int, len(ids))
+	for i, v := range result.Views {
+		if i >= len(ids) {
+			break
+		}
+		views[idStr[i]] = v.Views
+		forwards[idStr[i]] = v.Forwards
 	}
-	return views, nil
+	return views, forwards, nil
 }
 
 // GetMessageReadParticipants returns users who read a specific message.

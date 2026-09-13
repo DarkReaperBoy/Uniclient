@@ -109,8 +109,9 @@ type App struct {
 
 	// group-call live bar (slice 70): polled info for the open chat and the
 	// chat the poll loop belongs to (nil = no loop running).
-	groupCall   *engine.GroupCallInfo
-	callPollFor *chatKey
+	groupCall    *engine.GroupCallInfo
+	callPollFor  *chatKey
+	viewsPollFor *chatKey // slice 187: channel-post views ticker target
 
 	// 1:1 call overlay (slice 101): the active DM call panel, fed by
 	// EventIncomingCall/EventCallState or a header StartCall.
@@ -1305,7 +1306,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.schedDlg = nil  // slice 20: close the schedule dialog
 	a.groupCall = nil // slice 70: live-call bar state for the new chat
 	a.callPollFor = nil
-	a.botCmds = nil // slice 76: bot commands for the new chat
+	a.viewsPollFor = nil // slice 187: views ticker retargets below
+	a.botCmds = nil      // slice 76: bot commands for the new chat
 	a.botCmdsFor = nil
 	a.botCmdsLoaded = false
 	a.botCmdsOn = false
@@ -1347,12 +1349,13 @@ func (a *App) openChat(k chatKey, title string) {
 	if next.Type == engine.ChatTypeDMVal && next.ChatID != "" {
 		go a.loadHdrPresence(k)
 	}
-	a.syncCallPoll()   // slice 70: start the live-call poll if this chat has one
-	a.loadBotCmds(k)   // slice 76: fetch the chat's bot commands
-	a.loadSponsored(k) // slice 163: fetch the chat's sponsored messages
-	a.loadSimilar(k)   // slice 167: fetch the channel's recommendations
-	a.loadHdrCaps(k)   // slice 101: header call-button capabilities
-	if next.IsForum {  // slice 118: forums open on the topic list
+	a.syncCallPoll()     // slice 70: start the live-call poll if this chat has one
+	a.syncViewsRefresh() // slice 187: channel-post views ticker
+	a.loadBotCmds(k)     // slice 76: fetch the chat's bot commands
+	a.loadSponsored(k)   // slice 163: fetch the chat's sponsored messages
+	a.loadSimilar(k)     // slice 167: fetch the channel's recommendations
+	a.loadHdrCaps(k)     // slice 101: header call-button capabilities
+	if next.IsForum {    // slice 118: forums open on the topic list
 		go a.loadForumTopics(k)
 	}
 	a.invalidate()

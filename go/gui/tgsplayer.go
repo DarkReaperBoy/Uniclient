@@ -17,6 +17,7 @@ package gui
 // bareStickerBubble, wired from messageRow.
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"os"
@@ -360,6 +361,24 @@ func messageMetaLabel(m engine.CachedMessage, ayuEditedMark string) string {
 		meta = sm + " · " + meta
 	}
 	return meta
+}
+
+// viewsCountLabel renders channel-post view/forward counters the way
+// tdesktop does (1.2K / 15K / 1.2M — one decimal below ten, then
+// integers). Pure — unit-tested.
+func viewsCountLabel(n int) string {
+	switch {
+	case n < 1000:
+		return itoa(n)
+	case n < 10000:
+		return fmt.Sprintf("%.1fK", float64(n)/1000)
+	case n < 1000000:
+		return itoa(n/1000) + "K"
+	case n < 10000000:
+		return fmt.Sprintf("%.1fM", float64(n)/1000000)
+	default:
+		return itoa(n/1000000) + "M"
+	}
 }
 
 // ── widgets ───────────────────────────────────────────────────────────────

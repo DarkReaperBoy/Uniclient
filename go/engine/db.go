@@ -163,6 +163,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV48,
 	migrateV49,
 	migrateV50,
+	migrateV51,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -231,6 +232,23 @@ func migrateV49(tx *sql.Tx) error {
 // same at mute_until).
 func migrateV50(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN mute_until INTEGER NOT NULL DEFAULT 0`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateV51 adds messages.views + messages.forwards (slice 187:
+// channel-post view/forward counters — tdesktop's eye glyph meta row,
+// refreshed through messages.getMessagesViews while a channel is open).
+func migrateV51(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN views INTEGER NOT NULL DEFAULT 0`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN forwards INTEGER NOT NULL DEFAULT 0`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
 			return err
 		}
