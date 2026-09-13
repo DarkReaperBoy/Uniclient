@@ -112,3 +112,57 @@ func TestFavoriteReactionFallback(t *testing.T) {
 		t.Errorf("stored favorite passthrough: %q", fav)
 	}
 }
+
+// ── slice 172: custom-emoji favorites ────────────────────────────────────
+
+// customKeyDocID parses a "custom_<docID>" favorite key.
+func TestCustomKeyDocID(t *testing.T) {
+	if d, ok := customKeyDocID("custom_42"); !ok || d != 42 {
+		t.Errorf("custom_42 = (%d,%v), want (42,true)", d, ok)
+	}
+	if _, ok := customKeyDocID("👍"); ok {
+		t.Error("plain emoji is not a custom key")
+	}
+	if _, ok := customKeyDocID("custom_bogus"); ok {
+		t.Error("malformed custom key is not a custom key")
+	}
+}
+
+// ownHasReaction must match custom favorites by document id (a favorite set
+// on another client arrives as reactions_default custom emoji).
+func TestOwnHasReactionCustom(t *testing.T) {
+	reacts := []cores.Reaction{
+		{Emoji: "", DocumentID: 42, Count: 1, ByMe: true},
+		{Emoji: "🔥", Count: 3, ByMe: true},
+	}
+	if !ownHasReaction(reacts, "custom_42") {
+		t.Error("own custom_42 reaction should match favorite custom_42")
+	}
+	if ownHasReaction(reacts, "custom_7") {
+		t.Error("unrelated custom key must not match")
+	}
+	if !ownHasReaction(reacts, "🔥") {
+		t.Error("emoji matching must keep working")
+	}
+}
+
+// toggleOwnReactionEmojis must carry custom own reactions through the full
+// list sent to ReactToMessageList (keys, not empty emoji strings) and
+// toggle the custom favorite itself.
+func TestToggleOwnReactionEmojisCustom(t *testing.T) {
+	cur := []cores.Reaction{
+		{Emoji: "", DocumentID: 42, Count: 1, ByMe: true},
+		{Emoji: "🔥", Count: 1, ByMe: true},
+		{Emoji: "🎉", Count: 2, ByMe: false},
+	}
+	// Toggle the custom favorite OFF: removed, other own reactions kept.
+	got := toggleOwnReactionEmojis(cur, "custom_42")
+	if len(got) != 1 || got[0] != "🔥" {
+		t.Fatalf("custom toggle-off = %v, want [🔥]", got)
+	}
+	// Toggle a different custom favorite ON: existing custom kept by key.
+	got = toggleOwnReactionEmojis(cur, "custom_7")
+	if len(got) != 3 || got[0] != "custom_42" || got[1] != "🔥" || got[2] != "custom_7" {
+		t.Fatalf("custom toggle-on = %v, want [custom_42 🔥 custom_7]", got)
+	}
+}

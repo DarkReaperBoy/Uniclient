@@ -4484,3 +4484,46 @@ account); the decision layer is fully unit-pinned.
 
 Parity: "Suggestions (birthday/premium/promo)" MISSING → PRESENT.
 Remaining MISSING: PiP only (blocked on pure-Go video decode, P3).
+
+## 2026-09-13 — slice 172: favorite-reaction hardening (fetch-once + custom favorites)
+
+- Context: a parallel session had already pushed slices 158-171 (swipe
+  quick actions landed THEIR slice-158 as swipe, corner reaction as 159,
+  plus 160-171: Unity badge, deep-link permalinks, local premium,
+  sponsored messages, story completion, account badges, jumplist,
+  similar channels, multi-window, app-icon selector, suggestions, and
+  withAPI COMPLETE — zero lock-across-RPC violations). A locally built
+  duplicate corner-reaction slice was discarded via hard reset to
+  remote (f17cb08a precedent); this session's work builds on fe3c6892.
+- Bug found in slice 159 (real, freeze-class): loadFavoriteReaction is
+  called from the ROW LAYOUT PATH (chat.go, every rendered row, every
+  frame) and the engine/core favorite read had NO caching — whenever the
+  favorite was unset (server has no reactions_default, or a fetch error)
+  every frame spawned a goroutine + a full help.getConfig RPC. RPC storm.
+- Ratings (§1.14): slice-159 cornerreaction.go 8/10 keep+extend (solid
+  gate/toggle design + tests; fix the churn + custom gap in place);
+  engine GetDefaultReaction 4/10 at fault → now session-cached (9/10);
+  core GetDefaultReaction 5/10 → per-connection config cache + custom
+  decode (8/10); custemoji glyph machinery 9/10 reused as-is.
+- Landed: (a) engine favorite-reaction session cache (success incl.
+  empty caches — the 👍 fallback sticks without re-RPC; errors stay
+  uncached so transient failures recover; SetDefaultReaction writes
+  through); (b) core per-connection help.getConfig cache feeding
+  GetDefaultReaction + optimistic SetDefaultReaction mirror (tdesktop
+  applyFavorite); (c) GUI attempted-once guard (one fetch goroutine per
+  account per session); (d) custom-emoji favorites end-to-end: core
+  decode (reactions_default custom → "custom_<docID>"), ownHasReaction
+  + toggleOwnReactionEmojis match custom reactions by document id and
+  carry them through the full own-list send (previously custom own
+  reactions were dropped to empty-string keys), the pill renders the
+  custom emoji's static thumb (customReactionGlyph — same machinery as
+  the reaction strip), and SetDefaultReaction accepts custom keys.
+- Tests-first: cores reactionClassForKey + decodeDefaultReactionKey
+  truth tables; engine session-cache semantics (hit-once, custom
+  passthrough, empty-caches, error-not-cached, write-through); gui
+  customKeyDocID + custom ownHasReaction + custom toggle list cases.
+- Gate: gofmt/vet/test green (goolm); local Xvfb GUI smoke boots with a
+  live window. Verify CI dispatched after push.
+
+Parity: Chat settings PARTIAL (favorite reaction now fetch-once +
+custom-capable; swipe quick action + expandable reaction strip remain).

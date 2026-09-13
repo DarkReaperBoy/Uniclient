@@ -2915,7 +2915,26 @@ func (e *Engine) GetDefaultReaction(accountID string) (string, error) {
 	if !ok {
 		return "", nil // platform without server-side favorite reactions
 	}
-	return g.GetDefaultReaction()
+	// Session cache (slice 172): the pill reads this in the layout path,
+	// so an uncached "" (server has no default) must not re-RPC per frame.
+	// Errors stay uncached so transient failures recover on the next read.
+	e.favReactMu.Lock()
+	if e.favReact == nil {
+		e.favReact = map[string]string{}
+	}
+	cached, hit := e.favReact[accountID]
+	e.favReactMu.Unlock()
+	if hit {
+		return cached, nil
+	}
+	emoji, err := g.GetDefaultReaction()
+	if err != nil {
+		return "", err
+	}
+	e.favReactMu.Lock()
+	e.favReact[accountID] = emoji
+	e.favReactMu.Unlock()
+	return emoji, nil
 }
 
 func (e *Engine) SetDefaultReaction(accountID, emoji string) error {
@@ -2930,7 +2949,18 @@ func (e *Engine) SetDefaultReaction(accountID, emoji string) error {
 	if !ok {
 		return fmt.Errorf("platform does not support setting default reaction")
 	}
-	return setter.SetDefaultReaction(emoji)
+	if err := setter.SetDefaultReaction(emoji); err != nil {
+		return err
+	}
+	// Write-through (slice 172): the pill must read the new favorite
+	// without a re-fetch.
+	e.favReactMu.Lock()
+	if e.favReact == nil {
+		e.favReact = map[string]string{}
+	}
+	e.favReact[accountID] = emoji
+	e.favReactMu.Unlock()
+	return nil
 }
 
 type MessageReporter interface {

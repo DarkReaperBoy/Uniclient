@@ -191,6 +191,13 @@ type TelegramCore struct {
 	timezoneOffsets   map[string]int
 	timezoneOffsetsMu sync.RWMutex
 
+	// Server-config cache (help.getConfig, slice 172): the last seen
+	// tg.Config feeds the favorite-reaction read (reactions_default) so
+	// GetDefaultReaction is one RPC per connection and SetDefaultReaction
+	// mirrors its result optimistically (tdesktop applyFavorite).
+	cfgMu     sync.RWMutex
+	cachedCfg *tg.Config
+
 	// Video codec factories — set via SetVideoEncoderFactory/SetVideoDecoderFactory.
 	// Keeps telegram.go pure Go: the implementation (e.g. vpx package) is injected by bridge/tests.
 	newVideoEncoder func(width, height, bitrate int) (VideoEncoder, error)
@@ -24325,15 +24332,52 @@ func (t *TelegramCore) GetDefaultHistoryTTL() (int, error) {
 	return result.Period, nil
 }
 
-// SetDefaultReaction sets the default emoji reaction for new messages
-// (the account's "favorite" reaction — tdesktop Reactions::setFavorite).
+// reactionClassForKey converts the GUI reaction key ("👍" or
+// "custom_<docID>") into the wire ReactionClass (slice 172; shared by
+// SetDefaultReaction). Malformed custom keys fall back to plain-emoji
+// semantics.
+func reactionClassForKey(key string) tg.ReactionClass {
+	if strings.HasPrefix(key, "custom_") {
+		if docID, err := strconv.ParseInt(key[7:], 10, 64); err == nil {
+			return &tg.ReactionCustomEmoji{DocumentID: docID}
+		}
+	}
+	return &tg.ReactionEmoji{Emoticon: key}
+}
+
+// decodeDefaultReactionKey extracts the GUI favorite-reaction key from
+// the server config's reactions_default (tg.Config.ReactionsDefault):
+// an emoji, a custom emoji as "custom_<docID>", or "" when the server
+// did not send one (tdesktop favoriteId semantics).
+func decodeDefaultReactionKey(r tg.ReactionClass) string {
+	switch v := r.(type) {
+	case *tg.ReactionEmoji:
+		return v.Emoticon
+	case *tg.ReactionCustomEmoji:
+		return "custom_" + strconv.FormatInt(v.DocumentID, 10)
+	}
+	return ""
+}
+
+// SetDefaultReaction sets the quick (favorite) reaction — messages.
+// setDefaultReaction, tdesktop Reactions::setFavorite. "custom_<docID>"
+// keys set a custom-emoji favorite; the cached server config mirrors the
+// new value optimistically (applyFavorite semantics).
 func (t *TelegramCore) SetDefaultReaction(emoji string) error {
 	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
 	}
-	_, err = api.MessagesSetDefaultReaction(ctx, &tg.ReactionEmoji{Emoticon: emoji})
+	reaction := reactionClassForKey(emoji)
+	_, err = api.MessagesSetDefaultReaction(ctx, reaction)
+	if err == nil {
+		t.cfgMu.Lock()
+		if t.cachedCfg != nil {
+			t.cachedCfg.ReactionsDefault = reaction
+		}
+		t.cfgMu.Unlock()
+	}
 	return err
 }
 
@@ -24341,19 +24385,31 @@ func (t *TelegramCore) SetDefaultReaction(emoji string) error {
 // help.getConfig reactions_default (tdesktop favoriteId; fallback 👍 is the
 // caller's). Returns "" when the config omits it.
 func (t *TelegramCore) GetDefaultReaction() (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
-	api, ctx, err := t.withAPI()
-	if err != nil {
-		return "", err
-	}
-	result, err := api.HelpGetConfig(ctx)
-	if err != nil {
-		return "", fmt.Errorf("get config: %w", err)
-	}
-	if reaction, ok := result.GetReactionsDefault(); ok {
-		if emoji, ok := reaction.(*tg.ReactionEmoji); ok {
-			return emoji.Emoticon, nil
+	// One help.getConfig per connection (slice 172): the config feeds the
+	// favorite-reaction read and SetDefaultReaction mirrors writes into
+	// it — hover-time reads must never re-RPC.
+	t.cfgMu.RLock()
+	cfg := t.cachedCfg
+	t.cfgMu.RUnlock()
+	if cfg == nil {
+		// withAPI rule: never hold t.mu across the RPC.
+		api, ctx, err := t.withAPI()
+		if err != nil {
+			return "", err
 		}
+		result, err := api.HelpGetConfig(ctx)
+		if err != nil {
+			return "", fmt.Errorf("get config: %w", err)
+		}
+		t.cfgMu.Lock()
+		t.cachedCfg = result
+		t.cfgMu.Unlock()
+		cfg = result
+	}
+	if reaction, ok := cfg.GetReactionsDefault(); ok {
+		// Custom-emoji favorites decode to the "custom_<docID>" wire key
+		// (tdesktop reactionDefaultCustom); plain emojis pass through.
+		return decodeDefaultReactionKey(reaction), nil
 	}
 	return "", nil
 }

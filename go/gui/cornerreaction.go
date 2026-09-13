@@ -24,6 +24,8 @@ package gui
 // reaction buttons in the corner).
 
 import (
+	"strconv"
+	"strings"
 	"sync"
 
 	"gioui.org/layout"
@@ -59,11 +61,36 @@ func cornerReactGate(cornerOn, selOn bool, m engine.CachedMessage) bool {
 	return true
 }
 
+// customKeyDocID parses a "custom_<docID>" favorite key (custom-emoji
+// favorites arrive from the server config's reactions_default custom
+// variant — tdesktop reactionDefaultCustom). Pure — locked by tests.
+func customKeyDocID(key string) (int64, bool) {
+	if !strings.HasPrefix(key, "custom_") {
+		return 0, false
+	}
+	docID, err := strconv.ParseInt(key[7:], 10, 64)
+	if err != nil || docID <= 0 {
+		return 0, false
+	}
+	return docID, true
+}
+
 // ownHasReaction reports whether the own reaction list already contains
-// the emoji. Pure — locked by tests.
+// the favorite key — an emoji or a custom reaction matched by document
+// id. Pure — locked by tests.
 func ownHasReaction(reactions []cores.Reaction, emoji string) bool {
+	favDoc, favCustom := customKeyDocID(emoji)
 	for _, r := range reactions {
-		if r.ByMe && r.Emoji == emoji {
+		if !r.ByMe {
+			continue
+		}
+		if favCustom {
+			if r.Emoji == "" && r.DocumentID == favDoc {
+				return true
+			}
+			continue
+		}
+		if r.Emoji == emoji {
 			return true
 		}
 	}
@@ -78,13 +105,23 @@ func toggleOwnReactionEmojis(reactions []cores.Reaction, fav string) []string {
 	own := make([]string, 0, len(reactions)+1)
 	hasFav := false
 	for _, r := range reactions {
-		if r.ByMe {
-			if r.Emoji == fav {
-				hasFav = true
-				continue
-			}
-			own = append(own, r.Emoji)
+		if !r.ByMe {
+			continue
 		}
+		// Custom own reactions ride as "custom_<docID>" wire keys — the
+		// plain Emoji string is empty for them (slice 172).
+		key := r.Emoji
+		if key == "" && r.DocumentID != 0 {
+			key = customReactionKey(r.DocumentID)
+		}
+		if key == "" {
+			continue
+		}
+		if key == fav {
+			hasFav = true
+			continue
+		}
+		own = append(own, key)
 	}
 	if !hasFav {
 		own = append(own, fav)
@@ -96,7 +133,8 @@ func toggleOwnReactionEmojis(reactions []cores.Reaction, fav string) []string {
 
 var (
 	favMu        sync.Mutex
-	favReactions = map[string]string{} // accountID → favorite emoji
+	favReactions = map[string]string{} // accountID → favorite reaction key
+	favAttempted = map[string]bool{}   // accountID → fetch attempted this session → favorite emoji
 )
 
 // setFavoriteReaction records the account's favorite emoji.
@@ -114,9 +152,23 @@ func favoriteReactionFor(accountID string) string {
 }
 
 // loadFavoriteReaction fetches the account's server-side default reaction
-// (help.getConfig reactions_default) into the cache. Async.
+// (help.getConfig reactions_default) into the cache. Async. Called from
+// the row layout path, so each account attempts at most ONE fetch per
+// session — a server-side empty favorite keeps the 👍 fallback without
+// re-RPCing on every frame (slice 172; the engine session cache absorbs
+// per-frame reads, this guard absorbs the per-frame goroutine spawn).
 func (a *App) loadFavoriteReaction(accountID string) {
-	if accountID == "" || favoriteReactionFor(accountID) != "" {
+	if accountID == "" {
+		return
+	}
+	favMu.Lock()
+	_, attempted := favAttempted[accountID]
+	if !attempted {
+		favAttempted[accountID] = true
+	}
+	fav := favReactions[accountID]
+	favMu.Unlock()
+	if fav != "" || attempted {
 		return
 	}
 	go func() {
@@ -167,6 +219,7 @@ func (a *App) layoutCornerReaction(gtx layout.Context, f frame, m *engine.Cached
 	btn := a.msgReactBtn(m.AccountID + "/" + m.ChatID + "/" + m.MsgID)
 	fav := favoriteReactionOrDefault(favoriteReactionFor(m.AccountID))
 	own := ownHasReaction(m.Reactions, fav)
+	favDoc, favCustom := customKeyDocID(fav)
 	if btn.Clicked(gtx) {
 		emojis := toggleOwnReactionEmojis(m.Reactions, fav)
 		acct, chat, msg := m.AccountID, m.ChatID, m.MsgID
@@ -183,6 +236,12 @@ func (a *App) layoutCornerReaction(gtx layout.Context, f frame, m *engine.Cached
 		bl.CornerRadius = 10
 		return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				if favCustom {
+					// Custom-emoji favorite (set on another client): the
+					// pill renders the custom emoji's static thumb — same
+					// glyph machinery as the reaction strip (slice 172).
+					return a.customReactionGlyph(gtx, m.AccountID, favDoc)
+				}
 				lbl := a.ui.Label(unit.Sp(14), fav)
 				if own {
 					// Already reacted with the favorite: highlight it.

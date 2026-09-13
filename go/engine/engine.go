@@ -88,6 +88,13 @@ type Engine struct {
 	// messages.getStickerSet(inputStickerSetDice) results.
 	dicePacks map[string]*dicePackCache
 
+	// Favorite-reaction session cache (slice 172): per-account
+	// help.getConfig result ("" = server has none). The corner reaction
+	// pill reads it in the layout path — one core RPC per account per
+	// session, write-through on SetDefaultReaction.
+	favReactMu sync.Mutex
+	favReact   map[string]string
+
 	// Sponsored messages (engine/sponsored.go): per account+chat 5-minute
 	// cache of channels.getSponsoredMessages results, with one-shot
 	// view-reporting per window.
