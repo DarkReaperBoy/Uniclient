@@ -3,6 +3,7 @@ package gui
 import (
 	"image"
 	"strconv"
+	"time"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -117,7 +118,118 @@ func customReactionKey(docID int64) string {
 // the fetched static thumbnail (rounded, pill-sized) or the neutral
 // placeholder while it loads — reserving the box so pills don't jump once
 // the async decode lands.
+// Reaction-glyph render paths (slice 183): animated custom-emoji
+// reactions resolve through the shared emojiArts cache — lottie (TGS)
+// documents animate frame-by-frame exactly like they do in message
+// text (drawEmojiArt re-arms the frame clock); raster artwork draws
+// aspect-fit; anything unresolved falls back to the static-thumb path.
+const (
+	reactionPathAnim   = "anim"
+	reactionPathRaster = "raster"
+	reactionPathThumb  = "thumb"
+)
+
+// reactionGlyphPath decides the render path for one artwork entry.
+// Pure — unit-tested.
+func reactionGlyphPath(art *emojiArt) string {
+	if art == nil || art.failed {
+		return reactionPathThumb
+	}
+	switch art.kind {
+	case emojiArtLottie:
+		if art.anim != nil {
+			return reactionPathAnim
+		}
+		return reactionPathThumb
+	case emojiArtRaster:
+		// drawEmojiArt declines degenerate boxes itself (nil/empty
+		// image) — the glyph caller then falls back to the static
+		// thumb, so the path decision stays kind-based.
+		return reactionPathRaster
+	}
+	return reactionPathThumb
+}
+
+// reactionAnimSide: the animated glyph box (125% of the old static
+// thumb size, +2dp floor). Pure — unit-tested.
+func reactionAnimSide(thumbDp int) int {
+	if thumbDp <= 0 {
+		return 20
+	}
+	side := thumbDp * 125 / 100
+	if side < thumbDp+2 {
+		side = thumbDp + 2
+	}
+	return side
+}
+
+// ensureReactionEmojiArt fetches one custom-emoji document's artwork
+// through the shared emojiArts cache (once per doc; guards per
+// account+doc). Mirrors ensureEmojiArt's body for the reaction path.
+func (a *App) ensureReactionEmojiArt(accountID string, docID int64) {
+	if accountID == "" || docID == 0 {
+		return
+	}
+	e := emojiArts.get(docID)
+	if e.kind != emojiArtUnknown || e.failed || e.reading {
+		return
+	}
+	if a.emojiArtFetching == nil {
+		a.emojiArtFetching = make(map[string]bool)
+	}
+	key := accountID + "|react|" + strconv.FormatInt(docID, 10)
+	if a.emojiArtFetching[key] {
+		return
+	}
+	a.emojiArtFetching[key] = true
+	go func() {
+		files, _ := a.eng.GetCustomEmojiFiles(accountID, []int64{docID})
+		var f cores.CustomEmojiFile
+		if len(files) > 0 {
+			f = files[0]
+		}
+		e := emojiArts.get(docID)
+		delete(a.emojiArtFetching, key)
+		if f.DocumentID == 0 || len(f.FileData) == 0 {
+			e.failed = true
+			a.invalidate()
+			return
+		}
+		switch classifyEmojiArt(f.MimeType) {
+		case emojiArtLottie:
+			anim, parsed := parseTgsBytes(f.FileData)
+			if !parsed {
+				e.failed = true
+				break
+			}
+			e.anim, e.kind, e.start = anim, emojiArtLottie, time.Now()
+		case emojiArtRaster:
+			img, _, derr := decodeGUIImage(f.FileData)
+			if derr != nil {
+				e.failed = true
+				break
+			}
+			e.img, e.kind = imgToRGBA(img), emojiArtRaster
+		default:
+			e.kind = emojiArtUnsupported
+		}
+		a.invalidate()
+	}()
+}
+
 func (a *App) customReactionGlyph(gtx layout.Context, accountID string, docID int64) layout.Dimensions {
+	a.ensureReactionEmojiArt(accountID, docID)
+	switch reactionGlyphPath(emojiArts.get(docID)) {
+	case reactionPathAnim, reactionPathRaster:
+		side := gtx.Dp(unit.Dp(reactionAnimSide(16)))
+		if drawEmojiArt(gtx, emojiArts.get(docID), side) {
+			return layout.Dimensions{Size: image.Pt(side, side)}
+		}
+		// drawEmojiArt declined (degenerate box): fall through to the
+		// static-thumb path.
+	}
+	// Static-thumb fallback (unresolved yet, or raster/lottie that
+	// failed to decode) — the slice-53 behavior.
 	b64 := a.customThumbFor(accountID, docID)
 	if b64 == "" {
 		return a.ui.Label(unit.Sp(13), customEmojiPlaceholder).Layout(gtx)
