@@ -374,6 +374,9 @@ type App struct {
 	delDlg    *delDlgState
 	reportDlg *reportDlgState
 
+	// clear-history confirm (slice 190, chat-row menu)
+	clearDlg *clearDlgState
+
 	// drafts + scheduled send (AyuGram parity slice 20)
 	schedDlg *schedDlgState
 
@@ -1304,6 +1307,7 @@ func (a *App) openChat(k chatKey, title string) {
 	inSearchFromPanel = false
 	a.delDlg = nil // slice 19: close delete/report dialogs
 	a.reportDlg = nil
+	a.clearDlg = nil  // slice 190: close clear-history confirm
 	a.schedDlg = nil  // slice 20: close the schedule dialog
 	a.groupCall = nil // slice 70: live-call bar state for the new chat
 	a.callPollFor = nil
@@ -2147,6 +2151,7 @@ func (a *App) snapshot() frame {
 		inSearchFromName: a.inSearchFromName,
 		delDlg:           a.delDlg,
 		reportDlg:        a.reportDlg,
+		clearDlg:         a.clearDlg,
 		schedDlg:         a.schedDlg,
 		pollDlg:          a.pollDlg,
 		reactors:         a.reactors,
@@ -2446,6 +2451,9 @@ type frame struct {
 	// delete + report dialogs (slice 19)
 	delDlg    *delDlgState
 	reportDlg *reportDlgState
+
+	// clear-history confirm (slice 190)
+	clearDlg *clearDlgState
 
 	// scheduled send (slice 20)
 	schedDlg *schedDlgState

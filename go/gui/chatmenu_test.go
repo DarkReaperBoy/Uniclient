@@ -26,7 +26,7 @@ func TestChatMenuItemsNonDMNoBlock(t *testing.T) {
 
 func TestChatMenuItemsDefault(t *testing.T) {
 	items := chatMenuItems(chatForMenu(), false)
-	want := []string{"Mute for 1 hour", "Mute for 8 hours", "Mute forever", "Pin", "Mark as unread", "Archive", "Block user", "Delete chat"}
+	want := []string{"Mute for 1 hour", "Mute for 8 hours", "Mute forever", "Pin", "Mark as unread", "Archive", "Block user", "Clear history", "Delete chat"}
 	if len(items) != len(want) {
 		t.Fatalf("items len = %d, want %d: %v", len(items), len(want), items)
 	}
@@ -44,7 +44,7 @@ func TestChatMenuItemsInverted(t *testing.T) {
 	c.UnreadCount = 4
 	c.IsArchived = true
 	items := chatMenuItems(c, false)
-	want := []string{"Unmute", "Unpin", "Mark as read", "Unarchive", "Block user", "Delete chat"}
+	want := []string{"Unmute", "Unpin", "Mark as read", "Unarchive", "Block user", "Clear history", "Delete chat"}
 	if len(items) != len(want) {
 		t.Fatalf("items len = %d, want %d", len(items), len(want))
 	}
@@ -57,6 +57,34 @@ func TestChatMenuItemsInverted(t *testing.T) {
 
 // Add-to-folder picker (slice 27): the frame's server folders are scoped to
 // one account; the menu only offers folders loaded for the chat's account.
+
+// Clear history (slice 190, tdesktop dialog-row menu): offered for every
+// chat type, id clearhist, positioned right before Delete chat.
+func TestChatMenuItemsClearHistory(t *testing.T) {
+	for _, typ := range []int{engine.ChatTypeDMVal, engine.ChatTypeGroupVal, engine.ChatTypeChanVal} {
+		c := chatForMenu()
+		c.Type = typ
+		items := chatMenuItems(c, false)
+		idx, del := -1, -1
+		for i, it := range items {
+			if it.id == "clearhist" {
+				idx = i
+				if it.label != "Clear history" {
+					t.Errorf("type %d: label = %q, want Clear history", typ, it.label)
+				}
+			}
+			if it.id == "delete" {
+				del = i
+			}
+		}
+		if idx == -1 {
+			t.Fatalf("type %d: menu lacks Clear history", typ)
+		}
+		if del == -1 || idx != del-1 {
+			t.Errorf("type %d: Clear history at %d, Delete chat at %d — want adjacent, clear first", typ, idx, del)
+		}
+	}
+}
 
 func TestFoldersForAccountScope(t *testing.T) {
 	fls := []engine.FolderInfo{{ID: "2", Name: "Work"}}

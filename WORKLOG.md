@@ -5104,3 +5104,39 @@ remain the honest scope cut).
   + windows builds ok (disk forced one cache-clean rebuild mid-gate).
 
 Parity: unchanged counts (a PARTIAL row's topic half filled).
+
+## 2026-09-13 — slice 190: chat-row Clear history (tdesktop dialog-row menu)
+
+- Parity row "Chat row context menu" (P0) — the Clear-history half. Rating
+  (§1.14): the slice-8 menu + dispatch machinery is solid (8/10 — kept and
+  extended; the dialog follows the slice-19 delDlg pattern 1:1, no
+  duplication beyond the state struct).
+- gui/cleardlg.go (new): window-level confirm card — "Clear history?" +
+  "This can't be undone." + the "Also delete for everyone" revoke
+  checkbox gated by canRevokeClearHistory (DMs always — Telegram
+  deleteHistory revoke wipes both sides; groups/channels admins only),
+  Cancel/Clear buttons (Clear in error red, busy label swap), async
+  engine.ClearHistory, then open-view reload (refreshMessages — empty
+  fresh window clears the merge, so scrolled-up history vanishes too) +
+  refreshChats + toast. The dialog renders at app level (above all panes,
+  below drawer/toast) because the trigger is the sidebar menu — the chat
+  need not be open.
+- gui/chatmenu.go: "Clear history" row between Block user and Delete chat
+  for every chat type; dispatch opens the confirm (never an instant wipe).
+- Wiring: App/frame clearDlg state + snapshot + openChat reset +
+  widgets (cancel/check/clear).
+- Local env rebuilt for this session: devroot Go 1.27.1 + sysroot grown
+  with mesa EGL/GLES/DRI (libegl-mesa0, libgl1-mesa-dri, libgles2) +
+  xdotool + libxtst — the Xvfb GUI smoke now runs fully locally
+  (software llvmpipe rendering, ffmpeg x11grab screenshots).
+- Tests first: gui/chatmenu_test.go (Clear history present for
+  DM/group/channel, adjacent-before-Delete position lock; both default
+  tables extended) + gui/cleardlg_test.go (title/hint, revoke gating
+  matrix). Green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok · linux build ok · Xvfb GUI smoke (12s boot, #17212B
+  dominant, 815 colors; click-through welcome→picker verified: 1601
+  colors, Material-indigo card grid) · js/wasm + windows builds ok
+  (wasm needed -gcflags=all=-c=1 on the 3GB box — OOM otherwise).
+
+Parity: PRESENT 167 · PARTIAL 24 · MISSING 1 · CORE-ONLY 7.

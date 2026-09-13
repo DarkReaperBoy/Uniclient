@@ -75,7 +75,9 @@ func chatMenuItems(c engine.ChatInfo, separateSupported bool) []chatMenuAction {
 	if c.Type == engine.ChatTypeDMVal {
 		items = append(items, chatMenuAction{"Block user", "block"})
 	}
-	items = append(items, chatMenuAction{"Delete chat", "delete"})
+	items = append(items,
+		chatMenuAction{"Clear history", "clearhist"},
+		chatMenuAction{"Delete chat", "delete"})
 	return items
 }
 
@@ -254,6 +256,10 @@ func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 						a.openSeparateWindow(chatKey{chat.AccountID, chat.ChatID}, chat.Title)
 					} else if action == "addfolder" {
 						a.openChatFolderPick(chat)
+					} else if action == "clearhist" {
+						// Slice 190: confirm box, never instant.
+						a.closeChatMenu()
+						a.openClearDialog(chat)
 					} else {
 						a.closeChatMenu()
 						a.dispatchChatAction(chat, action)

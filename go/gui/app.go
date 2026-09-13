@@ -111,6 +111,11 @@ func (a *App) Root(gtx layout.Context) {
 	if f.rateDlg != nil {
 		a.layoutRateCallDialog(gtx, f)
 	}
+	// Clear-history confirm (slice 190): window-level modal — the trigger
+	// is the sidebar chat-row menu, so it must render with no chat open.
+	if f.clearDlg != nil {
+		a.layoutClearDialog(gtx, f)
+	}
 	if f.drawerOpen {
 		a.layoutDrawer(gtx, f)
 	}

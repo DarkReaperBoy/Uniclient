@@ -129,6 +129,11 @@ type widgets struct {
 	delDlgChk    widget.Bool
 	delDlgDelete widget.Clickable
 
+	// cleardlg.go
+	clearDlgCancel widget.Clickable
+	clearDlgChk    widget.Bool
+	clearDlgClear  widget.Clickable
+
 	// drafts.go
 	composerSchedBtn   widget.Clickable
 	schedDateEd        widget.Editor
