@@ -2382,6 +2382,28 @@ type StarGiftsFetcher interface {
 	GetStarGifts() (*cores.StarGiftsResult, error)
 }
 
+// UnlockPaidMedia pays a message's paid-media price with Telegram Stars
+// (slice 181): payments.getPaymentForm on the message invoice →
+// payments.sendStarsForm. On success the server pushes the updated
+// message; the GUI refreshes the chat.
+func (e *Engine) UnlockPaidMedia(accountID, chatID, msgID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type unlocker interface {
+		UnlockPaidMedia(chatID, msgID string) error
+	}
+	u, ok := acc.Core.(unlocker)
+	if !ok {
+		return fmt.Errorf("platform does not support paid media")
+	}
+	return u.UnlockPaidMedia(chatID, msgID)
+}
+
 func (e *Engine) GetStarGifts(accountID string) (*cores.StarGiftsResult, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

@@ -13364,11 +13364,49 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 			// invoice title (data_media_types.cpp:2185-2193). Classify it as an invoice
 			// attachment (→ media_type 12) and carry the paid-media flag + the
 			// first-item video/photo selector (IsFirstVideo, data_media_types.cpp:592-599).
+			// Slice 181: the star price + preview geometry/thumb ride along
+			// (paid_stars / paid_thumb_b64 / paid_w / paid_h / paid_video_duration);
+			// unlocked extended media splices the REAL media conversion in
+			// (paid_unlocked=true) so the photo/video bubble renders normally.
 			if m.Extra == nil {
 				m.Extra = make(map[string]interface{})
 			}
 			m.Extra["invoice_is_paid_media"] = true
 			m.Extra["invoice_first_video"] = paidMediaFirstVideo(md.ExtendedMedia)
+			m.Extra["paid_stars"] = md.StarsAmount
+			if em, ok := md.ExtendedMedia[0].(*tg.MessageExtendedMedia); ok && em.Media != nil {
+				if _, nested := em.Media.(*tg.MessageMediaPaidMedia); !nested {
+					inner := *msg
+					inner.Media = em.Media
+					if innerMsg := t.convertMessage(&inner); innerMsg != nil {
+						m.Attachments = innerMsg.Attachments
+						for k, v := range innerMsg.Extra {
+							m.Extra[k] = v
+						}
+						if m.Text == "" {
+							m.Text = innerMsg.Text
+						}
+					}
+					m.Extra["paid_unlocked"] = true
+					break
+				}
+			}
+			if pv, ok := md.ExtendedMedia[0].(*tg.MessageExtendedMediaPreview); ok {
+				if pv.W > 0 {
+					m.Extra["paid_w"] = pv.W
+				}
+				if pv.H > 0 {
+					m.Extra["paid_h"] = pv.H
+				}
+				if pv.VideoDuration > 0 {
+					m.Extra["paid_video_duration"] = pv.VideoDuration
+				}
+				if st, ok := pv.GetThumb(); ok {
+					if b64 := extractStrippedThumbB64([]tg.PhotoSizeClass{st}); b64 != "" {
+						m.Extra["paid_thumb_b64"] = b64
+					}
+				}
+			}
 			m.Attachments = []FileRef{{MimeType: "application/x-invoice", Name: "paid_media"}}
 		case *tg.MessageMediaGame:
 			if m.Extra == nil {
@@ -25386,6 +25424,60 @@ func (t *TelegramCore) GetStarsPaidPostAmountMax() (int, error) {
 		}
 	}
 	return 10000, nil
+}
+
+// UnlockPaidMedia pays a message's paid-media price with Telegram Stars
+// (the slice-181 star wall's Unlock action): payments.getPaymentForm on
+// the message invoice → payments.sendStarsForm with the fetched form ID.
+// On success the server pushes the updated message (the extended media
+// becomes real media); the GUI refreshes the chat.
+func (t *TelegramCore) UnlockPaidMedia(chatID, msgID string) error {
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return err
+	}
+	id, err := strconv.Atoi(strings.TrimSpace(msgID))
+	if err != nil || id <= 0 {
+		return fmt.Errorf("%w: bad message id %q", ErrInvalidInput, msgID)
+	}
+	invoice := &tg.InputInvoiceMessage{Peer: inputPeer, MsgID: id}
+	rawForm, err := api.PaymentsGetPaymentForm(ctx, &tg.PaymentsGetPaymentFormRequest{
+		Invoice: invoice,
+	})
+	if err != nil {
+		return fmt.Errorf("get payment form: %w", err)
+	}
+	form, ok := rawForm.(*tg.PaymentsPaymentForm)
+	if !ok {
+		return fmt.Errorf("unexpected payment form type: %T", rawForm)
+	}
+	rawRes, err := api.PaymentsSendStarsForm(ctx, &tg.PaymentsSendStarsFormRequest{
+		FormID:  form.FormID,
+		Invoice: invoice,
+	})
+	if err != nil {
+		return fmt.Errorf("pay: %w", err)
+	}
+	switch res := rawRes.(type) {
+	case *tg.PaymentsPaymentResult:
+		return nil
+	case *tg.PaymentsPaymentVerificationNeeded:
+		if res.URL != "" {
+			return fmt.Errorf("verification needed: %s", res.URL)
+		}
+		return fmt.Errorf("verification needed")
+	default:
+		return fmt.Errorf("unexpected payment result type: %T", rawRes)
+	}
 }
 
 func (t *TelegramCore) GetStarsBalance() (int64, error) {

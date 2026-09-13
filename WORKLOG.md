@@ -4794,3 +4794,38 @@ Parity: PRESENT 165 (82%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 9.
   ./... 8/8 ok.
 
 Parity: PRESENT 166 (82%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 8.
+
+## 2026-09-13 — slice 181: paid-media star wall + unlock
+
+- Parity row "Paid messages / paid posts" CORE-ONLY → PRESENT. Rating
+  (§1.14): the old conversion classified paid media as a plain invoice
+  (5/10) — replaced per §1.12 with the structured conversion + real
+  unlock flow; GUI wall on the gift-card pattern.
+- cores/telegram.go: MessageMediaPaidMedia conversion enriched —
+  paid_stars (StarsAmount), preview geometry + stripped thumb +
+  video duration (MessageExtendedMediaPreview), first-video flag;
+  UNLOCKED extended media (MessageExtendedMedia w/ real inner media)
+  splices the inner conversion in (photo/document attachment + extras,
+  recursion-guarded) and marks paid_unlocked. New UnlockPaidMedia RPC:
+  payments.getPaymentForm(inputInvoiceMessage — the layer-228
+  constructor that explicitly covers paid media) → payments.sendStarsForm
+  (form_id + invoice) → paymentResult/verificationNeeded handling,
+  withAPI-compliant.
+- engine: UnlockPaidMedia pass-through.
+- gui/paidmedia.go (new): parsePaidMedia (pure), the star wall inside
+  the bubble — darkened low-res preview (uniform scrim over the
+  stripped thumb; the preview is already "extremely low resolution"),
+  accent star glyph + "N Stars" + Photo/Video label overlay, "Unlock
+  for N Stars" accent button → confirm card (real stars leave the
+  balance — always ask) → engine.UnlockPaidMedia → toast + chat
+  refresh (the server's message update flips the wall to the real
+  media). Plain bot invoices and unlocked media never show the wall
+  (§1.10).
+- Tests first: cores/telegram_paidmedia_test.go (2 — locked Extra
+  fidelity incl. flag-set preview fixture, unlocked photo splice +
+  cached file coords) + gui/paidmedia_test.go (2 — parse gating,
+  stars text). All green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok.
+
+Parity: PRESENT 167 (83%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 7.

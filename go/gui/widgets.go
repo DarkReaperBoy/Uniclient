@@ -53,6 +53,11 @@ type widgets struct {
 	// chatmenu.go
 	chatMenuBtns []widget.Clickable
 
+	// paidmedia.go
+	paidUnlockBtns map[string]*widget.Clickable
+	paidConfirmBtn widget.Clickable
+	paidCancelBtn  widget.Clickable
+
 	// callrate.go
 	rateStars     []widget.Clickable
 	rateSendBtn   widget.Clickable

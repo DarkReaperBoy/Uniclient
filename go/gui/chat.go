@@ -256,6 +256,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.sendAsDlg {
 		a.layoutSendAsDialog(gtx, f)
 	}
+	// Paid-media unlock confirm (slice 181).
+	if f.paidDlg != nil {
+		a.layoutPaidConfirm(gtx, f)
+	}
 	// Schedule dialog (slice 20).
 	if f.schedDlg != nil {
 		a.layoutScheduleDialog(gtx, f)

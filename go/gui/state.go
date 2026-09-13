@@ -449,6 +449,9 @@ type App struct {
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
 
+	// paid-media unlock confirm (slice 181)
+	paidDlg *paidConfirmState
+
 	// call rating dialog (slice 179): armed when an ended call lasted
 	// minRateCallDur; Send walks engine.SendCallRating.
 	rateDlg *rateCallState
@@ -2142,6 +2145,7 @@ func (a *App) snapshot() frame {
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
 		schedLoad:        a.schedLoad,
+		paidDlg:          a.paidDlg,
 		rateDlg:          a.rateDlg,
 		sendAs:           a.sendAs,
 		sendAsFor:        a.sendAsFor,
@@ -2459,6 +2463,9 @@ type frame struct {
 	schedPanel bool
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
+
+	// paid-media unlock confirm (slice 181)
+	paidDlg *paidConfirmState
 
 	// call rating dialog (slice 179)
 	rateDlg *rateCallState
