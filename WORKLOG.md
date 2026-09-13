@@ -5465,3 +5465,36 @@ Chat background row → PRESENT (gap 16 closed).
   ./... 8/8 ok.
 
 Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
+
+## 2026-09-14 — session wrap (slices 196–199 + 196.1)
+
+- Session resumed from the slice-195 state via AGENTS.md + WORKLOG;
+  environment rebuilt from devroot.env (go 1.27.1, module cache
+  intact). Local verification: gofmt/vet/tests green at session start,
+  all four verify-workflow dispatches green (full gate + windows/wasm
+  cross-builds + Xvfb GUI smoke for every slice).
+- Shipped:
+  - 196: comment-thread deep links (?comment=) route in-app into the
+    thread view with the comment jump (gap 13 closed; also fixed
+    classification breaking on ANY query string).
+  - 196.1: t.me/c/ permalink channel-id mapping bug (never matched the
+    app-wide -1e12-id convention — every private-channel permalink
+    failed lookup since slice 161).
+  - 197: Saved Messages sublists — the Lists pane (right sidebar),
+    saved_peer cache scoping (migrateV54), the official fwd-from
+    backfill, getSavedHistory cold-start feed; fixed slice-195's
+    comments bar never being wired (thread view had no back button).
+  - 198: emoji-pattern chat wallpapers (theme emoticon tiled at the
+    wallpaper pattern intensity — gap 16 closed).
+  - 199: Saved Messages reaction tags — premium Tags section + tag
+    scoped views (wired the dead saved-tag engine surface).
+- Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
+- Next session (top of the queue):
+  1. Windows native toast notifications — FULLY RESEARCHED in
+     research/windows_toast.md (UUIDs, vtable slots, activation flow,
+     AUMID options from primary sources). Implement pure-Go per the
+     taskbar_windows.go pattern; tests-first for the pure halves.
+  2. Remaining honest gaps are blocked/checkout/owner-decision scoped
+     (see research/ayugram_parity.md "Remaining gaps").
+- Housekeeping: disk pressure forced one go clean -cache mid-session
+  (rebuild re-verified); /tmp artifacts cleaned.
