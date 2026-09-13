@@ -58,6 +58,10 @@ type ChatInfo struct {
 	StarsToSend          int    `json:"stars_to_send,omitempty"`
 	TtlPeriod            int    `json:"ttl_period,omitempty"`
 	EmojiStatusID        string `json:"emoji_status_id,omitempty"`
+	// ThemeEmoticon is the chat's active server chat-theme emoticon
+	// (slice 188, tdesktop peerTheme): mirrored from the latest
+	// messageActionSetChatTheme service row; "" = no theme.
+	ThemeEmoticon        string `json:"theme_emoticon,omitempty"`
 	StoryCount           int    `json:"story_count,omitempty"`
 	HasUnreadStory       bool   `json:"has_unread_story,omitempty"`
 	IsForum              bool   `json:"is_forum,omitempty"`
@@ -128,7 +132,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
                         c.story_count, c.has_unread_story, c.is_forum,
                         c.write_restriction_type, c.write_restriction_text,
                         c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
-                        0, c.has_active_call
+                        0, c.has_active_call, c.theme_emoticon
                  FROM chats c
                  LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
                  ORDER BY c.is_archived ASC, c.is_pinned DESC, c.last_msg_time DESC
@@ -169,7 +173,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
                         c.story_count, c.has_unread_story, c.is_forum,
                         c.write_restriction_type, c.write_restriction_text,
                         c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
-                        0, c.has_active_call
+                        0, c.has_active_call, c.theme_emoticon
                  FROM chats c
                  LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
                  WHERE c.account_id = ? AND c.is_archived = ?
@@ -231,6 +235,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		var isPremiumInt int
 		var hasActiveCallInt int
 		var writeRestrictionText, usernameN sql.NullString
+		var themeEmoticon sql.NullString
 		if err := rows.Scan(
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 			&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
@@ -244,7 +249,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			&c.StoryCount, &hasUnreadStory, &isForumInt,
 			&c.WriteRestrictionType, &writeRestrictionText,
 			&notJoined, &joinRequestInt, &canPostInt, &isAdminInt, &isCreatorInt, &noForwardsInt,
-			&usernameN, &isPremiumInt, &hasActiveCallInt,
+			&usernameN, &isPremiumInt, &hasActiveCallInt, &themeEmoticon,
 		); err != nil {
 			return chats, err
 		}
@@ -274,6 +279,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		c.IsScam = isScam == 1
 		c.IsFake = isFake == 1
 		c.EmojiStatusID = emojiStatusID.String
+		c.ThemeEmoticon = themeEmoticon.String
 		c.HasUnreadStory = hasUnreadStory == 1
 		c.IsForum = isForumInt == 1
 		c.WriteRestrictionText = writeRestrictionText.String
@@ -486,6 +492,19 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 		accountID, chatID, chatType, title,
 		msg.ID, msgPreviewText(msg), msg.SenderName, msg.Timestamp.UnixMilli(), boolToInt(msg.IsOutgoing),
 		msgStatusFromCore(msg.Status), msgMediaType, msgThumbB64, now)
+
+	// Chat-theme mirror (slice 188): the creating message may itself be
+	// the SetChatTheme service row — the INSERT above runs before this
+	// in cacheMessage's call order, so seed the emoticon here too.
+	if msg.Extra != nil {
+		if emoticon, ok := msg.Extra["chat_theme_emoticon"]; ok {
+			if em, is := emoticon.(string); is {
+				e.db.Exec(
+					`UPDATE chats SET theme_emoticon = ? WHERE account_id = ? AND chat_id = ?`,
+					em, accountID, chatID)
+			}
+		}
+	}
 
 	// Try to get proper chat info from core in background.
 	go func() {
@@ -1546,7 +1565,7 @@ func (e *Engine) GetTopPeers(accountID string, limit int) ([]ChatInfo, error) {
                                 c.story_count, c.has_unread_story, c.is_forum,
                                 c.write_restriction_type, c.write_restriction_text,
                                 c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
-                                0, c.has_active_call
+                                0, c.has_active_call, c.theme_emoticon
                          FROM chats c
                          LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
                          WHERE c.account_id = ? AND c.chat_id = ?`, accountID, pid)

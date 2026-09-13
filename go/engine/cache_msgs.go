@@ -823,6 +823,19 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
 		nullStr(msg.ForwardFrom), nullStr(msg.ForwardFromID), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID), msg.PaidPostType, nullStr(reactionsJSON), msg.Views, msg.Forwards)
 
+	// Chat-theme mirror (slice 188): the latest SetChatTheme service row
+	// wins — flip chats.theme_emoticon so the GUI tints the chat (the
+	// key's PRESENCE matters: an empty emoticon is the honest reset).
+	if msg.Extra != nil {
+		if emoticon, ok := msg.Extra["chat_theme_emoticon"]; ok {
+			if em, is := emoticon.(string); is {
+				e.db.Exec(
+					`UPDATE chats SET theme_emoticon = ? WHERE account_id = ? AND chat_id = ?`,
+					em, accountID, chatID)
+			}
+		}
+	}
+
 	// Cache media references.
 	for i, att := range msg.Attachments {
 		e.cacheMediaRef(accountID, chatID, msg.ID, i, att)

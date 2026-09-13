@@ -5038,3 +5038,40 @@ Parity: unchanged counts (row already PRESENT — interaction added).
   colors) · js/wasm build ok · windows build ok.
 
 Parity: unchanged counts (a PARTIAL row's halves filled; no flips).
+
+## 2026-09-13 — slice 188: in-app chat-theme application (tint + gradient)
+
+- Parity row "Chat background" — the local-application half. Rating
+  (§1.14): the slice-65 picker + core theme fetch were sound but stored
+  wrong (see the bug below — 6/10, fixed in place); tdesktop's peerTheme
+  model (latest SetChatTheme service row owns the chat's look) mapped
+  cleanly onto the existing cache.
+- Latent bug fixed: loadChatThemes stored the list WITHOUT setting
+  chatThemesFor, so the picker dialog's gate
+  (f.chatThemesFor != account) discarded it every time — the chips never
+  rendered since slice 65. Now the cache is tagged per account and
+  shared by the picker and the tint resolver; failures surface the
+  honest "no themes" state instead of an infinite "Loading…" (§1.10).
+- Core: messageActionSetChatTheme service rows export
+  chat_theme_emoticon (empty = reset).
+- Engine: migrateV52 (chats.theme_emoticon), cacheMessage mirrors the
+  LATEST service row onto the chat (key presence = the reset),
+  ensureChatExists seeds it for brand-new chats, ChatInfo round-trips
+  it through every list scan.
+- gui/chatthemetint.go: activeChatTheme (frame snapshot, mode-matched
+  variant + opposite-mode fallback), outgoing bubble tint from
+  MessageColors[0] with luminance-contrast text, message-pane wallpaper
+  gradient (BgColors mixed 50/50 toward the app background, painted
+  first so rows sit on top); the picker applies optimistically; themed
+  chats preload the account theme list on open.
+- Tests first: engine/chattheme_test.go (mirror set/reset/round-trip,
+  non-string extras skipped, ensureChatExists seed) + gui/
+  chatthemetint_test.go (color-int conversion incl. ARGB, luma ordering,
+  resolver: dark/light variant match, fallback, no-theme/unloaded/
+  foreign-account stock palette, contrast text). All green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm ./...
+  8/8 ok · linux build + Xvfb smoke (25s+, #17212B dominant) · js/wasm
+  + windows builds ok.
+
+Parity: unchanged counts (row's local half filled; wallpaper patterns
+remain the honest scope cut).

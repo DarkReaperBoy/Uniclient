@@ -13716,6 +13716,16 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 		m.Extra["gift_kind"] = "ton"
 		m.Extra["gift_crypto_amount"] = act.CryptoAmount
 		m.Extra["gift_crypto_currency"] = act.CryptoCurrency
+	case *tg.MessageActionSetChatTheme:
+		// Chat-theme change (slice 188): the LATEST service row with this
+		// extra wins — the engine mirrors it onto chats.theme_emoticon so
+		// the GUI can tint the chat (tdesktop's peerTheme mechanism; the
+		// theme list itself comes from account.getChatThemes).
+		emoticon := ""
+		if th, ok := act.Theme.(*tg.ChatTheme); ok {
+			emoticon = th.Emoticon
+		}
+		m.Extra["chat_theme_emoticon"] = emoticon
 	}
 	return m
 }

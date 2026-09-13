@@ -1349,13 +1349,16 @@ func (a *App) openChat(k chatKey, title string) {
 	if next.Type == engine.ChatTypeDMVal && next.ChatID != "" {
 		go a.loadHdrPresence(k)
 	}
-	a.syncCallPoll()     // slice 70: start the live-call poll if this chat has one
-	a.syncViewsRefresh() // slice 187: channel-post views ticker
-	a.loadBotCmds(k)     // slice 76: fetch the chat's bot commands
-	a.loadSponsored(k)   // slice 163: fetch the chat's sponsored messages
-	a.loadSimilar(k)     // slice 167: fetch the channel's recommendations
-	a.loadHdrCaps(k)     // slice 101: header call-button capabilities
-	if next.IsForum {    // slice 118: forums open on the topic list
+	a.syncCallPoll()              // slice 70: start the live-call poll if this chat has one
+	a.syncViewsRefresh()          // slice 187: channel-post views ticker
+	if next.ThemeEmoticon != "" { // slice 188: resolve the chat's tint
+		a.ensureChatThemeList(next.AccountID)
+	}
+	a.loadBotCmds(k)   // slice 76: fetch the chat's bot commands
+	a.loadSponsored(k) // slice 163: fetch the chat's sponsored messages
+	a.loadSimilar(k)   // slice 167: fetch the channel's recommendations
+	a.loadHdrCaps(k)   // slice 101: header call-button capabilities
+	if next.IsForum {  // slice 118: forums open on the topic list
 		go a.loadForumTopics(k)
 	}
 	a.invalidate()

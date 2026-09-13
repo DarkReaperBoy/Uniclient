@@ -562,6 +562,12 @@ func dotLabel(d connDot) string {
 // Records per-message row bounds (pane coords) for right-click hit tests and
 // triggers scroll-up history pagination (AyuGram loadMessages).
 func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
+	// Chat-theme background (slice 188): the themed pane paints its soft
+	// wallpaper gradient FIRST so every row renders on top of it.
+	if chat != nil {
+		a.chatThemeBackground(gtx, *chat, f)
+	}
+
 	// Auto-scroll: AnchorEnd keeps us pinned unless the user scrolls up.
 	// While someone is typing we keep the view pinned & animating.
 	if a.stillTyping(*f.selected) || f.sending || dlActive(f.downloads) {
@@ -719,7 +725,7 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 	bubble := func(gtx layout.Context) layout.Dimensions {
 		bg := a.ui.p.BubbleIn
 		if out {
-			bg = a.ui.p.AccentDim
+			bg = a.chatOutgoingBubble(chatOf(f, *m), f) // slice 188: chat-theme tint
 		}
 		// Anti-recall (Ayu, slice 80): recalled bubbles fade to half
 		// opacity across bg, text and sender name.
@@ -796,7 +802,7 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						body.ContentText = text
 						bgCol := a.ui.p.BubbleIn
 						if out {
-							bgCol = a.ui.p.AccentDim
+							bgCol = a.chatOutgoingBubble(chatOf(f, *m), f) // slice 188
 						}
 						if deleted { // anti-recall fade (slice 80)
 							bgCol = deletedFade(bgCol, true)

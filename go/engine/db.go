@@ -164,6 +164,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV49,
 	migrateV50,
 	migrateV51,
+	migrateV52,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -249,6 +250,18 @@ func migrateV51(tx *sql.Tx) error {
 		}
 	}
 	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN forwards INTEGER NOT NULL DEFAULT 0`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateV52 adds chats.theme_emoticon (slice 188: the chat's active
+// server chat-theme emoticon, mirrored from the latest
+// messageActionSetChatTheme service row — "" = no theme).
+func migrateV52(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN theme_emoticon TEXT NOT NULL DEFAULT ''`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
 			return err
 		}

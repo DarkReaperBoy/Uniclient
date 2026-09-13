@@ -45,16 +45,23 @@ func (a *App) openChatThemeDialog(c engine.ChatInfo) {
 	a.invalidate()
 }
 
-// loadChatThemes fetches the account's chat themes (async).
+// loadChatThemes fetches the account's chat themes (async) and caches
+// them per account — the picker's chips AND the per-chat tint resolver
+// (slice 188) read this cache. A latent slice-65 bug hid here: the list
+// was stored without setting chatThemesFor, so the dialog's gate
+// (f.chatThemesFor != account) always discarded it and the chips never
+// rendered. Errors keep the previous cache untouched.
 func (a *App) loadChatThemes(accountID string) {
 	themes, err := a.eng.GetChatThemes(accountID)
 	if err != nil {
 		themes = nil
 	}
 	a.mu.Lock()
-	if a.themeDlg != nil && a.themeDlg.accountID == accountID {
-		a.chatThemes, a.chatThemesOn = themes, true
-	}
+	// Cache even the empty result of a failure — an offline account shows
+	// the honest "no themes" state, never an infinite "Loading…" (§1.10).
+	a.chatThemes = themes
+	a.chatThemesFor = accountID
+	a.chatThemesOn = true
 	a.mu.Unlock()
 	a.invalidate()
 }
@@ -68,6 +75,9 @@ func (a *App) closeChatThemeDialog() {
 }
 
 // applyChatTheme sets the chat's theme emoticon ("" resets, slice 65).
+// The local tint applies optimistically (slice 188) — the server's
+// SetChatTheme echo (a messageActionSetChatTheme service row) confirms
+// it in the cache moments later.
 func (a *App) applyChatTheme(accountID, chatID, emoticon, title string) {
 	go func() {
 		if err := a.eng.SetChatTheme(accountID, chatID, emoticon); err != nil {
@@ -79,6 +89,19 @@ func (a *App) applyChatTheme(accountID, chatID, emoticon, title string) {
 		} else {
 			a.setToast("Chat colors " + emoticon + " in " + title)
 		}
+		// Optimistic local mirror: tint now, the echo confirms later.
+		a.mu.Lock()
+		for i := range a.chats {
+			if a.chats[i].AccountID == accountID && a.chats[i].ChatID == chatID {
+				a.chats[i].ThemeEmoticon = emoticon
+				break
+			}
+		}
+		a.mu.Unlock()
+		if emoticon != "" {
+			a.ensureChatThemeList(accountID)
+		}
+		a.invalidate()
 	}()
 }
 
