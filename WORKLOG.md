@@ -4527,3 +4527,44 @@ Remaining MISSING: PiP only (blocked on pure-Go video decode, P3).
 
 Parity: Chat settings PARTIAL (favorite reaction now fetch-once +
 custom-capable; swipe quick action + expandable reaction strip remain).
+
+## 2026-09-13 — slice 173: Ayu behavior extras (seconds, zalgo, reaction visibility, send confirmations)
+
+- Primary-source research (AyuGramDesktop): ayu_settings.h carries
+  showMessageSeconds / filterZalgo / showChannel+Group+PrivateReactions
+  / sticker+gif+voice+roundConfirmation; settings_general.cpp builds
+  the General-page rows (Confirmations subsection, zalgo with a BETA
+  badge + restart prompt — ours applies render-time so no restart);
+  ayu_helpers.cpp filterZalgo = regex "\\p{Mn}{3,}|[bidi controls]"
+  (202A-202E, 2066-2069, 200E, 200F, 061C); formatMessageTime renders
+  HH:mm:ss vs the locale short format.
+- Ratings (§1.14): settings/config plumbing chain 9/10 keep+extend
+  (the toggleRow + ConfigChanges + cfgSnapshot pattern absorbs eight
+  more keys cleanly); message render path (chat.go messageRow) 8/10
+  keep+extend (text + sender + reaction-strip gates are single-line
+  inserts); send paths (stickers.go sendStickerFile shared by sticker
+  AND gif cells, voicerecord.go) 7/10 keep+extend (kind split + confirm
+  hook; temp voice file survives the confirm window); no core/engine
+  protocol surface touched.
+- Landed: (a) message seconds — messageMetaLabel + album meta carry
+  seconds when the toggle is on (chat rows/dividers keep fmtTime —
+  AyuGram separates the formatters the same way); (b) filterZalgo —
+  pure stripZalgo (first-two-marks rule, bidi control drop, fast-path
+  no-alloc scan) applied to rendered message bodies + sender names
+  only; (c) reaction-strip visibility — reactionsVisible gates the
+  under-bubble strip per chat type (channel / group+topic / private),
+  nil config = ON (AyuGram defaults); (d) send confirmations —
+  maybeConfirmMedia parks sticker/gif/voice sends behind a centered
+  scrim card (callsConfirmCard pattern, checkbox-free); round-video
+  notes have no send path so that AyuGram toggle stays unshipped
+  (§1.10).
+- Tests-first: stripZalgo (clean/accented/emoji identity, run trim,
+  bidi drop, mixed), msgTimeLabel (off/on/zero), reactionsVisible
+  matrix, confirmKindTitle, config dispatch for all eight keys.
+- Gate: gofmt/vet/test green (goolm); Xvfb GUI smoke boots with a
+  live window. Verify CI for slice 172 still queued (runner backlog)
+  — this slice pushes behind it.
+
+Parity: Ayu preferences PARTIAL→advanced (General extras + Reactions +
+Confirmations sections landed; spy/saving engine-gated remainder +
+round-video confirmation unshipped).

@@ -163,10 +163,15 @@ func (a *App) voiceRecFinish(f frame, cancel bool) {
 		if k == nil {
 			return
 		}
-		if _, err := a.eng.SendVoiceNote(k.AccountID, k.ChatID, path, int(secs+0.5)); err != nil {
-			a.setToast("Voice note failed: " + err.Error())
-			return
+		// Ayu voiceConfirmation (slice 173): park the send behind the
+		// confirm card when the toggle is on. The temp recording file
+		// survives until the user decides.
+		send := func() {
+			if _, err := a.eng.SendVoiceNote(k.AccountID, k.ChatID, path, int(secs+0.5)); err != nil {
+				a.setToast("Voice note failed: " + err.Error())
+			}
 		}
+		a.maybeConfirmMedia("voice", f.cfg.AyuConfirmVoice, send)
 	}()
 	a.invalidate()
 }

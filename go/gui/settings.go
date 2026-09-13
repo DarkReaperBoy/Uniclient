@@ -117,6 +117,22 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 		c.AyuSaveForBots = &b
 	case "ayu_improve_link_previews":
 		c.AyuImproveLinkPreviews = &b
+	case "ayu_msg_seconds":
+		c.AyuMsgSeconds = &b
+	case "ayu_filter_zalgo":
+		c.AyuFilterZalgo = &b
+	case "ayu_react_channels":
+		c.AyuReactChannels = &b
+	case "ayu_react_groups":
+		c.AyuReactGroups = &b
+	case "ayu_react_private":
+		c.AyuReactPrivate = &b
+	case "ayu_confirm_sticker":
+		c.AyuConfirmSticker = &b
+	case "ayu_confirm_gif":
+		c.AyuConfirmGif = &b
+	case "ayu_confirm_voice":
+		c.AyuConfirmVoice = &b
 	case "ayu_hide_similar_channels":
 		c.AyuHideSimilarChannels = &b
 	case "ayu_collapse_similar_channels":
@@ -1228,6 +1244,83 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.toggleRow(gtx, "cfg:ayu_improve_link_previews", "Improve previews", f.cfg.AyuImproveLinkPreviews, func(v bool) {
 			a.applyConfigBool("ayu_improve_link_previews", v)
+		})
+	}))
+	// Ayu behavior extras (slice 173, ayu_settings.h): showMessageSeconds
+	// + filterZalgo (AyuGram General page).
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Show seconds in message time", "Message timestamps render HH:MM:SS (AyuGram showMessageSeconds)")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_msg_seconds", "Message seconds", f.cfg.AyuMsgSeconds, func(v bool) {
+			a.applyConfigBool("ayu_msg_seconds", v)
+		})
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Filter zalgo text", "Strip zalgo runs and bidi overrides from message text and names (AyuGram filterZalgo)")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_filter_zalgo", "Filter zalgo", f.cfg.AyuFilterZalgo, func(v bool) {
+			a.applyConfigBool("ayu_filter_zalgo", v)
+		})
+	}))
+	// Ayu · Reactions (slice 173): show{Channel,Group,Private}Reactions —
+	// per-chat-type reaction-strip visibility, AyuGram defaults ON.
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Ayu · Reactions")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Show reactions in channels", "The reaction strip under channel posts")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_react_channels", "Channels", f.cfg.AyuReactChannels, func(v bool) {
+			a.applyConfigBool("ayu_react_channels", v)
+		})
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Show reactions in groups", "The reaction strip under group messages")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_react_groups", "Groups", f.cfg.AyuReactGroups, func(v bool) {
+			a.applyConfigBool("ayu_react_groups", v)
+		})
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Show reactions in private chats", "The reaction strip under DM messages")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_react_private", "Private chats", f.cfg.AyuReactPrivate, func(v bool) {
+			a.applyConfigBool("ayu_react_private", v)
+		})
+	}))
+	// Ayu · Confirmations (slice 173): sticker/gif/voiceConfirmation —
+	// a confirm card before the send fires. Round-video notes have no
+	// send path yet, so that AyuGram toggle stays unshipped (§1.10).
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Ayu · Confirmations")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Sticker send confirmation", "Ask before sending a sticker")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_confirm_sticker", "Sticker", f.cfg.AyuConfirmSticker, func(v bool) {
+			a.applyConfigBool("ayu_confirm_sticker", v)
+		})
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "GIF send confirmation", "Ask before sending a saved GIF")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_confirm_gif", "GIF", f.cfg.AyuConfirmGif, func(v bool) {
+			a.applyConfigBool("ayu_confirm_gif", v)
+		})
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Voice send confirmation", "Ask before sending a voice message")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_confirm_voice", "Voice", f.cfg.AyuConfirmVoice, func(v bool) {
+			a.applyConfigBool("ayu_confirm_voice", v)
 		})
 	}))
 	// Ayu · App icon (slice 170, ayu_settings.h appIcon + icon_picker.cpp):

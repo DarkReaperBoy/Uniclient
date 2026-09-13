@@ -1521,9 +1521,18 @@ type cfgSnapshot struct {
 	CornerReaction         bool            // effective (nil = on, tdesktop default)
 	LocalPremium           map[string]bool // AyuGram local premium per account
 	AyuImproveLinkPreviews bool
-	AyuHideSimilar         bool   // AyuGram hideSimilarChannels (slice 169)
-	AyuCollapseSimilar     bool   // effective collapse (nil = on, AyuGram default)
-	AyuAppIcon             string // AyuGram appIcon set ID (slice 170)
+	// Ayu behavior extras (slice 173): effective values.
+	AyuMsgSeconds      bool
+	AyuFilterZalgo     bool
+	AyuReactChannels   bool // nil = ON (AyuGram default)
+	AyuReactGroups     bool
+	AyuReactPrivate    bool
+	AyuConfirmSticker  bool
+	AyuConfirmGif      bool
+	AyuConfirmVoice    bool
+	AyuHideSimilar     bool   // AyuGram hideSimilarChannels (slice 169)
+	AyuCollapseSimilar bool   // effective collapse (nil = on, AyuGram default)
+	AyuAppIcon         string // AyuGram appIcon set ID (slice 170)
 
 	// call devices (slice 103): "" = system default
 	CallInputDevice  string
@@ -1604,7 +1613,8 @@ func (a *App) refreshConfig() {
 	a.cfg = snap
 	accent := a.accentNow
 	a.mu.Unlock()
-	a.updateTray() // slice 137: ghost/streamer checkbox state
+	setMsgShowSeconds(snap.AyuMsgSeconds) // slice 173
+	a.updateTray()                        // slice 137: ghost/streamer checkbox state
 	// App icon set (slice 170): re-apply when the configured set changed
 	// (the default set re-renders with the live accent on every refresh
 	// — cheap, deduped inside the apply layer).
@@ -2068,6 +2078,7 @@ func (a *App) snapshot() frame {
 		callsBoxMenu:     a.callsBoxMenu,
 		callsRowMenu:     a.callsRowMenu,
 		callsClearDlg:    a.callsClearDlg,
+		mediaConfirm:     mediaConfirmActive(),
 		callsDelDlg:      a.callsDelDlg,
 		inSearch:         a.inSearch,
 		inSearchQ:        a.inSearchQ,
@@ -2347,6 +2358,7 @@ type frame struct {
 	callsRowMenu  *callsRowMenuTarget
 	callsClearDlg bool
 	callsDelDlg   int
+	mediaConfirm  bool // Ayu send-confirmation card open (slice 173)
 
 	// in-chat search (slice 18)
 	inSearch         bool

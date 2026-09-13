@@ -55,6 +55,15 @@ type AppConfig struct {
 	// big platforms to their preview-friendly mirrors (Ayu
 	// getBetterLinkPreview: fixupx / kktiktok / vxreddit / kkclip / phixiv).
 	AyuImproveLinkPreviews bool `json:"ayu_improve_link_previews,omitempty"`
+	// Ayu behavior extras (slice 173, ayu_settings.h).
+	AyuMsgSeconds     *bool `json:"ayu_msg_seconds,omitempty"`
+	AyuFilterZalgo    *bool `json:"ayu_filter_zalgo,omitempty"`
+	AyuReactChannels  *bool `json:"ayu_react_channels,omitempty"`
+	AyuReactGroups    *bool `json:"ayu_react_groups,omitempty"`
+	AyuReactPrivate   *bool `json:"ayu_react_private,omitempty"`
+	AyuConfirmSticker *bool `json:"ayu_confirm_sticker,omitempty"`
+	AyuConfirmGif     *bool `json:"ayu_confirm_gif,omitempty"`
+	AyuConfirmVoice   *bool `json:"ayu_confirm_voice,omitempty"`
 
 	// AyuGram similar-channels settings (slice 169, primary source
 	// ayu_settings.h): hideSimilarChannels (default false) never renders

@@ -124,15 +124,33 @@ func (a *App) ensureSavedGifs(accountID string) {
 
 // sendStickerFile sends one sticker/GIF document into the open chat.
 func (a *App) sendStickerFile(f frame, fileID string) {
+	a.sendStickerOfKind(f, fileID, "sticker")
+}
+
+// sendGifFile sends a saved-GIF cell (same engine path; the Ayu
+// confirmation kind differs — slice 173).
+func (a *App) sendGifFile(f frame, fileID string) {
+	a.sendStickerOfKind(f, fileID, "gif")
+}
+
+// sendStickerOfKind: the shared sticker/GIF send, parked behind the Ayu
+// confirmation card when the per-kind toggle is on (slice 173).
+func (a *App) sendStickerOfKind(f frame, fileID, kind string) {
 	if f.selected == nil || fileID == "" {
 		return
 	}
+	confirmOn := f.cfg.AyuConfirmSticker
+	if kind == "gif" {
+		confirmOn = f.cfg.AyuConfirmGif
+	}
 	accountID, chatID := f.selected.AccountID, f.selected.ChatID
-	go func() {
-		if err := a.eng.SendSticker(accountID, chatID, fileID); err != nil {
-			a.setToast("Send failed: " + err.Error())
-		}
-	}()
+	a.maybeConfirmMedia(kind, confirmOn, func() {
+		go func() {
+			if err := a.eng.SendSticker(accountID, chatID, fileID); err != nil {
+				a.setToast("Send failed: " + err.Error())
+			}
+		}()
+	})
 }
 
 // panelAccountID picks the account the helper panel acts for.
@@ -316,7 +334,7 @@ func (a *App) layoutGifMode(gtx layout.Context, f frame) layout.Dimensions {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				btn := &a.wid.gifCellBtns[idx]
 				if btn.Clicked(gtx) {
-					a.sendStickerFile(f, g.FileID)
+					a.sendGifFile(f, g.FileID)
 				}
 				cell := gtx.Dp(cellDp)
 				gtx.Constraints.Max.X = cell

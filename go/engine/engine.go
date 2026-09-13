@@ -1022,6 +1022,18 @@ type ConfigChanges struct {
 	CornerReaction *bool
 	// Ayu improve link previews (slice 155). Nil = unchanged.
 	AyuImproveLinkPreviews *bool
+	// Ayu behavior extras (slice 173, ayu_settings.h): message
+	// seconds, zalgo filtering, reaction-strip visibility (nil =
+	// unchanged; the three visibility keys default ON), and the
+	// sticker/gif/voice send confirmations (default OFF).
+	AyuMsgSeconds     *bool
+	AyuFilterZalgo    *bool
+	AyuReactChannels  *bool
+	AyuReactGroups    *bool
+	AyuReactPrivate   *bool
+	AyuConfirmSticker *bool
+	AyuConfirmGif     *bool
+	AyuConfirmVoice   *bool
 	// AyuGram similar-channels settings (slice 169). Nil = unchanged.
 	AyuHideSimilarChannels     *bool
 	AyuCollapseSimilarChannels *bool
@@ -1130,6 +1142,7 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	if changes.AyuImproveLinkPreviews != nil {
 		e.config.AyuImproveLinkPreviews = *changes.AyuImproveLinkPreviews
 	}
+	applyAyuExtras(e.config, changes)
 	if changes.AyuHideSimilarChannels != nil {
 		e.config.AyuHideSimilarChannels = *changes.AyuHideSimilarChannels
 	}
@@ -3313,4 +3326,33 @@ func (e *Engine) GetAdminsWithInvites(accountID, chatID string) ([]map[string]in
 		return p.GetAdminsWithInvites(chatID)
 	}
 	return nil, fmt.Errorf("platform does not support admins with invites")
+}
+
+// applyAyuExtras applies the slice-173 Ayu behavior toggles (message
+// seconds, zalgo filter, reaction-strip visibility, send confirmations).
+func applyAyuExtras(c *utils.AppConfig, changes *ConfigChanges) {
+	if changes.AyuMsgSeconds != nil {
+		c.AyuMsgSeconds = changes.AyuMsgSeconds
+	}
+	if changes.AyuFilterZalgo != nil {
+		c.AyuFilterZalgo = changes.AyuFilterZalgo
+	}
+	if changes.AyuReactChannels != nil {
+		c.AyuReactChannels = changes.AyuReactChannels
+	}
+	if changes.AyuReactGroups != nil {
+		c.AyuReactGroups = changes.AyuReactGroups
+	}
+	if changes.AyuReactPrivate != nil {
+		c.AyuReactPrivate = changes.AyuReactPrivate
+	}
+	if changes.AyuConfirmSticker != nil {
+		c.AyuConfirmSticker = changes.AyuConfirmSticker
+	}
+	if changes.AyuConfirmGif != nil {
+		c.AyuConfirmGif = changes.AyuConfirmGif
+	}
+	if changes.AyuConfirmVoice != nil {
+		c.AyuConfirmVoice = changes.AyuConfirmVoice
+	}
 }

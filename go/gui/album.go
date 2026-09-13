@@ -198,9 +198,9 @@ func (a *App) albumRow(gtx layout.Context, f frame, messages []engine.CachedMess
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								meta := fmtTime(first.Timestamp)
+								meta := msgTimeLabel(first.Timestamp)
 								if first.EditedAt != 0 {
-									meta = "edited " + fmtTime(first.EditedAt)
+									meta = "edited " + msgTimeLabel(first.EditedAt)
 								}
 								lbl := a.ui.Dim(unit.Sp(10), meta)
 								lbl.Color = a.ui.p.TextFaint

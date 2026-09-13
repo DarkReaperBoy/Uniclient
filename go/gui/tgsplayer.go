@@ -350,9 +350,11 @@ func autoDownloadable(mt int) bool {
 // messageMetaLabel builds the meta line (time, edited mark, scheduled
 // prefix) shared by the in-bubble meta row and the sticker overlay pill.
 func messageMetaLabel(m engine.CachedMessage, ayuEditedMark string) string {
-	meta := fmtTime(m.Timestamp)
+	// Ayu showMessageSeconds (slice 173): message meta times carry
+	// seconds when the toggle is on (formatMessageTime semantics).
+	meta := msgTimeLabel(m.Timestamp)
 	if m.EditedAt != 0 {
-		meta = editedMark(ayuEditedMark) + fmtTime(m.EditedAt)
+		meta = editedMark(ayuEditedMark) + msgTimeLabel(m.EditedAt)
 	}
 	if sm := scheduledMetaLabel(m); sm != "" {
 		meta = sm + " · " + meta

@@ -207,6 +207,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.menu != nil {
 		a.layoutContextMenu(gtx, f)
 	}
+	// Ayu send-confirmation card (slice 173): centered scrim + card.
+	if f.mediaConfirm {
+		a.layoutMediaConfirm(gtx)
+	}
 	// Forum topic dialog (slice 118): create/edit/actions.
 	if f.forumDlg != nil {
 		a.layoutForumDialog(gtx, f)
@@ -663,6 +667,11 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 
 	// Highlight deleted (anti-recall) messages with the Ayu mark string.
 	text := m.ContentText
+	if f.cfg.AyuFilterZalgo {
+		// Ayu filterZalgo (slice 173): strip zalgo runs + bidi controls
+		// from the rendered body — the cached text is never modified.
+		text = ayuFilterText(text, true)
+	}
 	deleted := m.IsDeleted
 	if deleted {
 		text = deletedMarkText(text, f.cfg.AyuDeletedMark)
@@ -743,7 +752,7 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						if out || m.SenderName == "" || m.IsService {
 							return layout.Dimensions{}
 						}
-						lbl := a.ui.Label(unit.Sp(13), senderTitle(*m))
+						lbl := a.ui.Label(unit.Sp(13), ayuFilterText(senderTitle(*m), f.cfg.AyuFilterZalgo))
 						senderCol := senderColorFor(m.SenderColorID, m.SenderID)
 						if deleted { // anti-recall fade (slice 80)
 							senderCol = deletedFade(senderCol, true)
@@ -797,6 +806,11 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 					// Reactions strip (AyuGram parity: emoji + count, own highlighted).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if len(m.Reactions) == 0 {
+							return layout.Dimensions{}
+						}
+						// Ayu show{Channel,Group,Private}Reactions (slice 173):
+						// per-chat-type reaction-strip visibility.
+						if chat := chatOf(f, *m); !reactionsVisible(chat, f.cfg) {
 							return layout.Dimensions{}
 						}
 						return a.reactionStrip(gtx, f, m)
