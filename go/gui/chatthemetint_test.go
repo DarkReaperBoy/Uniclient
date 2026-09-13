@@ -4,6 +4,7 @@ package gui
 // conversion, luminance contrast, and the theme resolver's match order.
 
 import (
+	"image"
 	"image/color"
 	"testing"
 
@@ -106,5 +107,53 @@ func TestActiveChatTheme(t *testing.T) {
 	f3 := newTintFrame("a1", only, true)
 	if th := a.activeChatTheme(chat, f3); th == nil || th.IsDark != true {
 		t.Fatalf("opposite-mode fallback = %+v", th)
+	}
+}
+
+// TestPatternTilePlan (slice 198): the emoji-pattern grid — staggered
+// rows, full coverage of the pane, honest degenerate inputs.
+func TestPatternTilePlan(t *testing.T) {
+	pts := patternTilePlan(300, 200, 40, 10)
+	if len(pts) < 12 {
+		t.Fatalf("tiles = %d, want the pane covered (>=12)", len(pts))
+	}
+	// Coverage: every pixel of the pane is within one tile of some origin
+	// (the stagger keeps gaps under the step).
+	step := 40 + 10
+	for _, probe := range []image.Point{{0, 0}, {299, 0}, {0, 199}, {299, 199}, {150, 100}} {
+		near := false
+		for _, p := range pts {
+			if abs(p.X-probe.X) <= step && abs(p.Y-probe.Y) <= step {
+				near = true
+				break
+			}
+		}
+		if !near {
+			t.Errorf("probe %v not covered by any tile", probe)
+		}
+	}
+	// Degenerate inputs: nil, never panic.
+	for _, tc := range []struct{ w, h, tile, sp int }{
+		{0, 200, 40, 10}, {300, 0, 40, 10}, {300, 200, 0, 10}, {-1, -1, 40, 10},
+	} {
+		if got := patternTilePlan(tc.w, tc.h, tc.tile, tc.sp); got != nil {
+			t.Errorf("patternTilePlan(%d,%d,%d,%d) = %v, want nil", tc.w, tc.h, tc.tile, tc.sp, got)
+		}
+	}
+}
+
+// TestPatternAlpha (slice 198): intensity → the subtle tile alpha.
+func TestPatternAlpha(t *testing.T) {
+	if got := patternAlpha(50); got != 63 { // 50*255/200
+		t.Errorf("patternAlpha(50) = %d, want 63", got)
+	}
+	if got := patternAlpha(-50); got != 63 { // sign = rotation flip, not alpha
+		t.Errorf("patternAlpha(-50) = %d, want 63", got)
+	}
+	if lo, hi := patternAlpha(0), patternAlpha(100); lo != 12 || hi != 114 {
+		t.Errorf("clamps = %d/%d, want 12/114", lo, hi)
+	}
+	if got := patternAlpha(1000); got != 114 {
+		t.Errorf("overflow clamp = %d, want 114", got)
 	}
 }

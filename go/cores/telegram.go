@@ -31054,12 +31054,13 @@ func (t *TelegramCore) DownloadWallpaperDocument(docID int64, accessHash int64, 
 }
 
 type ChatThemeInfo struct {
-	Emoticon      string `json:"emoticon"`
-	ID            int64  `json:"id"`
-	IsDark        bool   `json:"is_dark"`
-	AccentColor   int    `json:"accent_color"`
-	MessageColors []int  `json:"message_colors,omitempty"`
-	BgColors      []int  `json:"bg_colors,omitempty"`
+	Emoticon         string `json:"emoticon"`
+	ID               int64  `json:"id"`
+	IsDark           bool   `json:"is_dark"`
+	AccentColor      int    `json:"accent_color"`
+	MessageColors    []int  `json:"message_colors,omitempty"`
+	BgColors         []int  `json:"bg_colors,omitempty"`
+	PatternIntensity int    `json:"pattern_intensity,omitempty"` // wallpaper pattern intensity (0..100; wire sign flips with rotation — abs is the alpha)
 }
 
 func (t *TelegramCore) GetChatThemesList() ([]ChatThemeInfo, error) {
@@ -31114,6 +31115,9 @@ func (t *TelegramCore) GetChatThemesList() ([]ChatThemeInfo, error) {
 							bgc = append(bgc, c)
 						}
 						info.BgColors = bgc
+						if in, ok := wpSettings.GetIntensity(); ok {
+							info.PatternIntensity = in
+						}
 					}
 				}
 			}

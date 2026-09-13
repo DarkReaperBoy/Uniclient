@@ -5414,3 +5414,30 @@ Deep links PARTIAL → PRESENT (gap 13 closed).
 
 Parity: PRESENT 179 (90%) · PARTIAL 15 · MISSING 1 · CORE-ONLY 5.
 Saved Messages row: sublists PRESENT (pin reorder + tag lists remain).
+
+## 2026-09-14 — slice 198: emoji-pattern chat wallpapers
+
+- Gap 16 from the slice-194 truth pass: chat backgrounds shipped tint +
+  gradient (slice 188) but no pattern. Rating (§1.14): the slice-188
+  architecture (theme list cache → activeChatTheme → pane painter) was
+  exactly right to extend (9/10 — extended).
+- Core: ChatThemeInfo.PatternIntensity parsed from the wallpaper
+  settings (wallPaperSettings.intensity; the wire sign flips with
+  rotation — abs is the alpha).
+- GUI: chatThemeBackground now closes its clip stack AFTER the pattern
+  pass — chatThemePattern tiles the theme's own emoticon glyph (the
+  server-provided pattern emoji, rendered through the registered Noto
+  Emoji face — re-implemented, never copied) on a staggered grid
+  (patternTilePlan: tile 44dp + spacing 34dp, odd rows offset half a
+  step), color mixed toward the text color for contrast on both
+  gradient stops, alpha = patternAlpha(abs(intensity)) clamped to a
+  subtle 12..114. Zero intensity = no pattern (honest — the server
+  said none).
+- Tests first: TestPatternTilePlan (coverage probes incl. corners,
+  degenerate inputs nil) + TestPatternAlpha (midpoint, sign-flip,
+  clamps) in chatthemetint_test.go.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok.
+
+Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
+Chat background row → PRESENT (gap 16 closed).
