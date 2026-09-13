@@ -4851,3 +4851,28 @@ Parity: PRESENT 167 (83%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 7.
   ./... 8/8 ok.
 
 Parity: PRESENT 168 (83%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 6.
+
+## 2026-09-13 — slice 183: animated custom-emoji reaction pills
+
+- Parity row "Bubbles: reactions strip" — the animated custom-emoji half
+  CORE-ONLY → PRESENT. Rating (§1.14): the emojiArt machinery
+  (fetch/classify/parse + drawEmojiArt w/ frame re-arm + power-saving
+  gate) was built for message text (8/10) — reused, not duplicated;
+  only the reaction glyph bypassed it.
+- gui/custemoji.go: reactionGlyphPath (pure decision — anim / raster /
+  static-thumb fallback), reactionAnimSide (125% of the 16dp static
+  thumb), ensureReactionEmojiArt (once-per-doc artwork fetch through
+  the shared emojiArts cache + GetCustomEmojiFiles, per-account+doc
+  guard), customReactionGlyph rewritten — animated lottie documents
+  play frame-by-frame via drawEmojiArt (same clock/re-arm/invalidate
+  loop as message text; power-saving keeps freezing them), raster
+  artwork draws aspect-fit, unresolved or failed entries keep the
+  slice-53 static-thumb path (never a blank pill).
+- Tests first (appended to custemoji_test.go — the existing slice-53
+  tests stay): reactionGlyphPath decision matrix + reactionAnimSide.
+  All green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok.
+
+Parity: the reactions-strip row is now fully PRESENT (animated
+included); CORE-ONLY 6 unchanged (blocked/needs-core rows).
