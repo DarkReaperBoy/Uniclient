@@ -35,6 +35,7 @@ type webPageData struct {
 	Duration    int
 	PhotoID     string // slice 130: the page photo's download coords
 	PhotoExtra  string
+	HasIV       bool // slice 176: the page has an Instant View version
 }
 
 // hasPhotoID reports whether the card can ensure a full-res photo thumb.
@@ -71,6 +72,7 @@ func parseWebPage(m *engine.CachedMessage) *webPageData {
 	wp.ThumbB64, _ = env.Extra["wp_thumb_b64"].(string)
 	wp.PhotoID, _ = env.Extra["wp_photo_id"].(string)
 	wp.PhotoExtra, _ = env.Extra["wp_photo_extra"].(string)
+	wp.HasIV, _ = env.Extra["wp_has_iv"].(bool)
 	if v, ok := env.Extra["wp_photo_w"].(float64); ok {
 		wp.Width = int(v)
 	}
@@ -226,11 +228,17 @@ func (a *App) webPageBlock(gtx layout.Context, m *engine.CachedMessage) layout.D
 	a.ensureWebPagePhoto(m, wp)
 	btn := a.webPageClickable(key)
 	if btn.Clicked(gtx) {
-		openExternalAsync(wp.URL, func(err error) {
-			if err != nil {
-				a.setToast("Open link failed: " + err.Error())
-			}
-		})
+		// Slice 176: pages with an Instant View version open the in-app
+		// reader; everything else stays on the browser pipeline.
+		if wp.HasIV {
+			a.openInstantView(m.AccountID, wp.URL)
+		} else {
+			openExternalAsync(wp.URL, func(err error) {
+				if err != nil {
+					a.setToast("Open link failed: " + err.Error())
+				}
+			})
+		}
 	}
 	return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

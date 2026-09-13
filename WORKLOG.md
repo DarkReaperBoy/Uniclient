@@ -4624,3 +4624,54 @@ Parity: Per-chat notification settings UI PARTIAL→PRESENT (mute picker
 - No code change — gate still green from slice 174's run.
 
 Parity: table now matches the tree.
+
+## 2026-09-13 — slice 176: Instant View reader overlay
+
+- Parity row "Instant View pages" CORE-ONLY → PRESENT. The core/engine
+  IV surface (GetInstantViewPage — messages.getWebPage → cached_page →
+  27-block JSON; DownloadIVPhoto; DownloadIVDocument; wp_has_iv preview
+  flag) was complete and unused; this slice surfaces it (§1.11: the GUI
+  is never trimmed to fit the cores — the cores already fit).
+- Rating (§1.14): core IV layer 8/10 (withAPI-compliant, honest
+  domain/type gating, full block coverage) — kept as-is. GUI: no reader
+  existed; built on the proven overlay pattern (viewer slice 9 / story
+  viewer slice 104) instead of a new surface.
+- gui/instantview.go (new): ivPage/ivBlock model + parseIVPage (pure);
+  ivRich tree → ivRichSpans flattener → text+Telegram entities so the
+  existing flowRich renderer paints IV text (wrapping, links, mono
+  pills) — one renderer for messages and IV. Reader overlay: top bar
+  (back w/ history stack, site+title, open-in-browser), capped-width
+  scrollable column, loading/err states. Every block kind renders:
+  title/subtitle/kicker/header/subheader/paragraph/footer/
+  author_date/preformatted/blockquote/pullquote/divider/anchor/list/
+  ordered_list (text + nested-block items)/photo (stripped-thumb →
+  async DownloadIVPhoto → decode swap-in)/video/audio (tap →
+  DownloadIVDocument → system player, slice-86 handoff)/embed + map
+  (browser card — no webview by §1 pure-Go)/embed_post/collage/
+  slideshow (chevrons + counter)/details (collapsible)/related
+  articles (tap → ivOpenRelated pushes history; back pops; cap 16)/
+  table (colspan-weighted columns, header bold, zebra, hairlines)/
+  channel (t.me deep link → the in-app resolver).
+- Entry points: webpage-preview card tap gated on wp_has_iv (new
+  webPageData.HasIV, parsed from the core's Extra); text links on
+  telegra.ph/graph.org hosts route through ivKnownHost (the core's
+  isKnownIVDomain mirrored) in flowRich's tap dispatch — message text,
+  IV body links and bot buttons all inherit it. Fetch failure → toast +
+  browser fallback (§1.10: never a dead overlay).
+- Frame wiring: App.iv + frame.iv + snapshot mirror + widgets
+  (ivList/ivBackBtn/ivOpenBtn/ivSlidePrev/ivSlideNext/ivClickables) +
+  overlay hook in both the main and separate-window paths (between the
+  media viewer and the story viewer).
+- Tests first (go/gui/instantview_test.go, 7 tests): parseIVPage basics
+  + 15-block variety (photo/video/related/table/channel/embed/details
+  field fidelity), ivRichSpans style+href propagation, ivKnownHost
+  suffix-trick negatives, wp_has_iv parse, history push/back/cap,
+  details-open defaults+overrides. All pure — layout verified by
+  compile + review.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok · linux build ok · GOOS=js wasm + GOOS=windows
+  cross-builds ok. Devroot rebuilt via the repo's own
+  scripts/devroot-setup.sh (fresh VM this session: no Go, no GL dev
+  packages — the script handled all of it).
+
+Parity: PRESENT 162 (81%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 12.

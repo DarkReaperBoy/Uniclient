@@ -53,6 +53,14 @@ type widgets struct {
 	// chatmenu.go
 	chatMenuBtns []widget.Clickable
 
+	// instantview.go
+	ivBackBtn    widget.Clickable
+	ivOpenBtn    widget.Clickable
+	ivSlidePrev  widget.Clickable
+	ivSlideNext  widget.Clickable
+	ivList       widget.List
+	ivClickables map[string]*widget.Clickable
+
 	// chatsearch.go
 	inSearchCloseBtn widget.Clickable
 	inSearchEd       widget.Editor
@@ -363,12 +371,14 @@ func (w *widgets) init() {
 	w.transcriptExpandClickables = make(map[string]*widget.Clickable)
 	w.voiceRecClickables = make(map[string]*widget.Clickable)
 	w.webPageClickables = make(map[string]*widget.Clickable)
+	w.ivClickables = make(map[string]*widget.Clickable)
 	w.addMemSearchEd.SingleLine = true
 	w.addMemList.Axis = layout.Vertical
 	w.botCmdList.Axis = layout.Vertical
 	w.composer.SingleLine = false
 	w.msgList.Axis = layout.Vertical
 	w.msgList.ScrollToEnd = true // stick to bottom, AyuGram-style
+	w.ivList.Axis = layout.Vertical
 	w.inSearchList.Axis = layout.Vertical
 	w.emojiAcList.Axis = layout.Horizontal
 	w.inlineList.Axis = layout.Vertical

@@ -453,6 +453,10 @@ type App struct {
 	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
 	viewer *viewerState
 
+	// Instant View reader overlay (slice 176): the open IV page + its
+	// navigation history, shared under mu like the viewer.
+	iv *ivState
+
 	// transient
 	typing map[string]time.Time // chatKey -> last typing seen
 
@@ -1249,6 +1253,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.pinnedLoaded = false
 	a.unreadSepMsgID = ""
 	a.viewer = nil     // slice 9: close any open media viewer
+	a.iv = nil         // slice 176: close the Instant View reader
 	a.inSearch = false // slice 18: close in-chat search
 	a.inSearchQ = ""
 	a.inChatHits = nil
@@ -2060,6 +2065,7 @@ func (a *App) snapshot() frame {
 		folderMenu:       a.folderMenu,
 		headerMenu:       a.headerMenu,
 		viewer:           a.viewer,
+		iv:               a.iv,
 		drawerOpen:       a.drawerOpen,
 		contactsOpen:     a.contactsOpen,
 		contactsFor:      a.contactsFor,
@@ -2422,6 +2428,9 @@ type frame struct {
 
 	// fullscreen media viewer (slice 9)
 	viewer *viewerState
+
+	// Instant View reader overlay (slice 176)
+	iv *ivState
 }
 
 var _ = op.InvalidateCmd{} // referenced in widgets that animate

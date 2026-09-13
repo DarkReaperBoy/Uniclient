@@ -429,6 +429,10 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 			if pe, is := ev.(pointer.Event); is && pe.Kind == pointer.Press && pe.Buttons == pointer.ButtonPrimary {
 				if lt.kind == "hashtag" {
 					a.openInChatSearchWithQuery(lt.url, chatKey{AccountID: m.AccountID, ChatID: m.ChatID})
+				} else if m.AccountID != "" && ivKnownHost(lt.url) {
+					// Slice 176: telegra.ph / graph.org links open the
+					// in-app Instant View reader.
+					a.openInstantView(m.AccountID, lt.url)
 				} else {
 					a.openLinkExternal(lt.url)
 				}

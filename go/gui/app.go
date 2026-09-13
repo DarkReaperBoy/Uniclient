@@ -57,6 +57,9 @@ func (a *App) Root(gtx layout.Context) {
 		if f.viewer != nil {
 			a.layoutMediaView(gtx, f)
 		}
+		if f.iv != nil {
+			a.layoutInstantView(gtx, f)
+		}
 		if f.storyView != nil {
 			a.layoutStoryViewer(gtx, f)
 		}
@@ -89,6 +92,11 @@ func (a *App) Root(gtx layout.Context) {
 	a.layoutMain(gtx, f)
 	if f.viewer != nil {
 		a.layoutMediaView(gtx, f)
+	}
+	// Instant View reader (slice 176): full-window overlay above the media
+	// viewer, below the story/call layers.
+	if f.iv != nil {
+		a.layoutInstantView(gtx, f)
 	}
 	// Story viewer (slice 104): full-window overlay above the media viewer.
 	if f.storyView != nil {
