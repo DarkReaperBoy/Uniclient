@@ -116,6 +116,193 @@ func threadRootOfRows(rows []engine.CachedMessage) string {
 	return ""
 }
 
+// threadOpenReq (slice 196): a comment-thread deep link pending the chat
+// open — the channel post's id plus the linked comment's id.
+type threadOpenReq struct {
+	postID    string
+	commentID string
+}
+
+// openCommentThreadDeep (slice 196): a comment deep link
+// (t.me/<channel>/<post>?comment=<id>) opens the just-opened channel
+// chat straight into the thread view and jumps onto the linked comment.
+// Mirrors openCommentThread minus the in-hand post row: the thread fetch
+// resolves the discussion chat + root, and the bar title falls back to
+// the root row's text (the forwarded post copy). The comment jump
+// targets the newest page first; an off-page comment resolves through
+// the engine (GetMessageTimestamp caches the row) and loads a
+// target-anchored window; a comment the engine cannot resolve leaves the
+// newest page in place, no jump (honest). Loader goroutine — state under
+// a.mu, mirroring the slice-189 topic jump.
+func (a *App) openCommentThreadDeep(k chatKey, req threadOpenReq) {
+	a.mu.Lock()
+	a.threadScope = &threadScopeState{
+		postKey: k,
+		postID:  req.postID,
+	}
+	a.messages = nil
+	a.loadingMsgs = true
+	a.olderDone = false
+	a.loadingOlder = false
+	a.mu.Unlock()
+	a.invalidate()
+	go func() {
+		rows, err := a.eng.GetDiscussionThread(k.AccountID, k.ChatID, req.postID)
+		a.mu.Lock()
+		if a.threadScope == nil || a.threadScope.postID != req.postID || a.selected == nil || *a.selected != k {
+			a.mu.Unlock()
+			return
+		}
+		a.loadingMsgs = false
+		if err != nil {
+			a.mu.Unlock()
+			a.setToast("Comments: " + err.Error())
+			return
+		}
+		for i, j := 0, len(rows)-1; i < j; i, j = i+1, j-1 {
+			rows[i], rows[j] = rows[j], rows[i]
+		}
+		// rows is chronological (oldest first) now.
+		if len(rows) > 0 {
+			a.threadScope.discussionChat = rows[0].ChatID
+			a.threadScope.rootID = threadRootOfRows(rows)
+			if a.threadScope.title == "" {
+				if root := threadRootRow(rows, a.threadScope.rootID); root != nil {
+					a.threadScope.title = root.ContentText
+				}
+			}
+		}
+		a.messages = rows
+		a.mu.Unlock()
+		a.invalidate()
+		go func() { _ = a.eng.ReadDiscussion(k.AccountID, k.ChatID, req.postID) }()
+
+		if req.commentID == "" {
+			return // thread open, no comment target
+		}
+		// The linked comment: newest page first...
+		a.mu.Lock()
+		row := rowIndexOf(rows, req.commentID, "")
+		discussion := ""
+		rootID := ""
+		if a.threadScope != nil && a.threadScope.postID == req.postID {
+			discussion = a.threadScope.discussionChat
+			rootID = a.threadScope.rootID
+		}
+		if row >= 0 {
+			a.wid.msgList.Position.First = row
+			a.wid.msgList.Position.Offset = 0
+			a.wid.msgList.Position.BeforeEnd = true
+			a.mu.Unlock()
+			a.invalidate()
+			return
+		}
+		a.mu.Unlock()
+		if discussion == "" || rootID == "" {
+			return
+		}
+		// ...else resolve the comment's timestamp (engine caches the row on
+		// the fetch) and load a target-anchored window.
+		ts, err := a.eng.GetMessageTimestamp(k.AccountID, discussion, req.commentID)
+		if err != nil || ts <= 0 {
+			return // honest: the newest page stays, no jump
+		}
+		older, err := a.eng.GetThreadMessages(k.AccountID, discussion, rootID, ts+1, 26)
+		if err != nil {
+			return
+		}
+		win, jump := threadDeepJumpWindow(rows, older, req.commentID)
+		if win == nil || jump < 0 {
+			return
+		}
+		// Map the message index onto the render row (day dividers,
+		// albums) — same conversion jumpToMessageAt performs.
+		row = rowIndexOf(win, req.commentID, "")
+		if row < 0 {
+			return
+		}
+		a.mu.Lock()
+		if a.threadScope == nil || a.threadScope.postID != req.postID || a.selected == nil || *a.selected != k {
+			a.mu.Unlock()
+			return
+		}
+		a.messages = win
+		a.olderDone = false
+		a.wid.msgList.Position.First = row
+		a.wid.msgList.Position.Offset = 0
+		a.wid.msgList.Position.BeforeEnd = true
+		a.mu.Unlock()
+		a.invalidate()
+	}()
+}
+
+// threadRootRow finds the thread-root row (the forwarded post copy) in a
+// thread window. Pure.
+func threadRootRow(rows []engine.CachedMessage, rootID string) *engine.CachedMessage {
+	if rootID == "" {
+		return nil
+	}
+	for i := range rows {
+		if rows[i].MsgID == rootID {
+			return &rows[i]
+		}
+	}
+	return nil
+}
+
+// threadDeepJumpWindow (slice 196): assembles the comment deep-link
+// window around the linked comment. newest is the newest page
+// (chronological); older is the target-anchored page (newest-first,
+// target included). The window is reverse(older) plus the newest page's
+// rows newer than the target, in chronological order; jump is the
+// target's MESSAGE index (the caller maps it onto the render row via
+// rowIndexOf, exactly like jumpToMessageAt). A target already in the
+// newest page makes that page the window (older ignored); a target in
+// neither slice returns (nil, -1) — the caller keeps the newest page
+// (honest). Pure — locked by tests.
+func threadDeepJumpWindow(newest, older []engine.CachedMessage, commentID string) ([]engine.CachedMessage, int) {
+	if commentID == "" {
+		return nil, -1
+	}
+	if idx := messageIndexOf(newest, commentID); idx >= 0 {
+		return newest, idx
+	}
+	ts := int64(0)
+	found := false
+	for i := range older {
+		if older[i].MsgID == commentID {
+			ts = older[i].Timestamp
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, -1
+	}
+	win := make([]engine.CachedMessage, 0, len(older)+len(newest))
+	for i, j := 0, len(older)-1; i < j; i, j = i+1, j-1 {
+		older[i], older[j] = older[j], older[i]
+	}
+	win = append(win, older...)
+	for i := range newest { // chronological: the newer tail rides in order
+		if newest[i].Timestamp > ts {
+			win = append(win, newest[i])
+		}
+	}
+	return win, messageIndexOf(win, commentID)
+}
+
+// messageIndexOf is the plain message-index lookup (no render rows).
+// Pure.
+func messageIndexOf(msgs []engine.CachedMessage, msgID string) int {
+	for i := range msgs {
+		if msgs[i].MsgID == msgID {
+			return i
+		}
+	}
+	return -1
+}
+
 // closeCommentThread returns to the channel view.
 func (a *App) closeCommentThread() {
 	a.mu.Lock()

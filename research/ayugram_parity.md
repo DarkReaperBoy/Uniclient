@@ -288,7 +288,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Keyboard shortcuts | Ctrl+F search, Ctrl+up/down chat switch, Esc close, etc. | PRESENT (slice 43: global key layer — Esc closes the topmost surface in AyuGram's dismissal order (menus → attach/emoji → selection → in-chat search → panel → sidebar search; dialogs/viewer/drawer self-handle first), Ctrl+F opens in-chat search or focuses the sidebar field, Ctrl+↑↓/PgUp/PgDn switch chats (wrap); slice 147: Ctrl+Tab / Ctrl+Shift+Tab cycle the account scope; slice 166: THE TDESKTOP JUMPLIST FAMILY — Ctrl+1..8 jump to the Nth pinned chat (ChatPinned1..8, pinned-prefix walk of the visible list), Ctrl+9 opens the archive view (ShowArchive), Ctrl+0 opens Saved Messages (ChatSelf), Ctrl+J opens Contacts (ShowContacts), Ctrl+R marks the open chat read (ReadChat → engine.MarkChatRead), Alt+↑/↓ switch chats (tdesktop ChatNext/ChatPrevious), Ctrl+Alt+Home/End jump to the first/last chat (ChatFirst/ChatLast)) | gui/shortcuts.go | P2 |
 | Multi-window chats | Separate chat windows | PRESENT (slice 168: tdesktop SeparateType::Chat — one native Gio window per chat: chat-row context menu "Open in separate window" (Filler::addNewWindow) + Ctrl+click on a chat row (IsCtrlPressed semantics via the click's modifier set); the separate App renders the chat surface only (header/messages/composer + viewer/story/call overlays, never sidebar/drawer/settings/voice); one window per chat INCLUDING the main window — takeovers deselect everywhere else via cross-window pendingDeselect hops each App applies on its own GUI loop; frames serialize on frameMu so residual package-level widget state stays safe; process-wide passcode lock rides a lock bus (lock/unlock + activity keepalives); separate windows ride the main window's engine connections (no second tray/DBus notification server); closing the main window closes every separate window and waits for their loops before engine teardown; platform gate: linux+windows only, js/wasm and Android hide the entry points — honest absence) | gui/separate.go + gui/sidebar.go + gui/chatmenu.go + cmd/uniclient/main.go | P3 |
 | Lock on autolock timer | Passcode relock | PRESENT (slice 87: lockTick arms the lock after the configured idle window; next frame shows the PIN screen) | gui/lock.go lockShouldAutolock/lockTick | P2 |
-| Deep links (tg://) | URL handling for join/phone | PARTIAL (slice 95: t.me/+hash, t.me/joinchat/hash, tg://join?invite open the in-app join flow; t.me/<username> + tg://resolve resolve via server search; slice 161: message permalinks route in-app incl. the jump; slice 189: topic permalinks open straight into the topic + jump; slice 195 shipped the comment THREAD VIEW (chip → thread), but the t.me/…?comment=1 deep-link form still hands to the browser — honest scope) | gui/deeplink.go + gui/state.go + engine GetMessageTimestamp + cores GetMessageByID | P3 |
+| Deep links (tg://) | URL handling for join/phone | PRESENT (slice 95: t.me/+hash, t.me/joinchat/hash, tg://join?invite open the in-app join flow; t.me/<username> + tg://resolve resolve via server search; slice 161: message permalinks route in-app incl. the jump; slice 189: topic permalinks open straight into the topic + jump; slice 196: comment-thread permalinks (t.me/<channel>/<post>?comment=<id>, t.me/c/<id>/<post>?comment=, tg://resolve&comment=) open straight into the slice-195 thread view and jump onto the linked comment — off-page comments resolve via GetMessageTimestamp + a target-anchored thread window) | gui/deeplink.go + gui/comments.go + gui/state.go + engine GetMessageTimestamp/GetThreadMessages + cores GetMessageByID | P3 |
 | Bot mini-apps (webview panels) | Web apps inside chat | CORE-ONLY (pure-Go constraint: needs embedded webview ≙ decision required) | engine.RequestBotWebView (CORE-ONLY) | P3 |
 | Instant View pages | IV reader overlay | PRESENT (slice 176: full-window reader — link-preview cards with wp_has_iv and telegra.ph/graph.org text links open it; all IV block kinds render incl. photos w/ stripped-thumb→full pipeline, tables, related articles w/ back-stack navigation, slideshows, collapsible details, channel cards; video/audio download via IV document downloader → system player; embed/map cards hand off to the browser honestly; fetch failure falls back to the browser, never a dead overlay) | gui/instantview.go + engine GetInstantViewPage/DownloadIVPhoto/DownloadIVDocument | P3 |
 | Channel statistics screens | Charts dashboards | PRESENT (slice 184: channel Statistics page from the header menu (admin channels only) — stats.getBroadcastStats + stats.loadAsyncGraph resolution; overview card grid (followers w/ +/− delta, views/shares/reactions per post, story counters, notifications-on %) + line charts drawn from Telegram's chart JSON ({"columns":[["x",...],["y",...]]}) — accent polyline over hairline grid, compact axis labels (1.2K/1.5M), date range footer; unparseable graphs honestly skip) | cores/telegram_stats.go + gui/statsview.go + engine GetChannelStats | P3 |
@@ -341,8 +341,8 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 12. **Chat settings (PARTIAL)** — link-preview/message-actions/swipe/
     corner-reaction/reply-pill all shipped; remaining: nothing user-
     visible (row kept PARTIAL only for the ForumTabs-gated extras).
-13. **Deep links (PARTIAL)** — join/resolve/message/topic permalinks all
-    route in-app; comment-thread ?comment= forms stay on the browser.
+13. **Deep links** — CLOSED (slice 196): join/resolve/message/topic/
+    comment permalinks all route in-app.
 14. **Location (PARTIAL)** — proximity-alert radius omitted (honest scope).
 15. **Message details (PARTIAL)** — DC/sticker-author rows honestly absent
     (not cached by the engine).
@@ -358,8 +358,8 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (199 feature rows)
 
-- PRESENT: 177 (89%)
-- PARTIAL: 16 — honest scope cuts (8) · platform/protocol-blocked (4:
+- PRESENT: 179 (90%)
+- PARTIAL: 15 — honest scope cuts (7) · platform/protocol-blocked (4:
   video playback ×2, notification transports, avatar corners) ·
   engine-gated (2: forum extras, saved sublists) · checkout-gated (2:
   stars gifting, giveaway launch)
@@ -377,4 +377,5 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   notify) whose own descriptions already met their criteria · slice 191
   (restrict/ban boxes): moderation CORE-ONLY→PRESENT · slice 192
   (boosts page): giveaways CORE-ONLY→PARTIAL · slice 193 (signup photo):
-  signup PARTIAL→PRESENT.
+  signup PARTIAL→PRESENT · slice 195 (channel-post comments): new row
+  PRESENT · slice 196 (comment deep links): deep links PARTIAL→PRESENT.

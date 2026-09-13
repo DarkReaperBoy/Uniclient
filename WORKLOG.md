@@ -5309,3 +5309,45 @@ Parity: PRESENT 177 (89%) · PARTIAL 16 · MISSING 1 · CORE-ONLY 5.
 
 Parity: PRESENT 178 (89%) · PARTIAL 16 · MISSING 1 · CORE-ONLY 5
 (one by-design). New row: "Channel-post comments" PRESENT.
+
+## 2026-09-14 — slice 196: comment-thread deep links route in-app
+
+- The last router gap from the slice-194 truth pass: comment-thread
+  permalinks (t.me/<channel>/<post>?comment=<id>,
+  t.me/c/<id>/<post>?comment=<id>, tg://resolve?...&comment=<id>) still
+  handed to the browser even though slice 195 shipped the thread view
+  they target. Rating (§1.14): the deep-link router + pendingOpen hop
+  architecture was exactly right to extend (9/10 — extended, not
+  replaced).
+- deepLinkTarget now strips and parses the URL query (classification
+  previously broke on ANY query string — t.me/user/123?x=1 fell to the
+  browser) and returns a 5th value, the comment id, on the non-topic
+  permalink forms; topic forms keep topic-wins semantics (a link is
+  exactly one of the three).
+- Routing: openPermalinkTarget's comment branch schedules pendingOpen +
+  pendingThread{postID, commentID} synchronously (no timestamp prefetch
+  — the thread fetch resolves its own rows); openChat's first-load hop
+  consumes pendingThread (supersedes topic/plain jumps) into
+  openCommentThreadDeep.
+- openCommentThreadDeep mirrors the chip's openCommentThread minus the
+  in-hand post row: threadScope settles via GetDiscussionThread, the bar
+  title falls back to the root row's text (the forwarded post copy).
+  The comment jump: newest page first; off-page comments resolve through
+  GetMessageTimestamp (cache write-through) into a target-anchored
+  GetThreadMessages window assembled by the pure threadDeepJumpWindow
+  (reverse(older) + newer tail, message-index jump mapped onto the
+  render row via rowIndexOf, same conversion as jumpToMessageAt);
+  unresolvable comments keep the newest page, no jump (honest).
+  ReadDiscussion fires on open (tdesktop parity).
+- Tests first: deeplink_test.go — 5-value classification with the full
+  comment matrix (public/private/tg://, non-numeric + empty drops,
+  topic-wins, stray-param resolves, query-strip regressions);
+  comments_test.go — threadDeepJumpWindow assembly (in-page target,
+  off-page window, missing target) + the zero-App scheduling hop
+  (pendingOpen + pendingThread, no pendingJump/pendingTopic).
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok · linux build ok · windows + wasm cross-builds + Xvfb GUI
+  smoke dispatched to the verify workflow (small-sandbox policy, §5).
+
+Parity: PRESENT 179 (90%) · PARTIAL 15 · MISSING 1 · CORE-ONLY 5.
+Deep links PARTIAL → PRESENT (gap 13 closed).

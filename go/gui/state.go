@@ -330,19 +330,20 @@ type App struct {
 	// hamburger main menu (AyuGram parity slice 17): drawer, contacts
 	// sheet, new group/channel dialog, and the pending-open hop that lets
 	// goroutines schedule openChat on the GUI loop.
-	drawerOpen   bool
-	contactsOpen bool
-	contactsFor  string
-	contacts     []engine.ContactInfo
-	contactsLoad bool
-	addDlgOpen   bool
-	addDlgBusy   bool
-	newDlg       *newChatDlg
-	newDlgErr    string
-	pendingOpen  *chatKey
-	pendingTitle string
-	pendingJump  *jumpReq // permalink deep-link jump after the chat opens (slice 161)
-	pendingTopic *string  // topic permalink: scope the opened chat to this topic before jumping (slice 189)
+	drawerOpen    bool
+	contactsOpen  bool
+	contactsFor   string
+	contacts      []engine.ContactInfo
+	contactsLoad  bool
+	addDlgOpen    bool
+	addDlgBusy    bool
+	newDlg        *newChatDlg
+	newDlgErr     string
+	pendingOpen   *chatKey
+	pendingTitle  string
+	pendingJump   *jumpReq       // permalink deep-link jump after the chat opens (slice 161)
+	pendingTopic  *string        // topic permalink: scope the opened chat to this topic before jumping (slice 189)
+	pendingThread *threadOpenReq // comment permalink: open the chat straight into the thread view and jump to the linked comment (slice 196)
 
 	// the Calls box (AyuGram parity slice 154): per-account call-history
 	// page — grouped rows, redial, clear-all, group-calls subsection.
@@ -1419,6 +1420,12 @@ func (a *App) openChat(k chatKey, title string) {
 		// land on the chat root window.
 		pt := a.pendingTopic
 		a.pendingTopic = nil
+		// Comment permalink hop (slice 196): open the just-opened
+		// chat straight into the comment-thread view and jump onto
+		// the linked comment — supersedes the topic/plain jumps (a
+		// link is exactly one of the three).
+		pth := a.pendingThread
+		a.pendingThread = nil
 		// Anchor the unread separator to the boundary message (only
 		// on the first load of this visit, before the read receipt).
 		if a.unreadSepMsgID == "" && a.unreadAtOpen > 0 {
@@ -1427,7 +1434,9 @@ func (a *App) openChat(k chatKey, title string) {
 			}
 		}
 		a.mu.Unlock()
-		if pt != nil {
+		if pth != nil {
+			a.openCommentThreadDeep(k, *pth)
+		} else if pt != nil {
 			a.jumpToTopicMessageAt(*pt, pj)
 		} else if pj != nil {
 			a.jumpToMessageAt(pj.msgID, pj.ts)
