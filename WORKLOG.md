@@ -4604,3 +4604,23 @@ round-video confirmation unshipped).
 
 Parity: Per-chat notification settings UI PARTIAL→PRESENT (mute picker
 + presets + custom duration + exceptions; vibrate mobile-only stays).
+
+## 2026-09-13 — slice 175: parity-table truth pass
+
+- research/ayugram_parity.md had drifted from the code: four rows said
+  less than what shipped. Trued against the tree + slice history (§10:
+  markdown stays short and true): App icon selector MISSING → PRESENT
+  (slice 170 landed the 12-set picker + runtime window icon); Voice
+  message's "transcribe stays engine-gated" note — slice 115 landed
+  transcribe (A→A → messages.transcribeAudio + pushed updates, cached);
+  Ayu preferences' "remaining spy/saving toggles stay engine-gated" —
+  slices 162 (local premium) + 163 (sponsored/disable-ads) closed the
+  set, the section list now matches AyuGramDesktop's shipped sections
+  1:1; Business row's "chat links remain engine-gated" — tdesktop and
+  AyuGramDesktop ship NO chat-links UI, so it is out of 1:1 scope by
+  §1.11 (what AyuGram does), documented instead of built.
+- Counts after the pass: PRESENT 161 (80%) · PARTIAL 25 · MISSING 1
+  (PiP, blocked on a pure-Go video decoder) · CORE-ONLY 13.
+- No code change — gate still green from slice 174's run.
+
+Parity: table now matches the tree.
