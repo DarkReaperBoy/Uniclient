@@ -222,3 +222,70 @@ func TestMediaPlayerEmitsEvents(t *testing.T) {
 		}
 	}
 }
+
+// TestMediaPlayerSeek (slice 185): fraction seeking moves the read
+// position (clamped), paused seeking keeps the pause, a finished
+// headless player never fakes Playing (§1.10), and seeking with
+// nothing loaded is an honest error.
+func TestMediaPlayerSeek(t *testing.T) {
+	path := ffmpegToneOgg(t)
+	e := newTestEngineForPlayer(t)
+
+	// Nothing loaded yet.
+	if err := e.SeekMedia(0.5); err == nil {
+		t.Fatal("SeekMedia with nothing loaded must error")
+	}
+
+	p := playLoaded(t, e, path)
+	dur := e.MediaState().Duration
+
+	// Mid-playback seek: position lands at the fraction of duration.
+	if err := e.SeekMedia(0.5); err != nil {
+		t.Fatalf("SeekMedia(0.5): %v", err)
+	}
+	if pos := e.MediaState().Position; pos < dur*0.45 || pos > dur*0.55 {
+		t.Fatalf("after seek: position %.3f (dur %.3f)", pos, dur)
+	}
+
+	// Clamping.
+	if err := e.SeekMedia(4); err != nil {
+		t.Fatalf("SeekMedia(4): %v", err)
+	}
+	if pos := e.MediaState().Position; pos < dur*0.95 {
+		t.Fatalf("over-seek not clamped: %.3f", pos)
+	}
+	if err := e.SeekMedia(-2); err != nil {
+		t.Fatalf("SeekMedia(-2): %v", err)
+	}
+	if pos := e.MediaState().Position; pos > 0.01 {
+		t.Fatalf("negative seek not clamped: %.3f", pos)
+	}
+
+	// Pause, then seek: still paused, position moved.
+	e.TogglePauseMedia()
+	e.SeekMedia(0.75)
+	st := e.MediaState()
+	if !st.Paused {
+		t.Fatal("seek while paused dropped the pause")
+	}
+	if st.Position < dur*0.7 || st.Position > dur*0.8 {
+		t.Fatalf("paused seek position %.3f", st.Position)
+	}
+
+	// Simulate natural completion (fill ran off the tail).
+	p.mu.Lock()
+	p.pos = float64(len(p.pcm))
+	p.playing = false
+	p.mu.Unlock()
+	// Headless (no device): a seek must NOT resurrect a Playing state.
+	e.SeekMedia(0.3)
+	if e.MediaState().Playing {
+		t.Fatal("headless seek faked a Playing state (§1.10)")
+	}
+
+	// Stopped: seeking errors again.
+	e.StopMedia()
+	if err := e.SeekMedia(0.5); err == nil {
+		t.Fatal("SeekMedia after StopMedia must error")
+	}
+}

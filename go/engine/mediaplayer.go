@@ -11,12 +11,13 @@ import (
 	"uniclient/voice"
 )
 
-// In-app playback of downloaded Ogg/Opus media (voice notes, audio
-// files). The file is decoded fully into PCM at load (voice notes are
-// seconds-to-minutes — a few MB of PCM at most), then played through
-// the pure-Go audio device layer in pull mode with position and speed
-// (linear-interpolation resampling). Non-Opus files stay with the
-// system-player handoff (§1.10 — no pretending mp3 plays in-app).
+// In-app playback of downloaded media (Ogg/Opus voice notes + opus
+// audio, and MP3 music since slice 185). The file is decoded fully into
+// PCM at load (voice notes are seconds-to-minutes — a few MB of PCM at
+// most), then played through the pure-Go audio device layer in pull
+// mode with position and speed (linear-interpolation resampling).
+// Formats neither decoder covers stay with the system-player handoff
+// (§1.10).
 
 // PlaybackState is the player's public snapshot.
 type PlaybackState struct {
@@ -126,10 +127,19 @@ func decodeOpusOgg(path string) ([]int16, error) {
 // PlayMedia starts in-app playback of a downloaded message's file.
 // Switches playback from any previous message; emits EventPlaybackState.
 func (e *Engine) PlayMedia(acct, chat, msgID, path string) error {
-	if !IsOpusOgg(path) {
-		return fmt.Errorf("media: %s is not Ogg/Opus — use the system player", path)
+	// In-app playable formats (slice 185): Ogg/Opus (voice notes, opus
+	// audio) and MP3 (music files) decode through the pure-Go pipeline;
+	// everything else stays with the system-player handoff (§1.10).
+	var pcm []int16
+	var err error
+	switch {
+	case IsOpusOgg(path):
+		pcm, err = decodeOpusOgg(path)
+	case IsMp3(path):
+		pcm, err = decodeMp3(path)
+	default:
+		return fmt.Errorf("media: %s is not Ogg/Opus or MP3 — use the system player", path)
 	}
-	pcm, err := decodeOpusOgg(path)
 	if err != nil {
 		return err
 	}
@@ -197,6 +207,35 @@ func (e *Engine) CycleMediaSpeed() {
 	p.speed = next
 	p.mu.Unlock()
 	e.emitPlayback()
+}
+
+// SeekMedia jumps the active playback to a fraction (0..1) of its
+// duration. A playback that already finished re-arms and resumes from
+// the seek point (tdesktop's replay-on-seek behavior); seeking with no
+// active playback is an honest error.
+func (e *Engine) SeekMedia(frac float64) error {
+	p := e.player()
+	p.mu.Lock()
+	if len(p.pcm) == 0 || p.dur <= 0 {
+		p.mu.Unlock()
+		return fmt.Errorf("media: nothing playing to seek")
+	}
+	if frac < 0 {
+		frac = 0
+	}
+	if frac > 1 {
+		frac = 1
+	}
+	p.pos = frac * float64(len(p.pcm))
+	if p.sess != nil && !p.playing && !p.paused && p.pos < float64(len(p.pcm))-1 {
+		// Finished playback re-arms and resumes from the seek point
+		// (tdesktop's replay-on-seek) — only with a live audio device;
+		// a no-device player never fakes a Playing state (§1.10).
+		p.playing = true
+	}
+	p.mu.Unlock()
+	e.emitPlayback()
+	return nil
 }
 
 // MediaState snapshots the player.

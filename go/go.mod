@@ -15,6 +15,8 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/gogpu/systray v0.3.0
 	github.com/gotd/td v0.161.0
+	github.com/hajimehoshi/go-mp3 v0.3.0
+	github.com/jezek/xgb v1.3.1
 	github.com/jfreymuth/pulse v0.1.3
 	github.com/livekit/server-sdk-go/v2 v2.18.1
 	github.com/pion/ice/v4 v4.4.2
@@ -75,7 +77,6 @@ require (
 	github.com/gotd/ige v0.3.0 // indirect
 	github.com/gotd/log v0.1.0 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
-	github.com/jezek/xgb v1.3.1 // indirect
 	github.com/jxskiss/base62 v1.1.0 // indirect
 	github.com/klauspost/compress v1.19.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect

@@ -4937,3 +4937,49 @@ webview decision) or dead-UI-forbidden (experimental flags stub).
 - Next sessions: the remaining surface is the 25 PARTIAL rows (mostly
   engine-gated halves or honest scope cuts) + the blocked rows that
   need upstream pure-Go video decode; slice-8 style polish passes.
+
+## 2026-09-13 — slice 185: in-app MP3 music player (decode + seek + tags)
+
+- Parity row "Audio file" PARTIAL → PRESENT. Rating (§1.14): the
+  slice-113 player pipeline (full PCM decode at load, pull-mode device,
+  speed via fractional stepping) is solid and battle-tested (8/10) —
+  extended, not replaced; go-mp3 (hajimehoshi) chosen for the decoder:
+  pure Go, MIT, no cgo, maintained, decodes the MPEG-1/2/2.5 layers
+  Telegram music files actually use.
+- engine/mediaplayer_mp3.go (new): IsMp3 (ID3v2 + raw MPEG frame-sync
+  sniff, 512-byte window, layer-reserved guard), IsInAppPlayable,
+  mixdownStereo (stereo→mono average), resampleLinear (linear
+  interpolation to the fixed 48 kHz), decodeMp3 (decode → LE int16 →
+  mono → resample). PlayMedia routes by sniff: Opus | MP3 → in-app,
+  anything else → honest system-player handoff (§1.10).
+- engine SeekMedia(fraction): clamped fraction seek over the PCM (pull
+  mode makes this a pos write); finished playback re-arms and resumes
+  from the seek point — only with a live audio device, headless never
+  fakes Playing (§1.10); seeking nothing/after-stop = honest error.
+- gui/seekbar.go (new): the music bubble's draggable seek track —
+  press/drag/release all seek (pointer x over track width), half-percent
+  drag throttle, 3 dp bar + 6 dp accent playhead dot; seekFraction pure
+  (degenerate widths pass current through).
+- gui/media.go: audioBubble — embedded Title/Performer tags
+  (DocumentAttributeAudio was already exported to Extra by the core;
+  engine CachedMessage.AudioMeta() parses it, file-name fallback §1.10),
+  performer rides the sub line ("Artist · 0:30 / 3:12 · 4.1 MB"), seek
+  track under the row while the file is the active in-app playback.
+- Hygiene: go.mod — go-mp3 direct dep; xgb promoted to direct (it was
+  already directly imported by gui/appicon_apply_linux.go; the module
+  line was stale). Fixed two files committed unformatted by earlier
+  slices (cores/telegram_stats.go, gui/sendas_test.go — spaces vs
+  tabs; the gofmt gate would have caught them).
+- Tests first: engine/mediaplayer_mp3_test.go (6 — sniff truth table,
+  mixdown, resample identity/up/down/degenerate, ffmpeg-fixture decode
+  + play-through with position advance, playable gating),
+  engine/audiometa_test.go (6 — tag parse matrix incl. non-string and
+  garbage), engine mediaplayer_test.go TestMediaPlayerSeek (7 asserts —
+  clamps, paused seek keeps pause, headless re-arm refusal, post-stop
+  error), gui/seekbar_test.go (fraction matrix + sub-line
+  composition). All green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok · linux build + Xvfb GUI smoke (30s+ stable, dominant
+  #17212B, 815 colors) · js/wasm build ok · windows build ok.
+
+Parity: PRESENT 170 (84%) · PARTIAL 24 · MISSING 1 · CORE-ONLY 5.

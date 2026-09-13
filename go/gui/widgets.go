@@ -362,6 +362,8 @@ type widgets struct {
 	mediaClicks                map[string]*widget.Clickable
 	mediaPlayClickables        map[string]*widget.Clickable
 	memberRowBtns              map[string]*widget.Clickable
+	seekBarTags                map[string]*struct{}
+	seekBarApplied             map[string]float64
 	msgReactBtns               map[string]*widget.Clickable
 	msgReplyBtns               map[string]*widget.Clickable
 	panelRowClickables         map[string]*widget.Clickable
@@ -388,6 +390,8 @@ func (w *widgets) init() {
 	w.mediaClicks = make(map[string]*widget.Clickable)
 	w.mediaPlayClickables = make(map[string]*widget.Clickable)
 	w.memberRowBtns = make(map[string]*widget.Clickable)
+	w.seekBarTags = make(map[string]*struct{})
+	w.seekBarApplied = make(map[string]float64)
 	w.msgReactBtns = make(map[string]*widget.Clickable)
 	w.msgReplyBtns = make(map[string]*widget.Clickable)
 	w.panelRowClickables = make(map[string]*widget.Clickable)

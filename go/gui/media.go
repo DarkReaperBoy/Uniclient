@@ -487,7 +487,8 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 				}
 			}
 		case engine.MediaVoice, engine.MediaAudio:
-			if msg.MediaLocalPath != "" && engine.IsOpusOgg(msg.MediaLocalPath) {
+			// Slice 185: MP3 music plays in-app too (pure-Go decode).
+			if msg.MediaLocalPath != "" && engine.IsInAppPlayable(msg.MediaLocalPath) {
 				a.toggleVoicePlayback(&msg)
 			} else if msg.MediaLocalPath != "" {
 				a.openMedia(msg.MediaLocalPath, true)
@@ -779,7 +780,7 @@ func (a *App) toggleVoicePlayback(m *engine.CachedMessage) {
 		// takes over.
 		return
 	}
-	if !engine.IsOpusOgg(m.MediaLocalPath) {
+	if !engine.IsInAppPlayable(m.MediaLocalPath) {
 		if m.MediaLocalPath != "" {
 			a.openMedia(m.MediaLocalPath, true)
 		}
@@ -953,9 +954,14 @@ func (a *App) mediaPlayClickable(key string) *widget.Clickable {
 	return c
 }
 
-// audioBubble: music-file row (title, duration, size).
+// audioBubble: music-file row — embedded title/performer tags when the
+// document carries them (tdesktop's music row), the file name otherwise;
+// live elapsed + seek track while the file plays in-app (slice 185).
 func (a *App) audioBubble(gtx layout.Context, m *engine.CachedMessage) layout.Dimensions {
-	title := mediaTitle(m)
+	title, performer := m.AudioMeta()
+	if title == "" {
+		title = mediaTitle(m)
+	}
 	st := a.eng.MediaState()
 	mine := (st.Playing || st.Paused) && st.AccountID == m.AccountID && st.ChatID == m.ChatID && st.MsgID == m.MsgID && st.Duration > 0
 
@@ -982,17 +988,22 @@ func (a *App) audioBubble(gtx layout.Context, m *engine.CachedMessage) layout.Di
 							return lbl.Layout(gtx)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							// While this file plays in-app, show the live
-							// elapsed/total line (slice 113).
-							sub := fmtDur(m.MediaDuration)
-							if mine {
-								sub = fmtPlaybackTime(st.Position, st.Duration)
-							}
-							if m.MediaFileSize > 0 {
-								sub += " · " + fmtBytes(m.MediaFileSize)
-							}
-							lbl := a.ui.Dim(unit.Sp(10), sub)
+							lbl := a.ui.Dim(unit.Sp(10), audioSubLine(performer, m.MediaDuration, mine, st.Position, st.Duration, m.MediaFileSize))
 							return lbl.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							// Seek track while this file plays in-app
+							// (slice 185): press/drag/release seeks.
+							if !mine || st.Duration <= 0 {
+								return layout.Dimensions{}
+							}
+							frac := 0.0
+							if st.Duration > 0 {
+								frac = st.Position / st.Duration
+							}
+							return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return a.seekBar(gtx, m.AccountID+"|"+m.ChatID+"|"+m.MsgID, frac)
+							})
 						}),
 					)
 				})
@@ -1049,6 +1060,24 @@ func mediaTitle(m *engine.CachedMessage) string {
 		return ""
 	}
 	return strings.TrimSuffix(name, filepath.Ext(name))
+}
+
+// audioSubLine builds the music row's subtitle (slice 185): the performer
+// tag when the document carries one, then the live elapsed/total while
+// the file plays in-app (the message's static duration otherwise), then
+// the file size. Pure — unit-tested.
+func audioSubLine(performer string, msgDur int, mine bool, pos, liveDur float64, size int64) string {
+	sub := fmtDur(msgDur)
+	if mine {
+		sub = fmtPlaybackTime(pos, liveDur)
+	}
+	if performer != "" {
+		sub = performer + " · " + sub
+	}
+	if size > 0 {
+		sub += " · " + fmtBytes(size)
+	}
+	return sub
 }
 
 // mediaPlaceholder: the aspect box shown while a thumbnail decodes or when a

@@ -1113,6 +1113,30 @@ func (m *CachedMessage) VoiceWaveform() []byte {
 	return extractWaveform(m.ContentRaw)
 }
 
+// AudioMeta returns the audio document's embedded title and performer
+// (Telegram's music tags, exported by the core from
+// DocumentAttributeAudio) parsed from the cached message content.
+// Empty strings when the message carries none — callers fall back to
+// the file name (§1.10: no invented metadata). Pure — unit-tested.
+func (m *CachedMessage) AudioMeta() (title, performer string) {
+	if m == nil || len(m.ContentRaw) == 0 {
+		return "", ""
+	}
+	var msg struct {
+		Extra map[string]interface{} `json:"extra"`
+	}
+	if json.Unmarshal(m.ContentRaw, &msg) != nil || msg.Extra == nil {
+		return "", ""
+	}
+	if t, ok := msg.Extra["audio_title"].(string); ok {
+		title = t
+	}
+	if p, ok := msg.Extra["audio_performer"].(string); ok {
+		performer = p
+	}
+	return title, performer
+}
+
 type SharedMediaCountItem struct {
 	MediaType string `json:"media_type"`
 	Count     int    `json:"count"`
