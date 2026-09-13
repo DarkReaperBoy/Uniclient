@@ -4740,3 +4740,28 @@ Parity: PRESENT 163 (81%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 11.
   ./... 8/8 ok.
 
 Parity: PRESENT 164 (81%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 10.
+
+## 2026-09-13 — slice 179: call rating dialog
+
+- Parity row "Call rating dialog" CORE-ONLY → PRESENT (tdesktop's
+  RateCallBox). Rating (§1.14): engine SendCallRating (calls.setRating
+  pass-through) 7/10 — kept; GUI on the modal-dialog pattern.
+- gui/callrate.go (new): ended calls that actually connected and lasted
+  minRateCallDur (10s) arm the rating card when the call panel dismisses
+  — "Rate this call / How was the call quality with <peer>?" + five
+  star taps (accent-tinted up to the chosen count, out-of-range ignored)
+  + optional comment editor + Send/Skip. Send walks engine.SendCallRating
+  (account, callID, stars, trimmed comment) with a toast on error;
+  missed/declined (never-active) and sub-threshold calls never rate.
+- Wiring: onCallStateEvent computes rateability under the lock and arms
+  App.rateDlg after the ended transition; dialog renders above the call
+  overlay in the app overlay stack; frame/snapshot mirror; widget pool
+  (5 star clickables, send/skip, comment editor).
+- Tests first (go/gui/callrate_test.go, 3 tests): gating (4s call no,
+  never-active no, 2min yes, threshold yes), star semantics (same-tap
+  no-op, out-of-range ignored, validity), payload (comment trim, send
+  gating). All pure.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok.
+
+Parity: PRESENT 165 (82%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 9.

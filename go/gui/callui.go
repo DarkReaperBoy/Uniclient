@@ -299,6 +299,17 @@ func (a *App) onCallStateEvent(accountID string, cs *cores.CallSession) {
 	if ended {
 		go a.loadCalls() // the history row appears server-side
 		go a.scheduleCallDismiss()
+		// Rating dialog (slice 179): only calls that connected and
+		// lasted minRateCallDur (missed/declined never did).
+		if callRateable(c, now) {
+			a.mu.Lock()
+			a.rateDlg = &rateCallState{
+				accountID: c.accountID,
+				callID:    c.callID,
+				peerName:  c.peerName,
+			}
+			a.mu.Unlock()
+		}
 	}
 	a.invalidate()
 }

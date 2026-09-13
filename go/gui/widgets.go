@@ -53,6 +53,12 @@ type widgets struct {
 	// chatmenu.go
 	chatMenuBtns []widget.Clickable
 
+	// callrate.go
+	rateStars     []widget.Clickable
+	rateSendBtn   widget.Clickable
+	rateSkipBtn   widget.Clickable
+	rateCommentEd widget.Editor
+
 	// sendas.go
 	sendAsBtn      widget.Clickable
 	sendAsCloseBtn widget.Clickable

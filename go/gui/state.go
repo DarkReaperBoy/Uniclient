@@ -449,6 +449,10 @@ type App struct {
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
 
+	// call rating dialog (slice 179): armed when an ended call lasted
+	// minRateCallDur; Send walks engine.SendCallRating.
+	rateDlg *rateCallState
+
 	// send-as identity picker (slice 178): the open chat's offered
 	// identities + the locally-saved choice + the picker dialog.
 	sendAs    []engine.SendAsPeerInfo
@@ -2138,6 +2142,7 @@ func (a *App) snapshot() frame {
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
 		schedLoad:        a.schedLoad,
+		rateDlg:          a.rateDlg,
 		sendAs:           a.sendAs,
 		sendAsFor:        a.sendAsFor,
 		sendAsCur:        a.sendAsCur,
@@ -2454,6 +2459,9 @@ type frame struct {
 	schedPanel bool
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
+
+	// call rating dialog (slice 179)
+	rateDlg *rateCallState
 
 	// send-as identity picker (slice 178)
 	sendAs    []engine.SendAsPeerInfo

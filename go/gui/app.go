@@ -107,6 +107,10 @@ func (a *App) Root(gtx layout.Context) {
 	if f.call != nil {
 		a.layoutCallOverlay(gtx, f)
 	}
+	// Call rating dialog (slice 179): above the call overlay.
+	if f.rateDlg != nil {
+		a.layoutRateCallDialog(gtx, f)
+	}
 	if f.drawerOpen {
 		a.layoutDrawer(gtx, f)
 	}
