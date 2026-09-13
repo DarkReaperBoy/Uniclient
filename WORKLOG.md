@@ -4908,3 +4908,32 @@ included); CORE-ONLY 6 unchanged (blocked/needs-core rows).
 Parity: PRESENT 169 (84%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 5.
 Remaining CORE-ONLY rows are all blocked (pure-Go video decode ×2,
 webview decision) or dead-UI-forbidden (experimental flags stub).
+
+## 2026-09-13 — session wrap: slices 176–184, environment + verification
+
+- Fresh VM this session: no Go toolchain, no GL dev packages. Rebuilt via
+  the repo's own scripts/devroot-setup.sh (Go 1.27.0 → ~/.local/go,
+  CGO sysroot → ~/.local/sysroot incl. wayland/EGL/vulkan/xkbcommon/
+  xcb; added Mesa EGL runtime debs for the headless smoke).
+- Nine slices landed, all pushed immediately (§1.15): 176 Instant View
+  reader, 177 admin log, 178 send-as picker, 179 call rating, 180 gift
+  card bubbles, 181 paid-media star wall + unlock, 182 TTL badges, 183
+  animated custom-emoji reaction pills, 184 channel statistics page.
+- Parity after the session: PRESENT 169 (84%) · PARTIAL 25 · MISSING 1
+  (PiP — blocked on pure-Go video decode) · CORE-ONLY 5 — every
+  remaining CORE-ONLY row is blocked (video decode ×2, webview
+  decision) or dead-UI-forbidden (the experimental-flags engine stub
+  consumes nothing; §1.10). The CORE-ONLY program is effectively
+  complete.
+- Verification this session (local, since the GitHub dispatch API
+  returned 500s for workflow dispatches — GitHub-side outage, retries
+  failed; runs 138–142 all green historically):
+  gofmt clean · go vet -tags goolm clean · go test -tags goolm ./...
+  8/8 packages ok · linux CGO build ok · GOOS=js wasm build ok ·
+  GOOS=windows build ok · Xvfb GUI smoke: the real binary boots and
+  runs (30s+ stable, software EGL via Mesa) and renders — the captured
+  frame's dominant color is #17212B (the app palette's Background),
+  815 distinct colors.
+- Next sessions: the remaining surface is the 25 PARTIAL rows (mostly
+  engine-gated halves or honest scope cuts) + the blocked rows that
+  need upstream pure-Go video decode; slice-8 style polish passes.
