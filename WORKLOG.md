@@ -5528,3 +5528,20 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   windows cross-build ok (compiles the transport) · wasm build ok.
 
 Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
+
+## 2026-09-14 — session wrap addendum: slice 200
+
+- The Windows toast transport (gap 5's windows half) shipped in the
+  same session — implemented straight from the fresh
+  research/windows_toast.md ABI research: notify_windows.go (pure-Go
+  WinRT: RoGetActivationFactory/RoActivateInstance/HSTRING; manager →
+  notifier → XmlDocument LoadXml → ToastNotification → Show; error→
+  log-only like Linux), toastxml.go shared CDATA-safe payload builder
+  + tests. Windows cross-build compiles it; CI verify green (9d65a0aa).
+- All five slices this session (196, 196.1, 197, 198, 199, 200) are
+  pushed and verify-workflow-verified (full gate + windows/wasm
+  cross-builds + Xvfb GUI smoke each).
+- Next queue head for the next session: click-through toast activation
+  + own-AUMID shortcut (IShellLink/IPropertyStore COM) — extends
+  slice 200; then the remaining gaps are checkout/owner-decision/
+  protocol-blocked (see research/ayugram_parity.md).
