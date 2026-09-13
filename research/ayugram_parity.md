@@ -275,7 +275,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Feature | AyuGram does | Status | Where | Pri |
 |---|---|---|---|---|
 | In-app toast | Transient bottom message | PRESENT | gui/app.go layoutToast | P0 |
-| System desktop notifications | Native banners + sounds + actions | PARTIAL (slice 22: Linux DBus org.freedesktop.Notifications banners w/ config gating (DMs/groups/mentions-only), per-chat mute, 5s throttle; slice 121: sounds — synthesized pure-Go chimes through the audio backend w/ per-chat overrides; slice 141: click-to-open — banners carry the freedesktop `default` action, ActionInvoked → window raise + pendingOpen hop; per-chat in-place replacement (banners never stack for one chat, tdesktop behavior); peer avatar as the image-path hint + desktop-entry hint; wire-verified against a private dbus-daemon w/ a fake notification server incl. signal round-trips; windows/wasm/android native transports remain stubs) | gui/notify.go + gui/notify_linux.go + gui/notifysound.go | P1 |
+| System desktop notifications | Native banners + sounds + actions | PARTIAL (slice 22: Linux DBus org.freedesktop.Notifications banners w/ config gating (DMs/groups/mentions-only), per-chat mute, 5s throttle; slice 121: sounds — synthesized pure-Go chimes through the audio backend w/ per-chat overrides; slice 141: click-to-open — banners carry the freedesktop `default` action, ActionInvoked → window raise + pendingOpen hop; per-chat in-place replacement (banners never stack for one chat, tdesktop behavior); peer avatar as the image-path hint + desktop-entry hint; wire-verified against a private dbus-daemon w/ a fake notification server incl. signal round-trips; slice 200: Windows native transport — pure-Go WinRT toasts (Ro*/HSTRING, ABI pinned vs mingw-w64, PowerShell AUMID, error→log-only like Linux); wasm/android stay honest stubs) | gui/notify.go + gui/notify_linux.go + gui/notifysound.go | P1 |
 | Tray icon + tray menu (w/ ghost/streamer toggles, accounts) | Sys-tray integration | PRESENT (slice 137: pure-Go tray via gogpu/systray — freedesktop SNI + com.canonical.dbusmenu on Linux (godbus), Shell_NotifyIconW on Windows; AyuGram menu = Show, per-account rows w/ unread counts (tap scopes the sidebar), Ghost + Streamer live checkboxes, Quit; programmatic accent-tile icon w/ 3x5-font unread badge (trayicon.go); config-gated toggle in Settings→Notifications (default on); web/Android honest absence; REAL wire-level tests vs a private dbus-daemon + fake watcher) | gui/tray.go + gui/trayicon.go + gui/traysnap.go + utils AppConfig.SystemTray | P2 |
 | Unread badge on taskbar/dock | Count badge | PRESENT (slice 137: tray icon renders the total unread counter ('99+') w/ tooltip sync; slice 153: Windows TASKBAR OVERLAY BADGE — ITaskbarList3::SetOverlayIcon via pure-Go COM (vtable index pinned against the mingw-w64 shobjidl.h ABI), overlay HICON composed in-process (rounded accent tile + tray glyph digits) through CreateDIBSection + CreateIconIndirect, HWND captured from gio's Win32ViewEvent, independent of the tray toggle, released at Shutdown; Linux docks have no freedesktop standard — Unity launcher badge documented as future) | gui/taskbar_windows.go + gui/taskbaricon.go + gui/tray.go | P2 |
 | Per-chat notification settings UI | Mute duration picker, exceptions | PRESENT (slice 134: ⏰ chip → "Mute for…" picker w/ tdesktop presets + Unmute → engine.MuteChat; slice 136: remaining-time display — chat-row countdown chip, profile subtitle, mute_until (v50) + expiry sweep + cross-device sync; slice 174: notify exceptions — per-chat Sound and Message-previews switches (account.get/updateNotifySettings, per-field writes preserving mute); vibrate is mobile-only — no dead desktop toggle (§1.10)) | gui/mutedlg.go + engine MuteChat + core MuteChatFor (withAPI-converted) | P2 |
@@ -325,8 +325,12 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
    exactly this role (deleted/edits retention in cache_msgs); same
    function, different name.
 5. **System desktop notifications (PARTIAL)** — Linux DBus transport is
-   wire-verified; windows/wasm/android native transports remain stubs
-   (platform work, honest).
+   wire-verified; Windows ships the WinRT toast transport (slice 200:
+   pure-Go Ro* activation, IIDs/vtables pinned against mingw-w64
+   headers, PowerShell AUMID, CDATA-safe text toasts, error→log-only
+   like Linux; click-through activation + own-AUMID shortcut remain —
+   research/windows_toast.md); wasm/android stay honest stubs (no such
+   OS surface / push plumbing).
 6. **Forum topics view (PARTIAL)** — reorder + Left/Bottom tab modes
    remain (engine ForumTabs flag gates when the engine surfaces it).
 7. **Saved Messages (PARTIAL)** — sublists SHIPPED (slice 197) +
