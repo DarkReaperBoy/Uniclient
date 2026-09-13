@@ -4983,3 +4983,26 @@ webview decision) or dead-UI-forbidden (experimental flags stub).
   #17212B, 815 colors) · js/wasm build ok · windows build ok.
 
 Parity: PRESENT 170 (84%) · PARTIAL 24 · MISSING 1 · CORE-ONLY 5.
+
+## 2026-09-13 — slice 186: voice-note waveform seek
+
+- Parity row "Voice message" (already PRESENT) — tdesktop's waveform
+  seek interaction added. Rating (§1.14): the slice-185 seek machinery
+  (engine.SeekMedia + seekFraction + the seekBar throttle pattern) is
+  fresh and green (8/10) — reused directly, no duplication.
+- gui/media.go voiceWaveform: while this message is the active in-app
+  playback, the whole amplitude strip registers a pointer input area
+  (default non-pass semantics block the sibling row click — a waveform
+  press seeks, the play circle still toggles); press/drag/release seek
+  to the pointer fraction with the same half-percent drag throttle.
+  Non-active messages register no input (a dead grab area would be a
+  §1.10 violation).
+- Tests first: gui/seekbar_test.go TestVoiceWaveformSeekWiring — a real
+  ffmpeg opus tone loaded through the public PlayMedia, a synthetic
+  router press at 50% of the strip seeks the engine player to ~0.5 s,
+  and a non-seekable render leaves the player untouched (input never
+  registered). Green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok · linux build ok · js/wasm + windows builds ok.
+
+Parity: unchanged counts (row already PRESENT — interaction added).

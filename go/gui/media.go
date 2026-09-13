@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"gioui.org/f32"
+	"gioui.org/io/event"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -708,7 +710,7 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.voiceWaveform(gtx, m, pos, total, playing)
+						return a.voiceWaveform(gtx, m, pos, total, playing, mine)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -823,10 +825,13 @@ func (a *App) startPlaybackTickerIfNeeded() {
 	}()
 }
 
-// voiceWaveform draws the amplitude strip: real bars when the message
+// voiceWaveform: the amplitude strip. Real bars when the message
 // carries waveform data, a plain progress track otherwise (§1.10 — no
-// fake waveforms). The played portion is accent-tinted.
-func (a *App) voiceWaveform(gtx layout.Context, m *engine.CachedMessage, pos, total float64, playing bool) layout.Dimensions {
+// fake waveforms); the played portion is accent-tinted. When this
+// message is the active in-app playback (seekable), the strip doubles
+// as a seek control — press/drag/release seeks to the pointer fraction
+// (tdesktop's VoiceMessages seek interaction, slice 186).
+func (a *App) voiceWaveform(gtx layout.Context, m *engine.CachedMessage, pos, total float64, playing, seekable bool) layout.Dimensions {
 	const nBars = 44
 	w := gtx.Dp(unit.Dp(150))
 	h := gtx.Dp(unit.Dp(26))
@@ -839,6 +844,37 @@ func (a *App) voiceWaveform(gtx layout.Context, m *engine.CachedMessage, pos, to
 		if progress > 1 {
 			progress = 1
 		}
+	}
+
+	// Seek input (slice 186): the whole strip is the grab area while
+	// this message owns the player.
+	if seekable {
+		key := m.AccountID + "|" + m.ChatID + "|" + m.MsgID + "|wave"
+		tag := a.seekBarTag(key)
+		stack := clip.Rect{Max: image.Pt(w, h)}.Push(gtx.Ops)
+		event.Op(gtx.Ops, tag)
+		for {
+			ev, ok := gtx.Source.Event(pointer.Filter{Target: tag, Kinds: pointer.Press | pointer.Drag | pointer.Release})
+			if !ok {
+				break
+			}
+			pe, is := ev.(pointer.Event)
+			if !is {
+				continue
+			}
+			switch pe.Kind {
+			case pointer.Press, pointer.Drag, pointer.Release:
+				f := seekFraction(pe.Position.X, w, progress)
+				if last, ok := a.wid.seekBarApplied[key]; ok && absF64(f-last) < 0.005 && pe.Kind == pointer.Drag {
+					continue // throttle sub-half-percent drag moves
+				}
+				a.wid.seekBarApplied[key] = f
+				_ = a.eng.SeekMedia(f)
+				a.startPlaybackTickerIfNeeded()
+				a.invalidate()
+			}
+		}
+		stack.Pop()
 	}
 
 	// Amplitudes: the cached waveform (Telegram sends ~100 bytes of
