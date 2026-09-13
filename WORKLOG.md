@@ -5498,3 +5498,33 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
      (see research/ayugram_parity.md "Remaining gaps").
 - Housekeeping: disk pressure forced one go clean -cache mid-session
   (rebuild re-verified); /tmp artifacts cleaned.
+
+## 2026-09-14 — slice 200: Windows native toast notifications
+
+- Gap 5's biggest platform hole, implemented from the fresh primary-
+  source research (research/windows_toast.md): pure-Go WinRT via
+  syscalls — the taskbar_windows.go COM pattern extended to the Ro*
+  family (RoGetActivationFactory / RoActivateInstance /
+  WindowsCreateString from combase/winstring).
+- ABI pinned against mingw-w64 windows.ui.notifications.h +
+  windows.data.xml.dom.h (IUnknown 0-2, IInspectable 3-5, methods in
+  declaration order): manager CreateToastNotifierWithId=7, factory
+  CreateToastNotification=6, notifier Show=6, IXmlDocumentIO LoadXml=6;
+  the activation flow cross-checked against valinet's pure-C reference.
+- notify_windows.go implements notifyDesktop: manager → notifier (the
+  registered AUMID) → XmlDocument (activate + QI + LoadXml of the
+  CDATA-escaped payload) → ToastNotification → Show. Failures return
+  errors → the existing log-only path (identical to the Linux DBus
+  failure semantics — never a crash).
+- v1 scope, documented: the AUMID rides PowerShell's Start-Menu
+  registration (works on every stock Win10/11; the source row reads
+  "Windows PowerShell" until our own IShellLink+IPropertyStore shortcut
+  lands — follow-up); no click-through activation yet (onAction unused,
+  the in-app surface remains the click path); text-only toasts.
+- toastxml.go is shared (no build tag) so every CI target compiles and
+  pins the escaping. Tests first: TestToastXML (template shape + lines)
+  + TestToastXMLCdataEscape (terminator neutralization).
+- Gate: gofmt clean · vet clean · go test -tags goolm ./... 8/8 ok ·
+  windows cross-build ok (compiles the transport) · wasm build ok.
+
+Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
