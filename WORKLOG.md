@@ -4829,3 +4829,25 @@ Parity: PRESENT 166 (82%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 8.
   ./... 8/8 ok.
 
 Parity: PRESENT 167 (83%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 7.
+
+## 2026-09-13 — slice 182: TTL badges (one-time media + auto-delete timer)
+
+- Parity row "Expired/self-destruct media" CORE-ONLY → PRESENT. Rating
+  (§1.14): the core already cached both TTLs (ttl_seconds for the
+  chat auto-delete period, media_ttl_seconds for one-time media) but
+  the GUI consumed neither (6/10 — kept, surfaced).
+- gui/ttlbadge.go (new): parseTTLExtras (pure), fmtTTLPeriod (30s/5m/
+  2h/1d/1w), oneTimeLabel (tdesktop's notificationText variants:
+  One-time photo / video / voice message / video message), the
+  one-time chip (timer glyph + accent label above the media block,
+  stacked with the media — never replacing it) and the meta-row
+  auto-delete timer (timer glyph + period beside the timestamp).
+- Wiring: media-gate hook (chip + media in one column) + meta-row hook
+  in chat.go. No new RPCs — cached Extra only.
+- Tests first (go/gui/ttlbadge_test.go, 3 tests): parse both TTLs +
+  absent/raw-less zeros, period formatting ladder, one-time labels +
+  chip gating (file media never chips). All green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok.
+
+Parity: PRESENT 168 (83%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 6.

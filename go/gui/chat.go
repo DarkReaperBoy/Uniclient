@@ -832,9 +832,13 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						}
 						return a.reactionStrip(gtx, f, m)
 					}),
-					// meta: time + edited + status ticks
+					// meta: auto-delete timer (slice 182) + time + edited + status ticks
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						msgTTL, _ := parseTTLExtras(m)
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.layoutTTLTimer(gtx, msgTTL)
+							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								meta := messageMetaLabel(*m, f.cfg.AyuEditedMark)
 								lbl := a.ui.Dim(unit.Sp(10), meta)
