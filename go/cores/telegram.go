@@ -36671,6 +36671,114 @@ func (t *TelegramCore) MuteChatFor(chatID string, durationSeconds int32) error {
 	return err
 }
 
+// ChatNotifySettings is a chat's notification-exception state (slice 174,
+// tdesktop notify exceptions): mute, sound, message previews.
+type ChatNotifySettings struct {
+	Muted        bool
+	MuteUntil    int32
+	SoundOn      bool
+	ShowPreviews bool
+}
+
+// notifySoundOn decodes the ternary OtherSound field: unset = default =
+// on; NotificationSoundNone = off; anything else = on.
+func notifySoundOn(s tg.NotificationSoundClass) bool {
+	if _, is := s.(*tg.NotificationSoundNone); is {
+		return false
+	}
+	return true
+}
+
+// notifyPreviewsOf decodes the ternary ShowPreviews: unset = default =
+// shown; an explicit false hides.
+func notifyPreviewsOf(s *tg.PeerNotifySettings) bool {
+	if v, ok := s.GetShowPreviews(); ok {
+		return v
+	}
+	return true
+}
+
+// chatNotifySettingsFromWire maps PeerNotifySettings → ChatNotifySettings.
+func chatNotifySettingsFromWire(s *tg.PeerNotifySettings) ChatNotifySettings {
+	if s == nil {
+		return ChatNotifySettings{SoundOn: true, ShowPreviews: true}
+	}
+	muteUntil := int32(0)
+	if s.MuteUntil > 0 && s.MuteUntil < 2000000000 {
+		// int32-max sentinel (2147483647) = forever: our encoding keeps
+		// Muted with MuteUntil 0 (mirror of the push handler).
+		muteUntil = int32(s.MuteUntil)
+	}
+	return ChatNotifySettings{
+		Muted:        s.MuteUntil > 0,
+		MuteUntil:    muteUntil,
+		SoundOn:      notifySoundOn(s.OtherSound),
+		ShowPreviews: notifyPreviewsOf(s),
+	}
+}
+
+// notifySettingsInput builds the write-side settings (slice 174):
+// mute_until always rides; sound + previews ride only when provided
+// (nil = leave to the server default).
+func notifySettingsInput(muteUntil int32, soundOn, showPreviews *bool) tg.InputPeerNotifySettings {
+	settings := tg.InputPeerNotifySettings{}
+	settings.SetMuteUntil(int(muteUntil))
+	if soundOn != nil {
+		if *soundOn {
+			settings.SetSound(&tg.NotificationSoundDefault{})
+		} else {
+			settings.SetSound(&tg.NotificationSoundNone{})
+		}
+	}
+	if showPreviews != nil {
+		settings.SetShowPreviews(*showPreviews)
+	}
+	return settings
+}
+
+// GetChatNotifySettings reads a chat's notification exception state
+// (account.getNotifySettings for the peer; sound = OtherSound ternary,
+// previews = ShowPreviews ternary — unset values fall back to on/shown).
+func (t *TelegramCore) GetChatNotifySettings(chatID string) (*ChatNotifySettings, error) {
+	// withAPI rule: never hold t.mu across the notify-settings RPC.
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	unlock()
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
+	}
+	res, err := api.AccountGetNotifySettings(ctx, &tg.InputNotifyPeer{Peer: inputPeer})
+	if err != nil {
+		return nil, err
+	}
+	s := chatNotifySettingsFromWire(res)
+	return &s, nil
+}
+
+// SetChatNotifySettings writes a chat's notification exception (slice
+// 174, tdesktop notify exceptions): mute_until always; sound/previews
+// only when a non-nil pointer is provided.
+func (t *TelegramCore) SetChatNotifySettings(chatID string, muteUntil int32, soundOn, showPreviews *bool) error {
+	// withAPI rule: never hold t.mu across the notify-settings RPC.
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return err
+	}
+	unlock()
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
+	_, err = api.AccountUpdateNotifySettings(ctx, &tg.AccountUpdateNotifySettingsRequest{
+		Peer:     &tg.InputNotifyPeer{Peer: inputPeer},
+		Settings: notifySettingsInput(muteUntil, soundOn, showPreviews),
+	})
+	return err
+}
+
 // GetCallsDisabledHere returns whether calls are disabled on this device/session.
 func (t *TelegramCore) GetCallsDisabledHere() (bool, error) {
 	// withAPI rule: never hold t.mu across the RPC.

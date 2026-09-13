@@ -4568,3 +4568,39 @@ custom-capable; swipe quick action + expandable reaction strip remain).
 Parity: Ayu preferences PARTIAL→advanced (General extras + Reactions +
 Confirmations sections landed; spy/saving engine-gated remainder +
 round-video confirmation unshipped).
+
+## 2026-09-13 — slice 174: per-chat notification exceptions (sound + previews)
+
+- Primary-source research: tdesktop notify exceptions write
+  account.updateNotifySettings per peer; gotd InputPeerNotifySettings
+  carries ternary ShowPreviews/Silent + MuteUntil + Sound
+  (NotificationSoundClass: Default/None/Local/Ringtone); read side
+  account.getNotifySettings → PeerNotifySettings with per-platform sound
+  fields (desktop = OtherSound). Our existing MuteChatFor already wrote
+  mute_until through this RPC — extend, don't replace.
+- Ratings (§1.14): MuteChatFor + updateNotifySettings push handler 8/10
+  keep+extend (mute semantics well-tested; sound/previews ride the same
+  RPC); mutedlg.go picker 8/10 keep+extend (custom duration + presets
+  already strong; the exceptions section is one Rigid + a helper);
+  vibrate is mobile-only — unshipped honestly.
+- Landed: core GetChatNotifySettings (live read, ternary decodes:
+  OtherSound unset = on, None = off; ShowPreviews unset = shown) +
+  SetChatNotifySettings (mute_until always rides; sound/previews ride
+  only when provided — Default/None mapping), both withAPI; engine
+  passthrough interfaces + optimistic mute mirror with the same
+  emitChatUpdate MuteChat uses; GUI: the "Mute for…" picker grows a
+  NOTIFY EXCEPTIONS section (Sound + Message previews switches) shown
+  only when the live read lands (§1.10 — non-Telegram platforms or
+  transient errors hide it), per-field writes preserve the current
+  mute, edge detection via synced previous values (widget.Bool has no
+  Changed signal — the drawer-toggle pattern).
+- Tests-first (cores): notifySoundOn truth table (nil/Default/None/
+  Local), notifyPreviewsOf ternary table, notifySettingsInput flag
+  semantics (nil fields stay unset; sound on/off mapping),
+  chatNotifySettingsFromWire full decode incl. the forever sentinel.
+- Gate: gofmt/vet/test green (goolm); Xvfb GUI smoke boots with a live
+  window. Slices 172 + 173 verify CI runs both GREEN via API (full
+  gate + windows/wasm cross-builds + Xvfb GUI smoke w/ screenshots).
+
+Parity: Per-chat notification settings UI PARTIAL→PRESENT (mute picker
++ presets + custom duration + exceptions; vibrate mobile-only stays).

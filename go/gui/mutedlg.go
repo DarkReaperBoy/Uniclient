@@ -21,6 +21,8 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+
+	"uniclient/cores"
 )
 
 // mutePreset is one "Mute for…" option.
@@ -102,11 +104,14 @@ func customMuteCap(secs int) (int, bool) {
 	return secs, true
 }
 
-// muteDlgState is the open mute picker.
+// muteDlgState is the open mute/notifications picker. ns carries the
+// live per-chat exception state once the async read lands (nil = still
+// loading or unsupported — the exceptions section hides, §1.10).
 type muteDlgState struct {
 	accountID string
 	chatID    string
 	title     string
+	ns        *cores.ChatNotifySettings
 }
 
 var (
@@ -119,12 +124,36 @@ var (
 	muteDlgCustomErr  string
 )
 
-// openMuteDialog opens the mute-duration picker for the open chat.
+// Notify-exception switches (slice 174): edge-detection previous values,
+// re-synced when the live settings read lands.
+var (
+	prevMuteDlgSound    bool
+	prevMuteDlgPreviews bool
+)
+
+// openMuteDialog opens the mute-duration picker for the open chat and
+// kicks the live exception read (sound/previews, slice 174).
 func (a *App) openMuteDialog(k chatKey, title string) {
 	a.mu.Lock()
 	a.muteDlg = &muteDlgState{accountID: k.AccountID, chatID: k.ChatID, title: title}
 	a.mu.Unlock()
 	a.invalidate()
+	go func() {
+		ns, err := a.eng.GetChatNotifySettings(k.AccountID, k.ChatID)
+		if err != nil {
+			return // unsupported platform or transient failure: hide the section
+		}
+		a.mu.Lock()
+		if a.muteDlg != nil && a.muteDlg.accountID == k.AccountID && a.muteDlg.chatID == k.ChatID {
+			a.muteDlg.ns = ns
+			a.wid.muteDlgSound.Value = ns.SoundOn
+			a.wid.muteDlgPreviews.Value = ns.ShowPreviews
+			prevMuteDlgSound = ns.SoundOn
+			prevMuteDlgPreviews = ns.ShowPreviews
+		}
+		a.mu.Unlock()
+		a.invalidate()
+	}()
 }
 
 // closeMuteDialog dismisses it.
@@ -216,6 +245,22 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 		muteDlgCustomErr = "Use a duration like 2h, 45m, 1h30m or seconds"
 		a.invalidate()
 	}
+	// Notify exceptions (slice 174): sound + message previews switches —
+	// each write preserves the current mute and updates one field. Edge
+	// detection against the synced previous values (widget.Bool carries no
+	// Changed signal — the drawer-toggle pattern).
+	if st.ns != nil {
+		if a.wid.muteDlgSound.Value != prevMuteDlgSound {
+			prevMuteDlgSound = a.wid.muteDlgSound.Value
+			v := prevMuteDlgSound
+			a.applyNotifyException(st.accountID, st.chatID, st.ns.MuteUntil, &v, nil, "Sound "+notifyOnOff(v))
+		}
+		if a.wid.muteDlgPreviews.Value != prevMuteDlgPreviews {
+			prevMuteDlgPreviews = a.wid.muteDlgPreviews.Value
+			v := prevMuteDlgPreviews
+			a.applyNotifyException(st.accountID, st.chatID, st.ns.MuteUntil, nil, &v, "Previews "+notifyOnOff(v))
+		}
+	}
 
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Max.X = gtx.Dp(unit.Dp(320))
@@ -257,6 +302,11 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 							btn.Color = a.ui.p.Accent
 							return btn.Layout(gtx)
 						})
+					}),
+					// Notify exceptions (slice 174, tdesktop exceptions): sound +
+					// message previews for this chat, live server state.
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.layoutNotifyExceptions(gtx, st)
 					}),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return layout.Dimensions{}
@@ -344,6 +394,68 @@ func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widg
 				sw2.Color.Disabled = a.ui.p.SurfaceHi
 				sw2.Color.Track = a.ui.p.SurfaceHi
 				return sw2.Layout(gtx)
+			}),
+		)
+	})
+}
+
+// notifyOnOff renders a toggle state for toasts. Pure.
+func notifyOnOff(v bool) string {
+	if v {
+		return "on"
+	}
+	return "off"
+}
+
+// applyNotifyException writes one notify-exception field (sound or
+// previews), preserving the chat's current mute (slice 174).
+func (a *App) applyNotifyException(accountID, chatID string, muteUntil int32, soundOn, showPreviews *bool, toastLabel string) {
+	go func() {
+		if err := a.eng.SetChatNotifySettings(accountID, chatID, muteUntil, soundOn, showPreviews); err != nil {
+			a.setToast("Notify exception failed: " + err.Error())
+			return
+		}
+		a.setToast(toastLabel)
+	}()
+}
+
+// layoutNotifyExceptions renders the sound + message-preview switches
+// (slice 174). Hidden until the live read lands (st.ns), then it stays
+// for the dialog's life — §1.10: nothing renders without real state.
+func (a *App) layoutNotifyExceptions(gtx layout.Context, st *muteDlgState) layout.Dimensions {
+	if st.ns == nil {
+		return layout.Dimensions{}
+	}
+	return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				lbl := a.ui.Dim(unit.Sp(11), "NOTIFY EXCEPTIONS")
+				lbl.Color = a.ui.p.TextFaint
+				return lbl.Layout(gtx)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return a.ui.Label(unit.Sp(13), "Sound").Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return material.Switch(a.ui.Theme, &a.wid.muteDlgSound, "Sound").Layout(gtx)
+						}),
+					)
+				})
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return a.ui.Label(unit.Sp(13), "Message previews").Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return material.Switch(a.ui.Theme, &a.wid.muteDlgPreviews, "Previews").Layout(gtx)
+						}),
+					)
+				})
 			}),
 		)
 	})

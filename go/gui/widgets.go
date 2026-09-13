@@ -190,6 +190,9 @@ type widgets struct {
 	muteDlgCustomGo  widget.Clickable
 	muteDlgRowBtns   []widget.Clickable
 	muteDlgUnmuteBtn widget.Clickable
+	// Notify exceptions (slice 174): sound + previews switches.
+	muteDlgSound    widget.Bool
+	muteDlgPreviews widget.Bool
 
 	// nextunread.go
 	nextUnreadBtn widget.Clickable
