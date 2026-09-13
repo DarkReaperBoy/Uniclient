@@ -449,6 +449,16 @@ type App struct {
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
 
+	// admin log / Recent Actions panel (slice 177): the open chat's
+	// admin events + paging/filter/search state.
+	adminPanel     bool
+	adminEvents    []cores.AdminLogEvent
+	adminLoad      bool
+	adminLoadedAll bool
+	adminFor       *chatKey
+	adminFilters   map[string]bool
+	adminErr       string
+
 	// fullscreen media viewer (AyuGram parity slice 9, §12): shared under
 	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
 	viewer *viewerState
@@ -1252,8 +1262,10 @@ func (a *App) openChat(k chatKey, title string) {
 	a.pinnedIdx = 0
 	a.pinnedLoaded = false
 	a.unreadSepMsgID = ""
-	a.viewer = nil     // slice 9: close any open media viewer
-	a.iv = nil         // slice 176: close the Instant View reader
+	a.viewer = nil       // slice 9: close any open media viewer
+	a.iv = nil           // slice 176: close the Instant View reader
+	a.adminPanel = false // slice 177: close the admin log panel
+	a.adminEvents = nil
 	a.inSearch = false // slice 18: close in-chat search
 	a.inSearchQ = ""
 	a.inChatHits = nil
@@ -2115,6 +2127,12 @@ func (a *App) snapshot() frame {
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
 		schedLoad:        a.schedLoad,
+		adminPanel:       a.adminPanel,
+		adminEvents:      a.adminEvents,
+		adminLoad:        a.adminLoad,
+		adminLoadedAll:   a.adminLoadedAll,
+		adminFilters:     a.adminFilters,
+		adminErr:         a.adminErr,
 		inviteDlg:        a.inviteDlg,
 		silentNext:       a.silentNext,
 	}
@@ -2421,6 +2439,14 @@ type frame struct {
 	schedPanel bool
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
+
+	// admin log / Recent Actions panel (slice 177)
+	adminPanel     bool
+	adminEvents    []cores.AdminLogEvent
+	adminLoad      bool
+	adminLoadedAll bool
+	adminFilters   map[string]bool
+	adminErr       string
 
 	// invite-link join + silent sends (slices 23/24)
 	inviteDlg  *inviteDlgState

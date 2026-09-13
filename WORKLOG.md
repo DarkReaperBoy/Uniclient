@@ -4675,3 +4675,41 @@ Parity: table now matches the tree.
   packages — the script handled all of it).
 
 Parity: PRESENT 162 (81%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 12.
+
+## 2026-09-13 — slice 177: admin log / Recent Actions panel
+
+- Parity row "Moderation (admin log, restrictions)" GUI half → PRESENT
+  (restrict boxes were already shipped; the admin-log viewer was the
+  missing half). Rating (§1.14): core 9/10 (channels.getAdminLog w/
+  query + filters + maxID paging + per-admin filter + ActionData
+  structured extras for message previews — kept as-is); engine
+  pass-through fine; GUI built on the schedPanel pane-replacement
+  pattern.
+- gui/adminlog.go (new): searchable + filterable + paginated event list
+  — header (back + chat title), search field (query → refetch),
+  horizontal filter-chip strip (17 chips over the core's filter keys:
+  join/leave/invite/ban/unban/kick/unkick/promote/demote/info/settings/
+  pinned/group_call/stickers/messages/edit/delete/invites — active
+  chips accent-tinted, toggle refetches), event cards (admin avatar +
+  accent name + action sentence + detail + old→new change rows + date),
+  message events render the inline media preview bubble (ActionData's
+  stripped thumb + MsgText), load-more row pages via the smallest seen
+  event ID as maxID, honest loading/error/empty states.
+- Entry: chat-header ⋮ menu "Recent actions" for admins of groups/
+  channels/topics (ChatInfo.IsAdmin gate — tdesktop semantics);
+  non-admins never see it. RPC errors still toast honestly.
+- State wiring: App/frame admin* fields + snapshot mirror + chat-switch
+  cleanup + widgets pool (list, filter list, search editor + button,
+  back, load-more).
+- Truth pass alongside: parity row "Sponsored messages (channels)" was
+  stale CORE-ONLY — slice 163 shipped the ad block; row trued to
+  PRESENT (§10).
+- Tests first (go/gui/adminlog_test.go, 6 tests): header-menu gating
+  (admin chan/group yes, non-admin no, DM never), paging cursor,
+  filter-chip completeness vs the core's keys + toggle semantics, row
+  composition (headline/action/sub/old-new), ActionData media
+  extraction. All pure.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok.
+
+Parity: PRESENT 163 (81%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 11.

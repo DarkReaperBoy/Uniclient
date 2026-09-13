@@ -62,6 +62,11 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn bool) []c
 		items = append(items, chatMenuAction{"Add members", "addmember"})
 	}
 	items = append(items, chatMenuAction{"Scheduled messages", "scheduled"})
+	// Recent actions / admin log (slice 177): admins of groups/channels
+	// (tdesktop gates the entry the same way).
+	if (c.Type == engine.ChatTypeGroupVal || c.Type == engine.ChatTypeChanVal || c.Type == engine.ChatTypeTopicVal) && c.IsAdmin {
+		items = append(items, chatMenuAction{"Recent actions", "adminlog"})
+	}
 	items = append(items, chatMenuAction{"Auto-delete…", "autodelete"})
 	items = append(items, chatMenuAction{"Shadow-banned users…", "shadowbans"})
 	items = append(items, chatMenuAction{"View deleted messages…", "viewdeleted"})
@@ -156,6 +161,9 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 	case "scheduled":
 		a.closeHeaderMenu()
 		a.openSchedPanel()
+	case "adminlog":
+		a.closeHeaderMenu()
+		a.openAdminPanel()
 	case "shadowbans":
 		a.closeHeaderMenu()
 		a.openShadowDialog(chatKey{AccountID: c.AccountID, ChatID: c.ChatID})
