@@ -68,6 +68,21 @@ func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Di
 	chatPane := func(gtx layout.Context) layout.Dimensions {
 		return a.chatPaneColumn(gtx, f, chat, narrow)
 	}
+	// Saved-sublists pane (slice 197): the saved chat's right sidebar —
+	// tdesktop's Lists panel (one row per saved-from dialog).
+	if f.savedListOpen && f.selected != nil {
+		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+			layout.Flexed(1, chatPane),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.ui.DividerV(gtx)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Max.X = gtx.Dp(unit.Dp(280))
+				gtx.Constraints.Min.X = gtx.Dp(unit.Dp(280))
+				return a.layoutSavedListsPane(gtx, f)
+			}),
+		)
+	}
 	if f.panelOpen {
 		// Desktop: chat column | divider | info panel (AyuGram 3rd pane).
 		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -116,6 +131,27 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 				return layout.Dimensions{}
 			}
 			d := a.topicBar(gtx, f)
+			a.listTop += d.Size.Y
+			return d
+		}),
+		// // Comment-thread bar (slice 195, wiring fix 2026-09-14): the open
+		// thread's identity strip under the header — back returns to the
+		// channel. (Shipped unwired in slice 195: the view had no back.)
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if f.threadScope == nil {
+				return layout.Dimensions{}
+			}
+			d := a.layoutCommentsBar(gtx, f)
+			a.listTop += d.Size.Y
+			return d
+		}),
+		// Saved-sublist scope bar (slice 197): the open sublist's identity
+		// strip under the header — back returns to the whole saved chat.
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if f.savedScope == nil {
+				return layout.Dimensions{}
+			}
+			d := a.layoutSavedScopeBar(gtx, f)
 			a.listTop += d.Size.Y
 			return d
 		}),
@@ -429,6 +465,14 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 						btn.Color = a.ui.p.TextDim
 						return btn.Layout(gtx)
 					})
+				}),
+				// Lists — Saved Messages sublists pane toggle (slice 197);
+				// capability-gated to the saved chat (never dead UI, §1.10).
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if chat == nil || f.selected == nil || !isSavedMessagesChat(chat.AccountID, chat.ChatID, f.savedMsgChats) {
+						return layout.Dimensions{}
+					}
+					return a.savedHeaderBtn(gtx, f, *f.selected)
 				}),
 				// search — in-chat search (AyuGram, slice 18)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

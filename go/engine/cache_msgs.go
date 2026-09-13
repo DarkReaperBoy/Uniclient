@@ -91,6 +91,11 @@ type CachedMessage struct {
 	CommentsCount int    `json:"comments_count,omitempty"`
 	ThreadRoot    string `json:"thread_root,omitempty"`
 
+	// Saved Messages sublist (slice 197): the peer the message was saved
+	// from (message.saved_peer_id + the fwd-from backfill) — scopes the
+	// self-chat cache into sublist views. "" = not a saved row.
+	SavedPeerID string `json:"saved_peer_id,omitempty"`
+
 	// Derived at read time (not persisted in DB).
 	SenderNoForwards bool `json:"sender_no_forwards,omitempty"`
 
@@ -153,7 +158,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 
 	const cols = `account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
                                 content_text, content_raw, content_rich, timestamp, edited_at,
-                                status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards, comments_count, thread_root`
+                                status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards, comments_count, thread_root, saved_peer`
 
 	var rows *sql.Rows
 	var err error
@@ -291,7 +296,7 @@ func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, e
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
                         content_text, content_raw, content_rich, timestamp, edited_at,
-                        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards, comments_count, thread_root
+                        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards, comments_count, thread_root, saved_peer
                  FROM messages
                  WHERE account_id = ? AND chat_id = ? AND is_pinned = 1
                  ORDER BY timestamp DESC`, accountID, chatID)
@@ -340,17 +345,18 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		var contentRaw, contentRich []byte
 		var editedAt, deletedAt sql.NullInt64
 		var isPinned, isOutgoing, isService, hasMedia, noForwards, isDeleted int
-		var reactionsJSON, threadRoot sql.NullString
+		var reactionsJSON, threadRoot, savedPeer sql.NullString
 
 		if err := rows.Scan(
 			&m.AccountID, &m.ChatID, &m.MsgID, &localID, &senderID, &senderName, &senderRank, &m.SenderColorID,
 			&m.ContentText, &contentRaw, &contentRich, &m.Timestamp, &editedAt,
 			&m.Status, &replyToID, &replyPreview, &forwardFrom, &forwardFromID, &isPinned, &isOutgoing, &isService, &hasMedia, &groupedID,
-			&noForwards, &isDeleted, &deletedAt, &m.PaidPostType, &reactionsJSON, &m.Views, &m.Forwards, &m.CommentsCount, &threadRoot,
+			&noForwards, &isDeleted, &deletedAt, &m.PaidPostType, &reactionsJSON, &m.Views, &m.Forwards, &m.CommentsCount, &threadRoot, &savedPeer,
 		); err != nil {
 			return msgs, err
 		}
 		m.ThreadRoot = threadRoot.String
+		m.SavedPeerID = savedPeer.String
 
 		m.LocalID = localID.String
 		m.SenderID = senderID.String
@@ -801,6 +807,15 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 			topicID = tid
 		}
 	}
+	// Saved-peer (slice 197): first-class field wins (slice-197 cores);
+	// the Extra copy covers older cores that only set the notification
+	// Extra.
+	savedPeer := msg.SavedPeerID
+	if savedPeer == "" && msg.Extra != nil {
+		if sp, ok := msg.Extra["sublist_peer_id"].(string); ok {
+			savedPeer = sp
+		}
+	}
 
 	var reactionsJSON string
 	if len(msg.Reactions) > 0 {
@@ -813,8 +828,8 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		`INSERT INTO messages
                  (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
                   content_raw, content_rich, content_text, timestamp, edited_at,
-                  status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, topic_id, paid_post_type, reactions_json, views, forwards, comments_count, thread_root)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, topic_id, paid_post_type, reactions_json, views, forwards, comments_count, thread_root, saved_peer)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(account_id, chat_id, msg_id) DO UPDATE SET
                   local_id=excluded.local_id, sender_id=excluded.sender_id, sender_name=excluded.sender_name,
                   sender_rank=excluded.sender_rank, sender_color_id=excluded.sender_color_id,
@@ -825,11 +840,11 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
                   is_pinned=excluded.is_pinned, is_outgoing=excluded.is_outgoing, is_service=excluded.is_service,
                   has_media=excluded.has_media, grouped_id=excluded.grouped_id, no_forwards=excluded.no_forwards, topic_id=excluded.topic_id, paid_post_type=excluded.paid_post_type,
                   reactions_json=excluded.reactions_json, views=excluded.views, forwards=excluded.forwards,
-                  comments_count=excluded.comments_count, thread_root=excluded.thread_root`,
+                  comments_count=excluded.comments_count, thread_root=excluded.thread_root, saved_peer=excluded.saved_peer`,
 		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank), msg.SenderColorID,
 		rawBytes, richBytes, msg.Text, ts, editedAt,
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
-		nullStr(msg.ForwardFrom), nullStr(msg.ForwardFromID), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID), msg.PaidPostType, nullStr(reactionsJSON), msg.Views, msg.Forwards, msg.CommentsCount, nullStr(msg.ThreadRoot))
+		nullStr(msg.ForwardFrom), nullStr(msg.ForwardFromID), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID), msg.PaidPostType, nullStr(reactionsJSON), msg.Views, msg.Forwards, msg.CommentsCount, nullStr(msg.ThreadRoot), nullStr(savedPeer))
 
 	// Chat-theme mirror (slice 188): the latest SetChatTheme service row
 	// wins — flip chats.theme_emoticon so the GUI tints the chat (the
@@ -879,6 +894,7 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		Forwards:      msg.Forwards,
 		CommentsCount: msg.CommentsCount,
 		ThreadRoot:    msg.ThreadRoot,
+		SavedPeerID:   savedPeer,
 	}
 
 	// Populate media metadata from what we just cached so the returned
@@ -3398,7 +3414,7 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
                                 content_text, content_raw, content_rich, timestamp, edited_at,
-                                status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards, comments_count, thread_root
+                                status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards, comments_count, thread_root, saved_peer
                          FROM messages
                          WHERE account_id = ? AND chat_id = ? AND is_deleted = 1 AND content_text LIKE ? ESCAPE '\'
                          ORDER BY timestamp DESC
@@ -3407,7 +3423,7 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
                                 content_text, content_raw, content_rich, timestamp, edited_at,
-                                status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards, comments_count, thread_root
+                                status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards, comments_count, thread_root, saved_peer
                          FROM messages
                          WHERE account_id = ? AND chat_id = ? AND is_deleted = 1
                          ORDER BY timestamp DESC

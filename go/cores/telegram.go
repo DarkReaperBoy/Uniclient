@@ -14662,21 +14662,28 @@ func (t *TelegramCore) resolveShortName(peer tg.PeerClass, e tg.Entities) string
 }
 
 // attachSublistInfo records a message's saved/monoforum sublist peer
-// (message.saved_peer_id) into the Extra map. For a channel "Direct Messages"
-// monoforum the host notification layer turns this into the title
-// "{sublistPeer shortName} ({channel})" — mirrors AyuGram
-// HistoryItem::savedSublist() + notifications_manager.cpp:1576-1578. Present on
-// both monoforum messages and the user's own Saved Messages; the host producer
-// distinguishes the two (a self chat keeps the plain title).
+// (message.saved_peer_id) into m.SavedPeerID and the Extra map. For a
+// channel "Direct Messages" monoforum the host notification layer turns
+// this into the title "{sublistPeer shortName} ({channel})" — mirrors
+// AyuGram HistoryItem::savedSublist() + notifications_manager.cpp:1576-1578.
+// Present on both monoforum messages and the user's own Saved Messages;
+// the host producer distinguishes the two (a self chat keeps the plain
+// title). Messages the server still sends WITHOUT the field (pre-layer-170
+// rows) get the official backfill (deriveSavedPeerID —
+// core.telegram.org/api/saved-messages pseudocode) when they sit in the
+// self chat (slice 197).
 func (t *TelegramCore) attachSublistInfo(m *Message, msg *tg.Message, e tg.Entities) {
-	saved, ok := msg.GetSavedPeerID()
-	if !ok || saved == nil {
-		return
+	saved, hasWire := msg.GetSavedPeerID()
+	var id string
+	if hasWire && saved != nil {
+		id = peerToID(saved)
+	} else if t.selfID != 0 {
+		id = deriveSavedPeerID(msg, t.selfID)
 	}
-	id := peerToID(saved)
 	if id == "" {
 		return
 	}
+	m.SavedPeerID = id
 	if m.Extra == nil {
 		m.Extra = make(map[string]interface{})
 	}
@@ -14684,6 +14691,66 @@ func (t *TelegramCore) attachSublistInfo(m *Message, msg *tg.Message, e tg.Entit
 	if name := t.resolveShortName(saved, e); name != "" {
 		m.Extra["sublist_peer_name"] = name
 	}
+}
+
+// deriveSavedPeerID backfills a saved message's sublist peer when the
+// wire lacks message.saved_peer_id (pre-layer-170 messages): the
+// official pseudocode from core.telegram.org/api/saved-messages —
+// fwd_from.saved_from_peer, else fwd_from.from_id (ourselves — we only
+// forward from a dialog we have), else fwd_from.from_name (the special
+// anonymous saved user 2666000), else ourselves (plain self messages).
+// Non-self-chat messages (monoforum rows carry the wire field anyway)
+// return "" — not ours to derive. Pure — locked by tests.
+func deriveSavedPeerID(msg *tg.Message, selfID int64) string {
+	if peer, ok := msg.GetSavedPeerID(); ok && peer != nil {
+		return peerToID(peer)
+	}
+	if u, is := msg.GetPeerID().(*tg.PeerUser); !is || u.UserID != selfID {
+		return "" // not the self chat — nothing to backfill
+	}
+	if fwd, ok := msg.GetFwdFrom(); ok {
+		if sp, ok := fwd.GetSavedFromPeer(); ok && sp != nil {
+			if id := peerToID(sp); id != "" {
+				return id
+			}
+		}
+		if _, ok := fwd.GetFromID(); ok {
+			// Official pseudocode: from_id (no saved_from_peer) means the
+			// message was our own → the "My Notes" dialog (ourselves).
+			return strconv.FormatInt(selfID, 10)
+		}
+		if _, ok := fwd.GetFromName(); ok {
+			return "2666000"
+		}
+	}
+	return strconv.FormatInt(selfID, 10) // plain message to self
+}
+
+// GetSavedHistory fetches one sublist's messages
+// (messages.getSavedHistory — messages saved from peerID, paginated by
+// offsetID like messages.getHistory).
+func (t *TelegramCore) GetSavedHistory(peerID string, offsetID, limit int) ([]Message, error) {
+	peer, unlock, err := t.withPeer(peerID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve saved sublist peer: %w", err)
+	}
+	unlock()
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	result, err := api.MessagesGetSavedHistory(ctx, &tg.MessagesGetSavedHistoryRequest{
+		Peer:     peer,
+		OffsetID: offsetID,
+		Limit:    limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get saved history: %w", err)
+	}
+	return t.convertMessages(result), nil
 }
 
 func peerToID(peer tg.PeerClass) string {

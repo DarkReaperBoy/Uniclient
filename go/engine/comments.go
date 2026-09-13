@@ -74,7 +74,7 @@ func (e *Engine) GetThreadMessages(accountID, chatID, rootID string, beforeMs in
 	}
 	q := `SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
                         content_text, content_raw, content_rich, timestamp, edited_at,
-                        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards, comments_count, thread_root
+                        status, reply_to_id, reply_preview, forward_from, forward_from_id, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at, paid_post_type, reactions_json, views, forwards, comments_count, thread_root, saved_peer
                  FROM messages
                  WHERE account_id = ? AND chat_id = ? AND (thread_root = ? OR msg_id = ?)`
 	args := []interface{}{accountID, chatID, rootID, rootID}

@@ -166,6 +166,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV51,
 	migrateV52,
 	migrateV53,
+	migrateV54,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -251,6 +252,18 @@ func migrateV51(tx *sql.Tx) error {
 		}
 	}
 	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN forwards INTEGER NOT NULL DEFAULT 0`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateV54 adds messages.saved_peer (slice 197: Saved Messages
+// sublists — message.saved_peer_id + the fwd-from backfill; scopes the
+// self-chat cache into per-peer sublist views).
+func migrateV54(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN saved_peer TEXT`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
 			return err
 		}

@@ -362,13 +362,18 @@ type widgets struct {
 	// comments.go (slice 195)
 	threadBackBtn   widget.Clickable
 	commentChipBtns map[string]*widget.Clickable
-	forumCancelBtn  widget.Clickable
-	forumCreateBtn  widget.Clickable
-	forumIconChips  []widget.Clickable
-	forumMenuBtn    widget.Clickable
-	forumNewBtn     widget.Clickable
-	forumTitleEd    widget.Editor
-	forumTopicBtns  []widget.Clickable
+
+	// savedsublists.go (slice 197)
+	savedListBtn     widget.Clickable
+	savedBackBtn     widget.Clickable
+	savedListRowBtns []widget.Clickable
+	forumCancelBtn   widget.Clickable
+	forumCreateBtn   widget.Clickable
+	forumIconChips   []widget.Clickable
+	forumMenuBtn     widget.Clickable
+	forumNewBtn      widget.Clickable
+	forumTitleEd     widget.Editor
+	forumTopicBtns   []widget.Clickable
 
 	// translatebar.go
 	transBarLangBtn widget.Clickable

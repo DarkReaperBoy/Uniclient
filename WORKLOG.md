@@ -5363,3 +5363,54 @@ Deep links PARTIAL → PRESENT (gap 13 closed).
 - permalinkChatID now maps through strconv to the -1e12-id form; the
   pure test pins the mapped value plus the empty/non-numeric guards.
 - Gate: gofmt clean · vet clean · go test -tags goolm ./... 8/8 ok.
+
+## 2026-09-14 — slice 197: Saved Messages sublists (Lists pane + scoped views)
+
+- Gap 7 from the slice-194 truth pass: sublists were "engine-gated" —
+  deep-dive found the gate was half-open already (a prior slice shipped
+  cores.GetSavedSublists + the raw RPC wrappers + engine passthrough,
+  unused by any GUI). Rating (§1.14): extend the existing surface, don't
+  duplicate (9/10 — the GUI layer + the scoped message path were the
+  missing halves; my draft duplicate wrapper was deleted in favor of the
+  existing richer shape).
+- Official spec research (core.telegram.org/api/saved-messages, not the
+  repo's possibly-stale notes): saved dialogs = one entry per peer the
+  user saved from; methods mirror the dialog family (getSavedDialogs /
+  getSavedHistory / toggleSavedDialogPin / reorder / delete); search
+  uses messages.search + saved_peer_id; the fwd-from backfill
+  pseudocode fills saved_peer_id for pre-layer-170 rows (from_id →
+  SELF, from_name-only → the anonymous user 2666000).
+- Core: deriveSavedPeerID (the official backfill, tests-first, pinned
+  incl. the from_id→self subtlety) wired into attachSublistInfo —
+  every converted message now carries m.SavedPeerID (plus the Extra
+  copy the notification layer reads); friendly GetSavedHistory wrapper
+  (withPeer + withAPI, convertMessages).
+- Engine: migrateV54 adds messages.saved_peer; cacheMessage INSERT +
+  shared scanMessages + all 10 message SELECT column lists extended
+  (31→32 cols, the slice-195 pattern); engine/savedsublists.go —
+  SavedSublistsSupported, GetSavedSublistMessages (cold cache fed by
+  getSavedHistory, then the saved_peer-filtered read; beforeMs paging),
+  readSavedRows/countSavedRows, ToggleSavedSublistPin.
+- GUI: the saved chat header gains the Lists button (capability-gated
+  to saved chats, §1.10) opening the right-sidebar pane — "All
+  messages" + one row per sublist (avatar, pinned glyph, preview, the
+  honest loading/empty/error states); picking a row scopes the view via
+  savedScope (bar under the header with back, refreshMessages/loadOlder
+  branch through the scoped read); composer target unchanged (tdesktop:
+  a new note lands in My Notes). Wiring mirrors the topic/thread
+  scopes.
+- BUG FIXED along the way (found while wiring bars): slice 195's
+  layoutCommentsBar was never called — the comment-thread view shipped
+  with NO back button (stuck view until chat switch). Now wired under
+  the header like the topic bar.
+- Tests first: cores/telegram_saveddialogs_test.go (backfill matrix),
+  engine/savedsublists_test.go (capability probe, passthrough,
+  scoped pages incl. beforeMs + unscoped reads, saved_peer round-trip),
+  gui/savedsublists_test.go (sort, bar title, row title, preview).
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok · linux build ok · windows + wasm cross-builds + Xvfb GUI
+  smoke dispatched to the verify workflow. (One disk-pressure
+  go clean -cache; full rebuild re-verified green.)
+
+Parity: PRESENT 179 (90%) · PARTIAL 15 · MISSING 1 · CORE-ONLY 5.
+Saved Messages row: sublists PRESENT (pin reorder + tag lists remain).

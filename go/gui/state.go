@@ -388,6 +388,12 @@ type App struct {
 
 	// comment-thread scope (slice 195)
 	threadScope *threadScopeState
+	// Saved Messages sublists (slice 197)
+	savedListOpen    bool
+	savedLists       []cores.SavedSublistInfo
+	savedListsLoaded bool
+	savedListsErr    string
+	savedScope       *savedScopeState
 
 	// drafts + scheduled send (AyuGram parity slice 20)
 	schedDlg *schedDlgState
@@ -816,6 +822,8 @@ func (a *App) refreshMessages() {
 	var err error
 	if ts := a.threadScopeFor(k); ts != nil && ts.discussionChat != "" {
 		msgs, err = a.eng.GetThreadMessages(k.AccountID, ts.discussionChat, ts.rootID, 0, 100)
+	} else if ss := a.savedScopeFor(k); ss != nil {
+		msgs, err = a.eng.GetSavedSublistMessages(k.AccountID, k.ChatID, ss.peerID, 0, 100)
 	} else if topic := a.topicScopeFor(k); topic != "" {
 		msgs, err = a.eng.GetTopicMessages(k.AccountID, k.ChatID, topic, 0, 100)
 	} else {
@@ -1282,6 +1290,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.fwd = nil
 	a.forumTopic = ""   // slice 118: forum chats open on the topic list
 	a.threadScope = nil // slice 195: leaving the chat closes the thread view
+	a.savedScope = nil  // slice 197: leaving the chat closes the sublist view
+	a.savedListOpen = false
 	a.forumDlg = nil
 	a.hdrPresence = nil // slice 28: refetch presence for the new peer
 	a.selOn = false
@@ -1564,6 +1574,9 @@ func (a *App) loadOlder() {
 		if ts := a.threadScopeFor(&k); ts != nil && ts.discussionChat != "" {
 			// Slice 195: the comment thread pages from the thread filter.
 			older, err = a.eng.GetThreadMessages(k.AccountID, ts.discussionChat, ts.rootID, oldest, 50)
+		} else if ss := a.savedScopeFor(&k); ss != nil {
+			// Slice 197: the saved sublist pages from the saved_peer filter.
+			older, err = a.eng.GetSavedSublistMessages(k.AccountID, k.ChatID, ss.peerID, oldest, 50)
 		} else if topic := a.topicScopeFor(&k); topic != "" {
 			older, err = a.eng.GetTopicMessages(k.AccountID, k.ChatID, topic, oldest, 50)
 		} else {
@@ -2051,6 +2064,7 @@ func (a *App) snapshot() frame {
 		botCmdsLoaded:    a.botCmdsLoaded,
 		transcribeCap:    a.transcribeCapFor(a.msgFor),
 		savedMsgAccts:    savedRowAccounts(a.accounts, a.savedCap),
+		savedMsgChats:    a.savedChatID,
 		savedChatID:      a.savedChatID,
 		forumTopic:       a.forumTopic,
 		forumTopics:      a.forumTopics,
@@ -2207,6 +2221,11 @@ func (a *App) snapshot() frame {
 		signupPhotoPath:  a.signupPhotoPath,
 		signupPhotoB64:   a.signupPhotoB64,
 		threadScope:      a.threadScope,
+		savedListOpen:    a.savedListOpen,
+		savedLists:       a.savedLists,
+		savedListsLoaded: a.savedListsLoaded,
+		savedListsErr:    a.savedListsErr,
+		savedScope:       a.savedScope,
 		schedDlg:         a.schedDlg,
 		pollDlg:          a.pollDlg,
 		reactors:         a.reactors,
@@ -2320,6 +2339,7 @@ type frame struct {
 	// Saved Messages (slice 116): capable account ids (sidebar rows) +
 	// accountID to saved chat id (avatar predicate, forward pinning).
 	savedMsgAccts []string
+	savedMsgChats map[string]string
 	savedChatID   map[string]string
 
 	// forum topics (slice 118): the open topic, the list, load state,
@@ -2527,6 +2547,12 @@ type frame struct {
 
 	// comment-thread scope (slice 195)
 	threadScope *threadScopeState
+	// Saved Messages sublists (slice 197)
+	savedListOpen    bool
+	savedLists       []cores.SavedSublistInfo
+	savedListsLoaded bool
+	savedListsErr    string
+	savedScope       *savedScopeState
 
 	// scheduled send (slice 20)
 	schedDlg *schedDlgState
