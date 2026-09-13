@@ -12821,6 +12821,32 @@ func (t *TelegramCore) resolveChannelAccessHash(channelID int64) (int64, error) 
 	return 0, fmt.Errorf("channel %d not found", channelID)
 }
 
+// repliesInfoOf reads the wire replies info (pure): the reply count and
+// whether it is a channel-post comment thread. Slice 195.
+func repliesInfoOf(msg *tg.Message) (count int, isComments bool) {
+	if r, ok := msg.GetReplies(); ok {
+		return r.Replies, r.Comments
+	}
+	return 0, false
+}
+
+// threadRootOf reads the reply header's thread root (pure): reply-to-top
+// when present, else the reply target itself; "" when not a reply.
+// Slice 195 (discussion threads; forum topics set topic_id via Extra).
+func threadRootOf(msg *tg.Message) string {
+	if reply, ok := msg.GetReplyTo(); ok {
+		if rh, ok := reply.(*tg.MessageReplyHeader); ok {
+			if rh.ReplyToTopID != 0 {
+				return strconv.Itoa(rh.ReplyToTopID)
+			}
+			if rh.ReplyToMsgID != 0 {
+				return strconv.Itoa(rh.ReplyToMsgID)
+			}
+		}
+	}
+	return ""
+}
+
 func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 	m := &Message{
 		ID:         strconv.Itoa(msg.ID),
@@ -12909,6 +12935,16 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 	if msg.EditDate != 0 {
 		et := time.Unix(int64(msg.EditDate), 0)
 		m.EditedAt = &et
+	}
+
+	// Channel-post comments (slice 195): the replies-info count rides the
+	// message; the thread root (reply-to-top) lets the discussion rows
+	// filter into threads.
+	if c, _ := repliesInfoOf(msg); c > 0 {
+		m.CommentsCount = c
+	}
+	if root := threadRootOf(msg); root != "" {
+		m.ThreadRoot = root
 	}
 
 	if reply, ok := msg.GetReplyTo(); ok {
@@ -20731,6 +20767,73 @@ func (t *TelegramCore) ApplyBoost(chatID string) error {
 	}
 	_, err = api.PremiumApplyBoost(ctx, &tg.PremiumApplyBoostRequest{
 		Peer: inputPeer,
+	})
+	return err
+}
+
+// GetDiscussionThread fetches the comment thread of a channel post
+// (messages.getDiscussionMessage — tdesktop's comments view): the linked
+// discussion group's messages for the post, root first. Rows carry
+// ThreadRoot so the engine can cache + filter them.
+func (t *TelegramCore) GetDiscussionThread(chatID, msgID string) ([]Message, error) {
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	ch, ok := peer.(*tg.PeerChannel)
+	if !ok {
+		return nil, fmt.Errorf("comments only exist on channel posts")
+	}
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	id, err := tgMsgID(msgID)
+	if err != nil {
+		return nil, err
+	}
+	dm, err := api.MessagesGetDiscussionMessage(ctx, &tg.MessagesGetDiscussionMessageRequest{
+		Peer:  &tg.InputPeerChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		MsgID: id,
+	})
+	if err != nil {
+		return nil, err
+	}
+	t.cacheEntities(dm.Users, dm.Chats)
+	var out []Message
+	for _, mc := range dm.Messages {
+		if m, ok := mc.(*tg.Message); ok {
+			out = append(out, *t.convertMessage(m))
+		}
+	}
+	return out, nil
+}
+
+// ReadDiscussion marks the comment thread of a channel post read
+// (messages.readDiscussion — tdesktop marks on open).
+func (t *TelegramCore) ReadDiscussion(chatID, msgID string) error {
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return err
+	}
+	ch, ok := peer.(*tg.PeerChannel)
+	if !ok {
+		return fmt.Errorf("comments only exist on channel posts")
+	}
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	id, err := tgMsgID(msgID)
+	if err != nil {
+		return err
+	}
+	_, err = api.MessagesReadDiscussion(ctx, &tg.MessagesReadDiscussionRequest{
+		Peer:  &tg.InputPeerChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		MsgID: id,
 	})
 	return err
 }

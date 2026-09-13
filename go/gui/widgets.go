@@ -356,15 +356,19 @@ type widgets struct {
 	topicTabList widget.List
 
 	// topics.go
-	forumActBtns   []widget.Clickable
-	forumBackBtn   widget.Clickable
-	forumCancelBtn widget.Clickable
-	forumCreateBtn widget.Clickable
-	forumIconChips []widget.Clickable
-	forumMenuBtn   widget.Clickable
-	forumNewBtn    widget.Clickable
-	forumTitleEd   widget.Editor
-	forumTopicBtns []widget.Clickable
+	forumActBtns []widget.Clickable
+	forumBackBtn widget.Clickable
+
+	// comments.go (slice 195)
+	threadBackBtn   widget.Clickable
+	commentChipBtns map[string]*widget.Clickable
+	forumCancelBtn  widget.Clickable
+	forumCreateBtn  widget.Clickable
+	forumIconChips  []widget.Clickable
+	forumMenuBtn    widget.Clickable
+	forumNewBtn     widget.Clickable
+	forumTitleEd    widget.Editor
+	forumTopicBtns  []widget.Clickable
 
 	// translatebar.go
 	transBarLangBtn widget.Clickable
@@ -408,6 +412,7 @@ func (w *widgets) init() {
 	w.mediaClicks = make(map[string]*widget.Clickable)
 	w.mediaPlayClickables = make(map[string]*widget.Clickable)
 	w.memberRowBtns = make(map[string]*widget.Clickable)
+	w.commentChipBtns = make(map[string]*widget.Clickable)
 	w.seekBarTags = make(map[string]*struct{})
 	w.seekBarApplied = make(map[string]float64)
 	w.msgReactBtns = make(map[string]*widget.Clickable)

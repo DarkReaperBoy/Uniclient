@@ -385,6 +385,9 @@ type App struct {
 	signupPhotoTemp []string
 	signupPhotoB64  string
 
+	// comment-thread scope (slice 195)
+	threadScope *threadScopeState
+
 	// drafts + scheduled send (AyuGram parity slice 20)
 	schedDlg *schedDlgState
 
@@ -810,7 +813,9 @@ func (a *App) refreshMessages() {
 	}
 	var msgs []engine.CachedMessage
 	var err error
-	if topic := a.topicScopeFor(k); topic != "" {
+	if ts := a.threadScopeFor(k); ts != nil && ts.discussionChat != "" {
+		msgs, err = a.eng.GetThreadMessages(k.AccountID, ts.discussionChat, ts.rootID, 0, 100)
+	} else if topic := a.topicScopeFor(k); topic != "" {
 		msgs, err = a.eng.GetTopicMessages(k.AccountID, k.ChatID, topic, 0, 100)
 	} else {
 		msgs, err = a.eng.GetMessages(k.AccountID, k.ChatID, 0, 0, 100)
@@ -1274,7 +1279,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.cMode = composerMode{}
 	a.menu = nil
 	a.fwd = nil
-	a.forumTopic = "" // slice 118: forum chats open on the topic list
+	a.forumTopic = ""   // slice 118: forum chats open on the topic list
+	a.threadScope = nil // slice 195: leaving the chat closes the thread view
 	a.forumDlg = nil
 	a.hdrPresence = nil // slice 28: refetch presence for the new peer
 	a.selOn = false
@@ -1483,7 +1489,16 @@ func (a *App) sendText(text string) {
 		if cfg := a.eng.GetConfig(); cfg != nil && cfg.AyuImproveLinkPreviews {
 			sendText = improveLinkURLs(sendText)
 		}
-		if _, err := a.eng.SendMessage(k.AccountID, k.ChatID, sendText, replyID, sendEnts, silent, 0, a.topicScopeFor(k), "", false, false, false, false, a.linkPreviewOffFor(k)); err != nil {
+		// Slice 195: an open comment thread sends into the discussion
+		// group, replying to the thread root (tdesktop's comment composer).
+		sendChat, sendReply := k.ChatID, replyID
+		if ts := a.threadScopeFor(k); ts != nil && ts.discussionChat != "" {
+			sendChat = ts.discussionChat
+			if sendReply == "" {
+				sendReply = ts.rootID
+			}
+		}
+		if _, err := a.eng.SendMessage(k.AccountID, sendChat, sendText, sendReply, sendEnts, silent, 0, a.topicScopeFor(k), "", false, false, false, false, a.linkPreviewOffFor(k)); err != nil {
 			a.setToast("Send failed: " + err.Error())
 			return
 		}
@@ -1537,7 +1552,10 @@ func (a *App) loadOlder() {
 	go func() {
 		var older []engine.CachedMessage
 		var err error
-		if topic := a.topicScopeFor(&k); topic != "" {
+		if ts := a.threadScopeFor(&k); ts != nil && ts.discussionChat != "" {
+			// Slice 195: the comment thread pages from the thread filter.
+			older, err = a.eng.GetThreadMessages(k.AccountID, ts.discussionChat, ts.rootID, oldest, 50)
+		} else if topic := a.topicScopeFor(&k); topic != "" {
 			older, err = a.eng.GetTopicMessages(k.AccountID, k.ChatID, topic, oldest, 50)
 		} else {
 			older, err = a.eng.GetMessages(k.AccountID, k.ChatID, oldest, 0, 50)
@@ -2179,6 +2197,7 @@ func (a *App) snapshot() frame {
 		restrictDlg:      a.restrictDlg,
 		signupPhotoPath:  a.signupPhotoPath,
 		signupPhotoB64:   a.signupPhotoB64,
+		threadScope:      a.threadScope,
 		schedDlg:         a.schedDlg,
 		pollDlg:          a.pollDlg,
 		reactors:         a.reactors,
@@ -2496,6 +2515,9 @@ type frame struct {
 	// signup photo staging (slice 193)
 	signupPhotoPath string
 	signupPhotoB64  string
+
+	// comment-thread scope (slice 195)
+	threadScope *threadScopeState
 
 	// scheduled send (slice 20)
 	schedDlg *schedDlgState

@@ -165,6 +165,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV50,
 	migrateV51,
 	migrateV52,
+	migrateV53,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -250,6 +251,23 @@ func migrateV51(tx *sql.Tx) error {
 		}
 	}
 	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN forwards INTEGER NOT NULL DEFAULT 0`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateV53 adds messages.comments_count + messages.thread_root (slice
+// 195: channel-post comment threads — the post's comment count and the
+// reply-to-top root that filters discussion rows into threads).
+func migrateV53(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN comments_count INTEGER NOT NULL DEFAULT 0`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN thread_root TEXT`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
 			return err
 		}

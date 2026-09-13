@@ -857,6 +857,11 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 								return a.layoutTTLTimer(gtx, msgTTL)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								// Channel-post comments (slice 195): the
+								// tappable count chip — opens the thread view.
+								return a.commentsChip(gtx, f, *m)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								// Channel-post counters (tdesktop's eye
 								// glyph row): views always when counted,
 								// forwards beside when non-zero.

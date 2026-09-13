@@ -5269,3 +5269,43 @@ Parity: PRESENT 170 · PARTIAL 23 · MISSING 1 · CORE-ONLY 4 (+1 by-design).
 - No code changes — docs only (§10: markdown stays short and true).
 
 Parity: PRESENT 177 (89%) · PARTIAL 16 · MISSING 1 · CORE-ONLY 5.
+
+## 2026-09-13 — slice 195: channel-post comments (chip + thread view)
+
+- The biggest unblocked parity gap found by the slice-194 truth pass:
+  channel-post comments did not exist anywhere (the parity file only
+  hinted via the deep-links row). Rating (§1.14): the forum-topic
+  scoping machinery (topics.go + GetTopicMessages + topicRootID sends)
+  was the right architecture to extend (9/10 — extended, not replaced).
+- Core: cores.Message gains CommentsCount (MessageReplies) + ThreadRoot
+  (reply-to-top; the discussion rows' thread filter); convertMessage
+  maps both via pure helpers (repliesInfoOf/threadRootOf — pinned by
+  constructed-wire tests); GetDiscussionThread (messages.getDiscussion
+  Message, withAPI) + ReadDiscussion (messages.readDiscussion).
+- Engine: migrateV53 (messages.comments_count + thread_root — thread
+  root NULLable like topic_id; found + fixed the nullStr-vs-NOT-NULL
+  insert failure via a raw-INSERT probe); every message SELECT + the
+  shared scanMessages extended uniformly (31 cols); engine/comments.go
+  — GetDiscussionThread (fetch + cache write-through + root resolve +
+  newest-first), GetThreadMessages (thread filter w/ beforeMs paging),
+  ReadDiscussion.
+- GUI: gui/comments.go — the "N comments" chip on channel posts
+  (count>0, channel-gated; pooled clickables) opens the thread view;
+  thread bar under the header (back → the channel, "Comments · <first
+  line>"); refreshMessages + loadOlder branch to the thread filter;
+  the composer redirects into the discussion group replying to the
+  thread root (tdesktop's comment semantics — a reply to the root IS a
+  new comment); ReadDiscussion fires on open; chat switch closes the
+  scope. Honest v1: the server's recent page + cached older pages.
+- Tests first: cores/telegram_comments_test.go (replies/thread-root
+  readers incl. the gotd Set-helper flag semantics), engine/
+  comments_test.go (round-trips, thread filter + ordering, discussion
+  fetch w/ cache write-through + unsupported errors), gui/comments_
+  test.go (label incl. compact counts, gating, bar title). Green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok · linux build ok · js/wasm + windows builds ok · Xvfb
+  GUI smoke (#17212B dominant). (Disk pressure forced one go clean
+  -cache -modcache; full rebuild re-verified green.)
+
+Parity: PRESENT 178 (89%) · PARTIAL 16 · MISSING 1 · CORE-ONLY 5
+(one by-design). New row: "Channel-post comments" PRESENT.
