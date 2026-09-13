@@ -72,7 +72,14 @@ type widgets struct {
 
 	// statsview.go
 	statsPanelBack widget.Clickable
-	statsPanelList widget.List
+
+	// boostview.go
+	boostPanelBack   widget.Clickable
+	boostTabBoosters widget.Clickable
+	boostTabGifts    widget.Clickable
+	boostMoreBtn     widget.Clickable
+	boostApplyBtn    widget.Clickable
+	statsPanelList   widget.List
 
 	// adminlog.go
 	adminPanelBack  widget.Clickable

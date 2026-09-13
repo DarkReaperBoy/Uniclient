@@ -17918,6 +17918,10 @@ func (t *TelegramCore) GetMessagesViewsBatch(chatID string, msgIDs []string) (vi
 
 // GetMessageReadParticipants returns users who read a specific message.
 func (t *TelegramCore) GetMessageReadParticipants(chatID string, msgID string) ([]int64, error) {
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
+	}
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return nil, err
@@ -17927,7 +17931,7 @@ func (t *TelegramCore) GetMessageReadParticipants(chatID string, msgID string) (
 	if err != nil {
 		return nil, err
 	}
-	result, err := t.api.MessagesGetMessageReadParticipants(t.ctx, &tg.MessagesGetMessageReadParticipantsRequest{
+	result, err := api.MessagesGetMessageReadParticipants(ctx, &tg.MessagesGetMessageReadParticipantsRequest{
 		Peer: inputPeer, MsgID: id,
 	})
 	if err != nil {
@@ -17943,6 +17947,10 @@ func (t *TelegramCore) GetMessageReadParticipants(chatID string, msgID string) (
 // GetMessageReadParticipantsDetailedJSON returns users with read timestamps as generic maps.
 // On privacy errors, returns nil participants with a non-nil error containing the privacy state string.
 func (t *TelegramCore) GetMessageReadParticipantsDetailedJSON(chatID string, msgID string) ([]map[string]interface{}, error) {
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
+	}
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return nil, err
@@ -17952,7 +17960,7 @@ func (t *TelegramCore) GetMessageReadParticipantsDetailedJSON(chatID string, msg
 	if err != nil {
 		return nil, err
 	}
-	result, err := t.api.MessagesGetMessageReadParticipants(t.ctx, &tg.MessagesGetMessageReadParticipantsRequest{
+	result, err := api.MessagesGetMessageReadParticipants(ctx, &tg.MessagesGetMessageReadParticipantsRequest{
 		Peer: inputPeer, MsgID: id,
 	})
 	if err != nil {
@@ -19371,6 +19379,48 @@ func (t *TelegramCore) appConfigBoolNoLock(key string, def bool) bool {
 	return def
 }
 
+// appConfigIntAPI / appConfigBoolAPI: the withAPI-snapshot variants of the
+// appConfig readers (slice 192 RLock purge) — config keys fetched through a
+// caller-provided api+ctx pair, so no t.mu is held across the RPC.
+func appConfigIntAPI(api *tg.Client, ctx context.Context, key string, def int) int {
+	if v, ok := appConfigRawAPI(api, ctx, key); ok {
+		if n, ok := v.(*tg.JSONNumber); ok {
+			return int(n.Value)
+		}
+	}
+	return def
+}
+
+func appConfigBoolAPI(api *tg.Client, ctx context.Context, key string, def bool) bool {
+	if v, ok := appConfigRawAPI(api, ctx, key); ok {
+		if b, ok := v.(*tg.JSONBool); ok {
+			return b.Value
+		}
+	}
+	return def
+}
+
+func appConfigRawAPI(api *tg.Client, ctx context.Context, key string) (tg.JSONValueClass, bool) {
+	result, err := api.HelpGetAppConfig(ctx, 0)
+	if err != nil {
+		return nil, false
+	}
+	cfg, ok := result.(*tg.HelpAppConfig)
+	if !ok || cfg.Config == nil {
+		return nil, false
+	}
+	obj, ok := cfg.Config.(*tg.JSONObject)
+	if !ok {
+		return nil, false
+	}
+	for _, kv := range obj.Value {
+		if kv.Key == key {
+			return kv.Value, true
+		}
+	}
+	return nil, false
+}
+
 // ToggleChannelAutoTranslation enables/disables admin auto-translation for a
 // broadcast channel (channels.toggleAutotranslation). This is the channel-wide
 // admin setting, distinct from the per-user messages.togglePeerTranslations.
@@ -19400,29 +19450,29 @@ func (t *TelegramCore) ToggleChannelAutoTranslation(chatID string, enabled bool)
 // whether the bot has verifier settings, whether star-ref setup is allowed by
 // the server appConfig, and the bot's star-ref commission (per-mille).
 func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	id, err := tgUserID(chatID)
 	if err != nil {
 		return nil, err
 	}
 	hash := t.getCachedUserHash(id)
-	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: id, AccessHash: hash})
+	result, err := api.UsersGetFullUser(ctx, &tg.InputUser{UserID: id, AccessHash: hash})
 	if err != nil {
 		return nil, err
 	}
 	t.cacheEntities(result.Users, nil)
 	out := map[string]interface{}{
 		"has_verifier_settings": false,
-		"starref_allowed":       t.appConfigBoolNoLock("starref_program_allowed", false),
+		"starref_allowed":       appConfigBoolAPI(api, ctx, "starref_program_allowed", false),
 		"starref_commission":    0,
 		// Server-driven commission bounds for the setup slider, mirroring
 		// appConfig.starrefCommissionMin/Max (info_bot_starref_setup_widget.cpp:626).
-		"starref_commission_min": t.appConfigIntNoLock("starref_min_commission_permille", 1),
-		"starref_commission_max": t.appConfigIntNoLock("starref_max_commission_permille", 900),
+		"starref_commission_min": appConfigIntAPI(api, ctx, "starref_min_commission_permille", 1),
+		"starref_commission_max": appConfigIntAPI(api, ctx, "starref_max_commission_permille", 900),
 	}
 	if bi, ok := result.FullUser.GetBotInfo(); ok {
 		if vs, ok := bi.GetVerifierSettings(); ok {
@@ -19437,7 +19487,7 @@ func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, 
 		}
 	}
 	// UTF-8 length limit for the verification custom description (verify_peers_box.cpp:120).
-	out["bot_verification_description_length_limit"] = t.appConfigIntNoLock("bot_verification_description_length_limit", 70)
+	out["bot_verification_description_length_limit"] = appConfigIntAPI(api, ctx, "bot_verification_description_length_limit", 70)
 	if srp, ok := result.FullUser.GetStarrefProgram(); ok {
 		out["starref_commission"] = srp.CommissionPermille
 		// Full program block so the setup screen pre-fills duration (and detects an
@@ -19550,10 +19600,10 @@ func connectedStarRefBotsToMaps(users map[int64]*tg.User, bots []tg.ConnectedBot
 }
 
 func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int, orderByRevenue, orderByDate bool) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -19571,7 +19621,7 @@ func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int,
 	req := &tg.PaymentsGetSuggestedStarRefBotsRequest{Peer: inputPeer, Offset: offset, Limit: limit}
 	req.OrderByRevenue = orderByRevenue
 	req.OrderByDate = orderByDate
-	res, err := t.api.PaymentsGetSuggestedStarRefBots(t.ctx, req)
+	res, err := api.PaymentsGetSuggestedStarRefBots(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -19612,10 +19662,10 @@ func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int,
 }
 
 func (t *TelegramCore) GetConnectedStarRefBots(chatID string) ([]map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -19625,7 +19675,7 @@ func (t *TelegramCore) GetConnectedStarRefBots(chatID string) ([]map[string]inte
 	if err != nil {
 		return nil, err
 	}
-	res, err := t.api.PaymentsGetConnectedStarRefBots(t.ctx, &tg.PaymentsGetConnectedStarRefBotsRequest{Peer: inputPeer})
+	res, err := api.PaymentsGetConnectedStarRefBots(ctx, &tg.PaymentsGetConnectedStarRefBotsRequest{Peer: inputPeer})
 	if err != nil {
 		return nil, err
 	}
@@ -19639,10 +19689,10 @@ func (t *TelegramCore) GetConnectedStarRefBots(chatID string) ([]map[string]inte
 }
 
 func (t *TelegramCore) ConnectStarRefBot(chatID, botID string, revoked bool, link string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -19662,7 +19712,7 @@ func (t *TelegramCore) ConnectStarRefBot(chatID, botID string, revoked bool, lin
 		if link == "" {
 			return nil, fmt.Errorf("revoke requires the connected link")
 		}
-		editRes, eerr := t.api.PaymentsEditConnectedStarRefBot(t.ctx, &tg.PaymentsEditConnectedStarRefBotRequest{
+		editRes, eerr := api.PaymentsEditConnectedStarRefBot(ctx, &tg.PaymentsEditConnectedStarRefBotRequest{
 			Revoked: true,
 			Peer:    inputPeer,
 			Link:    link,
@@ -19682,7 +19732,7 @@ func (t *TelegramCore) ConnectStarRefBot(chatID, botID string, revoked bool, lin
 		}
 		return map[string]interface{}{"revoked": true}, nil
 	}
-	res, err := t.api.PaymentsConnectStarRefBot(t.ctx, &tg.PaymentsConnectStarRefBotRequest{
+	res, err := api.PaymentsConnectStarRefBot(ctx, &tg.PaymentsConnectStarRefBotRequest{
 		Peer: inputPeer,
 		Bot:  &tg.InputUser{UserID: bid, AccessHash: t.getCachedUserHash(bid)},
 	})
@@ -20435,12 +20485,12 @@ func (t *TelegramCore) SetDiscussionGroup(broadcastID, groupID string) error {
 
 // GetDiscussionGroups returns groups available for linking as discussion groups.
 func (t *TelegramCore) GetDiscussionGroups() ([]map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	result, err := t.api.ChannelsGetGroupsForDiscussion(t.ctx)
+	result, err := api.ChannelsGetGroupsForDiscussion(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -20597,10 +20647,10 @@ func (t *TelegramCore) SetBoostsUnrestrict(chatID string, boosts int) error {
 }
 
 func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -20610,7 +20660,7 @@ func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, err
 	if err != nil {
 		return nil, err
 	}
-	status, err := t.api.PremiumGetBoostsStatus(t.ctx, inputPeer)
+	status, err := api.PremiumGetBoostsStatus(ctx, inputPeer)
 	if err != nil {
 		return nil, err
 	}
@@ -20662,11 +20712,34 @@ func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, err
 	return out, nil
 }
 
+// ApplyBoost spends one of the account's own boost slots on a channel
+// (premium.applyBoost — tdesktop's "Boost this channel" button). The
+// server rejects it without premium/free slots; that error surfaces.
+func (t *TelegramCore) ApplyBoost(chatID string) error {
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return err
+	}
+	_, err = api.PremiumApplyBoost(ctx, &tg.PremiumApplyBoostRequest{
+		Peer: inputPeer,
+	})
+	return err
+}
+
 func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -20684,7 +20757,7 @@ func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset str
 	if isGifts {
 		req.SetGifts(true)
 	}
-	list, err := t.api.PremiumGetBoostsList(t.ctx, req)
+	list, err := api.PremiumGetBoostsList(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -20746,10 +20819,10 @@ func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset str
 }
 
 func (t *TelegramCore) GetGiftCodeOptions(chatID string) ([]map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	req := &tg.PaymentsGetPremiumGiftCodeOptionsRequest{}
 	if chatID != "" {
@@ -20763,7 +20836,7 @@ func (t *TelegramCore) GetGiftCodeOptions(chatID string) ([]map[string]interface
 		}
 		req.SetBoostPeer(inputPeer)
 	}
-	options, err := t.api.PaymentsGetPremiumGiftCodeOptions(t.ctx, req)
+	options, err := api.PaymentsGetPremiumGiftCodeOptions(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -20787,10 +20860,10 @@ func (t *TelegramCore) GetGiftCodeOptions(chatID string) ([]map[string]interface
 }
 
 func (t *TelegramCore) LaunchPrepaidGiveaway(chatID string, giveawayID int64, params map[string]interface{}) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -20860,7 +20933,7 @@ func (t *TelegramCore) LaunchPrepaidGiveaway(chatID string, giveawayID int64, pa
 		purpose.RandomID = int64(randomID)
 	}
 
-	_, err = t.api.PaymentsLaunchPrepaidGiveaway(t.ctx, &tg.PaymentsLaunchPrepaidGiveawayRequest{
+	_, err = api.PaymentsLaunchPrepaidGiveaway(ctx, &tg.PaymentsLaunchPrepaidGiveawayRequest{
 		Peer:       inputPeer,
 		GiveawayID: giveawayID,
 		Purpose:    purpose,
@@ -20869,10 +20942,10 @@ func (t *TelegramCore) LaunchPrepaidGiveaway(chatID string, giveawayID int64, pa
 }
 
 func (t *TelegramCore) LaunchRandomGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -20966,7 +21039,7 @@ func (t *TelegramCore) LaunchRandomGiveaway(chatID string, params map[string]int
 		Option:  option,
 	}
 
-	rawForm, err := t.api.PaymentsGetPaymentForm(t.ctx, &tg.PaymentsGetPaymentFormRequest{
+	rawForm, err := api.PaymentsGetPaymentForm(ctx, &tg.PaymentsGetPaymentFormRequest{
 		Invoice: invoice,
 	})
 	if err != nil {
@@ -20989,12 +21062,12 @@ func (t *TelegramCore) LaunchRandomGiveaway(chatID string, params map[string]int
 }
 
 func (t *TelegramCore) GetStarsGiveawayOptions() ([]map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	options, err := t.api.PaymentsGetStarsGiveawayOptions(t.ctx)
+	options, err := api.PaymentsGetStarsGiveawayOptions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -21026,10 +21099,10 @@ func (t *TelegramCore) GetStarsGiveawayOptions() ([]map[string]interface{}, erro
 }
 
 func (t *TelegramCore) LaunchCreditsGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -21109,7 +21182,7 @@ func (t *TelegramCore) LaunchCreditsGiveaway(chatID string, params map[string]in
 		Purpose: purpose,
 	}
 
-	rawForm, err := t.api.PaymentsGetPaymentForm(t.ctx, &tg.PaymentsGetPaymentFormRequest{
+	rawForm, err := api.PaymentsGetPaymentForm(ctx, &tg.PaymentsGetPaymentFormRequest{
 		Invoice: invoice,
 	})
 	if err != nil {
@@ -21212,10 +21285,10 @@ func (t *TelegramCore) GetGiveawayConfig() (map[string]int, error) {
 // list and the boosted channel, instead of InputStorePaymentPremiumGiveaway.
 // Returns a payment-form URL (same shape as LaunchRandomGiveaway).
 func (t *TelegramCore) AwardPremiumGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -21275,7 +21348,7 @@ func (t *TelegramCore) AwardPremiumGiveaway(chatID string, params map[string]int
 		Option:  option,
 	}
 
-	rawForm, err := t.api.PaymentsGetPaymentForm(t.ctx, &tg.PaymentsGetPaymentFormRequest{
+	rawForm, err := api.PaymentsGetPaymentForm(ctx, &tg.PaymentsGetPaymentFormRequest{
 		Invoice: invoice,
 	})
 	if err != nil {
@@ -22746,10 +22819,10 @@ func (t *TelegramCore) GetCallConfig() (int, error) {
 
 // GetBroadcastStats returns statistics for a broadcast channel.
 func (t *TelegramCore) GetBroadcastStats(chatID string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -22760,7 +22833,7 @@ func (t *TelegramCore) GetBroadcastStats(chatID string) (map[string]interface{},
 		return nil, fmt.Errorf("not a channel")
 	}
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	result, err := t.api.StatsGetBroadcastStats(t.ctx, &tg.StatsGetBroadcastStatsRequest{
+	result, err := api.StatsGetBroadcastStats(ctx, &tg.StatsGetBroadcastStatsRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 	})
 	if err != nil {
@@ -22811,7 +22884,7 @@ func (t *TelegramCore) GetBroadcastStats(chatID string) (map[string]interface{},
 		}
 		if len(msgIDs) > 0 {
 			msgMap := map[int]*tg.Message{}
-			msgs, merr := t.api.ChannelsGetMessages(t.ctx, &tg.ChannelsGetMessagesRequest{
+			msgs, merr := api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
 				Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 				ID:      msgIDs,
 			})
@@ -23400,10 +23473,10 @@ func (t *TelegramCore) SaveGif(fileID int64, extra string, unsave bool) error {
 
 // GetMegagroupStats returns statistics for a supergroup.
 func (t *TelegramCore) GetMegagroupStats(chatID string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -23414,7 +23487,7 @@ func (t *TelegramCore) GetMegagroupStats(chatID string) (map[string]interface{},
 		return nil, fmt.Errorf("not a supergroup")
 	}
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	result, err := t.api.StatsGetMegagroupStats(t.ctx, &tg.StatsGetMegagroupStatsRequest{
+	result, err := api.StatsGetMegagroupStats(ctx, &tg.StatsGetMegagroupStatsRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 	})
 	if err != nil {
@@ -25700,10 +25773,10 @@ func (t *TelegramCore) GetMyStars(offset, filter string) (StarsStatus, error) {
 // GetStarsTransactions returns the Stars transaction history for the channel's
 // balance — the earn section's transaction list (info_channel_earn_list.cpp:1288).
 func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, filter string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -25729,7 +25802,7 @@ func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, fi
 	case "out":
 		req.Outbound = true
 	}
-	res, err := t.api.PaymentsGetStarsTransactions(t.ctx, req)
+	res, err := api.PaymentsGetStarsTransactions(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -25818,10 +25891,10 @@ func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amo
 // level — driving the "Restrict sponsored messages" toggle + level badge
 // (info_channel_earn_list.cpp:1391).
 func (t *TelegramCore) GetSponsoredInfo(chatID string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -25833,10 +25906,10 @@ func (t *TelegramCore) GetSponsoredInfo(chatID string) (map[string]interface{}, 
 	}
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
 	inputCh := &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}
-	requiredLevel := t.appConfigIntNoLock("channel_restrict_sponsored_level_min", 50)
+	requiredLevel := appConfigIntAPI(api, ctx, "channel_restrict_sponsored_level_min", 50)
 	isBroadcast := false
 	restricted := false
-	full, err := t.api.ChannelsGetFullChannel(t.ctx, inputCh)
+	full, err := api.ChannelsGetFullChannel(ctx, inputCh)
 	if err != nil {
 		return nil, err
 	}
@@ -25850,7 +25923,7 @@ func (t *TelegramCore) GetSponsoredInfo(chatID string) (map[string]interface{}, 
 	}
 	currentLevel := 0
 	if isBroadcast {
-		if bs, err := t.api.PremiumGetBoostsStatus(t.ctx, &tg.InputPeerChannel{ChannelID: ch.ChannelID, AccessHash: hash}); err == nil {
+		if bs, err := api.PremiumGetBoostsStatus(ctx, &tg.InputPeerChannel{ChannelID: ch.ChannelID, AccessHash: hash}); err == nil {
 			currentLevel = bs.Level
 		}
 	}
@@ -25937,10 +26010,10 @@ func (t *TelegramCore) GetBroadcastRevenueStats(chatID string) (StarsRevenueResu
 // (AyuGram EarnStatistics::requestHistory, api_statistics.cpp:757). Amounts are
 // in nanotons (signed: positive = proceeds in, negative = withdrawal out).
 func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, limit int) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -25953,7 +26026,7 @@ func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, li
 	if limit <= 0 {
 		limit = 30
 	}
-	res, err := t.api.PaymentsGetStarsTransactions(t.ctx, &tg.PaymentsGetStarsTransactionsRequest{
+	res, err := api.PaymentsGetStarsTransactions(ctx, &tg.PaymentsGetStarsTransactionsRequest{
 		Ton:    true,
 		Peer:   inputPeer,
 		Offset: offset,
@@ -32066,12 +32139,12 @@ func (t *TelegramCore) MessagesGetEmojiGroups(hash int) (tg.MessagesEmojiGroupsC
 // expects (interface{}, error)) matches — a typed *tg.EmojiKeywordsDifference
 // return silently failed that assertion, disabling the whole server keyword path.
 func (t *TelegramCore) MessagesGetEmojiKeywords(langcode string) (interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	return t.api.MessagesGetEmojiKeywords(t.ctx, langcode)
+	return api.MessagesGetEmojiKeywords(ctx, langcode)
 }
 
 // emojiKeywordDiffEntry is a platform-neutral emoji-keyword diff row that
@@ -32092,12 +32165,12 @@ type emojiKeywordDiffResult struct {
 
 // MessagesGetEmojiKeywordsDifference returns updated emoji keywords since a version.
 func (t *TelegramCore) MessagesGetEmojiKeywordsDifference(langCode string, fromVersion int) (interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	raw, err := t.api.MessagesGetEmojiKeywordsDifference(t.ctx, &tg.MessagesGetEmojiKeywordsDifferenceRequest{
+	raw, err := api.MessagesGetEmojiKeywordsDifference(ctx, &tg.MessagesGetEmojiKeywordsDifferenceRequest{
 		LangCode:    langCode,
 		FromVersion: fromVersion,
 	})
@@ -32125,12 +32198,12 @@ func (t *TelegramCore) MessagesGetEmojiKeywordsDifference(langCode string, fromV
 
 // MessagesGetEmojiKeywordsLanguages returns available languages for emoji keywords.
 func (t *TelegramCore) MessagesGetEmojiKeywordsLanguages(langcodes []string) (interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	return t.api.MessagesGetEmojiKeywordsLanguages(t.ctx, langcodes)
+	return api.MessagesGetEmojiKeywordsLanguages(ctx, langcodes)
 }
 
 // MessagesGetEmojiProfilePhotoGroups returns emoji groups for profile photos.
@@ -34214,10 +34287,10 @@ func (t *TelegramCore) StatsGetMessageStats(request *tg.StatsGetMessageStatsRequ
 }
 
 func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -34229,7 +34302,7 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 	}
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
 	inputCh := &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}
-	result, err := t.api.StatsGetMessageStats(t.ctx, &tg.StatsGetMessageStatsRequest{
+	result, err := api.StatsGetMessageStats(ctx, &tg.StatsGetMessageStatsRequest{
 		Channel: inputCh,
 		MsgID:   msgID,
 	})
@@ -34245,7 +34318,7 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 	}
 	out := map[string]interface{}{"charts": charts}
 
-	fwds, ferr := t.api.StatsGetMessagePublicForwards(t.ctx, &tg.StatsGetMessagePublicForwardsRequest{
+	fwds, ferr := api.StatsGetMessagePublicForwards(ctx, &tg.StatsGetMessagePublicForwardsRequest{
 		Channel: inputCh,
 		MsgID:   msgID,
 		Limit:   100,
@@ -34340,7 +34413,7 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 	// Re-fetch the live view / forward / reaction counters via channels.GetMessages
 	// so the overview shows fresh numbers, not a recent-post snapshot, and the
 	// cards render whenever the value is present (api_statistics.cpp:405).
-	if msgs, mErr := t.api.ChannelsGetMessages(t.ctx, &tg.ChannelsGetMessagesRequest{
+	if msgs, mErr := api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
 		Channel: inputCh,
 		ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: msgID}},
 	}); mErr == nil {
@@ -34378,10 +34451,10 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 
 // GetMessagePublicForwardsJSON returns a page of public forwards given an offset cursor.
 func (t *TelegramCore) GetMessagePublicForwardsJSON(chatID string, msgID int, offset string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
@@ -34393,7 +34466,7 @@ func (t *TelegramCore) GetMessagePublicForwardsJSON(chatID string, msgID int, of
 	}
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
 	inputCh := &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}
-	fwds, err := t.api.StatsGetMessagePublicForwards(t.ctx, &tg.StatsGetMessagePublicForwardsRequest{
+	fwds, err := api.StatsGetMessagePublicForwards(ctx, &tg.StatsGetMessagePublicForwardsRequest{
 		Channel: inputCh,
 		MsgID:   msgID,
 		Offset:  offset,
@@ -34503,16 +34576,16 @@ func (t *TelegramCore) StatsLoadAsyncGraph(request *tg.StatsLoadAsyncGraphReques
 
 // LoadStatsGraph loads a stats graph by zoom token and optional X timestamp.
 func (t *TelegramCore) LoadStatsGraph(token string, x int64) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	req := &tg.StatsLoadAsyncGraphRequest{Token: token}
 	if x != 0 {
 		req.SetX(x)
 	}
-	result, err := t.api.StatsLoadAsyncGraph(t.ctx, req)
+	result, err := api.StatsLoadAsyncGraph(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -36386,15 +36459,15 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 // user results rather than a single exact-username resolve
 // (add_participants_box.cpp:1894).
 func (t *TelegramCore) SearchGlobalUsers(query string, limit int) ([]map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 	if limit <= 0 {
 		limit = 20
 	}
-	result, err := t.api.ContactsSearch(t.ctx, &tg.ContactsSearchRequest{Q: query, Limit: limit})
+	result, err := api.ContactsSearch(ctx, &tg.ContactsSearchRequest{Q: query, Limit: limit})
 	if err != nil {
 		return nil, fmt.Errorf("global user search: %w", err)
 	}
@@ -37095,10 +37168,10 @@ func (t *TelegramCore) MuteDefaultNotifyForDuration(peerType string, seconds int
 
 // GetDefaultNotifySettings returns default notification settings for a peer type.
 func (t *TelegramCore) GetDefaultNotifySettings(peerType string) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	var peer tg.InputNotifyPeerClass
@@ -37113,7 +37186,7 @@ func (t *TelegramCore) GetDefaultNotifySettings(peerType string) (map[string]int
 		return nil, fmt.Errorf("unknown peer type: %s", peerType)
 	}
 
-	s, err := t.api.AccountGetNotifySettings(t.ctx, peer)
+	s, err := api.AccountGetNotifySettings(ctx, peer)
 	if err != nil {
 		return nil, err
 	}
@@ -37146,12 +37219,12 @@ func (t *TelegramCore) GetDefaultNotifySettings(peerType string) (map[string]int
 
 // GetReactionsNotifySettings returns reactions notification settings as a simple map.
 func (t *TelegramCore) GetReactionsNotifySettings() (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
-	settings, err := t.api.AccountGetReactionsNotifySettings(t.ctx)
+	settings, err := api.AccountGetReactionsNotifySettings(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -37301,19 +37374,19 @@ func (t *TelegramCore) cachedRingtonePath(api *tg.Client, ctx context.Context, d
 
 // UploadRingtone uploads a custom notification ringtone and saves it.
 func (t *TelegramCore) UploadRingtone(fileName, mimeType string, data []byte) (map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	u := uploader.NewUploader(t.api)
-	upload, err := u.Upload(t.ctx, uploader.NewUpload(fileName, io.NopCloser(bytes.NewReader(data)), int64(len(data))))
+	upload, err := u.Upload(ctx, uploader.NewUpload(fileName, io.NopCloser(bytes.NewReader(data)), int64(len(data))))
 	if err != nil {
 		return nil, fmt.Errorf("upload ringtone file: %w", err)
 	}
 
-	doc, err := t.api.AccountUploadRingtone(t.ctx, &tg.AccountUploadRingtoneRequest{
+	doc, err := api.AccountUploadRingtone(ctx, &tg.AccountUploadRingtoneRequest{
 		File:     upload,
 		FileName: fileName,
 		MimeType: mimeType,
@@ -37327,7 +37400,7 @@ func (t *TelegramCore) UploadRingtone(fileName, mimeType string, data []byte) (m
 		return nil, fmt.Errorf("unexpected document type: %T", doc)
 	}
 
-	_, err = t.api.AccountSaveRingtone(t.ctx, &tg.AccountSaveRingtoneRequest{
+	_, err = api.AccountSaveRingtone(ctx, &tg.AccountSaveRingtoneRequest{
 		ID:     &tg.InputDocument{ID: d.ID, AccessHash: d.AccessHash, FileReference: d.FileReference},
 		Unsave: false,
 	})
@@ -37381,10 +37454,10 @@ func (t *TelegramCore) DeleteRingtone(documentID int64) error {
 
 // GetNotificationExceptions returns chats with custom notification settings for a peer type.
 func (t *TelegramCore) GetNotificationExceptions(peerType string) ([]map[string]interface{}, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
 	}
 
 	req := &tg.AccountGetNotifyExceptionsRequest{}
@@ -37397,7 +37470,7 @@ func (t *TelegramCore) GetNotificationExceptions(peerType string) ([]map[string]
 		req.SetPeer(&tg.InputNotifyBroadcasts{})
 	}
 
-	updates, err := t.api.AccountGetNotifyExceptions(t.ctx, req)
+	updates, err := api.AccountGetNotifyExceptions(ctx, req)
 	if err != nil {
 		return nil, err
 	}

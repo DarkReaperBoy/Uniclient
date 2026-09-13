@@ -79,10 +79,10 @@ func (t *TelegramCore) SetChatNotifySound(chatID, kind string) error {
 	if err != nil {
 		return err
 	}
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
 	}
 	s, inputPeer, err := t.chatNotifySettings(chatID)
 	if err != nil {
@@ -96,7 +96,7 @@ func (t *TelegramCore) SetChatNotifySound(chatID, kind string) error {
 		settings.SetMuteUntil(s.MuteUntil)
 	}
 	settings.SetSound(snd)
-	_, err = t.api.AccountUpdateNotifySettings(t.ctx, &tg.AccountUpdateNotifySettingsRequest{
+	_, err = api.AccountUpdateNotifySettings(ctx, &tg.AccountUpdateNotifySettingsRequest{
 		Peer:     &tg.InputNotifyPeer{Peer: inputPeer},
 		Settings: settings,
 	})

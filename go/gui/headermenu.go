@@ -62,6 +62,11 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn bool) []c
 		items = append(items, chatMenuAction{"Add members", "addmember"})
 	}
 	items = append(items, chatMenuAction{"Scheduled messages", "scheduled"})
+	// Boosts (slice 192): channels — tdesktop's boost info box, members
+	// and admins alike (boosting is a member action, not an admin one).
+	if c.Type == engine.ChatTypeChanVal {
+		items = append(items, chatMenuAction{"Boosts", "boosts"})
+	}
 	// Recent actions / admin log (slice 177): admins of groups/channels
 	// (tdesktop gates the entry the same way).
 	if (c.Type == engine.ChatTypeGroupVal || c.Type == engine.ChatTypeChanVal || c.Type == engine.ChatTypeTopicVal) && c.IsAdmin {
@@ -171,6 +176,9 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 	case "stats":
 		a.closeHeaderMenu()
 		a.openStatsPanel()
+	case "boosts":
+		a.closeHeaderMenu()
+		a.openBoostPanel()
 	case "shadowbans":
 		a.closeHeaderMenu()
 		a.openShadowDialog(chatKey{AccountID: c.AccountID, ChatID: c.ChatID})

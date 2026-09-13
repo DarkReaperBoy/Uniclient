@@ -57,6 +57,11 @@ func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Di
 		return a.layoutStatsPanel(gtx, f, chat)
 	}
 
+	// Boosts page replaces the pane (slice 192).
+	if f.boostPanel {
+		return a.layoutBoostPanel(gtx, f, chat)
+	}
+
 	// Route pane presses (right-click context menu, menu dismissal).
 	a.processPaneEvents(gtx, f)
 

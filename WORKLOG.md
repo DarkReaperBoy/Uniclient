@@ -5178,3 +5178,44 @@ Parity: PRESENT 167 · PARTIAL 24 · MISSING 1 · CORE-ONLY 7.
   smoke (25s+, #17212B dominant).
 
 Parity: PRESENT 168 · PARTIAL 24 · MISSING 1 · CORE-ONLY 6.
+
+## 2026-09-13 — slice 192: RLock-across-RPC purge (31 methods) + boosts page
+
+- Two-part slice. Part 1 (freeze class, §8): the v2 lock-state scanner
+  covered WRITE locks only — 31 TelegramCore methods still held
+  t.mu.RLock (defer) across live RPCs (boosts, stats, star-ref, notify
+  sound, read-participants, emoji keywords, global search, sponsored,
+  giveaway/launchers). All converted to the withAPI snapshot pattern
+  (t.api.X(t.ctx → api.X(ctx). The two config-reading methods gained
+  snapshot-based helpers (appConfigIntAPI/BoolAPI/RawAPI take the
+  caller's api+ctx) so GetBotManageInfo/GetSponsoredInfo keep their
+  server config reads lock-free. SetChatNotifySound (slice-174
+  regression) + GetMessageReadParticipantsDetailedJSON (direct t.api
+  straggler) also converted. NEW REGRESSION GUARD:
+  cores/telegram_lockscan_test.go TestNoLockAcrossRPC — source-scans
+  every telegram*.go method for the deferred-lock + t.api.* co-occurrence
+  and fails listing offenders; both lock polarities covered. Scanner now
+  reports ZERO. (Voice-call signaling acks keep their own scoped
+  rawSigInterceptorsMu + direct t.api use — call lifetime guarantees
+  auth; Authenticate's lock sections are brief state updates around the
+  snapshot, RPCs run unlocked — audited, compliant.)
+- Part 2 (parity row "Giveaways / boosts" CORE-ONLY → PARTIAL): the
+  boosts page (tdesktop's boost info box). gui/boostview.go — status
+  card (Level N, X boosts, current→next-level progress bar, gift boosts,
+  "You boosted this channel" line) from premium.getBoostsStatus;
+  "Boost this channel" → cores.ApplyBoost (premium.applyBoost, withAPI)
+  + engine wrapper — the server rejects slotless accounts honestly;
+  boosters list (name/multiplier ×N/gift/unclaimed/date sub-rows) from
+  premium.getBoostsList with offset paging + Boosters/Gifts tabs;
+  header ⋮ "Boosts" for channels (members AND admins — boosting is a
+  member action). Launch-giveaway checkout (payments.getPaymentForm)
+  stays out — in-app payment checkout is the honest scope cut.
+- Tests first: gui/boostview_test.go (level label, progress fraction
+  incl. maxed/degenerate, to-next label, booster title/sub composition,
+  paging fields, empty-map fallbacks) + cores/telegram_lockscan_test.go
+  (the regression guard). Green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok · linux build ok · js/wasm + windows builds ok · Xvfb
+  GUI smoke (#17212B dominant, welcome + click-through picker).
+
+Parity: PRESENT 168 · PARTIAL 25 · MISSING 1 · CORE-ONLY 5.

@@ -2894,6 +2894,21 @@ func (e *Engine) SetBoostsUnrestrict(accountID, chatID string, boosts int) error
 	return fmt.Errorf("platform does not support boosts unrestrict")
 }
 
+// ApplyBoost spends one of the account's own boost slots on the chat.
+func (e *Engine) ApplyBoost(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type boostApplier interface {
+		ApplyBoost(chatID string) error
+	}
+	if b, ok := acc.Core.(boostApplier); ok {
+		return b.ApplyBoost(chatID)
+	}
+	return fmt.Errorf("platform does not support boosting")
+}
+
 func (e *Engine) GetBoosts(accountID, chatID string) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

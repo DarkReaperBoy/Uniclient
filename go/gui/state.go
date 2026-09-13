@@ -473,9 +473,19 @@ type App struct {
 
 	// channel statistics page (slice 184)
 	statsPanel bool
-	statsData  *cores.ChannelStats
-	statsLoad  bool
-	statsErr   string
+
+	// boosts page (slice 192)
+	boostPanel  bool
+	boostStatus map[string]interface{}
+	boosters    []map[string]interface{}
+	boostNext   string
+	boostTotal  int
+	boostGifts  bool
+	boostLoad   bool
+	boostErr    string
+	statsData   *cores.ChannelStats
+	statsLoad   bool
+	statsErr    string
 
 	// admin log / Recent Actions panel (slice 177): the open chat's
 	// admin events + paging/filter/search state.
@@ -1293,6 +1303,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.viewer = nil       // slice 9: close any open media viewer
 	a.iv = nil           // slice 176: close the Instant View reader
 	a.statsPanel = false // slice 184: close the statistics page
+	a.boostPanel = false // slice 192: close the boosts page
 	a.statsData = nil
 	a.adminPanel = false // slice 177: close the admin log panel
 	a.adminEvents = nil
@@ -2184,6 +2195,14 @@ func (a *App) snapshot() frame {
 		sendAsCur:        a.sendAsCur,
 		sendAsDlg:        a.sendAsDlg,
 		statsPanel:       a.statsPanel,
+		boostPanel:       a.boostPanel,
+		boostStatus:      a.boostStatus,
+		boosters:         a.boosters,
+		boostNext:        a.boostNext,
+		boostTotal:       a.boostTotal,
+		boostGifts:       a.boostGifts,
+		boostLoad:        a.boostLoad,
+		boostErr:         a.boostErr,
 		statsData:        a.statsData,
 		statsLoad:        a.statsLoad,
 		statsErr:         a.statsErr,
@@ -2520,9 +2539,20 @@ type frame struct {
 
 	// channel statistics page (slice 184)
 	statsPanel bool
-	statsData  *cores.ChannelStats
-	statsLoad  bool
-	statsErr   string
+
+	// boosts page (slice 192)
+	boostPanel  bool
+	boostStatus map[string]interface{}
+	boosters    []map[string]interface{}
+	boostNext   string
+	boostTotal  int
+	boostGifts  bool
+	boostLoad   bool
+	boostErr    string
+
+	statsData *cores.ChannelStats
+	statsLoad bool
+	statsErr  string
 
 	// admin log / Recent Actions panel (slice 177)
 	adminPanel     bool
