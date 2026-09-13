@@ -25,7 +25,7 @@ func TestDeepLinkTargetInvite(t *testing.T) {
 		{"tg://foo?invite=AbCdEf12345", "", ""}, // non-join path
 	}
 	for _, tc := range cases {
-		kind, arg, _ := deepLinkTarget(tc.url)
+		kind, arg, _, _ := deepLinkTarget(tc.url)
 		if kind != tc.want || arg != tc.hash {
 			t.Errorf("deepLinkTarget(%q) = %q/%q, want %q/%q", tc.url, kind, arg, tc.want, tc.hash)
 		}
@@ -50,7 +50,7 @@ func TestDeepLinkTargetResolve(t *testing.T) {
 		{"tg://resolve?group=durov", "", ""}, // wrong param
 	}
 	for _, tc := range cases {
-		kind, arg, _ := deepLinkTarget(tc.url)
+		kind, arg, _, _ := deepLinkTarget(tc.url)
 		if kind != tc.want || arg != tc.name {
 			t.Errorf("deepLinkTarget(%q) = %q/%q, want %q/%q", tc.url, kind, arg, tc.want, tc.name)
 		}
@@ -59,7 +59,7 @@ func TestDeepLinkTargetResolve(t *testing.T) {
 
 func TestDeepLinkTargetNotALink(t *testing.T) {
 	for _, u := range []string{"", "   ", "https://example.com/x", "http://google.com", "mailto:x@y.z"} {
-		if kind, _, _ := deepLinkTarget(u); kind != "" {
+		if kind, _, _, _ := deepLinkTarget(u); kind != "" {
 			t.Errorf("deepLinkTarget(%q) = %q, want \"\"", u, kind)
 		}
 	}
@@ -83,37 +83,68 @@ func TestParseQueryPairs(t *testing.T) {
 
 func TestDeepLinkTargetPermalink(t *testing.T) {
 	cases := []struct {
-		url            string
-		kind, ref, msg string
+		url                   string
+		kind, ref, msg, topic string
 	}{
 		// Public-username permalinks resolve in-app (slice 161).
-		{"https://t.me/durov/123", "permalink", "durov", "123"},
-		{"https://t.me/somechannel/99001", "permalink", "somechannel", "99001"},
-		{"t.me/durov/123", "permalink", "durov", "123"},
-		{"https://telegram.me/durov/123", "permalink", "durov", "123"},
-		{"tg://resolve?domain=durov&post=123", "permalink", "durov", "123"},
-		{"tg://resolve?domain=durov&single=123", "resolve", "durov", ""}, // no post param → plain resolve
+		{"https://t.me/durov/123", "permalink", "durov", "123", ""},
+		{"https://t.me/somechannel/99001", "permalink", "somechannel", "99001", ""},
+		{"t.me/durov/123", "permalink", "durov", "123", ""},
+		{"https://telegram.me/durov/123", "permalink", "durov", "123", ""},
+		{"tg://resolve?domain=durov&post=123", "permalink", "durov", "123", ""},
+		{"tg://resolve?domain=durov&single=123", "resolve", "durov", "", ""}, // no post param → plain resolve
 
 		// Private-channel permalinks (t.me/c/<id>/<msg>).
-		{"https://t.me/c/123456/7", "permalink", "c/123456", "7"},
-		{"https://t.me/c/1234567890/999", "permalink", "c/1234567890", "999"},
-		{"t.me/c/123456/7", "permalink", "c/123456", "7"},
-		{"https://t.me/c/123456", "", "", ""}, // no message id → not routable
-		{"https://t.me/c/abc/7", "", "", ""},  // non-numeric id → browser
+		{"https://t.me/c/123456/7", "permalink", "c/123456", "7", ""},
+		{"https://t.me/c/1234567890/999", "permalink", "c/1234567890", "999", ""},
+		{"t.me/c/123456/7", "permalink", "c/123456", "7", ""},
+		{"https://t.me/c/123456", "", "", "", ""}, // no message id → not routable
+		{"https://t.me/c/abc/7", "", "", "", ""},  // non-numeric id → browser
 
-		// Topic form (t.me/user/<topic>/<msg>) stays on the browser —
-		// honest scope: topic-scoped resolution is not modeled yet.
-		{"https://t.me/supergroup/5/123", "", "", ""},
+		// Plain (non-topic) permalink forms.
 		// Comment-thread form likewise.
-		{"https://t.me/supergroup/123?comment=45", "", "", ""},
+		{"https://t.me/supergroup/123?comment=45", "", "", "", ""},
 		// Non-numeric message id.
-		{"https://t.me/durov/abc", "", "", ""},
+		{"https://t.me/durov/abc", "", "", "", ""},
 	}
 	for _, tc := range cases {
-		kind, ref, msg := deepLinkTarget(tc.url)
-		if kind != tc.kind || ref != tc.ref || msg != tc.msg {
-			t.Errorf("deepLinkTarget(%q) = %q/%q/%q, want %q/%q/%q",
-				tc.url, kind, ref, msg, tc.kind, tc.ref, tc.msg)
+		kind, ref, msg, topic := deepLinkTarget(tc.url)
+		if kind != tc.kind || ref != tc.ref || msg != tc.msg || topic != tc.topic {
+			t.Errorf("deepLinkTarget(%q) = %q/%q/%q/%q, want %q/%q/%q/%q",
+				tc.url, kind, ref, msg, topic, tc.kind, tc.ref, tc.msg, tc.topic)
+		}
+	}
+}
+
+func TestDeepLinkTargetTopicPermalink(t *testing.T) {
+	cases := []struct {
+		url                  string
+		kind, ref, msg, topc string
+	}{
+		// Public forum topic permalinks (slice 189).
+		{"https://t.me/supergroup/5/123", "permalink", "supergroup", "123", "5"},
+		{"t.me/supergroup/42/99001", "permalink", "supergroup", "99001", "42"},
+		{"https://telegram.me/forumchat/1/2", "permalink", "forumchat", "2", "1"},
+		// Private channel topic permalinks (t.me/c/<id>/<topic>/<msg>).
+		{"https://t.me/c/123456/5/7", "permalink", "c/123456", "7", "5"},
+		{"t.me/c/123456/77/990", "permalink", "c/123456", "990", "77"},
+		// tg:// with the topic param.
+		{"tg://resolve?domain=supergroup&post=123&topic=5", "permalink", "supergroup", "123", "5"},
+		{"tg://resolve?domain=supergroup&post=123&topic=abc", "permalink", "supergroup", "123", ""}, // non-numeric topic dropped
+		{"tg://resolve?domain=supergroup&topic=5", "resolve", "supergroup", "", ""},                 // no post → plain resolve
+		// Degenerate: 4-seg username form, non-numeric parts.
+		{"https://t.me/durov/5/abc", "", "", "", ""},
+		{"https://t.me/supergroup/abc/123", "", "", "", ""},
+		// Comment-thread form stays on the browser (honest scope).
+		{"https://t.me/supergroup/123?comment=45", "", "", "", ""},
+		// Reserved paths never route as topics.
+		{"https://t.me/addstickers/5/7", "", "", "", ""},
+	}
+	for _, tc := range cases {
+		kind, ref, msg, topic := deepLinkTarget(tc.url)
+		if kind != tc.kind || ref != tc.ref || msg != tc.msg || topic != tc.topc {
+			t.Errorf("deepLinkTarget(%q) = %q/%q/%q/%q, want %q/%q/%q/%q",
+				tc.url, kind, ref, msg, topic, tc.kind, tc.ref, tc.msg, tc.topc)
 		}
 	}
 }

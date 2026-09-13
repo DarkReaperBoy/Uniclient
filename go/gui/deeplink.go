@@ -7,9 +7,12 @@ package gui
 // message permalinks (t.me/user/123, t.me/c/1234/567,
 // tg://resolve?domain=user&post=123) resolve the chat AND the message:
 // the engine fetches the message by id (caching it), the chat opens and
-// the view jumps to the message. Topic/comment permalink forms and the
-// reserved paths stay on the browser (honest scope). Pure classification
-// in deepLinkTarget.
+// the view jumps to the message. Topic permalinks (slice 189 —
+// t.me/<channel>/<topic>/<msg>, t.me/c/<id>/<topic>/<msg>,
+// tg://resolve?...&topic=<id>) additionally scope the view to the forum
+// topic before jumping. Comment-thread permalinks and the reserved
+// paths stay on the browser (honest scope). Pure classification in
+// deepLinkTarget.
 
 import (
 	"strings"
@@ -19,13 +22,14 @@ import (
 
 // deepLinkTarget classifies a tapped URL. kind "invite" carries the
 // invite hash; "resolve" a public username; "permalink" a message
-// permalink (arg = username or "c/<channelID>", post = the message id);
+// permalink (arg = username or "c/<channelID>", post = the message id,
+// topic = the forum topic id when the link is topic-scoped, else "");
 // "" means "not a routable deep link" (browser path). Pure — locked by
 // tests.
-func deepLinkTarget(url string) (kind, arg, post string) {
+func deepLinkTarget(url string) (kind, arg, post, topic string) {
 	u := strings.TrimSpace(url)
 	if u == "" {
-		return "", "", ""
+		return "", "", "", ""
 	}
 	low := strings.ToLower(u)
 
@@ -37,22 +41,28 @@ func deepLinkTarget(url string) (kind, arg, post string) {
 		switch strings.ToLower(path) {
 		case "join":
 			if h := params["invite"]; h != "" {
-				return "invite", h, ""
+				return "invite", h, "", ""
 			}
 		case "resolve":
 			if d := params["domain"]; d != "" {
 				if p := params["post"]; p != "" {
-					return "permalink", d, p
+					// tg://resolve?domain=u&post=123[&topic=45] —
+					// the topic param scopes forum permalinks (slice 189).
+					t := params["topic"]
+					if t != "" && !isAllDigits(t) {
+						t = ""
+					}
+					return "permalink", d, p, t
 				}
-				return "resolve", d, ""
+				return "resolve", d, "", ""
 			}
 		}
-		return "", "", ""
+		return "", "", "", ""
 	}
 
 	// t.me-style: invite forms go through the shared extractor.
 	if h, ok := extractInviteHash(u); ok {
-		return "invite", h, ""
+		return "invite", h, "", ""
 	}
 
 	// t.me/<username>[/<msg>] (no reserved prefix): a public
@@ -70,31 +80,41 @@ func deepLinkTarget(url string) (kind, arg, post string) {
 			path := stripped[len(d):]
 			segs := strings.Split(path, "/")
 			// t.me/c/<channelID>/<msg>: internal-id channel permalink.
-			if len(segs) >= 3 && segs[0] == "c" && isAllDigits(segs[1]) && isAllDigits(segs[2]) {
-				return "permalink", "c/" + segs[1], segs[2]
+			if len(segs) == 3 && segs[0] == "c" && isAllDigits(segs[1]) && isAllDigits(segs[2]) {
+				return "permalink", "c/" + segs[1], segs[2], ""
+			}
+			// t.me/c/<channelID>/<topic>/<msg>: topic-scoped channel
+			// permalink (slice 189).
+			if len(segs) == 4 && segs[0] == "c" && isAllDigits(segs[1]) && isAllDigits(segs[2]) && isAllDigits(segs[3]) {
+				return "permalink", "c/" + segs[1], segs[3], segs[2]
 			}
 			if len(segs) == 2 {
 				// t.me/<username>/<msg> resolves the chat AND the message;
 				// non-numeric message ids are not ours to route.
 				if isAllDigits(segs[1]) && segs[0] != "" && !strings.HasPrefix(segs[0], "+") && !reservedTelegramPath(segs[0]) {
-					return "permalink", segs[0], segs[1]
+					return "permalink", segs[0], segs[1], ""
 				}
-				return "", "", ""
+				return "", "", "", ""
 			}
-			// Topic (t.me/user/<topic>/<msg>) and comment-thread forms
-			// stay on the browser — topic-scoped resolution is honest
-			// scope-cut (the topic view does not cross-load by message id).
+			// t.me/<username>/<topic>/<msg>: topic permalink (slice 189)
+			// — opens the chat scoped to the topic and jumps.
+			if len(segs) == 3 && isAllDigits(segs[1]) && isAllDigits(segs[2]) && segs[0] != "" &&
+				!strings.HasPrefix(segs[0], "+") && !reservedTelegramPath(segs[0]) {
+				return "permalink", segs[0], segs[2], segs[1]
+			}
+			// Comment-thread (?comment=) and deeper forms stay on the
+			// browser — honest scope.
 			if len(segs) > 2 {
-				return "", "", ""
+				return "", "", "", ""
 			}
 			name := segs[0]
 			if name != "" && !strings.HasPrefix(name, "+") && !reservedTelegramPath(name) {
-				return "resolve", name, ""
+				return "resolve", name, "", ""
 			}
-			return "", "", ""
+			return "", "", "", ""
 		}
 	}
-	return "", "", ""
+	return "", "", "", ""
 }
 
 // isAllDigits reports a non-empty all-ASCII-digit string. Pure.
@@ -148,7 +168,7 @@ func parseQueryPairs(query string) map[string]string {
 // it. Returns true when handled (caller skips the browser path).
 // GUI-loop only (opens dialogs / chats).
 func (a *App) tryDeepLink(url string) bool {
-	kind, arg, post := deepLinkTarget(url)
+	kind, arg, post, topic := deepLinkTarget(url)
 	switch kind {
 	case "invite":
 		a.openInviteJoin(arg)
@@ -157,18 +177,21 @@ func (a *App) tryDeepLink(url string) bool {
 		a.resolveDeepLinkUser(arg)
 		return true
 	case "permalink":
-		a.resolveDeepLinkPermalink(arg, post)
+		a.resolveDeepLinkPermalink(arg, post, topic)
 		return true
 	}
 	return false
 }
 
 // resolveDeepLinkPermalink opens a message permalink (t.me/user/123,
-// t.me/c/1234/567, tg://resolve?domain=user&post=123): resolves the chat,
-// fetches the message by id through the engine (caching it), then opens
-// the chat with a pending jump to the message. Private c/ links only
-// work for chats the account already has (honest empty state otherwise).
-func (a *App) resolveDeepLinkPermalink(ref, msgID string) {
+// t.me/c/1234/567, tg://resolve?domain=user&post=123 — plus the
+// topic-scoped forms of slice 189: t.me/<channel>/<topic>/<msg>,
+// t.me/c/<id>/<topic>/<msg>): resolves the chat, fetches the message by
+// id through the engine (caching it), then opens the chat with a pending
+// jump to the message; topic links scope the view to the forum topic
+// first. Private c/ links only work for chats the account already has
+// (honest empty state otherwise).
+func (a *App) resolveDeepLinkPermalink(ref, msgID, topicID string) {
 	acc := inviteScopeAccount(a.snapshotForInvite())
 	if acc == "" {
 		a.setToast("Connect an account first")
@@ -183,7 +206,7 @@ func (a *App) resolveDeepLinkPermalink(ref, msgID string) {
 		a.mu.Unlock()
 		for _, c := range chats {
 			if c.AccountID == acc && c.ChatID == chatID {
-				a.openPermalinkTarget(acc, chatID, c.Title, msgID)
+				a.openPermalinkTarget(acc, chatID, c.Title, msgID, topicID)
 				return
 			}
 		}
@@ -200,21 +223,27 @@ func (a *App) resolveDeepLinkPermalink(ref, msgID string) {
 			return
 		}
 		c := hits[0]
-		a.openPermalinkTarget(c.AccountID, c.ChatID, c.Title, msgID)
+		a.openPermalinkTarget(c.AccountID, c.ChatID, c.Title, msgID, topicID)
 	}()
 }
 
 // openPermalinkTarget loads the message's timestamp (engine caches the
 // message on the fetch) and schedules the open + jump on the GUI loop.
-func (a *App) openPermalinkTarget(accountID, chatID, title, msgID string) {
+// A topic id (slice 189) rides along as pendingTopic — the chat opens
+// straight into the topic view and the jump lands inside it.
+func (a *App) openPermalinkTarget(accountID, chatID, title, msgID, topicID string) {
 	go func() {
 		ts, err := a.eng.GetMessageTimestamp(accountID, chatID, msgID)
 		if err != nil || ts <= 0 {
-			// Still open the chat — the message just isn't resolvable.
+			// Still open the chat (topic-scoped when the link says so) —
+			// the message just isn't resolvable.
 			a.mu.Lock()
 			k := chatKey{accountID, chatID}
 			a.pendingOpen = &k
 			a.pendingTitle = title
+			if topicID != "" {
+				a.pendingTopic = &topicID
+			}
 			a.mu.Unlock()
 			a.invalidate()
 			return
@@ -224,6 +253,9 @@ func (a *App) openPermalinkTarget(accountID, chatID, title, msgID string) {
 		a.pendingOpen = &k
 		a.pendingTitle = title
 		a.pendingJump = &jumpReq{msgID: msgID, ts: ts}
+		if topicID != "" {
+			a.pendingTopic = &topicID
+		}
 		a.mu.Unlock()
 		a.invalidate()
 	}()

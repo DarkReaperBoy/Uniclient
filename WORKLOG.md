@@ -5075,3 +5075,32 @@ Parity: unchanged counts (a PARTIAL row's halves filled; no flips).
 
 Parity: unchanged counts (row's local half filled; wallpaper patterns
 remain the honest scope cut).
+
+## 2026-09-13 — slice 189: topic permalinks route in-app
+
+- Parity row "Deep links (tg://)" — the topic-form half. Rating
+  (§1.14): the slice-95/161 classifier + open/jump machinery is clean
+  and well-tested (8/10 — extended, not replaced).
+- deepLinkTarget: 4th return value (topic) — t.me/<channel>/<topic>/
+  <msg>, t.me/c/<id>/<topic>/<msg>, tg://resolve?...&topic=<id>
+  (non-numeric topic values drop honestly); c/<id>/<msg> tightened to
+  exactly-3 segments so the 4-seg topic form classifies.
+- Engine: GetTopicMessagesAfter — the topic's toward-the-present window
+  (strict newer-than, ASC select + reverse, same filters as the
+  before-window); empty topic delegates to GetMessages.
+- GUI: resolveDeepLinkPermalink carries the topic through to
+  openPermalinkTarget → pendingTopic rides the pendingOpen hop; the
+  first-window load fires jumpToTopicMessageAt (scopes the view to the
+  topic, loads the before/after window around the message's timestamp,
+  positions the list at the target row; unresolvable timestamp falls
+  back to the plain topic view — never a dead screen).
+- Tests first: gui/deeplink_test.go TestDeepLinkTargetTopicPermalink
+  (11 cases — public/private/tg:// forms, non-numeric topic drop,
+  comment/browser scope, reserved paths) + the legacy tables moved to
+  the 4-tuple; engine TestGetTopicMessagesAfter (strict boundary,
+  newest-first, chat-wide delegation). All green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm ./...
+  8/8 ok · linux build + Xvfb smoke (25s+, #17212B dominant) · js/wasm
+  + windows builds ok (disk forced one cache-clean rebuild mid-gate).
+
+Parity: unchanged counts (a PARTIAL row's topic half filled).

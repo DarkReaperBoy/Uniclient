@@ -3,6 +3,7 @@ package gui
 import (
 	"image"
 	"image/color"
+	"log"
 	"sort"
 	"strconv"
 
@@ -139,6 +140,81 @@ func (a *App) openForumTopic(topicID string) {
 		a.mu.Unlock()
 		a.invalidate()
 	}()
+}
+
+// jumpToTopicMessageAt (slice 189): a topic permalink opens the chat
+// straight into the topic view and jumps to the linked message. The
+// window loads around the message's timestamp from the topic-scoped
+// cache (GetTopicMessages before/after); no resolvable timestamp falls
+// back to the plain topic view (honest — the message just isn't cached).
+// GUI-loop only (mirrors jumpToMessageAt's placement).
+func (a *App) jumpToTopicMessageAt(topicID string, pj *jumpReq) {
+	a.mu.Lock()
+	k := a.selected
+	a.forumTopic = topicID
+	a.messages = nil
+	a.loadingMsgs = true
+	a.olderDone = false
+	a.loadingOlder = false
+	a.mu.Unlock()
+	a.invalidate()
+	if k == nil {
+		return
+	}
+	if pj == nil || pj.ts <= 0 {
+		// Plain topic open: newest window.
+		go a.loadTopicWindow(*k, topicID, 0)
+		return
+	}
+	go func() {
+		older, errO := a.eng.GetTopicMessages(k.AccountID, k.ChatID, topicID, pj.ts+1, 25)
+		newer, errN := a.eng.GetTopicMessagesAfter(k.AccountID, k.ChatID, topicID, pj.ts, 25)
+		if errO != nil || errN != nil {
+			log.Printf("gui: topic jump window: %v / %v", errO, errN)
+			a.loadTopicWindow(*k, topicID, 0)
+			return
+		}
+		// older/newer are newest-first; assemble a chronological window
+		// around the target (target rides in "older" via beforeMs=ts+1).
+		win := make([]engine.CachedMessage, 0, len(older)+len(newer))
+		for i, j := 0, len(older)-1; i < j; i, j = i+1, j-1 {
+			older[i], older[j] = older[j], older[i]
+		}
+		win = append(win, older...)
+		win = append(win, newer...)
+		a.mu.Lock()
+		if cur := a.selected; cur != nil && *cur == *k && a.forumTopic == topicID {
+			a.messages = win
+			a.loadingMsgs = false
+			a.olderDone = false
+			if row := rowIndexOf(win, pj.msgID, a.unreadSepMsgID); row >= 0 {
+				a.wid.msgList.Position.First = row
+				a.wid.msgList.Position.Offset = 0
+				a.wid.msgList.Position.BeforeEnd = true
+			}
+		}
+		a.mu.Unlock()
+		a.invalidate()
+	}()
+}
+
+// loadTopicWindow loads the newest topic window (the shared open/jump
+// fallback). Engine-thread; locks around the shared state.
+func (a *App) loadTopicWindow(k chatKey, topicID string, _ int) {
+	msgs, err := a.eng.GetTopicMessages(k.AccountID, k.ChatID, topicID, 0, 100)
+	if err != nil {
+		return
+	}
+	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
+		msgs[i], msgs[j] = msgs[j], msgs[i]
+	}
+	a.mu.Lock()
+	if cur := a.selected; cur != nil && *cur == k && a.forumTopic == topicID {
+		a.messages = msgs
+		a.loadingMsgs = false
+	}
+	a.mu.Unlock()
+	a.invalidate()
 }
 
 // backToForumTopics returns from the topic view to the topic list.

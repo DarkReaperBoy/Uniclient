@@ -342,6 +342,7 @@ type App struct {
 	pendingOpen  *chatKey
 	pendingTitle string
 	pendingJump  *jumpReq // permalink deep-link jump after the chat opens (slice 161)
+	pendingTopic *string  // topic permalink: scope the opened chat to this topic before jumping (slice 189)
 
 	// the Calls box (AyuGram parity slice 154): per-account call-history
 	// page — grouped rows, redial, clear-all, group-calls subsection.
@@ -1379,6 +1380,11 @@ func (a *App) openChat(k chatKey, title string) {
 		// message when it is not among these rows.
 		pj := a.pendingJump
 		a.pendingJump = nil
+		// Topic permalink hop (slice 189): scope the just-opened chat
+		// to the linked topic and jump INSIDE it — the plain jump would
+		// land on the chat root window.
+		pt := a.pendingTopic
+		a.pendingTopic = nil
 		// Anchor the unread separator to the boundary message (only
 		// on the first load of this visit, before the read receipt).
 		if a.unreadSepMsgID == "" && a.unreadAtOpen > 0 {
@@ -1387,7 +1393,9 @@ func (a *App) openChat(k chatKey, title string) {
 			}
 		}
 		a.mu.Unlock()
-		if pj != nil {
+		if pt != nil {
+			a.jumpToTopicMessageAt(*pt, pj)
+		} else if pj != nil {
 			a.jumpToMessageAt(pj.msgID, pj.ts)
 		}
 		go func() {

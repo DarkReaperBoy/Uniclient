@@ -80,3 +80,49 @@ func TestGetTopicMessagesHiddenExcluded(t *testing.T) {
 		t.Fatalf("rows after hide = %+v", msgs)
 	}
 }
+
+// TestGetTopicMessagesAfter (slice 189): the topic-permalink jump's
+// "toward the present" window — strict newer-than, newest-first order,
+// and the chat-wide delegation for the empty topic.
+func TestGetTopicMessagesAfter(t *testing.T) {
+	e := newTestEngine(t)
+	seedTopicMessage(t, e, "1", "100", 1700000100)
+	seedTopicMessage(t, e, "2", "100", 1700000200)
+	seedTopicMessage(t, e, "3", "200", 1700000300)
+	seedTopicMessage(t, e, "4", "", 1700000400) // root message
+
+	// Newer than the middle of topic 100: only msg 2, newest-first.
+	msgs, err := e.GetTopicMessagesAfter("tg", "10", "100", 1700000150, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].MsgID != "2" {
+		t.Fatalf("after(150) = %v", msgIDs(msgs))
+	}
+
+	// Strict: the boundary message itself is excluded.
+	msgs, err = e.GetTopicMessagesAfter("tg", "10", "100", 1700000200, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("strict boundary leaked: %v", msgIDs(msgs))
+	}
+
+	// Empty topic delegates to the chat-wide window.
+	msgs, err = e.GetTopicMessagesAfter("tg", "10", "", 1700000350, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].MsgID != "4" {
+		t.Fatalf("chat-wide after = %v", msgIDs(msgs))
+	}
+}
+
+func msgIDs(msgs []CachedMessage) []string {
+	ids := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		ids = append(ids, m.MsgID)
+	}
+	return ids
+}
