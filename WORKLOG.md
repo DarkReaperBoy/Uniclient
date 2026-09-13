@@ -5249,3 +5249,23 @@ Parity: PRESENT 168 · PARTIAL 25 · MISSING 1 · CORE-ONLY 5.
   GUI smoke (#17212B dominant).
 
 Parity: PRESENT 170 · PARTIAL 23 · MISSING 1 · CORE-ONLY 4 (+1 by-design).
+
+## 2026-09-13 — slice 194: parity-file truth pass (docs)
+
+- The parity file's tail sections had drifted: "Top 20 gaps" still
+  listed slice-8-era items (context menu, reactions, media bubbles —
+  shipped months of slices ago) and "Counts" carried three stale
+  snapshots (PARTIAL 32/MISSING 7/CORE-ONLY 25 era).
+- 8 stale PARTIAL rows trued to PRESENT — each one's own description
+  already met the row's criteria, only the marker lagged: Attach menu,
+  Document/file, Appearance, Data & storage, Business section (chat
+  links: tdesktop/AyuGram ship no such UI — §1.11), Streamer mode, Ayu
+  preferences, Per-chat notification settings.
+- Tail rewritten: "Remaining gaps" (19 ranked entries, every one labeled
+  with its blocker: pure-Go video decode, owner webview decision, dead-
+  UI ban, platform transports, engine gates, checkout scope) + "Counts"
+  (PRESENT 177 / PARTIAL 16 / MISSING 1 / CORE-ONLY 5, with the
+  slice-by-slice count history preserved).
+- No code changes — docs only (§10: markdown stays short and true).
+
+Parity: PRESENT 177 (89%) · PARTIAL 16 · MISSING 1 · CORE-ONLY 5.
