@@ -53,6 +53,12 @@ type widgets struct {
 	// chatmenu.go
 	chatMenuBtns []widget.Clickable
 
+	// sendas.go
+	sendAsBtn      widget.Clickable
+	sendAsCloseBtn widget.Clickable
+	sendAsRowBtns  []widget.Clickable
+	sendAsList     widget.List
+
 	// adminlog.go
 	adminPanelBack  widget.Clickable
 	adminSearchBtn  widget.Clickable

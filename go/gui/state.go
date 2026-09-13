@@ -449,6 +449,13 @@ type App struct {
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
 
+	// send-as identity picker (slice 178): the open chat's offered
+	// identities + the locally-saved choice + the picker dialog.
+	sendAs    []engine.SendAsPeerInfo
+	sendAsFor *chatKey
+	sendAsCur string
+	sendAsDlg bool
+
 	// admin log / Recent Actions panel (slice 177): the open chat's
 	// admin events + paging/filter/search state.
 	adminPanel     bool
@@ -1266,6 +1273,10 @@ func (a *App) openChat(k chatKey, title string) {
 	a.iv = nil           // slice 176: close the Instant View reader
 	a.adminPanel = false // slice 177: close the admin log panel
 	a.adminEvents = nil
+	a.sendAs = nil // slice 178: reset the send-as surface
+	a.sendAsFor = nil
+	a.sendAsCur = ""
+	a.sendAsDlg = false
 	a.inSearch = false // slice 18: close in-chat search
 	a.inSearchQ = ""
 	a.inChatHits = nil
@@ -2127,6 +2138,10 @@ func (a *App) snapshot() frame {
 		schedPanel:       a.schedPanel,
 		schedMsgs:        a.schedMsgs,
 		schedLoad:        a.schedLoad,
+		sendAs:           a.sendAs,
+		sendAsFor:        a.sendAsFor,
+		sendAsCur:        a.sendAsCur,
+		sendAsDlg:        a.sendAsDlg,
 		adminPanel:       a.adminPanel,
 		adminEvents:      a.adminEvents,
 		adminLoad:        a.adminLoad,
@@ -2439,6 +2454,12 @@ type frame struct {
 	schedPanel bool
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
+
+	// send-as identity picker (slice 178)
+	sendAs    []engine.SendAsPeerInfo
+	sendAsFor *chatKey
+	sendAsCur string
+	sendAsDlg bool
 
 	// admin log / Recent Actions panel (slice 177)
 	adminPanel     bool

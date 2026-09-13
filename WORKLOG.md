@@ -4713,3 +4713,30 @@ Parity: PRESENT 162 (81%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 12.
   ./... 8/8 ok.
 
 Parity: PRESENT 163 (81%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 11.
+
+## 2026-09-13 — slice 178: send-as identity picker
+
+- Parity row "Send-as channel (in groups)" CORE-ONLY → PRESENT. Rating
+  (§1.14): engine GetSendAs (ChannelsGetSendAs + user/chat title
+  resolution) + SaveDefaultSendAs (messages.saveDefaultSendAs — the
+  server routes subsequent sends through the saved identity) 8/10,
+  kept; GUI built on the composer-chip + modal-dialog patterns.
+- gui/sendas.go (new): "Sending as <name>" strip above the composer
+  input (20dp avatar + dim label + chevron, rounded chip) rendered ONLY
+  when the chat offers >1 identity (engine.GetSendAs, loaded once per
+  chat open for group/channel chats; single-identity or error → row
+  hidden, §1.10). Tap → the identity picker modal (scrim + card: self
+  "Personal account" + offered channels, avatar + name + subtype,
+  checkmark on the current choice, selected-row tint) → pick persists
+  through SaveDefaultSendAs; stale saved selections (identity no longer
+  offered) resolve back to self.
+- Wiring: App/frame sendAs fields + snapshot mirror + chat-switch
+  reset + composer first-child hook + dialog render in the chat-pane
+  dialog stack + widget pool (row button, close, list, row buttons).
+- Tests first (go/gui/sendas_test.go, 4 tests): visibility gating
+  (1/none hidden, 2+ shown), current-resolution (default self, saved
+  wins, stale falls back), name resolution, picker order. All pure.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok.
+
+Parity: PRESENT 164 (81%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 10.

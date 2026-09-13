@@ -252,6 +252,10 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 	if f.sponsoredDlg != nil {
 		a.layoutSponsoredDialog(gtx, f)
 	}
+	// Send-as identity picker dialog (slice 178).
+	if f.sendAsDlg {
+		a.layoutSendAsDialog(gtx, f)
+	}
 	// Schedule dialog (slice 20).
 	if f.schedDlg != nil {
 		a.layoutScheduleDialog(gtx, f)
@@ -1183,9 +1187,16 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		a.trySubmitComposer(f, chat)
 	}
 
+	// Send-as identities (slice 178): loaded once per chat open; the
+	// row hides itself when there is no real choice.
+	a.ensureSendAs(f)
+
 	return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			var children []layout.FlexChild
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.sendAsRow(gtx, f)
+			}))
 			if f.cMode.active() {
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.composerChip(gtx, f)
