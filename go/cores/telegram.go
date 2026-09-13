@@ -13651,6 +13651,34 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 			}
 		}
 	}
+	// Gift service messages (slice 180): structured Extra so the GUI can
+	// render the gift card bubble (sticker artwork, star count, note,
+	// limited/converted chips) instead of a flat service line.
+	switch act := svc.Action.(type) {
+	case *tg.MessageActionStarGift:
+		m.Extra["gift_kind"] = "stargift"
+		m.Extra["gift_saved"] = act.Saved
+		m.Extra["gift_converted"] = act.Converted
+		m.Extra["gift_refunded"] = act.Refunded
+		if act.Message.Text != "" {
+			m.Extra["gift_text"] = act.Message.Text
+		}
+		if gift, ok := act.Gift.(*tg.StarGift); ok {
+			m.Extra["gift_stars"] = gift.Stars
+			m.Extra["gift_limited"] = gift.Limited
+			if doc, ok := gift.Sticker.(*tg.Document); ok {
+				m.Extra["gift_thumb_b64"] = extractStrippedThumbB64(doc.Thumbs)
+				t.cacheFileInfo(doc.ID, doc.AccessHash, doc.FileReference)
+			}
+		}
+	case *tg.MessageActionGiftStars:
+		m.Extra["gift_kind"] = "stars"
+		m.Extra["gift_stars"] = act.Stars
+	case *tg.MessageActionGiftTon:
+		m.Extra["gift_kind"] = "ton"
+		m.Extra["gift_crypto_amount"] = act.CryptoAmount
+		m.Extra["gift_crypto_currency"] = act.CryptoCurrency
+	}
 	return m
 }
 
@@ -13781,6 +13809,12 @@ func (t *TelegramCore) serviceActionText(sender string, action tg.MessageActionC
 		return sender + " changed the chat wallpaper"
 	case *tg.MessageActionGiftCode:
 		return sender + " sent a gift code"
+	case *tg.MessageActionStarGift:
+		return sender + " sent a gift"
+	case *tg.MessageActionGiftStars:
+		return sender + " sent you " + strconv.FormatInt(a.Stars, 10) + " Stars"
+	case *tg.MessageActionGiftTon:
+		return sender + " sent you a TON gift"
 	case *tg.MessageActionSetMessagesTTL:
 		if a.Period > 0 {
 			return sender + " set messages to auto-delete"

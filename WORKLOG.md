@@ -4765,3 +4765,32 @@ Parity: PRESENT 164 (81%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 10.
   ./... 8/8 ok.
 
 Parity: PRESENT 165 (82%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 9.
+
+## 2026-09-13 — slice 180: gift card bubbles
+
+- Parity row "Gift / star-gift messages" CORE-ONLY → PRESENT. Rating
+  (§1.14): core gift surface 7/10 (GetStarGifts/GetPinnedStarGifts
+  existed; service conversion collapsed gifts to a text line — the
+  "performed an action" fallback) — extended in place; GUI bubble on
+  the map-card/location pattern.
+- cores/telegram.go: convertServiceMessage writes structured Extra for
+  messageActionStarGift (gift_kind=stargift, gift_stars, gift_text,
+  gift_thumb_b64 from the gift sticker's stripped thumb, limited/
+  saved/converted/refunded flags, sticker file info cached for later
+  fetch), messageActionGiftStars (stars), messageActionGiftTon (crypto
+  amount/currency). serviceActionText gains real sentences ("sent a
+  gift", "sent you N Stars", "sent you a TON gift").
+- gui/giftbubble.go (new): parseGift over the cached Extra (pure) +
+  the gift card bubble — sticker artwork (stripped thumb → async
+  decode swap-in), accent "★ N Stars" pill, the sender's note, status
+  chips (Limited / Converted to Stars / Refunded / On profile).
+  messageRow dispatches gift messages to the card before the service
+  line.
+- Tests first: cores/telegram_gift_test.go (4 tests — StarGift Extra
+  fidelity incl. cached file coords, GiftStars, GiftTon, action
+  sentences) + gui/giftbubble_test.go (3 tests — parseGift, stars
+  text, bubble gating). All green.
+- Gate: gofmt clean · vet -tags goolm clean · go test -tags goolm
+  ./... 8/8 ok.
+
+Parity: PRESENT 166 (82%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 8.

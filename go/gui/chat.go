@@ -668,8 +668,12 @@ func (a *App) dayDivider(gtx layout.Context, day string) layout.Dimensions {
 // incoming left-aligned surface.
 func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
 	// Service messages render as centered pills (AyuGram: "X joined the
-	// group"), not bubbles — no sender, no tail, no reactions.
+	// group"), not bubbles — no sender, no tail, no reactions. Gift
+	// messages (slice 180) render the gift card bubble instead.
 	if m.IsService {
+		if g := parseGift(m); giftBubbleVisible(g) {
+			return a.layoutGiftBubble(gtx, m, g)
+		}
 		return a.serviceRow(gtx, m)
 	}
 	out := m.IsOutgoing
