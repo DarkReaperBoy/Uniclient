@@ -787,6 +787,23 @@ func (e *Engine) GetPowerSaving() (flags int, forceAll bool, ok bool) {
 	return e.config.PowerSavingFlags, e.config.PowerSavingForceAll, true
 }
 
+// GetChannelStats fetches a channel's broadcast statistics (slice 184):
+// stats.getBroadcastStats + async-graph resolution, through the core.
+func (e *Engine) GetChannelStats(accountID, chatID string) (*cores.ChannelStats, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type statsProvider interface {
+		GetChannelStats(chatID string) (*cores.ChannelStats, error)
+	}
+	p, ok := acc.Core.(statsProvider)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support channel statistics")
+	}
+	return p.GetChannelStats(chatID)
+}
+
 func (e *Engine) SetExperimentalFlag(id string, value bool) {
 	e.experimentalFlagsMu.Lock()
 	if e.experimentalFlags == nil {

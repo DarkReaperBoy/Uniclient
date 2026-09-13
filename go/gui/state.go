@@ -463,6 +463,12 @@ type App struct {
 	sendAsCur string
 	sendAsDlg bool
 
+	// channel statistics page (slice 184)
+	statsPanel bool
+	statsData  *cores.ChannelStats
+	statsLoad  bool
+	statsErr   string
+
 	// admin log / Recent Actions panel (slice 177): the open chat's
 	// admin events + paging/filter/search state.
 	adminPanel     bool
@@ -1278,6 +1284,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.unreadSepMsgID = ""
 	a.viewer = nil       // slice 9: close any open media viewer
 	a.iv = nil           // slice 176: close the Instant View reader
+	a.statsPanel = false // slice 184: close the statistics page
+	a.statsData = nil
 	a.adminPanel = false // slice 177: close the admin log panel
 	a.adminEvents = nil
 	a.sendAs = nil // slice 178: reset the send-as surface
@@ -2151,6 +2159,10 @@ func (a *App) snapshot() frame {
 		sendAsFor:        a.sendAsFor,
 		sendAsCur:        a.sendAsCur,
 		sendAsDlg:        a.sendAsDlg,
+		statsPanel:       a.statsPanel,
+		statsData:        a.statsData,
+		statsLoad:        a.statsLoad,
+		statsErr:         a.statsErr,
 		adminPanel:       a.adminPanel,
 		adminEvents:      a.adminEvents,
 		adminLoad:        a.adminLoad,
@@ -2475,6 +2487,12 @@ type frame struct {
 	sendAsFor *chatKey
 	sendAsCur string
 	sendAsDlg bool
+
+	// channel statistics page (slice 184)
+	statsPanel bool
+	statsData  *cores.ChannelStats
+	statsLoad  bool
+	statsErr   string
 
 	// admin log / Recent Actions panel (slice 177)
 	adminPanel     bool

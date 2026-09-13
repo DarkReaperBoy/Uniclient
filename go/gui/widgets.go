@@ -70,6 +70,10 @@ type widgets struct {
 	sendAsRowBtns  []widget.Clickable
 	sendAsList     widget.List
 
+	// statsview.go
+	statsPanelBack widget.Clickable
+	statsPanelList widget.List
+
 	// adminlog.go
 	adminPanelBack  widget.Clickable
 	adminSearchBtn  widget.Clickable

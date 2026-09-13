@@ -4876,3 +4876,35 @@ Parity: PRESENT 168 (83%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 6.
 
 Parity: the reactions-strip row is now fully PRESENT (animated
 included); CORE-ONLY 6 unchanged (blocked/needs-core rows).
+
+## 2026-09-13 — slice 184: channel statistics page
+
+- Parity row "Channel statistics screens" CORE-ONLY → PRESENT. Rating
+  (§1.14): no stats surface existed (the row's "engine stats APIs"
+  claim was hallucinated — nothing there); built fresh: core RPC +
+  engine pass-through + GUI page on the adminlog pane pattern.
+- cores/telegram_stats.go (new): GetChannelStats — stats.getBroadcastStats
+  (channel input w/ access hash, withAPI) → broadcastStatsToResult
+  (pure flattening: period, followers/views/shares/reactions per post,
+  per-story counters, notifications %, graphs in tdesktop page order)
+  → async tokens resolved via stats.loadAsyncGraph so the GUI only ever
+  sees inline JSON; unavailable graphs drop (honest empty).
+- engine: GetChannelStats pass-through.
+- gui/statsview.go (new): the Statistics page (header ⋮ menu, admin
+  channels only — groups/DMs never see it): overview 2-col card grid
+  (value + colored +/−/±0 delta vs previous period), then one chart
+  card per graph — parseChartJSON (Telegram's chart.js-style columns;
+  first non-x series; multi-series takes the first), accent polyline
+  (clip.Stroke) over 3 hairline gridlines, compact axis labels
+  (1.2K/1.5M), date-range footer, charts with <2 points honestly skip.
+- Tests first: cores/telegram_stats_test.go (3 — graph JSON/token
+  extraction, full result mapping incl. async tokens + nil-drop,
+  percent math) + gui/statsview_test.go (5 — chart JSON parse incl.
+  multi-series/degenerate, range, value formatting, delta labels,
+  menu gating). All green.
+- Gate: gofmt clean · vet -tags goolm clean (json-tag duplicate fixed)
+  · go test -tags goolm ./... 8/8 ok.
+
+Parity: PRESENT 169 (84%) · PARTIAL 25 · MISSING 1 · CORE-ONLY 5.
+Remaining CORE-ONLY rows are all blocked (pure-Go video decode ×2,
+webview decision) or dead-UI-forbidden (experimental flags stub).

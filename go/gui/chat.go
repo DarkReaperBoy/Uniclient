@@ -52,6 +52,11 @@ func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Di
 		return a.layoutAdminPanel(gtx, f, chat)
 	}
 
+	// Channel statistics page replaces the pane (slice 184).
+	if f.statsPanel {
+		return a.layoutStatsPanel(gtx, f, chat)
+	}
+
 	// Route pane presses (right-click context menu, menu dismissal).
 	a.processPaneEvents(gtx, f)
 
