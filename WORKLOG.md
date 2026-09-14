@@ -5545,3 +5545,57 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   + own-AUMID shortcut (IShellLink/IPropertyStore COM) — extends
   slice 200; then the remaining gaps are checkout/owner-decision/
   protocol-blocked (see research/ayugram_parity.md).
+
+## 2026-09-14 — slices 201 + 202: own-AUMID shortcut + toast click-through
+
+- Session resumed from the slice-200 state via AGENTS.md + WORKLOG;
+  devroot rebuilt from scripts/devroot-setup.sh (go 1.27.1, sysroot,
+  module cache re-warmed; 3GB RAM box — GOGC=20, -p 1,
+  -gcflags=all=-c=1 throughout).
+- Deep research first: fetched mingw-w64 headers FRESH (mirror/mingw-w64
+  raw) and pinned every ABI before writing code:
+  - shobjidl.h: IID_IShellLinkW {000214F9-…-46}, CLSID_ShellLink
+    {00021401-…-46}, vtable order GetPath 3 … SetWorkingDirectory 9 …
+    SetIconLocation 17 … SetPath 20 (read straight from the Vtbl struct).
+  - objidl.h: IID_IPersistFile {0000010B-…-46}, Save = 6.
+  - propsys.h: IID_IPropertyStore {886D8EEB-…}, SetValue 6, Commit 7.
+  - propkey.h: PKEY_AppUserModel.ID fmtid
+    {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3} pid 5 — the tail is
+    E1-D4-2D-E1-D5-F3; the "E1D42DE4D436" form in blog posts is a typo.
+  - propidl.h: PROPVARIANT layout (vt + 6 reserved, union @8, 24B x64),
+    wtypes.h VT_LPWSTR=31.
+- Slice 201 (own AUMID): shortcut_windows.go — CoCreateInstance →
+  SetPath/SetWorkingDirectory/SetIconLocation → QI IPropertyStore →
+  SetValue(PKEY_AppUserModel.ID, VT_LPWSTR) → Commit → QI IPersistFile →
+  Save (property commit BEFORE persist, the AppUserModelID-docs recipe).
+  resolvedToastAUMID: our AUMID once registered, PowerShell's as the
+  always-works fallback (one attempt per process). Shared comabi.go
+  carries the GUIDs/pkey/PROPVARIANT so comabi_test.go pins them on
+  every CI target.
+- Slice 202 (click-through): the WinRT COM activator needs a separate
+  in-proc DLL (banned: single binary §1.3) → protocol activation
+  instead: toast XML gains activationType="protocol"
+  launch="uniclient://open?acc=…&chat=…" (attr-escaped); instance_
+  windows.go registers the uniclient:// scheme per-user (HKCU\Software\
+  Classes, x/sys registry, no elevation, rewritten at boot so a moved
+  exe self-heals) + a single-instance command channel (<config>/
+  instance.lock "port cookie" atomic-rename, localhost listener): a
+  launcher process holding the URI (HandleLaunchURI, BEFORE engine boot
+  — a click never pays engine init) forwards "open cookie uri" and
+  exits; the running app hops through notifyOpenAction (ActionRaise +
+  pendingOpen — the same surface as the Linux DBus click); cold-start
+  clicks boot the app and routeBootURI opens the chat once an account
+  exists. Stub file keeps call sites unconditional on other platforms
+  (Linux already clicks through DBus; wasm/android have no OS surface).
+- Tests first, all pure halves pinned cross-platform (12 new tests):
+  comabi_test.go (GUID strings, PKEY, PROPVARIANT offsets/size),
+  openuri_test.go (round-trips incl. Matrix/IRC ids w/ spaces/&,
+  rejects non-open URIs, splitNotifyKey), toastxml_test.go (launch
+  attribute + XML attribute escaping).
+- Gate (all local): gofmt clean · vet clean · go test -tags goolm
+  ./... 8/8 ok · linux CGO build ok · windows cross-build ok (compiles
+  shortcut_windows + instance_windows + registry) · wasm ok.
+- Parity: notifications row PARTIAL → PRESENT; gap 5 CLOSED; counts
+  PRESENT 180 (90%) · PARTIAL 13 · MISSING 1 · CORE-ONLY 5.
+- research/windows_toast.md trued to shipped status with the fresh ABI
+  pins.
