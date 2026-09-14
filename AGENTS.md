@@ -438,6 +438,16 @@ is the next task.
         caching the access hash, tap opens the author's chat).
         Parity: PRESENT 184 (92%), PARTIAL 10. Remaining honest-scope
         cuts: proximity radius, logo/userpic polish.
+      - slices 211–214 (2026-09-15): star gifts catalog + balance-funded
+        checkout (getPaymentForm→sendStarsForm) with the peer-menu row;
+        stars giveaways — options picker, balance-funded
+        inputInvoiceStars checkout, prepaid launches off the boosts page,
+        country (help.getCountriesList) + additional-channel audience
+        pickers; stats Earn tab (revenue balance + charts + 2FA-SRP
+        withdraw → browser handoff). Dead map-typed giveaway family and
+        the count-only GetCountriesList deleted; GetStarsRevenueStats
+        was core-only dead surface — now shipped behind the Earn tab.
+        CI verify green on d38ae780 (all 4 jobs). v0.10.0 tagged.
       - slices 158–160 (2026-09-12): swipe quick actions on chat rows
         (tdesktop swipe_handler 1:1 — gesture layer, action strip,
         state-aware labels, swipe-back nav, persisted Settings picker);
