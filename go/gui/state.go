@@ -523,6 +523,12 @@ type App struct {
 	statsData   *cores.ChannelStats
 	statsLoad   bool
 	statsErr    string
+	// slice 213: stats Earn tab (channel revenue + withdrawal).
+	statsEarnTab  bool
+	statsEarn     *cores.StarsRevenueResult
+	statsEarnLoad bool
+	statsEarnErr  string
+	statsWdBusy   bool
 
 	// admin log / Recent Actions panel (slice 177): the open chat's
 	// admin events + paging/filter/search state.
@@ -1375,6 +1381,11 @@ func (a *App) openChat(k chatKey, title string) {
 	a.viewer = nil       // slice 9: close any open media viewer
 	a.iv = nil           // slice 176: close the Instant View reader
 	a.statsPanel = false // slice 184: close the statistics page
+	a.statsEarnTab = false
+	a.statsEarn = nil
+	a.statsEarnLoad = false
+	a.statsEarnErr = ""
+	a.statsWdBusy = false
 	a.boostPanel = false // slice 192: close the boosts page
 	a.statsData = nil
 	a.adminPanel = false // slice 177: close the admin log panel
@@ -2331,6 +2342,11 @@ func (a *App) snapshot() frame {
 		statsData:        a.statsData,
 		statsLoad:        a.statsLoad,
 		statsErr:         a.statsErr,
+		statsEarnTab:     a.statsEarnTab,
+		statsEarn:        a.statsEarn,
+		statsEarnLoad:    a.statsEarnLoad,
+		statsEarnErr:     a.statsEarnErr,
+		statsWdBusy:      a.statsWdBusy,
 		adminPanel:       a.adminPanel,
 		adminEvents:      a.adminEvents,
 		adminLoad:        a.adminLoad,
@@ -2704,9 +2720,14 @@ type frame struct {
 	boostLoad   bool
 	boostErr    string
 
-	statsData *cores.ChannelStats
-	statsLoad bool
-	statsErr  string
+	statsData     *cores.ChannelStats
+	statsEarnTab  bool
+	statsEarn     *cores.StarsRevenueResult
+	statsEarnLoad bool
+	statsEarnErr  string
+	statsWdBusy   bool
+	statsLoad     bool
+	statsErr      string
 
 	// admin log / Recent Actions panel (slice 177)
 	adminPanel     bool

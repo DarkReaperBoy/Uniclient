@@ -72,6 +72,11 @@ type widgets struct {
 
 	// statsview.go
 	statsPanelBack widget.Clickable
+	// slice 213: stats Earn tab.
+	statsTabOverview widget.Clickable
+	statsTabEarn     widget.Clickable
+	statsWithdrawBtn widget.Clickable
+	statsWithdrawEd  widget.Editor
 
 	// boostview.go
 	boostPanelBack   widget.Clickable

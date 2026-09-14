@@ -2,6 +2,7 @@ package gui
 
 import (
 	"encoding/json"
+	"fmt"
 	"image"
 	"math"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+	"gioui.org/widget/material"
 
 	"uniclient/cores"
 	"uniclient/engine"
@@ -207,6 +209,15 @@ func (a *App) layoutStatsPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 	if a.wid.statsPanelBack.Clicked(gtx) {
 		a.closeStatsPanel()
 	}
+	if a.wid.statsTabOverview.Clicked(gtx) {
+		a.setStatsEarnTab(false)
+	}
+	if a.wid.statsTabEarn.Clicked(gtx) {
+		a.setStatsEarnTab(true)
+	}
+	if a.wid.statsWithdrawBtn.Clicked(gtx) {
+		a.withdrawStarsRevenue(f, chat)
+	}
 
 	title := "Statistics"
 	if chat != nil {
@@ -236,7 +247,25 @@ func (a *App) layoutStatsPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.ui.Divider(gtx)
 		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// Slice 213: Overview | Earn tabs (channel revenue page).
+			return layout.Inset{Top: unit.Dp(6), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return boostTabBtn(gtx, a, &a.wid.statsTabOverview, "Overview", !f.statsEarnTab)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return boostTabBtn(gtx, a, &a.wid.statsTabEarn, "Earn", f.statsEarnTab)
+						})
+					}),
+				)
+			})
+		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if f.statsEarnTab {
+				return a.layoutStatsEarn(gtx, f, chat)
+			}
 			if f.statsLoad {
 				return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return a.ui.Dim(unit.Sp(14), "Loading statistics…").Layout(gtx)
@@ -428,4 +457,240 @@ func (a *App) drawChartLine(gtx layout.Context, pts []chartPoint, minV, maxV flo
 	paint.Fill(gtx.Ops, a.ui.p.Accent)
 	stack.Pop()
 	return layout.Dimensions{Size: image.Pt(w, h)}
+}
+
+// setStatsEarnTab swaps the stats page tab; entering Earn loads the
+// revenue stats (payments.getStarsRevenueStats) once.
+func (a *App) setStatsEarnTab(earn bool) {
+	a.mu.Lock()
+	if a.statsEarnTab == earn {
+		a.mu.Unlock()
+		return
+	}
+	a.statsEarnTab = earn
+	needLoad := earn && a.statsEarn == nil && a.statsEarnErr == ""
+	k := a.selected
+	a.mu.Unlock()
+	a.invalidate()
+	if !needLoad || k == nil {
+		return
+	}
+	acc, chatID := k.AccountID, k.ChatID
+	a.mu.Lock()
+	a.statsEarnLoad = true
+	a.mu.Unlock()
+	go func() {
+		st, err := a.eng.GetStarsRevenueStats(acc, chatID)
+		a.mu.Lock()
+		if !a.statsPanel || !a.statsEarnTab {
+			a.statsEarnLoad = false
+			a.mu.Unlock()
+			return
+		}
+		a.statsEarnLoad = false
+		if err != nil {
+			a.statsEarnErr = err.Error()
+			a.mu.Unlock()
+			a.setToast("Earn: " + err.Error())
+			return
+		}
+		a.statsEarn = &st
+		a.mu.Unlock()
+		a.invalidate()
+	}()
+}
+
+// earnChartsFromMaps (pure, testable): the revenue graph maps onto the
+// stats chart shape (async graphs carry no JSON — honest async row).
+func earnChartsFromMaps(charts []map[string]interface{}) []cores.StatsGraphData {
+	out := make([]cores.StatsGraphData, 0, len(charts))
+	for _, c := range charts {
+		if c == nil {
+			continue
+		}
+		title, _ := c["title"].(string)
+		g := cores.StatsGraphData{Title: title}
+		if data, ok := c["data"].(string); ok {
+			g.JSON = data
+		}
+		if tok, ok := c["zoom_token"].(string); ok {
+			g.Token = tok
+		}
+		if g.JSON != "" || g.Token != "" {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+// earnStarsValue (pure, testable): nanostars → trimmed star count.
+func earnStarsValue(nano int64) string {
+	return strconv.FormatFloat(float64(nano)/1e9, 'f', -1, 64)
+}
+
+// earnBalanceLabels (pure, testable): the balance card lines.
+func earnBalanceLabels(st *cores.StarsRevenueResult) (balance, overall string) {
+	if st == nil {
+		return "", ""
+	}
+	return earnStarsValue(st.AvailableBalance) + " Stars available", earnStarsValue(st.OverallRevenue) + " Stars overall"
+}
+
+// earnUsdLabel (pure, testable): the approximate USD value line; empty
+// when the rate is unknown (honest absence).
+func earnUsdLabel(nano int64, rate float64) string {
+	if rate <= 0 || nano <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("≈ $%.2f", float64(nano)/1e9*rate)
+}
+
+// earnWithdrawReady (pure, testable): the Withdraw button gate.
+func earnWithdrawReady(st *cores.StarsRevenueResult, busy bool) bool {
+	if st == nil || busy || !st.WithdrawalEnabled {
+		return false
+	}
+	return st.AvailableBalance >= st.WithdrawalMin && st.WithdrawalMin > 0 ||
+		(st.WithdrawalMin == 0 && st.AvailableBalance > 0)
+}
+
+// withdrawStarsRevenue runs the withdrawal flow: 2FA password →
+// payments.getStarsRevenueWithdrawalURL → open the returned URL in the
+// browser (tdesktop HandleWithdrawalButton).
+func (a *App) withdrawStarsRevenue(f frame, chat *engine.ChatInfo) {
+	if chat == nil || f.statsWdBusy || f.statsEarn == nil {
+		return
+	}
+	acc, chatID := chat.AccountID, chat.ChatID
+	amount := f.statsEarn.AvailableBalance
+	a.mu.Lock()
+	a.statsWdBusy = true
+	a.mu.Unlock()
+	a.invalidate()
+	pw := strings.TrimSpace(a.wid.statsWithdrawEd.Text())
+	go func() {
+		url, err := a.eng.WithdrawStarsRevenue(acc, chatID, true, amount, pw)
+		a.mu.Lock()
+		a.statsWdBusy = false
+		a.mu.Unlock()
+		if err != nil {
+			a.setToast("Withdraw failed: " + err.Error())
+			return
+		}
+		if url == "" {
+			a.setToast("Withdraw: the server returned no URL")
+			return
+		}
+		a.setToast("Opening the withdrawal page…")
+		openExternalAsync(url, func(e error) {
+			if e != nil {
+				a.setToast("Open URL failed: " + e.Error())
+			}
+		})
+	}()
+}
+
+// layoutStatsEarn: the channel revenue page (balance card, charts,
+// withdraw row).
+func (a *App) layoutStatsEarn(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
+	st := f.statsEarn
+	if f.statsEarnLoad && st == nil {
+		return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return a.ui.Dim(unit.Sp(14), "Loading revenue…").Layout(gtx)
+		})
+	}
+	if f.statsEarnErr != "" && st == nil {
+		return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
+			lbl := a.ui.Dim(unit.Sp(13), "Earn unavailable: "+f.statsEarnErr)
+			lbl.MaxLines = 3
+			return lbl.Layout(gtx)
+		})
+	}
+	if st == nil {
+		return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return a.ui.Dim(unit.Sp(14), "No revenue stats available").Layout(gtx)
+		})
+	}
+	charts := earnChartsFromMaps(st.Charts)
+	return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return a.wid.statsPanelList.Layout(gtx, 3+len(charts), func(gtx layout.Context, i int) layout.Dimensions {
+			switch i {
+			case 0:
+				return a.statsEarnBalanceCard(gtx, st)
+			case 1:
+				return a.statsEarnWithdrawRow(gtx, f, st)
+			case 2:
+				if len(charts) == 0 {
+					return layout.Dimensions{}
+				}
+				return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					lbl := a.ui.Label(unit.Sp(13), "Revenue")
+					lbl.Color = a.ui.p.TextDim
+					return lbl.Layout(gtx)
+				})
+			default:
+				return a.statsChartCard(gtx, charts[i-3])
+			}
+		})
+	})
+}
+
+// statsEarnBalanceCard: available + overall balance with the USD line.
+func (a *App) statsEarnBalanceCard(gtx layout.Context, st *cores.StarsRevenueResult) layout.Dimensions {
+	bal, overall := earnBalanceLabels(st)
+	return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(14)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.ui.H3(bal).Layout(gtx)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return a.ui.Dim(unit.Sp(12), overall).Layout(gtx)
+					})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					usd := earnUsdLabel(st.AvailableBalance, st.UsdRate)
+					if usd == "" {
+						return layout.Dimensions{}
+					}
+					return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return a.ui.Dim(unit.Sp(12), usd).Layout(gtx)
+					})
+				}),
+			)
+		})
+	})
+}
+
+// statsEarnWithdrawRow: 2FA password + Withdraw button.
+func (a *App) statsEarnWithdrawRow(gtx layout.Context, f frame, st *cores.StarsRevenueResult) layout.Dimensions {
+	if !st.WithdrawalEnabled && st.AvailableBalance == 0 {
+		return layout.Dimensions{}
+	}
+	return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(14)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						ed := material.Editor(a.ui.Theme, &a.wid.statsWithdrawEd, "2FA password")
+						ed.TextSize = unit.Sp(14)
+						return ed.Layout(gtx)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							btn := material.Button(a.ui.Theme, &a.wid.statsWithdrawBtn, "Withdraw")
+							btn.CornerRadius = 10
+							btn.TextSize = unit.Sp(13)
+							btn.Background = a.ui.p.Accent
+							if !earnWithdrawReady(st, f.statsWdBusy) {
+								btn.Background = a.ui.p.TextDim
+							}
+							return btn.Layout(gtx)
+						})
+					}),
+				)
+			})
+		})
+	})
 }
