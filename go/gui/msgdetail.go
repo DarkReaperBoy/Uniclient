@@ -4,13 +4,14 @@ package gui
 // AyuGram's "Message details" — a dialog of key/value rows derived from
 // what the engine actually caches: identity (message/sender IDs), dates
 // (sent/edited/deleted), delivery status, media metadata (name, mime,
-// size, dimensions, duration, local path), forward origin, and message
-// flags. Nothing the engine does not know is invented (§1.10): no DC, no
+// size, dimensions, duration, DC, local path), forward origin, and message
+// flags. Nothing the engine does not know is invented (§1.10): no
 // fabricated view counts.
 
 import (
 	"fmt"
 	"image/color"
+	"strconv"
 	"time"
 
 	"gioui.org/font"
@@ -26,10 +27,13 @@ import (
 	"uniclient/engine"
 )
 
-// detailRow is one key/value line of the details dialog.
+// detailRow is one key/value line of the details dialog. action "author"
+// (slice 207) makes the row open the sticker-pack author's chat instead of
+// copying.
 type detailRow struct {
-	label string
-	value string
+	label  string
+	value  string
+	action string
 }
 
 // detailStamp formats a unix timestamp: time-of-day today, day+time older.
@@ -59,12 +63,32 @@ func detailStatusText(status int) string {
 	return ""
 }
 
+// dcNameLabel (pure, testable): AyuGram's getDCName mapping —
+// DC1/3 Miami, DC2/4 Amsterdam, DC5 Singapore, unknown beyond.
+func dcNameLabel(dc int) string {
+	if dc < 1 {
+		return ""
+	}
+	place := "UNKNOWN"
+	switch dc {
+	case 1, 3:
+		place = "Miami FL, USA"
+	case 2, 4:
+		place = "Amsterdam, NL"
+	case 5:
+		place = "Singapore, SG"
+	}
+	return fmt.Sprintf("DC%d, %s", dc, place)
+}
+
 // msgDetailRows derives the dialog rows from the cached message (pure).
-func msgDetailRows(m engine.CachedMessage, now time.Time) []detailRow {
+// stickerAuthor is the resolved display name of the sticker-pack author
+// ("" = unresolved → the row falls back to "user <id>").
+func msgDetailRows(m engine.CachedMessage, now time.Time, stickerAuthor string) []detailRow {
 	var rows []detailRow
 	add := func(label, value string) {
 		if value != "" {
-			rows = append(rows, detailRow{label, value})
+			rows = append(rows, detailRow{label: label, value: value})
 		}
 	}
 	add("Message ID", m.MsgID)
@@ -106,6 +130,9 @@ func msgDetailRows(m engine.CachedMessage, now time.Time) []detailRow {
 		if m.MediaDuration > 0 {
 			add("Duration", fmtDur(m.MediaDuration))
 		}
+		// Datacenter (slice 207, AyuGram "Datacenter" row): the DC
+		// hosting the media file.
+		add("Datacenter", dcNameLabel(m.MediaDC))
 		add("Saved at", m.MediaLocalPath)
 	}
 	if m.IsPinned {
@@ -116,6 +143,16 @@ func msgDetailRows(m engine.CachedMessage, now time.Time) []detailRow {
 	}
 	if m.NoForwards {
 		add("Forwarding restricted", "yes")
+	}
+	// Sticker author (slice 207, AyuGram ContextActionStickerAuthor):
+	// the pack owner derived from the cached set ID — tappable, opens
+	// the author's chat.
+	if authorID := engine.StickerPackAuthorID(m.StickerSetID()); authorID != 0 {
+		value := stickerAuthor
+		if value == "" {
+			value = fmt.Sprintf("user %d", authorID)
+		}
+		rows = append(rows, detailRow{label: "Sticker author", value: value, action: "author"})
 	}
 	return rows
 }
@@ -128,7 +165,9 @@ func msgDetailMenuGate(m engine.CachedMessage) bool { return !m.IsService }
 
 // msgDetailState is the open details dialog (nil when closed).
 type msgDetailState struct {
-	msg engine.CachedMessage
+	msg        engine.CachedMessage
+	authorID   int64  // sticker-pack author (0 = none)
+	authorName string // resolved display name ("" = pending/unresolved)
 }
 
 var (
@@ -142,10 +181,40 @@ func (a *App) openMsgDetailDialog(m *engine.CachedMessage) {
 		return
 	}
 	msg := *m
+	authorID := engine.StickerPackAuthorID(msg.StickerSetID())
 	a.mu.Lock()
-	a.msgDetailDlg = &msgDetailState{msg: msg}
+	a.msgDetailDlg = &msgDetailState{msg: msg, authorID: authorID}
 	a.mu.Unlock()
 	a.invalidate()
+	if authorID == 0 {
+		return
+	}
+	// Resolve the author's profile (users.getFullUser) so the row shows a
+	// real name and the chat-open hop has the peer access hash cached.
+	go func() {
+		if prof, err := a.eng.GetUserProfile(msg.AccountID, strconv.FormatInt(authorID, 10)); err == nil && prof != nil {
+			a.mu.Lock()
+			if a.msgDetailDlg != nil && a.msgDetailDlg.msg.MsgID == msg.MsgID {
+				a.msgDetailDlg.authorName = prof.DisplayName
+			}
+			a.mu.Unlock()
+			a.invalidate()
+		}
+	}()
+}
+
+// openMsgDetailAuthor opens the sticker-pack author's chat from the
+// details dialog (search-result open pattern: chat key + title).
+func (a *App) openMsgDetailAuthor(d *msgDetailState) {
+	if d == nil || d.authorID == 0 {
+		return
+	}
+	title := d.authorName
+	if title == "" {
+		title = fmt.Sprintf("user %d", d.authorID)
+	}
+	a.closeMsgDetailDialog()
+	a.openChat(chatKey{AccountID: d.msg.AccountID, ChatID: strconv.FormatInt(d.authorID, 10)}, title)
 }
 
 // closeMsgDetailDialog dismisses it.
@@ -163,7 +232,7 @@ func (a *App) closeMsgDetailDialog() {
 // row to copy its value.
 func (a *App) layoutMsgDetail(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.msgDetailDlg
-	rows := msgDetailRows(d.msg, f.now)
+	rows := msgDetailRows(d.msg, f.now, d.authorName)
 
 	// Keyboard: Esc closes.
 	{
@@ -204,8 +273,14 @@ func (a *App) layoutMsgDetail(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&a.wid.detailRowBtns, len(rows))
 	for i := range rows {
 		if btn := &a.wid.detailRowBtns[i]; btn.Clicked(gtx) {
-			a.copyTextSoon(rows[i].value)
-			a.setToast("Copied")
+			if rows[i].action == "author" {
+				// Sticker author (slice 207): open the author's chat
+				// (the profile fetch cached the peer access hash).
+				a.openMsgDetailAuthor(d)
+			} else {
+				a.copyTextSoon(rows[i].value)
+				a.setToast("Copied")
+			}
 		}
 	}
 

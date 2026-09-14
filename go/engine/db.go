@@ -168,6 +168,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV53,
 	migrateV54,
 	migrateV55,
+	migrateV56,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -297,6 +298,18 @@ func migrateV55(tx *sql.Tx) error {
 	}
 	_, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_profile_music_doc ON profile_music(account_id, doc_id)`)
 	return err
+}
+
+// migrateV56 adds media.dc_id (slice 207: AyuGram message-details
+// "Datacenter" row — the DC hosting the media file, exported by the core
+// from Document.DCID / Photo.DCID).
+func migrateV56(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE media ADD COLUMN dc_id INTEGER NOT NULL DEFAULT 0`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
 }
 
 // migrateV53 adds messages.comments_count + messages.thread_root (slice

@@ -32,7 +32,7 @@ func TestMsgDetailRowsPlain(t *testing.T) {
 		Timestamp:  now.Add(-2 * time.Hour).Unix(),
 		Status:     engine.MsgStatusSent,
 	}
-	rows := msgDetailRows(m, now)
+	rows := msgDetailRows(m, now, "")
 	v := detailValues(rows)
 	if v["Message ID"] != "555" {
 		t.Fatalf("id = %q", v["Message ID"])
@@ -54,13 +54,13 @@ func TestMsgDetailRowsPlain(t *testing.T) {
 func TestMsgDetailRowsSenderFallback(t *testing.T) {
 	now := time.Unix(1, 0)
 	m := engine.CachedMessage{MsgID: "1", SenderID: "42", Timestamp: now.Unix()}
-	v := detailValues(msgDetailRows(m, now))
+	v := detailValues(msgDetailRows(m, now, ""))
 	if v["Sender"] != "user 42" {
 		t.Fatalf("id-only sender = %q", v["Sender"])
 	}
 	// Service messages have no sender row at all.
 	m.IsService = true
-	v = detailValues(msgDetailRows(m, now))
+	v = detailValues(msgDetailRows(m, now, ""))
 	if _, ok := v["Sender"]; ok {
 		t.Fatalf("service message sender row must be absent: %q", v["Sender"])
 	}
@@ -69,7 +69,7 @@ func TestMsgDetailRowsSenderFallback(t *testing.T) {
 func TestMsgDetailRowsEdited(t *testing.T) {
 	now := time.Unix(1700000000, 0)
 	m := engine.CachedMessage{MsgID: "1", Timestamp: now.Add(-time.Hour).Unix(), EditedAt: now.Add(-30 * time.Minute).Unix()}
-	v := detailValues(msgDetailRows(m, now))
+	v := detailValues(msgDetailRows(m, now, ""))
 	if v["Edited"] == "" {
 		t.Fatal("edited row must exist")
 	}
@@ -89,7 +89,7 @@ func TestMsgDetailRowsMedia(t *testing.T) {
 		MediaDuration:  0,
 		MediaLocalPath: "/data/cat.jpg",
 	}
-	v := detailValues(msgDetailRows(m, now))
+	v := detailValues(msgDetailRows(m, now, ""))
 	if v["File"] != "cat.jpg" {
 		t.Fatalf("file = %q", v["File"])
 	}
@@ -111,7 +111,7 @@ func TestMsgDetailRowsMedia(t *testing.T) {
 	// Voice message: duration row appears.
 	m.MediaDuration = 95
 	m.MediaMimeType = "audio/ogg"
-	v = detailValues(msgDetailRows(m, now))
+	v = detailValues(msgDetailRows(m, now, ""))
 	if v["Duration"] != "1:35" {
 		t.Fatalf("duration = %q, want 1:35", v["Duration"])
 	}
@@ -127,7 +127,7 @@ func TestMsgDetailRowsForwardReplyFlags(t *testing.T) {
 		IsPinned:    true,
 		IsSilent:    true,
 	}
-	v := detailValues(msgDetailRows(m, now))
+	v := detailValues(msgDetailRows(m, now, ""))
 	if v["Forwarded from"] != "Bob" {
 		t.Fatalf("fwd = %q", v["Forwarded from"])
 	}
@@ -145,7 +145,7 @@ func TestMsgDetailRowsForwardReplyFlags(t *testing.T) {
 func TestMsgDetailRowsDeleted(t *testing.T) {
 	now := time.Unix(1700000000, 0)
 	m := engine.CachedMessage{MsgID: "1", Timestamp: now.Add(-time.Hour).Unix(), IsDeleted: true, DeletedAt: now.Add(-5 * time.Minute).Unix()}
-	v := detailValues(msgDetailRows(m, now))
+	v := detailValues(msgDetailRows(m, now, ""))
 	if v["Deleted"] == "" {
 		t.Fatal("anti-recall deleted row must exist")
 	}
@@ -162,3 +162,78 @@ func TestMsgDetailMenuGate(t *testing.T) {
 }
 
 var _ = utils.AppConfig{}
+
+func TestDCNameLabel(t *testing.T) {
+	cases := []struct {
+		dc   int
+		want string
+	}{
+		{1, "DC1, Miami FL, USA"},
+		{3, "DC3, Miami FL, USA"},
+		{2, "DC2, Amsterdam, NL"},
+		{4, "DC4, Amsterdam, NL"},
+		{5, "DC5, Singapore, SG"},
+		{9, "DC9, UNKNOWN"},
+		{0, ""},
+		{-1, ""},
+	}
+	for _, c := range cases {
+		if got := dcNameLabel(c.dc); got != c.want {
+			t.Errorf("dcNameLabel(%d) = %q, want %q", c.dc, got, c.want)
+		}
+	}
+}
+
+func TestMsgDetailRowsDatacenter(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	m := engine.CachedMessage{MsgID: "1", Timestamp: now.Unix(), HasMedia: true, MediaDC: 4}
+	v := detailValues(msgDetailRows(m, now, ""))
+	if v["Datacenter"] != "DC4, Amsterdam, NL" {
+		t.Fatalf("datacenter = %q, want DC4, Amsterdam, NL", v["Datacenter"])
+	}
+	// No DC (0 / non-Telegram platforms) → no row (§1.10).
+	m2 := engine.CachedMessage{MsgID: "2", Timestamp: now.Unix(), HasMedia: true}
+	if v2 := detailValues(msgDetailRows(m2, now, "")); v2["Datacenter"] != "" {
+		t.Fatalf("absent DC must hide the row, got %q", v2["Datacenter"])
+	}
+}
+
+func TestMsgDetailRowsStickerAuthor(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	// A sticker message: pack 0x0000000A00000021 → author user 10.
+	raw := `{"extra":{"sticker_set_id":"42949673233"}}` // 0xA00000021
+	m := engine.CachedMessage{MsgID: "9", Timestamp: now.Unix(), ContentRaw: []byte(raw)}
+	if authorID := engine.StickerPackAuthorID(m.StickerSetID()); authorID != 10 {
+		t.Fatalf("pack author = %d, want 10", authorID)
+	}
+	rows := msgDetailRows(m, now, "")
+	var found bool
+	for _, r := range rows {
+		if r.label == "Sticker author" {
+			found = true
+			if r.action != "author" {
+				t.Errorf("author row action = %q, want author", r.action)
+			}
+			if r.value != "user 10" {
+				t.Errorf("unresolved author value = %q, want \"user 10\"", r.value)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("sticker author row missing")
+	}
+	// Resolved name replaces the fallback.
+	rows = msgDetailRows(m, now, "Jane Packmaker")
+	for _, r := range rows {
+		if r.label == "Sticker author" && r.value != "Jane Packmaker" {
+			t.Errorf("resolved author value = %q, want Jane Packmaker", r.value)
+		}
+	}
+	// Non-sticker messages get no author row.
+	plain := engine.CachedMessage{MsgID: "10", Timestamp: now.Unix()}
+	for _, r := range msgDetailRows(plain, now, "") {
+		if r.label == "Sticker author" {
+			t.Fatal("non-sticker message must not carry an author row")
+		}
+	}
+}

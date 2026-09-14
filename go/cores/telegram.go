@@ -13060,6 +13060,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 					Size:     d.Size,
 					MimeType: d.MimeType,
 					Extra:    encodeFileExtra(d.AccessHash, d.FileReference),
+					DC:       int(d.DCID),
 				}
 				isAnimated := false
 				isSticker := false
@@ -13201,6 +13202,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 					MimeType: "image/jpeg",
 					Name:     "photo.jpg",
 					Extra:    encodeFileExtra(p.AccessHash, p.FileReference),
+					DC:       int(p.DCID),
 				}
 				for _, size := range p.Sizes {
 					if s, ok := size.(*tg.PhotoSize); ok {

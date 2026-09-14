@@ -428,6 +428,13 @@ is the next task.
         add-to-my-profile) + bubble-menu item. Parity: 200 rows,
         PRESENT 183 (92%). The music-attach-box saved-music source
         stays a future slice (in-app picker when attaching audio).
+      - slice 207 (2026-09-14): message-details completion (gap 15) —
+        "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
+        via migrateV56, AyuGram's DC-name mapping) + "Sticker author"
+        row (TDesktop-x64 pack-ID bit formula, async profile resolve
+        caching the access hash, tap opens the author's chat).
+        Parity: PRESENT 184 (92%), PARTIAL 10. Remaining honest-scope
+        cuts: proximity radius, logo/userpic polish.
       - slices 158–160 (2026-09-12): swipe quick actions on chat rows
         (tdesktop swipe_handler 1:1 — gesture layer, action strip,
         state-aware labels, swipe-back nav, persisted Settings picker);

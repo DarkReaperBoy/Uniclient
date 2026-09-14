@@ -164,7 +164,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Report message flow | Reason picker | PRESENT (slice 19/36: multi-step report dialog — server-driven reason options + free-text comment per step, in-flight blocking; entry from the message context menu and the selection-mode action bar (batch)) | gui/report.go + engine ReportMessage | P2 |
 | Translate message | Menu item → inline translated | PRESENT (context-menu Translate → engine free-text or message-bound translation → italic block under the bubble; toggles to Hide translation; honest unsupported-platform errors) | gui/translate.go + engine TranslateText | P2 |
 | Sticker pack info / add | Menu on stickers | PRESENT (slice 108: sticker messages with set keys (MediaExtra) get "View sticker pack" — card dialog over engine.GetStickerSetInfo: title, count·kind·installed line, 5-column thumbnail grid, ADD TO STICKERS → engine.InstallStickerSet with live installed flip; stickers without keys or cores without the fetcher get no item) | gui/stickerset.go + engine GetStickerSetInfo/InstallStickerSet | P2 |
-| Ayu: "Message details" submenu | Views/shares/dates/size/mime/DC/sticker author | PARTIAL (slice 105: "Message details" menu item → dialog of key/value rows from what the engine caches — identity (msg/sender IDs), sent/edited/deleted dates, delivery status, forward origin, reply-to, media name/mime/size/dimensions/duration/local path, pinned/silent/no-forwards flags; tap a row copies its value; slice 187: Views + Forwards rows now live — cached at ingest (messages.views/forwards, v51) and refreshed by messages.getMessagesViews while the channel is open, with the tdesktop eye-glyph meta row on every channel post (views + forwards counters, 1.2K-style compact labels); DC/sticker-author rows honestly absent (not cached)) | gui/msgdetail.go + gui/chat.go meta row + gui/msgviews.go + engine/msgviews.go | P2 |
+| Ayu: "Message details" submenu | Views/shares/dates/size/mime/DC/sticker author | PRESENT (slice 105: "Message details" menu item → dialog of key/value rows from what the engine caches — identity (msg/sender IDs), sent/edited/deleted dates, delivery status, forward origin, reply-to, media name/mime/size/dimensions/duration/local path, pinned/silent/no-forwards flags; tap a row copies its value; slice 187: Views + Forwards rows now live — cached at ingest (messages.views/forwards, v51) and refreshed by messages.getMessagesViews while the channel is open, with the tdesktop eye-glyph meta row on every channel post (views + forwards counters, 1.2K-style compact labels); slice 207: DC + sticker-author rows now live — the core exports Document/Photo DCID into FileRef.DC (media.dc_id, migrateV56 → CachedMessage.MediaDC → the "Datacenter" row w/ AyuGram's DC name mapping), and the sticker-pack author derives from the cached set ID with the TDesktop-x64 bit formula: async profile resolve (users.getFullUser caches the access hash) → named row, tap opens the author's chat) | gui/msgdetail.go + gui/chat.go meta row + gui/msgviews.go + engine/msgviews.go + engine/msgdetail.go | P2 |
 | Ayu: "Edits history" | Revision list per message | PRESENT (slice 96: context menu "Edits history" — async HasEditRevisions gate on openMenu (pending lookup hides the item); overlay dialog lists anti-recall revisions newest-first, sender + time + preview, Load-more paging) | gui/edithistory.go + engine GetEditRevisions/HasEditRevisions | P2 |
 | Ayu: "View deleted messages" | Deleted-msgs browser per chat | PRESENT (slice 97: header ⋮ "View deleted messages…" — anti-recall copies newest-first, sender + preview + deleted-at, Clear-all reuses ClearDeletedMessages) | gui/delbrowse.go + engine GetDeletedMessages | P2 |
 | Ayu: "Hide message" (local) | Locally hide a message | PRESENT (slice 35: context-menu Hide Locally → engine HideMessage → locally_hidden_messages table (v45); GetMessages filters via NOT EXISTS; unhide supported) | gui/menu.go + engine HideMessage + v45 migration | P2 |
@@ -361,8 +361,9 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 13. **Deep links** — CLOSED (slice 196): join/resolve/message/topic/
     comment permalinks all route in-app.
 14. **Location (PARTIAL)** — proximity-alert radius omitted (honest scope).
-15. **Message details (PARTIAL)** — DC/sticker-author rows honestly absent
-    (not cached by the engine).
+15. **Message details (CLOSED, slices 105/187/207)** — DC row (media.dc_id
+    ← Document/Photo DCID) + sticker-author row (pack-ID bit formula +
+    profile resolve + chat open) shipped; gap closed.
 16. **Chat background** — CLOSED (slice 198): tint+gradient + the
     emoji-pattern wallpaper (the theme's emoticon glyph tiled behind
     the message list at the wallpaper's pattern intensity, staggered
@@ -383,8 +384,8 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (200 feature rows)
 
-- PRESENT: 183 (92%)
-- PARTIAL: 11 — honest scope cuts (6) · platform/protocol-blocked (3:
+- PRESENT: 184 (92%)
+- PARTIAL: 10 — honest scope cuts (5) · platform/protocol-blocked (3:
   video playback ×2, avatar corners) · checkout-gated (2: stars
   gifting, giveaway launch)
 - MISSING: 1 — PiP (blocked on pure-Go video decode)
@@ -405,4 +406,5 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   PRESENT · slice 196 (comment deep links): deep links PARTIAL→PRESENT ·
 slice 206 (profile music — upstream feature surfaced by the 2026-09-14
 re-verification against AyuGramDesktop dev, added there ~Aug 2026 after
-the 09-13 truth pass): NEW ROW PRESENT (200th row).
+the 09-13 truth pass): NEW ROW PRESENT (200th row) · slice 207 (message
+details DC + sticker author): message-details PARTIAL→PRESENT.

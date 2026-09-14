@@ -367,6 +367,7 @@ type FileRef struct {
 	Width    int    `json:"width,omitempty"`     // media width in pixels (images/videos)
 	Height   int    `json:"height,omitempty"`    // media height in pixels (images/videos)
 	Duration int    `json:"duration,omitempty"`  // duration in seconds (audio/video)
+	DC       int    `json:"dc,omitempty"`        // Telegram datacenter hosting the file (slice 207)
 }
 
 // FileUpload holds file metadata and a data stream for uploading.

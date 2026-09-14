@@ -5790,3 +5790,37 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   (engine/gui/cores/utils/bootstrap/voice/audio/lottie) · linux native
   binary links (dist/uniclient) · windows + wasm cross-builds green.
 - Parity: NEW ROW PRESENT — 200 rows, PRESENT 183 (92%).
+
+## 2026-09-14 — slice 207: message-details Datacenter + sticker-author rows
+
+- Gap 15 (the P3 honest-scope cut from the session-wrap notes): the
+  message-details dialog gains the two AyuGram rows that were "honestly
+  absent (not cached)".
+- Research (primary sources): AyuGram telegram_helpers.cpp getMediaDC
+  (document/photo getDC) + getDCName (DC1/3 Miami, DC2/4 Amsterdam, DC5
+  Singapore, UNKNOWN beyond); context_menu.cpp AddMessageDetailsAction —
+  the sticker-author row via getUserIdFromPackId (TDesktop-x64 bit
+  formula: ownerId = id>>32, 0x3f byte at >>16 → |0x80000000, non-zero
+  byte at >>24 → +0x100000000) + ContextActionStickerAuthor.
+- Shipped (tests first):
+  - Core: FileRef.DC (json "dc") — the document/photo normalization
+    fills it from tg.Document.DCID / tg.Photo.DCID.
+  - Engine: migrateV56 (media.dc_id), cacheMediaRef + the read join
+    carry it → CachedMessage.MediaDC; engine/msgdetail.go —
+    StickerPackAuthorID (bit formula, unit-tested incl. the two
+    correction branches) + CachedMessage.StickerSetID (content extra
+    parse, malformed-safe).
+  - GUI: "Datacenter" row (dcNameLabel = AyuGram's mapping, pure
+    tested, hidden when the engine has no DC — non-Telegram platforms
+    and old cache rows stay honest); "Sticker author" row (async
+    users.getFullUser resolve — which caches the peer access hash —
+    name or "user <id>" fallback, tap opens the author's chat through
+    the search-result open pattern; copy otherwise untouched).
+- Tests: 3 engine (DC round-trip, author formula vectors, set-ID parse)
+  + 3 GUI (DC label table, Datacenter row gating, author row + resolved
+  name + non-sticker negative).
+- Gate: gofmt clean · vet clean · go test -tags goolm ./engine/ ./gui/
+  ./cores/ ./utils/ green.
+- Parity: message-details PARTIAL→PRESENT — 200 rows, PRESENT 184 (92%),
+  PARTIAL 10 (honest scope cuts 5). Remaining P3 cuts: proximity radius
+  (gap 14) + logo/userpic polish (gap 19).

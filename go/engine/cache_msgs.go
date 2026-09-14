@@ -77,6 +77,9 @@ type CachedMessage struct {
 	MediaDownloadState int    `json:"media_download_state,omitempty"`
 	MediaRemoteRef     string `json:"media_remote_ref,omitempty"`
 	MediaExtra         string `json:"media_extra,omitempty"`
+	// MediaDC (slice 207): the Telegram datacenter hosting the media
+	// file (AyuGram message-details "Datacenter" row).
+	MediaDC int `json:"media_dc,omitempty"`
 
 	// Channel-post counters (slice 187): views + forwards, cached at
 	// message ingest and refreshed while a channel chat is open
@@ -630,15 +633,15 @@ func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 		var mediaType int
 		var fileName, mimeType, thumbB64, localPath, remoteRef, extra sql.NullString
 		var fileSize, durationMs sql.NullInt64
-		var width, height sql.NullInt64
+		var width, height, dcID sql.NullInt64
 		var downloadState int
 		err := e.db.QueryRow(
 			`SELECT media_type, file_name, mime_type, file_size, thumb_b64, local_path,
-                                width, height, duration_ms, download_state, remote_ref, extra
+                                width, height, duration_ms, download_state, remote_ref, extra, dc_id
                          FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
 			msgs[i].AccountID, msgs[i].ChatID, msgs[i].MsgID,
 		).Scan(&mediaType, &fileName, &mimeType, &fileSize, &thumbB64, &localPath,
-			&width, &height, &durationMs, &downloadState, &remoteRef, &extra)
+			&width, &height, &durationMs, &downloadState, &remoteRef, &extra, &dcID)
 		if err != nil {
 			continue
 		}
@@ -662,6 +665,7 @@ func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 		msgs[i].MediaDownloadState = downloadState
 		msgs[i].MediaRemoteRef = remoteRef.String
 		msgs[i].MediaExtra = extra.String
+		msgs[i].MediaDC = int(dcID.Int64)
 	}
 }
 
@@ -995,11 +999,11 @@ func (e *Engine) cacheMediaRef(accountID, chatID, msgID string, seq int, att cor
 		`INSERT OR REPLACE INTO media
                  (account_id, chat_id, msg_id, seq, media_type, remote_ref, thumb_b64,
                   file_name, mime_type, file_size, width, height, duration_ms,
-                  download_state, last_accessed, extra)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  download_state, last_accessed, extra, dc_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, msgID, seq, mediaType, att.ID, att.ThumbB64,
 		att.Name, att.MimeType, att.Size, width, height, durationMs,
-		DownloadNone, time.Now().UnixMilli(), att.Extra)
+		DownloadNone, time.Now().UnixMilli(), att.Extra, att.DC)
 }
 
 // PruneOldMessages removes messages older than the hot tier limit.
