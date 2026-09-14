@@ -116,7 +116,11 @@ P2 = settings/extras, P3 = rare/edge.
 | Text input + send (Enter) | Send on Enter, shift+Enter newline | PRESENT | gui/chat.go composerBar | P0 |
 | Reply mode | Header above input w/ quoted msg, cancel | PRESENT (composer chip; send routes replyToID) | gui/chat.go composerChip + state.go sendText | P0 |
 | Edit mode | "Editing" header, saves via edit | PRESENT (composer chip + EditMessage, prefill) | gui/chat.go + state.go sendText | P0 |
-| Attach menu (📎) | Photo/file/poll/location/contact/music menus | PRESENT (📎 menu: Photo-or-Video + File via OS picker; multi = album; Poll dialog (slice 42); slice 56: Location (lat/lon dialog → SendLocation, map-card bubble) + Contact (contact picker → SendContact, person-card bubble); slice 81: Music — audio-filtered OS picker → UploadFileEx (cores send audio/* as audio messages); every menu the row names ships against real engines) | gui/attach.go + gui/poll.go + gui/location.go + engine UploadFileEx/SendMediaAlbumFromPaths/CreatePollEx/SendLocation/SendContact | P0 |
+| Attach menu (📎) | Photo/file/poll/location/contact/music menus | PRESENT (📎 menu: Photo-or-Video + File via OS picker; multi = album; Poll dialog (slice 42); slice 56: Location (lat/lon dialog → SendLocation, map-card bubble) + Contact (contact picker → SendContact, person-card bubble); slice 81 + 210: Music — the in-app music attach box (tdesktop
+    music_attach_box: Choose-from-files row + Saved Music multi-select +
+    query filter + Show all → SendAudioDocument by cloud reference; OS
+    picker still reachable from the box); every menu the row names ships
+    against real engines) | gui/attach.go + gui/poll.go + gui/location.go + engine UploadFileEx/SendMediaAlbumFromPaths/CreatePollEx/SendLocation/SendContact | P0 |
 | Voice recording (hold 🎤) | Hold-to-record, slide-cancel, duration | PRESENT (slice 114: mic button in the composer when text is empty + the account's core sends voice notes; hold captures via the slice-110 mic layer → pure-Go Opus encoder → Ogg/Opus writer (round-trip-pinned: encode → container → the player's own demuxer → decode → 440 Hz survives); the composer row becomes the recording panel — pulsing red dot, live level bars, elapsed, slide-←-to-cancel with drag-back; release ≥0.9 s sends (SendVoiceNote → UploadFileWithOptions IsVoice+duration), shorter holds hint; no-mic platforms surface the honest start error) | gui/voicerecord.go + gui/chat.go composer + engine/voicerec.go | P1 || Emoji picker panel | Tabbed emoji/stickers/GIFs, search, recent | PRESENT (emoji panel w/ 9 categories + backspace + insert-at-caret; keyword search (slice 50); slice 58: top-level Emoji/Stickers/GIFs mode row — installed packs chips + Recent, static sticker thumbs, tap-to-send (SendSticker); saved-GIF grid (GetSavedGifs); animated .tgs playback in chat bubbles since slice 123; panel cells still static thumbs) | gui/emoji.go + gui/stickers.go + engine GetEmojiKeywords/GetInstalledStickerPacks/GetRecentStickers/GetSavedGifs/SendSticker | P1 |
 | Emoji autocomplete | Keyword suggestions while typing | PRESENT (slice 50: emoji-panel keyword search; slice 119: inline ":shortcode" autocomplete — strip above the composer with exact-then-prefix keyword matches from the same Telegram keyword table, tap replaces the whole ":token" with the emoji at the caret; colon must start a fresh token so URLs/times/"a:b" never trigger, emoji-chains do) | gui/emojicomplete.go + gui/emoji.go + engine GetEmojiKeywords | P2 |
 | Bot commands menu (/) | "/" button lists chat commands | PRESENT (slice 76: "/" button in the composer (only when the chat has commands — lazily loaded, never dead); panel lists command + bot + description; tap inserts into the composer; Esc closes) | gui/botcmds.go + engine.GetChatBotCommands | P2 |
@@ -377,12 +381,13 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
     wide multiplier sliders ship; avatars stay circular (AyuGram default).
 19. **Ayu toasts + logo/userpic styling (PARTIAL)** — toast system ships;
     logo/userpic styling polish remains.
-20. **Profile music (CLOSED, slice 206)** — the upstream "saved music"
+20. **Profile music (CLOSED, slices 206+210)** — the upstream "saved music"
     feature found by the 2026-09-14 re-verification pass: panel Music
     section, playlist view w/ in-app playback, own-playlist manage
-    (add/remove/reorder) and the bubble-menu item all shipped. The
-    tdesktop music-attach-box source (in-app saved-music picker when
-    attaching audio) remains a future slice if the owner wants it.
+    (add/remove/reorder) and the bubble-menu item all shipped. Slice 210
+    closed the tdesktop music-attach-box source: the attach-menu Music
+    entry opens the in-app box (Choose from files + Saved Music
+    multi-select + query filter + Show all, sends by inputMediaDocument).
 
 ## Counts (200 feature rows)
 
@@ -412,4 +417,6 @@ re-verification against AyuGramDesktop dev, added there ~Aug 2026 after
 the 09-13 truth pass): NEW ROW PRESENT (200th row) · slice 207 (message
 details DC + sticker author): message-details PARTIAL→PRESENT · slice 208
 (location proximity): location PARTIAL→PRESENT — the GeoProximityReached
-service message rendering (tdesktop's exact desktop scope).
+service message rendering (tdesktop's exact desktop scope) · slice 210
+(music attach box): attach-menu description extended — the box ships the
+saved-music source, closing gap 20's future-slice note.
