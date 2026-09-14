@@ -11,6 +11,7 @@ package gui
 
 import (
 	"image"
+	"strconv"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -73,7 +74,8 @@ func giftCellSubtitle(g cores.StarGiftItem) string {
 		return "Sold out"
 	case g.Limited:
 		if g.Total > 0 {
-			return "Limited · " + itoa(g.Remaining) + "/" + itoa(g.Total)
+			// Availability counts are not unread badges — no 999+ clamp.
+			return "Limited · " + strconv.Itoa(g.Remaining) + "/" + strconv.Itoa(g.Total)
 		}
 		return "Limited"
 	case g.Birthday:

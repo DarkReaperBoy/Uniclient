@@ -32,7 +32,7 @@ func TestMusicAttachFilter(t *testing.T) {
 	if got := musicAttachFilter(all, "kavinsky"); len(got) != 2 || got[0].DocID != "7001" {
 		t.Errorf("performer match = %+v", got)
 	}
-	if got := musicAttachFilter(all, "UNTAMED"); len(got) != 1 || got[0].DocID != "7003" {
+	if got := musicAttachFilter(all, "UNTAGGED"); len(got) != 1 || got[0].DocID != "7003" {
 		t.Errorf("file-name fallback (case-insensitive) = %+v", got)
 	}
 	if got := musicAttachFilter(all, "zzz"); len(got) != 0 {
