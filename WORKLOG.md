@@ -5643,3 +5643,32 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
     IconUri=file:///exe — belt-and-braces with the slice-201 shortcut.
 - Gate: gofmt/vet clean · go test -tags goolm ./... 8/8 ok · windows +
   wasm cross-builds ok. Verify workflow dispatched for ab1e5f5b.
+
+## 2026-09-14 — slice 204: Saved Messages pin reorder + delete flow
+
+- Gap 7's remainder (the last user-visible Saved Messages item):
+  - Core: ReorderPinnedSavedDialogs (messages.reorderPinnedSavedDialogs,
+    force=true — stale server pins outside the passed order unpin
+    instead of corrupting; the ReorderPinnedDialogs recipe).
+  - Engine: ReorderSavedSublists passthrough; DeleteSavedSublistHistory
+    upgraded with the scoped cache purge (DELETE messages WHERE
+    saved_peer = peer in the self chat) — was core-only before.
+  - GUI (Lists pane): row context menu (secondary press, callsbox
+    pattern — pane tag, row bounds, anchored card) with Pin/Unpin
+    (toggleSavedDialogPin), Move up/Move down (within the pinned block,
+    bounded), and Delete messages behind the slice-190-style confirm
+    card (error-path aware, busy state, closes the open scope if it IS
+    the deleted sublist, reloads the lists).
+  - Real display bug fixed: sortSavedSublists re-sorted the PINNED
+    block by last-activity time, hiding the server's pin order —
+    reorders would have been invisible. Pinned block now preserves the
+    server order (messages.getSavedDialogs returns it); the unpinned
+    tail keeps the newest-first fallback.
+- Tests first (6 new/updated): engine reorder forwarding + honest
+  unsupported paths, delete-purges-cache (seeded rows, other sublists
+  survive), menu actions per pinned/edge state, move-peers swaps +
+  edge no-ops, the new sort semantics.
+- Gate: gofmt/vet clean · go test -tags goolm ./... 8/8 ok · windows +
+  wasm cross-builds ok · verify dispatched (2134a5b5).
+- Parity: gap 7 CLOSED — PRESENT 181 (91%) · PARTIAL 12 · MISSING 1 ·
+  CORE-ONLY 5.
