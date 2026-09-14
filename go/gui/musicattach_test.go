@@ -69,7 +69,7 @@ func TestMusicAttachSelectionLabel(t *testing.T) {
 
 func TestMusicAttachSendOrder(t *testing.T) {
 	all := maTracks()
-	sel := map[string]bool{"7004": true, "7001": true, "7001": true}
+	sel := map[string]bool{"7004": true, "7001": true}
 	got := musicAttachSendOrder(all, sel)
 	if len(got) != 2 || got[0].DocID != "7001" || got[1].DocID != "7004" {
 		t.Fatalf("send order = %+v (want playlist order 7001,7004)", got)
