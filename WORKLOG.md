@@ -5948,3 +5948,40 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
 - Gate: gofmt clean · go vet+test ./audio/ green locally; full gate via
   the re-dispatched Verify run (gotd tg compile needs >3GB, this VM
   has 3GB — CI is the sanctioned verifier, AGENTS.md §5).
+
+## 2026-09-14 — slice 211: star gifts (catalog picker + balance-funded checkout)
+
+- Parity gap 9 re-verified against primary sources and found STALE: the
+  old note ("gotd layer lacks the transfer RPC") predates gotd v0.161.0,
+  which carries the full modern surface — payments.getStarGifts (unified
+  starGift: id/sticker/stars/limited/availability), getStarsGiftOptions,
+  getStarsStatus, getPaymentForm→paymentFormStarGift→sendStarsForm, and
+  inputInvoiceStarGift. tdesktop's star_gift_box.cpp read line-by-line:
+  the balance-funded gift purchase completes IN-APP (no external
+  checkout); only topup flows need a browser.
+- Rating: stars surface (slice 144) 8/10 — keep + extend with the gifting
+  leg it lacked.
+- Shipped (tests first — 4 core + 6 GUI pure tests, written before the
+  implementation):
+  - cores: StarGiftInfo/StarsGiftAmount typed shapes; telegram_gifts.go —
+    starGiftsFromWire (unified-gift normalization, thumbs via the
+    existing stripped-thumb pipeline, collectibles excluded as resale
+    objects), giftOptionsFromWire, starGiftInvoice (flag mapping),
+    GetStarGifts / GetStarsGiftOptions (user-peer resolved) /
+    GetStarsBalance (nanostars) / SendStarGift
+    (getPaymentForm → sendStarsForm; PaymentVerificationNeeded → honest
+    error pointing at the Stars settings page).
+  - engine/gifts.go: GiftCore optional interface + per-account catalog
+    cache (10 min TTL) + balance/send passthroughs.
+  - gui/gifts.go: "Send a gift" peer-menu row (DMs on gift-capable
+    platforms — headerMenuItems gained a tested giftsOK gate) → gift
+    picker surface: catalog grid (sticker thumbs, star prices, limited /
+    sold-out / birthday badges, balance-aware buyability), live balance
+    line, optional message + hide-name, single-select Send.
+- CI round 2 (dispatch on 2f3dc50e) caught real errors in slice 210's
+  GUI code — all fixed: material.Icon doesn't exist in gio v0.10.2
+  (widget.Icon renders directly via ic.Layout(gtx, color)), a.ui.H4 →
+  H3, the android SetAndroidViewEvent signature must take any (matching
+  view_other.go), and ScheduleDate is a plain int (no truthiness).
+- Gate: gofmt clean · audio tests green · windows+wasm audio
+  cross-compiles green locally; full gate on the dispatched run.
