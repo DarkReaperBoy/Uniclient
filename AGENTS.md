@@ -399,6 +399,24 @@ is the next task.
       where functionality is missing; Telegram core+GUI = exact 1:1 first
       (folders sync, ghost mode, QR verify, message actions, settings,
       search, media...), other cores follow
+      - slices 200–205 (2026-09-14): Windows native toasts completed —
+        transport (slice 200), own AUMID via pure-Go IShellLinkW +
+        IPropertyStore Start-Menu shortcut (201), protocol-activation
+        click-through with the single-instance command channel (202),
+        toast fidelity (203: avatar image, silent-audio + Linux
+        suppress-sound double-sound fix, per-chat tag/group
+        replacement, AUMID registry metadata); Saved Messages pin
+        reorder + delete flow (204) and forum-topic pin reorder (205),
+        both with the server pin order preserved (activity-sorting hid
+        reorders). Android APK build fixed (bare `linux` build tag also
+        matches GOOS=android → appicon X11 files now exclude android).
+        v0.9.0 released (all 7 CI jobs green, assets + Pages verified).
+        Parity: PRESENT 182 (92%) — every remaining gap is blocked
+        (pure-Go video decode), owner-decision (webview mini-apps),
+        experimental-by-design (Left/Bottom forum tabs), checkout-UI
+        (stars gifting — gotd layer lacks the transfer RPC — + giveaway
+        launch), or P3 honest scope (proximity radius, DC row, styling
+        polish); see research/ayugram_parity.md "Remaining gaps".
       - slices 158–160 (2026-09-12): swipe quick actions on chat rows
         (tdesktop swipe_handler 1:1 — gesture layer, action strip,
         state-aware labels, swipe-back nav, persisted Settings picker);
