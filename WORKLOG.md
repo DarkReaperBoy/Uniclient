@@ -6096,3 +6096,18 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   expectations before CI (async-chart drop, "D" substring matches).
 - CI: slice-212 giveaway test fix green (7cd46a08 failed only on the
   stale earn-charts expectation, fixed in d38ae780 + dispatched).
+
+## 2026-09-15 — v0.10.0 released
+
+- Verify green on d38ae780 (test+vet+gofmt, GUI smoke, cross-builds,
+  android — all four jobs).
+- Tag v0.10.0 cut: release workflow green on all 7 jobs (test, linux
+  amd64/arm64, windows, android APK, web→gh-pages, publish). Release
+  verified via API: prerelease=true, assets uniclient-linux-amd64
+  (21.7MB), -arm64 (19.0MB), -windows-amd64.exe (16.4MB),
+  uniclient.apk (32.3MB) + checksums.txt; gh-pages updated (37fe751e),
+  Pages serves 200 at /Uniclient/.
+- Parity: PRESENT 186/200 (93%). Remaining gaps are all honest cuts or
+  blocked (pure-Go video decode, webview owner-decision, card-funded
+  premium giveaway, experimental flags) — see
+  research/ayugram_parity.md.
