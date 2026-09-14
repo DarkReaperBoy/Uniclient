@@ -6058,3 +6058,41 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   clean. Full gate on the dispatched Verify run (a958c0e6).
 - Parity: gap 10 now "creation+prepaid shipped; card-funded premium
   giveaway + country/additional-channel pickers remain".
+
+## 2026-09-15 — slices 213 + 214: earn tab + giveaway audience pickers
+
+### Slice 213 — stats Earn tab (gap 9 closed)
+- Research: tdesktop api_earn.cpp HandleWithdrawalButton read — the
+  withdraw flow is 2FA password (SRP) → payments.getStarsRevenueWithdrawalURL
+  (ton flag for channel revenue, amount for bot stars) → open the URL in
+  the browser. GetStarsRevenueStats was CORE-ONLY dead surface (a §1.10
+  hazard sitting since an earlier slice); the earn GUI never shipped.
+- Shipped (tests-first): cores/telegram_earn.go — withdrawStarsRevenueRequest
+  pure builder (flag mapping) + WithdrawStarsRevenue (SRP via
+  auth.PasswordHash, empty → InputCheckPasswordEmpty, honest
+  "no 2FA password set" error); engine/earn.go passthrough; gui stats
+  page gains Overview|Earn tabs — balance card (available/overall + USD
+  line), revenue charts (map→StatsGraphData, async graphs dropped like
+  statsChartCard's honest skip), 2FA password + Withdraw row
+  (earnWithdrawReady gate) → openExternalAsync handoff.
+- GUI smoke screenshots from the green eff6b3e5 run inspected: welcome,
+  picker, authflow all render real content (800+ colors each).
+
+### Slice 214 — giveaway audience pickers (gap 10 remainder)
+- Research: gotd v0.161 HelpGetCountriesList verified (ISO2/DefaultName/
+  Name/Hidden); old repo GetCountriesList returned only a COUNT (dead
+  code) — deleted, replaced by the typed []cores.CountryInfo surface.
+- Shipped (tests-first): countriesFromWire normalization + typed
+  core; engine passthrough; GUI giveaway box gains the Countries row
+  (All countries → picker: search + multi-select over ~250 rows) and
+  the Channels-to-join row (same-account channels excluding the
+  giveaway channel; hidden when the account owns none). Selections ride
+  GiveawayParams.Countries/ExtraChats into the slice-212 invoice
+  builders (already unit-tested). sortedKeys keeps the wire payload
+  deterministic.
+- Local verification deepened: a scratch harness (scripts/verifyhelpers,
+  gitignored) runs the pure GUI helpers against their test expectations
+  locally (gui tests are CI-only on this VM) — caught two wrong test
+  expectations before CI (async-chart drop, "D" substring matches).
+- CI: slice-212 giveaway test fix green (7cd46a08 failed only on the
+  stale earn-charts expectation, fixed in d38ae780 + dispatched).

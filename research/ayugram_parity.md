@@ -354,17 +354,19 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 8. **Premium section (PARTIAL)** — local premium (Ayu) intentionally out:
    nothing gates premium in the client today, so the toggle would be
    dead UI until a gated feature exists.
-9. **Stars/credits/gifts (PARTIAL)** — gifting shipped (slice 211:
+9. **Stars/credits/gifts (CLOSED)** — gifting shipped (slice 211:
    catalog picker + balance-funded getPaymentForm→sendStarsForm
-   checkout); channel-revenue withdraw remains (needs the withdrawal-URL
-   browser handoff).
+   checkout); channel-revenue withdraw shipped (slice 213: stats Earn
+   tab — balance card + revenue charts + 2FA-SRP password →
+   payments.getStarsRevenueWithdrawalURL → browser handoff).
 10. **Giveaways / boosts (PARTIAL)** — boosts page + apply-own-boost
     shipped (slice 192); stars-giveaway creation + prepaid launch
     shipped (slice 212: options picker, balance-funded
     inputInvoiceStars checkout, date/audience/prize box, prepaid rows
-    off the boosts page). Remaining: card-funded premium giveaway
-    creation (external checkout) + country/additional-channel picker
-    sub-UIs.
+    off the boosts page). Slice 214 closed the audience pickers
+    (help.getCountriesList country picker + additional-channels picker,
+    both riding the wire builders). Remaining: card-funded premium
+    giveaway creation (external checkout, honest absence).
 11. **Video playback rows (PARTIAL-BLOCKED)** — see (1).
 12. **Chat settings (PARTIAL)** — link-preview/message-actions/swipe/
     corner-reaction/reply-pill all shipped; remaining: nothing user-
