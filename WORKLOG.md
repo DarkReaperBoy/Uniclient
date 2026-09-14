@@ -5599,3 +5599,47 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   PRESENT 180 (90%) · PARTIAL 13 · MISSING 1 · CORE-ONLY 5.
 - research/windows_toast.md trued to shipped status with the fresh ABI
   pins.
+
+## 2026-09-14 — slice 203 + android fix + v0.9.0
+
+- **Android APK build fixed** (real regression from slice 170): the
+  Release dispatch (run 34809160618, sha 8f727dbc) failed at the APK
+  step — appicon_apply_linux.go carried a bare `//go:build linux`,
+  which ALSO matches GOOS=android (the toolchain sets both the android
+  AND linux release tags), while gio's X11ViewEvent is
+  `(linux && !android) || freebsd || openbsd` → undefined type on
+  android. Fixed: linux file → `linux && !android`, stub →
+  `(!linux && !windows) || android`. launcherbadge/notify_linux/tray
+  compile on android (pure-Go dbus/systray deps) and resolve the
+  taskbar no-ops — only appicon was broken.
+- **v0.9.0 released** (tag on the fix, run 34817842435): all 7 jobs
+  green — test/vet, linux amd64+arm64, windows, ANDROID (fix verified
+  through the real pipeline), web → gh-pages, publish prerelease.
+  Assets verified via API: linux 21.6MB/18.9MB, windows 16.3MB,
+  apk 32.2MB + checksums; Pages index+wasm HTTP 200.
+- **Slice 203 (toast fidelity)** — research first: SDL3's shipped
+  pure-C toast implementation (src/notification/windows/
+  SDL_windowsnotification.c) as the working reference + the winmd-
+  generated C ABI headers (swift-cwinrt) for the exact vtable order:
+  - IToastNotification2 {9DFB9FD1-143A-490E-90BF-B9FBA7132DE7}:
+    put_Tag=6, get_Tag=7, put_Group=8, get_Group=9 (IUnknown 0-2,
+    IInspectable 3-5). Pinned in comabi.go + tests.
+  - Peer avatar in toasts: <image placement="appLogoOverride"
+    src="file:///…"> — toastImageSrc converts the notify layer's
+    file:// URI (OS path, backslashes) to the file:/// form; only
+    local files ride (remote avatars are cached locally anyway).
+  - Double-sound bug fixed on BOTH platforms: the toast is silent
+    (<audio silent="true"/>) because the app plays its own slice-121
+    synthesized chime; Linux banners now set the spec's
+    suppress-sound hint (was missing → server sound + chime doubled).
+    The dbus fake-server harness asserts the hint (tests first).
+  - Per-chat replacement: put_Tag(fnv64a(chat key), 16 hex chars) +
+    put_Group("uniclient") → a newer toast for the same chat replaces
+    the older in Action Center (the slice-141 "never stack for one
+    chat" semantics on Windows too). QI failure (pre-Win10) skips
+    tagging harmlessly.
+  - AUMID registry metadata (SDL3 recipe): HKCU\Software\Classes\
+    AppUserModelId\DarkReaperBoy.Uniclient → DisplayName="Uniclient" +
+    IconUri=file:///exe — belt-and-braces with the slice-201 shortcut.
+- Gate: gofmt/vet clean · go test -tags goolm ./... 8/8 ok · windows +
+  wasm cross-builds ok. Verify workflow dispatched for ab1e5f5b.
