@@ -13794,6 +13794,8 @@ func serviceActionTag(action tg.MessageActionClass) string {
 		return "chat_create"
 	case *tg.MessageActionTopicCreate:
 		return "topic_create"
+	case *tg.MessageActionGeoProximityReached:
+		return "geo_proximity_reached"
 	default:
 		return ""
 	}
@@ -13805,6 +13807,19 @@ func (t *TelegramCore) serviceActionText(sender string, action tg.MessageActionC
 		sender = "Someone"
 	}
 	switch a := action.(type) {
+	case *tg.MessageActionGeoProximityReached:
+		// slice 208: tdesktop prepareProximityReached — the three
+		// self/non-self sentence shapes + the 10 m-precision label.
+		fromName := t.proximityPeerName(a.FromID)
+		toName := t.proximityPeerName(a.ToID)
+		fromSelf, toSelf := false, false
+		if p, ok := a.FromID.(*tg.PeerUser); ok {
+			fromSelf = p.UserID == t.selfID
+		}
+		if p, ok := a.ToID.(*tg.PeerUser); ok {
+			toSelf = p.UserID == t.selfID
+		}
+		return proximityReachedText(fromName, toName, fromSelf, toSelf, a.Distance)
 	case *tg.MessageActionChatCreate:
 		return sender + " created the group \u201c" + a.Title + "\u201d"
 	case *tg.MessageActionChatEditTitle:

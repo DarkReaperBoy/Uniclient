@@ -5824,3 +5824,31 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
 - Parity: message-details PARTIAL→PRESENT — 200 rows, PRESENT 184 (92%),
   PARTIAL 10 (honest scope cuts 5). Remaining P3 cuts: proximity radius
   (gap 14) + logo/userpic polish (gap 19).
+
+## 2026-09-14 — slice 208: GeoProximityReached service message (gap 14 closed)
+
+- Research (primary sources, tdesktop dev tree): proximity-radius SETTING
+  UI does not exist on desktop — location_picker.cpp (1382 lines) and
+  history_view_location.cpp carry zero proximity references; api.tl has
+  the wire fields (inputMediaGeoLive.proximity_notification_radius,
+  messageActionGeoProximityReached) and history_item.cpp
+  prepareProximityReached renders the alert as a SERVICE message. So the
+  full desktop parity scope = rendering the server-pushed alert; the
+  radius picker is mobile-only (absent upstream — not an honest scope
+  cut anymore, it's parity).
+- Shipped (tests first):
+  - cores/telegram_proximity.go: proximityDistanceLabel (m / km at 10 m
+    precision — the tdesktop formula) + proximityReachedText (the three
+    sentence shapes: from-self "You're now within D of X", to-self
+    "X is now within D of you", third-party "X is now within D of Y") +
+    proximityPeerName (user/channel/chat cache resolution).
+  - serviceActionText: the MessageActionGeoProximityReached case (self
+    detection via t.selfID, both peer names, distance) +
+    serviceActionTag "geo_proximity_reached". GUI renders it like any
+    service row — no GUI change needed.
+- Tests: 2 core (distance-label table incl. the 1234→1.2 km rounding,
+  sentence shapes).
+- Gate: gofmt clean · cores suite green (vet via CI dispatch).
+- Parity: location PARTIAL→PRESENT — 200 rows, PRESENT 185 (93%),
+  PARTIAL 9 (honest scope cuts 4: local premium toggle, chat-settings
+  extras, QR scan, logo/userpic polish).
