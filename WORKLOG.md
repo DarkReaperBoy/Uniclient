@@ -5702,3 +5702,45 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   avatar corners (AyuGram default), checkout UIs (stars gifting +
   giveaway launch), PiP (video-decode-blocked), proximity radius +
   message-details DC row (P3 honest scope), logo/userpic polish (P3).
+
+## 2026-09-14 — session wrap (slices 201–205 + android fix + v0.9.0)
+
+- Session resumed from the slice-200 state via AGENTS.md + WORKLOG;
+  devroot rebuilt (go 1.27.1; 3GB RAM box — GOGC=20, -p 1,
+  -gcflags=all=-c=1, cross-builds via the CI-verify dispatches).
+- Shipped (all pushed + verify-workflow-verified per commit):
+  - 201: own-AUMID Start-Menu shortcut (pure-Go IShellLinkW +
+    IPersistFile + IPropertyStore; PKEY pinned vs fresh mingw-w64
+    headers) — toasts source "Uniclient".
+  - 202: toast click-through — protocol activation (uniclient://open),
+    HKCU scheme registration, single-instance command channel
+    (lockfile+cookie+localhost), raise+open-chat hop, cold-start boot
+    routing.
+  - 203: toast fidelity — avatar in the appLogoOverride slot, silent
+    toast + Linux suppress-sound (real double-sound bug fixed on both
+    platforms), per-chat tag/group replacement (IToastNotification2,
+    ABI pinned vs winmd C headers + SDL3 reference), AUMID registry
+    metadata.
+  - 204: Saved Messages sublist pin reorder + delete-with-confirm
+    (reorderPinnedSavedDialogs + deleteSavedHistory cache purge) +
+    the pinned-server-order display fix.
+  - 205: forum-topic pin reorder (actions-dialog Move up/down,
+    core converted to withAPI) + the same server-pin-order fix.
+  - Android APK build regression fixed (bare `linux` build tag matched
+    GOOS=android; appicon X11 files excluded, stub covers android).
+- v0.9.0 released: all 7 release jobs green (test/vet, linux amd64 +
+  arm64, windows, android — the fix verified through the real APK
+  pipeline — web → gh-pages, publish prerelease). Assets + Pages
+  verified via API.
+- Parity: PRESENT 182 (92%) · PARTIAL 11 · MISSING 1 · CORE-ONLY 5 —
+  every remaining gap documented as blocked / owner-decision /
+  experimental-by-design / checkout-UI / P3-honest-scope in
+  research/ayugram_parity.md. The parity program's actionable queue is
+  EMPTY as of this session; the next agent should re-verify that
+  assessment against AyuGramDesktop dev (the parity file's sources
+  note) before inventing work, then look at the P3 honest-scope cuts
+  (proximity radius, message-details DC row, logo/userpic polish) if
+  the owner wants 100% row coverage.
+- Next-session notes: gotd v0.161.0 lacks payments.transferStarAmount
+  (stars gifting stays checkout-gated until a gotd upgrade, which is a
+  freeze-risk change deserving its own session).
