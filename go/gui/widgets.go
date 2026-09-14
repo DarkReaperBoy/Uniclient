@@ -368,13 +368,18 @@ type widgets struct {
 	savedBackBtn     widget.Clickable
 	savedListRowBtns []widget.Clickable
 	savedTagRowBtns  []widget.Clickable
-	forumCancelBtn   widget.Clickable
-	forumCreateBtn   widget.Clickable
-	forumIconChips   []widget.Clickable
-	forumMenuBtn     widget.Clickable
-	forumNewBtn      widget.Clickable
-	forumTitleEd     widget.Editor
-	forumTopicBtns   []widget.Clickable
+
+	// savedsublists.go (slice 204: row menu + delete confirm)
+	savedSublistMenuRows []widget.Clickable
+	savedDelOK           widget.Clickable
+	savedDelCancel       widget.Clickable
+	forumCancelBtn       widget.Clickable
+	forumCreateBtn       widget.Clickable
+	forumIconChips       []widget.Clickable
+	forumMenuBtn         widget.Clickable
+	forumNewBtn          widget.Clickable
+	forumTitleEd         widget.Editor
+	forumTopicBtns       []widget.Clickable
 
 	// translatebar.go
 	transBarLangBtn widget.Clickable

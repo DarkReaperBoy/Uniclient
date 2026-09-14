@@ -121,6 +121,11 @@ func (a *App) Root(gtx layout.Context) {
 	if f.restrictDlg != nil {
 		a.layoutRestrictDialog(gtx, f)
 	}
+	// Saved-sublist delete confirm (slice 204): window-level modal — the
+	// trigger is the Lists-pane row menu.
+	if f.savedDelDlg != nil {
+		a.layoutSavedDeleteDialog(gtx, f)
+	}
 	if f.drawerOpen {
 		a.layoutDrawer(gtx, f)
 	}

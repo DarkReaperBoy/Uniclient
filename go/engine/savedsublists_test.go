@@ -22,6 +22,11 @@ type savedDialogsStub struct {
 	selfID  string
 	dialogs []cores.SavedSublistInfo
 	history map[string][]cores.Message // peerID → messages
+
+	// slice-204 call logs (pointer fields — the account holds the core
+	// by value, so the stub's method receivers record through them).
+	reorderLog *[][]string
+	delLog     *[]string
 }
 
 func (s savedDialogsStub) SelfUserID() string { return s.selfID }
@@ -208,5 +213,89 @@ func TestSavedPeerColumnRoundTrip(t *testing.T) {
 	}
 	if len(msgs) != 1 || msgs[0].MsgID != "9" {
 		t.Fatalf("round-trip = %+v, want msg 9 under sublist 77", msgs)
+	}
+}
+
+// Slice 204: pin reorder + delete flow — the engine surface. The stub
+// records the calls (through pointer fields — the account stores the
+// core by value) so the tests pin the peer order / delete target the
+// engine forwards; the delete must also purge the scoped cache rows.
+
+func (s savedDialogsStub) ReorderPinnedSavedDialogs(peerIDs []string) error {
+	if s.reorderLog != nil {
+		*s.reorderLog = append(*s.reorderLog, append([]string(nil), peerIDs...))
+	}
+	return nil
+}
+
+func (s savedDialogsStub) DeleteSavedHistory(peerID string) error {
+	if s.delLog != nil {
+		*s.delLog = append(*s.delLog, peerID)
+	}
+	return nil
+}
+
+// TestSavedSublistReorder: the engine forwards the full pinned order to
+// messages.reorderPinnedSavedDialogs; a core without the surface (or a
+// missing account) is an honest error, not a silent pass.
+func TestSavedSublistReorder(t *testing.T) {
+	e := newSavedSublistEngine(t)
+	var log [][]string
+	stub := savedDialogsStub{selfID: "42"}
+	e.accounts = map[string]*Account{"tg": {ID: "tg", Core: stub}}
+	e.accounts["tg"].Core = savedDialogsStub{selfID: "42", reorderLog: &log}
+	if err := e.ReorderSavedSublists("tg", []string{"a", "b", "c"}); err != nil {
+		t.Fatalf("ReorderSavedSublists: %v", err)
+	}
+	if len(log) != 1 || len(log[0]) != 3 || log[0][0] != "a" || log[0][2] != "c" {
+		t.Fatalf("reorder forwarded = %v", log)
+	}
+	e.accounts["irc"] = &Account{ID: "irc", Core: plainStub{}}
+	if err := e.ReorderSavedSublists("irc", []string{"a"}); err == nil {
+		t.Fatal("plain core must not support saved reorder")
+	}
+	if err := e.ReorderSavedSublists("missing", nil); err == nil {
+		t.Fatal("missing account must error")
+	}
+}
+
+// TestSavedSublistDeletePurgesCache: delete forwards the peer to the
+// core AND wipes the scoped rows from the self-chat cache (other
+// sublists' rows survive; the whole-chat rows for other peers stay).
+func TestSavedSublistDeletePurgesCache(t *testing.T) {
+	e := newSavedSublistEngine(t)
+	var del []string
+	e.accounts = map[string]*Account{"tg": {ID: "tg", Core: savedDialogsStub{selfID: "42", delLog: &del}}}
+	self := e.SavedMessagesChatID("tg")
+	if self == "" {
+		t.Fatal("no saved chat id for the stub self account")
+	}
+	seed := func(peer string, ids ...string) {
+		for _, id := range ids {
+			m := cores.Message{ID: id, Text: "m " + id, Timestamp: timeOf(1700000000)}
+			e.cacheMessage("tg", self, &m)
+			e.db.Exec(`UPDATE messages SET saved_peer = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+				peer, "tg", self, id)
+		}
+	}
+	seed("100", "1", "2")
+	seed("200", "3")
+	if got := e.countSavedRows("tg", self, ""); got != 3 {
+		t.Fatalf("seeded rows = %d, want 3", got)
+	}
+	if err := e.DeleteSavedSublistHistory("tg", "100"); err != nil {
+		t.Fatalf("DeleteSavedSublistHistory: %v", err)
+	}
+	if len(del) != 1 || del[0] != "100" {
+		t.Fatalf("core delete calls = %v", del)
+	}
+	if got := e.countSavedRows("tg", self, "100"); got != 0 {
+		t.Fatalf("deleted sublist rows = %d, want 0", got)
+	}
+	if got := e.countSavedRows("tg", self, "200"); got != 1 {
+		t.Fatalf("other sublist rows = %d, want 1", got)
+	}
+	if got := e.countSavedRows("tg", self, ""); got != 1 {
+		t.Fatalf("whole-chat rows = %d, want 1 (only the surviving sublist)", got)
 	}
 }

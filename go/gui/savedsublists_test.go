@@ -11,19 +11,77 @@ import (
 // title of an open sublist scope, and the row preview text.
 
 func TestSortSavedSublists(t *testing.T) {
+	// Slice 204: the pinned block preserves the SERVER order (the pin
+	// order — messages.getSavedDialogs returns it, and reordering must
+	// be visible); only the unpinned tail falls back to newest-first.
 	lists := []cores.SavedSublistInfo{
 		{PeerID: "1", PeerName: "older", LastMsgTime: 100},
 		{PeerID: "2", PeerName: "pinned old", IsPinned: true, LastMsgTime: 50},
 		{PeerID: "3", PeerName: "newest", LastMsgTime: 300},
+		{PeerID: "4", PeerName: "pinned newer", IsPinned: true, LastMsgTime: 900},
 	}
 	got := sortSavedSublists(lists)
-	if len(got) != 3 || got[0].PeerID != "2" || got[1].PeerID != "3" || got[2].PeerID != "1" {
-		t.Fatalf("order = %v %v %v, want pinned(2) → newest(3) → older(1)", got[0].PeerID, got[1].PeerID, got[2].PeerID)
+	if len(got) != 4 || got[0].PeerID != "2" || got[1].PeerID != "4" || got[2].PeerID != "3" || got[3].PeerID != "1" {
+		t.Fatalf("order = %v %v %v %v, want pinned server order (2,4) → newest(3) → older(1)",
+			got[0].PeerID, got[1].PeerID, got[2].PeerID, got[3].PeerID)
 	}
 	// Input not mutated.
 	if lists[0].PeerID != "1" {
 		t.Errorf("input slice was mutated")
 	}
+}
+
+// TestSavedSublistMenuActions (slice 204): pinned rows get the move
+// entries (bounded by the block edges), every row gets pin-toggle +
+// the destructive delete entry.
+func TestSavedSublistMenuActions(t *testing.T) {
+	if got := savedSublistMenuActions(true, false, true); len(got) != 3 ||
+		got[0] != "Unpin" || got[1] != "Move down" || got[2] != "Delete messages" {
+		t.Errorf("pinned top = %v", got)
+	}
+	if got := savedSublistMenuActions(true, true, false); got[0] != "Unpin" ||
+		!savedMenuHas(got, "Move up") || savedMenuHas(got, "Move down") {
+		t.Errorf("pinned bottom = %v", got)
+	}
+	if got := savedSublistMenuActions(true, true, true); len(got) != 4 {
+		t.Errorf("pinned middle = %v", got)
+	}
+	if got := savedSublistMenuActions(false, false, false); len(got) != 2 ||
+		got[0] != "Pin" || got[1] != "Delete messages" {
+		t.Errorf("unpinned = %v", got)
+	}
+}
+
+// TestSavedSublistMovePeers (slice 204): moving inside the pinned block
+// swaps exactly the two neighbors; moving at the block edge is a no-op.
+func TestSavedSublistMovePeers(t *testing.T) {
+	lists := []cores.SavedSublistInfo{
+		{PeerID: "a", IsPinned: true},
+		{PeerID: "b", IsPinned: true},
+		{PeerID: "c", IsPinned: true},
+		{PeerID: "d"},
+	}
+	if got := savedSublistMovePeers(lists, 1, -1); len(got) != 3 || got[0] != "b" || got[1] != "a" || got[2] != "c" {
+		t.Errorf("move up = %v", got)
+	}
+	if got := savedSublistMovePeers(lists, 1, 1); len(got) != 3 || got[0] != "a" || got[1] != "c" || got[2] != "b" {
+		t.Errorf("move down = %v", got)
+	}
+	if got := savedSublistMovePeers(lists, 0, -1); got[0] != "a" || got[1] != "b" || got[2] != "c" {
+		t.Errorf("edge move up = %v (want no-op)", got)
+	}
+	if got := savedSublistMovePeers(lists, 2, 1); got[0] != "a" || got[1] != "b" || got[2] != "c" {
+		t.Errorf("edge move down = %v (want no-op)", got)
+	}
+}
+
+func savedMenuHas(xs []string, s string) bool {
+	for _, x := range xs {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }
 
 func TestSavedScopeBarTitle(t *testing.T) {

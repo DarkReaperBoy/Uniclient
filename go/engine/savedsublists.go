@@ -141,3 +141,21 @@ func (e *Engine) ToggleSavedSublistPin(accountID, peerID string, pinned bool) er
 	}
 	return pt.ToggleSavedDialogPin(peerID, pinned)
 }
+
+// ReorderSavedSublists (slice 204) changes the pinned-sublist order
+// (messages.reorderPinnedSavedDialogs with force, so a stale server pin
+// outside the passed order unpins instead of corrupting it).
+func (e *Engine) ReorderSavedSublists(accountID string, peerIDs []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type reorderer interface {
+		ReorderPinnedSavedDialogs(peerIDs []string) error
+	}
+	ro, ok := acc.Core.(reorderer)
+	if !ok {
+		return fmt.Errorf("platform does not support saved sublists")
+	}
+	return ro.ReorderPinnedSavedDialogs(peerIDs)
+}

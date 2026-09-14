@@ -25568,6 +25568,32 @@ func (t *TelegramCore) GetDifferenceCheck() error {
 	return err
 }
 
+// ReorderPinnedSavedDialogs (slice 204) changes the pinned order of
+// Saved Messages sublists (messages.reorderPinnedSavedDialogs, force —
+// a stale server pin outside the passed order unpins instead of
+// corrupting it; the same semantics ReorderPinnedDialogs uses for
+// chats).
+func (t *TelegramCore) ReorderPinnedSavedDialogs(peerIDs []string) error {
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
+	var order []tg.InputDialogPeerClass
+	for _, pid := range peerIDs {
+		peer, err := t.resolvePeer(pid)
+		if err != nil {
+			continue
+		}
+		inputPeer, _ := t.toInputPeer(peer)
+		order = append(order, &tg.InputDialogPeer{Peer: inputPeer})
+	}
+	_, err = api.MessagesReorderPinnedSavedDialogs(ctx, &tg.MessagesReorderPinnedSavedDialogsRequest{
+		Order: order, Force: true,
+	})
+	return err
+}
+
 // ReorderPinnedDialogs changes the display order of pinned chats.
 func (t *TelegramCore) ReorderPinnedDialogs(chatIDs []string) error {
 	// withAPI rule: never hold t.mu across the RPC.

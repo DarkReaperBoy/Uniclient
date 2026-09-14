@@ -348,19 +348,22 @@ type App struct {
 
 	// the Calls box (AyuGram parity slice 154): per-account call-history
 	// page — grouped rows, redial, clear-all, group-calls subsection.
-	callsBoxOpen     bool
-	callsBoxFor      string
-	callsBoxRows     []callBoxRow
-	callsBoxBusy     bool
-	callsBoxDone     bool
-	callsBoxLoad     bool
-	callsBoxMenu     *callsBoxMenuTarget
-	callsRowMenu     *callsRowMenuTarget
-	callsClearDlg    bool
-	callsDelDlg      int // rowIdx of the delete confirm; -1 none
-	callsRowBounds   []image.Rectangle
-	callsBoxMenuRect image.Rectangle
-	callsRowMenuRect image.Rectangle
+	callsBoxOpen   bool
+	callsBoxFor    string
+	callsBoxRows   []callBoxRow
+	callsBoxBusy   bool
+	callsBoxDone   bool
+	callsBoxLoad   bool
+	callsBoxMenu   *callsBoxMenuTarget
+	callsRowMenu   *callsRowMenuTarget
+	callsClearDlg  bool
+	callsDelDlg    int // rowIdx of the delete confirm; -1 none
+	callsRowBounds []image.Rectangle
+	// savedsublists.go (slice 204): Lists-pane row bounds + menu rect.
+	savedListRowBounds   []image.Rectangle
+	savedSublistMenuRect image.Rectangle
+	callsBoxMenuRect     image.Rectangle
+	callsRowMenuRect     image.Rectangle
 
 	// in-chat search (AyuGram parity slice 18): scoped FTS + jump nav
 	inSearch         bool
@@ -397,6 +400,9 @@ type App struct {
 	savedScope       *savedScopeState
 	savedTags        []cores.SavedReactionTagInfo
 	savedTagsLoaded  bool
+	// slice 204: the open row context menu + delete confirm.
+	savedSublistMenu *savedSublistMenuTarget
+	savedDelDlg      *savedDelDlgState
 
 	// drafts + scheduled send (AyuGram parity slice 20)
 	schedDlg *schedDlgState
@@ -2244,6 +2250,8 @@ func (a *App) snapshot() frame {
 		savedScope:       a.savedScope,
 		savedTags:        a.savedTags,
 		savedTagsLoaded:  a.savedTagsLoaded,
+		savedSublistMenu: a.savedSublistMenu,
+		savedDelDlg:      a.savedDelDlg,
 		schedDlg:         a.schedDlg,
 		pollDlg:          a.pollDlg,
 		reactors:         a.reactors,
@@ -2573,6 +2581,8 @@ type frame struct {
 	savedScope       *savedScopeState
 	savedTags        []cores.SavedReactionTagInfo
 	savedTagsLoaded  bool
+	savedSublistMenu *savedSublistMenuTarget
+	savedDelDlg      *savedDelDlgState
 
 	// scheduled send (slice 20)
 	schedDlg *schedDlgState

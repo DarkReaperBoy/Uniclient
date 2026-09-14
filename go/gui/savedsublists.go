@@ -1,11 +1,17 @@
 package gui
 
 import (
+	"image"
 	"strings"
 
+	"gioui.org/io/event"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/unit"
 	"gioui.org/widget"
+	"gioui.org/widget/material"
 
 	"uniclient/cores"
 )
@@ -30,8 +36,10 @@ type savedScopeState struct {
 	tag    string // reaction-tag emoji (non-empty = tag scope, peerID "")
 }
 
-// sortSavedSublists: pinned rows first, then by last activity (newest
-// first) — tdesktop's saved-dialogs order. Pure — locked by tests.
+// sortSavedSublists: pinned rows first (in the SERVER pin order —
+// slice 204: reorder must be visible, and messages.getSavedDialogs
+// returns the pin order), then the unpinned tail by last activity
+// (newest first). Pure — locked by tests.
 func sortSavedSublists(lists []cores.SavedSublistInfo) []cores.SavedSublistInfo {
 	pinned := make([]cores.SavedSublistInfo, 0, len(lists))
 	tail := make([]cores.SavedSublistInfo, 0, len(lists))
@@ -42,7 +50,6 @@ func sortSavedSublists(lists []cores.SavedSublistInfo) []cores.SavedSublistInfo 
 			tail = append(tail, l)
 		}
 	}
-	sortSavedByTimeDesc(pinned)
 	sortSavedByTimeDesc(tail)
 	return append(pinned, tail...)
 }
@@ -298,10 +305,13 @@ func (a *App) layoutSavedScopeBar(gtx layout.Context, f frame) layout.Dimensions
 // pane while savedListOpen): "All messages" + one row per sublist, the
 // honest loading/empty/error states below the title.
 func (a *App) layoutSavedListsPane(gtx layout.Context, f frame) layout.Dimensions {
+	// Slice 204: secondary-press routing (row context menu).
+	a.processSavedListsEvents(gtx, f)
 	lists := sortSavedSublists(f.savedLists)
 	for len(a.wid.savedListRowBtns) < len(lists)+1 {
 		a.wid.savedListRowBtns = append(a.wid.savedListRowBtns, widget.Clickable{})
 	}
+	a.savedListRowBounds = a.savedListRowBounds[:0]
 	rows := make([]layout.FlexChild, 0, len(lists)+3)
 	rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(6), Left: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -337,10 +347,15 @@ func (a *App) layoutSavedListsPane(gtx layout.Context, f frame) layout.Dimension
 			})
 		}))
 	}
-	// "All messages" row + one row per sublist.
+	// "All messages" row + one row per sublist (bounds tracked for the
+	// row context menu — display rows 1..n map to lists[0..n-1]).
 	for idx := 0; idx <= len(lists); idx++ {
 		rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.savedSublistRow(gtx, f, lists, idx)
+			dims := a.savedSublistRow(gtx, f, lists, idx)
+			if idx > 0 {
+				a.savedListRowBounds = append(a.savedListRowBounds, image.Rectangle{Max: dims.Size})
+			}
+			return dims
 		}))
 	}
 	// Reaction tags (slice 199): the premium tag rows under their own
@@ -364,7 +379,21 @@ func (a *App) layoutSavedListsPane(gtx layout.Context, f frame) layout.Dimension
 			}))
 		}
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+	var menuDims layout.Dimensions
+	if f.savedSublistMenu != nil {
+		dims := layout.Stack{}.Layout(gtx,
+			layout.Expanded(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+			}),
+			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+				return a.layoutSavedSublistMenu(gtx, f)
+			}),
+		)
+		menuDims = dims
+	} else {
+		menuDims = layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+	}
+	return menuDims
 }
 
 // savedSublistRow renders one pane row: idx 0 = "All messages", else
@@ -485,5 +514,361 @@ func (a *App) savedHeaderBtn(gtx layout.Context, f frame, k chatKey) layout.Dime
 			btn.Color = a.ui.p.Accent
 		}
 		return btn.Layout(gtx)
+	})
+}
+
+// ---- slice 204: row context menu (pin toggle / move / delete) ----
+
+// savedListsPaneTag is the pointer-interest tag for the Lists pane
+// (row context menu routing).
+var savedListsPaneTag = new(struct{})
+
+// savedSublistMenuTarget is the open row context menu (display-list row
+// index + anchor point, callsbox-style).
+type savedSublistMenuTarget struct {
+	row int
+	pos image.Point
+}
+
+// savedDelDlgState is the open delete-confirm dialog (nil when closed).
+type savedDelDlgState struct {
+	list cores.SavedSublistInfo
+	busy bool
+}
+
+// savedSublistMenuActions (pure): the row menu entries. Pinned rows get
+// the move entries bounded by the pinned-block edges; every row gets
+// the pin toggle and the destructive delete.
+func savedSublistMenuActions(pinned, canUp, canDown bool) []string {
+	out := make([]string, 0, 4)
+	if pinned {
+		out = append(out, "Unpin")
+		if canUp {
+			out = append(out, "Move up")
+		}
+		if canDown {
+			out = append(out, "Move down")
+		}
+	} else {
+		out = append(out, "Pin")
+	}
+	return append(out, "Delete messages")
+}
+
+// savedSublistMovePeers (pure): the new pinned order after moving the
+// row at display index row by delta (±1) within the pinned block.
+// Edge moves (or unpinned rows) are no-ops — the input order returns.
+func savedSublistMovePeers(lists []cores.SavedSublistInfo, row, delta int) []string {
+	peers := make([]string, 0, len(lists))
+	for _, l := range lists {
+		if l.IsPinned {
+			peers = append(peers, l.PeerID)
+		}
+	}
+	pIdx := -1
+	np := 0
+	for i, l := range lists {
+		if l.IsPinned {
+			if i == row {
+				pIdx = np
+			}
+			np++
+		}
+	}
+	if pIdx < 0 || delta == 0 {
+		return peers
+	}
+	target := pIdx + delta
+	if target < 0 || target >= len(peers) {
+		return peers
+	}
+	peers[pIdx], peers[target] = peers[target], peers[pIdx]
+	return peers
+}
+
+// savedPinnedBlockBounds (pure): how many display rows are pinned, and
+// whether the row at index row can move up/down within the block.
+func savedPinnedBlockBounds(lists []cores.SavedSublistInfo) (pinned int) {
+	for _, l := range lists {
+		if l.IsPinned {
+			pinned++
+		}
+	}
+	return pinned
+}
+
+// processSavedListsEvents registers the pane pointer interest and routes
+// secondary presses to the row context menu; any press outside an open
+// menu dismisses it (the callsbox pattern).
+func (a *App) processSavedListsEvents(gtx layout.Context, f frame) {
+	stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
+	event.Op(gtx.Ops, savedListsPaneTag)
+	stack.Pop()
+	for {
+		ev, ok := gtx.Source.Event(pointer.Filter{Target: savedListsPaneTag, Kinds: pointer.Press})
+		if !ok {
+			break
+		}
+		if pe, is := ev.(pointer.Event); is && pe.Kind == pointer.Press {
+			pos := image.Pt(int(pe.Position.X), int(pe.Position.Y))
+			if f.savedSublistMenu != nil {
+				if !pointInRect(pos, a.savedSublistMenuRect) {
+					a.mu.Lock()
+					a.savedSublistMenu = nil
+					a.mu.Unlock()
+					a.invalidate()
+				}
+				continue
+			}
+			if pe.Buttons != pointer.ButtonSecondary {
+				continue
+			}
+			idx := -1
+			for i, r := range a.savedListRowBounds {
+				if pointInRect(pos, r) {
+					idx = i
+					break
+				}
+			}
+			if idx < 0 || idx >= len(f.savedLists) {
+				continue
+			}
+			a.mu.Lock()
+			a.savedSublistMenu = &savedSublistMenuTarget{row: idx, pos: pos}
+			a.mu.Unlock()
+			a.invalidate()
+		}
+	}
+}
+
+// savedSublistAct runs one row-menu action (async engine call + reload).
+func (a *App) savedSublistAct(k chatKey, lists []cores.SavedSublistInfo, row, action int) {
+	acc := k.AccountID
+	a.mu.Lock()
+	if a.selected != nil {
+		acc = a.selected.AccountID
+	}
+	a.mu.Unlock()
+	if row < 0 || row >= len(lists) || acc == "" {
+		return
+	}
+	l := lists[row]
+	pinnedCount := savedPinnedBlockBounds(lists)
+	actions := savedSublistMenuActions(l.IsPinned, row > 0 && row-1 < pinnedCount && pinnedCount > 1,
+		row+1 < pinnedCount)
+	if action < 0 || action >= len(actions) {
+		return
+	}
+	switch actions[action] {
+	case "Pin", "Unpin":
+		go func() {
+			_ = a.eng.ToggleSavedSublistPin(acc, l.PeerID, !l.IsPinned)
+			a.loadSavedSublists(chatKey{AccountID: acc, ChatID: k.ChatID})
+		}()
+	case "Move up", "Move down":
+		delta := 1
+		if actions[action] == "Move up" {
+			delta = -1
+		}
+		peers := savedSublistMovePeers(lists, row, delta)
+		go func() {
+			_ = a.eng.ReorderSavedSublists(acc, peers)
+			a.loadSavedSublists(chatKey{AccountID: acc, ChatID: k.ChatID})
+		}()
+	case "Delete messages":
+		a.mu.Lock()
+		a.savedDelDlg = &savedDelDlgState{list: l}
+		a.savedSublistMenu = nil
+		a.mu.Unlock()
+		a.invalidate()
+	}
+}
+
+// submitSavedDelete confirms the delete dialog: engine call (the
+// messages.deleteSavedHistory + local cache purge), reload, and if the
+// open scope IS the deleted sublist, back out to the whole saved chat.
+func (a *App) submitSavedDelete(k chatKey) {
+	d := a.savedDelDlg
+	if d == nil || d.busy {
+		return
+	}
+	a.mu.Lock()
+	a.savedDelDlg.busy = true
+	a.mu.Unlock()
+	a.invalidate()
+	acc := k.AccountID
+	a.mu.Lock()
+	if a.selected != nil {
+		acc = a.selected.AccountID
+	}
+	a.mu.Unlock()
+	go func() {
+		err := a.eng.DeleteSavedSublistHistory(acc, d.list.PeerID)
+		a.mu.Lock()
+		if err != nil {
+			a.savedDelDlg.busy = false
+		} else {
+			a.savedDelDlg = nil
+			if a.savedScope != nil && a.savedScope.peerID == d.list.PeerID {
+				a.savedScope = nil
+			}
+		}
+		a.mu.Unlock()
+		a.loadSavedSublists(chatKey{AccountID: acc, ChatID: k.ChatID})
+		a.invalidate()
+	}()
+}
+
+// closeSavedDeleteDialog drops the confirm without acting.
+func (a *App) closeSavedDeleteDialog() {
+	a.mu.Lock()
+	a.savedDelDlg = nil
+	a.mu.Unlock()
+	a.invalidate()
+}
+
+// layoutSavedSublistMenu renders the row context menu anchored at the
+// press point (callsbox row-menu pattern).
+func (a *App) layoutSavedSublistMenu(gtx layout.Context, f frame) layout.Dimensions {
+	m := f.savedSublistMenu
+	lists := sortSavedSublists(f.savedLists)
+	if m.row < 0 || m.row >= len(lists) {
+		return layout.Dimensions{}
+	}
+	l := lists[m.row]
+	pinnedCount := savedPinnedBlockBounds(lists)
+	actions := savedSublistMenuActions(l.IsPinned,
+		m.row > 0 && m.row < pinnedCount && pinnedCount > 1,
+		m.row+1 < pinnedCount)
+	for len(a.wid.savedSublistMenuRows) < len(actions) {
+		a.wid.savedSublistMenuRows = append(a.wid.savedSublistMenuRows, widget.Clickable{})
+	}
+	menuW := gtx.Dp(unit.Dp(210))
+	rowH := gtx.Dp(unit.Dp(36))
+	h := gtx.Dp(unit.Dp(8)) + len(actions)*rowH + gtx.Dp(unit.Dp(8))
+	pos := m.pos
+	if pos.X+menuW > gtx.Constraints.Max.X {
+		pos.X = gtx.Constraints.Max.X - menuW
+	}
+	if pos.Y+h > gtx.Constraints.Max.Y {
+		pos.Y = gtx.Constraints.Max.Y - h
+	}
+	if pos.X < 0 {
+		pos.X = 0
+	}
+	if pos.Y < 0 {
+		pos.Y = 0
+	}
+	a.savedSublistMenuRect = image.Rect(pos.X, pos.Y, pos.X+menuW, pos.Y+h)
+	k := chatKey{}
+	if f.selected != nil {
+		k = *f.selected
+	}
+	for i := range actions {
+		if a.wid.savedSublistMenuRows[i].Clicked(gtx) {
+			a.mu.Lock()
+			a.savedSublistMenu = nil
+			a.mu.Unlock()
+			a.savedSublistAct(k, lists, m.row, i)
+			return layout.Dimensions{}
+		}
+	}
+	var dims layout.Dimensions
+	func() {
+		defer op.Offset(pos).Push(gtx.Ops).Pop()
+		gtx.Constraints = layout.Constraints{Max: image.Pt(menuW, h), Min: image.Pt(menuW, h)}
+		dims = roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
+			children := make([]layout.FlexChild, 0, len(actions)+2)
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Dimensions{Size: image.Pt(menuW, gtx.Dp(unit.Dp(4)))}
+				})
+			}))
+			for i, label := range actions {
+				i, label := i, label
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					btn := &a.wid.savedSublistMenuRows[i]
+					gtx.Constraints.Min.Y = rowH
+					return material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(9)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							lbl := a.ui.Label(unit.Sp(14), label)
+							if label == "Delete messages" {
+								lbl.Color = a.ui.p.Error
+							} else {
+								lbl.Color = a.ui.p.Text
+							}
+							return lbl.Layout(gtx)
+						})
+					})
+				}))
+			}
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Dimensions{Size: image.Pt(menuW, gtx.Dp(unit.Dp(4)))}
+				})
+			}))
+			layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+			return layout.Dimensions{Size: image.Pt(menuW, h)}
+		})
+	}()
+	return dims
+}
+
+// layoutSavedDeleteDialog: the destructive-action confirm card (the
+// slice-190 clear-history box pattern).
+func (a *App) layoutSavedDeleteDialog(gtx layout.Context, f frame) layout.Dimensions {
+	d := f.savedDelDlg
+	if a.wid.savedDelCancel.Clicked(gtx) {
+		a.closeSavedDeleteDialog()
+	}
+	if a.wid.savedDelOK.Clicked(gtx) {
+		k := chatKey{}
+		if f.selected != nil {
+			k = *f.selected
+		}
+		a.submitSavedDelete(k)
+	}
+	paintScrimRect(gtx)
+	label := "Delete"
+	if d.busy {
+		label = "Deleting…"
+	}
+	title := savedSublistRowTitle(d.list)
+	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Max.X = gtx.Dp(unit.Dp(320))
+		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.ui.H3("Delete messages?").Layout(gtx)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							lbl := a.ui.Dim(unit.Sp(13), "All messages saved from "+title+" will be deleted. This can't be undone.")
+							return lbl.Layout(gtx)
+						})
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									btn := material.Button(a.ui.Theme, &a.wid.savedDelCancel, "Cancel")
+									btn.Background = a.ui.p.SurfaceHi
+									btn.Color = a.ui.p.Text
+									return btn.Layout(gtx)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+										btn := material.Button(a.ui.Theme, &a.wid.savedDelOK, label)
+										btn.Background = a.ui.p.Error
+										return btn.Layout(gtx)
+									})
+								}),
+							)
+						})
+					}),
+				)
+			})
+		})
 	})
 }

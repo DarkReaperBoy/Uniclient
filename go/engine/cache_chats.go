@@ -915,7 +915,11 @@ func (e *Engine) MarkSavedSublistRead(accountID, peerID string) error {
 	return acc.Core.MarkAsRead(peerID, "")
 }
 
-// DeleteSavedSublistHistory deletes saved message history for a peer.
+// DeleteSavedSublistHistory deletes saved message history for a peer
+// (messages.deleteSavedHistory). Slice 204: the scoped rows are purged
+// from the self-chat cache too — the server drops the dialog from the
+// list, so the next lists fetch no longer shows it and stale bubbles
+// never linger in the open view.
 func (e *Engine) DeleteSavedSublistHistory(accountID, peerID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -928,7 +932,17 @@ func (e *Engine) DeleteSavedSublistHistory(accountID, peerID string) error {
 	if !ok {
 		return fmt.Errorf("platform does not support deleting saved history")
 	}
-	return d.DeleteSavedHistory(peerID)
+	if err := d.DeleteSavedHistory(peerID); err != nil {
+		return err
+	}
+	if self := e.SavedMessagesChatID(accountID); self != "" && peerID != "" {
+		if _, err := e.db.Exec(
+			`DELETE FROM messages WHERE account_id = ? AND chat_id = ? AND saved_peer = ?`,
+			accountID, self, peerID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ReorderPinnedDialogs changes the display order of pinned chats.
