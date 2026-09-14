@@ -9,51 +9,50 @@ package cores
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/gotd/td/tg"
 )
 
-// starGiftsFromWire normalizes the payments.getStarGifts catalog into the
-// engine-facing shape. Collectible (unique) gifts are resale objects, not
-// catalog purchases — excluded. Pure — unit-tested.
-func starGiftsFromWire(res *tg.PaymentsStarGifts) []StarGiftInfo {
+// starGiftsFromWire normalizes the payments.getStarGifts catalog into
+// StarGiftsResult. Collectible (unique) gifts are resale objects, not
+// catalog purchases — excluded. Sold-out gifts stay listed (the picker
+// shows them disabled — tdesktop does the same). Pure — unit-tested.
+func starGiftsFromWire(res *tg.PaymentsStarGifts) *StarGiftsResult {
+	out := &StarGiftsResult{}
 	if res == nil {
-		return nil
+		return out
 	}
-	out := make([]StarGiftInfo, 0, len(res.Gifts))
 	for _, g := range res.Gifts {
 		gift, ok := g.(*tg.StarGift)
 		if !ok {
 			continue
 		}
-		info := StarGiftInfo{
-			GiftID:         strconv.FormatInt(gift.ID, 10),
+		item := StarGiftItem{
+			ID:             gift.ID,
 			Stars:          gift.Stars,
-			NanoStars:      gift.Stars * 1_000_000_000,
 			Limited:        gift.Limited,
 			SoldOut:        gift.SoldOut,
 			Birthday:       gift.Birthday,
 			RequirePremium: gift.RequirePremium,
 		}
 		if v, ok := gift.GetAvailabilityRemains(); ok {
-			info.AvailabilityRemains = v
+			item.Remaining = v
 		}
 		if v, ok := gift.GetAvailabilityTotal(); ok {
-			info.AvailabilityTotal = v
+			item.Total = v
 		}
 		if gift.ConvertStars != 0 {
-			info.ConvertStars = gift.ConvertStars
+			item.ConvertStars = gift.ConvertStars
 		}
 		if doc, ok := gift.Sticker.(*tg.Document); ok && doc != nil {
-			info.ThumbB64 = extractStrippedThumbB64(doc.Thumbs)
+			item.ThumbB64 = extractStrippedThumbB64(doc.Thumbs)
 			for _, at := range doc.Attributes {
 				if st, ok := at.(*tg.DocumentAttributeSticker); ok {
-					info.StickerEmoji = st.Alt
+					item.StickerEmoji = st.Alt
 				}
 			}
 		}
-		out = append(out, info)
+		out.Gifts = append(out.Gifts, item)
 	}
 	return out
 }
@@ -184,9 +183,9 @@ func (t *TelegramCore) SendStarGift(chatID string, giftID int64, message string,
 	case *tg.PaymentsPaymentResult:
 		return nil
 	case *tg.PaymentsPaymentVerificationNeeded:
-		if r.URL != "" {
-			return fmt.Errorf("payment needs verification — top up in Settings → Telegram Stars")
-		}
+		// r.URL would open a browser topup — the Stars settings page is
+		// the in-app equivalent; the honest error points there.
+		_ = r
 		return fmt.Errorf("payment needs verification — top up in Settings → Telegram Stars")
 	default:
 		return fmt.Errorf("unexpected sendStarsForm result %T", result)
