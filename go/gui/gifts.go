@@ -105,8 +105,8 @@ func (a *App) openGiftPicker(c engine.ChatInfo) {
 		}
 		if gerr != nil {
 			a.giftDlg.err = gerr.Error()
-		} else {
-			a.giftDlg.gifts = gifts
+		} else if gifts != nil {
+			a.giftDlg.gifts = gifts.Gifts
 		}
 		if berr == nil {
 			a.giftDlg.balance = balance

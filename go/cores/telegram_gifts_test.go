@@ -54,11 +54,11 @@ func TestStarGiftsFromWire(t *testing.T) {
 	g.ConvertStars = 25
 
 	out := starGiftsFromWire(res)
-	if len(out) != 2 {
-		t.Fatalf("gifts = %d, want 2", len(out))
+	if len(out.Gifts) != 2 {
+		t.Fatalf("gifts = %d, want 2", len(out.Gifts))
 	}
-	first := out[0]
-	if first.GiftID != "5001" || first.Stars != 50 || first.NanoStars != 50*1_000_000_000 {
+	first := out.Gifts[0]
+	if first.ID != 5001 || first.Stars != 50 {
 		t.Errorf("first gift wrong: %+v", first)
 	}
 	if first.ThumbB64 == "" {
@@ -70,11 +70,11 @@ func TestStarGiftsFromWire(t *testing.T) {
 	if first.Limited || first.SoldOut || first.RequirePremium {
 		t.Errorf("plain gift carries flags: %+v", first)
 	}
-	second := out[1]
+	second := out.Gifts[1]
 	if !second.Limited || !second.SoldOut || !second.RequirePremium {
 		t.Errorf("flags lost: %+v", second)
 	}
-	if second.AvailabilityTotal != 1000 || second.AvailabilityRemains != 3 {
+	if second.Total != 1000 || second.Remaining != 3 {
 		t.Errorf("availability lost: %+v", second)
 	}
 	if second.ConvertStars != 25 {
@@ -111,13 +111,13 @@ func TestStarGiftInvoice(t *testing.T) {
 	if peer.UserID != 42 || peer.AccessHash != 7 {
 		t.Errorf("peer = %+v", peer)
 	}
-	if sg.Message == nil || len(sg.Message.Entities) != 0 {
-		t.Errorf("message = %+v (want empty entities)", sg.Message)
+	if sg.Message.Text != "happy birthday" || len(sg.Message.Entities) != 0 {
+		t.Errorf("message = %+v (want text, empty entities)", sg.Message)
 	}
 
 	inv2 := starGiftInvoice(&tg.InputPeerUser{UserID: 1, AccessHash: 1}, 2, "", false)
 	sg2 := inv2.(*tg.InputInvoiceStarGift)
-	if sg2.HideName || sg2.Message != nil {
+	if sg2.HideName || sg2.Message.Text != "" {
 		t.Errorf("minimal invoice carries optional fields: %+v", sg2)
 	}
 }
@@ -127,9 +127,8 @@ func TestGiftOptionsFromWire(t *testing.T) {
 		{Stars: 100, Currency: "USD", Amount: 200},
 		{Stars: 500},
 	}
-	o := opts[0]
-	o.SetStoreProduct("stars_100")
-	o.SetExtended(true)
+	opts[0].SetStoreProduct("stars_100")
+	opts[0].SetExtended(true)
 	out := giftOptionsFromWire(opts)
 	if len(out) != 2 {
 		t.Fatalf("options = %d", len(out))
@@ -139,6 +138,9 @@ func TestGiftOptionsFromWire(t *testing.T) {
 	}
 	if out[0].Currency != "USD" || out[0].Amount != 200 || !out[0].Extended {
 		t.Errorf("store fields lost: %+v", out[0])
+	}
+	if out[0].StoreProduct != "stars_100" {
+		t.Errorf("store product lost: %+v", out[0])
 	}
 	if out[1].Currency != "" || out[1].Extended {
 		t.Errorf("bare option carries fields: %+v", out[1])

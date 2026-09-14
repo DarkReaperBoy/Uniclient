@@ -31,7 +31,7 @@ func (s *giftStub) GetStarsGiftOptions(userID string) ([]cores.StarsGiftAmount, 
 
 func (s *giftStub) GetStarsBalance() (int64, error) { return s.balance, nil }
 
-func newGiftEngine(t *testing.T, core *giftStub) *Engine {
+func newGiftEngine(t *testing.T, core cores.Core) *Engine {
 	t.Helper()
 	e := newTestEngine(t)
 	if _, err := e.db.Exec(
