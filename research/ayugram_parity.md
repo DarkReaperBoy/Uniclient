@@ -369,10 +369,10 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (199 feature rows)
 
-- PRESENT: 180 (90%)
-- PARTIAL: 13 — honest scope cuts (6) · platform/protocol-blocked (3:
-  video playback ×2, avatar corners) · engine-gated (2: forum extras,
-  saved sublists) · checkout-gated (2: stars gifting, giveaway launch)
+- PRESENT: 181 (91%)
+- PARTIAL: 12 — honest scope cuts (6) · platform/protocol-blocked (3:
+  video playback ×2, avatar corners) · engine-gated (1: forum extras) ·
+  checkout-gated (2: stars gifting, giveaway launch)
 - MISSING: 1 — PiP (blocked on pure-Go video decode)
 - CORE-ONLY: 5 — video frames ×2 (decode-blocked) · webview
   (owner-decision) · experimental flags (dead-UI ban, by design) · Ayu
