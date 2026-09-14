@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"log"
 )
 
@@ -96,4 +97,23 @@ func (e *Engine) GetTopicMessagesAfter(accountID, chatID, topicID string, afterM
 	e.populateMediaMetadata(msgs)
 	e.populateReplyPreviews(msgs)
 	return e.applyAyuFilters(msgs), nil
+}
+
+// ReorderPinnedForumTopics (slice 205) changes the pinned-topic order
+// in a forum (messages.reorderPinnedForumTopics with force — stale
+// server pins outside the passed order unpin instead of corrupting
+// it, the same semantics the dialogs and saved-sublists reorders use).
+func (e *Engine) ReorderPinnedForumTopics(accountID, chatID string, topicIDs []int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type topicReorderer interface {
+		ReorderPinnedForumTopics(chatID string, topicIDs []int) error
+	}
+	tr, ok := acc.Core.(topicReorderer)
+	if !ok {
+		return fmt.Errorf("platform does not support forum topics")
+	}
+	return tr.ReorderPinnedForumTopics(chatID, topicIDs)
 }

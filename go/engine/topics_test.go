@@ -2,6 +2,8 @@ package engine
 
 import (
 	"testing"
+
+	"uniclient/cores"
 )
 
 // Forum topic scoping (slice 118): messages cached with topic_id must filter
@@ -125,4 +127,47 @@ func msgIDs(msgs []CachedMessage) []string {
 		ids = append(ids, m.MsgID)
 	}
 	return ids
+}
+
+// ---- slice 205: pinned-topic reorder passthrough ----
+
+// forumTopicsStub: a core exposing the reorder surface (records calls
+// through a pointer field — the account holds the core by value).
+type forumTopicsStub struct {
+	cores.StubCore
+	reorderLog *[][]int
+}
+
+func (s forumTopicsStub) ReorderPinnedForumTopics(chatID string, topicIDs []int) error {
+	if s.reorderLog != nil {
+		*s.reorderLog = append(*s.reorderLog, append([]int(nil), topicIDs...))
+	}
+	return nil
+}
+
+// TestReorderPinnedForumTopics: the engine forwards chatID + the full
+// pinned order; cores without the surface (or missing accounts) error
+// honestly.
+func TestReorderPinnedForumTopics(t *testing.T) {
+	e := newTestEngine(t)
+	if _, err := e.db.Exec(
+		`INSERT OR IGNORE INTO accounts (id, platform, display_name, sort_order, created_at)
+                 VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	var log [][]int
+	e.accounts = map[string]*Account{"tg": {ID: "tg", Core: forumTopicsStub{reorderLog: &log}}}
+	if err := e.ReorderPinnedForumTopics("tg", "-1009", []int{3, 1, 2}); err != nil {
+		t.Fatalf("ReorderPinnedForumTopics: %v", err)
+	}
+	if len(log) != 1 || log[0][0] != 3 || log[0][2] != 2 {
+		t.Fatalf("reorder forwarded = %v", log)
+	}
+	e.accounts["irc"] = &Account{ID: "irc", Core: plainStub{}}
+	if err := e.ReorderPinnedForumTopics("irc", "-1009", []int{1}); err == nil {
+		t.Fatal("plain core must not support topic reorder")
+	}
+	if err := e.ReorderPinnedForumTopics("missing", "-1009", nil); err == nil {
+		t.Fatal("missing account must error")
+	}
 }

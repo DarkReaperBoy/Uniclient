@@ -27018,12 +27018,17 @@ func (t *TelegramCore) PinForumTopic(chatID string, topicID int, pinned bool) er
 
 // ReorderPinnedForumTopics changes the order of pinned forum topics.
 func (t *TelegramCore) ReorderPinnedForumTopics(chatID string, topicIDs []int) error {
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return err
+	}
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
 	}
 	defer unlock()
-	_, err = t.api.MessagesReorderPinnedForumTopics(t.ctx, &tg.MessagesReorderPinnedForumTopicsRequest{
+	_, err = api.MessagesReorderPinnedForumTopics(ctx, &tg.MessagesReorderPinnedForumTopicsRequest{
 		Peer: inputPeer, Order: topicIDs, Force: true,
 	})
 	return err

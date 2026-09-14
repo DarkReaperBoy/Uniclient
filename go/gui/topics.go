@@ -26,7 +26,9 @@ import (
 
 // ── pure helpers (unit-tested) ────────────────────────────────────────────
 
-// sortForumTopics orders topics pinned-first, then by descending top
+// sortForumTopics orders topics pinned-first IN THE SERVER PIN ORDER
+// (slice 205: reorders must be visible — messages.getForumTopics
+// returns the pin order), then the unpinned tail by descending top
 // message id (activity), General first among equals.
 func sortForumTopics(topics []cores.ForumTopic) []cores.ForumTopic {
 	out := make([]cores.ForumTopic, len(topics))
@@ -34,6 +36,9 @@ func sortForumTopics(topics []cores.ForumTopic) []cores.ForumTopic {
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].IsPinned != out[j].IsPinned {
 			return out[i].IsPinned
+		}
+		if out[i].IsPinned && out[j].IsPinned {
+			return false // stable: preserve the server pin order
 		}
 		ti, _ := strconv.Atoi(out[i].TopMessageID)
 		tj, _ := strconv.Atoi(out[j].TopMessageID)
@@ -43,6 +48,53 @@ func sortForumTopics(topics []cores.ForumTopic) []cores.ForumTopic {
 		return out[i].ID == "1"
 	})
 	return out
+}
+
+// forumTopicMoveIDs (slice 205, pure): the new pinned order after
+// moving topicID by delta (±1) within the pinned block. Edge moves and
+// unpinned/missing topics are no-ops (the input order returns).
+func forumTopicMoveIDs(topics []cores.ForumTopic, topicID string, delta int) []int {
+	ids := make([]int, 0, len(topics))
+	pIdx := -1
+	for _, t := range topics {
+		if !t.IsPinned {
+			continue
+		}
+		id, _ := strconv.Atoi(t.ID)
+		if t.ID == topicID {
+			pIdx = len(ids)
+		}
+		ids = append(ids, id)
+	}
+	if pIdx < 0 || delta == 0 {
+		return ids
+	}
+	target := pIdx + delta
+	if target < 0 || target >= len(ids) {
+		return ids
+	}
+	ids[pIdx], ids[target] = ids[target], ids[pIdx]
+	return ids
+}
+
+// forumTopicMenuCanMove (slice 205, pure): whether the topic at
+// topicID can move up/down within the pinned block (at least two
+// pinned topics required).
+func forumTopicMenuCanMove(topics []cores.ForumTopic, topicID string) (up, down bool) {
+	pIdx, np := -1, 0
+	for _, t := range topics {
+		if !t.IsPinned {
+			continue
+		}
+		if t.ID == topicID {
+			pIdx = np
+		}
+		np++
+	}
+	if pIdx < 0 || np < 2 {
+		return false, false
+	}
+	return pIdx > 0, pIdx < np-1
 }
 
 // topicColor maps Telegram's predefined topic icon colors; unknown ids get
@@ -273,12 +325,27 @@ func (a *App) renameForumTopic(k chatKey, t cores.ForumTopic) {
 
 // applyForumAction runs one topic management action from the actions dialog.
 func (a *App) applyForumAction(k chatKey, t cores.ForumTopic, action string) {
+	// Slice 205: the move order is computed on the GUI loop (a.forumTopics
+	// read under the lock) before the RPC goroutine starts.
+	var moveIDs []int
+	if action == "up" || action == "down" {
+		a.mu.Lock()
+		topics := sortForumTopics(a.forumTopics)
+		a.mu.Unlock()
+		delta := 1
+		if action == "up" {
+			delta = -1
+		}
+		moveIDs = forumTopicMoveIDs(topics, t.ID, delta)
+	}
 	go func() {
 		var err error
 		tid, _ := strconv.Atoi(t.ID)
 		switch action {
 		case "pin":
 			err = a.eng.PinForumTopic(k.AccountID, k.ChatID, tid, !t.IsPinned)
+		case "up", "down":
+			err = a.eng.ReorderPinnedForumTopics(k.AccountID, k.ChatID, moveIDs)
 		case "close":
 			err = a.eng.ToggleForumTopicClosed(k.AccountID, k.ChatID, tid, !t.IsClosed)
 		case "rename":
@@ -481,6 +548,16 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 		}
 		if d.topic.IsPinned {
 			actions[0].label = "Unpin topic"
+		}
+		// Slice 205: move entries for pinned topics with room in the
+		// pinned block (reorderPinnedForumTopics).
+		if up, down := forumTopicMenuCanMove(a.forumTopics, d.topic.ID); d.topic.IsPinned {
+			if up {
+				actions = append(actions[:1], append([]actRow{{"up", "Move up"}}, actions[1:]...)...)
+			}
+			if down {
+				actions = append(actions[:2], append([]actRow{{"down", "Move down"}}, actions[2:]...)...)
+			}
 		}
 		if d.topic.IsClosed {
 			actions[1].label = "Reopen topic"
