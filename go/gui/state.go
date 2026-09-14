@@ -674,6 +674,7 @@ func (a *App) Shutdown() {
 	if a.lockUnsub != nil {
 		a.lockUnsub()
 	}
+	stopInstanceServer() // close the toast click-through channel (slice 202)
 	if a.isSeparate() {
 		return // tray + taskbar are main-window-owned singletons
 	}

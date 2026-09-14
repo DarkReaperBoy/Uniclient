@@ -1,6 +1,8 @@
 # Windows native toast notifications — pure-Go ABI research (2026-09-14)
 
-Status: RESEARCHED, not implemented. Next slice picks this up.
+Status: SHIPPED. Slice 200 = transport, slice 201 = own AUMID,
+slice 202 = click-through activation (this file keeps the primary-source
+ABI pins the implementation was built from).
 Primary sources (fetched fresh, not trusted from stale notes):
 - mingw-w64 `windows.ui.notifications.h` (interface UUIDs + vtable order)
 - mingw-w64 `windows.data.xml.dom.h`
@@ -56,30 +58,47 @@ CoCreateInstance + pinned vtable slots).
 </toast>
 ```
 
-## AUMID (AppUserModelID) — the honest problem
-Toasts render only for AUMIDs registered via a Start-Menu shortcut
-(IShellLink COM — a separate, bigger slice). Options:
-1. PowerShell's AUMID (works on every stock Win10/11, shows
-   "Windows PowerShell" as the source — the BurntToast/go-toast
-   default; honest but mislabeled source).
-2. Register our own shortcut (IShellLink + IPropertyStore COM +
-   System.AppUserModel.ID property) — the tdesktop-faithful path,
-   ~2x the COM surface.
-Decision for v1: option 1 (documented in code + settings as "via
-PowerShell's notification registration"), option 2 as the follow-up.
+## AUMID (AppUserModelID) — shipped as option 2 (slice 201)
+`shortcut_windows.go` registers the per-user Start-Menu shortcut via
+pure-Go COM, ABI pinned against mingw-w64 headers (fetched this
+session, not trusted from notes):
+- shobjidl.h: CLSID_ShellLink {00021401-…-46}, IID_IShellLinkW
+  {000214F9-…-46}; vtable (after IUnknown 0-2): GetPath 3 …
+  SetWorkingDirectory 9 … SetIconLocation 17 … SetPath 20.
+- objidl.h: IID_IPersistFile {0000010B-…-46}; Save = slot 6.
+- propsys.h: IID_IPropertyStore {886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99};
+  SetValue = 6, Commit = 7.
+- propkey.h: PKEY_AppUserModel.ID = fmtid
+  {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, pid 5 — note the tail
+  E1-D4-2D-E1-D5-F3 ("E1D42DE4D436" in blog posts is a propagated
+  typo). PROPVARIANT VT_LPWSTR = 31, pointer at offset 8 (24-byte
+  struct on x64) — layout locked by comabi_test.go on every platform.
+Flow: CoCreateInstance → SetPath/SetWorkingDirectory/SetIconLocation →
+QI IPropertyStore → SetValue(PKEY_AppUserModel.ID, VT_LPWSTR) →
+Commit → QI IPersistFile → Save (property commit BEFORE persist, per
+the AppUserModelID docs). PowerShell's AUMID stays the always-works
+fallback (resolvedToastAUMID, one attempt per process).
 
-## Wiring point
-The Linux DBus transport lives in the notify layer (slice 141's
-freedesktop banners + notify.go's notifyOpenAction hop — banner click →
-pendingOpen). The Windows transport mirrors: `notify_windows.go`
-(build tag windows) with the same entry signature the Linux transport
-has; in-app banners remain the click surface v1 (toast click-through
-activation needs the COM activator callback + a window-raise —
-follow-up).
+## Click-through — shipped (slice 202)
+The WinRT COM activator path needs a separate in-proc DLL (banned,
+§1.3 single binary), so activation rides protocol activation instead:
+- Toast XML: activationType="protocol" launch="uniclient://open?acc=…
+  &chat=…" (attribute-escaped; buildOpenURI/parseOpenURI pure+tested).
+- Per-user scheme registration: HKCU\Software\Classes\uniclient
+  ("URL Protocol" + shell\open\command `"exe" "%1"`) — x/sys
+  registry, no elevation; rewritten at boot so a moved exe self-heals.
+- Single-instance channel: <config>/instance.lock ("port cookie",
+  atomic rename), localhost TCP listener; a launcher process holding
+  the URI forwards "open cookie uri" and exits (HandleLaunchURI before
+  engine boot — a click never pays the engine init); the running app
+  hops the open through notifyOpenAction (ActionRaise + pendingOpen,
+  the same surface as the Linux DBus click). Cold-start clicks boot the
+  app and route the URI once an account exists (routeBootURI).
 
-## Tests (tests-first when implementing)
-- The XML builder + AUMID + title/body escaping: pure, unit-tested on
-  all platforms (share a _test.go without the build tag).
-- The COM path: compile-checked on windows CI (verify.yml cross-build
-  + dispatch), honest failure at runtime (missing combase → banner
-  fallback, never a crash).
+## Tests
+- comabi_test.go / openuri_test.go / toastxml_test.go: pure halves
+  pinned on every platform (GUID/PKEY values, PROPVARIANT offsets,
+  URI round-trips incl. Matrix/IRC ids, XML attribute escaping).
+- The COM/registry paths: compile-checked by the windows cross-build
+  (verify.yml), honest failure at runtime (error → log-only → the
+  in-app banner path, never a crash).

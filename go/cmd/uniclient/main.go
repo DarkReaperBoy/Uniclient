@@ -31,6 +31,13 @@ func main() {
 	password := flag.String("password", defaultVaultPassword(), "vault password")
 	flag.Parse()
 
+	// Toast click-through (slice 202, Windows): a launcher process that
+	// the shell started with a uniclient:// URI forwards the open to the
+	// running instance and exits — the engine never boots for a click.
+	if gui.HandleLaunchURI(flag.Args(), *dir) {
+		return
+	}
+
 	w := new(app.Window)
 	w.Option(
 		app.Title("Uniclient"),
@@ -62,6 +69,10 @@ func run(w *app.Window, dir, password string) error {
 
 	ui := gui.New(w, eng)
 	ui.Start()
+	// Own the toast click-through channel (slice 202, Windows): scheme
+	// registration + the single-instance command listener; no-ops on the
+	// other platforms.
+	ui.ServeInstanceCommands(dir)
 	defer ui.Shutdown() // release the tray icon on exit (slice 137)
 
 	var ops op.Ops

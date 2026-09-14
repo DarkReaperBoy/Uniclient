@@ -14,11 +14,14 @@ package gui
 // per-user Start-Menu shortcut (IShellLinkW + IPropertyStore COM,
 // shortcut_windows.go) carrying "DarkReaperBoy.Uniclient", so the
 // source row shows "Uniclient"; PowerShell's pre-registered AUMID
-// remains the always-works fallback. Click-through activation (the
-// protocol launch attribute + single-instance raise) is the slice-202
-// follow-up: onAction is never invoked — the in-app banner remains the
-// click surface, and failures fall back to it silently (never a crash,
-// §1.10).
+// remains the always-works fallback. Slice 202: click-through rides the
+// protocol launch attribute — the toast carries
+// activationType="protocol" launch="uniclient://open?…" (toastxml.go),
+// the shell activates the registered scheme (instance_windows.go), a
+// second process forwards the open to the running instance and exits.
+// onAction is still never invoked (protocol activation is not a Go
+// callback) — the in-app banner remains the direct click surface, and
+// failures fall back to it silently (never a crash, §1.10).
 
 import (
 	"sync"
@@ -194,7 +197,13 @@ func notifyDesktop(title, body, key, icon string, actions []string, onAction fun
 		return syscall.EINVAL
 	}
 	defer comRelease(docIO)
-	xml, err := newHString(toastXML(title, body))
+	// Toast XML (slice 202): the launch attribute carries the chat so a
+	// toast click opens it (protocol activation → single-instance hop).
+	launch := ""
+	if acc, chat, ok := splitNotifyKey(key); ok {
+		launch = buildOpenURI(acc, chat)
+	}
+	xml, err := newHString(toastXML(title, body, launch))
 	if err != nil {
 		return err
 	}
