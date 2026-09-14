@@ -91,27 +91,13 @@ func prepaidFromBoostStatus(st map[string]interface{}) []prepaidGiveawayRow {
 		if !ok {
 			continue
 		}
-		row := prepaidGiveawayRow{}
-		switch v := m["id"].(type) {
-		case int64:
-			row.ID = v
-		case float64:
-			row.ID = int64(v)
-		}
-		switch v := m["credits"].(type) {
-		case int64:
-			row.Credits = v
-		case float64:
-			row.Credits = int64(v)
-		}
-		row.Months = boostIntField(m, "months")
-		row.Quantity = boostIntField(m, "quantity")
-		row.Boosts = boostIntField(m, "boosts")
-		switch v := m["date"].(type) {
-		case int64:
-			row.Date = v
-		case float64:
-			row.Date = int64(v)
+		row := prepaidGiveawayRow{
+			ID:       boostInt64Field(m, "id"),
+			Credits:  boostInt64Field(m, "credits"),
+			Months:   boostIntField(m, "months"),
+			Quantity: boostIntField(m, "quantity"),
+			Boosts:   boostIntField(m, "boosts"),
+			Date:     boostInt64Field(m, "date"),
 		}
 		if row.ID != 0 {
 			rows = append(rows, row)
@@ -122,13 +108,18 @@ func prepaidFromBoostStatus(st map[string]interface{}) []prepaidGiveawayRow {
 
 // boostIntField reads a numeric map field across int/int64/float64.
 func boostIntField(m map[string]interface{}, key string) int {
+	return int(boostInt64Field(m, key))
+}
+
+// boostInt64Field reads a numeric map field across int/int64/float64.
+func boostInt64Field(m map[string]interface{}, key string) int64 {
 	switch v := m[key].(type) {
 	case int:
-		return v
+		return int64(v)
 	case int64:
-		return int(v)
+		return v
 	case float64:
-		return int(v)
+		return int64(v)
 	}
 	return 0
 }

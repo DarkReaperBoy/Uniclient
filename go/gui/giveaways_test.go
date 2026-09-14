@@ -46,11 +46,11 @@ func TestGiveawayDatePresets(t *testing.T) {
 }
 
 func TestGiveawayUntilDate(t *testing.T) {
-	// tdesktop ThreeDaysAfterToday: +3 days, then round minutes up to a
-	// 5-minute boundary.
+	// tdesktop ThreeDaysAfterToday: +3 days, then minutes rounded up to
+	// a 5-minute boundary — seconds preserved (QTime keeps them).
 	now := time.Date(2026, 9, 14, 12, 3, 30, 0, time.UTC)
 	got := giveawayUntilDate(3, now)
-	want := time.Date(2026, 9, 17, 12, 5, 0, 0, time.UTC).Unix()
+	want := time.Date(2026, 9, 17, 12, 5, 30, 0, time.UTC).Unix()
 	if got != want {
 		t.Errorf("until = %d, want %d", got, want)
 	}
@@ -61,10 +61,10 @@ func TestGiveawayUntilDate(t *testing.T) {
 	if got2 != want2 {
 		t.Errorf("until = %d, want %d", got2, want2)
 	}
-	// 12:04:59 → 12:05.
+	// 12:04:59 → 12:05:59 (minute rounds up, seconds ride along).
 	now3 := time.Date(2026, 9, 14, 12, 4, 59, 0, time.UTC)
 	got3 := giveawayUntilDate(3, now3)
-	want3 := time.Date(2026, 9, 17, 12, 5, 0, 0, time.UTC).Unix()
+	want3 := time.Date(2026, 9, 17, 12, 5, 59, 0, time.UTC).Unix()
 	if got3 != want3 {
 		t.Errorf("until = %d, want %d", got3, want3)
 	}
