@@ -2958,62 +2958,6 @@ func (e *Engine) GetGiftCodeOptions(accountID, chatID string) ([]map[string]inte
 	return nil, fmt.Errorf("platform does not support gift code options")
 }
 
-func (e *Engine) LaunchPrepaidGiveaway(accountID, chatID string, giveawayID int64, params map[string]interface{}) error {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type prepaidGiveawayLauncher interface {
-		LaunchPrepaidGiveaway(chatID string, giveawayID int64, params map[string]interface{}) error
-	}
-	if l, ok := acc.Core.(prepaidGiveawayLauncher); ok {
-		return l.LaunchPrepaidGiveaway(chatID, giveawayID, params)
-	}
-	return fmt.Errorf("platform does not support prepaid giveaways")
-}
-
-func (e *Engine) LaunchRandomGiveaway(accountID, chatID string, params map[string]interface{}) (map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type randomGiveawayLauncher interface {
-		LaunchRandomGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error)
-	}
-	if l, ok := acc.Core.(randomGiveawayLauncher); ok {
-		return l.LaunchRandomGiveaway(chatID, params)
-	}
-	return nil, fmt.Errorf("platform does not support random giveaways")
-}
-
-func (e *Engine) GetStarsGiveawayOptions(accountID string) ([]map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type starsGiveawayOptionsGetter interface {
-		GetStarsGiveawayOptions() ([]map[string]interface{}, error)
-	}
-	if g, ok := acc.Core.(starsGiveawayOptionsGetter); ok {
-		return g.GetStarsGiveawayOptions()
-	}
-	return nil, fmt.Errorf("platform does not support stars giveaway options")
-}
-
-func (e *Engine) LaunchCreditsGiveaway(accountID, chatID string, params map[string]interface{}) (map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type creditsGiveawayLauncher interface {
-		LaunchCreditsGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error)
-	}
-	if l, ok := acc.Core.(creditsGiveawayLauncher); ok {
-		return l.LaunchCreditsGiveaway(chatID, params)
-	}
-	return nil, fmt.Errorf("platform does not support credits giveaways")
-}
-
 func (e *Engine) GetGiveawayPeriodMax(accountID string) (int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -3026,40 +2970,6 @@ func (e *Engine) GetGiveawayPeriodMax(accountID string) (int, error) {
 		return g.GetGiveawayPeriodMax()
 	}
 	return 604800, nil
-}
-
-func (e *Engine) GetGiveawayConfig(accountID string) (map[string]int, error) {
-	fallback := map[string]int{
-		"boosts_per_premium": 4,
-		"countries_max":      10,
-		"add_peers_max":      10,
-		"period_max":         604800,
-	}
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return fallback, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type giveawayConfigGetter interface {
-		GetGiveawayConfig() (map[string]int, error)
-	}
-	if g, ok := acc.Core.(giveawayConfigGetter); ok {
-		return g.GetGiveawayConfig()
-	}
-	return fallback, nil
-}
-
-func (e *Engine) AwardPremiumGiveaway(accountID, chatID string, params map[string]interface{}) (map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type premiumAwarder interface {
-		AwardPremiumGiveaway(chatID string, params map[string]interface{}) (map[string]interface{}, error)
-	}
-	if a, ok := acc.Core.(premiumAwarder); ok {
-		return a.AwardPremiumGiveaway(chatID, params)
-	}
-	return nil, fmt.Errorf("platform does not support premium giveaways")
 }
 
 func (e *Engine) GetFullChat(accountID, chatID string) (*cores.Dialog, error) {

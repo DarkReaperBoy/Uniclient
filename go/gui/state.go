@@ -284,6 +284,8 @@ type App struct {
 	// slice 211: gift picker.
 	giftDlg    *giftDlgState
 	giftHideOn bool
+	// slice 212: giveaway box (create + prepaid launch).
+	giveawayDlg *giveawayDlgState
 	// shared-media tab browser (slice 78): active tab + lazy per-tab
 	// item windows, reset on every panel reload.
 	panelTab         string
@@ -2212,6 +2214,7 @@ func (a *App) snapshot() frame {
 		musicAttachDlg:   a.musicAttachDlg,
 		giftDlg:          a.giftDlg,
 		giftHideOn:       a.giftHideOn,
+		giveawayDlg:      a.giveawayDlg,
 		muteDlg:          a.muteDlg,
 		members:          a.members,
 		mediaCounts:      a.mediaCounts,
@@ -2515,6 +2518,8 @@ type frame struct {
 	// slice 211: gift picker.
 	giftDlg    *giftDlgState
 	giftHideOn bool
+	// slice 212: giveaway box.
+	giveawayDlg *giveawayDlgState
 
 	// header presence (slice 28): DM peer online/last-seen for the header
 	hdrPresence *engine.CachedUser

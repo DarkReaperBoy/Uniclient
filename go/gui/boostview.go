@@ -317,6 +317,16 @@ func (a *App) layoutBoostPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 	if a.wid.boostApplyBtn.Clicked(gtx) {
 		a.applyOwnBoost()
 	}
+	if a.wid.boostGiveawayBtn.Clicked(gtx) && chat != nil {
+		a.openGiveawayCreator(*chat)
+	}
+	prepaid := prepaidFromBoostStatus(f.boostStatus)
+	growClickables(&a.wid.boostLaunchCells, len(prepaid))
+	for i := range prepaid {
+		if a.wid.boostLaunchCells[i].Clicked(gtx) && chat != nil {
+			a.openPrepaidLaunch(*chat, prepaid[i])
+		}
+	}
 
 	title := "Boosts"
 	if chat != nil {
@@ -340,13 +350,13 @@ func (a *App) layoutBoostPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 				})
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return a.boostScroll(gtx, f)
+			return a.boostScroll(gtx, f, chat)
 		}),
 	)
 }
 
 // boostScroll: status card + tabs + rows.
-func (a *App) boostScroll(gtx layout.Context, f frame) layout.Dimensions {
+func (a *App) boostScroll(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	st := f.boostStatus
 	var children []layout.FlexChild
 
@@ -440,6 +450,58 @@ func (a *App) boostScroll(gtx layout.Context, f frame) layout.Dimensions {
 				})
 			})
 	}))
+
+	// Prepaid giveaways (slice 212): already-paid entries launchable here.
+	if prepaidRows := prepaidFromBoostStatus(st); len(prepaidRows) > 0 {
+		prepaidRows := prepaidRows
+		growClickables(&a.wid.boostLaunchCells, len(prepaidRows))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			var rows []layout.FlexChild
+			rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(10), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					lbl := a.ui.Label(unit.Sp(13), "Prepaid giveaways")
+					return lbl.Layout(gtx)
+				})
+			}))
+			for i, row := range prepaidRows {
+				i, row := i, row
+				rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: unit.Dp(4), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
+								return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											lbl := a.ui.Label(unit.Sp(14), prepaidRowTitle(row))
+											return lbl.Layout(gtx)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+												lbl := a.ui.Dim(unit.Sp(12), prepaidRowSub(row))
+												return lbl.Layout(gtx)
+											})
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											if chat == nil {
+												return layout.Dimensions{}
+											}
+											return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+												btn := material.Button(a.ui.Theme, &a.wid.boostLaunchCells[i], "Launch")
+												btn.CornerRadius = 10
+												btn.TextSize = unit.Sp(13)
+												btn.Background = a.ui.p.Accent
+												return btn.Layout(gtx)
+											})
+										}),
+									)
+								})
+							})
+						})
+				}))
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+		}))
+	}
 
 	// Tabs.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {

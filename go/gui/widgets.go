@@ -79,6 +79,9 @@ type widgets struct {
 	boostTabGifts    widget.Clickable
 	boostMoreBtn     widget.Clickable
 	boostApplyBtn    widget.Clickable
+	// slice 212: giveaway entry + prepaid launch rows.
+	boostGiveawayBtn widget.Clickable
+	boostLaunchCells []widget.Clickable
 	statsPanelList   widget.List
 
 	// adminlog.go

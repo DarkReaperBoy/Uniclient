@@ -247,7 +247,7 @@ func TestReadPathRPCsDoNotPinMutex(t *testing.T) {
 		{"GetInstalledEmojiSets", func(tc *TelegramCore) { _, _ = tc.GetInstalledEmojiSets() }},
 		{"SetHideReadMarks", func(tc *TelegramCore) { _ = tc.SetHideReadMarks(true) }},
 		{"GetCustomEmojiSetInfo", func(tc *TelegramCore) { _, _, _, _, _, _, _ = tc.GetCustomEmojiSetInfo(1) }},
-		{"GetGiveawayConfig", func(tc *TelegramCore) { _, _ = tc.GetGiveawayConfig() }},
+		{"GetStarsGiveawayOptions", func(tc *TelegramCore) { _, _ = tc.GetStarsGiveawayOptions() }},
 		{"GetContentSettings", func(tc *TelegramCore) { _, _, _, _ = tc.GetContentSettings() }},
 		{"GetAvailableReactionEmojis", func(tc *TelegramCore) { _, _ = tc.GetAvailableReactionEmojis() }},
 		{"GetPremiumStatus", func(tc *TelegramCore) { _, _, _ = tc.GetPremiumStatus() }},

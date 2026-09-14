@@ -429,6 +429,42 @@ type StarsGiftAmount struct {
 	StoreProduct string `json:"store_product,omitempty"`
 }
 
+// StarsGiveawayWinnerInfo is one winner split of a stars giveaway option
+// (payments.getStarsGiveawayOptions winners vector).
+type StarsGiveawayWinnerInfo struct {
+	Users        int   `json:"users"`
+	PerUserStars int64 `json:"per_user_stars"`
+	Default      bool  `json:"default,omitempty"`
+}
+
+// StarsGiveawayOptionInfo is one giveaway prize amount
+// (payments.getStarsGiveawayOptions): the total stars distributed among
+// the chosen winner count, with its yearly-boost bonus.
+type StarsGiveawayOptionInfo struct {
+	Winners      []StarsGiveawayWinnerInfo `json:"winners"`
+	Stars        int64                     `json:"stars"`
+	YearlyBoosts int                       `json:"yearly_boosts"`
+	Currency     string                    `json:"currency,omitempty"`
+	Amount       int64                     `json:"amount,omitempty"`
+	StoreProduct string                    `json:"store_product,omitempty"`
+	Extended     bool                      `json:"extended,omitempty"`
+	Default      bool                      `json:"default,omitempty"`
+}
+
+// GiveawayParams carries the user choices for creating or launching a
+// giveaway (tdesktop create_giveaway_box): winner count, end date,
+// visibility and audience restrictions. Protocol-neutral — the core maps
+// it onto the wire purpose.
+type GiveawayParams struct {
+	WinnerCount int      `json:"winner_count"`
+	UntilDate   int      `json:"until_date"` // unix seconds
+	OnlyNew     bool     `json:"only_new,omitempty"`
+	ShowWinners bool     `json:"show_winners,omitempty"`
+	Prize       string   `json:"prize,omitempty"`
+	Countries   []string `json:"countries,omitempty"`
+	ExtraChats  []string `json:"extra_chats,omitempty"` // additional channels to join (chat IDs)
+}
+
 // MusicTrackInfo is one profile-music track (tdesktop "saved music",
 // slice 206): an audio document pinned on a user profile. FileRefB64
 // carries the encoded file reference so the download path can fetch the
