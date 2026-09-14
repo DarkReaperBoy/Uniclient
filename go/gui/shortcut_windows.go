@@ -26,11 +26,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 // vtable slots — IUnknown 0-2, then declaration order (mingw-w64):
@@ -142,6 +144,26 @@ func ensureAUMIDShortcut() error {
 	return nil
 }
 
+// registerAUMIDMetadata (slice 203, the SDL3 toast recipe): the
+// per-user AppUserModelId registry entry — DisplayName + IconUri — that
+// the notification platform reads for the toast header. Belt-and-braces
+// with the Start-Menu shortcut: whichever source the shell resolves
+// first, the toast shows "Uniclient" with the exe icon. HKCU, no
+// elevation; failure is log-worthy only.
+func registerAUMIDMetadata(exe string) error {
+	k, _, err := registry.CreateKey(registry.CURRENT_USER,
+		`Software\Classes\AppUserModelId\`+ourAUMID, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer k.Close()
+	if err := k.SetStringValue("DisplayName", "Uniclient"); err != nil {
+		return err
+	}
+	icon := strings.ReplaceAll(exe, "\\", "/")
+	return k.SetStringValue("IconUri", "file:///"+icon)
+}
+
 // resolvedToastAUMID: our own AUMID once the shortcut registration has
 // succeeded (one attempt per process), PowerShell's pre-registered AUMID
 // as the always-works fallback — the slice-200 v1 semantics, never a
@@ -151,6 +173,10 @@ func resolvedToastAUMID() string {
 		aumidResolved = powerShellAUMID
 		if err := ensureAUMIDShortcut(); err == nil {
 			aumidResolved = ourAUMID
+			if exe, err := os.Executable(); err == nil {
+				// Toast-header metadata (slice 203); never gates the AUMID.
+				_ = registerAUMIDMetadata(exe)
+			}
 		}
 	})
 	return aumidResolved

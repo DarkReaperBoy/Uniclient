@@ -139,6 +139,10 @@ func notifyDesktop(title, body, key, icon string, actions []string, onAction fun
 		hints["image-path"] = dbus.MakeVariant(icon)
 	}
 	hints["desktop-entry"] = dbus.MakeVariant("uniclient")
+	// Slice 203: the app plays its own synthesized chime (slice 121) —
+	// the server-side sound would double it. Spec: "suppress-sound"
+	// (boolean) — the server must not play any sounds for this call.
+	hints["suppress-sound"] = dbus.MakeVariant(true)
 
 	var id uint32
 	call := obj.Call(dbusNotifyIface+".Notify", 0,

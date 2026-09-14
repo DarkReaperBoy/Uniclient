@@ -48,6 +48,16 @@ type propertyKey struct {
 	pid   uint32
 }
 
+// iidIToastNotification2 (slice 203) — the Win10+ interface carrying
+// Tag/Group/SuppressPopup: {9DFB9FD1-143A-490E-90BF-B9FBA7132DE7}
+// (SDL's shipped toast implementation + the winmd-generated C headers
+// agree). Vtable (IUnknown 0-2, IInspectable 3-5): put_Tag 6, get_Tag 7,
+// put_Group 8, get_Group 9, put_SuppressPopup 10, get_SuppressPopup 11.
+var iidIToastNotification2 = winGUID{
+	Data1: 0x9DFB9FD1, Data2: 0x143A, Data3: 0x490E,
+	Data4: [8]byte{0x90, 0xBF, 0xB9, 0xFB, 0xA7, 0x13, 0x2D, 0xE7},
+}
+
 // pkeyAppUserModelID is PKEY_AppUserModel.ID (mingw-w64 propkey.h) — the
 // property that turns a Start-Menu shortcut into a toast-registered
 // AUMID. fmtid tail is E1-D4-2D-E1-D5-F3 (not the "E1D42DE4D436" typo

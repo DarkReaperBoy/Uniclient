@@ -27,6 +27,7 @@ type fakeNotifyCall struct {
 	actions   []string
 	entry     string // desktop-entry hint
 	imagePath string // image-path hint (the avatar)
+	suppress  bool   // suppress-sound hint (slice 203)
 }
 
 // fakeNotifyServer serves org.freedesktop.Notifications.Notify and can
@@ -47,12 +48,16 @@ func (s *fakeNotifyServer) Notify(appName string, replaces uint32, icon, summary
 	if v, ok := hints["image-path"]; ok {
 		imgPath, _ = v.Value().(string)
 	}
+	suppress := false
+	if v, ok := hints["suppress-sound"]; ok {
+		suppress, _ = v.Value().(bool)
+	}
 	s.mu.Lock()
 	s.seq++
 	id := s.seq
 	s.calls = append(s.calls, fakeNotifyCall{
 		replaces: replaces, icon: icon, summary: summary, body: body,
-		actions: actions, entry: entry, imagePath: imgPath,
+		actions: actions, entry: entry, imagePath: imgPath, suppress: suppress,
 	})
 	s.mu.Unlock()
 	return id, nil
@@ -155,6 +160,9 @@ func TestNotifyLiveActions(t *testing.T) {
 	}
 	if c.imagePath != "file:///avatars/alice.png" {
 		t.Fatalf("image-path hint = %q, want the avatar URI", c.imagePath)
+	}
+	if !c.suppress {
+		t.Fatalf("suppress-sound hint = false, want true (the app chime is the sound)")
 	}
 
 	// 2. The server invokes the default action → the handler fires with

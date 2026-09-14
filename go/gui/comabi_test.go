@@ -33,6 +33,7 @@ func TestComABIGUIDs(t *testing.T) {
 		{"IID_IShellLinkW", iidIShellLinkW, "{000214F9-0000-0000-C000-000000000046}"},
 		{"IID_IPersistFile", iidIPersistFile, "{0000010B-0000-0000-C000-000000000046}"},
 		{"IID_IPropertyStore", iidIPropertyStore, "{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}"},
+		{"IID_IToastNotification2", iidIToastNotification2, "{9DFB9FD1-143A-490E-90BF-B9FBA7132DE7}"},
 	}
 	for _, c := range cases {
 		if got := canonical(c.got); got != c.want {

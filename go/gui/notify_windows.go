@@ -72,7 +72,14 @@ const (
 	vtFactoryCreate       = 6 // CreateToastNotification(xml, out)
 	vtNotifierShow        = 6 // Show(toast)
 	vtXmlIOLoadXml        = 6 // LoadXml(hstring)
+	vtToast2PutTag        = 6 // IToastNotification2::put_Tag (comabi.go)
+	vtToast2PutGroup      = 8 // IToastNotification2::put_Group (comabi.go)
 )
+
+// toastGroup (slice 203): the shared toast group — every Uniclient
+// toast carries it; the per-chat Tag does the replacement
+// differentiation.
+const toastGroup = "uniclient"
 
 // powerShellAUMID: PowerShell's notification registration (Start
 // Menu shortcut) — the always-works fallback when our own shortcut
@@ -199,11 +206,13 @@ func notifyDesktop(title, body, key, icon string, actions []string, onAction fun
 	defer comRelease(docIO)
 	// Toast XML (slice 202): the launch attribute carries the chat so a
 	// toast click opens it (protocol activation → single-instance hop).
+	// Slice 203: the peer avatar rides the appLogoOverride slot; the
+	// toast itself is silent (the app's synthesized chime is the sound).
 	launch := ""
 	if acc, chat, ok := splitNotifyKey(key); ok {
 		launch = buildOpenURI(acc, chat)
 	}
-	xml, err := newHString(toastXML(title, body, launch))
+	xml, err := newHString(toastXML(title, body, launch, toastImageSrc(icon)))
 	if err != nil {
 		return err
 	}
@@ -226,6 +235,25 @@ func notifyDesktop(title, body, key, icon string, actions []string, onAction fun
 		return syscall.Errno(r)
 	}
 	defer comRelease(toast)
+	// Slice 203: tag the toast per chat (shared group) so a newer toast
+	// for the same chat replaces the older one in Action Center — the
+	// slice-141 "never stack for one chat" semantics. IToastNotification2
+	// (Win10+): QI fails harmlessly on ancient builds → skip tagging.
+	if tag := toastTag(key); tag != "" {
+		if t2, ok := queryInterface(toast, guidRef(&iidIToastNotification2)); ok {
+			defer comRelease(t2)
+			if hs, err := newHString(tag); err == nil {
+				r, _, _ = syscall.SyscallN(vtableCall(t2, vtToast2PutTag), t2, hs.h)
+				hs.free()
+				if r == 0 {
+					if gs, err := newHString(toastGroup); err == nil {
+						syscall.SyscallN(vtableCall(t2, vtToast2PutGroup), t2, gs.h)
+						gs.free()
+					}
+				}
+			}
+		}
+	}
 	r, _, _ = syscall.SyscallN(vtableCall(notifier, vtNotifierShow), notifier, toast)
 	if r != 0 {
 		return syscall.Errno(r)
