@@ -10,13 +10,15 @@ package gui
 // interface UUIDs + vtable order (IUnknown 0-2, IInspectable 3-5), and
 // valinet's pure-C toast gist for the activation flow.
 //
-// The AUMID rides PowerShell's Start-Menu registration (works on every
-// stock Win10/11 — the go-toast/BurntToast default; the source app row
-// shows "Windows PowerShell" until we register our own shortcut, a
-// documented follow-up). Click-through activation (the COM activator
-// callback + window raise) is also a follow-up: onAction is never
-// invoked — the in-app banner remains the click surface, and failures
-// fall back to it silently (never a crash, §1.10).
+// Slice 201: the AUMID is now OURS — resolvedToastAUMID registers the
+// per-user Start-Menu shortcut (IShellLinkW + IPropertyStore COM,
+// shortcut_windows.go) carrying "DarkReaperBoy.Uniclient", so the
+// source row shows "Uniclient"; PowerShell's pre-registered AUMID
+// remains the always-works fallback. Click-through activation (the
+// protocol launch attribute + single-instance raise) is the slice-202
+// follow-up: onAction is never invoked — the in-app banner remains the
+// click surface, and failures fall back to it silently (never a crash,
+// §1.10).
 
 import (
 	"sync"
@@ -69,10 +71,10 @@ const (
 	vtXmlIOLoadXml        = 6 // LoadXml(hstring)
 )
 
-// toastAUMID: PowerShell's notification registration (Start Menu
-// shortcut) — toasts render only for registered AUMIDs; ours is a
-// follow-up (needs IShellLink + IPropertyStore COM).
-const toastAUMID = `1AC14E77-02E7-4E5D-B744-2EB1AE5198B7\WindowsPowerShell\v1.0`
+// powerShellAUMID: PowerShell's notification registration (Start
+// Menu shortcut) — the always-works fallback when our own shortcut
+// registration (shortcut_windows.go, slice 201) does not succeed.
+const powerShellAUMID = `1AC14E77-02E7-4E5D-B744-2EB1AE5198B7\WindowsPowerShell\v1.0`
 
 var toastMu sync.Mutex
 
@@ -157,7 +159,7 @@ func notifyDesktop(title, body, key, icon string, actions []string, onAction fun
 		return err
 	}
 	defer comRelease(manager)
-	aumid, err := newHString(toastAUMID)
+	aumid, err := newHString(resolvedToastAUMID())
 	if err != nil {
 		return err
 	}
