@@ -501,7 +501,8 @@ func (a *App) setStatsEarnTab(earn bool) {
 }
 
 // earnChartsFromMaps (pure, testable): the revenue graph maps onto the
-// stats chart shape (async graphs carry no JSON — honest async row).
+// stats chart shape; async graphs (token-only loads, no JSON yet) are
+// dropped — statsChartCard would honestly skip them anyway.
 func earnChartsFromMaps(charts []map[string]interface{}) []cores.StatsGraphData {
 	out := make([]cores.StatsGraphData, 0, len(charts))
 	for _, c := range charts {

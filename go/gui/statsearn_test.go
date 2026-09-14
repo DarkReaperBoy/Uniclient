@@ -17,18 +17,14 @@ func TestEarnChartsFromMaps(t *testing.T) {
 		{"title": "Async", "type": "Linear", "async_token": "async123"},
 	}
 	out := earnChartsFromMaps(charts)
-	if len(out) != 3 {
-		t.Fatalf("charts = %d, want 3", len(out))
+	if len(out) != 2 {
+		t.Fatalf("charts = %d, want 2 (async graphs dropped, matching statsChartCard's honest skip)", len(out))
 	}
 	if out[0].Title != "Revenue" || out[0].JSON != `{"cols":[...]}` || out[0].Token != "" {
 		t.Errorf("chart 0 = %+v", out[0])
 	}
 	if out[1].Token != "tok" {
 		t.Errorf("zoom token lost: %+v", out[1])
-	}
-	// Async graphs carry no JSON — they render as the honest async row.
-	if out[2].JSON != "" || out[2].Token != "" {
-		t.Errorf("async chart = %+v", out[2])
 	}
 	if got := earnChartsFromMaps(nil); len(got) != 0 {
 		t.Errorf("nil charts = %d", len(got))

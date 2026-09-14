@@ -33,7 +33,9 @@ func TestCountryMatches(t *testing.T) {
 	if got := countryMatches(list, "united"); len(got) != 1 || got[0].ISO2 != "US" {
 		t.Errorf("multi-word search = %+v", got)
 	}
-	if got := countryMatches(list, "D"); len(got) != 1 || got[0].ISO2 != "DE" {
+	// "d" matches both Deutschland and Unite*d* States — substring,
+	// case-insensitive, exactly like tdesktop's filter.
+	if got := countryMatches(list, "D"); len(got) != 2 {
 		t.Errorf("case-insensitive = %+v", got)
 	}
 	if got := countryMatches(list, "us"); len(got) != 1 || got[0].ISO2 != "US" {
