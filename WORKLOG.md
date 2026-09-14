@@ -5672,3 +5672,33 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   wasm cross-builds ok · verify dispatched (2134a5b5).
 - Parity: gap 7 CLOSED — PRESENT 181 (91%) · PARTIAL 12 · MISSING 1 ·
   CORE-ONLY 5.
+
+## 2026-09-14 — slice 205: forum topic pin reorder
+
+- Gap 6's actionable remainder (the Left/Bottom tab positions are
+  tdesktop EXPERIMENTAL flags — documented out by design under the
+  §1.10 dead-UI ban, like gap 3):
+  - Core: ReorderPinnedForumTopics converted to the withAPI snapshot
+    pattern (it still read t.api/t.ctx directly — the §8 freeze class).
+  - Engine: ReorderPinnedForumTopics passthrough + honest unsupported
+    paths (tests first, stub records the forwarded order).
+  - GUI: the topic actions dialog gains Move up / Move down for pinned
+    topics with room in the pinned block (actRow insert + the move
+    order computed on the GUI loop before the RPC goroutine).
+  - Same display bug as slice 204, forum edition: sortForumTopics
+    activity-sorted the PINNED block — reorders were invisible. Pinned
+    now preserves the server order (stable partition); the unpinned
+    tail keeps activity sort + General-first tiebreak. The slice-156
+    topic tab strip follows (it renders the same order).
+- Tests first (4 new/updated pairs): engine forwarding + unsupported
+  paths, move-IDs swaps + edge/unpinned no-ops, canMove bounds, the
+  new sort semantics incl. the all-pinned server-order case.
+- Gate: gofmt/vet clean · go test -tags goolm ./... 8/8 ok · windows +
+  wasm cross-builds ok · verify dispatched (7fa833d3).
+- Parity: gap 6 CLOSED — PRESENT 182 (92%) · PARTIAL 11 · MISSING 1 ·
+  CORE-ONLY 5. Every remaining gap is now blocked/owner-decision/
+  experimental-by-design: video decode (pure-Go H.264/VP9 absent),
+  webview mini-apps (owner decision), experimental flags (dead-UI ban),
+  avatar corners (AyuGram default), checkout UIs (stars gifting +
+  giveaway launch), PiP (video-decode-blocked), proximity radius +
+  message-details DC row (P3 honest scope), logo/userpic polish (P3).
