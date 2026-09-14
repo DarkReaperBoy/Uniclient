@@ -255,6 +255,8 @@ func contentDialogSurface(f frame) string {
 		return "mute"
 	case f.musicDlg != nil:
 		return "profileMusic"
+	case f.musicAttachDlg != nil:
+		return "musicAttach"
 	case f.twofaDlg != nil:
 		return "twofa"
 	case f.soundPicker != nil:
@@ -299,6 +301,8 @@ func (a *App) layoutContentPaneDialog(gtx layout.Context, f frame, surface strin
 		return a.layoutMuteDialog(gtx, f)
 	case "profileMusic":
 		return a.layoutProfileMusic(gtx, f)
+	case "musicAttach":
+		return a.layoutMusicAttach(gtx, f)
 	case "privacy":
 		return a.layoutPrivacyScopeDialog(gtx, f)
 	case "twofa":

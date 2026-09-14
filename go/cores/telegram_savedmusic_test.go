@@ -125,3 +125,44 @@ func TestProfileMusicSaveRequestUnsave(t *testing.T) {
 		t.Error("removal must not carry after_id")
 	}
 }
+
+func TestAudioSendMediaRequest(t *testing.T) {
+	track := MusicTrackInfo{
+		DocID: "7001", AccessHash: -42, FileRefB64: "AQID",
+		Title: "Nightcall", Performer: "Kavinsky",
+	}
+	req := audioSendMediaRequest(track, "a caption", true, 3600, 99)
+	md, ok := req.Media.(*tg.InputMediaDocument)
+	if !ok {
+		t.Fatalf("media type %T, want InputMediaDocument", req.Media)
+	}
+	doc, ok := md.ID.(*tg.InputDocument)
+	if !ok {
+		t.Fatalf("document type %T", md.ID)
+	}
+	if doc.ID != 7001 || doc.AccessHash != -42 {
+		t.Errorf("doc id/hash = %d/%d, want 7001/-42", doc.ID, doc.AccessHash)
+	}
+	if string(doc.FileReference) != "\x01\x02\x03" {
+		t.Errorf("file reference = %v, want decoded bytes", doc.FileReference)
+	}
+	if req.Message != "a caption" {
+		t.Errorf("caption = %q", req.Message)
+	}
+	if !req.Silent {
+		t.Error("silent flag lost")
+	}
+	if !req.ScheduleDate || req.ScheduleDate != 3600 {
+		t.Errorf("schedule date = %d, want 3600", req.ScheduleDate)
+	}
+
+	// No caption / no schedule / no ref: honest minimal request.
+	req2 := audioSendMediaRequest(MusicTrackInfo{DocID: "8"}, "", false, 0, 7)
+	if req2.Message != "" || req2.Silent || req2.ScheduleDate {
+		t.Errorf("minimal request carries flags: %+v", req2)
+	}
+	d2 := req2.Media.(*tg.InputMediaDocument).ID.(*tg.InputDocument)
+	if d2.ID != 8 || d2.AccessHash != 0 || d2.FileReference != nil {
+		t.Errorf("minimal doc ref wrong: %+v", d2)
+	}
+}

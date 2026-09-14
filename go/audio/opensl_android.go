@@ -98,7 +98,8 @@ func slCall(itf unsafe.Pointer, idx int, args ...uintptr) uintptr {
 	full := make([]uintptr, 0, len(args)+1)
 	full = append(full, uintptr(itf))
 	full = append(full, args...)
-	return purego.SyscallN(slFn(itf, idx), full...)[0]
+	r1, _, _ := purego.SyscallN(slFn(itf, idx), full...)
+	return r1
 }
 
 // slErr maps an SLresult to an error (nil on success).
@@ -109,13 +110,15 @@ func slErr(where string, r uintptr) error {
 	return fmt.Errorf("audio: OpenSL ES %s: 0x%X", where, uint32(r))
 }
 
-// slObjectRealize realizes an object synchronously.
-func slObjectRealize(obj unsafe.Pointer) error {
+// slRealize realizes an object synchronously (slObjectRealize is the
+// vtable index constant).
+func slRealize(obj unsafe.Pointer) error {
 	return slErr("Realize", slCall(obj, slObjectRealize, slBooleanFalse))
 }
 
-// slObjectGetItf fetches interface iid from object obj.
-func slObjectGetItf(obj, iid unsafe.Pointer) (unsafe.Pointer, error) {
+// slGetItf fetches interface iid from object obj (slObjectGetItf is the
+// vtable index constant).
+func slGetItf(obj, iid unsafe.Pointer) (unsafe.Pointer, error) {
 	var out unsafe.Pointer
 	err := slErr("GetInterface", slCall(obj, slObjectGetItf,
 		uintptr(iid), uintptr(unsafe.Pointer(&out))))
@@ -131,7 +134,7 @@ func slObjectGetItf(obj, iid unsafe.Pointer) (unsafe.Pointer, error) {
 	return out, nil
 }
 
-func slObjectDestroy(obj unsafe.Pointer) {
+func slDestroy(obj unsafe.Pointer) {
 	if obj != nil {
 		slCall(obj, slObjectDestroy)
 	}
@@ -183,19 +186,20 @@ func openDevice() (device, error) {
 	d.slCreateEng = fn
 
 	var engine unsafe.Pointer
-	if err := slErr("slCreateEngine", purego.SyscallN(fn,
-		uintptr(unsafe.Pointer(&engine)), 0, 0, 0, 0, 0)[0]); err != nil {
+	r1, _, _ := purego.SyscallN(fn,
+		uintptr(unsafe.Pointer(&engine)), 0, 0, 0, 0, 0)
+	if err := slErr("slCreateEngine", r1); err != nil {
 		return nil, err
 	}
-	if err := slObjectRealize(engine); err != nil {
-		slObjectDestroy(engine)
+	if err := slRealize(engine); err != nil {
+		slDestroy(engine)
 		return nil, err
 	}
 	d.engineObj = engine
 
-	engineItf, err := slObjectGetItf(engine, d.iidEngine)
+	engineItf, err := slGetItf(engine, d.iidEngine)
 	if err != nil {
-		slObjectDestroy(engine)
+		slDestroy(engine)
 		return nil, err
 	}
 	d.engineItf = engineItf
@@ -203,13 +207,13 @@ func openDevice() (device, error) {
 	var mix unsafe.Pointer
 	if err := slErr("CreateOutputMix", slCall(engineItf, slEngineCreateOutputMix,
 		uintptr(unsafe.Pointer(&mix)), 0, 0, 0)); err != nil {
-		slObjectDestroy(engine)
+		slDestroy(engine)
 		return nil, err
 	}
 	runtime.KeepAlive(mix)
-	if err := slObjectRealize(mix); err != nil {
-		slObjectDestroy(mix)
-		slObjectDestroy(engine)
+	if err := slRealize(mix); err != nil {
+		slDestroy(mix)
+		slDestroy(engine)
 		return nil, err
 	}
 	d.mixObj = mix
@@ -282,22 +286,22 @@ func (d *openslDevice) startPlayback(fill func(out []int16)) error {
 	runtime.KeepAlive(outLoc)
 	runtime.KeepAlive(iid)
 	runtime.KeepAlive(req)
-	if err := slObjectRealize(player); err != nil {
-		slObjectDestroy(player)
+	if err := slRealize(player); err != nil {
+		slDestroy(player)
 		return err
 	}
-	playItf, err := slObjectGetItf(player, d.iidPlay)
+	playItf, err := slGetItf(player, d.iidPlay)
 	if err != nil {
-		slObjectDestroy(player)
+		slDestroy(player)
 		return err
 	}
-	bqItf, err := slObjectGetItf(player, d.iidBQ)
+	bqItf, err := slGetItf(player, d.iidBQ)
 	if err != nil {
-		slObjectDestroy(player)
+		slDestroy(player)
 		return err
 	}
 	if err := slErr("SetPlayState", slCall(playItf, slPlaySetPlayState, slPlayStatePlaying)); err != nil {
-		slObjectDestroy(player)
+		slDestroy(player)
 		return err
 	}
 
@@ -358,7 +362,7 @@ func (d *openslDevice) stopPlayback() {
 	<-done
 	slCall(playItf, slPlaySetPlayState, slPlayStateStopped)
 	slCall(bqItf, slBQClear)
-	slObjectDestroy(obj)
+	slDestroy(obj)
 	ring.reset()
 }
 
@@ -417,7 +421,7 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 
 	// VOICE_COMMUNICATION preset must be set before Realize; failure is
 	// non-fatal (the default preset still records).
-	if cfgItf, err := slObjectGetItf(rec, d.iidConfig); err == nil {
+	if cfgItf, err := slGetItf(rec, d.iidConfig); err == nil {
 		preset := uint32(slRecordingPresetVoiceCommunication)
 		key, keep := cstr(slRecordingPresetKey)
 		_ = slCall(cfgItf, slConfigSetConfiguration,
@@ -426,22 +430,22 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 		runtime.KeepAlive(preset)
 	}
 
-	if err := slObjectRealize(rec); err != nil {
-		slObjectDestroy(rec)
+	if err := slRealize(rec); err != nil {
+		slDestroy(rec)
 		return nil, err
 	}
-	recItf, err := slObjectGetItf(rec, d.iidRecord)
+	recItf, err := slGetItf(rec, d.iidRecord)
 	if err != nil {
-		slObjectDestroy(rec)
+		slDestroy(rec)
 		return nil, err
 	}
-	bqItf, err := slObjectGetItf(rec, d.iidBQ)
+	bqItf, err := slGetItf(rec, d.iidBQ)
 	if err != nil {
-		slObjectDestroy(rec)
+		slDestroy(rec)
 		return nil, err
 	}
 	if err := slErr("SetRecordState", slCall(recItf, slRecordSetRecordState, slRecordStateRecording)); err != nil {
-		slObjectDestroy(rec)
+		slDestroy(rec)
 		return nil, err
 	}
 
@@ -517,7 +521,7 @@ func (d *openslDevice) stopMic() {
 	close(frames)
 	slCall(recItf, slRecordSetRecordState, slRecordStateStopped)
 	slCall(bqItf, slBQClear)
-	slObjectDestroy(obj)
+	slDestroy(obj)
 	ring.reset()
 }
 
@@ -527,11 +531,11 @@ func (d *openslDevice) close() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.mixObj != nil {
-		slObjectDestroy(d.mixObj)
+		slDestroy(d.mixObj)
 		d.mixObj = nil
 	}
 	if d.engineObj != nil {
-		slObjectDestroy(d.engineObj)
+		slDestroy(d.engineObj)
 		d.engineObj = nil
 	}
 	d.engineItf = nil

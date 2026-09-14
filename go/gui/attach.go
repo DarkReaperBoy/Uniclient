@@ -41,7 +41,9 @@ type attachMenuItem struct {
 func (a *App) attachMenuItems() []attachMenuItem {
 	return []attachMenuItem{
 		{label: "Photo or Video", icon: iconImagePhoto, run: func() { a.pickAndSendExts(photoExts) }},
-		{label: "Music", icon: iconAVNote, run: func() { a.pickAndSendExts(musicExts) }},
+		// Slice 210: Music opens the in-app music attach box (saved-music
+		// source + "Choose from files"), tdesktop music_attach_box 1:1.
+		{label: "Music", icon: iconAVNote, run: func() { a.openMusicAttach() }},
 		{label: "File", icon: iconFileAttach, run: func() { a.pickAndSendExts(nil) }},
 		{label: "Poll", icon: iconSocialPoll, run: func() { a.openPollDialog() }},
 		{label: "Location", icon: iconMapsPlace, run: func() { a.openAttachDialog("location") }},

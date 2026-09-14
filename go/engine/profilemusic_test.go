@@ -19,11 +19,12 @@ type profileMusicStub struct {
 	tracks map[string][]cores.MusicTrackInfo // peerID → playlist
 	count  map[string]int
 
-	fetches   *[]string // peerIDs fetched
-	saves     *[][2]string
-	unsaves   *[]string
-	ownIDs    *[]string
-	ownHashes *[]int64
+	fetches    *[]string // peerIDs fetched
+	saves      *[][2]string
+	unsaves    *[]string
+	ownIDs     *[]string
+	ownHashes  *[]int64
+	audioSends *[][4]string
 }
 
 func newProfileMusicStub() profileMusicStub {
@@ -338,5 +339,85 @@ func TestProfileMusicSelfPeerGate(t *testing.T) {
 	e.accounts = map[string]*Account{"tg": {ID: "tg", Core: st}}
 	if _, err := e.GetProfileMusic("tg", "-1001234"); err != nil {
 		t.Fatalf("engine must forward non-user peers to the core gate: %v", err)
+	}
+}
+
+// ── slice 210: music attach box (saved-music source) ──────────────────────
+
+// SendAudioDocument support on the stub: records what the engine asked the
+// core to send.
+func (s profileMusicStub) SendAudioDocument(chatID string, track cores.MusicTrackInfo, caption string, silent bool, scheduleDate int) (*cores.Message, error) {
+	silentMark := "0"
+	if silent {
+		silentMark = "1"
+	}
+	*s.audioSends = append(*s.audioSends, [4]string{chatID, track.DocID, caption, silentMark})
+	return &cores.Message{ID: "1"}, nil
+}
+
+func TestSavedMusicTracks(t *testing.T) {
+	e := newProfileMusicEngine(t)
+	st := newProfileMusicStub()
+	st.audioSends = &[][4]string{}
+	st.selfID = "42"
+	st.tracks["42"] = []cores.MusicTrackInfo{
+		{DocID: "7001", Title: "Nightcall"},
+		{DocID: "7002", Title: "Rampage"},
+	}
+	st.count["42"] = 2
+	e.accounts = map[string]*Account{"tg": {ID: "tg", Core: st}}
+
+	tracks, err := e.SavedMusicTracks("tg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tracks) != 2 || tracks[0].DocID != "7001" {
+		t.Fatalf("own playlist = %+v", tracks)
+	}
+
+	// Unsupported platform: honest ErrNotSupported (the box hides the
+	// saved-music section then).
+	e2 := newProfileMusicEngine(t)
+	e2.accounts = map[string]*Account{"irc": {ID: "irc", Core: plainStub{}}}
+	if _, err := e2.SavedMusicTracks("irc"); err == nil {
+		t.Fatal("plain stub must report unsupported")
+	}
+}
+
+func TestSendSavedMusicTrack(t *testing.T) {
+	e := newProfileMusicEngine(t)
+	st := newProfileMusicStub()
+	st.audioSends = &[][4]string{}
+	st.selfID = "42"
+	st.tracks["42"] = []cores.MusicTrackInfo{
+		{DocID: "7001", AccessHash: 5, FileRefB64: "AAAA", Title: "Nightcall"},
+	}
+	st.count["42"] = 1
+	e.accounts = map[string]*Account{"tg": {ID: "tg", Core: st}}
+	if _, err := e.SavedMusicTracks("tg"); err != nil { // warm the cache
+		t.Fatal(err)
+	}
+
+	if err := e.SendSavedMusicTrack("tg", "-1001234", "7001", "listen"); err != nil {
+		t.Fatal(err)
+	}
+	sends := *st.audioSends
+	if len(sends) != 1 || sends[0][0] != "-1001234" || sends[0][1] != "7001" || sends[0][2] != "listen" {
+		t.Fatalf("sends = %v", sends)
+	}
+
+	// Unknown track → honest error, nothing sent.
+	if err := e.SendSavedMusicTrack("tg", "-1001234", "nope", ""); err == nil {
+		t.Fatal("unknown docID must fail")
+	}
+	if len(*st.audioSends) != 1 {
+		t.Fatalf("sends after failure = %d", len(*st.audioSends))
+	}
+
+	// Unsupported core → ErrNotSupported.
+	e2 := newProfileMusicEngine(t)
+	e2.accounts = map[string]*Account{"irc": {ID: "irc", Core: plainStub{}}}
+	if err := e2.SendSavedMusicTrack("irc", "c", "1", ""); err == nil {
+		t.Fatal("plain stub must not send")
 	}
 }

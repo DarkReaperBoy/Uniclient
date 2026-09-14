@@ -53,12 +53,12 @@ func jniAttached() (env uintptr, release func(), err error) {
 		return 0, nil, errors.New("audio: JavaVM not available")
 	}
 	var envp uintptr
-	if r := purego.SyscallN(jniFn(jvm, jvmGetEnv), jvm,
-		uintptr(unsafe.Pointer(&envp)), jniVersion16)[0]; r == 0 && envp != 0 {
+	if r, _, _ := purego.SyscallN(jniFn(jvm, jvmGetEnv), jvm,
+		uintptr(unsafe.Pointer(&envp)), jniVersion16); r == 0 && envp != 0 {
 		return envp, unlock, nil
 	}
-	if r := purego.SyscallN(jniFn(jvm, jvmAttachCurrentThread), jvm,
-		uintptr(unsafe.Pointer(&envp)), 0)[0]; r != 0 {
+	if r, _, _ := purego.SyscallN(jniFn(jvm, jvmAttachCurrentThread), jvm,
+		uintptr(unsafe.Pointer(&envp)), 0); r != 0 {
 		unlock()
 		return 0, nil, fmt.Errorf("audio: JNI AttachCurrentThread failed (%d)", r)
 	}
@@ -85,7 +85,8 @@ func jniCall(env uintptr, idx int, args ...uintptr) uintptr {
 	full := make([]uintptr, 0, len(args)+1)
 	full = append(full, env)
 	full = append(full, args...)
-	return purego.SyscallN(fn, full...)[0]
+	r1, _, _ := purego.SyscallN(fn, full...)
+	return r1
 }
 
 // cstr returns a pointer to a NUL-terminated copy of s plus a keep-alive
@@ -264,7 +265,7 @@ func jniCheckSelfPermission(env, ctx uintptr, perm string) bool {
 		return false
 	}
 	defer jniDeleteLocalRef(env, jstr)
-	res := jniCallIntMethodA(env, ctx, mid, []jvalue{{uintptr(jstr)}})
+	res := jniCallIntMethodA(env, ctx, mid, []jvalue{{uint64(jstr)}})
 	return res == 0
 }
 
@@ -294,7 +295,7 @@ func jniRequestPermissions(env, activity uintptr, perms []string) {
 		jniDeleteLocalRef(env, jstr)
 	}
 	// requestCode 1: we never route the result callback — presence is polled.
-	jniCallVoidMethodA(env, activity, mid, []jvalue{{uintptr(arr)}, {1}})
+	jniCallVoidMethodA(env, activity, mid, []jvalue{{uint64(arr)}, {1}})
 	jniDeleteLocalRef(env, arr)
 }
 

@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/gotd/td/tg"
 )
@@ -173,4 +174,47 @@ func (t *TelegramCore) GetOwnSavedMusicIDs(hash int64) ([]string, bool, error) {
 	default:
 		return nil, false, fmt.Errorf("unexpected account.getSavedMusicIDs result %T", res)
 	}
+}
+
+// audioSendMediaRequest builds the messages.sendMedia request that re-sends
+// a cloud audio document as a new audio message (the music attach box's
+// saved-music send path — tdesktop resolves the selected documents and
+// sends them as files). Pure — unit-tested.
+func audioSendMediaRequest(track MusicTrackInfo, caption string, silent bool, scheduleDate int, randomID int64) *tg.MessagesSendMediaRequest {
+	req := &tg.MessagesSendMediaRequest{
+		RandomID: randomID,
+		Media: &tg.InputMediaDocument{ID: &tg.InputDocument{
+			ID:            mustInt64(track.DocID),
+			AccessHash:    track.AccessHash,
+			FileReference: fileRefBytes(track.FileRefB64),
+		}},
+		Message: caption,
+		Silent:  silent,
+	}
+	if scheduleDate > 0 {
+		req.SetScheduleDate(scheduleDate)
+	}
+	return req
+}
+
+// SendAudioDocument sends a cloud audio document (e.g. a saved-music
+// track) into a chat as a new audio message by document reference.
+// Caption and silent/schedule ride the standard send options.
+func (t *TelegramCore) SendAudioDocument(chatID string, track MusicTrackInfo, caption string, silent bool, scheduleDate int) (*Message, error) {
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, unlock, perr := t.withPeer(chatID)
+	if perr != nil {
+		return nil, fmt.Errorf("resolve peer: %w", perr)
+	}
+	defer unlock()
+	req := audioSendMediaRequest(track, caption, silent, scheduleDate, time.Now().UnixNano())
+	req.Peer = inputPeer
+	result, err := api.MessagesSendMedia(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return t.extractMessageFromUpdates(result, chatID), nil
 }

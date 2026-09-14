@@ -5909,3 +5909,42 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   (7 new tests) on linux; android compile = CI dispatch + release job.
 - Remaining rung: the owner's real-device test (mic/speaker hardware)
   — same standing as the other live-test items.
+
+## 2026-09-14 — slice 210: music attach box (saved-music source)
+
+- Gap 20's future slice: the attach-menu "Music" entry opened only the OS
+  file picker; tdesktop's music_attach_box carries an in-app source.
+- Research (primary source, fetched): telegramdesktop/tdesktop dev
+  boxes/music_attach_box.{h,cpp} — box = search + "Choose from files" +
+  Saved Music section (data_saved_music, Show all) + chats/global-search
+  sections; Send resolves selected documents and re-sends them as audio
+  messages (sendFiles document path → inputMediaDocument).
+- Rating: attach flow 7/10 (clean explorer-based picker; the box was
+  simply absent) — keep + extend.
+- Shipped (tests first — 2 core, 2 engine, 4 GUI pure helpers, all
+  written before the implementation):
+  - Core: audioSendMediaRequest (pure request builder, unit-tested) +
+    SendAudioDocument (messages.sendMedia with InputMediaDocument by
+    docID + access hash + file reference, withAPI/withPeer snapshot
+    pattern).
+  - Engine: AudioDocumentSender optional capability + SavedMusicTracks
+    (own playlist w/ honest ErrNotSupported) + SendSavedMusicTrack
+    (cache-resolved track + caption).
+  - GUI (gui/musicattach.go): content-pane box — "Choose from files"
+    row (the previous picker path), Saved Music section (query filter
+    over title/performer/file-name, 6-row preview + Show all,
+    checkbox multi-select, honest empty/error/unsupported states),
+    selection-aware Send bar; sends in playlist order with the
+    composer's caption on the first track; attach menu's Music entry
+    opens the box. New surface "musicAttach" wired through frame +
+    contentDialogSurface.
+- verify.yml's new android job earned its keep immediately: the slice-209
+  dispatch caught three real android-file compile errors (const/function
+  name collisions slObjectRealize/GetItf/Destroy, invalid multi-value
+  indexing of purego.SyscallN, jvalue literal needing uint64) — all
+  fixed (functions renamed slRealize/slGetItf/slDestroy, r1,_,_ :=
+  SyscallN(...), uint64 conversions). gofmt miss in groupcall.go from
+  the slice-209 commit also fixed.
+- Gate: gofmt clean · go vet+test ./audio/ green locally; full gate via
+  the re-dispatched Verify run (gotd tg compile needs >3GB, this VM
+  has 3GB — CI is the sanctioned verifier, AGENTS.md §5).

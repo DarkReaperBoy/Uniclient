@@ -279,6 +279,8 @@ type App struct {
 	panelMusic   []engine.MusicTrack
 	musicDlg     *musicDlgState
 	musicRowMenu *musicRowMenuState
+	// slice 210: music attach box (saved-music source).
+	musicAttachDlg *musicAttachDlgState
 	// shared-media tab browser (slice 78): active tab + lazy per-tab
 	// item windows, reset on every panel reload.
 	panelTab         string
@@ -2204,6 +2206,7 @@ func (a *App) snapshot() frame {
 		panelMusic:       a.panelMusic,
 		musicDlg:         a.musicDlg,
 		musicRowMenu:     a.musicRowMenu,
+		musicAttachDlg:   a.musicAttachDlg,
 		muteDlg:          a.muteDlg,
 		members:          a.members,
 		mediaCounts:      a.mediaCounts,
@@ -2502,6 +2505,8 @@ type frame struct {
 	panelMusic   []engine.MusicTrack
 	musicDlg     *musicDlgState
 	musicRowMenu *musicRowMenuState
+	// slice 210: music attach box.
+	musicAttachDlg *musicAttachDlgState
 
 	// header presence (slice 28): DM peer online/last-seen for the header
 	hdrPresence *engine.CachedUser

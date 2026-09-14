@@ -476,3 +476,49 @@ func (e *Engine) PlayProfileMusicTrack(accountID, docID string) error {
 	}
 	return e.PlayMedia(accountID, "profilemusic", track.DocID, dest)
 }
+
+// ── slice 210: music attach box (saved-music source) ──────────────────────
+
+// AudioDocumentSender is the optional core surface for sending a cloud
+// audio document by reference (the music attach box's saved-music send
+// path, tdesktop music_attach_box.cpp).
+type AudioDocumentSender interface {
+	SendAudioDocument(chatID string, track cores.MusicTrackInfo, caption string, silent bool, scheduleDate int) (*cores.Message, error)
+}
+
+// SavedMusicTracks returns the account's OWN saved-music playlist — the
+// music attach box's source. Honest ErrNotSupported on platforms without
+// the surface (the box shows only the file picker then).
+func (e *Engine) SavedMusicTracks(accountID string) ([]MusicTrack, error) {
+	if !e.ProfileMusicSupported(accountID) {
+		return nil, cores.ErrNotSupported
+	}
+	selfID, err := e.profileMusicSelfID(accountID)
+	if err != nil {
+		return nil, err
+	}
+	return e.GetProfileMusic(accountID, selfID)
+}
+
+// SendSavedMusicTrack sends one saved-music track into a chat as a new
+// audio message (caption rides the message; the attach box passes the
+// composer's caption with the first track only).
+func (e *Engine) SendSavedMusicTrack(accountID, chatID, docID, caption string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	sender, ok := acc.Core.(AudioDocumentSender)
+	if !ok {
+		return fmt.Errorf("%w: sending saved music", cores.ErrNotSupported)
+	}
+	track, err := e.profileMusicTrackByDoc(accountID, docID)
+	if err != nil {
+		return err
+	}
+	_, err = sender.SendAudioDocument(chatID, trackInfoOf(track), caption, false, 0)
+	return err
+}
