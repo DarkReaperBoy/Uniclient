@@ -5985,3 +5985,76 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   view_other.go), and ScheduleDate is a plain int (no truthiness).
 - Gate: gofmt clean · audio tests green · windows+wasm audio
   cross-compiles green locally; full gate on the dispatched run.
+
+## 2026-09-14/15 — slice 211 repair + slice 212: giveaways
+
+### CI repair streak (five consecutive red Verify runs → green)
+- Diagnosis via job logs: the slice-211 "reconcile" commit changed
+  GetStarGifts to return *StarGiftsResult without updating call
+  sites/tests; vet aborts per package at the first error, so each CI run
+  surfaced only the next error (gifts.go assignment → telegram_gifts_test
+  shapes → engine giftStub harness → gui folders_test hideAll arg →
+  musicattach duplicate map key → appendSimilarRow collapsed arg → two
+  gui RUNTIME test failures invisible to vet).
+- Fixes: gui picker consumes StarGiftsResult.Gifts (nil-guarded); test
+  files match the reconciled shapes (len(out.Gifts), ID/Total/Remaining,
+  value-typed TextWithEntities); newGiftEngine accepts cores.Core;
+  buildFolderTabs gets its hideAll arg; musicattach duplicate map key
+  removed; appendSimilarRow collapsed arg restored; giftCellSubtitle
+  uses strconv.Itoa (the badge itoa clamps at 999+ — availability counts
+  are not unread badges); musicattach filter test queried UNTAMED which
+  is not in "untagged_song.mp3" (UNTAGGED now).
+- Local verification upgraded despite the 3GB/2-core VM: Go 1.27.1
+  installed, gotd tg compiles with GOGC=10 GOMEMLIMIT=3400MiB
+  -gcflags=all=-c=1; gofmt+vet+tests run for cores/engine/utils/audio/
+  bootstrap/voice/wrtc locally; gui type-checks via GOOS=windows
+  cross-vet (pure-Go target, same sources — unsafeptr COM
+  false-positives aside, those files are CI-only). cmd/uniclient still
+  CI-only (needs wayland/xkbcommon headers).
+- Verify run on eff6b3e5: ALL FOUR JOBS GREEN (test+vet+gofmt, GUI
+  smoke, cross-builds, android).
+
+### Slice 212 — giveaways (gap 10)
+- Research (primary sources): tdesktop create_giveaway_box.cpp +
+  payments_form.cpp read line-by-line — stars giveaways check out
+  IN-APP via inputInvoiceStars(inputStorePaymentStarsGiveaway) →
+  payments.getPaymentForm → paymentFormStars → payments.sendStarsForm
+  (the desktop-completable path; store products are mobile billing);
+  prepaid launches ride payments.launchPrepaidGiveaway with the purpose
+  split (credits>0 → stars, else premium); random id = tdesktop
+  UniqueIdFromCreditOption (XXH64 of stars|storeProduct|currency|amount|
+  peerID|sessionID); default end date +3 days rounded up to a 5-minute
+  boundary; additional-prize cap 128 chars. gotd v0.161.0 surface
+  verified present (PaymentsGetStarsGiveawayOptions,
+  PaymentsLaunchPrepaidGiveaway, InputInvoiceStars,
+  InputStorePaymentStarsGiveaway/PremiumGiveaway).
+- Rating: old giveaway surface 5/10 — map-typed params, hardcoded
+  USD/0 amount, prepaid launch only ever built the premium purpose
+  (wrong for PrepaidStarsGiveaway entries), and the whole family
+  (LaunchRandomGiveaway, LaunchCreditsGiveaway, GetGiveawayConfig,
+  AwardPremiumGiveaway, old LaunchPrepaidGiveaway) was wired to NOTHING
+  (dead core surface, §1.10 hazard). Replace, don't patch.
+- Shipped (tests first — 4 core + 3 engine + 7 gui pure tests):
+  - cores/telegram_giveaways.go: giveawayOptionsFromWire,
+    starsGiveawayInvoice/starsGiveawayPurpose (flag mapping),
+    prepaidGiveawayPurpose (stars/premium split), giveawayRandomID
+    (XXH64, pinned), GetStarsGiveawayOptions, CreateStarsGiveaway
+    (getPaymentForm→sendStarsForm, PaymentVerificationNeeded → honest
+    topup error), LaunchPrepaidGiveaway (typed).
+  - base.go: StarsGiveawayWinnerInfo / StarsGiveawayOptionInfo /
+    GiveawayParams (protocol-neutral).
+  - engine/giveaways.go: typed passthroughs behind optional
+    interfaces; dead map-typed family deleted from engine.go and
+    telegram.go; GetGiveawayPeriodMax kept (date preset filter).
+  - gui/giveaways.go: giveaway box (prize option cards, winner-split
+    chips, end-date presets filtered by giveaway_period_max, only-new +
+    show-winners toggles, additional-prize editor with 128 cap, balance
+    line + total, send gate, honest error/empty/loading states, done
+    hint); prepaid mode (summary + date/audience + launch). Boosts page
+    gains "Start a Stars giveaway" (channel-gated) + prepaid rows with
+    Launch buttons. Surface "giveaway" wired through frame +
+    contentDialogSurface.
+- Local: cores+engine tests green, gui windows cross-vet clean, gofmt
+  clean. Full gate on the dispatched Verify run (a958c0e6).
+- Parity: gap 10 now "creation+prepaid shipped; card-funded premium
+  giveaway + country/additional-channel pickers remain".
