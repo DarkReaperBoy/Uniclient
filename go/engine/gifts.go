@@ -1,10 +1,9 @@
 package engine
 
-// gifts.go — slice 211: star gifts. Optional-core surface over the
-// telegram gift catalog / balance / purchase RPCs, with a per-account
-// in-memory catalog cache (the catalog is effectively static between
-// releases; the dialog re-reads the cache instantly and the send path
-// never depends on it).
+// gifts.go — slice 211: star gifts. A short-lived per-account cache in
+// front of the existing StarGiftsFetcher wrapper (the catalog is
+// effectively static between releases; the picker re-reads instantly),
+// plus the gift-amount options and balance passthroughs the picker needs.
 
 import (
 	"fmt"
@@ -14,13 +13,6 @@ import (
 	"uniclient/cores"
 )
 
-// GiftCore is the optional star-gift surface (slice 211).
-type GiftCore interface {
-	GetStarGifts() ([]cores.StarGiftInfo, error)
-	GetStarsBalance() (int64, error)
-	SendStarGift(chatID string, giftID int64, message string, hideName bool) error
-}
-
 // giftCache holds the per-account catalog with its fetch time.
 type giftCache struct {
 	mu     sync.Mutex
@@ -28,7 +20,7 @@ type giftCache struct {
 }
 
 type giftCacheEntry struct {
-	gifts   []cores.StarGiftInfo
+	gifts   *cores.StarGiftsResult
 	fetched time.Time
 }
 
@@ -37,38 +29,20 @@ var gifts = giftCache{byAcct: map[string]giftCacheEntry{}}
 // giftCacheTTL bounds how long a catalog read is served from memory.
 const giftCacheTTL = 10 * time.Minute
 
-// StarGiftsSupported reports whether the account's core exposes gifts.
-func (e *Engine) StarGiftsSupported(accountID string) bool {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return false
-	}
-	_, ok = acc.Core.(GiftCore)
-	return ok
+// StarsGiftOptionsFetcher lists the star amounts giftable to one user
+// (payments.getStarsGiftOptions).
+type StarsGiftOptionsFetcher interface {
+	GetStarsGiftOptions(userID string) ([]cores.StarsGiftAmount, error)
 }
 
-// giftCore resolves the gift surface for an account.
-func (e *Engine) giftCore(accountID string) (GiftCore, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok {
-		return nil, fmt.Errorf("account not found: %s", accountID)
-	}
-	if acc.Core == nil {
-		return nil, fmt.Errorf("account not connected: %s", accountID)
-	}
-	gc, ok := acc.Core.(GiftCore)
-	if !ok {
-		return nil, fmt.Errorf("%w: star gifts", cores.ErrNotSupported)
-	}
-	return gc, nil
+// StarsBalanceFetcher reads the account's own star balance (nanostars).
+type StarsBalanceFetcher interface {
+	GetStarsBalance() (int64, error)
 }
 
-// GetStarGifts returns the purchasable gift catalog (cached briefly).
-func (e *Engine) GetStarGifts(accountID string) ([]cores.StarGiftInfo, error) {
-	gc, err := e.giftCore(accountID)
-	if err != nil {
-		return nil, err
-	}
+// CachedStarGifts returns the catalog through the fetcher wrapper with
+// the cache in front.
+func (e *Engine) CachedStarGifts(accountID string) (*cores.StarGiftsResult, error) {
 	gifts.mu.Lock()
 	if ent, ok := gifts.byAcct[accountID]; ok && time.Since(ent.fetched) < giftCacheTTL {
 		out := ent.gifts
@@ -77,7 +51,7 @@ func (e *Engine) GetStarGifts(accountID string) ([]cores.StarGiftInfo, error) {
 	}
 	gifts.mu.Unlock()
 
-	fresh, err := gc.GetStarGifts()
+	fresh, err := e.GetStarGifts(accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,20 +61,34 @@ func (e *Engine) GetStarGifts(accountID string) ([]cores.StarGiftInfo, error) {
 	return fresh, nil
 }
 
-// GetStarsBalance returns the account's star balance in nanostars.
-func (e *Engine) GetStarsBalance(accountID string) (int64, error) {
-	gc, err := e.giftCore(accountID)
-	if err != nil {
-		return 0, err
+// GetStarsGiftOptions lists the giftable star amounts for a user peer.
+func (e *Engine) GetStarsGiftOptions(accountID, userID string) ([]cores.StarsGiftAmount, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
 	}
-	return gc.GetStarsBalance()
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StarsGiftOptionsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("%w: stars gift options", cores.ErrNotSupported)
+	}
+	return fetcher.GetStarsGiftOptions(userID)
 }
 
-// SendStarGift purchases one gift for chatID from the account's balance.
-func (e *Engine) SendStarGift(accountID, chatID string, giftID int64, message string, hideName bool) error {
-	gc, err := e.giftCore(accountID)
-	if err != nil {
-		return err
+// GiftStarsBalance returns the account's star balance in nanostars.
+func (e *Engine) GiftStarsBalance(accountID string) (int64, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return 0, fmt.Errorf("account not found: %s", accountID)
 	}
-	return gc.SendStarGift(chatID, giftID, message, hideName)
+	if acc.Core == nil {
+		return 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StarsBalanceFetcher)
+	if !ok {
+		return 0, fmt.Errorf("%w: stars balance", cores.ErrNotSupported)
+	}
+	return fetcher.GetStarsBalance()
 }

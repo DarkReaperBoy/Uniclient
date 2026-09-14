@@ -12,7 +12,7 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-func giftStickerDoc() *tg.Document {
+func myGiftStickerDoc() *tg.Document {
 	return &tg.Document{
 		ID:            88001,
 		AccessHash:    77,
@@ -34,12 +34,12 @@ func TestStarGiftsFromWire(t *testing.T) {
 		Gifts: []tg.StarGiftClass{
 			&tg.StarGift{
 				ID:      5001,
-				Sticker: giftStickerDoc(),
+				Sticker: myGiftStickerDoc(),
 				Stars:   50,
 			},
 			&tg.StarGift{
 				ID:      5002,
-				Sticker: giftStickerDoc(),
+				Sticker: myGiftStickerDoc(),
 				Stars:   100,
 			},
 		},
@@ -83,14 +83,14 @@ func TestStarGiftsFromWire(t *testing.T) {
 }
 
 func TestStarGiftsFromWireEmptyAndUnique(t *testing.T) {
-	if out := starGiftsFromWire(nil); len(out) != 0 {
+	if out := starGiftsFromWire(nil).Gifts; len(out) != 0 {
 		t.Errorf("nil res = %d", len(out))
 	}
 	// Collectible (unique) gifts are resale objects, not catalog purchases.
 	res := &tg.PaymentsStarGifts{Gifts: []tg.StarGiftClass{
 		&tg.StarGiftUnique{ID: 99},
 	}}
-	if out := starGiftsFromWire(res); len(out) != 0 {
+	if out := starGiftsFromWire(res).Gifts; len(out) != 0 {
 		t.Errorf("unique gift leaked into the buy catalog: %d", len(out))
 	}
 }

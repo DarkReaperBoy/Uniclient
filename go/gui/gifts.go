@@ -11,7 +11,6 @@ package gui
 
 import (
 	"image"
-	"strconv"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -41,11 +40,11 @@ type giftDlgState struct {
 	accountID string
 	chatID    string
 	peerTitle string
-	gifts     []cores.StarGiftInfo
+	gifts     []cores.StarGiftItem
 	balance   int64 // nanostars
 	loaded    bool
 	err       string
-	sel       string // selected GiftID ("" = none)
+	sel       int64 // selected gift ID (0 = none)
 	sending   bool
 }
 
@@ -57,24 +56,24 @@ func giftPriceLabel(stars int64) string {
 // giftBuyable (pure, testable): whether a catalog row can be bought —
 // sold-out gifts and balance-short gifts cannot (honest disable, the row
 // still shows).
-func giftBuyable(g cores.StarGiftInfo, balanceNano int64, requirePremiumOwned bool) bool {
+func giftBuyable(g cores.StarGiftItem, balanceNano int64, requirePremiumOwned bool) bool {
 	if g.SoldOut {
 		return false
 	}
 	if g.RequirePremium && !requirePremiumOwned {
 		return false
 	}
-	return balanceNano >= g.NanoStars
+	return balanceNano >= g.Stars*1_000_000_000
 }
 
 // giftCellSubtitle (pure, testable): the badge line under the price.
-func giftCellSubtitle(g cores.StarGiftInfo) string {
+func giftCellSubtitle(g cores.StarGiftItem) string {
 	switch {
 	case g.SoldOut:
 		return "Sold out"
 	case g.Limited:
-		if g.AvailabilityTotal > 0 {
-			return "Limited · " + itoa(g.AvailabilityRemains) + "/" + itoa(g.AvailabilityTotal)
+		if g.Total > 0 {
+			return "Limited · " + itoa(g.Remaining) + "/" + itoa(g.Total)
 		}
 		return "Limited"
 	case g.Birthday:
@@ -97,8 +96,8 @@ func (a *App) openGiftPicker(c engine.ChatInfo) {
 	a.invalidate()
 	account, chat := c.AccountID, c.ChatID
 	go func() {
-		gifts, gerr := a.eng.GetStarGifts(account)
-		balance, berr := a.eng.GetStarsBalance(account)
+		gifts, gerr := a.eng.CachedStarGifts(account)
+		balance, berr := a.eng.GiftStarsBalance(account)
 		a.mu.Lock()
 		if a.giftDlg == nil || a.giftDlg.accountID != account || a.giftDlg.chatID != chat {
 			a.mu.Unlock()
@@ -129,14 +128,10 @@ func (a *App) closeGiftPicker() {
 // sendGift purchases the selected gift through the engine.
 func (a *App) sendGift(f frame) {
 	st := f.giftDlg
-	if st == nil || st.sel == "" || st.sending {
+	if st == nil || st.sel == 0 || st.sending {
 		return
 	}
-	giftID, err := strconv.ParseInt(st.sel, 10, 64)
-	if err != nil {
-		a.setToast("Gift: bad id " + st.sel)
-		return
-	}
+	giftID := st.sel
 	message := giftMsgEd.Text()
 	hide := f.giftHideOn
 	account, chat := st.accountID, st.chatID
@@ -187,10 +182,10 @@ func (a *App) layoutGiftPicker(gtx layout.Context, f frame) layout.Dimensions {
 		if giftCells[i].Clicked(gtx) {
 			a.mu.Lock()
 			if a.giftDlg != nil && a.giftDlg.accountID == st.accountID {
-				if a.giftDlg.sel == g.GiftID {
-					a.giftDlg.sel = ""
+				if a.giftDlg.sel == g.ID {
+					a.giftDlg.sel = 0
 				} else {
-					a.giftDlg.sel = g.GiftID
+					a.giftDlg.sel = g.ID
 				}
 			}
 			a.mu.Unlock()
@@ -282,7 +277,7 @@ func (a *App) layoutGiftPicker(gtx layout.Context, f frame) layout.Dimensions {
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									btn := material.Button(a.ui.Theme, &giftSendBtn, "Send gift")
-									if st.sel == "" || st.sending {
+									if st.sel == 0 || st.sending {
 										btn.Background = a.ui.p.TextDim
 									}
 									return btn.Layout(gtx)
@@ -302,7 +297,7 @@ func giftGridRows(n int) int {
 }
 
 // giftGridRow renders one 3-cell catalog row.
-func (a *App) giftGridRow(gtx layout.Context, f frame, gifts []cores.StarGiftInfo, r int) layout.Dimensions {
+func (a *App) giftGridRow(gtx layout.Context, f frame, gifts []cores.StarGiftItem, r int) layout.Dimensions {
 	const cols = 3
 	children := make([]layout.FlexChild, 0, cols)
 	for c := 0; c < cols; c++ {
@@ -320,9 +315,9 @@ func (a *App) giftGridRow(gtx layout.Context, f frame, gifts []cores.StarGiftInf
 
 // giftCell renders one catalog cell: sticker thumb (emoji fallback),
 // price, badge line, selected state, sold-out disable.
-func (a *App) giftCell(gtx layout.Context, f frame, g cores.StarGiftInfo, idx int) layout.Dimensions {
+func (a *App) giftCell(gtx layout.Context, f frame, g cores.StarGiftItem, idx int) layout.Dimensions {
 	st := f.giftDlg
-	sel := st != nil && st.sel == g.GiftID
+	sel := st != nil && st.sel == g.ID
 	buyable := st != nil && giftBuyable(g, st.balance, accountByID(f, st.accountID).IsPremium)
 	cell := gtx.Dp(unit.Dp(110))
 	gtx.Constraints.Max.X = cell

@@ -419,24 +419,6 @@ type SavedReactionTagInfo struct {
 	Count    int    `json:"count"`
 }
 
-// StarGiftInfo is one purchasable gift from the payments.getStarGifts
-// catalog (slice 211). NanoStars is Stars × 1e9 — the same unit the star
-// balance uses, so the GUI compares directly.
-type StarGiftInfo struct {
-	GiftID              string `json:"gift_id"`
-	Stars               int64  `json:"stars"`
-	NanoStars           int64  `json:"nano_stars"`
-	ThumbB64            string `json:"thumb_b64,omitempty"`
-	StickerEmoji        string `json:"sticker_emoji,omitempty"`
-	Limited             bool   `json:"limited,omitempty"`
-	SoldOut             bool   `json:"sold_out,omitempty"`
-	Birthday            bool   `json:"birthday,omitempty"`
-	RequirePremium      bool   `json:"require_premium,omitempty"`
-	AvailabilityRemains int    `json:"availability_remains,omitempty"`
-	AvailabilityTotal   int    `json:"availability_total,omitempty"`
-	ConvertStars        int64  `json:"convert_stars,omitempty"`
-}
-
 // StarsGiftAmount is one giftable star amount (payments.getStarsGiftOptions).
 type StarsGiftAmount struct {
 	Stars        int64  `json:"stars"`
@@ -650,6 +632,10 @@ type StarGiftItem struct {
 	Remaining int    `json:"remaining,omitempty"`
 	Total     int    `json:"total,omitempty"`
 	ThumbB64  string `json:"thumb_b64,omitempty"`
+	// Slice 211 additions (gift picker fidelity).
+	StickerEmoji   string `json:"sticker_emoji,omitempty"`
+	RequirePremium bool   `json:"require_premium,omitempty"`
+	ConvertStars   int64  `json:"convert_stars,omitempty"`
 }
 
 type StarGiftsResult struct {

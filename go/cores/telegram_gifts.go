@@ -89,26 +89,28 @@ func starGiftInvoice(peer tg.InputPeerClass, giftID int64, message string, hideN
 		inv.SetHideName(true)
 	}
 	if message != "" {
-		inv.SetMessage(&tg.TextWithEntities{Text: message})
+		inv.SetMessage(tg.TextWithEntities{Text: message})
 	}
 	return inv
 }
 
 // GetStarGifts returns the purchasable gift catalog (payments.getStarGifts).
-func (t *TelegramCore) GetStarGifts() ([]StarGiftInfo, error) {
+// GetStarGifts returns the purchasable gift catalog (payments.getStarGifts).
+// Replaces the pre-slice-211 stub that returned empty items and a 6-cap.
+func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
 	}
 	res, err := api.PaymentsGetStarGifts(ctx, 0)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get star gifts: %w", err)
 	}
 	switch r := res.(type) {
 	case *tg.PaymentsStarGifts:
 		return starGiftsFromWire(r), nil
 	case *tg.PaymentsStarGiftsNotModified:
-		return nil, fmt.Errorf("gift catalog not modified (hash 0 should not do this)")
+		return &StarGiftsResult{}, nil
 	default:
 		return nil, fmt.Errorf("unexpected payments.getStarGifts result %T", res)
 	}
@@ -139,29 +141,11 @@ func (t *TelegramCore) GetStarsGiftOptions(userID string) ([]StarsGiftAmount, er
 	return giftOptionsFromWire(opts), nil
 }
 
-// GetStarsBalance returns the account's own star balance in nanostars
-// (payments.getStarsStatus — same unit the Stars settings page uses).
-func (t *TelegramCore) GetStarsBalance() (int64, error) {
-	api, ctx, err := t.withAPI()
-	if err != nil {
-		return 0, err
-	}
-	res, err := api.PaymentsGetStarsStatus(ctx, &tg.PaymentsGetStarsStatusRequest{
-		Peer: &tg.InputPeerSelf{},
-	})
-	if err != nil {
-		return 0, err
-	}
-	if res.Balance == nil {
-		return 0, nil
-	}
-	return res.Balance.GetAmount(), nil
-}
-
 // SendStarGift purchases one catalog gift for the peer from the account's
 // star balance: payments.getPaymentForm(inputInvoiceStarGift) →
-// payments.sendStarsForm. PaymentVerificationNeeded (insufficient balance
-// or 2FA-style verification) is an honest error — the topup lives in the
+// payments.sendStarsForm. Replaces the pre-slice-211 sendPaymentForm
+// variant (wrong form type + empty credentials). PaymentVerificationNeeded
+// (insufficient balance) is an honest error — the topup lives in the
 // Stars settings page.
 func (t *TelegramCore) SendStarGift(chatID string, giftID int64, message string, hideName bool) error {
 	api, ctx, err := t.withAPI()
@@ -197,9 +181,12 @@ func (t *TelegramCore) SendStarGift(chatID string, giftID int64, message string,
 		return err
 	}
 	switch r := result.(type) {
-	case *tg.PaymentResult:
+	case *tg.PaymentsPaymentResult:
 		return nil
-	case *tg.PaymentVerificationNeeded:
+	case *tg.PaymentsPaymentVerificationNeeded:
+		if r.URL != "" {
+			return fmt.Errorf("payment needs verification — top up in Settings → Telegram Stars")
+		}
 		return fmt.Errorf("payment needs verification — top up in Settings → Telegram Stars")
 	default:
 		return fmt.Errorf("unexpected sendStarsForm result %T", result)

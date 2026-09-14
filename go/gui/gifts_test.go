@@ -21,7 +21,7 @@ func TestGiftPriceLabel(t *testing.T) {
 }
 
 func TestGiftBuyable(t *testing.T) {
-	g := cores.StarGiftInfo{GiftID: "1", Stars: 50, NanoStars: 50_000_000_000}
+	g := cores.StarGiftItem{ID: 1, Stars: 50}
 	if !giftBuyable(g, 50_000_000_000, false) {
 		t.Error("exact balance must be buyable")
 	}
@@ -45,14 +45,14 @@ func TestGiftBuyable(t *testing.T) {
 
 func TestGiftCellSubtitle(t *testing.T) {
 	cases := []struct {
-		g    cores.StarGiftInfo
+		g    cores.StarGiftItem
 		want string
 	}{
-		{cores.StarGiftInfo{SoldOut: true}, "Sold out"},
-		{cores.StarGiftInfo{Limited: true}, "Limited"},
-		{cores.StarGiftInfo{Limited: true, AvailabilityRemains: 3, AvailabilityTotal: 1000}, "Limited · 3/1000"},
-		{cores.StarGiftInfo{Birthday: true}, "Birthday"},
-		{cores.StarGiftInfo{}, ""},
+		{cores.StarGiftItem{SoldOut: true}, "Sold out"},
+		{cores.StarGiftItem{Limited: true}, "Limited"},
+		{cores.StarGiftItem{Limited: true, Remaining: 3, Total: 1000}, "Limited · 3/1000"},
+		{cores.StarGiftItem{Birthday: true}, "Birthday"},
+		{cores.StarGiftItem{}, ""},
 	}
 	for _, c := range cases {
 		if got := giftCellSubtitle(c.g); got != c.want {
