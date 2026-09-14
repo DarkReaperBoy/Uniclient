@@ -1,13 +1,14 @@
-//go:build (!linux || android) && !windows && !js
+//go:build !linux && !windows && !js
 
 package audio
 
 const audioAvailable = false
 
-// stubDevice returns ErrNoAudio for every operation. Android's audio
-// layer (OpenSL ES / AudioTrack via JNI) is the top of the voice
-// backlog; until it lands the GUI hides mic/speaker controls there
-// rather than showing dead UI (AGENTS.md §1.10).
+// stubDevice returns ErrNoAudio for every operation. Android ships a real
+// OpenSL ES backend (opensl_android.go); every other platform we target
+// (linux/windows/js) has its own device file. This stub only covers
+// unusual GOOS values that Go can still compile for, keeping them honest
+// rather than fake (AGENTS.md §1.10).
 type stubDevice struct{}
 
 func openDevice() (device, error) { return stubDevice{}, ErrNoAudio }

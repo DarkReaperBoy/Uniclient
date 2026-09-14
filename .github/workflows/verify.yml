@@ -78,6 +78,44 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  android:
+    name: Android arm64 (APK compile check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install gogio
+        run: go install gioui.org/cmd/gogio@v0.10.0
+      - name: Set up Android SDK + NDK
+        run: |
+          SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMGR" --licenses >/dev/null || true
+          "$SDKMGR" --install "build-tools;35.0.0" "platforms;android-34" "ndk;27.0.12077973" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      - name: Build APK (gogio, CGO_ENABLED=1)
+        run: |
+          mkdir -p dist
+          cd go
+          ~/go/bin/gogio -target android -arch arm64 -minsdk 24 -tags goolm \
+            -o ../dist/uniclient.apk ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: dist/uniclient.apk
+          if-no-files-found: error
+
   gui-smoke:
     name: GUI smoke (Xvfb + screenshots)
     runs-on: ubuntu-latest

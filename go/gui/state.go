@@ -17,6 +17,7 @@ import (
 	"gioui.org/x/explorer"
 
 	"strconv"
+	"uniclient/audio"
 	"uniclient/cores"
 	"uniclient/engine"
 	"uniclient/utils"
@@ -700,6 +701,10 @@ func (a *App) ListenEvents(evt event.Event) {
 	if a.expl != nil {
 		a.expl.ListenEvents(evt)
 	}
+	// Android audio (slice 209): capture the view handle + JavaVM from the
+	// ViewEvent stream — the OpenSL mic path needs them to request the
+	// RECORD_AUDIO runtime permission (no-op on other platforms).
+	audio.SetAndroidViewEvent(evt)
 	// Windows taskbar overlay badge (slice 153): capture the native
 	// window handle when the view event carries one. Main window only —
 	// the badge is a singleton and separate windows must not hijack it.

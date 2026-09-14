@@ -158,7 +158,8 @@ go/
                    A core never imports another core. Never imports engine.
   voice/           Shared opus codec + per-sender mixer (pion/opus, pure Go).
   audio/           Platform audio devices: pulse (Linux), winmm (Windows),
-                   WebAudio (js/wasm) — all pure Go; Android stubbed honestly.
+                   WebAudio (js/wasm), OpenSL ES via purego (Android) —
+                   all pure Go on every target.
   utils/           Config, vault, crypto, storage helpers.
   wrtc/            WebRTC shim: pion natively, browser API on js/wasm.
   tests/           Live protocol tests (env-gated, run on demand, not CI).
@@ -330,7 +331,9 @@ servers (`go/tests/mumble_voice_live_test.go`, `teamspeak_voice_live_test.go`,
 engine drives mic → pion/opus (pure Go) → core, and core → decode → mixer →
 speaker, with pure-Go audio devices on Linux (PulseAudio protocol), Windows
 (winmm syscalls) and web (WebAudio). Remaining gap: real-hardware mic/speaker
-testing (the owner's live test) + Android audio devices (honest stub today).
+testing (the owner's live test). Android audio shipped (slice 209: OpenSL
+ES via purego + RECORD_A runtime permission through pure-Go JNI); the
+owner's device test is the remaining rung.
 
 ## 9. Testing rules
 
@@ -467,7 +470,8 @@ is the next task.
       engine voiceRunner (mic→VAD→opus→core, core→decode→mix→speaker),
       voice rooms in the GUI for both backends, receive-side TS3 generation
       tracking fixed, live two-client voice round-trips green on public
-      servers (75/75 packets each). Android audio = honest stub, top of queue.
+      servers (75/75 packets each). Android audio shipped slice 209 (OpenSL ES
+via purego; mic permission via JNI) — real-hardware test = owner's rung.
 - [x] mumble + teamspeak rewrite (tests first, docker-based, §8) — 2026-09-10:
       both cores deep-verified against primary sources (official Mumble.proto/
       MumbleUDP.proto + upstream CryptStateOCB2.cpp; ReSpeak/tsdeclarations

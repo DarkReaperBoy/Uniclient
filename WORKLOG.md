@@ -5852,3 +5852,60 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
 - Parity: location PARTIAL→PRESENT — 200 rows, PRESENT 185 (93%),
   PARTIAL 9 (honest scope cuts 4: local premium toggle, chat-settings
   extras, QR scan, logo/userpic polish).
+
+## 2026-09-14 — slice 209: Android audio devices (OpenSL ES via purego)
+
+- The last honest platform gap in the voice pipeline: Android's audio/
+  layer was ErrNoAudio (mic + speaker + notification sounds + media
+  playback all dead on the APK). Now a real OpenSL ES device layer.
+- Research (primary sources, all fetched and transcribed fresh):
+  - ebitengine/purego v0.10.2: Android arm64/amd64 Tier-1, requires
+    CGO_ENABLED=1 — already satisfied (gogio builds -buildmode=c-shared
+    via the NDK; the cgo runtime is the toolchain's, our tree stays
+    pure Go).
+  - AOSP frameworks/wilhelm include/SLES/{OpenSLES.h,
+    OpenSLES_Android.h, OpenSLES_AndroidConfiguration.h}: exact
+    SLObjectItf_/SLEngineItf_/SLPlayItf_/SLRecordItf_/SLBufferQueueItf_
+    vtable orders, SLDataLocator_IODevice/OutputMix/AndroidSimpleBuffer
+    Queue + SLDataFormat_PCM layouts, constants, VOICE_COMMUNICATION
+    recording preset.
+  - Official jni.h (OpenJDK head): JNIEnv/JavaVM vtable ordinals
+    extracted programmatically (incl. the 4/3 reserved-slot offsets).
+  - gio v0.10.2 public surface: app.AndroidViewEvent{View uintptr} +
+    app.JavaVM() — the documented pure-Go JNI injection points;
+    gogio's permission scan: blank import of
+    gioui.org/app/permission/microphone puts RECORD_AUDIO in the APK
+    manifest (release.yml already builds with -minsdk 24, so
+    checkSelfPermission/requestPermissions (API 23+) are always there).
+- Rating (§1.14): audio package architecture 8/10 — clean Session/
+  device seam, honest ErrNoAudio stubs; keep + extend. New plan 9/10.
+- Shipped (tests first — opensl_layout_test.go written and green
+  before the implementation):
+  - audio/opensl_layout.go (+test): platform-independent ABI tables —
+    OpenSL vtable indices, wire-struct mirrors (size/offset pinned on
+    64-bit), JNI ordinals, and the bqRing FIFO bookkeeping type; every
+    value double-transcribed from the headers and cross-checked.
+  - audio/opensl_android.go: engine + output mix at open; AudioPlayer
+    (48 kHz mono s16 AndroidSimpleBufferQueue) with a polling fill
+    pump (no C callbacks); AudioRecorder with VOICE_COMMUNICATION
+    preset + the same polling pump; honest SLresult error mapping;
+    objects destroyed on stop; KeepAlive anchors on every uintptr
+    that crosses a helper boundary.
+  - audio/jni_android.go: minimal pure-Go JNI (AttachCurrentThread with
+    LockOSThread, GetVersion ABI sanity gate, exception hygiene,
+    local-ref cleanup) → checkSelfPermission + requestPermissions;
+    ensureMicPermission blocks ≤10 s on the system dialog, then errors
+    honestly (surfaced by the existing afterVoiceJoin toast).
+  - audio/view_android.go / view_other.go: SetAndroidViewEvent plumbing
+    (android: stores View + JavaVM; elsewhere: no-op) — gui/state.go
+    ListenEvents forwards every event.
+  - stub_other.go narrowed to genuinely-unsupported GOOS values;
+    android comment updated.
+  - verify.yml: new android job (NDK + gogio APK compile check) so
+    android-only compile errors surface before a release tag.
+- Semantics match the Pulse driver: mic channel closed on stop, 20 ms
+  1920-byte s16le frames, "already running" guards, error wrapping.
+- Gate: gofmt clean · go vet ./audio/ clean · go test ./audio/ green
+  (7 new tests) on linux; android compile = CI dispatch + release job.
+- Remaining rung: the owner's real-device test (mic/speaker hardware)
+  — same standing as the other live-test items.
