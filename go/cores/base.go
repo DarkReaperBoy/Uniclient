@@ -451,6 +451,12 @@ type StarsGiveawayOptionInfo struct {
 	Default      bool                      `json:"default,omitempty"`
 }
 
+// CountryInfo is one picker row from help.getCountriesList.
+type CountryInfo struct {
+	ISO2 string `json:"iso2"`
+	Name string `json:"name"`
+}
+
 // GiveawayParams carries the user choices for creating or launching a
 // giveaway (tdesktop create_giveaway_box): winner count, end date,
 // visibility and audience restrictions. Protocol-neutral — the core maps

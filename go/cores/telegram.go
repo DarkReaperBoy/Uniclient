@@ -22581,23 +22581,6 @@ func (t *TelegramCore) GetNearestDC() (int, error) {
 	return result.NearestDC, nil
 }
 
-// GetCountriesList returns the list of countries with phone codes.
-func (t *TelegramCore) GetCountriesList() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
-	api, ctx, err := t.withAPI()
-	if err != nil {
-		return 0, err
-	}
-	result, err := api.HelpGetCountriesList(ctx, &tg.HelpGetCountriesListRequest{LangCode: "en"})
-	if err != nil {
-		return 0, err
-	}
-	if cl, ok := result.(*tg.HelpCountriesList); ok {
-		return len(cl.Countries), nil
-	}
-	return 0, nil
-}
-
 // SetChatTheme sets or clears the visual theme for a chat.
 func (t *TelegramCore) SetChatTheme(chatID string, emoticon string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)

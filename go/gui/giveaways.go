@@ -7,6 +7,7 @@ package gui
 // surfaced from the boosts status. Reached from the boosts page.
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -30,6 +31,13 @@ var (
 	giveawayWinCells   []widget.Clickable
 	giveawayDateCells  []widget.Clickable
 	giveawayPrizeEd    widget.Editor
+	// slice 214: country + channel pickers.
+	giveawayCountriesRow widget.Clickable
+	giveawayChannelsRow  widget.Clickable
+	giveawayDoneBtn      widget.Clickable
+	giveawaySearchEd     widget.Editor
+	giveawayCountryCells []widget.Clickable
+	giveawayChannelCells []widget.Clickable
 )
 
 func init() {
@@ -163,6 +171,14 @@ type giveawayDlgState struct {
 	err         string
 	sending     bool
 	launched    bool
+
+	// slice 214: audience pickers.
+	countries     []cores.CountryInfo
+	selCountries  map[string]bool
+	pickCountries bool
+	countryQuery  string
+	selChats      map[string]bool
+	pickChannels  bool
 }
 
 // giveawayOptionLabel (pure, testable): the prize row label.
@@ -249,6 +265,7 @@ func (a *App) openGiveawayCreator(c engine.ChatInfo) {
 		opts, oerr := a.eng.GetStarsGiveawayOptions(account)
 		balance, berr := a.eng.GiftStarsBalance(account)
 		max, _ := a.eng.GetGiveawayPeriodMax(account)
+		countries, _ := a.eng.GetCountriesList(account, "en")
 		a.mu.Lock()
 		if a.giveawayDlg == nil || a.giveawayDlg.accountID != account || a.giveawayDlg.chatID != chat || a.giveawayDlg.prepaid != nil {
 			a.mu.Unlock()
@@ -263,6 +280,9 @@ func (a *App) openGiveawayCreator(c engine.ChatInfo) {
 		}
 		if berr == nil {
 			a.giveawayDlg.balance = balance
+		}
+		if len(countries) > 0 {
+			a.giveawayDlg.countries = countries
 		}
 		if max > 0 {
 			a.giveawayDlg.periodMax = max
@@ -302,17 +322,100 @@ func giveawayDefaultWinner(opts []cores.StarsGiveawayOptionInfo, optIdx int) int
 	return 0
 }
 
+// sortedKeys (pure, testable): deterministic key ordering for map
+// selections riding the wire (countries ISO codes, channel chat IDs).
+func sortedKeys(m map[string]bool) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for k, ok := range m {
+		if ok {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// countryLabel (pure, testable): the picker row label.
+func countryLabel(c cores.CountryInfo) string {
+	if c.Name != "" {
+		return c.Name
+	}
+	return c.ISO2
+}
+
+// countryMatches (pure, testable): rows matching the query —
+// case-insensitive substring on name or ISO code.
+func countryMatches(list []cores.CountryInfo, query string) []cores.CountryInfo {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" || list == nil {
+		return list
+	}
+	var out []cores.CountryInfo
+	for _, c := range list {
+		if strings.Contains(strings.ToLower(c.Name), query) ||
+			strings.Contains(strings.ToLower(c.ISO2), query) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// giveawayCountryLabel (pure, testable): the Countries row label.
+func giveawayCountryLabel(sel map[string]bool) string {
+	if len(sel) == 0 {
+		return "All countries"
+	}
+	noun := "countries"
+	if len(sel) == 1 {
+		noun = "country"
+	}
+	return strconv.Itoa(len(sel)) + " " + noun + " selected"
+}
+
+// giveawayChannelCandidates (pure, testable): same-account channels
+// excluding the giveaway channel itself.
+func giveawayChannelCandidates(chats []engine.ChatInfo, accountID, excludeChatID string) []engine.ChatInfo {
+	var out []engine.ChatInfo
+	for _, c := range chats {
+		if c.AccountID != accountID || c.ChatID == excludeChatID {
+			continue
+		}
+		if c.Type != engine.ChatTypeChanVal {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// giveawayChannelsLabel (pure, testable): the Channels row label.
+func giveawayChannelsLabel(sel map[string]bool) string {
+	if len(sel) == 0 {
+		return "This channel only"
+	}
+	noun := "additional channels"
+	if len(sel) == 1 {
+		noun = "additional channel"
+	}
+	return strconv.Itoa(len(sel)) + " " + noun
+}
+
 // openPrepaidLaunch opens the box in prepaid-launch mode.
 func (a *App) openPrepaidLaunch(c engine.ChatInfo, row prepaidGiveawayRow) {
 	st := &giveawayDlgState{
-		accountID:   c.AccountID,
-		chatID:      c.ChatID,
-		peerTitle:   c.Title,
-		prepaid:     &row,
-		dateIdx:     0,
-		onlyNew:     true,
-		showWinners: true,
-		loaded:      true,
+		accountID:    c.AccountID,
+		chatID:       c.ChatID,
+		peerTitle:    c.Title,
+		prepaid:      &row,
+		dateIdx:      0,
+		onlyNew:      true,
+		showWinners:  true,
+		loaded:       true,
+		selCountries: map[string]bool{},
+		selChats:     map[string]bool{},
 	}
 	a.mu.Lock()
 	a.giveawayDlg = st
@@ -362,6 +465,8 @@ func (a *App) sendGiveaway(f frame) {
 		OnlyNew:     st.onlyNew,
 		ShowWinners: st.showWinners,
 		Prize:       strings.TrimSpace(giveawayPrizeEd.Text()),
+		Countries:   sortedKeys(st.selCountries),
+		ExtraChats:  sortedKeys(st.selChats),
 	}
 	if len(p.Prize) > 128 {
 		a.setToast("Additional prize is too long (max 128 characters)")
@@ -467,6 +572,47 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 		}
 		a.mu.Unlock()
 		a.invalidate()
+	}
+	if giveawayCountriesRow.Clicked(gtx) {
+		a.mu.Lock()
+		if a.giveawayDlg != nil {
+			a.giveawayDlg.pickCountries = !a.giveawayDlg.pickCountries
+			a.giveawayDlg.pickChannels = false
+		}
+		a.mu.Unlock()
+		a.invalidate()
+	}
+	if giveawayChannelsRow.Clicked(gtx) {
+		a.mu.Lock()
+		if a.giveawayDlg != nil {
+			a.giveawayDlg.pickChannels = !a.giveawayDlg.pickChannels
+			a.giveawayDlg.pickCountries = false
+		}
+		a.mu.Unlock()
+		a.invalidate()
+	}
+	if giveawayDoneBtn.Clicked(gtx) {
+		a.mu.Lock()
+		if a.giveawayDlg != nil {
+			a.giveawayDlg.pickCountries = false
+			a.giveawayDlg.pickChannels = false
+		}
+		a.mu.Unlock()
+		a.invalidate()
+	}
+	for {
+		ev, ok := giveawaySearchEd.Update(gtx)
+		if !ok {
+			break
+		}
+		if _, is := ev.(widget.ChangeEvent); is {
+			a.mu.Lock()
+			if a.giveawayDlg != nil {
+				a.giveawayDlg.countryQuery = giveawaySearchEd.Text()
+			}
+			a.mu.Unlock()
+			a.invalidate()
+		}
 	}
 
 	presets := giveawayDatePresetsFor(st.periodMax)
@@ -660,6 +806,68 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
+	// Audience rows: countries + channels (slice 214 pickers).
+	sections = append(sections, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: unit.Dp(10), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											lbl := a.ui.Label(unit.Sp(14), "Countries")
+											return lbl.Layout(gtx)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.ui.Dim(unit.Sp(12), giveawayCountryLabel(st.selCountries)).Layout(gtx)
+										}),
+									)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Dim(unit.Sp(13), "Change")
+									lbl.Color = a.ui.p.Accent
+									return giveawayCountriesRow.Layout(gtx, lbl.Layout)
+								}),
+							)
+						})
+					})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					cands := giveawayChannelCandidates(f.chats, st.accountID, st.chatID)
+					if len(cands) == 0 {
+						return layout.Dimensions{}
+					}
+					return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
+							return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+									layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+										return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												lbl := a.ui.Label(unit.Sp(14), "Channels to join")
+												return lbl.Layout(gtx)
+											}),
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return a.ui.Dim(unit.Sp(12), giveawayChannelsLabel(st.selChats)).Layout(gtx)
+											}),
+										)
+									}),
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										lbl := a.ui.Dim(unit.Sp(13), "Change")
+										lbl.Color = a.ui.p.Accent
+										return giveawayChannelsRow.Layout(gtx, lbl.Layout)
+									}),
+								)
+							})
+						})
+					})
+				}),
+			)
+		})
+	}))
+
 	// Audience toggles + additional prize.
 	sections = append(sections, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(10), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -764,6 +972,12 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.ui.Divider(gtx) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if st.pickCountries {
+				return a.layoutGiveawayCountryPicker(gtx, f)
+			}
+			if st.pickChannels {
+				return a.layoutGiveawayChannelPicker(gtx, f)
+			}
 			gl := material.List(a.ui.Theme, &giveawayList)
 			return gl.Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
 				return body(gtx)
@@ -777,6 +991,179 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 					if !giveawaySendEnabled(st) && !st.launched {
 						btn.Background = a.ui.p.TextDim
 					}
+					return btn.Layout(gtx)
+				})
+		}),
+	)
+}
+
+// layoutGiveawayCountryPicker: the audience country picker
+// (tdesktop select_countries_box) — search + checkbox rows + Done.
+func (a *App) layoutGiveawayCountryPicker(gtx layout.Context, f frame) layout.Dimensions {
+	st := f.giveawayDlg
+	if st == nil {
+		return layout.Dimensions{}
+	}
+	rows := countryMatches(st.countries, st.countryQuery)
+	growClickables(&giveawayCountryCells, len(rows))
+	for i, c := range rows {
+		if giveawayCountryCells[i].Clicked(gtx) {
+			a.mu.Lock()
+			if a.giveawayDlg != nil && a.giveawayDlg.selCountries != nil {
+				if a.giveawayDlg.selCountries[c.ISO2] {
+					delete(a.giveawayDlg.selCountries, c.ISO2)
+				} else {
+					a.giveawayDlg.selCountries[c.ISO2] = true
+				}
+			}
+			a.mu.Unlock()
+			a.invalidate()
+		}
+	}
+	if giveawayDoneBtn.Clicked(gtx) {
+		a.mu.Lock()
+		if a.giveawayDlg != nil {
+			a.giveawayDlg.pickCountries = false
+		}
+		a.mu.Unlock()
+		a.invalidate()
+	}
+
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				ed := a.ui.Editor(&giveawaySearchEd, "Search countries")
+				return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(unit.Dp(6)).Layout(gtx, ed.Layout)
+				})
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return a.ui.Dim(unit.Sp(12), giveawayCountryLabel(st.selCountries)+" · tap to toggle").Layout(gtx)
+			})
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if len(st.countries) == 0 {
+				return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.ui.Dim(unit.Sp(13), "Country list unavailable").Layout(gtx)
+				})
+			}
+			if len(rows) == 0 {
+				return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.ui.Dim(unit.Sp(13), "No matching countries").Layout(gtx)
+				})
+			}
+			var children []layout.FlexChild
+			for i, c := range rows {
+				i, c := i, c
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: unit.Dp(4), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							bg := a.ui.p.Surface
+							if st.selCountries[c.ISO2] {
+								bg = a.ui.p.SurfaceHi
+							}
+							return roundedFill(gtx, bg, 10, func(gtx layout.Context) layout.Dimensions {
+								return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Label(unit.Sp(14), countryLabel(c))
+									if st.selCountries[c.ISO2] {
+										lbl.Color = a.ui.p.Accent
+									}
+									return giveawayCountryCells[i].Layout(gtx, lbl.Layout)
+								})
+							})
+						})
+				}))
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.ui.Divider(gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					btn := material.Button(a.ui.Theme, &giveawayDoneBtn, "Done")
+					btn.CornerRadius = 10
+					return btn.Layout(gtx)
+				})
+		}),
+	)
+}
+
+// layoutGiveawayChannelPicker: additional channels the winners must join
+// — same-account channels excluding the giveaway channel itself.
+func (a *App) layoutGiveawayChannelPicker(gtx layout.Context, f frame) layout.Dimensions {
+	st := f.giveawayDlg
+	if st == nil {
+		return layout.Dimensions{}
+	}
+	rows := giveawayChannelCandidates(f.chats, st.accountID, st.chatID)
+	growClickables(&giveawayChannelCells, len(rows))
+	for i, c := range rows {
+		if giveawayChannelCells[i].Clicked(gtx) {
+			a.mu.Lock()
+			if a.giveawayDlg != nil && a.giveawayDlg.selChats != nil {
+				if a.giveawayDlg.selChats[c.ChatID] {
+					delete(a.giveawayDlg.selChats, c.ChatID)
+				} else {
+					a.giveawayDlg.selChats[c.ChatID] = true
+				}
+			}
+			a.mu.Unlock()
+			a.invalidate()
+		}
+	}
+	if giveawayDoneBtn.Clicked(gtx) {
+		a.mu.Lock()
+		if a.giveawayDlg != nil {
+			a.giveawayDlg.pickChannels = false
+		}
+		a.mu.Unlock()
+		a.invalidate()
+	}
+
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return a.ui.Dim(unit.Sp(12), giveawayChannelsLabel(st.selChats)+" · tap to toggle").Layout(gtx)
+			})
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			if len(rows) == 0 {
+				return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.ui.Dim(unit.Sp(13), "No other channels in this account").Layout(gtx)
+				})
+			}
+			var children []layout.FlexChild
+			for i, c := range rows {
+				i, c := i, c
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: unit.Dp(4), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							bg := a.ui.p.Surface
+							if st.selChats[c.ChatID] {
+								bg = a.ui.p.SurfaceHi
+							}
+							return roundedFill(gtx, bg, 10, func(gtx layout.Context) layout.Dimensions {
+								return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									lbl := a.ui.Label(unit.Sp(14), c.Title)
+									if st.selChats[c.ChatID] {
+										lbl.Color = a.ui.p.Accent
+									}
+									return giveawayChannelCells[i].Layout(gtx, lbl.Layout)
+								})
+							})
+						})
+				}))
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.ui.Divider(gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					btn := material.Button(a.ui.Theme, &giveawayDoneBtn, "Done")
+					btn.CornerRadius = 10
 					return btn.Layout(gtx)
 				})
 		}),

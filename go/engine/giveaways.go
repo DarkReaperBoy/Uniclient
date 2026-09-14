@@ -30,6 +30,27 @@ type PrepaidGiveawayLauncher interface {
 	LaunchPrepaidGiveaway(chatID string, giveawayID int64, credits int64, months int, p cores.GiveawayParams) error
 }
 
+// CountriesListFetcher lists countries (help.getCountriesList).
+type CountriesListFetcher interface {
+	GetCountriesList(langCode string) ([]cores.CountryInfo, error)
+}
+
+// GetCountriesList returns the country rows for the giveaway picker.
+func (e *Engine) GetCountriesList(accountID, langCode string) ([]cores.CountryInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(CountriesListFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support the country list")
+	}
+	return fetcher.GetCountriesList(langCode)
+}
+
 // GetStarsGiveawayOptions returns the prize options for the account.
 func (e *Engine) GetStarsGiveawayOptions(accountID string) ([]cores.StarsGiveawayOptionInfo, error) {
 	acc, ok := e.getAccount(accountID)
