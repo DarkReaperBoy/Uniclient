@@ -17,7 +17,7 @@ func TestHeaderMenuAdminLogEntry(t *testing.T) {
 	// Admins of groups/channels see "Recent actions".
 	c := engine.ChatInfo{Type: engine.ChatTypeChanVal, Title: "News", IsAdmin: true}
 	found := false
-	for _, it := range headerMenuItems(c, false, false, false) {
+	for _, it := range headerMenuItems(c, false, false, false, false) {
 		if it.id == "adminlog" {
 			found = true
 		}
@@ -27,7 +27,7 @@ func TestHeaderMenuAdminLogEntry(t *testing.T) {
 	}
 	c2 := engine.ChatInfo{Type: engine.ChatTypeGroupVal, Title: "Group", IsAdmin: true}
 	found2 := false
-	for _, it := range headerMenuItems(c2, false, false, false) {
+	for _, it := range headerMenuItems(c2, false, false, false, false) {
 		if it.id == "adminlog" {
 			found2 = true
 		}
@@ -38,14 +38,14 @@ func TestHeaderMenuAdminLogEntry(t *testing.T) {
 
 	// Non-admins never see it (tdesktop semantics).
 	c3 := engine.ChatInfo{Type: engine.ChatTypeChanVal, Title: "News", IsAdmin: false}
-	for _, it := range headerMenuItems(c3, false, false, false) {
+	for _, it := range headerMenuItems(c3, false, false, false, false) {
 		if it.id == "adminlog" {
 			t.Fatal("non-admin sees Recent actions")
 		}
 	}
 	// DMs never see it.
 	c4 := engine.ChatInfo{Type: engine.ChatTypeDMVal, IsAdmin: true}
-	for _, it := range headerMenuItems(c4, false, false, false) {
+	for _, it := range headerMenuItems(c4, false, false, false, false) {
 		if it.id == "adminlog" {
 			t.Fatal("DM menu has Recent actions")
 		}

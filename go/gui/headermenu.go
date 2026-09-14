@@ -41,8 +41,10 @@ func headerMenuConfirmText(id string) (title, hint string) {
 	return "", ""
 }
 
-// headerMenuItems derives the peer-menu rows (pure, tested).
-func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn bool) []chatMenuAction {
+// headerMenuItems derives the peer-menu rows (pure, tested). giftsOK:
+// the account supports star gifts (slice 211) — user peers then get the
+// "Send a gift" row (tdesktop's profile gift entry).
+func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn, giftsOK bool) []chatMenuAction {
 	var items []chatMenuAction
 	if c.IsMuted {
 		items = append(items, chatMenuAction{"Unmute", "unmute"})
@@ -81,6 +83,9 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn bool) []c
 	items = append(items, chatMenuAction{"View deleted messages…", "viewdeleted"})
 	items = append(items, chatMenuAction{"Clear deleted messages", "cleardeleted"})
 	if c.Type == engine.ChatTypeDMVal {
+		if giftsOK {
+			items = append(items, chatMenuAction{"Send a gift", "gift"})
+		}
 		items = append(items, chatMenuAction{"Change colors…", "theme"})
 		if blockedKnown && blocked {
 			items = append(items, chatMenuAction{"Unblock user", "unblock"})
@@ -190,6 +195,9 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 		a.closeHeaderMenu()
 		chat := c
 		a.openChatThemeDialog(chat)
+	case "gift":
+		a.closeHeaderMenu()
+		a.openGiftPicker(c)
 	case "mute":
 		a.closeHeaderMenu()
 		go func() {
@@ -285,7 +293,9 @@ func (a *App) runHeaderConfirm(action string) {
 func (a *App) layoutHeaderMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.headerMenu
 	items := headerMenuItems(m.chat, f.profile != nil, f.profile != nil && f.profile.IsBlocked,
-		f.selected != nil && chatTranslateOn(f, f.selected))
+		f.selected != nil && chatTranslateOn(f, f.selected),
+		// Slice 211: gifts on gift-capable platforms, user peers only.
+		m.chat.Type == engine.ChatTypeDMVal && giftAccountOK(f, m.chat.AccountID))
 	growClickables(&a.wid.headerMenuBtns, len(items))
 
 	menuW := gtx.Dp(unit.Dp(220))

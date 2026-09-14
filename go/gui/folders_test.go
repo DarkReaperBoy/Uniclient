@@ -44,7 +44,7 @@ func TestBuildFolderTabs(t *testing.T) {
 	}
 
 	// Scoped account without folder support: smart tabs.
-	tabs = buildFolderTabs("acc", nil, false, false)
+	tabs = buildFolderTabs("acc", nil, false)
 	if len(tabs) != 5 || tabs[4].kind != folderTabChannels {
 		t.Fatalf("unsupported tabs = %v", tabs)
 	}

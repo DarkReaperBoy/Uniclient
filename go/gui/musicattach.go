@@ -303,13 +303,11 @@ func (a *App) musicAttachFileRow(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								gtx.Constraints.Min.X = gtx.Dp(unit.Dp(28))
-								ic := iconAVNote
-								color := a.ui.p.TextDim
-								return material.Icon(a.ui.Theme, ic).Layout(gtx, color)
+								return iconAVNote.Layout(gtx, a.ui.p.TextDim)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									return a.ui.H4("Choose from files").Layout(gtx)
+									return a.ui.H3("Choose from files").Layout(gtx)
 								})
 							}),
 						)
@@ -398,15 +396,15 @@ func (a *App) musicAttachRow(gtx layout.Context, tr engine.MusicTrack, idx int, 
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								gtx.Constraints.Min.X = gtx.Dp(unit.Dp(24))
 								if st.sel[tr.DocID] {
-									return material.Icon(a.ui.Theme, iconToggleCheckBox).Layout(gtx, a.ui.p.Accent)
+									return iconToggleCheckBox.Layout(gtx, a.ui.p.Accent)
 								}
-								return material.Icon(a.ui.Theme, iconToggleCheckBoxBlank).Layout(gtx, a.ui.p.TextDim)
+								return iconToggleCheckBoxBlank.Layout(gtx, a.ui.p.TextDim)
 							}),
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 								return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 									return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											return a.ui.H4(title).Layout(gtx)
+											return a.ui.H3(title).Layout(gtx)
 										}),
 										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 											sub := tr.Performer

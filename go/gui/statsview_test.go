@@ -94,7 +94,7 @@ func TestHeaderMenuStatsEntry(t *testing.T) {
 	// Admin channels get Statistics.
 	c := engine.ChatInfo{Type: engine.ChatTypeChanVal, IsAdmin: true}
 	found := false
-	for _, it := range headerMenuItems(c, false, false, false) {
+	for _, it := range headerMenuItems(c, false, false, false, false) {
 		if it.id == "stats" {
 			found = true
 		}
@@ -104,7 +104,7 @@ func TestHeaderMenuStatsEntry(t *testing.T) {
 	}
 	// Non-admin channels never see it.
 	c2 := engine.ChatInfo{Type: engine.ChatTypeChanVal, IsAdmin: false}
-	for _, it := range headerMenuItems(c2, false, false, false) {
+	for _, it := range headerMenuItems(c2, false, false, false, false) {
 		if it.id == "stats" {
 			t.Fatal("non-admin sees Statistics")
 		}
@@ -112,7 +112,7 @@ func TestHeaderMenuStatsEntry(t *testing.T) {
 	// Groups never see it (megagroup stats is a different RPC; out of
 	// this slice's scope — the row is the channel page).
 	c3 := engine.ChatInfo{Type: engine.ChatTypeGroupVal, IsAdmin: true}
-	for _, it := range headerMenuItems(c3, false, false, false) {
+	for _, it := range headerMenuItems(c3, false, false, false, false) {
 		if it.id == "stats" {
 			t.Fatal("group menu shows channel Statistics")
 		}

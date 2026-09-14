@@ -281,6 +281,9 @@ type App struct {
 	musicRowMenu *musicRowMenuState
 	// slice 210: music attach box (saved-music source).
 	musicAttachDlg *musicAttachDlgState
+	// slice 211: gift picker.
+	giftDlg    *giftDlgState
+	giftHideOn bool
 	// shared-media tab browser (slice 78): active tab + lazy per-tab
 	// item windows, reset on every panel reload.
 	panelTab         string
@@ -2207,6 +2210,8 @@ func (a *App) snapshot() frame {
 		musicDlg:         a.musicDlg,
 		musicRowMenu:     a.musicRowMenu,
 		musicAttachDlg:   a.musicAttachDlg,
+		giftDlg:          a.giftDlg,
+		giftHideOn:       a.giftHideOn,
 		muteDlg:          a.muteDlg,
 		members:          a.members,
 		mediaCounts:      a.mediaCounts,
@@ -2507,6 +2512,9 @@ type frame struct {
 	musicRowMenu *musicRowMenuState
 	// slice 210: music attach box.
 	musicAttachDlg *musicAttachDlgState
+	// slice 211: gift picker.
+	giftDlg    *giftDlgState
+	giftHideOn bool
 
 	// header presence (slice 28): DM peer online/last-seen for the header
 	hdrPresence *engine.CachedUser

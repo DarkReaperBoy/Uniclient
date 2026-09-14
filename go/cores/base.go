@@ -419,6 +419,34 @@ type SavedReactionTagInfo struct {
 	Count    int    `json:"count"`
 }
 
+// StarGiftInfo is one purchasable gift from the payments.getStarGifts
+// catalog (slice 211). NanoStars is Stars × 1e9 — the same unit the star
+// balance uses, so the GUI compares directly.
+type StarGiftInfo struct {
+	GiftID              string `json:"gift_id"`
+	Stars               int64  `json:"stars"`
+	NanoStars           int64  `json:"nano_stars"`
+	ThumbB64            string `json:"thumb_b64,omitempty"`
+	StickerEmoji        string `json:"sticker_emoji,omitempty"`
+	Limited             bool   `json:"limited,omitempty"`
+	SoldOut             bool   `json:"sold_out,omitempty"`
+	Birthday            bool   `json:"birthday,omitempty"`
+	RequirePremium      bool   `json:"require_premium,omitempty"`
+	AvailabilityRemains int    `json:"availability_remains,omitempty"`
+	AvailabilityTotal   int    `json:"availability_total,omitempty"`
+	ConvertStars        int64  `json:"convert_stars,omitempty"`
+}
+
+// StarsGiftAmount is one giftable star amount (payments.getStarsGiftOptions).
+type StarsGiftAmount struct {
+	Stars        int64  `json:"stars"`
+	NanoStars    int64  `json:"nano_stars"`
+	Currency     string `json:"currency,omitempty"`
+	Amount       int64  `json:"amount,omitempty"`
+	Extended     bool   `json:"extended,omitempty"`
+	StoreProduct string `json:"store_product,omitempty"`
+}
+
 // MusicTrackInfo is one profile-music track (tdesktop "saved music",
 // slice 206): an audio document pinned on a user profile. FileRefB64
 // carries the encoded file reference so the download path can fetch the

@@ -67,14 +67,14 @@ func TestTransChatKey(t *testing.T) {
 // translate rows (slice 150).
 func TestHeaderMenuTranslateEntry(t *testing.T) {
 	dm := engine.ChatInfo{Type: engine.ChatTypeDMVal}
-	off := headerMenuItems(dm, false, false, false)
+	off := headerMenuItems(dm, false, false, false, false)
 	if !containsAction(off, "transon") {
 		t.Fatalf("off-state menu lacks Translate to…: %+v", off)
 	}
 	if containsAction(off, "transoff") {
 		t.Fatalf("off-state menu shows Hide translations")
 	}
-	on := headerMenuItems(dm, false, false, true)
+	on := headerMenuItems(dm, false, false, true, false)
 	if !containsAction(on, "transoff") {
 		t.Fatalf("on-state menu lacks Hide translations: %+v", on)
 	}

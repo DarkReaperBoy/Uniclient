@@ -13,7 +13,7 @@ import (
 // Android the event carries a JNI global reference to the android.view.View
 // backing the window (app.AndroidViewEvent), and app.JavaVM() exposes the
 // process JVM. Both feed the JNI permission flow in jni_android.go.
-func SetAndroidViewEvent(ev app.ViewEvent) {
+func SetAndroidViewEvent(ev any) {
 	if av, ok := ev.(app.AndroidViewEvent); ok {
 		jniState.mu.Lock()
 		if av.View != 0 {

@@ -93,7 +93,7 @@ func TestAppendSimilarRowModes(t *testing.T) {
 	if len(rows) != 2 || !rows[1].simCollapsed || rows[1].simBlock {
 		t.Errorf("collapse must append the compact row, got %+v", rows[1:])
 	}
-	rows = appendSimilarRow(base, chan_, "", 3, false, false)
+	rows = appendSimilarRow(base, chan_, "", 3, false)
 	if len(rows) != 2 || !rows[1].simBlock || rows[1].simCollapsed {
 		t.Errorf("default must append the block row, got %+v", rows[1:])
 	}

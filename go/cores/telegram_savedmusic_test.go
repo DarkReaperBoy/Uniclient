@@ -152,13 +152,13 @@ func TestAudioSendMediaRequest(t *testing.T) {
 	if !req.Silent {
 		t.Error("silent flag lost")
 	}
-	if !req.ScheduleDate || req.ScheduleDate != 3600 {
+	if req.ScheduleDate != 3600 {
 		t.Errorf("schedule date = %d, want 3600", req.ScheduleDate)
 	}
 
 	// No caption / no schedule / no ref: honest minimal request.
 	req2 := audioSendMediaRequest(MusicTrackInfo{DocID: "8"}, "", false, 0, 7)
-	if req2.Message != "" || req2.Silent || req2.ScheduleDate {
+	if req2.Message != "" || req2.Silent || req2.ScheduleDate != 0 {
 		t.Errorf("minimal request carries flags: %+v", req2)
 	}
 	d2 := req2.Media.(*tg.InputMediaDocument).ID.(*tg.InputDocument)
