@@ -167,6 +167,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV52,
 	migrateV53,
 	migrateV54,
+	migrateV55,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -269,6 +270,33 @@ func migrateV54(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+// migrateV55 creates the profile-music table (slice 206: tdesktop "saved
+// music" — songs pinned on user profiles): one ordered playlist row per
+// (account, peer, document), including the download reference fields so
+// playback works straight from the cache.
+func migrateV55(tx *sql.Tx) error {
+	if _, err := tx.Exec(`CREATE TABLE IF NOT EXISTS profile_music (
+                account_id  TEXT NOT NULL,
+                peer_id     TEXT NOT NULL,
+                doc_id      TEXT NOT NULL,
+                position    INTEGER NOT NULL DEFAULT 0,
+                access_hash INTEGER NOT NULL DEFAULT 0,
+                file_ref    TEXT NOT NULL DEFAULT '',
+                title       TEXT NOT NULL DEFAULT '',
+                performer   TEXT NOT NULL DEFAULT '',
+                duration    INTEGER NOT NULL DEFAULT 0,
+                size        INTEGER NOT NULL DEFAULT 0,
+                mime_type   TEXT NOT NULL DEFAULT '',
+                file_name   TEXT NOT NULL DEFAULT '',
+                updated_at  INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (account_id, peer_id, doc_id)
+        )`); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_profile_music_doc ON profile_music(account_id, doc_id)`)
+	return err
 }
 
 // migrateV53 adds messages.comments_count + messages.thread_root (slice

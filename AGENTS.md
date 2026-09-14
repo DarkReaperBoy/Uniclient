@@ -417,6 +417,17 @@ is the next task.
         (stars gifting — gotd layer lacks the transfer RPC — + giveaway
         launch), or P3 honest scope (proximity radius, DC row, styling
         polish); see research/ayugram_parity.md "Remaining gaps".
+      - slice 206 (2026-09-14): parity re-verification against
+        AyuGramDesktop dev found ONE post-truth-pass upstream feature —
+        profile music / "saved music" (songs pinned on user profiles;
+        tdesktop info/saved/* + account.saveMusic wires, all in gotd
+        layer 228). Shipped end-to-end: core typed surface over the
+        pre-existing RPC wrappers, engine cache (migrateV55) + own-ID
+        hash gate + in-app playback through the shared player, panel
+        Music section + playlist view (own: move/remove; other:
+        add-to-my-profile) + bubble-menu item. Parity: 200 rows,
+        PRESENT 183 (92%). The music-attach-box saved-music source
+        stays a future slice (in-app picker when attaching audio).
       - slices 158–160 (2026-09-12): swipe quick actions on chat rows
         (tdesktop swipe_handler 1:1 — gesture layer, action strip,
         state-aware labels, swipe-back nav, persisted Settings picker);

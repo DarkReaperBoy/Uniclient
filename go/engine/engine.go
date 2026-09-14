@@ -95,6 +95,13 @@ type Engine struct {
 	favReactMu sync.Mutex
 	favReact   map[string]string
 
+	// Profile music (slice 206): per-account own-playlist document-ID set
+	// (account.getSavedMusicIDs, hash-gated refresh) for the bubble-menu
+	// gate, plus the running count hash.
+	ownMusicMu   sync.Mutex
+	ownMusicIDs  map[string]map[string]bool
+	ownMusicHash map[string]int64
+
 	// Sponsored messages (engine/sponsored.go): per account+chat 5-minute
 	// cache of channels.getSponsoredMessages results, with one-shot
 	// view-reporting per window.

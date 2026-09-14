@@ -49,7 +49,17 @@ const (
 	// (messages.transcribeAudio / updateTranscribedAudio): the engine stored
 	// the text; the open chat re-renders the voice bubble with it.
 	EventMsgTranscribed = "msg_transcribed"
+	// EventProfileMusicChanged carries a profile-music playlist update
+	// (slice 206: own-playlist mutations + ID-set refreshes) — hosts
+	// reload the panel's Music section and the playlist view.
+	EventProfileMusicChanged = "profile_music_changed"
 )
+
+// ProfileMusicEvent is the payload of EventProfileMusicChanged: the peer
+// whose playlist changed ("" = the own ID set only).
+type ProfileMusicEvent struct {
+	PeerID string `json:"peer_id"`
+}
 
 // EngineEvent is the envelope for all events pushed to the host.
 type EngineEvent struct {

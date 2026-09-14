@@ -14,6 +14,11 @@ Sources (primary, verified this session):
   `go/cores/base.go` (Core iface, 24+ capability consts), engine method dump
   (engine/*.go), `go/cores/telegram.go` (1323 methods, all Core iface methods
   implemented), `go/utils/config.go` (AppConfig already models ghost flags).
+- Re-verified 2026-09-14 via the GitHub API against AyuGramDesktop `dev`
+  (latest commit e45d60d9 2026-08-08, nothing since 2026-09-01): the only
+  post-truth-pass upstream feature is "saved music" / profile music
+  (info/saved/* + account.saveMusic wires) — shipped as slice 206. gotd
+  v0.161.0 (layer 228) already carries the full RPC surface.
 
 Status legend:
 - **PRESENT** — GUI shows it and it works.
@@ -180,6 +185,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Notifications toggle in panel | Per-chat mute switch | PRESENT (per-chat mute switch wired to engine.MuteChat) | gui/profile.go muteRow | P1 |
 | Reactions/views list | Who reacted w/ which emoji | PRESENT (slice 49: message menu 'Who reacted' → dialog w/ per-emoji tabs (engine GetMessageReactorsList w/ filter + offset paging); rows 'emoji + name'; views list later) | gui/reactors.go + engine.GetMessageReactorsList | P2 |
 | Common groups | Shared chats w/ user | PRESENT (slice 107: DM profile panel section "Groups in common (N)" — engine.GetCommonChats rows w/ member counts, streamer-masked titles, tap opens the chat (honest toast when not in the list); hidden when empty) | gui/commongroups.go + engine GetCommonChats | P3 |
+| Profile music ("saved music") | Songs pinned on user profiles: MusicButton section, playlist view, add/remove/reorder, bubble "Save music to" | PRESENT (slice 206, upstream feature found by the 2026-09-14 re-verification: tdesktop/AyuGram 7.0.9-dev added it AFTER the 09-13 truth pass — users.getSavedMusic / account.saveMusic / account.getSavedMusicIDs, all in gotd layer 228. Core: typed GetProfileMusic/SaveProfileMusicDoc/GetOwnSavedMusicIDs over the pre-existing RPC wrappers + document→track normalization (voice notes excluded, file-name fallback §1.10). Engine: profile_music cache table (migrateV55, position-ordered per peer) + own-ID set (hash-gated) + TrackFromMessage (media-table remote_ref/extra) + PlayProfileMusicTrack (download-once → shared in-app player keyed (account, "profilemusic", docID)) + EventProfileMusicChanged. GUI: panel Music section (first track + count → playlist view, tdesktop MusicButton 1:1), playlist rows (tap = play w/ active tint + duration), own rows: ⋮ Move up/Move down/Remove (after_id reorder w/ predecessor no-op), other rows: ＋ add-to-my-profile; bubble menu "Add/Remove from profile music" gated on the live own-ID set (hidden until loaded — never a wrong label); honest empty state) | gui/profilemusic.go + engine/profilemusic.go + cores/telegram_savedmusic.go | P2 |
 | Saved Messages | Own chat + saved sublists + tags | PARTIAL (slice 116: pinned bookmark row above the chat list per self-capable account (engine selfIDer — Telegram); tap creates+opens the saved chat (engine OpenSavedMessages fixed — the old INSERT silently no-op'd on the NOT NULL updated_at); bookmark avatar everywhere the saved chat renders; saved chat pinned first in the forward picker; drawer Saved Messages button engine-backed; saved-tags search shipped; slice 197: SUBLISTS — the saved chat gains the Lists pane (right sidebar, tdesktop 5.16: "All messages" + one row per saved-from dialog, pinned first, preview text, honest loading/empty/error states) and picking a sublist scopes the view (bar under the header, back → whole saved chat; pages read the messages cache filtered by the new saved_peer column — migrateV54 — fed by messages.getSavedHistory on first open + the official fwd-from backfill for pre-layer-170 rows; sending while scoped stays the plain self-chat target). slice 204: pin toggle/reorder/delete SHIPPED — the Lists pane rows carry a context menu (pin/unpin, move up/down within the pinned block via messages.reorderPinnedSavedDialogs, delete-with-confirm via deleteSavedHistory + local cache purge), and the pinned section now preserves the server pin order (was re-sorted by time — reorders were invisible); slice 199: REACTION TAGS — premium accounts get the Tags section in the Lists pane (name/emoji/count rows from messages.getSavedReactionTags) and picking one scopes the view to the tagged messages via the server-side saved_reaction search (offsetID paging) — bar "Tag <emoji> · <name>", honest non-premium/empty gating) | gui/savedsublists.go + gui/savedmsg.go + gui/chat.go + engine savedsublists.go + cores GetSavedSublists/GetSavedHistory | P2 |
 | Poll results panel | Votes per option | PRESENT (slice 42: poll bubbles — question, tappable options, vote bars w/ percentages, quiz correct/wrong reveal, voters footer, optimistic vote overlay; slice 51: core registers OnMessagePoll → cores.UpdatePollResults (Peer+MsgID, PollID fallback), engine merges counts into cached content_raw (option-byte match, chat resolved from cache on old layers) + EventMsgEdited → live refresh) | gui/poll.go + cores OnMessagePoll + engine mergePollResults | P2 |
 | Bot info panel | Bot description + commands | PRESENT (slice 133: the profile panel of bot chats renders the bot_info payload — "What can this bot do?" description, the chat's command list as accent rows (tap inserts into the composer and closes the panel, the slice-76 wire), privacy-policy row → browser; core GetFullUser folds bot_info via the pure applyBotInfoFields helper (tested), users table gains bot_description/bot_privacy_url via migrateV49, upsert COALESCE-keeps old values) | gui/profile.go botPanelSections + cores applyBotInfoFields + engine migrateV49 | P2 |
@@ -302,7 +308,7 @@ P2 = settings/extras, P3 = rare/edge.
 
 ---
 
-## Remaining gaps (2026-09-13, post slice-193 truth pass)
+## Remaining gaps (2026-09-14, post slice-206 + upstream re-verification)
 
 All P0/P1 rows are PRESENT except honest scope cuts below. The program
 (193 slices) is feature-complete against AyuGramDesktop's shipped
@@ -368,10 +374,16 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
     wide multiplier sliders ship; avatars stay circular (AyuGram default).
 19. **Ayu toasts + logo/userpic styling (PARTIAL)** — toast system ships;
     logo/userpic styling polish remains.
+20. **Profile music (CLOSED, slice 206)** — the upstream "saved music"
+    feature found by the 2026-09-14 re-verification pass: panel Music
+    section, playlist view w/ in-app playback, own-playlist manage
+    (add/remove/reorder) and the bubble-menu item all shipped. The
+    tdesktop music-attach-box source (in-app saved-music picker when
+    attaching audio) remains a future slice if the owner wants it.
 
-## Counts (199 feature rows)
+## Counts (200 feature rows)
 
-- PRESENT: 182 (92%)
+- PRESENT: 183 (92%)
 - PARTIAL: 11 — honest scope cuts (6) · platform/protocol-blocked (3:
   video playback ×2, avatar corners) · checkout-gated (2: stars
   gifting, giveaway launch)
@@ -390,4 +402,7 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   (restrict/ban boxes): moderation CORE-ONLY→PRESENT · slice 192
   (boosts page): giveaways CORE-ONLY→PARTIAL · slice 193 (signup photo):
   signup PARTIAL→PRESENT · slice 195 (channel-post comments): new row
-  PRESENT · slice 196 (comment deep links): deep links PARTIAL→PRESENT.
+  PRESENT · slice 196 (comment deep links): deep links PARTIAL→PRESENT ·
+slice 206 (profile music — upstream feature surfaced by the 2026-09-14
+re-verification against AyuGramDesktop dev, added there ~Aug 2026 after
+the 09-13 truth pass): NEW ROW PRESENT (200th row).

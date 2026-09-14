@@ -141,7 +141,8 @@ func (a *App) loadPanel(k chatKey) {
 
 	var prof *engine.CachedUser
 	var members []engine.MemberInfo
-	if showProfile, showMembers := panelSectionsFor(chatType); showProfile {
+	showProfile, showMembers := panelSectionsFor(chatType)
+	if showProfile {
 		if p, err := a.eng.GetUserProfile(k.AccountID, k.ChatID); err == nil {
 			prof = p
 		}
@@ -164,6 +165,16 @@ func (a *App) loadPanel(k chatKey) {
 		}
 	}
 
+	// Profile music (slice 206): user peers only (bots carry none);
+	// supported accounts feed the panel's Music section. Unsupported
+	// platforms leave it hidden — no dead UI (§1.10).
+	var music []engine.MusicTrack
+	if showProfile && (prof == nil || !prof.IsBot) && a.eng.ProfileMusicSupported(k.AccountID) {
+		if tracks, err := a.eng.GetProfileMusic(k.AccountID, k.ChatID); err == nil {
+			music = tracks
+		}
+	}
+
 	counts, _ := a.eng.GetSharedMediaCounts(k.AccountID, k.ChatID)
 	// Photos tab is prefetched (60 cells); other tabs lazy-load on
 	// first activation (slice 78).
@@ -177,6 +188,7 @@ func (a *App) loadPanel(k chatKey) {
 	}
 	a.members = members
 	a.panelBotCmds = botCmds
+	a.panelMusic = music
 	a.mediaCounts = counts
 	a.panelTab = "image"
 	a.panelTabItems = map[string][]engine.SharedMediaItem{"image": photos}
@@ -480,6 +492,11 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 			}))
 		}
 	}
+
+	// Profile music (slice 206, tdesktop MusicButton): first track +
+	// count, tap-through to the playlist view. Hidden when empty —
+	// tdesktop shows the section only for peers with pinned songs.
+	children = append(children, a.panelMusicSection(gtx, f)...)
 
 	// Groups in common (slice 107): DM profiles, hidden when empty.
 	if showProfile {

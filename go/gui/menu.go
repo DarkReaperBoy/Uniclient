@@ -299,6 +299,41 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.saveMediaToDownloads(msg.AccountID, msg.ChatID, msg.MsgID, seq)
 		}})
 	}
+	// Profile music (slice 206, tdesktop "Save music to"): songs gain the
+	// add/remove pin. Gated on the live own-ID state — hidden until the
+	// set has loaded (§1.10: never a wrong label).
+	if profileMusicMenuGate(m) && a.eng.ProfileMusicSupported(m.AccountID) {
+		if own := a.eng.OwnProfileMusicCached(m.AccountID); own != nil {
+			msg := m
+			inProfile := own[m.MediaRemoteRef]
+			label := "Add to profile music"
+			if inProfile {
+				label = "Remove from profile music"
+			}
+			items = append(items, menuAction{label, func(gtx layout.Context) {
+				go func() {
+					track, ok := a.eng.TrackFromMessage(msg.AccountID, msg.ChatID, msg.MsgID, 0)
+					if !ok {
+						a.setToast("Music: no audio document on this message")
+						return
+					}
+					if inProfile {
+						if err := a.eng.RemoveProfileMusic(msg.AccountID, track.DocID); err != nil {
+							a.setToast("Remove failed: " + err.Error())
+							return
+						}
+						a.setToast("Removed from your profile music")
+						return
+					}
+					if err := a.eng.SaveToProfileMusic(msg.AccountID, track); err != nil {
+						a.setToast("Save failed: " + err.Error())
+						return
+					}
+					a.setToast("Added to your profile music")
+				}()
+			}})
+		}
+	}
 	// OS integration (AyuGram row 159): reveal a downloaded media file in
 	// the platform file manager (slice 86).
 	if m.MediaLocalPath != "" {

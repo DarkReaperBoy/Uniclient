@@ -273,6 +273,11 @@ type App struct {
 	mediaCounts []engine.SharedMediaCountItem
 	// slice 133: bot info panel — the chat's bot commands (tap inserts).
 	panelBotCmds []engine.BotCommandInfo
+	// slice 206: profile music — the panel peer's playlist (first track
+	// + count row opens the full view) and the open playlist dialog.
+	panelMusic   []engine.MusicTrack
+	musicDlg     *musicDlgState
+	musicRowMenu *musicRowMenuState
 	// shared-media tab browser (slice 78): active tab + lazy per-tab
 	// item windows, reset on every panel reload.
 	panelTab         string
@@ -762,6 +767,16 @@ func (a *App) refreshAccounts() {
 	a.savedCap = savedCap
 	a.savedChatID = savedChat
 	a.mu.Unlock()
+	// Profile music (slice 206): one own-ID-set load per account per
+	// session (hash-gated afterwards) so the bubble-menu gate reflects
+	// the real server state from the start.
+	go func() {
+		for _, acc := range accs {
+			if a.eng.ProfileMusicSupported(acc.ID) {
+				a.eng.RefreshOwnProfileMusic(acc.ID)
+			}
+		}
+	}()
 	a.ensureLangStrings() // slice 140: restore pack strings once a core exists
 	a.updateTray()        // slice 137: tray account rows
 	a.invalidate()
@@ -956,6 +971,13 @@ func (a *App) onEvent(data []byte) {
 			a.invalidate()
 		}
 		go a.refreshAuth()
+	// Profile music (slice 206): own-playlist mutations and ID-set
+	// refreshes reload the panel's Music section + the open playlist view.
+	case engine.EventProfileMusicChanged:
+		var pm engine.ProfileMusicEvent
+		if json.Unmarshal(env.Data, &pm) == nil {
+			a.onProfileMusicChanged(env.AccountID, pm.PeerID)
+		}
 	case engine.EventDownloadProgress:
 		var d engine.DownloadProgressEvent
 		if json.Unmarshal(env.Data, &d) == nil {
@@ -2174,6 +2196,9 @@ func (a *App) snapshot() frame {
 		panelMuted:       a.panelMuted,
 		profile:          a.profile,
 		panelBotCmds:     a.panelBotCmds,
+		panelMusic:       a.panelMusic,
+		musicDlg:         a.musicDlg,
+		musicRowMenu:     a.musicRowMenu,
 		muteDlg:          a.muteDlg,
 		members:          a.members,
 		mediaCounts:      a.mediaCounts,
@@ -2468,6 +2493,10 @@ type frame struct {
 	profile     *engine.CachedUser
 	// slice 133: bot info panel — the chat's bot commands.
 	panelBotCmds []engine.BotCommandInfo
+	// slice 206: profile music — the panel peer's playlist + dialogs.
+	panelMusic   []engine.MusicTrack
+	musicDlg     *musicDlgState
+	musicRowMenu *musicRowMenuState
 
 	// header presence (slice 28): DM peer online/last-seen for the header
 	hdrPresence *engine.CachedUser

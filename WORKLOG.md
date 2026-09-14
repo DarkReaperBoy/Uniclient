@@ -5744,3 +5744,49 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
 - Next-session notes: gotd v0.161.0 lacks payments.transferStarAmount
   (stars gifting stays checkout-gated until a gotd upgrade, which is a
   freeze-risk change deserving its own session).
+
+## 2026-09-14 — slice 206: profile music ("saved music", new upstream feature)
+
+- Resumed from the slice-205 session-wrap state (AGENTS.md + WORKLOG);
+  devroot rebuilt from scripts/devroot-setup.sh (go 1.27.1, user-space
+  sysroot). GitHub baseline verified via API: main == local HEAD,
+  v0.9.0 prerelease live (5 assets), verify run 34821098103 green.
+- Parity re-verification (the session-wrap note's first ask): walked
+  AyuGramDesktop `dev` via the GitHub API — nothing since 2026-09-01,
+  latest commit e45d60d9 (2026-08-08). ONE feature landed after the
+  09-13 truth pass: "saved music" / profile music (info/saved/*,
+  data_saved_music.cpp, history_view_save_document_action.cpp) —
+  songs pinned on user profiles. gotd v0.161.0 = layer 228 already
+  ships the whole RPC surface (users.getSavedMusic,
+  users.getSavedMusicByID, account.getSavedMusicIDs, account.saveMusic,
+  userFull.saved_music); the repo even had the raw RPC wrappers from a
+  bulk surface slice. Rated the core 8/10 — extend, don't replace.
+- Slice 206 shipped (tests first at every layer, research in
+  research/profile_music.md):
+  - Core (cores/telegram_savedmusic.go): normalizeMusicDoc
+    (DocumentAttributeAudio, voice excluded, file-name attr fallback),
+    profileMusicSaveRequest (unsave / after_id flag mapping), typed
+    GetProfileMusic (users.getSavedMusic via withPeer+withAPI
+    snapshot) / SaveProfileMusicDoc / GetOwnSavedMusicIDs.
+  - Engine (engine/profilemusic.go + migrateV55 profile_music table):
+    position-ordered per-(account, peer) cache fed on cold open,
+    Save/Remove/Reorder own-playlist mutations w/ cache + event
+    refresh, OwnProfileMusicCached/Refresh (hash = Σids, tdesktop
+    Api::CountHash semantics), TrackFromMessage (media-table
+    remote_ref/extra + content tags), PlayProfileMusicTrack
+    (download-once → shared in-app player keyed
+    (account, "profilemusic", docID)), EventProfileMusicChanged.
+  - GUI (gui/profilemusic.go + profile/menu/state/app hooks): panel
+    Music section (tdesktop MusicButton 1:1 — first track + count,
+    hidden when empty), full playlist view (tap = play w/ active
+    tint, duration labels, honest empty state), own rows ⋮ Move
+    up/Move down/Remove, other rows ＋ add-to-my-profile, bubble-menu
+    Add/Remove-from-profile-music gated on the live own-ID set
+    (hidden until loaded), onEvent reload wiring.
+  - Tests: 7 core (normalization + request shapes), 9 engine (cache,
+    mutations, reorder edges, hash gating, gates), 3 GUI (duration
+    label, menu gate, fallbacks).
+- Gate: gofmt clean · vet clean · go test -tags goolm ./... ALL green
+  (engine/gui/cores/utils/bootstrap/voice/audio/lottie) · linux native
+  binary links (dist/uniclient) · windows + wasm cross-builds green.
+- Parity: NEW ROW PRESENT — 200 rows, PRESENT 183 (92%).

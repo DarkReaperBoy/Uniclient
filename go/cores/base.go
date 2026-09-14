@@ -418,6 +418,22 @@ type SavedReactionTagInfo struct {
 	Count    int    `json:"count"`
 }
 
+// MusicTrackInfo is one profile-music track (tdesktop "saved music",
+// slice 206): an audio document pinned on a user profile. FileRefB64
+// carries the encoded file reference so the download path can fetch the
+// document by ID + access hash.
+type MusicTrackInfo struct {
+	DocID      string `json:"doc_id"`
+	AccessHash int64  `json:"access_hash,omitempty"`
+	FileRefB64 string `json:"file_ref,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Performer  string `json:"performer,omitempty"`
+	Duration   int    `json:"duration,omitempty"`
+	Size       int64  `json:"size,omitempty"`
+	MimeType   string `json:"mime_type,omitempty"`
+	FileName   string `json:"file_name,omitempty"`
+}
+
 // StickerInfo holds data for a single sticker in a set.
 type StickerInfo struct {
 	Emoji     string `json:"emoji"`
