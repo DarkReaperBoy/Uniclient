@@ -6162,3 +6162,27 @@ remainder: online-dot/story-ring stay circular (visual micro-detail).
 Verification: gofmt clean (standalone gofmt — this sandbox cannot run
 the full toolchain); CI verify dispatched on this commit (test+vet+GUI
 smoke+cross-builds) — the sanctioned small-sandbox path (§5).
+
+## 2026-09-15 — slice 215 fix round 2: initials position (constraint leak)
+
+First CI pass was green but the Xvfb screenshots still showed plain
+circles — the initials rendered ABOVE each avatar. Pixel forensics on
+shot-2 (glyph runs at avatar-origin + (13, -20)) + reading the gio
+v0.10.2 sources pinned the real root cause: the v0.4.0 centering offset
+was computed from the label's LAYOUT DIMS, and parents leak Min
+constraints (platformCard's ButtonLayout sets Min.Y=84) —
+widget.Label's `dims.Size = cs.Constrain(...)` inflates the height to
+84, so (44-84)/2 = -20 pushed the initials up and out. X stayed correct
+only because Min.X was 0.
+
+- AvatarShaped: the label now lays out CONTAINED (Min zeroed, Max =
+  the avatar box — which is also widget.Label's glyph-cull viewport),
+  so its dims are natural and the centering offset is true. Paint order
+  (fill under initials) from round 1 kept.
+- drawBookmarkAvatar: same bug class for the centered bookmark glyph —
+  layout.Center offsets by max(child, caller-Min), so the glyph pinned
+  to the top-left; contained with Exact(size) constraints now.
+- No unit test for the position itself (would need an ops decoder);
+  the CI Xvfb screenshots + pixel check are the verification rung.
+
+Parity/worklog numbers unchanged. Verify re-dispatched after the push.
