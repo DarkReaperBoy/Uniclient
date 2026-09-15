@@ -6196,3 +6196,7 @@ Parity/worklog numbers unchanged. Verify re-dispatched after the push.
   XM, MU, T3, DC, BA, RU) — the v0.4.0 plain-circle bug is dead. The
   welcome + authflow screens are anomaly-free (VLM CLEAN).
 - v0.10.1 tagged (avatar corners + initials fix; parity PRESENT 185/200).
+  - Release verified via API: v0.10.1 workflow green on all 7 jobs,
+    prerelease=true, assets linux amd64/arm64 (21.7/19.0MB), windows
+    (16.4MB), APK (32.3MB) + checksums; gh-pages updated (0f1e3f44),
+    Pages serves 200 at /Uniclient/.
