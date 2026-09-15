@@ -6186,3 +6186,13 @@ only because Min.X was 0.
   the CI Xvfb screenshots + pixel check are the verification rung.
 
 Parity/worklog numbers unchanged. Verify re-dispatched after the push.
+
+## 2026-09-15 — v0.10.1
+
+- Verify green on 4354cbee (all 4 jobs: test/vet/gofmt, GUI smoke,
+  cross-builds, android).
+- Slice 215 verified end-to-end: pixel forensics + VLM on the fresh Xvfb
+  screenshots read the initials in every picker circle (TE, IR, MA, GI,
+  XM, MU, T3, DC, BA, RU) — the v0.4.0 plain-circle bug is dead. The
+  welcome + authflow screens are anomaly-free (VLM CLEAN).
+- v0.10.1 tagged (avatar corners + initials fix; parity PRESENT 185/200).
