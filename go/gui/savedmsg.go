@@ -191,6 +191,11 @@ func drawBookmarkAvatar(gtx layout.Context, u *UI, sizeDp unit.Dp) layout.Dimens
 	paint.FillShape(gtx.Ops, u.p.Accent, avatarShapeClip(gtx.Ops, size, u.avatarRadiusPx(size)))
 	if iconActionBookmark != nil {
 		ic := size * 52 / 100 // icon ~52% of the shape
+		// Contain the centering to the avatar box: layout.Center offsets
+		// by max(child, caller-Min), so leaked Min constraints (or a zero
+		// Min) would pin the glyph to the top-left instead of the middle
+		// (same class of bug as the AvatarShaped initials, slice 215).
+		gtx.Constraints = layout.Exact(image.Pt(size, size))
 		layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints = layout.Exact(image.Pt(ic, ic))
 			return iconActionBookmark.Layout(gtx, color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF})

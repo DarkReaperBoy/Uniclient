@@ -386,22 +386,28 @@ func (u *UI) Avatar(gtx layout.Context, name string, sizeDp unit.Dp, online conn
 // rounded square. Forum chats pass their native 30% radius unless the
 // Single Corner Radius toggle overrides it (avatar.go chatAvatar).
 //
-// Paint order fixed in slice 215: the v0.4.0 original painted the bg fill
-// AFTER the initials, covering them — letter avatars rendered as plain
-// colored circles (verified on the CI Xvfb screenshots). Background now
-// goes down first, initials on top.
+// Slice 215 fixed TWO v0.4.0 bugs that made letter avatars render as
+// plain circles: (1) the bg fill was painted AFTER the initials, covering
+// them; (2) the centering offset was computed from the label's dims,
+// which parents' leaked Min constraints inflate (ButtonLayout Min.Y=84
+// → (44-84)/2 = -20px → initials floated ABOVE the avatar). The label is
+// now laid out contained (Min zeroed, Max = the avatar box, which is also
+// the glyph-cull viewport) so its dims are natural and the offset true.
+// Verified against the CI Xvfb screenshots.
 func (u *UI) AvatarShaped(gtx layout.Context, name string, sizeDp unit.Dp, online connDot, radiusPx int) layout.Dimensions {
 	size := gtx.Dp(sizeDp)
 	bg := avatarColor(name)
 
-	// Shape + background.
+	// Shape + background, under the initials.
 	paint.FillShape(gtx.Ops, bg, avatarShapeClip(gtx.Ops, size, radiusPx))
 
-	// Initials on top.
+	// Initials on top, naturally sized and truly centered.
 	macro := op.Record(gtx.Ops)
+	lgtx := gtx
+	lgtx.Constraints = layout.Constraints{Max: image.Pt(size, size)}
 	lbl := u.Label(unit.Sp(float32(sizeDp)*0.36), initials(name))
 	lbl.Color = rgb(0xFFFFFF)
-	dims := lbl.Layout(gtx)
+	dims := lbl.Layout(lgtx)
 	call := macro.Stop()
 	stack := op.Offset(image.Pt((size-dims.Size.X)/2, (size-dims.Size.Y)/2)).Push(gtx.Ops)
 	call.Add(gtx.Ops)
