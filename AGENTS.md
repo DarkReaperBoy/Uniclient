@@ -437,7 +437,8 @@ is the next task.
         row (TDesktop-x64 pack-ID bit formula, async profile resolve
         caching the access hash, tap opens the author's chat).
         Parity: PRESENT 184 (92%), PARTIAL 10. Remaining honest-scope
-        cuts: proximity radius, logo/userpic polish.
+        cuts at that point: proximity radius, logo/userpic polish
+        (userpic half closed by slice 215).
       - slices 211–214 (2026-09-15): star gifts catalog + balance-funded
         checkout (getPaymentForm→sendStarsForm) with the peer-menu row;
         stars giveaways — options picker, balance-funded
@@ -448,6 +449,16 @@ is the next task.
         the count-only GetCountriesList deleted; GetStarsRevenueStats
         was core-only dead surface — now shipped behind the Earn tab.
         CI verify green on d38ae780 (all 4 jobs). v0.10.0 tagged.
+      - slice 215 (2026-09-15): Avatar Corners (the last actionable
+        userpic-styling gap; semantics pinned 1:1 vs ayu_userpic.cpp
+        ComputeRadius + settings_appearance mapRadius + tdesktop
+        ForumUserpicRadiusMultiplier): 24-step slider square→circle,
+        SQUARE/CIRCLE/step pill, live preview row, Single Corner Radius
+        toggle (forums keep native 30% rounding unless on), app-wide
+        application (letter + image + bookmark + story avatars); also
+        fixed the v0.4.0 paint-order bug that hid avatar initials under
+        the bg fill (verified on CI Xvfb screenshots). Parity recount:
+        PRESENT 185/200 (93%).
       - slices 158–160 (2026-09-12): swipe quick actions on chat rows
         (tdesktop swipe_handler 1:1 — gesture layer, action strip,
         state-aware labels, swipe-back nav, persisted Settings picker);

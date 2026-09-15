@@ -75,6 +75,13 @@ type AppConfig struct {
 	// AyuGram app icon set (slice 170, ayu_settings.h appIcon): the
 	// selected icon-set ID; "" = default set.
 	AyuAppIcon string `json:"ayu_app_icon,omitempty"`
+	// AyuGram avatar corners (slice 215, ayu_settings.h
+	// avatarCorners + singleCornerRadius): slider value 0..23
+	// (kMaxAvatarCorners; nil = 23 = circle — AyuGram's default) and
+	// the "forums match chats" toggle (nil = false: forums keep
+	// tdesktop's native 30% rounding).
+	AyuAvatarCorners      *int  `json:"ayu_avatar_corners,omitempty"`
+	AyuSingleCornerRadius *bool `json:"ayu_single_corner_radius,omitempty"`
 	// Power saving (slice 135, tdesktop PowerSaving semantics)
 	PowerSavingFlags    int  `json:"power_saving_flags"`
 	PowerSavingForceAll bool `json:"power_saving_force_all"`
@@ -263,6 +270,18 @@ func ClampBubbleRadius(v int) int {
 	return v
 }
 
+// ClampAvatarCorners bounds the avatar-corners slider (0..23 — AyuGram
+// kMaxAvatarCorners, slice 215).
+func ClampAvatarCorners(v int) int {
+	if v < 0 {
+		return 0
+	}
+	if v > 23 {
+		return 23
+	}
+	return v
+}
+
 // ClampWideMultiplier bounds the bubble-width slider (0.70..1.00).
 func ClampWideMultiplier(v float64) float64 {
 	if v < 0.70 {
@@ -284,6 +303,15 @@ func EffectiveBubbleRadius(cfg AppConfig) int {
 		return 2
 	}
 	return 12
+}
+
+// EffectiveAvatarCorners resolves the active avatar-corner count
+// (nil = 23 = circle, AyuGram's default look). Pure.
+func EffectiveAvatarCorners(cfg AppConfig) int {
+	if cfg.AyuAvatarCorners != nil {
+		return ClampAvatarCorners(*cfg.AyuAvatarCorners)
+	}
+	return 23
 }
 
 // EffectiveWideMultiplier resolves the active bubble-width factor. Pure.

@@ -658,6 +658,8 @@ func (a *App) Start() {
 		// Layout tweak sliders (slice 93): the effective values fold in
 		// the legacy corners toggle for older configs.
 		a.ui.applyLayoutTweaks(utils.EffectiveBubbleRadius(*cfg), utils.EffectiveWideMultiplier(*cfg))
+		// Avatar corners (slice 215): restore the userpic shape.
+		a.ui.applyAvatarCorners(utils.EffectiveAvatarCorners(*cfg))
 		// Language (slice 140): restore the persisted choice. Pack
 		// strings load lazily once an account connects (the override
 		// needs a core); the code itself drives the Language card now.
@@ -1725,6 +1727,10 @@ type cfgSnapshot struct {
 	AyuHideSimilar     bool   // AyuGram hideSimilarChannels (slice 169)
 	AyuCollapseSimilar bool   // effective collapse (nil = on, AyuGram default)
 	AyuAppIcon         string // AyuGram appIcon set ID (slice 170)
+	// Avatar corners (slice 215, AyuGram userpic styling): effective
+	// slider 0..23 (23 = circle) and the forums-match-chats toggle.
+	AyuAvatarCorners      int
+	AyuSingleCornerRadius bool
 
 	// call devices (slice 103): "" = system default
 	CallInputDevice  string
@@ -1806,7 +1812,10 @@ func (a *App) refreshConfig() {
 	accent := a.accentNow
 	a.mu.Unlock()
 	setMsgShowSeconds(snap.AyuMsgSeconds) // slice 173
-	a.updateTray()                        // slice 137: ghost/streamer checkbox state
+	// Avatar corners (slice 215): the frame copy drives chatAvatar;
+	// the UI twin drives every non-chat avatar surface.
+	a.ui.applyAvatarCorners(snap.AyuAvatarCorners)
+	a.updateTray() // slice 137: ghost/streamer checkbox state
 	// App icon set (slice 170): re-apply when the configured set changed
 	// (the default set re-renders with the live accent on every refresh
 	// — cheap, deduped inside the apply layer).

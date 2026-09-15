@@ -309,7 +309,7 @@ func (a *App) sponsoredAvatar(gtx layout.Context, ad *cores.SponsoredMessageInfo
 	if ad.ThumbB64 != "" {
 		key := "thumb:" + ad.ThumbB64
 		if img := mediaImgs.get(key); img != nil {
-			return avatarFromImage(gtx, a, img, unit.Dp(38), dotNone)
+			return avatarFromImage(gtx, a, img, unit.Dp(38), dotNone, a.ui.avatarRadiusPx(gtx.Dp(unit.Dp(38))))
 		}
 		a.decodeThumbAsync(key, ad.ThumbB64)
 	}

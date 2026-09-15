@@ -134,6 +134,25 @@ func (u *UI) wideMultiplier() float64 {
 	return u.wideMult
 }
 
+// applyAvatarCorners sets the userpic corner count (slice 215; clamped
+// to 0..23 at the config boundary, defensive here too).
+func (u *UI) applyAvatarCorners(corners int) {
+	if corners < 0 {
+		corners = 0
+	}
+	if corners > 23 {
+		corners = 23
+	}
+	u.avatarCorners = corners
+}
+
+// avatarRadiusPx resolves the active userpic corner radius for a pixel
+// size (AyuGram ComputeRadius: 23 = circle, 0 = square, else linear).
+// NewUI seeds the circle default so a zero value is never ambiguous.
+func (u *UI) avatarRadiusPx(sizePx int) int {
+	return avatarCornerRadiusPx(u.avatarCorners, sizePx)
+}
+
 // clampFontScale bounds the text scale to a sane, still-usable range.
 func clampFontScale(v float64) float64 {
 	if v < 0.8 {
@@ -228,6 +247,9 @@ type UI struct {
 	// chat pane (0.70..1.00).
 	bubbleRadiusDp int
 	wideMult       float64
+	// Avatar corners (AyuGram userpic styling, slice 215): effective
+	// slider 0..23 (23 = circle, AyuGram kMaxAvatarCorners).
+	avatarCorners int
 }
 
 // notoEmoji is the monochrome Noto Emoji face (SIL OFL 1.1, see assets/OFL.txt).
@@ -244,7 +266,7 @@ func NewUI() *UI {
 	// fonts as additional fallbacks.
 	th.Shaper = text.NewShaper(text.WithCollection(baseFontCollection()))
 	th.TextSize = unit.Sp(15)
-	return &UI{Theme: th, p: dark}
+	return &UI{Theme: th, p: dark, avatarCorners: 23} // circle default (slice 215)
 }
 
 func (u *UI) Label(size unit.Sp, txt string) material.LabelStyle {
@@ -353,12 +375,29 @@ func initials(title string) string {
 	return strings.ToUpper(string([]rune{[]rune(words[0])[0], []rune(words[1])[0]}))
 }
 
-// Avatar renders a colored circle with initials, or a colored status dot.
+// Avatar renders a colored initials avatar at the configured corner
+// shape (slice 215), or a colored status dot.
 func (u *UI) Avatar(gtx layout.Context, name string, sizeDp unit.Dp, online connDot) layout.Dimensions {
+	return u.AvatarShaped(gtx, name, sizeDp, online, u.avatarRadiusPx(gtx.Dp(sizeDp)))
+}
+
+// AvatarShaped renders the initials avatar at an explicit corner radius
+// (pixels): size/2 = circle (the pre-slice-215 look), 0 = square, else a
+// rounded square. Forum chats pass their native 30% radius unless the
+// Single Corner Radius toggle overrides it (avatar.go chatAvatar).
+//
+// Paint order fixed in slice 215: the v0.4.0 original painted the bg fill
+// AFTER the initials, covering them — letter avatars rendered as plain
+// colored circles (verified on the CI Xvfb screenshots). Background now
+// goes down first, initials on top.
+func (u *UI) AvatarShaped(gtx layout.Context, name string, sizeDp unit.Dp, online connDot, radiusPx int) layout.Dimensions {
 	size := gtx.Dp(sizeDp)
 	bg := avatarColor(name)
 
-	// Circle + initials.
+	// Shape + background.
+	paint.FillShape(gtx.Ops, bg, avatarShapeClip(gtx.Ops, size, radiusPx))
+
+	// Initials on top.
 	macro := op.Record(gtx.Ops)
 	lbl := u.Label(unit.Sp(float32(sizeDp)*0.36), initials(name))
 	lbl.Color = rgb(0xFFFFFF)
@@ -367,9 +406,6 @@ func (u *UI) Avatar(gtx layout.Context, name string, sizeDp unit.Dp, online conn
 	stack := op.Offset(image.Pt((size-dims.Size.X)/2, (size-dims.Size.Y)/2)).Push(gtx.Ops)
 	call.Add(gtx.Ops)
 	stack.Pop()
-
-	defer clip.Ellipse{Min: image.Pt(0, 0), Max: image.Pt(size, size)}.Push(gtx.Ops).Pop()
-	paint.Fill(gtx.Ops, bg)
 
 	if online != dotNone {
 		d := size / 5

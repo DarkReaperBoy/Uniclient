@@ -137,6 +137,8 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 		c.AyuHideSimilarChannels = &b
 	case "ayu_collapse_similar_channels":
 		c.AyuCollapseSimilarChannels = &b
+	case "ayu_single_corner_radius":
+		c.AyuSingleCornerRadius = &b
 	case "corner_reply":
 		c.CornerReply = &b
 	case "bubble_corners":
@@ -1338,6 +1340,29 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			return a.layoutAppIconPicker(gtx, f)
 		}))
 	}
+
+	// Ayu · Avatar corners (slice 215, ayu settings_appearance
+	// BuildAvatarCorners): userpic shape 0..23 (square → circle,
+	// default circle), live preview row, and the Single Corner Radius
+	// toggle — forums keep tdesktop's native 30% rounding unless it
+	// is on. Applies immediately (Gio repaints per frame).
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.sectionTitle(gtx, "Ayu · Avatar corners")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.layoutAvatarCornersRow(gtx, f)
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.layoutAvatarCornersPreview(gtx, f)
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.settingRow(gtx, "Single corner radius", "Forums will have the same avatar shape as chats.")
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return a.toggleRow(gtx, "cfg:ayu_single_corner_radius", "Single corner radius", f.cfg.AyuSingleCornerRadius, func(v bool) {
+			a.applyConfigBool("ayu_single_corner_radius", v)
+		})
+	}))
 
 	// Ayu · Channels (slice 169, primary source ayu_settings.h):
 	// hideSimilarChannels + collapseSimilarChannels (default ON).

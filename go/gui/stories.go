@@ -247,14 +247,17 @@ func storyStripName(name string) string {
 	return name
 }
 
-// storyCircle renders one strip avatar with its story ring.
+// storyCircle renders one strip avatar with its story ring. The corner
+// shape follows the chat (slice 215: forums keep their native rounding).
 func (a *App) storyCircle(gtx layout.Context, f frame, c engine.ChatInfo) layout.Dimensions {
 	size := unit.Dp(56)
+	sizePx := gtx.Dp(size)
+	radius := chatAvatarCornerRadius(f.cfg.AyuAvatarCorners, f.cfg.AyuSingleCornerRadius, c.IsForum, sizePx)
 	var d layout.Dimensions
 	if img := a.avatarImage(c.AvatarPath, ""); img != nil {
-		d = avatarFromImage(gtx, a, img, size, dotNone)
+		d = avatarFromImage(gtx, a, img, size, dotNone, radius)
 	} else {
-		d = a.ui.Avatar(gtx, c.Title, size, dotNone)
+		d = a.ui.AvatarShaped(gtx, c.Title, size, dotNone, radius)
 	}
 	// Ring: accent for unread stories, dim for seen (AyuGram).
 	ringCol := a.ui.p.TextFaint
@@ -401,7 +404,7 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									return layout.Inset{Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 										if img := a.avatarImage(storyChatAvatarPath(f, sv), ""); img != nil {
-											return avatarFromImage(gtx, a, img, unit.Dp(28), dotNone)
+											return avatarFromImage(gtx, a, img, unit.Dp(28), dotNone, a.ui.avatarRadiusPx(gtx.Dp(unit.Dp(28))))
 										}
 										return a.ui.Avatar(gtx, sv.title, unit.Dp(28), dotNone)
 									})

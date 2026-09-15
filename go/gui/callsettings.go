@@ -126,6 +126,8 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 		AyuHideSimilar:         c.AyuHideSimilarChannels,
 		AyuCollapseSimilar:     utils.EffectiveCollapseSimilar(*c),
 		AyuAppIcon:             c.AyuAppIcon,
+		AyuAvatarCorners:       utils.EffectiveAvatarCorners(*c),
+		AyuSingleCornerRadius:  c.AyuSingleCornerRadius != nil && *c.AyuSingleCornerRadius,
 		SendReadReceipts:       c.SendReadReceipts,
 		LocalReadMark:          c.LocalReadMark,
 		SendTyping:             c.SendTyping,

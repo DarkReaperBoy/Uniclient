@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"gioui.org/layout"
-	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -183,15 +182,15 @@ func (a *App) ensureForwardSavedChat(src engine.CachedMessage) {
 	}()
 }
 
-// drawBookmarkAvatar paints the Saved Messages avatar: accent circle with
+// drawBookmarkAvatar paints the Saved Messages avatar: accent shape with
 // the Material bookmark glyph (Telegram's saved-chat look, drawn from
-// shapes — never copied assets).
+// shapes — never copied assets). The corner shape follows the Avatar
+// Corners setting (slice 215).
 func drawBookmarkAvatar(gtx layout.Context, u *UI, sizeDp unit.Dp) layout.Dimensions {
 	size := gtx.Dp(sizeDp)
-	defer clip.Ellipse{Min: image.Pt(0, 0), Max: image.Pt(size, size)}.Push(gtx.Ops).Pop()
-	paint.Fill(gtx.Ops, u.p.Accent)
+	paint.FillShape(gtx.Ops, u.p.Accent, avatarShapeClip(gtx.Ops, size, u.avatarRadiusPx(size)))
 	if iconActionBookmark != nil {
-		ic := size * 52 / 100 // icon ~52% of the circle
+		ic := size * 52 / 100 // icon ~52% of the shape
 		layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints = layout.Exact(image.Pt(ic, ic))
 			return iconActionBookmark.Layout(gtx, color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF})

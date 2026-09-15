@@ -22,21 +22,26 @@ import (
 // cache; the frame only looks up and kicks async decodes.
 
 // chatAvatar renders the chat's real userpic when available (letter
-// fallback), with the optional connection dot.
+// fallback), with the optional connection dot. The corner shape follows
+// the Avatar Corners setting (slice 215); forum chats keep tdesktop's
+// native 30% rounding unless Single Corner Radius is on.
 func (a *App) chatAvatar(gtx layout.Context, c engine.ChatInfo, sizeDp unit.Dp, dot connDot) layout.Dimensions {
 	// Saved Messages chat (slice 116): the bookmark avatar everywhere the
 	// saved chat renders (rows, headers, forward picker).
 	a.mu.Lock()
 	savedID := a.savedChatID[c.AccountID]
+	cfg := a.cfg
 	a.mu.Unlock()
 	if savedID != "" && savedID == c.ChatID {
 		return drawBookmarkAvatar(gtx, a.ui, sizeDp)
 	}
+	sizePx := gtx.Dp(sizeDp)
+	radius := chatAvatarCornerRadius(cfg.AyuAvatarCorners, cfg.AyuSingleCornerRadius, c.IsForum, sizePx)
 	var d layout.Dimensions
 	if img := a.avatarImage(c.AvatarPath, ""); img != nil {
-		d = avatarFromImage(gtx, a, img, sizeDp, dot)
+		d = avatarFromImage(gtx, a, img, sizeDp, dot, radius)
 	} else {
-		d = a.ui.Avatar(gtx, c.Title, sizeDp, dot)
+		d = a.ui.AvatarShaped(gtx, c.Title, sizeDp, dot, radius)
 	}
 	if c.HasUnreadStory {
 		paintAvatarRing(gtx, a.ui, d.Size.X) // unread-stories ring (AyuGram)
@@ -46,16 +51,18 @@ func (a *App) chatAvatar(gtx layout.Context, c engine.ChatInfo, sizeDp unit.Dp, 
 
 // b64Avatar renders a base64 thumbnail avatar (member rows, profiles).
 func (a *App) b64Avatar(gtx layout.Context, fallbackName, b64 string, sizeDp unit.Dp, dot connDot) layout.Dimensions {
+	sizePx := gtx.Dp(sizeDp)
 	if img := a.avatarImage("", b64); img != nil {
-		return avatarFromImage(gtx, a, img, sizeDp, dot)
+		return avatarFromImage(gtx, a, img, sizeDp, dot, a.ui.avatarRadiusPx(sizePx))
 	}
 	return a.ui.Avatar(gtx, fallbackName, sizeDp, dot)
 }
 
 // accountAvatar renders an account's userpic when its path is populated.
 func (a *App) accountAvatar(gtx layout.Context, acc engine.AccountInfo, sizeDp unit.Dp, dot connDot) layout.Dimensions {
+	sizePx := gtx.Dp(sizeDp)
 	if img := a.avatarImage(acc.AvatarPath, ""); img != nil {
-		return avatarFromImage(gtx, a, img, sizeDp, dot)
+		return avatarFromImage(gtx, a, img, sizeDp, dot, a.ui.avatarRadiusPx(sizePx))
 	}
 	return a.ui.Avatar(gtx, accountName(acc), sizeDp, dot)
 }
@@ -84,11 +91,12 @@ func (a *App) avatarImage(path, b64 string) *image.RGBA {
 	return nil
 }
 
-// avatarFromImage paints img as a circle avatar (center-crop cover fit) with
-// the optional status dot — the image twin of UI.Avatar.
-func avatarFromImage(gtx layout.Context, a *App, img *image.RGBA, sizeDp unit.Dp, dot connDot) layout.Dimensions {
+// avatarFromImage paints img as an avatar (center-crop cover fit) with
+// the optional status dot — the image twin of UI.AvatarShaped. radiusPx
+// comes from the Avatar Corners setting (slice 215).
+func avatarFromImage(gtx layout.Context, a *App, img *image.RGBA, sizeDp unit.Dp, dot connDot, radiusPx int) layout.Dimensions {
 	size := gtx.Dp(sizeDp)
-	d := drawImageEllipseCover(gtx, img, size)
+	d := drawImageAvatarCover(gtx, img, size, radiusPx)
 	if dot != dotNone {
 		// Overlay the status dot in the bottom-right corner.
 		ov := op.Offset(image.Pt(d.Size.X-size/5, d.Size.Y-size/5)).Push(gtx.Ops)
@@ -136,16 +144,26 @@ func drawImageRRectCover(gtx layout.Context, img *image.RGBA, size int) layout.D
 	return layout.Dimensions{Size: image.Pt(size, size)}
 }
 
-// drawImageEllipseCover center-crops img to a square and paints it clipped
-// to a circle of the given pixel size (cover, not fit — no gaps).
-func drawImageEllipseCover(gtx layout.Context, img *image.RGBA, size int) layout.Dimensions {
+// drawImageAvatarCover center-crops img to a square and paints it
+// clipped to the avatar shape for the given corner radius (slice 215:
+// size/2 = circle — the historical look, 0 = square, else rounded;
+// cover fit, not fit — no gaps).
+func drawImageAvatarCover(gtx layout.Context, img *image.RGBA, size, radiusPx int) layout.Dimensions {
 	if size <= 0 || img == nil || img.Bounds().Empty() {
 		return layout.Dimensions{}
 	}
 	crop := squareCrop(img)
 	s := fitScale(crop.Bounds().Dx(), crop.Bounds().Dy(), size, size)
 
-	clipStack := clip.Ellipse{Min: image.Pt(0, 0), Max: image.Pt(size, size)}.Push(gtx.Ops)
+	var clipStack clip.Stack
+	switch {
+	case radiusPx <= 0:
+		clipStack = clip.Rect{Max: image.Pt(size, size)}.Push(gtx.Ops)
+	case radiusPx >= size/2:
+		clipStack = clip.Ellipse{Min: image.Pt(0, 0), Max: image.Pt(size, size)}.Push(gtx.Ops)
+	default:
+		clipStack = clip.UniformRRect(image.Rect(0, 0, size, size), radiusPx).Push(gtx.Ops)
+	}
 	trStack := op.Affine(f32.AffineId().Scale(f32.Point{}, f32.Pt(s, s))).Push(gtx.Ops)
 	imgOp := paint.NewImageOp(crop)
 	imgOp.Filter = paint.FilterLinear

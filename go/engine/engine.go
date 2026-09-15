@@ -1063,6 +1063,11 @@ type ConfigChanges struct {
 	AyuCollapseSimilarChannels *bool
 	// AyuGram app icon set (slice 170). Nil = unchanged.
 	AyuAppIcon *string
+	// AyuGram avatar corners (slice 215): slider 0..23 (nil = unchanged;
+	// stored default 23 = circle) and the Single Corner Radius toggle
+	// (forums match chats when on).
+	AyuAvatarCorners      *int
+	AyuSingleCornerRadius *bool
 	// Custom fonts (slice 146): nil = unchanged; non-nil ("" = reset).
 	FontPath     *string
 	MonoFontPath *string
@@ -1175,6 +1180,13 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.AyuAppIcon != nil {
 		e.config.AyuAppIcon = *changes.AyuAppIcon
+	}
+	if changes.AyuAvatarCorners != nil {
+		v := utils.ClampAvatarCorners(*changes.AyuAvatarCorners)
+		e.config.AyuAvatarCorners = &v
+	}
+	if changes.AyuSingleCornerRadius != nil {
+		e.config.AyuSingleCornerRadius = changes.AyuSingleCornerRadius
 	}
 	if changes.MaxCacheSize > 0 {
 		e.config.MaxCacheSize = changes.MaxCacheSize

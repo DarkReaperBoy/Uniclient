@@ -242,7 +242,7 @@ func (a *App) similarAvatar(gtx layout.Context, c *engine.SimilarChannelInfo) la
 	if c.AvatarB64 != "" {
 		key := "thumb:" + c.AvatarB64
 		if img := mediaImgs.get(key); img != nil {
-			return avatarFromImage(gtx, a, img, unit.Dp(34), dotNone)
+			return avatarFromImage(gtx, a, img, unit.Dp(34), dotNone, a.ui.avatarRadiusPx(gtx.Dp(unit.Dp(34))))
 		}
 		a.decodeThumbAsync(key, c.AvatarB64)
 	}

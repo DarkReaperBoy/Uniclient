@@ -252,8 +252,8 @@ P2 = settings/extras, P3 = rare/edge.
 | App icon selector | Alternative app icons | PRESENT (slice 170: Ayu · App icon — 12-set preview grid, apply-on-click; runtime window icon via WM_SETICON (Windows) / _NET_WM_ICON (X11); hidden on js/wasm + Android per §1.10) | gui/appicon.go + utils config AyuAppIcon | P3 |
 | Ayu deleted/edited mark strings | Customizable marks | PRESENT (slice 47: settings_ayu 'Message marks' — deleted + edited mark editors w/ Apply; AppConfig.AyuDeletedMark/AyuEditedMark (empty = defaults '— deleted'/'edited '), engine ConfigChanges pointer strings; chat meta + anti-recall bodies render through them) | gui/marks.go + gui/settings.go | P2 |
 | Sponsored messages (ads) | Ad block below the last channel post + bot-chat top bar; view/click/report; no-ads premium lever | PRESENT (slice 163: the full ad surface — channels.getSponsoredMessages w/ the engine's 5-min per-chat cache; channel placement = message-like cards below the last post (caption row + Recommended badge + sponsor photo avatar + media poster w/ play glyph + action button); bot placement = the top bar (badge + title + one-line message + button, tdesktop FillSuspendedMessageBar placement); whole ad = click target → openLinkExternal + messages.clickSponsoredMessage; messages.viewSponsoredMessage fired once per cache window per ad on real layout; iterative Report ad chain (choose-option dialog → terminal toast); About-ads box w/ promote.telegram.org; Premium page no-ads lever = account.toggleSponsoredMessages w/ error revert (server-premium accounts only, honest gating)); posts_between interleaving + similar-channels block remain engine-gated | gui/sponsored.go + gui/chat.go rows + gui/settingspremium.go + engine/sponsored.go + cores/telegram_sponsored.go | P3 |
-| Wide multiplier / bubble radius / avatar corners | Layout tweak sliders | PARTIAL (slice 93: Appearance → Layout — bubble corner radius slider 0-18 dp (supersedes the rounded/square toggle, legacy configs fold in) + bubble width 'wide multiplier' slider 70-100% of the pane; both live-applied and persisted debounced; avatars stay circular — AyuGram's own default shape) | gui/layoutsliders.go + gui/theme.go + utils/config.go | P3 |
-| Ayu toasts + logo/userpic styling | Visual polish | PARTIAL (toast exists) | gui | P3 |
+| Wide multiplier / bubble radius / avatar corners | Layout tweak sliders | PRESENT (slice 93: Appearance → Layout — bubble corner radius slider 0-18 dp (supersedes the rounded/square toggle, legacy configs fold in) + bubble width 'wide multiplier' slider 70-100% of the pane; both live-applied and persisted debounced; slice 215: the avatar-corners half — see the userpic-styling row) | gui/layoutsliders.go + gui/theme.go + utils/config.go | P3 |
+| Ayu toasts + logo/userpic styling | Visual polish | PRESENT (toast system; slice 170 app-icon picker; slice 215 Avatar Corners — the AyuGram Appearance slider 0..23 square→circle pinned 1:1 vs ayu_userpic.cpp ComputeRadius, live preview row, Single Corner Radius toggle w/ tdesktop's native 30% forum rounding, applies app-wide incl. image avatars + Saved Messages + story circles; plus the v0.4.0 paint-order bug fixed — initials were covered by the bg fill since the first release, verified on CI Xvfb screenshots) | gui/avatarcorners.go + gui/theme.go + gui/avatar.go + gui/savedmsg.go | P3 |
 | Ayu sqlite local DB (history storage) | Own local store for deleted/edits | CORE-ONLY (engine SQLite cache_msgs has IsDeleted/EditedAt — same role) | engine | — |
 
 ## 11. Search — scope: SHARED
@@ -386,10 +386,17 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 17. **Join via invite link / QR (PARTIAL)** — invite links ship; QR scan
     needs camera capture (desktop tdesktop parity: not shipped there
     either).
-18. **Wide multiplier / avatar corners (PARTIAL)** — bubble radius +
-    wide multiplier sliders ship; avatars stay circular (AyuGram default).
-19. **Ayu toasts + logo/userpic styling (PARTIAL)** — toast system ships;
-    logo/userpic styling polish remains.
+18. **Wide multiplier / avatar corners (CLOSED)** — bubble radius +
+    wide multiplier sliders ship; avatar corners shipped as slice 215
+    (see 19) — avatars default circular (AyuGram default 23).
+19. **Ayu toasts + logo/userpic styling (CLOSED)** — toast system ships;
+    app-icon picker = slice 170; slice 215 shipped Avatar Corners
+    (AyuGram Appearance: 24-step slider square→circle, live preview
+    row, Single Corner Radius toggle, forums keep tdesktop's native
+    30% rounding unless toggled) and fixed the v0.4.0 initials-
+    under-fill paint-order bug. Honest remainder: the online-dot /
+    story-ring stay circular (they sit on/outside the avatar —
+    AyuGram's badge repositioning is a visual micro-detail).
 20. **Profile music (CLOSED, slices 206+210)** — the upstream "saved music"
     feature found by the 2026-09-14 re-verification pass: panel Music
     section, playlist view w/ in-app playback, own-playlist manage
@@ -400,11 +407,14 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (200 feature rows)
 
-- PRESENT: 185 (93%)
-- PARTIAL: 9 — honest scope cuts (4: local premium toggle, chat-settings
-  extras, QR scan, logo/userpic polish) · platform/protocol-blocked (3:
-  video playback ×2, avatar corners) · checkout-gated (2: stars
-  gifting, giveaway launch)
+- PRESENT: 185 (93%) — recount 2026-09-15 (awk over the status column,
+  incl. the truncated attach-menu row): 185/9/1/5, rows 255+256 flipped
+  by slice 215; the earlier "185/9" text predated those flips (stale).
+- PARTIAL: 9 — honest scope cuts (local premium toggle, chat-settings
+  extras, QR scan, stars raw-gifting, chat-background upload, saved-
+  messages remainder) · platform/protocol-blocked (video playback ×2,
+  avatar-corner micro-polish of the online badge) · checkout-gated
+  (giveaway launch)
 - MISSING: 1 — PiP (blocked on pure-Go video decode)
 - CORE-ONLY: 5 — video frames ×2 (decode-blocked) · webview
   (owner-decision) · experimental flags (dead-UI ban, by design) · Ayu
@@ -429,3 +439,6 @@ details DC + sticker author): message-details PARTIAL→PRESENT · slice 208
 service message rendering (tdesktop's exact desktop scope) · slice 210
 (music attach box): attach-menu description extended — the box ships the
 saved-music source, closing gap 20's future-slice note.
+· slice 215 (avatar corners, 2026-09-15): rows 255 + 256 PARTIAL→PRESENT
+(the AyuGram Appearance slider + the initials paint-order bug fix);
+verified recount 185 PRESENT / 9 PARTIAL / 1 MISSING / 5 CORE-ONLY.

@@ -832,7 +832,7 @@ func (a *App) callBoxRowWidget(gtx layout.Context, f frame, idx int) layout.Dime
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							if img := a.avatarImage(row.AvatarPath, ""); img != nil {
-								return avatarFromImage(gtx, a, img, unit.Dp(42), dotNone)
+								return avatarFromImage(gtx, a, img, unit.Dp(42), dotNone, a.ui.avatarRadiusPx(gtx.Dp(unit.Dp(42))))
 							}
 							return a.ui.Avatar(gtx, name, unit.Dp(42), dotNone)
 						})

@@ -6111,3 +6111,54 @@ Parity: PRESENT 179 (90%) · PARTIAL 14 · MISSING 1 · CORE-ONLY 5.
   blocked (pure-Go video decode, webview owner-decision, card-funded
   premium giveaway, experimental flags) — see
   research/ayugram_parity.md.
+
+## 2026-09-15 — slice 215: Avatar Corners (AyuGram userpic styling) + initials paint-order fix
+
+Research (primary sources, GitHub API): AyuGramDesktop dev
+settings_appearance.cpp BuildAvatarCorners + ayu/ui/ayu_userpic.cpp
+ComputeRadius/ShouldOverrideShape + lib_ui ayu_ui_settings.h
+(kMaxAvatarCorners = 23, default 23 = circle) + tdesktop dev
+data_peer.cpp/userpic_view.cpp (ForumUserpicRadiusMultiplier 0.3) +
+AyuGram/Languages strings. Findings: research/avatar_corners.md.
+
+Rating: 9/10 — the slice-170/93 config-slider + settings-section
+patterns are solid; extended, not replaced.
+
+Tests first (9 new cases, written before the implementation):
+gui/avatarcorners_test.go (radius formula incl. clamps, SQUARE/CIRCLE
+pill, forum 30% rounding, chat-level resolver incl. the toggle,
+slider mapping, cfgFromAppConfig defaults, preview state) +
+engine/avatarcorners_test.go (config round-trip + boundary clamp).
+
+Implementation:
+- utils/config.go: AppConfig.AyuAvatarCorners *int +
+  AyuSingleCornerRadius *bool (nil = 23 / false), ClampAvatarCorners,
+  EffectiveAvatarCorners.
+- engine: ConfigChanges fields + apply with clamp.
+- gui/avatarcorners.go (new): pure helpers (ComputeRadius formula,
+  pill, forum radius, ShouldOverrideShape resolver, three-way
+  avatarShapeClip, slider mapping) + the settings section — slider row
+  (24 steps, SQUARE/CIRCLE/step pill), live preview row (a settings
+  preview control: "Uniclient Releases / Better late than never ·
+  preview"), Single Corner Radius toggle with the exact upstream
+  string, debounced 600 ms persist.
+- Rendering, app-wide: UI.Avatar → AvatarShaped twin (letter avatars,
+  thread the radius); avatarFromImage/drawImageAvatarCover (image
+  avatars, three-way clip); drawBookmarkAvatar (Saved Messages);
+  storyCircle (forum-aware); chatAvatar is the forum chokepoint
+  (ChatInfo.IsForum + cfgSnapshot); b64/account/calls/similar/
+  sponsored/signup avatars take the global radius. Boot + refreshConfig
+  wiring (applyAvatarCorners), NewUI seeds the circle default.
+- BUG FIX (found by inspecting the paint order + the CI Xvfb
+  screenshots, VLM-verified: circles render with NO initials):
+  UI.Avatar painted the bg fill AFTER the initials since v0.4.0 — the
+  fill covered them. AvatarShaped paints the shape fill first, the
+  initials on top. Letter avatars show initials again.
+
+Parity: rows 255 + 256 PARTIAL→PRESENT; verified recount
+(PRESENT 185 / PARTIAL 9 / MISSING 1 / CORE-ONLY 5 of 200). Honest
+remainder: online-dot/story-ring stay circular (visual micro-detail).
+
+Verification: gofmt clean (standalone gofmt — this sandbox cannot run
+the full toolchain); CI verify dispatched on this commit (test+vet+GUI
+smoke+cross-builds) — the sanctioned small-sandbox path (§5).

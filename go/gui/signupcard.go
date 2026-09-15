@@ -237,7 +237,7 @@ func (a *App) signupPhotoCircle(gtx layout.Context, f frame) layout.Dimensions {
 		if img := a.avatarImage("", f.signupPhotoB64); img != nil {
 			return material.ButtonLayout(a.ui.Theme, &signupPhotoBtn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints = layout.Exact(image.Pt(gtx.Dp(sizeDp), gtx.Dp(sizeDp)))
-				return avatarFromImage(gtx, a, img, sizeDp, dotNone)
+				return avatarFromImage(gtx, a, img, sizeDp, dotNone, a.ui.avatarRadiusPx(gtx.Dp(sizeDp)))
 			})
 		}
 	}
