@@ -19,7 +19,7 @@ func TestHeaderMenuItemsDM(t *testing.T) {
 		for i, it := range items {
 			labels[i] = it.label
 		}
-		want := []string{"Mute notifications", "View profile", "Search", "Translate to…", "Notification sound…", "Scheduled messages", "Auto-delete…", "Shadow-banned users…", "View deleted messages…", "Clear deleted messages", "Change colors…", "Block user", "Clear history", "Delete chat"}
+		want := []string{"Mute notifications", "View profile", "Search", "Translate to…", "Notification sound…", "Scheduled messages", "Auto-delete…", "Shadow-banned users…", "View deleted messages…", "Clear deleted messages", "Change colors…", "Set wallpaper…", "Block user", "Clear history", "Delete chat"}
 		if len(labels) != len(want) {
 			t.Fatalf("labels = %v, want %v", labels, want)
 		}
@@ -36,6 +36,19 @@ func TestHeaderMenuItemsDM(t *testing.T) {
 		items := headerMenuItems(c, false, false, false, false)
 		if items[0].label != "Unmute" || items[0].id != "unmute" {
 			t.Fatalf("first item = %+v", items[0])
+		}
+	})
+
+	t.Run("wallpaper adds reset (slice 218)", func(t *testing.T) {
+		c := dmChat()
+		c.WallpaperJSON = `{"id":5}`
+		items := headerMenuItems(c, false, false, false, false)
+		found := map[string]bool{}
+		for _, it := range items {
+			found[it.id] = true
+		}
+		if !found["wallpaper"] || !found["wallpaperreset"] {
+			t.Fatalf("wallpaper entries missing: %v", items)
 		}
 	})
 
