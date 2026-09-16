@@ -2,6 +2,7 @@ package gui
 
 import (
 	"image"
+	"strconv"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -13,11 +14,14 @@ import (
 // Stickers & GIFs panel tabs (AyuGram parity, matrix "Emoji picker panel"):
 // the a.wid.composer helper panel gains a top-level mode row — Emoji / Stickers /
 // GIFs. The sticker tab lists installed sticker packs as chips (plus a
-// Recent pseudo-pack) over a grid of static sticker thumbnails; tapping a
-// sticker sends it (engine SendSticker). The GIF tab grids the account's
+// Recent pseudo-pack) over a grid of sticker thumbnails; tapping a
+// sticker sends it (engine SendSticker). HOVERING a cell fetches its
+// document once and plays it (slice 217: .tgs lottie and .webm VP9 both
+// animate on hover — tdesktop panel behavior; static stripped thumbs
+// otherwise, honest freeze on unhover). The GIF tab grids the account's
 // saved GIFs (engine GetSavedGifs) and sends on tap through the same
-// document-send path. Animated .tgs/.webm playback stays a later slice —
-// the static thumbnails come from the documents' stripped thumbs.
+// document-send path; GIF documents are H.264 MP4s (no pure-Go decoder)
+// so their cells honestly stay static thumbs.
 
 // panel modes.
 const (
@@ -120,6 +124,64 @@ func (a *App) ensureSavedGifs(accountID string) {
 		a.mu.Unlock()
 		a.invalidate()
 	}()
+}
+
+// ensurePanelStickerArt fetches the hovered panel sticker's document
+// once (per-document dedup through the shared emojiArts cache — the same
+// doc may already be resolved as an inline custom emoji). Pure UI-side
+// prefetch; failures pin the entry (static thumb forever, no churn).
+func (a *App) ensurePanelStickerArt(acc string, st cores.StickerInfo) {
+	if acc == "" || st.FileID == "" {
+		return
+	}
+	docID, err := strconv.ParseInt(st.FileID, 10, 64)
+	if err != nil || docID == 0 {
+		return // non-numeric file IDs are not Telegram documents
+	}
+	e := emojiArts.get(docID)
+	if e.kind != emojiArtUnknown || e.failed {
+		return
+	}
+	if !emojiArts.startReading(docID, e) {
+		return
+	}
+	go func() {
+		files, ferr := a.eng.GetStickerFiles(acc, []int64{docID})
+		if ferr == nil {
+			for _, f := range files {
+				if f.DocumentID != docID || len(f.FileData) == 0 {
+					continue
+				}
+				if !resolveEmojiArtBytes(e, f.MimeType, f.FileData) {
+					e.kind = emojiArtUnsupported
+					e.failed = true
+				}
+				e.reading = false
+				a.invalidate()
+				return
+			}
+		}
+		e.failed = true
+		e.reading = false
+	}()
+}
+
+// panelStickerArt returns the hovered cell's artwork entry when it is a
+// playable animation (lottie or video); nil otherwise.
+func panelStickerArt(st cores.StickerInfo) *emojiArt {
+	docID, err := strconv.ParseInt(st.FileID, 10, 64)
+	if err != nil || docID == 0 {
+		return nil
+	}
+	e := emojiArts.get(docID)
+	if e.failed {
+		return nil
+	}
+	if (e.kind == emojiArtLottie && e.anim != nil) ||
+		(e.kind == emojiArtVideo && e.player != nil && e.vanim != nil) {
+		return e
+	}
+	return nil
 }
 
 // sendStickerFile sends one sticker/GIF document into the open chat.
@@ -283,6 +345,17 @@ func (a *App) layoutStickerMode(gtx layout.Context, f frame) layout.Dimensions {
 						bl.CornerRadius = 8
 						return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
+								// Hover plays (slice 217): fetch on first
+								// hover, animate while hovered, freeze on
+								// unhover (tdesktop panel behavior).
+								if btn.Hovered() {
+									a.ensurePanelStickerArt(panelAccountID(f), st)
+									if art := panelStickerArt(st); art != nil {
+										if drawEmojiArt(gtx, art, gtx.Dp(unit.Dp(52))) {
+											return layout.Dimensions{Size: image.Pt(gtx.Dp(unit.Dp(52)), gtx.Dp(unit.Dp(52)))}
+										}
+									}
+								}
 								return a.stickerThumb(gtx, st)
 							})
 						})

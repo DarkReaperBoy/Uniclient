@@ -124,6 +124,19 @@ func (c *emojiArtCache) get(docID int64) *emojiArt {
 	return e
 }
 
+// startReading atomically claims the fetch slot for a document; false
+// while a fetch is already in flight (per-document dedup across the
+// inline-emoji and panel-sticker surfaces).
+func (c *emojiArtCache) startReading(docID int64, e *emojiArt) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e.reading {
+		return false
+	}
+	e.reading = true
+	return true
+}
+
 // emojiArtBusy reports whether any entry is still resolving.
 func (c *emojiArtCache) busy(docIDs []int64) bool {
 	c.mu.Lock()
@@ -132,6 +145,39 @@ func (c *emojiArtCache) busy(docIDs []int64) bool {
 		if e, ok := c.entries[id]; ok && e.reading {
 			return true
 		}
+	}
+	return false
+}
+
+// resolveEmojiArtBytes parses fetched document bytes into an artwork
+// entry (lottie / raster / video). Returns false when the document is
+// undecodable (the caller pins the failure). Pure-side-effect helper
+// shared by the inline-emoji and panel-sticker fetch paths.
+func resolveEmojiArtBytes(e *emojiArt, mime string, data []byte) bool {
+	switch classifyEmojiArt(mime) {
+	case emojiArtLottie:
+		anim, parsed := parseTgsBytes(data)
+		if !parsed {
+			return false
+		}
+		e.anim, e.kind, e.start = anim, emojiArtLottie, time.Now()
+		return true
+	case emojiArtRaster:
+		img, _, derr := decodeGUIImage(data)
+		if derr != nil {
+			return false
+		}
+		e.img, e.kind = imgToRGBA(img), emojiArtRaster
+		return true
+	case emojiArtVideo:
+		anim, perr := vp9anim.Parse(data)
+		if perr != nil || anim == nil || anim.FrameCount() == 0 {
+			return false
+		}
+		pl := anim.NewPlayer()
+		pl.Start()
+		e.vanim, e.player, e.kind, e.start = anim, pl, emojiArtVideo, time.Now()
+		return true
 	}
 	return false
 }
@@ -146,11 +192,12 @@ func (a *App) ensureEmojiArt(m *engine.CachedMessage, entities []cores.TextEntit
 	if len(ids) == 0 {
 		return
 	}
-	// Only the missing ones.
+	// Only the missing ones (the cache-level reading flag dedups
+	// against concurrent fetches from other surfaces).
 	var missing []int64
 	for _, id := range ids {
 		e := emojiArts.get(id)
-		if e.kind == emojiArtUnknown && !e.failed && !e.reading {
+		if e.kind == emojiArtUnknown && !e.failed && emojiArts.startReading(id, e) {
 			missing = append(missing, id)
 		}
 	}
@@ -177,37 +224,14 @@ func (a *App) ensureEmojiArt(m *engine.CachedMessage, entities []cores.TextEntit
 		for _, id := range missing {
 			e := emojiArts.get(id)
 			f, ok := byID[id]
-			if !ok || len(f.FileData) == 0 {
+			switch {
+			case !ok || len(f.FileData) == 0:
 				e.failed = true
-				continue
-			}
-			switch classifyEmojiArt(f.MimeType) {
-			case emojiArtLottie:
-				anim, parsed := parseTgsBytes(f.FileData)
-				if !parsed {
-					e.failed = true
-					continue
-				}
-				e.anim, e.kind, e.start = anim, emojiArtLottie, time.Now()
-			case emojiArtRaster:
-				img, _, derr := decodeGUIImage(f.FileData)
-				if derr != nil {
-					e.failed = true
-					continue
-				}
-				e.img, e.kind = imgToRGBA(img), emojiArtRaster
-			case emojiArtVideo:
-				anim, perr := vp9anim.Parse(f.FileData)
-				if perr != nil || anim == nil || anim.FrameCount() == 0 {
-					e.failed = true
-					continue
-				}
-				pl := anim.NewPlayer()
-				pl.Start()
-				e.vanim, e.player, e.kind, e.start = anim, pl, emojiArtVideo, time.Now()
-			default:
+			case !resolveEmojiArtBytes(e, f.MimeType, f.FileData):
 				e.kind = emojiArtUnsupported
+				e.failed = true
 			}
+			e.reading = false
 		}
 		delete(a.emojiArtFetching, key)
 		a.invalidate()
