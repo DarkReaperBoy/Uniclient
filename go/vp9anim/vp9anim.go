@@ -439,8 +439,12 @@ func clamp8(v int) byte {
 // ── player ────────────────────────────────────────────────────────────────
 
 // decodeSlots bounds concurrent VP9 producers so N visible stickers
-// share the CPU instead of spawning N busy goroutines. Capacity 4; the
-// token count tracks NumCPU.
+// share the CPU instead of spawning N busy goroutines. init deposits
+// min(NumCPU, 4) permits; acquiring TAKES a permit (receive) and decoding
+// RETURNS it (send). (The direction matters: a counting semaphore whose
+// "acquire" sends deadlocks the moment the buffer is full — caught by
+// the multi-player regression test, which hangs under the inversion on
+// any machine.)
 var decodeSlots = make(chan struct{}, 4)
 
 func init() {
@@ -452,9 +456,16 @@ func init() {
 		n = 4
 	}
 	for i := 0; i < n; i++ {
-		decodeSlots <- struct{}{}
+		decodeSlots <- struct{}{} // deposit the permits
 	}
 }
+
+// acquireDecodeSlot takes a producer permit (blocks while all CPU
+// tokens are busy — the callers park, holding no locks).
+func acquireDecodeSlot() { <-decodeSlots }
+
+// releaseDecodeSlot returns a producer permit.
+func releaseDecodeSlot() { decodeSlots <- struct{}{} }
 
 // Player plays one Animation on a background producer.
 type Player struct {
@@ -536,10 +547,19 @@ func (p *Player) produce() {
 		p.mu.Unlock()
 
 		// Decode one frame off the lock, under the global semaphore.
-		decodeSlots <- struct{}{}
+		acquireDecodeSlot()
+		// A Stop() that landed while we were queued for the permit must
+		// not wait for one more decode: check and bail, permit returned.
+		p.mu.Lock()
+		if p.stopped {
+			p.mu.Unlock()
+			releaseDecodeSlot()
+			return
+		}
+		p.mu.Unlock()
 		frame := p.anim.frames[idx]
 		img, err := dec.decode(frame.payload, frame.alpha)
-		<-decodeSlots
+		releaseDecodeSlot()
 
 		p.mu.Lock()
 		if err != nil {

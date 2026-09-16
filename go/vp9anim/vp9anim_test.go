@@ -12,6 +12,7 @@ import (
 	"image"
 	"image/color"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -396,5 +397,68 @@ func TestParseAlphaDocument(t *testing.T) {
 	}
 	if sum == 0 {
 		t.Fatal("alpha channel is all-zero: alpha stream not decoded")
+	}
+}
+
+func TestSemaphorePermitsAllPlayers(t *testing.T) {
+	// Regression pin (CI 2026-09-16 failure): the decode semaphore must
+	// QUEUE excess producers, never deadlock them. More concurrent
+	// players than permits — every one must still make progress within
+	// the deadline. (The inverted acquire/release this test guards
+	// against deadlocks the moment the permit buffer is full.)
+	data, err := os.ReadFile("testdata/vp90-2-03-size-196x196.webm")
+	if err != nil {
+		t.Skipf("testdata missing: %v", err)
+	}
+	an, err := Parse(data)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	// Prime the permit buffer to CAPACITY first: the inverted acquire
+	// (a send instead of a receive) deadlocks instantly against a full
+	// buffer — without this, spare capacity on small machines masks the
+	// bug exactly the way the 2-core dev VM did.
+	for i := 0; i < 4; i++ {
+		select {
+		case decodeSlots <- struct{}{}:
+		default:
+		}
+	}
+	const players = 6
+	var wg sync.WaitGroup
+	done := make(chan int, players)
+	for i := 0; i < players; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p := an.NewPlayer()
+			p.Start()
+			defer p.Stop()
+			deadline := time.Now().Add(60 * time.Second)
+			for p.DecodedCount() < 1 {
+				if p.Failed() != nil {
+					done <- -1
+					return
+				}
+				if time.Now().After(deadline) {
+					done <- -1
+					return
+				}
+				time.Sleep(2 * time.Millisecond)
+			}
+			done <- 1
+		}()
+	}
+	wg.Wait()
+	close(done)
+	ok := 0
+	for r := range done {
+		if r < 0 {
+			t.Fatal("a producer starved under semaphore pressure (deadlock regression)")
+		}
+		ok++
+	}
+	if ok != players {
+		t.Fatalf("only %d/%d players progressed", ok, players)
 	}
 }
