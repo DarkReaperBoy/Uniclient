@@ -6333,3 +6333,15 @@ clean; wasm+windows cross-builds green; CI verify re-dispatched after
 the semaphore fix (run covers 216+217+fix; 218 dispatched after push).
 
 Parity: row 108 (Chat background) fully PRESENT; gap 16 CLOSED.
+
+## 2026-09-16 — v0.10.2 release prep
+
+- Verify green on 0dd182e6 (all 4 jobs: test/vet/gofmt, GUI smoke,
+  cross-builds, android) — covers slices 216+217+218 + the semaphore fix.
+- Parity after this session: video stickers (row 146), video custom
+  emoji (row 147), panel hover animation, and chat background (row 108)
+  all fully PRESENT; the remaining gaps are H.264-blocked (video
+  playback, PiP), owner-decision (webview), dead-UI-banned
+  (experimental), or checkout-gated (card-funded giveaways).
+- Tagging v0.10.2 (video stickers + video emoji + wallpapers + panel
+  hover animation + the CI-fatal semaphore fix).
