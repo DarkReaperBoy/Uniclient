@@ -27104,14 +27104,14 @@ func (t *TelegramCore) SetChatWallpaper(chatID string, wallpaper WallpaperInfo, 
 		return fmt.Errorf("wallpaper has no reference")
 	}
 	input := tg.InputWallPaperClass(&tg.InputWallPaper{
-		ID:            wallpaper.ID,
-		AccessHash:    wallpaper.AccessHash,
+		ID:         wallpaper.ID,
+		AccessHash: wallpaper.AccessHash,
 	})
 	_, err = t.api.MessagesSetChatWallPaper(t.ctx, &tg.MessagesSetChatWallPaperRequest{
-		Peer:       inputPeer,
-		Wallpaper:  input,
-		Settings:   wallpaperSettingsFromInfo(wallpaper),
-		ForBoth:    forBoth,
+		Peer:      inputPeer,
+		Wallpaper: input,
+		Settings:  wallpaperSettingsFromInfo(wallpaper),
+		ForBoth:   forBoth,
 	})
 	return err
 }
@@ -30437,7 +30437,7 @@ type WallpaperInfo struct {
 	Motion   bool   `json:"motion,omitempty"`
 	// Intensity is the pattern overlay strength (-100..100, pattern
 	// wallpapers only).
-	Intensity int    `json:"intensity,omitempty"`
+	Intensity int `json:"intensity,omitempty"`
 	// AccessHash identifies the wallpaper itself in inputWallPaper.
 	AccessHash int64  `json:"access_hash,omitempty"`
 	ThumbB64   string `json:"thumb_b64,omitempty"`
