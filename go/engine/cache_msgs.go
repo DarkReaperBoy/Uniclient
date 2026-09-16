@@ -861,6 +861,16 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 					em, accountID, chatID)
 			}
 		}
+		// Wallpaper mirror (slice 218): same mechanism — the latest
+		// SetChatWallPaper service row wins; the key's presence with an
+		// empty payload is the reset (RevertChatWallpaper / revert flow).
+		if raw, ok := msg.Extra["chat_wallpaper"]; ok {
+			if js, is := raw.(string); is {
+				e.db.Exec(
+					`UPDATE chats SET wallpaper_json = ? WHERE account_id = ? AND chat_id = ?`,
+					js, accountID, chatID)
+			}
+		}
 	}
 
 	// Cache media references.

@@ -611,10 +611,15 @@ func dotLabel(d connDot) string {
 // Records per-message row bounds (pane coords) for right-click hit tests and
 // triggers scroll-up history pagination (AyuGram loadMessages).
 func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
-	// Chat-theme background (slice 188): the themed pane paints its soft
-	// wallpaper gradient FIRST so every row renders on top of it.
+	// Background layers: the chat's custom wallpaper (slice 218) first —
+	// when it renders, the theme gradient is skipped (a custom wallpaper
+	// replaces it, tdesktop behavior); else the chat-theme background
+	// (slice 188) paints its soft wallpaper gradient. Both render under
+	// every row.
 	if chat != nil {
-		a.chatThemeBackground(gtx, *chat, f)
+		if !a.wallpaperBackground(gtx, *chat, f) {
+			a.chatThemeBackground(gtx, *chat, f)
+		}
 	}
 
 	// Auto-scroll: AnchorEnd keeps us pinned unless the user scrolls up.

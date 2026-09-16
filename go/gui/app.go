@@ -269,6 +269,8 @@ func contentDialogSurface(f frame) string {
 		return "autoDownload"
 	case f.themeDlg != nil:
 		return "chatTheme"
+	case f.wallpaperDlg != nil:
+		return "wallpaper"
 	case f.cloudDlg != nil:
 		return "cloudTheme"
 	case f.ayuFilterDlg != nil:
@@ -323,6 +325,8 @@ func (a *App) layoutContentPaneDialog(gtx layout.Context, f frame, surface strin
 		return a.layoutAutoDownloadDialog(gtx, f)
 	case "chatTheme":
 		return a.layoutChatThemeDialog(gtx, f)
+	case "wallpaper":
+		return a.layoutWallpaperDialog(gtx, f)
 	case "cloudTheme":
 		return a.layoutCloudThemeDialog(gtx, f)
 	case "ayuFilters":

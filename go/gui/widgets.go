@@ -125,6 +125,13 @@ type widgets struct {
 	chatThemeDlgCancelBtn widget.Clickable
 	chatThemeResetBtn     widget.Clickable
 
+	// wallpaper.go
+	wallpaperPickBtn   widget.Clickable
+	wallpaperCancelBtn widget.Clickable
+	wallpaperSetBtn    widget.Clickable
+	wallpaperBlurChk   widget.Bool
+	wallpaperBothChk   widget.Bool
+
 	// chrome.go
 	pinnedBarBtn   widget.Clickable
 	pinnedCycleBtn widget.Clickable

@@ -235,6 +235,7 @@ type App struct {
 	callsList         map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
 	callsLoaded       bool
 	themeDlg          *chatThemeDlgState     // per-chat theme picker (slice 65)
+	wallpaperDlg      *wallpaperDlgState     // per-chat wallpaper picker (slice 218)
 	chatThemes        []cores.ChatThemeInfo  // picker data (slice 65)
 	chatThemesFor     string                 // account the data belongs to (slice 65)
 	chatThemesOn      bool                   // picker data loaded (slice 65)
@@ -2188,6 +2189,7 @@ func (a *App) snapshot() frame {
 		callsList:        a.callsList,
 		callsLoaded:      a.callsLoaded,
 		themeDlg:         a.themeDlg,
+		wallpaperDlg:     a.wallpaperDlg,
 		chatThemes:       a.chatThemes,
 		chatThemesFor:    a.chatThemesFor,
 		chatThemesOn:     a.chatThemesOn,
@@ -2493,6 +2495,7 @@ type frame struct {
 	callsList      map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
 	callsLoaded    bool
 	themeDlg       *chatThemeDlgState     // per-chat theme picker (slice 65)
+	wallpaperDlg   *wallpaperDlgState     // per-chat wallpaper picker (slice 218)
 	chatThemes     []cores.ChatThemeInfo  // picker data (slice 65)
 	chatThemesFor  string                 // account the data belongs to (slice 65)
 	chatThemesOn   bool                   // picker data loaded (slice 65)

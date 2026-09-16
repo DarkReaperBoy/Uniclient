@@ -87,6 +87,10 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn, giftsOK 
 			items = append(items, chatMenuAction{"Send a gift", "gift"})
 		}
 		items = append(items, chatMenuAction{"Change colors…", "theme"})
+		items = append(items, chatMenuAction{"Set wallpaper…", "wallpaper"})
+		if c.WallpaperJSON != "" {
+			items = append(items, chatMenuAction{"Reset wallpaper", "wallpaperreset"})
+		}
 		if blockedKnown && blocked {
 			items = append(items, chatMenuAction{"Unblock user", "unblock"})
 		} else {
@@ -195,6 +199,29 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 		a.closeHeaderMenu()
 		chat := c
 		a.openChatThemeDialog(chat)
+	case "wallpaper":
+		a.closeHeaderMenu()
+		chat := c
+		a.openWallpaperDialog(chat)
+	case "wallpaperreset":
+		a.closeHeaderMenu()
+		accountID, chatID, title := c.AccountID, c.ChatID, c.Title
+		go func() {
+			if err := a.eng.RevertChatWallpaper(accountID, chatID); err != nil {
+				a.setToast("Reset failed: " + err.Error())
+				return
+			}
+			a.setToast("Wallpaper reset in " + title)
+			a.mu.Lock()
+			for i := range a.chats {
+				if a.chats[i].AccountID == accountID && a.chats[i].ChatID == chatID {
+					a.chats[i].WallpaperJSON = ""
+					break
+				}
+			}
+			a.mu.Unlock()
+			a.invalidate()
+		}()
 	case "gift":
 		a.closeHeaderMenu()
 		a.openGiftPicker(c)

@@ -169,6 +169,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV54,
 	migrateV55,
 	migrateV56,
+	migrateV57,
 }
 
 // migrateV45 creates the locally-hidden-messages table (AyuGram "hide
@@ -305,6 +306,18 @@ func migrateV55(tx *sql.Tx) error {
 // from Document.DCID / Photo.DCID).
 func migrateV56(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE media ADD COLUMN dc_id INTEGER NOT NULL DEFAULT 0`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateV57 adds chats.wallpaper_json (slice 218: per-chat custom
+// wallpaper — the marshaled cores.WallpaperInfo mirrored from the latest
+// messageActionSetChatWallPaper service row / own set).
+func migrateV57(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN wallpaper_json TEXT NOT NULL DEFAULT ''`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
 			return err
 		}

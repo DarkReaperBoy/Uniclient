@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"net"
+	"net/http"
 	"net/url"
 
 	"github.com/gotd/td/bin"
@@ -12717,6 +12718,10 @@ func decodeFileExtra(extra string) (int64, []byte) {
 
 func (t *TelegramCore) cacheFileInfo(fileID, accessHash int64, fileRef []byte) {
 	t.peerMu.Lock()
+	if t.fileAccessHash == nil {
+		t.fileAccessHash = make(map[int64]int64)
+		t.fileReference = make(map[int64][]byte)
+	}
 	t.fileAccessHash[fileID] = accessHash
 	if len(fileRef) > 0 {
 		t.fileReference[fileID] = fileRef
@@ -13764,6 +13769,23 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 			emoticon = th.Emoticon
 		}
 		m.Extra["chat_theme_emoticon"] = emoticon
+	case *tg.MessageActionSetChatWallPaper:
+		// Custom wallpaper (slice 218): the LATEST service row wins — the
+		// engine mirrors the marshaled WallpaperInfo onto
+		// chats.wallpaper_json so the GUI can render the image behind the
+		// messages (the same peer-mirror mechanism as the theme emoticon;
+		// overwrite/same/for_both flags ride along for the revert UX).
+		if info := t.wallpaperFromWire(act.Wallpaper); info.ID != 0 || info.DocID != 0 {
+			if raw, jerr := json.Marshal(info); jerr == nil {
+				m.Extra["chat_wallpaper"] = string(raw)
+				if act.Same {
+					m.Extra["chat_wallpaper_same"] = true
+				}
+				if act.ForBoth {
+					m.Extra["chat_wallpaper_for_both"] = true
+				}
+			}
+		}
 	}
 	return m
 }
@@ -27068,17 +27090,82 @@ func (t *TelegramCore) GetPinnedStories(userID string) (int, error) {
 	return len(result.Stories), nil
 }
 
-// SetChatWallpaper sets a custom wallpaper for a chat.
-func (t *TelegramCore) SetChatWallpaper(chatID string) error {
+// SetChatWallpaper sets a custom wallpaper in a private chat (slice
+// 218). wallpaper comes from UploadChatWallpaper (or a prior
+// messageActionSetChatWallPaper service row); forBoth is the premium
+// "apply for both sides" flag.
+func (t *TelegramCore) SetChatWallpaper(chatID string, wallpaper WallpaperInfo, forBoth bool) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if wallpaper.ID == 0 && wallpaper.DocID == 0 {
+		return fmt.Errorf("wallpaper has no reference")
+	}
+	input := tg.InputWallPaperClass(&tg.InputWallPaper{
+		ID:            wallpaper.ID,
+		AccessHash:    wallpaper.AccessHash,
+	})
+	_, err = t.api.MessagesSetChatWallPaper(t.ctx, &tg.MessagesSetChatWallPaperRequest{
+		Peer:       inputPeer,
+		Wallpaper:  input,
+		Settings:   wallpaperSettingsFromInfo(wallpaper),
+		ForBoth:    forBoth,
+	})
+	return err
+}
+
+// RevertChatWallpaper restores the previous wallpaper on our side of a
+// private chat (the answer to an unwanted for-both wallpaper).
+func (t *TelegramCore) RevertChatWallpaper(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
 	}
 	defer unlock()
 	_, err = t.api.MessagesSetChatWallPaper(t.ctx, &tg.MessagesSetChatWallPaperRequest{
-		Peer: inputPeer, Revert: true,
+		Peer:   inputPeer,
+		Revert: true,
 	})
 	return err
+}
+
+// UploadChatWallpaper uploads a custom wallpaper image (JPEG/PNG) for the
+// per-chat flow: account.uploadWallPaper with for_chat, returning the
+// wallpaper reference to pass to SetChatWallpaper. Per the API docs the
+// for_chat flag skips the automatic global install.
+func (t *TelegramCore) UploadChatWallpaper(data []byte, mime string, blurred bool) (WallpaperInfo, error) {
+	// withAPI rule: never hold t.mu across the RPC.
+	api, ctx, err := t.withAPI()
+	if err != nil {
+		return WallpaperInfo{}, err
+	}
+	if len(data) == 0 {
+		return WallpaperInfo{}, fmt.Errorf("empty wallpaper data")
+	}
+	if mime == "" {
+		mime = http.DetectContentType(data)
+	}
+	u := uploader.NewUploader(api)
+	upload, err := u.Upload(ctx, uploader.NewUpload("wallpaper.jpg", bytes.NewReader(data), int64(len(data))))
+	if err != nil {
+		return WallpaperInfo{}, fmt.Errorf("upload: %w", err)
+	}
+	settings := tg.WallPaperSettings{Blur: blurred}
+	resp, err := api.AccountUploadWallPaper(ctx, &tg.AccountUploadWallPaperRequest{
+		ForChat:  true,
+		File:     upload,
+		MimeType: mime,
+		Settings: settings,
+	})
+	if err != nil {
+		return WallpaperInfo{}, err
+	}
+	if _, ok := resp.(*tg.WallPaper); !ok {
+		return WallpaperInfo{}, fmt.Errorf("unexpected upload response")
+	}
+	return t.wallpaperFromWire(resp), nil
 }
 
 // HideChatJoinRequest approves or dismisses a pending join request.
@@ -30343,14 +30430,90 @@ type WallpaperInfo struct {
 	Pattern  bool   `json:"pattern"`
 	Dark     bool   `json:"dark"`
 	Default  bool   `json:"default"`
+	Creator  bool   `json:"creator,omitempty"`
 	Colors   []int  `json:"colors,omitempty"`
 	Rotation int    `json:"rotation"`
 	Blurred  bool   `json:"blurred"`
-	ThumbB64 string `json:"thumb_b64,omitempty"`
-	IsPhoto  bool   `json:"is_photo,omitempty"`
-	DocID    int64  `json:"doc_id,omitempty"`
-	DocHash  int64  `json:"doc_hash,omitempty"`
-	DocRef   string `json:"doc_ref,omitempty"`
+	Motion   bool   `json:"motion,omitempty"`
+	// Intensity is the pattern overlay strength (-100..100, pattern
+	// wallpapers only).
+	Intensity int    `json:"intensity,omitempty"`
+	// AccessHash identifies the wallpaper itself in inputWallPaper.
+	AccessHash int64  `json:"access_hash,omitempty"`
+	ThumbB64   string `json:"thumb_b64,omitempty"`
+	IsPhoto    bool   `json:"is_photo,omitempty"`
+	DocID      int64  `json:"doc_id,omitempty"`
+	DocHash    int64  `json:"doc_hash,omitempty"`
+	DocRef     string `json:"doc_ref,omitempty"`
+}
+
+// wallpaperFromWire normalizes a wire wallPaper constructor into
+// WallpaperInfo (document coords + settings). Pure — unit-tested.
+func (t *TelegramCore) wallpaperFromWire(wp tg.WallPaperClass) WallpaperInfo {
+	var info WallpaperInfo
+	w, ok := wp.(*tg.WallPaper)
+	if !ok {
+		return info
+	}
+	info.ID = w.ID
+	info.AccessHash = w.AccessHash
+	info.Slug = w.Slug
+	info.Pattern = w.Pattern
+	info.Dark = w.Dark
+	info.Default = w.Default
+	info.Creator = w.Creator
+	if doc, ok := w.Document.(*tg.Document); ok {
+		info.DocID = doc.ID
+		info.DocHash = doc.AccessHash
+		info.DocRef = string(doc.FileReference)
+		info.IsPhoto = true
+		info.ThumbB64 = extractStrippedThumbB64(doc.Thumbs)
+		t.cacheFileInfo(doc.ID, doc.AccessHash, doc.FileReference)
+	}
+	if w.Flags.Has(2) {
+		s := w.Settings
+		info.Blurred = s.Blur
+		info.Motion = s.Motion
+		info.Rotation = s.Rotation
+		if s.Flags.Has(3) {
+			info.Intensity = s.Intensity
+		}
+		if s.Flags.Has(0) {
+			info.Colors = append(info.Colors, s.BackgroundColor)
+		}
+		if s.Flags.Has(4) {
+			info.Colors = append(info.Colors, s.SecondBackgroundColor)
+		}
+		if s.Flags.Has(5) {
+			info.Colors = append(info.Colors, s.ThirdBackgroundColor)
+		}
+		if s.Flags.Has(6) {
+			info.Colors = append(info.Colors, s.FourthBackgroundColor)
+		}
+	}
+	return info
+}
+
+// wallpaperSettingsFromInfo maps WallpaperInfo back to the wire settings
+// (the set/install RPC payload). Pure — unit-tested.
+func wallpaperSettingsFromInfo(info WallpaperInfo) tg.WallPaperSettings {
+	s := tg.WallPaperSettings{Blur: info.Blurred, Motion: info.Motion, Rotation: info.Rotation}
+	if len(info.Colors) > 0 {
+		s.SetBackgroundColor(info.Colors[0])
+	}
+	if len(info.Colors) > 1 {
+		s.SetSecondBackgroundColor(info.Colors[1])
+	}
+	if len(info.Colors) > 2 {
+		s.SetThirdBackgroundColor(info.Colors[2])
+	}
+	if len(info.Colors) > 3 {
+		s.SetFourthBackgroundColor(info.Colors[3])
+	}
+	if info.Intensity != 0 {
+		s.SetIntensity(info.Intensity)
+	}
+	return s
 }
 
 func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {

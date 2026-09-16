@@ -6275,3 +6275,61 @@ dispatched after push.
 Parity: rows 146 (Sticker animated) + 147 (Animated custom emoji) fully
 PRESENT — the webm caveats are gone. Remaining video gaps are H.264-only
 (PiP, streaming video, video bubbles decode).
+
+## 2026-09-16 — slice 218: per-chat custom wallpapers
+
+Research (primary sources): core.telegram.org/api/wallpapers read in full
+— image wallpapers render from the document (blur = downscale to fit
+450×450 + box blur radius 12; motion = parallax, desktop-irrelevant);
+uploads use account.uploadWallPaper with for_chat for the per-chat flow
+(skips the automatic global install); messages.setChatWallPaper carries
+wallpaper+settings+for_both/revert; receivers learn it via
+messageActionSetChatWallPaper (Same/ForBoth flags + the full wallPaper
+constructor). The dead revert-only SetChatWallpaper core surface (no
+callers anywhere — a §1.10 hazard) was REPLACED (§1.12) with the typed
+full surface.
+
+Rating: theme-emoticon mirror machinery 9/10 — extended verbatim (the
+wallpaper rides the exact same peer-mirror mechanism, migrateV57).
+
+Shipped (tests-first where pure):
+- cores: wallpaperFromWire (wallPaper constructor → WallpaperInfo with
+  document coords + settings incl. pattern intensity and the 4-color
+  fills; nil-guarded cacheFileInfo), wallpaperSettingsFromInfo (the
+  set/install payload, flag-armed), UploadChatWallpaper (uploader →
+  account.uploadWallPaper for_chat), SetChatWallpaper (full, for_both),
+  RevertChatWallpaper, and the service-message Extra extraction
+  (chat_wallpaper JSON + same/for_both flags). 6 core tests pin the wire
+  normalization, the settings round-trip and the JSON shape.
+- engine: migrateV57 (chats.wallpaper_json), the cacheMessage mirror
+  (latest service row wins — the ensureChatExists copy rides along),
+  ChatInfo.WallpaperJSON through all three SELECT sites + scanChats,
+  Upload/Set/Revert passthroughs (Set/Revert apply the mirror directly
+  after the RPC). Mirror test pins set/replace/round-trip/non-string.
+- gui/wallpaper.go: the picker dialog (frame-routed contentDialogSurface
+  surface "wallpaper", Esc-closed, explorer image pick with async decode
+  preview, blur + for-both(Premium) toggles, honest error surface, Set
+  flow upload→set→optimistic mirror), the message-pane renderer
+  (wallpaperBackground cover-fit via the album-crop primitive, async
+  document download through the engine with the mediaImgs cache, spec
+  blur chain), Reset wallpaper (revert RPC + mirror clear). 7 pure tests
+  (JSON parse + core round-trip, box scaler averaging, blur uniform
+  invariance, edge smearing, 450 downscale, small passthrough) verified
+  in the local scratch harness (gui tests are CI-only on this VM).
+- Blur bug caught by the tests: the guarded moving-average add/remove
+  desynced the edge-clamped window multiset (virtual edge copies) and
+  overflowed the average — fixed with clamped always-add/always-remove.
+
+Also this session: slice 217 (sticker panel hover animation + the
+emojiArt.reading dead-flag fix) and the CRITICAL slice-216 CI fix — the
+VP9 decode semaphore was inverted (acquire sent instead of receiving),
+deadlocking every producer on machines where NumCPU fills the permit
+buffer (4-core CI; the 2-core dev VM masked it). Regression test now
+primes the buffer to capacity so the inversion fails on ANY machine
+(verified both ways locally).
+
+Verification: cores+engine tests green locally; gui windows cross-vet
+clean; wasm+windows cross-builds green; CI verify re-dispatched after
+the semaphore fix (run covers 216+217+fix; 218 dispatched after push).
+
+Parity: row 108 (Chat background) fully PRESENT; gap 16 CLOSED.
