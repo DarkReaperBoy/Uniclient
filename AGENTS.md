@@ -431,6 +431,20 @@ is the next task.
         add-to-my-profile) + bubble-menu item. Parity: 200 rows,
         PRESENT 183 (92%). The music-attach-box saved-music source
         stays a future slice (in-app picker when attaching audio).
+      - slices 216–218 (2026-09-16): VIDEO STICKERS + VIDEO EMOJI PLAY
+        IN-CHAT — the 2026-09-11 "no pure-Go VP9 decoder" verdict
+        expired (two landed mid-2026; go-vp9 rejected after official-
+        vector testing found entropy desyncs + a hard panic, govpx —
+        the libvpx port — ships, 100% of official vectors decode);
+        own webm/EBML demux incl. the alpha side stream, per-message
+        player with a background decode-ahead producer behind a global
+        semaphore (see the inverted-semaphore CI postmortem in
+        WORKLOG 2026-09-16), tap-to-replay, power-saving static frame;
+        inline video custom emoji + reaction pills + panel hover
+        animation ride the same per-document players. Slice 218:
+        per-chat custom wallpapers end-to-end (upload → set → receive →
+        render with the spec blur → reset). v0.10.2 released (all 7
+        CI jobs green; parity rows 108/146/147 fully PRESENT).
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"
