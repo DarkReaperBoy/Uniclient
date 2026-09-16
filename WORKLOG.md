@@ -6345,3 +6345,21 @@ Parity: row 108 (Chat background) fully PRESENT; gap 16 CLOSED.
   (experimental), or checkout-gated (card-funded giveaways).
 - Tagging v0.10.2 (video stickers + video emoji + wallpapers + panel
   hover animation + the CI-fatal semaphore fix).
+
+## 2026-09-16 — v0.10.2 released
+
+- Verify green on 0dd182e6 (all 4 jobs); v0.10.2 tagged and the release
+  workflow completed green on all 7 jobs (test, linux amd64/arm64,
+  windows, android APK, web→gh-pages, publish).
+- Release verified via API: prerelease=true, assets uniclient-linux-amd64
+  (21.0MB), -arm64 (18.3MB), -windows-amd64.exe (15.9MB), uniclient.apk
+  (31.2MB) + checksums.txt; gh-pages serves 200 at /Uniclient/ and the
+  wasm asset fetches (84.9MB — the govpx VP9 decoder is the new weight;
+  wasm is not UPX-able per the release policy, accepted).
+- GUI smoke screenshots (VLM): welcome CLEAN, picker CLEAN, authflow's
+  folder-tab edge clipping is the known narrow-window (800px) layout
+  behavior, unaffected by this session's slices.
+- Session totals: slices 216 (video stickers/emoji via pure-Go VP9),
+  217 (panel hover animation + reading-flag fix), 218 (per-chat custom
+  wallpapers), the CI-fatal semaphore fix, the 65MB stray-artifact
+  hygiene drop, and this release.
