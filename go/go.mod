@@ -7,7 +7,9 @@ require (
 	gioui.org v0.10.2
 	gioui.org/x v0.10.2
 	github.com/ProtonMail/go-crypto v1.4.1
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/coder/websocket v1.8.15
+	github.com/ebitengine/purego v0.10.2
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
@@ -29,6 +31,7 @@ require (
 	github.com/pion/stun/v4 v4.0.0
 	github.com/pion/webrtc/v4 v4.2.20
 	github.com/rs/zerolog v1.35.1
+	github.com/thesyncim/govpx v0.0.0-20260716224042-691cd0512c48
 	golang.org/x/crypto v0.56.0
 	golang.org/x/exp/shiny v0.0.0-20260824195058-e88cd73687aa
 	golang.org/x/image v0.45.0
@@ -52,12 +55,10 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.2 // indirect
 	github.com/dennwc/iters v1.2.2 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/frostbyte73/core v0.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect

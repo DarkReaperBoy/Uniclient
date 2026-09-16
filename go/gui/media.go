@@ -463,8 +463,8 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 	default:
 		// Complete: photos/GIFs/videos open the fullscreen viewer; voice
 		// notes and Opus audio play IN-APP (slice 113); stickers replay
-		// (.tgs) / view (.webp) / hand off (.webm) (slice 123); other
-		// types fall back to the system player (slice 86 handoff).
+		// (.tgs) / view (.webp) / replay in-chat (.webm) (slices 123+216);
+		// other types fall back to the system player (slice 86 handoff).
 		switch msg.MediaType {
 		case engine.MediaImage, engine.MediaGIF, engine.MediaVideo, engine.MediaVideoNote:
 			a.openViewerFromMsg(gtx, &msg)
@@ -483,10 +483,8 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 				} else if msg.MediaLocalPath != "" {
 					a.openMedia(msg.MediaLocalPath, true)
 				}
-			default: // webm video sticker: system player
-				if msg.MediaLocalPath != "" {
-					a.openMedia(msg.MediaLocalPath, true)
-				}
+			default: // webm video sticker: replay in-chat (slice 216)
+				a.replayWebmSticker(&msg)
 			}
 		case engine.MediaVoice, engine.MediaAudio:
 			// Slice 185: MP3 music plays in-app too (pure-Go decode).

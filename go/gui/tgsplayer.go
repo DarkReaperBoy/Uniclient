@@ -9,8 +9,9 @@ package gui
 // duration. Taps replay from frame 0 (AyuGram behavior). Static .webp
 // stickers render from the downloaded file (webp decode registered by
 // custemoji.go) with the inline thumb as the pre-download fallback;
-// .webm video stickers honestly stay at their thumbnail (no webm decoder
-// in pure Go yet) and hand off to the system player on tap (§1.10).
+// .webm video stickers play through the pure-Go VP9 pipeline (slice 216:
+// uniclient/webm demux + govpx decode + alpha pairing — see vp9player.go);
+// tap replays them like AyuGram does.
 //
 // Sticker messages also render WITHOUT the chat-bubble chrome (AyuGram:
 // bare artwork with a translucent meta pill overlaid bottom-right) — see
@@ -37,7 +38,7 @@ import (
 // Sticker render paths.
 const (
 	stickerKindTgs    = iota // animated: application/x-tgsticker (gzip Lottie)
-	stickerKindWebm          // video sticker: video/webm (no decoder — thumb only)
+	stickerKindWebm          // video sticker: video/webm (VP9 pipeline, slice 216)
 	stickerKindStatic        // static webp (or unknown): image decode path
 )
 
@@ -440,6 +441,16 @@ func (a *App) stickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage
 				}
 				return layout.Dimensions{Size: image.Pt(w, h)}
 			}
+		}
+	}
+
+	// Video sticker (.webm, slice 216): the pure-Go VP9 pipeline plays it
+	// in-chat — per-message player, looping on the frame clock, tap
+	// replays; while the producer warms up the static thumbnail shows.
+	if kind == stickerKindWebm && state == engine.DownloadComplete && m.MediaLocalPath != "" {
+		a.ensureWebmPlayer(m)
+		if dims, ok := a.drawWebmSticker(gtx, m, maxSide); ok {
+			return dims
 		}
 	}
 

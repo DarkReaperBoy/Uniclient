@@ -1,6 +1,14 @@
 # In-app video player — pure-Go decoder research (2026-09-11)
 
-Verdict: **blocked, with rationale.** Telegram videos are H.264/AVC in MP4
+Verdict (updated 2026-09-16): **H.264 still blocked; VP9 UNBLOCKED** —
+two pure-Go VP9 decoders appeared mid-2026 and the video-sticker path
+shipped as slice 216 (see video_stickers.md for the re-research). The
+table below is the original 2026-09-11 H.264/VP9 survey, kept for the
+record; go-vp9 was evaluated and REJECTED during the slice-216 work
+(entropy desync + a hard panic on official quantizer/size vectors),
+govpx (the libvpx port) is what ships.
+
+Original verdict: **blocked, with rationale.** Telegram videos are H.264/AVC in MP4
 (+ AAC audio); video stickers are VP9/WebM. The constitution (§1.1) bans
 non-Go runtime deps and cgo outside Gio's Linux GPU shims, so the decoder
 must be pure Go. Deep-research pass over the current ecosystem:

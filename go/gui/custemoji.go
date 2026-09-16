@@ -141,6 +141,14 @@ func reactionGlyphPath(art *emojiArt) string {
 			return reactionPathAnim
 		}
 		return reactionPathThumb
+	case emojiArtVideo:
+		// Video emoji animate through drawEmojiArt's vp9anim branch
+		// (slice 216); an unready player falls back to the static thumb
+		// for that paint.
+		if art.player != nil {
+			return reactionPathAnim
+		}
+		return reactionPathThumb
 	case emojiArtRaster:
 		// drawEmojiArt declines degenerate boxes itself (nil/empty
 		// image) — the glyph caller then falls back to the static

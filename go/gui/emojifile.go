@@ -7,8 +7,8 @@ package gui
 //   - .tgs (application/x-tgsticker) parses through the lottie player and
 //     animates inline on a per-document clock (shared across messages);
 //   - webp/png decode to RGBA and render statically at the same box;
-//   - video/webm emoji have no pure-Go decoder (§1.1) and honestly stay
-//     base-glyph text.
+//   - video/webm emoji play through the pure-Go VP9 pipeline (slice 216:
+//     vp9anim + govpx) on a per-document player shared across messages.
 //
 // Fetches ride engine.GetCustomEmojiFiles (batched, full document bytes)
 // with one in-flight guard per message; failures pin per document (no
@@ -26,6 +26,7 @@ import (
 	"uniclient/cores"
 	"uniclient/engine"
 	"uniclient/lottie"
+	"uniclient/vp9anim"
 )
 
 // emojiArt kinds.
@@ -33,7 +34,8 @@ const (
 	emojiArtUnknown     = iota // not fetched yet
 	emojiArtRaster             // webp/png decoded image
 	emojiArtLottie             // tgs animation
-	emojiArtUnsupported        // video/undecodable: base glyph fallback
+	emojiArtVideo              // webm video emoji (vp9anim player, slice 216)
+	emojiArtUnsupported        // undecodable: base glyph fallback
 )
 
 // classifyEmojiArt maps a custom-emoji document mime to its render kind.
@@ -44,8 +46,10 @@ func classifyEmojiArt(mime string) int {
 		return emojiArtLottie
 	case "image/webp", "image/png", "image/jpeg":
 		return emojiArtRaster
+	case "video/webm":
+		return emojiArtVideo // pure-Go VP9 pipeline (slice 216)
 	default:
-		return emojiArtUnsupported // video/webm etc: honest fallback
+		return emojiArtUnsupported // honest fallback
 	}
 }
 
@@ -81,9 +85,11 @@ type emojiArt struct {
 	kind    int
 	img     *image.RGBA       // raster kind
 	anim    *lottie.Animation // lottie kind
-	start   time.Time         // lottie clock origin
-	failed  bool              // fetch/parse failed (pinned)
-	reading bool              // fetch in flight
+	player  *vp9anim.Player   // video kind (webm/VP9)
+	vanim   *vp9anim.Animation
+	start   time.Time // animation clock origin
+	failed  bool      // fetch/parse failed (pinned)
+	reading bool      // fetch in flight
 }
 
 // emojiArtCache memoizes artwork per document ID (shared across messages
@@ -104,6 +110,13 @@ func (c *emojiArtCache) get(docID int64) *emojiArt {
 		return e
 	}
 	if len(c.entries) >= emojiArtMax {
+		// Video entries own producer goroutines — stop them (async; a
+		// mid-decode Stop could stall the frame thread).
+		for _, e := range c.entries {
+			if e.player != nil {
+				go e.player.Stop()
+			}
+		}
 		c.entries = make(map[int64]*emojiArt)
 	}
 	e := &emojiArt{}
@@ -183,6 +196,15 @@ func (a *App) ensureEmojiArt(m *engine.CachedMessage, entities []cores.TextEntit
 					continue
 				}
 				e.img, e.kind = imgToRGBA(img), emojiArtRaster
+			case emojiArtVideo:
+				anim, perr := vp9anim.Parse(f.FileData)
+				if perr != nil || anim == nil || anim.FrameCount() == 0 {
+					e.failed = true
+					continue
+				}
+				pl := anim.NewPlayer()
+				pl.Start()
+				e.vanim, e.player, e.kind, e.start = anim, pl, emojiArtVideo, time.Now()
 			default:
 				e.kind = emojiArtUnsupported
 			}
@@ -219,6 +241,8 @@ func drawEmojiArt(gtx layout.Context, e *emojiArt, side int) bool {
 		}
 		drawImageScaled(gtx, e.img, side, side, side/6)
 		return true
+	case emojiArtVideo:
+		return drawWebmEmoji(gtx, e, side)
 	}
 	return false
 }

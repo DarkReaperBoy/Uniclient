@@ -41,7 +41,7 @@ func TestClassifyEmojiArt(t *testing.T) {
 		{"image/webp", emojiArtRaster},
 		{"image/png", emojiArtRaster},
 		{"image/jpeg", emojiArtRaster},
-		{"video/webm", emojiArtUnsupported}, // no pure-Go webm decode (§1.1)
+		{"video/webm", emojiArtVideo}, // pure-Go VP9 pipeline (slice 216)
 		{"video/mp4", emojiArtUnsupported},
 		{"", emojiArtUnsupported},
 		{"application/octet-stream", emojiArtUnsupported},

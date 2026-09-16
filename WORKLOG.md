@@ -6200,3 +6200,78 @@ Parity/worklog numbers unchanged. Verify re-dispatched after the push.
     prerelease=true, assets linux amd64/arm64 (21.7/19.0MB), windows
     (16.4MB), APK (32.3MB) + checksums; gh-pages updated (0f1e3f44),
     Pages serves 200 at /Uniclient/.
+
+## 2026-09-16 — slice 216: video stickers + video emoji play in-chat (pure-Go VP9)
+
+Research (fresh, primary sources — the old notes said "blocked", now stale):
+- The 2026-09-11 verdict "no pure-Go VP9 decoder" expired: two appeared
+  mid-2026. mgvs/go-vp9 v0.2.0 (18k LOC, tagged, bit-exact vs libvpx on
+  its test streams) and thesyncim/govpx (437k LOC libvpx port, full
+  official VP9 conformance corpus in CI, untagged pseudo-version).
+- H.264 is STILL blocked (hi264 v0.10.0 IDR+P_Skip only; mgvs/go-openh264
+  intra-only; nothing else new). Round videos keep the system-player
+  handoff. Full survey: research/video_stickers.md.
+- Decoder evaluation against 14 official webmproject test vectors:
+  go-vp9 entropy-desyncs on quantizer-50/60/63 + size-196x196 and HARD
+  PANICS (index -1 in appendSub8x8) on quantizer-40 → REJECTED (a panic
+  in a GUI app is fatal). govpx decodes 100% of the same vectors
+  (incl. every one go-vp9 failed) at 1.5-10ms/frame on the 2-core CI
+  VM → SHIPPED. Pinned via proxy pseudo-version
+  v0.0.0-20260716224042-691cd0512c48; zero module deps; asm gated
+  amd64/arm64&&!purego so wasm/js and purego builds stay scalar.
+
+Rating: tgsPlayer pattern 9/10 — extended, not replaced (§1.12). The
+seams: stickerKindWebm (thumb-only path) and classifyEmojiArt's
+"unsupported" slot for video/webm.
+
+Shipped (tests-first — 16 webm + 13 vp9anim cases before implementation):
+- go/webm/ (new): minimal pure-Go EBML/WebM reader scoped to
+  single-track VP9 — varint edge cases, unknown-size tolerance, VP9
+  track discovery, cluster/block timecode math (signed int16 offsets,
+  TimecodeScale→ns), all three lacing modes with ffmpeg-exact semantics
+  (first EBML size = plain vint value; deltas = value − (2^(7n−1) − 1);
+  pinned from matroska.org spec + ffmpeg matroskadec.c), the WebM VP9
+  ALPHA side stream (BlockGroup → BlockAdditions → BlockMore →
+  BlockAdditional id 1) returned per frame, top-level truncation
+  rejection (partial downloads), frames sorted by presentation time.
+  Verified against 4 real official vectors (352×288, 196×196, 160×90
+  profile-2, 148KB quantizer-00).
+- go/vp9anim/ (new): the player — Parse (demux + VP9 header sniff for
+  profile/colorimetry: BT.601 studio default, BT.709/sRGB-full when
+  signaled; honest ErrNotVP9Profile0 for 10/12-bit), timeline build
+  (container duration → DefaultDuration → 40ms fallback), decodePair
+  (primary + alpha stream; broken alpha degrades to opaque like
+  tdesktop), YUV→RGBA with round-half-up Q14 constants (Y235→255,
+  Y16→0), Player with a background sequential producer (VP9 inter needs
+  refs), global decode semaphore (NumCPU clamped 1-4) so a wall of
+  stickers shares the CPU, sliding ring of 6 frames lookahead or
+  full-cache under a 24MB budget, loop wrap resets the pipeline,
+  NextFrameIn for repaint scheduling. Size guards: 4096² pixels,
+  600 frames.
+- gui/vp9player.go (new): per-message webmPlayers cache mirroring
+  tgsPlayers (async parse, wholesale prune at 96 with async Stop —
+  producers own goroutines), drawWebmSticker (power-saving static first
+  frame, thumbnail fallback while the producer warms up),
+  replayWebmSticker (tap = replay, AyuGram behavior — the old tap was
+  system-player handoff), drawWebmEmoji for the shared per-document
+  emoji path.
+- gui/tgsplayer.go: stickerBubble's stickerKindWebm branch now plays;
+  comments updated. gui/media.go: tap handling. gui/emojifile.go:
+  emojiArtVideo kind — inline custom emoji AND reaction pills animate
+  (both flow through drawEmojiArt); cache eviction stops players
+  async. classifyEmojiArt("video/webm") → video (test updated).
+- testdata: vp90-2-03-size-196x196.webm (12.5KB, 10 frames, odd dims)
+  + vp92-2-20-10bit-yuv420.webm (12.7KB profile-2 rejection vector).
+  End-to-end pins: frame count, dims, duration, decode-through-all,
+  first-frame RGBA FNV checksum (16149418980420066017), alpha-pair
+  decode through a synthesized BlockAdditional document.
+
+Verification: webm+vp9anim+engine+cores+utils+audio+bootstrap+voice+lottie
+tests green locally (low-RAM recipe); gui windows cross-vet clean (only
+the pre-existing COM unsafeptr warnings); wasm+windows cross-builds of
+the new packages green; 14/14 official vectors decode. CI verify
+dispatched after push.
+
+Parity: rows 146 (Sticker animated) + 147 (Animated custom emoji) fully
+PRESENT — the webm caveats are gone. Remaining video gaps are H.264-only
+(PiP, streaming video, video bubbles decode).
