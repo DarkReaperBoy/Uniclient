@@ -6495,3 +6495,71 @@ its tests still pass unchanged.
   (the matrix's only MISSING row).
 - Deliberately not in this slice: AAC audio. Video now plays silent;
   the existing "open in system player" handoff still offers sound.
+
+## 2026-09-23 — slice 220: round video notes play INSIDE the chat bubble (GUI wiring for h264vid)
+
+Executes plan item **220**. Parity row 143 ("Video / round video —
+Player bubble w/ cover, round crop") now delivers its player half: a
+video message is a circular, looping player in the conversation, which
+is exactly how tdesktop/AyuGram draw video messages — not a thumbnail
+that hands off to another application.
+
+### What shipped
+- `gui/h264player.go` (418 lines): msgID-keyed player cache mirroring
+  `vp9player.go`/`tgsplayer.go` on purpose (async read+parse once per
+  message, background decode-ahead producer, eviction stops goroutines
+  asynchronously so a mid-decode `Stop` can't stall the frame thread).
+  - `noteTapAction` — the tap state machine as a **pure function**:
+    missing file → download; parse in flight → wait; playing → pause;
+    stopped → play; undecodable → **viewer fallback** (never a dead
+    bubble, §1.10).
+  - `setPlayOnDone`/`consumePlayOnDone` — a one-shot marker so a round
+    note's tap-to-download plays it **in chat** when the bytes land,
+    instead of inheriting slice 86's system-player handoff. Checked
+    before `wantOpen`, so a doubly-marked download cannot escape.
+  - `drawVideoNoteFrame` — current frame, circle-cropped through the
+    existing `drawImageEllipse`, re-armed via `NextFrameIn` so the loop
+    costs frame-rate ticks and not a busy spin; power-saving
+    (`psClassVideo`) holds a frame with no re-arm.
+- `videoBubble`/`videoNoteBubble`: a playing note renders live frames
+  with **no play badge** — it is the player now; the thumbnail+badge
+  holds the box until the first decode lands.
+- `actMedia`: `MediaVideoNote` split out of the viewer case; regular
+  video/GIF/photo keep tap→viewer (tdesktop does not play those inline —
+  that is slice 221's viewer player, row 276).
+- `powersave.go`: new `psClassVideo`. tdesktop exposes no separate
+  "video in chat" bit, so it maps to `GifsInChat` (in-chat autoplaying
+  media) — panel bits stay panel-scoped, which the test pins.
+
+### A real data race, caught before it shipped
+`peek` returned a live `*h264Player` and every reader touched its flags
+off the lock while the parse goroutine's `publish()` wrote them —
+`-race` flagged it in `TestPlayInlineOnDone`. That would have been a
+production race on the first tap, not just a test artifact. Fixed at the
+API level rather than at the call site: the cache now hands out
+**immutable `h264PlayerState` snapshots copied under the mutex**, and
+`noteTapAction` takes a snapshot, so no caller *can* read live fields.
+Re-run under `-race`: clean.
+
+### Tests first (§9) — 4 new (8 sub-cases)
+tap state machine (8 cases) · cache lifecycle incl. single-claim read
+guard, frozen-while-paused playhead, oversized-cache eviction ·
+end-to-end `TestPlayInlineOnDone` driving `onDownloadComplete` against a
+**real committed fixture** (asserts the system player is NOT called,
+the player parses and reaches `playing`, the mark is one-shot, and the
+tap flips Play↔Pause) · power gate (4 cases).
+
+### Verification (§9)
+`gofmt -l` clean · `go vet -tags goolm ./...` clean ·
+`go test -p 2 -tags goolm -count=1 ./...` **exit 0, 12 pkgs** ·
+`-race` clean on the new tests. Slice 219's `verify.yml` dispatch on
+`15986674` came back **success**.
+
+### Next
+- **221** media-viewer in-app playback controls (play/pause/seek/
+  volume) → parity row 276, which also closes row 143's regular-video
+  half. The viewer can reuse this exact cache+render path.
+- **222** PiP → row 279 (the matrix's only MISSING row).
+- Known, deliberate: AAC audio is not decoded yet, so inline notes are
+  silent; the system-player handoff still offers sound for everything
+  else.

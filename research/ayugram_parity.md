@@ -140,7 +140,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Photo | Image bubble, caption, tap→viewer | PRESENT (bubble → auto-download → full image; tap opens fullscreen viewer w/ zoom/pan, filmstrip, save/share/delete) | gui/media.go photoBubble + gui/mediaview.go | P0 |
 | Channel-post comments | Comment-count chip + thread view + comment composer | PRESENT (slice 195: the "N comments" chip on channel posts (MessageReplies count, cached at ingest, v53 comments_count) opens the comment thread — messages.getDiscussionMessage fetch + cache write-through, thread filter by reply-to-top (thread_root), the thread bar under the header (back → channel), full composer redirected to the discussion group replying to the thread root, read marking (messages.readDiscussion) on open, scroll-up pages the cached thread; honest v1: the fetch shows the server's recent page, older thread pages cache-only) | gui/comments.go + engine/comments.go + cores GetDiscussionThread/ReadDiscussion + convertMessage replies/thread-root mapping | P1 |
- Player bubble w/ cover, round crop | PARTIAL (thumb + play badge + duration pill; round-crop notes; play → download → system-player handoff (slice 86). In-app decode is UNBLOCKED as of slice 219 — the 2026-09-11/16 "no pure-Go full H.264 decoder" verdict was wrong (it missed liqmix/govid; see research/h264_decoder.md — our two fixtures decode bit-exact vs ffmpeg, pinned by SHA-256 in go/h264vid tests). Remaining: GUI wiring in slice 220 — live frame on the bubble, tap-to-play, round-note loop + circular crop) | gui/media.go videoBubble + go/h264vid + research/h264_decoder.md | P1 |
+ Player bubble w/ cover, round crop | PARTIAL (round notes: **PRESENT as of slice 220** — the bubble is a circular looping player fed by go/h264vid, tap = play/pause, power-saving holds the frame, undecodable files fall through to the viewer; regular video: cover + play badge + duration pill + viewer handoff present, and the in-app viewer player lands in slice 221 now that slice 219 removed the decoder blocker) | gui/media.go videoBubble/videoNoteBubble + gui/h264player.go + go/h264vid | P1 |
 | Voice message | Waveform bubble, play, speed, transcribe | PRESENT (slice 113: IN-APP player — play/pause circle, real waveform strip from the message's cached Telegram waveform data (plain track when absent, §1.10) with accent-tinted progress, elapsed/total label, speed chip (1×/1.5×/2×/0.5×); engine Ogg/Opus demuxer + decoder (RFC 3533 pages CRC-verified against real ffmpeg encoders) → pure-Go audio devices; non-Opus/no-audio platforms keep the system-player handoff; music bubbles show live elapsed + play/pause state too; slice 186: WAVEFORM SEEK — the strip is a press/drag/release seek control while its message owns the player (engine.SeekMedia, half-percent drag throttle, non-active strips register no input); transcribe landed (slice 115: A→A glyph → messages.transcribeAudio, pending results via updateTranscribedAudio, cached per message)) | gui/media.go voiceBubble/audioBubble + engine/mediaplayer.go + engine/ogg.go | P1 || Audio file | Music player bubble (title/artist, seek) | PRESENT (slice 185: IN-APP MUSIC PLAYER — MP3 decodes through the pure-Go go-mp3 decoder (ID3v2/frame-sync sniff, stereo mixdown, linear resample to the shared 48 kHz PCM pipeline) alongside Ogg/Opus, so play/pause/speed work in-app; the bubble shows the document's embedded Title/Performer tags (DocumentAttributeAudio → CachedMessage.AudioMeta, file name fallback §1.10) and a draggable seek track (press/drag/release → engine.SeekMedia fraction seek with clamp + half-percent throttle + finished-playback re-arm); other formats keep the honest system-player handoff) | gui/media.go audioBubble + gui/seekbar.go + engine/mediaplayer.go + engine/mediaplayer_mp3.go | P2 |
 | Document/file | Filename, size, progress download bar | PRESENT (file row + live byte counter + progress bar + tap/cancel/retry — every element the row names) | gui/media.go fileBubble + downloadRow | P0 |
 | Sticker (animated) | Big transparent sticker, tap = replay | PRESENT (slice 123: bare bubble-less sticker rows (~256dp, aspect-true) w/ translucent meta pill overlay bottom-right; .tgs documents auto-download on scroll-in and parse once per message into the slice-122 lottie engine; frame clock at the animation's own rate clamped 20-60fps, looping; tap replays from frame 0; static .webp renders from the downloaded file (webp decoder registered), inline thumb pre-download; slice 216: webm VIDEO STICKERS PLAY IN-CHAT — pure-Go VP9 pipeline (own webm/EBML demux incl. the alpha side stream + govpx decoder, a libvpx port verified against the official VP9 conformance corpus; go-vp9 evaluated and rejected: entropy desync + panic on official vectors); per-message player w/ background decode-ahead producer (global semaphore), looping frame clock, tap replays like AyuGram, power-saving static first frame, honest static-thumb fallback while warming/undecodable) | gui/tgsplayer.go + gui/vp9player.go + gui/media.go + vp9anim + webm | P1 |
@@ -332,8 +332,8 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
      **bit-exact against ffmpeg** (12 frames × 221,184 samples, SHA-256
      pinned in `go/h264vid` tests and re-derived by ffmpeg at test time).
      Shipped as `go/h264vid` + the shared `go/vcodec` decode budget.
-   What remains is GUI wiring, not research: slice 220 (bubbles play
-   in place, round notes loop + circular crop) → slice 221 (viewer
+   What remains is GUI wiring, not research: **slice 220 DONE** (round
+   notes play in place, looping + circular crop) → slice 221 (viewer
    controls) → slice 222 (PiP). In-app MP3/voice playback, waveform
    seek, poster+download+ system-player handoff all shipped around the
    block.
@@ -378,9 +378,9 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
     (help.getCountriesList country picker + additional-channels picker,
     both riding the wire builders). Remaining: card-funded premium
     giveaway creation (external checkout, honest absence).
-11. **Video playback rows (PARTIAL)** — blockers gone as of slice 219;
-    remaining work is GUI (bubbles → slice 220, controls → 221, PiP →
-    222) — see (1).
+11. **Video playback rows (PARTIAL)** — round notes CLOSED by slice 220;
+    remaining is the in-app viewer player (slice 221) and PiP (slice 222)
+    — see (1).
 12. **Chat settings (PARTIAL)** — link-preview/message-actions/swipe/
     corner-reaction/reply-pill all shipped; remaining: nothing user-
     visible (row kept PARTIAL only for the ForumTabs-gated extras).
@@ -428,9 +428,10 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   playback ×2 → slices 220-221) · avatar-corner micro-polish of the
   online badge · checkout-gated (giveaway launch)
 - MISSING: 1 — PiP (decoder landed in slice 219; GUI slice 222)
-- CORE-ONLY: 5 — video frames ×2 (decoder landed slice 219, GUI pending
-  slice 220) · webview (owner-decision) · experimental flags (dead-UI
-  ban, by design) · Ayu sqlite (already served by the engine cache)
+- CORE-ONLY: 5 — video frames ×2 (slice 220 shipped the round-note half;
+  the regular-video half lands with the viewer player in slice 221) ·
+  webview (owner-decision) · experimental flags (dead-UI ban, by design)
+  · Ayu sqlite (already served by the engine cache)
 
 → History: 2026-09-08 after slices 1-9: PRESENT 24 (12%) · 2026-09-13
   after slices 172-174 + truth pass: PRESENT 169 (84%) · after slice 185:

@@ -204,6 +204,10 @@ type App struct {
 	// completion (slice 86: tap = play/view intent).
 	openOnDone map[string]bool // dlKey → open when EventDownloadComplete
 	saveOnDone map[string]bool // dlKey → copy to Downloads on complete (slice 99)
+	// downloads that should play IN-CHAT on completion — round video
+	// notes are players in the bubble, not system-player handoffs
+	// (slice 220). Lazily created like openOnDone.
+	playOnDone map[string]bool // dlKey → play inline when EventDownloadComplete
 
 	// settings surface (AyuGram parity slice 3): open view + section, the
 	// config snapshot for the toggles, and async-loaded page data.
@@ -1099,8 +1103,10 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 	}
 	a.downloads[dlKey(d.AccountID, d.ChatID, d.MsgID, d.Seq)] = dlState{recv: 1, total: 1, state: engine.DownloadComplete}
 	// Slice 86: taps on playable media mark the download — completion
-	// hands the saved file to the system player.
+	// hands the saved file to the system player. Slice 220: round video
+	// notes mark it for IN-CHAT playback instead.
 	wantOpen := a.consumeOpenOnDoneLocked(d.AccountID, d.ChatID, d.MsgID, d.Seq)
+	wantInline := a.consumePlayOnDoneLocked(d.AccountID, d.ChatID, d.MsgID, d.Seq)
 	// Slice 99: save marks copy the finished file into Downloads.
 	wantSave := a.consumeSaveOnDoneLocked(d.AccountID, d.ChatID, d.MsgID, d.Seq)
 	if k := a.msgFor; k != nil && k.AccountID == d.AccountID && k.ChatID == d.ChatID {
@@ -1130,6 +1136,13 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 	a.mu.Unlock()
 	if wantSave {
 		a.saveMediaToDownloads(d.AccountID, d.ChatID, d.MsgID, d.Seq)
+		return
+	}
+	if wantInline {
+		// Round note: parse and play it in the bubble (slice 220). Checked
+		// before wantOpen so a doubly-marked download never escapes to the
+		// system player.
+		a.startVideoNoteInline(d.MsgID, d.LocalPath)
 		return
 	}
 	if wantOpen {

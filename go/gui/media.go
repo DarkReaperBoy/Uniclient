@@ -451,8 +451,14 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 	switch state {
 	case engine.DownloadNone, engine.DownloadFailed:
 		// Slice 86: a tap expresses play/view intent — the completed
-		// file hands off to the system player automatically.
-		a.setOpenOnDone(msg.AccountID, msg.ChatID, msg.MsgID, 0)
+		// file hands off to the system player automatically. Round video
+		// notes are the exception: they play INLINE in the bubble
+		// (slice 220), which is how tdesktop treats video messages.
+		if msg.MediaType == engine.MediaVideoNote {
+			a.setPlayOnDone(msg.AccountID, msg.ChatID, msg.MsgID, 0)
+		} else {
+			a.setOpenOnDone(msg.AccountID, msg.ChatID, msg.MsgID, 0)
+		}
 		go func() {
 			if err := a.eng.RequestDownload(msg.AccountID, msg.ChatID, msg.MsgID, 0, 0); err != nil {
 				a.setToast("Download failed: " + err.Error())
@@ -466,8 +472,15 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 		// (.tgs) / view (.webp) / replay in-chat (.webm) (slices 123+216);
 		// other types fall back to the system player (slice 86 handoff).
 		switch msg.MediaType {
-		case engine.MediaImage, engine.MediaGIF, engine.MediaVideo, engine.MediaVideoNote:
+		case engine.MediaImage, engine.MediaGIF, engine.MediaVideo:
 			a.openViewerFromMsg(gtx, &msg)
+		case engine.MediaVideoNote:
+			// Round notes play in the bubble (slice 220); the fullscreen
+			// viewer stays the fallback for files our pure-Go decoder
+			// rejects, so the bubble is never dead (§1.10).
+			if !a.tapVideoNote(&msg) {
+				a.openViewerFromMsg(gtx, &msg)
+			}
 		case engine.MediaSticker, engine.MediaDice:
 			if msg.MediaType == engine.MediaDice &&
 				(state == engine.DownloadNone || state == engine.DownloadFailed) {
@@ -613,6 +626,13 @@ func (a *App) videoBubble(gtx layout.Context, f frame, m *engine.CachedMessage, 
 // videoNoteBubble: round video message — circle thumbnail, centered play.
 func (a *App) videoNoteBubble(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
 	d := gtx.Dp(unit.Dp(190))
+	// Slice 220: a playing note renders its live frames circle-cropped
+	// with no play badge — it IS the player, exactly as tdesktop draws
+	// video messages. Until the first frame decodes, the thumbnail+badge
+	// below holds the box.
+	if dims, ok := a.drawVideoNoteFrame(gtx, m.MsgID, d); ok {
+		return dims
+	}
 	var img *image.RGBA
 	if m.MediaThumbB64 != "" {
 		key := "thumb:" + m.MediaThumbB64

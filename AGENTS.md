@@ -467,6 +467,30 @@ is the next task.
         `-race` clean, full suite green. Unblocks slices 220 (bubbles)
         → 221 (viewer controls, row 276) → 222 (PiP, row 279 — the only
         MISSING row).
+      - slice 220 (2026-09-23): round video notes play INSIDE the chat
+        bubble — the bubble is a circular looping player (tdesktop's
+        video-message treatment), fed by slice 219's h264vid through a
+        msgID-keyed cache that mirrors the tgs/vp9 player caches. The
+        tap decision is a pure `noteTapAction` state machine (download /
+        wait / play / pause / **viewer fallback** so an undecodable file
+        is never a dead bubble); a one-shot playOnDone marker makes a
+        tap-to-download land as inline playback instead of inheriting
+        slice 86's system-player handoff. Live frames render
+        circle-cropped with no play badge and re-arm on NextFrameIn;
+        power-saving gained `psClassVideo` (maps to tdesktop's
+        GifsInChat — it has no separate video-in-chat bit). Regular
+        video keeps tap→viewer, because tdesktop does not play those
+        inline — that half is slice 221 (row 276), which then closes
+        row 143.
+        **A real data race was caught before shipping**: `peek` handed
+        out a live `*h264Player` whose flags every reader touched off
+        the lock while the parse goroutine wrote them — `-race` flagged
+        it, and it would have fired on a user's first tap. Fixed at the
+        API: the cache now returns immutable `h264PlayerState` snapshots
+        copied under the mutex, so no caller *can* read live fields.
+        4 tests (8 sub-cases), one of which drives `onDownloadComplete`
+        end-to-end against a committed fixture; full suite exit 0,
+        gofmt+vet clean, `-race` clean.
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"

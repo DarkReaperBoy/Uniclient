@@ -23,6 +23,10 @@ type psClass int
 const (
 	psClassStickers psClass = iota // sticker bubbles + dice
 	psClassEmoji                   // inline custom emoji
+	// psClassVideo covers in-chat autoplaying media — round video notes.
+	// tdesktop exposes no separate "video in chat" bit; GifsInChat is the
+	// in-chat autoplaying-media flag, and force-all covers the rest.
+	psClassVideo
 )
 
 // powerSavingBlocks reports whether chat animations of one class are
@@ -38,6 +42,10 @@ func powerSavingBlocks(flags int, forceAll bool, class psClass) bool {
 		return flags&psFlagStickersChat != 0
 	case psClassEmoji:
 		return flags&psFlagEmojiChat != 0
+	case psClassVideo:
+		// Panel bits are panel-scoped: a panel GIF must not freeze the
+		// in-chat loop, and vice versa.
+		return flags&psFlagGifsChat != 0
 	}
 	return false
 }
