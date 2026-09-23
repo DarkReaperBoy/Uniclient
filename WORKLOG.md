@@ -7346,3 +7346,79 @@ counted, buckets sum-checked. Nothing left in any open line has
 buildable work — that claim now stands BEHIND two truth passes (the
 first one was wrong, was retracted here in slice 228's entry, and the
 row it uncovered has since been built).
+
+## 2026-09-23 — slice 230: bug-hunt mode starts — 7 bugs from auditing the new streaming code
+
+Owner instruction for this and all future sessions: *check for issues,
+update the project status, work on bugs from now on.* Done on all three.
+
+**Status updated**: AGENTS now says phase **stability / bug hunt**
+(feature work done — parity 195/200, v0.9.1 shipped), the zero-context
+header points the next agent at a new **`BUGS.md`** (the standing open
+list + fix log with an evidence column), and §11 gained the standing
+`[~]` item carrying the rules (tests-first, gate never regresses, new
+limitations logged, not whispered). GitHub has 0 open issues; `grep
+TODO` found exactly one code TODO (TeamSpeak QuickLZ → B-1).
+
+**The audit**: read the slice-228/229 streaming paths line by line
+(engine/mediastream.go, engine/media.go's download path, gui/
+videostream.go, gui/h264player.go, h264vid/streamsrc.go) hunting for
+wrong behaviour instead of waiting for users to find it. Seven real
+bugs, every one fixed with a test that fails without the patch:
+
+1. **Stream/download write race** (the big one): cores download with
+   `os.Create` = O_TRUNC, `MediaManager.Cancel` only touches QUEUED
+   jobs, and nothing on the download side knew streams existed — a
+   download landing mid-playback truncates the sparse file the
+   stream's bitmap says is present. Reachable with zero user intent:
+   `maybeAutoDownload` (message arrival) and the scroll-in prefetch
+   both call `RequestDownload`. Fix = per-file guard, mutually
+   exclusive BOTH ways: `ErrStreamActive` (download refused while a
+   stream reads), `ErrStreamBusy` (stream refused while a download
+   worker holds the key — the GUI then honestly download-then-plays
+   what is already happening), duplicate jobs for one key skip.
+2. **Re-download of a completed file**: `RequestDownload` on a
+   complete row re-created the finished file (truncate under any
+   reader) and — worse — markers waiting on that row never fired (no
+   event = dead tap). Now it completes instantly with
+   `download_complete`: zero network, zero queue.
+3. **fd leaks everywhere on the streamed-player path**: ensure() kept
+   the reader on every decline (re-tap of a playing clip = a second
+   `OpenMediaStream` fd leaked EVERY time), parse failures relied on
+   caller closures, reset/replace dropped readers. Fix = one ownership
+   rule: `ensureH264StreamPlayer` CONSUMES the reader on every path;
+   the cache owns it after publish and closes on reset/replace/evict.
+4. **Dead eviction path**: the h264 cache's 48-entry cap lived only in
+   `get()` — grep proved NOTHING calls `get()` for this cache (only
+   tgs/webm use theirs), so entries + producer goroutines grew without
+   bound all session. Cap now enforced at every insert via shared
+   `evictLocked()` (which also closes sources).
+5. **Transient failure pinned permanent**: every `ParseSeek` error
+   called `failParse` — one dead chunk fetch during parse marked the
+   clip unplayable FOREVER (§1.10). New `ErrDecodeFailed` +
+   `IsPermanent()`: a verdict about the bytes pins, a failure to READ
+   them retries.
+6. **Orphan sound at the join**: a viewer clip that already played
+   through would start its full audio behind a frozen last frame, and
+   loop joins ignored the picture's phase. `streamJoinAt` wraps the
+   offset with the picture and refuses ended clips.
+7. **Frozen frame with running sound**: a producer dying mid-play
+   (fetch error) left the cache `playing` — static frame, live audio,
+   dead taps. The draw path heals now (reset + audio pause; next tap
+   re-opens the source).
+
+**Two self-inflicted mistakes caught by re-checking the checkers**
+(same lesson as the parity tables): the `countCloser` test oracle had
+NO `Close()` method — every close assertion ran against a no-op, so
+the whole ownership suite first "failed" for a nonsense reason; and
+the "audio-only fixture" assumption was wrong (the aacaud fixtures
+are full video files — measured with ffmpeg, every stream listed),
+so a real audio-only fixture was generated + sha-pinned
+(`audio_only.mp4` = `ade3487e…b6bb7`) like every other fixture here.
+Also investigated: the mystery green run `dd00b612` = gh-pages' own
+"Web build for v0.9.1" commit, not on main. Not a bug.
+
+Gate: gofmt empty, vet `-tags goolm` clean, **all 16 packages ok**,
+`-race` green on every slice-230 test. New tests: engine 5 (guard
+suite), gui 7+ (ownership + join), h264vid 4 (classifier) + the
+rewritten join test.

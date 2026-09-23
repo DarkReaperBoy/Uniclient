@@ -112,8 +112,10 @@ type h264Player struct {
 
 	playing bool
 	parsed  bool
-	failed  bool // permanently unplayable (bad container / undecodable)
-	reading bool // async file read + parse in flight
+	failed  bool      // permanently unplayable (bad container / undecodable)
+	reading bool      // async file read + parse in flight
+	loop    bool      // round note (wrap) vs viewer (play through)
+	src     io.Closer // open stream reader this entry owns (nil for files; slice 230)
 }
 
 // h264PlayerState is an immutable snapshot of an entry, copied under the
@@ -126,6 +128,7 @@ type h264PlayerState struct {
 	failed  bool
 	reading bool
 	playing bool
+	loop    bool
 }
 
 func snapshot(p *h264Player) h264PlayerState {
@@ -135,6 +138,7 @@ func snapshot(p *h264Player) h264PlayerState {
 	return h264PlayerState{
 		video: p.video, player: p.player, path: p.path,
 		parsed: p.parsed, failed: p.failed, reading: p.reading, playing: p.playing,
+		loop: p.loop,
 	}
 }
 
@@ -153,6 +157,28 @@ var h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
 // but a decoded frame is w*h*4 bytes, so this stays conservative.
 const h264PlayerMax = 48
 
+// closeSrc closes an entry's stream reader, if any, and forgets it (so
+// a second close cannot double-fire the engine's file guard — mediaStream
+// is idempotent anyway, but the ownership rule is "closed exactly once
+// here"). Caller holds c.mu.
+func closeSrc(p *h264Player) {
+	if p != nil && p.src != nil {
+		src := p.src
+		p.src = nil
+		src.Close()
+	}
+}
+
+// evictLocked stops every producer, closes every source and drops the
+// whole map. Caller holds c.mu.
+func (c *h264PlayerCache) evictLocked() {
+	for _, old := range c.players {
+		stopH264Player(old)
+		closeSrc(old)
+	}
+	c.players = make(map[string]*h264Player)
+}
+
 // get returns a snapshot of the entry for msgID, creating it if needed.
 // Entries are never handed out directly: only the cache touches fields.
 func (c *h264PlayerCache) get(msgID string) (h264PlayerState, bool) {
@@ -162,10 +188,7 @@ func (c *h264PlayerCache) get(msgID string) (h264PlayerState, bool) {
 		return snapshot(p), true
 	}
 	if len(c.players) >= h264PlayerMax {
-		for _, old := range c.players {
-			stopH264Player(old)
-		}
-		c.players = make(map[string]*h264Player)
+		c.evictLocked()
 	}
 	p := &h264Player{}
 	c.players[msgID] = p
@@ -196,6 +219,18 @@ func (c *h264PlayerCache) len() int {
 // through and rest on the final frame) — a viewer must not spin a
 // regular clip forever.
 func (c *h264PlayerCache) publish(msgID, path string, video *h264vid.Video, loop bool) *h264vid.Player {
+	return c.publishWithSrc(msgID, path, video, loop, nil)
+}
+
+// publishWithSrc installs a parsed clip — loop selects round-note
+// behaviour (wrap at the end) versus an ordinary video (play through and
+// rest on the final frame) — and, for streamed sources, the open reader
+// the decode keeps pulling chunks through. Replacing an entry closes the
+// old reader: after the swap the old picture has no consumer, and a
+// dropped fd would leak for the whole session (slice 230). Overflow
+// evicts wholesale HERE too — the old check lived in get(), which
+// nothing calls on this cache.
+func (c *h264PlayerCache) publishWithSrc(msgID, path string, video *h264vid.Video, loop bool, src io.Closer) *h264vid.Player {
 	if video == nil {
 		return nil
 	}
@@ -203,14 +238,20 @@ func (c *h264PlayerCache) publish(msgID, path string, video *h264vid.Video, loop
 	defer c.mu.Unlock()
 	p := c.players[msgID]
 	if p == nil {
+		if len(c.players) >= h264PlayerMax {
+			c.evictLocked()
+		}
 		p = &h264Player{}
 		c.players[msgID] = p
 	}
 	if p.player != nil {
 		stopH264Player(p) // source changed: never leak the old producer
 	}
+	closeSrc(p) // old source gone: its reader has no consumer anymore
 	p.video, p.path = video, path
 	p.parsed, p.failed, p.reading = true, false, false
+	p.loop = loop
+	p.src = src
 	p.paused = 0
 	p.start = time.Now()
 	p.playing = true
@@ -271,6 +312,9 @@ func (c *h264PlayerCache) failParse(msgID string) {
 	defer c.mu.Unlock()
 	p := c.players[msgID]
 	if p == nil {
+		if len(c.players) >= h264PlayerMax {
+			c.evictLocked()
+		}
 		p = &h264Player{}
 		c.players[msgID] = p
 	}
@@ -283,8 +327,10 @@ func (c *h264PlayerCache) reset(msgID string) {
 	defer c.mu.Unlock()
 	if p := c.players[msgID]; p != nil {
 		stopH264Player(p)
+		closeSrc(p) // the stream reader must not outlive its entry (slice 230)
 		p.video, p.player, p.path = nil, nil, ""
 		p.parsed, p.failed, p.reading, p.playing = false, false, false, false
+		p.loop = false
 		p.paused = 0
 	}
 }
@@ -295,6 +341,9 @@ func (c *h264PlayerCache) markReading(msgID string) bool {
 	defer c.mu.Unlock()
 	p := c.players[msgID]
 	if p == nil {
+		if len(c.players) >= h264PlayerMax {
+			c.evictLocked() // insert paths must bound the cache too (slice 230)
+		}
 		p = &h264Player{}
 		c.players[msgID] = p
 	}
@@ -417,7 +466,11 @@ func publishStreamedClip(msgID, path string, ra io.ReaderAt, size int64, loop bo
 	if err != nil {
 		return nil, err
 	}
-	pl := h264Players.publish(msgID, path, video, loop)
+	var closer io.Closer
+	if c, ok := ra.(io.Closer); ok {
+		closer = c // the cache owns it from here (close on reset/replace/evict)
+	}
+	pl := h264Players.publishWithSrc(msgID, path, video, loop, closer)
 	if pl == nil {
 		return nil, errors.New("gui: streamed clip published no player")
 	}
@@ -425,32 +478,53 @@ func publishStreamedClip(msgID, path string, ra io.ReaderAt, size int64, loop bo
 }
 
 // ensureH264StreamPlayer kicks off streamed playback (row 281): parse off
-// the UI thread, publish, repaint on the first frame. It returns false
-// ONLY when it did not take the job — the caller then falls back to
-// download-then-play exactly as before (no stream, or a source-swap
-// race). onFail (optional) runs when the parse rejects the bytes, so an
-// HEVC-in-MP4 still reaches the viewer/system path (§1.10: never a dead
-// bubble). NO audio starts here — the file is incomplete; sound joins
-// when the bytes land (state.go → videoAudioPlayAt at the playhead).
+// the UI thread, publish, repaint on the first frame. OWNERSHIP RULE
+// (slice 230): it CONSUMES ra on every path — decline paths close it
+// themselves, and the parse goroutine either hands it to the cache (which
+// closes it on reset/replace/evict) or closes it BEFORE running onFail.
+// Callers must never close it. Returns false ONLY when it did not take
+// the job (invalid args, or a file already known permanently unplayable)
+// — the caller then runs download-then-play exactly as before (§1.10:
+// never a dead bubble). onFail (optional) runs when the parse rejects the
+// bytes, so an HEVC-in-MP4 still reaches the viewer/system path. NO audio
+// starts here — the file is incomplete; sound joins when the bytes land
+// (state.go → streamJoinAt → videoAudioPlayAt at the playhead).
 func (a *App) ensureH264StreamPlayer(msgID, path string, ra io.ReaderAt, size int64, loop bool, onFail ...func()) bool {
+	closeRa := func() {
+		if c, ok := ra.(io.Closer); ok {
+			c.Close()
+		}
+	}
 	if msgID == "" || path == "" || ra == nil || size <= 0 {
+		closeRa()
 		return false
 	}
 	p, _ := h264Players.peek(msgID)
-	if p.path == path && (p.parsed || p.failed || p.reading) {
-		return true // already playing, failing, or in flight
-	}
 	if p.path != "" && p.path != path {
-		h264Players.reset(msgID) // source swapped: re-parse
+		h264Players.reset(msgID) // source swapped: stale verdicts AND the old reader go
+		p = h264PlayerState{}
+	}
+	if p.failed {
+		closeRa()
+		return false // permanent verdict: decline so the caller's fallback runs
+	}
+	if p.path == path && (p.parsed || p.reading) {
+		closeRa()
+		return true // already serving this exact file
 	}
 	if !h264Players.markReading(msgID) {
+		closeRa()
 		return true // another goroutine owns the parse
 	}
 	go func() {
 		pl, err := publishStreamedClip(msgID, path, ra, size, loop)
 		if err != nil {
 			h264Players.endReading(msgID)
-			h264Players.failParse(msgID)
+			if h264vid.IsPermanent(err) {
+				h264Players.failParse(msgID) // verdict about these bytes
+			}
+			// Retryable failures leave a clean entry (next tap re-parses).
+			closeRa() // close BEFORE the fallback hands the file to the downloader
 			for _, fn := range onFail {
 				if fn != nil {
 					fn()
@@ -548,6 +622,14 @@ func (a *App) consumePlayOnDoneLocked(acct, chat, msg string, seq int) bool {
 func (a *App) drawVideoNoteFrame(gtx layout.Context, msgID string, diameter int) (layout.Dimensions, bool) {
 	e, ok := h264Players.peek(msgID)
 	if !ok || !e.playing || e.video == nil || e.player == nil || diameter <= 0 {
+		return layout.Dimensions{}, false
+	}
+	// The producer died mid-play (a fetch failed): drop the entry so the
+	// next tap re-opens the source, instead of freezing on one frame while
+	// the engine keeps playing orphan sound (slice 230, §1.10).
+	if e.player.Failed() != nil {
+		h264Players.reset(msgID)
+		a.videoAudioPause(msgID)
 		return layout.Dimensions{}, false
 	}
 	elapsed := h264Players.elapsed(msgID)

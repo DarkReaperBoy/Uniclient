@@ -1,8 +1,10 @@
 # AGENTS.md — Uniclient
 
 > **Zero-context agent?** Read this file top-to-bottom, then the last two
-> entries of `WORKLOG.md`, then the checklist in §11. Resume work from the
-> topmost unchecked item without asking the owner anything technical.
+> entries of `WORKLOG.md`, then the checklist in §11 and the open list in
+> `BUGS.md`. Resume work from the topmost unchecked item — or, now that
+> feature work is done, the topmost open bug — without asking the owner
+> anything technical.
 > The owner is **not a programmer** — never ask them code questions.
 > This file is written so that if the owner deletes your context, the next
 > agent can continue exactly where the last one left off.
@@ -15,7 +17,11 @@ Mumble...), each added and switched as easily as an account. The GUI uses
 copied) with **Material Design** visuals, built with **Gio**. Standardized
 backend surface so one GUI can handle them all; optimized code and builds.
 
-Current phase: **pre-release**. All GitHub releases must be marked
+Current phase: **stability / bug hunt** (standing, from 2026-09-23).
+Feature work is DONE: AyuGram parity closed at **195/200 PRESENT** and
+release **v0.9.1** shipped (all five release jobs green). Sessions now
+work from the open list in **`BUGS.md`** plus anything they find on the
+way; §11 carries the standing item. All GitHub releases must be marked
 `prerelease: true` until the owner says otherwise.
 
 ---
@@ -816,6 +822,17 @@ via purego; mic permission via JNI) — real-hardware test = owner's rung.
       -1..-4 decode, OCB2 decrypt 1:1 port with replay-history guard). 30+
       new unit tests pinning crypto/packet formats against official test
       vectors. Both backends now selectable in the GUI picker.
+- [~] **Bug hunt / stability phase — STANDING (from 2026-09-23).**
+      Feature parity (195/200) and release v0.9.1 shipped; from now on
+      every session works from the top of the OPEN list in **BUGS.md**
+      first, then audits whatever code it touches for bugs. Rules:
+      tests-first for every fix (the failing test reproduces the bug
+      before the patch), fixed entries move to BUGS.md's Fixed log,
+      newly discovered limitations get an open entry instead of a quiet
+      comment, and the full gate (gofmt / `go vet -tags goolm` / suite /
+      `-race` on new tests) never regresses. First session = slice 230:
+      7 bugs fixed from auditing the slice-228/229 streaming paths (see
+      BUGS.md F-1..F-7).
 - [~] Verify xmpp / bale / rubika / deltachat cores live or replace them (§8)
       (XMPP local-server-verified 2026-09-11 incl. 2 real auth-chain bug
       fixes + data-form IBR + live pre-auth chain; DELTACHAT

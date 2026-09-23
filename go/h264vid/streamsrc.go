@@ -95,7 +95,10 @@ func ParseSeek(r fileSource) (*Video, error) {
 func parseSource(r fileSource) (*Video, error) {
 	f, err := mp4.DecodeFile(r, mp4.WithDecodeMode(mp4.DecModeLazyMdat))
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrNotVideo, err)
+		// Decode-stage failure: on a stream this is usually a dead read,
+		// not a verdict about the bytes (slice 230 — IsPermanent classifies
+		// it retryable, so one failed fetch cannot pin the clip dead).
+		return nil, fmt.Errorf("%w: %w: %v", ErrNotVideo, ErrDecodeFailed, err)
 	}
 	if f.Moov == nil {
 		return nil, fmt.Errorf("%w: no moov box", ErrNotVideo)

@@ -1163,8 +1163,9 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 	// of replaying from zero (slice 229). Guards: an active, PLAYING,
 	// parsed inline player on this exact path (a download-driven
 	// playback already returned above through wantInline/wantOpen).
-	if st, have := h264Players.peek(d.MsgID); streamShouldJoinAudio(st, have, d.LocalPath) {
-		a.videoAudioPlayAt(d.AccountID, d.ChatID, d.MsgID, d.LocalPath, h264Players.elapsed(d.MsgID))
+	st, have := h264Players.peek(d.MsgID)
+	if joinAt, ok := streamJoinAt(st, have, d.LocalPath, h264Players.elapsed(d.MsgID)); ok {
+		a.videoAudioPlayAt(d.AccountID, d.ChatID, d.MsgID, d.LocalPath, joinAt)
 	}
 	if isDisplayableImage(d.LocalPath) {
 		a.decodeFileAsync(d.LocalPath)

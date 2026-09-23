@@ -80,6 +80,12 @@ type Engine struct {
 	media   *MediaManager
 	avatars *avatarState
 
+	// guardMu guards guards: one write slot per media file key, held by
+	// either the fetch-on-read stream or a download worker — never both
+	// (slice 230; see claimStream/claimDownload in media.go).
+	guardMu sync.Mutex
+	guards  map[string]*mediaGuard
+
 	// muteSweepLast timestamps the last timed-mute expiry sweep (unix
 	// seconds) so chat-list reads don't re-run the tiny UPDATE constantly.
 	muteSweepLast atomic.Int64

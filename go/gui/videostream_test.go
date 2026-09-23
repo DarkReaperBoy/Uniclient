@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"uniclient/engine"
 	"uniclient/h264vid"
@@ -54,8 +55,8 @@ func TestViewerMayStream(t *testing.T) {
 
 func TestStreamShouldJoinAudio(t *testing.T) {
 	path := "/media/a1/full/m1_0.mp4"
-	playing := h264PlayerState{parsed: true, playing: true, path: path, video: &h264vid.Video{}}
-	paused := h264PlayerState{parsed: true, playing: false, path: path, video: &h264vid.Video{}}
+	playing := h264PlayerState{parsed: true, playing: true, path: path, video: &h264vid.Video{Total: 2 * time.Second}}
+	paused := h264PlayerState{parsed: true, playing: false, path: path, video: &h264vid.Video{Total: 2 * time.Second}}
 	cases := []struct {
 		name      string
 		st        h264PlayerState
@@ -71,8 +72,9 @@ func TestStreamShouldJoinAudio(t *testing.T) {
 		{"entry exists but no video", h264PlayerState{parsed: true, playing: true, path: path}, true, path, false},
 	}
 	for _, c := range cases {
-		if got := streamShouldJoinAudio(c.st, c.have, c.localPath); got != c.want {
-			t.Errorf("%s: streamShouldJoinAudio = %v, want %v", c.name, got, c.want)
+		_, got := streamJoinAt(c.st, c.have, c.localPath, time.Second)
+		if got != c.want {
+			t.Errorf("%s: streamJoinAt ok = %v, want %v", c.name, got, c.want)
 		}
 	}
 }

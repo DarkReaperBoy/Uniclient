@@ -35,6 +35,15 @@ import (
 // not a fake stream).
 var ErrNoRangedRead = errors.New("streaming: core cannot read byte ranges")
 
+// ErrStreamBusy: a download worker already holds this file (Cancel can
+// only dequeue QUEUED jobs), so no stream may open on it — the caller
+// keeps download-then-play, which is already happening.
+var ErrStreamBusy = errors.New("streaming: download already in progress")
+
+// ErrStreamActive: an open fetch-on-read stream owns this file — it IS
+// the download for that file, so a second writer must not enqueue.
+var ErrStreamActive = errors.New("streaming: file is being saved by playback")
+
 // streamChunk is the fetch unit: 512 KiB — divisible by 4096 (the
 // upload.getFile offset rule) and well under its 1 MiB limit, so a
 // mid-playback stall costs one RPC per half-megabyte.
@@ -82,6 +91,10 @@ type mediaStream struct {
 	got    int64 // bytes fetched so far (the measurement)
 	done   bool  // every chunk arrived
 	onDone func()
+	// onClose fires exactly once on Close — the engine releases its file
+	// guard there (slice 230), so a dropped reader can never wedge the
+	// key shut.
+	onClose func()
 }
 
 // newMediaStream truncates f to size (sparse) and wraps it for ranged
@@ -249,7 +262,12 @@ func (s *mediaStream) Close() error {
 	s.mu.Lock()
 	f := s.f
 	s.f = nil
+	cb := s.onClose
+	s.onClose = nil
 	s.mu.Unlock()
+	if cb != nil {
+		cb() // file guard released exactly once, even on double Close
+	}
 	if f == nil {
 		return nil
 	}
@@ -310,8 +328,17 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 	}
 	path := filepath.Join(dir, msgID+"_"+fmt.Sprint(seq)+ext)
 
+	// Claim the file before opening: a download worker already inside
+	// executeDownload holds this key (os.Create = O_TRUNC), and Cancel
+	// cannot reach it — refusing here is what keeps the sparse file
+	// intact under the player (slice 230).
+	key := mediaGuardKey(accountID, chatID, msgID, seq)
+	if !e.claimStream(key) {
+		return nil, "", 0, ErrStreamBusy
+	}
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
+		e.releaseStream(key)
 		return nil, "", 0, err
 	}
 	ref := cores.FileRef{
@@ -337,8 +364,10 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 	}
 	s, err := newMediaStream(f, size, streamChunk, src, ref, onDone)
 	if err != nil {
+		e.releaseStream(key) // newMediaStream already closed f itself
 		return nil, "", 0, err
 	}
+	s.onClose = func() { e.releaseStream(key) }
 	return s, path, size, nil
 }
 
@@ -370,9 +399,10 @@ func (e *Engine) OpenMediaStream(accountID, chatID, msgID string, seq int) (Medi
 	if err != nil {
 		return nil, 0, "", err
 	}
-	// Streaming takes over this file's write path: cancel any queued or
-	// active full download so two writers never race on one sparse file
-	// (the stream finishes the same file the downloader would have).
+	// Streaming takes over this file's write path: cancel any QUEUED
+	// full download. A job a worker already dequeued is handled inside
+	// openMediaStream — it holds the file guard, so the stream refuses
+	// with ErrStreamBusy and the honest download-then-play path stands.
 	if e.media != nil {
 		e.media.Cancel(accountID, chatID, msgID, seq)
 	}

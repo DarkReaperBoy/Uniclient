@@ -148,6 +148,17 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 		return
 	}
 
+	// Claim the file key: a fetch-on-read stream that opened first owns
+	// the path (os.Create below would truncate its sparse file under the
+	// player), and a second job for the same key duplicates the first.
+	// Either way this job contributes nothing — skip BEFORE touching the
+	// row (slice 230).
+	key := mediaGuardKey(job.AccountID, job.ChatID, job.MsgID, job.Seq)
+	if !e.claimDownload(key) {
+		return
+	}
+	defer e.releaseDownload(key)
+
 	// Determine local path.
 	dir := filepath.Join(e.mediaDir, job.AccountID, "full")
 	os.MkdirAll(dir, 0o755)
@@ -221,14 +232,130 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 	mm.maybeEvict()
 }
 
-// RequestDownload queues a download for a media attachment.
+// mediaGuard is one media file's write slot: streams stack (refcounted —
+// duplicate opens of the same playing clip are tolerated), downloads are
+// single and exclude everything else. Slice 230: cores download with
+// os.Create (O_TRUNC), so a download landing during playback would
+// truncate the sparse file the stream's bitmap says is present — and
+// MediaManager.Cancel cannot touch an already-dequeued job. The guard is
+// what closes that window, in both directions.
+type mediaGuard struct {
+	streams int  // open fetch-on-read readers
+	dl      bool // a download worker holds the file
+}
+
+// mediaGuardKey identifies one media file across both claim sites.
+func mediaGuardKey(accountID, chatID, msgID string, seq int) string {
+	return accountID + "|" + chatID + "|" + msgID + "|" + fmt.Sprint(seq)
+}
+
+// claimStream registers an open stream reader for key; false when a
+// download worker holds the file (the caller falls back to
+// download-then-play, which is already happening).
+func (e *Engine) claimStream(key string) bool {
+	e.guardMu.Lock()
+	defer e.guardMu.Unlock()
+	if e.guards == nil {
+		e.guards = make(map[string]*mediaGuard)
+	}
+	g := e.guards[key]
+	if g == nil {
+		g = &mediaGuard{}
+		e.guards[key] = g
+	}
+	if g.dl {
+		return false
+	}
+	g.streams++
+	return true
+}
+
+// releaseStream drops one stream reader for key (idempotent per reader:
+// mediaStream fires it exactly once on Close).
+func (e *Engine) releaseStream(key string) {
+	e.guardMu.Lock()
+	defer e.guardMu.Unlock()
+	if g := e.guards[key]; g != nil {
+		g.streams--
+		if g.streams <= 0 && !g.dl {
+			delete(e.guards, key)
+		}
+	}
+}
+
+// claimDownload claims the file for a download worker; false while ANY
+// stream reader or another download holds it (the worker skips — the
+// stream is already saving the same file).
+func (e *Engine) claimDownload(key string) bool {
+	e.guardMu.Lock()
+	defer e.guardMu.Unlock()
+	if e.guards == nil {
+		e.guards = make(map[string]*mediaGuard)
+	}
+	g := e.guards[key]
+	if g == nil {
+		g = &mediaGuard{}
+		e.guards[key] = g
+	}
+	if g.streams > 0 || g.dl {
+		return false
+	}
+	g.dl = true
+	return true
+}
+
+// releaseDownload releases the worker's hold (only its own).
+func (e *Engine) releaseDownload(key string) {
+	e.guardMu.Lock()
+	defer e.guardMu.Unlock()
+	if g := e.guards[key]; g != nil && g.dl {
+		g.dl = false
+		if g.streams <= 0 {
+			delete(e.guards, key)
+		}
+	}
+}
+
+// streamActive reports whether an open stream reader owns the key.
+func (e *Engine) streamActive(key string) bool {
+	e.guardMu.Lock()
+	defer e.guardMu.Unlock()
+	g := e.guards[key]
+	return g != nil && g.streams > 0
+}
+
+// RequestDownload queues a download for a media attachment — or, when
+// the file is already complete, completes on the spot (slice 230:
+// re-downloading a finished file would os.Create-truncate it under any
+// reader, and a marker waiting on this row would otherwise never fire).
+// While a fetch-on-read stream owns the key it returns ErrStreamActive —
+// the stream IS the download for that file (it promotes the row when
+// its last chunk lands; auto-prefetch callers ignore the error and lose
+// nothing).
 func (e *Engine) RequestDownload(accountID, chatID, msgID string, seq, priority int) error {
 	var remoteRef, fileName, mimeType, extra sql.NullString
+	var state int
+	var localPath sql.NullString
 	err := e.db.QueryRow(
-		"SELECT remote_ref, file_name, mime_type, extra FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
-		accountID, chatID, msgID, seq).Scan(&remoteRef, &fileName, &mimeType, &extra)
+		"SELECT remote_ref, file_name, mime_type, extra, download_state, COALESCE(local_path,'') FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
+		accountID, chatID, msgID, seq).Scan(&remoteRef, &fileName, &mimeType, &extra, &state, &localPath)
 	if err != nil {
 		return fmt.Errorf("media ref not found: %w", err)
+	}
+	if state == DownloadComplete && localPath.String != "" {
+		if _, serr := os.Stat(localPath.String); serr == nil {
+			// Already downloaded: complete now (event → markers fire), no
+			// network and no os.Create under whoever holds the file.
+			e.emitEvent(EventDownloadComplete, accountID, DownloadCompleteEvent{
+				AccountID: accountID, ChatID: chatID, MsgID: msgID, Seq: seq,
+				LocalPath: localPath.String,
+			})
+			return nil
+		}
+		// Row complete but the file was evicted: fall through and refetch.
+	}
+	if e.streamActive(mediaGuardKey(accountID, chatID, msgID, seq)) {
+		return ErrStreamActive
 	}
 
 	if e.media == nil {

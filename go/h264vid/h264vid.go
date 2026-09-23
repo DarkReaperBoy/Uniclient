@@ -48,7 +48,30 @@ var (
 	ErrUnsupported = errors.New("h264vid: unsupported video codec")
 	// ErrTooLarge: exceeds a size guard; refused rather than allocated.
 	ErrTooLarge = errors.New("h264vid: video exceeds size guard")
+	// ErrDecodeFailed: the container could not be DECODED — on a stream
+	// this is usually a failed/short read, not a verdict about the bytes
+	// (slice 230 — see IsPermanent).
+	ErrDecodeFailed = errors.New("h264vid: container decode failed")
 )
+
+// IsPermanent reports whether err is a verdict about the BYTES
+// themselves (the same bytes fail the same way forever — pin the entry
+// and never re-parse) versus a failure to READ them (retryable: a stream
+// whose chunk fetch died must be attempted again — §1.10, a transient
+// error must not dead-end a good clip forever). Pure — unit-tested in
+// permfail_test.go.
+func IsPermanent(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrUnsupported) || errors.Is(err, ErrTooLarge) {
+		return true
+	}
+	if errors.Is(err, ErrDecodeFailed) {
+		return false
+	}
+	return errors.Is(err, ErrNotVideo)
+}
 
 const (
 	// maxPixels bounds decoded frame size against a hostile/corrupt SPS
