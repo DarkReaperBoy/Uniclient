@@ -20,6 +20,7 @@ require (
 	github.com/hajimehoshi/go-mp3 v0.3.0
 	github.com/jezek/xgb v1.3.1
 	github.com/jfreymuth/pulse v0.1.3
+	github.com/liqmix/govid v0.0.0-20260726214734-844820719b99
 	github.com/livekit/server-sdk-go/v2 v2.18.1
 	github.com/pion/ice/v4 v4.4.2
 	github.com/pion/interceptor v0.1.48
@@ -49,6 +50,7 @@ require (
 	cel.dev/expr v0.25.2 // indirect
 	gioui.org/shader v1.0.9 // indirect
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0 // indirect
+	github.com/Eyevinn/mp4ff v0.51.0 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect

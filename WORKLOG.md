@@ -6363,3 +6363,135 @@ Parity: row 108 (Chat background) fully PRESENT; gap 16 CLOSED.
   217 (panel hover animation + reading-flag fix), 218 (per-chat custom
   wallpapers), the CI-fatal semaphore fix, the 65MB stray-artifact
   hygiene drop, and this release.
+
+## 2026-09-23 — session start: baseline repaired + slice 219 planned
+
+### Baseline (prerequisite for §9 "tests green on every commit")
+- `go test ./...` was RED at HEAD (6 failures) and `nix build` was broken.
+  Fixed both before starting feature work:
+  - 4 GUI time tests built fixtures in `time.UTC` while the production
+    formatters render local time (Asia/Muscat +04 here) → now `time.Local`.
+  - 2 engine player tests drove `mediaPlayer.fill` by hand while a live
+    PulseAudio device thread also pulled it → `detachDevice` (stop+close
+    session, rewind pos). Headless CI has no device, which is why this
+    only failed on a workstation.
+  - flake.nix: 8 defects repaired, `nix run github:DarkReaperBoy/Uniclient`
+    (§6) had never worked — details in that commit.
+  Pushed as 5c0a1ec8 + 29e8593a.
+
+### Research (§1.13) — the H.264 blocker was stale
+Both earlier passes (2026-09-11, 2026-09-16) concluded "no pure-Go full
+H.264 decoder exists" after surveying hi264 / go-openh264 / gomedia / cgo
+wrappers. They never surfaced `liqmix/govid`, which has existed since
+2026-03-14. Because its README says "This repo is written by Claude", I did
+not take it on trust:
+- its 21 skipped tests are missing *local-only* fixtures, not broken paths;
+- its committed reference YUV is reproducible byte-for-byte by ffmpeg, so
+  its "bit-exact" claims are meaningful;
+- **our own two fixtures** (Constrained-Baseline/no-B = Telegram round-video
+  shape; High+CABAC+B-frames = worst case), decoded through
+  `mp4.NewDemuxer`+`h264.NewCodec()` vs `ffmpeg -pix_fmt yuv420p`: all 12
+  frames × 221,184 samples bit-exact, SHA-256 equal to the ffmpeg file.
+Findings + rejected candidates recorded in `research/h264_decoder.md`; the
+two stale verdicts in `video_player.md`/`video_stickers.md` corrected.
+
+### Rating (§1.14)
+- slice-216 video architecture (`vp9anim`: decode-ahead producer behind a
+  permit semaphore + frame clock + msgID-keyed GUI cache + InvalidateCmd):
+  **9/10** — keep and extend; H.264 needs the same machine, one difference:
+  inter frames require *sequential* decode, so the loop seam must recreate
+  the decoder (Codec.Flush forgets SPS/PPS, so restart from a fresh demuxer
+  whose leading keyframe carries them).
+- `videoBubble` + system-player handoff: **7/10** — honest *under the old
+  ecosystem limit*, and that limit has expired. Extend, don't replace: it
+  keeps thumb/poster/badge/duration and gains a live playing state.
+- `govid` as the H.264 base: **9/10** for fitness (pure Go, MIT, stdlib-only
+  `h264` prod deps, bit-exact). Caveat: small AI-written project — mitigated
+  by pinning OUR conformance hashes as tests rather than trusting theirs.
+- stale research docs: **2/10** (actively misleading) → corrected, not
+  expanded (§10).
+
+### Plan (best, not fastest) — slices 219-222
+- **219** `go/h264vid`: `Parse` (mp4 index + size guards) → `Video` →
+  `NewPlayer` with sequential decode-ahead producer behind ONE shared app
+  decode budget (`go/vcodec`, extracted from vp9anim so mixed VP9+H.264
+  media share a single CPU cap), byte-budgeted ring, `FrameAt`/
+  `NextFrameIn`/`SetLoop`/`Seek` (GOP-aligned). Tests FIRST against the
+  committed fixtures + pinned ffmpeg SHA-256 + ffmpeg-gated provenance
+  + the semaphore prime-to-capacity deadlock regression.
+- **220** GUI: `gui/h264player.go` cache keyed by msgID (mirror
+  `webmPlayerCache`); `videoBubble`/`videoNoteBubble` render the live frame,
+  tap toggles play, round notes loop + circular crop, power-saving gate.
+- **221** media-viewer in-app playback controls (play/pause/seek/volume)
+  → parity row 276.
+- **222** PiP → row 279 (the matrix's only MISSING row).
+
+## 2026-09-23 — slice 219: pure-Go H.264 video core (h264vid) + shared decode budget (vcodec)
+
+Executes plan item **219** from the session entry above. The stale
+"no pure-Go H.264 decoder exists" verdict (research/video_player.md,
+research/video_stickers.md, AGENTS.md §1.1) is now dead — corrected in
+both docs by research/h264_decoder.md, which replaces assertion with
+measurement.
+
+### Research (§1.13) → Rating (§1.14) → Plan: see previous entry.
+What execution added beyond the plan:
+
+**The colour bug nobody had caught.** ffmpeg treats untagged `yuv420p`
+as *limited-range BT.601* — measured, not assumed: Y=16→0, Y=235→255, and
+Y=128/Cb=16/Cr=128→(130,173,0) at both 128×96 and 1280×720 (BT.709 would
+give (131,154,0)). govid's own helper uses the full-range JFIF formula,
+which parks blacks at 16 — washed out. So `h264vid` does its own
+conversion: integer CCIR-601, pinned by `TestYUVToRGBIsLimitedRange`
+against those exact ffmpeg-measured values.
+
+**Decode order ≠ display order.** The `high_bframes` fixture's packet
+PTS in *file* order reads `0.000, 0.100, 0.033, 0.067, 0.133, …`. Parse
+sorts composition timestamps to build the display timeline; B-frame
+reorder is drained both at end-of-stream and at a GOP boundary.
+
+**Seek and loop are GOP-aligned, not guessed.** H.264 inter frames need
+a sequential feed, so `Seek` rebuilds the demuxer+decoder at the keyframe
+at-or-before the target (index pass records sample number *and* display
+index for every sync sample) and `FrameAt` issues the same restart when
+the playhead wraps behind an evicted frame. The producer never eagerly
+re-decodes a lap — that would spin the CPU for a full clip nobody is
+watching.
+
+**One CPU budget for all video.** `go/vcodec` extracted from vp9anim so
+VP9 stickers and H.264 video share a single decode permit pool instead of
+each growing its own semaphore. `vp9anim` moved onto it (3 call sites);
+its tests still pass unchanged.
+
+### Tests first (§9) — 17 new
+- `h264vid` 13 pass + 1 conditional skip (truncation cut a partial GOP,
+  so there is nothing to assert) + `vcodec` 3.
+- Both fixtures were regenerated with `-g 4` mid-slice specifically so
+  `TestSeekRestartsAtKeyframe` would have ≥2 keyframes to seek across —
+  an earlier `-g 15` version had one keyframe and the test skipped.
+- **Pinned against ffmpeg, not against govid.** SHA-256 of every decoded
+  luma+chroma sample of both fixtures is pinned
+  (`6f09b28e…`/`34d26fe8…`); `TestReferenceIsGenuineFFmpeg` re-derives
+  those references from the committed MP4s with ffmpeg when it is on
+  PATH, so the pin cannot silently drift into self-confirmation.
+  Our own two fixtures both came back **bit-exact, all 12 frames ×
+  221,184 samples**.
+- Player-vs-pipeline equivalence: `FrameAt`'s RGBA re-encoded to YUV and
+  hashed matches `decodePass`'s raw planes, so the pixels pinned by the
+  test are the pixels the GUI draws.
+- Regression pinned: `TestProducersQueueUnderFullDecodePool` (16 players
+  on a primed-to-capacity pool must not deadlock).
+- Also: `vp9anim` refactor covered; `-race` clean on h264vid/vcodec/vp9anim.
+
+### Verification (§9)
+`gofmt -l` clean · `go vet -tags goolm ./...` clean ·
+`go test -p 2 -tags goolm -count=1 ./...` **exit 0, 12 packages ok**.
+
+### Next
+- **220** GUI wiring (`gui/h264player.go` cache keyed by msgID;
+  `videoBubble`/`videoNoteBubble` play in place, round notes loop +
+  circular crop) — turns parity rows 143/281 from partial into present.
+- **221** in-app playback controls → row 276. **222** PiP → row 279
+  (the matrix's only MISSING row).
+- Deliberately not in this slice: AAC audio. Video now plays silent;
+  the existing "open in system player" handoff still offers sound.

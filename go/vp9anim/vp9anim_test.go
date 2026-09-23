@@ -18,6 +18,7 @@ import (
 
 	"github.com/thesyncim/govpx"
 
+	"uniclient/vcodec"
 	"uniclient/webm"
 )
 
@@ -414,16 +415,12 @@ func TestSemaphorePermitsAllPlayers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	// Prime the permit buffer to CAPACITY first: the inverted acquire
+	// Prime the permit pool to CAPACITY first: the inverted acquire
 	// (a send instead of a receive) deadlocks instantly against a full
-	// buffer — without this, spare capacity on small machines masks the
-	// bug exactly the way the 2-core dev VM did.
-	for i := 0; i < 4; i++ {
-		select {
-		case decodeSlots <- struct{}{}:
-		default:
-		}
-	}
+	// pool — without this, spare capacity on small machines masks the
+	// bug exactly the way the 2-core dev VM did. The pool now lives in
+	// vcodec (shared with h264vid), so prime it through its API.
+	vcodec.PrimeToCapacity()
 	const players = 6
 	var wg sync.WaitGroup
 	done := make(chan int, players)

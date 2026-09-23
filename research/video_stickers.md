@@ -7,15 +7,20 @@ LOC inspection.
 
 ## Findings
 
-### H.264/AVC (round videos) — STILL BLOCKED for full playback
+### H.264/AVC (round videos) — UNBLOCKED 2026-09-23 (was "STILL BLOCKED")
+Re-researched after both earlier passes failed to surface `liqMix/govid`
+(a from-scratch pure-Go H.264 decoder with I/P/B + CABAC, present since
+2026-03-14). Verified bit-exact vs ffmpeg on our own fixtures — see
+`h264_decoder.md` and `go/h264vid`. Survey of the candidates both earlier
+passes DID find, kept for the record:
 - **Eyevinn/hi264** — releases v0.9.0 (2026-02-17), v0.10.0 (2026-05-08);
-  README still: "The decoder handles IDR plus P_Skip frames; full P/B-frame
-  decoding is out of scope." All recent work is encoder/SEI-side.
-- **mgvs/go-openh264** (new 2026-06, v0.1.2) — pure-Go, High-profile intra
-  (I_16x16/I_NxN/I_PCM, CAVLC+CABAC, deblocking, minimal MP4 demux), but
-  "P-slice / B-slice (inter prediction) — out of scope" (thumbnail decoder).
-- Nothing else new; gomedia dormant since 2024, all others cgo.
-→ In-app H.264 video playback stays system-player handoff (slice 86).
+  README: "The decoder handles IDR plus P_Skip frames; full P/B-frame
+  decoding is out of scope." Encoder/SEI-side work only.
+- **mgvs/go-openh264** (2026-06, v0.1.2) — pure-Go High-profile intra,
+  but "P-slice / B-slice (inter prediction) — out of scope" (thumbnail).
+- gomedia dormant since 2024; the rest are cgo.
+→ In-app H.264 playback ships through `go/h264vid` (was: system-player
+handoff, slice 86).
 
 ### VP9 (video stickers + video emoji) — UNBLOCKED
 Two new pure-Go VP9 decoders, both appeared May–June 2026:

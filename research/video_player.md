@@ -1,14 +1,15 @@
 # In-app video player — pure-Go decoder research (2026-09-11)
 
-Verdict (updated 2026-09-16): **H.264 still blocked; VP9 UNBLOCKED** —
-two pure-Go VP9 decoders appeared mid-2026 and the video-sticker path
-shipped as slice 216 (see video_stickers.md for the re-research). The
-table below is the original 2026-09-11 H.264/VP9 survey, kept for the
-record; go-vp9 was evaluated and REJECTED during the slice-216 work
-(entropy desync + a hard panic on official quantizer/size vectors),
-govpx (the libvpx port) is what ships.
+Verdict (updated 2026-09-23): **H.264 UNBLOCKED — see `h264_decoder.md`.**
 
-Original verdict: **blocked, with rationale.** Telegram videos are H.264/AVC in MP4
+govpx ships the VP9 side (slice 216); `liqmix/govid` covers H.264 and was
+missed by BOTH earlier surveys (2026-09-11 and 2026-09-16) even though it
+dates from 2026-03-14. It is verified bit-exact against ffmpeg on our own
+fixtures in `go/h264vid`, so the "system-player handoff is the honest
+ceiling" conclusion below is obsolete. The table is kept as the record of
+why the other candidates were rejected.
+
+Original verdict (superseded): **blocked, with rationale.** Telegram videos are H.264/AVC in MP4
 (+ AAC audio); video stickers are VP9/WebM. The constitution (§1.1) bans
 non-Go runtime deps and cgo outside Gio's Linux GPU shims, so the decoder
 must be pure Go. Deep-research pass over the current ecosystem:
@@ -21,15 +22,13 @@ must be pure Go. Deep-research pass over the current ecosystem:
 | golang.org/x/image/vp8 | Real pure-Go VP8 decoder — but Telegram sends no VP8 video (webm stickers are VP9; x/image has no VP9). | ❌ codec mismatch |
 | Edge264 (FOSDEM'25) | C library, not Go. | ❌ not Go |
 
-Consequences:
-- The in-app video player stays **system-player handoff** (slice 86) on
-  Linux/Windows — this is the honest ceiling per §1.10, not a regression.
+Consequences (superseded by `h264_decoder.md` — in-app H.264 playback now
+ships through `go/h264vid`):
+- ~~The in-app video player stays **system-player handoff** (slice 86).~~
 - The web (WASM) target could legitimately use the browser `<video>`
-  element later (JS interop is allowed there — same pattern as WebAudio);
-  capability-gate it behind GOOS=js if ever built.
-- Revisit when a complete pure-Go H.264/VP9 decoder lands upstream
-  (hi264 growing P-frame support would be the likeliest path).
+  element later (JS interop is allowed there — same pattern as WebAudio).
 
 This decision recorded per §1.13/§1.14 (research → rate → plan): the
-existing videoBubble (thumb + play badge + duration + handoff) is rated
-7/10 for what is achievable within the constitution — kept, not replaced.
+existing videoBubble (thumb + play badge + duration + handoff) was rated
+7/10 for what was achievable within the constitution — that ceiling was
+an ecosystem limit, not a design limit, and it has since expired.

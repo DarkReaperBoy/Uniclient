@@ -445,6 +445,28 @@ is the next task.
         per-chat custom wallpapers end-to-end (upload → set → receive →
         render with the spec blur → reset). v0.10.2 released (all 7
         CI jobs green; parity rows 108/146/147 fully PRESENT).
+      - slice 219 (2026-09-23): THE H.264 BLOCKER IS DEAD. Both prior
+        research passes (2026-09-11, 2026-09-16) concluded "no pure-Go
+        full H.264 decoder exists" — wrong, they missed `liqmix/govid`
+        (present since 2026-03-14). Verified, not trusted: our
+        Constrained-Baseline round-video fixture and our High+CABAC+
+        B-frames fixture both decode **bit-exact vs ffmpeg** (12 frames ×
+        221,184 samples, SHA-256 pinned in tests and re-derived by ffmpeg
+        at test time when on PATH, so the pin cannot drift into self-
+        confirmation). New `h264vid`: MP4 index pass building the DISPLAY
+        timeline by sorting PTS (decode order ≠ display order once
+        B-frames exist — the fixture's packets read 0,100ms,33ms,67ms in
+        file order), sequential decode-ahead producer on the new shared
+        `vcodec` permit pool (extracted from vp9anim so VP9+H.264 share
+        ONE CPU cap), and GOP-aligned Seek/loop restart — inter frames
+        need a sequential feed, so a seek rebuilds the decoder at the
+        keyframe instead of guessing. Own colour conversion because
+        ffmpeg treats untagged yuv420p as limited-range BT.601 (measured
+        Y=16→0, 235→255) while govid's helper is full-range JFIF — that
+        difference is visibly washed-out blacks. 17 tests first,
+        `-race` clean, full suite green. Unblocks slices 220 (bubbles)
+        → 221 (viewer controls, row 276) → 222 (PiP, row 279 — the only
+        MISSING row).
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"
