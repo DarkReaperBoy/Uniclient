@@ -278,7 +278,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Download + share + delete in viewer | Toolbar actions | PRESENT (save→RequestDownload/reveal path; share→forward picker; delete→confirm dialog→engine.DeleteMessage) | gui/mediaview.go | P1 |
 | PiP floating window | Video in floating window | PRESENT (slice 222 — the matrix's only MISSING row, now closed). A draggable floating panel keeps the clip playing over every surface while you keep using the app; shares the slice-220/221 decoder so popping out is a hand-off, not a second decode, and closing it pauses the clip. Deviation reported honestly: Gio has no always-on-top flag on our platforms (its only one is in the banned macOS backend) and allows extra native windows only on linux/windows — never on Android — so it is an in-window panel rather than an OS window, which is why it stays visible everywhere including Android | gui/pip.go + gui/mediaview.go viewerPopOut | P3 |
 | Story viewer | Full story playback w/ reactions/reply/share | PRESENT (slice 104: full-window viewer fed by engine.FetchPeerStories — progress segments, left/right tap zones + arrow keys, caption + views/date meta, image stories render inline (async decode), video stories honestly hand off to the system player; slice 164: REACTIONS + REPLY + SHARE — the bottom action bar (views/reactions stats, reaction heart, reply, share): heart tap opens the emoji strip (account available reactions, favorite-choices capping) or removes the sent reaction (stories.sendReaction w/ ReactionEmpty, optimistic flip + error revert, own state from StoryItem.SentReaction); reply opens the inline composer → engine.SendMessage with the story:<id> ReplyToID (inputReplyToStory, Enter submits); share → stories.exportStoryLink → clipboard + toast; own stories hide react/reply (§1.10) and keep share; the composer owns the keyboard while armed (arrows/editing) | gui/stories.go + cores ReactToStory/ExportStoryLink + engine ReactToStory/ExportStoryLink | P2 |
-| Streaming video in chat | Playback without full download | CORE-ONLY (the core half is the chunked `upload.getFile` primitive in `cores/telegram.go`; the engine ranged stream + GUI path land as slices 228-229 — before that this row's Where cell named an "engine media streaming" that did not exist, corrected by the slice-228 truth check) | CORE-ONLY: cores UploadGetFile chunk primitive; engine+GUI = slices 228-229 | P2 |
+| Streaming video in chat | Playback without full download | PRESENT (slices 228+229 — measured, not claimed: the govid demuxer this package started on was probe-measured reading **100% of the file at construction** and every payload again during its index pass, so it can never sit on a stream; replaced by mp4ff `DecModeLazyMdat` + a table-driven packet pump. Engine = fetch-on-read sparse file at executeDownload's canonical path, only touched 512 KiB chunks fetched (8 KiB head read of 1 MiB ≤ 3 chunks pinned), fetch failure ERRORS instead of serving zeros, completion promotes the row exactly once into the existing cache accounting; cores = ranged chunked `upload.getFile` with the 4096-alignment rule enforced locally and `Precise` set; GUI = round-note tap + viewer play start from the stream immediately, ParseSeek reads only headers+moov (<25% of the file pinned), GOP resume fetches zero payload before the keyframe, packets byte-identical to the old demuxer + ffmpeg-pinned pixels through the lazy path, and every failure falls back to download-then-play; sound joins at completion caught up to the picture's playhead) | gui/videostream.go + h264player.go + engine/mediastream.go + cores/telegram_stream.go + h264vid/streamsrc.go | P2 |
 
 ## 13. Notifications — scope: SHARED (per-account notify config = TG)
 
@@ -427,12 +427,14 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (200 feature rows)
 
-- PRESENT: 194 (97%) — the four video rows from slices 220-225
+- PRESENT: 195 (97.5%) — the four video rows from slices 220-225
   (143, 279, 276, 231), the five rows synced by the slice-226 truth
   pass (107 forum topics, 108 chat background, 193 saved messages,
-  207 chat settings, 212 stars), and **row 306 by slice 227** (QR scan
+  207 chat settings, 212 stars), **row 306 by slice 227** (QR scan
   file-based, decoder chosen by measured bench — research/
-  qr_decoder.md).
+  qr_decoder.md), and **row 281 by slices 228+229** (streaming
+  without full download — engine ranged stream + cores ranged read +
+  lazy-container GUI path, each step pinned by a measurement).
   **Counted by machine**: parsing every row's status cell caught two
   earlier drifts (the prose claimed 188/8 while the table held 187/9,
   and the experimental row's CORE-ONLY-BY-DESIGN status made the first
@@ -442,13 +444,10 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   so the toggle would be dead UI) · card-funded giveaway launch
   (external checkout, honest absence)
 - MISSING: **0** — closed by slice 222 (PiP was the last one).
-- CORE-ONLY: 4 — webview (owner-decision) · experimental flags (dead-UI
-  ban, by design) · Ayu sqlite (already served by the engine cache) ·
-  streaming without full download (row 281: the CORE is the chunked
-  `upload.getFile` primitive in the telegram core — engine half landed
-  as slice 228, cores.ReadFilePart + engine.OpenMediaStream, fetch-on-
-  read sparse file with exactly-once DB promotion; the GUI playback
-  path is slice 229, which flips this row)
+- CORE-ONLY: 3 — webview (owner-decision) · experimental flags (this
+  row is CORE-ONLY-BY-DESIGN: dead-UI ban) · Ayu sqlite (already
+  served by the engine cache). Streaming without full download left
+  this bucket at slices 228-229 (row 281 above).
 
 → History: 2026-09-08 after slices 1-9: PRESENT 24 (12%) · 2026-09-13
   after slices 172-174 + truth pass: PRESENT 169 (84%) · after slice 185:
@@ -460,7 +459,9 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   (restrict/ban boxes): moderation CORE-ONLY→PRESENT · slice 192
   (boosts page): giveaways CORE-ONLY→PARTIAL · slice 193 (signup photo):
   signup PARTIAL→PRESENT · slice 195 (channel-post comments): new row
-  PRESENT · slice 196 (comment deep links): deep links PARTIAL→PRESENT ·
+  PRESENT · slice 196 (comment deep links): deep links PARTIAL→PRESENT
+  · slices 228-229 (streaming): row 281 CORE-ONLY→PRESENT — the last
+  non-decision, non-owner-gated row in the matrix ·
 slice 206 (profile music — upstream feature surfaced by the 2026-09-14
 re-verification against AyuGramDesktop dev, added there ~Aug 2026 after
 the 09-13 truth pass): NEW ROW PRESENT (200th row) · slice 207 (message

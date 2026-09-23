@@ -293,7 +293,7 @@ func TestOpenMediaStreamPromotesRow(t *testing.T) {
 	src := &fakePartSource{data: data}
 	seedStreamRow(t, e, int64(len(data)), DownloadNone, "")
 
-	s, size, err := e.openMediaStream("a1", "c1", "m1", 0, src)
+	s, pth, size, err := e.openMediaStream("a1", "c1", "m1", 0, src)
 	if err != nil {
 		t.Fatalf("openMediaStream: %v", err)
 	}
@@ -322,6 +322,9 @@ func TestOpenMediaStreamPromotesRow(t *testing.T) {
 	}
 	if localPath == "" {
 		t.Fatalf("local_path empty after completion")
+	}
+	if pth != localPath {
+		t.Errorf("returned path %q != promoted local_path %q — the GUI would key its player cache differently and re-parse on completion", pth, localPath)
 	}
 	wantSuffix := filepath.Join("a1", "full", "m1_0.mp4")
 	if filepath.ToSlash(filepath.Base(localPath)) != "m1_0.mp4" ||
@@ -357,11 +360,14 @@ func TestOpenMediaStreamFastPathSkipsFetch(t *testing.T) {
 
 	// No account/core exists on this engine: the fast path must not need
 	// one (and any attempt to fetch would fail loudly).
-	s, size, err := e.OpenMediaStream("a1", "c1", "m1", 0)
+	s, size, pth, err := e.OpenMediaStream("a1", "c1", "m1", 0)
 	if err != nil {
 		t.Fatalf("fast path: %v", err)
 	}
 	defer s.Close()
+	if pth != path {
+		t.Errorf("fast path returned %q, want the completed file's path %q", pth, path)
+	}
 	if size != int64(len(data)) {
 		t.Errorf("size = %d, want %d", size, len(data))
 	}

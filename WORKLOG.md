@@ -7233,3 +7233,88 @@ Row 281 stays CORE-ONLY until slice 229 wires the GUI playback path.
 goolm` walks into mautrix's libolm cgo build and dies on
 `olm/olm.h` — the tag is mandatory even for a package that does not
 import it.)
+
+## 2026-09-23 — slice 229: row 281 PRESENT — video plays before the download finishes
+
+CI green on **55c1ce39** (slice 228) was the14th consecutive green run
+this session. This slice finishes the row, and it opened with a
+measurement rather than an assumption: can govid's demuxer sit on a
+fetch-on-read stream? A byte-counting probe (counting ReadSeeker around
+the fixture, both `mp4.DecodeFile` and `govid/mp4.NewDemuxer`) answered
+no in the loudest possible way — **construction reads 11 926 of 11 926
+bytes, zero seeks**: mp4ff's default decode mode walks into `mdat` and
+pulls the payload. On a stream whose ReadAt misses cost 512 KiB, that
+is the entire file before the first frame, and the demuxer's index pass
+(walk every packet to record timestamps) would then read it all AGAIN.
+The demuxer could not be fixed from outside — govid exposes no
+constructor from a parsed `*File` — so the container layer was
+replaced with the only shape that streams:
+
+- **mp4ff with `DecModeLazyMdat`** (`mp4.DecodeFile(r,
+  WithDecodeMode(DecModeLazyMdat))`): box headers and moov parse, mdat
+  is SEEKED over. Pinned two ways: `TestParseSeekReadsNoPayload` (<25%
+  of the fixture, ≤3000 bytes for both fixtures) and…
+- **a table-driven packet pump** (`h264vid/streamsrc.go`): per-sample
+  byte ranges from `TrakBox.GetRangesForSampleInterval(s, s)` (the
+  exact walk govid did per packet, but once, as metadata), timestamps
+  from `stts.GetDecodeTime` + `ctts.GetCompositionTimeOffset` through
+  govid's own float expression, SPS/PPS prepended to sync samples
+  exactly as govid did. `TestPacketPumpMatchesGovidDemuxer` pins
+  **byte-identical Data, Timestamp and Keyframe for every sample of
+  both fixtures** — which is what makes the pixel pin expected rather
+  than lucky: `TestParseSeekDecodesToFFmpegPin` runs the ffmpeg-pinned
+  sha256 THROUGH the lazy path and it matches.
+- **A GOP resume is metadata-only** (`packetSrc.skip`): zero bytes
+  before the keyframe, then exactly that sample's range
+  (`TestGopResumeReadsNoPayload` asserts both numbers). The old
+  demuxer read and discarded every skipped payload.
+- All 14 pre-existing tests pass unchanged — the ffmpeg pin, the
+  timeline pins, the seek/clock/player tests — because `Parse(data)`
+  now wraps `parseSource(bytes.NewReader(data))`: ONE implementation
+  for byte clips and streamed clips, so they cannot diverge.
+
+Engine/GUI wiring (row 281's surfaces):
+
+- `OpenMediaStream` now also returns the **canonical path** its bytes
+  land at (test pins: returned path == the path the completion event
+  later carries — otherwise the player cache would re-parse at
+  completion and stutter).
+- `gui/videostream.go`: `viewerMayStream` / `streamShouldJoinAudio`
+  pure decisions + two entry points. The **round-note tap**
+  (`actMedia`) and the **viewer Play** (`viewerPlay`) try the stream
+  first and play immediately; `publishStreamedClip` does parse→publish
+  app-free (test drives it with real fixture bytes). Every failure —
+  `ErrNoRangedRead` (other cores), no media row, HEVC-in-MP4 — falls
+  back to the ORIGINAL download-then-play flow with the original
+  markers (`setPlayOnDone`/`setOpenOnDone` + `RequestDownload`), and
+  the fallback also closes the stream reader so the full download owns
+  the file. No dead bubble possible (§1.10).
+- **Sound joins at completion**: picture plays from the stream;
+  when the last chunk promotes the row, `onDownloadComplete` finds the
+  active player (`streamShouldJoinAudio`: parsed + PLAYING + same path
+  — a paused picture gets no surprise sound) and starts the AAC at the
+  picture's playhead via `PlayMediaAt` → `mediaStartPos` clamp →
+  `runVideoAudio` (shared error honesty with `startVideoAudio`).
+
+A unit bug the tests caught before push: `mediaPlayer.pos` is a
+**sample index**, not seconds (stateLocked divides by the rate; seek
+scales by len(pcm)). The first `PlayMediaAt` plant assigned seconds
+where samples belong — invisible in the pure clamp test, and instantly
+visible in the end-to-end test on this host because live PulseAudio
+filled one 2880-sample device buffer: Position read
+`0.06000520833333333` = 2880.25/48000 for BOTH calls. Fixed at the
+plant (`× voice.SampleRate`), and the test now brackets both
+environments (device-pulled ≈0.31 on the host, exact 0.25 on headless
+CI).
+
+Known, documented, bounded: one file handle per streamed clip lives as
+long as its player (closed on source-swap, reset, process exit) — a
+player-stop hook could close it earlier; noted rather than papered
+over.
+
+Gate: gofmt clean, vet `-tags goolm` clean across gui/engine/h264vid,
+full suites green in all three, `-race` green on every new test.
+**Row 281 → PRESENT. Machine counts (parser re-run): PRESENT 195
+(97.5%) · PARTIAL 2 · MISSING 0 · CORE-ONLY 3 + 1 by-design = 200.**
+AGENTS §11 parity item closes `[~]` → `[x]`, with the premature-
+closure correction kept inline as history.

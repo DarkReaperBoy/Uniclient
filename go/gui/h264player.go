@@ -20,7 +20,9 @@ package gui
 // correct rather than a failure.
 
 import (
+	"errors"
 	"image"
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -381,16 +383,86 @@ func (a *App) ensureH264Player(acct, chat, msgID, path string, loop bool, onFail
 		a.invalidate()
 		// Repaint once the first frame is decoded so the bubble swaps
 		// from its thumbnail to the live video.
-		go func() {
-			for i := 0; i < 400; i++ { // ≤ 2s at 5ms
-				if pl.DecodedCount() >= 1 || pl.Failed() != nil {
-					a.invalidate()
-					return
-				}
-				time.Sleep(5 * time.Millisecond)
-			}
-		}()
+		a.repaintOnFirstFrame(pl)
 	}()
+}
+
+// repaintOnFirstFrame invalidates as soon as the clip's first frame is
+// decoded (or the decode fails), so the surface swaps from its poster to
+// the live video instead of waiting for the next unrelated redraw.
+// Shared by the downloaded-file and streamed entry points.
+func (a *App) repaintOnFirstFrame(pl *h264vid.Player) {
+	go func() {
+		for i := 0; i < 400; i++ { // ≤ 2s at 5ms
+			if pl.DecodedCount() >= 1 || pl.Failed() != nil {
+				a.invalidate()
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}()
+}
+
+// publishStreamedClip parses a NOT-yet-downloaded clip straight from the
+// engine's fetch-on-read stream and publishes it into the cache — the
+// row-281 fast path (slice 229). App-free on purpose: failures return an
+// error so the caller runs the honest fallback, and it stays
+// unit-testable with plain fixture bytes.
+func publishStreamedClip(msgID, path string, ra io.ReaderAt, size int64, loop bool) (*h264vid.Player, error) {
+	if msgID == "" || path == "" || ra == nil || size <= 0 {
+		return nil, errors.New("gui: streamed clip has no usable source")
+	}
+	sec := io.NewSectionReader(ra, 0, size)
+	video, err := h264vid.ParseSeek(sec)
+	if err != nil {
+		return nil, err
+	}
+	pl := h264Players.publish(msgID, path, video, loop)
+	if pl == nil {
+		return nil, errors.New("gui: streamed clip published no player")
+	}
+	return pl, nil
+}
+
+// ensureH264StreamPlayer kicks off streamed playback (row 281): parse off
+// the UI thread, publish, repaint on the first frame. It returns false
+// ONLY when it did not take the job — the caller then falls back to
+// download-then-play exactly as before (no stream, or a source-swap
+// race). onFail (optional) runs when the parse rejects the bytes, so an
+// HEVC-in-MP4 still reaches the viewer/system path (§1.10: never a dead
+// bubble). NO audio starts here — the file is incomplete; sound joins
+// when the bytes land (state.go → videoAudioPlayAt at the playhead).
+func (a *App) ensureH264StreamPlayer(msgID, path string, ra io.ReaderAt, size int64, loop bool, onFail ...func()) bool {
+	if msgID == "" || path == "" || ra == nil || size <= 0 {
+		return false
+	}
+	p, _ := h264Players.peek(msgID)
+	if p.path == path && (p.parsed || p.failed || p.reading) {
+		return true // already playing, failing, or in flight
+	}
+	if p.path != "" && p.path != path {
+		h264Players.reset(msgID) // source swapped: re-parse
+	}
+	if !h264Players.markReading(msgID) {
+		return true // another goroutine owns the parse
+	}
+	go func() {
+		pl, err := publishStreamedClip(msgID, path, ra, size, loop)
+		if err != nil {
+			h264Players.endReading(msgID)
+			h264Players.failParse(msgID)
+			for _, fn := range onFail {
+				if fn != nil {
+					fn()
+				}
+			}
+			a.invalidate()
+			return
+		}
+		a.repaintOnFirstFrame(pl)
+		a.invalidate()
+	}()
+	return true
 }
 
 // startVideoNoteInline is the download-completion entry point: the bytes

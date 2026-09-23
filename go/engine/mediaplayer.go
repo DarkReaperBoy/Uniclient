@@ -151,7 +151,36 @@ func decodeOpusOgg(path string) ([]int16, error) {
 
 // PlayMedia starts in-app playback of a downloaded message's file.
 // Switches playback from any previous message; emits EventPlaybackState.
+// PlayMedia decodes the clip's audio and plays it from the start (the
+// format rules above apply to every entry point).
 func (e *Engine) PlayMedia(acct, chat, msgID, path string) error {
+	return e.playMediaAt(acct, chat, msgID, path, 0)
+}
+
+// PlayMediaAt starts the sound at startAt — slice 229's join point
+// (row 281): a clip that played from the fetch-on-read stream only has
+// its bytes once the file completes, so the sound must start WHERE THE
+// PICTURE IS instead of replaying from zero.
+func (e *Engine) PlayMediaAt(acct, chat, msgID, path string, startAt time.Duration) error {
+	return e.playMediaAt(acct, chat, msgID, path, startAt)
+}
+
+// mediaStartPos clamps a start offset onto a track. Negative or
+// past-the-end offsets start at 0: an offset beyond the audio cannot
+// catch anything — the picture is about to loop, so the sound must too.
+// Pure — unit-tested.
+func mediaStartPos(startAt time.Duration, dur float64) float64 {
+	if startAt <= 0 || dur <= 0 {
+		return 0
+	}
+	s := startAt.Seconds()
+	if s >= dur {
+		return 0
+	}
+	return s
+}
+
+func (e *Engine) playMediaAt(acct, chat, msgID, path string, startAt time.Duration) error {
 	// In-app playable formats: Ogg/Opus (voice notes, opus audio), MP3
 	// (music files, slice 185) and the AAC track of an MP4 (video and
 	// round video notes, slice 224) decode through the pure-Go pipeline;
@@ -201,7 +230,9 @@ func (e *Engine) PlayMedia(acct, chat, msgID, path string) error {
 	}
 	p.pcm = pcm
 	p.dur = float64(len(pcm)) / float64(voice.SampleRate)
-	p.pos = 0
+	// p.pos is a SAMPLE INDEX (stateLocked divides by the rate; seek
+	// scales by len(pcm)) — convert the clamped seconds here.
+	p.pos = mediaStartPos(startAt, p.dur) * float64(voice.SampleRate)
 	p.speed = 1
 	p.ident = [3]string{acct, chat, msgID}
 	p.playing = hasAudio

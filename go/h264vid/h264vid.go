@@ -35,7 +35,6 @@ import (
 	"time"
 
 	"github.com/liqmix/govid/h264"
-	"github.com/liqmix/govid/mp4"
 
 	"uniclient/vcodec"
 )
@@ -87,7 +86,11 @@ type syncEntry struct {
 
 // Video is a parsed, validated MP4/H.264 clip ready to play.
 //
-// Parse takes ownership of data; the caller must not mutate it afterwards.
+// Parse takes ownership of data; the caller must not mutate it
+// afterwards. Payloads are read through ra on demand (from the backing
+// array for a byte clip, fetch-by-fetch for a stream), so a Video can
+// be parsed from a file that has not fully downloaded yet (slice 229,
+// streamsrc.go).
 type Video struct {
 	// Width, Height are the displayed dimensions.
 	Width, Height int
@@ -96,7 +99,8 @@ type Video struct {
 	// FrameCount is the number of display frames.
 	FrameCount int
 
-	data    []byte
+	ra      io.ReaderAt // payload source: bytes.Reader, os.File, or a stream section
+	moov    *moovInfo   // sample ranges + timing tables
 	frames  []timing    // display order: strictly increasing pts
 	syncs   []syncEntry // keyframes, pts ascending
 	keepAll bool        // the whole clip fits in ringBudget
@@ -113,54 +117,34 @@ type indexSample struct {
 
 // Parse reads a MP4's index (dimensions, display timeline, keyframe map)
 // without decoding it. Decoding happens later, on the producer goroutine.
+// Ownership of data transfers to the Video (it must not be mutated
+// afterwards). Parse and ParseSeek share one implementation in
+// streamsrc.go, so a byte clip and a streamed clip cannot diverge.
 func Parse(data []byte) (*Video, error) {
 	if len(data) == 0 {
 		return nil, ErrNotVideo
 	}
-	d, err := mp4.NewDemuxer(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrNotVideo, err)
-	}
-	defer d.Close()
+	return parseSource(bytes.NewReader(data))
+}
 
-	if d.CodecType() != "h264" {
-		return nil, fmt.Errorf("%w: got %q", ErrUnsupported, d.CodecType())
-	}
-	info := d.VideoInfo()
-	v := &Video{
-		Width:  info.Width,
-		Height: info.Height,
-		data:   data, // ownership transferred to us
-	}
-	if err := v.validateDims(); err != nil {
-		return nil, err
-	}
-
-	// Index pass: walk every sample once, recording its PRESENTATION time
-	// (NextPacket already applies the ctts composition offset) and whether
-	// it is a sync sample. No frame data is kept — only the index.
-	var order []indexSample
-	for i := uint32(1); ; i++ {
-		pkt, err := d.NextPacket()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrNotVideo, err)
-		}
-		order = append(order, indexSample{pts: pkt.Timestamp, sync: pkt.Keyframe, decode: i})
-	}
+// finishTimeline turns the raw per-sample index (decode-order pts +
+// sync flags, built from the moov tables without touching a single
+// payload byte — streamsrc.go) into the display-order timeline, the
+// sync map and the ring budget. container is the mdhd-derived clip
+// duration; the timeline never ends before the last frame starts.
+//
+// Decode order != display order once B-frames exist (the high_bframes
+// fixture reads 0,100ms,33ms,67ms,…) in sample order. Sort by
+// presentation time to get the display order the GUI must paint.
+func (v *Video) finishTimeline(order []indexSample, container time.Duration) error {
 	if len(order) == 0 {
-		return nil, fmt.Errorf("%w: no samples", ErrNotVideo)
+		return fmt.Errorf("%w: no samples", ErrNotVideo)
 	}
 	if len(order) > maxFrames {
-		return nil, fmt.Errorf("%w: %d frames > %d", ErrTooLarge, len(order), maxFrames)
+		return fmt.Errorf("%w: %d frames > %d", ErrTooLarge, len(order), maxFrames)
 	}
 	v.FrameCount = len(order)
 
-	// Decode order != display order once B-frames exist (the high_bframes
-	// fixture reads 0,100ms,33ms,67ms,… in sample order). Sort by
-	// presentation time to get the display order the GUI must paint.
 	rank := make([]int, len(order)) // decode index -> display index
 	sorted := make([]indexSample, len(order))
 	copy(sorted, order)
@@ -175,8 +159,6 @@ func Parse(data []byte) (*Video, error) {
 		rank[di] = display
 	}
 
-	// Container duration, but never shorter than the last frame's start.
-	container := d.Duration()
 	v.frames = make([]timing, len(sorted))
 	for i, s := range sorted {
 		v.frames[i] = timing{pts: s.pts}
@@ -208,14 +190,14 @@ func Parse(data []byte) (*Video, error) {
 		}
 	}
 	// A stream with no stss declares every sample a sync sample; the
-	// demuxer reports them all as keyframes, which is fine. But a stream
+	// tables report them all as keyframes, which is fine. But a stream
 	// with NO keyframe at all cannot be decoded sequentially — refuse it.
 	if len(v.syncs) == 0 {
-		return nil, fmt.Errorf("%w: no keyframes", ErrNotVideo)
+		return fmt.Errorf("%w: no keyframes", ErrNotVideo)
 	}
 
 	v.keepAll = int64(v.FrameCount)*int64(v.Width*v.Height*4) <= ringBudget
-	return v, nil
+	return nil
 }
 
 // sortByPTS orders idx so that order[idx[i]] is ascending by pts.
@@ -268,21 +250,13 @@ func (v *Video) decodePass(startSample uint32, base int, fn func(idx int, img *i
 	if startSample < 1 {
 		startSample = 1
 	}
-	d, err := mp4.NewDemuxer(bytes.NewReader(v.data))
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-
-	// Resume exactly at the requested sample. Skipping is a read, not a
-	// decode, so this stays cheap; the demuxer prepends SPS/PPS to the
-	// first packet because it is a sync sample, which is what lets a
+	p := v.packetSrc()
+	// Resume exactly at the requested sample. The skip is METADATA-ONLY:
+	// the old demuxer read and discarded every skipped payload, which a
+	// fetch-on-read stream would pay 512 KiB per miss for. The pump
+	// prepends SPS/PPS to each sync sample itself, which is what lets a
 	// fresh decoder start mid-file.
-	for s := uint32(1); s < startSample; s++ {
-		if _, err := d.NextPacket(); err != nil {
-			return err
-		}
-	}
+	p.skip(startSample - 1)
 
 	c := h264.NewCodec()
 	idx := base
@@ -297,7 +271,7 @@ func (v *Video) decodePass(startSample uint32, base int, fn func(idx int, img *i
 		return nil
 	}
 	for {
-		pkt, err := d.NextPacket()
+		pkt, err := p.next()
 		if err == io.EOF {
 			break
 		}
@@ -876,9 +850,9 @@ func (v *Video) frameIndexAt(e time.Duration) int {
 
 // ── session (one sequential decode) ─────────────────────────────────────
 
-// passRunner wraps a demuxer+codec pair positioned at a keyframe.
+// passRunner wraps a packet-pump + codec pair positioned at a keyframe.
 type passRunner struct {
-	d   *mp4.Demuxer
+	p   *packetSrc
 	c   *h264.Codec
 	idx int
 }
@@ -887,24 +861,16 @@ func (v *Video) newPass(startSample uint32, base int) (*passRunner, error) {
 	if startSample < 1 {
 		startSample = 1
 	}
-	d, err := mp4.NewDemuxer(bytes.NewReader(v.data))
-	if err != nil {
-		return nil, err
-	}
-	for s := uint32(1); s < startSample; s++ {
-		if _, err := d.NextPacket(); err != nil {
-			d.Close()
-			return nil, err
-		}
-	}
-	return &passRunner{d: d, c: h264.NewCodec(), idx: base}, nil
+	p := v.packetSrc()
+	p.skip(startSample - 1) // metadata-only: zero payload before the keyframe
+	return &passRunner{p: p, c: h264.NewCodec(), idx: base}, nil
 }
 
 // next decodes the next frame, returning its display index. io.EOF marks
 // the end of the clip.
 func (pr *passRunner) next() (int, *image.YCbCr, error) {
 	for {
-		pkt, err := pr.d.NextPacket()
+		pkt, err := pr.p.next()
 		if err == io.EOF {
 			// Flush the B-frame reorder buffer before declaring the end.
 			if fr := pr.c.Drain(); fr != nil && fr.YCbCr != nil {
@@ -931,8 +897,5 @@ func (pr *passRunner) next() (int, *image.YCbCr, error) {
 }
 
 func (pr *passRunner) close() {
-	if pr.d != nil {
-		pr.d.Close()
-		pr.d = nil
-	}
+	pr.p = nil
 }

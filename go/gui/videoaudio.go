@@ -35,6 +35,7 @@ package gui
 import (
 	"errors"
 	"log"
+	"time"
 
 	"uniclient/aacaud"
 	"uniclient/audio"
@@ -113,8 +114,31 @@ func (a *App) startVideoAudio(acct, chat, msgID, path string) {
 	if a.eng == nil || path == "" || msgID == "" {
 		return
 	}
+	a.runVideoAudio(func() error { return a.eng.PlayMedia(acct, chat, msgID, path) })
+}
+
+// videoAudioPlayAt starts the sound at startAt — slice 229's join point
+// (row 281): a clip that played from the fetch-on-read stream only has
+// its bytes when the file completes, so the sound must start WHERE THE
+// PICTURE IS rather than at zero. Same honesty rules as
+// startVideoAudio: a silent track stays quiet, every other failure is
+// said once.
+func (a *App) videoAudioPlayAt(acct, chat, msgID, path string, startAt time.Duration) {
+	if a.eng == nil || path == "" || msgID == "" {
+		return
+	}
+	a.runVideoAudio(func() error { return a.eng.PlayMediaAt(acct, chat, msgID, path, startAt) })
+}
+
+// runVideoAudio plays off the UI thread and reports the outcome once —
+// shared by the at-onset and caught-up entry points so their error
+// behaviour cannot drift.
+func (a *App) runVideoAudio(play func() error) {
+	if a.eng == nil {
+		return
+	}
 	go func() {
-		if err := a.eng.PlayMedia(acct, chat, msgID, path); err != nil {
+		if err := play(); err != nil {
 			if isSilentVideoErr(err) {
 				return // no audio track: picture-only is correct, not a failure
 			}

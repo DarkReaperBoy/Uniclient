@@ -924,6 +924,13 @@ func (a *App) viewerPlay(v *viewerState, it engine.SharedMediaItem) {
 		return
 	}
 	acct, chat, id := v.accountID, v.chatID, it.MsgID
+	// Row 281: a video that has not fully downloaded plays from the
+	// engine's ranged stream RIGHT NOW (slice 229) instead of blocking
+	// on the whole file. No stream (other core, no row, unplayable
+	// container) → the wait-for-download flow below, unchanged.
+	if a.startStreamedViewerVideo(v, it) {
+		return
+	}
 	a.setOpenOnDone(acct, chat, id, 0)
 	go func() {
 		if err := a.eng.RequestDownload(acct, chat, id, 0, 0); err != nil {

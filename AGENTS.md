@@ -396,30 +396,34 @@ is the next task.
       (visual pass lands with a real voice-capable account)
 - [x] Dispatch-only verify workflow (§5) — full gate + cross-builds +
       Xvfb GUI smoke with screenshot artifacts
-- [~] **AyuGram 1:1 parity program (§1.11 mandate) — re-opened to finish row 281** (slices
-      200-227, 2026-09-14..23): mirror AyuGramDesktop feature-by-feature
+- [x] **AyuGram 1:1 parity program (§1.11 mandate) — CLOSED** (slices
+      200-229, 2026-09-14..23): mirror AyuGramDesktop feature-by-feature
       in `gui/` (source-level
       comparison, tracked in research/ayugram_parity.md); extend cores
       where functionality is missing; Telegram core+GUI = exact 1:1 first
       (folders sync, ghost mode, QR verify, message actions, settings,
       search, media...), other cores follow
-      - **Final state (machine-counted, buckets sum to 200): PRESENT 194
-        (97%) · PARTIAL 2 · MISSING 0 · CORE-ONLY 4.** The two PARTIAL
-        rows are deliberate scope decisions with the rationale kept in
-        the matrix — local premium toggle (nothing is gated
-        client-side yet, so the toggle would be dead UI per §1.10) and
-        card-funded giveaway launch (external checkout) — and the four
-        CORE-ONLY rows are by-design or owner-gated (webview mini-apps:
-        owner decision; experimental flags: dead-UI ban; Ayu sqlite:
-        served by the engine cache). **The closure note that sat here
-        claimed "nothing further is buildable without an owner
-        decision" and was wrong**: row 281 (streaming without full
-        download) IS buildable — its core half is the chunked
-        `upload.getFile` primitive, and an "engine media streaming"
-        that a previous entry credited did not exist (grep-verified).
-        The item therefore re-opens to `[~]` until slices 228-229 land
-        the engine ranged stream + the GUI playback path; **no row is
-        MISSING** either way. The per-slice log continues below.
+      - **Final state (machine-counted, buckets sum to 200): PRESENT 195
+        (97.5%) · PARTIAL 2 · MISSING 0 · CORE-ONLY 3 (+1
+        CORE-ONLY-BY-DESIGN).** The two PARTIAL rows are deliberate
+        scope decisions with the rationale kept in the matrix — local
+        premium toggle (nothing is gated client-side yet, so the toggle
+        would be dead UI per §1.10) and card-funded giveaway launch
+        (external checkout) — and the non-PRESENT core rows are
+        by-design or owner-gated (webview mini-apps: owner decision;
+        experimental flags: dead-UI ban; Ayu sqlite: served by the
+        engine cache). **The closure history here is kept honest:** a
+        first closure claimed "nothing further is buildable without an
+        owner decision" — wrong: row 281 (streaming without full
+        download) was buildable, and an "engine media streaming" a
+        previous entry credited did not exist (grep-verified). The
+        item reopened `[~]` and slices 228-229 landed the truth of that
+        row (engine ranged stream + cores ranged read + GUI lazy-
+        container path, each pinned by measurement). It now closes
+        `[x]` because the claim is finally TRUE and machine-verified:
+        no row is MISSING, every non-PRESENT row is a recorded
+        decision or an owner gate, and no open line has buildable work
+        left. The per-slice log continues below.
       - slices 200–205 (2026-09-14): Windows native toasts completed —
         transport (slice 200), own AUMID via pure-Go IShellLinkW +
         IPropertyStore Start-Menu shortcut (201), protocol-activation
@@ -641,8 +645,11 @@ is the next task.
         Engine `player()` also seeds its gain from config at creation
         (locks taken separately, never nested). 4 tests / 31 case
         runs; gofmt+vet clean, `-race` clean, full suite exit 0.
-        **Parity: PRESENT 194 (97%) · PARTIAL 2 · MISSING 0 ·
-        CORE-ONLY 4** — counts machine-derived and sum-checked to 200.
+        **Parity at that point: PRESENT 194 (97%) · PARTIAL 2 ·
+        MISSING 0 · CORE-ONLY 4** — counts machine-derived and
+        sum-checked to 200 (state after slice 227; slices 228-229 then
+        took it to 195/2/0/3+1 — the live numbers sit in the §11
+        parity item above).
         Two drifts were found by parsing every status cell instead of
         typing totals: the prose had said 188/8 while the table held
         187/9 (forum topics was PARTIAL in the table, missing from the
@@ -708,6 +715,34 @@ is the next task.
         a failed fetch **errors rather than serving zeros** (zeros
         decode as a corrupt frame = fake playback, §1.10). Row 281
         flips PRESENT in slice 229 (GUI playback path).
+      - slice 229 (2026-09-23): **row 281 PRESENT — video plays before
+        the file is fully downloaded.** The blocker was measured, not
+        assumed: a byte-counting probe showed govid's demuxer reads
+        **100% of the file at construction** (mp4.DecodeFile walks
+        into mdat — zero seeks) and then re-reads every payload during
+        its index pass. Replaced inside h264vid (same pixels, proven):
+        mp4ff `DecModeLazyMdat` parses headers+moov only (pinned: <25%
+        of the fixture, ≤3000 bytes), a table-driven packet pump
+        delivers samples by ReadAt with timestamps computed by the
+        SAME mp4ff functions and float expression govid used — pinned
+        byte-identical packets against the old demuxer — and a GOP
+        resume is metadata-only (zero bytes before the keyframe; the
+        old demuxer read and discarded them). All 14 pre-existing
+        tests still pass, including the ffmpeg pixel pin THROUGH the
+        lazy path. GUI: `gui/videostream.go` — the round-note tap
+        (actMedia) and the viewer's Play (viewerPlay) try
+        `engine.OpenMediaStream` first and play from the stream at
+        once; every failure (no ranged read, no row, HEVC-in-MP4)
+        falls back to download-then-play with the ORIGINAL markers, so
+        nothing can dead-end (§1.10). Sound joins when the bytes land:
+        `PlayMediaAt` starts the AAC at the picture's playhead
+        (guard: streamShouldJoinAudio — parsed + playing + same path).
+        Unit bug caught by test before push: `mediaPlayer.pos` is a
+        SAMPLE INDEX, not seconds — the first plant put seconds where
+        samples belong and the host's live PulseAudio fill made it
+        visible as 0.060005208s (2880 samples + 0.25). One open
+        handle per streamed clip lives while its player does (closed
+        on source-swap/reset/exit) — noted for a player-stop hook.
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"

@@ -455,6 +455,13 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 		// notes are the exception: they play INLINE in the bubble
 		// (slice 220), which is how tdesktop treats video messages.
 		if msg.MediaType == engine.MediaVideoNote {
+			// Row 281: an undownloaded note plays from the ranged stream
+			// immediately (slice 229) — the stream IS the download; it
+			// promotes the row when its last chunk lands. No stream
+			// available → the wait-for-download flow below, unchanged.
+			if a.startStreamedVideoNote(&msg) {
+				return
+			}
 			a.setPlayOnDone(msg.AccountID, msg.ChatID, msg.MsgID, 0)
 		} else {
 			a.setOpenOnDone(msg.AccountID, msg.ChatID, msg.MsgID, 0)

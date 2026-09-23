@@ -6,6 +6,7 @@ require (
 	filippo.io/edwards25519 v1.2.0
 	gioui.org v0.10.2
 	gioui.org/x v0.10.2
+	github.com/Eyevinn/mp4ff v0.51.0
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/coder/websocket v1.8.15
@@ -52,7 +53,6 @@ require (
 	cel.dev/expr v0.25.2 // indirect
 	gioui.org/shader v1.0.9 // indirect
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0 // indirect
-	github.com/Eyevinn/mp4ff v0.51.0 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect

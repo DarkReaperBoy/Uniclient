@@ -284,23 +284,25 @@ func (e *Engine) loadMediaRow(accountID, chatID, msgID string, seq int) (*mediaR
 // openMediaStream builds the streaming reader for an already-resolved
 // source: canonical path (executeDownload's), completion promotion into
 // the row, and the download_complete event — so the rest of the cache
-// system cannot tell how the file arrived.
-func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src partSource) (*mediaStream, int64, error) {
+// system cannot tell how the file arrived. The canonical path is
+// returned so the GUI can key its player cache by the SAME path the
+// completion event will carry (no re-parse when the bytes land).
+func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src partSource) (*mediaStream, string, int64, error) {
 	r, err := e.loadMediaRow(accountID, chatID, msgID, seq)
 	if err != nil {
-		return nil, 0, err
+		return nil, "", 0, err
 	}
 	if r.fileSize <= 0 {
-		return nil, 0, fmt.Errorf("streaming: unknown file size")
+		return nil, "", 0, fmt.Errorf("streaming: unknown file size")
 	}
 	if src == nil {
-		return nil, 0, ErrNoRangedRead
+		return nil, "", 0, ErrNoRangedRead
 	}
 
 	// Same canonical path executeDownload writes (media.go executeDownload).
 	dir := filepath.Join(e.mediaDir, accountID, "full")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, 0, err
+		return nil, "", 0, err
 	}
 	ext := filepath.Ext(r.fileName)
 	if ext == "" {
@@ -310,7 +312,7 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
-		return nil, 0, err
+		return nil, "", 0, err
 	}
 	ref := cores.FileRef{
 		ID:       r.remoteRef,
@@ -335,25 +337,26 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 	}
 	s, err := newMediaStream(f, size, streamChunk, src, ref, onDone)
 	if err != nil {
-		return nil, 0, err
+		return nil, "", 0, err
 	}
-	return s, size, nil
+	return s, path, size, nil
 }
 
-// OpenMediaStream returns a reader over the media: the completed file
-// straight from disk when it exists (fast path — no core needed), or a
+// OpenMediaStream returns a reader over the media, its byte length and
+// the canonical path its bytes land at: the completed file straight
+// from disk when it exists (fast path — no core needed), or a
 // fetch-on-read stream that downloads only what the reader touches and
-// promotes itself to a completed download at the same canonical path.
+// promotes itself to a completed download at that same path.
 // ErrNoRangedRead means the caller should keep the download-then-play
 // path.
-func (e *Engine) OpenMediaStream(accountID, chatID, msgID string, seq int) (MediaReader, int64, error) {
+func (e *Engine) OpenMediaStream(accountID, chatID, msgID string, seq int) (MediaReader, int64, string, error) {
 	r, err := e.loadMediaRow(accountID, chatID, msgID, seq)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, "", err
 	}
 	if r.downloadSt == DownloadComplete && r.localPath != "" {
 		if f, oerr := os.Open(r.localPath); oerr == nil {
-			return f, r.fileSize, nil
+			return f, r.fileSize, r.localPath, nil
 		}
 		// Row says complete but the file was evicted: fall through and
 		// refetch — honest recovery, not a phantom path.
@@ -361,11 +364,11 @@ func (e *Engine) OpenMediaStream(accountID, chatID, msgID string, seq int) (Medi
 
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
-		return nil, 0, ErrNoRangedRead
+		return nil, 0, "", ErrNoRangedRead
 	}
 	src, err := resolveStreamSource(acc.Core)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, "", err
 	}
 	// Streaming takes over this file's write path: cancel any queued or
 	// active full download so two writers never race on one sparse file
@@ -373,5 +376,9 @@ func (e *Engine) OpenMediaStream(accountID, chatID, msgID string, seq int) (Medi
 	if e.media != nil {
 		e.media.Cancel(accountID, chatID, msgID, seq)
 	}
-	return e.openMediaStream(accountID, chatID, msgID, seq, src)
+	s, path, size, err := e.openMediaStream(accountID, chatID, msgID, seq, src)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	return s, size, path, nil
 }

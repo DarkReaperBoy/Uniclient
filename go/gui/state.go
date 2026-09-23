@@ -1157,6 +1157,15 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 		a.openMedia(d.LocalPath, true)
 		return
 	}
+	// Row 281: this clip played from the fetch-on-read stream and its
+	// bytes have just landed. Sound joins NOW, caught up to the
+	// picture's playhead — the audio starts where the eyes are instead
+	// of replaying from zero (slice 229). Guards: an active, PLAYING,
+	// parsed inline player on this exact path (a download-driven
+	// playback already returned above through wantInline/wantOpen).
+	if st, have := h264Players.peek(d.MsgID); streamShouldJoinAudio(st, have, d.LocalPath) {
+		a.videoAudioPlayAt(d.AccountID, d.ChatID, d.MsgID, d.LocalPath, h264Players.elapsed(d.MsgID))
+	}
 	if isDisplayableImage(d.LocalPath) {
 		a.decodeFileAsync(d.LocalPath)
 	}
