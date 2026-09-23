@@ -1150,7 +1150,7 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 		// Round note: parse and play it in the bubble (slice 220). Checked
 		// before wantOpen so a doubly-marked download never escapes to the
 		// system player.
-		a.startVideoNoteInline(d.MsgID, d.LocalPath)
+		a.startVideoNoteInline(d.AccountID, d.ChatID, d.MsgID, d.LocalPath)
 		return
 	}
 	if wantOpen {

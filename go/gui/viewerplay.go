@@ -4,16 +4,16 @@ package gui
 // parity row 276 "Playback controls (video): play/pause/seek/volume/
 // fullscreen".
 //
-// What is implemented: play, pause, scrub-to-seek, and the elapsed/total
-// clocks, all against the pure-Go h264vid clip (GOP-aligned seek comes
-// free from slice 219). The viewer itself is already the fullscreen
-// surface.
+// What is implemented: play, pause, scrub-to-seek, the elapsed/total
+// clocks, SOUND (slice 225 joins this bar to the engine's AAC playback
+// and adds the volume slider), and the viewer itself is the fullscreen
+// surface. See gui/videoaudio.go for how the two clocks are kept together.
 //
-// What is deliberately ABSENT: volume. Telegram ships H.264+AAC in MP4
-// and there is still no AAC decoder, so a volume slider would control
-// nothing at all — §1.10 forbids UI that fakes a capability, so the
-// control simply is not drawn. The system-player handoff stays one tap
-// away and carries the audio until AAC lands.
+// What is deliberately absent: nothing in this row — volume landed in
+// slice 225 once the pure-Go AAC path (research/aac_decoder.md) made a
+// slider that actually moves something. The slider is still gated on a
+// real audio backend existing (§1.10), and a clip with no audio track
+// plays picture-only rather than pretending.
 
 import (
 	"image/color"
@@ -196,10 +196,12 @@ func (a *App) viewerPlayVideo(it engine.SharedMediaItem) {
 	switch noteTapAction(snap, viewerCanPlayInApp(it)) {
 	case noteActionPlay:
 		h264Players.resume(it.MsgID)
+		a.viewerVideoAudioPlay(it)
 		a.invalidate()
 		return
 	case noteActionPause:
 		h264Players.pause(it.MsgID)
+		a.videoAudioPause(it.MsgID)
 		a.invalidate()
 		return
 	case noteActionWait:
@@ -211,7 +213,8 @@ func (a *App) viewerPlayVideo(it engine.SharedMediaItem) {
 	// also has the audio we cannot decode (§1.10: no dead play button).
 	path := it.LocalPath
 	loop := it.MediaType == engine.MediaVideoNote
-	a.ensureH264Player(it.MsgID, path, loop, func() {
+	acct, chat := a.viewerIdent()
+	a.ensureH264Player(acct, chat, it.MsgID, path, loop, func() {
 		a.setToast("Can't play this video in-app — opening system player")
 		a.openMedia(path, true)
 	})
@@ -240,7 +243,7 @@ func (a *App) viewerVideoBar(gtx layout.Context, f frame) layout.Dimensions {
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.videoTransportBtn(gtx, msgID, playing)
+					return a.videoTransportBtn(gtx, it, playing)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Left: unit.Dp(10), Right: unit.Dp(10)}.Layout(gtx,
@@ -251,12 +254,45 @@ func (a *App) viewerVideoBar(gtx layout.Context, f frame) layout.Dimensions {
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return a.seekBarDo(gtx, "viewer|"+msgID, frac, func(fr float64) {
 						h264Players.seek(msgID, fr)
+						// One drag, two clocks: the sound moves to the
+						// same fraction the picture just jumped to.
+						a.videoAudioSeek(msgID, fr)
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Left: unit.Dp(10)}.Layout(gtx,
 						func(gtx layout.Context) layout.Dimensions {
 							return videoClockLabel(gtx, a, toLabel)
+						})
+				}),
+				// Volume: row 276's last control. Drawn only when the
+				// platform really has a speaker backend, because a
+				// slider that moves nothing is what section 1.10
+				// forbids; the icon flips to the crossed glyph at zero.
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if !videoAudioAvailable() {
+						return layout.Dimensions{}
+					}
+					return layout.Inset{Left: unit.Dp(10)}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							vol := a.mediaVolume()
+							glyph := iconAVVolumeUp
+							if vol <= 0 {
+								glyph = iconAVVolumeOff
+							}
+							icon := layoutIconPx(gtx, glyph, a.ui.p.TextFaint, gtx.Dp(unit.Dp(14)))
+							slider := layout.Inset{Left: unit.Dp(6)}.Layout(gtx,
+								func(gtx layout.Context) layout.Dimensions {
+									gtx.Constraints.Min.X = gtx.Dp(64)
+									gtx.Constraints.Max.X = gtx.Dp(64)
+									return a.seekBarDo(gtx, "viewer|vol|"+msgID, vol, func(fr float64) {
+										a.setMediaVolume(fr)
+									})
+								})
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions { return icon }),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions { return slider }),
+							)
 						})
 				}),
 			)
@@ -277,13 +313,18 @@ func videoClockLabel(gtx layout.Context, a *App, s string) layout.Dimensions {
 }
 
 // videoTransportBtn is the play/pause toggle at the head of the bar:
-// accent while playing, neutral surface while paused.
-func (a *App) videoTransportBtn(gtx layout.Context, msgID string, playing bool) layout.Dimensions {
+// accent while playing, neutral surface while paused. It moves BOTH
+// clocks — picture first, then the engine's audio — so the button can
+// never leave sound running behind a paused frame.
+func (a *App) videoTransportBtn(gtx layout.Context, it engine.SharedMediaItem, playing bool) layout.Dimensions {
+	msgID := it.MsgID
 	if a.wid.viewerVidPlayBtn.Clicked(gtx) {
 		if playing {
 			h264Players.pause(msgID)
+			a.videoAudioPause(msgID)
 		} else {
 			h264Players.resume(msgID)
+			a.viewerVideoAudioPlay(it)
 		}
 		a.invalidate()
 	}

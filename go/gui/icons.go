@@ -62,6 +62,7 @@ var (
 	iconToggleStar             = mustIcon(icons.ToggleStar)
 	iconAlertWarning           = mustIcon(icons.AlertWarning)
 	iconAVVolumeOff            = mustIcon(icons.AVVolumeOff)
+	iconAVVolumeUp             = mustIcon(icons.AVVolumeUp)
 	iconNavArrowDown           = mustIcon(icons.NavigationArrowDownward)
 	iconSocialPoll             = mustIcon(icons.SocialPoll)
 	iconMapsPlace              = mustIcon(icons.MapsPlace)

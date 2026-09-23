@@ -12,9 +12,12 @@ package gui
 // through to the honest viewer/system path instead of a dead bubble
 // (§1.10).
 //
-// Audio is deliberately absent in this slice: AAC is a separate decoder.
-// While a note plays silently, the existing "open in system player"
-// handoff still carries sound for anyone who wants it.
+// Audio is started by slice 225 whenever publish() starts the picture:
+// the engine decodes the MP4's AAC track (slice 223/224) and holds the
+// volume gain, so this file only has to keep the two halves in step —
+// play, pause and loop-wrap are mirrored into the engine by videoaudio.go.
+// A clip with no audio track plays picture-only and quietly, which is
+// correct rather than a failure.
 
 import (
 	"image"
@@ -327,7 +330,10 @@ func stopH264Player(p *h264Player) {
 // selects round-note looping versus play-through, and onFail (optional)
 // runs when the file cannot be read or decoded so a caller can fall back
 // honestly instead of leaving a dead bubble or a dead play button.
-func (a *App) ensureH264Player(msgID, path string, loop bool, onFail ...func()) {
+// acct/chat/msgID identify the clip for the engine's audio half — audio
+// starts only once publish() has really started the picture, so the two
+// clocks begin together instead of the sound leading the video.
+func (a *App) ensureH264Player(acct, chat, msgID, path string, loop bool, onFail ...func()) {
 	if msgID == "" || path == "" {
 		return
 	}
@@ -369,6 +375,9 @@ func (a *App) ensureH264Player(msgID, path string, loop bool, onFail ...func()) 
 			notify()
 			return
 		}
+		// The picture's clock just started (publish sets start=now), so
+		// this is the one right moment to start the matching audio.
+		a.videoAudioPlay(acct, chat, msgID, path)
 		a.invalidate()
 		// Repaint once the first frame is decoded so the bubble swaps
 		// from its thumbnail to the live video.
@@ -385,9 +394,11 @@ func (a *App) ensureH264Player(msgID, path string, loop bool, onFail ...func()) 
 }
 
 // startVideoNoteInline is the download-completion entry point: the bytes
-// just landed, so parse them and play them in the bubble at once.
-func (a *App) startVideoNoteInline(msgID, path string) {
-	a.ensureH264Player(msgID, path, true)
+// just landed, so parse them and play them in the bubble at once. The
+// account and chat ride along so the matching audio can be attributed to
+// this message in the engine's playback snapshot.
+func (a *App) startVideoNoteInline(acct, chat, msgID, path string) {
+	a.ensureH264Player(acct, chat, msgID, path, true)
 }
 
 // tapVideoNote handles a tap on an already-downloaded round note by
@@ -408,14 +419,16 @@ func (a *App) tapVideoNote(m *engine.CachedMessage) bool {
 	}
 	switch noteTapAction(p, true) {
 	case noteActionWait:
-		a.ensureH264Player(m.MsgID, m.MediaLocalPath, true)
+		a.ensureH264Player(m.AccountID, m.ChatID, m.MsgID, m.MediaLocalPath, true)
 		return true
 	case noteActionPlay:
 		h264Players.resume(m.MsgID)
+		a.videoAudioPlay(m.AccountID, m.ChatID, m.MsgID, m.MediaLocalPath)
 		a.invalidate()
 		return true
 	case noteActionPause:
 		h264Players.pause(m.MsgID)
+		a.videoAudioPause(m.MsgID)
 		a.invalidate()
 		return true
 	default: // noteActionViewer / noteActionDownload → caller's fallback
@@ -481,6 +494,10 @@ func (a *App) drawVideoNoteFrame(gtx layout.Context, msgID string, diameter int)
 		// Producer warming up: keep the thumbnail for this paint.
 		return layout.Dimensions{}, false
 	}
+	// The picture is looping; make sure the sound is still keeping up.
+	// After the first pass the engine has played its track through, so
+	// without this the note would loop silently from then on.
+	a.videoAudioLoop(msgID)
 	dims := drawImageEllipse(gtx, img, diameter)
 	gtx.Execute(op.InvalidateCmd{At: time.Now().Add(e.player.NextFrameIn(elapsed))})
 	return dims, true

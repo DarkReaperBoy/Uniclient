@@ -6864,3 +6864,77 @@ now would advertise a control that does not exist on screen (§1.10). The
 remaining half is slice 225: start/stop engine audio alongside the h264
 player, lock the picture to the audio clock (audio is the master — the
 device pulls in real time), and draw the slider in the viewer bar.
+
+## 2026-09-23 — slice 225: video SOUND + the volume slider — parity row 276 is PRESENT
+
+This is the slice that closes the last P1 row of the AyuGram matrix. It joins
+the two halves slices 219-224 built: the pure-Go picture (h264vid) and the
+pure-Go sound (aacaud → engine gain), with one shared notion of "now".
+
+### What shipped
+- **`gui/videoaudio.go`** — the whole picture↔sound contract:
+  - `videoAudioPlay/Pause/Seek/Loop` mirror every transport action into the
+    engine, and each one first asks `videoAudioMine` whether the engine's
+    single player is holding **this** message's audio. That question is why a
+    pause on a video cannot pause somebody's music, and why an empty msgID is
+    explicitly never "ours" (every video shares `""`, so treating it as ours
+    would let any pause button stop any track).
+  - **Loop sync.** Round notes loop forever; the engine plays a track through
+    once. `videoAudioShouldLoop` re-arms the audio at each wrap — but only
+    when the picture is *still* looping, a device exists, the audio is not
+    running or paused by the user, and the drain has finished (50 ms slack).
+    The four guards each correspond to a real failure: a video that played
+    through must not resurrect its audio, a user's pause must not be
+    overridden, and music must never be restarted by a video.
+  - **Silent is not a failure.** `isSilentVideoErr` distinguishes
+    `aacaud.ErrNoAudio` (a clip with no track — correct, quiet) from HE-AAC,
+    a broken container or a missing device (logged *and* toasted, because a
+    video that silently loses its sound looks broken — §1.10).
+  - The volume slider writes through `setMediaVolume`: live gain immediately,
+    config persistence async. The slider **reads the live gain**, never the
+    async config, so a drag cannot snap back while the write is in flight.
+- **Volume control in the viewer bar** — `seekBarDo` with a fixed 64 dp track
+  and a real Material glyph (`AVVolumeUp`, flipping to `AVVolumeOff` at zero),
+  drawn **only when `audio.Available()`**: a slider that moves nothing is
+  exactly the UI §1.10 forbids.
+- Wiring at every transport point: inline tap (chat bubble), the viewer's play
+  button, the viewer scrubber (one drag → both clocks), download-completion
+  autoplay, and the draw path for loop re-arm. Audio starts **in `publish()`**,
+  the moment the picture's clock starts, so sound never leads the video.
+
+### Two bugs found while writing it
+1. **A precedence error in my own first draft of `videoAudioPlay`**: the guard
+   read `st.Playing || st.Paused && videoAudioMine(...)`, which — Go binding
+   `&&` tighter — reduced to "something else is playing → skip video audio
+   entirely", i.e. music playing meant the video started silent, forever. The
+   test suite for identity + the rewritten branch made it obvious; the comment
+   now says out loud that a non-ours track means `PlayMedia` **switches**.
+2. **`UpdateConfigFromBridge` dereferenced a nil config.** Every GUI
+   persistence callback runs on a goroutine, and tests build bare
+   `&engine.Engine{}`, so an unguarded persist would have crashed the process
+   rather than failing a test. It now returns an error instead. The engine's
+   `player()` also seeds its gain from config at creation (locks taken and
+   *released* separately, never nested), so a restart opens at the saved
+   volume instead of at full blast until the first track.
+
+### Tests first (§9) — 4 tests / 31 case runs
+identity table (incl. the empty-msgID case that would let any video claim any
+track) · silent-vs-real failure table incl. twice-wrapped sentinel ·
+`videoAudioShouldLoop` full guard matrix (10 cases) · volume read/write
+round-trip with clamping against a config-less engine · every helper
+tolerating a bare `&App{}` with no engine (the render path can arrive first).
+
+### Verification (§9)
+`gofmt -l` clean · `go vet -tags goolm ./...` clean ·
+`go test -p 2 -tags goolm -count=1 ./...` **exit 0, 13 pkgs** ·
+`-race` clean across the new gui and engine tests · token scan 0 ·
+`verify.yml` green on **15986674, d4e1699f, 1b6d4dc2, a7e4bd6e, d4fcacf4,
+9b2c95a4, 5c05c8da** (7 consecutive pushes).
+
+### Parity after this slice
+**PRESENT 189 (94%) · PARTIAL 7 · MISSING 0 · CORE-ONLY 4** (200 rows).
+Row 276 is PRESENT — the last P1. Every remaining PARTIAL is an honest scope
+cut (local premium, chat-settings extras, QR scan, stars, chat-background
+upload, saved-messages remainder, avatar micro-polish) or owner-gated
+(giveaway checkout). The video thread in §11 is now closed end to end:
+H.264 decode → in-chat playback → viewer transport → PiP → AAC audio → volume.

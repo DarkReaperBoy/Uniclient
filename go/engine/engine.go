@@ -1135,6 +1135,13 @@ type ConfigChanges struct {
 
 // UpdateConfigFromBridge applies partial config changes from the bridge layer.
 func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
+	// A nil config means the engine was never initialised (tests build a
+	// bare &Engine{}). Every branch below dereferences it, so say so
+	// instead of crashing the caller — or, worse, the goroutine a GUI
+	// persistence callback runs on.
+	if e.config == nil {
+		return fmt.Errorf("config: engine has no config to update")
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 

@@ -67,9 +67,26 @@ func (e *Engine) newMediaPlayer() *mediaPlayer {
 }
 
 func (e *Engine) player() *mediaPlayer {
+	// Seed a brand-new player's gain from config so the slider opens at
+	// the value the user saved instead of at full volume until the first
+	// track starts. e.mu is taken and RELEASED before mediaMu — the two
+	// locks are never nested, so there is no ordering to get wrong.
+	e.mu.Lock()
+	var (
+		gain    float64
+		haveCfg = e.config != nil
+	)
+	if haveCfg {
+		gain = e.config.MediaVolumeValue()
+	}
+	e.mu.Unlock()
+
 	e.mediaMu.Lock()
 	if e.mediaPlayer == nil {
 		e.mediaPlayer = e.newMediaPlayer()
+		if haveCfg {
+			e.mediaPlayer.gain = gain
+		}
 	}
 	p := e.mediaPlayer
 	e.mediaMu.Unlock()

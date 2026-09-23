@@ -597,6 +597,34 @@ is the next task.
         **Row 276 still PARTIAL on purpose**: nothing in the GUI routes
         video audio through this yet, so no slider is drawn — slice 225
         wires picture-to-audio-clock sync and the slider itself.
+      - slice 225 (2026-09-23): **video SOUND + volume — parity row 276
+        PRESENT, the matrix's last P1 closed.** `gui/videoaudio.go`
+        joins the two halves: every transport action (inline tap,
+        viewer play/pause, scrubber, download-completion autoplay)
+        mirrors into the engine, but only after `videoAudioMine` asks
+        whether the engine's single player holds THIS message — which
+        is why pausing a video cannot pause somebody's music, and why
+        an empty msgID is never "ours" (every video shares it). Round
+        notes loop while the engine plays through once, so
+        `videoAudioShouldLoop` re-arms the audio at each wrap under
+        four guards that each kill a real failure: picture stopped
+        must not resurrect audio, a user's pause must not be
+        overridden, no device means nothing to re-arm, music is never
+        restarted by a video. Audio starts in `publish()` — the moment
+        the picture's clock starts — so sound never leads the video.
+        The slider is `seekBarDo` on a fixed 64 dp track with a real
+        `AVVolumeUp`/`AVVolumeOff` glyph, drawn ONLY when
+        `audio.Available()` (a control that moves nothing is the
+        §1.10 mistake). Read live gain, write async config. **Two bugs
+        caught in review:** a `||`/`&&` precedence slip in my own
+        `videoAudioPlay` that made "music is playing" silently disable
+        video audio, and `UpdateConfigFromBridge` nil-dereffing in the
+        goroutine every persistence callback runs on (now an error).
+        Engine `player()` also seeds its gain from config at creation
+        (locks taken separately, never nested). 4 tests / 31 case
+        runs; gofmt+vet clean, `-race` clean, full suite exit 0.
+        **Parity: PRESENT 189 (94%) · PARTIAL 7 · MISSING 0 ·
+        CORE-ONLY 4.**
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"
