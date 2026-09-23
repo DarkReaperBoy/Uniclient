@@ -623,7 +623,7 @@ is the next task.
         Engine `player()` also seeds its gain from config at creation
         (locks taken separately, never nested). 4 tests / 31 case
         runs; gofmt+vet clean, `-race` clean, full suite exit 0.
-        **Parity: PRESENT 193 (96.5%) · PARTIAL 3 · MISSING 0 ·
+        **Parity: PRESENT 194 (97%) · PARTIAL 2 · MISSING 0 ·
         CORE-ONLY 4** — counts machine-derived and sum-checked to 200.
         Two drifts were found by parsing every status cell instead of
         typing totals: the prose had said 188/8 while the table held
@@ -648,10 +648,29 @@ is the next task.
         emoji-pattern wallpaper called "out of scope", revenue
         withdraw called "remaining") — corrected in place — and row
         207's status cell held raw `|dx|-|dy|` pipes that broke the
-        markdown table's columns (escaped). The 3 rows still PARTIAL
-        are the honest ones: local premium toggle (dead UI until
-        something is gated), QR scan (needs camera capture; tdesktop
-        lacks it too), card-funded giveaway (external checkout).
+        markdown table's columns (escaped). The rows still PARTIAL
+        after that pass — local premium toggle (dead UI until
+        something is gated), card-funded giveaway (external
+        checkout), QR scan (needs camera capture) — were the honest
+        ones; slice 227 then closed QR scan too.
+      - slice 227 (2026-09-23): **invite QR scan — row 306 closed.**
+        The search field now carries a trailing QR glyph: pick an image
+        (png/jpg/gif/webp/bmp), `go/qrscan` decodes the symbol, and the
+        payload rejoins slice 24's preview → confirm →
+        ImportChatInvite flow untouched. The decoder was **measured,
+        not picked**: six pure-Go libraries, four of them encoding the
+        fixtures, every decoder decoding every fixture across base /
+        rotated-90° / JPEG-q40 variants (576 checks, exact payload
+        match, own-encoder fixtures excluded from the credit).
+        gozxing (MIT) scored 96/96 with zero wrong payloads and
+        72/72 excluding its own output — while the archived LGPL goqr
+        returned **8 wrong payloads** and GPL tuotoo **4** (a wrong
+        payload here means joining the wrong chat); method + full table
+        in research/qr_decoder.md. Test fixtures are committed
+        **encoded by three foreign libraries** with pinned sha256s, so
+        the decoder never grades its own homework. Camera capture stays
+        out (mobile-only surface; AyuGramDesktop and tdesktop lack it
+        too — documented in the row).
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"

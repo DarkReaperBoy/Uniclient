@@ -7032,3 +7032,95 @@ disagreements were really about: the docs had drifted from the
 program, and only a check that can fail (files present, slices
 documented, capabilities grepped, buckets summing to the whole) can
 tell drift from truth.
+
+## 2026-09-23 — slice 227: invite QR scan (row 306) — six decoders, 576 checks, one perfect score
+
+### Why
+Matrix row 306 ("Join via invite link / QR") had shipped the link half
+in slice 24 and kept the literal gap "QR scan remains". Desktop has no
+camera (neither AyuGramDesktop nor tdesktop offers one), so the
+desktop-shaped form of a QR scan is: pick a QR image file, read the
+link inside it, join through the flow that already exists.
+
+### Research first — measured, not picked (§1.13/§1.14)
+`research/qr_decoder.md`: six pure-Go decoder candidates found by live
+search (gozxing, piglig/go-qr, netstar-labs/qr, snykk/qr-generator,
+tuotoo/qrcode, liyue201/goqr), licenses and activity recorded, then a
+**cross-encoder bench**: four of the libraries encoded the same six
+payloads (t.me `+hash`, `joinchat`, bare, long, numeric, UTF-8), every
+decoder decoded every fixture in four variants — base, rotated 90°
+(EXIF screenshots), JPEG q=40 (re-saved screenshots), both combined.
+**576 checks, scored on exact payload match, with each decoder's own
+fixtures excluded from its credit** so nobody grades their own work.
+
+| decoder | exact | wrong payload | failed | excl-own |
+|---|---|---|---|---|
+| **gozxing (MIT)** | **96/96** | 0 | 0 | **72/72** |
+| snykk (Apache-2.0) | 72/96 | 0 | 24 | 48/72 |
+| netstar (Apache-2.0) | 48/96 | 0 | 48 | 36/72 |
+| goqr (LGPL-3.0, archived) | 38/96 | **8** | 50 | 38/96 |
+| piglig (MIT) | 36/96 | 0 | 60 | 24/72 |
+| tuotoo (GPL-3.0, stale) | 36/96 | **4** | 56 | 36/96 |
+
+Two findings decided it beyond the totals: **wrong payloads** (goqr 8,
+tuotoo 4 — in an invite flow a wrong payload means joining the wrong
+chat, which no amount of "it decoded something" repairs), and
+**rotation** (netstar/piglig/tuotoo score zero on both rotated
+variants — netstar's README admits it, the others fail silently).
+
+Chosen: **`github.com/makiuchi-d/gozxing` v0.1.1, MIT** — perfect
+score including on foreign encoders, zero wrong payloads, handles
+rotation + JPEG on every input. License verified by reading the LICENSE
+file because GitHub's API reports NOASSERTION. Decoder config pinned to
+the measured one (nil hints) with a comment saying re-tuning means
+re-running the bench.
+
+### Fixtures: the decoder never grades its own homework
+`go/qrscan/testdata/` — 8 PNGs **encoded by three foreign libraries**
+(piglig, netstar, snykk) with SHA-256s pinned in the test: three
+invite-shaped payloads (incl. UTF-8 byte mode), the rotated and
+JPEG-round-tripped variants, a non-invite URL, a public `t.me/username`
+(both must be refused), and a clean image with no symbol. The only
+self-encoded test left is an explicit round-trip wiring check.
+
+### Shipped
+- `go/qrscan` — `DecodeBytes`/`DecodeImage`/`DecodeFile`; sentinels
+  `ErrNotImage` vs `ErrNoQR` kept distinct so the toast names the real
+  problem; png/jpg/gif (std) + webp/bmp (x/image) registered.
+- `go/gui/qrinvite.go` — `inviteHashFromQRImage` (decode → slice-24's
+  `extractInviteHash` → the same preview/confirm/ImportChatInvite
+  flow, untouched), `qrScanErrorText` (one honest sentence per failure
+  class), `pickAndScanInviteQR` (async picker via the proven
+  `resolveUploadPaths` path; declined picks stay quiet).
+- Search field gains a trailing QR glyph (`inviteScanField`); the
+  materialdesign set has no QR icon so the glyph is painted as three
+  finder squares + a data-dot cluster — on the one control that really
+  scans. Extension filter **exactly** matches what we can decode: a
+  picker offering `.bmp` we cannot read would make "not an image" a
+  lie.
+
+### Verification (§9)
+`gofmt -l` clean · `go vet -tags goolm ./...` clean ·
+`go test -p 2 -tags goolm -count=1 ./...` **exit 0, 16 packages**
+(qrscan joins the list) · `-race` clean on the slice-227 tests
+**and on all of qrscan** (the first `-race` run used a `-run` filter
+that matched none of qrscan's test names — "no tests to run" is not a
+pass, re-ran it properly) · `go mod tidy` moved gozxing into the direct
+require block (it was sitting in `// indirect` while qrscan imported
+it) and the build was re-verified after · token scan 0 (diff + the new
+files) · flake.lock unstaged.
+
+Self-inflicted slips this slice, all caught before push: `gooolm` vet
+typo (three o's) again; two edit+test races on the same file (the test
+ran against pre-edit bytes — re-ran each cleanly); `.Op(gtx.Ops)` — an
+idiom from an older Gio, current `clip.Rect.Op()` takes no argument;
+`ChooseFiles("png", ...)` missing the leading dot the explorer API
+documents; a first `qrinvite.go` draft shipped with a stubbed glyph and
+placeholder `var _` lines, rewritten before any test ran.
+
+### Parity after this slice
+**PRESENT 194 (97%) · PARTIAL 2 · MISSING 0 · CORE-ONLY 4 = 200**
+(parser output, buckets summed). Row 306 flipped with its gap item
+rewritten; the only PARTIAL rows left are local premium (dead UI until
+something is gated) and card-funded giveaway (external checkout) —
+both documented honest absences, not unfinished code.

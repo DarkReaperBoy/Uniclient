@@ -434,7 +434,16 @@ func (a *App) searchField(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	ed := a.ui.Editor(&sidebarSearch, "Search")
 	return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Top: unit.Dp(9), Bottom: unit.Dp(9), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, ed.Layout)
+		return layout.Inset{Top: unit.Dp(9), Bottom: unit.Dp(9), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			// Row 306: the search field takes an invite link OR, via the
+			// trailing glyph, a QR image holding one (slice 227).
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, ed.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.inviteScanField(gtx)
+				}),
+			)
+		})
 	})
 }
 

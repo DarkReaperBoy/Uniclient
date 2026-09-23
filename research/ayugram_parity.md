@@ -303,7 +303,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Instant View pages | IV reader overlay | PRESENT (slice 176: full-window reader — link-preview cards with wp_has_iv and telegra.ph/graph.org text links open it; all IV block kinds render incl. photos w/ stripped-thumb→full pipeline, tables, related articles w/ back-stack navigation, slideshows, collapsible details, channel cards; video/audio download via IV document downloader → system player; embed/map cards hand off to the browser honestly; fetch failure falls back to the browser, never a dead overlay) | gui/instantview.go + engine GetInstantViewPage/DownloadIVPhoto/DownloadIVDocument | P3 |
 | Channel statistics screens | Charts dashboards | PRESENT (slice 184: channel Statistics page from the header menu (admin channels only) — stats.getBroadcastStats + stats.loadAsyncGraph resolution; overview card grid (followers w/ +/− delta, views/shares/reactions per post, story counters, notifications-on %) + line charts drawn from Telegram's chart JSON ({"columns":[["x",...],["y",...]]}) — accent polyline over hairline grid, compact axis labels (1.2K/1.5M), date range footer; unparseable graphs honestly skip) | cores/telegram_stats.go + gui/statsview.go + engine GetChannelStats | P3 |
 | Moderation (admin log, restrictions) | Admin log viewer, restrict boxes | PRESENT (slice 177: Recent Actions panel — chat-header ⋮ for admins of groups/channels, channels.getAdminLog w/ query + filter chips + paging, event rows w/ action headline/detail/old→new values/media bubble preview; slice 191: RESTRICT + BAN BOXES — member-menu Restrict opens tdesktop's RestrictParticipantBox: the 9-step duration ladder (forever→1 year), one allowed-switch per DefaultBannedRights permission (15 rows), initial state from the member's CURRENT server rights (ParticipantExtra.BannedRights/BannedUntil mirrored into MemberInfo — restricted rows load verbatim, fresh restrictions start all-allowed), apply → RestrictMemberWithRights w/ until-date; Ban opens the duration box → BanMemberUntil (ViewMessages + UntilDate through channels.editBanned); both window-level modals, toasts + member-list refresh) | gui/adminlog.go + gui/membermenu.go + gui/restrictdlg.go + engine GetAdminLogEvents/RestrictMemberWithRights/BanMemberUntil + cores GetParticipantsByRole rights mirror | P3 |
-| Join via invite link / QR | Check+import invite | PARTIAL (slice 24: invite links in the search field → preview title + confirm → ImportChatInvite; QR scan remains) | gui/invite.go + engine CheckChatInvite/ImportChatInvite | P2 |
+| Join via invite link / QR | Check+import invite | PRESENT (slice 24: invite links in the search field → preview title + confirm → ImportChatInvite; slice 227: **QR SCAN** — the search field's trailing glyph picks a QR image (png/jpg/gif/webp/bmp), `go/qrscan` decodes it with gozxing (MIT, pure Go), the decoder was chosen by a 6-library × 4-encoder cross-bench scored on exact payload matches — 96/96 exact incl. rotation + JPEG, zero wrong payloads, where two competitors returned wrong payloads outright (research/qr_decoder.md), and the payload feeds the same preview → confirm → ImportChatInvite flow; camera capture is a mobile surface that neither AyuGramDesktop nor tdesktop has, so file-based is the desktop-parity form) | gui/invite.go + gui/qrinvite.go + go/qrscan + engine CheckChatInvite/ImportChatInvite | P2 |
 | Giveaways / boosts | Launch & view giveaway flows | PARTIAL (slice 192: BOOSTS PAGE — header ⋮ "Boosts" for channels: status card (level, boost count, progress bar to the next level, gift-boost count, own-boost line) from premium.getBoostsStatus; "Boost this channel" spends one of the account's own slots through premium.applyBoost (core ApplyBoost, withAPI); the boosters list (avatar/name/×multiplier/gift/unclaimed/date rows) from premium.getBoostsList w/ offset paging + Boosters/Gifts tabs; all real engine state, honest empty rows. Giveaway LAUNCH flows (payments.getPaymentForm checkout) remain — in-app payment checkout UI is the honest scope cut) | gui/boostview.go + engine GetBoosts/GetBoostsList/ApplyBoost + cores GetBoostsJSON/GetBoostsListJSON/ApplyBoost | P3 |
 | Contacts list screen | Browse contacts, add contact box | PRESENT (slice 17: searchable list w/ avatars + online/bot badges, click opens the DM, add-contact dialog → engine.AddContact) | gui/contacts.go + engine GetContacts/AddContact | P1 |
 | New chat/group/channel creation flow | Multi-step wizards w/ member picker | PRESENT (slice 17+25: name/desc/megagroup dialog + group member-picker step (contacts w/ toggles → CreateGroup members) + auto-open) | gui/newchat.go | P1 |
@@ -401,9 +401,11 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 16. **Chat background** — CLOSED (slice 198: tint+gradient + the
     emoji-pattern wallpaper; slice 218: custom per-chat wallpapers —
     upload, apply, receive + render with the spec blur, reset).
-17. **Join via invite link / QR (PARTIAL)** — invite links ship; QR scan
-    needs camera capture (desktop tdesktop parity: not shipped there
-    either).
+17. **Join via invite link / QR (CLOSED)** — invite links ship (slice
+    24); QR scan ships file-based as slice 227 — the form a desktop
+    actually has (neither AyuGramDesktop nor tdesktop offers a camera
+    scan either), decoder selection by measured bench in
+    research/qr_decoder.md.
 18. **Wide multiplier / avatar corners (CLOSED)** — bubble radius +
     wide multiplier sliders ship; avatar corners shipped as slice 215
     (see 19) — avatars default circular (AyuGram default 23).
@@ -425,24 +427,20 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (200 feature rows)
 
-- PRESENT: 193 (96.5%) — the four video rows from slices 220-225
-  (143, 279, 276, 231) plus **five rows synced by the slice-226 truth
-  pass** (107 forum topics, 108 chat background, 193 saved messages,
-  207 chat settings, 212 stars): their gap list already declared them
-  CLOSED with slice evidence, the cited code + tests were present, and
-  only the table's PARTIAL labels were stale — two of those labels even
-  contradicted shipped work (the emoji-pattern wallpaper called "out of
-  scope" though slice 198 ships it; revenue withdraw called "remaining"
-  though slice 213 ships it).
+- PRESENT: 194 (97%) — the four video rows from slices 220-225
+  (143, 279, 276, 231), the five rows synced by the slice-226 truth
+  pass (107 forum topics, 108 chat background, 193 saved messages,
+  207 chat settings, 212 stars), and **row 306 by slice 227** (QR scan
+  file-based, decoder chosen by measured bench — research/
+  qr_decoder.md).
   **Counted by machine**: parsing every row's status cell caught two
   earlier drifts (the prose claimed 188/8 while the table held 187/9,
   and the experimental row's CORE-ONLY-BY-DESIGN status made the first
   parser pass miss it) — these numbers are that parser's output, summed
   over all 200 rows.
-- PARTIAL: 3 — local premium toggle (nothing is gated client-side yet,
-  so the toggle would be dead UI) · QR scan (invite import ships;
-  camera capture doesn't, and tdesktop lacks it too) · card-funded
-  giveaway launch (external checkout, honest absence)
+- PARTIAL: 2 — local premium toggle (nothing is gated client-side yet,
+  so the toggle would be dead UI) · card-funded giveaway launch
+  (external checkout, honest absence)
 - MISSING: **0** — closed by slice 222 (PiP).
 - CORE-ONLY: 4 — webview (owner-decision) · experimental flags (dead-UI
   ban, by design) · Ayu sqlite (already served by the engine cache) ·
