@@ -31,3 +31,6 @@ logs/
 .vscode/
 *.swp
 uniclient
+# Reproducibility lock the owner explicitly dropped (commit dc4ac073);
+# regenerates on demand with `nix develop`.
+flake.lock
