@@ -59,8 +59,13 @@ func (t *TelegramCore) fileLocationOf(fileRef FileRef) (tg.InputFileLocationClas
 // 4096-aligned (the engine's chunk boundaries are; unaligned requests
 // are a programming error and are rejected here rather than sent and
 // failed at the layer), and Precise relaxes the remaining limit checks.
-// FILE_MIGRATE errors surface to the caller, same as the existing
-// thumb-fetch path that already uses this RPC in production.
+// DC migration needs no code here: gotd's invoker intercepts
+// FILE_MIGRATE/STATS_MIGRATE and reruns the call on a sub-connection to
+// the target DC (telegram client.go invokeDirect → invokeSub) — the
+// exact chain DownloadFile (downloader → same api) and the thumb path
+// already ride to cross DCs. If a FILE_MIGRATE error still reaches the
+// caller, the redirect itself failed: it is wrapped with that context
+// and the raw error preserved (BUGS.md B-2, premise corrected).
 func (t *TelegramCore) ReadFilePart(fileRef FileRef, offset, limit int64) ([]byte, error) {
 	if offset < 0 || limit <= 0 {
 		return nil, fmt.Errorf("%w: bad range offset=%d limit=%d", ErrInvalidInput, offset, limit)
@@ -87,6 +92,14 @@ func (t *TelegramCore) ReadFilePart(fileRef FileRef, offset, limit int64) ([]byt
 		Precise:  true,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "FILE_MIGRATE") {
+			// gotd consumes FILE_MIGRATE in invokeDirect (redirect to a
+			// sub-connection on the target DC), so one that surfaces here
+			// means the automatic redirect itself failed. Keep the raw
+			// error — the engine classifies read failures as retryable —
+			// and say what happened.
+			return nil, fmt.Errorf("upload.getFile: FILE_MIGRATE surfaced despite gotd's automatic DC redirect (redirect failed): %w", err)
+		}
 		return nil, err
 	}
 	f, ok := res.(*tg.UploadFile)

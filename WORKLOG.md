@@ -7503,3 +7503,45 @@ scan showed no other test with this pattern — mutetime uses a fixed
 date, msgdetail takes `now` as a parameter).
 Gate: gofmt empty, vet `-tags goolm`, all packages ok, `-race` on the
 new tests.
+
+---
+
+## Slice 232 (2026-09-24) — B-2: FILE_MIGRATE, closed as a bad premise
+
+B-2 said `ReadFilePart` surfaces FILE_MIGRATE with no DC migration and
+pointed at `DownloadFile`/thumb as things to mirror. Reading the code
+line by line first (repo law: own research, never assume):
+
+- `withAPI` returns `t.api` = `tg.NewClient(rpcGuard{next: t.client})`
+  (guardedClient) — so EVERY RPC we make enters
+  `telegram.Client.Invoke` → `c.invoker =
+  chainMiddlewares(invokeDirect, …)` (client.go:280-281);
+- `invoke.go:67-72`: **FILE_MIGRATE and STATS_MIGRATE are intercepted
+  there** and rerun via `invokeSub(targetDC)` — a sub-connection to the
+  target DC (sub_conns.go: create-or-reuse, cached); the primary DC
+  never moves;
+- `DownloadFile` = `downloader.NewDownloader().Download(api, …)` on
+  the SAME api; the thumb path same RPC. They never had migration
+  code — they work because gotd migrates. The B-2 "next step" was
+  wrong twice (there is nothing to mirror).
+- gotd has no test of its own for that branch (grepped v0.161.0), so
+  the chain evidence is the pinned source lines above.
+
+**What is REAL** (kept, test-first): if the automatic redirect ever
+fails, a FILE_MIGRATE does reach our error path, and the old comment
+both predicted that and explained nothing. Now the error is wrapped
+with "redirect failed" context and `errors.Is` still sees the raw
+`tgerr` error (the engine classifies read failures as retryable —
+F-5 taxonomy). Tests:
+
+- `TestReadFilePartWrapsRedirectFailureWithoutSwallowing` — scripted
+  invoker returns `tgerr.New(400, "FILE_MIGRATE_2")`: **RED before the
+  patch** (raw `rpc error code 400: FILE_MIGRATE (2)`, no context),
+  green after; asserts the RPC fired exactly once.
+- `TestReadFilePartReturnsBytesAndForwardsRange` — success path:
+  bytes byte-identical, offset/limit/Precise/document-location
+  forwarded exactly (regression guard for the wrap).
+
+BUGS.md: B-2 → Fixed (F-10) with the premise correction inline;
+the open list now starts at B-3. Gate: gofmt empty, vet `-tags goolm`,
+all packages, `-race` on the new tests.

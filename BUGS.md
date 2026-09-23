@@ -19,13 +19,25 @@ The contract (same as everything in AGENTS.md):
 
 | # | Where | What | Evidence / how to see it | Next step |
 |---|-------|------|--------------------------|-----------|
-| B-2 | cores/telegram_stream.go:62 | `ReadFilePart` surfaces FILE_MIGRATE (cross-DC) errors like the existing thumb path — no DC migration/retry. | comment admits it; a file stored on another DC fails the stream and falls back to download-then-play | mirror what `DownloadFile`/thumb do for DC migration, or implement the upload.getFile downgrade flow |
 | B-3 | engine/mediastream.go `ensureChunk` | Fetches run outside the lock, so two concurrent readers can fetch the same chunk (duplicate RPC). v1 documents the trade. | code comment; a multi-reader test can drive `fakePartSource.stats()` past `ceil(size/chunk)` | per-chunk single-flight + optional readahead; the external contract must not change |
 | B-4 | gui/h264player.go | Stream readers stay open while their cache entry lives (≤48 entries; closed on reset/replace/evict since slice 230). A player-STOP hook could close earlier. | bounded by `h264PlayerMax`, but fd count grows with every streamed clip played in a session | close-on-stop: leaving the viewer/chat resets entries for that view |
 | B-5 | gui/h264player.go `startVideoNoteInline` | A permanently-unplayable note arriving via the `wantInline` completion consumes the marker but shows nothing until the next tap (which routes to the system player). Pre-existing UX. | `ensureH264Player`'s `p.failed` early-return has no onFail at that call site | pass an onFail → `openMedia` handoff, same as the viewer path |
 | B-6 | cores/matrix.go:1252 | Matrix group calls (MSC3401) not implemented — honest `ErrNotSupported` today. | code | feature work; owner-visible scope |
 | B-7 | engine/events.go `maybeAutoDownload` | Auto-download ignores `RequestDownload` errors — correct for the new `ErrStreamActive` (the stream is already saving), but any other error is silent. | call sites capture nothing | log unexpected errors once |
 | B-8 | repo root + `cores/teamspeak.go` `tsQuickLZCompress` | No LICENSE file exists in the repo at all (owner decision pending), and the slice-231 QuickLZ send-side is a byte-port of quicklz.c, whose header says the commercial license "does not cover derived or ported versions created by third parties under GPL". | quicklz.c header (fetched 2026-09-23, RT-Thread mirror); `ls LICENSE*` → none; the reference C is NOT vendored (gcc-built vectors only, like ffmpeg for fixtures) | owner picks the project license and confirms the port stays; until then provenance is documented here — never vendor quicklz.c |
+
+## Fixed — slice 232 (2026-09-24)
+
+| # | Bug | Why it mattered | Test |
+|---|-----|-----------------|------|
+| F-10 (= B-2) | **Stale FILE_MIGRATE limitation — PREMISE CORRECTED.** There is no migration gap: gotd's invoker chain intercepts `FILE_MIGRATE`/`STATS_MIGRATE` and reruns the call on a sub-connection to the target DC (`telegram/client.go:280` `c.invoker = invokeDirect` → `invoke.go:70` → `sub_conns.go`), and every client we hold rides that chain (`t.api = tg.NewClient(rpcGuard{next: t.client})`); `DownloadFile` (downloader → same api) and the thumb path never had migration code either — they work BECAUSE gotd migrates. The old comment claimed errors "surface to the caller"; what actually surfaces is a REDIRECT failure, now wrapped with that context while the raw error stays `errors.Is`-visible for the engine's retryable-read classification. | a wrong limitation comment invites the next session to re-implement a gap that does not exist (the row's own "next step" said "mirror DownloadFile", which does not migrate either — the premise was wrong twice) | `TestReadFilePartWrapsRedirectFailureWithoutSwallowing` (RED pre-patch: raw `rpc error code 400: FILE_MIGRATE` with no context) + `TestReadFilePartReturnsBytesAndForwardsRange` (success-path guard: bytes + offset/limit/precise/location fidelity) |
+
+Evidence chain walked line by line before deciding: `withAPI` →
+`guardedClient() = tg.NewClient(rpcGuard{next: t.client})` →
+`telegram.Client.Invoke` → `chainMiddlewares(invokeDirect)` →
+FILE_MIGRATE branch → `invokeSub(dc)` → cached sub-connection.
+gotd has no test of its own for that branch (grep), so the chain was
+read directly from the pinned module (v0.161.0).
 
 ## Fixed — slice 231 (2026-09-23)
 
