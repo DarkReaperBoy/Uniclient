@@ -241,6 +241,205 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 	return out, nil
 }
 
+// tsQuickLZCompress returns the QuickLZ level-1 stream for src — the exact
+// bytes official QuickLZ 1.5.0 emits in the TeamSpeak configuration
+// (QLZ_COMPRESSION_LEVEL 1, QLZ_STREAMING_BUFFER 0, QLZ_PTR_64): the
+// vectors in teamspeak_quicklz_test.go are gcc-built reference output and
+// this function must stay byte-identical to it, because the server
+// decompresses with that same reference code.
+//
+// ok is false only for empty input (no valid stream exists). A returned
+// stream may be the stored-raw form (reference ratio give-up), so callers
+// must compare sizes before preferring it over the raw command.
+//
+// This closes BUGS.md B-1: without it every command > tsMaxPayloadC2S
+// went out as raw fragments while reference clients send compressed
+// payloads (TODO at tsSendCommand).
+//
+// Provenance: faithful port of the GPL/commercial quicklz.c reference
+// (never vendored — gcc-built vectors only); tracked in BUGS.md B-8.
+func tsQuickLZCompress(src []byte) ([]byte, bool) {
+	size := len(src)
+	if size == 0 || uint64(size) > uint64(0xffffffff-400) {
+		return nil, false
+	}
+	base := 9
+	if size < 216 {
+		base = 3
+	}
+
+	// A fresh state per call is exactly reset_table_compress() on a
+	// zeroed reference state (offsets AND caches): table 0 = empty — with
+	// QLZ_PTR_64 the reference stores absolute positions with
+	// OFFSET_BASE = source, so a stored position 0 reads back as
+	// "empty"; that quirk is reproduced here bit-for-bit.
+	var table [4096]uint32
+	var cache [4096]uint32
+
+	// Literal worst case: one control word per 31 literal bytes
+	// (4/31 ≈ 0.129) → size + size/7 + slack covers every non-give-up
+	// outcome; matches only ever shrink dst relative to pos.
+	out := make([]byte, base+size+size/7+64)
+
+	le24 := func(p int) uint32 {
+		return uint32(src[p]) | uint32(src[p+1])<<8 | uint32(src[p+2])<<16
+	}
+	writeLE := func(v uint32, at, n int) {
+		for i := 0; i < n; i++ {
+			out[at+i] = byte(v >> (8 * i))
+		}
+	}
+	// same(): true when the 7 bytes at src[pos-3 .. pos+3] are all equal
+	// (C compares src[n] == src[0] for n = 6 down to 1).
+	same7 := func(pos int) bool {
+		b := src[pos-3]
+		for i := 1; i <= 6; i++ {
+			if src[pos-3+i] != b {
+				return false
+			}
+		}
+		return true
+	}
+
+	lastByte := size - 1
+	lastMatchStart := lastByte - 6 - 4 // UNCONDITIONAL_MATCHLEN + UNCOMPRESSED_END
+
+	cwordPtr := base
+	dstPos := base + 4 // space for the first control word
+	cwordVal := uint32(1) << 31
+	lits := 0
+	pos := 0
+	var fetch uint32
+	if pos <= lastMatchStart {
+		fetch = le24(pos)
+	}
+	giveUp := false
+
+mainLoop:
+	for pos <= lastMatchStart {
+		if cwordVal&1 == 1 {
+			// Ratio give-up: store uncompressed when compression is
+			// not paying off — exact condition from qlz_compress_core.
+			if pos > size>>1 && dstPos-base > pos-(pos>>5) {
+				giveUp = true
+				break mainLoop
+			}
+			writeLE((cwordVal>>1)|(1<<31), cwordPtr, 4)
+			cwordPtr = dstPos
+			dstPos += 4
+			cwordVal = 1 << 31
+			fetch = le24(pos)
+		}
+		h := ((fetch >> 12) ^ fetch) & 4095
+		cached := fetch ^ cache[h]
+		cache[h] = fetch
+		prev := table[h]
+		table[h] = uint32(pos)
+		if cached == 0 && prev != 0 &&
+			(pos-int(prev) > 2 ||
+				(pos == int(prev)+1 && lits >= 3 && pos > 3 && same7(pos))) {
+			o := int(prev)
+			cwordVal = cwordVal>>1 | 1<<31
+			hsh := h << 4
+			if src[o+3] != src[pos+3] {
+				// Short match: exactly 3 bytes (byte 3 differs).
+				writeLE(1|hsh, dstPos, 2) // (3-2) | hash<<4
+				dstPos += 2
+				pos += 3
+			} else {
+				// Long match: bytes 0..3 already known equal, extend.
+				oldPos := pos
+				pos += 4
+				if src[o+(pos-oldPos)] == src[pos] {
+					pos++
+					if src[o+(pos-oldPos)] == src[pos] {
+						q := lastByte - 4 - (pos - 5) + 1
+						remaining := q
+						if remaining > 255 {
+							remaining = 255
+						}
+						for src[o+(pos-oldPos)] == src[pos] && (pos-oldPos) < remaining {
+							pos++
+						}
+					}
+				}
+				matchlen := pos - oldPos
+				if matchlen < 18 {
+					writeLE(uint32(matchlen-2)|hsh, dstPos, 2)
+					dstPos += 2
+				} else {
+					writeLE(uint32(matchlen)<<16|hsh, dstPos, 3)
+					dstPos += 3
+				}
+			}
+			fetch = le24(pos)
+			lits = 0
+		} else {
+			lits++
+			out[dstPos] = src[pos]
+			pos++
+			dstPos++
+			cwordVal >>= 1
+			fetch = le24(pos)
+		}
+	}
+
+	// Tail: everything after last_match_start is emitted as literals; the
+	// tail still inserts final hash entries and flushes the control word.
+	if !giveUp {
+		for pos <= lastByte {
+			if cwordVal&1 == 1 {
+				writeLE((cwordVal>>1)|(1<<31), cwordPtr, 4)
+				cwordPtr = dstPos
+				dstPos += 4
+				cwordVal = 1 << 31
+			}
+			if pos <= lastByte-3 {
+				f := le24(pos)
+				hh := ((f >> 12) ^ f) & 4095
+				table[hh] = uint32(pos)
+				cache[hh] = f
+			}
+			out[dstPos] = src[pos]
+			pos++
+			dstPos++
+			cwordVal >>= 1
+		}
+		for cwordVal&1 != 1 {
+			cwordVal >>= 1
+		}
+		writeLE((cwordVal>>1)|(1<<31), cwordPtr, 4)
+	}
+
+	// Header + give-up handling (qlz_compress). Core output is padded to
+	// a minimum of 9 bytes like the reference; unread padding reads as
+	// zeros here and is never consumed by a correct decompressor.
+	coreLen := dstPos - base
+	if coreLen < 9 {
+		coreLen = 9
+	}
+	compressed := byte(1)
+	r := base + coreLen
+	if giveUp {
+		// The core returned 0: stored-raw stream (flag bit 0 clear).
+		compressed = 0
+		coreLen = 0
+		copy(out[base:], src)
+		r = size + base
+	}
+	fl := compressed | (1 << 2) | (1 << 6) // level 1, streaming=0
+	if base == 3 {
+		out[0] = fl
+		out[1] = byte(r)
+		out[2] = byte(size)
+	} else {
+		out[0] = fl | 0x02
+		writeLE(uint32(r), 1, 4)
+		writeLE(uint32(size), 5, 4)
+	}
+	return out[:r], true
+}
+
 // ──────────────────────────── AES-128-EAX ────────────────────────────
 // EAX mode with 8-byte (truncated) tag as used by TS3.
 
@@ -1404,12 +1603,18 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 
 	cmdBytes := []byte(cmdStr)
 
-	// Try compression if large
+	// Compress large commands with QuickLZ, exactly like the reference
+	// clients: a >487-byte command becomes one compressed packet when it
+	// fits, otherwise the COMPRESSED stream is fragmented (the 0x40 flag
+	// rides the first fragment; the peer reassembles then decompresses).
+	// Incompressible commands (ratio give-up → stored-raw stream) are
+	// larger than the original, so they keep raw fragmentation.
 	compressed := false
 	if len(cmdBytes) > tsMaxPayloadC2S {
-		// TODO: QuickLZ compression. For now, skip compression.
-		// Most commands fit in a single packet.
-		_ = compressed
+		if qz, ok := tsQuickLZCompress(cmdBytes); ok && len(qz) < len(cmdBytes) {
+			cmdBytes = qz
+			compressed = true
+		}
 	}
 
 	// Check if fragmentation needed
@@ -1417,6 +1622,9 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 		// Single packet
 		pID := tc.tsNextPktID(tsPktCommand)
 		flags := byte(tsPktCommand) | tsFlagNewprotocol
+		if compressed {
+			flags |= tsFlagCompressed
+		}
 		var meta [5]byte
 		binary.BigEndian.PutUint16(meta[0:2], pID)
 		binary.BigEndian.PutUint16(meta[2:4], tc.clientID)

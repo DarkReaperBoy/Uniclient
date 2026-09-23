@@ -19,13 +19,32 @@ The contract (same as everything in AGENTS.md):
 
 | # | Where | What | Evidence / how to see it | Next step |
 |---|-------|------|--------------------------|-----------|
-| B-1 | cores/teamspeak.go:1410 | QuickLZ compression never implemented — packets go out uncompressed (TODO since the rewrite). | code TODO; unknown whether current servers accept our uncompressed packets and at what size limit | research pass: protocol docs and/or a public/test TeamSpeak server, verify acceptance, then implement QuickLZ |
 | B-2 | cores/telegram_stream.go:62 | `ReadFilePart` surfaces FILE_MIGRATE (cross-DC) errors like the existing thumb path — no DC migration/retry. | comment admits it; a file stored on another DC fails the stream and falls back to download-then-play | mirror what `DownloadFile`/thumb do for DC migration, or implement the upload.getFile downgrade flow |
 | B-3 | engine/mediastream.go `ensureChunk` | Fetches run outside the lock, so two concurrent readers can fetch the same chunk (duplicate RPC). v1 documents the trade. | code comment; a multi-reader test can drive `fakePartSource.stats()` past `ceil(size/chunk)` | per-chunk single-flight + optional readahead; the external contract must not change |
 | B-4 | gui/h264player.go | Stream readers stay open while their cache entry lives (≤48 entries; closed on reset/replace/evict since slice 230). A player-STOP hook could close earlier. | bounded by `h264PlayerMax`, but fd count grows with every streamed clip played in a session | close-on-stop: leaving the viewer/chat resets entries for that view |
 | B-5 | gui/h264player.go `startVideoNoteInline` | A permanently-unplayable note arriving via the `wantInline` completion consumes the marker but shows nothing until the next tap (which routes to the system player). Pre-existing UX. | `ensureH264Player`'s `p.failed` early-return has no onFail at that call site | pass an onFail → `openMedia` handoff, same as the viewer path |
 | B-6 | cores/matrix.go:1252 | Matrix group calls (MSC3401) not implemented — honest `ErrNotSupported` today. | code | feature work; owner-visible scope |
 | B-7 | engine/events.go `maybeAutoDownload` | Auto-download ignores `RequestDownload` errors — correct for the new `ErrStreamActive` (the stream is already saving), but any other error is silent. | call sites capture nothing | log unexpected errors once |
+| B-8 | repo root + `cores/teamspeak.go` `tsQuickLZCompress` | No LICENSE file exists in the repo at all (owner decision pending), and the slice-231 QuickLZ send-side is a byte-port of quicklz.c, whose header says the commercial license "does not cover derived or ported versions created by third parties under GPL". | quicklz.c header (fetched 2026-09-23, RT-Thread mirror); `ls LICENSE*` → none; the reference C is NOT vendored (gcc-built vectors only, like ffmpeg for fixtures) | owner picks the project license and confirms the port stays; until then provenance is documented here — never vendor quicklz.c |
+
+## Fixed — slice 231 (2026-09-23)
+
+| # | Bug | Why it mattered | Test |
+|---|-----|-----------------|------|
+| F-8 (= B-1) | **QuickLZ send-side.** PREMISE CORRECTION first: the RX decompressor (`tsQuickLZDecompress`, fragmented AND non-fragmented) and TX fragmentation already existed — only the compress side was a TODO, so every command > 487 B went out as raw fragments while reference clients compress first. `tsQuickLZCompress` is a faithful port of official quicklz.c 1.5.0 level 1 in the TeamSpeak build configuration (streaming off, QLZ_PTR_64 — including the "stored position 0 reads empty" table quirk and the ratio give-up); `tsSendCommand` compresses first, ships one `0x40` packet when the stream fits, fragments the compressed stream when it does not, and falls back to raw fragmentation when give-up makes the stored form bigger than the input. | measured, not assumed: today's public server ACCEPTS raw multi-packet C2S (pre-fix live run — 615 B command → semantic permission reply = decoded end-to-end), so B-1 was an efficiency/compat gap, not an outage; but the wire cost was real: a 2600 B command went out as 6 packets instead of 1 | `TestTS3QuickLZCompressByteIdenticalToOfficial` (19 gcc-built golden vectors, byte-identical), `TestTS3QuickLZRoundTripOfficialStreams`, `TestTS3QuickLZCompressRejectsEmpty`, `TestTS3SendCommandCompressesLargeCommand` (4 subtests: 580 B→1 pkt, 2600 B→1 pkt, 1500 B noise→raw 4-fragment no-0x40, small→unchanged), `TestTS3SendCommandPacketIDsSequential`, live `TestTeamSpeakLiveLargeMessage` (pre + post fix) |
+
+| F-9 | **Date-dependent tests found by the gate.** `TestHeaderLastSeenExact` / `TestSameCalendarDay` assumed "now minus 90 min / 1 h" is always the same calendar day — false between 00:00 and 01:30 local. The suite went RED at 00:03 while production was CORRECT (it rendered yesterday's date for a yesterday timestamp). Tests now anchor to noon of today's date: deterministic at every wall-clock time; only test code changed. | a red gate hides real regressions; the bug was in the test's wall-clock assumption, not the renderer | the failing runs themselves (repro in the 00:00–01:30 window pre-patch) + both tests green at any hour post-patch |
+
+Session notes for honesty: guest text on ts.arcticblaze.net is now
+permission-denied for big messages in both modes (permission drift
+since the 2026-09-10 run), so peer delivery is no longer measurable
+there — the live oracle is "semantic reply = decoded end-to-end",
+delivery opportunistic; `TestTeamSpeakLiveRoundTrip` still passes (its
+so-called echo is actually a third-party bot message — label corrected
+to what it proves, S2C delivery). Caught on the first run: `same7` was
+given an already-shifted position while it shifts internally (double
+subtraction → panic `index -2`), one-line fix. Also known: the edit+
+read/test-same-file pairing rule was violated twice more this slice.
 
 ## Fixed — slice 230 (2026-09-23)
 

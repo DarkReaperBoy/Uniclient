@@ -187,6 +187,11 @@ command_name key1=value1 key2=value2|key1=value3 key2=value4
 
 ## QuickLZ Level 1
 
+(Status 2026-09-23, slice 231: both directions implemented — RX since
+the original port; TX is a byte-identical Go port of official quicklz.c
+1.5.0 level 1 (TeamSpeak build flags: streaming off, QLZ_PTR_64),
+verified against 19 gcc-built golden vectors + live server acceptance.)
+
 Compressed packets use QuickLZ Level 1 compression. Header format:
 
 ### Header

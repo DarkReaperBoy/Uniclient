@@ -7422,3 +7422,84 @@ Gate: gofmt empty, vet `-tags goolm` clean, **all 16 packages ok**,
 `-race` green on every slice-230 test. New tests: engine 5 (guard
 suite), gui 7+ (ownership + join), h264vid 4 (classifier) + the
 rewritten join test.
+
+---
+
+## Slice 231 (2026-09-23) — B-1: TeamSpeak QuickLZ send-side compression
+
+First entry of the bug-hunt phase (BUGS.md). Start: the standing TODO
+at `tsSendCommand`. PREMISE CORRECTION before touching code: our RX
+decompressor (`tsQuickLZDecompress`) and TX fragmentation already
+worked — only the COMPRESSOR was missing, so every command > 487 B
+went out as raw fragments while reference clients compress first.
+
+**Method — a reference oracle, not vibes**:
+- Fetched official quicklz.c/h 1.5.0 (RT-Thread mirror) to /tmp/qlzref
+  (NOT vendored — generator only, same rule as ffmpeg for fixtures).
+- gcc harness (gen.c) built against it: **19 golden vectors** (sizes
+  1/10/11, header switch 215/216, packet edge 487/488, repetitive
+  100–3000 B, LCG-noise 600/1500 B, zeros, run-length, a realistic
+  escaped 2600 B TS3 command), C-side round-trip verified, emitted as
+  Go test literals (hex machine-generated, never re-typed).
+- Ported the level-1 core to `tsQuickLZCompress`: fresh state ≡
+  `reset_table_compress` on a zeroed state; QLZ_PTR_64 position table
+  with the "position 0 reads as empty" quirk reproduced bit-for-bit;
+  portable match conditions proven equal to the X86X64 variant the
+  harness compiled (hash ignores byte 3 either way).
+- Wiring: compress when >487 B and only if actually smaller; one
+  packet + `0x40` when the stream fits; fragment the compressed stream
+  otherwise (`0x40` rides fragment 1); ratio give-up → stored-raw is
+  bigger than the input → keep raw fragmentation. Small commands
+  untouched (they already fit and are live-verified).
+
+**Evidence**:
+- 19/19 vectors **byte-identical** to gcc-built official output;
+  round-trip through our own decompressor green.
+- Send-path tests (fake UDP capture → EAX decrypt → reassemble →
+  decompress): 580 B → 1 compressed packet; **2600 B → 1 packet (was 6
+  raw fragments)**; 1500 B noise → raw 4-fragment fallback with no
+  `0x40` anywhere; small → byte-unchanged; fragment pIDs sequential.
+- LIVE pre-fix (raw state): 615 B command = 2 raw packets → server
+  REASSEMBLED, parsed, answered `permission denied` ⇒ raw
+  fragmentation accepted by ts.arcticblaze.net today — corrected the
+  BUGS evidence line (efficiency/compat gap, not an outage).
+- LIVE post-fix: same 615 B command as ONE QuickLZ-compressed packet →
+  same semantic reply ⇒ the server's own reference decompressor ate
+  OUR bytes and parsed the fields. Full compress→encrypt→wire→server-
+  decompress chain proven on a real server.
+- Permission DRIFT found: guest text for big messages is denied in
+  both channel and server modes now (was ACKed/echoed on 2026-09-10) →
+  peer delivery is not measurable there anymore; the live oracle is
+  "semantic reply = decoded end-to-end", delivery opportunistic.
+  `TestTeamSpeakLiveRoundTrip` still passes (send ACKed; S2C delivery
+  shown by a third-party bot message — its log label claimed "echo",
+  corrected to what it actually proves).
+
+**Mistakes this slice** (checker lessons again): the first run of the
+new test panicked `index -2` — `same7` was given the already-shifted
+position while it shifts internally (C passes `src-3` to a
+pointer-relative helper; the Go helper takes the match position);
+caught on the first vector run, one-line fix. An edit was paired with
+a test run of the same file twice (racing reads) — third and fourth
+violation of that rule, called out again. The first live-oracle design
+leaned on a self-echo the core deliberately drops plus a local
+outgoing copy — both removed BEFORE they could pass for the wrong
+reason.
+
+New tests: cores 5 (`TestTS3QuickLZCompressByteIdenticalToOfficial`,
+`TestTS3QuickLZRoundTripOfficialStreams`,
+`TestTS3QuickLZCompressRejectsEmpty`,
+`TestTS3SendCommandCompressesLargeCommand` ×4 subtests,
+`TestTS3SendCommandPacketIDsSequential`) + live
+`TestTeamSpeakLiveLargeMessage`. BUGS.md: B-1 → Fixed (F-8) with the
+premise correction kept inline; **B-8 opened** (license provenance of
+the port — owner decision; the repo has no LICENSE file at all).
+First gate run FAILED on a midnight rollover (00:03 local):
+`TestHeaderLastSeenExact`/`TestSameCalendarDay` assumed "now minus an
+hour" is always today — false 00:00–01:30 — while production rendered
+yesterday correctly. Re-anchored both to noon of today's date
+(BUGS **F-9**, test-only fix, deterministic at any hour; a repo-wide
+scan showed no other test with this pattern — mutetime uses a fixed
+date, msgdetail takes `now` as a parameter).
+Gate: gofmt empty, vet `-tags goolm`, all packages ok, `-race` on the
+new tests.

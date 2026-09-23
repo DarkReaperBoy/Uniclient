@@ -31,13 +31,19 @@ func TestPresenceSubtitle(t *testing.T) {
 }
 
 func TestHeaderLastSeenExact(t *testing.T) {
+	// Anchor to noon of TODAY so "90 minutes ago" can never cross
+	// midnight: this suite must hold at every wall-clock time. It first
+	// failed at 00:03 local when -90 min fell on the previous day and
+	// production correctly rendered the date form — the test's
+	// assumption was wrong, not the code (BUGS.md F-9).
 	now := time.Now()
-	today := engine.CachedUser{LastSeenKind: "exact", LastSeen: now.Add(-90 * time.Minute).UnixMilli()}
+	noon := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
+	today := engine.CachedUser{LastSeenKind: "exact", LastSeen: noon.Add(-90 * time.Minute).UnixMilli()}
 	got, _ := presenceSubtitle(&today)
 	if got != "last seen at "+time.UnixMilli(today.LastSeen).Format("15:04") {
 		t.Errorf("same-day exact = %q", got)
 	}
-	old := engine.CachedUser{LastSeenKind: "exact", LastSeen: now.AddDate(0, 0, -3).UnixMilli()}
+	old := engine.CachedUser{LastSeenKind: "exact", LastSeen: noon.AddDate(0, 0, -3).UnixMilli()}
 	got, _ = presenceSubtitle(&old)
 	if got != "last seen on "+time.UnixMilli(old.LastSeen).Format("Jan 2") {
 		t.Errorf("older exact = %q", got)
@@ -77,7 +83,10 @@ func TestHeaderBadges(t *testing.T) {
 }
 
 func TestSameCalendarDay(t *testing.T) {
-	n := time.Now()
+	// Noon-anchored (not time.Now()): the -1h case must stay on the same
+	// calendar day at every wall-clock time (BUGS.md F-9).
+	now := time.Now()
+	n := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
 	if !sameCalendarDay(n, n.Add(-time.Hour)) {
 		t.Error("same day rejected")
 	}
