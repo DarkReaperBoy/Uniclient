@@ -7318,3 +7318,31 @@ full suites green in all three, `-race` green on every new test.
 (97.5%) · PARTIAL 2 · MISSING 0 · CORE-ONLY 3 + 1 by-design = 200.**
 AGENTS §11 parity item closes `[~]` → `[x]`, with the premature-
 closure correction kept inline as history.
+
+## 2026-09-23 — release v0.9.1 (prerelease) cut and published
+
+CI went green on **5c958d4a** (slice 229) — the 15th consecutive
+green verify run of this session (15986674 → d4e1699f → 1b6d4dc2 →
+a7e4bd6e → d4fcacf4 → 9b2c95a4 → 5c05c8da → 235cf412 → 336b787a →
+c385abc0 → 4a34b44f → 73ef4072 → 55c1ce39 → 5c958d4a, plus 29e8593a
+baseline repairs earlier) — so the verified commit became the tag for
+**v0.9.1**, 63 commits after v0.9.0.
+
+The Release workflow (tag-only trigger) ran all five jobs green —
+test, linux (amd64+arm64, UPX), windows, android APK, web — and
+published **`prerelease: true`** (the workflow's own comment: "until
+the owner flips it"; AGENTS §1 line19 keeps every release there until
+the owner approves otherwise — §11's last `[ ]` line). Assets
+verified through the API, not assumed: `uniclient-linux-amd64`
+(22.8 MB), `uniclient-linux-arm64` (19.9 MB),
+`uniclient-windows-amd64.exe` (17.4 MB), `uniclient.apk` (33.8 MB),
+`checksums.txt`.
+
+§11 final state: **22 `[x]` · 1 `[~]` · 1 `[ ]`** — the remaining two
+need the owner by definition (a real phone/email account for the
+bale/rubika/xmpp/deltachat live sign-in rung, and approval for the
+first non-prerelease). Parity: **195/200 PRESENT (97.5%)**, machine-
+counted, buckets sum-checked. Nothing left in any open line has
+buildable work — that claim now stands BEHIND two truth passes (the
+first one was wrong, was retracted here in slice 228's entry, and the
+row it uncovered has since been built).
