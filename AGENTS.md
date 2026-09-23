@@ -623,11 +623,35 @@ is the next task.
         Engine `player()` also seeds its gain from config at creation
         (locks taken separately, never nested). 4 tests / 31 case
         runs; gofmt+vet clean, `-race` clean, full suite exit 0.
-        **Parity: PRESENT 188 (94%) · PARTIAL 8 · MISSING 0 ·
-        CORE-ONLY 4** — and the counts are now machine-derived: the
-        prose had said 188/8 while the table held 187/9 (forum topics
-        was PARTIAL in the table, missing from the list), so every
-        count from here on comes from parsing the status cells.
+        **Parity: PRESENT 193 (96.5%) · PARTIAL 3 · MISSING 0 ·
+        CORE-ONLY 4** — counts machine-derived and sum-checked to 200.
+        Two drifts were found by parsing every status cell instead of
+        typing totals: the prose had said 188/8 while the table held
+        187/9 (forum topics was PARTIAL in the table, missing from the
+        prose list), and the experimental row's CORE-ONLY-BY-DESIGN
+        status made the first parser pass miss it (199 of 200 rows) —
+        caught only because the parts have to sum to the whole.
+      - slice 226 (2026-09-23): **parity truth pass — five stale rows
+        flipped.** The matrix's own gap list had declared rows 107
+        (forum topics), 108 (chat background), 193 (saved messages),
+        207 (chat settings) and 212 (stars) CLOSED with slice
+        evidence while their table labels still read PARTIAL — the two
+        halves of the document disagreed. Verified before touching a
+        label: every cited slice exists in WORKLOG, every cited file
+        exists (`gui/topics.go`, `wallpaper.go`, `savedsublists.go`,
+        `stickermanager.go`, `settingsstars.go`), and each disputed
+        capability is in the code (`chatthemetint.go` patternTilePlan
+        for the slice-198 emoji wallpaper, `statsview.go` Earn tab +
+        getStarsRevenueWithdrawalURL for slice-213 withdraw,
+        `giveaways.go` GetCountriesList for slice-214). Two status
+        texts also carried claims that contradicted shipped work (the
+        emoji-pattern wallpaper called "out of scope", revenue
+        withdraw called "remaining") — corrected in place — and row
+        207's status cell held raw `|dx|-|dy|` pipes that broke the
+        markdown table's columns (escaped). The 3 rows still PARTIAL
+        are the honest ones: local premium toggle (dead UI until
+        something is gated), QR scan (needs camera capture; tdesktop
+        lacks it too), card-funded giveaway (external checkout).
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"

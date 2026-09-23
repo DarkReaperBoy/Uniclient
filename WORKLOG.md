@@ -6952,3 +6952,83 @@ toggle, stars raw-gifting and giveaway launch (both external checkout),
 and QR scan (import ships, camera scanning does not). The video thread in
 §11 is now closed end to end: H.264 decode → in-chat playback → viewer
 transport → PiP → AAC audio → volume.
+
+## 2026-09-23 — slice 226: parity truth pass — five stale rows, a broken table, and what "verified" has to mean
+
+### Why
+Closing row 276 (slice 225) forced a total, so the totals were parsed
+from the file instead of typed. The parse disagreed with the prose —
+and once one number was wrong, every number had to be re-derived and
+every row re-checked before the program's counts could be trusted
+again.
+
+### What the checks found — each verified against the repo, not taken on trust
+1. **Prose vs table drift.** The matrix claimed 188 PRESENT / 8 PARTIAL
+   while the table held 187/9: forum topics (row 107) is PARTIAL in
+   the table but had never made it into the prose list. Fixed in
+   336b787a.
+2. **The parser's own blind spot.** First pass reported 199 of 200
+   rows — the experimental-flags row's status reads
+   `CORE-ONLY-BY-DESIGN`, not `CORE-ONLY`. Caught only because the
+   buckets had to sum to 200.
+3. **Gap list vs table: five rows where the document contradicted
+   itself.** The gap list declared 107 forum topics, 108 chat
+   background, 193 saved messages, 207 chat settings and 212 stars
+   CLOSED with slice evidence; the table still called all five
+   PARTIAL.
+4. **Two status texts claimed shipped work was missing.** Row 108 said
+   the "emoji-pattern wallpaper documents remain out of scope" though
+   slice 198 ships `patternTilePlan`; row 212 said channel-revenue
+   withdraw "remains" though slice 213 ships the stats Earn tab +
+   `getStarsRevenueWithdrawalURL`.
+5. **Markdown defect.** Row 207's status cell contained raw
+   `|dx|-|dy|` pipes, so GitHub renders that row with split columns
+   (and any naive parser splits the cell mid-formula). Escaped to
+   `\|dx\|-\|dy\|`.
+
+### Verification per row — never flip a label on the gap list's word alone
+- Cited slices all searched in WORKLOG: 118, 156, 205, 197, 199, 204,
+  198, 218, 139, 155, 157, 158, 159, 172, 144, 211, 213, 214 —
+  **213/214 first came back MISSING, which was a false alarm of my
+  own**: the pattern `slice $s` cannot match the actual heading
+  `## 2026-09-15 — slices 213 + 214: ...`. Broadened the pattern →
+  both documented. Second time this session a check failed because of
+  my pattern rather than the repo — re-check the checker.
+- Cited files exist: `gui/topics.go`, `wallpaper.go`,
+  `savedsublists.go`, `savedmsg.go`, `stickermanager.go`,
+  `settingsstars.go`, `chatthemetint.go`, `statsview.go`,
+  `giveaways.go` (+ GUI tests for topics/savedsublists/savedmsg/
+  wallpaper; the stars path is covered in `engine/gifts_test.go` and
+  `cores/telegram_gifts_test.go`).
+- Disputed capabilities grepped in code before flipping: slice-198
+  emoji pattern in `chatthemetint.go`; slice-213
+  `withdrawStarsRevenue` / `GetStarsRevenueStats` in `statsview.go`;
+  slice-214 `GetCountriesList` in `giveaways.go` + `engine/`; slice-211
+  gifting chain `GetStarGifts` → `getPaymentForm` → `sendStarsForm`.
+
+### Result
+**PRESENT 193 (96.5%) · PARTIAL 3 · MISSING 0 · CORE-ONLY 4 = 200**
+(parser output, buckets summed to the whole). The 3 remaining PARTIAL
+rows are the honest kind: local premium toggle (nothing is gated
+client-side, so the toggle would be dead UI per §1.10), QR scan
+(camera capture needed; tdesktop ships no camera scan either),
+card-funded giveaway launch (external checkout).
+
+### Verification (§9)
+`gofmt -l` clean · `go vet -tags goolm ./...` clean — **the first run
+failed because I typed `gooolm`** (three o's), so vet compiled the
+cgo libolm path and died on missing `olm/olm.h`; tag corrected to
+`goolm` and re-run · `go test -p 2 -tags goolm -count=1 ./...`
+**exit 0, 13 pkgs** · token scan 0 · `flake.lock` unstaged ·
+`verify.yml` green on **9b2c95a4, 5c05c8da, 235cf412, 336b787a** —
+those four plus the five pushed earlier this session make **9
+consecutive green** verify runs.
+
+### Parity after this slice
+PRESENT 193 (96.5%) · PARTIAL 3 · MISSING 0 · CORE-ONLY 4 —
+sum-checked to 200 rows by the parser. The gap list and the table now
+agree with each other *and* with the code, which is what all three
+disagreements were really about: the docs had drifted from the
+program, and only a check that can fail (files present, slices
+documented, capabilities grepped, buckets summing to the whole) can
+tell drift from truth.
