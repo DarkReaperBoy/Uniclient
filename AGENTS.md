@@ -396,7 +396,7 @@ is the next task.
       (visual pass lands with a real voice-capable account)
 - [x] Dispatch-only verify workflow (§5) — full gate + cross-builds +
       Xvfb GUI smoke with screenshot artifacts
-- [x] **AyuGram 1:1 parity program (§1.11 mandate) — CLOSED** (slices
+- [~] **AyuGram 1:1 parity program (§1.11 mandate) — re-opened to finish row 281** (slices
       200-227, 2026-09-14..23): mirror AyuGramDesktop feature-by-feature
       in `gui/` (source-level
       comparison, tracked in research/ayugram_parity.md); extend cores
@@ -411,11 +411,15 @@ is the next task.
         card-funded giveaway launch (external checkout) — and the four
         CORE-ONLY rows are by-design or owner-gated (webview mini-apps:
         owner decision; experimental flags: dead-UI ban; Ayu sqlite:
-        served by the engine cache; streaming-without-download: the
-        core exists, its GUI work is item 1 below). **No row is MISSING
-        and nothing further here is buildable without an owner
-        decision** — which is why this item closes rather than stays
-        open. The per-slice log continues below.
+        served by the engine cache). **The closure note that sat here
+        claimed "nothing further is buildable without an owner
+        decision" and was wrong**: row 281 (streaming without full
+        download) IS buildable — its core half is the chunked
+        `upload.getFile` primitive, and an "engine media streaming"
+        that a previous entry credited did not exist (grep-verified).
+        The item therefore re-opens to `[~]` until slices 228-229 land
+        the engine ranged stream + the GUI playback path; **no row is
+        MISSING** either way. The per-slice log continues below.
       - slices 200–205 (2026-09-14): Windows native toasts completed —
         transport (slice 200), own AUMID via pure-Go IShellLinkW +
         IPropertyStore Start-Menu shortcut (201), protocol-activation
@@ -685,6 +689,25 @@ is the next task.
         the decoder never grades its own homework. Camera capture stays
         out (mobile-only surface; AyuGramDesktop and tdesktop lack it
         too — documented in the row).
+      - slice 228 (2026-09-23): **ranged media streaming — row 281's
+        engine half.** `cores.ReadFilePart` (chunked upload.getFile,
+        offset-alignment enforced locally, `Precise=true` — the layer's
+        own "useful to stream videos" flag) + `fileLocationOf`
+        extracted from DownloadFile so streaming and full downloads
+        share one location resolver (document/photo/photo-thumb/gif
+        rules, Extra fallback, cache write). `engine.OpenMediaStream`
+        = fetch-on-read sparse file at executeDownload's **canonical
+        path**, per-chunk arrival bitmap, fast path straight from disk
+        for completed files, `ErrNoRangedRead` capability gate, queue
+        `Cancel` so two writers never race one file, and exactly-once
+        promotion (one media UPDATE + one EventDownloadComplete) into
+        the existing cache accounting. Tests pin the two honesty
+        rules: only touched ranges are fetched (8 KiB head read of a
+        1 MiB file costs ≤ 3×4 KiB chunks measured — a "streamer"
+        that reads the whole file is a download with extra steps) and
+        a failed fetch **errors rather than serving zeros** (zeros
+        decode as a corrupt frame = fake playback, §1.10). Row 281
+        flips PRESENT in slice 229 (GUI playback path).
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"

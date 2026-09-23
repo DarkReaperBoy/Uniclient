@@ -7156,3 +7156,80 @@ What the non-PRESENT rows are, in case anyone reads them as unfinished:
 need the owner by definition (a real phone/email account to complete
 bale/rubika/xmpp/deltachat sign-in, and approval for the first
 non-prerelease). No open item has buildable work left in it.
+
+## 2026-09-23 — slice 228: ranged media streaming (row 281's engine half) — and the correction the entry above needed
+
+**Correction first.** The entry above closes with "No open item has
+buildable work left in it." That was wrong, and the truth check that
+caught it is why this slice exists. The closure's own rationale had
+said streaming's "core exists, its GUI work is item 1's line"; two
+greps proved both halves of that wrong: (a) row 281 ("playback without
+full download") **is** buildable — the core half exists as Telegram's
+chunked `upload.getFile` primitive (`cores/telegram.go`), and (b) the
+"engine media streaming" the wording implied **did not exist** — no
+ranged read anywhere in the engine or any core, only the full-file
+download queue. A doc claiming a capability the code lacks is exactly
+the §1.10 shape this project bans. So AGENTS §11 item 4 moved `[x]` →
+`[~]` with this correction inline (factual doc, corrected in place),
+and slices **228** (engine + cores, this entry) and **229** (GUI
+playback path) were scoped to make the claim true. The parity counts do
+not move until the GUI lands: 194 PRESENT / 2 PARTIAL / 0 MISSING /
+4 CORE-ONLY = 200, machine-re-counted this slice.
+
+What ships:
+
+- **`go/cores/telegram_stream.go`** — `ReadFilePart(fileRef, offset,
+  limit)`: ranged chunked `upload.getFile`. The 4096-alignment rule is
+  enforced **locally** (a malformed range fails as `ErrInvalidInput`
+  before any RPC — pinned by test on a disconnected core), and
+  `Precise: true` is set — gotd's own field comment says "disable some
+  checks on limit and offset, useful for example to stream videos by
+  keyframes", i.e. the layer built this flag for exactly row 281.
+  `fileLocationOf` extracted from `DownloadFile`'s inline block so the
+  streaming path and full downloads share ONE location resolver
+  (document vs photo `ThumbSize:"y"` vs `image/gif`-is-a-document,
+  Extra `hash:b64ref` fallback + cache write); DownloadFile now calls
+  the helper — same bytes on every path, no drift possible.
+- **`go/engine/mediastream.go`** — `mediaStream`: a fetch-on-read
+  sparse file at executeDownload's **canonical path**
+  (`mediaDir/<acc>/full/<msg>_<seq>.<ext>`) with a per-chunk arrival
+  bitmap. `OpenMediaStream` tries the completed file first (fast path:
+  disk, no core needed), else resolves `ErrNoRangedRead` from the
+  account's core (honest capability gate → caller keeps
+  download-then-play), cancels the queue's write for that file so two
+  writers never race, and promotes **exactly once** when the last
+  chunk lands: one `UPDATE media` + one `EventDownloadComplete` — the
+  stream lands inside the existing cache accounting instead of beside
+  it.
+
+The two rules the tests pin (tests written first, like everything
+here):
+
+1. **Fetch only what is touched.** Reading an 8 KiB head of a 1 MiB
+   file must cost ≤ 3 chunks (measured: ≤12 KiB); seeking to the
+   middle must not drag the bytes in between (measured under 3×4 KiB).
+   A "streaming" reader that reads the whole file is a download with
+   extra steps — the measurement IS the row.
+2. **Never serve unfetched bytes as zeros.** A failed fetch errors the
+   read (and not as `io.EOF`); zeros would decode as a corrupt frame,
+   which is fake playback under §1.10. Same for a short/long range
+   from the server: protocol violation → error, never shifted bytes.
+
+Also pinned: exact bytes across chunk boundaries / at EOF / past EOF
+(`ReaderAt` semantics), completion fires exactly once across re-reads,
+concurrent reads (`-race` green), row promotion end-to-end (canonical
+path, `DownloadComplete` state, file bytes identical to source), fast
+path with **no** core attached on the engine, and `resolveStreamSource`
+returning `ErrNoRangedRead` for nil/unsupported cores instead of
+panicking on a failed type assertion. cores side: location resolution
+(Extra decode → document w/ hash 777 + ref bytes, photo, gif, empty ID)
+and the cache round-trip that lets a second resolve skip Extra.
+
+Gate: gofmt clean, `go vet -tags goolm` clean on engine+cores, full
+suites green in both packages, `-race` green on the streaming tests.
+Row 281 stays CORE-ONLY until slice 229 wires the GUI playback path.
+
+(Gotcha logged for the record: plain `go vet ./engine/` without `-tags
+goolm` walks into mautrix's libolm cgo build and dies on
+`olm/olm.h` — the tag is mandatory even for a package that does not
+import it.)

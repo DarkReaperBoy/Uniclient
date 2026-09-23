@@ -3022,41 +3022,9 @@ func (t *TelegramCore) DownloadFile(fileRef FileRef, dest string, progress func(
 		return err
 	}
 
-	fileID, err := tgUserID(fileRef.ID)
+	location, err := t.fileLocationOf(fileRef)
 	if err != nil {
 		return err
-	}
-	if fileID == 0 {
-		return fmt.Errorf("%w: empty file ID", ErrInvalidInput)
-	}
-
-	// Get access hash and file reference — try in-memory cache first, then Extra field.
-	accessHash := t.getCachedFileHash(fileID)
-	fileReference := t.getCachedFileRef(fileID)
-	if accessHash == 0 && fileRef.Extra != "" {
-		accessHash, fileReference = decodeFileExtra(fileRef.Extra)
-		if accessHash != 0 {
-			t.cacheFileInfo(fileID, accessHash, fileReference)
-		}
-	}
-
-	// Determine file location based on mime type
-	var location tg.InputFileLocationClass
-	if strings.HasPrefix(fileRef.MimeType, "image/") && fileRef.MimeType != "image/gif" {
-		// Photos use InputPhotoFileLocation
-		location = &tg.InputPhotoFileLocation{
-			ID:            fileID,
-			AccessHash:    accessHash,
-			FileReference: fileReference,
-			ThumbSize:     "y", // largest photo size
-		}
-	} else {
-		// Documents (files, videos, audio, stickers, etc.)
-		location = &tg.InputDocumentFileLocation{
-			ID:            fileID,
-			AccessHash:    accessHash,
-			FileReference: fileReference,
-		}
 	}
 
 	f, err := os.Create(dest)

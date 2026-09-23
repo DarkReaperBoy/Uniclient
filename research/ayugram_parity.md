@@ -278,7 +278,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Download + share + delete in viewer | Toolbar actions | PRESENT (save→RequestDownload/reveal path; share→forward picker; delete→confirm dialog→engine.DeleteMessage) | gui/mediaview.go | P1 |
 | PiP floating window | Video in floating window | PRESENT (slice 222 — the matrix's only MISSING row, now closed). A draggable floating panel keeps the clip playing over every surface while you keep using the app; shares the slice-220/221 decoder so popping out is a hand-off, not a second decode, and closing it pauses the clip. Deviation reported honestly: Gio has no always-on-top flag on our platforms (its only one is in the banned macOS backend) and allows extra native windows only on linux/windows — never on Android — so it is an in-window panel rather than an OS window, which is why it stays visible everywhere including Android | gui/pip.go + gui/mediaview.go viewerPopOut | P3 |
 | Story viewer | Full story playback w/ reactions/reply/share | PRESENT (slice 104: full-window viewer fed by engine.FetchPeerStories — progress segments, left/right tap zones + arrow keys, caption + views/date meta, image stories render inline (async decode), video stories honestly hand off to the system player; slice 164: REACTIONS + REPLY + SHARE — the bottom action bar (views/reactions stats, reaction heart, reply, share): heart tap opens the emoji strip (account available reactions, favorite-choices capping) or removes the sent reaction (stories.sendReaction w/ ReactionEmpty, optimistic flip + error revert, own state from StoryItem.SentReaction); reply opens the inline composer → engine.SendMessage with the story:<id> ReplyToID (inputReplyToStory, Enter submits); share → stories.exportStoryLink → clipboard + toast; own stories hide react/reply (§1.10) and keep share; the composer owns the keyboard while armed (arrows/editing) | gui/stories.go + cores ReactToStory/ExportStoryLink + engine ReactToStory/ExportStoryLink | P2 |
-| Streaming video in chat | Playback without full download | CORE-ONLY | engine media streaming (CORE-ONLY) | P2 |
+| Streaming video in chat | Playback without full download | CORE-ONLY (the core half is the chunked `upload.getFile` primitive in `cores/telegram.go`; the engine ranged stream + GUI path land as slices 228-229 — before that this row's Where cell named an "engine media streaming" that did not exist, corrected by the slice-228 truth check) | CORE-ONLY: cores UploadGetFile chunk primitive; engine+GUI = slices 228-229 | P2 |
 
 ## 13. Notifications — scope: SHARED (per-account notify config = TG)
 
@@ -441,15 +441,14 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 - PARTIAL: 2 — local premium toggle (nothing is gated client-side yet,
   so the toggle would be dead UI) · card-funded giveaway launch
   (external checkout, honest absence)
-- MISSING: **0** — closed by slice 222 (PiP).
+- MISSING: **0** — closed by slice 222 (PiP was the last one).
 - CORE-ONLY: 4 — webview (owner-decision) · experimental flags (dead-UI
   ban, by design) · Ayu sqlite (already served by the engine cache) ·
-  streaming without full download (row 281; needs engine media
-  streaming)
-- MISSING: 0 — closed by slice 222 (PiP was the last one)
-- CORE-ONLY: 4 — webview (owner-decision) · experimental flags (dead-UI
-  ban, by design) · Ayu sqlite (already served by the engine cache) ·
-  streaming (row 281)
+  streaming without full download (row 281: the CORE is the chunked
+  `upload.getFile` primitive in the telegram core — engine half landed
+  as slice 228, cores.ReadFilePart + engine.OpenMediaStream, fetch-on-
+  read sparse file with exactly-once DB promotion; the GUI playback
+  path is slice 229, which flips this row)
 
 → History: 2026-09-08 after slices 1-9: PRESENT 24 (12%) · 2026-09-13
   after slices 172-174 + truth pass: PRESENT 169 (84%) · after slice 185:
