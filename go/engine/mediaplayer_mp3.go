@@ -50,9 +50,9 @@ func IsMp3(path string) bool {
 }
 
 // IsInAppPlayable: the file decodes through one of the in-app decoders
-// (Ogg/Opus or MP3).
+// (Ogg/Opus, MP3, or the AAC track of an MP4 — slice 224).
 func IsInAppPlayable(path string) bool {
-	return IsOpusOgg(path) || IsMp3(path)
+	return IsOpusOgg(path) || IsMp3(path) || IsMp4(path)
 }
 
 // mixdownStereo averages interleaved stereo pairs into mono; mono input

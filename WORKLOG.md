@@ -6802,3 +6802,65 @@ Row 276 stays **PARTIAL** — deliberately. The blocker named in the earlier
 correction ("the AAC audio path") is now half built: samples exist, volume does
 not. Marking it present on decode alone would be the §1.10 mistake in a new
 shape. Slice 224 wires the sink and the slider.
+
+## 2026-09-23 — slice 224: MP4/AAC playback + media volume in the engine (row 276's volume, engine half)
+
+Slice 223 proved a pure-Go AAC decoder exists and can produce samples byte-
+identical to ffmpeg. This slice makes those samples *playable and controllable*
+inside the engine — the half of row 276 that was still missing.
+
+### What shipped
+- **`decodeMp4Audio`**: MP4 → AAC track → mono 48 kHz, the exact shape the
+  device callback takes. It reuses the pipeline the MP3 path already had
+  (`mixdownStereo`, `resampleLinear`) instead of writing a second one, so
+  position, speed and seek work on video sound for free.
+  - **Stereo is mixed down only when the track really is stereo.**
+    `mixdownStereo` averages adjacent pairs, so running it on mono would pair
+    each sample with its neighbour and turn the waveform into static — which
+    still "plays", so a liveness check would not catch it. The branch is
+    commented with exactly that reasoning.
+  - A video with **no audio track** returns `aacaud.ErrNoAudio` wrapped, so the
+    GUI can tell "silent message" from "broken bytes" and choose honestly.
+- **`IsMp4`** (8-byte `ftyp` sniff) and `IsInAppPlayable` now includes it, so
+  tap-to-play never lands on a dead button.
+- **Volume**: `mediaPlayer.gain` applied in `fill`, `SetMediaVolume` (clamped,
+  immediate), `PlaybackState.Volume`, `ConfigChanges.MediaVolume` persisted
+  through the vault like every other setting.
+
+### Two decisions worth recording
+1. **The gain scales the OUTPUT, never `p.pcm`.** If `fill` scaled the stored
+   buffer in place, quieting one track would quietly quiet every track after
+   it — the bug that makes volume "sometimes stick". `TestMediaVolumeScalesPlayback`
+   pins the buffer byte-for-byte across a low-volume pull.
+2. **`MediaVolume` is a `*float64` in the config, not a plain float.** "Never
+   set" and "deliberately muted" are both zero; collapsing them would make a
+   muted user come back to a loud app after every restart. nil reads as 1.0,
+   a stored 0 stays mute (JSON `omitempty` omits nil only, so 0 round-trips).
+   `ClampMediaVolume` routes **NaN** to silence — NaN fails every ordering
+   comparison and would otherwise reach the sample loop, where float→int16 of
+   NaN is platform-defined.
+
+### Tests first (§9) — 10 tests, 14 case runs
+`ftyp` sniff table (7 cases incl. Ogg/MP3/WebM/text/short) · playable-decision
+· decode shapes: both fixtures land on exactly `duration × 48000` after
+downmix, with a loudness floor so a decode-to-silence cannot pass · video-only
+rejects with the wrapped sentinel · `PlayMedia(mp4)` advances the playhead ·
+**volume scales samples exactly (halving, mute, buffer-not-mutated)** · clamp
+bounds · volume survives a track switch · config round-trip incl. explicit
+mute · config bridge applies and ignores nil.
+
+### Verification (§9)
+`gofmt -l` clean · `go vet -tags goolm ./...` clean ·
+`go test -p 2 -tags goolm -count=1 ./...` **exit 0, 13 pkgs** ·
+`-race` clean over the whole engine package · token scan 0 ·
+`verify.yml` green on **15986674, d4e1699f, 1b6d4dc2, a7e4bd6e, d4fcacf4,
+9b2c95a4** (6 consecutive pushes).
+
+### Parity after this slice
+Row 276 **still PARTIAL — deliberately.** The engine can now decode video
+audio, play it, and turn it up or down, but nothing in the GUI routes a
+video's audio through it yet and no slider is drawn. Marking the row present
+now would advertise a control that does not exist on screen (§1.10). The
+remaining half is slice 225: start/stop engine audio alongside the h264
+player, lock the picture to the audio clock (audio is the master — the
+device pulls in real time), and draw the slider in the viewer bar.

@@ -30,6 +30,14 @@ type AppConfig struct {
 	FontPath        string `json:"font_path,omitempty"`      // custom UI font file (slice 146)
 	MonoFontPath    string `json:"mono_font_path,omitempty"` // custom mono font file
 
+	// In-app media playback gain, 0..1 (slice 224, parity row 276's
+	// volume control). A POINTER, deliberately: "never set" and
+	// "deliberately muted" must not collapse into the same zero, so nil
+	// reads as 1.0 while a stored 0 keeps meaning mute across restarts.
+	// encoding/json's omitempty omits only a nil pointer, never a
+	// pointer to 0, so mute round-trips.
+	MediaVolume *float64 `json:"media_volume,omitempty"`
+
 	// Composer submit mode (tdesktop Messages setting, slice 155):
 	// "" (default) = Enter sends, Shift+Enter newline; "ctrl-enter" =
 	// Enter newline, Ctrl+Enter sends.
@@ -260,6 +268,30 @@ func MergeDefaults(cfg *AppConfig) {
 }
 
 // ClampBubbleRadius bounds the bubble-corner slider (0..18 dp).
+// MediaVolumeValue returns the effective playback gain: an unset volume
+// reads as full, and stored values are clamped into 0..1 so a hand-edited
+// config file cannot mute the app by accident or multiply past unity.
+func (c *AppConfig) MediaVolumeValue() float64 {
+	if c == nil || c.MediaVolume == nil {
+		return 1
+	}
+	return ClampMediaVolume(*c.MediaVolume)
+}
+
+// ClampMediaVolume bounds a gain to 0..1. Written so NaN — the one value
+// that fails every ordering comparison — lands on silence instead of
+// reaching the sample loop, where float→int16 of NaN is platform-defined.
+// Mirrors the other Clamp* helpers.
+func ClampMediaVolume(v float64) float64 {
+	if v >= 0 && v <= 1 {
+		return v
+	}
+	if v > 1 {
+		return 1
+	}
+	return 0
+}
+
 func ClampBubbleRadius(v int) int {
 	if v < 0 {
 		return 0

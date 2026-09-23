@@ -1034,6 +1034,9 @@ type ConfigChanges struct {
 	AccentColor string
 	FontScale   float64
 	Language    string
+	// In-app playback gain, 0..1 (slice 224, row 276's volume). Nil =
+	// unchanged. The live half is Engine.SetMediaVolume; this persists.
+	MediaVolume *float64
 	// Chat-wide translation target (slice 150). Zero value = unchanged.
 	TranslateTarget string
 	// Composer submit mode (tdesktop Messages setting, slice 155).
@@ -1149,6 +1152,10 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.MonoFontPath != nil {
 		e.config.MonoFontPath = *changes.MonoFontPath
+	}
+	if changes.MediaVolume != nil {
+		v := utils.ClampMediaVolume(*changes.MediaVolume)
+		e.config.MediaVolume = &v
 	}
 	if changes.Language != "" {
 		e.config.Language = changes.Language

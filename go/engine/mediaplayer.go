@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"uniclient/audio"
+	"uniclient/utils"
 	"uniclient/voice"
 )
 
@@ -29,6 +30,7 @@ type PlaybackState struct {
 	Position  float64 `json:"position"` // seconds
 	Duration  float64 `json:"duration"` // seconds
 	Speed     float64 `json:"speed"`
+	Volume    float64 `json:"volume"`    // output gain, 0..1 (row 276's control)
 	HasAudio  bool    `json:"has_audio"` // false where no audio backend exists
 	Error     string  `json:"error,omitempty"`
 }
@@ -49,13 +51,19 @@ type mediaPlayer struct {
 	playing bool
 	paused  bool
 
+	// gain is the output volume, 0..1 (slice 224, parity row 276). It is
+	// applied to the samples fill hands the device and is deliberately
+	// NOT reset by stopLocked — the next track keeps the volume the user
+	// chose instead of jumping back to loud.
+	gain float64
+
 	lastEmit time.Time
 	lastErr  string
 }
 
 // newMediaPlayer lazily constructs the app-wide player.
 func (e *Engine) newMediaPlayer() *mediaPlayer {
-	return &mediaPlayer{eng: e, speed: 1}
+	return &mediaPlayer{eng: e, speed: 1, gain: 1}
 }
 
 func (e *Engine) player() *mediaPlayer {
@@ -127,8 +135,9 @@ func decodeOpusOgg(path string) ([]int16, error) {
 // PlayMedia starts in-app playback of a downloaded message's file.
 // Switches playback from any previous message; emits EventPlaybackState.
 func (e *Engine) PlayMedia(acct, chat, msgID, path string) error {
-	// In-app playable formats (slice 185): Ogg/Opus (voice notes, opus
-	// audio) and MP3 (music files) decode through the pure-Go pipeline;
+	// In-app playable formats: Ogg/Opus (voice notes, opus audio), MP3
+	// (music files, slice 185) and the AAC track of an MP4 (video and
+	// round video notes, slice 224) decode through the pure-Go pipeline;
 	// everything else stays with the system-player handoff (§1.10).
 	var pcm []int16
 	var err error
@@ -137,15 +146,33 @@ func (e *Engine) PlayMedia(acct, chat, msgID, path string) error {
 		pcm, err = decodeOpusOgg(path)
 	case IsMp3(path):
 		pcm, err = decodeMp3(path)
+	case IsMp4(path):
+		pcm, err = decodeMp4Audio(path)
 	default:
-		return fmt.Errorf("media: %s is not Ogg/Opus or MP3 — use the system player", path)
+		return fmt.Errorf("media: %s is not Ogg/Opus, MP3 or MP4 audio — use the system player", path)
 	}
 	if err != nil {
 		return err
 	}
+
+	// Restore the configured volume for this track. With no config in
+	// memory (headless, tests) cfgGain stays nil and the runtime value
+	// set by SetMediaVolume stands — otherwise a fresh player in a test
+	// would start muted instead of at unity.
+	e.mu.Lock()
+	var cfgGain *float64
+	if e.config != nil {
+		v := e.config.MediaVolumeValue()
+		cfgGain = &v
+	}
+	e.mu.Unlock()
+
 	p := e.player()
 	p.mu.Lock()
 	p.stopLocked()
+	if cfgGain != nil {
+		p.gain = *cfgGain
+	}
 
 	var hasAudio bool
 	sess, aerr := audio.Open()
@@ -238,6 +265,20 @@ func (e *Engine) SeekMedia(frac float64) error {
 	return nil
 }
 
+// SetMediaVolume sets the live playback gain, clamped to 0..1. A drag on
+// a slider is the caller, so out-of-range input is bounded rather than
+// rejected. Persistence is the other half: the GUI also sends
+// ConfigChanges.MediaVolume, which is what survives a restart — this call
+// is the half that changes what is audible right now.
+func (e *Engine) SetMediaVolume(v float64) {
+	v = utils.ClampMediaVolume(v)
+	p := e.player()
+	p.mu.Lock()
+	p.gain = v
+	p.mu.Unlock()
+	e.emitPlayback()
+}
+
 // MediaState snapshots the player.
 func (e *Engine) MediaState() PlaybackState {
 	p := e.player()
@@ -256,6 +297,7 @@ func (p *mediaPlayer) stateLocked() PlaybackState {
 		Position:  p.pos / float64(voice.SampleRate),
 		Duration:  p.dur,
 		Speed:     p.speed,
+		Volume:    p.gain,
 		HasAudio:  p.sess != nil,
 		Error:     p.lastErr,
 	}
@@ -298,13 +340,17 @@ func (p *mediaPlayer) fill(out []int16) {
 		if p.pos >= n-1 {
 			// At the tail: emit the final sample once and pin the
 			// position at the end so the completion check below fires.
-			out[i] = p.pcm[int(n)-1]
+			// Volume scales the OUTPUT only: p.pcm is never modified,
+			// so turning one track down cannot turn down the next one
+			// (TestMediaVolumeScalesPlayback pins this).
+			out[i] = int16(float64(p.pcm[int(n)-1]) * p.gain)
 			p.pos = n
 			continue
 		}
 		i0 := int(p.pos)
 		frac := p.pos - float64(i0)
-		out[i] = int16(float64(p.pcm[i0])*(1-frac) + float64(p.pcm[i0+1])*frac)
+		s := int16(float64(p.pcm[i0])*(1-frac) + float64(p.pcm[i0+1])*frac)
+		out[i] = int16(float64(s) * p.gain)
 		p.pos += p.speed
 	}
 	if p.pos >= n {

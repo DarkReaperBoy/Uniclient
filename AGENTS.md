@@ -578,6 +578,25 @@ is the next task.
         tests; gofmt+vet clean, `-race` clean, full suite exit 0, 13
         pkgs. **Row 276 stays PARTIAL on purpose**: samples now exist,
         volume does not — slice 224 wires the sink and the slider.
+      - slice 224 (2026-09-23): **MP4/AAC playback + media volume (engine
+        half of row 276).** `decodeMp4Audio` turns an MP4's AAC track
+        into mono 48 kHz through the SAME pipeline MP3 already used
+        (mixdownStereo + resampleLinear), so position/speed/seek work on
+        video sound without a second code path — but the downmix is
+        gated on `Channels == 2`, because running pair-averaging on mono
+        pairs each sample with its neighbour and produces static that
+        still "plays". Video-only files return a wrapped
+        `aacaud.ErrNoAudio`, so the GUI can separate "silent message"
+        from "broken bytes". Volume: `gain` applied to fill's OUTPUT
+        (never to `p.pcm`, or one quiet track quiets all the rest),
+        `SetMediaVolume` clamped + `PlaybackState.Volume`, persisted as
+        `MediaVolume *float64` — pointer because "unset" and "muted" are
+        both zero, and NaN is routed to silence rather than into the
+        sample loop. 10 tests / 14 case runs; gofmt+vet clean, `-race`
+        clean over the whole engine package, full suite exit 0.
+        **Row 276 still PARTIAL on purpose**: nothing in the GUI routes
+        video audio through this yet, so no slider is drawn — slice 225
+        wires picture-to-audio-clock sync and the slider itself.
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"
