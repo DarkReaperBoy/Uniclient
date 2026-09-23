@@ -91,6 +91,11 @@ type mediaStream struct {
 	got    int64 // bytes fetched so far (the measurement)
 	done   bool  // every chunk arrived
 	onDone func()
+	// fetching = per-chunk single-flight (BUGS.md B-3): one in-flight
+	// RPC per chunk; every other reader waits on the channel instead of
+	// issuing its own fetch. Entries exist only while a fetch runs —
+	// results are never cached here, only coalesced.
+	fetching map[int64]chan struct{}
 	// onClose fires exactly once on Close — the engine releases its file
 	// guard there (slice 230), so a dropped reader can never wedge the
 	// key shut.
@@ -115,13 +120,14 @@ func newMediaStream(f *os.File, size, chunk int64, src partSource, ref cores.Fil
 		return nil, fmt.Errorf("stream: pre-size: %w", err)
 	}
 	return &mediaStream{
-		f:      f,
-		size:   size,
-		chunk:  chunk,
-		have:   make([]bool, (size+chunk-1)/chunk),
-		src:    src,
-		ref:    ref,
-		onDone: onDone,
+		f:        f,
+		size:     size,
+		chunk:    chunk,
+		have:     make([]bool, (size+chunk-1)/chunk),
+		src:      src,
+		ref:      ref,
+		onDone:   onDone,
+		fetching: make(map[int64]chan struct{}),
 	}, nil
 }
 
@@ -142,39 +148,75 @@ func (s *mediaStream) complete() bool {
 	return s.done
 }
 
-// ensureChunk makes chunk c present, fetching it if needed. The fetch
-// runs under s.mu: readers serialize on a miss (correct first — the
-// playback producer is effectively single-goroutine, and a dedup +
-// readahead layer can come later without changing this contract).
-func (s *mediaStream) ensureChunk(c int64) error {
-	s.mu.Lock()
-	if c < 0 || c >= int64(len(s.have)) {
-		s.mu.Unlock()
-		return fmt.Errorf("stream: chunk %d out of range", c)
+// finishFetchLocked drops the in-flight entry for c and wakes every
+// waiter; callers hold s.mu. Order matters: success closes only AFTER
+// have[c] is set, so a woken reader either returns on the bitmap or —
+// on failure — takes over the chunk and retries serially instead of a
+// herd re-fetching at once.
+func (s *mediaStream) finishFetchLocked(c int64) {
+	if ch, ok := s.fetching[c]; ok {
+		delete(s.fetching, c)
+		close(ch)
 	}
-	if s.have[c] {
-		s.mu.Unlock()
-		return nil
-	}
-	off := c * s.chunk
-	want := s.chunk
-	if rem := s.size - off; rem < want {
-		want = rem
-	}
-	src, ref := s.src, s.ref
-	s.mu.Unlock()
+}
 
-	// Network fetch outside the lock would allow duplicate fetches on a
-	// miss; v1 trades that (single producer in practice) for never
-	// holding the bookkeeping lock across an RPC that a Close/complete
-	// check might need. Fetch first, then claim under the lock.
+// ensureChunk makes chunk c present, fetching it if needed. A miss
+// claims the chunk (per-chunk single-flight, BUGS.md B-3): every other
+// reader of the SAME chunk waits for that one RPC instead of issuing
+// its own — measured pre-patch as 8 RPCs for 8 readers of one chunk and
+// 126 RPCs (3.9× the bytes) for 4 concurrent whole-file readers. The
+// bookkeeping lock is still never held across the RPC (a Close or
+// completion check must not wait on the network); waiters re-check
+// under the lock when the fetch completes.
+func (s *mediaStream) ensureChunk(c int64) error {
+	var (
+		off, want int64
+		src       partSource
+		ref       cores.FileRef
+	)
+	for {
+		s.mu.Lock()
+		if c < 0 || c >= int64(len(s.have)) {
+			s.mu.Unlock()
+			return fmt.Errorf("stream: chunk %d out of range", c)
+		}
+		if s.have[c] {
+			s.mu.Unlock()
+			return nil
+		}
+		if busy, ok := s.fetching[c]; ok {
+			// Someone else is fetching this chunk: wait for their RPC,
+			// then re-check the bitmap (landed) or take over (failed).
+			s.mu.Unlock()
+			<-busy
+			continue
+		}
+		s.fetching[c] = make(chan struct{})
+		off = c * s.chunk
+		want = s.chunk
+		if rem := s.size - off; rem < want {
+			want = rem
+		}
+		src, ref = s.src, s.ref
+		s.mu.Unlock()
+		break
+	}
+
+	// Exactly one goroutine is past the claim for chunk c — the fetch
+	// runs outside the lock, but no second fetch of this chunk can start.
 	data, err := src.ReadFilePart(ref, off, want)
 	if err != nil {
+		s.mu.Lock()
+		s.finishFetchLocked(c)
+		s.mu.Unlock()
 		return fmt.Errorf("stream: fetch chunk %d: %w", c, err)
 	}
 	if int64(len(data)) != want {
 		// A short/long range is a protocol violation; serving it would
 		// silently shift every later byte (§1.10: fail, don't fudge).
+		s.mu.Lock()
+		s.finishFetchLocked(c)
+		s.mu.Unlock()
 		return fmt.Errorf("stream: chunk %d: got %d bytes, want %d", c, len(data), want)
 	}
 
@@ -184,6 +226,7 @@ func (s *mediaStream) ensureChunk(c int64) error {
 		err = io.ErrShortWrite
 	}
 	if err != nil {
+		s.finishFetchLocked(c)
 		s.mu.Unlock()
 		return fmt.Errorf("stream: cache chunk %d: %w", c, err)
 	}
@@ -203,6 +246,8 @@ func (s *mediaStream) ensureChunk(c int64) error {
 			break
 		}
 	}
+	// Bitmap first, THEN wake: waiters must see have[c] on re-check.
+	s.finishFetchLocked(c)
 	cb := s.onDone
 	if justDone {
 		s.onDone = nil // exactly-once, enforced under the lock

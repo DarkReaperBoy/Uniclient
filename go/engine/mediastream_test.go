@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"uniclient/cores"
 )
@@ -36,7 +37,8 @@ type fakePartSource struct {
 	mu    sync.Mutex
 	calls int
 	got   int64
-	fail  error // when set, every fetch fails
+	fail  error         // when set, every fetch fails
+	delay time.Duration // slow the RPC down — forces the duplicate-fetch window
 }
 
 func (f *fakePartSource) ReadFilePart(_ cores.FileRef, offset, limit int64) ([]byte, error) {
@@ -44,6 +46,9 @@ func (f *fakePartSource) ReadFilePart(_ cores.FileRef, offset, limit int64) ([]b
 	defer f.mu.Unlock()
 	if f.fail != nil {
 		return nil, f.fail
+	}
+	if f.delay > 0 {
+		time.Sleep(f.delay)
 	}
 	if offset < 0 || offset > int64(len(f.data)) {
 		return nil, errors.New("offset out of range")
@@ -395,6 +400,81 @@ func TestResolveStreamSourceRejectsUnsupported(t *testing.T) {
 	if err != nil || got == nil {
 		t.Errorf("ranged core: got (%v, %v), want (source, nil)", got, err)
 	}
+}
+
+// TestMediaStreamSingleFlightPerChunk: BUGS.md B-3 — the fetch runs
+// outside the bookkeeping lock, so (pre-patch) EVERY concurrent reader
+// that missed the same chunk issued its own RPC. fakePartSource.delay
+// makes that window deterministic: eight readers of one chunk must cost
+// exactly ONE RPC, and four concurrent whole-file readers must cost
+// exactly ceil(size/chunk) — the number the bug's evidence line names.
+// Both assertions fail without the single-flight patch.
+func TestMediaStreamSingleFlightPerChunk(t *testing.T) {
+	const size = 256 << 10
+	const chunk = 8192
+	data := streamPattern(size)
+	ceil := (size + chunk - 1) / chunk // 32 chunks
+
+	t.Run("eight readers of one chunk share a single fetch", func(t *testing.T) {
+		src := &fakePartSource{data: data, delay: 80 * time.Millisecond}
+		s := newStreamForTest(t, src, chunk, nil)
+		var start, wg sync.WaitGroup
+		start.Add(1)
+		for i := 0; i < 8; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				start.Wait()
+				got := make([]byte, 1024)
+				n, err := s.ReadAt(got, 4096)
+				if err != nil && err != io.EOF {
+					t.Errorf("ReadAt: %v", err)
+					return
+				}
+				if n != 1024 || !bytes.Equal(got[:n], data[4096:4096+n]) {
+					t.Errorf("ReadAt bytes wrong (n=%d)", n)
+				}
+			}()
+		}
+		start.Done()
+		wg.Wait()
+		if calls, _ := src.stats(); calls != 1 {
+			t.Errorf("chunk RPCs = %d, want 1 (per-chunk single-flight)", calls)
+		}
+	})
+
+	t.Run("concurrent whole-file readers cost exactly ceil(size/chunk)", func(t *testing.T) {
+		src := &fakePartSource{data: data, delay: 5 * time.Millisecond}
+		s := newStreamForTest(t, src, chunk, nil)
+		var wg sync.WaitGroup
+		for r := 0; r < 4; r++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				buf := make([]byte, 4096)
+				var off int64
+				for off < size {
+					n, err := s.ReadAt(buf, off)
+					if err != nil && err != io.EOF {
+						t.Errorf("ReadAt(%d): %v", off, err)
+						return
+					}
+					if n == 0 {
+						return
+					}
+					off += int64(n)
+				}
+			}()
+		}
+		wg.Wait()
+		calls, fetched := src.stats()
+		if calls != ceil {
+			t.Errorf("RPC calls = %d, want %d — every chunk exactly once, no duplicates", calls, ceil)
+		}
+		if fetched != size {
+			t.Errorf("bytes fetched = %d, want %d (whole file, each byte once)", fetched, size)
+		}
+	})
 }
 
 // seedStreamRow inserts the media row streaming reads.

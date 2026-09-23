@@ -19,12 +19,21 @@ The contract (same as everything in AGENTS.md):
 
 | # | Where | What | Evidence / how to see it | Next step |
 |---|-------|------|--------------------------|-----------|
-| B-3 | engine/mediastream.go `ensureChunk` | Fetches run outside the lock, so two concurrent readers can fetch the same chunk (duplicate RPC). v1 documents the trade. | code comment; a multi-reader test can drive `fakePartSource.stats()` past `ceil(size/chunk)` | per-chunk single-flight + optional readahead; the external contract must not change |
 | B-4 | gui/h264player.go | Stream readers stay open while their cache entry lives (≤48 entries; closed on reset/replace/evict since slice 230). A player-STOP hook could close earlier. | bounded by `h264PlayerMax`, but fd count grows with every streamed clip played in a session | close-on-stop: leaving the viewer/chat resets entries for that view |
 | B-5 | gui/h264player.go `startVideoNoteInline` | A permanently-unplayable note arriving via the `wantInline` completion consumes the marker but shows nothing until the next tap (which routes to the system player). Pre-existing UX. | `ensureH264Player`'s `p.failed` early-return has no onFail at that call site | pass an onFail → `openMedia` handoff, same as the viewer path |
 | B-6 | cores/matrix.go:1252 | Matrix group calls (MSC3401) not implemented — honest `ErrNotSupported` today. | code | feature work; owner-visible scope |
 | B-7 | engine/events.go `maybeAutoDownload` | Auto-download ignores `RequestDownload` errors — correct for the new `ErrStreamActive` (the stream is already saving), but any other error is silent. | call sites capture nothing | log unexpected errors once |
 | B-8 | repo root + `cores/teamspeak.go` `tsQuickLZCompress` | No LICENSE file exists in the repo at all (owner decision pending), and the slice-231 QuickLZ send-side is a byte-port of quicklz.c, whose header says the commercial license "does not cover derived or ported versions created by third parties under GPL". | quicklz.c header (fetched 2026-09-23, RT-Thread mirror); `ls LICENSE*` → none; the reference C is NOT vendored (gcc-built vectors only, like ffmpeg for fixtures) | owner picks the project license and confirms the port stays; until then provenance is documented here — never vendor quicklz.c |
+
+## Fixed — slice 233 (2026-09-24)
+
+| # | Bug | Why it mattered | Test |
+|---|-----|-----------------|------|
+| F-11 (= B-3) | **Duplicate chunk fetches.** `ensureChunk`'s fetch ran outside the bookkeeping lock with no coalescing: every reader that missed an already-started fetch issued its OWN RPC. Now per-chunk single-flight: one claim per chunk (`fetching[c]` channel), waiters block and re-check the bitmap; a failed leader hands the chunk over so the next waiter retries SERIALLY (no error herd); success wakes only AFTER `have[c]` is set; the lock is still never held across the RPC (Close/completion must not wait on the network), and results are coalesced, never cached (an entry exists only while a fetch runs). | measured pre-patch — the row's evidence line quantified with a delayed fake source: 8 readers of one chunk = **8 RPCs**; 4 concurrent whole-file readers = **126 RPCs vs 32** and **1,032,192 B fetched for a 262,144 B file (3.9× the bytes, ~4× the network cost of the same playback)** | `TestMediaStreamSingleFlightPerChunk` (both subtests RED pre-patch: `RPCs = 8, want 1` and `calls = 126, want 32`) + every prior stream test still green (external contract unchanged) + `-race` on the whole stream suite |
+
+Readahead (the other half of the old "next step") is an optimization,
+not a bug — not implemented, not opened as an entry; the duplicate-RPC
+gap this row described is closed.
 
 ## Fixed — slice 232 (2026-09-24)
 

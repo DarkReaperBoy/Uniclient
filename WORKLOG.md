@@ -7545,3 +7545,44 @@ F-5 taxonomy). Tests:
 BUGS.md: B-2 → Fixed (F-10) with the premise correction inline;
 the open list now starts at B-3. Gate: gofmt empty, vet `-tags goolm`,
 all packages, `-race` on the new tests.
+
+---
+
+## Slice 233 (2026-09-24) — B-3: per-chunk single-flight for streaming
+
+B-3 was the one open row whose evidence line already named the test to
+write ("a multi-reader test can drive fakePartSource.stats() past
+ceil(size/chunk)"). Done exactly that, with a `delay` field added to
+the fake source so the duplicate window is deterministic instead of a
+scheduling lottery.
+
+**RED (pre-patch, quantified)**:
+- 8 readers of one chunk → **8 RPCs** (want 1);
+- 4 concurrent whole-file readers → **126 RPCs vs 32** and
+  **1,032,192 B fetched for a 262,144 B file** — 3.9× the bytes for the
+  same playback, i.e. streaming could silently cost nearly as much as
+  downloading, N times over.
+
+**Patch** (contract unchanged — same bytes, same errors, same
+promotions): `mediaStream.fetching map[int64]chan struct{}` =
+per-chunk single-flight. A miss claims the chunk and fetches outside
+the lock (still never holding `s.mu` across an RPC — Close and the
+completion check must not wait on the network); other readers of that
+chunk wait on the channel and RE-CHECK: bitmap set → return, leader
+failed → the waiter takes over and retries serially instead of a herd.
+Wake order is the subtle part: success closes the channel only AFTER
+`have[c] = true`, so a woken reader can never miss the bitmap and
+re-fetch a landed chunk. Entries exist only while a fetch runs —
+results are coalesced, never cached (no stale-data path, no eviction
+policy to get wrong).
+
+**GREEN**: both subtests pass (1 RPC / exactly 32), every prior stream
+suite test still green (fetch-only-touched, seek-no-gap,
+completes-exactly-once, error-is-not-silence, concurrent reads,
+promotion, fast path) and `-race` clean over the whole stream suite.
+
+BUGS.md: B-3 → Fixed (F-11); readahead (the old next-step's optional
+half) recorded in the Fixed row as "optimization, not a bug — not
+implemented" so nobody mistakes it for a missed obligation. Open list
+now starts at B-4. Gate: gofmt empty, vet `-tags goolm`, all packages,
+`-race` on the new tests.
