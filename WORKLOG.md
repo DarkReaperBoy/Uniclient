@@ -6615,3 +6615,64 @@ Row 143 (video / round video) → **PRESENT** (186/8/1/5). Row 276 →
 PARTIAL with volume as the single stated reason. Remaining in §11's
 video thread: **slice 222 → PiP** (row 279, the matrix's only MISSING
 row), then AAC for the volume half of 276.
+
+## 2026-09-23 — slice 222: picture-in-picture (parity row 279 — the matrix's last MISSING row)
+
+Executes plan item **222**, the final video-thread slice. Row 279
+("PiP floating window") was the parity matrix's **only MISSING row**;
+it is now PRESENT, along with row 231.
+
+### The design decision, and why it is not an OS window
+Gio gives us two hard facts, both found by reading its source rather
+than assuming:
+1. it exposes **no always-on-top option** on our platforms — the only
+   such flag lives in Gio's macOS backend, which §1.2 bans outright;
+2. it allows **extra native windows only on linux and windows**, never
+   on Android (`separateWindowSupported`, slice 168's own note).
+
+An OS-level PiP window would therefore sit *behind* the main window
+(useless) and not exist at all on Android — a first-class target. So PiP
+is a **draggable floating panel inside the window**: it stays visible
+over every surface, works on both first-class platforms, and the
+deviation from a true OS window is written down in the file header and
+in the parity row rather than glossed over (§1.10).
+
+### What shipped
+- `gui/pip.go`: pure geometry (`pipSize` clamps the target width to
+  1/6–1/3 of the window, derives height from the clip's aspect, and caps
+  height at half the viewport so the panel can never overflow the window
+  it floats in; degenerate metadata falls back to 16:9), `pipClamp`
+  (keeps it grabbable after a resize), delta-based drag (absolute would
+  run away, because the panel travels with the pointer and its local
+  coordinates change every event).
+- Shares the slice-220/221 player cache: **popping out is a hand-off,
+  not a second decoder**, and closing the viewer does not stop playback.
+  Closing the panel pauses the clip — an invisible panel must not burn
+  decode CPU.
+- Entry point: a picture-in-picture icon in the viewer's top bar,
+  rendered only for items `pipEligible` accepts, so a photo can never
+  open an empty panel.
+- Rendered in both window types (main + slice-168 separate chat
+  windows), below the toast/shortcut layers.
+
+### Tests first (§9) — 5 new (30 sub-cases)
+size-vs-viewport with the invariant "a panel always fits" · clamp
+(including a panel wider than the viewport, and a degenerate viewport) ·
+drag that sticks to every edge · lifecycle (parks bottom-right, position
+survives a clip switch, pauses while frozen, idempotent stop) · entry
+eligibility (video/note/photo/undownloaded).
+
+### Verification (§9)
+`gofmt -l` clean · `go vet -tags goolm ./...` clean ·
+`go test -p 2 -tags goolm -count=1 ./...` **exit 0, 12 pkgs** ·
+`-race` clean across every new test in slices 220-222 ·
+`verify.yml` green on **15986674, d4e1699f and 1b6d4dc2** (3 consecutive
+pushes, all jobs).
+
+### Parity after this slice
+**PRESENT 188 (94%) · PARTIAL 8 · MISSING 0 · CORE-ONLY 4** (200 rows).
+Row 279 closed; every remaining row is an honest scope cut, an
+owner-decision (webview), a by-design absence (experimental flags), a
+redundancy (Ayu sqlite), or blocked on a *different* core (streaming).
+Remaining §11 threads: verify the xmpp/bale/rubika/deltachat cores (§8),
+and the first non-prerelease (blocked on the owner).

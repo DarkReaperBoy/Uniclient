@@ -229,9 +229,15 @@ type widgets struct {
 	viewerPlayBtn   widget.Clickable
 	// viewerplay.go
 	viewerVidPlayBtn widget.Clickable
-	viewerPrevBtn    widget.Clickable
-	viewerSaveBtn    widget.Clickable
-	viewerShareBtn   widget.Clickable
+	// mediaview.go: pop the playing video out to picture-in-picture
+	viewerPipBtn widget.Clickable
+	// pip.go: the floating panel's transport + its drag target
+	pipPlayBtn     widget.Clickable
+	pipCloseBtn    widget.Clickable
+	pipTag         *struct{}
+	viewerPrevBtn  widget.Clickable
+	viewerSaveBtn  widget.Clickable
+	viewerShareBtn widget.Clickable
 
 	// membermenu.go
 	memberMenuBtns []widget.Clickable

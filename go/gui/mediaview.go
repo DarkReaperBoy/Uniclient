@@ -432,6 +432,13 @@ func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 			a.revealMedia(it.LocalPath)
 		}
 	}
+	if a.wid.viewerPipBtn.Clicked(gtx) {
+		// Slice 222: pop the playing video out to picture-in-picture — the
+		// viewer closes and the floating panel keeps the same decoder.
+		if ok && pipEligible(it) {
+			a.viewerPopOut(gtx, it)
+		}
+	}
 	if a.wid.viewerDelBtn.Clicked(gtx) {
 		a.mu.Lock()
 		if a.viewer != nil {
@@ -486,6 +493,13 @@ func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.viewerIconBtn(gtx, &a.wid.viewerShareBtn, iconSocialShare, "Share")
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					// Slice 222: PiP exists only for video we can play in-app.
+					if !ok || !pipEligible(it) {
+						return layout.Dimensions{}
+					}
+					return a.viewerIconBtn(gtx, &a.wid.viewerPipBtn, iconActionPictureInPicture, "Picture in picture")
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.viewerIconBtn(gtx, &a.wid.viewerDelBtn, iconActionDelete, "Delete")

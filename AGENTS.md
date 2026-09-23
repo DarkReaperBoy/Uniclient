@@ -516,6 +516,27 @@ is the next task.
         decision, and cache seek rebasing in both playing and paused
         states with clamping at both ends); gofmt+vet clean, `-race`
         clean, full suite exit 0.
+      - slice 222 (2026-09-23): **picture-in-picture — the parity
+        matrix's only MISSING row, now closed (rows 279 + 231).** Two
+        facts from Gio's source, not assumption: it has NO always-on-top
+        option on our platforms (the only one lives in the banned macOS
+        backend), and extra native windows are allowed only on
+        linux/windows — never on Android. An OS window would sit behind
+        the main one and not exist on Android, so PiP is a draggable
+        floating panel inside the window: visible over every surface,
+        working on both first-class platforms, with the deviation
+        written down rather than papered over (§1.10). It shares the
+        220/221 player cache, so popping out is a hand-off instead of a
+        second decoder, closing the viewer keeps playback going, and
+        closing the panel pauses the clip (no invisible decode burn).
+        Drag is delta-based because the panel travels with the pointer —
+        an absolute target would run away. Geometry is pure and tested:
+        pipSize guarantees the panel fits (1/6–1/3 width, aspect height,
+        height capped at half the viewport, 16:9 fallback), pipClamp
+        keeps it grabbable after a resize. 5 tests / 30 sub-cases;
+        gofmt+vet clean, `-race` clean, full suite exit 0.
+        **Parity: PRESENT 188 (94%) · PARTIAL 8 · MISSING 0 · CORE-ONLY
+        4** — MISSING is zero for the first time.
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"

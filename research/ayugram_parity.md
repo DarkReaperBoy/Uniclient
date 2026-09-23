@@ -228,7 +228,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Mic/speaker device pickers | Device dropdowns | PRESENT (slice 103: Settings → Calls — mic/speaker/camera pickers over the engine's real OS device enumeration (pactl/ALSA/v4l2 on Linux, honest Default-sentinel elsewhere), selection persists (SetCallAudioDevice) and re-renders live; a stale current device selects nothing, never lies) | gui/callsettings.go + engine GetAudioDevices/SetCallAudioDevice | P2 |
 | Call rating dialog | Rate after call | PRESENT (slice 179: ended calls that connected and lasted >= 10s open the rating card — 5 star taps tinted accent, optional comment, Send walks engine.SendCallRating (calls.setRating), Skip dismisses; missed/declined and very short calls never rate) | gui/callrate.go + engine SendCallRating | P3 |
 | Incoming call UI | Ringing overlay w/ accept/decline | PRESENT (slice 101: EventIncomingCall raises the ringing overlay — peer avatar/name resolved from the chat list, green answer / red decline round buttons, optimistic connecting on accept; Esc declines a ring but never silently hangs up an active call) | gui/callui.go + engine EventIncomingCall | P1 |
-| Video bubbles + PiP | Floating video, picture-in-picture | CORE-ONLY | engine video-frame APIs (CORE-ONLY) | P3 |
+| Video bubbles + PiP | Floating video, picture-in-picture | PRESENT (slices 219-222: pure-Go h264vid decode, in-bubble round-note playback, in-app viewer transport, and the floating PiP panel — the CORE-ONLY verdict expired with slice 219) | gui/h264player.go + gui/viewerplay.go + gui/pip.go + go/h264vid | P3 |
 | Call in chat header bar | Active call bar | PRESENT (slice 70: group-call live bar under the chat header — title, live participant count from engine.GetGroupCall (polled), Join button → engine.JoinGroupCall) | gui/callbar.go | P1 |
 
 ## 10. Ayu-specific extras (the differentiators) — scope: TG
@@ -276,7 +276,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Playback controls (video) | Play/pause/seek/volume/fullscreen | PARTIAL (slice 221: **play/pause, scrub-to-seek and elapsed/total now run IN-APP** — the viewer is the fullscreen surface; the music bar's seekBar is shared through seekBarDo so one widget serves both real targets, and scrubbing rebases the GUI playhead so it cannot snap back. Remaining: **volume only** — Telegram ships H.264+AAC and there is no pure-Go AAC decoder, so a slider would control nothing; §1.10 says do not draw it. The system-player handoff still carries audio) | gui/viewerplay.go viewerVideoBar/viewerPlay + gui/seekbar.go seekBarDo + go/h264vid | P1 |
 | Zoom/pan + double-click | Gesture zoom | PRESENT (double-click zoom 1x↔2.5x anchored at cursor + drag pan w/ clamp; pinch/wheel later) | gui/mediaview.go processViewerImageEvents | P2 |
 | Download + share + delete in viewer | Toolbar actions | PRESENT (save→RequestDownload/reveal path; share→forward picker; delete→confirm dialog→engine.DeleteMessage) | gui/mediaview.go | P1 |
-| PiP floating window | Video in floating window | MISSING | gui/os window + engine video frames | P3 |
+| PiP floating window | Video in floating window | PRESENT (slice 222 — the matrix's only MISSING row, now closed). A draggable floating panel keeps the clip playing over every surface while you keep using the app; shares the slice-220/221 decoder so popping out is a hand-off, not a second decode, and closing it pauses the clip. Deviation reported honestly: Gio has no always-on-top flag on our platforms (its only one is in the banned macOS backend) and allows extra native windows only on linux/windows — never on Android — so it is an in-window panel rather than an OS window, which is why it stays visible everywhere including Android | gui/pip.go + gui/mediaview.go viewerPopOut | P3 |
 | Story viewer | Full story playback w/ reactions/reply/share | PRESENT (slice 104: full-window viewer fed by engine.FetchPeerStories — progress segments, left/right tap zones + arrow keys, caption + views/date meta, image stories render inline (async decode), video stories honestly hand off to the system player; slice 164: REACTIONS + REPLY + SHARE — the bottom action bar (views/reactions stats, reaction heart, reply, share): heart tap opens the emoji strip (account available reactions, favorite-choices capping) or removes the sent reaction (stories.sendReaction w/ ReactionEmpty, optimistic flip + error revert, own state from StoryItem.SentReaction); reply opens the inline composer → engine.SendMessage with the story:<id> ReplyToID (inputReplyToStory, Enter submits); share → stories.exportStoryLink → clipboard + toast; own stories hide react/reply (§1.10) and keep share; the composer owns the keyboard while armed (arrows/editing) | gui/stories.go + cores ReactToStory/ExportStoryLink + engine ReactToStory/ExportStoryLink | P2 |
 | Streaming video in chat | Playback without full download | CORE-ONLY | engine media streaming (CORE-ONLY) | P2 |
 
@@ -319,24 +319,25 @@ All P0/P1 rows are PRESENT except honest scope cuts below. The program
 surface to ~89%; what remains is either protocol/constitution-blocked,
 engine-gated, or an honest scope cut — never dead UI (§1.10).
 
-1. **PiP floating window (MISSING)** + **Video bubbles + PiP / Streaming
-   video in chat (CORE-ONLY)** — BOTH BLOCKERS ARE NOW GONE:
-   - VP9 side solved 2026-09-16 (slice 216 — video stickers/emoji play
+1. **PiP floating window + Video bubbles — CLOSED (slices 219-222).**
+   The whole thread ran to completion:
+   - VP9 solved 2026-09-16 (slice 216 — video stickers/emoji play
      in-chat through govpx; see research/video_stickers.md);
-   - **H.264 side solved 2026-09-23 (slice 219)** — the 2026-09-11 and
+   - **H.264 solved 2026-09-23 (slice 219)** — the 2026-09-11 and
      2026-09-16 passes both concluded "no pure-Go full H.264 decoder
      exists" (hi264 & go-openh264 intra-only, gomedia cgo). That
      conclusion was wrong: it missed `liqmix/govid`, present since
-     2026-03-14. Verified rather than trusted — our Constrained-Baseline
-     round-video fixture and our High+CABAC+B-frames fixture both decode
-     **bit-exact against ffmpeg** (12 frames × 221,184 samples, SHA-256
-     pinned in `go/h264vid` tests and re-derived by ffmpeg at test time).
-     Shipped as `go/h264vid` + the shared `go/vcodec` decode budget.
-   What remains is GUI wiring, not research: **slice 220 DONE** (round
-   notes play in place, looping + circular crop) → slice 221 (viewer
-   controls) → slice 222 (PiP). In-app MP3/voice playback, waveform
-   seek, poster+download+ system-player handoff all shipped around the
-   block.
+     2026-03-14. Verified rather than trusted — both of our fixtures
+     decode **bit-exact against ffmpeg** (SHA-256 pinned in
+     `go/h264vid` tests, re-derived by ffmpeg at test time);
+   - **slice 220** round notes play inline in the bubble (circular,
+     looping, tap to pause);
+   - **slice 221** the viewer plays video in-app with play/pause,
+     scrub-to-seek and clocks;
+   - **slice 222** picture-in-picture — a draggable floating panel
+     that keeps playing over every surface.
+   In-app MP3/voice playback, waveform seek, poster+download+
+   system-player handoff all shipped around the block.
 2. **Bot mini-apps (webview panels) (CORE-ONLY)** — needs an embedded
    webview ≙ owner-level decision (pure-Go constitution §1). The engine
    surface (RequestBotWebView) exists; no GUI until the decision.
@@ -378,9 +379,11 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
     (help.getCountriesList country picker + additional-channels picker,
     both riding the wire builders). Remaining: card-funded premium
     giveaway creation (external checkout, honest absence).
-11. **Video playback rows (PARTIAL)** — row 143 CLOSED by slices 220+221;
-    row 276 now differs only by **volume**, which needs a pure-Go AAC
-    decoder (not yet drawn, §1.10). PiP remains slice 222 — see (1).
+11. **Video playback rows** — row 143 PRESENT (slices 220+221); row 276
+    PARTIAL for **volume only**, which needs a pure-Go AAC decoder (not
+    drawn, §1.10). Row 279 (PiP) PRESENT via slice 222; row 231 PRESENT.
+    Streaming-without-download (row 281) stays CORE-ONLY on the engine
+    streaming core — see (1).
 12. **Chat settings (PARTIAL)** — link-preview/message-actions/swipe/
     corner-reaction/reply-pill all shipped; remaining: nothing user-
     visible (row kept PARTIAL only for the ForumTabs-gated extras).
@@ -419,20 +422,24 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (200 feature rows)
 
-- PRESENT: 186 (93%) — row 143 (video / round video) flipped by slices
-  220+221: round notes play inline in the bubble, regular video plays in
-  the viewer with transport controls. (Prior count 185/9/1/5 as of
-  2026-09-15; rows 255+256 flipped by slice 215.)
+- PRESENT: 188 (94%) — rows 143 + 231 + 279 flipped by slices 220-222
+  (round notes play inline, video plays in the viewer with transport
+  controls, and PiP is closed). Prior count 186 after row 143; the
+  original recount was 185/9/1/5 on 2026-09-15.
 - PARTIAL: 8 — honest scope cuts (local premium toggle, chat-settings
   extras, QR scan, stars raw-gifting, chat-background upload, saved-
   messages remainder) · volume-only on row 276 (no pure-Go AAC decoder;
   §1.10 → the control is not drawn rather than faked) · avatar-corner
   micro-polish of the online badge · checkout-gated (giveaway launch)
-- MISSING: 1 — PiP (decoder landed in slice 219; GUI slice 222)
-- CORE-ONLY: 5 — video frames ×2 (slice 220 shipped the round-note half;
-  the regular-video half lands with the viewer player in slice 221) ·
-  webview (owner-decision) · experimental flags (dead-UI ban, by design)
-  · Ayu sqlite (already served by the engine cache)
+- MISSING: **0** — closed by slice 222 (PiP).
+- CORE-ONLY: 4 — webview (owner-decision) · experimental flags (dead-UI
+  ban, by design) · Ayu sqlite (already served by the engine cache) ·
+  streaming without full download (row 281; needs engine media
+  streaming)
+- MISSING: 0 — closed by slice 222 (PiP was the last one)
+- CORE-ONLY: 4 — webview (owner-decision) · experimental flags (dead-UI
+  ban, by design) · Ayu sqlite (already served by the engine cache) ·
+  streaming (row 281)
 
 → History: 2026-09-08 after slices 1-9: PRESENT 24 (12%) · 2026-09-13
   after slices 172-174 + truth pass: PRESENT 169 (84%) · after slice 185:

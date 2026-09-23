@@ -30,6 +30,13 @@ func (a *App) Root(gtx layout.Context) {
 	frameMu.Lock()
 	defer frameMu.Unlock()
 
+	// Window size, kept for overlays that are sized against the VIEWPORT
+	// rather than their own container (slice 222: picture-in-picture — the
+	// viewer's top bar only ever sees a strip of it).
+	if sz := gtx.Constraints.Max; sz.X > 0 && sz.Y > 0 {
+		a.vpW, a.vpH = sz.X, sz.Y
+	}
+
 	// GUI-goroutine hop: a background goroutine scheduled a chat to open
 	// (e.g. after group/channel creation). openChat must run on this loop.
 	a.consumePendingOpen()
@@ -66,6 +73,9 @@ func (a *App) Root(gtx layout.Context) {
 		if f.call != nil {
 			a.layoutCallOverlay(gtx, f)
 		}
+		// Picture-in-picture (slice 222): floats over this window's chat
+		// surface too, below the toast + shortcut layers.
+		a.layoutPip(gtx, f)
 		a.layoutToast(gtx, f)
 		a.layoutShortcuts(gtx, f)
 		return
@@ -133,6 +143,9 @@ func (a *App) Root(gtx layout.Context) {
 	// sidebar renders before the chat pane, so drawing there would land
 	// underneath it. Passive card (no input areas).
 	a.layoutChatPeek(gtx, f)
+	// Picture-in-picture (slice 222, parity row 279): floats over every
+	// surface below it, so you can watch while you keep using the app.
+	a.layoutPip(gtx, f)
 	a.layoutToast(gtx, f)
 	// Global keyboard layer (slice 43): registered last so surface-local
 	// key handlers consume their events first.

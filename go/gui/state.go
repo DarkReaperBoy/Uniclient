@@ -549,6 +549,14 @@ type App struct {
 	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
 	viewer *viewerState
 
+	// picture-in-picture panel (slice 222, parity row 279): shared under
+	// mu like the viewer; its geometry is mutated on the frame loop only.
+	pip *pipState
+
+	// Last window size seen by Root (frame-loop only) — overlays that are
+	// sized against the viewport rather than their own container read it.
+	vpW, vpH int
+
 	// Instant View reader overlay (slice 176): the open IV page + its
 	// navigation history, shared under mu like the viewer.
 	iv *ivState
@@ -2284,6 +2292,7 @@ func (a *App) snapshot() frame {
 		folderMenu:       a.folderMenu,
 		headerMenu:       a.headerMenu,
 		viewer:           a.viewer,
+		pip:              a.pip,
 		iv:               a.iv,
 		drawerOpen:       a.drawerOpen,
 		contactsOpen:     a.contactsOpen,
@@ -2768,6 +2777,9 @@ type frame struct {
 
 	// fullscreen media viewer (slice 9)
 	viewer *viewerState
+
+	// picture-in-picture panel (slice 222)
+	pip *pipState
 
 	// Instant View reader overlay (slice 176)
 	iv *ivState

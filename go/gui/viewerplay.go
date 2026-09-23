@@ -147,6 +147,29 @@ func (c *h264PlayerCache) seek(msgID string, frac float64) {
 	c.mu.Unlock()
 }
 
+// viewerPopOut moves the viewer's video into the floating PiP panel and
+// closes the viewer. The clip keeps the SAME cache entry, so playback
+// continues instead of restarting — popping out is a hand-off, not a
+// second decoder.
+func (a *App) viewerPopOut(gtx layout.Context, it engine.SharedMediaItem) {
+	if !viewerVideoActive(it) {
+		// Not playing yet: kick the parse off; the panel starts painting
+		// as soon as publish() lands (ensureH264Player invalidates).
+		a.viewerPlayVideo(it)
+	}
+	vpW, vpH := a.vpW, a.vpH
+	if vpW <= 0 || vpH <= 0 { // first frame, before Root recorded a size
+		vpW, vpH = gtx.Constraints.Max.X, gtx.Constraints.Max.Y
+	}
+	vidW, vidH := it.Width, it.Height
+	if st, has := h264Players.peek(it.MsgID); has && st.video != nil {
+		vidW, vidH = st.video.Width, st.video.Height
+	}
+	a.startPip(it.MsgID, vidW, vidH, vpW, vpH)
+	a.closeViewer()
+	a.invalidate()
+}
+
 // ── viewer wiring ──────────────────────────────────────────────────────
 
 // viewerVideoActive reports whether the current item has a live in-app
