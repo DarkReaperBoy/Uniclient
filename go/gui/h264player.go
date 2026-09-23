@@ -335,6 +335,24 @@ func (c *h264PlayerCache) reset(msgID string) {
 	}
 }
 
+// resetAll drops every entry AND closes its stream sources, returning
+// the msgIDs it released — the seam openChat calls when the user leaves
+// a chat (BUGS.md B-4): a view's fds die at the view boundary instead
+// of at the 48-entry eviction. Unlike reset() it forgets the shells
+// entirely: nothing resident for a chat we are no longer showing.
+func (c *h264PlayerCache) resetAll() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ids := make([]string, 0, len(c.players))
+	for id, p := range c.players {
+		stopH264Player(p)
+		closeSrc(p)
+		ids = append(ids, id)
+		delete(c.players, id)
+	}
+	return ids
+}
+
 // markReading claims the async read slot; false while one is in flight.
 func (c *h264PlayerCache) markReading(msgID string) bool {
 	c.mu.Lock()

@@ -7586,3 +7586,46 @@ half) recorded in the Fixed row as "optimization, not a bug — not
 implemented" so nobody mistakes it for a missed obligation. Open list
 now starts at B-4. Gate: gofmt empty, vet `-tags goolm`, all packages,
 `-race` on the new tests.
+
+---
+
+## Slice 234 (2026-09-24) — B-4: close-on-stop at the view boundary
+(+ B-9 found and fixed on the way)
+
+B-4's next step named the surfaces ("leaving the viewer/chat resets
+entries for that view"). Researched where those boundaries actually
+are — `closeViewer` (mediaview.go) and `openChat` with a CHANGED key
+(state.go, next to the existing `flushDraft` guard) — and confirmed
+NEITHER touched the h264 cache (grepped for stopAll/resetAll-style
+hooks: none exist anywhere).
+
+**RED (behavioral, stage A)**: `TestCloseViewerReleasesStreamSource`
+compiled against today's code and failed exactly as the bug reads —
+"stream reader still open after its view closed — fd held until
+48-entry eviction".
+
+**Fix**: `resetAll()` on the cache (stop producer + close source +
+drop the shell, returning released ids — shells are pointless for a
+cat we are no longer showing); `closeViewer` resets the viewed item;
+`openChat` calls `leaveChatMediaReset()` only when the chat really
+CHANGED (same guard as flushDraft — re-tapping the same chat keeps its
+state). Lock discipline: the hook runs without `a.mu` because
+`closeSrc` reaches the engine's file guard.
+
+**Found while reading the stop paths (B-9)**: `stopH264Player` stops
+the PICTURE only, `videoAudioLoop` re-arms sound only from the draw
+path ("a stopped video never restarts its sound") — and NOTHING called
+`videoAudioPause` on chat change or viewer close. A round note's
+current audio track therefore kept playing out behind the next chat:
+sound without a picture (§1.10), bounded by track length. Logged as
+its own entry (F-13, not folded into F-12) and fixed at the SAME two
+seams — `videoAudioPause` is own-track-only (`videoAudioMine`) and a
+no-op on a nil engine, so leaving a chat can never pause someone else's
+music. Honest coverage note: the audio call is glue over the
+already-tested videoaudio logic; what the unit tests prove is the fd/
+state half, the audio half is review-evidenced.
+
+**GREEN**: all three new tests, the full gui suite, `-race` clean.
+BUGS.md: B-4 → Fixed (F-12) + F-13 (B-9); open list starts at B-5.
+Gate: gofmt empty, vet `-tags goolm`, all packages, `-race` on the new
+tests.

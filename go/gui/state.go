@@ -1333,6 +1333,21 @@ func (a *App) consumePendingOpen() {
 	a.openChat(*k, title)
 }
 
+// leaveChatMediaReset releases the view-scoped inline media state when
+// the user leaves a chat: streamed video-note entries own open stream
+// readers that (before B-4) only closed at reset/replace or the
+// 48-entry eviction, and the view's audio track was never paused here —
+// the draw-driven loop re-arm stops with the picture, but the CURRENT
+// track kept playing out behind the next chat (BUGS.md B-4 + B-9).
+// Called WITHOUT a.mu held: closeSrc reaches the engine's file guard.
+// Pausing is own-track-only inside videoAudioPause, so leaving a chat
+// can never pause someone else's music.
+func (a *App) leaveChatMediaReset() {
+	for _, id := range h264Players.resetAll() {
+		a.videoAudioPause(id)
+	}
+}
+
 func (a *App) openChat(k chatKey, title string) {
 	a.hideChatPeek() // the chat's own content replaces the hover preview
 
@@ -1363,6 +1378,7 @@ func (a *App) openChat(k chatKey, title string) {
 	}
 	if prev != nil && (prev.AccountID != k.AccountID || prev.ChatID != k.ChatID) {
 		a.flushDraft(*prev)
+		a.leaveChatMediaReset()
 	}
 
 	a.mu.Lock()

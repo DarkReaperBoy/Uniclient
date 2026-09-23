@@ -250,3 +250,92 @@ func TestVideoNotePowerGate(t *testing.T) {
 		t.Error("panel flag blocked the in-chat loop (panel bits are panel-scoped)")
 	}
 }
+
+// TestCloseViewerReleasesStreamSource: BUGS.md B-4 — closing the media
+// viewer must release the viewed clip's open stream reader NOW; the
+// entry otherwise holds that fd until the 48-entry eviction. Pre-patch
+// closeViewer only nils a.viewer, so this test is RED before the patch.
+func TestCloseViewerReleasesStreamSource(t *testing.T) {
+	h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
+	t.Cleanup(func() {
+		h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
+	})
+
+	video := parseRoundFixture(t)
+	src := &countCloser{data: []byte("streaming source stub")}
+	if pl := h264Players.publishWithSrc("mv1", "", video, true, src); pl == nil {
+		t.Fatal("publishWithSrc returned nil")
+	}
+	if _, have := h264Players.peek("mv1"); !have {
+		t.Fatal("entry missing after publish")
+	}
+
+	a := &App{}
+	a.viewer = &viewerState{
+		items: []engine.SharedMediaItem{{MsgID: "mv1"}},
+		index: 0,
+	}
+	a.closeViewer()
+
+	if a.viewer != nil {
+		t.Error("viewer survived closeViewer")
+	}
+	if !src.isClosed() {
+		t.Error("stream reader still open after its view closed — fd held until 48-entry eviction (B-4)")
+	}
+	if st, have := h264Players.peek("mv1"); have && (st.parsed || st.player != nil || st.playing) {
+		t.Error("clipped state still live after its view closed")
+	}
+}
+
+// TestH264CacheResetAllReleasesEverything: leaving a chat must drop
+// every entry AND close its stream reader (not merely clear fields) —
+// the seam openChat calls on a real chat change (BUGS.md B-4).
+func TestH264CacheResetAllReleasesEverything(t *testing.T) {
+	h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
+	t.Cleanup(func() {
+		h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
+	})
+
+	video := parseRoundFixture(t)
+	s1 := &countCloser{data: []byte("a")}
+	s2 := &countCloser{data: []byte("b")}
+	h264Players.publishWithSrc("leave-a", "", video, true, s1)
+	h264Players.publishWithSrc("leave-b", "", video, false, s2)
+
+	ids := h264Players.resetAll()
+	if len(ids) != 2 {
+		t.Errorf("resetAll returned %d ids (%v), want both released", len(ids), ids)
+	}
+	for _, id := range []string{"leave-a", "leave-b"} {
+		if _, have := h264Players.peek(id); have {
+			t.Errorf("entry %q survived resetAll", id)
+		}
+	}
+	if !s1.isClosed() || !s2.isClosed() {
+		t.Errorf("stream readers not closed (a=%v b=%v) — fd held past the view (B-4)", s1.isClosed(), s2.isClosed())
+	}
+}
+
+// TestLeaveChatReleasesStreamSources: the openChat seam end-to-end on
+// a zero-value App (pause is a no-op without an engine; the fd half is
+// the contract under test).
+func TestLeaveChatReleasesStreamSources(t *testing.T) {
+	h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
+	t.Cleanup(func() {
+		h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
+	})
+
+	video := parseRoundFixture(t)
+	src := &countCloser{data: []byte("chat view")}
+	h264Players.publishWithSrc("chat-clip", "", video, true, src)
+
+	(&App{}).leaveChatMediaReset()
+
+	if _, have := h264Players.peek("chat-clip"); have {
+		t.Error("entry survived the chat leave")
+	}
+	if !src.isClosed() {
+		t.Error("stream reader still open after leaving its chat (B-4)")
+	}
+}

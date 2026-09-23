@@ -257,8 +257,20 @@ func (a *App) openViewerAt(k chatKey, title, kind, msgID string) {
 // closeViewer dismisses the overlay.
 func (a *App) closeViewer() {
 	a.mu.Lock()
+	v := a.viewer
 	a.viewer = nil
 	a.mu.Unlock()
+	if v != nil && v.index >= 0 && v.index < len(v.items) {
+		// The viewed clip has no view anymore: release its stream reader
+		// now instead of at the 48-entry eviction (BUGS.md B-4), and
+		// pause its own audio track — the draw-driven loop re-arm stops
+		// with the picture, but the current track would otherwise play
+		// out behind the chat (BUGS.md B-9). videoAudioPause is
+		// own-track-only and no-op on a nil engine.
+		msgID := v.items[v.index].MsgID
+		h264Players.reset(msgID)
+		a.videoAudioPause(msgID)
+	}
 	a.viewerResetGesture()
 	a.invalidate()
 }
