@@ -7124,3 +7124,35 @@ placeholder `var _` lines, rewritten before any test ran.
 rewritten; the only PARTIAL rows left are local premium (dead UI until
 something is gated) and card-funded giveaway (external checkout) —
 both documented honest absences, not unfinished code.
+
+## 2026-09-23 — parity program CLOSED (§11 checklist item [~] → [x])
+
+CI went green on **4a34b44f** (slice 227), the 11th consecutive green
+verify run this session (15986674 → d4e1699f → 1b6d4dc2 → a7e4bd6e →
+d4fcacf4 → 9b2c95a4 → 5c05c8da → 235cf412 → 336b787a → c385abc0 →
+4a34b44f).
+
+That closes the last row that still had buildable work, so the §11
+parity item moves to `[x]`. The closing state was verified the way the
+program learned to count — by parsing every row's status cell, not by
+typing: **PRESENT 194 (97%) · PARTIAL 2 · MISSING 0 · CORE-ONLY 4,
+200 rows, buckets summed**. The gap list's 1–20 items were re-read
+against the rows in the same pass (CLOSED/PARTIAL/CORE-ONLY all agree
+after slices 226–227).
+
+What the non-PRESENT rows are, in case anyone reads them as unfinished:
+
+- **PARTIAL (2)** — both are decisions, recorded with rationale where
+  the row lives: local premium toggle (nothing is gated in the client
+  today, so the control would be pure dead UI, §1.10) and card-funded
+  giveaway launch (external checkout — real-money purchase UI belongs
+  to the store, not to us).
+- **CORE-ONLY (4)** — webview mini-apps (owner decision), experimental
+  flags (dead-UI ban), Ayu sqlite (the engine cache already serves that
+  role), streaming-without-download (core exists; the GUI slice is its
+  own line in §11 item 1).
+
+§11 now reads: 22 `[x]`, one `[~]` and one `[ ]` — both remaining items
+need the owner by definition (a real phone/email account to complete
+bale/rubika/xmpp/deltachat sign-in, and approval for the first
+non-prerelease). No open item has buildable work left in it.

@@ -396,12 +396,26 @@ is the next task.
       (visual pass lands with a real voice-capable account)
 - [x] Dispatch-only verify workflow (§5) — full gate + cross-builds +
       Xvfb GUI smoke with screenshot artifacts
-- [~] **AyuGram 1:1 parity program (§1.11 mandate):** mirror
-      AyuGramDesktop feature-by-feature in `gui/` (source-level
+- [x] **AyuGram 1:1 parity program (§1.11 mandate) — CLOSED** (slices
+      200-227, 2026-09-14..23): mirror AyuGramDesktop feature-by-feature
+      in `gui/` (source-level
       comparison, tracked in research/ayugram_parity.md); extend cores
       where functionality is missing; Telegram core+GUI = exact 1:1 first
       (folders sync, ghost mode, QR verify, message actions, settings,
       search, media...), other cores follow
+      - **Final state (machine-counted, buckets sum to 200): PRESENT 194
+        (97%) · PARTIAL 2 · MISSING 0 · CORE-ONLY 4.** The two PARTIAL
+        rows are deliberate scope decisions with the rationale kept in
+        the matrix — local premium toggle (nothing is gated
+        client-side yet, so the toggle would be dead UI per §1.10) and
+        card-funded giveaway launch (external checkout) — and the four
+        CORE-ONLY rows are by-design or owner-gated (webview mini-apps:
+        owner decision; experimental flags: dead-UI ban; Ayu sqlite:
+        served by the engine cache; streaming-without-download: the
+        core exists, its GUI work is item 1 below). **No row is MISSING
+        and nothing further here is buildable without an owner
+        decision** — which is why this item closes rather than stays
+        open. The per-slice log continues below.
       - slices 200–205 (2026-09-14): Windows native toasts completed —
         transport (slice 200), own AUMID via pure-Go IShellLinkW +
         IPropertyStore Start-Menu shortcut (201), protocol-activation
