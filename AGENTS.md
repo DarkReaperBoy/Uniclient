@@ -505,9 +505,15 @@ is the next task.
         runs off the cache lock, then the GUI playhead is rebased onto
         the target, because without the rebase FrameAt keeps painting
         from the old clock and scrubbing appears to snap back.
-        **Volume is deliberately absent**: Telegram ships H.264+AAC and
-        there is still no pure-Go AAC decoder, so a slider would control
-        nothing — §1.10 forbids faking it, so the control is not drawn
+        **Volume is deliberately absent**, and the original reason for
+        it was **wrong**: there *is* a pure-Go AAC decoder
+        (`github.com/tphakala/go-aac`, measured 4/4 byte-identical to
+        ffmpeg here — the permissive alternative, `arabian9ts/aac-go`,
+        measured broken at 17 dB SNR on stereo content; see
+        `research/aac_decoder.md`). What is actually missing is the
+        AAC **audio path**: MP4 audio-track demux plus A/V sync against
+        the video clock. Until that ships, §1.10 forbids drawing a
+        slider that would control nothing, so the control stays undrawn
         and the system-player handoff keeps carrying audio. A parse
         failure toasts and hands the file to the system player instead
         of leaving a dead play button.
@@ -537,6 +543,23 @@ is the next task.
         gofmt+vet clean, `-race` clean, full suite exit 0.
         **Parity: PRESENT 188 (94%) · PARTIAL 8 · MISSING 0 · CORE-ONLY
         4** — MISSING is zero for the first time.
+      - research correction (2026-09-23): **a pure-Go AAC decoder does
+        exist.** Slices 221-222 shipped "there is no pure-Go AAC
+        decoder" as the reason row 276's volume stays undrawn. It was
+        never tested — the same inherited-verdict failure that had
+        already hidden `govid` for H.264 — so it was re-run under an
+        ffmpeg gate: `github.com/tphakala/go-aac` is **4/4 byte-
+        identical to ffmpeg's `aac_fixed` decoder** (stereo 48 kHz,
+        mono 44.1 kHz, pink-noise stereo, a Telegram-shaped H.264+AAC
+        MP4), while the permissively-licensed `arabian9ts/aac-go` was
+        **rejected on measurement** — 17.3 dB SNR and 88% of samples
+        wrong on stereo content, even though its own 35 tests pass.
+        Pure Go, no cgo. Row 276 therefore needs an AAC **audio path**
+        (MP4 audio demux + A/V sync), not a decoder. Tables, method and
+        the license note live in `research/aac_decoder.md`; row 276 and
+        this note were corrected in place, and past WORKLOG entries
+        were left exactly as written — a log edited after the fact is
+        not a log.
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"

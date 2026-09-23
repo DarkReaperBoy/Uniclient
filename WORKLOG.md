@@ -6676,3 +6676,56 @@ owner-decision (webview), a by-design absence (experimental flags), a
 redundancy (Ayu sqlite), or blocked on a *different* core (streaming).
 Remaining §11 threads: verify the xmpp/bale/rubika/deltachat cores (§8),
 and the first non-prerelease (blocked on the owner).
+
+## 2026-09-23 — research correction: a pure-Go AAC decoder DOES exist (slice 223 groundwork)
+
+**Why this entry exists.** Slices 221–222 shipped with the statement "there is
+no pure-Go AAC decoder", used as the reason row 276's volume control stays
+undrawn. That statement was **never tested** — it was carried forward as
+plausible ("codecs need C"), exactly the failure mode `AGENTS.md` warns about
+for `research/` files, and exactly the failure that had already hidden `govid`
+for H.264. So it was re-run under the same gate, and **it was wrong.**
+
+### The gate
+Fixtures generated locally, decoded by the candidate library *and* by ffmpeg's
+fixed-point AAC decoder, compared by SHA-256:
+
+    ffmpeg -c:a aac_fixed -i in.aac -c:a pcm_s16le -f s16le ref.raw
+
+(`aac_fixed` is a **decoder** — it has to precede `-i`. The first attempt put it
+after `-i`, ffmpeg reported `Unknown encoder 'aac_fixed'`, and the "comparison"
+ran against a reference that did not exist. Caught only because the harness
+checks byte counts, not just pass/fail.)
+
+### Results
+- **`github.com/tphakala/go-aac` (LGPL-2.1): 4/4 byte-identical** — stereo
+  48 kHz, mono 44.1 kHz, pink-noise stereo, and a Telegram-shaped H.264+AAC MP4.
+  It is a function-by-function port of FFmpeg's own fixed-point decoder pinned
+  to a specific FFmpeg commit, with its own differential gates (`PROVENANCE.md`).
+  Pure Go, no cgo.
+- **`github.com/arabian9ts/aac-go` (Apache-2.0): rejected on measurement.**
+  Permissive license, zero dependencies, its own 35 tests pass, frame counts
+  correct — but mono/tone content measures 74 dB SNR while **pink-noise stereo
+  measures 17.3 dB with 88% of samples wrong by more than 64 LSB**. A codec
+  that is right on some inputs and broken on others would ship as "audio works"
+  and fail on real Telegram content. Being permissive does not make it correct.
+
+Two more pure-Go AAC decoders exist (`skrashevich/go-aac` LGPL-3.0,
+`llehouerou/go-aac` GPL-2.0); unmeasured, therefore unclaimed.
+
+### Consequence for row 276
+The blocker was never the decoder — it is the **audio path**: MP4 audio-track
+demux (raw access units + `AudioSpecificConfig`, which `go-aac` accepts via
+`WithRawStream`; `aac-go` has no ASC path at all) and A/V sync against the video
+clock. So row 276 stays PARTIAL, but for an honest *engineering* reason instead
+of a false *impossibility*. **No behaviour changed in this entry** — it corrects
+the record only.
+
+- New: `research/aac_decoder.md` (method, tables, measurements, license note).
+- Corrected in place: `research/ayugram_parity.md` row 276 + its two summaries,
+  and the `AGENTS.md` §11 slice-221 volume note. **Past WORKLOG entries were
+  deliberately left as written** — a log that is edited after the fact is not
+  a log; the correction lives here, where it can be seen next to the claim.
+- HE-AAC (SBR/PS) is out of scope in every candidate, including `go-aac` —
+  Telegram video/video-note audio is AAC-LC, so that falls back to the system
+  player when encountered.

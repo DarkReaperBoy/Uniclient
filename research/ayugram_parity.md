@@ -273,7 +273,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Full-screen overlay | Photo/video/doc viewer w/ caption | PRESENT (near-black scrim, top bar w/ title+date, caption, save/share/delete, Esc/arrows) | gui/mediaview.go | P0 |
 | Prev/next + group thumbs | Navigate album/chat media | PRESENT (side chevrons + filmstrip over engine.GetSharedMedia; info-panel gallery opens it too) | gui/mediaview.go + engine GetSharedMedia | P1 |
-| Playback controls (video) | Play/pause/seek/volume/fullscreen | PARTIAL (slice 221: **play/pause, scrub-to-seek and elapsed/total now run IN-APP** — the viewer is the fullscreen surface; the music bar's seekBar is shared through seekBarDo so one widget serves both real targets, and scrubbing rebases the GUI playhead so it cannot snap back. Remaining: **volume only** — Telegram ships H.264+AAC and there is no pure-Go AAC decoder, so a slider would control nothing; §1.10 says do not draw it. The system-player handoff still carries audio) | gui/viewerplay.go viewerVideoBar/viewerPlay + gui/seekbar.go seekBarDo + go/h264vid | P1 |
+| Playback controls (video) | Play/pause/seek/volume/fullscreen | PARTIAL (slice 221: **play/pause, scrub-to-seek and elapsed/total now run IN-APP** — the viewer is the fullscreen surface; the music bar's seekBar is shared through seekBarDo so one widget serves both real targets, and scrubbing rebases the GUI playhead so it cannot snap back. Remaining: **volume only** — the gap is the AAC **audio path** (MP4 audio demux + A/V sync), not a decoder: `github.com/tphakala/go-aac` is pure Go and measured **4/4 byte-identical to ffmpeg here** (the permissive alternative was measured broken), see `research/aac_decoder.md`. §1.10 keeps the slider undrawn until audio actually ships; the system-player handoff still carries audio) | gui/viewerplay.go viewerVideoBar/viewerPlay + gui/seekbar.go seekBarDo + go/h264vid | P1 |
 | Zoom/pan + double-click | Gesture zoom | PRESENT (double-click zoom 1x↔2.5x anchored at cursor + drag pan w/ clamp; pinch/wheel later) | gui/mediaview.go processViewerImageEvents | P2 |
 | Download + share + delete in viewer | Toolbar actions | PRESENT (save→RequestDownload/reveal path; share→forward picker; delete→confirm dialog→engine.DeleteMessage) | gui/mediaview.go | P1 |
 | PiP floating window | Video in floating window | PRESENT (slice 222 — the matrix's only MISSING row, now closed). A draggable floating panel keeps the clip playing over every surface while you keep using the app; shares the slice-220/221 decoder so popping out is a hand-off, not a second decode, and closing it pauses the clip. Deviation reported honestly: Gio has no always-on-top flag on our platforms (its only one is in the banned macOS backend) and allows extra native windows only on linux/windows — never on Android — so it is an in-window panel rather than an OS window, which is why it stays visible everywhere including Android | gui/pip.go + gui/mediaview.go viewerPopOut | P3 |
@@ -380,8 +380,10 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
     both riding the wire builders). Remaining: card-funded premium
     giveaway creation (external checkout, honest absence).
 11. **Video playback rows** — row 143 PRESENT (slices 220+221); row 276
-    PARTIAL for **volume only**, which needs a pure-Go AAC decoder (not
-    drawn, §1.10). Row 279 (PiP) PRESENT via slice 222; row 231 PRESENT.
+    PARTIAL for **volume only**, which needs the AAC audio path (MP4
+    audio demux + A/V sync) — the decoder itself now exists and is
+    verified, so this is remaining *work*, not a blocker (`research/
+    aac_decoder.md`; control not drawn, §1.10). Row 279 (PiP) PRESENT via slice 222; row 231 PRESENT.
     Streaming-without-download (row 281) stays CORE-ONLY on the engine
     streaming core — see (1).
 12. **Chat settings (PARTIAL)** — link-preview/message-actions/swipe/
@@ -428,8 +430,9 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   original recount was 185/9/1/5 on 2026-09-15.
 - PARTIAL: 8 — honest scope cuts (local premium toggle, chat-settings
   extras, QR scan, stars raw-gifting, chat-background upload, saved-
-  messages remainder) · volume-only on row 276 (no pure-Go AAC decoder;
-  §1.10 → the control is not drawn rather than faked) · avatar-corner
+  messages remainder) · volume-only on row 276 (AAC audio path still to
+  build — the pure-Go decoder exists and is verified; §1.10 → the
+  control is not drawn rather than faked) · avatar-corner
   micro-polish of the online badge · checkout-gated (giveaway launch)
 - MISSING: **0** — closed by slice 222 (PiP).
 - CORE-ONLY: 4 — webview (owner-decision) · experimental flags (dead-UI
