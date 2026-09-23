@@ -6729,3 +6729,76 @@ the record only.
 - HE-AAC (SBR/PS) is out of scope in every candidate, including `go-aac` —
   Telegram video/video-note audio is AAC-LC, so that falls back to the system
   player when encountered.
+
+## 2026-09-23 — slice 223: AAC audio core (`go/aacaud`) — MP4 audio demux + decode, byte-exact vs ffmpeg
+
+Row 276's volume control was deferred because "there is nothing to apply
+volume to". The research correction that immediately preceded this slice
+removed the false part of that reason (a pure-Go AAC decoder does exist); this
+slice builds the missing part: getting the audio **out of an MP4 and into
+samples**. The remaining half — feeding a sink and drawing the slider — is
+slice 224.
+
+### What it does
+`Parse(r io.ReadSeeker)` scans for `moov` wherever the muxer put it (faststart
+front, most muxers back — Telegram uploads vary), picks the trak whose handler
+is `soun`, and reads:
+
+- `mdhd` (timescale), `hdlr` (which trak is the sound one),
+- `stsd` → `mp4a` → `esds` → the **AudioSpecificConfig**,
+- `stts`/`stsc`/`stsz`/`stco`·`co64` (decode times, chunk map, sizes, offsets),
+- **`edts`/`elst`** — the part everyone skips, and the whole reason a naive
+  implementation is out of sync: AAC's 1024-sample encoder priming lives there
+  as `media_time`, and the presentation length as `segment_duration`.
+
+`ascInfo` gates the config up front: AAC-LC mono/stereo only, so HE-AAC (AOT 5,
+and ffmpeg's built-in SBR sentinel) is refused rather than decoded as LC into
+plausible-looking noise. It also cross-checks the ASC against the `mp4a`
+sample-entry's own rate/channel fields and fails if they disagree, because
+trusting the wrong one resamples silently.
+
+`Decode` frames the access units the way go-aac wants raw input — **each unit
+prefixed with a big-endian uint16** (raw AAC has no syncword to resync on) —
+runs the decoder, then trims exactly `[priming : priming+length]`. That window
+is what ffmpeg outputs for the same file, which is the headline test.
+
+### Two of my own bugs the tests caught
+1. **Box-header arithmetic.** `AudioSampleEntry` header is 36 bytes *from the
+   box start*; `body` already excludes the 8-byte box header, so children start
+   at `body[28]`. Written as `[36:]` it walked 8 bytes into `esds` and reported
+   "mp4a has no esds" on a perfectly good file.
+2. **ffmpeg flag order — again.** The first reference pins for these fixtures
+   were produced with `-i … -c:a aac_fixed -c:a pcm_s16le`: `aac_fixed` is a
+   *decoder*, and with another `-c:a` after it, ffmpeg silently decoded with
+   the **float** decoder instead. Measured afterwards, float and fixed do not
+   agree (`talk`: `5ea29f46…` vs `d9d10e1d…`). Our decoder is a port of
+   ffmpeg's fixed-point one, so fixed is the correct oracle; the pins were
+   re-derived with the flag before `-i` and the provenance test now re-runs
+   exactly that invocation. A pin that comes from the wrong decoder looks
+   authoritative and passes nothing.
+   (Also self-inflicted: `go get …@v0.4.0` from a stale pkg.go.dev snippet,
+   which lacks `DecodeInterleaved` — the latest tag is v0.7.0.)
+
+### Tests first (§9) — 11 tests
+fixture integrity (SHA of all three MP4s) · parse pins for the stereo and mono
+tracks (rate, channels, ASC hex, priming, presentation length, unit count,
+duration) · monotonic DTS with the 1024-tick frame delta A/V sync will rely on
+· **PCM equals ffmpeg's fixed-point decoder, byte for byte** · provenance that
+re-derives those pins with ffmpeg · honest failures: no-audio trak, HE-AAC
+config, garbage, three truncation points (no panic), oversized access unit.
+
+Fixtures: `talk.mp4` (H.264 + AAC-LC 96k stereo 48 kHz, 1.5 s),
+`note.mp4` (round-note shaped, AAC-LC 64k mono, 1.0 s), `silent.mp4` (video
+only, the negative case).
+
+### Verification (§9)
+`gofmt -l` clean · `go vet -tags goolm ./...` clean ·
+`go test -p 2 -tags goolm -count=1 ./...` **exit 0, 13 pkgs** (aacaud included)
+· `-race` clean on the new package · token scan 0 · `verify.yml` green on
+**15986674, d4e1699f, 1b6d4dc2, a7e4bd6e and d4fcacf4** (5 consecutive pushes).
+
+### Parity after this slice
+Row 276 stays **PARTIAL** — deliberately. The blocker named in the earlier
+correction ("the AAC audio path") is now half built: samples exist, volume does
+not. Marking it present on decode alone would be the §1.10 mistake in a new
+shape. Slice 224 wires the sink and the slider.

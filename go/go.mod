@@ -33,6 +33,7 @@ require (
 	github.com/pion/webrtc/v4 v4.2.20
 	github.com/rs/zerolog v1.35.1
 	github.com/thesyncim/govpx v0.0.0-20260716224042-691cd0512c48
+	github.com/tphakala/go-aac v0.7.0
 	golang.org/x/crypto v0.56.0
 	golang.org/x/exp/shiny v0.0.0-20260824195058-e88cd73687aa
 	golang.org/x/image v0.45.0
@@ -121,6 +122,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
+	github.com/tphakala/simd v1.9.0 // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/yuin/goldmark v1.8.5 // indirect

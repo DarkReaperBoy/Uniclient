@@ -560,6 +560,24 @@ is the next task.
         this note were corrected in place, and past WORKLOG entries
         were left exactly as written — a log edited after the fact is
         not a log.
+      - slice 223 (2026-09-23): **AAC audio core — `go/aacaud`.** Gets the
+        sound out of an MP4 and into PCM, which is the half row 276's
+        volume control was actually missing. Parses moov wherever the
+        muxer put it, finds the `soun` trak, reads the ASC out of
+        `stsd→mp4a→esds`, and — the part that decides whether audio is
+        in sync or 21 ms late — reads `edts/elst`, because AAC's
+        1024-sample priming lives there as `media_time`. Decode frames
+        each access unit with go-aac's uint16BE prefix (raw AAC has no
+        syncword) and trims to `[priming : priming+length]`, which is
+        byte-for-byte what ffmpeg outputs for the same file. HE-AAC is
+        refused up front rather than decoded as LC into plausible noise.
+        Caught by its own tests: body-vs-box header arithmetic (36 vs 28
+        → "no esds" on a good file) and an ffmpeg flag order that had
+        silently pinned the FLOAT decoder's output instead of the fixed
+        one our decoder is a port of — measured, they disagree. 11
+        tests; gofmt+vet clean, `-race` clean, full suite exit 0, 13
+        pkgs. **Row 276 stays PARTIAL on purpose**: samples now exist,
+        volume does not — slice 224 wires the sink and the slider.
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"
