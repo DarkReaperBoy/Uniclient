@@ -6932,9 +6932,23 @@ tolerating a bare `&App{}` with no engine (the render path can arrive first).
 9b2c95a4, 5c05c8da** (7 consecutive pushes).
 
 ### Parity after this slice
-**PRESENT 189 (94%) · PARTIAL 7 · MISSING 0 · CORE-ONLY 4** (200 rows).
-Row 276 is PRESENT — the last P1. Every remaining PARTIAL is an honest scope
-cut (local premium, chat-settings extras, QR scan, stars, chat-background
-upload, saved-messages remainder, avatar micro-polish) or owner-gated
-(giveaway checkout). The video thread in §11 is now closed end to end:
-H.264 decode → in-chat playback → viewer transport → PiP → AAC audio → volume.
+**PRESENT 188 (94%) · PARTIAL 8 · MISSING 0 · CORE-ONLY 4** (200 rows).
+Row 276 is PRESENT — the last P1.
+
+**The counts themselves were the last defect.** The prose claimed 188/8
+before this slice and 189/7 when I first updated it; parsing every row's
+status cell showed the table actually held **187 PRESENT / 9 PARTIAL** —
+forum topics (row 107) is PARTIAL in the table but was never in the prose
+list, so the two had drifted a row apart. Corrected to the parser's output
+and noted in the matrix: counts are derived, not typed. (The first parser
+pass also missed the `CORE-ONLY-BY-DESIGN` experimental row, which is why
+it initially reported 199 of 200 — same class of error, caught the same
+way, by insisting the parts sum to the whole.)
+
+The 8 remaining PARTIAL rows are all honest scope cuts: forum topics
+(experimental tab positions), chat-background upload (emoji-pattern
+wallpapers), saved-messages remainder, chat-settings extras, local premium
+toggle, stars raw-gifting and giveaway launch (both external checkout),
+and QR scan (import ships, camera scanning does not). The video thread in
+§11 is now closed end to end: H.264 decode → in-chat playback → viewer
+transport → PiP → AAC audio → volume.

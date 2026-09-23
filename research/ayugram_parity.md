@@ -424,16 +424,22 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (200 feature rows)
 
-- PRESENT: 189 (94%) — rows 143 + 231 + 279 flipped by slices 220-222
+- PRESENT: 188 (94%) — rows 143 + 231 + 279 flipped by slices 220-222
   (round notes play inline, video plays in the viewer with transport
   controls, and PiP is closed) plus **row 276 by slice 225** (the
-  video transport gained real sound and a volume slider). Prior count
-  188 after PiP, 186 after row 143; the original recount was
-  185/9/1/5 on 2026-09-15.
-- PARTIAL: 7 — honest scope cuts (local premium toggle, chat-settings
-  extras, QR scan, stars raw-gifting, chat-background upload, saved-
-  messages remainder) · avatar-corner micro-polish of the online badge
-  · checkout-gated (giveaway launch)
+  video transport gained real sound and a volume slider).
+  **Counted by machine, not by hand**: parsing every row's status cell
+  showed the previous prose claimed 188/8 while the table actually
+  held 187/9 — forum topics (row 107) was PARTIAL in the table but
+  absent from the prose list. These numbers come from that parser over
+  the 200 rows (199 statuses + the CORE-ONLY-BY-DESIGN experimental
+  row, which the first parser pass also missed).
+- PARTIAL: 8 — forum topics (Left/Bottom tab modes are tdesktop
+  experimental flags, out by design) · chat-background upload (emoji-
+  pattern wallpapers) · saved-messages remainder · chat-settings
+  extras · local premium toggle · stars raw-gifting (external
+  checkout) · QR scan (invite import ships, camera scanning does not)
+  · giveaway launch (external checkout)
 - MISSING: **0** — closed by slice 222 (PiP).
 - CORE-ONLY: 4 — webview (owner-decision) · experimental flags (dead-UI
   ban, by design) · Ayu sqlite (already served by the engine cache) ·

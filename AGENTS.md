@@ -623,8 +623,11 @@ is the next task.
         Engine `player()` also seeds its gain from config at creation
         (locks taken separately, never nested). 4 tests / 31 case
         runs; gofmt+vet clean, `-race` clean, full suite exit 0.
-        **Parity: PRESENT 189 (94%) · PARTIAL 7 · MISSING 0 ·
-        CORE-ONLY 4.**
+        **Parity: PRESENT 188 (94%) · PARTIAL 8 · MISSING 0 ·
+        CORE-ONLY 4** — and the counts are now machine-derived: the
+        prose had said 188/8 while the table held 187/9 (forum topics
+        was PARTIAL in the table, missing from the list), so every
+        count from here on comes from parsing the status cells.
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"
