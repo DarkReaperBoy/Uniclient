@@ -41,17 +41,48 @@ func newTestEngineForPlayer(t *testing.T) *Engine {
 	return e
 }
 
-// playLoaded decodes a real file via PlayMedia and then simulates the
-// device: playing=true, as a speaker would have set it.
+// detachDevice removes any live speaker from under the player so the
+// test is the ONLY fill driver.
+//
+// PlayMedia opens a real device whenever the machine has one — a desktop
+// Linux box has a PulseAudio socket — and StartPlayback then runs a
+// device thread pulling fill concurrently with the test's own fills. That
+// double-counts the sample position (observed: 0.260s where 0.200s of
+// manual fill was driven). Headless CI has no device, which is exactly
+// why this suite passed there and failed on a workstation.
+//
+// stopPlayback is synchronous (<-playDone), so once this returns nothing
+// else pulls from fill.
+//
+// It also rewinds pos to 0: the live device already consumed a real
+// slice of audio between PlayMedia's StartPlayback and here (measured:
+// 2880 samples / 60 ms). That was genuine playback by the real device,
+// but this helper's contract is "act as if a device had just started
+// playback", and the callers assert the delta their own fills produce —
+// so the baseline has to be 0 regardless of whether a device existed.
+func detachDevice(t *testing.T, p *mediaPlayer) {
+	t.Helper()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.sess != nil {
+		p.sess.StopPlayback()
+		p.sess.Close()
+		p.sess = nil
+	}
+	p.pos = 0        // rewind past whatever the real device already played
+	p.playing = true // the device layer would own this bit
+}
+
+// playLoaded decodes a real file via PlayMedia, detaches any live device
+// and then simulates the device: playing=true, as a speaker would have
+// set it.
 func playLoaded(t *testing.T, e *Engine, path string) *mediaPlayer {
 	t.Helper()
 	if err := e.PlayMedia("acct", "chat", "m1", path); err != nil {
 		t.Fatalf("PlayMedia: %v", err)
 	}
 	p := e.player()
-	p.mu.Lock()
-	p.playing = true // the device layer would own this bit
-	p.mu.Unlock()
+	detachDevice(t, p)
 	return p
 }
 

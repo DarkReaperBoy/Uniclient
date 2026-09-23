@@ -138,12 +138,11 @@ func TestPlayMediaMp3(t *testing.T) {
 	if err := e.PlayMedia("acct", "chat", "m1", p); err != nil {
 		t.Fatalf("PlayMedia(mp3): %v", err)
 	}
-	// Simulate the device: playing=true, as a speaker would have set it
-	// (headless machines have no backend — HasAudio false is honest).
+	// Detach any live speaker first (see detachDevice), then simulate the
+	// device bit — on headless machines there is no backend at all, so
+	// HasAudio false is honest there.
 	p2 := e.player()
-	p2.mu.Lock()
-	p2.playing = true
-	p2.mu.Unlock()
+	detachDevice(t, p2)
 	st := e.MediaState()
 	if !st.Playing || st.MsgID != "m1" || st.AccountID != "acct" {
 		t.Fatalf("state = %+v", st)

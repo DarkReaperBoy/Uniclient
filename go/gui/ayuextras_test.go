@@ -69,7 +69,10 @@ func TestMsgTimeLabel(t *testing.T) {
 	if got := msgTimeLabel(0); got != "" {
 		t.Errorf("zero ts = %q, want empty", got)
 	}
-	ms := time.Date(2026, 9, 13, 15, 4, 23, 0, time.UTC).UnixMilli()
+	// Local, not UTC: msgTimeLabel formats through time.UnixMilli, which
+	// renders in the process' zone. Fixtures must be built in that same
+	// zone or the literals below only hold on a UTC machine.
+	ms := time.Date(2026, 9, 13, 15, 4, 23, 0, time.Local).UnixMilli()
 	setMsgShowSeconds(false)
 	if got := msgTimeLabel(ms); got != "15:04" {
 		t.Errorf("seconds off = %q, want 15:04", got)

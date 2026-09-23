@@ -32,12 +32,13 @@ func TestCallLabel(t *testing.T) {
 // callStamp: time-of-day for today, day+time for older, empty for unset
 // (slice 64). Timestamps are unix seconds.
 func TestCallStamp(t *testing.T) {
-	now := time.Date(2026, 9, 8, 14, 0, 0, 0, time.UTC)
+	// callStamp formats through time.Unix → local zone; build local.
+	now := time.Date(2026, 9, 8, 14, 0, 0, 0, time.Local)
 	today := now.Add(-2 * time.Hour)
 	if got := callStamp(today.Unix(), now); got != "12:00" {
 		t.Errorf("today stamp = %q", got)
 	}
-	old := time.Date(2026, 8, 20, 9, 5, 0, 0, time.UTC)
+	old := time.Date(2026, 8, 20, 9, 5, 0, 0, time.Local)
 	if got := callStamp(old.Unix(), now); got != "20 Aug · 09:05" {
 		t.Errorf("old stamp = %q", got)
 	}
@@ -48,7 +49,7 @@ func TestCallStamp(t *testing.T) {
 
 // callSub assembles label + duration (not for missed) + time (slice 64).
 func TestCallSub(t *testing.T) {
-	now := time.Date(2026, 9, 8, 14, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 9, 8, 14, 0, 0, 0, time.Local)
 	today := now.Add(-1 * time.Hour)
 	talked := engine.CallHistoryEntry{IsOutgoing: true, Duration: 125, Timestamp: today.Unix()}
 	if got := callSub(talked, now); got != "Outgoing call · 2:05 · 13:00" {

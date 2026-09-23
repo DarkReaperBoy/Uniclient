@@ -77,10 +77,13 @@ func TestGroupCallEntriesEmpty(t *testing.T) {
 }
 
 func TestCallBoxStatusPhrases(t *testing.T) {
-	now := time.Date(2026, 9, 12, 18, 0, 0, 0, time.UTC)
+	// callBoxStatus renders through time.Unix, i.e. in local time, so the
+	// fixtures are built local too — otherwise these literals only hold on
+	// a UTC machine.
+	now := time.Date(2026, 9, 12, 18, 0, 0, 0, time.Local)
 	today := now.Add(-2 * time.Hour)
 	yesterday := now.AddDate(0, 0, -1)
-	older := time.Date(2026, 8, 21, 15, 4, 0, 0, time.UTC)
+	older := time.Date(2026, 8, 21, 15, 4, 0, 0, time.Local)
 
 	single := callBoxRow{Last: engine.CallHistoryEntry{Timestamp: today.Unix()}}
 	if got, want := callBoxStatus(single, now), "Today at 16:00"; got != want {
