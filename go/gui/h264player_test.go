@@ -109,7 +109,7 @@ func TestH264PlayerCache(t *testing.T) {
 
 	// publish marks the video parsed and starts it playing.
 	video := parseRoundFixture(t)
-	c.publish("m1", "/tmp/a.mp4", video)
+	c.publish("m1", "/tmp/a.mp4", video, true)
 	t.Cleanup(func() { c.reset("m1") })
 	if p, ok := c.get("m1"); !ok || !p.parsed || !p.playing || p.path != "/tmp/a.mp4" || p.video != video {
 		t.Errorf("publish left parsed=%v playing=%v path=%q video=%v",

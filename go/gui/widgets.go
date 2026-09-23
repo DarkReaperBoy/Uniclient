@@ -227,9 +227,11 @@ type widgets struct {
 	viewerFolderBtn widget.Clickable
 	viewerNextBtn   widget.Clickable
 	viewerPlayBtn   widget.Clickable
-	viewerPrevBtn   widget.Clickable
-	viewerSaveBtn   widget.Clickable
-	viewerShareBtn  widget.Clickable
+	// viewerplay.go
+	viewerVidPlayBtn widget.Clickable
+	viewerPrevBtn    widget.Clickable
+	viewerSaveBtn    widget.Clickable
+	viewerShareBtn   widget.Clickable
 
 	// membermenu.go
 	memberMenuBtns []widget.Clickable

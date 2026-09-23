@@ -186,8 +186,11 @@ func (c *h264PlayerCache) len() int {
 	return len(c.players)
 }
 
-// publish installs a parsed clip and starts its loop + producer.
-func (c *h264PlayerCache) publish(msgID, path string, video *h264vid.Video) *h264vid.Player {
+// publish installs a parsed clip and starts its producer. loop selects
+// round-note behaviour (wrap at the end) versus an ordinary video (play
+// through and rest on the final frame) — a viewer must not spin a
+// regular clip forever.
+func (c *h264PlayerCache) publish(msgID, path string, video *h264vid.Video, loop bool) *h264vid.Player {
 	if video == nil {
 		return nil
 	}
@@ -207,7 +210,7 @@ func (c *h264PlayerCache) publish(msgID, path string, video *h264vid.Video) *h26
 	p.start = time.Now()
 	p.playing = true
 	pl := video.NewPlayer()
-	pl.SetLoop(true) // round notes loop, like tdesktop
+	pl.SetLoop(loop)
 	pl.Start()
 	p.player = pl
 	return pl
@@ -227,10 +230,17 @@ func (c *h264PlayerCache) pause(msgID string) {
 func (c *h264PlayerCache) resume(msgID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if p := c.players[msgID]; p != nil && p.parsed && !p.playing {
-		p.start = time.Now().Add(-p.paused)
-		p.playing = true
+	p := c.players[msgID]
+	if p == nil || !p.parsed || p.playing {
+		return
 	}
+	// A finished non-looping clip restarts from the top: pressing play on
+	// an ended video has to DO something rather than sit on the last frame.
+	if p.video != nil && p.video.Total > 0 && p.paused >= p.video.Total {
+		p.paused = 0
+	}
+	p.start = time.Now().Add(-p.paused)
+	p.playing = true
 }
 
 // elapsed reports the playhead (frozen while paused). Pure w.r.t. the
@@ -311,12 +321,22 @@ func stopH264Player(p *h264Player) {
 
 // ── parse (async, once per message) ────────────────────────────────────
 
-// ensureH264Player kicks off the one-time async read+parse of a round
-// note; a successful publish starts playback immediately, which is what
-// makes "tap a video note" and "play the video note" the same gesture.
-func (a *App) ensureH264Player(msgID, path string) {
+// ensureH264Player kicks off the one-time async read+parse of a clip; a
+// successful publish starts playback immediately, which is what makes
+// "tap a video note" and "play the video note" the same gesture. loop
+// selects round-note looping versus play-through, and onFail (optional)
+// runs when the file cannot be read or decoded so a caller can fall back
+// honestly instead of leaving a dead bubble or a dead play button.
+func (a *App) ensureH264Player(msgID, path string, loop bool, onFail ...func()) {
 	if msgID == "" || path == "" {
 		return
+	}
+	notify := func() {
+		for _, fn := range onFail {
+			if fn != nil {
+				fn()
+			}
+		}
 	}
 	p, _ := h264Players.peek(msgID)
 	if p.path == path && (p.parsed || p.failed || p.reading) {
@@ -332,18 +352,21 @@ func (a *App) ensureH264Player(msgID, path string) {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			h264Players.endReading(msgID) // retry on a later tap
+			notify()                      // viewer: fall back, don't hang
 			return
 		}
 		video, err := h264vid.Parse(data)
 		if err != nil || video == nil {
 			h264Players.failParse(msgID)
 			a.invalidate()
+			notify()
 			return
 		}
-		pl := h264Players.publish(msgID, path, video)
+		pl := h264Players.publish(msgID, path, video, loop)
 		if pl == nil {
 			h264Players.failParse(msgID)
 			a.invalidate()
+			notify()
 			return
 		}
 		a.invalidate()
@@ -364,7 +387,7 @@ func (a *App) ensureH264Player(msgID, path string) {
 // startVideoNoteInline is the download-completion entry point: the bytes
 // just landed, so parse them and play them in the bubble at once.
 func (a *App) startVideoNoteInline(msgID, path string) {
-	a.ensureH264Player(msgID, path)
+	a.ensureH264Player(msgID, path, true)
 }
 
 // tapVideoNote handles a tap on an already-downloaded round note by
@@ -385,7 +408,7 @@ func (a *App) tapVideoNote(m *engine.CachedMessage) bool {
 	}
 	switch noteTapAction(p, true) {
 	case noteActionWait:
-		a.ensureH264Player(m.MsgID, m.MediaLocalPath)
+		a.ensureH264Player(m.MsgID, m.MediaLocalPath, true)
 		return true
 	case noteActionPlay:
 		h264Players.resume(m.MsgID)

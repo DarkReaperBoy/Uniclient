@@ -390,6 +390,11 @@ func (a *App) layoutMediaView(gtx layout.Context, f frame) layout.Dimensions {
 			return a.viewerCaption(gtx, f)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// In-app playback transport (slice 221): zero-height unless the
+			// current item has a live player, so photos are unaffected.
+			return a.viewerVideoBar(gtx, f)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.viewerFilmstrip(gtx, f)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -580,6 +585,21 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 		}
 	}
 
+	// In-app playback (slice 221): the live frame replaces the poster, so
+	// the viewer shows the actual picture through the same zoom/pan/clip
+	// machinery that renders photos.
+	if ok && viewerIsVideo(it) {
+		if st, has := h264Players.peek(it.MsgID); has && st.playing && st.player != nil && st.video != nil {
+			elapsed := h264Players.elapsed(it.MsgID)
+			if fr := st.player.FrameAt(elapsed); fr != nil {
+				img = fr
+				if !powerSavingBlocks(powerSaving.flags, powerSaving.forceAll, psClassVideo) {
+					gtx.Execute(op.InvalidateCmd{At: time.Now().Add(st.player.NextFrameIn(elapsed))})
+				}
+			}
+		}
+	}
+
 	if img == nil {
 		// Still decoding (or no poster): an aspect box from the item's
 		// recorded dimensions, so the layout is stable across frames.
@@ -620,8 +640,9 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 	trStack.Pop()
 	clipStack.Pop()
 
-	// Video poster: centered play badge on top.
-	if ok && viewerIsVideo(it) {
+	// Video poster: centered play badge on top — hidden once the clip is
+	// playing in-app (slice 221), because the transport bar owns start/stop.
+	if ok && viewerIsVideo(it) && !viewerVideoActive(it) {
 		d := gtx.Dp(unit.Dp(72))
 		dx := (boxW - d) / 2
 		dy := (boxH - d) / 2
@@ -875,11 +896,16 @@ func (a *App) viewerShare(v *viewerState, it engine.SharedMediaItem) {
 	a.invalidate()
 }
 
-// viewerPlay: videos — download when missing, then hand the saved file
-// to the system player (slice 86; in-app streaming playback lands with
-// the engine streaming core).
+// viewerPlay: videos — an already-downloaded MP4 plays IN the viewer
+// with transport controls (slice 221, parity row 276); anything else
+// keeps slice 86's system-player handoff, which also carries the audio
+// we cannot decode yet. A missing file downloads first.
 func (a *App) viewerPlay(v *viewerState, it engine.SharedMediaItem) {
 	if it.LocalPath != "" {
+		if viewerCanPlayInApp(it) {
+			a.viewerPlayVideo(it)
+			return
+		}
 		a.openMedia(it.LocalPath, true)
 		return
 	}

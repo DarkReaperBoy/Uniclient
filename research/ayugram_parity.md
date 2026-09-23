@@ -140,7 +140,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Photo | Image bubble, caption, tap→viewer | PRESENT (bubble → auto-download → full image; tap opens fullscreen viewer w/ zoom/pan, filmstrip, save/share/delete) | gui/media.go photoBubble + gui/mediaview.go | P0 |
 | Channel-post comments | Comment-count chip + thread view + comment composer | PRESENT (slice 195: the "N comments" chip on channel posts (MessageReplies count, cached at ingest, v53 comments_count) opens the comment thread — messages.getDiscussionMessage fetch + cache write-through, thread filter by reply-to-top (thread_root), the thread bar under the header (back → channel), full composer redirected to the discussion group replying to the thread root, read marking (messages.readDiscussion) on open, scroll-up pages the cached thread; honest v1: the fetch shows the server's recent page, older thread pages cache-only) | gui/comments.go + engine/comments.go + cores GetDiscussionThread/ReadDiscussion + convertMessage replies/thread-root mapping | P1 |
- Player bubble w/ cover, round crop | PARTIAL (round notes: **PRESENT as of slice 220** — the bubble is a circular looping player fed by go/h264vid, tap = play/pause, power-saving holds the frame, undecodable files fall through to the viewer; regular video: cover + play badge + duration pill + viewer handoff present, and the in-app viewer player lands in slice 221 now that slice 219 removed the decoder blocker) | gui/media.go videoBubble/videoNoteBubble + gui/h264player.go + go/h264vid | P1 |
+ Player bubble w/ cover, round crop | PRESENT (slice 220: round notes are circular looping players IN the bubble — tap = play/pause, power-saving holds the frame, undecodable files fall through to the viewer rather than going dead; slice 221: regular video plays inside the fullscreen viewer with play/pause + scrubber + clocks, cover/thumb + play badge + duration pill before that. tdesktop does not autoplay ordinary video in the chat list, so viewer playback IS its player — no inline variant is missing) | gui/media.go videoBubble/videoNoteBubble + gui/h264player.go + gui/viewerplay.go + go/h264vid | P1 |
 | Voice message | Waveform bubble, play, speed, transcribe | PRESENT (slice 113: IN-APP player — play/pause circle, real waveform strip from the message's cached Telegram waveform data (plain track when absent, §1.10) with accent-tinted progress, elapsed/total label, speed chip (1×/1.5×/2×/0.5×); engine Ogg/Opus demuxer + decoder (RFC 3533 pages CRC-verified against real ffmpeg encoders) → pure-Go audio devices; non-Opus/no-audio platforms keep the system-player handoff; music bubbles show live elapsed + play/pause state too; slice 186: WAVEFORM SEEK — the strip is a press/drag/release seek control while its message owns the player (engine.SeekMedia, half-percent drag throttle, non-active strips register no input); transcribe landed (slice 115: A→A glyph → messages.transcribeAudio, pending results via updateTranscribedAudio, cached per message)) | gui/media.go voiceBubble/audioBubble + engine/mediaplayer.go + engine/ogg.go | P1 || Audio file | Music player bubble (title/artist, seek) | PRESENT (slice 185: IN-APP MUSIC PLAYER — MP3 decodes through the pure-Go go-mp3 decoder (ID3v2/frame-sync sniff, stereo mixdown, linear resample to the shared 48 kHz PCM pipeline) alongside Ogg/Opus, so play/pause/speed work in-app; the bubble shows the document's embedded Title/Performer tags (DocumentAttributeAudio → CachedMessage.AudioMeta, file name fallback §1.10) and a draggable seek track (press/drag/release → engine.SeekMedia fraction seek with clamp + half-percent throttle + finished-playback re-arm); other formats keep the honest system-player handoff) | gui/media.go audioBubble + gui/seekbar.go + engine/mediaplayer.go + engine/mediaplayer_mp3.go | P2 |
 | Document/file | Filename, size, progress download bar | PRESENT (file row + live byte counter + progress bar + tap/cancel/retry — every element the row names) | gui/media.go fileBubble + downloadRow | P0 |
 | Sticker (animated) | Big transparent sticker, tap = replay | PRESENT (slice 123: bare bubble-less sticker rows (~256dp, aspect-true) w/ translucent meta pill overlay bottom-right; .tgs documents auto-download on scroll-in and parse once per message into the slice-122 lottie engine; frame clock at the animation's own rate clamped 20-60fps, looping; tap replays from frame 0; static .webp renders from the downloaded file (webp decoder registered), inline thumb pre-download; slice 216: webm VIDEO STICKERS PLAY IN-CHAT — pure-Go VP9 pipeline (own webm/EBML demux incl. the alpha side stream + govpx decoder, a libvpx port verified against the official VP9 conformance corpus; go-vp9 evaluated and rejected: entropy desync + panic on official vectors); per-message player w/ background decode-ahead producer (global semaphore), looping frame clock, tap replays like AyuGram, power-saving static first frame, honest static-thumb fallback while warming/undecodable) | gui/tgsplayer.go + gui/vp9player.go + gui/media.go + vp9anim + webm | P1 |
@@ -273,7 +273,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Full-screen overlay | Photo/video/doc viewer w/ caption | PRESENT (near-black scrim, top bar w/ title+date, caption, save/share/delete, Esc/arrows) | gui/mediaview.go | P0 |
 | Prev/next + group thumbs | Navigate album/chat media | PRESENT (side chevrons + filmstrip over engine.GetSharedMedia; info-panel gallery opens it too) | gui/mediaview.go + engine GetSharedMedia | P1 |
-| Playback controls (video) | Play/pause/seek/volume/fullscreen | PARTIAL (poster + play → download pipeline; slice 86: completion auto-opens the OS player). In-app playback is now POSSIBLE — slice 219 shipped go/h264vid with GOP-aligned Seek + play/pause + loop, so the remaining controls are GUI work (slice 221); system-player handoff keeps offering audio until AAC lands | gui/mediaview.go viewerPlay + gui/openext.go + go/h264vid | P1 |
+| Playback controls (video) | Play/pause/seek/volume/fullscreen | PARTIAL (slice 221: **play/pause, scrub-to-seek and elapsed/total now run IN-APP** — the viewer is the fullscreen surface; the music bar's seekBar is shared through seekBarDo so one widget serves both real targets, and scrubbing rebases the GUI playhead so it cannot snap back. Remaining: **volume only** — Telegram ships H.264+AAC and there is no pure-Go AAC decoder, so a slider would control nothing; §1.10 says do not draw it. The system-player handoff still carries audio) | gui/viewerplay.go viewerVideoBar/viewerPlay + gui/seekbar.go seekBarDo + go/h264vid | P1 |
 | Zoom/pan + double-click | Gesture zoom | PRESENT (double-click zoom 1x↔2.5x anchored at cursor + drag pan w/ clamp; pinch/wheel later) | gui/mediaview.go processViewerImageEvents | P2 |
 | Download + share + delete in viewer | Toolbar actions | PRESENT (save→RequestDownload/reveal path; share→forward picker; delete→confirm dialog→engine.DeleteMessage) | gui/mediaview.go | P1 |
 | PiP floating window | Video in floating window | MISSING | gui/os window + engine video frames | P3 |
@@ -378,9 +378,9 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
     (help.getCountriesList country picker + additional-channels picker,
     both riding the wire builders). Remaining: card-funded premium
     giveaway creation (external checkout, honest absence).
-11. **Video playback rows (PARTIAL)** — round notes CLOSED by slice 220;
-    remaining is the in-app viewer player (slice 221) and PiP (slice 222)
-    — see (1).
+11. **Video playback rows (PARTIAL)** — row 143 CLOSED by slices 220+221;
+    row 276 now differs only by **volume**, which needs a pure-Go AAC
+    decoder (not yet drawn, §1.10). PiP remains slice 222 — see (1).
 12. **Chat settings (PARTIAL)** — link-preview/message-actions/swipe/
     corner-reaction/reply-pill all shipped; remaining: nothing user-
     visible (row kept PARTIAL only for the ForumTabs-gated extras).
@@ -419,14 +419,15 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (200 feature rows)
 
-- PRESENT: 185 (93%) — recount 2026-09-15 (awk over the status column,
-  incl. the truncated attach-menu row): 185/9/1/5, rows 255+256 flipped
-  by slice 215; the earlier "185/9" text predated those flips (stale).
-- PARTIAL: 9 — honest scope cuts (local premium toggle, chat-settings
+- PRESENT: 186 (93%) — row 143 (video / round video) flipped by slices
+  220+221: round notes play inline in the bubble, regular video plays in
+  the viewer with transport controls. (Prior count 185/9/1/5 as of
+  2026-09-15; rows 255+256 flipped by slice 215.)
+- PARTIAL: 8 — honest scope cuts (local premium toggle, chat-settings
   extras, QR scan, stars raw-gifting, chat-background upload, saved-
-  messages remainder) · GUI-pending now that the decoder exists (video
-  playback ×2 → slices 220-221) · avatar-corner micro-polish of the
-  online badge · checkout-gated (giveaway launch)
+  messages remainder) · volume-only on row 276 (no pure-Go AAC decoder;
+  §1.10 → the control is not drawn rather than faked) · avatar-corner
+  micro-polish of the online badge · checkout-gated (giveaway launch)
 - MISSING: 1 — PiP (decoder landed in slice 219; GUI slice 222)
 - CORE-ONLY: 5 — video frames ×2 (slice 220 shipped the round-note half;
   the regular-video half lands with the viewer player in slice 221) ·

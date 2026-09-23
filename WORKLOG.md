@@ -6563,3 +6563,55 @@ tap flips Play↔Pause) · power gate (4 cases).
 - Known, deliberate: AAC audio is not decoded yet, so inline notes are
   silent; the system-player handoff still offers sound for everything
   else.
+
+## 2026-09-23 — slice 221: in-app video playback in the media viewer (parity row 276)
+
+Executes plan item **221**. Videos no longer leave the application to be
+watched: the fullscreen viewer gained a real transport — play/pause,
+scrub-to-seek, elapsed/total — driven by slice 219's `h264vid`.
+
+### What shipped
+- `gui/viewerplay.go`: `viewerPlay` starts an in-app player for a
+  downloaded MP4; the control bar renders under the viewer's caption
+  (zero-height for photos, so image viewing is untouched) and the live
+  frame replaces the poster through the *existing* zoom/pan/clip
+  machinery — no second render path to drift.
+- Round notes loop; ordinary videos play through and rest on the final
+  frame, and `resume` from the end restarts, so pressing play on a
+  finished video does something rather than sitting still.
+- `seekBar` → `seekBarDo(gtx, key, frac, seek)`: the music bubble's bar
+  and the viewer's scrubber are **one widget with two real targets**
+  (same visuals, 14dp grab area, half-percent drag throttling). The
+  engine-audio path keeps its playback ticker inside its own closure.
+- **Seek is two-phase**: the GOP-aligned decode restart (which can block)
+  runs *off* the cache lock, then the GUI playhead is rebased onto the
+  target. Skipping the rebase is the classic "scrubbing snaps back on the
+  next frame" bug — `TestPlayerCacheSeekRebasesPlayhead` pins both the
+  playing and paused cases plus clamping at each end.
+- Honest failure: if `h264vid.Parse` rejects the file, it toasts and
+  hands the file to the system player instead of leaving a dead button.
+
+### What was deliberately NOT shipped (§1.10)
+**Volume.** Row 276 lists it, and Telegram's MP4 carries AAC, for which
+there is still no pure-Go decoder — a slider would control nothing. The
+control is not drawn; the system-player handoff keeps carrying audio.
+Row 276 therefore stays PARTIAL with exactly that one reason, rather
+than being marked present on a capability we do not have.
+
+### Tests first (§9) — 4 new (19 sub-cases)
+seek-fraction clamping incl. missing metadata (no divide-by-zero) ·
+clock labels incl. hour-long files and negative clocks · the
+in-app-vs-system decision (video/note/photo/missing/.webm/case-insensitive
+extension) · cache seek rebasing (playing, paused, out-of-range, unknown
+message, metadata-less clip).
+
+### Verification (§9)
+`gofmt -l` clean · `go vet -tags goolm ./...` clean ·
+`go test -p 2 -tags goolm -count=1 ./...` **exit 0, 12 pkgs** ·
+`-race` clean on all 8 new tests across slices 220-221.
+
+### Parity
+Row 143 (video / round video) → **PRESENT** (186/8/1/5). Row 276 →
+PARTIAL with volume as the single stated reason. Remaining in §11's
+video thread: **slice 222 → PiP** (row 279, the matrix's only MISSING
+row), then AAC for the volume half of 276.

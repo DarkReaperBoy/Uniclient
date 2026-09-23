@@ -491,6 +491,31 @@ is the next task.
         4 tests (8 sub-cases), one of which drives `onDownloadComplete`
         end-to-end against a committed fixture; full suite exit 0,
         gofmt+vet clean, `-race` clean.
+      - slice 221 (2026-09-23): in-app video playback in the media viewer
+        (parity row 276). `viewerPlay` now starts a real h264vid player
+        for a downloaded MP4 — play/pause, scrub-to-seek and
+        elapsed/total clocks render under the caption — and the viewer
+        already IS the fullscreen surface. Round notes loop, ordinary
+        videos play through and rest on the last frame (resume from the
+        end restarts, so "play" on a finished video does something).
+        `seekBar` was split into `seekBarDo(gtx, key, frac, seek)`: the
+        music bubble's bar and the viewer's scrubber are now one widget
+        with two real targets, same visuals/grab area/drag throttling.
+        Seek is two-phase on purpose — the GOP-aligned decode restart
+        runs off the cache lock, then the GUI playhead is rebased onto
+        the target, because without the rebase FrameAt keeps painting
+        from the old clock and scrubbing appears to snap back.
+        **Volume is deliberately absent**: Telegram ships H.264+AAC and
+        there is still no pure-Go AAC decoder, so a slider would control
+        nothing — §1.10 forbids faking it, so the control is not drawn
+        and the system-player handoff keeps carrying audio. A parse
+        failure toasts and hands the file to the system player instead
+        of leaving a dead play button.
+        4 tests / 19 sub-cases (seek-fraction clamps + divide-by-zero,
+        clock labels incl. hour-long and negative, in-app-vs-system
+        decision, and cache seek rebasing in both playing and paused
+        states with clamping at both ends); gofmt+vet clean, `-race`
+        clean, full suite exit 0.
       - slice 207 (2026-09-14): message-details completion (gap 15) —
         "Datacenter" row (FileRef.DC ← Document/Photo DCID, media.dc_id
         via migrateV56, AyuGram's DC-name mapping) + "Sticker author"

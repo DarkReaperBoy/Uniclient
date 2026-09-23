@@ -50,11 +50,23 @@ func (a *App) seekBarTag(key string) *struct{} {
 	return t
 }
 
-// seekBar renders the draggable progress track. frac is the currently
-// displayed position fraction; key scopes the pointer tag. The track is
-// 14 dp tall (generous grab area) with a 3 dp visual bar and an accent
-// handle dot at the playhead.
+// seekBar renders the draggable progress track bound to the engine's
+// audio player (the music bubble's bar). frac is the currently displayed
+// position fraction; key scopes the pointer tag.
 func (a *App) seekBar(gtx layout.Context, key string, frac float64) layout.Dimensions {
+	return a.seekBarDo(gtx, key, frac, func(f float64) {
+		_ = a.eng.SeekMedia(f)
+		a.startPlaybackTickerIfNeeded()
+	})
+}
+
+// seekBarDo is the same widget with an explicit seek sink, so the media
+// viewer's in-app video player can scrub a h264vid clip through the exact
+// visuals, grab area and drag throttling the music bar already has — one
+// widget, two real targets, neither a mock (§1.10). The track is 14 dp
+// tall (generous grab area) with a 3 dp visual bar and an accent handle
+// dot at the playhead.
+func (a *App) seekBarDo(gtx layout.Context, key string, frac float64, seek func(float64)) layout.Dimensions {
 	w := gtx.Constraints.Max.X
 	if w <= 0 {
 		w = gtx.Dp(unit.Dp(120))
@@ -81,8 +93,9 @@ func (a *App) seekBar(gtx layout.Context, key string, frac float64) layout.Dimen
 				continue // throttle sub-half-percent drag moves
 			}
 			a.wid.seekBarApplied[key] = f
-			_ = a.eng.SeekMedia(f)
-			a.startPlaybackTickerIfNeeded()
+			if seek != nil {
+				seek(f)
+			}
 			a.invalidate()
 		}
 	}
