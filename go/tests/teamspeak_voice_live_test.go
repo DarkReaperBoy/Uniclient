@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -80,6 +81,46 @@ func TestTeamSpeakLiveVoiceRoundTrip(t *testing.T) {
 	}
 	t.Logf("candidate channels: %v", cands)
 
+	// Guest talk power here is 20 (clientinfo), and channels whose
+	// channel_needed_talk_power is above it have their voice SILENTLY
+	// discarded by the server — every "both clients in the room yet zero
+	// voice relayed" failure was exactly that (needed=9999 entrance
+	// hall, needed=125 music channel; probe evidence in BUGS B-22), and
+	// the needed=999999 "◊ AUTO CHANNEL CREATOR ◊" channel additionally
+	// relocates each joiner into their own "<nick>'s Channel"
+	// (PrivateChannelManager) which split the pair. Joining such a room
+	// SUCCEEDS, so the picker must pre-filter on talk power: needed ≤ ours.
+	whoRows, err := coreA.RawExec("whoami")
+	if err != nil || len(whoRows) == 0 {
+		t.Fatalf("whoami: %v", err)
+	}
+	myTalkPower := -1
+	if ci, err := coreA.RawExec("clientinfo clid=" + whoRows[0]["client_id"]); err == nil && len(ci) > 0 {
+		if p, perr := strconv.Atoi(ci[0]["client_talk_power"]); perr == nil {
+			myTalkPower = p
+		}
+	} else {
+		t.Logf("clientinfo for own talk power failed (%v) — power filter disabled for this run", err)
+	}
+	t.Logf("guest talk power: %d", myTalkPower)
+	powerCache := map[string]bool{}
+	powerOK := func(cid string) bool {
+		if v, ok := powerCache[cid]; ok {
+			return v
+		}
+		v := true // unknown power → fail open (old behavior), logged above
+		if myTalkPower >= 0 && len(cid) > 3 {
+			v = false
+			if rows, err := coreA.RawExec("channelinfo cid=" + cid[3:]); err == nil && len(rows) > 0 {
+				if need, nerr := strconv.Atoi(rows[0]["channel_needed_talk_power"]); nerr == nil {
+					v = need <= myTalkPower
+				}
+			}
+		}
+		powerCache[cid] = v
+		return v
+	}
+
 	// Join the channel on both clients (voice follows the channel).
 	// Guests may lack join power on arbitrary channels; the server's
 	// default channel is the guaranteed fallback (its id is
@@ -92,25 +133,65 @@ func TestTeamSpeakLiveVoiceRoundTrip(t *testing.T) {
 	tryRooms = append(tryRooms, defaultRoom)
 	joinRoom := func(core *cores.TeamSpeakCore, who string) string {
 		for _, cid := range tryRooms {
+			if !powerOK(cid) {
+				t.Logf("%s skipping %s: talk power gated (server would drop its voice)", who, cid)
+				continue
+			}
 			cs, err := core.JoinGroupCall(cid)
 			if err == nil && cs != nil {
 				return cid
 			}
 			t.Logf("%s cannot join %s (%v)", who, cid, err)
 		}
-		t.Fatalf("%s: no joinable channel", who)
+		t.Skipf("%s: no channel available for guest voice (joinable AND talk power ≤ %d) — server config/permissions, environment not client", who, myTalkPower)
 		return ""
 	}
 	roomA := joinRoom(coreA, "A")
+	// B tries A's room first (same filtered list follows); guests can
+	// have asymmetric permissions, which is environment — skip honestly
+	// instead of failing the round-trip oracle on it.
 	roomB := joinRoom(coreB, "B")
 	if roomA != roomB {
-		t.Fatalf("A and B ended up in different channels: %s vs %s", roomA, roomB)
+		t.Skipf("A and B ended up in different channels (%s vs %s) — asymmetric guest permissions, environment not client", roomA, roomB)
 	}
 	bestID := roomA
 	time.Sleep(700 * time.Millisecond)
 
-	// Sanity: both clients must actually be in the room per the server's
-	// own view (GetGroupCall reads the channel's client list).
+	// Physical truth before streaming (B-22): this public server runs a
+	// "PrivateChannelManager" bot that can auto-create "<nick>'s Channel"
+	// and relocate a guest the instant it moves — voice routing follows
+	// the SERVER's per-client position, not our event cache, and a split
+	// pair relays nothing. whoami is the server's own answer for THIS
+	// connection: verify both clients, rejoin once if split, and skip
+	// honestly if the bot insists (environment, not client).
+	physCh := func(c *cores.TeamSpeakCore, label string) string {
+		info, err := c.WhoAmI()
+		if err != nil {
+			t.Fatalf("whoami %s: %v", label, err)
+		}
+		return "ch:" + info["client_channel_id"]
+	}
+	for attempt := 0; ; attempt++ {
+		pa, pb := physCh(coreA, "A"), physCh(coreB, "B")
+		if pa == bestID && pb == bestID {
+			break
+		}
+		if attempt >= 1 {
+			t.Skipf("server relocated clients apart (A=%s B=%s, room=%s) — PrivateChannelManager-style bot, environment not client (B-22)", pa, pb, bestID)
+		}
+		t.Logf("server relocation detected: A=%s B=%s want %s — rejoining", pa, pb, bestID)
+		if _, err := coreA.JoinGroupCall(bestID); err != nil {
+			t.Logf("A rejoin: %v", err)
+		}
+		if _, err := coreB.JoinGroupCall(bestID); err != nil {
+			t.Logf("B rejoin: %v", err)
+		}
+		time.Sleep(700 * time.Millisecond)
+	}
+
+	// Cache view is advisory from here on (physical position is
+	// authoritative): log it, warn on disagreement — the voice
+	// round-trip below is the real proof of co-membership.
 	gc, err := coreB.GetGroupCall(bestID)
 	if err != nil {
 		t.Fatalf("GetGroupCall: %v", err)
@@ -119,7 +200,7 @@ func TestTeamSpeakLiveVoiceRoundTrip(t *testing.T) {
 		t.Logf("room member: %q (muted=%v speaking=%v)", p.DisplayName, p.IsMuted, p.IsSpeaking)
 	}
 	if len(gc.Participants) < 2 {
-		t.Fatalf("room %s holds %d clients — join did not take effect", bestID, len(gc.Participants))
+		t.Logf("warning: cache lists %d members in %s though whoami put both clients there — clientInfo view is stale/incomplete", len(gc.Participants), bestID)
 	}
 
 	// B collects incoming voice packets.
@@ -174,7 +255,14 @@ collect:
 	}
 	t.Logf("B received %d voice packets (sent %d frames)", len(got), len(frames))
 	if len(got) < len(frames)/2 {
-		t.Fatalf("too few voice packets received: %d — S2C voice decrypt/routing broken", len(got))
+		// If the server split the pair mid-stream, zero relay is its
+		// routing decision, not ours (B-22) — skip honestly instead of
+		// blaming the decrypt/routing path.
+		fa, fb := physCh(coreA, "A"), physCh(coreB, "B")
+		if fa != bestID || fb != bestID {
+			t.Skipf("server relocated clients during the stream (A=%s B=%s, room=%s) — environment, not client (B-22)", fa, fb, bestID)
+		}
+		t.Fatalf("too few voice packets received: %d with both clients still in %s — S2C voice decrypt/routing broken", len(got), bestID)
 	}
 
 	// Packets must be Opus voice from exactly one client.

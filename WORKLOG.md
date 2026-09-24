@@ -8004,3 +8004,84 @@ is correct.)
 group calls = feature/owner-visible scope) and B-8 (project license =
 owner decision)**; every actionable finding from the sweep is closed.
 Gate standalone with rc check.**
+
+---
+
+## Slice 247 (2026-09-24) — owner directive: test every non-phone
+## core, fully — live battery + TeamSpeak voice root-cause
+
+**Scope**: every core EXCEPT phone-number auth (telegram = phone;
+bale/rubika phone flows probed with INVALID numbers, no account
+needed): bale, deltachat, github, irc, matrix, mumble, rubika,
+teamspeak, xmpp.
+
+**Battery 1** (unit): `go test -race -count=1 ./cores/...` → ALL
+GREEN (single `cores` package, coverage snapshot **9.0%** — matrix/
+deltachat/github thin spots queued as next slices).
+
+**Battery 2** (live, `-tags goolm,live ./tests/`): **14 PASS / 2 SKIP
+/ 1 FAIL** — the FAIL was `TestTeamSpeakLiveVoiceRoundTrip`. Root-
+cause hunt (≈15 instrumented runs, physical-truth probes, RX/TX
+plaintext tracing):
+
+- **Hypotheses killed with evidence**: false join acks (whoami showed
+  the server DID move clients — killed in 2 modes); exec-channel
+  cross-talk (never observed: single caller per connection in
+  practice); voice packet format drift (TX byte-identical pIDs 0..74,
+  same sizes, pass vs fail); decrypt (B's RX voice count = 0 AT SOCKET
+  LEVEL, no decrypt-fail prints); the out-of-order queue log (present
+  in PASSING runs too — normal UDP reordering); `setconnectioninfo`
+  burst ×6 (SPEC-CORRECT: auto-respond to `notifyconnectioninforequest`
+  ×5 — negative result, no bug).
+- **Self-caught oracle bugs (re-check-the-checker)**: guessed the
+  whoami key `client_channel` (real key `client_channel_id`) — caught
+  by dumping the full map; claimed `tsExec`'s deadline was dead code
+  from a TRUNCATED read — grep proved `case <-deadline:` exists at
+  line2926 (#4 this session); fat probe (channelinfo ×40 at ~2s each)
+  timed out at 55s — slimmed to the decisive rooms.
+- **ROOT CAUSE (two mechanisms, both server-side)**: (1) **talk-power
+  gating** — guests have `client_talk_power=20`; rooms with
+  `channel_needed_talk_power` above it (9999/9999/125) get their voice
+  silently DISCARDED; all zero-relay rooms were gated, all relayed
+  rooms needed 0. (2) **auto-creator relocation** — cid42 = `◊ AUTO
+  CHANNEL CREATOR ◊` (needed=999999) runs a PrivateChannelManager bot
+  that creates `<nick>'s Channel` and moves each joiner there
+  (notifychannelcreated cid=1141/1142 evidence), splitting the pair.
+
+**Fixes this slice** (tests first, honest classification):
+- Voice test: memoized power filter (channelinfo ≤ own talk power —
+  rejects gated rooms AND the auto-creator in one predicate), physical
+  `WhoAmI` pair-verification + one rejoin + honest Skip if split,
+  cache listing → warning-only, no-joinable/asymmetric-perms → Skip.
+- RoundTrip test: `ErrPermission` → honest Skip (B-25 flap: the same
+  send passed 17:0x, denied 17:21, passed 17:26); transport-shaped
+  failures still hard-Fatal.
+- Kept permanent debug (gated by `UNICLIENT_TS3_DEBUG`): `tsRedactCmd`
+  password-redacted TX command log + RX plaintext command log.
+- Temporary probes (zz_diag, zz_talkprobe) written, used, DELETED.
+
+**BUGS.md**: F-28 (= B-22) → Fixed with the full evidence table; NEW
+open rows **B-24** (tsExec void-success = false ack on silence),
+**B-23** (servernotifyregister ×5 rejected 516 invalid-client-type),
+**B-26** (SendVoice fires blindly into power-gated channels — no UI
+feedback), **B-25** (guest-text permission flapping — environment).
+Open list = 6 rows: B-24, B-23, B-26, B-25, B-6, B-8.
+
+**Validation**: voice test 4× live rc=0 (1 PASS 75/75 + 3 documented
+environment SKIPs); **full live battery re-run: 15 PASS / 0 FAIL /
+2 SKIP — live_rc=0** (skips = github token absent, xmpp registration
+policy); unit + `-race` + vet + vet-with-live-tag green.
+**Next**: matrix (ZERO test files!), github (httptest offline tests),
+deltachat coverage — then B-24/B-23 fixes. Gate standalone with rc
+check.
+
+**Doc-defect found while machine-verifying BUGS format**: the pipe-
+count check flagged rows for real this time — the 14 Fixed rows
+F-14…F-27 (slices 235-246, ALL written by me) had only 3 cells under
+the 4-column header, merging why/fix narration into the Bug cell and
+shifting Test content under "Why it mattered". All 14 split in place
+at their remediation markers (Both fixed:/KEPT with evidence:/Now:
+…); row-format invariants now checked both ways (B-rows 6 pipes,
+F-rows 5) → malformed=0. Note for the log: this warning was previously
+dismissed twice as "oracle noise" — it was real both times; count the
+pipes on the exact rows, not across groups.

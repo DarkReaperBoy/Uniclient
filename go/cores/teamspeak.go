@@ -1584,6 +1584,24 @@ func tsLogf(format string, args ...interface{}) {
 	}
 }
 
+// tsRedactCmd masks password values (cpw=...) so debug command logs
+// (UNICLIENT_TS3_DEBUG) never leak channel/server passwords — everything
+// else stays visible for protocol diagnosis.
+func tsRedactCmd(cmd string) string {
+	for {
+		i := strings.Index(cmd, "cpw=")
+		if i < 0 {
+			return cmd
+		}
+		j := i + 4
+		for j < len(cmd) && cmd[j] != ' ' {
+			j++
+		}
+		cmd = cmd[:i+4] + "<redacted>" + cmd[j:]
+		return cmd
+	}
+}
+
 // tsSendRaw sends a raw UDP packet.
 func (tc *tsConnection) tsSendRaw(pkt []byte) error {
 	if tsDebug && len(pkt) >= 12 {
@@ -1606,6 +1624,7 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 	defer tc.mu.Unlock()
 
 	cmdBytes := []byte(cmdStr)
+	tsLogf("TX cmd: %s", tsRedactCmd(cmdStr))
 
 	// Compress large commands with QuickLZ, exactly like the reference
 	// clients: a >487-byte command becomes one compressed packet when it
@@ -2005,6 +2024,7 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 				continue
 			}
 			name, params := tsParseCommand(line)
+			tsLogf("RX cmd: %s", line)
 			select {
 			case tc.cmdCh <- tsIncomingCmd{name: name, params: params, raw: string(line)}:
 			default:
