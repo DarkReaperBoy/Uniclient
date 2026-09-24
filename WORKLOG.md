@@ -7835,3 +7835,28 @@ from 1 module"; post-bump, same command same flags (`nix develop`,
 Your code is affected by 0 vulnerabilities."** Full §9 gate green
 against the new dep (gofmt/vet/all packages/`-race` set). BUGS.md:
 B-15 → Fixed (F-19); open list starts at B-16 (TS server name).
+
+---
+
+## Slice 242 (2026-09-24) — B-16: TeamSpeak servers have their name back
+
+The `initserver` empty branch (the audit's SA9003) now stores
+`virtualserver_name` via `setServerName` (own RWMutex — GetDialogs
+reads the name while holding `t.mu.RLock`, so a separate lock keeps
+the order clean), and `GetDialogs`' server entry uses it instead of
+the hardcoded "Server Chat", falling back to that label when no name
+has arrived (no regression for nameless servers).
+
+Scope note vs the row's next step: the "and from serverinfo rows"
+half was NOT built — `ServerInfo()` has zero production callers
+(grep-verified), so storing there would be dead code; initserver is
+the standard TS3 carrier of the name (including renames).
+
+**RED**: `TestTeamSpeakInitserverStoresAndSurfacesServerName` uses
+only PRE-EXISTING API (`tsHandleServerCommand` + `GetDialogs`), so it
+compiled and failed before the patch — `title = "Server Chat", want
+the virtualserver_name from initserver (B-16)` — for the initial push
+AND a rename. **GREEN** post-patch + the fallback guard test; full
+cores suite + `-race`. BUGS.md: B-16 → Fixed (F-20); open list starts
+at B-17. Gate: gofmt empty, vet `-tags goolm`, all packages, `-race`
+on the new tests.

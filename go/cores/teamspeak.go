@@ -1346,6 +1346,12 @@ type TeamSpeakCore struct {
 	// defaultChannelMu guards defaultChannelID.
 	defaultChannelMu sync.RWMutex
 
+	// serverName is the virtual server's name carried by initserver
+	// pushes ("" until one arrives); own mutex, like the other hot-path
+	// fields — GetDialogs reads it while holding t.mu.RLock.
+	serverNameMu sync.RWMutex
+	serverName   string
+
 	session *utils.SessionStore
 
 	// Update handlers
@@ -2546,11 +2552,33 @@ drainLoop:
 
 // ──────────────────────────── Server Command Handler ────────────────────────────
 
+// ServerName returns the virtual server's name ("" before the first
+// initserver push).
+func (t *TeamSpeakCore) ServerName() string {
+	t.serverNameMu.RLock()
+	defer t.serverNameMu.RUnlock()
+	return t.serverName
+}
+
+// setServerName stores the pushed virtual server name (empty ignored).
+func (t *TeamSpeakCore) setServerName(name string) {
+	if name == "" {
+		return
+	}
+	t.serverNameMu.Lock()
+	t.serverName = name
+	t.serverNameMu.Unlock()
+}
+
 func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	switch cmd.name {
 	case "initserver":
 		if v := cmd.params["virtualserver_name"]; v != "" {
-			// Store server name etc
+			// The virtual server's name — the only place it arrives
+			// (B-16: this store was an empty branch, so a server's
+			// own name never reached the UI and renames were
+			// invisible).
+			t.setServerName(v)
 		}
 	case "notifytextmessage":
 		t.tsHandleTextMessage(cmd.params)
@@ -3429,10 +3457,14 @@ func (t *TeamSpeakCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	defer t.channelsMu.RUnlock()
 
 	dialogs := make([]Dialog, 0, len(t.channels)+1)
+	serverTitle := "Server Chat"
+	if n := t.ServerName(); n != "" {
+		serverTitle = n // the server's own name via initserver (B-16)
+	}
 	dialogs = append(dialogs, Dialog{
 		ID:       "server",
 		Type:     ChatTypeChannel,
-		Title:    "Server Chat",
+		Title:    serverTitle,
 		Platform: ts3Platform,
 	})
 
