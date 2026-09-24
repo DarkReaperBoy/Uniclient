@@ -332,6 +332,11 @@ func (a *App) authCard(gtx layout.Context, f frame, st *engine.AuthState) layout
 			switch st.State {
 			case engine.AuthStateChoose:
 				return a.authChoose(gtx, f, st)
+			case engine.AuthStateSignUp:
+				// Dedicated signup form (slice 193; wired slice 239 —
+				// BUGS.md B-13: without this case signup fell into the
+				// default single-line authInput and last names merged).
+				return a.layoutSignupCard(gtx, f, st)
 			case engine.AuthStateReady:
 				return a.authReady(gtx, st)
 			case engine.AuthStateError:

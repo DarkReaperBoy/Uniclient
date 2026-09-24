@@ -41,7 +41,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Phone → code steps | Step-by-step auth with progress + resend | PRESENT | gui/login.go + engine.StartAuth/SubmitAuthInput | P0 |
 | 2FA password step | Masked input, recovery | PRESENT | gui/login.go + SubmitAuthInput | P0 |
-| Signup (name/photo) | First/last name on new account | PARTIAL (CORRECTED slice 235: the claimed dedicated form is UNREACHABLE — `layoutSignupCard`/`signupSubmit`/`signupPickPhoto` have zero callers and `AuthStateSignUp` falls into `authInput`'s default branch, so signup renders ONE generic line: no first/last split, no photo circle — the pre-193 last-name merge bug is live (`git log -S` = one commit, 22f4176d, never wired; BUGS.md B-13). Original slice-193 claim, kept for the record: "the signup step renders the dedicated tdesktop signup form — First/last name as separate fields … photo circle … Create account button", counted from the FILE, not the call graph) | gui/login.go authInput default (dead form: gui/signupcard.go) + engine SubmitAuthInput + UploadProfilePhoto | P2 |
+| Signup (name/photo) | First/last name on new account | PRESENT (WIRED slice 239: `authCard` now has the `AuthStateSignUp` case → `layoutSignupCard` — separate First (required)/Last (optional) fields producing the engine's `first\nlast` shape, photo circle with OS picker staging, Create account button. History kept visible: slice 193 built the form but never added the dispatch case (counted PRESENT from the FILE), caught by the slice-235 call-graph audit as PARTIAL (BUGS.md B-13), restored to PRESENT on the strength of `TestSignupStepRendersDedicatedCard`, which drives the real authCard and clicks the real button | gui/signupcard.go (wired at login.go authCard) + engine SubmitAuthInput + UploadProfilePhoto | P2 |
 | QR login | Live-refreshing QR, scan from mobile | PRESENT | gui/login.go+qr.go + engine QR states | P0 |
 | Email verify / email-login | Code to email, email setup during auth | PRESENT (state machine covers it) | gui/login.go + telegram VerifyEmailDuringAuth | P2 |
 | Login code auto-fill from TG msg | Code arrives via logged-in session | PRESENT (slice 31: EventLoginCode → OTP banner with code + Use button; auto-fills the empty code field; 10-min freshness window) | gui/logincode.go + engine EventLoginCode | P3 |
@@ -427,7 +427,7 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (200 feature rows)
 
-- PRESENT: 194 (97%) — the four video rows from slices 220-225
+- PRESENT: 195 (97.5%) — the four video rows from slices 220-225
   (143, 279, 276, 231), the five rows synced by the slice-226 truth
   pass (107 forum topics, 108 chat background, 193 saved messages,
   207 chat settings, 212 stars), **row 306 by slice 227** (QR scan
@@ -439,14 +439,15 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   (paid star wall) — both were counted from files that were never
   wired into any call path (BUGS.md B-13/B-12), which is what moved
   195→193. Row 153 was then WIRED (slice 238, BUGS.md F-16) and
-  returned to PRESENT → 194; row 44 remains PARTIAL until B-13
-  lands.** **Counted by machine**: parsing every row's status cell caught two
+  returned to PRESENT → 194, and row 44 was wired at slice 239 (F-17)
+  → PRESENT 195: the same headline number as before the audit, but
+  now each row is proven by a behavioral test through the real
+  dispatch instead of counted from a file.** **Counted by machine**: parsing every row's status cell caught two
   earlier drifts (the prose claimed 188/8 while the table held 187/9,
   and the experimental row's CORE-ONLY-BY-DESIGN status made the first
   parser pass miss it) — these numbers are that parser's output, summed
   over all 200 rows.
-- PARTIAL: 3 — signup name/photo (dedicated form never wired — see
-  above) · local premium toggle (nothing is gated client-side yet,
+- PARTIAL: 2 — local premium toggle (nothing is gated client-side yet,
   so the toggle would be dead UI) · card-funded giveaway launch
   (external checkout, honest absence)
 - MISSING: **0** — closed by slice 222 (PiP was the last one).

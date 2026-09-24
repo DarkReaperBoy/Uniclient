@@ -7769,3 +7769,28 @@ checker re-run); AGENTS status lines updated. BUGS.md: B-12 → Fixed
 (F-16); open list starts at B-13 (the signup form — same disease,
 next to fix). Gate: gofmt empty, vet `-tags goolm`, all packages,
 `-race` on the new tests.
+
+---
+
+## Slice 239 (2026-09-24) — B-13: the dedicated signup card renders
+
+Same disease as B-12, one line of wiring: `authCard` simply had no
+`AuthStateSignUp` case, so signup fell into the default branch →
+generic single-line `authInput` (git -S: slice 193 built the whole
+card + its tested pure helpers, never added the dispatch). Wired:
+`case engine.AuthStateSignUp: return a.layoutSignupCard(gtx, f, st)`.
+
+**RED**: `TestSignupStepRendersDedicatedCard` drives the REAL authCard
+through the input router (proven harness from slice 238), sweeps the
+Create-account band, and asserts the card's OWN validation wording
+("Enter your first name" — signupSubmit's string, impossible for the
+generic input): failed pre-patch with `toast=""` + the B-13
+diagnosis. The sweep band is bounded so the generic Continue button
+(~y 150) can't trip a misleading toast — noted in the test comment.
+**GREEN**: the test, full gui suite, `-race` (alongside the B-12
+tests). Parity row 44 restored to PRESENT — headline back to 195/200
+(97.5%) · PARTIAL 2 · MISSING 0 · CORE-ONLY 3 (+1 BY-DESIGN) = 200,
+checker re-run — with the counts narrative recording that the same
+number now rests on behavioral tests, not file counts. BUGS.md: B-13
+→ Fixed (F-17); open list starts at B-14. Gate: gofmt empty, vet
+`-tags goolm`, all packages, `-race` on the new tests.
