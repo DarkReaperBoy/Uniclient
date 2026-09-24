@@ -8349,3 +8349,42 @@ predates it):
 **gate254 = light**: gofmt + vet + full plain `go test` + `-race`
 ONLY on webm/vp9anim (tiny packages, the crasher regression under the
 detector). NO fuzz, NO staticcheck, NO full-tree race in this gate.
+
+---
+
+## Slice 255 (2026-09-25) — fuzz coverage expansion to every
+## hostile-input parser + B-38 family audit outside webm (negative
+## result: no new bugs)
+
+RAM-safe method (owner constraint from slice 254): every fuzzer run
+**serial, `-parallel=1`, 8s each**, one worker at a time — host stayed
+at ~7.7Gi available throughout.
+
+- **10 new fuzz targets** (webm/vp9anim were the only ones before),
+  each with the never-panic + never-(nil,nil) §1.10 contract and real
+  seeds: `h264vid.FuzzParse` (video-note decode path),
+  `aacaud.FuzzParse` (MP4 boxes, bytes.Reader),
+  `lottie.FuzzParseAnimationJSON` + `FuzzParseTgs` (attacker-supplied
+  stickers, gzip'd + plain), `qrscan.FuzzDecodeBytes` +
+  `FuzzDecodeImage`, `voice.FuzzDecodeFrame` (hostile Opus frames),
+  `engine.FuzzReadOggPage` (downloaded voice messages),
+  `cores.FuzzParseIRCMsg` + `FuzzParseStandardReply` +
+  `FuzzParsePROXYProtocol` (hostile server wire lines).
+  **All 10 PASS** (8s × serial), zero crashers saved; seed replays
+  green in normal `go test` mode (CI-compatible).
+- **B-38 pattern audit outside webm** (the grep hunt for `data[s:e]`
+  with computed bounds): aacaud's fixed-offset clusters ALL have
+  explicit guards (`len(b)` checks before every `b[20:24]`-style
+  slice, box walk + `children()` both reject `size < hdr` — no
+  infinite-loop, no OOB, `8+count*entry > len` pre-checks with
+  implausible-count caps), `pcm[start:end]` is fully clamped,
+  engine/ogg reads via `io.ReadFull` into sized arrays, voicerec's
+  `p[10:12]` hits are writer-side comments. **Negative result: no
+  other instance of the webm family exists in the tree** — recorded
+  per battery discipline (clean results are results).
+- **B-25 re-probe**: still `permission denied` → stays open
+  (environment; honest skip unchanged).
+
+No BUGS.md rows this slice (nothing found). gate255 = gate254 scope
+(gofmt/vet/full plain tests/-race on webm+vp9anim) — the plain suite
+replays every new fuzz seed. Standalone with rc check.
