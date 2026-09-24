@@ -20,7 +20,7 @@ func TestTeamSpeakInitserverStoresAndSurfacesServerName(t *testing.T) {
 	tc.tsHandleServerCommand(tsIncomingCmd{
 		name: "initserver",
 		params: map[string]string{
-			"virtualserver_name":           "Arctic Test Server",
+			"virtualserver_name":            "Arctic Test Server",
 			"virtualserver_welcome_message": "welcome",
 		},
 	})

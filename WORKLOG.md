@@ -7860,3 +7860,15 @@ AND a rename. **GREEN** post-patch + the fallback guard test; full
 cores suite + `-race`. BUGS.md: B-16 → Fixed (F-20); open list starts
 at B-17. Gate: gofmt empty, vet `-tags goolm`, all packages, `-race`
 on the new tests.
+
+**Self-inflicted slip this slice, caught by CI**: I chained the gate
+into the commit command as `… bash gate.sh | tail -7 && git add …` —
+the pipeline returned TAIL's exit status, so the gate's gofmt failure
+("UNFORMATTED: go/cores/teamspeak_servername_test.go", one alignment
+line) was masked and `5180190a` pushed unformatted → verify run
+FAILED (first red push since the streak began at 15986674; 28 greens
+ended). Recovery: gofmt -w, gate re-run as its OWN command with an
+explicit `echo gate_rc=$?` (rc=0), fix-forward commit, CI re-dispatch.
+Rule recorded: **never pipe a gate into `&&`-chained git commands —
+gate runs standalone, exit code checked, then commit in a separate
+call.**
