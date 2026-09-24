@@ -8177,3 +8177,30 @@ Coverage: deltachat_headers_test.go = 5 tests (17 incl. github's
 shared suite via package). Open list unchanged: B-24, B-23, B-26,
 B-25, B-6, B-8. Gate249 standalone with rc check; next: github pure
 tests (slice 250) → then B-24/B-23.
+
+---
+
+## Slice 250 (2026-09-25) — github pure-layer suite (12 tests, no new
+## bugs — negative result recorded)
+
+`github_pure_test.go`: repo path/id formatting, backoff math (bounds
++ jitter 0-25% pinned), secondary-rate-limit detection (real doc
+samples + negatives), Retry-After (seconds / missing / garbage /
+HTTP-date → documented 60s default), trailing-number extraction
+(incl. documented no-match on trailing slash + sha/tag negatives),
+comment→Message (ids, edit flag via updated≠created, title fallback
+for issues, author fallback, outgoing by username), nested-reaction
+parsing (counts, zero-count absent, exact entry count), dialog
+mapping (every field), repo/issue chat-id parsing (valid, short,
+embedded-slash behavior pinned deliberately), gjson helpers (nested,
+missing, mid-path non-map, both type-mismatch directions, array
+segment).
+
+**Honest negative result: all 12 GREEN on first run — no defects
+found in github's pure layer** (contrast: matrix/deltachat first
+runs each exposed real bugs). Behavior is now pinned so regressions
+fail loudly. Every non-phone core now has a meaningful unit suite:
+teamspeak/mumble/xmpp/irc/rubika/bale (unit + live), matrix (19),
+deltachat (headers + full localserver chain), github (12 + live
+skip without token), stub/proxy in-package. Gate250 (adds TestGitHub
+race) standalone with rc check.
