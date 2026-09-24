@@ -722,7 +722,7 @@ func (g *GitHubCore) ReplyToMessage(chatID string, replyToMsgID string, msg Outg
 				firstLine = firstLine[:idx]
 			}
 			if len(firstLine) > 100 {
-				firstLine = firstLine[:100] + "..."
+				firstLine = utils.TruncateEllipsis(firstLine, 100)
 			}
 			quotedText = fmt.Sprintf("> **%s**: %s\n\n%s", original.SenderName, firstLine, msg.Text)
 		}
@@ -3283,10 +3283,9 @@ func strOf(v any) string {
 }
 
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
+	// Rune-safe: byte slices here produced invalid UTF-8 in error
+	// messages whenever the cut split a multibyte rune (B-28).
+	return utils.TruncateEllipsis(s, maxLen)
 }
 
 var trailingNumberRe = regexp.MustCompile(`/(\d+)$`)

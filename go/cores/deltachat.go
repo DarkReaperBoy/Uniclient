@@ -1025,7 +1025,7 @@ func (d *DeltaChatCore) ReplyToMessage(chatID string, replyToMsgID string, msg O
 		if cached.ID == replyToMsgID {
 			replyPreview = cached.Text
 			if len(replyPreview) > 100 {
-				replyPreview = replyPreview[:100]
+				replyPreview = utils.Truncate(replyPreview, 100)
 			}
 			break
 		}
@@ -6234,7 +6234,7 @@ func (d *DeltaChatCore) ForwardMessagesToAccount(msgIDs []string, targetEmail st
 					}
 					subj := m.Text
 					if len(subj) > 50 {
-						subj = subj[:50]
+						subj = utils.Truncate(subj, 50)
 					}
 					if err := d.sendEmail([]*mail.Address{toAddr}, "Fwd: "+subj, text, emailMsgID, "", headers, nil); err != nil {
 						return fmt.Errorf("forward message %s: %w", m.ID, err)

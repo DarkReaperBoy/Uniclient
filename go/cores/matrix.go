@@ -2860,10 +2860,7 @@ func (m *MatrixCore) GetThreads(chatID string) ([]Dialog, error) {
 		evt.Content.ParseRaw(evt.Type)
 		title := "Thread"
 		if mc, ok := evt.Content.Parsed.(*event.MessageEventContent); ok {
-			title = mc.Body
-			if len(title) > 50 {
-				title = title[:50] + "..."
-			}
+			title = utils.TruncateEllipsis(mc.Body, 50)
 		}
 		dialogs = append(dialogs, Dialog{
 			ID:       evt.ID.String(),
@@ -3257,7 +3254,10 @@ func (m *MatrixCore) applyStateEvent(rs *matrixRoomState, evt *event.Event) {
 			rs.AvatarURL = string(ac.URL)
 		}
 	case event.StateMember:
-		if mc, ok := evt.Content.Parsed.(*event.MemberEventContent); ok {
+		// Guard like BOTH sibling handlers (handleMemberEvent, the sync
+		// room loop): a state event without state_key (malicious or
+		// buggy homeserver) must never crash the core (B-27).
+		if mc, ok := evt.Content.Parsed.(*event.MemberEventContent); ok && evt.StateKey != nil {
 			uid := id.UserID(*evt.StateKey)
 			rs.Members[uid] = &matrixMember{
 				UserID:      uid,

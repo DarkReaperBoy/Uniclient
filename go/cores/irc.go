@@ -2289,7 +2289,7 @@ func (c *IRCCore) ReplyToMessage(chatID string, replyToMsgID string, msg Outgoin
 					firstLine = firstLine[:idx]
 				}
 				if len(firstLine) > 80 {
-					firstLine = firstLine[:80] + "..."
+					firstLine = utils.TruncateEllipsis(firstLine, 80)
 				}
 				text = "<" + m.SenderName + "> " + firstLine + " — " + msg.Text
 				break

@@ -8085,3 +8085,52 @@ at their remediation markers (Both fixed:/KEPT with evidence:/Now:
 F-rows 5) → malformed=0. Note for the log: this warning was previously
 dismissed twice as "oracle noise" — it was real both times; count the
 pipes on the exact rows, not across groups.
+
+---
+
+## Slice 248 (2026-09-24) — matrix zero-test gap closed + B-27/B-28
+
+**Continuing the owner's "test every non-phone core fully" sweep**:
+the coverage matrix showed `matrix.go` (6702 lines) with **ZERO test
+files** and deltachat/github thin. Closed the matrix gap first.
+
+**Design notes**: `event.Content.Raw` is a `map[string]interface{}` in
+mautrix v0.30 (not json.RawMessage — first build attempt failed and was
+fixed by unmarshalling FULL event JSON, which is also more faithful:
+it's exactly how sync events arrive, `ParseRaw` runs in production
+paths). 19 tests over the pure seams: eventToMessage (plain/outgoing/
+edit-NewContent/reply-ID/encrypted-file attachment+Extra/plain URL/
+non-message/state-derived SenderName+IsEncrypted), roomToDialog
+(classification ×5, join+invite member count, title fallback),
+generateRoomName (Empty Room / UserID fallback / "Same, Same and 2
+others"), isSpace, applyStateEvent (name/topic/avatar/encryption/
+powerlevels/joinrules/pinned/member), handleMessageEvent (new-message
+firing + edit ID rewrite to the original event), GetDialogs (ErrAuth,
+last-activity sort, limit+offset pagination), getPinnedEvents.
+
+**Two real bugs found while writing them (tests-first RED):**
+- **B-27 → F-29**: `applyStateEvent` StateMember dereferenced
+  `*evt.StateKey` UNSEREMONED while both sibling handlers guard it —
+  malformed state event = nil-pointer panic (RED output captured:
+  `invalid memory address or nil pointer dereference`). Guard added.
+- **B-28 → F-30**: byte-slices on UTF-8 across FOUR cores — matrix
+  thread titles, github first-line previews + the shared `truncate()`
+  behind every API-error body, irc quote previews, deltachat reply
+  previews + forward subjects. 4/5 RED cases produced invalid UTF-8
+  (`"日\xe6..."`), plus the length TRIGGER was byte-based (3-rune
+  `"éé"`-length strings over 5 bytes got cut under a 5-char limit).
+  New `utils.Truncate`/`utils.TruncateEllipsis` (rune-based, ellipsis
+  only on cut) swapped into all 6 sites; ASCII semantics pinned
+  unchanged (`TestTruncateHelperSemantics` was GREEN pre-fix).
+- **Self-caught oracle error**: expected "…and 3 others" for 4 OTHERS
+  (5 members incl. self) — production's `len(names)-2` = 2 is correct
+  arithmetic; test expectation fixed, production untouched.
+
+**Coverage after**: cores 9.0% → **9.3%**, utils 10.6% (new file);
+B-27/B-28 went straight to the Fixed log (F-29/F-30, F-13 precedent:
+find+fix one slice, still their own entries). Open list unchanged:
+B-24, B-23, B-26, B-25, B-6, B-8.
+
+**Validation**: matrix+truncate suites green, full cores suite green,
+`-race` green on new tests, vet green. Gate248 (adds race for matrix/
+truncate/utils) standalone with rc check.
