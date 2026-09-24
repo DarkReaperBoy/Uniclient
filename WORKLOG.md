@@ -7709,3 +7709,28 @@ existing exactly-once handoff (`justDone` → `onDone = nil`) untouched.
 stream tests; staticcheck re-run shows SA4004 gone. BUGS.md: B-10 →
 Fixed (F-14); open list now starts at B-11. Gate: gofmt empty, vet
 `-tags goolm`, all packages, `-race` on the stream suite + this test.
+
+---
+
+## Slice 237 (2026-09-24) — B-11: XMPP rosters actually load now
+
+The probe from the sweep was made permanent: `xmppParseRoster` (new
+shared helper) carries the CORRECT XEP-0237 tag — `<ver>` is an
+ELEMENT, the old `,attr` on a chained path made encoding/xml reject
+the whole document on every input — and both former copy-paste sites
+(`handleRosterPush`, `requestRoster`) now use it and LOG parse failures
+instead of dropping them (one returned silently, one ignored the error
+outright; xmpp.go had zero log statements before this slice).
+
+**RED**: `TestXMPPParseRoster` failed to build (seam undefined) — the
+behavioral proof stays on record from the audit probe (`err=xml:
+query>ver chain not valid with attr flag`, items=0 on every input).
+**Self-caught oracle bug**: my first "garbage must error" subtest used
+plain prose — but the helper WRAPS input in `<r>`, which makes prose
+valid XML, so the assertion was wrong (F-9 family: re-check the
+checker); corrected to a genuinely unclosed tag, with the mistake
+recorded in the test comment. **GREEN**: items/ver/groups, the
+`subscription=remove` payload, malformed-XML error path; full cores
+suite + `-race` clean. BUGS.md: B-11 → Fixed (F-15); open list starts
+at B-12. Gate: gofmt empty, vet `-tags goolm`, all packages, `-race`
+on the new test.

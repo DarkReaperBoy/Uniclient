@@ -46,6 +46,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -1830,29 +1831,44 @@ func (c *XMPPCore) handleIQ(iq XMPPIQ) {
 	}
 }
 
+// xmppParseRoster decodes the roster <query/> payload carried by an IQ
+// result or push (RFC 6121 §2.6 + XEP-0237 versioning). <ver> is an
+// ELEMENT, not an attribute: the old tag said `query>ver,attr`, which
+// encoding/xml rejects on a chained path — Unmarshal then errored on
+// EVERY input and both call sites dropped the roster silently, so the
+// contact list never loaded (BUGS.md B-11; probe-proven in the audit).
+func xmppParseRoster(inner string) (items []xmppRosterItem, ver string, err error) {
+	type rosterQuery struct {
+		Items []xmppRosterItem `xml:"jabber:iq:roster query>item"`
+		Ver   string           `xml:"jabber:iq:roster query>ver"`
+	}
+	var q rosterQuery
+	if err := xml.Unmarshal([]byte("<r>"+inner+"</r>"), &q); err != nil {
+		return nil, "", err
+	}
+	return q.Items, q.Ver, nil
+}
+
 func (c *XMPPCore) handleRosterPush(iq XMPPIQ) {
 	c.sendRawStanza("<iq type='result' id='" + xmlEscape(iq.ID) + "'/>")
 
-	// Parse roster item
-	type rosterQuery struct {
-		Items []xmppRosterItem `xml:"jabber:iq:roster query>item"`
-		Ver   string           `xml:"jabber:iq:roster query>ver,attr"`
-	}
-	var q rosterQuery
-	if err := xml.Unmarshal([]byte("<r>"+iq.Inner+"</r>"), &q); err != nil {
+	items, ver, err := xmppParseRoster(iq.Inner)
+	if err != nil {
+		// Never swallow: a dropped push desyncs the roster invisibly.
+		log.Printf("xmpp: roster push parse failed: %v", err)
 		return
 	}
 
 	c.rosterMu.Lock()
-	for _, item := range q.Items {
+	for _, item := range items {
 		if item.Subscription == "remove" {
 			delete(c.roster, item.JID)
 		} else {
 			c.roster[item.JID] = &item
 		}
 	}
-	if q.Ver != "" {
-		c.rosterVer = q.Ver
+	if ver != "" {
+		c.rosterVer = ver
 	}
 	c.rosterMu.Unlock()
 }
@@ -3311,21 +3327,20 @@ func (c *XMPPCore) requestRoster() {
 		return
 	}
 
-	// Parse roster items
-	type rosterQuery struct {
-		Items []xmppRosterItem `xml:"jabber:iq:roster query>item"`
-		Ver   string           `xml:"jabber:iq:roster query>ver,attr"`
+	items, ver, err := xmppParseRoster(resp.Inner)
+	if err != nil {
+		// Never swallow: an invisible empty roster looks like "no contacts".
+		log.Printf("xmpp: roster fetch parse failed: %v", err)
+		return
 	}
-	var q rosterQuery
-	xml.Unmarshal([]byte("<r>"+resp.Inner+"</r>"), &q)
 
 	c.rosterMu.Lock()
-	for _, item := range q.Items {
+	for _, item := range items {
 		itemCopy := item
 		c.roster[item.JID] = &itemCopy
 	}
-	if q.Ver != "" {
-		c.rosterVer = q.Ver
+	if ver != "" {
+		c.rosterVer = ver
 	}
 	c.rosterMu.Unlock()
 }
