@@ -122,10 +122,14 @@ func TestContactChat(t *testing.T) {
 	if _, ok := contactChat(chats, "acc1", "200"); ok {
 		t.Fatal("group must not match a user ID lookup")
 	}
-	// Account scoping matters.
-	if _, ok := contactChat(chats, "acc2", "100"); !ok {
-		// acc2/100 IS a DM, so it matches — but for the wrong account
-		// when scoping to acc1.
+	// Account scoping matters: acc2/100 is ITS OWN DM — a scoped
+	// lookup must return it (and never acc1's Alice; the first
+	// assertion above pins that side). The old branch here had an
+	// empty body and asserted nothing (B-20, staticcheck SA4006+SA9003
+	// — production scoping is correct, contacts.go:140-147; the fix is
+	// the assertion itself).
+	if c, ok := contactChat(chats, "acc2", "100"); !ok || c.Title != "Other account" {
+		t.Errorf("account scoping: acc2/100 = %+v ok=%v, want its own DM %q", c, ok, "Other account")
 	}
 	if _, ok := contactChat(chats, "acc1", "999"); ok {
 		t.Fatal("unknown user must not match")

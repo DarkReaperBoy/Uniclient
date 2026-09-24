@@ -2,6 +2,8 @@ package engine
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 	"strconv"
 	"sync"
 	"time"
@@ -441,7 +443,13 @@ func (e *Engine) maybeAutoDownload(accountID, chatID string, msg *cores.Message)
 	for i, att := range msg.Attachments {
 		mt := guessMediaType(att.MimeType, att.Name)
 		if e.ShouldAutoDownload(source, mt, att.Size) {
-			e.RequestDownload(accountID, chatID, msg.ID, i, 3)
+			// Auto-download errors are NOT silent (B-7): ErrStreamActive
+			// means playback is already saving these bytes (benign);
+			// anything else used to vanish without a trace.
+			if err := e.RequestDownload(accountID, chatID, msg.ID, i, 3); err != nil &&
+				!errors.Is(err, ErrStreamActive) {
+				log.Printf("[engine] auto-download %s/%s %s#%d: %v", accountID, chatID, msg.ID, i, err)
+			}
 		}
 	}
 }

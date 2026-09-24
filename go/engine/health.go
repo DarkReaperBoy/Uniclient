@@ -177,7 +177,20 @@ func (e *Engine) ConnectAllAccounts() {
 }
 
 // syncAccount fetches fresh data from the network after connecting.
+// syncAccountContext is syncAccount's context contract (B-21):
+// finalizeAuth once passed nil, which is safe only while nothing
+// dereferences ctx — one future ctx.Done()/RPC use would turn first
+// login into a panic. Nil is replaced at the boundary so every caller
+// (current and future) can rely on a real context.
+func syncAccountContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
 func (e *Engine) syncAccount(ctx context.Context, accountID string) {
+	ctx = syncAccountContext(ctx)
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		log.Printf("[engine] syncAccount(%s): account not found or no core", accountID)

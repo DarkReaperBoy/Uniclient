@@ -7872,3 +7872,38 @@ explicit `echo gate_rc=$?` (rc=0), fix-forward commit, CI re-dispatch.
 Rule recorded: **never pipe a gate into `&&`-chained git commands —
 gate runs standalone, exit code checked, then commit in a separate
 call.**
+
+---
+
+## Slice 243 (2026-09-24) — four small closures: B-19, B-20, B-21, B-7
+
+(slice-230 style: several tiny, independent fixes with their own RED
+tests in one gated commit.)
+
+- **B-19 → F-21**: `tsProcessCommandQueue`'s gap branch now LOGS the
+  expected packet id + the queued out-of-order ids (keys were built
+  and dropped — SA4010). RED: crafted queue (next=5, queued 7/9),
+  empty log pre-patch.
+- **B-20 → F-22**: the two assertions that could not fail are real
+  now — account scoping resolves acc2/100 to ITS OWN DM, and
+  stickerTabs' in-range sel is checked. Honest note (kept in the
+  Fixed row): production was CORRECT both times (source-verified), so
+  no RED exists — the assertions are the fix and will catch future
+  regressions.
+- **B-21 → F-23**: `syncAccountContext` replaces nil at the boundary
+  (documented contract) + the finalizeAuth call site passes
+  `context.Background()` explicitly. Compile-RED seam test.
+- **B-7 → F-24**: auto-download logs unexpected `RequestDownload`
+  errors, suppressing exactly ErrStreamActive (RequestDownload never
+  returns Busy — return paths checked, so Active is the only benign
+  exception). RED: `log = ""` pre-patch; guard test keeps
+  stream-active quiet through the REAL guard claim.
+
+Test-harness notes: the log-capture pattern (log.SetOutput + defer
+restore) is new to these packages — tests within a package run
+serially so the global logger is safe to borrow; engine's
+test needs an accounts row because `PRAGMA foreign_keys = ON`
+(verified in db.go:55). BUGS.md: B-19/B-20/B-21/B-7 → Fixed
+(F-21…F-24); open list now: B-17, B-18, B-5, B-6, B-8. Gate runs
+standalone with an explicit exit-code check before the commit (see
+the slice-242 slip above).**

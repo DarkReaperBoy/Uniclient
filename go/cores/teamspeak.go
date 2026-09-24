@@ -15,6 +15,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"math/big"
 	"net"
@@ -1933,11 +1934,15 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 		pkt, ok := tc.recvQueue[cmdI][nextID]
 		if !ok {
 			if len(tc.recvQueue[cmdI]) > 0 {
+				// Out-of-order packets ARE queued while the in-order one
+				// is missing — surface the gap instead of doing dead work
+				// with it (B-19: keys were built and dropped on an empty
+				// line, SA4010).
 				keys := make([]uint16, 0, len(tc.recvQueue[cmdI]))
 				for k := range tc.recvQueue[cmdI] {
 					keys = append(keys, k)
 				}
-
+				log.Printf("ts: waiting for command packet %d; queued out-of-order: %v", nextID, keys)
 			}
 			return // waiting for the next in-order packet
 		}

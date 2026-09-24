@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -417,7 +418,7 @@ func (e *Engine) finalizeAuth(accountID string, acc *Account, flow *authFlow) {
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
-		e.syncAccount(nil, accountID)
+		e.syncAccount(context.Background(), accountID) // never nil (B-21)
 	}()
 }
 

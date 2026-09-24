@@ -37,10 +37,12 @@ func TestStickerTabs(t *testing.T) {
 		t.Fatalf("negative sel = %d, want %d", sel, len(tabs)-1)
 	}
 
-	// no recent: packs only
+	// no recent: packs only — and the in-range input selection survives
+	// (the old case reassigned sel and never checked it: an assertion
+	// that could not fail, B-20).
 	tabs, sel = stickerTabs(packs, nil, 0)
-	if len(tabs) != 2 || tabs[0].title != "Cats" {
-		t.Fatalf("no-recent tabs = %+v", tabs)
+	if len(tabs) != 2 || tabs[0].title != "Cats" || sel != 0 {
+		t.Fatalf("no-recent tabs = %+v sel = %d, want 2 tabs (Cats…) with sel 0", tabs, sel)
 	}
 
 	// nothing at all: zero tabs, sel clamps to -1
