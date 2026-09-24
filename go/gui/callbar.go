@@ -30,6 +30,14 @@ func callBarPollNeeded(c engine.ChatInfo, voiceRoom bool) bool {
 
 // callBarSubtitle derives the bar's status line.
 func callBarSubtitle(c engine.ChatInfo, gc *engine.GroupCallInfo, voiceRoom bool) string {
+	// Talk-power block beats counts: the room LOOKS healthy but the
+	// server discards our voice (BUGS B-26) — say so.
+	if gc != nil && gc.TalkPowerBlocked {
+		if voiceRoom {
+			return "voice room · mic blocked (talk power)"
+		}
+		return "group call · mic blocked (talk power)"
+	}
 	if voiceRoom {
 		if gc == nil {
 			return "voice room · empty"

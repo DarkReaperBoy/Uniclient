@@ -1338,8 +1338,11 @@ type TeamSpeakCore struct {
 	myUID      string
 	myName     string
 
-	// Current channel
+	// Current channel (guarded by clientInfoMu — see tsHandleClientMoved)
 	myChannelID int
+	// Own talk power from notifyclientupdated's client_talk_power
+	// (guarded by clientInfoMu; 0 = unknown → checks fail open, B-26)
+	myTalkPower int
 
 	// local mic mute mirror (server state set via clientupdate)
 	micMuted bool
@@ -1452,6 +1455,12 @@ type tsChannelInfo struct {
 	topic        string
 	totalClients int
 	order        int
+	// Talk power (BUGS B-26): channel_needed_talk_power from
+	// `channelinfo` (channellist does NOT carry it), fetched after a
+	// join; talkPowerKnown distinguishes "fetched: 0" from "never
+	// fetched" so checks fail open until the fetch lands.
+	talkPower      int
+	talkPowerKnown bool
 }
 
 type tsSession struct {
@@ -2714,6 +2723,14 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			return
 		}
 		t.clientInfoMu.Lock()
+		// Own talk power rides this event too (observed live:
+		// `notifyclientupdated clid=<us> client_talk_power=20 …`) — the
+		// room-dead check needs it (B-26). 0 stays "unknown".
+		if clid == t.myClientID {
+			if v, perr := strconv.Atoi(cmd.params["client_talk_power"]); perr == nil {
+				t.myTalkPower = v
+			}
+		}
 		if info, ok := t.clientInfo[clid]; ok {
 			if v := cmd.params["client_nickname"]; v != "" {
 				info.nickname = v
@@ -3032,7 +3049,10 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 	case 1: // Private message
 		chatID = fmt.Sprintf("dm:%d", invokerID)
 	case 2: // Channel message
-		chatID = fmt.Sprintf("ch:%d", t.myChannelID)
+		t.clientInfoMu.RLock()
+		chID := t.myChannelID
+		t.clientInfoMu.RUnlock()
+		chatID = fmt.Sprintf("ch:%d", chID)
 	case 3: // Server message
 		chatID = "server"
 	default:
@@ -3114,11 +3134,14 @@ func (t *TeamSpeakCore) tsHandleClientMoved(kv map[string]string) {
 	}
 	cid, _ := strconv.Atoi(kv["ctid"])
 
+	t.clientInfoMu.Lock()
+	// B-37: this write used to run OUTSIDE the lock while GetGroupCall
+	// reads myChannelID under it (and tsHandleTextMessage read it bare)
+	// — a data race the detector flags. Everything myChannelID touches
+	// now lives under clientInfoMu.
 	if clid == t.myClientID {
 		t.myChannelID = cid
 	}
-
-	t.clientInfoMu.Lock()
 	if info, ok := t.clientInfo[clid]; ok {
 		info.channelID = cid
 		t.clientInfo[clid] = info
@@ -4734,7 +4757,12 @@ func (t *TeamSpeakCore) GetGroupCall(chatID string) (*CallSession, error) {
 
 	// The server never sends the local client's own enter-view event —
 	// add ourselves so the room lists every member (Mumble parity).
-	if !selfSeen && t.myChannelID == cid {
+	// myChannelID is guarded by clientInfoMu (B-37): read it under the
+	// lock, decide outside.
+	t.clientInfoMu.RLock()
+	selfInThisRoom := !selfSeen && t.myChannelID == cid
+	t.clientInfoMu.RUnlock()
+	if selfInThisRoom {
 		participants = append(participants, CallParticipant{
 			UserID:      strconv.Itoa(t.myClientID),
 			DisplayName: t.myName,
@@ -4752,6 +4780,9 @@ func (t *TeamSpeakCore) GetGroupCall(chatID string) (*CallSession, error) {
 		Meta: map[string]string{
 			"title":              title,
 			"participants_count": strconv.Itoa(len(participants)),
+			// Polled by the call bar so the UI can say "mic blocked"
+			// instead of showing a healthy room while audio dies (B-26).
+			"talk_power": t.talkPowerState(cid),
 		},
 	}, nil
 }
@@ -5587,7 +5618,77 @@ func (t *TeamSpeakCore) JoinChannel(cid int, password string) error {
 	if password != "" {
 		cmd += fmt.Sprintf(" cpw=%s", tsEscape(password))
 	}
-	return t.tsExecSimple(cmd)
+	if err := t.tsExecSimple(cmd); err != nil {
+		return err
+	}
+	// channellist does NOT carry channel_needed_talk_power — fetch it
+	// after every successful join so voice can be checked against it
+	// (B-26). Async: one channelinfo round-trip must not block the move
+	// itself; SendVoice fails open until the answer lands.
+	go t.tsRefreshChannelTalkPower(cid)
+	return nil
+}
+
+// tsParseNeededTalkPower extracts channel_needed_talk_power from a
+// channelinfo response; known=false when the field is absent or not a
+// number (then checks must fail open).
+func tsParseNeededTalkPower(rows []map[string]string) (power int, known bool) {
+	for _, r := range rows {
+		v, ok := r["channel_needed_talk_power"]
+		if !ok {
+			continue
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, false
+		}
+		return n, true
+	}
+	return 0, false
+}
+
+// tsRefreshChannelTalkPower fetches channel_needed_talk_power for a
+// channel (channelinfo — the only carrier of the field).
+func (t *TeamSpeakCore) tsRefreshChannelTalkPower(cid int) {
+	rows, err := t.tsExec(fmt.Sprintf("channelinfo cid=%d", cid))
+	if err != nil {
+		return // stay in fail-open unknown state
+	}
+	power, known := tsParseNeededTalkPower(rows)
+	if !known {
+		return
+	}
+	t.channelsMu.Lock()
+	ch := t.channels[cid]
+	ch.cid = cid
+	ch.talkPower = power
+	ch.talkPowerKnown = true
+	t.channels[cid] = ch
+	t.channelsMu.Unlock()
+}
+
+// talkPowerState classifies OUR ability to be heard in channel cid:
+// "blocked" = known requirement above our known power (the server
+// silently discards our voice — probe evidence in BUGS F-28), "ok" =
+// known-compatible, "unknown" = either side not fetched yet → callers
+// fail open.
+func (t *TeamSpeakCore) talkPowerState(cid int) string {
+	t.clientInfoMu.RLock()
+	power := t.myTalkPower
+	t.clientInfoMu.RUnlock()
+	if power <= 0 {
+		return "unknown"
+	}
+	t.channelsMu.RLock()
+	ch := t.channels[cid]
+	t.channelsMu.RUnlock()
+	if !ch.talkPowerKnown {
+		return "unknown"
+	}
+	if ch.talkPower > 0 && power < ch.talkPower {
+		return "blocked"
+	}
+	return "ok"
 }
 
 // ──────────────────────────── Ban Management (extended) ────────────────────────────
@@ -6324,6 +6425,15 @@ func (t *TeamSpeakCore) SendVoice(codec byte, audioData []byte) error {
 	// body[0:2] = placeholder for counter (set by tsSendVoicePacket)
 	body[2] = codec
 	copy(body[3:], audioData)
+
+	// Voice follows our current channel — refuse to fire into a room the
+	// server will silently discard (B-26); fail open while unknown.
+	t.clientInfoMu.RLock()
+	curChannel := t.myChannelID
+	t.clientInfoMu.RUnlock()
+	if t.talkPowerState(curChannel) == "blocked" {
+		return fmt.Errorf("%w: insufficient talk power in this room — the server discards voice below the channel requirement", ErrPermission)
+	}
 
 	return t.tsSendVoicePacket(tsPktVoice, 0, body)
 }

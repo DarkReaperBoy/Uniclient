@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"strings"
 	"testing"
 
 	"uniclient/cores"
@@ -87,5 +88,34 @@ func TestCallBarPollNeeded(t *testing.T) {
 func TestCallBarJoinedToast(t *testing.T) {
 	if s := callJoinedLabel("Group Chat"); s != "Joined the group call in Group Chat" {
 		t.Fatalf("toast: %q", s)
+	}
+}
+
+// Talk-power block surfacing (BUGS B-26): when the server silently
+// discards our voice, the polled subtitle must SAY so instead of
+// showing a healthy participant count while the mic is dead.
+func TestCallBarSubtitleShowsTalkPowerBlock(t *testing.T) {
+	c := engine.ChatInfo{Title: "chat"}
+	blocked := &engine.GroupCallInfo{ParticipantsCount: 2, TalkPowerBlocked: true}
+
+	got := callBarSubtitle(c, blocked, true)
+	if !strings.Contains(got, "mic blocked") || !strings.Contains(got, "talk power") {
+		t.Errorf("voice-room subtitle = %q — must surface the talk-power block (B-26)", got)
+	}
+
+	got = callBarSubtitle(c, blocked, false)
+	if !strings.Contains(got, "mic blocked") {
+		t.Errorf("group-call subtitle = %q — must surface the talk-power block (B-26)", got)
+	}
+}
+
+func TestCallBarSubtitleUnchangedWithoutBlock(t *testing.T) {
+	c := engine.ChatInfo{Title: "chat"}
+	gc := &engine.GroupCallInfo{ParticipantsCount: 2}
+	if got := callBarSubtitle(c, gc, true); got != "voice room · 2 participants" {
+		t.Errorf("voice-room subtitle = %q, want the original wording when not blocked", got)
+	}
+	if got := callBarSubtitle(c, nil, true); got != "voice room · empty" {
+		t.Errorf("nil-gc subtitle = %q", got)
 	}
 }

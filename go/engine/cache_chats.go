@@ -1790,6 +1790,10 @@ type GroupCallInfo struct {
 	IsRtmp            bool                   `json:"is_rtmp,omitempty"`
 	ScheduleDate      int64                  `json:"schedule_date,omitempty"`
 	Origin            string                 `json:"origin,omitempty"`
+	// TalkPowerBlocked: the server silently discards our voice in this
+	// room (client talk power below channel_needed_talk_power — BUGS
+	// B-26); the UI must say so instead of letting audio die silently.
+	TalkPowerBlocked bool `json:"talk_power_blocked,omitempty"`
 }
 
 // GroupCallParticipant is a single participant in a group call.
@@ -1862,6 +1866,9 @@ func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) 
 	}
 	if v, ok := cs.Meta["origin"]; ok {
 		info.Origin = v
+	}
+	if v, ok := cs.Meta["talk_power"]; ok && v == "blocked" {
+		info.TalkPowerBlocked = true
 	}
 	avatarDir := filepath.Join(e.mediaDir, accountID, "avatars")
 	for _, p := range cs.Participants {

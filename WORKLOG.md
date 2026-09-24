@@ -8262,3 +8262,40 @@ LargeMessage PASS, RoundTrip honest SKIP on B-25). Executable
 `servernotifyregister` count → 0. **BUGS: B-23 → Fixed (F-36); open
 list now B-26, B-25, B-6, B-8.** Gate252 (= gate251 scope) standalone
 with rc check.
+
+---
+
+## Slice 253 (2026-09-25) — B-26 talk power wired end-to-end + B-37
+## race (found while wiring it)
+
+**B-26 → F-37**: staged tests-first (fields added first so tests
+compile and then fail on BEHAVIOR): RED battery — `myTalkPower = 0`
+(the server SENDS client_talk_power in notifyclientupdated; we dropped
+it after a nickname update), `never populated after join … nobody
+fetched` (channellist lacks the field, nobody called channelinfo),
+`returned <nil> … a voice packet was still sent` (the §1.10-class
+fire-and-forget), Meta absent, engine mapping absent, GUI subtitle
+`"voice room · 2 participants"` while the mic is dead. WIRE: own-power
+capture → async channelinfo refresh per join (fail-open until known) →
+SendVoice ErrPermission guard → GetGroupCall Meta["talk_power"] →
+GroupCallInfo.TalkPowerBlocked → call-bar **"mic blocked (talk
+power)"** (the call bar ALREADY polls — zero new plumbing). All GREEN
+plus unchanged-wording pins (fail-open, sufficient-power, non-blocked
+subtitles) + live TS set clean (Handshake/LargeMessage PASS, 2 honest
+environment SKIPs).
+
+**B-37 → F-38 (new find while wiring)**: while placing the guard I
+checked who protects `myChannelID` — nobody: `tsHandleClientMoved`
+ wrote it bare, GetGroupCall's self-add read it bare (AFTER the
+participants loop's RUnlock — re-checked the actual scope instead of
+assuming ✓), the text handler read it bare. Race test: `WARNING: DATA
+RACE` pre-fix (3143 vs 4760), post-fix clean — write merged into the
+EXISTING lock block (no double-lock), both reads wrapped,
+decide-under-lock/append-outside.
+
+Self-caught during wiring: the refresh test hand-built a core without
+the constructor's maps → nil-map panic in the refresh goroutine →
+test initialized `channels` (harness-side fix, not production).
+
+**BUGS: B-26 → F-37, B-37 → F-38; open list = B-25 (environment),
+B-6 + B-8 (owner).** Gate253 standalone with rc check.
