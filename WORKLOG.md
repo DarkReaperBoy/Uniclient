@@ -7818,3 +7818,20 @@ scripts all use the real `goolm`.) BUGS.md: B-14 → Fixed (F-18);
 open list starts at B-15 (the reachable circl vulnerability). Gate:
 gofmt empty, vet `-tags goolm`, all packages, `-race` on the new
 test.
+
+---
+
+## Slice 241 (2026-09-24) — B-15: reachable circl vulnerability closed
+
+`github.com/cloudflare/circl` v1.6.2 → **v1.6.3** (GO-2026-4550 fix):
+`go get` + `go mod tidy`, go.sum pins updated. The dep arrives via
+ProtonMail/go-crypto (openpgp — deltachat/xmpp crypto paths), which
+is exactly where govulncheck found the reachable traces.
+
+**The failing test is govulncheck itself** (dependency bumps have no
+unit-test form): pre-bump "Your code is affected by 1 vulnerability
+from 1 module"; post-bump, same command same flags (`nix develop`,
+`GOFLAGS=-tags=goolm`, module dir `go/`): **"No vulnerabilities found.
+Your code is affected by 0 vulnerabilities."** Full §9 gate green
+against the new dep (gofmt/vet/all packages/`-race` set). BUGS.md:
+B-15 → Fixed (F-19); open list starts at B-16 (TS server name).
