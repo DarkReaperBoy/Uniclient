@@ -8423,3 +8423,40 @@ rule): every run solo, host stayed ≥8Gi available.
 
 No BUGS.md rows (nothing found — negative results ARE the result).
 gate256 = same light scope; standalone with rc check.
+
+---
+
+## Slice 257 (2026-09-25) — B-6 owner research + BUGS line-ref audit
+
+**B-6 advanced to owner-decidable without building anything** (scope
+stays the owner's): `research/matrix_group_calls.md`, all claims
+sourced — MSC3401 mechanics from the primary proposal (m.call +
+m.call.member state events keyed by user; m.devices with device_id/
+session_id/expires_ts/feeds; `m.call.*` over **to-device/Olm** with
+conf_id/dest_session_id/seq; SFU signalling split to MSC3898), the
+production ecosystem's move to MatrixRTC (MSC4143)+Element Call+
+LiveKit (MSC4195, transports endpoint, foci_preferred, JWT auth) from
+Element's own README + 2025 matrix.org slides, matrix-js-sdk's
+`groupCall.ts` as the full-mesh reference. **Local fact: mautrix-go
+v0.30.0 (our pin) has ZERO call code** — module-cache grep, no
+MSC3401/m.call.member/GroupCall matches, no call package — so
+everything would be ours. Doc lays out Tier1 (full-mesh, testable with
+2-3 accounts, weeks of slices) vs Tier2 (SFU/MatrixRTC, needs
+infrastructure we don't have — no docker on this host) vs status quo
+(honest ErrNotSupported), plus the testing/account blocker. B-6 row
+now points at it as the decision input.
+
+**BUGS line-reference audit** (evidence accuracy — every `file.go:NNN`
+ref re-verified against current code): AGENTS.md = zero line refs ✓;
+verified-stale found3 and corrected in place with history kept:
+B-6 `matrix.go:1252` → **1241** (JoinGroupCall's actual return), B-25's
+historical FAIL line annotated (`:114` at the time → the Send-error
+line now sits at **:122** after slice247's skip edit), F-40's RED site
+annotated (`webm.go:415` pre-fix → codec slice now **:436** behind the
+guard). Remaining refs (F-38's :3143, F-26's opensl :266, F-22's
+contacts:140/stickers:52, F-10's module-cache paths) all verified
+CURRENT ✓.
+
+**B-25 re-probe**: still denied → stays open.
+
+gate257 = same light scope; standalone with rc check.
