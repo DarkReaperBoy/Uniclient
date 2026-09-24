@@ -8388,3 +8388,38 @@ at ~7.7Gi available throughout.
 No BUGS.md rows this slice (nothing found). gate255 = gate254 scope
 (gofmt/vet/full plain tests/-race on webm+vp9anim) — the plain suite
 replays every new fuzz seed. Standalone with rc check.
+
+---
+
+## Slice 256 (2026-09-25) — four targeted audits + order-dependence
+## hunt (all clean; negative results recorded)
+
+Continuing the sweep with the classes of bugs actually found so far
+(F-9 date bombs, F-37 races, goroutine misuse), not new fuzz (RAM
+rule): every run solo, host stayed ≥8Gi available.
+
+1. **t.Fatal/FailNow inside goroutines** (illegal Goexit in the wrong
+   goroutine → silent hang): repo-wide AST-ish scan of every
+   `go func` body → **zero hits**.
+2. **Wall-clock date assertions (F-9 class)**: every `time.Now()` in
+   tests triaged → login-code = relative minutes, headerpresence =
+   noon-anchored (the F-9 fix holds), mutetime = +1h always-future,
+   lock = state-machine base, live tests = elapsed/unique-text only.
+   **Zero date bombs remaining.**
+3. **defer-in-loop**: my brace-counter desyncs on this codebase (raw
+   strings/JSON literals contain braces — it flagged ~150 telegram
+   sites in loopless functions, e.g. `defer call.mu.Unlock()` directly
+   after its `Lock()`). **7/7 sampled hits = correct patterns**
+   (`defer wg.Done()` inside `go func`, return-inside-iteration).
+   Detector declared unreliable; slice-235's audit stands; recorded
+   so nobody re-trusts this heuristic.
+4. **Goroutine-launched infinite loops without exits** (leak class):
+   scoped rescan with 40-line windows → **none**; every launched
+   `for {}` has ctx/stop/break/return in reach.
+5. **Order-dependence hunt**: full suite `go test -shuffle=on`
+   → **rc=0, 14 ok** — no shared-global test pollution at any of the
+   ~60 possible orders sampled by the shuffle.
+6. **B-25 re-probe**: still `permission denied` → stays open.
+
+No BUGS.md rows (nothing found — negative results ARE the result).
+gate256 = same light scope; standalone with rc check.
