@@ -59,9 +59,14 @@ they cover:
 
 | # | Where | What | Evidence / how to see it | Next step |
 |---|-------|------|--------------------------|-----------|
-| B-5 | gui/h264player.go `startVideoNoteInline` | A permanently-unplayable note arriving via the `wantInline` completion consumes the marker but shows nothing until the next tap (which routes to the system player). Pre-existing UX. | `ensureH264Player`'s `p.failed` early-return has no onFail at that call site | pass an onFail → `openMedia` handoff, same as the viewer path |
 | B-6 | cores/matrix.go:1252 | Matrix group calls (MSC3401) not implemented — honest `ErrNotSupported` today. | code | feature work; owner-visible scope |
 | B-8 | repo root + `cores/teamspeak.go` `tsQuickLZCompress` | No LICENSE file exists in the repo at all (owner decision pending), and the slice-231 QuickLZ send-side is a byte-port of quicklz.c, whose header says the commercial license "does not cover derived or ported versions created by third parties under GPL". | quicklz.c header (fetched 2026-09-23, RT-Thread mirror); `ls LICENSE*` → none; the reference C is NOT vendored (gcc-built vectors only, like ffmpeg for fixtures) | owner picks the project license and confirms the port stays; until then provenance is documented here — never vendor quicklz.c |
+
+## Fixed — slice 246 (2026-09-24)
+
+| # | Bug | Why it mattered | Test |
+|---|-----|-----------------|------|
+| F-27 (= B-5) | **Inline play failure consumed the marker silently.** `startVideoNoteInline` passed NO onFail, so a permanently-unplayable note completing via the play-on-done marker showed nothing until the next tap; and `ensureH264Player`'s `p.path==path && p.failed` early-return swallowed onFail even when a caller DID pass one — the entry is known-bad and will never play, so the fallback had to run there too. Both fixed: the completion entry now hands off exactly like the viewer path (toast "Can't play this video in-app — opening system player" + `openMedia` → system player, §1.10 no dead bubble), and the failed-entry early-return notifies. | RED: `TestInlinePlayFailureHandsOffToSystemPlayer` (garbage .mp4 through the real setPlayOnDone → onDownloadComplete → parse-fail path with `openExternalAsync` stubbed) failed pre-patch with `opened=[] … (B-5)`; second part pins the already-failed early-return (onFail must still fire). **-race caught a data race in the first draft of this very test** (unsynchronized stub slice + flag vs the parse goroutine) — fixed with a mutex in the harness before landing; post-patch both tests + full gui suite + `-race` green |
 
 ## Fixed — slice 245 (2026-09-24)
 

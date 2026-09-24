@@ -415,6 +415,12 @@ func (a *App) ensureH264Player(acct, chat, msgID, path string, loop bool, onFail
 	}
 	p, _ := h264Players.peek(msgID)
 	if p.path == path && (p.parsed || p.failed || p.reading) {
+		if p.failed {
+			// Already known-bad: the caller's fallback must still run —
+			// this entry will never play, and swallowing onFail here left
+			// a dead bubble/button (B-5).
+			notify()
+		}
 		return // already parsed, already failing, or in flight
 	}
 	if p.path != "" && p.path != path {
@@ -562,7 +568,13 @@ func (a *App) ensureH264StreamPlayer(msgID, path string, ra io.ReaderAt, size in
 // account and chat ride along so the matching audio can be attributed to
 // this message in the engine's playback snapshot.
 func (a *App) startVideoNoteInline(acct, chat, msgID, path string) {
-	a.ensureH264Player(acct, chat, msgID, path, true)
+	a.ensureH264Player(acct, chat, msgID, path, true, func() {
+		// Permanently-unplayable note completing inline: hand off instead
+		// of consuming the marker and showing nothing until the next tap
+		// (B-5) — same fallback as the viewer path (§1.10: no dead bubble).
+		a.setToast("Can't play this video in-app — opening system player")
+		a.openMedia(path, true)
+	})
 }
 
 // tapVideoNote handles a tap on an already-downloaded round note by

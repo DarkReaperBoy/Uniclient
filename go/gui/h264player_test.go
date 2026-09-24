@@ -14,6 +14,7 @@ package gui
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -337,5 +338,87 @@ func TestLeaveChatReleasesStreamSources(t *testing.T) {
 	}
 	if !src.isClosed() {
 		t.Error("stream reader still open after leaving its chat (B-4)")
+	}
+}
+
+// TestInlinePlayFailureHandsOffToSystemPlayer: BUGS.md B-5 — a
+// permanently-unplayable note completing via the play-on-done marker
+// must hand off to the system player (toast + openMedia), exactly like
+// the viewer path — not consume the marker and show nothing until the
+// next tap. RED before the fix.
+func TestInlinePlayFailureHandsOffToSystemPlayer(t *testing.T) {
+	h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.mp4")
+	if err := os.WriteFile(path, []byte("not a real mp4 payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	a := &App{}
+	var stubMu sync.Mutex
+	var opened []string
+	var fired bool
+	openedInfo := func() (int, string) {
+		stubMu.Lock()
+		defer stubMu.Unlock()
+		first := ""
+		if len(opened) > 0 {
+			first = opened[0]
+		}
+		return len(opened), first
+	}
+	openExternalAsync = func(target string, done func(error)) {
+		stubMu.Lock()
+		opened = append(opened, target)
+		stubMu.Unlock()
+		if done != nil {
+			done(nil)
+		}
+	}
+	t.Cleanup(func() {
+		openExternalAsync = func(string, func(error)) {}
+		h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
+		a.mu.Lock()
+		a.toast = ""
+		a.mu.Unlock()
+	})
+
+	a.setPlayOnDone("acct", "chat", "b5", 0)
+	a.onDownloadComplete(engine.DownloadCompleteEvent{
+		AccountID: "acct", ChatID: "chat", MsgID: "b5", Seq: 0, LocalPath: path,
+	})
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		n, _ := openedInfo()
+		if n > 0 || !time.Now().Before(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n, first := openedInfo(); n == 0 || first != path {
+		t.Fatalf("inline play failure did not hand off (B-5): n=%d first=%q, want [%s]", n, first, path)
+	}
+
+	// Second part: an ALREADY-failed entry must still run the fallback
+	// when a caller arrives with onFail (the p.path==path && p.failed
+	// early-return used to swallow it silently).
+	before, _ := openedInfo()
+	firedFn := func() bool {
+		stubMu.Lock()
+		defer stubMu.Unlock()
+		return fired
+	}
+	a.ensureH264Player("acct", "chat", "b5", path, true, func() {
+		stubMu.Lock()
+		fired = true
+		stubMu.Unlock()
+	})
+	deadline = time.Now().Add(2 * time.Second)
+	for !firedFn() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !firedFn() {
+		t.Errorf("onFail never ran for an already-failed entry — known-bad path swallowed the fallback (B-5); opened=%d", before)
 	}
 }

@@ -7973,4 +7973,34 @@ F-22):** compiler = the test (vet rc=0 means every reference was
 gone), full suite all-14-green, staticcheck recount with no new
 findings, gofmt clean. BUGS.md: B-18 → Fixed (F-26); **open list now
 3 rows: B-5, B-6 (owner), B-8 (owner)**. Gate standalone with rc
-check, then push.**
+check, then push.
+
+---
+
+## Slice 246 (2026-09-24) — B-5: inline play failure hands off
+
+Two misses, both closed: `startVideoNoteInline` passed no onFail (the
+completion consumed the marker and showed NOTHING for a permanently
+unplayable note), and `ensureH264Player`'s already-failed early-return
+returned without notify even when onFail WAS provided — a known-bad
+entry that will never play swallowed the caller's fallback. The handoff
+now mirrors the viewer path exactly (toast + `openMedia` → system
+player — the player that also has the audio our decoder rejects).
+
+**RED**: `TestInlinePlayFailureHandsOffToSystemPlayer` drove the real
+setPlayOnDone → onDownloadComplete → parse-fail pipeline with a
+garbage .mp4 and a stubbed `openExternalAsync`: `opened=[] … (B-5)`
+pre-patch. Its second part pins the early-return notify.
+
+**Self-caught with -race**: the first draft raced — the stub appended
+to `opened` from the parse goroutine while the test looped over
+`len(opened)` (and the same for the `fired` flag). Harness rewritten
+behind one mutex; -race now green on both tests. (Discipline note:
+async test observables need synchronization even when production code
+is correct.)
+
+**GREEN**: both tests, full gui suite, `-race`. BUGS.md: B-5 → Fixed
+(F-27) — **open list now exactly the two owner rows: B-6 (Matrix
+group calls = feature/owner-visible scope) and B-8 (project license =
+owner decision)**; every actionable finding from the sweep is closed.
+Gate standalone with rc check.**
