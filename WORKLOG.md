@@ -7629,3 +7629,59 @@ state half, the audio half is review-evidenced.
 BUGS.md: B-4 → Fixed (F-12) + F-13 (B-9); open list starts at B-5.
 Gate: gofmt empty, vet `-tags goolm`, all packages, `-race` on the new
 tests.
+
+---
+
+## Slice 235 (2026-09-24) — full-repo bug sweep (the "find them all" pass)
+
+Phase rule for this goal: find EVERY bug, record it in BUGS.md so
+compactions cannot lose them, and only then start fixing. The sweep ran
+as an explicit battery; every tool's output was triaged BY HAND in
+source — nothing was logged on tool say-so alone, and clean tools are
+recorded as evidence too (all of it lives in BUGS.md's new "Audit
+battery" section so a compacted session inherits the whole picture):
+
+- staticcheck 2026.2.1 `-checks=all -tags goolm`: 326 findings →
+  bug-class codes read in context one by one (SA4004/SA4010/SA4006/
+  SA9003/SA5008/SA1012/ST1018…); style codes (ST1003, ST1000) set aside.
+- `go vet` green; FULL `go test -race -count=1 ./...` across all 16
+  packages: 0 fails, 0 data races — the strongest "checked" evidence.
+- gofmt -s: one style hit (webm_test.go), not a bug. TODO/FIXME
+  markers: 0. Defer-in-loop scan: 19 hits, ALL false positives (defer
+  inside go-func closures), each opened and read.
+- Cross-build matrix vs AGENTS' platform table: windows OK; linux
+  CGO=0 fails EXACTLY as the table documents; android = gogio+NDK CI
+  job already in verify.yml — no undocumented platform regression.
+- govulncheck inside `nix develop` with `GOFLAGS=-tags=goolm` (first
+  attempt failed from repo root: the module lives in `go/`): 1
+  REACHABLE vuln → B-15 (GO-2026-4550, circl v1.6.2 → v1.6.3).
+- Coverage snapshot recorded as context (cores 8.9%, gui 18.3%, engine
+  24.0%, pure-logic 71-87%); zero `func Fuzz` targets → B-17.
+
+Two findings had to OUTRUN their tools, and the tools were re-checked
+instead of trusted:
+
+1. SA5008 on the xmpp roster tag → built a standalone probe: the tag
+   errors on EVERY unmarshal (`query>ver chain not valid with attr
+   flag`, items=0) → both call sites drop the roster silently → B-11
+   with an empirical RED test path waiting.
+2. U1000 on the paid-media trio and the signup card → `git log -S`
+   showed ONE commit each (219eabee slice 181, 22f4176d slice 193):
+   the call sites were NEVER wired. Two PARITY ROWS were therefore
+   false (counted files, not call graphs) — rows 153 and 44 corrected
+   in place with the original claims kept visible; counts re-derived
+   by the same machine parser: **PRESENT 193 (96.5%) · PARTIAL 3 ·
+   MISSING 0 · CORE-ONLY 4 (+1 BY-DESIGN), buckets sum to 200**
+   (checker re-checked: the CORE-ONLY-BY-DESIGN token counts inside
+   CORE-ONLY, as the Counts section documents). AGENTS status lines
+   updated to match.
+
+New open rows: B-10 (mediastream marks complete after chunk 0 — the
+§1.10 zero-holes class, the worst find), B-11 (xmpp roster), B-12
+(paid wall), B-13 (signup form), B-14 (mojibake button), B-15 (reachable
+vuln), B-16 (TS server name), B-17 (parser error-swallow + no fuzz),
+B-18 (dead code), B-19 (discarded keys), B-20 (vacuous test
+assertions), B-21 (nil-ctx landmine).
+
+Docs-only commit (BUGS.md + parity + AGENTS + this log); §9 gate ran
+anyway. Fixing resumes next slice from the top of the open list: B-10.

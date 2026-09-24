@@ -15,10 +15,62 @@ The contract (same as everything in AGENTS.md):
 - Finding a new bug while fixing another ⇒ add an open entry even if
   you also fix it right away.
 
+## Audit battery — 2026-09-24 (full sweep complete)
+
+The whole tree was swept with an explicit tool battery before fix work
+resumed; every open row below came out of it or from the code each
+finding sent us to. Clean results count as "checked" for the areas
+they cover:
+
+- `staticcheck 2026.2.1 -checks=all -tags goolm` over all packages:
+  326 findings, triaged BY HAND in source — bug-class codes
+  (SA4004/SA4010/SA4006/SA9003/SA5008/SA1012/ST1018) each verified
+  before logging; style codes (ST1003 naming, ST1000 package
+  comments) are not bugs and are not logged.
+- `go vet -tags goolm ./...` green; full `go test -race -count=1
+  ./...` over ALL 16 packages: **0 failures, 0 data races**.
+- TODO/FIXME/XXX/HACK markers in code: **0**. Defer-in-loop scan: 19
+  hits, all opened and verified false positives (defer inside `go
+  func` closures).
+- Cross-builds vs AGENTS' platform table: windows/amd64 `CGO_ENABLED=0`
+  OK (documented pure-Go), linux `CGO_ENABLED=0` fails exactly as the
+  table documents ("Verified: CGO_ENABLED=0 fails"), android = gogio+
+  NDK CI job already exists in verify.yml — no undocumented platform
+  regression.
+- `govulncheck` (inside `nix develop`, `GOFLAGS=-tags=goolm`; the
+  module lives in `go/`, not the repo root): **1 reachable
+  vulnerability → B-15**; additionally 1 vuln in required-but-uncalled
+  modules and 5 in imported-but-uncalled packages — not reachable, no
+  action owed.
+- Coverage snapshot (context, not a bug row): cores 8.9%, utils 9.9%,
+  gui 18.3%, engine 24.0%; pure-logic packages 71–87%. Repo has ZERO
+  `func Fuzz` targets → folded into B-17's next step.
+- Two findings had to outrun their tools and the tools were RE-CHECKED
+  rather than trusted: the xmpp tag error was reproduced in a
+  standalone program (B-11), and the two dead-UI parity rows were
+  confirmed with `git log -S` showing the call sites were never wired
+  (B-12, B-13) — parity rows corrected with the wrong claims kept
+  visible, counts re-derived by the same machine parser.
+- `research/*.md` limitation lists were reviewed; per AGENTS they are
+  not authoritative, and nothing in them was promoted to a bug row
+  without independent code evidence.
+
 ## Open (ordered by what a session should look at first)
 
 | # | Where | What | Evidence / how to see it | Next step |
 |---|-------|------|--------------------------|-----------|
+| B-10 | engine/mediastream.go:237-247 (`finishFetchLocked`) | **Stream completion fires after CHUNK 0.** `for _, ok := range s.have { if !ok { break }; s.done = true; …; break }` inspects only the first bitmap slot (staticcheck SA4004: loop unconditionally terminated) — `have` is a `[]bool`, so for any file > `streamChunk` (512 KiB) the FIRST landed chunk sets `done` → `onDone` runs the DB promotion `download_state=DownloadComplete` + emits `EventDownloadComplete` while the sparse file still has unfetched holes → "complete" consumers read zero-filled gaps (the exact §1.10 class), play-on-done fires on partial bytes, badges lie. Introduced by slice 228. | staticcheck SA4004 + `onDone` body read (mediastream.go:396-409) + `streamChunk = 512<<10` + `git log -S 'for _, ok := range s.have'` → 55c1ce39 | test-first: multi-chunk fake source — after chunk 0 lands `onDone` must NOT fire; after the last chunk it fires exactly once (RED today) |
+| B-11 | cores/xmpp.go:1839 + 3317 | **XMPP roster never loads.** Tag `xml:"jabber:iq:roster query>ver,attr"` is structurally invalid — encoding/xml rejects `,attr` on a chained path, so `xml.Unmarshal` errors on EVERY input; site 1839 silently `return`s on that error, site 3317 ignores the error outright → `c.roster` stays empty forever. | staticcheck SA5008 ×2 + standalone probe (`err=xml: query>ver chain not valid with attr flag`, `items=0`) + both call sites read | fix the tag (XEP-0237 `<ver>` is an element) and surface the errors; test: roster result + push fixtures must populate items and ver (RED pre-patch) |
+| B-12 | gui/paidmedia.go + parity row 153 | **Paid-media unlock UI was never wired.** `layoutPaidMediaWall`, `paidUnlockClickable`, `confirmUnlockPaidMedia` have zero callers (staticcheck U1000; paren-less refs also zero), and the only writer of `a.paidDlg` sits inside the uncalled `confirmUnlockPaidMedia` → chat.go:306's confirm gate can never open. `git log -S 'layoutPaidMediaWall('` = ONE commit (219eabee, slice 181) → the call site never existed; parity row 153 claimed the wall renders (the checker counted files, not call graphs). Row corrected to CORE-ONLY with the original claim kept visible. | staticcheck U1000 ×3 + paidDlg-writer analysis + zero external refs (incl. parsePaidMedia/paidWallVisible/paidStarsText) + git -S | wire bubble→wall→click→confirm (parse + engine UnlockPaidMedia exist) or make the downgrade permanent; test first either way |
+| B-13 | gui/signupcard.go + parity row 44 | **Dedicated signup form never wired.** `layoutSignupCard`/`signupSubmit`/`signupPickPhoto`/`signupPhotoCircle`/`labeledEditor` have zero callers (staticcheck U1000; grep across gui incl. login.go = 0); `AuthStateSignUp` falls into `authInput`'s default branch (login.go:348) → ONE generic line: no first/last split, no photo circle — the pre-slice-193 bug (last names silently merged/lost) is live again. `git log -S 'layoutSignupCard('` = ONE commit (22f4176d, slice 193) → never wired. Row 44 corrected to PARTIAL with the original claim kept visible. | staticcheck U1000 + dispatch read (login.go authCard default case) + git -S | wire the card into the signup dispatch (or rebuild split fields in authInput) + a test asserting the signup step renders the dedicated form / emits `first\nlast`; row 44 back to PRESENT only with that test green |
+| B-14 | gui/menu.go:586 | Reaction-"more" button label is double-encoded mojibake: literal bytes `C3 A2 C2 8B C2 AF` = Latin-1 re-encoding of "⋯" (U+22EF) — contains raw control char **U+008B** → the message actions-row button renders an invisible/garbage glyph. | staticcheck ST1018 + `od -c` of the source line | replace with "⋯"; test: label constant contains no control characters and equals the expected glyph (RED pre-patch) |
+| B-15 | go.mod (`github.com/cloudflare/circl` v1.6.2) | **Reachable dependency vulnerability GO-2026-4550** — incorrect secp384r1 CombinedMult in circl; fixed in v1.6.3. | govulncheck: "Your code is affected by 1 vulnerability from 1 module", reachable traces through the deltachat/xmpp crypto paths | `go get github.com/cloudflare/circl@v1.6.3`, full gate, re-run govulncheck → 0 reachable |
+| B-16 | cores/teamspeak.go:2552 | **Server name never stored or surfaced.** The `initserver` handler's store branch is empty (SA9003, comment says "Store server name etc"); `virtualserver_name` is read nowhere else in the repo (only other occurrence = the servercreate WRITE at 6652) and `ServerList()` has no callers → a TS server's name never reaches the UI, and a live rename is invisible. | staticcheck SA9003 + repo-wide grep (2 occurrences total) + ServerList zero callers | store the name on initserver (and from serverinfo rows), surface it where the server header renders; test: initserver fixture ⇒ stored |
+| B-17 | go/webm/webm.go:397-403,550 + go/vp9anim/vp9anim.go:256 | Media parsers swallow read errors (`num, _ = q.readUint(...)`, `colorRange, _ = br.bit()`): truncated/hostile files produce garbage fields instead of a decode error (§1.10 fail-don't-fudge), and the repo has ZERO `func Fuzz` targets so nothing hunts those paths. | `_ =` scan (229 hits total; these are the parser-class ones, read in context) + `grep 'func Fuzz'` → 0 | propagate the errors in EBML/VP9 header reads; add fuzz targets for webm/vp9 parse that must not panic on random bytes |
+| B-18 | repo-wide (staticcheck U1000 ×141) | Dead-code inventory — mostly benign duplicates (`stopWebmEmojiPlayer` duplicates the inline eviction stop at emojifile.go:113-118; `openTtlDialog` superseded by the wired `openTtlDialogNow`; `slowmodeSendBlocked` package var shadowed by the App field) but includes unreachable features: `maybeRateCall` (call rating never opens), `cornerReplyOverlay` (never wrapped around rows), plus B-12/B-13's trios. | staticcheck -checks=all, each headline claim re-checked by grep before writing this row | per-cluster triage in fix slices: wire or delete — never delete blindly |
+| B-19 | cores/teamspeak.go:1932 | Discarded gap diagnostic: the out-of-order branch builds `keys` from `recvQueue` and drops it (SA4010 — empty line where the result should be used): dead allocation on every gap event, and the intended queued-packet-id logging never happens. | staticcheck SA4010 + code read | log the queued ids at debug level or delete the block; add a test if behavior is added |
+| B-20 | gui/drawer_test.go:126 (+ gui/stickers_test.go:41) | Test assertions that CANNOT fail: `if _, ok := contactChat(chats, "acc2", "100"); !ok { /* empty */ }` asserts nothing — the account-scoping case is untested (production `contactChat` IS correctly scoped: contacts.go:140-147 compares AccountID, verified by read); the stickers "no recent" case reassigns `sel` and never checks it. | staticcheck SA4006+SA9003 on the tests + contactChat source read | write the real assertions (wrong-account lookup must NOT match a scoped query; mid-case `sel` checked) — test-only fixes, RED where an assertion is added |
+| B-21 | engine/auth.go:420 (`finalizeAuth`) | Nil context passed to `syncAccount(nil, …)` (staticcheck SA1012). Safe today ONLY because syncAccount never touches ctx (verified: health.go:180-216 has no ctx use — the `ctx.Done()` nearby belongs to monitorConnection): one future `ctx.Done()`/RPC use turns first login into a panic. | staticcheck SA1012 + full syncAccount body read | pass `context.Background()` (behavior-identical) + document syncAccount's ctx contract |
 | B-5 | gui/h264player.go `startVideoNoteInline` | A permanently-unplayable note arriving via the `wantInline` completion consumes the marker but shows nothing until the next tap (which routes to the system player). Pre-existing UX. | `ensureH264Player`'s `p.failed` early-return has no onFail at that call site | pass an onFail → `openMedia` handoff, same as the viewer path |
 | B-6 | cores/matrix.go:1252 | Matrix group calls (MSC3401) not implemented — honest `ErrNotSupported` today. | code | feature work; owner-visible scope |
 | B-7 | engine/events.go `maybeAutoDownload` | Auto-download ignores `RequestDownload` errors — correct for the new `ErrStreamActive` (the stream is already saving), but any other error is silent. | call sites capture nothing | log unexpected errors once |

@@ -41,7 +41,7 @@ P2 = settings/extras, P3 = rare/edge.
 |---|---|---|---|---|
 | Phone → code steps | Step-by-step auth with progress + resend | PRESENT | gui/login.go + engine.StartAuth/SubmitAuthInput | P0 |
 | 2FA password step | Masked input, recovery | PRESENT | gui/login.go + SubmitAuthInput | P0 |
-| Signup (name/photo) | First/last name on new account | PRESENT (slice 193: the signup step renders the dedicated tdesktop signup form — First name (required) + Last name (optional) as separate fields (fixes a real bug: the old single-line editor could never produce the engine's "first\nlast" shape, so last names silently merged into the first), an optional photo circle (OS picker → staged base64 preview through the shared avatar machinery, async decode) with Add/Change photo hint, Create account button + Enter-submit hops; the staged photo uploads as the profile picture the moment the account reaches Ready (UploadProfilePhoto on the Ready hop, temp-file cleanup, toast), cancel drops it) | gui/signupcard.go + gui/login.go signup dispatch + engine SubmitAuthInput + UploadProfilePhoto | P2 |
+| Signup (name/photo) | First/last name on new account | PARTIAL (CORRECTED slice 235: the claimed dedicated form is UNREACHABLE — `layoutSignupCard`/`signupSubmit`/`signupPickPhoto` have zero callers and `AuthStateSignUp` falls into `authInput`'s default branch, so signup renders ONE generic line: no first/last split, no photo circle — the pre-193 last-name merge bug is live (`git log -S` = one commit, 22f4176d, never wired; BUGS.md B-13). Original slice-193 claim, kept for the record: "the signup step renders the dedicated tdesktop signup form — First/last name as separate fields … photo circle … Create account button", counted from the FILE, not the call graph) | gui/login.go authInput default (dead form: gui/signupcard.go) + engine SubmitAuthInput + UploadProfilePhoto | P2 |
 | QR login | Live-refreshing QR, scan from mobile | PRESENT | gui/login.go+qr.go + engine QR states | P0 |
 | Email verify / email-login | Code to email, email setup during auth | PRESENT (state machine covers it) | gui/login.go + telegram VerifyEmailDuringAuth | P2 |
 | Login code auto-fill from TG msg | Code arrives via logged-in session | PRESENT (slice 31: EventLoginCode → OTP banner with code + Use button; auto-fills the empty code field; 10-min freshness window) | gui/logincode.go + engine EventLoginCode | P3 |
@@ -150,7 +150,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Contact card | vCard bubble w/ add-contact button | PRESENT (slice 56: attach-menu Contact picker → SendContact person-card bubble (name/phone); add-to-contacts from the card remains engine-gated) | gui/location.go contact attach + engine SendContact | P2 |
 | Dice/emoji games | 🎲 animated result | PRESENT (slice 125: MessageMediaDice parsed w/ emoji+value; engine EnsureDiceSticker resolves the per-emoji dice pack via messages.getStickerSet(inputStickerSetDice) — tdesktop pack mapping ("#"=roll, "1"-"6"=outcomes) — rewrites the message media row into the standard download pipeline; GUI plays the roll loop until the value edit lands, then the outcome document plays once and HOLDS its final frame through the slice-122 lottie player; slot machine honestly stays emoji+value text (multi-reel composition out of scope)) | cores/telegram_dice.go + engine/dice.go + gui/dice.go | P3→P1 |
 | Webpage/link preview card | Thumb+title+site in bubble | PRESENT (slice 117: messages whose content_raw carries wp_* (MessageMediaWebPage conversion) render the site card above the text — thumb, small-caps site name, 2-line title, 2-line description, duration pill; tap opens the URL through the openext pipeline; slice 130: the card's photo downloads full-res through the standard media pipeline (core exports wp_photo_id/extra, engine EnsureWebPagePhoto rewrites the media row dice-style — old cached messages upgrade too; GUI renders the local file, stripped b64 as instant fallback); GetWebPagePreview-based composer pre-render remains engine-gated) | gui/webpage.go webPageBlock + cores MessageMediaWebPage Extra | P2 |
-| Paid messages / paid posts | Stars-priced post wall | PRESENT (slice 181: locked messageMediaPaidMedia converts into paid_* Extra — star price, preview thumb/dims/duration, first-video flag — and renders the star wall: darkened preview + accent star glyph + price + Photo/Video label + "Unlock for N Stars" button → confirm card → payments.getPaymentForm(inputInvoiceMessage) + payments.sendStarsForm; unlocked extended media splices the real photo/video conversion in so the normal bubble renders (paid_unlocked); the wall never shows for plain bot invoices) | cores/telegram.go + gui/paidmedia.go + engine UnlockPaidMedia | P3 |
+| Paid messages / paid posts | Stars-priced post wall | CORE-ONLY (CORRECTED slice 235: the wall/button/confirm chain has ZERO callers — `layoutPaidMediaWall` is never called from any bubble, the only `paidDlg` writer sits inside uncalled `confirmUnlockPaidMedia` so chat.go:306's gate can never open; `git log -S` = one commit (219eabee, slice 181) — the call site never existed; BUGS.md B-12. Original slice-181 claim, kept for the record: "renders the star wall: darkened preview + accent star glyph + price + Photo/Video label + \"Unlock for N Stars\" button → confirm card → payments.getPaymentForm + payments.sendStarsForm", counted from the FILE, not the call graph) | cores/telegram.go paid_* Extra conversion (core works) + gui/paidmedia.go (unreachable) + engine UnlockPaidMedia (never invoked) | P3 |
 | Gift / star-gift messages | Gift card bubble | PRESENT (slice 180: messageActionStarGift/GiftStars/GiftTon convert into structured gift_* Extra (sticker stripped thumb, star count, note, limited/saved/converted/refunded flags, cached sticker download coords) + real action sentences — no more "performed an action"; the GUI renders the gift card bubble (artwork, accent star pill, note, status chips) instead of the flat service line) | cores/telegram.go convertServiceMessage + gui/giftbubble.go + engine GetStarGifts | P3 |
 | Expired/self-destruct media | TTL photo/video timer | PRESENT (slice 182: one-time media (media_ttl_seconds — the server destroys it after the view) renders the timer-glyph "One-time photo/video/voice message" chip above the media block; messages in auto-delete chats (ttl_seconds) render the timer glyph + compact period (30s/5m/2h/1d/1w) beside the timestamp — both read the Extra the core already caches, no new RPCs) | gui/ttlbadge.go + cores convertMessage ttl extras | P3 |
 
@@ -427,7 +427,7 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (200 feature rows)
 
-- PRESENT: 195 (97.5%) — the four video rows from slices 220-225
+- PRESENT: 193 (96.5%) — the four video rows from slices 220-225
   (143, 279, 276, 231), the five rows synced by the slice-226 truth
   pass (107 forum topics, 108 chat background, 193 saved messages,
   207 chat settings, 212 stars), **row 306 by slice 227** (QR scan
@@ -435,16 +435,21 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   qr_decoder.md), and **row 281 by slices 228+229** (streaming
   without full download — engine ranged stream + cores ranged read +
   lazy-container GUI path, each step pinned by a measurement).
-  **Counted by machine**: parsing every row's status cell caught two
+  **Slice-235 call-graph audit downgraded rows 44 (signup) and 153
+  (paid star wall) — both were counted from files that were never
+  wired into any call path (BUGS.md B-13/B-12), which is what moved
+  195→193.** **Counted by machine**: parsing every row's status cell caught two
   earlier drifts (the prose claimed 188/8 while the table held 187/9,
   and the experimental row's CORE-ONLY-BY-DESIGN status made the first
   parser pass miss it) — these numbers are that parser's output, summed
   over all 200 rows.
-- PARTIAL: 2 — local premium toggle (nothing is gated client-side yet,
+- PARTIAL: 3 — signup name/photo (dedicated form never wired — see
+  above) · local premium toggle (nothing is gated client-side yet,
   so the toggle would be dead UI) · card-funded giveaway launch
   (external checkout, honest absence)
 - MISSING: **0** — closed by slice 222 (PiP was the last one).
-- CORE-ONLY: 3 — webview (owner-decision) · experimental flags (this
+- CORE-ONLY: 4 — paid messages (Extra conversion exists, star wall
+  never wired) · webview (owner-decision) · experimental flags (this
   row is CORE-ONLY-BY-DESIGN: dead-UI ban) · Ayu sqlite (already
   served by the engine cache). Streaming without full download left
   this bucket at slices 228-229 (row 281 above).
