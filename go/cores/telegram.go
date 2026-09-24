@@ -3439,9 +3439,6 @@ type tgCall struct {
 	remotePwd         string        // remote ICE pwd
 	remoteCredsReady  chan struct{} // closed when remote ICE ufrag/pwd received
 
-	// V2 JSON signaling ACKs (for V2 framing over MTProto — not SCTP/V1/InstanceImpl)
-	pendingV2Acks []uint32 // received seqs needing ACK (protected by mu)
-
 	// Remote media state (updated from incoming MediaState messages)
 	remoteMuted           bool
 	remoteVideoState      string // "inactive", "active"
@@ -5921,138 +5918,6 @@ func createCallWebRTCAPI(iceUfrag, icePwd string) *wrtc.API {
 	)
 }
 
-// mergeAudioMlines rewrites an SDP that has two audio m-lines (one recvonly, one sendrecv)
-// into a single audio m-line with sendrecv. This is needed because tgcalls sends a re-offer
-// with separate m-lines for send and receive, but pion can't handle two audio m-lines properly.
-func mergeAudioMlines(sdp string) string {
-	lines := strings.Split(sdp, "\r\n")
-	if len(lines) == 0 {
-		lines = strings.Split(sdp, "\n")
-	}
-
-	type mlineBlock struct {
-		mline     string
-		attrs     []string
-		direction string // sendrecv, recvonly, sendonly, inactive
-		hasSSRC   bool
-		ssrcLines []string
-		mid       string
-	}
-
-	var blocks []mlineBlock
-	var current *mlineBlock
-	var sessionLines []string
-	inSession := true
-
-	for _, line := range lines {
-		if strings.HasPrefix(line, "m=") {
-			if current != nil {
-				blocks = append(blocks, *current)
-			}
-			current = &mlineBlock{mline: line}
-			inSession = false
-		} else if current != nil {
-			if line == "a=sendrecv" || line == "a=recvonly" || line == "a=sendonly" || line == "a=inactive" {
-				current.direction = strings.TrimPrefix(line, "a=")
-			} else if strings.HasPrefix(line, "a=ssrc:") {
-				current.hasSSRC = true
-				current.ssrcLines = append(current.ssrcLines, line)
-			} else if strings.HasPrefix(line, "a=mid:") {
-				current.mid = strings.TrimPrefix(line, "a=mid:")
-			}
-			current.attrs = append(current.attrs, line)
-		} else if inSession {
-			sessionLines = append(sessionLines, line)
-		}
-	}
-	if current != nil {
-		blocks = append(blocks, *current)
-	}
-
-	// Count audio m-lines
-	audioBlocks := 0
-	for _, b := range blocks {
-		if strings.HasPrefix(b.mline, "m=audio ") {
-			audioBlocks++
-		}
-	}
-	if audioBlocks < 2 {
-		return sdp // nothing to merge
-	}
-
-	// Find the sendrecv/sendonly audio block (the one with SSRC — tgcalls's sending audio)
-	var sendBlock *mlineBlock
-	var recvBlock *mlineBlock
-	for i := range blocks {
-		if !strings.HasPrefix(blocks[i].mline, "m=audio ") {
-			continue
-		}
-		if blocks[i].direction == "sendrecv" || blocks[i].hasSSRC {
-			sendBlock = &blocks[i]
-		} else if blocks[i].direction == "recvonly" {
-			recvBlock = &blocks[i]
-		}
-	}
-
-	if sendBlock == nil || recvBlock == nil {
-		return sdp // can't merge
-	}
-
-	// Rebuild SDP: keep session lines, change first audio to sendrecv with SSRC from sendBlock,
-	// remove the second audio m-line entirely, update BUNDLE group
-	var result []string
-	result = append(result, sessionLines...)
-
-	for _, b := range blocks {
-		if !strings.HasPrefix(b.mline, "m=audio ") {
-			// Non-audio: keep as-is
-			result = append(result, b.mline)
-			result = append(result, b.attrs...)
-			continue
-		}
-		if b.mid == recvBlock.mid {
-			// This is the first audio (recvonly) — change to sendrecv, add SSRC from sendBlock
-			result = append(result, b.mline)
-			for _, attr := range b.attrs {
-				if attr == "a=recvonly" {
-					result = append(result, "a=sendrecv")
-				} else if strings.HasPrefix(attr, "a=ssrc:") {
-					// skip existing ssrc (shouldn't be any on recvonly)
-				} else {
-					result = append(result, attr)
-				}
-			}
-			// Add SSRC lines from the sendrecv block
-			for _, ssrc := range sendBlock.ssrcLines {
-				result = append(result, ssrc)
-			}
-			// Add msid if present in sendBlock
-			for _, attr := range sendBlock.attrs {
-				if strings.HasPrefix(attr, "a=msid:") {
-					result = append(result, attr)
-				}
-			}
-		}
-		// Skip the sendrecv audio block entirely (merged into recvonly)
-	}
-
-	// Fix BUNDLE group: remove the sendBlock's mid
-	merged := strings.Join(result, "\r\n")
-	if sendBlock.mid != "" {
-		// Remove sendBlock's mid from BUNDLE group
-		merged = strings.Replace(merged, " "+sendBlock.mid, "", 1)
-	}
-
-	// Ensure SDP ends with CRLF
-	if !strings.HasSuffix(merged, "\r\n") {
-		merged += "\r\n"
-	}
-
-	fmt.Printf("[tg-call] Merged %d audio m-lines into 1 sendrecv (removed mid=%s)\n", audioBlocks, sendBlock.mid)
-	fmt.Printf("[tg-call] MERGED SDP:\n%s\n", merged)
-	return merged
-}
-
 // getDHConfig retrieves DH parameters from Telegram.
 func (t *TelegramCore) getDHConfig() (p []byte, g int, err error) {
 	result, err := t.api.MessagesGetDhConfig(t.ctx, &tg.MessagesGetDhConfigRequest{
@@ -8251,155 +8116,6 @@ func generateICECredential(length int) string {
 	return string(b)
 }
 
-// replaceICECredentials replaces ICE ufrag/pwd in newSDP with those from originalSDP.
-// This prevents the official client from seeing an ICE restart when we answer a re-offer.
-func replaceICECredentials(newSDP, originalSDP string) string {
-	origUfrag := extractSDPAttr(originalSDP, "a=ice-ufrag:")
-	origPwd := extractSDPAttr(originalSDP, "a=ice-pwd:")
-	if origUfrag == "" || origPwd == "" {
-		return newSDP // can't replace, return as-is
-	}
-
-	// Replace all ice-ufrag and ice-pwd lines in the new SDP
-	lines := strings.Split(newSDP, "\r\n")
-	var result []string
-	for _, line := range lines {
-		if strings.HasPrefix(line, "a=ice-ufrag:") {
-			result = append(result, "a=ice-ufrag:"+origUfrag)
-		} else if strings.HasPrefix(line, "a=ice-pwd:") {
-			result = append(result, "a=ice-pwd:"+origPwd)
-		} else {
-			result = append(result, line)
-		}
-	}
-	return strings.Join(result, "\r\n")
-}
-
-// buildReofferAnswer constructs an SDP answer to the official client's re-offer,
-// reusing ICE credentials and DTLS fingerprint from our initial offer SDP.
-// This avoids pion generating new ICE credentials which would trigger an ICE restart.
-func buildReofferAnswer(offerSDP, localSDP string) string {
-	// Extract our ICE ufrag, pwd, and DTLS fingerprint from our initial offer
-	localUfrag := extractSDPAttr(localSDP, "a=ice-ufrag:")
-	localPwd := extractSDPAttr(localSDP, "a=ice-pwd:")
-	localFingerprint := extractSDPAttr(localSDP, "a=fingerprint:")
-	if localUfrag == "" || localPwd == "" || localFingerprint == "" {
-		return ""
-	}
-
-	// Parse the offer's m= sections
-	lines := strings.Split(offerSDP, "\r\n")
-	var answer strings.Builder
-
-	// Session-level lines
-	answer.WriteString("v=0\r\n")
-	answer.WriteString("o=- 1 2 IN IP4 127.0.0.1\r\n")
-	answer.WriteString("s=-\r\n")
-	answer.WriteString("t=0 0\r\n")
-
-	// Find BUNDLE groups from offer
-	for _, line := range lines {
-		if strings.HasPrefix(line, "a=group:BUNDLE") {
-			answer.WriteString(line + "\r\n")
-			break
-		}
-	}
-	answer.WriteString("a=extmap-allow-mixed\r\n")
-	answer.WriteString("a=msid-semantic:WMS *\r\n")
-
-	// Process each m= section from the offer
-	inMedia := false
-	mediaType := ""
-	for _, line := range lines {
-		if strings.HasPrefix(line, "m=") {
-			inMedia = true
-			if strings.HasPrefix(line, "m=audio") {
-				mediaType = "audio"
-				// Accept audio with opus codec (PT 111)
-				answer.WriteString("m=audio 9 UDP/TLS/RTP/SAVPF 111\r\n")
-				answer.WriteString("c=IN IP4 0.0.0.0\r\n")
-				answer.WriteString("a=rtcp:9 IN IP4 0.0.0.0\r\n")
-				answer.WriteString("a=ice-ufrag:" + localUfrag + "\r\n")
-				answer.WriteString("a=ice-pwd:" + localPwd + "\r\n")
-				answer.WriteString("a=ice-options:trickle\r\n")
-				answer.WriteString("a=fingerprint:" + localFingerprint + "\r\n")
-				answer.WriteString("a=setup:active\r\n") // we take active DTLS role
-				// Extract mid from offer
-				mid := extractMediaAttr(lines, "m=audio", "a=mid:")
-				if mid != "" {
-					answer.WriteString("a=mid:" + mid + "\r\n")
-				}
-				answer.WriteString("a=rtpmap:111 opus/48000/2\r\n")
-				answer.WriteString("a=fmtp:111 minptime=10;useinbandfec=1\r\n")
-				answer.WriteString("a=rtcp-fb:111 transport-cc\r\n")
-				answer.WriteString("a=rtcp-mux\r\n")
-				answer.WriteString("a=rtcp-rsize\r\n")
-				answer.WriteString("a=sendrecv\r\n")
-			} else if strings.HasPrefix(line, "m=video") {
-				mediaType = "video"
-				// Reject video (port 0)
-				answer.WriteString("m=video 0 UDP/TLS/RTP/SAVPF 0\r\n")
-				answer.WriteString("c=IN IP4 0.0.0.0\r\n")
-				mid := extractMediaAttr(lines, "m=video", "a=mid:")
-				if mid != "" {
-					answer.WriteString("a=mid:" + mid + "\r\n")
-				}
-			} else if strings.HasPrefix(line, "m=application") {
-				mediaType = "application"
-				// Accept data channel
-				answer.WriteString("m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n")
-				answer.WriteString("c=IN IP4 0.0.0.0\r\n")
-				answer.WriteString("a=ice-ufrag:" + localUfrag + "\r\n")
-				answer.WriteString("a=ice-pwd:" + localPwd + "\r\n")
-				answer.WriteString("a=ice-options:trickle\r\n")
-				answer.WriteString("a=fingerprint:" + localFingerprint + "\r\n")
-				answer.WriteString("a=setup:active\r\n")
-				mid := extractMediaAttr(lines, "m=application", "a=mid:")
-				if mid != "" {
-					answer.WriteString("a=mid:" + mid + "\r\n")
-				}
-				answer.WriteString("a=sctp-port:5000\r\n")
-			}
-			continue
-		}
-		_ = mediaType
-		_ = inMedia
-	}
-
-	return answer.String()
-}
-
-// extractSDPAttr extracts a session-level attribute value from SDP.
-func extractSDPAttr(sdp, prefix string) string {
-	for _, line := range strings.Split(sdp, "\r\n") {
-		if strings.HasPrefix(line, prefix) {
-			return strings.TrimPrefix(line, prefix)
-		}
-	}
-	// Try \n only (pion sometimes uses just \n)
-	for _, line := range strings.Split(sdp, "\n") {
-		line = strings.TrimRight(line, "\r")
-		if strings.HasPrefix(line, prefix) {
-			return strings.TrimPrefix(line, prefix)
-		}
-	}
-	return ""
-}
-
-// extractMediaAttr extracts a media-level attribute from the first occurrence of a media type.
-func extractMediaAttr(lines []string, mediaPrefix, attrPrefix string) string {
-	inTarget := false
-	for _, line := range lines {
-		if strings.HasPrefix(line, "m=") {
-			inTarget = strings.HasPrefix(line, mediaPrefix)
-		}
-		if inTarget && strings.HasPrefix(line, attrPrefix) {
-			return strings.TrimPrefix(line, attrPrefix)
-		}
-	}
-	return ""
-}
-
 func gzipDecompress(data []byte) ([]byte, error) {
 	r, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
@@ -8407,13 +8123,6 @@ func gzipDecompress(data []byte) ([]byte, error) {
 	}
 	defer r.Close()
 	return io.ReadAll(r)
-}
-
-// mathRandUint32 returns a random uint32 for SSRC generation.
-func mathRandUint32() uint32 {
-	b := make([]byte, 4)
-	rand.Read(b)
-	return binary.BigEndian.Uint32(b)
 }
 
 // JoinGroupCall joins an active group call in a chat.
@@ -12707,12 +12416,6 @@ func (t *TelegramCore) getCachedFileRef(fileID int64) []byte {
 	t.peerMu.RLock()
 	defer t.peerMu.RUnlock()
 	return t.fileReference[fileID]
-}
-
-func (t *TelegramCore) cacheFileMime(fileID int64, mime string) {
-	t.peerMu.Lock()
-	t.fileMimeType[fileID] = mime
-	t.peerMu.Unlock()
 }
 
 func (t *TelegramCore) getCachedFileMime(fileID int64) string {

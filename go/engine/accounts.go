@@ -386,21 +386,6 @@ func (e *Engine) setConnState(accountID string, state ConnState) {
 	e.accountsMu.Unlock()
 }
 
-// isDuplicateAccount checks if an account with the same platform+userID already exists.
-func (e *Engine) isDuplicateAccount(platform, userID string) (string, bool) {
-	e.accountsMu.RLock()
-	defer e.accountsMu.RUnlock()
-	for _, acc := range e.accounts {
-		if acc.Platform == platform && acc.Core != nil {
-			profile, err := acc.Core.GetProfile("")
-			if err == nil && profile != nil && profile.ID == userID {
-				return acc.ID, true
-			}
-		}
-	}
-	return "", false
-}
-
 // CoreFactory is a function that creates a new core instance for a platform.
 // The engine needs this to instantiate cores on account connect.
 type CoreFactory func(platform, accountID string) (cores.Core, error)
@@ -422,10 +407,4 @@ func getCoreFactory() CoreFactory {
 	coreFactoryMu.Lock()
 	defer coreFactoryMu.Unlock()
 	return coreFactory
-}
-
-// marshalJSON marshals v to JSON bytes, ignoring errors.
-func marshalJSON(v any) []byte {
-	b, _ := json.Marshal(v)
-	return b
 }

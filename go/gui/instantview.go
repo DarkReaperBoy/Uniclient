@@ -632,14 +632,6 @@ func (a *App) ivOpenRelated(accountID, pageURL string) {
 	}()
 }
 
-// closeInstantView dismisses the reader.
-func (a *App) closeInstantView() {
-	a.mu.Lock()
-	a.iv = nil
-	a.mu.Unlock()
-	a.invalidate()
-}
-
 // ivBack: history pop, or close at the root.
 func (a *App) ivBack() {
 	a.mu.Lock()

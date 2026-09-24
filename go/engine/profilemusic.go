@@ -51,19 +51,6 @@ type MusicTrack struct {
 	Position   int    `json:"position"`
 }
 
-// trackLabel (pure, testable): what a row shows as its title — the
-// embedded tag, else the file name, else "Untitled track" (§1.10 honest
-// fallback, never invented metadata).
-func trackLabel(t MusicTrack) string {
-	if t.Title != "" {
-		return t.Title
-	}
-	if t.FileName != "" {
-		return t.FileName
-	}
-	return "Untitled track"
-}
-
 // ProfileMusicSupported reports whether the account's core exposes the
 // profile-music surface (Telegram today).
 func (e *Engine) ProfileMusicSupported(accountID string) bool {

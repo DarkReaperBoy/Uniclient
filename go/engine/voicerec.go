@@ -42,9 +42,8 @@ type voiceRecorder struct {
 	level   float64  // smoothed RMS for the UI
 	started time.Time
 
-	micCh   <-chan []byte
-	stopMic func()
-	done    chan struct{}
+	micCh <-chan []byte
+	done  chan struct{}
 }
 
 func (e *Engine) newVoiceRecorder() *voiceRecorder {

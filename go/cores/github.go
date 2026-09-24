@@ -2740,13 +2740,6 @@ func (rl *ghRateLimiter) waitForReset() time.Duration {
 	return d
 }
 
-// isLowBudget returns true when we should reduce non-essential activity.
-func (rl *ghRateLimiter) isLowBudget() bool {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-	return rl.remaining > 0 && rl.remaining < 500
-}
-
 // getRemaining returns the current X-RateLimit-Remaining value.
 // Returns -1 if we haven't received any rate limit headers yet (assume healthy).
 func (rl *ghRateLimiter) getRemaining() int {
@@ -3294,10 +3287,6 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
-}
-
-func timePtr(t time.Time) *time.Time {
-	return &t
 }
 
 var trailingNumberRe = regexp.MustCompile(`/(\d+)$`)

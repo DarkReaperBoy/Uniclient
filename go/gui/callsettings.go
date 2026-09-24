@@ -76,19 +76,6 @@ func devPickerBtn(typ string, i int) *widget.Clickable {
 	return &btns[i]
 }
 
-// devPickerCfgField maps a device type to the snapshot field it reflects.
-func devPickerCfgField(typ string) string {
-	switch typ {
-	case "input":
-		return "call_input"
-	case "output":
-		return "call_output"
-	case "camera":
-		return "call_camera"
-	}
-	return ""
-}
-
 // cfgFromAppConfig is the pure config → snapshot mapping (extracted from
 // refreshConfig for testability).
 // effectiveSwipeAction normalizes the stored swipe-action config: unknown

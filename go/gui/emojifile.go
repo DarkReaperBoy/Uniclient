@@ -137,18 +137,6 @@ func (c *emojiArtCache) startReading(docID int64, e *emojiArt) bool {
 	return true
 }
 
-// emojiArtBusy reports whether any entry is still resolving.
-func (c *emojiArtCache) busy(docIDs []int64) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, id := range docIDs {
-		if e, ok := c.entries[id]; ok && e.reading {
-			return true
-		}
-	}
-	return false
-}
-
 // resolveEmojiArtBytes parses fetched document bytes into an artwork
 // entry (lottie / raster / video). Returns false when the document is
 // undecodable (the caller pins the failure). Pure-side-effect helper

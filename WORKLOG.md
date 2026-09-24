@@ -7935,4 +7935,42 @@ read — made explicit anyway as a cost-free belt).
 **GREEN**: the new unit, both full suites, both fuzzers re-run
 post-patch (10s each), seed-corpus mode instant (that's what CI
 executes). BUGS.md: B-17 → Fixed (F-25); open list: B-18, B-5, B-6,
-B-8. Gate standalone with rc check.**
+B-8. Gate standalone with rc check.
+
+---
+
+## Slice 245 (2026-09-24) — B-18: dead-code triage, wire-or-delete
+
+Executed the row's plan on the fresh (post-wiring) U1000 list:
+**58 symbols deleted, U1000 128 → 70**, spanning gui (26: abandoned
+overlays/tiles/fields), engine (8) and cores (incl. the tgcalls-era
+telegram SDP experiments — mergeAudioMlines/replaceICECredentials/
+buildReofferAnswer/extract*/mathRandUint32, −295 lines in one
+marker-located span edit).
+
+**Two premises in the row itself were wrong — corrected in F-26:**
+1. "call rating never opens" → FALSE: `onCallStateEvent` arms the
+   dialog INLINE and app.go renders it — feature live all along; the
+   U1000 openers were superseded duplicates. Consolidated the inline
+   block into `openRateCall` (same fields, own lock) and deleted
+   `maybeRateCall`. (Third time this session U1000 needed the
+   call-graph reality check — re-check the checker.)
+2. Deleting `slowmodeSendBlocked`/`muteDlgCustomErr` failed at vet:
+   every remaining reference was a pure WRITE — `unused` is
+   read-based, so declarations alone were not enough. Write sites
+   removed too (chip/composer/dialog lines). Side discovery: the
+   mute dialog's `Use a duration like 2h…` hint had NO display path
+   ever — write-only state from an unbuilt hint; folded into this
+   cluster rather than a separate row.
+
+**Kept deliberately (evidence):** `audio/opensl_layout.go` fields —
+U1000 was a linux-view artifact, `opensl_android.go` consumes them
+under the android tag (line266+); mumble + TeamSpeak protocol enum
+tables — reference tables in a protocol-documentation codebase.
+
+**Verification for pure deletion (no RED possible — same honesty as
+F-22):** compiler = the test (vet rc=0 means every reference was
+gone), full suite all-14-green, staticcheck recount with no new
+findings, gofmt clean. BUGS.md: B-18 → Fixed (F-26); **open list now
+3 rows: B-5, B-6 (owner), B-8 (owner)**. Gate standalone with rc
+check, then push.**

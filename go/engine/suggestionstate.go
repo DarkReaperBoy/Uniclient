@@ -17,7 +17,6 @@ package engine
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"uniclient/cores"
 )
@@ -153,7 +152,3 @@ func (e *Engine) DismissSuggestion(accountID, key string) error {
 func (e *Engine) SuggestionDismissed(accountID, key string) bool {
 	return suggestionDismissed.has(accountID, key)
 }
-
-// suggestionTTL bounds refetches (tdesktop's kTopPromotionInterval is
-// hourly; the GUI caches per account+day).
-const suggestionTTL = time.Hour

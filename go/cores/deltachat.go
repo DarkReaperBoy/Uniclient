@@ -62,9 +62,8 @@ type DeltaChatCore struct {
 	acceptInvalidCerts bool   // accept self-signed TLS certs
 
 	// IMAP state
-	dcFolder    string // "DeltaChat" or "INBOX/DeltaChat" or "INBOX.DeltaChat"
-	imapDelim   string // folder delimiter (usually "/" or ".")
-	lastSeenUID uint32 // track new messages
+	dcFolder  string // "DeltaChat" or "INBOX/DeltaChat" or "INBOX.DeltaChat"
+	imapDelim string // folder delimiter (usually "/" or ".")
 
 	// Autocrypt
 	myEntity   *openpgp.Entity         // our Ed25519/Cv25519 keypair
@@ -128,12 +127,10 @@ type DeltaChatCore struct {
 	updateMu       sync.RWMutex
 
 	// Configuration map (for SetConfig/GetConfig)
-	configMap   map[string]string
-	configMapMu sync.RWMutex
+	configMap map[string]string
 
 	// Stock strings (localized UI strings)
-	stockStrings   map[int]string
-	stockStringsMu sync.RWMutex
+	stockStrings map[int]string
 
 	// Cached serialized public key (invalidated when myEntity changes)
 	cachedPubKey   string
@@ -242,7 +239,6 @@ type dcPeerState struct {
 	DisplayName        string          `json:"display_name"`
 	AvatarB64          string          `json:"avatar_b64"`
 	entity             *openpgp.Entity // parsed (not serialized)
-	gossipEntity       *openpgp.Entity
 }
 
 type dcChatState struct {

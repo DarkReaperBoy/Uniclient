@@ -1715,10 +1715,3 @@ func (a *App) loadingNote(gtx layout.Context) layout.Dimensions {
 		)
 	})
 }
-
-// applyBubbleCornersUI swaps the corner style and persists it (appearance,
-// slice 82).
-func (a *App) applyBubbleCornersUI(round bool) {
-	a.ui.applyBubbleCorners(round)
-	a.applyConfigBool("bubble_corners", round)
-}

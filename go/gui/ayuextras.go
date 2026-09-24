@@ -34,10 +34,6 @@ import (
 //     fires. Round-video notes have no send path in UniClient yet, so
 //     that toggle stays unshipped (§1.10: no dead UI).
 
-// ayuOn resolves an Ayu extra toggle (all default OFF — AyuGram ships
-// these as opt-in).
-func ayuOn(v *bool) bool { return v != nil && *v }
-
 // ── message seconds ──────────────────────────────────────────────────────
 
 // msgShowSeconds is the process-wide effective toggle (set from the config

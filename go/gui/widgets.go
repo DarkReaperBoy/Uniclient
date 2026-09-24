@@ -257,7 +257,6 @@ type widgets struct {
 
 	// msgdetail.go
 	detailCloseBtn widget.Clickable
-	detailCopyBtn  widget.Clickable
 	detailList     widget.List
 	detailRowBtns  []widget.Clickable
 

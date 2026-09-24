@@ -82,8 +82,7 @@ func normalizeTransTarget(code string) string {
 // ── state ────────────────────────────────────────────────────────────────
 
 var (
-	transPickerOpen  bool
-	transAutoFetched bool // reset when the bar opens (session)
+	transPickerOpen bool
 )
 
 // transChatKey is the per-chat map key for the chat-wide flag.

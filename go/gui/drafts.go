@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"fmt"
 	"image"
 	"strings"
 	"time"
@@ -473,9 +472,4 @@ func scheduledMetaLabel(m engine.CachedMessage) string {
 		lbl = "silent · " + lbl
 	}
 	return lbl
-}
-
-// scheduleHint is used by the a.wid.composer row (pure).
-func scheduleHint(when time.Time) string {
-	return fmt.Sprintf("Send at %s", when.Format("15:04"))
 }

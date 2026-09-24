@@ -119,14 +119,6 @@ func (a *App) sendRateCall() {
 	}()
 }
 
-// maybeRateCall opens the dialog when the session qualifies (called on
-// the ended transition).
-func (a *App) maybeRateCall(c *callUI) {
-	if callRateable(c, time.Now()) {
-		a.openRateCall(c)
-	}
-}
-
 // layoutRateCallDialog: the rating card (stars + comment + Send/Skip).
 func (a *App) layoutRateCallDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.rateDlg

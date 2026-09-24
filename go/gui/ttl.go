@@ -10,8 +10,6 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-
-	"uniclient/engine"
 )
 
 // Message auto-delete / TTL (AyuGram parity, matrix "Chat menu"):
@@ -67,17 +65,6 @@ var (
 	ttlDlgRowBtns   []widget.Clickable
 	ttlDlgKeyTag    = new(struct{})
 )
-
-// openTtlDialog opens the auto-delete picker for the open chat.
-func (a *App) openTtlDialog(f frame, chat *engine.ChatInfo) {
-	if chat == nil {
-		return
-	}
-	a.mu.Lock()
-	a.ttlDlg = &ttlDlgState{accountID: chat.AccountID, chatID: chat.ChatID, title: chat.Title}
-	a.mu.Unlock()
-	a.invalidate()
-}
 
 // closeTtlDialog dismisses it.
 func (a *App) closeTtlDialog() {

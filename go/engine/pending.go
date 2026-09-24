@@ -46,13 +46,6 @@ type sendPayload struct {
 	NoWebpage       bool               `json:"no_webpage,omitempty"`
 }
 
-type sendContactPayload struct {
-	Phone     string `json:"phone"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	UserID    string `json:"user_id,omitempty"`
-}
-
 // editPayload is the serialized payload for an "edit" action.
 type editPayload struct {
 	MsgID        string `json:"msg_id"`

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"uniclient/cores"
@@ -165,18 +164,4 @@ func (e *Engine) ToggleSponsoredMessages(accountID string, enabled bool) error {
 		return fmt.Errorf("platform does not support sponsored messages")
 	}
 	return getter.ToggleSponsoredMessages(enabled)
-}
-
-// invalidateSponsoredCache drops the cached sponsored blocks (e.g. when
-// the account disconnects). Cache-keyed, not content-keyed: harmless to
-// call speculatively.
-func (e *Engine) invalidateSponsoredCache(accountID string) {
-	e.sponsoredMu.Lock()
-	prefix := accountID + "|"
-	for k := range e.sponsoredCache {
-		if strings.HasPrefix(k, prefix) {
-			delete(e.sponsoredCache, k)
-		}
-	}
-	e.sponsoredMu.Unlock()
 }

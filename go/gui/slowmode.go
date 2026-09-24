@@ -82,17 +82,13 @@ func (a *App) restrictedBar(gtx layout.Context, label string) layout.Dimensions 
 		})
 }
 
-var slowmodeSendBlocked bool // guards Enter-submission while waiting
-
 // slowmodeChip renders the countdown pill shown inside the a.wid.composer while
 // a slow-mode wait is active; it also requests the next-second redraw.
 func (a *App) slowmodeChip(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	remain := slowmodeRemain(*chat, f.now)
 	if remain <= 0 {
-		slowmodeSendBlocked = false
 		return layout.Dimensions{}
 	}
-	slowmodeSendBlocked = true
 	a.scheduleSlowTick(remain)
 	return layout.Inset{Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.SurfaceHi, 9, func(gtx layout.Context) layout.Dimensions {
@@ -128,9 +124,6 @@ func (a *App) scheduleSlowTick(remain time.Duration) {
 		a.invalidate()
 	})
 }
-
-// sendBlockedBySlowmode is consulted by the a.wid.composer's submit path.
-func sendBlockedBySlowmode() bool { return slowmodeSendBlocked }
 
 // slowmodeToast explains a blocked send attempt.
 func (a *App) slowmodeToast(chat *engine.ChatInfo) {

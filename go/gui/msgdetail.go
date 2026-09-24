@@ -171,8 +171,7 @@ type msgDetailState struct {
 }
 
 var (
-	detailKeyTag    = new(struct{})
-	detailCopyField int // index of the last copied row
+	detailKeyTag = new(struct{})
 )
 
 // openMsgDetailDialog shows the details dialog for a message.

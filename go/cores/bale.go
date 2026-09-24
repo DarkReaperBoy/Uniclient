@@ -2931,12 +2931,6 @@ func pbDecodeDepth(data []byte, depth int) map[string]interface{} {
 	return result
 }
 
-// pbTryDecodeMessage attempts to decode bytes as a protobuf message.
-// Returns nil if the bytes don't look like valid protobuf.
-func pbTryDecodeMessage(data []byte) map[string]interface{} {
-	return pbTryDecodeMessageDepth(data, 0)
-}
-
 func pbTryDecodeMessageDepth(data []byte, depth int) map[string]interface{} {
 	if len(data) == 0 || depth > 8 {
 		return nil

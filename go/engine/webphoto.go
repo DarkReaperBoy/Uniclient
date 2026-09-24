@@ -18,9 +18,6 @@ import (
 	"time"
 )
 
-// jsonUnmarshal is a tiny alias keeping the parser's dependency obvious.
-var jsonUnmarshal = json.Unmarshal
-
 // webPagePhoto is the parsed download coordinate set of a message's
 // webpage photo.
 type webPagePhoto struct {

@@ -137,21 +137,6 @@ func (a *App) layoutCornerReply(gtx layout.Context, f frame, m *engine.CachedMes
 	})
 }
 
-// cornerReplyOverlay wraps an incoming row in a Stack that anchors the
-// pill North-East (the bubble's top-right corner); the content renders
-// first so inner interactive widgets keep their hit priority and the pill
-// sits above the row background.
-func (a *App) cornerReplyOverlay(gtx layout.Context, f frame, m *engine.CachedMessage, canReply bool, content func(gtx layout.Context) layout.Dimensions) layout.Dimensions {
-	return layout.Stack{Alignment: layout.NE}.Layout(gtx,
-		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			return content(gtx)
-		}),
-		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			return a.layoutCornerReply(gtx, f, m, canReply)
-		}),
-	)
-}
-
 // cornerReplyCanSend resolves the chat's reply permission for a message.
 func cornerReplyCanSend(f frame, m *engine.CachedMessage) bool {
 	chat := chatOf(f, *m)

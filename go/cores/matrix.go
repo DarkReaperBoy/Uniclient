@@ -56,9 +56,8 @@ type MatrixCore struct {
 	syncToken string
 
 	// Room state cache
-	rooms    map[id.RoomID]*matrixRoomState
-	roomsMu  sync.RWMutex
-	roomList []id.RoomID // sorted by last activity
+	rooms   map[id.RoomID]*matrixRoomState
+	roomsMu sync.RWMutex
 
 	// DM mappings (from m.direct account data)
 	directChats   map[id.UserID][]id.RoomID
@@ -216,17 +215,6 @@ type MatrixRoomSummary struct {
 // MatrixMediaConfig represents media server configuration.
 type MatrixMediaConfig struct {
 	UploadSize int64 `json:"m.upload.size"`
-}
-
-// matrixParseJSON is a helper to parse a raw JSON map into a typed struct.
-func matrixParseJSON[T any](data map[string]interface{}) (T, error) {
-	var result T
-	b, err := json.Marshal(data)
-	if err != nil {
-		return result, err
-	}
-	err = json.Unmarshal(b, &result)
-	return result, err
 }
 
 // NewMatrixCore creates a new Matrix core instance.

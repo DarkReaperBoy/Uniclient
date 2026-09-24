@@ -139,15 +139,6 @@ const (
 // XML stanza types (for parsing and building)
 // ---------------------------------------------------------------------------
 
-// streamHeader is the opening <stream:stream> element.
-type xmppStreamStart struct {
-	XMLName xml.Name `xml:"stream stream"`
-	From    string   `xml:"from,attr,omitempty"`
-	To      string   `xml:"to,attr,omitempty"`
-	ID      string   `xml:"id,attr,omitempty"`
-	Version string   `xml:"version,attr,omitempty"`
-}
-
 // streamFeatures represents <stream:features>.
 type xmppFeatures struct {
 	StartTLS   *xmppTLSFeature `xml:"urn:ietf:params:xml:ns:xmpp-tls starttls"`

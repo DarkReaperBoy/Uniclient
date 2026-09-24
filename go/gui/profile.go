@@ -556,30 +556,6 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// muteRow renders the notifications toggle row.
-func (a *App) muteRow(gtx layout.Context, sw *widget.Bool) layout.Dimensions {
-	return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return iconSocialNotif.Layout(gtx, a.ui.p.TextDim)
-			}),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					lbl := a.ui.Label(unit.Sp(14), "Notifications")
-					return lbl.Layout(gtx)
-				})
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				sw2 := material.Switch(a.ui.Theme, sw, "")
-				sw2.Color.Enabled = a.ui.p.Accent
-				sw2.Color.Disabled = a.ui.p.SurfaceHi
-				sw2.Color.Track = a.ui.p.SurfaceHi
-				return sw2.Layout(gtx)
-			}),
-		)
-	})
-}
-
 // panelValueRow renders an icon + label + value row.
 func (a *App) panelValueRow(gtx layout.Context, ic *widget.Icon, label, value string) layout.Dimensions {
 	// Copy on click (AyuGram info rows, slice 26).

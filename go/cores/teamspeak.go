@@ -1322,7 +1322,6 @@ type TeamSpeakCore struct {
 	tsConn *tsConnection
 
 	authed   bool
-	isBot    bool
 	nickname string
 
 	// Server connection info
@@ -1330,7 +1329,6 @@ type TeamSpeakCore struct {
 
 	// Self info (from initserver)
 	myClientID int
-	myDBID     int
 	myUID      string
 	myName     string
 
@@ -1448,7 +1446,6 @@ type tsChannelInfo struct {
 	topic        string
 	totalClients int
 	order        int
-	flags        map[string]bool // e.g., "channel_flag_permanent"
 }
 
 type tsSession struct {
@@ -3246,52 +3243,6 @@ func tsParseChatID(chatID string) (string, int, error) {
 	default:
 		return "", 0, fmt.Errorf("%w: unknown chat type %q", ErrInvalidInput, parts[0])
 	}
-}
-
-// tsResolveClientID finds the current transient client ID for a target.
-func (t *TeamSpeakCore) tsResolveClientID(dbid int) (int, error) {
-	t.clientInfoMu.RLock()
-	for _, info := range t.clientInfo {
-		if info.dbid == dbid {
-			t.clientInfoMu.RUnlock()
-			return info.clid, nil
-		}
-	}
-	t.clientInfoMu.RUnlock()
-
-	// Refresh from server
-	rows, err := t.tsExec("clientlist")
-	if err != nil {
-		return 0, err
-	}
-
-	t.clientInfoMu.Lock()
-	for _, row := range rows {
-		clid, err := strconv.Atoi(row["clid"])
-		if err != nil {
-			continue
-		}
-		db, _ := strconv.Atoi(row["client_database_id"])
-		cid, _ := strconv.Atoi(row["cid"])
-		t.clientInfo[clid] = tsClientInfo{
-			clid:      clid,
-			dbid:      db,
-			uid:       row["client_unique_identifier"],
-			nickname:  row["client_nickname"],
-			channelID: cid,
-			isQuery:   row["client_type"] == "1",
-		}
-	}
-	t.clientInfoMu.Unlock()
-
-	t.clientInfoMu.RLock()
-	defer t.clientInfoMu.RUnlock()
-	for _, info := range t.clientInfo {
-		if info.dbid == dbid {
-			return info.clid, nil
-		}
-	}
-	return 0, fmt.Errorf("%w: client with dbid %d not online", ErrNotFound, dbid)
 }
 
 // ──────────────────────────── Session Persistence ────────────────────────────

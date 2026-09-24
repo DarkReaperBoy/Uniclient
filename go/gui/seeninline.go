@@ -45,7 +45,6 @@ type seenInlineState struct {
 	readDateOK bool
 	privacy    string
 	fetching   bool
-	lastTouch  time.Time
 }
 
 // msgFrameLastOwn is the last own outgoing message id of the frame's

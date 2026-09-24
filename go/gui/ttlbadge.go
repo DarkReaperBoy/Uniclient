@@ -98,35 +98,6 @@ func oneTimeChipVisible(mediaType, mediaTTL int) bool {
 	return mediaTTL > 0 && oneTimeLabel(mediaType) != ""
 }
 
-// layoutOneTimeChip renders the one-time media chip above the media
-// block: timer glyph + label (accent, like tdesktop's one-time chrome).
-func (a *App) layoutOneTimeChip(gtx layout.Context, mediaType int) layout.Dimensions {
-	label := oneTimeLabel(mediaType)
-	if label == "" {
-		return layout.Dimensions{}
-	}
-	return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return roundedFill(gtx, a.ui.p.SurfaceHi, unit.Dp(10), func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layout.Inset{Right: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							gtx.Constraints.Max.X = gtx.Dp(unit.Dp(14))
-							gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(14))
-							return iconActionSchedule.Layout(gtx, a.ui.p.Accent)
-						})
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						lbl := a.ui.Label(unit.Sp(11), label)
-						lbl.Color = a.ui.p.Accent
-						return lbl.Layout(gtx)
-					}),
-				)
-			})
-		})
-	})
-}
-
 // layoutTTLTimer renders the auto-delete timer chip in the meta row:
 // timer glyph + period text.
 func (a *App) layoutTTLTimer(gtx layout.Context, period int) layout.Dimensions {

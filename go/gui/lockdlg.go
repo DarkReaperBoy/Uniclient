@@ -47,7 +47,6 @@ var (
 	lockDlgCancelBtn  widget.Clickable
 	lockDlgChangeBtn  widget.Clickable
 	lockDlgDisableBtn widget.Clickable
-	lockDlgBackBtn    widget.Clickable
 	lockDlgDigitsBtns []widget.Clickable
 	lockDlgLockBtns   []widget.Clickable // autolock options
 )

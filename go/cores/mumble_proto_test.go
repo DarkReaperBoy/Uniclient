@@ -13,23 +13,6 @@ import (
 // Mirrors upstream TestCrypt.cpp (mumble-voip/mumble): IV recovery, replay
 // rejection and the 30-packet out-of-order window.
 
-func mumbleTestCryptState(t *testing.T) *mumbleCryptState {
-	t.Helper()
-	key := make([]byte, 16)
-	clientNonce := make([]byte, 16)
-	serverNonce := make([]byte, 16)
-	for i := range key {
-		key[i] = byte(i * 7)
-		clientNonce[i] = byte(i * 11)
-		serverNonce[i] = byte(i * 13)
-	}
-	cs := &mumbleCryptState{}
-	if err := cs.init(key, clientNonce, serverNonce); err != nil {
-		t.Fatalf("init: %v", err)
-	}
-	return cs
-}
-
 // mumbleTestCryptPair mirrors upstream TestCrypt.cpp: the decrypting side
 // gets the encrypting side's encrypt IV as ITS decrypt IV (as if the
 // "server" side of the pair were the encrypter).

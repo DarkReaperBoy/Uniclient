@@ -1283,8 +1283,6 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	if chat != nil {
 		if remain := slowmodeRemain(*chat, f.now); remain > 0 {
 			a.scheduleSlowTick(remain)
-		} else {
-			slowmodeSendBlocked = false
 		}
 	}
 	// Submit on Enter (Shift+Enter = newline) unless mobile-wide.

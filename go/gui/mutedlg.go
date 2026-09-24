@@ -121,7 +121,6 @@ var (
 // Custom-duration entry (slice 149): "Custom…" reveals a text field.
 var (
 	muteDlgCustomOpen bool
-	muteDlgCustomErr  string
 )
 
 // Notify-exception switches (slice 174): edge-detection previous values,
@@ -231,18 +230,15 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 		muteDlgCustomOpen = !muteDlgCustomOpen
 		if muteDlgCustomOpen {
 			a.wid.muteDlgCustomEd.SetText("")
-			muteDlgCustomErr = ""
 		}
 		a.invalidate()
 	}
 	if a.wid.muteDlgCustomGo.Clicked(gtx) {
 		if secs, ok := parseCustomMuteDuration(a.wid.muteDlgCustomEd.Text()); ok {
 			muteDlgCustomOpen = false
-			muteDlgCustomErr = ""
 			a.applyMutePreset(st.accountID, st.chatID, secs)
 			return layout.Dimensions{}
 		}
-		muteDlgCustomErr = "Use a duration like 2h, 45m, 1h30m or seconds"
 		a.invalidate()
 	}
 	// Notify exceptions (slice 174): sound + message previews switches —

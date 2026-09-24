@@ -57,7 +57,6 @@ var (
 	stickerMgrReloadBtn widget.Clickable
 	stickerMgrOpenBtn   widget.Clickable
 	stickerMgrSearchEd  widget.Editor
-	stickerMgrScroll    widget.List
 
 	stickerMgrTabBtns      []widget.Clickable
 	stickerMgrUpBtns       []widget.Clickable // installed: move up

@@ -247,11 +247,3 @@ func drawWebmEmoji(gtx layout.Context, e *emojiArt, side int) bool {
 	gtx.Execute(op.InvalidateCmd{At: time.Now().Add(e.player.NextFrameIn(elapsed))})
 	return true
 }
-
-// stopWebmEmojiPlayer stops a per-document video emoji player on cache
-// eviction (async: a mid-decode Stop could stall the frame thread).
-func stopWebmEmojiPlayer(e *emojiArt) {
-	if e != nil && e.player != nil {
-		go e.player.Stop()
-	}
-}

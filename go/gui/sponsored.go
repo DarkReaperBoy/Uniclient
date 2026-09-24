@@ -38,7 +38,6 @@ type sponsoredDlgState struct {
 	about    bool
 	randomID string
 	account  string
-	chat     string
 	title    string
 	options  []cores.SponsoredReportOption
 	busy     bool

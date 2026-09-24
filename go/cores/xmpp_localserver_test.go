@@ -29,7 +29,6 @@ type miniXMPPServer struct {
 	pass string
 
 	mu       sync.Mutex
-	conn     net.Conn
 	boundJID string
 	inbox    chan string
 	logFn    func(string)
@@ -55,13 +54,6 @@ func (s *miniXMPPServer) acceptLoop() {
 		}
 		go s.handle(conn)
 	}
-}
-
-// setLog wires a stanza logger (test debugging).
-func (s *miniXMPPServer) setLog(fn func(string)) {
-	s.mu.Lock()
-	s.logFn = fn
-	s.mu.Unlock()
 }
 
 // stanzaReader extracts complete top-level stream elements from the byte

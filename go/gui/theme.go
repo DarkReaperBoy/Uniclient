@@ -523,8 +523,3 @@ type chatKey struct {
 }
 
 func (k chatKey) String() string { return k.AccountID + "/" + k.ChatID }
-
-// draftText returns the draft text for a chat (per-open-session).
-func draftText(c engine.ChatInfo) string {
-	return c.DraftText
-}
