@@ -253,7 +253,17 @@ func sniffVP9Header(payload []byte) (vp9ColorConfig, error) {
 	}
 	colorRange := 0
 	if cs != 7 {
-		colorRange, _ = br.bit()
+		var ok bool
+		colorRange, ok = br.bit()
+		if !ok {
+			// Explicit rather than swallowed (B-17): a successful cs
+			// read leaves this bit inside the same byte budget in every
+			// header alignment, and even at a boundary the next
+			// frame-size read would report the truncation — but the
+			// branch costs nothing and keeps every bit-read failure
+			// visible instead of relying on that recovery argument.
+			return cc, errors.New("vp9: truncated color config")
+		}
 	}
 	// frame size (16+16 bits; the render-size bit is irrelevant here).
 	w, ok := br.bits(16)

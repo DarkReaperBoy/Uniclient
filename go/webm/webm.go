@@ -363,7 +363,11 @@ func (p *parser) parseTracks(start, end int, doc *Document) (uint64, error) {
 			e = end
 		}
 		if id == idTrackEntry {
-			if tn := p.parseTrackEntry(s, e, doc); tn != 0 {
+			tn, terr := p.parseTrackEntry(s, e, doc)
+			if terr != nil {
+				return 0, terr // malformed field: hard error, never a fabricated value (B-17)
+			}
+			if tn != 0 {
 				return tn, nil
 			}
 		}
@@ -373,8 +377,10 @@ func (p *parser) parseTracks(start, end int, doc *Document) (uint64, error) {
 }
 
 // parseTrackEntry returns the track number when this entry is a VP9
-// video track, filling doc.Track.
-func (p *parser) parseTrackEntry(start, end int, doc *Document) uint64 {
+// video track, filling doc.Track. A malformed field is a hard error —
+// never a fabricated zero that the track gate would read as "absent"
+// (B-17; §1.10 fail-don't-fudge).
+func (p *parser) parseTrackEntry(start, end int, doc *Document) (uint64, error) {
 	q := &parser{data: p.data, pos: start}
 	num, trackType := uint64(0), uint64(0)
 	codec := ""
@@ -386,7 +392,7 @@ func (p *parser) parseTrackEntry(start, end int, doc *Document) uint64 {
 		}
 		size, unk, ok := q.readSize()
 		if !ok {
-			return 0
+			return 0, ErrBadElement
 		}
 		s, e := q.payloadRange(size, unk)
 		if e > end {
@@ -394,13 +400,25 @@ func (p *parser) parseTrackEntry(start, end int, doc *Document) uint64 {
 		}
 		switch id {
 		case idTrackNumber:
-			num, _ = q.readUint(s, e)
+			v, ok := q.readUint(s, e)
+			if !ok {
+				return 0, ErrBadElement // e.g. a 9-byte "uint": malformed, not 0
+			}
+			num = v
 		case idTrackType:
-			trackType, _ = q.readUint(s, e)
+			v, ok := q.readUint(s, e)
+			if !ok {
+				return 0, ErrBadElement
+			}
+			trackType = v
 		case idCodecID:
 			codec = string(p.data[s:e])
 		case idDefaultDur:
-			defDur, _ = q.readUint(s, e)
+			v, ok := q.readUint(s, e)
+			if !ok {
+				return 0, ErrBadElement
+			}
+			defDur = v
 		case idVideo:
 			vq := &parser{data: p.data, pos: s}
 			for vq.pos < e {
@@ -432,7 +450,7 @@ func (p *parser) parseTrackEntry(start, end int, doc *Document) uint64 {
 		q.pos = e
 	}
 	if trackType != 1 || codec != "V_VP9" || num == 0 {
-		return 0
+		return 0, nil // a DIFFERENT/absent track is not an error
 	}
 	doc.Track = VideoTrack{
 		TrackNumber:     num,
@@ -440,7 +458,7 @@ func (p *parser) parseTrackEntry(start, end int, doc *Document) uint64 {
 		PixelHeight:     h,
 		DefaultDuration: defDur,
 	}
-	return num
+	return num, nil
 }
 
 // ── Clusters & Blocks ─────────────────────────────────────────────────────
@@ -547,6 +565,11 @@ func (p *parser) parseBlockMore(start, end int) []byte {
 		}
 		switch id {
 		case idBlockAddID:
+			// Lenient ON PURPOSE: BlockAdditions is optional alpha — a
+			// malformed add-id must degrade to "no alpha" (identical to
+			// absence), never to fabricated bytes (B-17 audit note: the
+			// track-entry fields above do NOT get this treatment because
+			// their zeros drive decisions).
 			addID, _ = q.readUint(s, e)
 		case idBlockAdditional:
 			additional = p.data[s:e]

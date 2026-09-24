@@ -7906,4 +7906,33 @@ test needs an accounts row because `PRAGMA foreign_keys = ON`
 (verified in db.go:55). BUGS.md: B-19/B-20/B-21/B-7 → Fixed
 (F-21…F-24); open list now: B-17, B-18, B-5, B-6, B-8. Gate runs
 standalone with an explicit exit-code check before the commit (see
-the slice-242 slip above).**
+the slice-242 slip above).
+
+---
+
+## Slice 244 (2026-09-24) — B-17: parser errors surfaced + first-ever fuzzing
+
+**Findings-first**: before changing anything, the two NEW fuzz targets
+hunted the parsers as they were — `webm.FuzzParse` 648,852 execs and
+`vp9anim.FuzzParse` 99,145 execs (seeds: the test builders + committed
+official streams + hostile fragments): **zero crashes, zero (nil,
+nil)** — the panics-that-must-not-exist class came back clean.
+
+**The real defect was value fabrication, not crashes**:
+`parseTrackEntry` swallowed `readUint` failures (`num, _ = …`) so a
+malformed TrackNumber became 0, which the VP9 track gate reads as
+"absent" — RED: `TestMalformedTrackNumberIsAnErrorNotAnAbsentTrack`
+failed with `err=webm: no VP9 video track`, want `ErrBadElement`.
+Signature grew to `(uint64, error)`, propagated through `parseTracks`
+(one caller).
+
+Two swallows were deliberately KEPT, each with the proof in-code
+(evidence over blanket changes): `parseBlockMore`'s add-id (optional
+alpha: malformed must equal absence, never fabricated bytes) and
+vp9anim's colorRange bit (provably recovered by the next frame-size
+read — made explicit anyway as a cost-free belt).
+
+**GREEN**: the new unit, both full suites, both fuzzers re-run
+post-patch (10s each), seed-corpus mode instant (that's what CI
+executes). BUGS.md: B-17 → Fixed (F-25); open list: B-18, B-5, B-6,
+B-8. Gate standalone with rc check.**
