@@ -27,6 +27,13 @@ import (
 // defaultQuickReactions mirrors Telegram's built-in default reaction set
 // (AyuGram shows the server-configured list; this is the offline fallback
 // while/when the server list is unavailable).
+// reactionMoreLabel is the "more reactions" ellipsis on the message
+// actions row. Const + test because the original literal shipped as
+// double-encoded mojibake (Latin-1 re-encode of ⋯ → raw U+008B
+// control char, BUGS.md B-14) — labels_test.go now scans the package
+// for that fingerprint.
+const reactionMoreLabel = "⋯"
+
 var defaultQuickReactions = []string{"👍", "👎", "❤️", "🔥", "🥰", "👏", "😁", "🤔", "😱", "😢", "🎉", "🙏"}
 
 // chatPaneTag receives pointer presses across the chat pane so right-clicks
@@ -583,7 +590,7 @@ func (a *App) menuReactionsRow(gtx layout.Context, f frame, emojis []string, mor
 				if btn.Clicked(gtx) {
 					a.openReactionPicker()
 				}
-				b := material.Button(a.ui.Theme, btn, "â¯")
+				b := material.Button(a.ui.Theme, btn, reactionMoreLabel)
 				b.Background = a.ui.p.Surface
 				b.Color = a.ui.p.TextFaint
 				b.TextSize = unit.Sp(16)

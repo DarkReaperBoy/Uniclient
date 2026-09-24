@@ -7794,3 +7794,27 @@ checker re-run — with the counts narrative recording that the same
 number now rests on behavioral tests, not file counts. BUGS.md: B-13
 → Fixed (F-17); open list starts at B-14. Gate: gofmt empty, vet
 `-tags goolm`, all packages, `-race` on the new tests.
+
+---
+
+## Slice 240 (2026-09-24) — B-14: the ⋯ button stops being mojibake
+
+One literal, two defenses. The reaction-"more" label shipped as
+`C3 A2 C2 8B C2 AF` — a Latin-1 double-encoding of "⋯" (U+22EF) that
+left a raw U+008B control char in the message actions row (staticcheck
+ST1018). Before touching it, a DECODING source scan (every .go, every
+rune in U+0080–U+009F) proved the damage is EXACTLY one line
+repo-wide: `go/gui/menu.go 586 ['0x8b']`.
+
+Fix: `reactionMoreLabel = "⋯"` const + use at the button. Test:
+`TestGUISourcesHaveNoControlCharLabels` walks the package sources —
+compile-RED pre-patch (const undefined; the behavioral RED is the
+scan output above), and it stays as the permanent guard: any future
+double-encode anywhere in gui/ fails the suite, plus the const itself
+is asserted to the exact glyph. GREEN post-patch (octet 0x8B gone).
+(Side note: the first doc edit of this slice typo'd the build tag
+to "gooolm" in this entry — caught and fixed before commit; gate
+scripts all use the real `goolm`.) BUGS.md: B-14 → Fixed (F-18);
+open list starts at B-15 (the reachable circl vulnerability). Gate:
+gofmt empty, vet `-tags goolm`, all packages, `-race` on the new
+test.
