@@ -150,7 +150,7 @@ P2 = settings/extras, P3 = rare/edge.
 | Contact card | vCard bubble w/ add-contact button | PRESENT (slice 56: attach-menu Contact picker → SendContact person-card bubble (name/phone); add-to-contacts from the card remains engine-gated) | gui/location.go contact attach + engine SendContact | P2 |
 | Dice/emoji games | 🎲 animated result | PRESENT (slice 125: MessageMediaDice parsed w/ emoji+value; engine EnsureDiceSticker resolves the per-emoji dice pack via messages.getStickerSet(inputStickerSetDice) — tdesktop pack mapping ("#"=roll, "1"-"6"=outcomes) — rewrites the message media row into the standard download pipeline; GUI plays the roll loop until the value edit lands, then the outcome document plays once and HOLDS its final frame through the slice-122 lottie player; slot machine honestly stays emoji+value text (multi-reel composition out of scope)) | cores/telegram_dice.go + engine/dice.go + gui/dice.go | P3→P1 |
 | Webpage/link preview card | Thumb+title+site in bubble | PRESENT (slice 117: messages whose content_raw carries wp_* (MessageMediaWebPage conversion) render the site card above the text — thumb, small-caps site name, 2-line title, 2-line description, duration pill; tap opens the URL through the openext pipeline; slice 130: the card's photo downloads full-res through the standard media pipeline (core exports wp_photo_id/extra, engine EnsureWebPagePhoto rewrites the media row dice-style — old cached messages upgrade too; GUI renders the local file, stripped b64 as instant fallback); GetWebPagePreview-based composer pre-render remains engine-gated) | gui/webpage.go webPageBlock + cores MessageMediaWebPage Extra | P2 |
-| Paid messages / paid posts | Stars-priced post wall | CORE-ONLY (CORRECTED slice 235: the wall/button/confirm chain has ZERO callers — `layoutPaidMediaWall` is never called from any bubble, the only `paidDlg` writer sits inside uncalled `confirmUnlockPaidMedia` so chat.go:306's gate can never open; `git log -S` = one commit (219eabee, slice 181) — the call site never existed; BUGS.md B-12. Original slice-181 claim, kept for the record: "renders the star wall: darkened preview + accent star glyph + price + Photo/Video label + \"Unlock for N Stars\" button → confirm card → payments.getPaymentForm + payments.sendStarsForm", counted from the FILE, not the call graph) | cores/telegram.go paid_* Extra conversion (core works) + gui/paidmedia.go (unreachable) + engine UnlockPaidMedia (never invoked) | P3 |
+| Paid messages / paid posts | Stars-priced post wall | PRESENT (WIRED slice 238: `messageRow`'s media row now calls `paidBubbleWall` → `layoutPaidMediaWall` for locked posts, and `widgets.init` creates the unlock-button pool — the first render would otherwise have written a nil map; Unlock click → confirm card → engine UnlockPaidMedia. History kept visible: slice 181 built the whole chain but never called it from the bubble (counted PRESENT from the FILE), caught by the slice-235 call-graph audit as CORE-ONLY (BUGS.md B-12), restored to PRESENT on the strength of `TestPaidWallRendersInBubbleAndArmsConfirm`, which drives the real dispatch and clicks the real button | cores/telegram.go + gui/paidmedia.go (wired at chat.go media row) + engine UnlockPaidMedia | P3 |
 | Gift / star-gift messages | Gift card bubble | PRESENT (slice 180: messageActionStarGift/GiftStars/GiftTon convert into structured gift_* Extra (sticker stripped thumb, star count, note, limited/saved/converted/refunded flags, cached sticker download coords) + real action sentences — no more "performed an action"; the GUI renders the gift card bubble (artwork, accent star pill, note, status chips) instead of the flat service line) | cores/telegram.go convertServiceMessage + gui/giftbubble.go + engine GetStarGifts | P3 |
 | Expired/self-destruct media | TTL photo/video timer | PRESENT (slice 182: one-time media (media_ttl_seconds — the server destroys it after the view) renders the timer-glyph "One-time photo/video/voice message" chip above the media block; messages in auto-delete chats (ttl_seconds) render the timer glyph + compact period (30s/5m/2h/1d/1w) beside the timestamp — both read the Extra the core already caches, no new RPCs) | gui/ttlbadge.go + cores convertMessage ttl extras | P3 |
 
@@ -427,7 +427,7 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
 
 ## Counts (200 feature rows)
 
-- PRESENT: 193 (96.5%) — the four video rows from slices 220-225
+- PRESENT: 194 (97%) — the four video rows from slices 220-225
   (143, 279, 276, 231), the five rows synced by the slice-226 truth
   pass (107 forum topics, 108 chat background, 193 saved messages,
   207 chat settings, 212 stars), **row 306 by slice 227** (QR scan
@@ -438,7 +438,9 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   **Slice-235 call-graph audit downgraded rows 44 (signup) and 153
   (paid star wall) — both were counted from files that were never
   wired into any call path (BUGS.md B-13/B-12), which is what moved
-  195→193.** **Counted by machine**: parsing every row's status cell caught two
+  195→193. Row 153 was then WIRED (slice 238, BUGS.md F-16) and
+  returned to PRESENT → 194; row 44 remains PARTIAL until B-13
+  lands.** **Counted by machine**: parsing every row's status cell caught two
   earlier drifts (the prose claimed 188/8 while the table held 187/9,
   and the experimental row's CORE-ONLY-BY-DESIGN status made the first
   parser pass miss it) — these numbers are that parser's output, summed
@@ -448,8 +450,7 @@ engine-gated, or an honest scope cut — never dead UI (§1.10).
   so the toggle would be dead UI) · card-funded giveaway launch
   (external checkout, honest absence)
 - MISSING: **0** — closed by slice 222 (PiP was the last one).
-- CORE-ONLY: 4 — paid messages (Extra conversion exists, star wall
-  never wired) · webview (owner-decision) · experimental flags (this
+- CORE-ONLY: 3 — webview (owner-decision) · experimental flags (this
   row is CORE-ONLY-BY-DESIGN: dead-UI ban) · Ayu sqlite (already
   served by the engine cache). Streaming without full download left
   this bucket at slices 228-229 (row 281 above).

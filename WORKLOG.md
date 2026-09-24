@@ -7734,3 +7734,38 @@ recorded in the test comment. **GREEN**: items/ver/groups, the
 suite + `-race` clean. BUGS.md: B-11 → Fixed (F-15); open list starts
 at B-12. Gate: gofmt empty, vet `-tags goolm`, all packages, `-race`
 on the new test.
+
+---
+
+## Slice 238 (2026-09-24) — B-12: the paid star wall actually renders
+
+Wired the slice-181 chain back into the bubble: `paidBubbleWall` (new
+pure dispatch: locked paid posts only, §1.10) → `layoutPaidMediaWall`
+inside `messageRow`'s media row, replacing the normal media slot for
+locked posts; the server's `paid_unlocked` update hands the row back.
+While wiring, a second defect fell out: `widgets.init()` never made
+`paidUnlockBtns` — the FIRST wall render would have written a nil map
+and panicked. Fixed in the same patch (the test would have caught it
+as a crash).
+
+**RED**: `TestPaidWallRendersInBubbleAndArmsConfirm` drives the REAL
+`messageRow` through the real input router (keylayer_test harness
+pattern) and sweeps press/release pairs over the wall zone until the
+Unlock button is hit — failed pre-patch with "paid wall never armed
+the unlock confirm — the star wall is not wired into the bubble
+(B-12)". Two test-oracle traps fixed en route and recorded IN the
+test: (a) a full-frame sweep clicked into the corner-reaction/corner-
+reply chrome whose handler spawns an engine call — nil engine in a
+goroutine killed the binary, so the sweep is bounded to the wall zone
+with `favAttempted` seeded (both documented as "not this test's
+subject"), (b) button-rect math deliberately NOT hard-coded — bounded
+sweep instead. Guard subtests: unlocked paid media and plain text
+never arm the confirm.
+
+**GREEN**: both tests, full gui suite, `-race`. Parity row 153
+restored to PRESENT with the miscount history kept in the row
+(PRESENT 194 (97%) · PARTIAL 3 · CORE-ONLY 3 · MISSING 0 = 200,
+checker re-run); AGENTS status lines updated. BUGS.md: B-12 → Fixed
+(F-16); open list starts at B-13 (the signup form — same disease,
+next to fix). Gate: gofmt empty, vet `-tags goolm`, all packages,
+`-race` on the new tests.

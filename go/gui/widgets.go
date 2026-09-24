@@ -445,6 +445,7 @@ func (w *widgets) init() {
 	w.liveStopBtns = make(map[string]*widget.Clickable)
 	w.mediaClicks = make(map[string]*widget.Clickable)
 	w.mediaPlayClickables = make(map[string]*widget.Clickable)
+	w.paidUnlockBtns = make(map[string]*widget.Clickable) // slice 238: star-wall unlock (B-12 — first wall render wrote a nil map)
 	w.memberRowBtns = make(map[string]*widget.Clickable)
 	w.commentChipBtns = make(map[string]*widget.Clickable)
 	w.seekBarTags = make(map[string]*struct{})

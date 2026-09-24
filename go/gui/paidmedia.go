@@ -79,6 +79,18 @@ func paidWallVisible(p *paidData) bool {
 	return p != nil && !p.Unlocked
 }
 
+// paidBubbleWall: the bubble dispatch's decision — render the star
+// wall for LOCKED paid media only; never for unlocked or non-paid
+// messages (§1.10). Pure — tested (paidmedia_wire_test.go drives the
+// real dispatch through it).
+func paidBubbleWall(m *engine.CachedMessage) (*paidData, bool) {
+	p := parsePaidMedia(m)
+	if !paidWallVisible(p) {
+		return nil, false
+	}
+	return p, true
+}
+
 // paidStarsText: "1 Star" / "25 Stars" ("" when free). Pure.
 func paidStarsText(stars int64) string {
 	if stars <= 0 {

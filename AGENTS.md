@@ -18,9 +18,9 @@ copied) with **Material Design** visuals, built with **Gio**. Standardized
 backend surface so one GUI can handle them all; optimized code and builds.
 
 Current phase: **stability / bug hunt** (standing, from 2026-09-23).
-Feature work is DONE: AyuGram parity closed at **193/200 PRESENT**
-(rows 44/153 downgraded by the slice-235 call-graph audit — see
-**BUGS.md** B-12/B-13) and
+Feature work is DONE: AyuGram parity closed at **194/200 PRESENT**
+(row 44 signup still downgraded — BUGS.md B-13; row 153 paid wall was
+re-wired at slice 238 → F-16) and
 release **v0.9.1** shipped (all five release jobs green). Sessions now
 work from the open list in **`BUGS.md`** plus anything they find on the
 way; §11 carries the standing item. All GitHub releases must be marked
@@ -411,12 +411,14 @@ is the next task.
       where functionality is missing; Telegram core+GUI = exact 1:1 first
       (folders sync, ghost mode, QR verify, message actions, settings,
       search, media...), other cores follow
-      - **Final state (machine-counted, buckets sum to 200): PRESENT 193
-        (96.5%) · PARTIAL 3 · MISSING 0 · CORE-ONLY 4 (+1
-        CORE-ONLY-BY-DESIGN).** The slice-235 call-graph audit added two
-        corrected rows (signup name/photo → PARTIAL, paid star wall →
-        CORE-ONLY — both files counted as PRESENT while never wired;
-        BUGS.md B-13/B-12); the other two PARTIAL rows are deliberate
+      - **Final state (machine-counted, buckets sum to 200): PRESENT 194
+        (97%) · PARTIAL 3 · MISSING 0 · CORE-ONLY 3 (+1
+        CORE-ONLY-BY-DESIGN).** The slice-235 call-graph audit corrected
+        two rows (signup name/photo → PARTIAL, paid star wall →
+        CORE-ONLY — both files counted as PRESENT while never wired);
+        slice 238 re-wired the paid star wall (row 153 back to PRESENT,
+        BUGS.md F-16), leaving signup (row 44, B-13) as the outstanding
+        correction. The other two PARTIAL rows are deliberate
         scope decisions with the rationale kept in the matrix — local
         premium toggle (nothing is gated client-side yet, so the toggle
         would be dead UI per §1.10) and card-funded giveaway launch
@@ -828,7 +830,7 @@ via purego; mic permission via JNI) — real-hardware test = owner's rung.
       new unit tests pinning crypto/packet formats against official test
       vectors. Both backends now selectable in the GUI picker.
 - [~] **Bug hunt / stability phase — STANDING (from 2026-09-23).**
-      Feature parity (193/200 after the slice-235 audit) and release v0.9.1 shipped; from now on
+      Feature parity (194/200 after the slice-235/238 audits) and release v0.9.1 shipped; from now on
       every session works from the top of the OPEN list in **BUGS.md**
       first, then audits whatever code it touches for bugs. Rules:
       tests-first for every fix (the failing test reproduces the bug

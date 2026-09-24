@@ -816,6 +816,13 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 					// owns its message's only media row (the page photo, slice 130)
 					// — never double-render it as a photo bubble.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						// Paid-media star wall (parity row 153; slice-238
+						// wiring — BUGS.md B-12): LOCKED paid posts own
+						// this row; the server's paid_unlocked update
+						// hands it back to the normal media path.
+						if p, ok := paidBubbleWall(m); ok {
+							return a.layoutPaidMediaWall(gtx, m, p)
+						}
 						if !m.HasMedia || m.MediaType == 0 || parseWebPage(m) != nil {
 							return layout.Dimensions{}
 						}
