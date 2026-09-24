@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"net"
 	"os"
@@ -3681,7 +3682,10 @@ func (d *DeltaChatCore) decryptPGPMIME(outerContentType string, bodyBytes []byte
 		"Chat-Webrtc-Room", "Chat-List-ID",
 	} {
 		if v := innerEntity.Header.Get(key); v != "" {
-			innerHeaders[key] = v
+			// Lowercase to match parseRawHeaders (B-29): the outer/inner
+			// merge in processIncomingEmail must override per key, not
+			// keep two spellings side by side.
+			innerHeaders[strings.ToLower(key)] = v
 		}
 	}
 
@@ -4341,13 +4345,11 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 
 	// Skip non-DC messages (no Chat-Version header) — but encrypted messages
 	// may have Chat-Version inside the encrypted part, so allow multipart/encrypted through
-	chatVersion := headers["Chat-Version"]
-	contentType := headers["Content-Type"]
-	if contentType == "" {
-		contentType = headers["content-type"]
-	}
+	// (keys are stored lowercase by parseRawHeaders — B-29)
+	chatVersion := headers["chat-version"]
+	contentType := headers["content-type"]
 	isEncrypted := strings.Contains(contentType, "multipart/encrypted") || strings.Contains(contentType, "pgp-encrypted")
-	if chatVersion == "" && headers["chat-version"] == "" && !isEncrypted {
+	if chatVersion == "" && !isEncrypted {
 		return
 	}
 
@@ -4360,11 +4362,11 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 				headers[k] = v
 			}
 			// Extract Autocrypt key from inner encrypted message
-			if acHeader := innerHeaders["Autocrypt"]; acHeader != "" && senderEmail != "" {
+			if acHeader := innerHeaders["autocrypt"]; acHeader != "" && senderEmail != "" {
 				d.updateAutocryptPeer(senderEmail, senderName, acHeader)
 			}
 			// Process Autocrypt-Gossip headers (group key distribution)
-			if gossip := innerHeaders["Autocrypt-Gossip"]; gossip != "" {
+			if gossip := innerHeaders["autocrypt-gossip"]; gossip != "" {
 				// Gossip headers may contain multiple keys: addr=...; keydata=...
 				// Each gossip entry provides a key for a different group member
 				for _, g := range strings.Split(gossip, "\n") {
@@ -4395,7 +4397,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 	}
 
 	// Re-check Chat-Version now that we may have decrypted inner headers
-	if headers["Chat-Version"] == "" && headers["chat-version"] == "" {
+	if headers["chat-version"] == "" {
 		return
 	}
 
@@ -4405,7 +4407,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 	}
 
 	// Update Autocrypt peer state
-	if autocryptHeader := headers["Autocrypt"]; autocryptHeader != "" {
+	if autocryptHeader := headers["autocrypt"]; autocryptHeader != "" {
 		d.updateAutocryptPeer(senderEmail, senderName, autocryptHeader)
 	} else {
 		// Update display name at minimum
@@ -4419,10 +4421,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 	}
 
 	// Determine chat ID
-	groupID := headers["Chat-Group-ID"]
-	if groupID == "" {
-		groupID = headers["chat-group-id"]
-	}
+	groupID := headers["chat-group-id"]
 
 	var chatID string
 	if groupID != "" {
@@ -4447,13 +4446,10 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 	}
 
 	// Handle special message types
-	chatContent := headers["Chat-Content"]
-	if chatContent == "" {
-		chatContent = headers["chat-content"]
-	}
+	chatContent := headers["chat-content"]
 
 	// Handle Chat-Edit
-	if editID := headers["Chat-Edit"]; editID != "" {
+	if editID := headers["chat-edit"]; editID != "" {
 		d.msgsMu.Lock()
 		for i, m := range d.messages[chatID] {
 			if m.ID == editID {
@@ -4469,7 +4465,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 	}
 
 	// Handle Chat-Delete
-	if deleteID := headers["Chat-Delete"]; deleteID != "" {
+	if deleteID := headers["chat-delete"]; deleteID != "" {
 		d.msgsMu.Lock()
 		msgs := d.messages[chatID]
 		for i, m := range msgs {
@@ -4485,14 +4481,14 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 	}
 
 	// Handle group management
-	if memberAdded := headers["Chat-Group-Member-Added"]; memberAdded != "" {
+	if memberAdded := headers["chat-group-member-added"]; memberAdded != "" {
 		d.chatsMu.Lock()
 		if cs, ok := d.chats[chatID]; ok {
 			cs.Members = append(cs.Members, canonicalizeEmail(memberAdded))
 		}
 		d.chatsMu.Unlock()
 	}
-	if memberRemoved := headers["Chat-Group-Member-Removed"]; memberRemoved != "" {
+	if memberRemoved := headers["chat-group-member-removed"]; memberRemoved != "" {
 		d.chatsMu.Lock()
 		if cs, ok := d.chats[chatID]; ok {
 			removed := canonicalizeEmail(memberRemoved)
@@ -4516,10 +4512,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 
 		if groupID != "" {
 			ct = ChatTypeGroup
-			groupName := headers["Chat-Group-Name"]
-			if groupName == "" {
-				groupName = headers["chat-group-name"]
-			}
+			groupName := headers["chat-group-name"]
 			if groupName != "" {
 				title = groupName
 			}
@@ -4545,7 +4538,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 	d.chatsMu.Unlock()
 
 	// Check if this is a reaction (Content-Disposition: reaction)
-	contentDisp := headers["Content-Disposition"]
+	contentDisp := headers["content-disposition"]
 	if strings.Contains(contentDisp, "reaction") || chatContent == "reaction" {
 		// It's a reaction — update the target message
 		if len(env.InReplyTo) > 0 {
@@ -4905,13 +4898,33 @@ func (d *DeltaChatCore) updateAutocryptPeer(email string, name string, autocrypt
 	ps.PreferEncrypt = preferEncrypt
 
 	if keydata != "" {
+		// RFC 5322 folds long base64 values; unfolders may leave — and our
+		// own fold join historically injected — whitespace inside the
+		// stream, which base64.StdEncoding rejects. That failure was
+		// swallowed, so the peer's key silently never landed and E2EE
+		// silently downgraded to plaintext (B-31). Strip ALL whitespace
+		// before decoding; never drop failures silently again.
+		keydata = strings.Map(func(r rune) rune {
+			switch r {
+			case ' ', '\t', '\r', '\n':
+				return -1
+			}
+			return r
+		}, keydata)
 		keyBytes, err := base64.StdEncoding.DecodeString(keydata)
-		if err == nil {
+		if err != nil {
+			log.Printf("deltachat: autocrypt keydata for %s failed base64 decode: %v", email, err)
+		} else {
 			ps.PublicKey = keyBytes
 			ps.AutocryptTimestamp = time.Now()
 			// Parse entity
 			entities, err := openpgp.ReadKeyRing(bytes.NewReader(keyBytes))
-			if err == nil && len(entities) > 0 {
+			switch {
+			case err != nil:
+				log.Printf("deltachat: autocrypt key for %s is not a readable OpenPGP key: %v", email, err)
+			case len(entities) == 0:
+				log.Printf("deltachat: autocrypt key for %s contained no key entities", email)
+			default:
 				ps.entity = entities[0]
 			}
 		}
@@ -5153,7 +5166,16 @@ func parseRawHeaders(data []byte) map[string]string {
 			break
 		}
 		if line[0] == ' ' || line[0] == '\t' {
-			currentValue.WriteByte(' ')
+			// Fold continuation: join with ONE space max — only add it when
+			// the value doesn't already end in whitespace (the old
+			// unconditional space produced "The  Group Name" double
+			// spaces; B-30). Base64 correctness does not depend on this:
+			// updateAutocryptPeer strips all whitespace from keydata
+			// before decoding (B-31).
+			v := currentValue.String()
+			if v != "" && v[len(v)-1] != ' ' && v[len(v)-1] != '\t' {
+				currentValue.WriteByte(' ')
+			}
 			currentValue.Write(bytes.TrimSpace(line))
 			continue
 		}
@@ -5166,6 +5188,11 @@ func parseRawHeaders(data []byte) map[string]string {
 			continue
 		}
 		currentKey = string(line[:idx])
+		// RFC 5322 header names are case-insensitive: store one canonical
+		// (lowercase) form so every reader sees the same keys — the old
+		// preserved-case keys forced per-call-site fallback dances and
+		// several lookups had none (B-29).
+		currentKey = strings.ToLower(strings.TrimSpace(currentKey))
 		currentValue.Reset()
 		currentValue.Write(line[idx+1:])
 	}

@@ -8134,3 +8134,46 @@ B-24, B-23, B-26, B-25, B-6, B-8.
 **Validation**: matrix+truncate suites green, full cores suite green,
 `-race` green on new tests, vet green. Gate248 (adds race for matrix/
 truncate/utils) standalone with rc check.
+
+---
+
+## Slice 249 (2026-09-24) — deltachat header cluster: B-29/B-30/B-31
+
+Continuing "test every non-phone core fully": deltachat's pure seams
+(`parseRawHeaders` = its only standalone parser) plus the github pure
+helpers queued for slice 250.
+
+**Three bugs found while writing the parser tests (tests-first RED,
+all fixed same slice, each its own F-entry):**
+- **B-29 → F-31**: header keys preserved sender case while readers
+  mixed cases — `content-type` dual-checked (author knew) but
+  `Chat-Edit`/`Chat-Delete`/`Chat-Group-Member-*`/`Autocrypt`/
+  `Content-Disposition` had NO fallback. Normalized keys to lowercase
+  at construction; **critical detail found while editing**:
+  `decryptPGPMIME`'s inner list stored CANONICAL keys — lowering only
+  the outer parser would have made the outer/inner merge keep BOTH
+  spellings and silently break "inner takes precedence". Both sides
+  aligned; ~17 reads lowered; dual-case fallbacks collapsed; grep
+  audit = zero mixed-case reads left; localserver chain green (the
+  canonical path didn't move).
+- **B-30 → F-32**: fold join added an unconditional space →
+  `The  Group Name` double spaces (own test caught it while writing
+  the B-29 suite → own row per contract). Space now added only when
+  the value doesn't already end in WSP.
+- **B-33 severity pick of the day — B-31 → F-33**: keydata base64
+  ALWAYS folds (hundreds of chars) → fold join injected spaces →
+  `base64.StdEncoding.DecodeString` rejects → error swallowed
+  (deltachat.go had NO logging at all) → **peer key silently never
+  stored, E2EE silently downgrades to plaintext**, everything else
+  about the peer looks healthy. Same path = Autocrypt-Gossip. The
+  chain test's Autocrypt presence check was a log-only NOTE (never
+  failed) — why it survived. Fix: strip all whitespace pre-decode +
+  log decode/keyring/empty-entity failures (std `log`). RED test
+  generates a REAL OpenPGP key, folds it at 70-char chunks through
+  the real parser: pre-fix `PublicKey=[] entity=<nil>` with
+  DisplayName/PreferEncrypt set (the exact silent signature).
+
+Coverage: deltachat_headers_test.go = 5 tests (17 incl. github's
+shared suite via package). Open list unchanged: B-24, B-23, B-26,
+B-25, B-6, B-8. Gate249 standalone with rc check; next: github pure
+tests (slice 250) → then B-24/B-23.
