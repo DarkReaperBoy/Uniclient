@@ -3406,12 +3406,13 @@ func (t *TeamSpeakCore) Authenticate(cfg AuthConfig) error {
 		t.tsCommandLoop()
 	}()
 
-	// Register for notifications
-	_ = t.tsExecSimple("servernotifyregister event=server")
-	_ = t.tsExecSimple("servernotifyregister event=channel id=0")
-	_ = t.tsExecSimple("servernotifyregister event=textserver")
-	_ = t.tsExecSimple("servernotifyregister event=textchannel")
-	_ = t.tsExecSimple("servernotifyregister event=textprivate")
+	// Notification registration is deliberately ABSENT: every real
+	// server answers `servernotifyregister` with error 516 "invalid
+	// client type" for in-client connections (it is a ServerQuery-only
+	// command — BUGS B-23), and clients receive all their events pushed
+	// natively anyway (verified across every live battery: clientmoved,
+	// cliententerview, text/poke, channel events, connectioninforequest
+	// all arrive with zero registrations).
 
 	// Save session (with identity)
 	_ = t.tsSaveSession()
@@ -6848,30 +6849,12 @@ func (t *TeamSpeakCore) FTInitDownload(clientftfid, cid int, name string, cpw st
 
 // ──────────────────────────── Event Registration ────────────────────────────
 
-// ServerNotifyRegister registers for server event notifications.
-// event: "server", "channel", "textserver", "textchannel", "textprivate".
-func (t *TeamSpeakCore) ServerNotifyRegister(event string, cid int) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed {
-		return ErrAuth
-	}
-	cmd := fmt.Sprintf("servernotifyregister event=%s", tsEscape(event))
-	if cid > 0 {
-		cmd += fmt.Sprintf(" id=%d", cid)
-	}
-	return t.tsExecSimple(cmd)
-}
-
-// ServerNotifyUnregister unregisters from server event notifications.
-func (t *TeamSpeakCore) ServerNotifyUnregister() error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed {
-		return ErrAuth
-	}
-	return t.tsExecSimple("servernotifyunregister")
-}
+// servernotifyregister/unregister used to live here (ServerNotifyRegister/
+// ServerNotifyUnregister): every real server answers them with error 516
+// "invalid client type" for in-client connections — ServerQuery-only
+// command (BUGS B-23) — and clients get all events pushed natively
+// regardless. Zero callers existed anywhere in the repo; removed with
+// the handshake's five no-op registrations.
 
 // ──────────────────────────── Logging (SQ) ────────────────────────────
 

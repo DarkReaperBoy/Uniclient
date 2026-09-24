@@ -8243,3 +8243,22 @@ fake network error).
 (live_rc=0)** — github token, TS text permission (B-25), TS voice
 environment (B-22 hardening), xmpp registration policy. Open list:
 B-23, B-26, B-25, B-6, B-8. Gate251 standalone with rc check.
+
+---
+
+## Slice 252 (2026-09-25) — B-23: dead notification registrations removed
+
+Evidence line from the server itself: `error id=516 "invalid client
+type"` ×5 per connection = `servernotifyregister` is ServerQuery-only.
+Events flow natively for in-client connections — proven every battery
+(clientmoved/enterview, text+poke, channel events,
+connectioninforequest auto-respond) and decisively in the same run:
+LargeMessage's oracle IS a notifytext delivery to the second client.
+Removed the five handshake calls + the zero-caller
+ServerNotifyRegister/ServerNotifyUnregister pair (evidence comments at
+both sites). Pure deletion → no RED possible (F-26 precedent):
+compiler + full unit suite + live subset (Handshake PASS,
+LargeMessage PASS, RoundTrip honest SKIP on B-25). Executable
+`servernotifyregister` count → 0. **BUGS: B-23 → Fixed (F-36); open
+list now B-26, B-25, B-6, B-8.** Gate252 (= gate251 scope) standalone
+with rc check.
