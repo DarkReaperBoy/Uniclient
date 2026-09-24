@@ -149,6 +149,12 @@ func Parse(data []byte) (*Document, error) {
 		if end > segEnd {
 			end = segEnd
 		}
+		// readID/readSize may have run past the parent boundary: a
+		// payload starting BEYOND the element end must never slice
+		// [s:e] with s>e or walk q.pos backwards into a spin (B-38).
+		if start > end {
+			break
+		}
 		switch id {
 		case idInfo:
 			p.parseInfo(start, end, doc)
@@ -305,6 +311,9 @@ func (p *parser) checkDocType(start, end int) bool {
 		if e > end {
 			e = end
 		}
+		if s > e {
+			return false // payload starts past the element — malformed, never slice [s:e] (B-38)
+		}
 		if id == idDocType {
 			dt := string(p.data[s:e])
 			return dt == "webm" || dt == "matroska"
@@ -330,6 +339,9 @@ func (p *parser) parseInfo(start, end int, doc *Document) {
 		s, e := q.payloadRange(size, unk)
 		if e > end {
 			e = end
+		}
+		if s > e {
+			break // crossed the parent boundary (B-38) — no backward q.pos, no slices
 		}
 		switch id {
 		case idTimecodeScale:
@@ -361,6 +373,9 @@ func (p *parser) parseTracks(start, end int, doc *Document) (uint64, error) {
 		s, e := q.payloadRange(size, unk)
 		if e > end {
 			e = end
+		}
+		if s > e {
+			break // crossed the parent boundary (B-38)
 		}
 		if id == idTrackEntry {
 			tn, terr := p.parseTrackEntry(s, e, doc)
@@ -398,6 +413,12 @@ func (p *parser) parseTrackEntry(start, end int, doc *Document) (uint64, error) 
 		if e > end {
 			e = end
 		}
+		if s > e {
+			// readID/readSize ran past this track entry's end — malformed
+			// structure, hard error (B-17 doctrine): the raw slices below
+			// ([s:e]) would otherwise panic with s>e (B-39, fuzz-found).
+			return 0, ErrBadElement
+		}
 		switch id {
 		case idTrackNumber:
 			v, ok := q.readUint(s, e)
@@ -433,6 +454,9 @@ func (p *parser) parseTrackEntry(start, end int, doc *Document) (uint64, error) 
 				vs, ve := vq.payloadRange(vsize, vunk)
 				if ve > e {
 					ve = e
+				}
+				if vs > ve {
+					break // parent boundary crossed (B-38) — readUint would refuse, but vq.pos must not step back
 				}
 				switch vid {
 				case idPixelWidth:
@@ -479,6 +503,9 @@ func (p *parser) parseCluster(start, end int, trackNum uint64, doc *Document) {
 		if e > end {
 			e = end
 		}
+		if s > e {
+			break // crossed the parent boundary (B-38)
+		}
 		switch id {
 		case idClusterTC:
 			if v, ok := q.readUint(s, e); ok {
@@ -512,6 +539,9 @@ func (p *parser) parseBlockGroup(start, end int, trackNum uint64, clusterTC int6
 		if e > end {
 			e = end
 		}
+		if s > e {
+			break // crossed the parent boundary (B-38)
+		}
 		switch id {
 		case idBlock:
 			blockStart, blockEnd, haveBlock = s, e, true
@@ -529,6 +559,9 @@ func (p *parser) parseBlockGroup(start, end int, trackNum uint64, clusterTC int6
 				as, ae := aq.payloadRange(asize, aunk)
 				if ae > e {
 					ae = e
+				}
+				if as > ae {
+					break // parent boundary crossed (B-38) — aq.pos must not step back
 				}
 				if aid == idBlockMore {
 					alpha = p.parseBlockMore(as, ae)
@@ -562,6 +595,9 @@ func (p *parser) parseBlockMore(start, end int) []byte {
 		s, e := q.payloadRange(size, unk)
 		if e > end {
 			e = end
+		}
+		if s > e {
+			break // crossed the parent boundary (B-38) — guards the raw slice below too
 		}
 		switch id {
 		case idBlockAddID:

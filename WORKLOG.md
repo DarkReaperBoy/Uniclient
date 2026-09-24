@@ -8299,3 +8299,53 @@ test initialized `channels` (harness-side fix, not production).
 
 **BUGS: B-26 → F-37, B-37 → F-38; open list = B-25 (environment),
 B-6 + B-8 (owner).** Gate253 standalone with rc check.
+
+---
+
+## Slice 254 (2026-09-25) — re-battery over the new code: fuzz found
+## TWO real parser panics (B-38/B-39 fixed)
+
+Re-auditing everything slices 236–253 added (the slice-235 battery
+predates it):
+
+- **B-25 re-probe**: RoundTrip still `permission denied` → stays open
+  (environment; the honest skip keeps working).
+- **Cross-build**: `GOOS=windows CGO_ENABLED=0 go build -tags goolm
+  ./...` → OK; linux CGO=0 still fails only at gio/vulkan (documented
+  since slice 235, unchanged). First attempt without the goolm tag
+  failed at libolm — same trap as always, tag is mandatory.
+- **Coverage refresh**: cores 9.3% → **10.0%**, engine 24.6%, gui
+  19.3%, utils 10.6%.
+- **Full `-race` + fuzz rerun caught TWO real panics** (the fuzzers
+  saved crashers, turning every subsequent test run RED until fixed —
+  the contract working exactly as designed):
+  - **B-38 → F-39**: `checkDocType` `slice bounds out of range [8:7]`
+    (crasher via vp9anim) — family bug: `readID`/`readSize` can run
+    past the parent element's end, every site clamped only `e`, never
+    checked `s > e`; same pattern at 10 sites incl. raw slices AND
+    backward `q.pos` steps (latent loop hazard).
+  - **B-39 → F-40**: `parseTrackEntry` `codec = string(p.data[s:e])`
+    `[36:35]` at webm.go:415 — crasher `9470e433aa9dcc92` — now
+    `ErrBadElement` (B-17 doctrine).
+  - Fixed with `s > e` guards at all 10 payloadRange sites; both
+    crashers KEPT as permanent regression seeds (every `go test`
+    replays them); post-fix fuzz 15s ×2 green: webm **1,750,649
+    execs**, vp9anim **65,277 execs**, zero new crashers.
+- **Secret-pattern scan (whole tree)**: 1 hit = the GitHub PAT
+  *placeholder hint* (prefix + underscore + three-dot ellipsis) in
+  `engine/auth.go:464` — the example text shown in the login UI.
+  Benign, verified, no token anywhere.
+- **TODO scan**: 1 hit = the words "TODO" inside the slice-231 QuickLZ
+  doc comment (prose ABOUT the TODO that B-1 closed) → reworded to
+  "the former TODO"; scan now 0.
+- **staticcheck: SKIPPED this battery.** Running full-tree staticcheck
+  concurrently with two fuzz workers and a full `-race` suite nuked
+  the host's 15Gi RAM (owner flagged it; processes killed — my own
+  `pkill -f fuzz` even matched my own shell and self-terminated).
+  Slice-235/245 triage stands as the staticcheck baseline. Lesson
+  recorded: one heavyweight analyzer at a time, never in parallel,
+  and staticcheck full-tree only on explicit owner request.
+
+**gate254 = light**: gofmt + vet + full plain `go test` + `-race`
+ONLY on webm/vp9anim (tiny packages, the crasher regression under the
+detector). NO fuzz, NO staticcheck, NO full-tree race in this gate.

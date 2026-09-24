@@ -255,7 +255,7 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 //
 // This closes BUGS.md B-1: without it every command > tsMaxPayloadC2S
 // went out as raw fragments while reference clients send compressed
-// payloads (TODO at tsSendCommand).
+// payloads (the former TODO at tsSendCommand).
 //
 // Provenance: faithful port of the GPL/commercial quicklz.c reference
 // (never vendored — gcc-built vectors only); tracked in BUGS.md B-8.
