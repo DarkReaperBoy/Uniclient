@@ -493,3 +493,55 @@ func seedStreamRow(t *testing.T, e *Engine, size int64, state int, localPath str
 		t.Fatal(err)
 	}
 }
+
+// TestMediaStreamDoneOnlyAfterLastChunk pins the completion contract:
+// onDone (the DB promotion to DownloadComplete + the
+// EventDownloadComplete emit) must fire EXACTLY ONCE, after THE LAST
+// chunk lands — never after chunk 0. The pre-patch done-check
+// `for _, ok := range s.have { if !ok { break }; s.done = true; …; break }`
+// inspected only the first bitmap slot (SA4004), so any file larger
+// than one chunk promoted itself complete over unfetched holes — the
+// exact §1.10 class (BUGS.md B-10). RED before the fix.
+func TestMediaStreamDoneOnlyAfterLastChunk(t *testing.T) {
+	const chunk = 1 << 16 // 64 KiB → exactly 3 chunks
+	data := streamPattern(chunk * 3)
+	src := &fakePartSource{data: data}
+
+	var mu sync.Mutex
+	dones := 0
+	s := newStreamForTest(t, src, chunk, func() {
+		mu.Lock()
+		dones++
+		mu.Unlock()
+	})
+	doneCount := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return dones
+	}
+	readAt := func(off int64) {
+		t.Helper()
+		buf := make([]byte, 8)
+		if _, err := s.ReadAt(buf, off); err != nil {
+			t.Fatalf("ReadAt(%d): %v", off, err)
+		}
+	}
+
+	readAt(0) // chunk 0 lands
+	if got := doneCount(); got != 0 {
+		t.Fatalf("onDone fired after chunk 0 of 3 (%d) — stream promoted complete while 2/3 of the file is still holes (B-10)", got)
+	}
+	readAt(int64(chunk)) // chunk 1
+	if got := doneCount(); got != 0 {
+		t.Fatalf("onDone fired after chunk 1 of 3 (%d) — still not complete (B-10)", got)
+	}
+	readAt(int64(2 * chunk)) // chunk 2 — the last one
+	if got := doneCount(); got != 1 {
+		t.Fatalf("onDone count after the last chunk = %d, want 1", got)
+	}
+	// Exactly-once: re-reading present chunks must not re-promote.
+	readAt(0)
+	if got := doneCount(); got != 1 {
+		t.Fatalf("onDone fired %d times total, want exactly 1", got)
+	}
+}

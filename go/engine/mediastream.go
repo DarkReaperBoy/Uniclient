@@ -236,14 +236,20 @@ func (s *mediaStream) ensureChunk(c int64) error {
 	}
 	justDone := false
 	if !s.done {
+		// Completion = EVERY chunk present, not just the first slot
+		// (B-10: the old loop broke on the first `ok`, so a 3-chunk
+		// stream promoted itself complete after chunk 0 — onDone ran
+		// the DB promotion + event over unfetched holes).
+		allPresent := true
 		for _, ok := range s.have {
 			if !ok {
+				allPresent = false
 				break
 			}
-			// all present
+		}
+		if allPresent {
 			s.done = true
 			justDone = true
-			break
 		}
 	}
 	// Bitmap first, THEN wake: waiters must see have[c] on re-check.

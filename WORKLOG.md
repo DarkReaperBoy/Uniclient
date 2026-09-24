@@ -7685,3 +7685,27 @@ assertions), B-21 (nil-ctx landmine).
 
 Docs-only commit (BUGS.md + parity + AGENTS + this log); §9 gate ran
 anyway. Fixing resumes next slice from the top of the open list: B-10.
+
+---
+
+## Slice 236 (2026-09-24) — B-10: streams no longer complete after chunk 0
+
+Top of the open list and the worst find of the sweep. The done-check
+in `finishFetchLocked` ranged the `have` bitmap but broke on the FIRST
+`ok` — so it only ever looked at slot 0 (staticcheck SA4004 "loop
+unconditionally terminated" was the tell). With `streamChunk = 512 KiB`
+every real file (i.e. every video) set `done` when chunk 0 landed and
+`onDone` promoted the row to DownloadComplete + emitted the event while
+the rest of the sparse file was still holes — the exact §1.10 class.
+
+**RED first**: `TestMediaStreamDoneOnlyAfterLastChunk` (3×64 KiB
+chunks, fetch chunk-by-chunk through the real ReadAt path, count
+onDone) failed exactly as predicted — "onDone fired after chunk 0 of 3
+(1) — stream promoted complete while 2/3 of the file is still holes".
+**Fix**: completion = EVERY slot present (scan the whole bitmap, set
+`done` only if all true), still under the stream lock, with the
+existing exactly-once handoff (`justDone` → `onDone = nil`) untouched.
+**GREEN**: the new test, the full engine suite, `-race` over all
+stream tests; staticcheck re-run shows SA4004 gone. BUGS.md: B-10 →
+Fixed (F-14); open list now starts at B-11. Gate: gofmt empty, vet
+`-tags goolm`, all packages, `-race` on the stream suite + this test.
