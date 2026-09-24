@@ -1304,6 +1304,12 @@ type tsConnection struct {
 	execCh   chan tsIncomingCmd
 	execMu   sync.Mutex
 	execWait bool
+	// execSeq serializes WHOLE exec sessions (arm → send → wait): the
+	// tc.execCh field is shared, so a concurrent caller used to replace
+	// the channel mid-flight and responses were delivered to the wrong
+	// waiter (B-35). TS3 answers commands in order — serial sessions
+	// pair perfectly, each bounded by tsExecVoidTimeout.
+	execSeq sync.Mutex
 
 	mu sync.Mutex
 }
@@ -2861,12 +2867,27 @@ func (t *TeamSpeakCore) tsCommandLoop() {
 
 // ──────────────────────────── Command Execution (send + wait for response) ────────────────────────────
 
+// tsExecVoidTimeout is how long tsExec waits for ANY response before
+// concluding the response was lost. Every TS3 command is answered by an
+// `error id=` line (success OR failure), so silence means loss — not
+// success (BUGS B-24). Var rather than const so tests can shrink it.
+var tsExecVoidTimeout = 5 * time.Second
+
 // tsExec sends a command and waits for the response (error line).
 func (t *TeamSpeakCore) tsExec(cmd string) ([]map[string]string, error) {
 	tc := t.tsConn
 	if tc == nil {
 		return nil, ErrAuth
 	}
+
+	// One exec session at a time per connection (B-35): notify handlers
+	// such as SetConnectionInfo can fire from the receive loop while
+	// another command is in flight; without this, the second caller
+	// swaps tc.execCh under the first and the first command's response
+	// is consumed by the wrong waiter (observed live: sendtext's
+	// error id=2568 arrived on the wire yet the caller timed out).
+	tc.execSeq.Lock()
+	defer tc.execSeq.Unlock()
 
 	// Set up exec channel to capture responses
 	tc.execMu.Lock()
@@ -2884,11 +2905,13 @@ func (t *TeamSpeakCore) tsExec(cmd string) ([]map[string]string, error) {
 		return nil, err
 	}
 	// Wait for response — collect data until error command.
-	// Some servers omit "error id=0 msg=ok" after successful responses,
-	// so use short timeouts:
-	// - 500ms after receiving data (assume complete)
-	// - 2s with no response at all (void command success)
-	deadline := time.After(2 * time.Second)
+	// Every TS3 command is answered by an `error id=` line, so:
+	// - data rows + terminal error → parsed normally
+	// - data rows but no terminator → 500ms grace, then assume success
+	//   (some servers omit the final ok)
+	// - NOTHING at all → the response was lost (UDP): an ERROR, never a
+	//   false ack for state-changing commands (B-24)
+	deadline := time.After(tsExecVoidTimeout)
 	var dataLines []string
 	var dataTimeout <-chan time.Time
 	for {
@@ -2924,8 +2947,14 @@ func (t *TeamSpeakCore) tsExec(cmd string) ([]map[string]string, error) {
 			}
 			return result, nil
 		case <-deadline:
-			// No error received within timeout — treat as success
-			// (server may omit "error id=0 msg=ok" for successful commands)
+			if len(dataLines) == 0 {
+				// Pure silence: the response was lost. Returning nil here
+				// used to be a FALSE ACK — a clientmove that "succeeded"
+				// without the server ever moving us (B-24).
+				return nil, fmt.Errorf("%w: no response to command within %s (response lost)", ErrNetwork, tsExecVoidTimeout)
+			}
+			// Data arrived but the server never sent the terminal error —
+			// treat the accumulated rows as the result.
 			var result []map[string]string
 			for _, dl := range dataLines {
 				result = append(result, tsParseKVList(dl)...)

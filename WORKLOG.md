@@ -8204,3 +8204,42 @@ teamspeak/mumble/xmpp/irc/rubika/bale (unit + live), matrix (19),
 deltachat (headers + full localserver chain), github (12 + live
 skip without token), stub/proxy in-package. Gate250 (adds TestGitHub
 race) standalone with rc check.
+
+---
+
+## Slice 251 (2026-09-25) — B-24 false-ack fix EXPOSED a deeper bug
+## (B-35 response cross-talk): both fixed
+
+**B-24 → F-34**: tests-first with a shrinkable seam var
+(`tsExecVoidTimeout`). RED quoted: `silent server returned SUCCESS
+(rows=[]) — false ack (B-24)`. Fix: pure silence → ErrNetwork error;
+data-without-terminator keeps grace-success. Controls (data+ok,
+error-mapping) green pre-fix — only pure silence changed.
+
+**Live evidence pass exposed TWO more things:**
+1. 2s was too tight for THIS server's queue reordering (first live
+   run failed with the new honest error on a response that merely
+   arrived >2s) → timeout raised to **5s**.
+2. RoundTrip then failed **3/3** even at 5s — debug trace
+   (`UNICLIENT_TS3_DEBUG`) caught the real mechanism: `TX
+   sendtextmessage` → server fires `notifyconnectioninforequest` →
+   handler runs `go SetConnectionInfo()` → **second tsExec REPLACES
+   the shared `tc.execCh`** → sendtext's `error id=2568` (arrived on
+   the wire, visible in the trace!) was consumed by the WRONG waiter
+   and sendtext starved. The old void-success had been MASKING this
+   cross-talk for the whole project's history — suspected back in
+   the slice-247 voice investigation ("exec cross-talk — not
+   observed") and now proven with a live packet trace.
+**B-35 → F-35**: `execSeq` mutex serializes whole exec sessions per
+connection (TS3 answers in order ⇒ serial pairing is exact; every
+session bounded by the void timeout). Deterministic RED:
+`command-one: no response … (response lost)` with scripted in-order
+responses — the exact live signature. Post-fix: all four exec tests
++ `-race` green; live RoundTrip 3/3 false-FAIL → **3/3 honest SKIP**
+(the B-25 permission drift now reliably ErrPermission instead of a
+fake network error).
+
+**Full battery after both fixes: 13 PASS / 0 FAIL / 4 honest SKIPs
+(live_rc=0)** — github token, TS text permission (B-25), TS voice
+environment (B-22 hardening), xmpp registration policy. Open list:
+B-23, B-26, B-25, B-6, B-8. Gate251 standalone with rc check.
