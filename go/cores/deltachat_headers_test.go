@@ -150,3 +150,20 @@ func TestAutocryptKeydataSurvivesHeaderFolding(t *testing.T) {
 		t.Errorf("openpgp entity not parsed from the stored key")
 	}
 }
+
+// FuzzParseRawHeaders: hostile-server fuzzing (slice 261) for the
+// DeltaChat header splitter — mail servers and forwarders control
+// these bytes; parsing must never panic (§1.10). Seeds cover folded,
+// CRLF, colon-less, empty-value and binary cases from the unit tests.
+func FuzzParseRawHeaders(f *testing.F) {
+	f.Add([]byte(""))
+	f.Add([]byte("Subject: hi\r\nFrom: a@b\r\n\r\n"))
+	f.Add([]byte("Chat-Group-Name: The \r\n\tGroup Name\r\n"))
+	f.Add([]byte("X-No-Collector\r\nNext: v\r\n"))
+	f.Add([]byte("Empty:\r\nBinary: \x00\xff\xfe\r\n"))
+	f.Add([]byte{0x00, 0x0A, 0x0D, 0x3A})
+	f.Add([]byte("K: " + string(make([]byte, 8192))))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		_ = parseRawHeaders(data)
+	})
+}

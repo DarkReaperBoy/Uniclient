@@ -8572,3 +8572,36 @@ production `tsConnection` constructor (teamspeak.go:2091) initializes
 pendingCmds, both recvQueues and cmdCh — harness mirrors it exactly.
 
 **B-25 re-probe**: still denied → open. Negative result: no new rows.
+
+---
+
+## Slice 261 (2026-09-25) — hostile-homeserver fuzz: matrix handlers
+## + deltachat headers (4 targets, all clean)
+
+Completing the hostile-input map: every core whose server controls the
+bytes now has a fuzz target on OUR layer (telegram/matrix JSON-
+structural parse = library layers, own handlers tested in slice 248):
+
+1. `FuzzMatrixEventToMessage` — conversion path (sync, pagination,
+   edits, replies, attachments) through the REAL event.Event unmarshal
+   (v0.30 `Content.Raw` is a map — exactly what sync delivers).
+2. `FuzzMatrixStateEvent` — `applyStateEvent` state machine (names/
+topics/members/encryption/pins/power-levels/join-rules), **including
+the B-27 no-state_key regression seed**.
+3. `FuzzMatrixHandleMessageEvent` — sync dispatcher (new vs edit
+   rewrite vs non-message) + update fan-out.
+4. `FuzzParseRawHeaders` — DeltaChat header splitter (folded/CRLF/
+   colon-less/binary/8KB seeds).
+
+**All 4 PASS, zero crashers.** Measurement note (honesty): my first
+quick numbers said “13/10 execs” — that was a grep artifact picking an
+intermediate line; proper final-line parsing shows **41,934 execs/12s
+(2.4-8.9k/s)** for EventToMessage, 15,288/8s StateEvent, 22,910/8s
+HandleMessage, 3,253/9s RawHeaders — real mutation exploration with
+corpus growth (40 “new interesting”), not baseline-only. Seeds replay
+in normal `go test` (CI-visible). RAM rule held (serial,
+`-parallel=1`, host ≥7.5Gi available).
+
+Fuzz suite total: **21 targets** (media8 + IRC3 + server-wire5 +
+mumble-URL1 + matrix3 + deltachat1 + webm/vp9anim crasher-regressions
+kept). **B-25 re-probe**: still denied → open.
