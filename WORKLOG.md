@@ -8854,3 +8854,32 @@ design or dead code).
 
 No bug rows (nothing found). gate270 = light scope; standalone with
 rc check.
+
+---
+
+## Slice 271 (2026-09-25) — dependency CVE triage: module graph
+## hardened to the theoretical minimum
+
+- **B-25 re-probe: still denied → open** (8th consecutive).
+- **govulncheck -show verbose triage of the6 non-reachable
+  vulnerabilities** (documented as counts at slice262, IDs unknown
+  until now): cel-go GO-2026-6094 (JSON private fields, fixed
+  v0.30.0) + **grpc ×4** (GO-2026-6443/6441/6348/6061 — server-panic
+  via Host headers, xDS RBAC, HTTP/2 OOM, authz bypass; fixed
+  v1.82.x–1.83.1) + x/crypto/openpgp GO-2026-5932 (unmaintained —
+  **Fixed: N/A**, unreachable).
+- Both vulnerable deps = **pure module-graph indirects, zero `.go`
+  imports in our tree** (verified) → safest bump class: grpc
+  v1.81.1→**v1.83.2** (v1.83.1's fix list was stale — the live DB
+  advanced to v1.83.2 mid-triage, caught by re-running the scan),
+  cel-go v0.28.1→**v0.30.0**. `go mod tidy` + vet + full tests 14 ok.
+- **End state: 0 vulnerabilities in our code, 0 in imported packages,
+  1 in required modules (the unfixable openpgp, not called)** — the
+  theoretical minimum. CI's cross-build jobs (windows/wasm/android)
+  validate the new graph on push.
+- Method note: `ulimit -v` proved too blunt for govulncheck-verbose
+  (Go reserves large VIRTUAL arenas — killed mid-SSA); solo without
+  the cap ran fine (slice-262 precedent; cap stays for staticcheck
+  only). Recorded so the guard isn't misapplied again.
+
+gate271 = light scope; standalone with rc check.
