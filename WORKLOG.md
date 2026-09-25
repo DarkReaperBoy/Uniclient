@@ -8538,3 +8538,37 @@ legs; standalone with rc check.
 
 gate259 = gate258 scope (plain suite runs the new lock test);
 standalone with rc check.
+
+---
+
+## Slice 260 (2026-09-25) — hostile-SERVER fuzz: the last unfuzzed
+## input class (5 targets, all clean)
+
+The fuzz suite covered hostile *media* (webm/vp9anim/h264vid/aacaud/
+lottie/qrscan/voice/ogg) and hostile *IRC lines* — but nothing hit
+the TeamSpeak or mumble wire parsers, i.e. bytes a hostile/malicious
+SERVER puts on the socket. Five new targets, RAM rule honored
+(serial, `-parallel=1`, 8s each):
+
+1. `FuzzTSCommand` — `tsParseCommand` (line/param layer, incl.4KB
+   payloads + binary junk).
+2. `FuzzTSPacket` — `tsParseS2CPacket` (binary framing: mac/pID/type/
+   payload bounds).
+3. `FuzzTSEAXDecrypt` — fake-key decrypt path (what pre-crypto and
+   hostile inputs hit).
+4. `FuzzTSHandleServerCommand` — dispatches parsed lines through the
+   REAL notify handlers on a production-shaped core (constructor maps
+   + fully-initialized tsConnection + live UDP socket). Setup hoisted
+   out of the fuzz body after measuring the per-iteration vault cost
+   (~5 execs/s → useless); `notifyconnectioninforequest` skipped
+   inside fuzz (would fork a SetConnectionInfo goroutine per hit —
+   unit-tested elsewhere; documented at the skip).
+5. `FuzzMumbleURL` — `ParseMumbleURL`: mumble:// links are
+   paste/user-controlled.
+
+**All 5 PASS, zero crashers**, seeds replay green in normal `go
+test` (CI covers them forever). Supporting nil-map audit: the single
+production `tsConnection` constructor (teamspeak.go:2091) initializes
+pendingCmds, both recvQueues and cmdCh — harness mirrors it exactly.
+
+**B-25 re-probe**: still denied → open. Negative result: no new rows.
