@@ -8684,3 +8684,24 @@ B-19's original assertion test untouched and green.
 Validation: both gap tests + full cores + `-race` green.
 **B-25 re-probe: still denied → open.** gate264 = light scope;
 standalone with rc check.
+
+---
+
+## Slice 265 (2026-09-25) — B-44: the flood doctrine's third
+## instance (per-frame video-note loop log)
+
+Swept every remaining `log.Printf` in production (34 files) classifying
+per-iteration reachability: engine's `[engine] …` INFO lines = the
+intentional tracing convention (evidence trails the WORKLOG quotes —
+left); videoaudio:149 = one-shot per play (comment says so); tray =
+once on exit; the one real hit = **`video audio loop` inside
+`drawVideoNoteFrame` (per-frame)** — persistent SeekMedia failure ≈
+60 lines/second. **B-44 → F-45**: pure `loopLogAllowed` (injected
+clock — deterministic, F-9) + App mutex + 10s gap; seam-RED quoted
+(`undefined: loopLogAllowed`), full pin set green (incl.
+"suppressed checks don't move the timestamp"). Flood-at-the-real-path
+not unit-constructible (MediaState gates on the live engine) —
+documented as the evidence pair, F-15 precedent.
+
+**B-25 re-probe: still denied → open.** gate265 = light scope;
+standalone with rc check.

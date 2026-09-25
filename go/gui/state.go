@@ -32,6 +32,12 @@ type App struct {
 	ui  *UI
 	eng *engine.Engine
 
+	// loopLogMu/loopLogLast throttle the per-frame video-note loop's
+	// seek-failure diagnostic to one line per 10s (B-44): the caller
+	// (videoAudioLoop) runs on the UI draw path every frame.
+	loopLogMu   sync.Mutex
+	loopLogLast time.Time
+
 	// wid is this window's interactive widget state (slice 168:
 	// multi-window chats — each window owns its widgets).
 	wid widgets

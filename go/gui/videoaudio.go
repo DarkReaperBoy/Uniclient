@@ -207,6 +207,19 @@ func (a *App) videoAudioSeek(msgID string, frac float64) {
 // videoAudioLoop re-arms the audio when a looping picture has outrun it.
 // Called from the frame draw path, which only runs while the clip is
 // actually painting — so a stopped video never restarts its sound.
+// loopLogAllowed reports whether a throttled diagnostic may be logged
+// at now: at most one line per minGap since the last emission, with
+// last updated in place (suppressed checks leave it untouched). Pure —
+// unit-tested with an injected clock so the answer never depends on
+// wall time (B-44 / F-9 discipline); the caller serializes access.
+func loopLogAllowed(last *time.Time, now time.Time, minGap time.Duration) bool {
+	if !last.IsZero() && now.Sub(*last) < minGap {
+		return false
+	}
+	*last = now
+	return true
+}
+
 func (a *App) videoAudioLoop(msgID string) {
 	if a.eng == nil {
 		return
@@ -221,7 +234,15 @@ func (a *App) videoAudioLoop(msgID string) {
 		return
 	}
 	if err := a.eng.SeekMedia(0); err != nil {
-		log.Printf("gui: video audio loop: %v", err)
+		// Called from the per-frame draw path (drawVideoNoteFrame
+		// invalidates every frame): a persistent seek failure would log
+		// ~60x/second — throttle to one line per 10s (B-44).
+		a.loopLogMu.Lock()
+		allowed := loopLogAllowed(&a.loopLogLast, time.Now(), 10*time.Second)
+		a.loopLogMu.Unlock()
+		if allowed {
+			log.Printf("gui: video audio loop: %v", err)
+		}
 	}
 }
 

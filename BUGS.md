@@ -63,6 +63,12 @@ they cover:
 | B-6 | cores/matrix.go:1241 (JoinGroupCall's ErrNotSupported return) | Matrix group calls (MSC3401) not implemented — honest `ErrNotSupported` today. | code + `research/matrix_group_calls.md` (primary-source research: MSC3401 mechanics, mautrix v0.30.0 has ZERO call code — verified by module-cache grep —, what of ours is already reusable, Tier1 full-mesh vs Tier2 SFU/MatrixRTC effort, testing/account needs) | owner decides via the research doc: Tier1, Tier2, or keep status quo |
 | B-8 | repo root + `cores/teamspeak.go` `tsQuickLZCompress` | No LICENSE file exists in the repo at all (owner decision pending), and the slice-231 QuickLZ send-side is a byte-port of quicklz.c, whose header says the commercial license "does not cover derived or ported versions created by third parties under GPL". | quicklz.c header (fetched 2026-09-23, RT-Thread mirror); `ls LICENSE*` → none; the reference C is NOT vendored (gcc-built vectors only, like ffmpeg for fixtures) | owner picks the project license and confirms the port stays; until then provenance is documented here — never vendor quicklz.c |
 
+## Fixed — slice 265 (2026-09-25)
+
+| # | Bug | Why it mattered | Test |
+|---|-----|-----------------|------|
+| F-45 (= B-44) | **Per-frame log flood in the video-note loop.** `videoAudioLoop` is called from `drawVideoNoteFrame` — the draw path that re-invalidates every frame — and its `SeekMedia` failure branch logged unthrottled: a persistently failing seek (dead audio device, broken player state while the picture keeps looping) printed ~60 lines/second for as long as the note played. Third instance of the flood doctrine after B-42 (stdout) and B-43 (gap log). | Unbounded log writes from the UI hot path drag the exact frames they run on, and drown every other diagnostic — the failure mode this whole phase exists to prevent. | Emission decision extracted as the PURE `loopLogAllowed(last *time.Time, now, minGap)` — **injected clock, deterministic at every wall time (F-9 discipline)** — wired behind a per-App mutex + 10s gap. RED (build): `undefined: loopLogAllowed` (seam-RED quoted); GREEN: `TestLoopLogAllowed` pins first-allowed / suppressed-inside-gap / boundary-allowed / re-suppressed + "suppressed checks don't move the timestamp"; full gui suite + `-race` green. Call-path flood itself not unit-constructible (MediaState gates on the live engine) — the per-frame call site + pure throttle are the documented evidence pair (F-15 precedent for seam-RED) |
+
 ## Fixed — slice 264 (2026-09-25)
 
 | # | Bug | Why it mattered | Test |
