@@ -8635,3 +8635,32 @@ One heavyweight at a time (RAM rule):
 
 No new bug rows (all clean). gate262 = light scope; standalone with
 rc check.
+
+---
+
+## Slice 263 (2026-09-25) — production panic/exit audit + the
+## stdout-flood fix (B-42 → F-43)
+
+1. **Panic/`log.Fatal` audit (production, non-test)**: exactly two
+   hits, both classified benign — `gui/icons.go:84 mustIcon` panics at
+   package-init on EMBEDDED compile-time glyph data (broken-build
+   signal, zero hostile reachability); `cmd/uniclient/main.go:50`
+   `log.Fatal` sits on `run()`'s only two error paths: engine-init
+   failure BEFORE the first UI frame exists (nothing to show the error
+   with yet) and `DestroyEvent`'s `e.Err` (nil on normal close).
+2. **Unconditional `fmt.Print*` audit**: mumble = properly gated
+   (`mumbleLogf`/`UNICLIENT_MUMBLE_DEBUG` ✓); telegram's 321 prints =
+   the intentional `[tg-call]`/`[tg-group]` debug corpus (bounded
+   per-call signaling traces, brought up in the call slices — left
+   as-is, noted for the owner); dtls/calls_debug = bounded setup
+   prints in the same corpus. **TeamSpeak's receive path = the real
+   defect**: 8 packet-triggered prints +1 retry print, hostile-flood
+   class → **B-42 → F-43** (tests-first, quoted in the row).
+3. Shared `newWireFuzzCore(t testing.TB)` helper restored (it had been
+   inlined into the fuzz target in slice 261) — now serves both the
+   wire-fuzz targets and the new stdout test, deduplicating the setup.
+4. Validation: RED 5,700 bytes → GREEN 0; full cores + `-race` +
+   live TS Handshake/LargeMessage all PASS after the conversion.
+
+**B-25 re-probe (this turn)**: still denied → open. gate263 = light
+scope; standalone with rc check.

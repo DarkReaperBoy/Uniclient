@@ -38,8 +38,8 @@ func FuzzTSPacket(f *testing.F) {
 
 func FuzzTSEAXDecrypt(f *testing.F) {
 	f.Add([]byte{}, []byte{}, []byte{})
-	f.Add([]byte{1, 2, 3}, []byte{4, 5, 6, 7}, []byte{0, 0, 0, 0, 0x02})
-	f.Add(make([]byte, 16), make([]byte, 5), make([]byte, 32))
+	f.Add([]byte{1, 2, 3}, []byte{4, 5, 6, 7}, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	f.Add(make([]byte, 16), make([]byte, 5), make([]byte, 8))
 	f.Fuzz(func(t *testing.T, header, ciphertext, mac []byte) {
 		if len(mac) != 8 {
 			t.Skip()
@@ -52,9 +52,8 @@ func FuzzTSEAXDecrypt(f *testing.F) {
 }
 
 // FuzzTSHandleServerCommand dispatches a parsed server line through the
-// REAL notify handlers on a production-constructed core (all maps the
-// way NewTeamSpeakCore + tsConnect leave them, plus a live UDP socket
-// so handler-spawned command goroutines have somewhere to write).
+// REAL notify handlers on a production-shaped core. Setup is hoisted
+// (a per-iteration vault build throttles the worker to ~5 execs/s).
 func FuzzTSHandleServerCommand(f *testing.F) {
 	f.Add([]byte(""))
 	f.Add([]byte("notifyclientmoved ctid=43 clid=7"))
@@ -66,35 +65,7 @@ func FuzzTSHandleServerCommand(f *testing.F) {
 	f.Add([]byte("channellist cid=1 channel_name=a|cid=2 channel_name=b"))
 	f.Add([]byte("initserver virtualserver_name=x aclid=7"))
 
-	// Setup hoisted OUT of the fuzz body: a per-iteration vault+socket
-	// build would throttle the worker to ~5 execs/s. One production-
-	// shaped core is reused for the whole run (state accumulates —
-	// that only widens coverage; every input must still survive).
-	vault, err := utils.CreateVault(f.TempDir()+"/fuzz.vault", "fuzz")
-	if err != nil {
-		f.Fatal(err)
-	}
-	f.Cleanup(func() { vault.Close() })
-	core := NewTeamSpeakCore(utils.NewSessionStore(vault, "fuzz"))
-	rx, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	if err != nil {
-		f.Fatal(err)
-	}
-	tx, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	if err != nil {
-		rx.Close()
-		f.Fatal(err)
-	}
-	f.Cleanup(func() { rx.Close(); tx.Close() })
-	core.tsConn = &tsConnection{
-		conn:        tx,
-		addr:        rx.LocalAddr().(*net.UDPAddr),
-		owner:       core,
-		pendingCmds: make(map[uint16]*tsPendingCmd),
-		recvQueue:   [2]map[uint16]*tsDecryptedPkt{make(map[uint16]*tsDecryptedPkt), make(map[uint16]*tsDecryptedPkt)},
-		cmdCh:       make(chan tsIncomingCmd, 64),
-	}
-	core.myClientID = 7
+	core, _ := newWireFuzzCore(f)
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		name, params := tsParseCommand(data)
@@ -121,4 +92,38 @@ func FuzzMumbleURL(f *testing.F) {
 	})
 }
 
-// (kept: seeds above; the hoisted setup lives inside FuzzTSHandleServerCommand)
+// newWireFuzzCore builds a production-shaped core + connection exactly
+// the way tsConnect leaves them before the receive loop runs:
+// constructor maps, fully-initialized tsConnection (pendingCmds, both
+// recvQueues, buffered cmdCh), a live UDP socket so handler-spawned
+// command goroutines have somewhere to write, and a distinguishable
+// self identity. Cleanup registers on t. Shared by the wire fuzz
+// targets (called once, hoisted) and the receive-path unit tests.
+func newWireFuzzCore(t testing.TB) (*TeamSpeakCore, *tsConnection) {
+	t.Helper()
+	vault, err := utils.CreateVault(t.TempDir()+"/fuzz.vault", "fuzz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	core := NewTeamSpeakCore(utils.NewSessionStore(vault, "fuzz"))
+	rx, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		rx.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { rx.Close(); tx.Close(); vault.Close() })
+	core.tsConn = &tsConnection{
+		conn:        tx,
+		addr:        rx.LocalAddr().(*net.UDPAddr),
+		owner:       core,
+		pendingCmds: make(map[uint16]*tsPendingCmd),
+		recvQueue:   [2]map[uint16]*tsDecryptedPkt{make(map[uint16]*tsDecryptedPkt), make(map[uint16]*tsDecryptedPkt)},
+		cmdCh:       make(chan tsIncomingCmd, 64),
+	}
+	core.myClientID = 7
+	return core, core.tsConn
+}

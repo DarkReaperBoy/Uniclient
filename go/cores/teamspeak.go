@@ -1866,13 +1866,13 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 		} else if tc.cryptoOK {
 			plaintext, err = tc.tsDecryptRecv(packetType, pID, meta, data, mac)
 			if err != nil {
-				fmt.Printf("[TS3 RX] cmd decrypt FAIL pID=%d type=0x%02x err=%v\n", pID, pType, err)
+				tsLogf("RX cmd decrypt FAIL pID=%d type=0x%02x err=%v", pID, pType, err)
 				return
 			}
 		} else {
 			plaintext, err = tsEAXDecrypt(tsFakeKey[:], tsFakeNonce[:], meta, data, mac)
 			if err != nil {
-				fmt.Printf("[TS3 RX] cmd fake decrypt FAIL pID=%d err=%v\n", pID, err)
+				tsLogf("RX cmd fake decrypt FAIL pID=%d err=%v", pID, err)
 				return
 			}
 		}
@@ -1911,7 +1911,7 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 				ackPlain, err = tsEAXDecrypt(tsFakeKey[:], tsFakeNonce[:], meta, data, mac)
 			}
 			if err != nil || len(ackPlain) < 2 {
-				fmt.Printf("[TS3 RX] ack decrypt FAIL pID=%d err=%v\n", pID, err)
+				tsLogf("RX ack decrypt FAIL pID=%d err=%v", pID, err)
 				return
 			}
 			ackedPID := binary.BigEndian.Uint16(ackPlain[:2])
@@ -1945,11 +1945,11 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 			key, nonce := tsCreateKeyNonce(packetType, pID, tc.pktState[packetType].recvGenID, 0x30, tc.sharedIV[:])
 			plaintext, err = tsEAXDecrypt(key[:], nonce[:], meta, data, mac)
 			if err != nil {
-				fmt.Printf("[TS3 VOICE] decrypt fail pID=%d len=%d: %v\n", pID, len(data), err)
+				tsLogf("VOICE decrypt fail pID=%d len=%d: %v", pID, len(data), err)
 				return
 			}
 		} else {
-			fmt.Printf("[TS3 VOICE] no crypto for voice pID=%d\n", pID)
+			tsLogf("VOICE no crypto for voice pID=%d", pID)
 			return // can't decrypt voice without crypto
 		}
 
@@ -2015,7 +2015,7 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 			if firstFlags&tsFlagCompressed != 0 {
 				decompressed, err := tsQuickLZDecompress(assembled)
 				if err != nil {
-					fmt.Printf("[TS3 FRAG] decompress FAIL: %v\n", err)
+					tsLogf("FRAG decompress FAIL: %v", err)
 					continue
 				}
 
@@ -2028,7 +2028,7 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 			if flags&tsFlagCompressed != 0 {
 				decompressed, err := tsQuickLZDecompress(plaintext)
 				if err != nil {
-					fmt.Printf("[TS3 RX] decompress FAIL pID=%d: %v\n", pkt.pID, err)
+					tsLogf("RX decompress FAIL pID=%d: %v", pkt.pID, err)
 					continue
 				}
 				plaintext = decompressed
@@ -2048,7 +2048,7 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 			select {
 			case tc.cmdCh <- tsIncomingCmd{name: name, params: params, raw: string(line)}:
 			default:
-				fmt.Printf("[TS3 CMD] cmdCh FULL, dropping: %s\n", name)
+				tsLogf("CMD cmdCh FULL, dropping: %s", name)
 			}
 		}
 	}
@@ -3281,7 +3281,7 @@ func (t *TeamSpeakCore) tsReconnectLoop() {
 			return
 		}
 
-		fmt.Printf("[TS3] reconnect attempt %d/%d failed: %v\n", attempt+1, maxRetries, err)
+		log.Printf("ts: reconnect attempt %d/%d failed: %v", attempt+1, maxRetries, err)
 	}
 
 	// All retries exhausted

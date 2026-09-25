@@ -63,6 +63,12 @@ they cover:
 | B-6 | cores/matrix.go:1241 (JoinGroupCall's ErrNotSupported return) | Matrix group calls (MSC3401) not implemented — honest `ErrNotSupported` today. | code + `research/matrix_group_calls.md` (primary-source research: MSC3401 mechanics, mautrix v0.30.0 has ZERO call code — verified by module-cache grep —, what of ours is already reusable, Tier1 full-mesh vs Tier2 SFU/MatrixRTC effort, testing/account needs) | owner decides via the research doc: Tier1, Tier2, or keep status quo |
 | B-8 | repo root + `cores/teamspeak.go` `tsQuickLZCompress` | No LICENSE file exists in the repo at all (owner decision pending), and the slice-231 QuickLZ send-side is a byte-port of quicklz.c, whose header says the commercial license "does not cover derived or ported versions created by third parties under GPL". | quicklz.c header (fetched 2026-09-23, RT-Thread mirror); `ls LICENSE*` → none; the reference C is NOT vendored (gcc-built vectors only, like ffmpeg for fixtures) | owner picks the project license and confirms the port stays; until then provenance is documented here — never vendor quicklz.c |
 
+## Fixed — slice 263 (2026-09-25)
+
+| # | Bug | Why it mattered | Test |
+|---|-----|-----------------|------|
+| F-43 (= B-42) | **TeamSpeak receive path printed unconditionally to stdout — hostile-packet flood vector.** Eight packet-triggered diagnostics (`cmd/fake decrypt FAIL`, `ack decrypt FAIL`, `VOICE decrypt fail/no crypto`, `FRAG/RX decompress FAIL`, `cmdCh FULL`) went to stdout with no gate: every garbage or mis-keyed packet produced a line (unbuffered write per packet = syscall flood; a GUI app has no console to absorb it anyway). The reconnect-attempt print was also un-timestamped stdout. | A hostile server (or a plain key mismatch) could turn the client's stderr/stdout into a per-packet flood — the same class as every other RX-path hardening this phase; the file's own convention is the `tsLogf` (UNICLIENT_TS3_DEBUG) gate. | RED: `TestTSReceivePathSilentOnBadPackets` drove 150 framing-valid but undecryptable command/ack/voice packets through the REAL `tsHandlePacket` with stdout piped — **5,700 bytes captured** (flood quoted: `[TS3 VOICE] no crypto…` ×50); GREEN after routing all 8 through `tsLogf` + reconnect through `log.Printf`: 0 bytes, only tsLogf's own gated implementation remains; full cores suite + `-race` + live TS Handshake/LargeMessage PASS post-conversion |
+
 ## Fixed — slice 259 (2026-09-25)
 
 | # | Bug | Why it mattered | Test |
