@@ -8505,3 +8505,36 @@ recorded both directions in its row).
 **B-25 re-probes (slices 255-257)**: still denied → open.
 gate258 = light scope + the new identity race tests in the race
 legs; standalone with rc check.
+
+---
+
+## Slice 259 (2026-09-25) — lock-order audit made permanent: one more
+## cycle found & fixed (B-41 → F-42)
+
+- **B-25 re-probe**: still `permission denied` → stays open.
+- Extended slice 258's discovery into a **repo-wide lock-order audit**
+  (python throwaway first): 638 non-test files → 33 ordered lock pairs
+  → **exactly ONE cycle**: DeltaChatCore `mu ↔ transportMu`
+  (`AddTransport` mu→transportMu vs `SelectAccount`
+  transportMu→mu) = a pure two-party deadlock. Everything else in
+  cores/engine/gui is consistent — good news, recorded as such.
+- **Enshrined as a permanent test**: `TestLockOrderIsAcyclic` scans
+  the whole `go/` tree on every `go test`, defer-aware (my first
+  script treated `defer Unlock` as released-at-site and would have
+  missed pairs — same trap as the slice-258 audit v1), fails on any
+  A↔B cycle with both directions' function names.
+- **Self-caught tooling bug (re-check-the-checker, again)**: my Go
+  port of the extraction helper sliced from the `(` instead of past
+  it → `lockCalls("\td.mu.RLock()") = []` → **vacuous PASS with 0
+  edges**. Caught by diffing against the throwaway's 33 edges + a
+  probe test printing the helper's output. Fixes: off-by-one corrected;
+  the test now logs `scanned N files, M ordered edges` every run so
+  an empty scan can never masquerade as "clean".
+- Fix: `SelectAccount` snapshots the transport entry under
+  `transportMu` then updates identity under `mu` alone; canonical
+  order documented at the field decl (`transportMu` = inner lock).
+- Results: test GREEN (32 edges, acyclic), full cores + `-race` +
+  engine + gui suites green.
+
+gate259 = gate258 scope (plain suite runs the new lock test);
+standalone with rc check.

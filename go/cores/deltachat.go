@@ -107,7 +107,9 @@ type DeltaChatCore struct {
 	// Sticker storage
 	stickerDir string
 
-	// Transports (multi-account)
+	// Transports (multi-account). Lock order (B-41): transportMu is the
+	// INNER lock — never acquire mu while holding it (AddTransport holds
+	// mu → transportMu; TestLockOrderIsAcyclic enforces the whole tree).
 	transports  []*DCTransport
 	transportMu sync.RWMutex
 
@@ -6837,18 +6839,28 @@ func (d *DeltaChatCore) RemoveAccount(accountID string) error {
 
 // SelectAccount switches to a specific account.
 func (d *DeltaChatCore) SelectAccount(accountID string) error {
+	// Canonical lock order (B-41): mu is OUTER (AddTransport holds
+	// mu → transportMu) — taking mu while holding transportMu here WAS
+	// a two-party deadlock pair. Snapshot the entry first, then update
+	// the identity under mu alone.
 	d.transportMu.RLock()
-	defer d.transportMu.RUnlock()
+	var sel *DCTransport
 	for _, t := range d.transports {
 		if t.ID == accountID {
-			d.mu.Lock()
-			d.myAddr = t.Email
-			d.password = t.Password
-			d.mu.Unlock()
-			return nil
+			sel = t
+			break
 		}
 	}
-	return ErrNotFound
+	d.transportMu.RUnlock()
+	if sel == nil {
+		return ErrNotFound
+	}
+
+	d.mu.Lock()
+	d.myAddr = sel.Email
+	d.password = sel.Password
+	d.mu.Unlock()
+	return nil
 }
 
 // GetAllAccountIds returns all account IDs.
