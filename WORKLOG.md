@@ -8919,3 +8919,40 @@ gate271 = light scope; standalone with rc check.
   −32 with **nothing NEW appearing**; RAM rule held.
 
 gate272 = light scope; standalone with rc check.
+
+---
+
+## Slice 273 (2026-09-25) — B-51: IRC control codes stripped at the
+## source; deadcode 27 → 17
+
+- **B-25 re-probe: still denied → open** (11th consecutive).
+- **B-51 → F-51**: IRC relays mIRC formatting codes verbatim and
+  NOTHING stripped them on receive (`StripFormatting` = zero callers,
+  GUI has no filter) → raw `\x02`/`\x03` garbage in chat (B-14 class).
+  Wired at all four `Trailing()` extraction points (privmsg — CTCP/
+  ACTION inherit —, notice, two server-error handlers). Tests-first:
+  RED quoted (`PRIVMSG not stripped: "hi\x02!…"`) → GREEN.
+- **My own test-oracles caught twice by RED** (re-check-the-checker):
+  single-digit mIRC fg IS a consumed color; a lone `\x03` is a
+  control byte the stripper rightly removes — implementation was
+  correct, my pins were wrong; corrected to match.
+- **Routing lesson**: `NOTICE *` is server-origin by design
+  (`isServerOrigin`) → lands in the server-log chat without the
+  `[NOTICE]` prefix — test pointed at a channel notice instead.
+- **Go language lesson recorded**: no adjacent-string concatenation
+  (`"a""b"` = syntax error — that's C; `\x` takes exactly 2 hex
+  digits so the defensive splits were never needed); a minimal
+  repro in /tmp/adjtest settled it against the toolchain itself.
+- **Deleted** the dead outgoing cluster: 9 format funcs + the 8-const
+  `ircFmt*` block (dead since day one, deadcode-verified, zero refs
+  incl tests) — `StripFormatting` stays, section comment retitled
+  (and corrected: an earlier draft mis-referenced B-49 for this
+  deletion — fixed in place, it was the slice-272 deadcode audit).
+- **deadcode re-run: 27 → 17** (irc ×10 gone incl. StripFormatting
+  now live); remaining worklist = mumble proto cluster, xmpp5,
+  bootstrap.Engine, DetectVoiceActivity, RenderTrayIconSample,
+  vp9anim.HasAlpha — next slices.
+- **B-50 opened**: xmpp `ParseMessageStyling` unwired (literal
+  `*bold*` markers — readable, feature-adjacent, owner's call).
+
+gate273 = light scope; standalone with rc check.

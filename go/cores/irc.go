@@ -1682,7 +1682,7 @@ func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
 		return
 	}
 	target := msg.Params[0]
-	text := msg.Trailing()
+	text := StripFormatting(msg.Trailing()) // control codes never reach chat (B-51)
 	nick := msg.Nick()
 
 	// Server-origin PRIVMSGs are diagnostics, not conversations.
@@ -1763,7 +1763,7 @@ func (c *IRCCore) handleNotice(msg *ircMsg) {
 		return
 	}
 	target := msg.Params[0]
-	text := msg.Trailing()
+	text := StripFormatting(msg.Trailing()) // control codes never reach chat (B-51)
 	nick := msg.Nick()
 
 	c.mu.RLock()
@@ -3355,7 +3355,7 @@ func (c *IRCCore) handleWatchEvent(msg *ircMsg, online bool) {
 }
 
 func (c *IRCCore) handleErrorNumeric(msg *ircMsg) {
-	text := msg.Trailing()
+	text := StripFormatting(msg.Trailing()) // control codes never reach chat (B-51)
 	if text == "" && len(msg.Params) > 1 {
 		text = strings.Join(msg.Params[1:], " ")
 	}
@@ -3375,7 +3375,7 @@ func (c *IRCCore) handleErrorNumeric(msg *ircMsg) {
 }
 
 func (c *IRCCore) handleServerError(msg *ircMsg) {
-	text := msg.Trailing()
+	text := StripFormatting(msg.Trailing()) // control codes never reach chat (B-51)
 	id := c.msgCounter.Add(1)
 	m := &Message{
 		ID:         strconv.FormatInt(id, 10),
@@ -5893,31 +5893,8 @@ func (c *IRCCore) SetUserModeFlag(mode byte, on bool) { c.userMode(mode, on) }
 // Accept sends an ACCEPT command to manage the caller-ID accept list.
 func (c *IRCCore) Accept(args string) { c.sendRaw("ACCEPT " + args) }
 
-// ── IRC Formatting Helpers (4 groups) ──
-
-const (
-	ircFmtBold          = "\x02"
-	ircFmtItalic        = "\x1D"
-	ircFmtUnderline     = "\x1F"
-	ircFmtStrikethrough = "\x1E"
-	ircFmtMonospace     = "\x11"
-	ircFmtColor         = "\x03"
-	ircFmtHexColor      = "\x04"
-	ircFmtReset         = "\x0F"
-)
-
-func FormatBold(text string) string          { return ircFmtBold + text + ircFmtBold }
-func FormatItalic(text string) string        { return ircFmtItalic + text + ircFmtItalic }
-func FormatUnderline(text string) string     { return ircFmtUnderline + text + ircFmtUnderline }
-func FormatStrikethrough(text string) string { return ircFmtStrikethrough + text + ircFmtStrikethrough }
-func FormatMonospace(text string) string     { return ircFmtMonospace + text + ircFmtMonospace }
-func FormatColor(text string, fg, bg int) string {
-	if bg >= 0 {
-		return fmt.Sprintf("%s%02d,%02d%s%s", ircFmtColor, fg, bg, text, ircFmtColor)
-	}
-	return fmt.Sprintf("%s%02d%s%s", ircFmtColor, fg, text, ircFmtColor)
-}
-func FormatReset() string { return ircFmtReset }
+// ── IRC Formatting: receive-side strip (B-51). Outgoing formatting ──
+// helpers were deleted as never-wired dead code (deadcode audit, slice 272).
 
 func StripFormatting(text string) string {
 	var result strings.Builder
@@ -5950,40 +5927,6 @@ func StripFormatting(text string) string {
 		}
 	}
 	return result.String()
-}
-
-// ParseColors returns color code positions in text.
-func ParseColors(text string) []map[string]interface{} {
-	var colors []map[string]interface{}
-	for i := 0; i < len(text); i++ {
-		if text[i] == 0x03 {
-			pos := i
-			i++
-			fgStart := i
-			for j := 0; j < 2 && i < len(text) && text[i] >= '0' && text[i] <= '9'; j++ {
-				i++
-			}
-			fg := text[fgStart:i]
-			bg := ""
-			if i < len(text) && text[i] == ',' {
-				i++
-				bgStart := i
-				for j := 0; j < 2 && i < len(text) && text[i] >= '0' && text[i] <= '9'; j++ {
-					i++
-				}
-				bg = text[bgStart:i]
-			}
-			colors = append(colors, map[string]interface{}{
-				"pos": pos, "fg": fg, "bg": bg,
-			})
-			i--
-		}
-	}
-	return colors
-}
-
-func FormatHexColor(text, rrggbb string) string {
-	return ircFmtHexColor + rrggbb + text + ircFmtHexColor
 }
 
 // ── Connection/Transport (5) ──
