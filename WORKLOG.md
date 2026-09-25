@@ -8828,3 +8828,29 @@ gate267 = light scope; standalone with rc check.
 
 No bug rows (nothing behavioral found — every hit was intentional-by-
 design or dead code).
+
+---
+
+## Slice 270 (2026-09-25) — full live battery at HEAD + deep fuzz
+## (4×60s) + B-43 live confirmation
+
+- **B-25 re-probe: still denied → open** (7th consecutive).
+- **Full plain live battery at HEAD: 13 PASS / 0 FAIL / 4 honest
+  SKIPs, live_rc=0** (skips = github token, B-25 flap, voice
+  environment, xmpp register policy — all documented).
+- **B-43 live-confirmed with numbers**: gap-log lines **659 → 201
+  (−69%)**, worst same-gap repeat **38 → 6** — and the remaining6 =
+  one per CONNECTION (the battery opens ~6 clients; each legitimately
+  logs its own first gap once; same-ID repeats WITHIN a connection
+  are gone, exactly the unit-test contract). Old storm evidence kept
+  for contrast (38× identical lines in one run pre-fix).
+- **Deep fuzz pass (the pending item from slice 262): 4 highest-yield
+  targets ×60s, serial `-parallel=1`:** webm **2,040,797 execs**,
+  TS-handle-server-command **269,450**, matrix-state **212,487**,
+  aacaud **1,780,823** — **ALL PASS, zero new crashers** (fuzz dirs
+  still hold exactly the two known regression seeds; aacaud's
+  testdata .mp4s are committed fixtures, not crashers). RAM rule held
+  (host ≥6.1Gi available throughout).
+
+No bug rows (nothing found). gate270 = light scope; standalone with
+rc check.
