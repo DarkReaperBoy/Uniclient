@@ -223,15 +223,6 @@ func LoadConfig(path string) (*AppConfig, error) {
 	return &cfg, nil
 }
 
-// SaveConfig writes cfg to path as indented JSON.
-func SaveConfig(path string, cfg *AppConfig) error {
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0o644)
-}
-
 // NotifyPreviewsEnabled resolves the preview pointer (nil = default true:
 // message text shows in banners).
 func (c *AppConfig) NotifyPreviewsEnabled() bool {

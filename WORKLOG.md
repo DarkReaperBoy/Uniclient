@@ -8883,3 +8883,39 @@ rc check.
   only). Recorded so the guard isn't misapplied again.
 
 gate271 = light scope; standalone with rc check.
+
+---
+
+## Slice 272 (2026-09-25) — whole-program deadcode analysis: 59 → 27
+
+- **B-25 re-probe: still denied → open** (10th consecutive).
+- New tool: `golang.org/x/tools/cmd/deadcode` (RTA reachability from
+  main). Gotcha learned: needs its OWN `-tags goolm` (GOFLAGS alone
+  didn't reach it — libolm/olm.h compile failure), plus `-test` so
+  fuzz/unit-referenced functions aren't misreported (506 → 59 with
+  `-test`).
+- **Triage + actions (59 → 27, zero NEW findings):**
+  - **DELETED** (compiler+tests = proof, F-26/B-18 doctrine):
+    `utils/storage.go` ENTIRE (AppConfigDir/AppCacheDir/AppDownloadDir/
+    VaultPath + their Override vars — all orphaned since config
+    migrated to `vault.SetConfig`; verified zero refs incl. tests),
+    `utils.SaveConfig` (legacy config.json writer — LoadConfig kept
+    for one-way migration), `utils/vp8enc.go` ENTIRE (~1,200 lines,
+    `NewVP8Enc` never wired since the INITIAL COMMIT, self-contained,
+    zero refs, zero tests).
+  - **ACTIVATED instead of deleted** — 13 exported "for testing"
+    wrappers that deadcode proved NOTHING ever called: mumble's
+    `MumbleCryptState`/`OCB2Encrypt`/`OCB2Decrypt` (new round-trip +
+    tamper-rejection test — one IV-seeding lesson learned live: the
+    decrypt side must seed from the ENCRYPTER's IV, matching
+    `mumbleTestCryptPair`) and bale's `PbEncode/PbDecode/PbGet*
+    /ParseMsgIDFullExported` (new protobuf wire round-trip test).
+  - **OPEN worklist (27)**: irc Format* family (9), mumble proto-
+    reference cluster (unmappers + ServerPing + ResolveSRV + 2 pb
+    methods), xmpp (styling/jingle/color/hash), bootstrap.Engine,
+    DetectVoiceActivity, RenderTrayIconSample, aacaud ×2,
+    Animation.HasAlpha — each needs intent research next slice.
+- Verification: vet + **whole tree 14 ok**; deadcode re-run confirms
+  −32 with **nothing NEW appearing**; RAM rule held.
+
+gate272 = light scope; standalone with rc check.

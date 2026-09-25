@@ -130,3 +130,35 @@ func TestPbEncodeDeterministicFieldOrder(t *testing.T) {
 		t.Fatalf("encoding is not deterministic:\n%x\n%x", one, other)
 	}
 }
+
+// TestBaleExportedPbWrappers activates the exported Pb* helpers
+// (deadcode: unreachable even with tests — documented "for
+// debugging/testing" but never referenced). Round-trips through the
+// LIVE wire codec the RPCs actually use.
+func TestBaleExportedPbWrappers(t *testing.T) {
+	enc := PbEncode(map[string]interface{}{"1": "hello", "2": int64(42)})
+	m := PbDecode(enc)
+	if PbGetString(m, "1") != "hello" {
+		t.Errorf("PbGetString = %q, want hello", PbGetString(m, "1"))
+	}
+	if PbGetInt64(m, "2") != 42 {
+		t.Errorf("PbGetInt64 = %d, want 42", PbGetInt64(m, "2"))
+	}
+
+	list := PbEncode(map[string]interface{}{"3": []interface{}{"a", "b"}})
+	ml := PbDecode(list)
+	if got := PbGetList(ml, "3"); len(got) != 2 {
+		t.Errorf("PbGetList = %v, want 2 entries", got)
+	}
+
+	nested := PbEncode(map[string]interface{}{"7": map[string]interface{}{"9": "x"}})
+	mn := PbDecode(nested)
+	sub := PbGetMsg(mn, "7")
+	if sub == nil || PbGetString(sub, "9") != "x" {
+		t.Errorf("PbGetMsg round-trip = %v", sub)
+	}
+
+	if rid, dateMs, mid := ParseMsgIDFullExported("123:1700000000123:456"); rid != 123 || dateMs != 1700000000123 || mid != 456 {
+		t.Errorf("ParseMsgIDFullExported = %d/%d/%d", rid, dateMs, mid)
+	}
+}

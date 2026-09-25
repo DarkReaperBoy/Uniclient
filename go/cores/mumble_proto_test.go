@@ -452,3 +452,73 @@ func TestOCB2ClientServerDirections(t *testing.T) {
 		}
 	}
 }
+
+// TestMumbleExportedCryptWrappers activates the exported wrappers
+// (deadcode: unreachable even with tests — they existed "for testing"
+// but nothing tested them). Self round-trip on ONE state: clientNonce
+// drives encryption, serverNonce decryption, both starting byte 0 so
+// the ±30 late-window accepts the first packet (same trick as
+// mumbleTestCryptPair). Tamper must NOT yield the original.
+func TestMumbleExportedCryptWrappers(t *testing.T) {
+	key := make([]byte, 16)
+	encIV := make([]byte, 16)
+	decIV := make([]byte, 16)
+	for i := range key {
+		key[i] = byte(i * 7)
+		encIV[i] = byte(i * 11)
+		decIV[i] = byte(i * 13)
+	}
+
+	// Self round-trip: BOTH IVs seed from the encrypt stream — the
+	// decrypt side must start on the encrypter's IV (the same rule
+	// mumbleTestCryptPair encodes as "the decrypting side gets the
+	// encrypting side's IV"), or the OCB2 keystream never matches.
+	var s MumbleCryptState
+	if err := s.Init(key, encIV, encIV); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	secret := []byte("wrapper round trip payload")
+	dst := make([]byte, 4+len(secret))
+	n := s.Encrypt(dst, secret)
+	if n != 4+len(secret) {
+		t.Fatalf("Encrypt returned %d, want %d", n, 4+len(secret))
+	}
+
+	plain := make([]byte, len(secret))
+	m, err := s.Decrypt(plain, dst[:n])
+	if err != nil {
+		t.Fatalf("Decrypt: %v", err)
+	}
+	if m != len(secret) || !bytes.Equal(plain, secret) {
+		t.Fatalf("round-trip mismatch: n=%d plain=%q want=%q", m, plain, secret)
+	}
+
+	// Tamper: flip a ciphertext byte — the result must never be the
+	// original (replay/history guard or OCB2 tag must reject it).
+	bad := make([]byte, n)
+	copy(bad, dst[:n])
+	bad[6] ^= 0xFF
+	got := make([]byte, len(secret))
+	_, err2 := s.Decrypt(got, bad)
+	if err2 == nil && bytes.Equal(got, secret) {
+		t.Fatal("tampered packet decrypted to the original — no integrity rejection")
+	}
+
+	// Direct OCB2 pair wrappers: official-vector style single message.
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ct := make([]byte, len(secret))
+	var tag [16]byte
+	OCB2Encrypt(block, ct, secret, key, tag[:])
+	out := make([]byte, len(secret))
+	if !OCB2Decrypt(block, out, ct, key, tag[:]) || !bytes.Equal(out, secret) {
+		t.Fatal("OCB2Encrypt/OCB2Decrypt wrapper round-trip mismatch")
+	}
+	ct[0] ^= 0xFF
+	if OCB2Decrypt(block, out, ct, key, tag[:]) {
+		t.Fatal("tampered ciphertext accepted by OCB2Decrypt wrapper")
+	}
+}
