@@ -8705,3 +8705,32 @@ documented as the evidence pair, F-15 precedent.
 
 **B-25 re-probe: still denied → open.** gate265 = light scope;
 standalone with rc check.
+
+---
+
+## Slice 266 (2026-09-25) — first read of verify.yml exposed two CI
+## gaps (B-45) + the -count=3 hunt caught its first flake (B-46)
+
+1. **B-45 → F-46 — CI verification gaps** (first time reading the
+   workflow of record): `live`-tagged tests were NEVER compiled on CI
+   (broken live test files rode through every green run — only my
+   local vet caught them) and **CI ran no race detector at all**.
+   Added both to the test job: `Vet (live-tagged integration tests)`
+   + `Race (parser crasher regressions + core subsets)` (same legs as
+   the local gate, GOMEMLIMIT/GOGC-capped for the runner). Kept the
+   dispatch-only trigger (AGENTS §1.5) untouched. YAML machine-checked
+   with yq after catching a `//`-in-a-`#`-comment typo BEFORE push
+   (GitHub would have rejected the workflow). Both commands proven
+   verbatim locally; the push's own dispatch = end-to-end validation
+   that the new steps run green on the runner.
+2. **B-46 → F-47 — first `-count=3` flake**: `TestCachedStarGifts`
+   (`fetches = 0, want 1` on runs 2/3, run 1 green) — the star-gift
+   cache is PACKAGE-level (`gifts.byAcct`, 10min TTL) and survives the
+   test's fresh Engine. Production caching intentional → test-side
+   reset at start + Cleanup (F-9 discipline). Re-run: **full suite
+   -count=3 rc=0, 14 ok** — the flake hunt now joins shuffle as a
+   standing green.
+3. **B-25 re-probe: still denied → open.**
+
+gate266 = light scope (gofmt/vet/tests/race legs); standalone with
+rc check. Push + dispatch = CI-step validation.

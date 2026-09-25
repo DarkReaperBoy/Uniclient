@@ -40,8 +40,24 @@ jobs:
         run: cd go && test -z "$(gofmt -l .)" || (echo "gofmt needed:"; gofmt -l .; exit 1)
       - name: Vet
         run: cd go && CGO_ENABLED=1 go vet -tags goolm ./...
+      - name: Vet (live-tagged integration tests)
+        # BUGS B-45: the `live` build-tagged test files are otherwise
+        # never compiled on CI — only local gates caught breakage there.
+        run: cd go && CGO_ENABLED=1 go vet -tags goolm,live ./tests/
       - name: Test
         run: cd go && CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 ./...
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - name: Race (parser crasher regressions + core subsets)
+        # BUGS B-45: CI never ran the race detector — the B-37/B-40/
+        # B-41 races were only ever caught by local gates. Same legs
+        # the local gate races, memory-capped for the runner.
+        run: |
+          cd go
+          CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./webm/ ./vp9anim/
+          CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./cores/ \
+            -run 'TestHandshake|TestMyChannelID|TestTSExec|TestTS3|TestTeamSpeak|TestTSCommandQueue|TestSendVoice|TestGetGroupCall|TestMatrix|TestTruncate|TestParseRawHeaders|TestAutocrypt|TestDeltaChat|TestGitHub|TestLockOrder'
         env:
           GOMEMLIMIT: 900MiB
           GOGC: "30"

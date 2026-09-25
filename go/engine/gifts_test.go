@@ -44,6 +44,20 @@ func newGiftEngine(t *testing.T, core cores.Core) *Engine {
 }
 
 func TestCachedStarGifts(t *testing.T) {
+	// The catalog cache is PACKAGE-level (gifts.byAcct, 10min TTL —
+	// gifts.go): it survives the fresh Engine across in-process
+	// repetitions, so `-count=3` failed with `fetches = 0` on runs 2/3
+	// (B-46). Reset it so every run exercises the cold path this test
+	// asserts; cleanup keeps the package state clean for whatever runs
+	// next in the same binary.
+	resetGiftCache := func() {
+		gifts.mu.Lock()
+		gifts.byAcct = map[string]giftCacheEntry{}
+		gifts.mu.Unlock()
+	}
+	resetGiftCache()
+	t.Cleanup(resetGiftCache)
+
 	st := &giftStub{catalog: &cores.StarGiftsResult{Gifts: []cores.StarGiftItem{
 		{ID: 5001, Stars: 50, ThumbB64: "AA"},
 	}}}
