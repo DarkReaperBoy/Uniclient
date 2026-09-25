@@ -43,8 +43,24 @@ jobs:
         run: cd go && test -z "$(gofmt -l .)" || (echo "gofmt needed:"; gofmt -l .; exit 1)
       - name: Vet
         run: cd go && CGO_ENABLED=1 go vet -tags goolm ./...
+      - name: Vet (live-tagged integration tests)
+        # BUGS B-49: the `live` build-tagged test files are otherwise
+        # never compiled anywhere at release time — parity with the
+        # verify.yml step added in B-45.
+        run: cd go && CGO_ENABLED=1 go vet -tags goolm,live ./tests/
       - name: Test
         run: cd go && CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 ./...
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - name: Race (parser crasher regressions + core subsets)
+        # BUGS B-49: a tag push must not release on a weaker gate than
+        # verify.yml — same legs, same runner caps as B-45's step.
+        run: |
+          cd go
+          CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./webm/ ./vp9anim/
+          CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./cores/ \
+            -run 'TestHandshake|TestMyChannelID|TestTSExec|TestTS3|TestTeamSpeak|TestTSCommandQueue|TestSendVoice|TestGetGroupCall|TestMatrix|TestTruncate|TestParseRawHeaders|TestAutocrypt|TestDeltaChat|TestGitHub|TestLockOrder'
         env:
           GOMEMLIMIT: 900MiB
           GOGC: "30"

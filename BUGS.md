@@ -63,6 +63,12 @@ they cover:
 | B-6 | cores/matrix.go:1241 (JoinGroupCall's ErrNotSupported return) | Matrix group calls (MSC3401) not implemented — honest `ErrNotSupported` today. | code + `research/matrix_group_calls.md` (primary-source research: MSC3401 mechanics, mautrix v0.30.0 has ZERO call code — verified by module-cache grep —, what of ours is already reusable, Tier1 full-mesh vs Tier2 SFU/MatrixRTC effort, testing/account needs) | owner decides via the research doc: Tier1, Tier2, or keep status quo |
 | B-8 | repo root + `cores/teamspeak.go` `tsQuickLZCompress` | No LICENSE file exists in the repo at all (owner decision pending), and the slice-231 QuickLZ send-side is a byte-port of quicklz.c, whose header says the commercial license "does not cover derived or ported versions created by third parties under GPL". | quicklz.c header (fetched 2026-09-23, RT-Thread mirror); `ls LICENSE*` → none; the reference C is NOT vendored (gcc-built vectors only, like ffmpeg for fixtures) | owner picks the project license and confirms the port stays; until then provenance is documented here — never vendor quicklz.c |
 
+## Fixed — slice 268 (2026-09-25)
+
+| # | Bug | Why it mattered | Test |
+|---|-----|-----------------|------|
+| F-50 (= B-49) | **release.yml ran a weaker gate than verify.yml — the two gaps from B-45 existed on the RELEASE path too.** Reading the release pipeline (first full read in slice 267) showed its test job had no live-tag vet and no race legs: a `v*` tag push would build and publish artifacts with less verification than every manual verify run — including code only ever compiled under `-tags live` and the race detector classes (B-37/B-40/B-41) that verify.yml now covers. | Releases are the artifacts owners and users actually run; a tag cut without a local gate silently shipped two unverified classes straight to the GitHub Release. | Steps added verbatim to release.yml's test job; **structural proof**: yq parses the file with the expected step order AND `diff` of the two step bodies against verify.yml's runner-proven originals = **IDENTICAL** (commands were executed green on CI in the B-45 validation run). Honest limit: release.yml cannot be dispatch-validated without PUBLISHING a dev release + gh-pages push (owner-visible side effects) — validation = yq + byte-identical proven commands + the untouched tag-only trigger documented |
+
 ## Fixed — slice 267 (2026-09-25)
 
 | # | Bug | Why it mattered | Test |

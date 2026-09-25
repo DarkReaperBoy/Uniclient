@@ -8776,3 +8776,21 @@ rc check. Push + dispatch = CI-step validation.
   publishing).
 
 gate267 = light scope; standalone with rc check.
+
+---
+
+## Slice 268 (2026-09-25) — release.yml parity with the fixed verify
+## gate (B-49 → F-50)
+
+- **B-25 re-probe: still denied → open.**
+- Closed slice 267's documented follow-up: release.yml's test job now
+  carries the same two steps as verify.yml (live-tag vet + race legs,
+  GOMEMLIMIT/GOGC-capped). A `v*` tag push can no longer release on
+  a weaker gate than a manual verify run.
+- Validation without side effects (the key constraint: dispatching
+  release.yml PUBLISHES a dev release + overwrites gh-pages):
+  **yq parse** (steps in expected order) + **`diff` of both step
+  bodies vs verify.yml = IDENTICAL** — commands already executed
+  green on the runner in slice 266's validation run. Tag-only trigger
+  untouched (AGENTS release rules).
+- gate268 = light scope; standalone with rc check.
