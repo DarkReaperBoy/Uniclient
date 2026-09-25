@@ -1290,6 +1290,12 @@ type tsConnection struct {
 	// Receive queue for out-of-order command packets (per command type)
 	recvQueue   [2]map[uint16]*tsDecryptedPkt // [0]=Command, [1]=CommandLow
 	recvQueueMu sync.Mutex
+	// gapLogged marks that the diagnostic for the CURRENT missing packet
+	// was already emitted (B-43: one line per gap, not one per packet —
+	// otherwise a hostile server floods stderr the way B-42 flooded
+	// stdout). Guarded by recvQueueMu; reset when the gap resolves.
+	gapLogged    [2]bool
+	gapLoggedFor [2]uint16
 
 	// Fragment assembly state (per command type)
 	fragBuf   [2][]byte // accumulated fragment data
@@ -1973,12 +1979,18 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 				// Out-of-order packets ARE queued while the in-order one
 				// is missing — surface the gap instead of doing dead work
 				// with it (B-19: keys were built and dropped on an empty
-				// line, SA4010).
-				keys := make([]uint16, 0, len(tc.recvQueue[cmdI]))
-				for k := range tc.recvQueue[cmdI] {
-					keys = append(keys, k)
+				// line, SA4010). ONCE per gap: every further packet that
+				// arrives during the same gap re-entered here and the
+				// repeated lines were a stderr flood (B-43).
+				if !tc.gapLogged[cmdI] || tc.gapLoggedFor[cmdI] != nextID {
+					keys := make([]uint16, 0, len(tc.recvQueue[cmdI]))
+					for k := range tc.recvQueue[cmdI] {
+						keys = append(keys, k)
+					}
+					log.Printf("ts: waiting for command packet %d; queued out-of-order: %v", nextID, keys)
+					tc.gapLogged[cmdI] = true
+					tc.gapLoggedFor[cmdI] = nextID
 				}
-				log.Printf("ts: waiting for command packet %d; queued out-of-order: %v", nextID, keys)
 			}
 			return // waiting for the next in-order packet
 		}
@@ -1986,6 +1998,7 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 
 		// Advance expected packet ID
 		tc.pktState[pktType].nextRecvID++
+		tc.gapLogged[cmdI] = false // gap resolved — the next gap must log (B-43)
 
 		flags := pkt.flags & 0xf0
 		plaintext := pkt.plaintext

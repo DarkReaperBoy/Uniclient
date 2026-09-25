@@ -8664,3 +8664,23 @@ rc check.
 
 **B-25 re-probe (this turn)**: still denied → open. gate263 = light
 scope; standalone with rc check.
+
+---
+
+## Slice 264 (2026-09-25) — B-43: gap log once-per-gap (the stderr
+## half of the flood doctrine)
+
+Following the B-42 logic to its next instance: the B-19 gap
+diagnostic fired on every packet arriving during one open gap — the
+slice-247 storms (229 identical lines/run) were already evidence of
+the spam, now formalized: a hostile server holds one in-order packet
+and pumps → one log line per packet. **B-43 → F-44**: `gapLogged[2]` +
+`gapLoggedFor[2]` on tsConnection (existing recvQueueMu guards,
+reset on gap resolution) — log only when the EXPECTED id differs.
+Tests-first: 50 calls during one gap → RED (50 lines quoted) → GREEN
+(1 line; +1 after resolve+reopen = once-per-gap not once-ever);
+B-19's original assertion test untouched and green.
+
+Validation: both gap tests + full cores + `-race` green.
+**B-25 re-probe: still denied → open.** gate264 = light scope;
+standalone with rc check.

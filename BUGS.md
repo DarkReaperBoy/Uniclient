@@ -63,6 +63,12 @@ they cover:
 | B-6 | cores/matrix.go:1241 (JoinGroupCall's ErrNotSupported return) | Matrix group calls (MSC3401) not implemented — honest `ErrNotSupported` today. | code + `research/matrix_group_calls.md` (primary-source research: MSC3401 mechanics, mautrix v0.30.0 has ZERO call code — verified by module-cache grep —, what of ours is already reusable, Tier1 full-mesh vs Tier2 SFU/MatrixRTC effort, testing/account needs) | owner decides via the research doc: Tier1, Tier2, or keep status quo |
 | B-8 | repo root + `cores/teamspeak.go` `tsQuickLZCompress` | No LICENSE file exists in the repo at all (owner decision pending), and the slice-231 QuickLZ send-side is a byte-port of quicklz.c, whose header says the commercial license "does not cover derived or ported versions created by third parties under GPL". | quicklz.c header (fetched 2026-09-23, RT-Thread mirror); `ls LICENSE*` → none; the reference C is NOT vendored (gcc-built vectors only, like ffmpeg for fixtures) | owner picks the project license and confirms the port stays; until then provenance is documented here — never vendor quicklz.c |
 
+## Fixed — slice 264 (2026-09-25)
+
+| # | Bug | Why it mattered | Test |
+|---|-----|-----------------|------|
+| F-44 (= B-43) | **Command-queue gap diagnostic logged once PER PACKET instead of once per gap.** The B-19 fix (surface queued out-of-order ids instead of dropping them) re-entered on every packet arriving while one gap was open — the slice-247 live storms already showed 229 identical lines in a single run, and a hostile server could deliberately hold one in-order packet hostage to flood stderr (same doctrine as B-42's stdout fix, one slice later). | Unbounded stderr writes are a DoS/perf vector on an unbuffered log, and the diagnostic's VALUE is one line per gap — repeats only bury it. | RED: `TestTSCommandQueueLogsGapOncePerGap` drove 50 calls during ONE open gap — **50 identical lines** captured (quoted in the failure); fix = `gapLogged`/`gapLoggedFor` state on `tsConnection` (guarded by the existing `recvQueueMu`, reset when the gap resolves): log only when the expected id changes. GREEN: exactly 1 line for the gap, 2 after resolving + reopening a NEW gap (pins once-PER-gap, not once-ever); B-19's original content-assertion test stays green untouched; full cores + `-race` green |
+
 ## Fixed — slice 263 (2026-09-25)
 
 | # | Bug | Why it mattered | Test |
