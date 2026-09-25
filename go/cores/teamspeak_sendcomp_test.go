@@ -34,9 +34,9 @@ func tsTestSender(t *testing.T) (*tsConnection, *net.UDPConn) {
 	tc := &tsConnection{
 		conn:        sender,
 		addr:        target.LocalAddr().(*net.UDPAddr),
-		clientID:    42,
 		pendingCmds: make(map[uint16]*tsPendingCmd),
 	}
+	tc.clientID.Store(42) // atomic field (B-40) — cannot be set in the literal
 	return tc, target
 }
 

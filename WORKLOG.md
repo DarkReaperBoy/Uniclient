@@ -8460,3 +8460,48 @@ CURRENT ✓.
 **B-25 re-probe**: still denied → stays open.
 
 gate257 = same light scope; standalone with rc check.
+
+---
+
+## Slice 258 (2026-09-25) — FIRST live battery under -race found the
+## real thing: B-40 identity race + a pre-existing deadlock pair
+
+**New oracle: the full live battery with `-race`** — every prior race
+leg used synthetic unit paths; real network timing was never raced.
+Result: **5 data-race reports + 4 "failed" TS tests (the detector
+marks whichever test was running) + 1 IRC failure** — dissected:
+
+1. **B-40 → F-41**: handshake's initserver write of `tc.clientID`
+raced `tsSendAck`/`tsSendPong` reads in the receive loop (started
+mid-handshake); `t.myClientID`/`t.myName` had the same class in
+receive-path reads. Fix: `tc.clientID` → `atomic.Uint32` (13 read
+sites), self-info family → `clientInfoMu` both sides (B-37
+canonical), snapshots hoisted above `t.mu` in six API functions.
+2. **Pre-existing deadlock pair found while fixing**: `GetMembers`
+held `t.mu` (defer) → acquired `clientInfoMu`; `GetGroupCall` holds
+`clientInfoMu` → `selfMuted()` takes `t.mu`. Opposite orders =
+deadlock under any concurrent t.mu writer (call bar polls GetGroupCall
+every second). Reordered GetMembers to `clientInfoMu→t.mu` — the
+canonical direction, now documented at the field decl.
+3. My own **slice-253 SendVoice guard had the same order violation**
+(talk-power reads inside t.mu) → hoisted before the lock; honestly
+noted: two of the six order fixes were mine from this very phase.
+4. **IRC under -race**: TLS dial exceeded the core deadline
+(instrumented crypto) — classified as a race-mode artifact, NOT a
+product bug (plain runs pass every battery); no code change.
+5. Tests: two race tests written against the PRE-fix access pairs →
+`WARNING: DATA RACE` RED (quoted in F-41) → adapted to the fixed API
+→ GREEN. **Two discipline slips recorded**: (a) my lock-order audit's
+first version treated `defer t.mu.RUnlock()` as released-at-site
+(defers run at function end → false negatives; JoinChannel hid in
+there), (b) I paired an edit with its own audit in the same tool
+block twice this slice — the audit read the pre-edit file. Re-ran
+defer-aware on the current file → 0 violations over all 19
+clientInfoMu acquisitions.
+6. **Validation: live TS suite under -race → 0 warnings, rc=0,
+3 PASS + 1 honest SKIP** (bonus: RoundTrip ACKed again — B-25's flap
+recorded both directions in its row).
+
+**B-25 re-probes (slices 255-257)**: still denied → open.
+gate258 = light scope + the new identity race tests in the race
+legs; standalone with rc check.

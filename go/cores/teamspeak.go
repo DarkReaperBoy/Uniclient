@@ -1283,7 +1283,9 @@ type tsConnection struct {
 	sharedIV  [64]byte
 	sharedMAC [8]byte
 	cryptoOK  bool
-	clientID  uint16
+	// clientID is atomic: the receive loop reads it for every ACK/PONG
+	// while the handshake goroutine installs it from initserver (B-40).
+	clientID atomic.Uint32
 
 	// Receive queue for out-of-order command packets (per command type)
 	recvQueue   [2]map[uint16]*tsDecryptedPkt // [0]=Command, [1]=CommandLow
@@ -1333,7 +1335,10 @@ type TeamSpeakCore struct {
 	// Server connection info
 	serverAddr string
 
-	// Self info (from initserver)
+	// Self info (from initserver). myClientID/myName are guarded by
+	// clientInfoMu (B-40: the receive loop reads them while initserver
+	// installs them); myUID is read only in WhoAmI after Authenticate
+	// returns, so program order covers it unguarded.
 	myClientID int
 	myUID      string
 	myName     string
@@ -1665,7 +1670,7 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 		}
 		var meta [5]byte
 		binary.BigEndian.PutUint16(meta[0:2], pID)
-		binary.BigEndian.PutUint16(meta[2:4], tc.clientID)
+		binary.BigEndian.PutUint16(meta[2:4], uint16(tc.clientID.Load()))
 		meta[4] = flags
 
 		var mac [8]byte
@@ -1677,7 +1682,7 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 			mac, ciphertext = tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], meta[:], cmdBytes)
 		}
 
-		pkt := tsBuildC2SPacket(mac, pID, tc.clientID, flags, ciphertext)
+		pkt := tsBuildC2SPacket(mac, pID, uint16(tc.clientID.Load()), flags, ciphertext)
 
 		// Track for ACK
 		tc.pendingCmdMu.Lock()
@@ -1723,7 +1728,7 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 
 		var meta [5]byte
 		binary.BigEndian.PutUint16(meta[0:2], pID)
-		binary.BigEndian.PutUint16(meta[2:4], tc.clientID)
+		binary.BigEndian.PutUint16(meta[2:4], uint16(tc.clientID.Load()))
 		meta[4] = flags
 
 		var mac [8]byte
@@ -1735,7 +1740,7 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 			mac, ciphertext = tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], meta[:], chunk)
 		}
 
-		pkt := tsBuildC2SPacket(mac, pID, tc.clientID, flags, ciphertext)
+		pkt := tsBuildC2SPacket(mac, pID, uint16(tc.clientID.Load()), flags, ciphertext)
 
 		tc.pendingCmdMu.Lock()
 		tc.pendingCmds[pID] = &tsPendingCmd{pktID: pID, data: pkt, sentAt: time.Now()}
@@ -1761,18 +1766,18 @@ func (tc *tsConnection) tsSendAck(pID uint16) error {
 
 	var meta [5]byte
 	binary.BigEndian.PutUint16(meta[0:2], ackPID)
-	binary.BigEndian.PutUint16(meta[2:4], tc.clientID)
+	binary.BigEndian.PutUint16(meta[2:4], uint16(tc.clientID.Load()))
 	meta[4] = flags
 
 	if tc.cryptoOK {
 		key, nonce := tsCreateKeyNonce(tsPktAck, ackPID, tc.pktState[tsPktAck].sendGenID, 0x31, tc.sharedIV[:])
 		mac, ciphertext := tsEAXEncrypt(key[:], nonce[:], meta[:], ackData[:])
-		pkt := tsBuildC2SPacket(mac, ackPID, tc.clientID, flags, ciphertext)
+		pkt := tsBuildC2SPacket(mac, ackPID, uint16(tc.clientID.Load()), flags, ciphertext)
 		return tc.tsSendRaw(pkt)
 	}
 
 	mac, ciphertext := tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], meta[:], ackData[:])
-	pkt := tsBuildC2SPacket(mac, ackPID, tc.clientID, flags, ciphertext)
+	pkt := tsBuildC2SPacket(mac, ackPID, uint16(tc.clientID.Load()), flags, ciphertext)
 	return tc.tsSendRaw(pkt)
 }
 
@@ -1783,7 +1788,7 @@ func (tc *tsConnection) tsSendPing() error {
 
 	pID := tc.tsNextPktID(tsPktPing)
 	flags := byte(tsPktPing) | tsFlagUnencrypted
-	pkt := tsBuildC2SPacket(tc.sharedMAC, pID, tc.clientID, flags, nil)
+	pkt := tsBuildC2SPacket(tc.sharedMAC, pID, uint16(tc.clientID.Load()), flags, nil)
 	return tc.tsSendRaw(pkt)
 }
 
@@ -1797,7 +1802,7 @@ func (tc *tsConnection) tsSendPong(pingID uint16) error {
 
 	pID := tc.tsNextPktID(tsPktPong)
 	flags := byte(tsPktPong) | tsFlagUnencrypted
-	pkt := tsBuildC2SPacket(tc.sharedMAC, pID, tc.clientID, flags, pongData[:])
+	pkt := tsBuildC2SPacket(tc.sharedMAC, pID, uint16(tc.clientID.Load()), flags, pongData[:])
 	return tc.tsSendRaw(pkt)
 }
 
@@ -2475,10 +2480,10 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		flags := byte(tsPktCommand) | tsFlagNewprotocol
 		meta := make([]byte, 5)
 		binary.BigEndian.PutUint16(meta[0:2], pID)
-		binary.BigEndian.PutUint16(meta[2:4], tc.clientID)
+		binary.BigEndian.PutUint16(meta[2:4], uint16(tc.clientID.Load()))
 		meta[4] = flags
 		mac, ciphertext := tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], meta, cmdBytes)
-		pkt := tsBuildC2SPacket(mac, pID, tc.clientID, flags, ciphertext)
+		pkt := tsBuildC2SPacket(mac, pID, uint16(tc.clientID.Load()), flags, ciphertext)
 		if err := tc.tsSendRaw(pkt); err != nil {
 			return fmt.Errorf("clientek send: %w", err)
 		}
@@ -2535,11 +2540,15 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 				if cidStr := cmd.params["aclid"]; cidStr != "" {
 					cid, err := strconv.Atoi(cidStr)
 					if err == nil {
-						tc.clientID = uint16(cid)
+						tc.clientID.Store(uint32(cid))
+						t.clientInfoMu.Lock()
 						t.myClientID = cid
+						t.clientInfoMu.Unlock()
 					}
 				}
+				t.clientInfoMu.Lock()
 				t.myName = nickname
+				t.clientInfoMu.Unlock()
 				gotInitServer = true
 			} else if cmd.name == "error" {
 				errID, err := strconv.Atoi(cmd.params["id"])
@@ -3040,7 +3049,10 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 	// Self-echo: TS3 broadcasts notifytextmessage to all channel/server subscribers
 	// including the sender. Our SendMessage already added the local copy with
 	// IsOutgoing=true, so drop the echo here to avoid duplicates.
-	if invokerID == t.myClientID {
+	t.clientInfoMu.RLock()
+	isSelfEcho := invokerID == t.myClientID
+	t.clientInfoMu.RUnlock()
+	if isSelfEcho {
 		return
 	}
 
@@ -3610,6 +3622,13 @@ func (t *TeamSpeakCore) CreateFolder(_ string, _ []string) (*Folder, error) {
 
 // SendMessage sends a text message to a channel, server chat, or private DM.
 func (t *TeamSpeakCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
+	// Self info snapshotted BEFORE t.mu (B-40: never acquire clientInfoMu
+	// while t.mu is held — GetGroupCall nests the other order).
+	t.clientInfoMu.RLock()
+	senderID := strconv.Itoa(t.myClientID)
+	senderName := t.myName
+	t.clientInfoMu.RUnlock()
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
@@ -3638,8 +3657,8 @@ func (t *TeamSpeakCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 	m := &Message{
 		ID:         t.tsNextMsgID(),
 		ChatID:     chatID,
-		SenderID:   strconv.Itoa(t.myClientID),
-		SenderName: t.myName,
+		SenderID:   senderID,
+		SenderName: senderName,
 		Text:       msg.Text,
 		Timestamp:  time.Now(),
 		Status:     MessageStatusSent,
@@ -3734,6 +3753,12 @@ func (t *TeamSpeakCore) GetReadState(_ string) (*ReadState, error) {
 
 // UploadFile uploads a file to a channel's file repository via the TeamSpeak file transfer protocol.
 func (t *TeamSpeakCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
+	// Self info snapshotted BEFORE t.mu (B-40 lock order).
+	t.clientInfoMu.RLock()
+	senderID := strconv.Itoa(t.myClientID)
+	senderName := t.myName
+	t.clientInfoMu.RUnlock()
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
@@ -3800,8 +3825,8 @@ func (t *TeamSpeakCore) UploadFile(chatID string, file FileUpload, progress func
 	m := &Message{
 		ID:         t.tsNextMsgID(),
 		ChatID:     chatID,
-		SenderID:   strconv.Itoa(t.myClientID),
-		SenderName: t.myName,
+		SenderID:   senderID,
+		SenderName: senderName,
 		Text:       fmt.Sprintf("[File: %s]", file.Name),
 		Timestamp:  time.Now(),
 		Status:     MessageStatusSent,
@@ -4198,15 +4223,17 @@ func (t *TeamSpeakCore) UnbanMember(_ string, userID string) error {
 
 // GetMembers returns the list of clients in the specified channel.
 func (t *TeamSpeakCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
+	// Lock order: clientInfoMu BEFORE t.mu (B-40). GetGroupCall nests the
+	// same direction (clientInfoMu held while selfMuted takes t.mu);
+	// the reverse order here WAS a deadlock pair under any t.mu writer.
+	t.clientInfoMu.RLock()
+	defer t.clientInfoMu.RUnlock()
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
 		return nil, ErrAuth
 	}
-
-	// Use cached client data from notifycliententerview events
-	t.clientInfoMu.RLock()
-	defer t.clientInfoMu.RUnlock()
 
 	kind, id, _ := tsParseChatID(chatID)
 
@@ -4472,6 +4499,11 @@ func (t *TeamSpeakCore) SendSticker(_ string, _ string) (*Message, error) {
 
 // GetSessions returns all currently connected clients on the server.
 func (t *TeamSpeakCore) GetSessions() ([]Session, error) {
+	// Self id snapshotted BEFORE t.mu (B-40 lock order).
+	t.clientInfoMu.RLock()
+	selfClid := t.myClientID
+	t.clientInfoMu.RUnlock()
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
@@ -4510,9 +4542,7 @@ func (t *TeamSpeakCore) GetSessions() ([]Session, error) {
 			}
 		}
 
-		if clid == t.myClientID {
-			s.IsCurrent = true
-		}
+		s.IsCurrent = clid == selfClid
 
 		sessions = append(sessions, s)
 	}
@@ -4521,6 +4551,11 @@ func (t *TeamSpeakCore) GetSessions() ([]Session, error) {
 
 // TerminateSession kicks a client from the server by their client ID.
 func (t *TeamSpeakCore) TerminateSession(sessionID string) error {
+	// Self id snapshotted BEFORE t.mu (B-40 lock order).
+	t.clientInfoMu.RLock()
+	selfClid := t.myClientID
+	t.clientInfoMu.RUnlock()
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
@@ -4532,7 +4567,7 @@ func (t *TeamSpeakCore) TerminateSession(sessionID string) error {
 		return fmt.Errorf("%w: invalid session ID", ErrInvalidInput)
 	}
 
-	if clid == t.myClientID {
+	if clid == selfClid {
 		return fmt.Errorf("%w: cannot terminate own session", ErrInvalidInput)
 	}
 
@@ -4573,9 +4608,12 @@ func (t *TeamSpeakCore) SetNickname(nickname string) error {
 		return err
 	}
 	t.mu.Lock()
-	t.myName = nickname
 	t.nickname = nickname
 	t.mu.Unlock()
+
+	t.clientInfoMu.Lock()
+	t.myName = nickname
+	t.clientInfoMu.Unlock()
 	return nil
 }
 
@@ -5609,12 +5647,20 @@ func (t *TeamSpeakCore) ClientChatClosed(clid int) error {
 
 // JoinChannel moves the client into the specified channel with an optional password.
 func (t *TeamSpeakCore) JoinChannel(cid int, password string) error {
+	// Snapshot self id BEFORE taking t.mu: clientInfoMu must never be
+	// acquired while t.mu is held (GetGroupCall nests the other order
+	// via selfMuted — mixed orders deadlock under a pending writer,
+	// B-40).
+	t.clientInfoMu.RLock()
+	selfClid := t.myClientID
+	t.clientInfoMu.RUnlock()
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
 		return ErrAuth
 	}
-	cmd := fmt.Sprintf("clientmove clid=%d cid=%d", t.myClientID, cid)
+	cmd := fmt.Sprintf("clientmove clid=%d cid=%d", selfClid, cid)
 	if password != "" {
 		cmd += fmt.Sprintf(" cpw=%s", tsEscape(password))
 	}
@@ -6398,13 +6444,13 @@ func (t *TeamSpeakCore) tsSendVoicePacket(pktType byte, flags byte, body []byte)
 	// Build meta for EAX: PId(2) + CId(2) + PT(1)
 	var meta [5]byte
 	binary.BigEndian.PutUint16(meta[0:2], pID)
-	binary.BigEndian.PutUint16(meta[2:4], tc.clientID)
+	binary.BigEndian.PutUint16(meta[2:4], uint16(tc.clientID.Load()))
 	meta[4] = pktFlags
 
 	key, nonce := tsCreateKeyNonce(pktType, pID, tc.pktState[pktType].sendGenID, 0x31, tc.sharedIV[:])
 	mac, ciphertext := tsEAXEncrypt(key[:], nonce[:], meta[:], body)
 
-	pkt := tsBuildC2SPacket(mac, pID, tc.clientID, pktFlags, ciphertext)
+	pkt := tsBuildC2SPacket(mac, pID, uint16(tc.clientID.Load()), pktFlags, ciphertext)
 	t.bwStats.recordSent(pktType, len(pkt))
 	return tc.tsSendRaw(pkt)
 	// Voice packets are NOT acknowledged — fire and forget
@@ -6413,6 +6459,14 @@ func (t *TeamSpeakCore) tsSendVoicePacket(pktType byte, flags byte, body []byte)
 // SendVoice sends a normal voice packet to the current channel.
 // audioData must be pre-encoded (Opus, CELT, etc.)
 func (t *TeamSpeakCore) SendVoice(codec byte, audioData []byte) error {
+	// Talk-power state FIRST (B-26): its reads take clientInfoMu and
+	// channelsMu, which must never be acquired while t.mu is held
+	// (B-40 lock order — GetGroupCall nests clientInfoMu→t.mu).
+	t.clientInfoMu.RLock()
+	curChannel := t.myChannelID
+	t.clientInfoMu.RUnlock()
+	talkBlocked := t.talkPowerState(curChannel) == "blocked"
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
@@ -6428,10 +6482,7 @@ func (t *TeamSpeakCore) SendVoice(codec byte, audioData []byte) error {
 
 	// Voice follows our current channel — refuse to fire into a room the
 	// server will silently discard (B-26); fail open while unknown.
-	t.clientInfoMu.RLock()
-	curChannel := t.myChannelID
-	t.clientInfoMu.RUnlock()
-	if t.talkPowerState(curChannel) == "blocked" {
+	if talkBlocked {
 		return fmt.Errorf("%w: insufficient talk power in this room — the server discards voice below the channel requirement", ErrPermission)
 	}
 
