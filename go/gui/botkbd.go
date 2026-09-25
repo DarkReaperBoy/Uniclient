@@ -298,16 +298,6 @@ func replyKbdRenderable(b botKbdBtn) bool {
 
 // ── widgets ────────────────────────────────────────────────────────────────
 
-var (
-	inlineKbdBtns [][]widget.Clickable // per-row button pools
-	replyKbdBtns  [][]widget.Clickable
-
-	// Reply-keyboard session state (package-level like the other a.wid.composer
-	// chrome; touched only on the GUI goroutine).
-	replyKbdSingleUse bool   // the active keyboard is single_use
-	replyKbdUsedFor   string // msgID whose single_use keyboard was consumed ("" = none)
-)
-
 // growKbdPools keeps one Clickable pool per row count.
 func growKbdPools(pool *[][]widget.Clickable, rows [][]botKbdBtn) {
 	for len(*pool) < len(rows) {
@@ -346,16 +336,16 @@ func (a *App) layoutInlineKeyboard(gtx layout.Context, m *engine.CachedMessage) 
 	if kbd == nil {
 		return layout.Dimensions{}
 	}
-	growKbdPools(&inlineKbdBtns, kbd.Rows)
+	growKbdPools(&a.inlineKbdBtns, kbd.Rows)
 	for r := range kbd.Rows {
 		for c := range kbd.Rows[r] {
-			if inlineKbdBtns[r][c].Clicked(gtx) {
+			if a.inlineKbdBtns[r][c].Clicked(gtx) {
 				a.botKbdExec(m, botKbdActionFor(kbd.Rows[r][c]))
 			}
 		}
 	}
 	return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rowFlexChildren(kbd, inlineKbdBtns, a)...)
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rowFlexChildren(kbd, a.inlineKbdBtns, a)...)
 	})
 }
 
@@ -388,7 +378,7 @@ func (a *App) layoutReplyKeyboard(gtx layout.Context, f frame, kbd *botKbd, src 
 	if kbd == nil || src == nil {
 		return layout.Dimensions{}
 	}
-	if replyKbdUsedFor == src.MsgID {
+	if a.replyKbdUsedFor == src.MsgID {
 		return layout.Dimensions{} // single_use consumed
 	}
 	// Keep only actionable rows; a keyboard whose rows all drop is not shown.
@@ -408,15 +398,15 @@ func (a *App) layoutReplyKeyboard(gtx layout.Context, f frame, kbd *botKbd, src 
 		return layout.Dimensions{}
 	}
 	rendered := &botKbd{Rows: rows}
-	growKbdPools(&replyKbdBtns, rendered.Rows)
+	growKbdPools(&a.replyKbdBtns, rendered.Rows)
 	for r := range rendered.Rows {
 		for c := range rendered.Rows[r] {
-			if replyKbdBtns[r][c].Clicked(gtx) {
+			if a.replyKbdBtns[r][c].Clicked(gtx) {
 				b := rendered.Rows[r][c]
 				if b.Type == "text" {
 					a.sendText(b.Text)
-					if replyKbdSingleUse {
-						replyKbdUsedFor = src.MsgID
+					if a.replyKbdSingleUse {
+						a.replyKbdUsedFor = src.MsgID
 					}
 				} else {
 					a.botKbdExec(src, botKbdActionFor(b))
@@ -425,6 +415,6 @@ func (a *App) layoutReplyKeyboard(gtx layout.Context, f frame, kbd *botKbd, src 
 		}
 	}
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rowFlexChildren(rendered, replyKbdBtns, a)...)
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rowFlexChildren(rendered, a.replyKbdBtns, a)...)
 	})
 }

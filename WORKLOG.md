@@ -8734,3 +8734,45 @@ standalone with rc check.
 
 gate266 = light scope (gofmt/vet/tests/race legs); standalone with
 rc check. Push + dispatch = CI-step validation.
+
+---
+
+## Slice 267 (2026-09-25) — separate-window shared state (B-47) + the
+## dead Seen receipt (B-48)
+
+- **B-25 re-probe: still denied → open.**
+- **Second artifact read: release.yml** — same two gaps as verify.yml
+  (no live-tag vet, no race) → B-47 candidate… no wait: logged as the
+  NEXT row's sibling… (release.yml fix deferred: its test job gets the
+  same two steps — done next slice, kept separate because validating
+  release.yml means PUBLISHING a dev release + gh-pages push, which
+  needs owner say-so; documented rather than dispatching).
+  [Correction: recorded as this slice's open follow-up, not a row yet
+  — see below]
+- **B-47 → F-48: eleven package-level widget/selection states reachable
+  from separate windows** (own App + own goroutine per window;
+  `frameMu` serializes frames but state is shared). Method: call-graph
+  walk from Root's separate branch →1,165 funcs → exactly7 of258
+  widgets marked +3 session states found by inspection (`fwdSel` =
+  worst: any window's openChat/openForward reset wiped another's
+  pick). Initial composer-submission theory WRONG (settings-only chips)
+  — walker corrected the scope. All eleven migrated onto App (9 files,
+  staged python with per-string count asserts so NOTHING applied until
+  every anchor matched; the run FIRST failed on my menu.go anchor —
+  file ended without the blank line I assumed — nothing written, fixed
+  the anchor, re-ran).
+- **B-48 → F-49: the slice-152 inline Seen receipt was DEAD** —
+  `msgFrameLastOwn` had zero assignments, `lastOwnMsgID` (tested pure
+  helper!) zero production callers — the B-12/B-13 dead-parity class
+  a third time. Wired at the top of `messageList`, App-scoped.
+- Tests-first: `TestSeparateWindowWidgetsAreNotPackageLevel` (source
+  scan,12 RED declarations quoted) + `TestSeenInlineReceiptIsWired`
+  (both missing pieces quoted) → GREEN; full gui + `-race ./gui/` +
+  whole tree **14 ok**. The scan self-caught one leftover decl after
+  migration (`msgFrameLastOwn` var) — the oracle earning its keep.
+- Honest limits: receipt RENDERING is headless-unverifiable (pin =
+  structural + existing pure tests); release.yml still lacks the two
+  CI steps (fix = next slice; dispatch-validation impossible without
+  publishing).
+
+gate267 = light scope; standalone with rc check.

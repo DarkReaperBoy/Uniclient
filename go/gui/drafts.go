@@ -32,8 +32,7 @@ type schedDlgState struct {
 }
 
 var (
-	schedDlgPresets [3]widget.Clickable
-	schedKeyTag     = new(struct{})
+	schedKeyTag = new(struct{})
 )
 
 // schedulePresets (pure, testable): the quick choices AyuGram offers.
@@ -303,8 +302,8 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 	if a.wid.schedDlgWhenOnline.Clicked(gtx) {
 		a.sendWhenOnline()
 	}
-	for i := range schedDlgPresets {
-		if schedDlgPresets[i].Clicked(gtx) {
+	for i := range a.schedDlgPresets {
+		if a.schedDlgPresets[i].Clicked(gtx) {
 			a.mu.Lock()
 			if a.schedDlg != nil {
 				a.schedDlg.preset = i
@@ -354,13 +353,13 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 						return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.schedChip(gtx, &schedDlgPresets[1], presetLabels[1], d.preset == 1)
+									return a.schedChip(gtx, &a.schedDlgPresets[1], presetLabels[1], d.preset == 1)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.schedChip(gtx, &schedDlgPresets[2], presetLabels[2], d.preset == 2)
+									return a.schedChip(gtx, &a.schedDlgPresets[2], presetLabels[2], d.preset == 2)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.schedChip(gtx, &schedDlgPresets[0], presetLabels[0], d.preset == 0)
+									return a.schedChip(gtx, &a.schedDlgPresets[0], presetLabels[0], d.preset == 0)
 								}),
 							)
 						})

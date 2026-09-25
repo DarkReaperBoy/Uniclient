@@ -47,10 +47,6 @@ type seenInlineState struct {
 	fetching   bool
 }
 
-// msgFrameLastOwn is the last own outgoing message id of the frame's
-// message slice (set once per messageList layout pass).
-var msgFrameLastOwn string
-
 // lastOwnMsgID (pure): the last outgoing non-service message in the
 // slice, "" when none.
 func lastOwnMsgID(msgs []engine.CachedMessage) string {

@@ -38,6 +38,23 @@ type App struct {
 	loopLogMu   sync.Mutex
 	loopLogLast time.Time
 
+	// Separate-window safety (B-47): reachable from layoutChatView /
+	// openChat, which separate windows run on their own goroutines —
+	// package-level instances would share click/selection state across
+	// windows (call-graph walk from Root's separate branch marked
+	// exactly these). msgFrameLastOwn is set once per messageList pass
+	// (B-48: the inline Seen receipt never rendered without it).
+	inlineKbdBtns     [][]widget.Clickable
+	replyKbdBtns      [][]widget.Clickable
+	musicMenuBtn      widget.Clickable
+	schedDlgPresets   [3]widget.Clickable
+	shadowDlgClose    widget.Clickable
+	shadowDlgUnban    []widget.Clickable
+	replyKbdSingleUse bool
+	replyKbdUsedFor   string
+	msgFrameLastOwn   string
+	fwdSel            map[string]bool
+
 	// wid is this window's interactive widget state (slice 168:
 	// multi-window chats — each window owns its widgets).
 	wid widgets
@@ -1478,8 +1495,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.similarFor = ""
 	// similarExpanded persists across chats deliberately (per-channel
 	// runtime state, tdesktop SimilarExpanded parity — not reset on switch).
-	replyKbdUsedFor = "" // slice 127: single_use reply keyboard resets per chat
-	a.inlineRes = nil    // slice 128: inline-bot panel resets per chat
+	a.replyKbdUsedFor = "" // slice 127: single_use reply keyboard resets per chat
+	a.inlineRes = nil      // slice 128: inline-bot panel resets per chat
 	a.inlineForKey = ""
 	a.inlineForOffset = ""
 	a.inlineBusy = false

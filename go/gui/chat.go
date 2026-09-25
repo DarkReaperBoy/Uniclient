@@ -229,7 +229,7 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 				return layout.Dimensions{}
 			}
 			kbd, singleUse, _, src := activeReplyKbd(f.messages)
-			replyKbdSingleUse = singleUse
+			a.replyKbdSingleUse = singleUse
 			return a.layoutReplyKeyboard(gtx, f, kbd, src)
 		}),
 		// Composer (JOIN bar for not-joined previews, restriction bar for
@@ -611,6 +611,12 @@ func dotLabel(d connDot) string {
 // Records per-message row bounds (pane coords) for right-click hit tests and
 // triggers scroll-up history pagination (AyuGram loadMessages).
 func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
+	// The frame's last own outgoing message — the inline Seen receipt
+	// renders only under it (B-48: this assignment never existed, so
+	// the slice-152 receipt could never show). Per-pass, App-scoped
+	// (B-47: separate windows each track their own).
+	a.msgFrameLastOwn = lastOwnMsgID(f.messages)
+
 	// Background layers: the chat's custom wallpaper (slice 218) first —
 	// when it renders, the theme gradient is skipped (a custom wallpaper
 	// replaces it, tdesktop behavior); else the chat-theme background
@@ -963,7 +969,7 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 					// row w/ reader avatar under the last own message.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						chat := chatOf(f, *m)
-						if !seenInlineGate(*m, chat.Type, m.MsgID == msgFrameLastOwn) {
+						if !seenInlineGate(*m, chat.Type, m.MsgID == a.msgFrameLastOwn) {
 							return layout.Dimensions{}
 						}
 						a.ensureSeenInline(m)

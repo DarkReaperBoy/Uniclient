@@ -29,8 +29,6 @@ type shadowDlgState struct {
 }
 
 var (
-	shadowDlgClose  widget.Clickable
-	shadowDlgUnban  []widget.Clickable // per-row unban buttons
 	shadowDlgKeyTag = new(struct{})
 )
 
@@ -123,12 +121,12 @@ func (a *App) layoutShadowDialog(gtx layout.Context, f frame) layout.Dimensions 
 			a.closeShadowDialog()
 		}
 	}
-	if shadowDlgClose.Clicked(gtx) {
+	if a.shadowDlgClose.Clicked(gtx) {
 		a.closeShadowDialog()
 	}
-	growClickables(&shadowDlgUnban, len(d.bans))
-	for i := range shadowDlgUnban {
-		if shadowDlgUnban[i].Clicked(gtx) && i < len(d.bans) {
+	growClickables(&a.shadowDlgUnban, len(d.bans))
+	for i := range a.shadowDlgUnban {
+		if a.shadowDlgUnban[i].Clicked(gtx) && i < len(d.bans) {
 			ban := d.bans[i]
 			k := d.chat
 			go func() {
@@ -157,7 +155,7 @@ func (a *App) layoutShadowDialog(gtx layout.Context, f frame) layout.Dimensions 
 								return lbl.Layout(gtx)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								btn := a.ui.IconButton(&shadowDlgClose, iconContentClear, "Close")
+								btn := a.ui.IconButton(&a.shadowDlgClose, iconContentClear, "Close")
 								btn.Color = a.ui.p.TextDim
 								return btn.Layout(gtx)
 							}),
@@ -186,7 +184,7 @@ func (a *App) layoutShadowDialog(gtx layout.Context, f frame) layout.Dimensions 
 						rows := make([]layout.FlexChild, 0, len(d.bans))
 						for i, b := range d.bans {
 							rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return a.shadowBanRow(gtx, b, &shadowDlgUnban[i])
+								return a.shadowBanRow(gtx, b, &a.shadowDlgUnban[i])
 							}))
 						}
 						return layout.Flex{Axis: layout.Vertical, Spacing: layout.Spacing(4)}.Layout(gtx, rows...)

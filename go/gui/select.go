@@ -151,7 +151,7 @@ func (a *App) reportSelected() {
 // openForward opens the forward picker for a batch and resets the
 // recipient selection (slice 41).
 func (a *App) openForward(msgs []engine.CachedMessage) {
-	fwdSel = map[string]bool{}
+	a.fwdSel = map[string]bool{}
 	a.wid.fwdComment.SetText("")
 	a.mu.Lock()
 	a.fwd = msgs

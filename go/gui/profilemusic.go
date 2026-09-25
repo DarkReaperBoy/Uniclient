@@ -25,7 +25,6 @@ import (
 var (
 	musicRows    []widget.Clickable // playlist row taps (play/pause)
 	musicActBtns []widget.Clickable // per-row action: own ⋮ menu, other ＋ add
-	musicMenuBtn widget.Clickable   // panel section row → playlist view
 	musicBackBtn widget.Clickable
 	musicList    widget.List
 
@@ -539,7 +538,7 @@ func (a *App) panelMusicSection(gtx layout.Context, f frame) []layout.FlexChild 
 	if title == "" {
 		title = "Untitled track"
 	}
-	if musicMenuBtn.Clicked(gtx) {
+	if a.musicMenuBtn.Clicked(gtx) {
 		k := f.panelChat
 		a.openProfileMusic(k, panelTitleOf(f), selfIDOf(f, k.AccountID))
 	}
@@ -559,7 +558,7 @@ func (a *App) panelMusicSection(gtx layout.Context, f frame) []layout.FlexChild 
 	}))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return material.ButtonLayout(a.ui.Theme, &musicMenuBtn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return material.ButtonLayout(a.ui.Theme, &a.musicMenuBtn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						gtx.Constraints.Min.X = gtx.Dp(unit.Dp(20))

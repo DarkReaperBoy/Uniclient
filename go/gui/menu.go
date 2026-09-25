@@ -812,10 +812,10 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 				btn := &a.wid.fwdChatBtns[i]
 				if btn.Clicked(gtx) {
 					// Multi-pick (AyuGram, slice 41): rows toggle recipients.
-					fwdSel[c.ChatID] = !fwdSel[c.ChatID]
+					a.fwdSel[c.ChatID] = !a.fwdSel[c.ChatID]
 					a.invalidate()
 				}
-				sel := fwdSel[c.ChatID]
+				sel := a.fwdSel[c.ChatID]
 				bl := material.ButtonLayout(a.ui.Theme, btn)
 				bl.Background = a.ui.p.Surface
 				if sel {
@@ -846,7 +846,7 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 			}
 			count := 0
 			for _, c := range candidates {
-				if fwdSel[c.ChatID] {
+				if a.fwdSel[c.ChatID] {
 					count++
 				}
 			}
@@ -871,7 +871,7 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engine.ChatInfo) {
 	var dsts []engine.ChatInfo
 	for _, c := range candidates {
-		if fwdSel[c.ChatID] {
+		if a.fwdSel[c.ChatID] {
 			dsts = append(dsts, c)
 		}
 	}
@@ -881,7 +881,7 @@ func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engin
 	a.mu.Lock()
 	a.fwd = nil
 	a.mu.Unlock()
-	fwdSel = map[string]bool{}
+	a.fwdSel = map[string]bool{}
 	a.invalidate()
 	comment := trimForwardComment(a.wid.fwdComment.Text())
 	go func() {
@@ -920,6 +920,3 @@ func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engin
 		}
 	}()
 }
-
-// fwdSel is the forward picker's recipient selection (chat IDs, slice 41).
-var fwdSel = map[string]bool{}
