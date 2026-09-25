@@ -3858,7 +3858,7 @@ func deserializeCandidatesListMsg(data []byte) (candidates []string, ufrag, pwd 
 	if err != nil {
 		return nil, "", "", fmt.Errorf("CandidatesList: ufrag: %w", err)
 	}
-	pwd, pos, err = deserializeInstanceImplString(data, pos)
+	pwd, _, err = deserializeInstanceImplString(data, pos)
 	if err != nil {
 		return nil, "", "", fmt.Errorf("CandidatesList: pwd: %w", err)
 	}
@@ -23886,7 +23886,7 @@ func (t *TelegramCore) ReactToMessageList(chatID string, msgID string, emojis []
 	if err != nil {
 		return err
 	}
-	peer := tg.InputPeerClass(&tg.InputPeerEmpty{})
+	var peer tg.InputPeerClass // assigned on both paths below (the default was dead)
 	if inputPeer, unlock, perr := t.withPeer(chatID); perr == nil {
 		peer = inputPeer
 		unlock()

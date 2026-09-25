@@ -3339,8 +3339,6 @@ func (b *BaleCore) wsSend(service, method string, payload map[string]interface{}
 		"1": wsReq,
 	})
 
-	if method == "LoadDialogs" {
-	}
 	if err := b.wsConn.Write(b.wsCtx, websocket.MessageBinary, request); err != nil {
 		b.wsPendMu.Lock()
 		delete(b.wsPending, idx)

@@ -1288,14 +1288,6 @@ func (m *MatrixCore) SetCallMuted(callID string, muted bool) error {
 		return ErrNotFound
 	}
 
-	if call.pc != nil {
-		for _, sender := range call.pc.GetSenders() {
-			if sender.Track() != nil {
-				// Disable/enable the track by replacing with nil or restoring
-				// For now, we stop the silence sender via muted flag on call
-			}
-		}
-	}
 	// Mute is handled by the silence sender checking this state
 	call.mu.Lock()
 	if muted {

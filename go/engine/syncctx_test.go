@@ -14,6 +14,8 @@ import (
 )
 
 func TestSyncAccountContextNeverNil(t *testing.T) {
+	//lint:ignore SA1012 Passing nil is exactly the contract under test (B-21):
+	// syncAccountContext must replace it with a real context.
 	if got := syncAccountContext(nil); got == nil {
 		t.Fatal("syncAccountContext(nil) returned nil — a future ctx deref on this path would panic at first login (B-21)")
 	}

@@ -189,7 +189,7 @@ func (e *Engine) VoiceRecording() VoiceRecording {
 func (e *Engine) StopVoiceRecording() (path string, seconds float64, err error) {
 	r := e.recorder()
 	r.mu.Lock()
-	frames, enc := r.packets, r.enc
+	enc := r.enc
 	r.mu.Unlock()
 	if enc == nil {
 		return "", 0, fmt.Errorf("voice: not recording")
@@ -200,7 +200,7 @@ func (e *Engine) StopVoiceRecording() (path string, seconds float64, err error) 
 
 	r.mu.Lock()
 	r.enc = nil
-	frames = r.packets
+	frames := r.packets
 	granules := r.granule
 	samples := r.samples
 	r.packets = nil

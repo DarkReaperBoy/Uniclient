@@ -169,8 +169,9 @@ func (e *Engine) ConnectAllAccounts() {
 		go func() {
 			defer e.wg.Done()
 			time.Sleep(delay)
+			//lint:ignore SA9003 Non-fatal by design: ConnectAccount logs its
+			// own failure (health.go:60/95), other accounts must still connect.
 			if err := e.ConnectAccount(acc.ID); err != nil {
-				// Non-fatal: other accounts can still connect.
 			}
 		}()
 	}
@@ -190,6 +191,9 @@ func syncAccountContext(ctx context.Context) context.Context {
 }
 
 func (e *Engine) syncAccount(ctx context.Context, accountID string) {
+	//lint:ignore SA4006 Sanitizing ctx here is the B-21 boundary contract
+	// (future uses in this function must see a real context); the value is
+	// deliberately kept even though nothing dereferences ctx today.
 	ctx = syncAccountContext(ctx)
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

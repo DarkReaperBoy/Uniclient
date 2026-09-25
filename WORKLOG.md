@@ -8794,3 +8794,37 @@ gate267 = light scope; standalone with rc check.
   green on the runner in slice 266's validation run. Tag-only trigger
   untouched (AGENTS release rules).
 - gate268 = light scope; standalone with rc check.
+
+---
+
+## Slice 269 (2026-09-25) — solo staticcheck over everything written
+## since the baseline (99 files, +3,883 lines): 9 bug-class → 0
+
+- **B-25 re-probe: still denied → open** (6th consecutive).
+- **staticcheck policy REVISED with evidence**: the slice-254 RAM
+  incident was CONCURRENCY (staticcheck + full-race + fuzz together),
+  not staticcheck itself — ran solo with `ulimit -v 8GB` + GOGC=40:
+  peak cost trivial (host stayed ≥6Gi available). It is safe SOLO
+  with a memory cap and back in the standing rotation (the earlier
+  "owner request only" note was an over-correction; recorded here).
+- Scope: **99 files / +3,883 lines since the slice-245 baseline** had
+  never been analyzed →246 findings; filtered to bug-class checks in
+  CHANGED files = **9** (style/U1000-whisper consts = the known
+  pre-triaged clusters; baseline-presence check proved7 of9 sat on
+  UNCHANGED lines).
+- The 9 → **0**, each by class: **real-looking first (my own code!)**
+  — `health.go ctx = syncAccountContext(ctx)` dead store = the B-21
+  boundary guard (directive documents the contract: value kept
+  deliberately for future uses); syncctx test passing nil = THE
+  contract under test (directive). **Dead code** — bale's empty
+  `LoadDialogs` special-case, matrix's no-op GetSenders loop, pending
+  retry's redundant first assignment (`var delay` now), voicerec's
+  discarded first snapshot (`:=` where it's actually read), telegram's
+  final-offset discard (`_`) + dead default peer (`var` decl). All
+  compile-verified: whole tree **14 ok**.
+- Verification: staticcheck re-run →9→0 with zero directive
+  complaints, total246→237; gofmt/vet/tests green; gate269 = light
+  scope.
+
+No bug rows (nothing behavioral found — every hit was intentional-by-
+design or dead code).

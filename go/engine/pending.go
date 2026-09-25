@@ -786,7 +786,7 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
-			delay := retryDelays[attempt-1]
+			var delay time.Duration
 			if int(attempt-1) < len(retryDelays) {
 				delay = retryDelays[attempt-1]
 			} else {
