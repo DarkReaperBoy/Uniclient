@@ -8605,3 +8605,33 @@ in normal `go test` (CI-visible). RAM rule held (serial,
 Fuzz suite total: **21 targets** (media8 + IRC3 + server-wire5 +
 mumble-URL1 + matrix3 + deltachat1 + webm/vp9anim crasher-regressions
 kept). **B-25 re-probe**: still denied → open.
+
+---
+
+## Slice 262 (2026-09-25) — full validation battery at HEAD
+
+One heavyweight at a time (RAM rule):
+
+1. **Full plain live battery at HEAD: 13 PASS / 0 FAIL / 4 honest
+   SKIPs, live_rc=0** — every non-phone core end-to-end again after
+   the B-26/B-37/B-40 teamspeak changes (skips = github token, B-25
+   flap, voice environment, xmpp register policy — all documented).
+2. **govulncheck re-run against the LIVE database** (deps unchanged
+   since B-15 — verified `git log bf7d3bb2..HEAD -- go.mod` = empty):
+   **0 vulnerabilities in our code** (1 in imported packages + 5 in
+   required modules, none reachable — same profile as the B-15 fix).
+3. **Consistency sweep**: parity machine count **195/2/0/3 = SUM
+   200** ✓; AGENTS phase/claim lines consistent ✓; BUGS invariants
+   (malformed 0, open = B-25/B-6/B-8, F rows = 42) ✓; whole-tree
+   secret scan = the 1 known benign GitHub-PAT placeholder hint in the
+   login UI (verified slice 254; wording avoids reproducing the
+   pattern) ✓.
+4. **TODO scan correction (retracting a slice-254 claim)**: the scan
+   showed 1 — my slice-254 reword to "the *former* TODO" KEPT the
+   token while I recorded "scan now 0" without re-running it. Fixed
+   properly now ("the send-side gap this function closes at
+   tsSendCommand") → **scan re-verified = 0**. Slice-254's claim stands
+   corrected here per the append-only WORKLOG contract.
+
+No new bug rows (all clean). gate262 = light scope; standalone with
+rc check.
