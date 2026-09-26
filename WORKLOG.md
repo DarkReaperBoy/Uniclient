@@ -9046,3 +9046,28 @@ solo/sequential). gate275 = light scope; standalone with rc check.
 
 No new findings → no rows. gate276 = light scope; standalone with
 rc check.
+
+---
+
+## Slice 277 (2026-09-25) — deep fuzz pass on the shallow targets +
+## doc-drift check
+
+1. **Deeper fuzz (30s each, serial, `-parallel=1`) on the eight
+   targets that previously only got 8s**: aacaud **902,274**,
+   FuzzTSCommand **128,511**, FuzzTSPacket **97,952**,
+   FuzzMatrixEventToMessage **101,667**, FuzzTSHandleServerCommand
+   **103,224**, h264vid Parse **451** (heavy per-input allocations —
+   slow but nonzero), FuzzParseRawHeaders **49,424**,
+   FuzzMumbleURL **101,249** — **ALL PASS, zero new crashers** (fuzz
+   dirs still hold exactly the two known regression seeds). RAM ≥7.4Gi
+   available throughout.
+2. **Doc-drift check after the slice-274 deletions**: grepped AGENTS
+   + every research/*.md for all 19 deleted/changed symbols — the only
+   hits are `research/mumble_protocol.md`'s message-ID table and
+   protobuf schemas (QueryUsers/RequestBlob as PROTOCOL messages,
+   which exist on the wire regardless of our implementation) — pure
+   protocol reference, no "we implement" claims → **no drift**.
+3. **B-25 re-probe: still denied → open** (16th consecutive).
+
+No findings → no rows. gate277 = light scope; standalone with rc
+check.
