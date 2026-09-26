@@ -8,6 +8,7 @@
 package tests
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,15 +49,21 @@ func TestGitHubLiveAuthenticateAndFetch(t *testing.T) {
 
 	dialogs, err := core.GetDialogs(cores.PaginationOpts{Limit: 10})
 	if err != nil {
-		t.Logf("GetDialogs: %v (token may lack notifications scope — informational)", err)
-	} else {
-		t.Logf("GetDialogs: %d dialogs", len(dialogs))
-		for i, d := range dialogs {
-			if i >= 5 {
-				break
-			}
-			t.Logf("  - %s (%s)", d.Title, d.ID)
+		// 403 = token scope (environment) → honest Skip; anything else
+		// (rate limit, API failure, decode) is a real defect → FAIL. The
+		// old code only logged here and passed vacuously (slice-279
+		// notice-but-never-fail audit).
+		if errors.Is(err, cores.ErrPermission) {
+			t.Skipf("GetDialogs not permitted for this token (notifications scope): %v", err)
 		}
+		t.Fatalf("GetDialogs: %v", err)
+	}
+	t.Logf("GetDialogs: %d dialogs", len(dialogs))
+	for i, d := range dialogs {
+		if i >= 5 {
+			break
+		}
+		t.Logf("  - %s (%s)", d.Title, d.ID)
 	}
 }
 

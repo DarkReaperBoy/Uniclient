@@ -9104,3 +9104,43 @@ genuinely works — this closes a coverage hole, finds no bug.
 **B-25 re-probe: still denied → open** (17th consecutive).
 
 gate278 = light scope; standalone with rc check.
+
+---
+
+## Slice 279 (2026-09-25) — "notice-but-never-fail" audit across the
+## whole test suite: 28 candidates triaged, 2 real weaknesses fixed
+
+Systematic follow-up of the slice-278 discovery (the log-only Autocrypt
+check): a line scanner over every `*_test.go` for `if err != nil`
+blocks that neither fail, skip, nor log — plus conditions feeding only
+`t.Logf`.
+
+**Triage: 28 candidates → 26 benign** (scanner FPs where the error flows
+into the return value: mumble probe helpers return `"unknown: err"`,
+xmpp `sr.fill()`/stanzaReader propagate, mini-IMAP/SMTP fixtures return
+errors to callers, `readFileLines` returns `(nil, err)`, eventRecorder
+drops invalid JSON by design, TS tolerances each carry an in-line
+rationale — auto-join, B-25 policy probe, documented).
+
+**2 real weaknesses, both fixed (tests-first):
+1. `cores/telegram_business_test.go` — `buildGreeting({})` was guarded
+   by `err != nil || true` with an EMPTY body: a literal no-op asserting
+   nothing. Replaced with the real contract pin: empty map = the CLEAR
+   path must short-circuit before recipient validation (`len(data)==0 →
+   nil, nil`) → `t.Fatalf` if it ever errors. GREEN immediately —
+   production honors the contract.
+2. `tests/github_live_test.go` — `GetDialogs` failure was Logf'd as
+   "informational" and the test ended on a PASS: silent-vacuous. Now
+   classified like the proven B-25 pattern: `errors.Is(err,
+   cores.ErrPermission)` (403 → token scope, environment) → `t.Skipf`,
+   anything else (rate limit/API/decode — a real defect) → `t.Fatalf`.
+   Compiles under `-tags goolm,live`; exercise deferred to a token run
+   (owner's env, like every other github-live path).
+
+Validation: vet (plain + live tag) ✓, `TestBuildGreeting` GREEN on the
+strengthened pin, github test SKIPs cleanly without token, whole tree
+**14 ok**, scanner rerun shows both weaknesses gone.
+
+**B-25 re-probe: still denied → open** (18th consecutive).
+
+gate279 = light scope; standalone with rc check.

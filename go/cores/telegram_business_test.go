@@ -254,9 +254,13 @@ func TestBuildGreeting(t *testing.T) {
 	if _, err := buildGreeting(map[string]interface{}{"contacts": true, "no_activity_days": 10}); err == nil {
 		t.Fatalf("days=10 accepted")
 	}
-	// no recipients
-	if _, err := buildGreeting(map[string]interface{}{}); err != nil || true {
-		// empty map clears before recipient validation
+	// Empty map = the CLEAR path: it must short-circuit before
+	// recipient validation and return no error (buildGreeting's
+	// len(data)==0 contract). The old form of this check was
+	// `err != nil || true` with an empty body — a literal no-op that
+	// asserted nothing (slice-279 notice-but-never-fail audit).
+	if _, err := buildGreeting(map[string]interface{}{}); err != nil {
+		t.Fatalf("empty map must clear before recipient validation, got error: %v", err)
 	}
 	if _, err := buildGreeting(map[string]interface{}{"no_activity_days": 7}); err == nil {
 		t.Fatalf("no recipients accepted")
