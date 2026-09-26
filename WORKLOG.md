@@ -9742,3 +9742,54 @@ gate292 = light scope; standalone with rc check.
 open** (32nd consecutive).
 
 gate293 = light scope; standalone with rc check (LICENSE + docs).
+
+---
+
+## Slice 294 (2026-09-26) — B-6 START: matrix group calls (Tier 1
+## full-mesh), membership layer landed
+
+The last buildable row gets worked instead of waiting (owner: "do all
+the remaining steps"). Multi-slice plan from
+`research/matrix_group_calls.md`, re-verified against the code:
+
+1. **Inventory confirmed**: matrix.go already carries a complete 1:1
+   call stack (invite/answer/candidates/hangup handlers, ICE,
+   `createPeerConnection`, audio send/receive loops on our `wrtc`
+   pion), `SendStateEvent` is in use in8+ places, engine
+   `GetGroupCall`/`GroupCallInfo` + the generic call UI exist — a
+   real `CallSession` from `JoinGroupCall` lights up the rest.
+   mautrix has ZERO group-call code (re-confirmed via the research
+   doc's module grep).
+2. **Design decisions (recorded, not re-litigated later):**
+   - **Tier 1 full-mesh** (no SFU infra; Tier 2 needs a LiveKit
+     deployment this host cannot run — no docker),
+   - **transport = `m.call.*` ROOM events carrying `conf_id`** — a
+     documented deviation from MSC3401's to-device/Olm transport,
+     chosen because the whole 1:1 stack already runs on room events
+     (Olm to-device per-device sessions would be a second crypto
+     project); interop limitation goes in the F-62 row: only other
+     MSC3401 full-mesh clients, NOT Element's modern MatrixRTC path.
+   - membership via `org.matrix.msc3401.call.member` state events
+     (state_key = own MXID) — spec-faithful.
+3. **Slice 294 deliverable — the pure membership layer**
+   (`cores/matrix_groupcall.go` + tests):
+   - wire-shaped content structs (MSC3401's literal dotted JSON keys,
+     pinned by `TestGroupMemberJSONShape` — Go field names must never
+     leak), `Foci` empty = the full-mesh marker;
+   - `liveDevices(now)` — expired devices ignored per spec, **injected
+     now** (F-9 rule: no wall-clock tests);
+   - `matrixNextRenewalAt` = half of the 60 s lease (one dropped
+     state event never expires us mid-call);
+   - `matrixNewConfID` (crypto/rand hex, no empty-id fallback).
+4. **Tests-first**: seam-RED `undefined: matrixCallMemberContent` →
+   GREEN ×5 (round-trip / wire-shape / expiry / renewal / unique id).
+   Also cleaned my own test-file SFT: hand-rolled `contains`/`indexOf`
+   helpers (collision risk package-wide) replaced with
+   `strings.Contains` before the first run.
+5. Validation: gofmt/vet clean, whole tree **14 ok**.
+
+B-6 stays open (membership layer only — transport + mesh + engine/GUI
+light-up + a live two-account proof are the next slices).
+**B-25 re-probe: still denied → open** (33rd consecutive).
+
+gate294 = light scope; standalone with rc check.
