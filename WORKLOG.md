@@ -9203,3 +9203,50 @@ Validation: vet (plain) ✓, touched tests GREEN ± `-race`, whole tree
 **B-25 re-probe: still denied → open** (19th consecutive).
 
 gate280 = light scope; standalone with rc check.
+
+---
+
+## Slice 281 (2026-09-25) — resource-leak + docs-invariants battery;
+## release-version regression found and documented
+
+New audit class, then a full re-check of the standing machine
+invariants (re-check-the-checker applied to my own parsers):
+
+1. **Ticker/`time.After` leak scan (prod)**: `time.NewTicker` without
+   `.Stop()` within 60 lines: **0**. `time.After` inside loops: 11 raw
+   hits → triaged **0 real leaks** — 3 scanner FPs from brace-crossing
+   (engine.go:1394, telegram 7281/7907: the matched `time.After` sits
+   outside the reported loop), 1 method-call FP
+   (`sorted[i].time.After(sorted[j].time)` = `time.Time.After`), the
+   rest are bounded sliding-window patterns (drain/data-timeout reset
+   per message — each timer fires at ≤500 ms and the GC reaps it;
+   worst case = arrival-rate × window, negligible), plus once-outside
+   creation (`drainTimer := time.After(2s)` before the loop) and slow
+   backoff loops (irc reconnect).
+2. **`go mod tidy -diff`: rc=0** — go.mod/go.sum exactly tidy.
+3. **Parity invariant**: my first recount said SUM **199** → the
+   checker was wrong, not the table: row 215's status is
+   `CORE-ONLY-BY-DESIGN (...)` and exact-token matching missed it while
+   the canonical parser prefixes. Prefix recount: PRESENT **195** +
+   PARTIAL **2** + MISSING **0** + CORE-ONLY **3** = **200** ✓ (200
+   data rows confirmed independently). Six NF≠7 rows are pipes inside
+   long cells — status is still col 4, parser unaffected.
+4. **Release version regression (real finding, documented)**: git
+   facts — v0.10.0 (09-14), v0.10.1 (09-15), v0.10.2 (09-16) are all
+   ancestors, then v0.9.1 was cut 09-23 (63 commits after v0.9.0,
+   71 after v0.10.2). Semver now reads 0.10.2 > 0.9.1 while 0.9.1 is
+   the newest tag → version-ordered upgrade checks would offer 0.10.2
+   as "latest". Tags/releases stay immutable (published); AGENTS's
+   current-release paragraph corrected in place with the history kept
+   visible: **next release must be ≥ v0.10.3**, still prerelease until
+   the owner approves.
+5. **Fuzz-target count drift**: `grep -rh '^func Fuzz'` = **22**
+   functions (enumerated: media10 incl. lottie/qrscan pairs + engine ogg
+   + cores12) vs the historical slice entry's "21 targets" split
+   (WORKLOG:8605 — its breakdown double-counts MumbleURL and predates
+   later additions). Historical entries stay append-only; current fact:
+   **22 fuzz functions**.
+6. **B-25 re-probe: still denied → open** (20th consecutive).
+
+No production code changed (docs only). gate281 = light scope;
+standalone with rc check.

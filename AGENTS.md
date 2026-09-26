@@ -21,7 +21,16 @@ Current phase: **stability / bug hunt** (standing, from 2026-09-23).
 Feature work is DONE: AyuGram parity closed at **195/200 PRESENT**
 (both slice-235 audit corrections re-wired and behaviorally tested:
 row 153 paid wall → F-16, row 44 signup card → F-17) and
-release **v0.9.1** shipped (all five release jobs green). Sessions now
+release **v0.9.1** shipped (all five release jobs green). **Version-
+sequence note (slice 281 correction):** the release history is not
+monotonic — v0.10.0/v0.10.1 (2026-09-14/15) and v0.10.2 (2026-09-16)
+shipped BEFORE v0.9.1 (2026-09-23), which was cut 63 commits after
+v0.9.0 without checking that v0.10.x already existed (semver now reads
+0.10.2 > 0.9.1 while 0.9.1 is the newest tag — upgrade checks that
+order by version would see 0.10.2 as "newer"). Published tags/releases
+stay immutable; **the next release must be ≥ v0.10.3** (e.g. v0.10.3
+or v0.11.0) to restore ordering, still `prerelease: true` until the
+owner approves. Sessions now
 work from the open list in **`BUGS.md`** plus anything they find on the
 way; §11 carries the standing item. All GitHub releases must be marked
 `prerelease: true` until the owner says otherwise.
