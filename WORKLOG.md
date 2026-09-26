@@ -9289,3 +9289,43 @@ New audit class: **user-data files written non-atomically**.
 **B-25 re-probe: still denied → open** (21st consecutive).
 
 gate282 = light scope; standalone with rc check.
+
+---
+
+## Slice 283 (2026-09-25) — B-53/F-53: uncapped Matrix media download
+## (hostile-homeserver OOM) — the only uncapped response in the codebase
+
+Continuing the slice-282 data-class audit with **response-size caps**.
+
+1. **Triage first (library-verified, not assumed)**: traced mautrix
+   v0.30.0 source: `readResponseBody` enforces
+   `ResponseSizeLimit` (default `DefaultResponseSizeLimit` = 512 MiB,
+   errors at 512 KiB for error bodies) — so all normal API calls ARE
+   capped. BUT `DownloadWithParams` (the media path our
+   `DownloadFile` used via `DownloadBytes`) passes
+   `DontReadResponse: true` → body returned streamed →
+   `readResponseBody` never runs → `DownloadBytes` does a bare
+   `io.ReadAll(resp.Body)` = **uncapped server-controlled read**.
+   Engine's own download limits (10/50 MiB) run AFTER the fetch — no
+   protection. Our codebase has exactly ONE such site (matrix.go:1044);
+   other WriteFile/size paths audited in slice 282 remain exports +
+   caches.
+2. **Tests-first, RED captured both ways**: `TestDownloadFile-
+   CapsHostileBody` (httptest homeserver, ceiling overridden to 1 KiB,
+   4 KiB body; asserts size-limit error AND dest not written) +
+   `TestDownloadFileSmallBodyPasses` (byte-exact happy path).
+   Seam-RED: `vet: cores/matrix_download_test.go:31:9: undefined:
+   matrixMediaMaxBytes`. Behavioral RED: swapped `DownloadBytes` back
+   in with the cap var present → `oversized body: err = <nil>, want
+   size-limit error` (the old path also WROTE dest).
+3. **Fix**: `Download` + `io.ReadAll(io.LimitReader(body,
+   matrixMediaMaxBytes+1))` → `ErrMediaTooLarge` (nothing written);
+   ceiling `matrixMediaMaxBytes` = 512 MiB = exactly what every other
+   mautrix response already enforces → zero behavior change for legit
+   files, unbounded → bounded for hostile ones.
+4. **Validation**: both tests GREEN, `-race` on them, gofmt/vet clean,
+   whole tree **14 ok**. BUGS **F-53** row (5-pipe invariant).
+
+**B-25 re-probe: still denied → open** (22nd consecutive).
+
+gate283 = light scope; standalone with rc check.

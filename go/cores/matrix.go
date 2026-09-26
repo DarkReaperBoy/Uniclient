@@ -1014,6 +1014,18 @@ func (m *MatrixCore) UploadFile(chatID string, file FileUpload, progress func(se
 	}, nil
 }
 
+// matrixMediaMaxBytes is the hard ceiling for a single media download.
+// The mautrix Download path streams the body (DontReadResponse), which
+// BYPASSES mautrix's own DefaultResponseSizeLimit — without this cap a
+// hostile homeserver could stream an unbounded body and OOM the client
+// (slice-283). 512 MiB matches the ceiling every other mautrix
+// response in this client already has; the test overrides it downward.
+var matrixMediaMaxBytes int64 = 512 * 1024 * 1024
+
+// ErrMediaTooLarge is returned when a media body exceeds
+// matrixMediaMaxBytes; dest is not written in that case.
+var ErrMediaTooLarge = errors.New("matrix: media exceeds size limit")
+
 // DownloadFile downloads a file from Matrix to a local path, with progress reporting.
 func (m *MatrixCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
 	if !m.authed {
@@ -1041,9 +1053,18 @@ func (m *MatrixCore) DownloadFile(fileRef FileRef, dest string, progress func(re
 		return fmt.Errorf("parse mxc URI: %w", err)
 	}
 
-	data, err := m.client.DownloadBytes(m.ctx, mxcURI)
+	resp, err := m.client.Download(m.ctx, mxcURI)
 	if err != nil {
 		return fmt.Errorf("download: %w", err)
+	}
+	defer resp.Body.Close()
+	// Read at most ceiling+1 so the oversize check can be exact.
+	data, err := io.ReadAll(io.LimitReader(resp.Body, matrixMediaMaxBytes+1))
+	if err != nil {
+		return fmt.Errorf("read media: %w", err)
+	}
+	if int64(len(data)) > matrixMediaMaxBytes {
+		return ErrMediaTooLarge
 	}
 
 	// Decrypt if encrypted file info is present
