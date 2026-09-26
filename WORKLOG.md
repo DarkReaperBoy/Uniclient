@@ -9410,3 +9410,57 @@ New audit class: **hang + TLS verification** across all prod code.
 **B-25 re-probe: still denied → open** (24th consecutive).
 
 gate285 = light scope; standalone with rc check (docs row only).
+
+---
+
+## Slice 286 (2026-09-26) — B-57 → F-57: mumble TOFU verification
+## (PKI + pinned fingerprints), tests-first, live-proven
+
+**Correction (append-only):** the slice-285 commit message claimed
+"8 B rows" at verification time — the machine check in that same
+slice printed **5** (B-25, B-57, B-50, B-6, B-8). The BUGS.md shape
+check is the authority; commit messages are immutable and can be
+wrong. (B-57 has since moved to F-57, so the open count is now 4.)
+
+**The fix** (design decided technically, no owner input needed):
+- Dial layer KEEPS `InsecureSkipVerify` — the slice-285 Go probe
+  proved strict-by-default would break even the default live server
+  (`certificate is not valid for any names`) plus common self-signed
+  setups. Verification moves AFTER the handshake inside `connect()`:
+  `peer.Verify(x509.VerifyOptions{DNSName: host})` first (PKI-valid =
+  accepted silently), then trust-on-first-use: fingerprint
+  (`mumblePeerCertHash`, SHA-1 of DER — same scheme as the client
+  cert hash) checked against `mumbleSessionData.ServerPins` (account
+  SessionStore persistence; in-memory `serverPins` fallback when
+  Session is nil), accepted on match, **refused on mismatch** with
+  both fingerprints + `UNICLIENT_MUMBLE_RESET_PIN=1` re-pin path for
+  legitimate server rotation — all BEFORE a single mumble byte is
+  sent (wiring scan asserts dial → check → first-send line order).
+
+**Tests-first, three RED forms captured:**
+1. seam-RED: `vet: cores/mumble_tofu_test.go:56:26: undefined:
+   mumbleServerTOFU` (test file first).
+2. **behavioral RED on the clobber risk** (the bug I predicted while
+   reading `saveSession`): `pin wiped by cert save:
+   ServerPins=map[]` — saveSession rebuilt the struct from scratch →
+   load-merge fix quoted in-code.
+3. scanner self-caught: the wiring scan's first version matched the
+   `mumbleServerTOFU(` function DEFINITION (offset 61715 < dial
+   76646) instead of the call → fixed to search after the dial marker;
+   logged positions now `dial=76646 check=77592 send=78251`.
+
+Also caught pre-result: `Verify` returns `(chain, error)` not bare
+error (compile, fixed immediately); two earlier test-author bugs
+(fake cert bytes rejected by `tls.X509KeyPair` → real self-signed DER
+in-test; nonexistent `x509.CertificateSubject` type → `pkix.Name`).
+
+**Validation:** 7-case decision table + pin-merge + wiring GREEN,
+`-race` green, gofmt/vet clean, whole tree **14 ok**, and the decisive
+non-regression proof: **live `TestMumbleLiveConnectChain` PASS**
+(1.09s) against the real self-signed server — first-use pin stores
+without lockout. BUGS: B-57 removed from Open, **F-57** added
+(shapes verified: 4 open / 57 fixed).
+
+**B-25 re-probe: still denied → open** (25th consecutive).
+
+gate286 = light scope; standalone with rc check.

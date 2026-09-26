@@ -2513,8 +2513,9 @@ type MumbleCodecVersionEvent struct {
 
 // Session data for persistence
 type mumbleSessionData struct {
-	CertPEM string `json:"cert_pem"`
-	KeyPEM  string `json:"key_pem"`
+	CertPEM    string            `json:"cert_pem"`
+	KeyPEM     string            `json:"key_pem"`
+	ServerPins map[string]string `json:"server_pins,omitempty"` // TOFU: hostPort → SHA1 of the server cert (B-57)
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2537,6 +2538,7 @@ type MumbleCore struct {
 	certHash    string
 	tlsCert     tls.Certificate
 	Session     *utils.SessionStore
+	serverPins  map[string]string // in-memory TOFU pins when Session is nil (guarded by mu)
 
 	// server info
 	serverVersion   mumbleVersion
@@ -2687,6 +2689,82 @@ func mumbleCertHash(cert tls.Certificate) string {
 	return hex.EncodeToString(h[:])
 }
 
+// mumblePeerCertHash fingerprints a server certificate (SHA-1 of the
+// DER — same scheme as mumbleCertHash uses for the client cert).
+func mumblePeerCertHash(cert *x509.Certificate) string {
+	h := sha1.Sum(cert.Raw)
+	return hex.EncodeToString(h[:])
+}
+
+// mumbleServerTOFU decides whether to accept the server certificate
+// and whether its fingerprint must be stored. verifyErr is the PKI
+// verification result (nil = publicly verifiable); storedPin/hasPin
+// come from the TOFU store; reset forces a re-pin (server rotation or
+// deliberate trust change). Message is "" on silent accepts. B-57 →
+// F-57: keeps self-signed servers working (the dial layer stays
+// InsecureSkipVerify — even the default live server fails x509) while
+// a network MITM is refused on pin mismatch.
+func mumbleServerTOFU(verifyErr error, fp, storedPin string, hasPin, reset bool) (accept bool, store bool, msg string) {
+	if verifyErr == nil {
+		return true, false, ""
+	}
+	if reset {
+		return true, true, "reset: re-pinned " + fp
+	}
+	switch {
+	case !hasPin:
+		return true, true, "first use: pinned " + fp
+	case storedPin == fp:
+		return true, false, ""
+	default:
+		return false, false, "changed since first use (pinned " + storedPin + ", got " + fp +
+			") — possible MITM; if the server was legitimately reinstalled, reconnect with " +
+			"UNICLIENT_MUMBLE_RESET_PIN=1 to trust the new certificate"
+	}
+}
+
+// loadServerPin returns the pinned fingerprint for hostPort, preferring
+// the account Session (persistent) with the in-memory fallback when no
+// store is configured.
+func (c *MumbleCore) loadServerPin(hostPort string) (string, bool) {
+	if c.Session != nil {
+		var sess mumbleSessionData
+		if err := c.Session.Load(&sess); err == nil && sess.ServerPins != nil {
+			if p, ok := sess.ServerPins[hostPort]; ok {
+				return p, true
+			}
+		}
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	p, ok := c.serverPins[hostPort]
+	return p, ok
+}
+
+// storeServerPin records fp for hostPort in both stores (memory always;
+// Session persistently), merging into whatever is already saved so the
+// client cert and the pins never clobber each other.
+func (c *MumbleCore) storeServerPin(hostPort, fp string) error {
+	c.mu.Lock()
+	if c.serverPins == nil {
+		c.serverPins = make(map[string]string)
+	}
+	c.serverPins[hostPort] = fp
+	c.mu.Unlock()
+	if c.Session == nil {
+		return nil
+	}
+	var sess mumbleSessionData
+	if err := c.Session.Load(&sess); err != nil {
+		sess = mumbleSessionData{}
+	}
+	if sess.ServerPins == nil {
+		sess.ServerPins = make(map[string]string)
+	}
+	sess.ServerPins[hostPort] = fp
+	return c.Session.Save(sess)
+}
+
 func (c *MumbleCore) loadSession() error {
 	if c.Session == nil {
 		return fmt.Errorf("no session store")
@@ -2727,6 +2805,13 @@ func (c *MumbleCore) saveSession() error {
 	}
 	if c.Session == nil {
 		return nil
+	}
+	// Merge, don't clobber: this save used to rebuild the struct from
+	// scratch, which wiped any TOFU server pins written earlier
+	// (behavioral RED: `pin wiped by cert save`, slice-286).
+	var prev mumbleSessionData
+	if err := c.Session.Load(&prev); err == nil {
+		sess.ServerPins = prev.ServerPins
 	}
 	return c.Session.Save(sess)
 }
@@ -3191,6 +3276,35 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 	conn, err := tls.DialWithDialer(dialer, "tcp", hostPort, tlsCfg)
 	if err != nil {
 		return fmt.Errorf("mumble: TLS connect failed: %w", err)
+	}
+
+	// B-57 → F-57: the dial layer keeps InsecureSkipVerify (mumble
+	// servers are overwhelmingly self-signed — even the default live
+	// server fails x509, slice-285 probe), so verification happens
+	// HERE: PKI first, then trust-on-first-use pins from the account
+	// Session (in-memory fallback). A mismatched pin refuses the
+	// connection BEFORE a single mumble byte is sent (server rotation:
+	// reconnect with UNICLIENT_MUMBLE_RESET_PIN=1).
+	state := conn.ConnectionState()
+	if len(state.PeerCertificates) == 0 {
+		conn.Close()
+		return fmt.Errorf("mumble: server sent no certificate")
+	}
+	peerFP := mumblePeerCertHash(state.PeerCertificates[0])
+	_, verifyErr := state.PeerCertificates[0].Verify(x509.VerifyOptions{DNSName: host})
+	storedPin, hasPin := c.loadServerPin(hostPort)
+	accept, storePin, msg := mumbleServerTOFU(verifyErr, peerFP, storedPin, hasPin, os.Getenv("UNICLIENT_MUMBLE_RESET_PIN") != "")
+	if !accept {
+		conn.Close()
+		return fmt.Errorf("mumble: server certificate %s", msg)
+	}
+	if storePin {
+		if err := c.storeServerPin(hostPort, peerFP); err != nil && mumbleDebug {
+			fmt.Printf("[mumble] pin store failed: %v\n", err)
+		}
+	}
+	if msg != "" && mumbleDebug {
+		fmt.Printf("[mumble] server cert: %s\n", msg)
 	}
 
 	c.mu.Lock()
