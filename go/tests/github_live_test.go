@@ -63,9 +63,6 @@ func TestGitHubLiveAuthenticateAndFetch(t *testing.T) {
 // envToken reads the live-test token from the environment.
 func envToken() string { return os.Getenv("GITHUB_LIVE_TOKEN") }
 
-// osGetenv reads a variable from the environment.
-func osGetenv(key string) string { return os.Getenv(key) }
-
 // osGetenvDefault reads a variable or falls back to a default.
 func osGetenvDefault(key, def string) string {
 	if v := os.Getenv(key); v != "" {

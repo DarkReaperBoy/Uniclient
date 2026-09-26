@@ -18,9 +18,6 @@ import (
 	"uniclient/utils"
 )
 
-// Engine returns the engine started by Init. Nil before the first Init.
-func Engine() *engine.Engine { return eng }
-
 var eng *engine.Engine
 
 // supportedPlatforms is every platform the core factory can construct.

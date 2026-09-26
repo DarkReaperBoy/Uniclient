@@ -8956,3 +8956,46 @@ gate272 = light scope; standalone with rc check.
   `*bold*` markers — readable, feature-adjacent, owner's call).
 
 gate273 = light scope; standalone with rc check.
+
+---
+
+## Slice 274 (2026-09-25) — deadcode worklist executed: 17 → 1
+
+- **B-25 re-probe: still denied → open** (13th consecutive).
+- **DELETED** (zero callers verified + vet/compiler proof): mumble's
+  dead admin/query family — GetACL, SetACL, GetPermissions, QueryUsers,
+  GetRegisteredUsers, GetUserStats, UnregisterUser + the 4 message
+  types with their marshal/unmarshal + the 4 EMPTY response router
+  cases whose comments claimed "handled inline" (they handled nothing —
+  GetACL literally always returned `(nil, nil)`) + 2 orphan pb
+  primitives + MumbleServerPing + MumbleResolveSRV + orphan
+  MumbleACLGroup/ACLEntry; xmpp ConsistentColor (GUI has its own
+  `senderColorFor`) + HashElement; bootstrap.Engine accessor;
+  RenderTrayIconSample (tooling seam with zero tooling); vp9anim
+  HasAlpha (unread getter).
+- **SELF-CAUGHT over-deletion (vet caught it): RequestBlob was
+  called INTERNALLY** (channel-description/user-comment fetch at3 sites)
+  — my zero-caller grep had only excluded out-of-file callers. Lesson:
+  scope dead-API greps to INTERNAL+external. Restored the cluster
+  (type + marshal + func) from git history at its original anchors;
+  mumble.go then vet-clean. Also learned GetUserStats's only neighbor
+  "caller" was a DIFFERENT receiver (`auth.UnregisterUser`) —
+  confirmed dead.
+- **ACTIVATED** instead of deleted: `DetectVoiceActivity` (pure RMS
+  gate → new threshold test; **my own first pin used MEAN math
+  (3000/480≈6.3) — the impl's RMS (√(3000²/480)≈136.9) is correct,
+  RED caught my oracle**) and the Jingle XEP codec tables (pin test,
+  B-18 table doctrine).
+- **CAUGHT BY THE GATE: MumbleServerPing was LIVE after all** — used
+  by `tests/mumble_live_test.go` behind the `live` build tag, which
+  deadcode's default tags cannot see (the B-45 lesson, now in the
+  analyzer itself). Restored from git history at its original
+  neighbourhood. **Tool rule recorded: deadcode must run with
+  `-tags goolm,live`**; re-ran with both tags → true remaining list =
+  2: `ParseMessageStyling` (B-50, intentional) + an unused
+  `osGetenv` test helper (deleted; `osGetenvDefault` is used
+  everywhere and stays). vet verified under BOTH tag sets + live-test
+  compile check.
+- Whole tree **14 ok**, vet/gofmt clean.
+
+gate274 = light scope; standalone with rc check.

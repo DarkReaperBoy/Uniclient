@@ -363,14 +363,6 @@ func (e *pbEncoder) writeRepeatedString(field int, vs []string) {
 	}
 }
 
-func (e *pbEncoder) writeRepeatedBytes(field int, vs [][]byte) {
-	for _, v := range vs {
-		e.writeTag(field, 2)
-		e.writeVarint(uint64(len(v)))
-		e.buf.Write(v)
-	}
-}
-
 func (e *pbEncoder) writeRepeatedFloat(field int, vs []float32) {
 	for _, v := range vs {
 		e.writeTag(field, 5)
@@ -452,15 +444,6 @@ func (d *pbDecoder) readFixed32() (uint32, error) {
 	}
 	v := binary.LittleEndian.Uint32(d.data[d.pos:])
 	d.pos += 4
-	return v, nil
-}
-
-func (d *pbDecoder) readFixed64() (uint64, error) {
-	if d.pos+8 > len(d.data) {
-		return 0, io.ErrUnexpectedEOF
-	}
-	v := binary.LittleEndian.Uint64(d.data[d.pos:])
-	d.pos += 8
 	return v, nil
 }
 
@@ -2110,277 +2093,6 @@ func (m *mumblePermissionQueryMsg) unmarshal(data []byte) error {
 	return nil
 }
 
-// ACL message
-type MumbleACLMsg struct {
-	ChannelID   uint32
-	InheritACLs bool
-	Groups      []MumbleACLGroup
-	ACLs        []MumbleACLEntry
-	Query       bool
-}
-
-type MumbleACLGroup struct {
-	Name             string
-	Inherited        bool
-	Inherit          bool
-	Inheritable      bool
-	Add              []uint32
-	Remove           []uint32
-	InheritedMembers []uint32
-}
-
-type MumbleACLEntry struct {
-	ApplyHere bool
-	ApplySubs bool
-	Inherited bool
-	UserID    uint32
-	Group     string
-	Grant     uint32
-	Deny      uint32
-	HasUserID bool
-}
-
-func (m *MumbleACLMsg) marshal() []byte {
-	var e pbEncoder
-	e.writeUint32Always(1, m.ChannelID)
-	if m.InheritACLs {
-		e.writeBoolAlways(2, m.InheritACLs)
-	}
-	for _, g := range m.Groups {
-		var sub pbEncoder
-		sub.writeString(1, g.Name)
-		sub.writeBoolAlways(2, g.Inherited)
-		sub.writeBoolAlways(3, g.Inherit)
-		sub.writeBoolAlways(4, g.Inheritable)
-		sub.writeRepeatedUint32(5, g.Add)
-		sub.writeRepeatedUint32(6, g.Remove)
-		sub.writeRepeatedUint32(7, g.InheritedMembers)
-		e.writeSubmessage(3, &sub)
-	}
-	for _, a := range m.ACLs {
-		var sub pbEncoder
-		sub.writeBoolAlways(1, a.ApplyHere)
-		sub.writeBoolAlways(2, a.ApplySubs)
-		sub.writeBoolAlways(3, a.Inherited)
-		if a.HasUserID {
-			sub.writeUint32Always(4, a.UserID)
-		}
-		sub.writeString(5, a.Group)
-		sub.writeUint32(6, a.Grant)
-		sub.writeUint32(7, a.Deny)
-		e.writeSubmessage(4, &sub)
-	}
-	e.writeBool(5, m.Query)
-	return e.bytes()
-}
-
-func (m *MumbleACLMsg) unmarshal(data []byte) error {
-	d := newPBDecoder(data)
-	for d.remaining() > 0 {
-		field, wt, err := d.readTag()
-		if err != nil {
-			return err
-		}
-		switch field {
-		case 1:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.ChannelID = uint32(v)
-		case 2:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.InheritACLs = v != 0
-		case 3:
-			b, err := d.readBytes()
-			if err != nil {
-				return err
-			}
-			var g MumbleACLGroup
-			g.Inherited = true
-			g.Inherit = true
-			g.Inheritable = true // defaults
-			sd := newPBDecoder(b)
-			for sd.remaining() > 0 {
-				sf, swt, serr := sd.readTag()
-				if serr != nil {
-					return serr
-				}
-				switch sf {
-				case 1:
-					s, e := sd.readString()
-					if e != nil {
-						return e
-					}
-					g.Name = s
-				case 2:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					g.Inherited = v != 0
-				case 3:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					g.Inherit = v != 0
-				case 4:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					g.Inheritable = v != 0
-				case 5:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					g.Add = append(g.Add, uint32(v))
-				case 6:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					g.Remove = append(g.Remove, uint32(v))
-				case 7:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					g.InheritedMembers = append(g.InheritedMembers, uint32(v))
-				default:
-					if e := sd.skipField(swt); e != nil {
-						return e
-					}
-				}
-			}
-			m.Groups = append(m.Groups, g)
-		case 4:
-			b, err := d.readBytes()
-			if err != nil {
-				return err
-			}
-			var a MumbleACLEntry
-			a.ApplyHere = true
-			a.ApplySubs = true
-			a.Inherited = true // defaults
-			sd := newPBDecoder(b)
-			for sd.remaining() > 0 {
-				sf, swt, serr := sd.readTag()
-				if serr != nil {
-					return serr
-				}
-				switch sf {
-				case 1:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					a.ApplyHere = v != 0
-				case 2:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					a.ApplySubs = v != 0
-				case 3:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					a.Inherited = v != 0
-				case 4:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					a.UserID = uint32(v)
-					a.HasUserID = true
-				case 5:
-					s, e := sd.readString()
-					if e != nil {
-						return e
-					}
-					a.Group = s
-				case 6:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					a.Grant = uint32(v)
-				case 7:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					a.Deny = uint32(v)
-				default:
-					if e := sd.skipField(swt); e != nil {
-						return e
-					}
-				}
-			}
-			m.ACLs = append(m.ACLs, a)
-		case 5:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.Query = v != 0
-		default:
-			if err := d.skipField(wt); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-type mumbleQueryUsersMsg struct {
-	IDs   []uint32
-	Names []string
-}
-
-func (m *mumbleQueryUsersMsg) marshal() []byte {
-	var e pbEncoder
-	e.writeRepeatedUint32(1, m.IDs)
-	e.writeRepeatedString(2, m.Names)
-	return e.bytes()
-}
-
-func (m *mumbleQueryUsersMsg) unmarshal(data []byte) error {
-	d := newPBDecoder(data)
-	for d.remaining() > 0 {
-		field, wt, err := d.readTag()
-		if err != nil {
-			return err
-		}
-		switch field {
-		case 1:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.IDs = append(m.IDs, uint32(v))
-		case 2:
-			s, err := d.readString()
-			if err != nil {
-				return err
-			}
-			m.Names = append(m.Names, s)
-		default:
-			if err := d.skipField(wt); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 // BanList message
 type mumbleBanListMsg struct {
 	Bans  []MumbleBanEntry
@@ -2499,90 +2211,11 @@ func (m *mumbleBanListMsg) unmarshal(data []byte) error {
 	return nil
 }
 
-// UserList message
-type mumbleUserListMsg struct {
-	Users []mumbleUserListEntry
-}
-
 type mumbleUserListEntry struct {
 	UserID      uint32
 	Name        string
 	LastSeen    string
 	LastChannel uint32
-}
-
-func (m *mumbleUserListMsg) marshal() []byte {
-	var e pbEncoder
-	for _, u := range m.Users {
-		var sub pbEncoder
-		sub.writeUint32Always(1, u.UserID)
-		sub.writeString(2, u.Name)
-		sub.writeString(3, u.LastSeen)
-		sub.writeUint32(4, u.LastChannel)
-		e.writeSubmessage(1, &sub)
-	}
-	return e.bytes()
-}
-
-func (m *mumbleUserListMsg) unmarshal(data []byte) error {
-	d := newPBDecoder(data)
-	for d.remaining() > 0 {
-		field, wt, err := d.readTag()
-		if err != nil {
-			return err
-		}
-		switch field {
-		case 1:
-			b, err := d.readBytes()
-			if err != nil {
-				return err
-			}
-			var u mumbleUserListEntry
-			sd := newPBDecoder(b)
-			for sd.remaining() > 0 {
-				sf, swt, serr := sd.readTag()
-				if serr != nil {
-					return serr
-				}
-				switch sf {
-				case 1:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					u.UserID = uint32(v)
-				case 2:
-					s, e := sd.readString()
-					if e != nil {
-						return e
-					}
-					u.Name = s
-				case 3:
-					s, e := sd.readString()
-					if e != nil {
-						return e
-					}
-					u.LastSeen = s
-				case 4:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					u.LastChannel = uint32(v)
-				default:
-					if e := sd.skipField(swt); e != nil {
-						return e
-					}
-				}
-			}
-			m.Users = append(m.Users, u)
-		default:
-			if err := d.skipField(wt); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // VoiceTarget message
@@ -2617,249 +2250,11 @@ func (m *mumbleVoiceTargetMsg) marshal() []byte {
 	return e.bytes()
 }
 
-// UserStats message
-type mumbleUserStatsMsg struct {
-	Session           uint32
-	StatsOnly         bool
-	Certificates      [][]byte
-	FromClient        *mumblePacketStats
-	FromServer        *mumblePacketStats
-	UDPPackets        uint32
-	TCPPackets        uint32
-	UDPPingAvg        float32
-	UDPPingVar        float32
-	TCPPingAvg        float32
-	TCPPingVar        float32
-	Version           *mumbleVersion
-	CELTVersions      []int32
-	Address           []byte
-	Bandwidth         uint32
-	OnlineSecs        uint32
-	IdleSecs          uint32
-	StrongCertificate bool
-	Opus              bool
-}
-
 type mumblePacketStats struct {
 	Good   uint32
 	Late   uint32
 	Lost   uint32
 	Resync uint32
-}
-
-func (m *mumbleUserStatsMsg) marshal() []byte {
-	var e pbEncoder
-	e.writeUint32Always(1, m.Session)
-	e.writeBool(2, m.StatsOnly)
-	return e.bytes()
-}
-
-func (m *mumbleUserStatsMsg) unmarshal(data []byte) error {
-	d := newPBDecoder(data)
-	for d.remaining() > 0 {
-		field, wt, err := d.readTag()
-		if err != nil {
-			return err
-		}
-		switch field {
-		case 1:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.Session = uint32(v)
-		case 2:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.StatsOnly = v != 0
-		case 3:
-			b, err := d.readBytes()
-			if err != nil {
-				return err
-			}
-			m.Certificates = append(m.Certificates, b)
-		case 4:
-			b, err := d.readBytes()
-			if err != nil {
-				return err
-			}
-			m.FromClient = &mumblePacketStats{}
-			sd := newPBDecoder(b)
-			for sd.remaining() > 0 {
-				sf, swt, serr := sd.readTag()
-				if serr != nil {
-					return serr
-				}
-				switch sf {
-				case 1:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					m.FromClient.Good = uint32(v)
-				case 2:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					m.FromClient.Late = uint32(v)
-				case 3:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					m.FromClient.Lost = uint32(v)
-				case 4:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					m.FromClient.Resync = uint32(v)
-				default:
-					if e := sd.skipField(swt); e != nil {
-						return e
-					}
-				}
-			}
-		case 5:
-			b, err := d.readBytes()
-			if err != nil {
-				return err
-			}
-			m.FromServer = &mumblePacketStats{}
-			sd := newPBDecoder(b)
-			for sd.remaining() > 0 {
-				sf, swt, serr := sd.readTag()
-				if serr != nil {
-					return serr
-				}
-				switch sf {
-				case 1:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					m.FromServer.Good = uint32(v)
-				case 2:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					m.FromServer.Late = uint32(v)
-				case 3:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					m.FromServer.Lost = uint32(v)
-				case 4:
-					v, e := sd.readVarint()
-					if e != nil {
-						return e
-					}
-					m.FromServer.Resync = uint32(v)
-				default:
-					if e := sd.skipField(swt); e != nil {
-						return e
-					}
-				}
-			}
-		case 6:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.UDPPackets = uint32(v)
-		case 7:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.TCPPackets = uint32(v)
-		case 8:
-			v, err := d.readFixed32()
-			if err != nil {
-				return err
-			}
-			m.UDPPingAvg = math.Float32frombits(v)
-		case 9:
-			v, err := d.readFixed32()
-			if err != nil {
-				return err
-			}
-			m.UDPPingVar = math.Float32frombits(v)
-		case 10:
-			v, err := d.readFixed32()
-			if err != nil {
-				return err
-			}
-			m.TCPPingAvg = math.Float32frombits(v)
-		case 11:
-			v, err := d.readFixed32()
-			if err != nil {
-				return err
-			}
-			m.TCPPingVar = math.Float32frombits(v)
-		case 12:
-			b, err := d.readBytes()
-			if err != nil {
-				return err
-			}
-			m.Version = &mumbleVersion{}
-			if err := m.Version.unmarshal(b); err != nil {
-				return err
-			}
-		case 13:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.CELTVersions = append(m.CELTVersions, int32(v))
-		case 14:
-			b, err := d.readBytes()
-			if err != nil {
-				return err
-			}
-			m.Address = b
-		case 15:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.Bandwidth = uint32(v)
-		case 16:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.OnlineSecs = uint32(v)
-		case 17:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.IdleSecs = uint32(v)
-		case 18:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.StrongCertificate = v != 0
-		case 19:
-			v, err := d.readVarint()
-			if err != nil {
-				return err
-			}
-			m.Opus = v != 0
-		default:
-			if err := d.skipField(wt); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 type mumbleRequestBlobMsg struct {
@@ -4185,18 +3580,6 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 			c.mu.Unlock()
 		}
 
-	case mumbleMsgUserList:
-		// Handled by the caller that requested it
-		// Store for GetRegisteredUsers
-
-	case mumbleMsgUserStats:
-		// Handled by the caller that requested it
-
-	case mumbleMsgQueryUsers:
-		// Response — handled inline
-
-	case mumbleMsgACL:
-		// Response — handled inline
 	}
 }
 
@@ -4765,48 +4148,6 @@ func (c *MumbleCore) GetGroupCall(chatID string) (*CallSession, error) {
 // ════════════════════════════════════════════════════════════════════════════════
 // Server Query (Unauthenticated UDP Ping)
 // ════════════════════════════════════════════════════════════════════════════════
-
-// ServerPing sends an unauthenticated UDP ping and returns server info.
-func MumbleServerPing(addr string) (version [4]byte, users, maxUsers, bandwidth uint32, err error) {
-	host, port, splitErr := net.SplitHostPort(addr)
-	if splitErr != nil {
-		host = addr
-		port = strconv.Itoa(mumbleDefaultPort)
-	}
-
-	conn, err := net.DialTimeout("udp", net.JoinHostPort(host, port), 5*time.Second)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	// Send 12-byte request: 4 zero bytes + 8 ident bytes
-	var req [12]byte
-	rand.Read(req[4:]) // random ident
-	conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
-	if _, err = conn.Write(req[:]); err != nil {
-		return
-	}
-
-	// Read 24-byte response
-	var resp [24]byte
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	n, readErr := conn.Read(resp[:])
-	if readErr != nil {
-		err = readErr
-		return
-	}
-	if n < 24 {
-		err = fmt.Errorf("mumble: server ping response too short: %d bytes", n)
-		return
-	}
-
-	copy(version[:], resp[0:4])
-	users = binary.BigEndian.Uint32(resp[12:16])
-	maxUsers = binary.BigEndian.Uint32(resp[16:20])
-	bandwidth = binary.BigEndian.Uint32(resp[20:24])
-	return
-}
 
 // ════════════════════════════════════════════════════════════════════════════════
 // Core Interface Implementation
@@ -6038,20 +5379,6 @@ func (c *MumbleCore) RegisterUser(session uint32) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// GetRegisteredUsers queries the server's registered user list.
-func (c *MumbleCore) GetRegisteredUsers() error {
-	msg := &mumbleUserListMsg{}
-	return c.tcpSend(mumbleMsgUserList, msg.marshal())
-}
-
-// UnregisterUser removes a registered user.
-func (c *MumbleCore) UnregisterUser(userID uint32) error {
-	msg := &mumbleUserListMsg{
-		Users: []mumbleUserListEntry{{UserID: userID}},
-	}
-	return c.tcpSend(mumbleMsgUserList, msg.marshal())
-}
-
 // GetBanList queries the server's ban list.
 func (c *MumbleCore) GetBanList() ([]MumbleBanEntry, error) {
 	query := &mumbleBanListMsg{Query: true}
@@ -6096,47 +5423,7 @@ func (c *MumbleCore) AddBan(address []byte, mask uint32, name, hash, reason stri
 	return c.SetBanList(current)
 }
 
-// GetACL queries ACLs for a channel.
-func (c *MumbleCore) GetACL(channelID uint32) (*MumbleACLMsg, error) {
-	msg := &MumbleACLMsg{ChannelID: channelID, Query: true}
-	if err := c.tcpSend(mumbleMsgACL, msg.marshal()); err != nil {
-		return nil, err
-	}
-	// Note: response comes async; caller should use OnUpdate or wait
-	return nil, nil
-}
-
-// SetACL sets ACLs for a channel.
-func (c *MumbleCore) SetACL(channelID uint32, groups []MumbleACLGroup, acls []MumbleACLEntry, inheritACLs bool) error {
-	msg := &MumbleACLMsg{
-		ChannelID:   channelID,
-		InheritACLs: inheritACLs,
-		Groups:      groups,
-		ACLs:        acls,
-		Query:       false,
-	}
-	return c.tcpSend(mumbleMsgACL, msg.marshal())
-}
-
-// GetPermissions queries permissions for a channel.
-func (c *MumbleCore) GetPermissions(channelID uint32) (uint32, error) {
-	msg := &mumblePermissionQueryMsg{ChannelID: channelID}
-	if err := c.tcpSend(mumbleMsgPermissionQuery, msg.marshal()); err != nil {
-		return 0, err
-	}
-	time.Sleep(200 * time.Millisecond)
-	c.mu.RLock()
-	perms := c.permissions[channelID]
-	c.mu.RUnlock()
-	return perms, nil
-}
-
-// QueryUsers resolves user IDs to names and vice versa.
-func (c *MumbleCore) QueryUsers(ids []uint32, names []string) error {
-	msg := &mumbleQueryUsersMsg{IDs: ids, Names: names}
-	return c.tcpSend(mumbleMsgQueryUsers, msg.marshal())
-}
-
+// SetAccessTokens updates the access tokens for this connection.
 // RequestBlob requests large blobs (textures, comments, descriptions).
 func (c *MumbleCore) RequestBlob(textures, comments, descriptions []uint32) error {
 	msg := &mumbleRequestBlobMsg{
@@ -6146,14 +5433,6 @@ func (c *MumbleCore) RequestBlob(textures, comments, descriptions []uint32) erro
 	}
 	return c.tcpSend(mumbleMsgRequestBlob, msg.marshal())
 }
-
-// GetUserStats requests detailed statistics for a user.
-func (c *MumbleCore) GetUserStats(session uint32) error {
-	msg := &mumbleUserStatsMsg{Session: session}
-	return c.tcpSend(mumbleMsgUserStats, msg.marshal())
-}
-
-// SetAccessTokens updates the access tokens for this connection.
 func (c *MumbleCore) SetAccessTokens(tokens []string) error {
 	auth := &mumbleAuthenticate{Tokens: tokens}
 	return c.tcpSend(mumbleMsgAuthenticate, auth.marshal())
@@ -9072,20 +8351,48 @@ func (c *MumbleCore) OnAudioStream(handler func(session uint32, pcm []int16, cod
 
 // ── DNS / Discovery ──
 
-// MumbleResolveSRV performs DNS SRV record lookup for _mumble._tcp.<hostname>.
-func MumbleResolveSRV(hostname string) (string, error) {
-	_, addrs, err := net.LookupSRV("mumble", "tcp", hostname)
-	if err != nil {
-		return "", fmt.Errorf("mumble SRV lookup: %w", err)
-	}
-	if len(addrs) == 0 {
-		return "", fmt.Errorf("mumble SRV lookup: no records found for %s", hostname)
-	}
-	target := strings.TrimRight(addrs[0].Target, ".")
-	return net.JoinHostPort(target, strconv.Itoa(int(addrs[0].Port))), nil
-}
-
 // MuteChat returns an error because Mumble does not support muting chats.
+// ServerPing sends an unauthenticated UDP ping and returns server info.
+func MumbleServerPing(addr string) (version [4]byte, users, maxUsers, bandwidth uint32, err error) {
+	host, port, splitErr := net.SplitHostPort(addr)
+	if splitErr != nil {
+		host = addr
+		port = strconv.Itoa(mumbleDefaultPort)
+	}
+
+	conn, err := net.DialTimeout("udp", net.JoinHostPort(host, port), 5*time.Second)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	// Send 12-byte request: 4 zero bytes + 8 ident bytes
+	var req [12]byte
+	rand.Read(req[4:]) // random ident
+	conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+	if _, err = conn.Write(req[:]); err != nil {
+		return
+	}
+
+	// Read 24-byte response
+	var resp [24]byte
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	n, readErr := conn.Read(resp[:])
+	if readErr != nil {
+		err = readErr
+		return
+	}
+	if n < 24 {
+		err = fmt.Errorf("mumble: server ping response too short: %d bytes", n)
+		return
+	}
+
+	copy(version[:], resp[0:4])
+	users = binary.BigEndian.Uint32(resp[12:16])
+	maxUsers = binary.BigEndian.Uint32(resp[16:20])
+	bandwidth = binary.BigEndian.Uint32(resp[20:24])
+	return
+}
 func (c *MumbleCore) MuteChat(chatID string, muted bool) error {
 	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, mumblePlatform)
 }

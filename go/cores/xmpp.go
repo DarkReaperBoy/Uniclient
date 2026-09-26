@@ -8059,13 +8059,6 @@ func (c *XMPPCore) OMEMOAutoTrust(to string, deviceIDs []int) error {
 
 // ── User Profile & Social (4 XEPs) ──
 
-// ConsistentColor implements XEP-0392 — generate color from JID.
-func ConsistentColor(jid string) (float64, float64, float64) {
-	h := sha256.Sum256([]byte(jid))
-	angle := float64(uint16(h[0])<<8|uint16(h[1])) / 65536.0 * 360.0
-	return angle, 1.0, 0.5 // HSL
-}
-
 // AvatarConversion implements XEP-0398 — server-side avatar format hint.
 func (c *XMPPCore) AvatarConversion(to string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", to,
@@ -8309,23 +8302,6 @@ func (c *XMPPCore) SendBitsOfBinary(to string, data []byte, mimeType, cid string
 			`<data xmlns='urn:xmpp:bob' cid='%s' type='%s' max-age='86400'>%s</data>`+
 			`</message>`,
 		xmlEscape(to), id, xmlEscape(cid), xmlEscape(mimeType), b64))
-}
-
-// HashElement implements XEP-0300 — standardized hash element.
-func HashElement(algo string, data []byte) string {
-	var h hash.Hash
-	switch algo {
-	case "sha-256":
-		h = sha256.New()
-	case "sha-1":
-		h = sha1.New()
-	default:
-		h = sha256.New()
-		algo = "sha-256"
-	}
-	h.Write(data)
-	return fmt.Sprintf(`<hash xmlns='urn:xmpp:hashes:2' algo='%s'>%s</hash>`,
-		algo, base64.StdEncoding.EncodeToString(h.Sum(nil)))
 }
 
 // MuteChat mutes notifications for a conversation.

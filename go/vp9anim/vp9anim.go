@@ -143,9 +143,6 @@ func parseDoc(doc *webm.Document) (*Animation, error) {
 // FrameCount returns the number of frames.
 func (a *Animation) FrameCount() int { return len(a.frames) }
 
-// HasAlpha reports whether the stream carries an alpha side channel.
-func (a *Animation) HasAlpha() bool { return a.hasAlpha }
-
 // buildTimeline derives per-frame durations from the presentation
 // timecodes: frame i spans [start_i, start_{i+1}); the last frame runs to
 // the container duration, else DefaultDuration, else a 40ms fallback.

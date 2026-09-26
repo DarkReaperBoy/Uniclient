@@ -290,9 +290,3 @@ func drawTrayDigits(img *image.NRGBA, px int, label string) {
 		}
 	}
 }
-
-// RenderTrayIconSample is the exported seam for tooling/tests that need a
-// tray icon render (e.g. visual smoke scripts).
-func RenderTrayIconSample(accent color.NRGBA, count int) []byte {
-	return renderTrayIconPNG(128, accent, count)
-}
