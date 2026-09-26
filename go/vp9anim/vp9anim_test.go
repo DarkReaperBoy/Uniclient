@@ -275,7 +275,10 @@ func TestDecodeThroughRealVector(t *testing.T) {
 func TestParseRejectsHighBitDepth(t *testing.T) {
 	// Profile 2 (10-bit) is out of the 8-bit scope: honest error, no
 	// partial animation.
-	data, err := os.ReadFile("testdata/vp92-2-20-10bit-yuv420.webm")
+	data, err := os.ReadFile("testdata/vp92-10bit.webm")
+	// The committed fixture is named vp92-10bit.webm; the old name
+	// (vp92-2-20-10bit-yuv420.webm) matched no file, so this test
+	// SILENTLY SKIPPED in every run (slice-280 skip inventory).
 	if err != nil {
 		t.Skipf("testdata missing: %v", err)
 	}

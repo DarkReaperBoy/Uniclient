@@ -9144,3 +9144,62 @@ strengthened pin, github test SKIPs cleanly without token, whole tree
 **B-25 re-probe: still denied → open** (18th consecutive).
 
 gate279 = light scope; standalone with rc check.
+
+---
+
+## Slice 280 (2026-09-25) — vacuous-test class closed: zero-assertion
+## pins, sentinel-equality hardening, and the silent-skip inventory
+
+Continuing the slice-278/279 test-quality sweep with three more
+classes:
+
+**1. Sentinel equality (1 prod hit, hardened):** `LoadSession` used
+`err == ErrBucketNotFound || err == ErrKeyNotFound`; callers (matrix.go
+session loads) distinguish "no session" from real failures via
+`errors.Is(os.ErrNotExist)` — a future wrap in `Get` would silently
+break that. → `errors.Is` both branches + `TestLoadSessionNotFoundMapsToErrNotExist`
+pins BOTH not-found paths (virgin vault = bucket missing; saved
+vault = key missing). GREEN.
+
+**2. Zero-assertion tests (6 found — 4 real vacuity risks, fixed):**
+tests that can only fail on panic/race pass even if their production
+sites go silent. Pins added (all GREEN, ± `-race`):
+- `TestMixerConcurrent`: decoded PCM must be nonzero (atomic
+  `sawAudio`) + `len(srcs)==4` after the run — a silent decode path can
+  no longer go green.
+- `TestHandshakeClientIDWrite…`: send-loop errors counted (a silent
+  no-op would keep `-race` happy while covering nothing) + final
+  `clientID==500`.
+- `TestHandshakeMyClientID…`: final `myClientID==500` under the guard.
+- `TestMyChannelIDConcurrentMoveAndReadRace`: final
+  `myChannelID==7` (moves must have landed).
+- `TestCycleFolderDlgChatNoDialog`: the no-dialog path must also not
+  CREATE dialog state (panic oracle alone was blind).
+(Two of six were scanner FPs: `TestMumbleLiveConnectChain` asserts in
+its `mumbleLiveGuest(t,…)` helper.)
+
+**3. Silent-skip inventory (whole non-live suite, `-v`): 7 skips → 5,
+zero coverage holes left.** The two REAL holes, both fixed + proven:
+- **vp9anim `TestParseRejectsHighBitDepth`** read
+  `testdata/vp92-2-20-10bit-yuv420.webm` — no such file (the fixture is
+  `vp92-10bit.webm`) → skipped in EVERY run. Filename fixed → test
+  runs and PASS: `vp9anim: stream is not VP9 profile 0`.
+- **h264vid `TestCorruptStreamReportsFailure`** flipped the second half
+  of the file — which destroys `moov` (it rides the tail: ftyp 0..32,
+  mdat 40..11067, moov 11067..11926) → `Parse` rejected upfront → the
+  runtime `p.Failed()` path was NEVER exercised. Corruption now
+  computed from the box walk: 1 KiB centered in the mdat payload only;
+  parse-reject degrades to a logged honest-failure return instead of a
+  silent skip. Test PASSes in ~10 ms — branch probe proves the real
+  terminal: `RUNTIME-FAILED h264: decode slice: MB(4,1): CAVLC bitstream
+  error decoded=4/12`.
+Remaining 5 skips all deliberate: 3 opt-in dump tools
+(`UNICLIENT_SHOT_SAMPLE/TRAY_ICON_DIR/PIN`), 1 audio live env
+(`UNICLIENT_AUDIO_LIVE`), 1 fuzz seed precondition (`len(mac)!=8`).
+
+Validation: vet (plain) ✓, touched tests GREEN ± `-race`, whole tree
+**14 ok**, skip inventory 7→5 with reasons enumerated.
+
+**B-25 re-probe: still denied → open** (19th consecutive).
+
+gate280 = light scope; standalone with rc check.

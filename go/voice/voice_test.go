@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"math"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -305,6 +306,8 @@ func TestMixerConcurrent(t *testing.T) {
 	m := NewMixer()
 	e, _ := NewEncoder(24000)
 	pkts := encodeAll(t, e, sine(440, 40, 0.5))
+	var sawAudio atomic.Bool // slice-280: pin that decoded PCM is real,
+	// so this can't go vacuously green if the decode path goes silent
 	var wg sync.WaitGroup
 	for w := 0; w < 4; w++ {
 		wg.Add(1)
@@ -314,6 +317,12 @@ func TestMixerConcurrent(t *testing.T) {
 			id := string(rune('a' + w))
 			for i := range pkts {
 				s, _ := d.Decode(pkts[i])
+				for _, v := range s {
+					if v != 0 {
+						sawAudio.Store(true)
+						break
+					}
+				}
 				m.Push(id, s)
 			}
 		}(w)
@@ -327,6 +336,15 @@ func TestMixerConcurrent(t *testing.T) {
 		}
 	}()
 	wg.Wait()
+	if !sawAudio.Load() {
+		t.Fatal("no nonzero PCM ever decoded — mixer inputs silent (vacuous run)")
+	}
+	m.mu.Lock()
+	n := len(m.srcs)
+	m.mu.Unlock()
+	if n != 4 {
+		t.Fatalf("mixer sources = %d, want 4 (Push must register one per id)", n)
+	}
 }
 
 func TestPCMBytesConversion(t *testing.T) {

@@ -34,6 +34,11 @@ func TestCycleFolderDlgChat(t *testing.T) {
 func TestCycleFolderDlgChatNoDialog(t *testing.T) {
 	a := newDlgApp()
 	a.cycleFolderDlgChat("c1") // must not panic with no dialog open
+	// slice-280 pin: the no-dialog path must also not CREATE one — the
+	// panic oracle alone would stay green while the nil-guard vanished.
+	if a.folderDlg != nil {
+		t.Fatal("cycle with no dialog open must not create a dialog state")
+	}
 }
 
 func TestSetFolderDlgFlag(t *testing.T) {

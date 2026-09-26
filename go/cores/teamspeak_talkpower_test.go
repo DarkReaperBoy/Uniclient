@@ -225,4 +225,13 @@ func TestMyChannelIDConcurrentMoveAndReadRace(t *testing.T) {
 		_, _ = m.GetGroupCall("ch:7")
 	}
 	<-done
+	// slice-280 pin: the moves must actually have landed — a silent
+	// no-op handler would leave the race detector green with nothing
+	// exercised (clid 1 == myClientID → myChannelID = ctid 7).
+	m.clientInfoMu.RLock()
+	got := m.myChannelID
+	m.clientInfoMu.RUnlock()
+	if got != 7 {
+		t.Fatalf("myChannelID = %d, want 7 (move handler must be live)", got)
+	}
 }

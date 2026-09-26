@@ -37,6 +37,7 @@ package h264vid
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"image"
@@ -465,13 +466,36 @@ func TestCorruptStreamReportsFailure(t *testing.T) {
 	if len(good) < 4096 {
 		t.Skip("fixture too small to corrupt safely")
 	}
+	// Corrupt ONLY inside the mdat payload. The old second-half flip
+	// also destroyed moov (it rides at the tail of this fixture):
+	// Parse rejected the file upfront, the test skipped, and the
+	// runtime p.Failed() path was never exercised (slice-280 finding).
+	mdatStart, mdatEnd := -1, -1
+	for off := 0; off+8 <= len(good); {
+		sz := int(binary.BigEndian.Uint32(good[off : off+4]))
+		typ := string(good[off+4 : off+8])
+		if sz < 8 || off+sz > len(good) {
+			break
+		}
+		if typ == "mdat" {
+			mdatStart, mdatEnd = off+8, off+sz
+		}
+		off += sz
+	}
+	if mdatStart < 0 || mdatEnd-mdatStart < 2048 {
+		t.Skipf("no usable mdat payload in fixture (%d..%d)", mdatStart, mdatEnd)
+	}
 	bad := append([]byte{}, good...)
-	for i := len(bad) / 2; i < len(bad); i++ {
+	mid := (mdatStart + mdatEnd) / 2
+	for i := mid - 512; i < mid+512 && i < mdatEnd; i++ {
 		bad[i] ^= 0xFF
 	}
 	v, err := Parse(bad)
 	if err != nil {
-		t.Skipf("Parse rejected the corrupted file outright: %v", err)
+		// A parse-time rejection is also an honest failure report —
+		// log it instead of silently skipping coverage.
+		t.Logf("corruption reported at parse (honest failure): %v", err)
+		return
 	}
 	p := v.NewPlayer()
 	defer p.Stop()

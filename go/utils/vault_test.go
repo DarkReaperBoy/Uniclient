@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,6 +44,26 @@ func TestVaultMissingKey(t *testing.T) {
 	var out string
 	if err := v.Get("nope", "missing", &out); err == nil {
 		t.Fatal("Get on missing key unexpectedly succeeded")
+	}
+}
+
+// TestLoadSessionNotFoundMapsToErrNotExist pins LoadSession's
+// documented contract ("Returns os.ErrNotExist if not found") on BOTH
+// not-found branches: virgin vault = sessions bucket missing, saved
+// vault = account key missing. Callers (matrix.go) distinguish
+// "no session" from real failures with errors.Is(err, os.ErrNotExist),
+// so this mapping must stay exact — slice-280 pin.
+func TestLoadSessionNotFoundMapsToErrNotExist(t *testing.T) {
+	v, _ := newTestVault(t)
+	var dest any
+	if err := v.LoadSession("acct-1", &dest); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("bucket-missing load: %v, want os.ErrNotExist", err)
+	}
+	if err := v.SaveSession("acct-1", []byte(`{"a":1}`)); err != nil {
+		t.Fatalf("SaveSession: %v", err)
+	}
+	if err := v.LoadSession("acct-other", &dest); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("key-missing load: %v, want os.ErrNotExist", err)
 	}
 }
 

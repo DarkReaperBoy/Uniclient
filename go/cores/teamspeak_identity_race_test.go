@@ -27,6 +27,7 @@ func TestHandshakeClientIDWriteDoesNotRaceTheReceiveLoop(t *testing.T) {
 	}
 
 	done := make(chan struct{})
+	var sendErrs int // main goroutine only
 	go func() {
 		defer close(done)
 		for i := uint16(1); i <= 500; i++ {
@@ -34,10 +35,23 @@ func TestHandshakeClientIDWriteDoesNotRaceTheReceiveLoop(t *testing.T) {
 		}
 	}()
 	for i := uint16(0); i < 500; i++ {
-		_ = tc.tsSendAck(i)  // reads clientID for meta[2:4] + packet build
-		_ = tc.tsSendPong(i) // reads clientID (+ sharedMAC)
+		if err := tc.tsSendAck(i); err != nil { // reads clientID for meta[2:4] + packet build
+			sendErrs++
+		}
+		if err := tc.tsSendPong(i); err != nil { // reads clientID (+ sharedMAC)
+			sendErrs++
+		}
 	}
 	<-done
+	// slice-280 pins: the loop must actually SEND (a silent no-op would
+	// keep the race detector happy while covering nothing) and the
+	// write site must be live.
+	if sendErrs != 0 {
+		t.Fatalf("%d send errors during the race battery", sendErrs)
+	}
+	if got := tc.clientID.Load(); got != 500 {
+		t.Fatalf("clientID = %d, want 500 (write site must be live)", got)
+	}
 }
 
 // TestHandshakeMyClientIDWriteDoesNotRaceReceiveHandlers: the text
@@ -64,4 +78,12 @@ func TestHandshakeMyClientIDWriteDoesNotRaceReceiveHandlers(t *testing.T) {
 		m.clientInfoMu.RUnlock()
 	}
 	<-done
+	// slice-280 pin: the write site must be live (a dropped write would
+	// leave this green with nothing to race).
+	m.clientInfoMu.RLock()
+	got := m.myClientID
+	m.clientInfoMu.RUnlock()
+	if got != 500 {
+		t.Fatalf("myClientID = %d, want 500 (write site must be live)", got)
+	}
 }

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 )
 
@@ -50,7 +51,10 @@ func (v *Vault) SetConfig(cfg *AppConfig) error {
 // Returns os.ErrNotExist if not found.
 func (v *Vault) LoadSession(accountID string, dest any) error {
 	err := v.Get(vaultBucketSessions, accountID, dest)
-	if err == ErrBucketNotFound || err == ErrKeyNotFound {
+	// errors.Is, not == : callers map this contract to os.ErrNotExist
+	// via errors.Is (matrix.go session loads); equality would silently
+	// break if Get ever wraps (slice-280 hardening).
+	if errors.Is(err, ErrBucketNotFound) || errors.Is(err, ErrKeyNotFound) {
 		return os.ErrNotExist
 	}
 	return err
