@@ -8999,3 +8999,26 @@ gate273 = light scope; standalone with rc check.
 - Whole tree **14 ok**, vet/gofmt clean.
 
 gate274 = light scope; standalone with rc check.
+
+---
+
+## Slice 275 (2026-09-25) — post-deletion validation battery (all
+## green)
+
+Validates slices 273–274 (IRC strip wiring + the ~700-line mumble/
+xmpp/bootstrap deletion batch) end-to-end:
+
+1. **Full live battery at HEAD: 13 PASS / 0 FAIL / 4 honest SKIPs,
+   live_rc=0** — IRC connect PASS (strip lives on the receive path),
+   mumble **5/5** incl. voice + UDP-crypto probe (the router-case and
+   family deletions touched no live path), xmpp/rubika/bale/TS all as
+   documented; skips = github token, B-25 (denied again, 14th
+   probe), voice environment, xmpp register policy.
+2. **Coverage refresh**: cores 10.0 → **10.9%**, utils 10.6 →
+   **36.3%** (activations + legacy deletions), gui 19.4, engine 24.6,
+   webm **83.6%**, vp9anim **72.8%**.
+3. **Order-dependence, second seed**: `-shuffle=2` full suite →
+   **rc=0, 14 ok** (first seed green in slice 266).
+
+No findings → no rows. RAM rule held (≥5.8Gi available, all runs
+solo/sequential). gate275 = light scope; standalone with rc check.
