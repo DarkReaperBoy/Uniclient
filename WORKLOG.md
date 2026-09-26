@@ -9672,3 +9672,40 @@ Machine-checkable doc claims, one class at a time:
 
 gate291 = light scope; standalone with rc check (flake + docs +
 workflow changes; go code untouched).
+
+---
+
+## Slice 292 (2026-09-26) — B-50 → F-60: XMPP message styling wired
+
+Owner: "do all the remaining steps without telling me" — so the two
+owner-call rows with buildable paths (B-50 now, B-8/B-6 next) get
+worked instead of waiting.
+
+1. **`applyStyling(text) (string, []TextEntity)`** (cores/xmpp.go):
+   runs the legacy `ParseMessageStyling`, strips marker characters
+   with ADJACENT-RUN extension (```pre``` loses all six backticks —
+   the parser's own comment claimed pre support that never existed;
+   now it does, typed `pre`), converts byte spans → GUI `TextEntity`
+   in **UTF-16 code units**, sorted by offset; plain text passes
+   through untouched.
+2. **Wired twice** in `handleMessage`: the initial receive build
+   (`Text`/`Entities` from one `applyStyling(parsed.Body)` call) and
+   the **XEP-0308 correction** path (`m.Text, m.Entities = …`).
+3. **Tests-first**: seam-RED `undefined: applyStyling`; wiring
+   source-scan (≥2 sites); 9-case table GREEN first run (bold /
+   italic / strike / code / pre / emoji UTF-16 offsets / unmatched
+   marker / sorted order / plain passthrough) + inner-emoji length pin
+   (`say *hi 😀 there*` → 4/11) + entity-bounds invariant.
+4. **Validation**: `-race` green; whole tree **14 ok**; **live
+   `TestXMPPLiveConnectChain` PASS** (register test skipped = public-
+   server policy, pre-existing).
+5. Process note: I paired `gofmt -w` + `go vet` on the SAME file in
+   one block — the forbidden same-file race; it produced a garbled
+   `could not import unicode/utf16` error that only made sense as a
+   torn read. Re-ran sequentially. Violation recorded.
+
+**BUGS: B-50 removed from Open → F-60** (shapes verified: 3 open /
+60 fixed). **B-25 re-probe: still denied → open** (31st
+consecutive).
+
+gate292 = light scope; standalone with rc check.

@@ -56,6 +56,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"uniclient/utils"
 )
@@ -1545,7 +1546,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		if msgs, ok := c.messages[chatID]; ok {
 			for _, m := range msgs {
 				if m.ID == parsed.ReplaceID {
-					m.Text = parsed.Body
+					m.Text, m.Entities = applyStyling(parsed.Body)
 					now := time.Now()
 					m.EditedAt = &now
 					c.messagesMu.Unlock()
@@ -1576,6 +1577,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 	}
 
 	// Build message
+	styledText, styledEntities := applyStyling(parsed.Body)
 	ts := time.Now()
 	if parsed.Delay != nil {
 		ts = *parsed.Delay
@@ -1610,7 +1612,8 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		ChatID:     chatID,
 		SenderID:   senderID,
 		SenderName: senderName,
-		Text:       parsed.Body,
+		Text:       styledText,
+		Entities:   styledEntities,
 		Timestamp:  ts,
 		Status:     MessageStatusDelivered,
 		IsOutgoing: isOutgoing,
@@ -7285,6 +7288,105 @@ func ParseMessageStyling(text string) []map[string]string {
 		}
 	}
 	return spans
+}
+
+// applyStyling is B-50's wiring layer: it runs the legacy
+// ParseMessageStyling scanner, strips the marker characters (including
+// adjacent runs, so ```pre``` blocks lose all six backticks), and
+// converts byte spans into the GUI's UTF-16 TextEntity format. Returns
+// the cleaned text and entities sorted by offset; plain text passes
+// through untouched.
+func applyStyling(text string) (string, []TextEntity) {
+	spans := ParseMessageStyling(text)
+	if len(spans) == 0 {
+		return text, nil
+	}
+	strip := make(map[int]bool)
+	type ent struct {
+		style   string
+		s, e    int // byte bounds of the INNER text in the original
+		openRun int // run length of the opening marker (≥3 = pre)
+	}
+	var ents []ent
+	for _, sp := range spans {
+		start, err1 := strconv.Atoi(sp["start"])
+		end, err2 := strconv.Atoi(sp["end"]) // one past the closing marker
+		if err1 != nil || err2 != nil || end-1 <= start {
+			continue
+		}
+		closing := end - 1
+		if sp["text"] == "" || closing >= len(text) || text[start] != text[closing] {
+			continue
+		}
+		marker := text[start]
+		// Extend the strip set over adjacent runs of the same marker so
+		// ```pre``` loses all six backticks, not just the inner pair.
+		openL, openR := start, start+1
+		for openL-1 >= 0 && text[openL-1] == marker {
+			openL--
+		}
+		for openR < len(text) && text[openR] == marker && openR < closing {
+			openR++
+		}
+		closeL, closeR := closing, closing+1
+		for closeR < len(text) && text[closeR] == marker {
+			closeR++
+		}
+		for closeL-1 >= openR && text[closeL-1] == marker {
+			closeL--
+		}
+		for i := openL; i < openR; i++ {
+			strip[i] = true
+		}
+		for i := closeL; i < closeR; i++ {
+			strip[i] = true
+		}
+		style := sp["style"]
+		if marker == '`' && openR-openL >= 3 {
+			style = "pre"
+		}
+		ents = append(ents, ent{style: style, s: openR, e: closeL, openRun: openR - openL})
+	}
+
+	// Single pass over the original: record orig-byte → output-UTF-16
+	// positions and copy with markers removed.
+	pos := make(map[int]int, len(text))
+	var sb strings.Builder
+	u := 0
+	i := 0
+	for i < len(text) {
+		pos[i] = u
+		if strip[i] {
+			i++
+			continue
+		}
+		r, sz := utf8.DecodeRuneInString(text[i:])
+		sb.WriteString(text[i : i+sz])
+		if r >= 0x10000 {
+			u += 2
+		} else {
+			u++
+		}
+		i += sz
+	}
+	pos[len(text)] = u
+
+	var out []TextEntity
+	typeOf := map[string]string{"strong": "bold", "emphasis": "italic", "code": "code", "strike": "strike", "pre": "pre"}
+	for _, e := range ents {
+		typ, ok := typeOf[e.style]
+		if !ok {
+			continue
+		}
+		sOff, ok1 := pos[e.s]
+		eOff, ok2 := pos[e.e]
+		if !ok1 || !ok2 || eOff-sOff <= 0 {
+			continue
+		}
+		out = append(out, TextEntity{Type: typ, Offset: sOff, Length: eOff - sOff})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Offset < out[j].Offset })
+	return sb.String(), out
 }
 
 // SendSpoilerMessage implements XEP-0382 — send message with hidden content.
