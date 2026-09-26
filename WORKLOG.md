@@ -9709,3 +9709,36 @@ worked instead of waiting.
 consecutive).
 
 gate292 = light scope; standalone with rc check.
+
+---
+
+## Slice 293 (2026-09-26) — B-8 → F-61: LICENSE restored (MIT,
+## evidence-backed), backtick-mishap recorded
+
+1. **B-8 closed with evidence, not a guess**: the owner's OWN initial
+   commit (3be630cd, 2026-04-13) shipped an **MIT LICENSE**; the
+   2026-09-06 template cleanup (dc4ac073, same author) swept it out
+   together with CLAUDE.md/README/flake — those all came back in later
+   slices, the license did not; flake.nix has declared
+   `licenses.mit` continuously; GitHub-side license metadata = None.
+   All four signals agree → **`LICENSE` added: MIT, `Copyright (c)
+   2026 Nako Nishke (DarkReaperBoy)`** (commit-author identity +
+   handle). QuickLZ provenance note stays in AGENTS (port, 19 golden
+   vectors, reference C never vendored; the quicklz header's GPL
+   exclusion for third-party ports quoted in the F-61 row).
+2. **Commit-message mishap recorded** (history is immutable): the
+   slice-292 message contained triple backticks inside a double-quoted
+   `bash -m "…"` argument → bash executed command substitution
+   (`pre: command not found`) and the `` ```pre``` `` phrase is
+   missing from the pushed message. WORKLOG 292's own text carries the
+   full claim; lesson: never put backticks in shell-quoted commit
+   messages.
+3. One python row-move attempt failed at PARSE time (SQL-style `''`
+   escaping is not Python) → BUGS untouched → redone via a row file
+   (`/tmp/rowF61.md`, quoted heredoc). No partial state.
+
+**BUGS: B-8 removed from Open → F-61** (shapes verified: **2 open** /
+61 fixed — only B-25 + B-6 remain). **B-25 re-probe: still denied →
+open** (32nd consecutive).
+
+gate293 = light scope; standalone with rc check (LICENSE + docs).
