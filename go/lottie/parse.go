@@ -13,6 +13,12 @@ import (
 	"io"
 )
 
+// tgsMaxDecompressed caps .tgs inflation: the download layer bounds the
+// compressed sticker, but gzip can expand far beyond that (bomb sibling
+// of F-53, slice-284). Legit stickers inflate to a few MB. Test
+// overrides it downward.
+var tgsMaxDecompressed int64 = 32 * 1024 * 1024
+
 // ParseTgs decodes a Telegram .tgs file: gzip → JSON → Animation.
 func ParseTgs(data []byte) (*Animation, error) {
 	zr, err := gzip.NewReader(bytes.NewReader(data))
@@ -20,9 +26,12 @@ func ParseTgs(data []byte) (*Animation, error) {
 		return nil, fmt.Errorf("tgs: not gzip: %w", err)
 	}
 	defer zr.Close()
-	raw, err := io.ReadAll(zr)
+	raw, err := io.ReadAll(io.LimitReader(zr, tgsMaxDecompressed+1))
 	if err != nil {
 		return nil, fmt.Errorf("tgs: gzip read: %w", err)
+	}
+	if int64(len(raw)) > tgsMaxDecompressed {
+		return nil, fmt.Errorf("tgs: decompressed size exceeds %d bytes", tgsMaxDecompressed)
 	}
 	return ParseAnimationJSON(raw)
 }

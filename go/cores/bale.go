@@ -1445,6 +1445,18 @@ func (b *BaleCore) UploadFile(chatID string, file FileUpload, progress func(sent
 // 1. GetNasimFileUploadUrl → get upload URL + file_id + chunk_size
 // 2. HTTP PUT file data to the URL
 // 3. SendMessage with DocumentMessage content
+// baleDrainMax bounds how much of an upload RESPONSE is swallowed to
+// keep the connection reusable — the bytes are discarded, so the old
+// bare io.ReadAll(uploadResp.Body) was a pure OOM sink on a server-
+// controlled body (slice-284). Test overrides it downward.
+var baleDrainMax int64 = 64 * 1024
+
+// drainBodyLimited consumes at most baleDrainMax bytes of rc (for
+// connection reuse) and never more, whatever the server streams.
+func drainBodyLimited(rc io.ReadCloser) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(rc, baleDrainMax))
+}
+
 func (b *BaleCore) userUploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
 	// Step 1: Get upload URL
 	uploadInfo, err := b.UserGetFileUploadURL(file.Size, file.Name, file.MimeType)
@@ -1485,7 +1497,7 @@ func (b *BaleCore) userUploadFile(chatID string, file FileUpload, progress func(
 		return nil, fmt.Errorf("upload PUT: %w", err)
 	}
 	defer uploadResp.Body.Close()
-	io.ReadAll(uploadResp.Body)
+	drainBodyLimited(uploadResp.Body)
 
 	if uploadResp.StatusCode >= 400 {
 		return nil, fmt.Errorf("upload failed: HTTP %d", uploadResp.StatusCode)

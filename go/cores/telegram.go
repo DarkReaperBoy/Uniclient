@@ -8116,13 +8116,28 @@ func generateICECredential(length int) string {
 	return string(b)
 }
 
+// tgGzipMaxDecompressed caps gzip output on the signaling path: the
+// compressed bytes come from the network (MTProto layer and V2Reference
+// both sniff for the gzip magic), so a hostile gzip bomb must not
+// expand unbounded in RAM (slice-284 — the decompression sibling of
+// F-53). Callers fall back to the raw bytes on error. Test overrides
+// it downward.
+var tgGzipMaxDecompressed int64 = 128 * 1024 * 1024
+
 func gzipDecompress(data []byte) ([]byte, error) {
 	r, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-	return io.ReadAll(r)
+	out, err := io.ReadAll(io.LimitReader(r, tgGzipMaxDecompressed+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(out)) > tgGzipMaxDecompressed {
+		return nil, fmt.Errorf("gzip: decompressed size exceeds %d bytes", tgGzipMaxDecompressed)
+	}
+	return out, nil
 }
 
 // JoinGroupCall joins an active group call in a chat.

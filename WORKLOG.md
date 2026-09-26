@@ -9329,3 +9329,45 @@ Continuing the slice-282 data-class audit with **response-size caps**.
 **B-25 re-probe: still denied → open** (22nd consecutive).
 
 gate283 = light scope; standalone with rc check.
+
+---
+
+## Slice 284 (2026-09-25) — B-54/55/56: the F-53 class drained across
+## the whole codebase — gzip bombs ×2 + an unbounded response drain
+
+Full sweep of every `io.ReadAll` in production code (34 sites) for
+network-controlled uncapped reads:
+
+1. **Triage**: upload paths (`file.Reader` = local user file —
+   user-initiated, streaming redesign would be its own project);
+   DeltaChat MIME part reads (bounded in practice by the mail
+   provider's message-size limit + no gzip auto-extract → accepted);
+   `gzipDecompress` (2 network callers: MTProto + V2Reference — REAL);
+   `lottie.ParseTgs` (downloaded sticker, gzip expansion — REAL);
+   `bale` upload response drain (result discarded, uncapped — REAL).
+2. **Three fixes, tests-first, RED captured both ways each**:
+   - **F-54 telegram `gzipDecompress`**: `LimitReader(max+1)` →
+     size error; seam-RED `undefined: tgGzipMaxDecompressed` +
+     behavioral `gzip bomb: err = <nil>, want size-exceeded error
+     (out len 1048576)`; ceiling 128 MiB; happy-path signaling
+     round-trip pinned (callers fall back to raw bytes on error).
+   - **F-55 lottie `ParseTgs`**: same pattern, ceiling 32 MiB;
+     behavioral RED: old path inflated the bomb then failed with
+     `lottie: json: invalid character '\\x00'…` instead of a size error.
+   - **F-56 bale drain**: `drainBodyLimited` (Copy+LimitReader 64 KiB);
+     source-scan pin + infinite-body unit test (consumed ≤ max,
+     non-vacuous >0).
+3. **Self-caught checker bug** (re-check-the-checker): the bale scan
+   first matched the EXPLANATORY COMMENT that mentions the banned
+   pattern → false FAIL; the scan now skips `//` lines (and the RED
+   swap was re-proven against a code line).
+4. One test-authoring bug caught by vet/compile: `int` vs `int64`
+   comparison in the drain test (fixed before any result was trusted).
+
+**Validation**: 6 new tests GREEN, `-race` on cores subset, gofmt/vet
+clean, whole tree **14 ok**; BUGS **F-54/F-55/F-56** rows (shapes
+verified → 56 F rows).
+
+**B-25 re-probe: still denied → open** (23rd consecutive).
+
+gate284 = light scope; standalone with rc check.
