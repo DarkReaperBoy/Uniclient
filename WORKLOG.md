@@ -9022,3 +9022,27 @@ xmpp/bootstrap deletion batch) end-to-end:
 
 No findings → no rows. RAM rule held (≥5.8Gi available, all runs
 solo/sequential). gate275 = light scope; standalone with rc check.
+
+---
+
+## Slice 276 (2026-09-25) — full -race at HEAD + BUGS line-ref
+## re-audit
+
+1. **Full `-race` suite at HEAD: rc=0 — 14 packages ok, zero races**
+   (first full run since slice254; every change since — B-40 identity
+   atomicity, B-47 state migration, mumble/xmpp deletions, B-51 irc
+   strip — was previously only subset-raced or CI-raced). Solo run,
+   RAM ≥7.1Gi available.
+2. **BUGS evidence line-ref re-audit** (files shifted in slices
+   263–274): everything verified — B-50's xmpp:7269, B-6's
+   matrix:1241, F-38's write, opensl/contacts/stickers all current;
+   B-25's :114 and F-40's :415 are historical quotes already
+   annotated with their now-lines; F-10's module-cache paths external
+   by design. **One real stale ref fixed**: F-38's RED quote said
+   `teamspeak.go:3143` (line at RED time) → annotated with the current
+   write line :3168 post-slice-263 shifts + the `selfInThisRoom`
+   read site. Malformed-rows invariant: 0.
+3. **B-25 re-probe: still denied → open** (15th consecutive).
+
+No new findings → no rows. gate276 = light scope; standalone with
+rc check.
