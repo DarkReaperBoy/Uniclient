@@ -9527,3 +9527,40 @@ re-run confirms all 11 gone; BUGS **F-58** (shapes verified → 58).
 **B-25 re-probe: still denied → open** (26th consecutive).
 
 gate287 = light scope; standalone with rc check.
+
+---
+
+## Slice 288 (2026-09-26) — validation battery refresh after the
+## 282-287 production changes + BUGS line-ref audit
+
+Heavy checks re-run one at a time (RAM rule), then doc audits:
+
+1. **Full `-race` at HEAD: 14 ok, `DATA RACE: 0`, rc=0** — first
+   complete detector run since slice 276; now covers the vault atomic
+   writer, matrix media cap, gzip/tgs bombs, bale drain, mumble TOFU
+   and the tsRedact loop (everything added in 277-287).
+2. **`-count=3`: rc=0, 14 ok** and **`-shuffle=2`: rc=0, 14 ok** —
+   zero flakes across three repeats and shuffled order for all the
+   new tests (TOFU, redact, matrix download, gzip bombs, the
+   slice-280 pins).
+3. **Coverage refresh**: webm 83.6 · vp9anim 72.8 · vcodec 86.7 ·
+   qrscan 85.0 · voice 82.3 · h264vid 77.4 · lottie 73.6 · aacaud
+   71.5 · bootstrap 60.7 · **utils 40.9** (was 36.3 — slice-280/282
+   vault pins) · engine 24.6 · gui 19.4 · **cores 11.1** (was 10.9) ·
+   audio 9.5. All `ok`.
+4. **BUGS line-ref audit** (rows added since the slice-276 audit):
+   only three `file:line` refs exist today —
+   - `cores/xmpp.go:7269` (B-50) → **exact** (`func
+     ParseMessageStyling` sits there);
+   - `cores/matrix.go:1241` (B-6) → **drifted** (now `select {`):
+     slice-283's media-cap insert moved the target → corrected to
+     **:1263** (the ErrNotSupported return) with the history noted
+     inline;
+   - `telegram/client.go:280` (F-10) → verified against the module
+     cache: `gotd/td@v0.161.0/telegram/client.go:280` IS the
+     `c.invoker = chainMiddlewares(...)` line the row claims — the
+     upstream citation is exact.
+5. **B-25 re-probe: still denied → open** (27th consecutive).
+
+No production changes (one BUGS ref correction). gate288 = light
+scope; standalone with rc check.
