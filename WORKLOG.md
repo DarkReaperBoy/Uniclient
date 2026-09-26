@@ -9371,3 +9371,42 @@ verified → 56 F rows).
 **B-25 re-probe: still denied → open** (23rd consecutive).
 
 gate284 = light scope; standalone with rc check.
+
+---
+
+## Slice 285 (2026-09-25) — hang/TLS sweep: timeouts clean, one real
+## finding → B-57 (Mumble verifies nothing, unconditionally)
+
+New audit class: **hang + TLS verification** across all prod code.
+
+1. **Timeouts: 0 findings.** Every `http.Client{…}` construction has a
+   `Timeout` (zero hits without); every `net.Dialer{…}` sets `Timeout`
+   (bale/xmpp×4/mumble/irc×2/rubika…); no bare `http.NewRequest`
+   without a deadline path surfaced.
+2. **TLS: 6 `InsecureSkipVerify` sites — 5 correct, 1 real finding:**
+   xmpp explicit `false`; DeltaChat 4 sites all gated on the user's
+   `acceptInvalidCerts` option. **mumble.go:3184 = unconditional
+   `true`** (comment: self-signed certs are common) — the only core
+   that verifies nothing, ever.
+3. **Evidence gathered for the row (probe discipline):** first attempt
+   used `openssl s_client` — **vacuous** (openssl is not installed on
+   this host; both earlier greps matched nothing because the binary
+   was missing) → redone with a Go verified-dial probe:
+   `murmur.libresilicon.com:64738` fails normal verification
+   (`x509: certificate is not valid for any names`) → the skip is
+   **load-bearing for the default live server**, so strict-by-default
+   would regress the live tests and common self-signed setups. Also
+   established the build surface: `MumbleCore.Session` + full
+   `SessionStore` API + live test already sets `core.Session`.
+4. **BUGS: B-57 opened** (between B-25 and the owner-call rows) with
+   both buildable next steps (TOFU pin + reset UX, or an
+   `acceptInvalidCerts`-style flag) and the strict-default rule-out —
+   owner-visible trade-off, not silently decided.
+5. Upload-path whole-file buffering (matrix/xmpp/rubika/deltachat
+   `file.Reader` ReadAlls) restated as accepted: user-initiated local
+   files, streaming redesign = its own project (already noted slice
+   284).
+
+**B-25 re-probe: still denied → open** (24th consecutive).
+
+gate285 = light scope; standalone with rc check (docs row only).
