@@ -9250,3 +9250,42 @@ invariants (re-check-the-checker applied to my own parsers):
 
 No production code changed (docs only). gate281 = light scope;
 standalone with rc check.
+
+---
+
+## Slice 282 (2026-09-25) — B-52/F-52: the vault wrote credentials by
+## truncating first (data-loss class); now atomic
+
+New audit class: **user-data files written non-atomically**.
+
+1. **The finding**: `writeVaultBytes` = plain `os.WriteFile` →
+   O_TRUNC: the previous vault (every account credential, session and
+   the app config — all of it lives in the vault) is DESTROYED before
+   the new ciphertext lands. Disk-full or a crash mid-save ⇒ truncated
+   garbage, no recovery path. No atomic helper existed anywhere in
+   utils (zero `CreateTemp`/`Rename` hits).
+2. **Scope triage before fixing**: drafts = SQLite
+   (`e.db.Exec`, journal-atomic — not this class); `ExportSelfKeys` /
+   deltachat `.asc` key exports = user-triggered copies (originals
+   remain in memory); media `os.Create` writes = re-downloadable
+   cache; `language_prefs`/export json = regenerable settings. **The
+   vault was THE critical instance.**
+3. **Tests-first, with honest RED against the old writer**: new
+   `TestVaultWriteKeepsOldFileWhenWriteFails` (read-only temp dir +
+   root-capability probe). Ran it against the ORIGINAL implementation
+   first → RED quoted: `expected the impossible write to report an
+   error — the old os.WriteFile truncated and 'succeeded' silently,
+   destroying the previous vault`. Fix: temp-file in the same dir →
+   `Write` + `Sync` + `Close` → `Rename` over the destination →
+   best-effort dir sync; 0600 preserved (CreateTemp default); all
+   failure paths remove the temp (zero litter asserted).
+4. **GREEN + validation**: new impl PASS; full utils suite (roundtrip,
+   reopen, export tests now exercise the atomic path end-to-end),
+   `-race` on utils, whole tree **14 ok**, `GOOS=js` build (the js
+   vault seam was not touched) ✓, gofmt/vet clean.
+5. BUGS.md: **F-52** row added (slice-282 Fixed section, 5-pipe
+   invariant).
+
+**B-25 re-probe: still denied → open** (21st consecutive).
+
+gate282 = light scope; standalone with rc check.

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -64,6 +65,51 @@ func TestLoadSessionNotFoundMapsToErrNotExist(t *testing.T) {
 	}
 	if err := v.LoadSession("acct-other", &dest); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("key-missing load: %v, want os.ErrNotExist", err)
+	}
+}
+
+// TestVaultWriteKeepsOldFileWhenWriteFails: writeVaultBytes must be
+// atomic — a replacement that cannot complete must leave the previous
+// vault bytes intact. The old os.WriteFile implementation truncated the
+// destination FIRST, so disk-full or a crash mid-save destroyed the
+// only copy of every account credential (slice-282 finding; this test
+// is RED against the truncating writer: the write "succeeds" and the
+// original content is gone).
+func TestVaultWriteKeepsOldFileWhenWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "v.vault")
+	if err := writeVaultBytes(path, []byte("v1-content")); err != nil {
+		t.Fatalf("seed write: %v", err)
+	}
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Skipf("chmod dir: %v", err)
+	}
+	// Root (or CAP_DAC_OVERRIDE) ignores directory permissions; probe
+	// before asserting on them.
+	if probe, perr := os.CreateTemp(dir, "probe-*"); perr == nil {
+		os.Remove(probe.Name())
+		probe.Close()
+		os.Chmod(dir, 0o755)
+		t.Skip("directory permissions not enforced (running privileged)")
+	}
+	err := writeVaultBytes(path, []byte("v2-content"))
+	os.Chmod(dir, 0o755) // restore for read + TempDir cleanup
+	if err == nil {
+		t.Fatal("expected the impossible write to report an error — the old os.WriteFile truncated and " +
+			"'succeeded' silently, destroying the previous vault")
+	}
+	got, rerr := os.ReadFile(path)
+	if rerr != nil {
+		t.Fatalf("vault unreadable after failed write: %v", rerr)
+	}
+	if string(got) != "v1-content" {
+		t.Fatalf("vault after failed write = %q, want the intact original %q", got, "v1-content")
+	}
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".tmp") {
+			t.Fatalf("temp litter left behind: %s", e.Name())
+		}
 	}
 }
 
