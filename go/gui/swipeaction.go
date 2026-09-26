@@ -485,10 +485,6 @@ func (a *App) swipeRowShift(gtx layout.Context, f frame, c engine.ChatInfo, rowI
 		// Swipe-back hint arrow during a leftward drag.
 		if reveal := swipeBackReveal(); reveal > 0.1 {
 			rowH := gtx.Constraints.Max.Y
-			rowW := gtx.Constraints.Min.X
-			if rowW <= 0 {
-				rowW = gtx.Constraints.Max.X
-			}
 			a.paintSwipeBackHint(gtx, int(float32(48)*reveal), rowH)
 		}
 		return body(gtx)

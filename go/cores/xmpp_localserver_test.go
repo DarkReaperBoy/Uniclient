@@ -198,9 +198,10 @@ func (s *miniXMPPServer) handle(conn net.Conn) {
 			case s.inbox <- body:
 			default:
 			}
-		case strings.HasPrefix(stanza, "<presence"):
-			// Initial presence — acknowledge by doing nothing.
 		}
+		// Unknown stanzas — including initial <presence>, which needs no
+		// acknowledgement — are deliberately ignored (the old empty case
+		// body was SA4017: selecting it had no effect, slice-287).
 	}
 }
 

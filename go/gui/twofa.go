@@ -294,8 +294,7 @@ func (a *App) layoutTwoFADialog(gtx layout.Context, f frame) layout.Dimensions {
 						if d.step == twofaStepMain {
 							return layout.Dimensions{}
 						}
-						if twofaBackBtn.Clicked(gtx) { // processed above; layout only
-						}
+						_ = twofaBackBtn.Clicked(gtx) // processed above; drain for layout only (SA9003, slice-287)
 						return layout.Inset{Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return a.ui.IconButton(&twofaBackBtn, iconNavigationBack, "Back").Layout(gtx)
 						})

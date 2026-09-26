@@ -188,13 +188,13 @@ func (s *imapSession) Search(kind imapserver.NumKind, criteria *imap.SearchCrite
 func (s *imapSession) Fetch(w *imapserver.FetchWriter, numSet imap.NumSet, options *imap.FetchOptions) error {
 	s.store.mu.Lock()
 	defer s.store.mu.Unlock()
-	msgs := s.store.mailboxes["INBOX"] // the core only fetches the selected mailbox's list; keyed by INBOX snapshot
 	// The selected state is per-connection; the mini store's only selected
-	// mailbox in practice is INBOX or DeltaChat — serve from both.
+	// mailbox in practice is INBOX or DeltaChat — serve from both (the
+	// first assignment was dead — SA4006, slice-287).
 	var all []*miniMsg
 	all = append(all, s.store.mailboxes["INBOX"]...)
 	all = append(all, s.store.mailboxes["DeltaChat"]...)
-	msgs = all
+	msgs := all
 
 	seqSet, ok := numSet.(imap.SeqSet)
 	if !ok {

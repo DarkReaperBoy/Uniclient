@@ -9464,3 +9464,66 @@ without lockout. BUGS: B-57 removed from Open, **F-57** added
 **B-25 re-probe: still denied → open** (25th consecutive).
 
 gate286 = light scope; standalone with rc check.
+
+---
+
+## Slice 287 (2026-09-26) — staticcheck all-checks re-run (solo, RAM
+## policy): 11 bug-class findings fixed, F-58, and FOUR of my own
+## vacuous checks caught mid-audit
+
+**staticcheck re-run on the whole tree with `-tags goolm`
+(`go run honnef.co/go/tools/cmd/staticcheck@latest -checks=all`,
+solo, `GOGC=40 ulimit -v 8388608`)** — first full re-run since the
+slice-269 baseline, covering all code added in slices 270-287.
+
+**Four vacuous-check incidents in ONE slice (re-check-the-checker):**
+1. `nix develop -c staticcheck` → `command not found` (the tool was
+   never on the shell PATH; earlier invocation method was lost) →
+   recovered as `go run honnef.co/go/tools/cmd/staticcheck@latest`.
+2. First run WITHOUT `-tags goolm` → `olm/olm.h` cgo death on
+   mautrix/libolm + incomplete package set → re-ran with the tag.
+3. The "zero bug-class in my changed files" intersection used
+   `SA[0-9]{4}:` (colon-after) but findings print `(SA4006)` —
+   matched nothing → **vacuous green** → re-derived with `\(SA…\)`:
+   16 files, per-line triage: ZERO findings in lines I wrote
+   (everything in changed files was pre-existing baseline).
+4. A focused re-run's output was swallowed by a grep filter on a run
+   that had failed silently → re-ran raw (`rc=1`, full output).
+
+**Fixed (all bug-class, 11 findings cleared — 228→217 total, 43→32
+bug-class):**
+- **F-58 `tsRedactCmd`**: returned after masking the FIRST `cpw=` →
+  later passwords reached debug TX logs. Behavioral RED quoted;
+  forward-advancing index fix. **Self-caught near-land:** my first
+  fix (loop without `return`) rewrote the same index forever — an
+  infinite loop in the production TX-log path — caught only because
+  the new test HUNG (timeout-guarded runs from here on); never landed.
+- `SA4017` xmpp localserver: empty `case strings.HasPrefix(<presence)`
+  body = selecting it had no effect — reproduced staticcheck's exact
+  complaint in a 5-line side program FIRST (understood before
+  touching), then removed the dead case with the intent documented.
+- `SA4006` ×2: deltachat mini-IMAP `msgs` first assignment dead;
+  swipeaction `rowW` computed-never-used (paint takes the hint width).
+- `SA9003` twofa empty branch → explicit `_ = Clicked(gtx)` (same
+  drain side effect).
+- `SA4000` ×3 test tautologies (`f(k1) != f(k1)`) → two invocations
+  split across variables: SAME determinism check, syntax clean.
+- `SA4011+S1023` tsEscape redundant break (real loop-break existed
+  one line below — zero behavior change); `SA4003` QuickLZ
+  `uint32 >= 0` tautology simplified (zero behavior change).
+- New `TestTsRedactCmd*` trio + behavioral RED quote.
+
+**Remaining 32 bug-class = documented baseline debt**, all in
+untouched files: ~16 protocol-bound deprecations (ecdsa big.Int
+coords for the TS wire format, pion v4 APIs, rubika PKCS#1 v1.5
+mandated by the wire protocol, net.Dialer.DualStack), S1009/S1002/
+S1039/S1011 simplifications, S1016 convert suggestions — none are
+regressions (slice-269's remainder class), none touched.
+
+**Validation:** gofmt/vet clean; redact trio GREEN (timeout-guarded);
+full cores + gui packages GREEN; whole tree **14 ok**; staticcheck
+re-run confirms all 11 gone; BUGS **F-58** (shapes verified → 58).
+
+**B-25 re-probe: still denied → open** (26th consecutive).
+
+gate287 = light scope; standalone with rc check.

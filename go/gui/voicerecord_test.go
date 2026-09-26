@@ -73,7 +73,9 @@ func TestVoiceRecClickablesStable(t *testing.T) {
 	a.wid.init()
 	f1 := frame{msgFor: &chatKey{AccountID: "a", ChatID: "c1"}}
 	f2 := frame{msgFor: &chatKey{AccountID: "a", ChatID: "c2"}}
-	if a.voiceRecClickable(f1) != a.voiceRecClickable(f1) {
+	vStable1 := a.voiceRecClickable(f1)
+	vStable2 := a.voiceRecClickable(f1)
+	if vStable1 != vStable2 {
 		t.Fatal("clickable must be stable per chat")
 	}
 	if a.voiceRecClickable(f1) == a.voiceRecClickable(f2) {

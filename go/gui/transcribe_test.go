@@ -108,13 +108,19 @@ func TestTranscriptClickablesStable(t *testing.T) {
 	if k1 == k2 {
 		t.Fatal("different messages must key differently")
 	}
-	if a.transcribeClickable(k1) != a.transcribeClickable(k1) {
+	// Two invocations split across variables — same determinism check,
+	// SA4000-clean syntax (staticcheck flagged the identical pair).
+	cStable1 := a.transcribeClickable(k1)
+	cStable2 := a.transcribeClickable(k1)
+	if cStable1 != cStable2 {
 		t.Fatal("clickable must be stable per message")
 	}
 	if a.transcribeClickable(k1) == a.transcribeClickable(k2) {
 		t.Fatal("different messages must get different clickables")
 	}
-	if a.transcriptExpandClickable(k1) != a.transcriptExpandClickable(k1) {
+	eStable1 := a.transcriptExpandClickable(k1)
+	eStable2 := a.transcriptExpandClickable(k1)
+	if eStable1 != eStable2 {
 		t.Fatal("expand clickable must be stable per message")
 	}
 }

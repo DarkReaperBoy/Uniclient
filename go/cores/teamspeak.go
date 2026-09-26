@@ -196,7 +196,7 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 			}
 			nextHashed = len(out)
 
-		} else if uint32(len(out)) >= decompressedSize-10 || (decompressedSize < 10 && uint32(len(out)) >= 0) {
+		} else if uint32(len(out)) >= decompressedSize-10 || decompressedSize < 10 {
 			// Near end — emit remaining literals
 			for uint32(len(out)) < decompressedSize {
 				if control == 1 {
@@ -1001,7 +1001,6 @@ func tsEscape(s string) string {
 		switch s[i] {
 		case '\\', '/', ' ', '|', '\a', '\b', '\f', '\n', '\r', '\t', '\v':
 			needsEscape = true
-			break
 		}
 		if needsEscape {
 			break
@@ -1614,17 +1613,23 @@ func tsLogf(format string, args ...interface{}) {
 // (UNICLIENT_TS3_DEBUG) never leak channel/server passwords — everything
 // else stays visible for protocol diagnosis.
 func tsRedactCmd(cmd string) string {
-	for {
-		i := strings.Index(cmd, "cpw=")
-		if i < 0 {
+	// Search forward from pos so a freshly written "cpw=<redacted>" is
+	// never re-found: the naive "loop without return" redid the SAME
+	// index forever (infinite loop — caught as a test HANG in slice-287
+	// before landing). pos advances past each marker; every cpw= gets
+	// masked (behavioral RED: `cpw=<redacted> ... cpw=secret2`).
+	for pos := 0; ; {
+		rel := strings.Index(cmd[pos:], "cpw=")
+		if rel < 0 {
 			return cmd
 		}
+		i := pos + rel
 		j := i + 4
 		for j < len(cmd) && cmd[j] != ' ' {
 			j++
 		}
 		cmd = cmd[:i+4] + "<redacted>" + cmd[j:]
-		return cmd
+		pos = i + 4 + len("<redacted>")
 	}
 }
 
