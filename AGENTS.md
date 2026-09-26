@@ -358,8 +358,12 @@ owner's device test is the remaining rung.
   first, then the implementation that passes it.
 - `go test ./...` (with `-tags goolm`) must pass on every commit that ships.
 - gofmt + vet clean, always.
-- Live tests live in `go/tests/`, gated behind env vars (e.g.
-  `UNICLIENT_LIVE_IRC=1`), never run in CI, never need secrets in the repo.
+- Live tests live in `go/tests/`, gated behind the `live` build tag
+  (`-tags goolm,live` — all 10 files; slice-291 correction: the old
+  `UNICLIENT_LIVE_IRC=1` example was doc-fiction, never present in
+  code) plus per-test env overrides (`IRC_LIVE_SERVER`,
+  `GITHUB_LIVE_TOKEN`, `MUMBLE_LIVE_SERVER`, …); never run in CI,
+  never need secrets in the repo.
 - Docker-based protocol tests are the preferred verification ladder rung
   before touching official servers; official-server tests are the final
   proof. Every core gets both before being called "done".

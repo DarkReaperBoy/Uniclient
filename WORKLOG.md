@@ -9629,3 +9629,46 @@ worktree, CI config, and WORKLOG evidence:
 **B-25 re-probe: still denied → open** (29th consecutive).
 
 gate290 = light scope; standalone with rc check (docs only).
+
+---
+
+## Slice 291 (2026-09-26) — AGENTS/README cross-reference audit →
+## B-59/F-59: the NixOS path had been broken since slice 271
+
+Machine-checkable doc claims, one class at a time:
+
+1. **Env vars cited in docs vs code**: all `UNICLIENT_*` tokens in
+   AGENTS/README/BUGS grepped against `go/` — `UNICLIENT_LIVE_IRC`
+   is **doc-fiction** (cited since the early README commits, never in
+   any Go file; the IRC live test actually gates via the `live` build
+   tag + `IRC_LIVE_SERVER`/`IRC_LIVE_NICK`). All 10 files in
+   `go/tests/` carry `//go:build live`. **Both docs corrected** with
+   the slice-291 note inline; `UNICLIENT_MUMBLE_RESET_PIN` +
+   `UNICLIENT_TS3_DEBUG` verified real.
+2. **All 27 file paths cited in AGENTS** resolved: 10 basename-only
+   citations found; `ci.yml` cited as REMOVED (AGENTS §11 checkbox —
+   intentional), `cores/demo.go` cited as BANNED/deleted (§1.10 —
+   intentional), `ts3protocol.md` = an external-repo spec name (not a
+   repo path). Zero drift.
+3. **Version claims**: AGENTS platform table `go1.27, gio v0.10.2` =
+   exactly what go.mod pins ✓.
+4. **Discovered a third workflow, `flake.yml`, never audited** (I had
+   only ever polled `verify.yml`): manual-dispatch vendorHash
+   maintenance, sane — but its recipe greps `got:` from a PLAIN
+   build, which stale-hash reuse never prints. Investigating it →
+5. **F-59**: `nix build .#uniclient` (the README's NixOS entry) was
+   BROKEN since slice-271 — fixed-output hash-addressing silently
+   reused the stale vendor tree against the new go.mod. Full
+   mechanism + repair + end-to-end green proof in the BUGS row;
+   `flake.yml` recipe hardened (placeholder-first, fail-loud,
+   rebuild-verify) and YAML-validated. **Run history check**: all 15
+   recent workflow runs = Verify, all success (the streak was never
+   affected because nothing auto-runs `nix build`).
+6. Self-caught: my first `build_rc=$?` read the PIPE's rc (`tail`),
+   not nix — the known masking pattern — re-ran with true rc capture
+   (`true_rc=1`).
+
+**B-25 re-probe: still denied → open** (30th consecutive).
+
+gate291 = light scope; standalone with rc check (flake + docs +
+workflow changes; go code untouched).

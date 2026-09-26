@@ -33,7 +33,7 @@
           doCheck = false; # run `make test` in the dev shell
           # Reported by the first real build (the placeholder hash fails
           # the go-modules fixed-output derivation with the correct one).
-          vendorHash = "sha256-pWVnXRcYeX1uZUMeQlfPv01qwSk7gQq99AM9kBzd5gc=";
+          vendorHash = "sha256-CN1oPB3pJmbg/UJpdQZVSkXTvlcSSiKIdZIYKYnu6hc=";
           buildInputs = with pkgs; [
             libX11 libXcursor libXfixes
             libxkbcommon

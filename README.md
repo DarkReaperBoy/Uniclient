@@ -99,9 +99,10 @@ fit the GUI, never the other way around.
 | XMPP / Delta Chat / Bale / Rubika | Implemented, live verification pending |
 | TeamSpeak / Mumble | Live-verified on public servers incl. the voice data plane: two-client opus voice round-trips (pure-Go codec + pure-Go audio devices) |
 
-Live protocol tests live in `go/tests/`, gated behind env vars
-(e.g. `UNICLIENT_LIVE_IRC=1`); they never run in CI and never need secrets
-in the repo.
+Live protocol tests live in `go/tests/`, gated behind the `live` build
+tag (`-tags goolm,live`) with per-test env overrides (e.g.
+`IRC_LIVE_SERVER`); they never run in CI and never need secrets in the
+repo.
 
 ## For agents and contributors
 

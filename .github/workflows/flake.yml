@@ -21,12 +21,22 @@ jobs:
       - name: Compute vendorHash and patch flake.nix
         run: |
           set -euo pipefail
-          OUT=$(nix build .#uniclient 2>&1 || true)
+          # Reset to a placeholder FIRST: fixed-output output paths are
+          # hash-addressed, so with a stale-but-present hash nix silently
+          # REUSES the old vendor tree and the build dies on an
+          # inconsistency error that never prints `got:` — exactly what
+          # happened after the slice-271 dep bumps (found slice-291),
+          # which made the old recipe a silent no-op. The placeholder
+          # forces the mismatch that carries the correct hash.
+          sed -i 's|vendorHash = "[^"]*"|vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="|' flake.nix
+          set +e
+          OUT=$(nix build .#uniclient 2>&1)
+          set -e
           echo "$OUT" | tail -20
           HASH=$(echo "$OUT" | grep -oP "got: *'?sha256-[A-Za-z0-9+/=]+" | head -1 | grep -oP "sha256-[A-Za-z0-9+/=]+")
           if [ -z "${HASH:-}" ]; then
-            echo "no new hash needed (build succeeded or unknown error)"
-            exit 0
+            echo "no hash mismatch reported — unexpected, failing loudly instead of committing a broken hash"
+            exit 1
           fi
           echo "computed: $HASH"
           sed -i "s|vendorHash = \"[^\"]*\"|vendorHash = \"$HASH\"|" flake.nix
