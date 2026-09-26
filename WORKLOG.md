@@ -9564,3 +9564,35 @@ Heavy checks re-run one at a time (RAM rule), then doc audits:
 
 No production changes (one BUGS ref correction). gate288 = light
 scope; standalone with rc check.
+
+---
+
+## Slice 289 (2026-09-26) — F-57 end-to-end proof: the refusal path
+## driven through the REAL connect() against a real TLS peer
+
+Slice 286 unit-tested the decision function and source-scanned the
+wiring, but never drove `connect()` itself. Three integration tests
+(`mumble_tofu_connect_test.go`, self-signed probe listener that
+handshakes and reports the FIRST client read):
+
+1. **`TestConnectRefusesPinnedMismatchBeforeSending`** — pre-seeded
+   wrong pin → connect returns `changed since first use` WITH the
+   `UNICLIENT_MUMBLE_RESET_PIN` hint, and the probe reads **EOF with
+   zero payload bytes**: the refusal happens BEFORE any mumble byte
+   leaves the process (the security property, now observed on the
+   wire instead of inferred).
+2. **`TestConnectProceedsOnMatchingPin`** — correct pin → the Version
+   message arrives (probe n>0), then the test cancels via
+   `core.cancel()` (no 10 s initserver wait).
+3. **`TestConnectResetEnvRepins`** — wrong pin + env set → proceeds
+   AND `serverPins[addr]` is overwritten with the real fingerprint
+   (re-pin verified, not just assumed).
+
+Self-caught pre-result: my own typo `fpOf(t, cert))}` (one paren off)
+failed the parser before any test ran — fixed from a byte-level repr
+inspection. GREEN ×3 (0.01 s), `-race` on all TOFU tests, gofmt/vet
+clean, whole tree **14 ok**.
+
+**B-25 re-probe: still denied → open** (28th consecutive).
+
+gate289 = light scope; standalone with rc check.
