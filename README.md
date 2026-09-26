@@ -1,8 +1,8 @@
 # Uniclient
 
 One pure-Go, cross-platform messenger. One native GUI, many chat and voice
-backends — Telegram, Matrix, IRC, GitHub, XMPP, Delta Chat, Bale, Rubika —
-each added and switched as easily as an account. The GUI mirrors AyuGram's
+backends — Telegram, Matrix, IRC, GitHub, XMPP, Delta Chat, Bale, Rubika,
+TeamSpeak, Mumble — each added and switched as easily as an account. The GUI mirrors AyuGram's
 layout and behavior (re-implemented from scratch, never copied) with
 Material Design visuals, built with [Gio](https://gioui.org).
 

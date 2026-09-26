@@ -9596,3 +9596,36 @@ clean, whole tree **14 ok**.
 **B-25 re-probe: still denied → open** (28th consecutive).
 
 gate289 = light scope; standalone with rc check.
+
+---
+
+## Slice 290 (2026-09-26) — full README claim-by-claim audit (first
+## complete pass): one stale line fixed
+
+Every factual claim in README.md (115 lines) checked against the
+worktree, CI config, and WORKLOG evidence:
+
+1. **Backend list (line 4)** — named8 backends but omitted
+   TeamSpeak/Mumble (both live-verified, both in the table at line
+   100) → **fixed**: all10 named.
+2. **"GitHub | Live-tested against the real API"** — initially looked
+   like an overclaim (the current battery skips `TestGitHubLive`
+   without `GITHUB_LIVE_TOKEN`, and no AGENTS/BUGS row tracks that
+   token) → evidence hunt found WORKLOG:1467 `GitHub core PASSED
+   against the real API authenticated as…` + line179 `GitHub + IRC
+   verified live` + line2099 token-delivery note → claim **stands**,
+   row unchanged (re-check before correcting a factual doc cuts both
+   ways).
+3. **Verified-true claims**: architecture block's all 11 directories
+   exist; CI's low-RAM recipe is byte-identical to what README
+   documents (`-p 1`, `GOMEMLIMIT=900MiB`, `GOGC=30`, verify.yml:48-51);
+   Makefile `build` matches the documented command; flake exposes
+   `packages.default`/`apps.default` so `nix run github:…` works;
+   "XMPP/Delta/Bale/Rubika live pending" matches AGENTS §11 `[~]`;
+   TS/Mumble voice-plane claim matches the live suites; release URL /
+   wasm URL / pre-release note match the GitHub state checked in
+   slice 281.
+
+**B-25 re-probe: still denied → open** (29th consecutive).
+
+gate290 = light scope; standalone with rc check (docs only).
