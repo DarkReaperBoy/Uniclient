@@ -9071,3 +9071,36 @@ rc check.
 
 No findings → no rows. gate277 = light scope; standalone with rc
 check.
+
+---
+
+## Slice 278 (2026-09-25) — DeltaChat E2EE chain test hardened from
+## log-only to hard assertions (all GREEN)
+
+Found while auditing test-quality classes: the "full chain" test's
+ONLY Autocrypt check was `t.Logf`-only (never failed) — the app's most
+security-critical pipeline had zero hard assertions in its end-to-end
+test.
+
+**Strengthened (tests-first; production had to prove itself):**
+1. **Fixture upgraded**: the pre-loaded inbox email now carries a REAL
+   Autocrypt header (ephemeral openpgp entity → serialized → base64,
+   `dcTestEmail` gained variadic extra headers).
+2. **Hard asserts on send #1**: Autocrypt key advertised + **encrypted
+   on the wire** (`-----BEGIN PGP MESSAGE-----` — the "always try to
+   encrypt" design, replacing the log-note that tolerated plaintext).
+3. **Ingest end-to-end (B-31's full chain)**: after GetDialogs,
+   `peerStates[bob]` must hold a non-empty PublicKey AND a parsed
+   openpgp entity — the first live exercise of the slice-249
+   lowercase-header normalization through the real pipeline.
+4. **Send #2 must be encrypted with the recipient's key** — armor +
+   Autocrypt both hard-asserted on the second wire message.
+
+**Result: ALL GREEN first run** — every log line became a passing
+assertion (`AUTOCRYPT INGEST OK`, `ENCRYPTED SEND OK`); chain also
+`-race` clean; whole tree **14 ok**. Honest outcome: the E2EE path
+genuinely works — this closes a coverage hole, finds no bug.
+
+**B-25 re-probe: still denied → open** (17th consecutive).
+
+gate278 = light scope; standalone with rc check.

@@ -17,6 +17,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"errors"
 	"io"
 	"math/big"
@@ -27,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapserver"
 	"github.com/emersion/go-sasl"
@@ -363,8 +365,8 @@ func startMiniSMTP(t *testing.T, user, pass string, cert tls.Certificate) (*mini
 
 // dcTestEmail builds a plain Delta Chat message (headers incl. the
 // Chat-Version marker + text body) as it would sit in a mailbox.
-func dcTestEmail(from, to, subject, body string) *miniMsg {
-	header := strings.Join([]string{
+func dcTestEmail(from, to, subject, body string, extra ...string) *miniMsg {
+	lines := []string{
 		"From: " + from,
 		"To: " + to,
 		"Subject: " + subject,
@@ -372,8 +374,10 @@ func dcTestEmail(from, to, subject, body string) *miniMsg {
 		"Date: " + time.Now().Format(time.RFC1123Z),
 		"Chat-Version: 1.0",
 		"Content-Type: text/plain; charset=utf-8",
-		"",
-	}, "\r\n")
+	}
+	lines = append(lines, extra...)
+	lines = append(lines, "")
+	header := strings.Join(lines, "\r\n")
 	return &miniMsg{
 		flags: nil,
 		env: &imap.Envelope{
@@ -398,8 +402,20 @@ func TestDeltaChatFullChainLocalServer(t *testing.T) {
 	store, imapAddr := startMiniIMAP(t, "alice@example.test", "passw0rd", cert)
 	smtpBe, smtpAddr := startMiniSMTP(t, "alice@example.test", "passw0rd", cert)
 
-	// Pre-load one incoming chat email in INBOX.
-	store.add("INBOX", dcTestEmail("bob@example.test", "alice@example.test", "Chat: Hello", "Hello from the mini mail server!"))
+	// Pre-load one incoming chat email in INBOX — with a REAL Autocrypt
+	// key so the receive path exercises ingest → peerStates → encrypted
+	// second send (B-31 end-to-end, replacing the old log-only note).
+	bobKey, err := openpgp.NewEntity("Bob", "", "bob@example.test", nil)
+	if err != nil {
+		t.Fatalf("generate bob's key: %v", err)
+	}
+	var bobPub bytes.Buffer
+	if err := bobKey.Serialize(&bobPub); err != nil {
+		t.Fatalf("serialize bob's key: %v", err)
+	}
+	bobKeydata := base64.StdEncoding.EncodeToString(bobPub.Bytes())
+	store.add("INBOX", dcTestEmail("bob@example.test", "alice@example.test", "Chat: Hello", "Hello from the mini mail server!",
+		"Autocrypt: addr=bob@example.test; prefer-encrypt=mutual; keydata="+bobKeydata))
 
 	store2 := utils.NewSessionStore(newTestVaultXMPP(t), "dc-mini")
 	core := NewDeltaChatCore(store2)
@@ -442,8 +458,11 @@ func TestDeltaChatFullChainLocalServer(t *testing.T) {
 			t.Errorf("sent email missing %q:\n%.400s", want, got)
 		}
 	}
-	if !strings.Contains(got, "Autocrypt:") && !strings.Contains(got, "multipart") {
-		t.Logf("note: no Autocrypt header / multipart structure (plain singlepart send)")
+	if !strings.Contains(got, "Autocrypt:") {
+		t.Errorf("outgoing email must advertise our key — myEntity exists after auth (Autocrypt contract):\n%.400s", got)
+	}
+	if !strings.Contains(got, "-----BEGIN PGP MESSAGE-----") {
+		t.Errorf("first send must be encrypted on the wire (the design is 'always try to encrypt'):\n%.400s", got)
 	}
 	t.Logf("SMTP send OK: %d recipient(s), %d bytes, Chat-Version header present", len(mails[0].rcpt), len(got))
 
@@ -468,5 +487,43 @@ func TestDeltaChatFullChainLocalServer(t *testing.T) {
 		t.Fatalf("chat with bob not built from fetched email; dialogs: %v", names)
 	}
 	t.Log("RECEIVE PATH OK: SELECT + FETCH + processIncomingEmail built the chat from the incoming email")
+
+	// Autocrypt INGEST end-to-end (B-31): bob's folded key went through
+	// the lowercase-normalized header parse → updateAutocryptPeer →
+	// stored + parsed into an entity.
+	core.peerKeysMu.RLock()
+	bob := core.peerStates["bob@example.test"]
+	var pubLen int
+	var hasEntity bool
+	if bob != nil {
+		pubLen = len(bob.PublicKey)
+		hasEntity = bob.entity != nil
+	}
+	core.peerKeysMu.RUnlock()
+	if pubLen == 0 {
+		t.Fatal("bob's Autocrypt key never ingested — peerStates empty (B-31 end-to-end)")
+	}
+	if !hasEntity {
+		t.Fatal("ingested key did not parse into an openpgp entity")
+	}
+	t.Log("AUTOCRYPT INGEST OK: peer key stored and parsed (B-31 chain)")
+
+	// Second send now has a recipient key → must go out encrypted.
+	if _, err := core.SendMessage("dm:bob@example.test", OutgoingMessage{Text: "encrypted follow-up"}); err != nil {
+		t.Fatalf("SendMessage #2: %v", err)
+	}
+	mails2 := smtpBe.received()
+	if len(mails2) < 2 {
+		t.Fatalf("expected 2 mails, got %d", len(mails2))
+	}
+	got2 := string(mails2[1].data)
+	if !strings.Contains(got2, "-----BEGIN PGP MESSAGE-----") {
+		t.Errorf("second send after key ingest must be encrypted on the wire:\n%.400s", got2)
+	}
+	if !strings.Contains(got2, "Autocrypt:") {
+		t.Errorf("encrypted send must still advertise our key:\n%.400s", got2)
+	}
+	t.Log("ENCRYPTED SEND OK: recipient-key path produced PGP/MIME on the wire")
+
 	_ = bytes.MinRead
 }
