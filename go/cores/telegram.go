@@ -3554,6 +3554,39 @@ type tgMediaState struct {
 
 // applyRemoteMediaState updates a call's remote media state fields from an incoming MediaState
 // and fires an UpdateCallState to notify the UI.
+// unmarshalCallSignal parses ONE remote call-signaling payload (F-79):
+// the typed unmarshal used to be called with its error DROPPED — a
+// corrupt or type-mismatched payload fed a ZERO struct into the
+// handlers (MediaState zeroing remote mute/rotation state; empty
+// Fingerprints reaching [0] indexing below = remote crash). Callers
+// MUST skip the rest of the case when it returns an error.
+func unmarshalCallSignal(data []byte, v any) error {
+	if err := json.Unmarshal(data, v); err != nil {
+		return fmt.Errorf("call signal parse: %w", err)
+	}
+	return nil
+}
+
+// fingerprintLabel returns the DTLS setup label without panicking on an
+// empty slice (F-79: Fingerprints[0] on a remote InitialSetup with no
+// fingerprints was a remote-triggered index-out-of-range crash).
+func fingerprintLabel(setup tgInitialSetup) string {
+	if len(setup.Fingerprints) == 0 {
+		return "none"
+	}
+	return setup.Fingerprints[0].Setup
+}
+
+// firstSSRC returns the first content's SSRC without panicking on an
+// empty contents array (F-79: our answer path echoed the REMOTE
+// offer's contents — an empty remote array crashed us).
+func firstSSRC(contents []tgMediaContent) string {
+	if len(contents) == 0 {
+		return ""
+	}
+	return contents[0].SSRC
+}
+
 func (t *TelegramCore) applyRemoteMediaState(call *tgCall, ms tgMediaState) {
 	call.mu.Lock()
 	call.remoteMuted = ms.Muted
@@ -5692,7 +5725,7 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 
 			// Parse and handle JSON signaling message
 			var msg map[string]interface{}
-			if err := json.Unmarshal(decrypted, &msg); err != nil {
+			if err := unmarshalCallSignal(decrypted, &msg); err != nil {
 				fmt.Printf("[tg-call] SCTP signaling: invalid JSON: %v\n", err)
 				continue
 			}
@@ -5719,20 +5752,29 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 			case "InitialSetup":
 				if call.useV2Impl {
 					var setup tgInitialSetup
-					json.Unmarshal(decrypted, &setup)
+					if err := unmarshalCallSignal(decrypted, &setup); err != nil {
+						fmt.Printf("[tg-call] SCTP skip InitialSetup: %v\n", err)
+						break
+					}
 					fmt.Printf("[tg-call] SCTP V2Impl: got InitialSetup (ufrag=%s)\n", setup.Ufrag)
 					t.handleRemoteInitialSetupV2Impl(call, &setup)
 				}
 			case "NegotiateChannels":
 				if call.useV2Impl {
 					var nc tgNegotiateChannels
-					json.Unmarshal(decrypted, &nc)
+					if err := unmarshalCallSignal(decrypted, &nc); err != nil {
+						fmt.Printf("[tg-call] SCTP skip NegotiateChannels: %v\n", err)
+						break
+					}
 					fmt.Printf("[tg-call] SCTP V2Impl: got NegotiateChannels (exchangeId=%s)\n", nc.ExchangeID)
 					t.handleRemoteNegotiateChannelsV2Impl(call, &nc)
 				}
 			case "Candidates":
 				var candidates tgCandidates
-				json.Unmarshal(decrypted, &candidates)
+				if err := unmarshalCallSignal(decrypted, &candidates); err != nil {
+					fmt.Printf("[tg-call] SCTP skip Candidates: %v\n", err)
+					break
+				}
 				for _, c := range candidates.Candidates {
 					if !strings.Contains(c.SDPString, ".reflector") {
 						t.handleRemoteCandidate(call, c.SDPString, "0", 0)
@@ -5740,7 +5782,10 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 				}
 			case "MediaState":
 				var ms tgMediaState
-				json.Unmarshal(decrypted, &ms)
+				if err := unmarshalCallSignal(decrypted, &ms); err != nil {
+					fmt.Printf("[tg-call] SCTP skip MediaState: %v\n", err)
+					break
+				}
 				fmt.Printf("[tg-call] SCTP MediaState: muted=%v video=%s screencast=%s rotation=%d\n",
 					ms.Muted, ms.VideoState, ms.ScreencastState, ms.VideoRotation)
 				t.applyRemoteMediaState(call, ms)
@@ -6547,11 +6592,11 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 
 			t.sendCallSignaling(call, v2Setup)
 			fmt.Printf("[tg-call] V2Impl: sent InitialSetup (ufrag=%s, setup=%s) (+%dms)\n",
-				v2Setup.Ufrag, v2Setup.Fingerprints[0].Setup, time.Since(t0).Milliseconds())
+				v2Setup.Ufrag, fingerprintLabel(*v2Setup), time.Since(t0).Milliseconds())
 
 			t.sendCallSignaling(call, v2NC)
 			fmt.Printf("[tg-call] V2Impl: sent NegotiateChannels (exchangeId=%s, ssrc=%s) (+%dms)\n",
-				v2NC.ExchangeID, v2NC.Contents[0].SSRC, time.Since(t0).Milliseconds())
+				v2NC.ExchangeID, firstSSRC(v2NC.Contents), time.Since(t0).Milliseconds())
 		} else {
 			// V2Reference: send standard SDP offer
 			t.sendCallSignaling(call, map[string]interface{}{
@@ -7153,7 +7198,7 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 		}
 
 		var msg map[string]interface{}
-		if err := json.Unmarshal(plaintext, &msg); err != nil {
+		if err := unmarshalCallSignal(plaintext, &msg); err != nil {
 			fmt.Printf("[tg-call] signaling: invalid JSON: %v\n", err)
 			continue
 		}
@@ -7184,7 +7229,10 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 
 		case "MediaState":
 			var ms tgMediaState
-			json.Unmarshal(plaintext, &ms)
+			if err := unmarshalCallSignal(plaintext, &ms); err != nil {
+				fmt.Printf("[tg-call] skip MediaState: %v\n", err)
+				break
+			}
 			fmt.Printf("[tg-call] Got MediaState: muted=%v video=%s screencast=%s rotation=%d\n",
 				ms.Muted, ms.VideoState, ms.ScreencastState, ms.VideoRotation)
 			t.applyRemoteMediaState(call, ms)
@@ -7192,15 +7240,21 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 		case "InitialSetup":
 			if call.useWebSignaling {
 				var setup tgInitialSetup
-				json.Unmarshal(plaintext, &setup)
+				if err := unmarshalCallSignal(plaintext, &setup); err != nil {
+					fmt.Printf("[tg-call] skip Web InitialSetup: %v\n", err)
+					break
+				}
 				fmt.Printf("[tg-call] Web: got InitialSetup (ufrag=%s, setup=%s, audio=%v, video=%v, screencast=%v)\n",
-					setup.Ufrag, setup.Fingerprints[0].Setup, setup.Audio != nil, setup.Video != nil, setup.Screencast != nil)
+					setup.Ufrag, fingerprintLabel(setup), setup.Audio != nil, setup.Video != nil, setup.Screencast != nil)
 				t.handleRemoteInitialSetupWeb(call, &setup)
 			} else if call.useV2Impl {
 				var setup tgInitialSetup
-				json.Unmarshal(plaintext, &setup)
+				if err := unmarshalCallSignal(plaintext, &setup); err != nil {
+					fmt.Printf("[tg-call] skip V2Impl InitialSetup: %v\n", err)
+					break
+				}
 				fmt.Printf("[tg-call] V2Impl: got InitialSetup (ufrag=%s, setup=%s)\n",
-					setup.Ufrag, setup.Fingerprints[0].Setup)
+					setup.Ufrag, fingerprintLabel(setup))
 				t.handleRemoteInitialSetupV2Impl(call, &setup)
 			} else {
 				fmt.Printf("[tg-call] Got InitialSetup (unexpected with V2Reference)\n")
@@ -7208,11 +7262,11 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 		case "NegotiateChannels":
 			if call.useV2Impl {
 				var nc tgNegotiateChannels
-				json.Unmarshal(plaintext, &nc)
-				ssrc := ""
-				if len(nc.Contents) > 0 {
-					ssrc = nc.Contents[0].SSRC
+				if err := unmarshalCallSignal(plaintext, &nc); err != nil {
+					fmt.Printf("[tg-call] skip NegotiateChannels: %v\n", err)
+					break
 				}
+				ssrc := firstSSRC(nc.Contents)
 				fmt.Printf("[tg-call] V2Impl: got NegotiateChannels (exchangeId=%s, contents=%d, ssrc=%s)\n",
 					nc.ExchangeID, len(nc.Contents), ssrc)
 				t.handleRemoteNegotiateChannelsV2Impl(call, &nc)
@@ -7222,7 +7276,10 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 		case "Candidates":
 			// V2Impl candidate format — parse and forward
 			var candidates tgCandidates
-			json.Unmarshal(plaintext, &candidates)
+			if err := unmarshalCallSignal(plaintext, &candidates); err != nil {
+				fmt.Printf("[tg-call] skip Candidates: %v\n", err)
+				break
+			}
 			for _, c := range candidates.Candidates {
 				if !strings.Contains(c.SDPString, ".reflector") {
 					t.handleRemoteCandidate(call, c.SDPString, "0", 0)
@@ -7860,7 +7917,7 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 		ourSetup, ourNC := extractV2ImplFromSDP(answer.SDP, false)
 		t.sendCallSignaling(call, ourSetup)
 		fmt.Printf("[tg-call] V2Impl: sent InitialSetup (ufrag=%s, setup=%s)\n",
-			ourSetup.Ufrag, ourSetup.Fingerprints[0].Setup)
+			ourSetup.Ufrag, fingerprintLabel(*ourSetup))
 
 		// Send NegotiateChannels answer: echo remote's offer contents entirely.
 		// Must use remote's codecs/SSRCs/ssrcGroups — NOT pion's. Pion's codec list
@@ -7872,7 +7929,7 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 		}
 		t.sendCallSignaling(call, answerNC)
 		fmt.Printf("[tg-call] V2Impl: sent NegotiateChannels answer (exchangeId=%s, ssrc=%s [echoed remote])\n",
-			answerNC.ExchangeID, answerNC.Contents[0].SSRC)
+			answerNC.ExchangeID, firstSSRC(answerNC.Contents))
 
 		// Also send our OWN NegotiateChannels offer (new exchangeId, our SSRC).
 		// This tells C++ what we'll be sending. C++ will answer with our exchangeId.
@@ -7882,7 +7939,7 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 		ourNC.ExchangeID = ownExchangeID
 		t.sendCallSignaling(call, ourNC)
 		fmt.Printf("[tg-call] V2Impl: sent NegotiateChannels own offer (exchangeId=%s, ssrc=%s)\n",
-			ourNC.ExchangeID, ourNC.Contents[0].SSRC)
+			ourNC.ExchangeID, firstSSRC(ourNC.Contents))
 
 		// Extract SSRC from our answer
 		for _, line := range strings.Split(answer.SDP, "\r\n") {
@@ -7998,10 +8055,7 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 // processRemoteV2ImplOffer handles the remote's own NegotiateChannels offer (different exchangeId).
 // This contains the remote's ACTUAL sending SSRC. We answer it and do a pion renegotiation.
 func (t *TelegramCore) processRemoteV2ImplOffer(call *tgCall, nc *tgNegotiateChannels) {
-	remoteSSRC := ""
-	if len(nc.Contents) > 0 {
-		remoteSSRC = nc.Contents[0].SSRC
-	}
+	remoteSSRC := firstSSRC(nc.Contents)
 
 	// Dedup: skip if we've already answered this exchangeId (retransmit from remote)
 	call.mu.Lock()
@@ -8878,6 +8932,9 @@ func (t *TelegramCore) applySFUTransport(call *tgCall) error {
 	fmt.Printf("[tg-group] Offer SDP:\n%s\n", localDesc.SDP)
 
 	// Build synthetic SDP answer from SFU transport
+	if len(tr.Fingerprints) == 0 {
+		return fmt.Errorf("sfu transport has no DTLS fingerprint")
+	}
 	fp := tr.Fingerprints[0]
 	setup := fp.Setup
 	if setup == "" {

@@ -10899,3 +10899,76 @@ styling fuzz, path traversal, download ceilings, shared-temp
 planting, image dimension budgets, uncapped response bodies,
 timeout-less fetches, **truncated-transfer integrity, partial-cleanup
 on failure (this slice)**.
+
+## Slice 315 (2026-09-27) — F-79: remote call-signaling parse errors
+dropped + unguarded [0] indexing = remote-triggered client crash
+
+1. **Class** (fresh sweep of the telegram voice-call signal path):
+   BOTH signal clusters (SCTP `decrypted` + web/V2Reference
+   `plaintext`) parsed typed payloads with the error DISCARDED — 9
+   sites. Two consequences:
+   - **Crash**: `setup.Fingerprints[0]` in the InitialSetup printfs —
+     a valid-JSON payload with an EMPTY fingerprints array (or a
+     type-mismatched one that failed the dropped parse) = index out of
+     range → **whole client dies, triggered by any call peer**;
+     `answerNC.Contents[0]` echoed the REMOTE offer's contents, so an
+     empty remote array crashed OUR answer path too.
+   - **Silent state corruption**: failed `MediaState` parse fed a zero
+     struct into `applyRemoteMediaState` — forcing remoteMuted=false,
+     rotation 0, empty video state over the real values.
+2. **Fix**: `unmarshalCallSignal` (error surfaced; caller `break`s the
+   rest of the case) wired into ALL 11 typed parses (the 2 previously
+   CHECKED msg parses included for uniformity — scan then has zero
+   bare needles); `fingerprintLabel`/`firstSSRC` replace every
+   unguarded `[0]` on signal-derived data (3 pre-existing `len > 0`
+   guards left untouched); SFU transport path returns an honest error
+   instead of indexing.
+3. **Tests-first**: seam-RED quoted (`undefined: fingerprintLabel`);
+   GREEN ×4 — empty-setup label + empty-contents SSRC are the PANIC
+   REGRESSION tests (reverting to `[0]` fails them with
+   index-out-of-range), type-mismatch surfaced (exact payload shape
+   that used to zero-fill), source-scan pin (RED 11 bare signal
+   unmarshals → 0).
+4. **Self-caught during wiring**: the first edit batch had a
+   duplicated pair (the cluster2 Negotiate block and its ssrc guard
+   overlapped) — count==1 assert failed, script aborted atomically,
+   NOTHING written; re-ran with the guard folded into the single
+   Negotiate pair.
+5. **Validation**: whole tree **14 ok / 0 FAIL**, `-race` cores ok
+   (11.5s), live dendrite ok (3.8s), vet incl. `-tags goolm,live`,
+   gofmt clean. BUGS machine check: **79 F rows, no gaps/dupes, open =
+   B-25 only**.
+
+**B-25 re-probe: still denied → open** (56th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 314's)
+Open: **B-25 ONLY** (56× denied re-probes at ts.arcticblaze.net;
+environmental, flaps both directions; opportunistic re-probe each
+slice). **F-rows = 79**, B-rows = 1. **slice 312 = a backend fully
+eliminated per owner order (name scrubbed repo-wide, 0 matches — keep
+it at ZERO everywhere; git history retains old commits)**; F-74 image
+dimension budget; F-75 uncapped response bodies (25 sites); F-76
+timeout-less discovery fetches (slice-285 checker gap); F-77 truncated
+TeamSpeak transfers accepted (both directions); F-78 failed downloads
+leaving partials; **slice 315 = F-79 remote call-signal parse errors
+dropped + [0] indexing = remote client crash (unmarshalCallSignal ×11,
+fingerprintLabel/firstSSRC guards)**. Dendrite at 127.0.0.1:8008
+(recipe in `go/tests/matrix_groupcall_live_test.go` header). Streak:
+66 `ba91fe05`, 67 `491e881c`, 68 `70a0d4ce`, 69 `36030972`, 70
+`821eb674`, **71 `f324939f`**. Paths/toolchain per slice-295 anchor
+(repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`, Go 1.27.1 store
+path, `GOTOOLCHAIN=local`, always `-tags goolm`, live = `-tags
+goolm,live ./tests/`, char-class token extraction in shell only;
+ANCHOR recipe: `grep -o 'github_pat[_][A-Za-z0-9]*' <(git remote
+get-url origin)`; secret scan = added lines only + whole-tree
+real-length literals). Remaining horizon: B-25's env flap + the two
+always-owner rungs (§11 `[~]` real-phone/email live sign-in, `[ ]`
+first non-prerelease ≥ v0.10.3 per slice-281). Owner objective: scrub
+the eliminated backend (done, 312), work the rest of the cores, report
+when done. Audit classes drained: test-quality trilogy, data-loss,
+response-size/gzip, TLS/timeouts, TOFU, staticcheck×2, validation
+batteries, docs/env-var/path claims, teardown paths, styling fuzz,
+path traversal, download ceilings, shared-temp planting, image
+dimension budgets, uncapped response bodies, timeout-less fetches,
+truncated-transfer integrity, partial cleanup, **remote-signal crash
+(this slice)**.
