@@ -30,13 +30,20 @@ type guardCore struct {
 	mu      sync.Mutex
 	dlCalls int
 	part    *fakePartSource
+	dlErr   error // F-78 test hook: write a partial to dest, then fail
 }
 
 func (g *guardCore) DownloadFile(_ cores.FileRef, dest string, _ func(int64, int64)) error {
 	g.mu.Lock()
 	g.dlCalls++
 	part := g.part
+	dlErr := g.dlErr
 	g.mu.Unlock()
+	if dlErr != nil {
+		// Simulate a core that wrote bytes and THEN failed (F-78).
+		os.WriteFile(dest, []byte("partial-bytes"), 0o644)
+		return dlErr
+	}
 	if part == nil {
 		return os.WriteFile(dest, []byte("x"), 0o644)
 	}

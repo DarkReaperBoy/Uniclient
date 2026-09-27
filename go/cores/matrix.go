@@ -1134,7 +1134,11 @@ func (m *MatrixCore) DownloadFile(fileRef FileRef, dest string, progress func(re
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
-	return os.WriteFile(dest, data, 0o644)
+	if werr := os.WriteFile(dest, data, 0o644); werr != nil {
+		os.Remove(dest) // F-78: mid-write failure (ENOSPC) leaves a partial
+		return fmt.Errorf("write file: %w", werr)
+	}
+	return nil
 }
 
 // --- Core Interface: Media ---

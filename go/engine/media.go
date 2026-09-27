@@ -201,6 +201,9 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 	})
 
 	if err != nil {
+		// F-78: a core that failed AFTER writing bytes must not leave the
+		// truncated file — any existence check would treat it as content.
+		os.Remove(localPath)
 		e.db.Exec(
 			"UPDATE media SET download_state = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
 			DownloadFailed, job.AccountID, job.ChatID, job.MsgID, job.Seq)

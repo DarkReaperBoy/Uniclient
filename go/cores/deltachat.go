@@ -1366,7 +1366,11 @@ func (d *DeltaChatCore) DownloadFile(fileRef FileRef, dest string, progress func
 		if progress != nil {
 			progress(int64(len(data)), int64(len(data)))
 		}
-		return os.WriteFile(dest, data, 0644)
+		if werr := os.WriteFile(dest, data, 0644); werr != nil {
+			os.Remove(dest) // F-78: mid-write failure leaves a partial
+			return fmt.Errorf("write cached file: %w", werr)
+		}
+		return nil
 	}
 
 	return fmt.Errorf("%w: file not cached locally — re-sync messages to download", ErrNotFound)

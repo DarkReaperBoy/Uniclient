@@ -10818,3 +10818,84 @@ staticcheck×2, validation batteries, docs/env-var/path claims,
 teardown paths, styling fuzz, path traversal, download ceilings,
 shared-temp planting, image dimension budgets, uncapped response
 bodies, timeout-less fetches.
+
+## Slice 314 (2026-09-27) — F-77/F-78: truncated transfers accepted as
+complete (TeamSpeak raw-TCP FT, both directions) + failed downloads
+leaving truncated partials
+
+1. **Class**: integrity of transfers with NO transport-level framing.
+   net/http enforces Content-Length (github/bale/xmpp/matrix short
+   reads error at the transport), but TeamSpeak's file transfer is raw
+   TCP: the declared size from `ftinitdownload`/`ftinitupload` is the
+   ONLY truth — and both loops ignored it:
+   - download: `if readErr != nil { break }` → `return nil` (dropped
+     connection = "successful" truncated file); size parsed with the
+     error discarded → malformed/missing size = zero-iteration loop =
+     EMPTY file reported complete.
+   - upload: source read errors identically swallowed; `sent` never
+     compared to the declared size → fake "sent" message with
+     full-size attachment metadata while the server waits forever;
+     oversized source OVER-SENT past the declared size (protocol
+     violation).
+2. **Fix**: `receiveTSFile` (exact-size or nothing: short →
+   `ErrTruncated` + partial removed, overshoot rejected, legit 0-byte
+   file succeeds, single-cleanup defer), `parseTSSize` (malformed →
+   `ErrTruncated`, "0" valid), `sendTSFile` (exact-size send: short
+   source fails, oversized source sends EXACTLY the declared bytes,
+   non-EOF read errors surface, size<=0 keeps legacy EOF-stream but
+   still fails honestly on read errors). UploadFile/DownloadFile
+   wired through the helpers.
+3. **F-78 partials**: xmpp `DownloadFileHTTP` got ONE success-flag
+   defer (ceiling + write + read paths — the ceiling-only remove was
+   the F-72 gap); matrix/deltachat `os.WriteFile` failures now
+   `os.Remove(dest)`; engine `executeDownload` error branch now
+   `os.Remove(localPath)` (it marked DownloadFailed but kept the
+   corpse on disk — cache_msgs treats err==nil+file as content).
+4. **Tests-first**: seams quoted (`undefined: receiveTSFile`,
+   `core.dlErr undefined`); GREEN ×12 — 4 receive (short/exact/0-byte/
+   negative), 1 parse, 5 send (short/exact/oversized/size-0/read-error),
+   1 source-scan over the three DownloadFile regions, 1 engine
+   behavioral (fake core writes bytes THEN fails → partial gone + row
+   DownloadFailed). Self-caught: the first splice anchor hit TWO
+   `ftConn.Write(ftkey)` sites — the upload function has the SAME bug
+   class (script aborted atomically before any write); re-anchored by
+   function region and fixed BOTH halves.
+5. **Validation**: whole tree **14 ok / 0 FAIL**, `-race` engine 141s
+   + utils + teamspeak/download tests ok, live dendrite ok (4.2s),
+   vet incl. `-tags goolm,live`, gofmt clean. BUGS machine check:
+   **78 F rows, no gaps/dupes, open = B-25 only**.
+
+**B-25 re-probe: still denied → open** (55th consecutive; the 50th-
+slice ACK was a one-off flap direction).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 313's)
+Open: **B-25 ONLY** (55× denied re-probes at ts.arcticblaze.net;
+environmental, flaps both directions; opportunistic re-probe each
+slice). **F-rows = 78**, B-rows = 1. **slice 312 = a backend fully
+eliminated per owner order (name scrubbed repo-wide, 0 matches — the
+name must stay at ZERO everywhere; git history retains old commits)**;
+F-74 image dimension budget; F-75 uncapped response bodies (25 sites);
+F-76 timeout-less discovery fetches (8 sites, slice-285 checker gap);
+**slice 314 = F-77 truncated transfers accepted (TeamSpeak FT both
+directions: receiveTSFile/sendTSFile/parseTSSize) + F-78 failed
+downloads leaving partials (xmpp defer, matrix/deltachat WriteFile,
+engine executeDownload, TS receive)**. Dendrite at 127.0.0.1:8008
+(recipe in `go/tests/matrix_groupcall_live_test.go` header). Streak:
+66 `ba91fe05`, 67 `491e881c`, 68 `70a0d4ce`, 69 `36030972`,
+**70 `821eb674`**. Paths/toolchain per slice-295 anchor (repo
+`/tmp/uniclient_repo`, gate `/tmp/gate258.sh`, Go 1.27.1 store path,
+`GOTOOLCHAIN=local`, always `-tags goolm`, live = `-tags goolm,live
+./tests/`, char-class token extraction in shell only; ANCHOR recipe
+form: `grep -o 'github_pat[_][A-Za-z0-9]*' <(git remote get-url
+origin)`; secret scan = added lines only + whole-tree real-length
+literals). Remaining horizon: B-25's env flap + the two always-owner
+rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
+non-prerelease ≥ v0.10.3 per slice-281). Owner objective: scrub the
+eliminated backend (done, slice 312), work the rest of the cores,
+report when done. Audit classes drained so far: test-quality trilogy,
+data-loss, response-size/gzip, TLS/timeouts, TOFU, staticcheck×2,
+validation batteries, docs/env-var/path claims, teardown paths,
+styling fuzz, path traversal, download ceilings, shared-temp
+planting, image dimension budgets, uncapped response bodies,
+timeout-less fetches, **truncated-transfer integrity, partial-cleanup
+on failure (this slice)**.

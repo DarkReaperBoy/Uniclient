@@ -4158,7 +4158,18 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	// F-78: ONE cleanup point for every failure path — the old code
+	// removed the partial only on the ceiling branch; write/read errors
+	// left a truncated file behind.
+	ok := false
+	defer func() {
+		if ok {
+			f.Close()
+			return
+		}
+		f.Close()
+		os.Remove(dest)
+	}()
 
 	total := resp.ContentLength
 	var received int64
@@ -4170,8 +4181,6 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 			// endpoint streaming forever filled the disk. Check BEFORE
 			// writing so the partial stays under the cap, then remove.
 			if received+int64(n) > downloadCeiling {
-				f.Close()
-				os.Remove(dest)
 				return fmt.Errorf("%w: more than %d bytes", ErrFileTooLarge, downloadCeiling)
 			}
 			if _, writeErr := f.Write(buf[:n]); writeErr != nil {
@@ -4190,6 +4199,7 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 		}
 	}
 
+	ok = true
 	return nil
 }
 

@@ -15,6 +15,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"math/big"
@@ -3822,22 +3823,12 @@ func (t *TeamSpeakCore) UploadFile(chatID string, file FileUpload, progress func
 		return nil, fmt.Errorf("%w: ftkey send: %v", ErrNetwork, err)
 	}
 
-	var sent int64
-	buf := make([]byte, 32*1024)
-	for {
-		n, readErr := file.Reader.Read(buf)
-		if n > 0 {
-			if _, writeErr := ftConn.Write(buf[:n]); writeErr != nil {
-				return nil, fmt.Errorf("%w: upload: %v", ErrNetwork, writeErr)
-			}
-			sent += int64(n)
-			if progress != nil {
-				progress(sent, file.Size)
-			}
-		}
-		if readErr != nil {
-			break
-		}
+	// F-77: exact-size send — the old loop swallowed every source read
+	// error and never checked sent against the declared size, so a
+	// failed/truncated local read still reported a successful send with
+	// attachment metadata claiming the full size.
+	if _, serr := sendTSFile(ftConn, file.Reader, file.Size, progress); serr != nil {
+		return nil, serr
 	}
 
 	m := &Message{
@@ -3887,7 +3878,12 @@ func (t *TeamSpeakCore) DownloadFile(fileRef FileRef, dest string, progress func
 
 	ftkey := rows[0]["ftkey"]
 	ftPort := rows[0]["port"]
-	fileSize, _ := strconv.ParseInt(rows[0]["size"], 10, 64)
+	fileSize, perr := parseTSSize(rows[0]["size"])
+	if perr != nil {
+		// F-77: the parse error used to be IGNORED — a missing/malformed
+		// size field looped zero times and "succeeded" with an EMPTY file.
+		return perr
+	}
 	if ftPort == "" {
 		ftPort = "30033"
 	}
@@ -3907,19 +3903,57 @@ func (t *TeamSpeakCore) DownloadFile(fileRef FileRef, dest string, progress func
 		return fmt.Errorf("%w: ftkey send: %v", ErrNetwork, err)
 	}
 
+	// F-77/F-78: strict exact-size receive with cleanup on any failure.
+	if _, rerr := receiveTSFile(ftConn, dest, fileSize, progress); rerr != nil {
+		return rerr
+	}
+	return nil
+}
+
+// parseTSSize parses the server-declared transfer size (F-77): the
+// error used to be discarded — a missing/malformed field produced a
+// zero-size "successful" download containing nothing.
+func parseTSSize(s string) (int64, error) {
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("%w: bad transfer size %q", ErrTruncated, s)
+	}
+	return n, nil
+}
+
+// receiveTSFile streams exactly fileSize bytes from r into dest. The
+// TeamSpeak file-transfer protocol frames NOTHING beyond the declared
+// size (raw TCP — net/http's Content-Length enforcement does not exist
+// here), so a dropped connection or short stream MUST fail: the old
+// loop swallowed every read error and returned nil, handing the UI a
+// truncated file reported as complete. ANY failure (short stream,
+// write error, invalid size) removes the partial (F-78). Returns the
+// bytes written.
+func receiveTSFile(r io.Reader, dest string, fileSize int64, progress func(recv, total int64)) (int64, error) {
+	if fileSize < 0 {
+		return 0, fmt.Errorf("%w: invalid transfer size %d", ErrTruncated, fileSize)
+	}
 	f, err := os.Create(dest)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	defer f.Close()
+	ok := false
+	defer func() {
+		if ok {
+			f.Close()
+			return
+		}
+		f.Close()
+		os.Remove(dest) // never leave a truncated partial behind (F-78)
+	}()
 
 	var recv int64
 	buf := make([]byte, 32*1024)
 	for recv < fileSize {
-		n, readErr := ftConn.Read(buf)
+		n, readErr := r.Read(buf)
 		if n > 0 {
 			if _, writeErr := f.Write(buf[:n]); writeErr != nil {
-				return writeErr
+				return recv, writeErr
 			}
 			recv += int64(n)
 			if progress != nil {
@@ -3927,10 +3961,62 @@ func (t *TeamSpeakCore) DownloadFile(fileRef FileRef, dest string, progress func
 			}
 		}
 		if readErr != nil {
+			if recv >= fileSize {
+				break // final bytes arrived alongside the terminating error
+			}
+			return recv, fmt.Errorf("%w: stream ended at %d of %d bytes (%v)", ErrTruncated, recv, fileSize, readErr)
+		}
+	}
+	if recv != fileSize {
+		// Overshoot is a protocol violation too (hostile server sending
+		// more than declared) — exact match or nothing.
+		return recv, fmt.Errorf("%w: got %d bytes, declared %d", ErrTruncated, recv, fileSize)
+	}
+	ok = true
+	return recv, nil
+}
+
+// sendTSFile writes exactly size bytes from r to w (F-77, upload
+// half): the old loop stopped on ANY source read error and never
+// verified `sent` against the declared size, so a truncated local read
+// still produced a "sent" message whose attachment metadata claimed
+// the full size — while the server waited for bytes that never came.
+// size <= 0 keeps the legacy stream-until-EOF behavior (size unknown)
+// but still fails honestly on non-EOF read errors.
+func sendTSFile(w io.Writer, r io.Reader, size int64, progress func(sent, total int64)) (int64, error) {
+	if size < 0 {
+		return 0, fmt.Errorf("%w: invalid upload size %d", ErrTruncated, size)
+	}
+	var sent int64
+	buf := make([]byte, 32*1024)
+	for size <= 0 || sent < size {
+		n, readErr := r.Read(buf)
+		if n > 0 {
+			if size > 0 && sent+int64(n) > size {
+				n = int(size - sent) // never send more than declared
+			}
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return sent, fmt.Errorf("%w: upload write failed: %v", ErrNetwork, writeErr)
+			}
+			sent += int64(n)
+			if progress != nil {
+				progress(sent, size)
+			}
+		}
+		if readErr != nil {
+			if readErr != io.EOF {
+				return sent, fmt.Errorf("source read failed at %d bytes: %w", sent, readErr)
+			}
+			if size > 0 && sent < size {
+				return sent, fmt.Errorf("%w: source ended at %d of %d bytes", ErrTruncated, sent, size)
+			}
 			break
 		}
 	}
-	return nil
+	if size > 0 && sent != size {
+		return sent, fmt.Errorf("%w: sent %d bytes, declared %d", ErrTruncated, sent, size)
+	}
+	return sent, nil
 }
 
 // ──────────────────────────── Core Interface: Media / Calls / Misc ────────────────────────────

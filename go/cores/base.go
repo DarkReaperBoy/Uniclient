@@ -26,6 +26,7 @@ var (
 	ErrSessionExpired = errors.New("session expired")
 	ErrDisconnected   = errors.New("disconnected")
 	ErrTimeout        = errors.New("operation timed out")
+	ErrTruncated      = errors.New("truncated download")
 	ErrFileTooLarge   = errors.New("exceeds download ceiling")
 )
 
