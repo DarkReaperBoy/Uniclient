@@ -10694,3 +10694,61 @@ anchor here; audit classes drained: test-quality trilogy, data-loss,
 response-size/gzip, TLS/timeouts, TOFU, staticcheck×2, validation
 batteries, docs/env-var/path claims, teardown paths, styling fuzz,
 path traversal, download ceilings, shared-temp planting.
+
+## Slice 311 (2026-09-27) — F-74: image dimension bombs decoded with
+no pixel budget (header-allocated OOM)
+
+1. **Class**: byte caps (F-52…F-72) bound the STREAM; image decoders
+   allocate `w×h×4` from the HEADER before reading a pixel — an
+   800-byte hostile PNG declaring 65535×65535 asks the OS for ~17 GB
+   and OOM-kills the client. Every path that decodes attacker-shaped
+   bytes was exposed: URL link previews (og:image from a hostile
+   page), map tiles, msgshot thumbs, media cache, QR scanning.
+2. **Fix**: `utils.DecodeImageGuarded` — `image.DecodeConfig` FIRST
+   (header only, zero pixel alloc) → `ImageWithinBudget` (40 MP; `w`/
+   `h <= 0` rejected) → `Decode` on the validated reader. Wired
+   through `decodeGUIImage` (single GUI funnel — urlthumb/media/
+   location/msgshot all call it) + `qrscan.DecodeBytes`; 40 MP
+   constants documented at both funnels (admits 8K photos, rejects
+   bombs). Config-less decoders fall back to plain Decode (documented
+   gap — png/jpeg/gif/webp all ship DecodeConfig).
+3. **Tests-first**: seam-RED quoted (`undefined: DecodeImageGuarded`),
+   GREEN ×4 — bomb PNG (real IHDR patched to 20000² WITH correct CRC,
+   so the guard must beat the decoder to the check), small-image pass,
+   budget-table unit, source-scan wiring pin (bare `image.Decode(`
+   gone from gui/qrscan; comments skipped).
+4. **Self-caught**: unused `bytes` import in gui/media.go after the
+   rewiring (vet caught before any test result was trusted).
+5. **Validation**: utils/qrscan/gui suites green, `-race` all three
+   green (2.9/1.3/4.5s), whole tree **14 ok**, live dendrite green
+   (3.7s), vet incl. `-tags goolm,live`, gofmt clean. BUGS machine
+   check: **74 F rows, no gaps/dupes, open = B-25 only**.
+
+**B-25 re-probe: 1 ACK then 2 denied (flap ongoing) → open** (52nd/53rd
+denied re-probes; the 24.1s PASS mid-slice reconfirms both directions).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 310's)
+Open: **B-25 ONLY** (53× denied re-probes at ts.arcticblaze.net;
+environmental, flaps both directions — ACKed once mid-slice 311 then
+denied twice; opportunistic re-probe each slice). **F-rows = 74**,
+B-rows = 1. B-6 CLOSED F-62…F-69; F-70 styling OOB; F-71 path
+traversal; F-72 download ceiling; F-73 shared-temp planting; **F-74
+image dimension budget (this slice)**. Dendrite running at
+127.0.0.1:8008 (binaries ~/go/bin, config
+~/.cache/uniclient-dendrite; recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 66 at
+`ba91fe05`, 67 at `491e881c`. Paths/toolchain/owner orders per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`,
+live = `-tags goolm,live ./tests/`, char-class token extraction in
+shell only — literals never committed; ANCHOR recipe form:
+`grep -o 'github_pat[_][A-Za-z0-9]*' <(git remote get-url origin)`).
+Remaining horizon: B-25's env flap + the two always-owner rungs (§11
+`[~]` real-phone/email live sign-in, `[ ]` first non-prerelease ≥
+v0.10.3 per slice-281). Owner posture: "continue till eternity… done
+unprompted; make sure compaction knows" — every slice appends its own
+anchor here; audit classes drained: test-quality trilogy, data-loss,
+response-size/gzip, TLS/timeouts, TOFU, staticcheck×2, validation
+batteries, docs/env-var/path claims, teardown paths, styling fuzz,
+path traversal, download ceilings, shared-temp planting, image
+dimension budgets.

@@ -404,7 +404,7 @@ func renderMessageShot(m engine.CachedMessage, p shotPalette) (image.Image, erro
 	var thumb image.Image
 	if m.MediaThumbB64 != "" {
 		if raw, err := base64.StdEncoding.DecodeString(m.MediaThumbB64); err == nil {
-			thumb, _, _ = image.Decode(bytes.NewReader(raw))
+			thumb, _, _ = decodeGUIImage(raw)
 		}
 	}
 

@@ -255,7 +255,7 @@ func (a *App) ensureMapTile(f frame, m *engine.CachedMessage, g *geoData) {
 			mapTiles.fail(key)
 			return
 		}
-		img, _, derr := image.Decode(bytes.NewReader(data))
+		img, _, derr := decodeGUIImage(data)
 		if derr != nil {
 			mapTiles.fail(key)
 			return

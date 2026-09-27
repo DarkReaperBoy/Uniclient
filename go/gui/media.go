@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"image"
@@ -187,7 +186,7 @@ func (a *App) decodeImageAsync(key string, read func() ([]byte, error)) {
 			mediaImgs.fail(key)
 			return
 		}
-		img, _, err := image.Decode(bytes.NewReader(raw))
+		img, _, err := decodeGUIImage(raw)
 		if err != nil || img == nil {
 			mediaImgs.fail(key)
 			return

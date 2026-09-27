@@ -19,10 +19,17 @@ import (
 	"gioui.org/unit"
 
 	"uniclient/cores"
+	"uniclient/utils"
 )
 
 // inlineThumbCap bounds one URL thumb fetch (thumbs are small by nature).
 const inlineThumbCap = 512 << 10 // 512 KiB
+
+// guiMaxImagePixels bounds any DECODED image (F-74): decoders
+// allocate w×h×4 from the header before reading a pixel — a hostile
+// 800-byte PNG declaring 65535×65535 asks for ~17 GB. 40 MP admits
+// 8K-wide photos (33 MP) and rejects dimension bombs.
+const guiMaxImagePixels = 40_000_000
 
 // validGUIFetchURL is the GUI's cheap pre-gate (the engine re-validates
 // strictly): only http(s) URLs are fetch candidates.
@@ -124,7 +131,7 @@ func (a *App) ensureURLThumb(url string) {
 // decodeGUIImage decodes image bytes with the registered decoders
 // (stdlib jpeg/png/gif + x/image webp via custemoji.go's blank import).
 func decodeGUIImage(data []byte) (image.Image, string, error) {
-	return image.Decode(bytes.NewReader(data))
+	return utils.DecodeImageGuarded(bytes.NewReader(data), guiMaxImagePixels)
 }
 
 // urlThumb renders a remote thumb: cached image as a rounded square

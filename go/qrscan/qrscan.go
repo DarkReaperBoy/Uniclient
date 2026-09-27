@@ -27,6 +27,7 @@ import (
 	zxqr "github.com/makiuchi-d/gozxing/qrcode"
 	_ "golang.org/x/image/bmp" // same reason: Telegram screenshots come as bmp/webp too
 	_ "golang.org/x/image/webp"
+	"uniclient/utils"
 )
 
 // Sentinel errors the GUI maps to distinct, honest copy (§1.10).
@@ -37,10 +38,16 @@ var (
 	ErrNoQR = errors.New("qrscan: no QR code found")
 )
 
+// qrMaxImagePixels bounds any DECODED source image (F-74): decoders
+// allocate w×h×4 from the header before reading a pixel — a hostile
+// image declaring 65535×65535 asks for ~17 GB. 40 MP admits phone
+// photos and screenshots, rejects dimension bombs.
+const qrMaxImagePixels = 40_000_000
+
 // DecodeBytes decodes the first QR symbol found in an image file's bytes.
 // Wraps ErrNotImage (image.Decode failed) or ErrNoQR (no symbol read).
 func DecodeBytes(data []byte) (string, error) {
-	img, _, err := image.Decode(bytes.NewReader(data))
+	img, _, err := utils.DecodeImageGuarded(bytes.NewReader(data), qrMaxImagePixels)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrNotImage, err)
 	}
