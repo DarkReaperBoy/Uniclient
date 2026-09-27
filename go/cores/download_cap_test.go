@@ -2,7 +2,6 @@ package cores
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,7 +11,7 @@ import (
 )
 
 // F-72 (slice 309): downloads from the network copied resp.Body to
-// disk with NO ceiling — github/bale/xmpp/rubika all unbounded. A
+// disk with NO ceiling — github/bale/xmpp all unbounded. A
 // hostile server (or a lying Content-Length) streams forever → the
 // disk fills (the F-52/F-53 family: memory DoS got a cap in slice 283,
 // disk DoS did not).
@@ -167,13 +166,4 @@ func TestRawUnboundedDownloadsGone(t *testing.T) {
 	if !strings.Contains(string(src), "ErrFileTooLarge") {
 		t.Error("xmpp.go DownloadFileHTTP lost its ceiling check")
 	}
-	// rubika must copy exactly the requested chunk (CopyN), not the body.
-	src, err = os.ReadFile("rubika.go")
-	if err != nil {
-		t.Fatalf("read rubika.go: %v", err)
-	}
-	if !strings.Contains(string(src), "io.CopyN(") {
-		t.Error("rubika.go must use io.CopyN for bounded chunks")
-	}
-	_ = io.EOF
 }

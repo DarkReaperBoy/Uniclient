@@ -462,11 +462,6 @@ func initialAuthState(platform, accountID string) *AuthState {
 		base.FieldType = "token"
 		base.Label = "Personal Access Token"
 		base.Hint = "ghp_..."
-	case "rubika":
-		base.State = AuthStateInput
-		base.FieldType = "phone"
-		base.Label = "Phone Number"
-		base.Hint = "+98..."
 	case "deltachat":
 		base.State = AuthStateInput
 		base.FieldType = "email"
@@ -508,8 +503,6 @@ func advanceAuth(platform string, flow *authFlow, input string) (*AuthState, err
 		return advanceXMPP(flow, input, base)
 	case "github":
 		return advanceGitHub(flow, input, base)
-	case "rubika":
-		return advanceRubika(flow, input, base)
 	case "deltachat":
 		return advanceDeltaChat(flow, input, base)
 	case "teamspeak":
@@ -1105,20 +1098,6 @@ func advanceGitHub(flow *authFlow, input string, base *AuthState) (*AuthState, e
 	return tryAuth(flow, base)
 }
 
-func advanceRubika(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
-	switch {
-	case flow.collected["phone"] == "":
-		flow.collected["phone"] = input
-		base.State = AuthStateOTP
-		base.CodeLength = 5
-		base.SentTo = "SMS"
-		return base, nil
-	default:
-		flow.collected["otp"] = input
-		return tryAuth(flow, base)
-	}
-}
-
 func advanceDeltaChat(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
 	switch {
 	case flow.collected["email"] == "":
@@ -1256,10 +1235,6 @@ func buildAuthConfig(platform string, collected map[string]string) cores.AuthCon
 	case "github":
 		cfg.Mode = cores.AuthModeBot
 		cfg.BotToken = collected["token"]
-	case "rubika":
-		cfg.Mode = cores.AuthModeUser
-		cfg.Phone = collected["phone"]
-		cfg.OTP = collected["otp"]
 	case "deltachat":
 		cfg.Mode = cores.AuthModeUser
 		cfg.Extra["email"] = collected["email"]

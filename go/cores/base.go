@@ -1,5 +1,5 @@
 // Package cores defines the Core interface and shared models used by all messaging platform backends.
-// Every core (Telegram, Bale, Rubika, etc.) implements the Core interface.
+// Every core (Telegram, Bale, etc.) implements the Core interface.
 // No core may import from another core. All cores return these shared types.
 package cores
 

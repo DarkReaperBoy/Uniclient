@@ -1,7 +1,7 @@
 # Uniclient
 
 One pure-Go, cross-platform messenger. One native GUI, many chat and voice
-backends — Telegram, Matrix, IRC, GitHub, XMPP, Delta Chat, Bale, Rubika,
+backends — Telegram, Matrix, IRC, GitHub, XMPP, Delta Chat, Bale,
 TeamSpeak, Mumble — each added and switched as easily as an account. The GUI mirrors AyuGram's
 layout and behavior (re-implemented from scratch, never copied) with
 Material Design visuals, built with [Gio](https://gioui.org).
@@ -96,7 +96,7 @@ fit the GUI, never the other way around.
 | Matrix | Builds; E2EE via pure-Go goolm (mautrix); group calls live-verified (MSC3401 full-mesh, self-hosted dendrite) |
 | IRC | Live-tested against real servers (own RFC2812+IRCv3 implementation) |
 | GitHub | Live-tested against the real API |
-| XMPP / Delta Chat / Bale / Rubika | Implemented, live verification pending |
+| XMPP / Delta Chat / Bale | Implemented, live verification pending |
 | TeamSpeak / Mumble | Live-verified on public servers incl. the voice data plane: two-client opus voice round-trips (pure-Go codec + pure-Go audio devices) |
 
 Live protocol tests live in `go/tests/`, gated behind the `live` build

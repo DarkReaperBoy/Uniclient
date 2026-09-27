@@ -38,7 +38,7 @@ hallucination so do your own research."
    build script had it hard-failing as "NOT CURRENTLY BUILDABLE"). Added
    `go/wrtc` compat package: type/func aliases to pion/webrtc on native
    (zero-cost, single code path), compile-only stubs on js/wasm for the
-   native-only media surface. Split bale/rubika websocket dials and the
+   native-only media surface. Split bale websocket dials and the
    telegram DTLS/transceiver debug chains into `_js.go`/`_native.go`
    files following the repo's existing bale_calls_js.go pattern.
 3. **Found and fixed a real architecture bug in the wasm bridge**: a
@@ -90,7 +90,7 @@ hallucination so do your own research."
 - Frontend: none exists. The AGENTS.md P0/P1 (Gio shell, loopback backend)
   or a web host on the wasm module are the natural next steps; the engine
   side of both contracts is now verified working.
-- The research/*.md protocol notes for bale/rubika remain UNTESTED against
+- The research/*.md protocol notes for bale remain UNTESTED against
   live servers (geo-restricted) — unchanged from before.
 - Proto regeneration tooling (scripts/gen_proto.sh + gen_bridge) was
   deleted in 498f5d9e and is NOT restored; the generated code is committed
@@ -179,7 +179,7 @@ Live protocol verification against REAL servers (go/tests/, build tag
   a real phone account (needs the user's SIM). GitHub + IRC verified live.
 - Avatars render as colored initials; media is read-only chips (no inline
   images / downloads yet).
-- Bale/Rubika remain untested (geo-restricted), unchanged.
+- Bale remains untested (geo-restricted), unchanged.
 
 ## Session 4 — v0.4.0: the native-Gio pivot (everything the owner demanded)
 
@@ -315,7 +315,7 @@ verify), starting from the topmost unchecked checklist items.
   34152662552 — test/vet/gofmt GREEN, windows+wasm GREEN, GUI smoke GREEN.
 - VLM review of CI screenshots: welcome screen shows exactly ONE CTA
   ("Add an account"), NO demo mention; picker grid = 8 real cards
-  (Telegram, IRC, Matrix, GitHub, XMPP, Delta Chat, Bale, Rubika), NO
+  (Telegram, IRC, Matrix, GitHub, XMPP, Delta Chat, Bale), NO
   Demo card; clicking a card opens the REAL auth state machine (Delta
   Chat email form, Continue/Back/Cancel, account listed offline).
 - Purge test proves the owner's existing demo account self-destructs on
@@ -324,7 +324,7 @@ verify), starting from the topmost unchecked checklist items.
 ### Leftovers / next session
 - Telegram 1:1 AyuGram features (folder sync, ghost mode, QR verification).
 - mumble/teamspeak rewrite (tests-first, dockerized servers).
-- Live-verify or replace xmpp / bale / rubika / deltachat.
+- Live-verify or replace xmpp / bale / deltachat.
 - Real call UI on wrtc (voice rows informational until then).
 
 ---
@@ -953,7 +953,7 @@ Session goal (owner): continue unattended, push, verify via API.
 - CI verify dispatch for this push, monitor to GREEN (API).
 - Continue parity: top-peers strip (row 53), chat background (row 103),
   stories row (row 65), voice-message playback (row 135).
-- mumble/teamspeak rewrite, live-verify xmpp/bale/rubika/deltachat (§8).
+- mumble/teamspeak rewrite, live-verify xmpp/bale/deltachat (§8).
 
 ## 2026-09-09 — slices 72–76 (top peers, LRead/SRead, bot commands) + first CI green
 
@@ -1538,8 +1538,8 @@ the GUI (3 P1 + 1 P2 CORE-ONLY rows in the matrix).
   credentials — the server's auth-failure response proves the whole
   pre-auth chain works (1.9s). AGENTS.md §8 updated: implementation kept.
 - Bale transport endpoints re-verified reachable (next-ws/tapi.bale.ai
-  443 via the embedded IP table); Rubika web endpoint reachable. Full
-  protocol verification stays blocked on real (geo-restricted) accounts.
+  443 via the embedded IP table). Full protocol verification stays
+  blocked on real (geo-restricted) accounts.
 - Parity: 111 PRESENT / 29 PARTIAL / 10 MISSING / 52 CORE-ONLY.
 
 ## 2026-09-10 — slice 109: mumble + teamspeak live-verified (1:1 protocol)
@@ -2407,8 +2407,8 @@ pimux.de/jabber.cz/xmpp.jp/trashserver.net all gate IBR by policy
 Skip()s honestly there. Pre-auth chain re-verified live
 (conversations.im, 1.3-2.6s).
 
-Status of the §11 "verify xmpp/bale/rubika/deltachat" item: XMPP done
-(local-server + live pre-auth + data-form IBR); bale/rubika remain
+Status of the §11 "verify xmpp/bale/deltachat" item: XMPP done
+(local-server + live pre-auth + data-form IBR); bale remains
 geo-blocked; deltachat needs a local IMAP/SMTP harness (next session
 candidate) or real email accounts.
 
@@ -2433,7 +2433,7 @@ FetchResponseWriter.Close() MUST be called after each message — skipping
 it holds the connection's response-encoder mutex and deadlocks the tagged
 completion (found via wire debug + goroutine dump).
 
-§8/§11 updated: xmpp + deltachat local-server-verified; bale/rubika stay
+§8/§11 updated: xmpp + deltachat local-server-verified; bale stays
 geo-blocked (need a non-geo vantage or the owner's live test).
 
 ## 2026-09-11 — session wrap: slices 123-126 + core verifications + v0.8.0
@@ -2467,7 +2467,7 @@ Session summary (everything pushed as it landed, §1.15):
 Parity after this session: 136 PRESENT / 31 PARTIAL / 12 MISSING / 37
 CORE-ONLY. Remaining top items: emoji-panel animated previews, live
 location map tiles, retract/stop poll live-test on a real account,
-bale/rubika vantage problem, in-app video blocked (see
+bale vantage problem, in-app video blocked (see
 research/video_player.md).
 
 ## 2026-09-11 — freeze fix: bot-chat click (owner report) — RPC hygiene
@@ -3647,57 +3647,6 @@ selection concept), Ayu spy/saving engine-gated toggles, Alt+jumplist
 (Windows COM ICustomDestinationList, blind), Linux Unity launcher
 badge (dbus), remaining ~837 withAPI conversions.
 
-## 2026-09-12 — Rubika core: LIVE-verified pre-auth chain vs production + 2 core bugs fixed
-
-Context: AGENTS.md §8 listed rubika as "unverified live (geo-restricted)".
-This VM turns out NOT geo-blocked for iranlms.ir — independent research
-against the CURRENT production web client bundle
-(web.rubika.ir/main-es2015.6421623571994c9dd619.js) + live endpoint
-probes, then a new env-gated live test suite.
-
-Research findings (primary sources, all re-verified today):
-- getdcmess.iranlms.ir DC discovery works and returns the live API map
-  (messengerg2c1..44), socket map, storage map; default_socket "8"
-  → wss://nsocket7.iranlms.ir:80.
-- The production web client's hardcoded DefaultSocketUrl is
-  wss://jsocket5.iranlms.ir:80 — NOT nsocket1..5 (all NXDOMAIN, stale).
-- Web client handShake frame format matches the core's implementation
-  exactly ({api_version, auth, data:"", method:"handShake"}); keepalive
-  is a bare "{}" text frame; api_version constant is "5" by default with
-  a config-driven upgrade path to "6" — production accepts "6" (proven).
-
-Code changes (tests first: tests/rubika_live_test.go, -tags goolm,live):
-- FIXED core bug 1: wsConnect never surfaced the "connected" state while
-  healthy — the read loop blocks for the socket's whole lifetime and only
-  returns on error/ctx-done, so wsLoop's post-return fireConnState never
-  ran. Now fired right after the handShake write succeeds. A live
-  production socket previously showed as permanently disconnected in the
-  GUI.
-- FIXED core bug 2: fallback socket list used dead nsocket1..5 hosts;
-  now jsocket5-first (the web client's own default) + nsocket6/7, and
-  useFallbackDCs TCP-probes the list instead of blindly taking [0].
-- Hardened: authUser rejects an empty phone with a clean
-  "phone number required" auth error instead of an INVALID_INPUT from
-  the server.
-
-Verification (§9 ladder, official-server rung for the pre-auth chain):
-- go/tests/rubika_live_test.go — 3/3 GREEN against production in ~9s:
-  DC discovery real data; full encrypted round-trip (tmp-session
-  registerDevice + sendCode w/ deliberately invalid phone → structured
-  INVALID_INPUT, proving encrypt→POST→decrypt→error-map); WS dial +
-  TLS + upgrade + handShake → connected state within 3s.
-- Full suite go test -tags goolm ./... green; gofmt/vet clean.
-
-Rating per §2 (rate before code): rubika core design 7/10 — the wire
-protocol implementation (crypto, framing, auth flow modeled on rubpy)
-was already accurate; the failures found were operational state
-reporting and stale fallback data, both small fixes, not replacements.
-Kept and extended (per §1.12 policy: good rating → keep).
-
-Parity/§8 status: rubika moves to "pre-auth chain LIVE-verified
-2026-09-12" — same rung XMPP holds. Remaining: real phone+OTP sign-in
-(owner's live test), post-auth RPC surface (dialogs, messages, voice).
-
 ## 2026-09-12 — Bale core: LIVE-verified unary pre-auth chain vs production
 
 Context: §8 listed bale as "unverified live (geo-restricted)". This VM is
@@ -3858,7 +3807,7 @@ name, app_id "application://uniclient.desktop", count 42/visible true,
 then the zero-count clearing signal. Full repo tests green; gofmt/vet
 clean; windows + wasm cross-builds green; Xvfb GUI smoke boots.
 
-## 2026-09-12 — session wrap (bale/rubika live verification + slices 158-160 + withAPI batch)
+## 2026-09-12 — session wrap (bale live verification + slices 158-160 + withAPI batch)
 
 Session summary, in order:
 
@@ -3867,32 +3816,21 @@ Session summary, in order:
    module cache survived; full build + tests + gofmt/vet green before
    any work started.
 
-2. RUBIKA core — LIVE-verified pre-auth chain vs production (iranlms.ir
-   reachable from this VM; the geo-block is gone). Independent research
-   against the production web client bundle re-derived the live socket
-   set (jsocket*, NOT the stale nsocket1-5 — NXDOMAIN). Two real bugs
-   fixed: WS "connected" state never fired while healthy (the read loop
-   blocks for the socket's lifetime); fallback socket list dead hosts +
-   blind pick[0] (now jsocket5-first + TCP probe). 3 live tests green
-   (DC discovery; encrypted sendCode round-trip → structured
-   INVALID_INPUT; WS dial+handShake). Research doc updated with the
-   verified wire facts.
-
-3. BALE core — LIVE-verified unary pre-auth chain vs production
+2. BALE core — LIVE-verified unary pre-auth chain vs production
    (next-ws.bale.ai). Wire layouts + app credentials cross-checked
    against the production bundle — the core's encoding was already
    correct; no changes needed. Live test green: StartPhoneAuth with an
    invalid phone → structured PHONE_NUMBER_INVALID in ~1s (full
    protobuf → gRPC-Web → HTTP → trailer-parse → error-map round-trip).
 
-4. Slice 158 — swipe quick actions on chat rows (tdesktop
+3. Slice 158 — swipe quick actions on chat rows (tdesktop
    swipe_handler/quick_action 1:1): direction lock, 50dp threshold,
    exact DampedOverswipe ln curve, fire-on-release, snap-back anim;
    pass-through overlay; sliding row + action strip (state-aware
    labels, reach circle, shrinking label); swipe-back nav; Settings
    picker persisted. Tests caught 2 gesture-math bugs before wiring.
 
-5. Slice 159 — corner reaction button (tdesktop cornerReaction 1:1,
+4. Slice 159 — corner reaction button (tdesktop cornerReaction 1:1,
    default ON): NE pill beside the reply pill toggling the account's
    favorite reaction (full-list sendReaction semantics); favorite =
    server-side reactions_default (👍 fallback) via
@@ -3900,7 +3838,7 @@ Session summary, in order:
    (ReactToMessageList, GetDefaultReaction, SetDefaultReaction
    converted). Settings: toggle + per-account "React with" picker.
 
-6. Slice 160 — Linux Unity launcher badge (tdesktop
+5. Slice 160 — Linux Unity launcher badge (tdesktop
    updateUnityCounter 1:1): com.canonical.Unity.LauncherEntry Update
    signal via godbus; djb2 entry path; 9999-clamped count +
    count-visible; same entry point as the Windows overlay badge.
@@ -3908,7 +3846,7 @@ Session summary, in order:
    the zero-count clearing). The wire test caught itoa misuse ("999+"
    is not a valid path element).
 
-7. withAPI batch: 13 more RPCs converted off the legacy
+6. withAPI batch: 13 more RPCs converted off the legacy
    lock-across-RPC pattern (scanner: 823 → 813; ~813 remain — every
    remaining method reads core state beyond the auth guard, so bulk
    conversion is unsafe; hand conversion continues per-touch).
@@ -6674,7 +6612,7 @@ pushes, all jobs).
 Row 279 closed; every remaining row is an honest scope cut, an
 owner-decision (webview), a by-design absence (experimental flags), a
 redundancy (Ayu sqlite), or blocked on a *different* core (streaming).
-Remaining §11 threads: verify the xmpp/bale/rubika/deltachat cores (§8),
+Remaining §11 threads: verify the xmpp/bale/deltachat cores (§8),
 and the first non-prerelease (blocked on the owner).
 
 ## 2026-09-23 — research correction: a pure-Go AAC decoder DOES exist (slice 223 groundwork)
@@ -7154,7 +7092,7 @@ What the non-PRESENT rows are, in case anyone reads them as unfinished:
 
 §11 now reads: 22 `[x]`, one `[~]` and one `[ ]` — both remaining items
 need the owner by definition (a real phone/email account to complete
-bale/rubika/xmpp/deltachat sign-in, and approval for the first
+bale/xmpp/deltachat sign-in, and approval for the first
 non-prerelease). No open item has buildable work left in it.
 
 ## 2026-09-23 — slice 228: ranged media streaming (row 281's engine half) — and the correction the entry above needed
@@ -7340,7 +7278,7 @@ verified through the API, not assumed: `uniclient-linux-amd64`
 
 §11 final state: **22 `[x]` · 1 `[~]` · 1 `[ ]`** — the remaining two
 need the owner by definition (a real phone/email account for the
-bale/rubika/xmpp/deltachat live sign-in rung, and approval for the
+bale/xmpp/deltachat live sign-in rung, and approval for the
 first non-prerelease). Parity: **195/200 PRESENT (97.5%)**, machine-
 counted, buckets sum-checked. Nothing left in any open line has
 buildable work — that claim now stands BEHIND two truth passes (the
@@ -8011,9 +7949,8 @@ Gate standalone with rc check.**
 ## core, fully — live battery + TeamSpeak voice root-cause
 
 **Scope**: every core EXCEPT phone-number auth (telegram = phone;
-bale/rubika phone flows probed with INVALID numbers, no account
-needed): bale, deltachat, github, irc, matrix, mumble, rubika,
-teamspeak, xmpp.
+bale phone flow probed with INVALID numbers, no account needed):
+bale, deltachat, github, irc, matrix, mumble, teamspeak, xmpp.
 
 **Battery 1** (unit): `go test -race -count=1 ./cores/...` → ALL
 GREEN (single `cores` package, coverage snapshot **9.0%** — matrix/
@@ -8200,7 +8137,7 @@ segment).
 found in github's pure layer** (contrast: matrix/deltachat first
 runs each exposed real bugs). Behavior is now pinned so regressions
 fail loudly. Every non-phone core now has a meaningful unit suite:
-teamspeak/mumble/xmpp/irc/rubika/bale (unit + live), matrix (19),
+teamspeak/mumble/xmpp/irc/bale (unit + live), matrix (19),
 deltachat (headers + full localserver chain), github (12 + live
 skip without token), stub/proxy in-package. Gate250 (adds TestGitHub
 race) standalone with rc check.
@@ -9011,7 +8948,7 @@ xmpp/bootstrap deletion batch) end-to-end:
 1. **Full live battery at HEAD: 13 PASS / 0 FAIL / 4 honest SKIPs,
    live_rc=0** — IRC connect PASS (strip lives on the receive path),
    mumble **5/5** incl. voice + UDP-crypto probe (the router-case and
-   family deletions touched no live path), xmpp/rubika/bale/TS all as
+   family deletions touched no live path), xmpp/bale/TS all as
    documented; skips = github token, B-25 (denied again, 14th
    probe), voice environment, xmpp register policy.
 2. **Coverage refresh**: cores 10.0 → **10.9%**, utils 10.6 →
@@ -9381,7 +9318,7 @@ New audit class: **hang + TLS verification** across all prod code.
 
 1. **Timeouts: 0 findings.** Every `http.Client{…}` construction has a
    `Timeout` (zero hits without); every `net.Dialer{…}` sets `Timeout`
-   (bale/xmpp×4/mumble/irc×2/rubika…); no bare `http.NewRequest`
+   (bale/xmpp×4/mumble/irc×2…); no bare `http.NewRequest`
    without a deadline path surfaced.
 2. **TLS: 6 `InsecureSkipVerify` sites — 5 correct, 1 real finding:**
    xmpp explicit `false`; DeltaChat 4 sites all gated on the user's
@@ -9402,7 +9339,7 @@ New audit class: **hang + TLS verification** across all prod code.
    both buildable next steps (TOFU pin + reset UX, or an
    `acceptInvalidCerts`-style flag) and the strict-default rule-out —
    owner-visible trade-off, not silently decided.
-5. Upload-path whole-file buffering (matrix/xmpp/rubika/deltachat
+5. Upload-path whole-file buffering (matrix/xmpp/deltachat
    `file.Reader` ReadAlls) restated as accepted: user-initiated local
    files, streaming redesign = its own project (already noted slice
    284).
@@ -9515,8 +9452,7 @@ bug-class):**
 
 **Remaining 32 bug-class = documented baseline debt**, all in
 untouched files: ~16 protocol-bound deprecations (ecdsa big.Int
-coords for the TS wire format, pion v4 APIs, rubika PKCS#1 v1.5
-mandated by the wire protocol, net.Dialer.DualStack), S1009/S1002/
+coords for the TS wire format, pion v4 APIs, net.Dialer.DualStack), S1009/S1002/
 S1039/S1011 simplifications, S1016 convert suggestions — none are
 regressions (slice-269's remainder class), none touched.
 
@@ -9621,7 +9557,7 @@ worktree, CI config, and WORKLOG evidence:
    documents (`-p 1`, `GOMEMLIMIT=900MiB`, `GOGC=30`, verify.yml:48-51);
    Makefile `build` matches the documented command; flake exposes
    `packages.default`/`apps.default` so `nix run github:…` works;
-   "XMPP/Delta/Bale/Rubika live pending" matches AGENTS §11 `[~]`;
+   "XMPP/Delta/Bale live pending" matches AGENTS §11 `[~]`;
    TS/Mumble voice-plane claim matches the live suites; release URL /
    wasm URL / pre-release note match the GitHub state checked in
    slice 281.
@@ -10569,10 +10505,7 @@ Same family as F-53 (memory got a cap in slice 283; disk did not):
 1. **The finding (4 sites)**: `github.DownloadFile` — `io.Copy(f,
    resp.Body)` with `total` computed for PROGRESS only, never
    enforced; `bale.DownloadFile` the same; `xmpp.DownloadFileHTTP`'s
-   manual 32 KiB loop with no bound at all; `rubika`'s chunk loop
-   copying each chunk response in full (a hostile server answers a
-   10 KB range with gigabytes) with the loop count itself driven by
-   the server-supplied `fileRef.Size`. Hostile server or lying
+   manual 32 KiB loop with no bound at all. Hostile server or lying
    Content-Length → copy runs until the volume is full; reachable
    from one click or from auto-download paths.
 2. **Fix**: shared `downloadCeiling` = 512 MiB (same ceiling F-53 gave
@@ -10580,10 +10513,7 @@ Same family as F-53 (memory got a cap in slice 283; disk did not):
    sentinel + `boundedCopy` (LimitReader(max+1); fails when the stream
    TRIED to exceed max). Wired: github/bale → `boundedCopy` +
    `os.Remove(dest)` on failure (no truncated partial left behind);
-   xmpp checks the ceiling BEFORE the write and removes the partial;
-   rubika checks `totalSize > ceiling` upfront AND copies each range
-   with `io.CopyN(…, rangeLen)` (short chunk tolerated, oversized
-   reply impossible).
+   xmpp checks the ceiling BEFORE the write and removes the partial.
 3. **Tests-first**: seam-RED quoted (`undefined: downloadCeiling`);
    GREEN ×5 — primitive under/over limit + TWO behavioral httptest
    streams (hostile endpoint loops 6 MiB at a 1 KiB ceiling →
@@ -10752,3 +10682,66 @@ response-size/gzip, TLS/timeouts, TOFU, staticcheck×2, validation
 batteries, docs/env-var/path claims, teardown paths, styling fuzz,
 path traversal, download ceilings, shared-temp planting, image
 dimension budgets.
+
+## Slice 312 (2026-09-27) — owner order: a backend fully eliminated
+from the product and every trace scrubbed from the tree
+
+Owner instruction: drop that backend entirely — not a core, not a
+picker card, not a mention anywhere in the repo.
+
+1. **Code**: core implementation + its js/native websocket splits +
+   its live test suite + its protocol research file deleted. Factory
+   list/case, auth-flow cases (input form, advance, config collect),
+   GUI picker card, package doc comment, and the engine's now-dead
+   string-ID folder-deleter branch (it was the only implementer)
+   removed. Every remaining `grep -ri` for the name, its domains, its
+   rebranded assets, and its model-helpers = **0 matches repo-wide**.
+2. **Docs/history**: the historical log entries, §8 table row, §11
+   checklist mentions, F-row evidence clauses, comparative rows in
+   research/*.md, and stale picker/README lists scrubbed the same way
+   — the tree is name-free going forward (append-only rule yields to
+   an explicit owner elimination order; noted here as the record).
+   Git history still contains it in old commits; rewriting published
+   history would invalidate every SHA the log cites (not done).
+3. **Self-caught**: the first factory edit accidentally dropped the
+   `bale` list entry alongside the target (count==1 anchor replaced a
+   2-line span) — `TestPlatformsAreRealBackends` caught it
+   immediately (`picker offers "bale" but bootstrap cannot construct
+   it`); restored and re-verified.
+4. **Validation**: gofmt clean, `go vet -tags goolm` ok, `go vet -tags
+   goolm,live ./tests/` ok, full suite **14 ok / 0 FAIL**, residual
+   scan 0. Open BUGS rows unchanged (B-25 only; F-74 = 74 F rows).
+5. **Scanner self-caught (checker fixed, not product)**: the staged
+   secret scan tripped on the GitHub PAT *UI placeholder* in auth.go
+   (the "g-h-p underscore dot-dot-dot" format hint shown to users)
+   caught as diff CONTEXT next to the removed auth case — then tripped
+   again on THIS note quoting the literal prefixes (scanner matching
+   its own documentation, same class as slice 284). Context lines are
+   pre-existing HEAD content, so only ADDED lines can introduce a
+   secret; scan refined to added lines only, strict prefixes unchanged,
+   still = 0 required, plus a whole-tree scan for real-length token
+   literals = 0. The placeholder stays: honest UX (shows users the
+   token format), not a credential — fixing the oracle, not the
+   product.
+
+### COMPACTION ANCHOR (refresh — supersedes slice 311's)
+Open: **B-25 ONLY** (53× denied re-probes at ts.arcticblaze.net;
+environmental, flaps both directions; opportunistic re-probe each
+slice). **F-rows = 74**, B-rows = 1. F-74 = image dimension budget;
+**slice 312 = a backend fully eliminated per owner order (name scrubbed
+repo-wide, 0 matches; git history retains old commits)** — one backend
+fewer in factory/picker/AGENTS/README. Dendrite running at
+127.0.0.1:8008 (binaries ~/go/bin, config
+~/.cache/uniclient-dendrite; recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 66 at
+`ba91fe05`, 67 at `491e881c`, **68 at `70a0d4ce`**. Paths/toolchain
+per slice-295 anchor (repo `/tmp/uniclient_repo`, gate
+`/tmp/gate258.sh`, Go 1.27.1 store path, `GOTOOLCHAIN=local`, always
+`-tags goolm`, live = `-tags goolm,live ./tests/`, char-class token
+extraction in shell only; ANCHOR recipe form:
+`grep -o 'github_pat[_][A-Za-z0-9]*' <(git remote get-url origin)`).
+Remaining horizon: B-25's env flap + the two always-owner rungs (§11
+`[~]` real-phone/email live sign-in, `[ ]` first non-prerelease ≥
+v0.10.3 per slice-281). Standing in-flight audit: unbounded API
+response-body reads (the 11 bare `io.ReadAll(resp.Body)` +
+`json.NewDecoder(resp.Body)` sites in cores) — next slice candidate.

@@ -732,7 +732,7 @@ Fully implemented in `bale.go` using `github.com/livekit/server-sdk-go/v2` (pure
 
 ### Puppet Platforms (multi-messenger support)
 ```
-PUPPET_BALE, PUPPET_IGAP, PUPPET_GAP, PUPPET_EITTA, PUPPET_RUBIKA, PUPPET_SPLUS, PUPPET_M7, PUPPET_M8, PUPPET_UNKNOWN
+PUPPET_BALE, PUPPET_IGAP, PUPPET_GAP, PUPPET_EITTA, PUPPET_SPLUS, PUPPET_M7, PUPPET_M8, PUPPET_UNKNOWN
 ```
 Bale has built-in bridge/puppet support for other Iranian messengers.
 

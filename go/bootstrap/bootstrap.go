@@ -30,7 +30,6 @@ var supportedPlatforms = []string{
 	"xmpp",
 	"github",
 	"bale",
-	"rubika",
 	"deltachat",
 	"teamspeak",
 	"mumble",
@@ -94,8 +93,6 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string, onEvent func([
 			return cores.NewXMPPCore(store), nil
 		case "github":
 			return cores.NewGitHubCore(store), nil
-		case "rubika":
-			return cores.NewRubikaCore(store), nil
 		case "deltachat":
 			return cores.NewDeltaChatCore(store), nil
 		case "teamspeak":

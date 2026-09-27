@@ -589,7 +589,6 @@ message AuthError {
 | XMPP | input(JID) → input(password) → ready |
 | GitHub | input(PAT token) → ready |
 | Bale | choose(phone/bot_token) → input(phone) → otp → ready |
-| Rubika | input(phone) → otp → ready |
 | Delta Chat | input(email) → input(IMAP password) → ready |
 | TeamSpeak | input(server:port) → input(nickname) → [input(server password)] → ready |
 | Mumble | input(server:port) → input(username) → [input(password)] → ready |
@@ -645,7 +644,6 @@ On successful auth:
 | Delta Chat | MIME email (plain or HTML) |
 | TeamSpeak | BBCode-ish |
 | Mumble | HTML subset |
-| Rubika | Custom JSON entities |
 | Bale | Telegram-compatible entities |
 
 ### Solution: RichContent Proto
@@ -1045,7 +1043,7 @@ For V1: **build native targets first (Linux, Windows, macOS, Android)**. Web can
 
 ### RTL Support
 
-Rubika is an Iranian platform. A significant portion of the user base reads right-to-left (Farsi). Flutter handles RTL natively via `Directionality`, but:
+A significant portion of the user base reads right-to-left (Farsi). Flutter handles RTL natively via `Directionality`, but:
 
 - Text that mixes RTL and LTR (Farsi user quoting English code) needs `TextDirection.auto` per paragraph
 - Chat bubble alignment should flip in RTL mode (sent = left, received = right)
@@ -1537,7 +1535,6 @@ Dart calls `engine.Shutdown()` in `AppLifecycleState.detached` (or equivalent pl
 | Telegram (user) | 2 GB | No split needed (huge limit) |
 | Telegram (bot) | 50 MB | Split at 49 MB |
 | Bale | 19.5 MB | Split at 19 MB |
-| Rubika | 200 MB | Split at 199 MB |
 | Matrix | Server-dependent (usually 50-100 MB) | Query server limit, split accordingly |
 | Delta Chat | ~25 MB (email attachment limit) | Split at 24 MB |
 | XMPP | HTTP Upload, server-dependent | Query max, split accordingly |

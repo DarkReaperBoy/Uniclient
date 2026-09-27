@@ -11,7 +11,7 @@
 
 Uniclient is one pure-Go, cross-platform (PC / mobile / web), multi-backend,
 user-friendly messenger. One native GUI, many chat and voice backends
-(Telegram, Matrix, IRC, XMPP, GitHub, Delta Chat, Bale, Rubika, TeamSpeak,
+(Telegram, Matrix, IRC, XMPP, GitHub, Delta Chat, Bale, TeamSpeak,
 Mumble...), each added and switched as easily as an account. The GUI uses
 **AyuGram's layout and features, 1:1** (re-implemented from scratch — never
 copied) with **Material Design** visuals, built with **Gio**. Standardized
@@ -336,7 +336,6 @@ Cores are protocol implementations behind `cores.Core`.
 | github | Live-tested vs real API. | own impl on net/http | The GitHub REST/GraphQL API docs themselves. **Design rule:** think what a social network needs (feed, profiles, DMs, groups, notifications) and which GitHub surfaces map to it; design the arch FIRST, *then* compare with the existing core and fix it to match. |
 | xmpp | **Local-server-verified 2026-09-11** (independent mini-server harness: SASL PLAIN + bind + session + message round-trip, 0.2s, in CI) incl. two real auth bugs fixed (attributed self-closing SASL success / IQ results); live pre-auth chain verified (conversations.im); data-form IBR implemented (sure.im accepts structurally — public servers gate registrations by policy). | own impl | Smack — https://github.com/igniterealtime/Smack (Java); Conversations — https://codeberg.org/iNPUTmice/Conversations (Android, "just works" behavior reference — not looks) |
 | bale | **Pre-auth chain LIVE-verified 2026-09-12** (unary gRPC-Web StartPhoneAuth round-trip vs production next-ws.bale.ai: phone "1" → structured PHONE_NUMBER_INVALID in ~1s; wire layout + app credentials cross-checked against the production web bundle). Real phone+OTP + authenticated WS remain (owner's live test). | own protobuf-over-websocket impl | Balethon — https://github.com/Balethon/Balethon (Python); aiobale — https://github.com/aminmadaniofficial/aiobale (client impl); web client — https://web.bale.ai/ (live reference) |
-| rubika | **Pre-auth chain LIVE-verified 2026-09-12** (DC discovery + encrypted sendCode round-trip vs production iranlms.ir: bogus phone → structured INVALID_INPUT; WS dial+handShake → connected; web-client bundle cross-check: jsocket* are live, nsocket1-5 NXDOMAIN — fallback fixed; WS connected-state bug fixed). Real phone+OTP remains (owner's live test). | own impl | reverse-engineered protocol notes in research/ (verify before trusting) |
 | deltachat | **Local-server-verified 2026-09-11** (emersion go-imap/go-smtp server harness w/ self-signed STARTTLS: IMAP auth chain incl. IDLE pair + DeltaChat folder setup, SMTP send with DC headers, receive path SELECT+FETCH→chat build — 0.07s, in CI). Real email account live test still pending. | go-imap + go-smtp + go-crypto + modernc/sqlite (current impl) | chatmail/core — https://github.com/chatmail/core (Rust official — reference only); deltachat-desktop — https://github.com/deltachat/deltachat-desktop |
 | mumble | **Live-verified 2026-09-10 incl. VOICE** (public server, official rung): full TCP chain (TLS→Version→Authenticate→CryptSetup→ServerSync), two-client text round-trip, UDP ping, **two-client opus voice round-trip (75/75 packets, tone intact)**. OCB2 decrypt is a 1:1 port of upstream CryptStateOCB2. Voice rooms ship in the GUI: every channel is a standing voice room (call bar, participants, mute, speaking states) wired through the engine's shared mic→opus→speaker pipeline. | own impl | protocol docs — https://github.com/mumble-voip/mumble/tree/master/docs/dev/network-protocol; mumble desktop client — https://github.com/mumble-voip/mumble (possible voice-GUI inspiration) |
 | teamspeak | **Live-verified 2026-09-10 incl. VOICE** (public server): full 5-step init handshake, EAX fake-key stage, license chain + ECDH, encrypted command channel, initserver, 100-channel list, ACKed text send, **two-client opus voice round-trip (75/75 packets through EAX-encrypted S2C voice with generation tracking)**. Key derivation + license/ECDH pinned against ts3j official test vectors. Receive-side generation counters (ts3j RemoteCounter semantics + ±1 decrypt retry), server default-channel tracking, error-770 join semantics. Send-side QuickLZ landed in slice 231 (2026-09-23): commands >487 B are compressed first (faithful port of official quicklz.c level 1, byte-identical vs 19 gcc-built golden vectors) and ship as one packet, fragmenting the compressed stream only when needed; live re-verified 2026-09-23 (handshake, text send, and a 615 B command all answered by ts.arcticblaze.net — guest text is permission-denied for big messages there now, which doubles as the decode proof; the round-trip test still passes). | own impl | ts3j — https://github.com/Manevolent/ts3j (Java, working reference); TSLib (TS3AudioBot) — https://github.com/Splamy/TS3AudioBot; spec: ReSpeak/tsdeclarations ts3protocol.md (tsproto repo is gone) |
@@ -854,16 +853,14 @@ via purego; mic permission via JNI) — real-hardware test = owner's rung.
       `-race` on new tests) never regresses. First session = slice 230:
       7 bugs fixed from auditing the slice-228/229 streaming paths (see
       BUGS.md F-1..F-7).
-- [~] Verify xmpp / bale / rubika / deltachat cores live or replace them (§8)
+- [~] Verify xmpp / bale / deltachat cores live or replace them (§8)
       (XMPP local-server-verified 2026-09-11 incl. 2 real auth-chain bug
       fixes + data-form IBR + live pre-auth chain; DELTACHAT
-      local-server-verified 2026-09-11 (auth+send+receive); BALE + RUBIKA
-      pre-auth chains LIVE-verified 2026-09-12 from a non-geo-blocked
-      vantage — bale: production gRPC-Web StartPhoneAuth round-trip;
-      rubika: DC discovery + encrypted sendCode + WS handshake, 2 core
-      bugs fixed (WS connected-state never fired; stale nsocket1-5
-      fallback hosts). Remaining for all four: full sign-in with a real
-      account = owner's live test)
+      local-server-verified 2026-09-11 (auth+send+receive); BALE
+      pre-auth chain LIVE-verified 2026-09-12 from a non-geo-blocked
+      vantage — production gRPC-Web StartPhoneAuth round-trip. Remaining
+      for all three: full sign-in with a real account = owner's live
+      test)
 - [x] Voice mode: real call UI on top of wrtc — slices 101-103 (2026-09-10):
       1:1 call overlay (header call buttons on DMs, incoming-call ringing
       overlay via EventIncomingCall, accept/decline/mute/camera/end,

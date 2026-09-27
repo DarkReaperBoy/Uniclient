@@ -1334,14 +1334,6 @@ func (e *Engine) DeleteFolder(accountID, folderID string) error {
 		return fmt.Errorf("account not found: %s", accountID)
 	}
 
-	// Try string-ID deleter first (Rubika).
-	type folderDeleterStr interface {
-		DeleteFolder(folderID string) error
-	}
-	if fd, ok := acc.Core.(folderDeleterStr); ok {
-		return fd.DeleteFolder(folderID)
-	}
-
 	// Try int-ID deleter (Telegram).
 	type folderDeleterInt interface {
 		DeleteFolder(filterID int) error

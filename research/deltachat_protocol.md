@@ -1434,7 +1434,7 @@ github.com/ProtonMail/go-crypto      // OpenPGP (Autocrypt E2EE)
 
 ## 30. Differences from Other Cores
 
-| Aspect | Telegram/Bale/Rubika | Delta Chat |
+| Aspect | Telegram/Bale | Delta Chat |
 |--------|---------------------|------------|
 | Transport | Proprietary protocol / WebSocket | Standard IMAP + SMTP |
 | Server | Platform-specific | Any email server |
@@ -1492,7 +1492,7 @@ github.com/ProtonMail/go-crypto      // OpenPGP (Autocrypt E2EE)
 
 ## 32. Estimated Implementation Size
 
-Based on other cores (Bale: 4092 lines, Rubika: 3484 lines), Delta Chat will likely be **4000-5000 lines**:
+Based on another core (Bale: 4092 lines), Delta Chat will likely be **4000-5000 lines**:
 - IMAP/SMTP connection management: ~500 lines
 - MIME message construction/parsing: ~800 lines
 - Autocrypt (keygen, peer state, encrypt/decrypt, gossip): ~600 lines

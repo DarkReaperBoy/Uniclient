@@ -13,7 +13,7 @@
 
 ## Overview
 
-Matrix is an open, federated messaging protocol. Unlike Telegram/Bale/Rubika (proprietary, reverse-engineered), Matrix has a complete public spec at [spec.matrix.org](https://spec.matrix.org/v1.13/client-server-api/).
+Matrix is an open, federated messaging protocol. Unlike Telegram/Bale (proprietary, reverse-engineered), Matrix has a complete public spec at [spec.matrix.org](https://spec.matrix.org/v1.13/client-server-api/).
 
 **SDK**: `maunium.net/go/mautrix` (v0.26.x) — mature Go client with full CS API coverage, E2EE (Olm/Megolm), sync, state store, crypto store, event types.
 

@@ -483,7 +483,6 @@ var platforms = []platformMeta{
 	{ID: "teamspeak", Title: "TeamSpeak 3", Desc: "TS3 client protocol: EAX-encrypted commands, voice. Live-verified.", Letter: "S"},
 	{ID: "deltachat", Title: "Delta Chat", Desc: "Email-based chat (IMAP/SMTP).", Letter: "Δ"},
 	{ID: "bale", Title: "Bale", Desc: "Iranian messenger (experimental).", Letter: "B"},
-	{ID: "rubika", Title: "Rubika", Desc: "Iranian messenger (experimental).", Letter: "R"},
 }
 
 func platformTitle(id string) string {
