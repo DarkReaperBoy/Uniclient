@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"sort"
 	"time"
 
 	"maunium.net/go/mautrix/event"
@@ -161,4 +162,78 @@ func (m *MatrixCore) handleGroupMemberEvent(evt *event.Event) {
 	}
 	m.groupMembers[uid] = content
 	m.groupMu.Unlock()
+}
+
+// ─── mesh decision layer (slice 296) ────────────────────────────────────────
+// Pure: which peers get a peer-connection and who offers. The SDP
+// fan-out (next slice) consumes these; no socket is touched here.
+
+// groupPeer is one mesh endpoint (device).
+type groupPeer struct {
+	key    string // "mxid|device"
+	UserID id.UserID
+	Device string
+}
+
+// groupPeerKey is the canonical mesh key for a device.
+func groupPeerKey(userID, deviceID string) string {
+	return userID + "|" + deviceID
+}
+
+// groupShouldOffer: lexicographic tie-break — exactly one side of any
+// pair offers, so SDP glare is impossible across the N×(N−1) mesh. A
+// device never offers to itself (own == peer → false).
+func groupShouldOffer(own, peer string) bool {
+	return own < peer
+}
+
+// groupPeersToConnect: every LIVE device except our own, sorted by
+// key for a deterministic diff. Expiry filtering happens here per
+// MSC3401 ("expired devices are ignored") with an injected now.
+func groupPeersToConnect(ownUserID id.UserID, ownDevice string, members map[id.UserID]matrixCallMemberContent, now int64) []groupPeer {
+	var out []groupPeer
+	for uid, content := range members {
+		for _, call := range content.Calls {
+			for _, d := range call.liveDevices(now) {
+				if uid == ownUserID && d.DeviceID == ownDevice {
+					continue
+				}
+				out = append(out, groupPeer{
+					key:    groupPeerKey(string(uid), d.DeviceID),
+					UserID: uid,
+					Device: d.DeviceID,
+				})
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].key < out[j].key })
+	return out
+}
+
+// confIDFromRaw reads the conf_id discriminator (group m.call.* vs the
+// 1:1 stack) from raw event content; absent or wrong-typed → "".
+func confIDFromRaw(raw map[string]interface{}) string {
+	if raw == nil {
+		return ""
+	}
+	if s, ok := raw["conf_id"].(string); ok {
+		return s
+	}
+	return ""
+}
+
+// withConfID merges conf_id into marshaled m.call.* content without
+// losing any field — the group transport rides the same event names as
+// the 1:1 stack, distinguished only by this key.
+func withConfID(content interface{}, conf string) (map[string]interface{}, error) {
+	raw, err := json.Marshal(content)
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+	m["conf_id"] = conf
+	return m, nil
 }
