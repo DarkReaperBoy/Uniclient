@@ -672,3 +672,63 @@ func (m *MatrixCore) GetGroupCall(chatID string) (*CallSession, error) {
 		Meta:         map[string]string{"participants_count": strconv.Itoa(len(participants))},
 	}, nil
 }
+
+// ─── shared group-call teardown (slice 302) ────────────────────────────
+
+// leaveGroupCallInternal tears down the joined group call exactly
+// once: cancel the membership renewal, publish an EMPTY calls array
+// (MSC3401 — leave the call, stay in the room) while the token and
+// room membership still work, close every mesh peer, clear joined
+// state, and fire the Ended update. Callers arrange the surrounding
+// order — LeaveChat leaves the ROOM after this (no state writes are
+// possible once left), Logout/Close publish BEFORE the token/ctx die.
+// A non-nil error is ONLY the publish failure: callers with a bounded
+// fallback (the room-leave event, logout, shutdown) ignore it — the
+// remote side drops our device at expires_ts (60 s lease) regardless.
+// Returns ("", "", nil) when no call was joined (idempotent).
+func (m *MatrixCore) leaveGroupCallInternal() (id.RoomID, string, error) {
+	m.groupMu.Lock()
+	room, conf := m.groupRoomID, m.groupConfID
+	renew := m.groupRenew
+	var peers []*matrixCall
+	for _, c := range m.groupPeers {
+		peers = append(peers, c)
+	}
+	m.groupRenew = nil
+	m.groupConfID = ""
+	m.groupRoomID = ""
+	m.groupMembers = nil
+	m.groupPeers = nil
+	m.groupMu.Unlock()
+
+	if conf == "" {
+		return "", "", nil
+	}
+	if renew != nil {
+		renew()
+	}
+	for _, c := range peers {
+		if c != nil {
+			m.cleanupCall(c)
+		}
+	}
+
+	var pubErr error
+	if m.authed && m.client != nil {
+		if _, err := m.client.SendStateEvent(m.ctx, room, matrixCallMemberStateType, m.userID.String(),
+			matrixCallMemberContent{Calls: []matrixCallMemberCall{}}); err != nil {
+			pubErr = fmt.Errorf("publish leave membership: %w", err)
+		}
+	}
+
+	m.fireUpdate(Update{
+		Type:   UpdateCallState,
+		ChatID: room.String(),
+		Call: &CallSession{
+			ID: conf, ChatID: room.String(), IsGroup: true,
+			State: CallStateEnded,
+		},
+		Platform: mxPlatform,
+	})
+	return room, conf, pubErr
+}

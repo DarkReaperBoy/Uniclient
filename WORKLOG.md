@@ -10141,3 +10141,71 @@ shell only). Remaining horizon: B-25's env flap + the two always-owner
 rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
 non-prerelease ≥ v0.10.3 per the slice-281 version rule).
 gate301 = light scope; standalone with rc check.
+
+---
+
+## Slice 302 (2026-09-27) — F-64 + F-65: EVERY exit path now leaves
+## the group call (LeaveChat/Logout/Close + kicked-out events)
+
+Teardown audit of the F-62/F-63 feature found that only `EndCall`
+knew how to leave:
+
+1. **F-64 (RED quoted per case)**: `LeaveChat`, `Logout`, `Close` all
+   left `groupConfID` joined — renewal published membership forever
+   (LeaveChat: into a room we'd left → endless 403s), mesh peers stayed
+   open, voice never stopped; `Close`'s own doc comment promised it
+   "ends active calls". RED: `renewal not canceled / call still joined:
+   conf_x / 1 mesh peers still open / peer call state = connecting`
+   ×3 paths, plus two ORDER assertions (empty-membership PUT must
+   precede the room-leave POST and the logout POST — state writes are
+   impossible after leaving / after token death).
+   **Fix**: shared `leaveGroupCallInternal()` — cancel renewal →
+   publish EMPTY `m.calls` (MSC3401 leave-call-stay-in-room) →
+   `cleanupCall` every peer → clear conf/room/members/peers → fire
+   IsGroup Ended; idempotent; publish errors bounded (callers with a
+   fallback — room-leave event/logout/shutdown — ignore them;
+   `expires_ts` drops the remote device within the 60 s lease).
+   Wired: LeaveChat leaves the CALL first when the room matches
+   (unrelated-room case pinned NOT to tear down), Logout publishes
+   before `client.Logout`, Close tears down before `m.mu`, EndCall
+   refactored onto the helper (F-63 contract preserved).
+2. **F-65 (RED quoted)**: a `m.room.member` leave/ban for OUR OWN mxid
+   (kick, ban, room dissolved) never ended the call — renewal + mesh
+   would run forever with nothing to publish to. `handleMemberEvent`
+   now snapshot-checks `state_key == ours && membership != join &&
+   room == groupRoomID` under `groupMu` (released BEFORE teardown —
+   no lock nesting) → `leaveGroupCallInternal()` best-effort. Narrow
+   pin: our own `join` event must NOT tear anything down.
+3. **Self-caught mid-slice** (all before GREEN): `mc` was shadowed
+   inside the old inner `if` in `handleMemberEvent` (undefined →
+   hoisted the parse out of the lock); the order-helper's `len >= 16`
+   guard rejected the 14-byte `{"m.calls":[]}` body while the puts log
+   showed the publish right there (→ `strings.Contains`); a phantom
+   `SendVoiceFrame` two-value assignment; `StateKey` is `*string`, not
+   `*id.UserID`.
+4. **Test infra**: mini-homeserver now answers `POST …/leave` and
+   `POST …/logout` (order-captured against the membership PUT);
+   test cores get a non-nil `cancel` (Close calls it).
+5. **Validation**: group suite **27 PASS / 0 FAIL**, `-race` green,
+   whole tree **14 ok**, live dendrite test still green (3.7s) after
+   the teardown refactor, vet incl. `-tags goolm,live`, gofmt clean.
+   BUGS machine check: **65 F rows, no gaps/dupes, open = B-25 only**.
+
+**B-25 re-probe: still denied → open** (40th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 301's)
+Open: **B-25 ONLY** (40× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 65**,
+B-rows = 1. B-6 CLOSED (F-62 live dendrite proof) + F-63 (EndCall
+leave) + F-64/F-65 (all other exits). Dendrite still running at
+127.0.0.1:8008 (binaries ~/go/bin, config ~/.cache/uniclient-dendrite;
+recipe in `go/tests/matrix_groupcall_live_test.go` header). Streak: 58
+at `fb97249b` before this slice (slice 300/301 pushed: 5fec012a,
+fb97249b both green). Paths/toolchain/owner orders per slice-295
+anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`, Go 1.27.1
+store path, `GOTOOLCHAIN=local`, always `-tags goolm`, live =
+`-tags goolm,live ./tests/`, char-class token extraction in shell
+only). Remaining horizon: B-25's env flap + the two always-owner rungs
+(§11 `[~]` real-phone/email live sign-in, `[ ]` first non-prerelease
+≥ v0.10.3 per the slice-281 version rule).
+gate302 = light scope; standalone with rc check.

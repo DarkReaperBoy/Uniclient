@@ -68,6 +68,16 @@ func newMeshHomeserver(t *testing.T) (*httptest.Server, *meshPuts) {
 			parts := strings.SplitN(p[idx+len("/send/"):], "/", 2)
 			puts.append(meshPut{Kind: "send", Type: parts[0], Body: readBody(r)})
 			writeEventID(w)
+		case strings.HasSuffix(p, "/leave") && r.Method == http.MethodPost:
+			// ORDER matters: the empty-membership publish must precede
+			// the room leave (you cannot write state after leaving).
+			puts.append(meshPut{Kind: "leave", Type: "leave", Body: readBody(r)})
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{}`)
+		case strings.HasSuffix(p, "/logout") && r.Method == http.MethodPost:
+			puts.append(meshPut{Kind: "logout", Type: "logout", Body: readBody(r)})
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{}`)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = io.WriteString(w, `{"errcode":"M_NOT_FOUND"}`)
@@ -92,6 +102,7 @@ func newMeshTestCore(t *testing.T, srvURL string) *MatrixCore {
 	core := &MatrixCore{
 		authed:     true,
 		ctx:        context.Background(),
+		cancel:     func() {}, // Close() calls m.cancel — keep it non-nil
 		deviceID:   "DEV1",
 		userID:     id.UserID("@alice:test"),
 		homeserver: srvURL,

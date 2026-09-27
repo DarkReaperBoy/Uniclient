@@ -385,6 +385,13 @@ func (m *MatrixCore) Authenticate(cfg AuthConfig) error {
 
 // Logout ends the current Matrix session and cleans up resources.
 func (m *MatrixCore) Logout() error {
+	// Group leg (F-64): leave the call BEFORE client.Logout kills the
+	// token — an empty membership published afterwards would 401.
+	// Bounded fallback on failure: expires_ts ends the remote view.
+	if _, _, pubErr := m.leaveGroupCallInternal(); pubErr != nil {
+		_ = pubErr // logging out regardless
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1402,55 +1409,17 @@ func (m *MatrixCore) EndCall(callID string) error {
 	}
 
 	// Group leg (F-63): a conf id is never in activeCalls — leaving a
-	// group call means canceling the membership renewal, publishing an
-	// EMPTY calls array (MSC3401: leave the call, stay in the room, so
-	// the other side's reconcile closes its peer too), and tearing down
-	// every mesh link. The old code fell through to ErrNotFound here,
-	// so the GUI's hang-up could NOT leave: membership renewed forever
-	// and voice kept flowing (RED: "EndCall(conf) = not found").
+	// group call tears down renewal + mesh + joined state via the
+	// shared helper (slice 302; publish failure surfaces as the F-63
+	// contract). The old code fell through to ErrNotFound here, so the
+	// GUI's hang-up could NOT leave: membership renewed forever and
+	// voice kept flowing (RED: "EndCall(conf) = not found").
 	m.groupMu.Lock()
 	isGroup := m.groupConfID != "" && callID == m.groupConfID
-	var (
-		leaveRoom id.RoomID
-		leaveRenw context.CancelFunc
-		leavePees []*matrixCall
-	)
-	if isGroup {
-		leaveRoom = m.groupRoomID
-		leaveRenw = m.groupRenew
-		m.groupRenew = nil
-		m.groupConfID = ""
-		m.groupRoomID = ""
-		m.groupMembers = nil
-		for _, c := range m.groupPeers {
-			leavePees = append(leavePees, c)
-		}
-		m.groupPeers = nil
-	}
 	m.groupMu.Unlock()
-
 	if isGroup {
-		if leaveRenw != nil {
-			leaveRenw()
-		}
-		for _, c := range leavePees {
-			if c != nil {
-				m.cleanupCall(c)
-			}
-		}
-		_, pubErr := m.client.SendStateEvent(m.ctx, leaveRoom, matrixCallMemberStateType, m.userID.String(),
-			matrixCallMemberContent{Calls: []matrixCallMemberCall{}})
-		m.fireUpdate(Update{
-			Type:   UpdateCallState,
-			ChatID: leaveRoom.String(),
-			Call: &CallSession{
-				ID: callID, ChatID: leaveRoom.String(), IsGroup: true,
-				State: CallStateEnded,
-			},
-			Platform: mxPlatform,
-		})
-		if pubErr != nil {
-			return fmt.Errorf("publish leave membership: %w", pubErr)
+		if _, _, pubErr := m.leaveGroupCallInternal(); pubErr != nil {
+			return pubErr
 		}
 		return nil
 	}
@@ -2070,6 +2039,13 @@ func (m *MatrixCore) OnUpdate(handler func(Update)) {
 
 // Close stops the sync loop, ends active calls, and releases all resources.
 func (m *MatrixCore) Close() error {
+	// Group leg (F-64): this function's doc comment promises it "ends
+	// active calls" — leave the group call while ctx/token still alive
+	// (RED: renewal kept running after Close).
+	if _, _, pubErr := m.leaveGroupCallInternal(); pubErr != nil {
+		_ = pubErr // shutting down; expires_ts ends the remote view
+	}
+
 	m.mu.Lock()
 	if m.syncStop != nil {
 		m.syncStop()
@@ -2153,6 +2129,21 @@ func (m *MatrixCore) LeaveChat(chatID string) error {
 	}
 
 	roomID := id.RoomID(chatID)
+
+	// Group leg (F-64): leaving the room leaves the CALL first — the
+	// empty membership MUST precede LeaveRoom (you cannot write state
+	// to a room you have left; RED order assertion). Publish failures
+	// are bounded: the room-leave event below reaches the peers and
+	// expires_ts drops our device within the 60 s lease.
+	m.groupMu.Lock()
+	inCall := m.groupConfID != "" && m.groupRoomID == roomID
+	m.groupMu.Unlock()
+	if inCall {
+		if _, _, pubErr := m.leaveGroupCallInternal(); pubErr != nil {
+			_ = pubErr // best effort — never block the room leave
+		}
+	}
+
 	_, err := m.client.LeaveRoom(m.ctx, roomID)
 	if err != nil {
 		return fmt.Errorf("leave room: %w", err)
@@ -3583,11 +3574,14 @@ func (m *MatrixCore) handleMessageEvent(evt *event.Event) {
 
 func (m *MatrixCore) handleMemberEvent(evt *event.Event) {
 	evt.Content.ParseRaw(evt.Type)
+	// Parse once, outside the lock — the F-65 group leg below needs mc
+	// too (scope fix: the old `if mc, ok :=` shadowed it inside).
+	mc, _ := evt.Content.Parsed.(*event.MemberEventContent)
 
 	m.roomsMu.Lock()
 	rs := m.rooms[evt.RoomID]
 	if rs != nil {
-		if mc, ok := evt.Content.Parsed.(*event.MemberEventContent); ok && evt.StateKey != nil {
+		if mc != nil && evt.StateKey != nil {
 			uid := id.UserID(*evt.StateKey)
 			rs.Members[uid] = &matrixMember{
 				UserID:      uid,
@@ -3598,6 +3592,25 @@ func (m *MatrixCore) handleMemberEvent(evt *event.Event) {
 		}
 	}
 	m.roomsMu.Unlock()
+
+	// Group leg (F-65): if WE stopped being `join` in the call's room
+	// (kicked, banned, room dissolved), the call is over for us — with
+	// no fix the renewal goroutine and the mesh would run forever with
+	// nothing to publish to. The publish inside is best-effort (we may
+	// have just been kicked). Snapshot groupRoomID under groupMu, then
+	// release it BEFORE teardown (leaveGroupCallInternal takes it).
+	if evt.StateKey != nil && mc != nil && id.UserID(*evt.StateKey) == m.userID &&
+		mc.Membership != event.MembershipJoin {
+		m.groupMu.Lock()
+		ourRoom := m.groupRoomID
+		ourConf := m.groupConfID
+		m.groupMu.Unlock()
+		if ourConf != "" && ourRoom == evt.RoomID {
+			if _, _, pubErr := m.leaveGroupCallInternal(); pubErr != nil {
+				_ = pubErr
+			}
+		}
+	}
 
 	m.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
