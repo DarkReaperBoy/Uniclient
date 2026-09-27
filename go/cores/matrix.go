@@ -1383,21 +1383,7 @@ func (m *MatrixCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
-		ticker := time.NewTicker(time.Duration(matrixDeviceTTLMillis/2) * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-renewCtx.Done():
-				return
-			case <-m.ctx.Done():
-				return
-			case <-ticker.C:
-				_ = m.publishGroupMembership(roomID, conf, sess, time.Now().UnixMilli())
-				// Expiry-driven removals need a reconcile too: remote
-				// leases vanish WITHOUT any new state event arriving.
-				_ = m.reconcileGroupMesh()
-			}
-		}
+		m.runGroupRenewal(renewCtx, roomID, conf, sess)
 	}()
 
 	return &CallSession{

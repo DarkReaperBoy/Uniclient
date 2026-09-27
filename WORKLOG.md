@@ -10325,3 +10325,59 @@ shell only). Remaining horizon: B-25's env flap + the two always-owner
 rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
 non-prerelease ≥ v0.10.3 per the slice-281 version rule).
 gate304 = light scope; standalone with rc check.
+
+---
+
+## Slice 305 (2026-09-27) — F-69: renewal failures no longer forge
+## zombie calls (consecutive-failure teardown)
+
+1. **The finding**: `runGroupRenewal`'s predecessor swallowed every
+   publish error (`_ = m.publishGroupMembership(...)`) — a server that
+   persistently rejected renewals (state-event permission drift,
+   rate-limit storm, room rules changed mid-call) left us in a call
+   that existed for NOBODY: mic/speaker/mesh/`groupConfID` all live
+   locally while the remote expired the lease and dropped us; reconcile
+   failed with the same cause, so nothing ever re-derived reality.
+2. **Tests-first, two-phase**:
+   - Phase A (behavior-neutral plumbing): renewal extracted into
+     `runGroupRenewal(renewCtx, roomID, conf, sess)` + package var
+     `matrixRenewInterval` (half-lease cadence; tests tick at 20 ms
+     instead of 30 s). Errors still swallowed at this point.
+   - **RED quoted**: `conf still joined after 3+ failed renewals:
+     conf_583ff0099fdc0373 (zombie call)` (5.01 s wait, then fail).
+   - Phase B: `matrixRenewMaxConsecutiveFails = 3` — ticks are half
+     the 60 s lease, so three straight failures span 90 s and the last
+     good lease expired 30 s earlier ⇒ remote already dropped us ⇒
+     full `leaveGroupCallInternal` self-teardown (renewal canceled,
+     mesh closed, state cleared, Ended fired; its own empty-membership
+     publish also fails — best-effort, ignored). One success resets.
+3. **Harness**: `renewFlakyServer` (scripted 503s on membership PUTs:
+   `setFailNext(n)`, PUT counters), `renewTestCore` (20 ms ticks +
+   `endedRecorder` — Ended events are appended off the ticker
+   goroutine, so reads go through a mutex, not a bare slice).
+   GREEN ×2: zombie test (teardown + Ended fired + PUT count STOPS
+   growing = goroutine exited) + transient test (2 failures then
+   recovery → call survives, retries observed — pins the reset).
+4. **Validation**: group suite **36 PASS / 0 FAIL**, `-race` green,
+   whole tree **14 ok**, live dendrite test still green (4.7s), vet
+   incl. `-tags goolm,live`, gofmt clean. BUGS machine check:
+   **69 F rows, no gaps/dupes, open = B-25 only**.
+
+**B-25 re-probe: still denied → open** (44th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 304's)
+Open: **B-25 ONLY** (44× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 69**,
+B-rows = 1. B-6 CLOSED across F-62…F-69: live proof · EndCall leave ·
+all other exits · membership≠join · stale-conf sweep · replayed-invite
+hook · renewal-zombie teardown. Dendrite running at
+127.0.0.1:8008 (binaries ~/go/bin, config ~/.cache/uniclient-dendrite;
+recipe in `go/tests/matrix_groupcall_live_test.go` header). Streak: 61
+at `33887586` before this slice. Paths/toolchain/owner orders per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`,
+live = `-tags goolm,live ./tests/`, char-class token extraction in
+shell only). Remaining horizon: B-25's env flap + the two always-owner
+rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
+non-prerelease ≥ v0.10.3 per the slice-281 version rule).
+gate305 = light scope; standalone with rc check.

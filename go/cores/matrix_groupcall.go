@@ -771,3 +771,56 @@ func (m *MatrixCore) leaveGroupCallInternal() (id.RoomID, string, error) {
 	})
 	return room, conf, pubErr
 }
+
+// ─── membership renewal (slice 305) ────────────────────────────────────
+
+// matrixRenewInterval is the renewal cadence: half the 60 s lease so
+// one dropped state event never expires us mid-call. Package-level so
+// tests can shrink it (F-69's zombie-call tests run ticks at 20 ms).
+var matrixRenewInterval = time.Duration(matrixDeviceTTLMillis/2) * time.Millisecond
+
+// matrixRenewMaxConsecutiveFails: give up after this many FAILED
+// renewals in a row. Ticks fire at half the 60 s lease, so three
+// consecutive failures span 90 s — the lease published at the last
+// success expired 30 s earlier, the remote side has already dropped
+// us, and the local call is a ZOMBIE (mic/speaker/mesh running into a
+// call nobody sees). A single success resets the counter, so transient
+// blips never end a healthy call (F-69).
+const matrixRenewMaxConsecutiveFails = 3
+
+// runGroupRenewal is the membership-renewal goroutine body: publish a
+// fresh lease every matrixRenewInterval and re-derive the mesh (remote
+// leases vanish WITHOUT any new state event arriving). Exits on
+// renewCtx/m.ctx cancellation — including the self-teardown below,
+// which cancels renewCtx via leaveGroupCallInternal.
+func (m *MatrixCore) runGroupRenewal(renewCtx context.Context, roomID id.RoomID, conf, sess string) {
+	ticker := time.NewTicker(matrixRenewInterval)
+	defer ticker.Stop()
+	fails := 0
+	for {
+		select {
+		case <-renewCtx.Done():
+			return
+		case <-m.ctx.Done():
+			return
+		case <-ticker.C:
+			if err := m.publishGroupMembership(roomID, conf, sess, time.Now().UnixMilli()); err != nil {
+				fails++
+				if fails >= matrixRenewMaxConsecutiveFails {
+					// Persistently rejected: the remote lease is (or is
+					// about to be) expired — stop pretending. Full
+					// teardown: cancel renewal, close mesh, clear state,
+					// fire Ended (F-69; the empty-membership publish
+					// inside will likely fail too — best-effort).
+					if _, _, pubErr := m.leaveGroupCallInternal(); pubErr != nil {
+						_ = pubErr
+					}
+					return
+				}
+			} else {
+				fails = 0
+			}
+			_ = m.reconcileGroupMesh()
+		}
+	}
+}
