@@ -6021,7 +6021,11 @@ func (d *DeltaChatCore) WasDeviceMsgEverAdded(label string) bool {
 // Creates it if it doesn't exist.
 func (d *DeltaChatCore) GetStickerFolder() (string, error) {
 	if d.stickerDir == "" {
-		d.stickerDir = filepath.Join(os.TempDir(), "dc-stickers")
+		dir, err := utils.PrivateCacheDir("deltachat", "stickers")
+		if err != nil {
+			return "", fmt.Errorf("sticker dir: %w", err)
+		}
+		d.stickerDir = dir
 	}
 	if err := os.MkdirAll(d.stickerDir, 0700); err != nil {
 		return "", fmt.Errorf("create sticker dir: %w", err)
@@ -6799,7 +6803,14 @@ func (d *DeltaChatCore) GetSystemInfo() map[string]string {
 
 // GetBlobDir returns the blob directory path.
 func (d *DeltaChatCore) GetBlobDir() string {
-	return filepath.Join(os.TempDir(), "dc-blobs")
+	dir, err := utils.PrivateCacheDir("deltachat", "blobs")
+	if err != nil {
+		// Double-failure only (no home AND no temp): fall back to the
+		// temp ROOT — blob names are content hashes (not guessable), and
+		// callers only touch blobs they just wrote (F-73 trade-off).
+		return os.TempDir()
+	}
+	return dir
 }
 
 // CheckEmailValidity validates an email address format.
@@ -7684,7 +7695,11 @@ func (d *DeltaChatCore) GetBackup() (string, error) {
 		return "", fmt.Errorf("no session store configured")
 	}
 	// Export session to a temp file and return its path
-	tmpFile := filepath.Join(os.TempDir(), "dc-backup.json")
+	dir, err := utils.PrivateCacheDir("deltachat")
+	if err != nil {
+		return "", err
+	}
+	tmpFile := filepath.Join(dir, "dc-backup.json")
 	var sess dcSession
 	if err := d.session.Load(&sess); err != nil {
 		return "", err

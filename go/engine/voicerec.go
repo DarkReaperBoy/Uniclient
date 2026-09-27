@@ -3,12 +3,12 @@ package engine
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
 	"uniclient/audio"
 	"uniclient/cores"
+	"uniclient/utils"
 	"uniclient/voice"
 )
 
@@ -332,5 +332,13 @@ func (e *Engine) VoiceNoteTempDir() string {
 	if e.mediaDir != "" {
 		return e.mediaDir
 	}
-	return filepath.Join(os.TempDir(), "uniclient-voice")
+	// F-73: was a FIXED name in the shared temp dir (pre-plantable).
+	// Private and deterministic; the last-resort fallback is the temp
+	// ROOT — files there come from os.CreateTemp (random, O_EXCL), so
+	// even that fallback is unguessable.
+	dir, err := utils.PrivateCacheDir("voice-notes")
+	if err != nil {
+		return os.TempDir()
+	}
+	return dir
 }

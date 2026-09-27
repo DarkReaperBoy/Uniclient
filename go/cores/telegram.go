@@ -51,6 +51,7 @@ import (
 	"github.com/pion/webrtc/v4"
 
 	pionmedia "github.com/pion/webrtc/v4/pkg/media"
+	"uniclient/utils"
 	"uniclient/wrtc"
 )
 
@@ -18341,7 +18342,11 @@ func (t *TelegramCore) DownloadIVPhoto(photoID int64, extra string) (string, err
 	if !t.authed || t.api == nil {
 		return "", ErrAuth
 	}
-	dest := filepath.Join(os.TempDir(), fmt.Sprintf("iv_photo_%d.jpg", photoID))
+	dir, err := utils.PrivateCacheDir("telegram-iv")
+	if err != nil {
+		return "", err
+	}
+	dest := filepath.Join(dir, fmt.Sprintf("iv_photo_%d.jpg", photoID))
 	if _, err := os.Stat(dest); err == nil {
 		return dest, nil
 	}
@@ -18370,7 +18375,11 @@ func (t *TelegramCore) DownloadIVDocument(docID int64, extra, mime string) (stri
 	case strings.HasPrefix(mime, "audio/"):
 		ext = ".mp3"
 	}
-	dest := filepath.Join(os.TempDir(), fmt.Sprintf("iv_doc_%d%s", docID, ext))
+	dir, err := utils.PrivateCacheDir("telegram-iv")
+	if err != nil {
+		return "", err
+	}
+	dest := filepath.Join(dir, fmt.Sprintf("iv_doc_%d%s", docID, ext))
 	if _, err := os.Stat(dest); err == nil {
 		return dest, nil
 	}
@@ -21420,8 +21429,10 @@ func (t *TelegramCore) GetUserPhotoAtIndex(userID string, index int) (string, st
 		return "", "", fmt.Errorf("photo at index %d is not available", index)
 	}
 	photoId := fmt.Sprintf("%d", photo.ID)
-	avatarDir := filepath.Join(os.TempDir(), "uniclient_photos")
-	os.MkdirAll(avatarDir, 0o755)
+	avatarDir, err := utils.PrivateCacheDir("telegram-photos")
+	if err != nil {
+		return "", "", err
+	}
 	destPath := filepath.Join(avatarDir, fmt.Sprintf("%s_%d_%d.jpg", userID, index, photo.ID))
 	if _, err := os.Stat(destPath); err == nil {
 		return destPath, photoId, nil
@@ -26509,7 +26520,11 @@ func trimVideoWithFFmpeg(videoPath string, trimStart, trimEnd float64) (string, 
 	}
 	startSec := duration * trimStart
 	endSec := duration * trimEnd
-	outPath := filepath.Join(os.TempDir(), fmt.Sprintf("story_trimmed_%d.mp4", time.Now().UnixNano()))
+	storyDir, err := utils.PrivateCacheDir("telegram-story")
+	if err != nil {
+		return "", err
+	}
+	outPath := filepath.Join(storyDir, fmt.Sprintf("story_trimmed_%d.mp4", time.Now().UnixNano()))
 	cmd := exec.Command("ffmpeg", "-y",
 		"-ss", fmt.Sprintf("%.3f", startSec),
 		"-to", fmt.Sprintf("%.3f", endSec),
@@ -26526,13 +26541,17 @@ func trimVideoWithFFmpeg(videoPath string, trimStart, trimEnd float64) (string, 
 
 // overlayVideoWithFFmpeg composites a transparent PNG overlay onto a video using ffmpeg.
 func overlayVideoWithFFmpeg(videoPath string, overlayPNG []byte) (string, error) {
-	overlayPath := filepath.Join(os.TempDir(), fmt.Sprintf("story_overlay_%d.png", time.Now().UnixNano()))
+	storyDir, err := utils.PrivateCacheDir("telegram-story")
+	if err != nil {
+		return "", err
+	}
+	overlayPath := filepath.Join(storyDir, fmt.Sprintf("story_overlay_%d.png", time.Now().UnixNano()))
 	if err := os.WriteFile(overlayPath, overlayPNG, 0644); err != nil {
 		return "", err
 	}
 	defer os.Remove(overlayPath)
 
-	outPath := filepath.Join(os.TempDir(), fmt.Sprintf("story_composited_%d.mp4", time.Now().UnixNano()))
+	outPath := filepath.Join(storyDir, fmt.Sprintf("story_composited_%d.mp4", time.Now().UnixNano()))
 	cmd := exec.Command("ffmpeg", "-y",
 		"-i", videoPath,
 		"-i", overlayPath,
@@ -36796,7 +36815,11 @@ func (t *TelegramCore) cachedRingtonePath(api *tg.Client, ctx context.Context, d
 	case "audio/mp4", "audio/aac", "audio/x-m4a":
 		ext = ".m4a"
 	}
-	path := filepath.Join(os.TempDir(), fmt.Sprintf("uniclient_ringtone_%d%s", d.ID, ext))
+	dir, err := utils.PrivateCacheDir("telegram-ringtones")
+	if err != nil {
+		return "" // best effort: skip caching rather than use a plantable path (F-73)
+	}
+	path := filepath.Join(dir, fmt.Sprintf("uniclient_ringtone_%d%s", d.ID, ext))
 	if fi, err := os.Stat(path); err == nil && fi.Size() > 0 {
 		return path
 	}

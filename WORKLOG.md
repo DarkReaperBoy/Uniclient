@@ -10623,3 +10623,74 @@ anchor here; audit classes already drained: test-quality trilogy,
 data-loss, response-size/gzip, TLS/timeouts, TOFU, staticcheck×2,
 validation batteries, docs/env-var/path claims, teardown paths,
 styling fuzz, path traversal, download ceilings.
+
+gate309 = light scope; standalone with rc check.
+
+---
+
+## Slice 310 (2026-09-27) — F-73: predictable names in the SHARED
+## temp dir (plantable by any local account)
+
+F-71 closed traversal (server strings can't escape the dir); this
+closes **planting within the shared dir**:
+
+1. **The finding (15 sites)**: `/tmp/uniclient_resend` +
+   `/tmp/uniclient-voice` were FIXED names with `MkdirAll 0755` —
+   pre-create them and the app writes media into the ATTACKER's
+   directory (readable); pre-plant a symlink at a predicted path and
+   `os.Create`/`os.WriteFile` truncates an attacker-chosen target:
+   `iv_photo_%d.jpg`/`iv_doc_%d` (Stat-reuse ALSO reads attacker
+   content = cache poisoning rendered in-app), `uniclient_ringtone_%d`,
+   `uniclient_photos/`, `story_*_%d`, `dc-stickers/`, `dc-blobs/`,
+   `dc-backup.json` (a SESSION EXPORT — planted path points the vault
+   backup at the attacker).
+2. **Fix**: `utils.PrivateCacheDir(elem…)` — user's own
+   `~/.cache/uniclient/…` (home-owned → not pre-plantable), 0700,
+   DETERMINISTIC per name (the Stat-reuse cache contract survives);
+   no home (sandbox/CI/js) → per-call `MkdirTemp` (unguessable beats
+   predictable). Wired at all 15 sites: pending.go ×4 (the cleanup
+   path now resolves through one `resendTmpDir()` source of truth —
+   also fixed a latent F-71 mismatch: Remove used RAW `p.MsgID` while
+   the writer used `safePathSegment`), voicerec fallback, telegram ×7,
+   deltachat ×3; string-only getters fall back honestly
+   (`GetBlobDir` → temp ROOT, blob names are content hashes;
+   `cachedRingtonePath` → `""` = skip caching rather than plant).
+3. **Tests-first**: seam-RED quoted (`undefined: PrivateCacheDir`),
+   GREEN ×2 — privacy/determinism/mode-0700 property + source-scan
+   pin (`filepath.Join(os.TempDir(),` gone from all four files;
+   comments skipped; `writeVoiceOgg`'s `dir = os.TempDir()`
+   assignment survives — its files come from `os.CreateTemp`, random
+   + O_EXCL = already safe).
+4. **Self-caught**: a python wiring script died on a paren mismatch
+   (SYNTAX_ERROR → NOTHING applied — verified before retrying); an
+   unused `path/filepath` import after voicerec's edit (vet caught).
+5. **Validation**: utils/engine/cores suites green, `-race` all three
+   green (107s engine), **windows + wasm cross-builds green LOCALLY**,
+   whole tree **14 ok**, live dendrite green (4.0s), vet incl.
+   `-tags goolm,live`, gofmt clean. BUGS machine check: **73 F rows,
+   no gaps/dupes, open = B-25 only**.
+
+**B-25 re-probe: still denied → open** (51st consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 309's)
+Open: **B-25 ONLY** (51× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 73**,
+B-rows = 1. B-6 CLOSED F-62…F-69; F-70 styling OOB; F-71 path
+traversal; F-72 download ceiling; F-73 shared-temp planting (this
+slice). Dendrite running at 127.0.0.1:8008 (binaries ~/go/bin, config
+~/.cache/uniclient-dendrite; recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 66 at
+`ba91fe05` before this slice. Paths/toolchain/owner orders per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`,
+live = `-tags goolm,live ./tests/`, char-class token extraction in
+shell only — literals never committed; ANCHOR recipe form:
+`grep -o 'github_pat[_][A-Za-z0-9]*' <(git remote get-url origin)`).
+Remaining horizon: B-25's env flap + the two always-owner rungs (§11
+`[~]` real-phone/email live sign-in, `[ ]` first non-prerelease ≥
+v0.10.3 per slice-281). Owner posture: "continue till eternity… done
+unprompted; make sure compaction knows" — every slice appends its own
+anchor here; audit classes drained: test-quality trilogy, data-loss,
+response-size/gzip, TLS/timeouts, TOFU, staticcheck×2, validation
+batteries, docs/env-var/path claims, teardown paths, styling fuzz,
+path traversal, download ceilings, shared-temp planting.

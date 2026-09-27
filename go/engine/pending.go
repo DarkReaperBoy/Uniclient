@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"uniclient/cores"
+	"uniclient/utils"
 )
 
 // PendingAction represents the type of outbound operation.
@@ -624,8 +625,10 @@ func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []str
 	e.wg.Add(1)
 	defer e.wg.Done()
 
-	tmpDir := filepath.Join(os.TempDir(), "uniclient_resend")
-	os.MkdirAll(tmpDir, 0o755)
+	tmpDir, err := resendTmpDir()
+	if err != nil {
+		return fmt.Errorf("resend dir: %w", err)
+	}
 
 	for _, msgID := range msgIDs {
 		var remoteRef, fileName, mimeType, extraStr sql.NullString
@@ -1150,7 +1153,10 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 			if stickerExt == "" {
 				stickerExt = ".bin"
 			}
-			os.Remove(filepath.Join(os.TempDir(), "uniclient_resend", p.MsgID+stickerExt))
+			if rd, derr := resendTmpDir(); derr == nil {
+				// safePathSegment must match the WRITER's name (F-71).
+				os.Remove(filepath.Join(rd, safePathSegment(p.MsgID)+stickerExt))
+			}
 			if sentMsg != nil {
 				e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
 			}
@@ -1162,8 +1168,10 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 	}
 
 	if hasMedia {
-		tmpDir := filepath.Join(os.TempDir(), "uniclient_resend")
-		os.MkdirAll(tmpDir, 0o755)
+		tmpDir, err := resendTmpDir()
+		if err != nil {
+			return fmt.Errorf("resend dir: %w", err)
+		}
 		ext := filepath.Ext(fileName.String)
 		if ext == "" {
 			ext = ".bin"
@@ -1295,8 +1303,10 @@ func (e *Engine) resendText(acc *Account, chatID, text string, silent bool, sche
 func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 	albumSender, hasAlbumSupport := acc.Core.(cores.MediaAlbumSender)
 
-	tmpDir := filepath.Join(os.TempDir(), "uniclient_resend")
-	os.MkdirAll(tmpDir, 0o755)
+	tmpDir, err := resendTmpDir()
+	if err != nil {
+		return fmt.Errorf("resend dir: %w", err)
+	}
 
 	type downloadedItem struct {
 		tmpPath  string
@@ -1458,4 +1468,13 @@ func isRetryable(err error) bool {
 		errors.Is(err, cores.ErrTimeout) ||
 		errors.Is(err, cores.ErrRateLimit) ||
 		errors.Is(err, cores.ErrDisconnected)
+}
+
+// resendTmpDir is the private scratch dir for resend/preload media
+// (F-73: was /tmp/uniclient_resend — a FIXED name in the SHARED temp
+// dir, so any local account could pre-create it and read our media or
+// plant symlinks at predicted msgID paths). Single source of truth:
+// every writer AND the cleanup path resolve it through here.
+func resendTmpDir() (string, error) {
+	return utils.PrivateCacheDir("resend")
 }
