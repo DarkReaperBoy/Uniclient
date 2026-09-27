@@ -223,3 +223,71 @@ func TestOwnMemberJoinKeepsGroupCall(t *testing.T) {
 		t.Fatalf("join event tore the call down: conf=%q peers=%d", conf, peers)
 	}
 }
+
+// TestOwnMemberNonDepartureKeepsGroupCall (F-68, found by the live
+// diagnosis in slice 304): the F-65 hook used `membership != join`, so
+// a REDELIVERED `invite` event for our own mxid (sync batches are not
+// strictly ordered vs our own JoinGroupCall) tore the freshly joined
+// call down — and worse, published an empty membership, which is why
+// the live test saw `bob: no active call` + `alice count=1` forever.
+// Only an actual departure (leave/ban) ends the call.
+//
+// RED (behavioral, WORKLOG 304): invite/empty-membership currently
+// tear down `conf_x`.
+func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		membership string
+	}{
+		{"replayed invite", "invite"},
+		{"malformed empty membership", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, _ := newMeshHomeserver(t)
+			core := seededMeshCore(t, srv.URL)
+			canceled, call := seedCallState(t, core)
+
+			sk := "@alice:test"
+			evt := &event.Event{
+				Type:     event.StateMember,
+				RoomID:   id.RoomID("!room:test"),
+				Sender:   "@bob:test", // the inviter, not us
+				StateKey: &sk,
+				Content:  event.Content{VeryRaw: []byte(`{"membership":"` + tc.membership + `"}`)},
+			}
+			core.handleMemberEvent(evt)
+
+			if *canceled {
+				t.Fatalf("membership=%q event canceled the renewal — call torn down", tc.membership)
+			}
+			core.groupMu.Lock()
+			conf := core.groupConfID
+			peers := len(core.groupPeers)
+			core.groupMu.Unlock()
+			if conf != "conf_x" || peers != 1 || call.State == CallStateEnded {
+				t.Fatalf("membership=%q event tore the call down: conf=%q peers=%d state=%v",
+					tc.membership, conf, peers, call.State)
+			}
+		})
+	}
+}
+
+// TestOwnMemberBanEndsGroupCall: ban (like leave) IS a departure and
+// must tear down — pins the other half of the condition.
+func TestOwnMemberBanEndsGroupCall(t *testing.T) {
+	srv, _ := newMeshHomeserver(t)
+	core := seededMeshCore(t, srv.URL)
+	canceled, call := seedCallState(t, core)
+
+	sk := "@alice:test"
+	evt := &event.Event{
+		Type:     event.StateMember,
+		RoomID:   id.RoomID("!room:test"),
+		Sender:   "@bob:test",
+		StateKey: &sk,
+		Content:  event.Content{VeryRaw: []byte(`{"membership":"ban"}`)},
+	}
+	core.handleMemberEvent(evt)
+
+	assertCallTornDown(t, core, canceled, call, "own member-ban")
+}

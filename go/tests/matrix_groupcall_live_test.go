@@ -169,9 +169,28 @@ func TestMatrixGroupCallLive(t *testing.T) {
 
 	// Membership cross-syncs: BOTH sides must see two live participants
 	// (each side's m.call.member state event reached the other via
-	// real sync) — this is what drives reconcileGroupMesh.
+	// real sync) — this is what drives reconcileGroupMesh. The closure
+	// logs per-side state every ~5s so a timeout is diagnosable from
+	// the test output alone (slice 304: three consecutive opaque
+	// 30s timeouts).
+	var logged bool
+	var lastDiag time.Time
 	poll(t, "both sides see 2 live participants", 30*time.Second, func() bool {
 		ok := true
+		if !logged || time.Since(lastDiag) >= 5*time.Second {
+			for name, c := range map[string]*cores.MatrixCore{"alice": alice, "bob": bob} {
+				info, err := c.GetGroupCall(roomID)
+				if err != nil {
+					t.Logf("diag[%s]: GetGroupCall err=%v", name, err)
+				} else if info == nil {
+					t.Logf("diag[%s]: no active call (not joined?)", name)
+				} else {
+					t.Logf("diag[%s]: count=%q participants=%+v", name, info.Meta["participants_count"], info.Participants)
+				}
+			}
+			lastDiag = time.Now()
+			logged = true
+		}
 		for _, c := range []*cores.MatrixCore{alice, bob} {
 			info, err := c.GetGroupCall(roomID)
 			if err != nil || info == nil || info.Meta["participants_count"] != "2" {

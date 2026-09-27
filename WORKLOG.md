@@ -10263,3 +10263,65 @@ shell only). Remaining horizon: B-25's env flap + the two always-owner
 rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
 non-prerelease ≥ v0.10.3 per the slice-281 version rule).
 gate303 = light scope; standalone with rc check.
+
+---
+
+## Slice 304 (2026-09-27) — F-67 + F-68: stale-conf sweep revived, and
+## the live failure root-caused (replayed `invite` killed fresh calls)
+
+Two findings, both from auditing the join path; the second was found
+by diagnosing THREE consecutive opaque live-test timeouts.
+
+1. **F-67 (RED quoted)**: `JoinGroupCall`'s stale-peer sweep read
+   `old := m.groupConfID` AFTER assigning `m.groupConfID = conf` —
+   `old != conf` was dead code. Re-join after a conf change kept the
+   OLD conf's peers: `GroupConf` stale → ICE candidates tagged with the
+   old `conf_id` → remote drops them → ICE can never complete on the
+   new conf. Fix = capture `oldConf` BEFORE the assignment (7 lines
+   incl. comment). RED: `stale peer not closed after conf change:
+   state=connecting` + `stale conf_x peer still registered after
+   joining conf_<new>` → GREEN (`TestJoinGroupCallClosesStaleConfPeers`;
+   mini-server 404s the state GET so JoinGroupCall mints a new conf).
+2. **F-68 (the live failure; RED quoted ×2)**: the F-65 departure
+   hook used `membership != join` — but sync batches are NOT strictly
+   ordered against our own JoinGroupCall, so a REDELIVERED `invite`
+   for our own mxid (or a malformed empty `membership`) arriving after
+   we joined tripped the hook → tore the fresh call down AND published
+   an empty membership. That is exactly what the live test showed:
+   `bob: no active call` forever + `alice count=1` forever → three
+   30 s timeouts before the new per-side diagnostics pinpointed it.
+   Fix = narrow to actual departures: `leave || ban` only. RED:
+   `membership="invite" event canceled the renewal — call torn down`
+   + same for `""` → GREEN ×2 sub-cases + `TestOwnMemberBanEndsGroupCall`
+   pins the other half.
+3. **Diagnostics kept** (they earned their place): the live test now
+   logs per-side `count`/`participants` every ~5 s. Self-caught: the
+   first throttle refreshed its timer on EVERY failed poll so only one
+   snapshot ever printed (only a t≈0 data point existed — the log
+   showed both sides at count=0 and never again).
+4. **Validation**: group suite **34 PASS / 0 FAIL**, `-race` green,
+   whole tree **14 ok**, **live dendrite test GREEN ×3 consecutive
+   (3.8/3.9/3.8s)** incl. the voice phase, vet incl. `-tags goolm,live`,
+   gofmt clean. BUGS machine check: **68 F rows, no gaps/dupes, open =
+   B-25 only** (row-shape checker re-run in python after an awk
+   quoting slip — `||` inside a code span had added 2 literal pipes to
+   the F-68 row; reworded to `leave`/`ban`).
+
+**B-25 re-probe: still denied → open** (43rd consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 303's)
+Open: **B-25 ONLY** (43× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 68**,
+B-rows = 1. B-6 CLOSED: F-62 (live proof) · F-63 (EndCall) ·
+F-64/F-65 (all exits) · F-66 (membership≠join rule) · F-67 (stale-conf
+sweep) · F-68 (replayed-invite teardown). Dendrite running at
+127.0.0.1:8008 (binaries ~/go/bin, config ~/.cache/uniclient-dendrite;
+recipe in `go/tests/matrix_groupcall_live_test.go` header). Streak: 60
+at `4de6b9d7` before this slice. Paths/toolchain/owner orders per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`,
+live = `-tags goolm,live ./tests/`, char-class token extraction in
+shell only). Remaining horizon: B-25's env flap + the two always-owner
+rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
+non-prerelease ≥ v0.10.3 per the slice-281 version rule).
+gate304 = light scope; standalone with rc check.

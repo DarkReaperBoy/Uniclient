@@ -1341,13 +1341,19 @@ func (m *MatrixCore) JoinGroupCall(chatID string) (*CallSession, error) {
 		m.groupSession = matrixNewSessionID()
 	}
 	sess := m.groupSession
+	// F-67: capture the PREVIOUS conf BEFORE overwriting — the old
+	// sweep read `old := m.groupConfID` after this assignment, so
+	// `old != conf` was dead code and re-join kept the stale conf's
+	// mesh peers (GroupConf stale → ICE candidates tagged with the old
+	// conf_id → remote drops them → ICE can never complete).
+	oldConf := m.groupConfID
 	m.groupConfID = conf
 	m.groupRoomID = roomID
 	if m.groupMembers == nil {
 		m.groupMembers = make(map[id.UserID]matrixCallMemberContent)
 	}
 	var stalePeers []*matrixCall
-	if old := m.groupConfID; old != "" && old != conf {
+	if oldConf != "" && oldConf != conf {
 		for _, c := range m.groupPeers {
 			stalePeers = append(stalePeers, c)
 		}
@@ -3593,14 +3599,23 @@ func (m *MatrixCore) handleMemberEvent(evt *event.Event) {
 	}
 	m.roomsMu.Unlock()
 
-	// Group leg (F-65): if WE stopped being `join` in the call's room
-	// (kicked, banned, room dissolved), the call is over for us — with
-	// no fix the renewal goroutine and the mesh would run forever with
-	// nothing to publish to. The publish inside is best-effort (we may
-	// have just been kicked). Snapshot groupRoomID under groupMu, then
-	// release it BEFORE teardown (leaveGroupCallInternal takes it).
+	// Group leg (F-65): if WE were actually REMOVED from the call's
+	// room (leave/ban — kicked, banned, room dissolved), the call is
+	// over for us — with no fix the renewal goroutine and the mesh
+	// would run forever with nothing to publish to. The publish inside
+	// is best-effort (we may have just been kicked). Snapshot
+	// groupRoomID under groupMu, then release it BEFORE teardown
+	// (leaveGroupCallInternal takes it).
+	//
+	// F-68 (RED: "membership=invite event canceled the renewal"): the
+	// condition was `!= join`, so a REDELIVERED `invite` for our own
+	// mxid — sync batches are not strictly ordered against our own
+	// JoinGroupCall — tore the freshly joined call down AND published
+	// an empty membership (why the live run saw `bob: no active call` /
+	// `alice count=1` forever). Malformed empty membership did the
+	// same. Only a real departure ends the call.
 	if evt.StateKey != nil && mc != nil && id.UserID(*evt.StateKey) == m.userID &&
-		mc.Membership != event.MembershipJoin {
+		(mc.Membership == event.MembershipLeave || mc.Membership == event.MembershipBan) {
 		m.groupMu.Lock()
 		ourRoom := m.groupRoomID
 		ourConf := m.groupConfID
