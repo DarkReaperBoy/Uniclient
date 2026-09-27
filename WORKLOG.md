@@ -10438,3 +10438,58 @@ shell only). Remaining horizon: B-25's env flap + the two always-owner
 rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
 non-prerelease ≥ v0.10.3 per the slice-281 version rule).
 gate306 = light scope; standalone with rc check.
+
+---
+
+## Slice 307 (2026-09-27) — regression audits (negative results): the
+## slice-279 class did NOT come back, and the post-287 delta is clean
+
+Two re-check-the-checker passes over everything written since the last
+full audit — both negative, both recorded:
+
+1. **`t.Logf`-only "checks" re-run over ALL live tests** (the
+   slice-279 class): every advisory log I could find has a hard proof
+   or honest classification downstream —
+   - `teamspeak_voice_live_test` rejoin failures → the 10 s voice
+     collect loop + `Fatalf` (`too few voice packets…`), `Fatalf` on
+     codec/sender/silence/tone, `Skipf` ONLY for the B-22 relocation
+     case (environment, documented);
+   - `GetGroupCall` cache advisory (`warning: cache lists %d`) → the
+     same round-trip proof below it (comment says exactly that);
+   - `xmpp_live_test` "unexpected FULL auth success" → explicit
+     comment + `return` (account exists ⇒ chain proven, not a failure);
+   - `teamspeak_live` handshake error → `t.Fail()` (hard), JoinGroupCall
+     advisory → the big-message oracle below with its 3-tier
+     classification (delivery / semantic / transport → Fail);
+   - my own slice-304 diag logs → the poll closure's hard condition
+     right after them.
+   **No notice-but-never-fail holes found.**
+2. **staticcheck `-checks=all -tags goolm` over `./cores/` after the
+   post-287 delta** (19 files changed): intersection of bug-class
+   (SA/S1) findings with files I touched = **empty**; the new
+   matrix_groupcall/fuzz_styling/teamspeak_redact/deltachat-
+   localserver files have **0 findings of ANY check**. Remaining 29
+   SA/S1 in cores = the documented baseline debt in untouched files
+   (protocol-bound deprecations + simplifications, slice-287).
+3. **Validation battery**: whole tree **14 ok**, live dendrite test
+   green (4.0s), vet incl. `-tags goolm,live`, gofmt clean.
+
+**B-25 re-probe: still denied → open** (47th, then 48th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 306's)
+Open: **B-25 ONLY** (48× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 70**,
+B-rows = 1. B-6 CLOSED F-62…F-69; F-70 = styling OOB (fuzz); slice 307
+= negative audits (no changes to prod). Dendrite running at
+127.0.0.1:8008 (binaries ~/go/bin, config ~/.cache/uniclient-dendrite;
+recipe in `go/tests/matrix_groupcall_live_test.go` header). Streak: 63
+at `b7411655`. Paths/toolchain/owner orders per slice-295 anchor (repo
+`/tmp/uniclient_repo`, gate `/tmp/gate258.sh`, Go 1.27.1 store path,
+`GOTOOLCHAIN=local`, always `-tags goolm`, live =
+`-tags goolm,live ./tests/`, char-class token extraction in shell
+only). Remaining horizon: B-25's env flap + the two always-owner rungs
+(§11 `[~]` real-phone/email live sign-in, `[ ]` first non-prerelease
+≥ v0.10.3 per the slice-281 version rule). Work posture: owner said
+"continue till eternity… done unprompted" — keep slicing; doc the
+negative audits too.
+gate307 = light scope; standalone with rc check (no prod changes).
