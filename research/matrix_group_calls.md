@@ -1,8 +1,16 @@
 # Matrix group calls (BUGS B-6) — research for the owner decision
 
-Status: **not implemented** — `MatrixCore.JoinGroupCall` returns honest
-`ErrNotSupported` (`go/cores/matrix.go:1241`). Nothing below is built;
-this file exists so the owner's go/no-go is an informed choice.
+Status: **IMPLEMENTED (Tier 1) — slice 300 / F-62, 2026-09-27.** The
+decision this doc prepared was Tier-1 full-mesh; it is built and
+LIVE-verified on self-hosted dendrite (two real accounts, adopted conf,
+cross-synced membership, audio across the real mesh —
+`TestMatrixGroupCallLive`, provisioning recipe in its header). The
+historical "not implemented" text below is kept as the pre-decision
+record: `MatrixCore.JoinGroupCall` used to return honest
+`ErrNotSupported` at `go/cores/matrix.go` (line drifted since).
+Interop note carried from the decision: MSC3401 full-mesh clients
+only — NOT Element's modern MatrixRTC/LiveKit path (Tier 2 remains
+unbuilt; needs SFU infra this host cannot run).
 Per AGENTS: research files are inputs, not authoritative — every claim
 here carries its source, and implementation must re-verify.
 

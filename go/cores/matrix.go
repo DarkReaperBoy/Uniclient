@@ -449,6 +449,30 @@ func (m *MatrixCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 }
 
 // CreateGroup creates a new private group room with the specified members.
+// callPowerLevelOverride grants the MSC3401 event types at PL 0 for
+// rooms WE create — without it every non-creator member (PL 0 <
+// state_default 50) gets M_FORBIDDEN publishing their m.call.member
+// state event (the live-dendrite failure, slice 300; reference
+// clients do the same at createRoom time). The full default events map
+// is included because shallow-merge servers REPLACE the whole events
+// key — our keys alone would silently drop m.room.power_levels:100.
+func callPowerLevelOverride() *event.PowerLevelsEventContent {
+	return &event.PowerLevelsEventContent{
+		Events: map[string]int{
+			"m.room.name":                    50,
+			"m.room.power_levels":            100,
+			"m.room.history_visibility":      100,
+			"m.room.canonical_alias":         50,
+			"m.room.avatar":                  50,
+			"m.room.tombstone":               100,
+			"m.room.encryption":              100,
+			"m.room.server_acl":              100,
+			"org.matrix.msc3401.call":        0,
+			"org.matrix.msc3401.call.member": 0,
+		},
+	}
+}
+
 func (m *MatrixCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -460,10 +484,11 @@ func (m *MatrixCore) CreateGroup(name string, members []string) (*Dialog, error)
 	}
 
 	resp, err := m.client.CreateRoom(m.ctx, &mautrix.ReqCreateRoom{
-		Name:     name,
-		Preset:   "private_chat",
-		Invite:   invites,
-		IsDirect: len(members) == 1,
+		Name:               name,
+		Preset:             "private_chat",
+		Invite:             invites,
+		IsDirect:           len(members) == 1,
+		PowerLevelOverride: callPowerLevelOverride(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create group: %w", err)
@@ -497,9 +522,10 @@ func (m *MatrixCore) CreateChannel(name string, description string) (*Dialog, er
 	}
 
 	req := &mautrix.ReqCreateRoom{
-		Name:   name,
-		Topic:  description,
-		Preset: "public_chat",
+		Name:               name,
+		Topic:              description,
+		Preset:             "public_chat",
+		PowerLevelOverride: callPowerLevelOverride(),
 	}
 
 	resp, err := m.client.CreateRoom(m.ctx, req)

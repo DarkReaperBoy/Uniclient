@@ -157,6 +157,15 @@ func (m *MatrixCore) handleGroupMemberEvent(evt *event.Event) {
 	if evt.StateKey == nil {
 		return
 	}
+	// MSC3401: the state_key is the member's OWN mxid — auth rules only
+	// special-case m.room.member, so once the event type is granted at
+	// PL 0 any room member could publish a member event under someone
+	// ELSE's state_key. Receivers must check sender == state_key or call
+	// membership is spoofable (RED: "spoofed member event stored",
+	// slice 300).
+	if string(*evt.StateKey) != string(evt.Sender) {
+		return
+	}
 	var content matrixCallMemberContent
 	if err := json.Unmarshal(evt.Content.VeryRaw, &content); err != nil {
 		return

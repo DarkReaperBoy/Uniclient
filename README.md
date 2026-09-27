@@ -93,7 +93,7 @@ fit the GUI, never the other way around.
 | Core | State |
 |---|---|
 | Telegram | Most complete; 1:1 AyuGram feature parity in progress (gotd/td) |
-| Matrix | Builds; E2EE via pure-Go goolm (mautrix) |
+| Matrix | Builds; E2EE via pure-Go goolm (mautrix); group calls live-verified (MSC3401 full-mesh, self-hosted dendrite) |
 | IRC | Live-tested against real servers (own RFC2812+IRCv3 implementation) |
 | GitHub | Live-tested against the real API |
 | XMPP / Delta Chat / Bale / Rubika | Implemented, live verification pending |

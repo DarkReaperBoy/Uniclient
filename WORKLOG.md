@@ -10027,3 +10027,68 @@ other `[~]` live rung), then row closure**. F-rows 61. Streak: 55 at
 `55f767fc`. Paths/toolchain/owner orders per slice-295 anchor. gate =
 `/tmp/gate258.sh` (gofmt → vet → vet(live) → full suite → race legs).
 gate298 = light scope; standalone with rc check.
+
+---
+
+## Slice 300 (2026-09-27) — B-6 → F-62: matrix group calls LIVE-VERIFIED
+## on a real homeserver (dendrite, two real accounts, voice proven)
+
+The last buildable row is CLOSED. Evidence chain, tests-first:
+
+1. **Spoof guard (RED quoted)**: `handleGroupMemberEvent` now requires
+   `sender == state_key` — MSC3401 only *says* the state_key is the
+   sender's own mxid; Matrix auth rules special-case `m.room.member`
+   only, so once the event type is granted at PL 0 (below) any room
+   member could publish membership under someone ELSE's state_key.
+   RED: `spoofed member event stored (sender != state_key): 1 entries`
+   → guard → spoof rejected, honest event still accepted.
+2. **Room-creation power levels (RED quoted)**: `CreateGroup` and
+   `CreateChannel` now send `power_level_content_override` granting
+   `org.matrix.msc3401.call` + `.call.member` at PL 0 — with the FULL
+   default events map included (shallow-merge servers REPLACE the
+   whole `events` key; our keys alone would silently drop
+   `m.room.power_levels:100`). RED: `missing call.member=0: map[]` ×2
+   tests → GREEN. Reference-client parity: matrix-dart-sdk does the
+   same at createRoom time.
+3. **LIVE PROOF (the milestone)**: self-hosted dendrite v0.13.8
+   (pure Go, no docker; provisioning recipe committed in the test
+   header), two real registered accounts with real sync loops:
+   - first run FAILED honestly: `bob JoinGroupCall: publish
+     membership: M_FORBIDDEN (HTTP 403): ... 0 < 50` — the exact
+     defect fix (2) addresses;
+   - `M_USER_IN_USE` made `ensureMatrixUser` idempotent;
+   - **`TestMatrixGroupCallLive` GREEN ×2 (3.5s / 3.5s)**: shared conf
+     adopted not forked, **membership cross-synced (2 participants on
+     BOTH sides)** through real `/sync`, and
+     **`VOICE PROVEN across the real mesh: @b6alice:localhost → 6
+     bytes`** — invite/answer/candidates over real room events, ICE on
+     the real network, `SendVoiceFrame` → `OnVoiceFrame` with sender
+     attribution.
+4. **Validation**: group suite **18 PASS / 0 FAIL**, `-race` green,
+   whole tree **14 ok**, live test stable across two consecutive runs,
+   gofmt/vet clean (incl. `-tags goolm,live ./tests/`).
+5. **Docs**: BUGS `B-6 → F-62` (shapes verified: **62 F rows, no
+   gaps/dupes, open = B-25 only** — the first insertion attempt
+   silently dropped the row because its anchor section didn't exist;
+   caught by the machine check, re-inserted before the slice-293
+   section); AGENTS platform row + README matrix row now say
+   live-verified with the interop caveat (MSC3401 full-mesh clients
+   only, NOT Element MatrixRTC); research doc status flipped to
+   IMPLEMENTED with the pre-decision text kept as history.
+6. **B-25 re-probe: still denied → open** (38th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 298's)
+Open: **B-25 ONLY** (38× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 62**,
+B-rows = 1. **B-6 is CLOSED** (F-62: live dendrite proof; dendrite
+still running at 127.0.0.1:8008, binaries in ~/go/bin, config in
+~/.cache/uniclient-dendrite — re-provision recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 56 at
+`351d1ad4` before this slice. Paths/toolchain/owner orders per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`,
+live = `-tags goolm,live ./tests/`, char-class token extraction in
+shell only — literals never committed). Remaining horizon: only
+B-25's environment flap + the two always-owner rungs (§11 `[~]`
+live sign-in with real phone/email, `[ ]` first non-prerelease).
+gate300 = light scope; standalone with rc check.
