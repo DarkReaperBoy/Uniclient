@@ -10209,3 +10209,57 @@ only). Remaining horizon: B-25's env flap + the two always-owner rungs
 (§11 `[~]` real-phone/email live sign-in, `[ ]` first non-prerelease
 ≥ v0.10.3 per the slice-281 version rule).
 gate302 = light scope; standalone with rc check.
+
+---
+
+## Slice 303 (2026-09-27) — F-66: MSC3401's "membership must be
+## join" rule enforced (departed members drop from mesh + counts)
+
+Spec-compliance audit of the F-62 feature found the missing MSC3401
+rule: *"A device must be ignored … if the user's m.room.member event's
+membership field is not `join`"*:
+
+1. **The gap (RED quoted ×3)**: `reconcileGroupMesh` and
+   `GetGroupCall` only looked at `m.call.member` content +
+   `expires_ts` — a member who LEFT THE ROOM kept their fresh call
+   lease → open mesh peer (audio flowing both ways to someone who was
+   gone) until the 60 s lease expired, still counted in
+   `participants_count`. And nothing re-derived the mesh on
+   `m.room.member` events, so even with a filter the drop would have
+   waited for the renewal tick (≤30 s).
+   RED: `mesh peer kept for a member who left the room: 1` /
+   `peer … still open: 1 (reconcile not triggered by the member
+   event)` / `departed member still counted: count = "1", want 0`.
+2. **Fix**: membership snapshot taken BEFORE `groupMu` (roomsMu and
+   groupMu never nested — locks stay single-held; unknown membership
+   = conservative keep, we only filter known-non-join):
+   - `reconcileGroupMesh` skips known-non-join users from `filtered`
+     → the existing desired/toClose diff closes their peer;
+   - `GetGroupCall` excludes them from participants/Meta count;
+   - `handleMemberEvent` triggers `reconcileGroupMesh()` so a
+     departure re-derives immediately (cheap no-op when no call is
+     joined — reconcile early-returns under groupMu).
+3. **Validation**: GREEN ×3; group suite **29 PASS / 0 FAIL**,
+   `-race` green, whole tree **14 ok**, live dendrite test STILL green
+   (3.6s) after the filter (both live members are `join` → unaffected,
+   which the run proves), vet incl. `-tags goolm,live`, gofmt clean.
+   BUGS machine check: **66 F rows, no gaps/dupes, open = B-25 only**.
+
+**B-25 re-probe: still denied → open** (41st consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 302's)
+Open: **B-25 ONLY** (41× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 66**,
+B-rows = 1. B-6 CLOSED (F-62 live dendrite proof; F-63 EndCall leave;
+F-64/F-65 every other exit path; F-66 membership!=join rule).
+Dendrite running at 127.0.0.1:8008 (binaries ~/go/bin, config
+~/.cache/uniclient-dendrite; recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 59 at
+`c97582e1` before this slice. Paths/toolchain/owner orders per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`,
+live = `-tags goolm,live ./tests/`, char-class token extraction in
+shell only). Remaining horizon: B-25's env flap + the two always-owner
+rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
+non-prerelease ≥ v0.10.3 per the slice-281 version rule).
+gate303 = light scope; standalone with rc check.

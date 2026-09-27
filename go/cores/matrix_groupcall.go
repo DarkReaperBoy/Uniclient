@@ -285,14 +285,38 @@ func (m *MatrixCore) dropGroupPeer(key string) {
 // exactly one side of every pair connect, so no glare). Membership is
 // filtered to OUR conf first — a room may carry several calls.
 func (m *MatrixCore) reconcileGroupMesh() error {
+	// F-66 / MSC3401: ignore devices whose m.room.member membership is
+	// NOT join (room left, kicked, banned) — a fresh m.call.member
+	// lease alone must not keep a mesh peer to someone who is gone.
+	// Snapshot BEFORE groupMu so roomsMu and groupMu are never nested;
+	// membership we don't know (room state not loaded yet) counts as
+	// join — we only filter known-non-join (conservative keep).
+	joinByRoom := make(map[id.RoomID]map[id.UserID]bool)
+	m.roomsMu.RLock()
+	for roomID, rs := range m.rooms {
+		if rs == nil || len(rs.Members) == 0 {
+			continue
+		}
+		mm := make(map[id.UserID]bool, len(rs.Members))
+		for uid, mem := range rs.Members {
+			mm[uid] = mem != nil && mem.Membership == event.MembershipJoin
+		}
+		joinByRoom[roomID] = mm
+	}
+	m.roomsMu.RUnlock()
+
 	m.groupMu.Lock()
 	conf, room := m.groupConfID, m.groupRoomID
 	if conf == "" || room == "" {
 		m.groupMu.Unlock()
 		return nil
 	}
+	roomJoin := joinByRoom[room]
 	filtered := make(map[id.UserID]matrixCallMemberContent, len(m.groupMembers))
 	for uid, content := range m.groupMembers {
+		if joined, known := roomJoin[uid]; known && !joined {
+			continue // F-66: not in the room → device ignored
+		}
 		var kept []matrixCallMemberCall
 		for _, c := range content.Calls {
 			if c.CallID == conf {
@@ -638,6 +662,18 @@ func (m *MatrixCore) GetGroupCall(chatID string) (*CallSession, error) {
 	if !m.authed {
 		return nil, ErrAuth
 	}
+	// F-66 / MSC3401: participants must be joined to the room —
+	// snapshot membership BEFORE groupMu (locks never nested); unknown
+	// membership counts as join (conservative keep).
+	joined := make(map[id.UserID]bool)
+	m.roomsMu.RLock()
+	if rs := m.rooms[id.RoomID(chatID)]; rs != nil {
+		for uid, mem := range rs.Members {
+			joined[uid] = mem != nil && mem.Membership == event.MembershipJoin
+		}
+	}
+	m.roomsMu.RUnlock()
+
 	m.groupMu.Lock()
 	defer m.groupMu.Unlock()
 	if m.groupConfID == "" || string(m.groupRoomID) != chatID {
@@ -650,6 +686,9 @@ func (m *MatrixCore) GetGroupCall(chatID string) (*CallSession, error) {
 	for uid, content := range m.groupMembers {
 		if seen[uid] {
 			continue
+		}
+		if j, known := joined[uid]; known && !j {
+			continue // F-66: left/kicked/banned in this room
 		}
 		for _, call := range content.Calls {
 			if call.CallID != conf {

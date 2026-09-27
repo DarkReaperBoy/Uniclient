@@ -3612,6 +3612,12 @@ func (m *MatrixCore) handleMemberEvent(evt *event.Event) {
 		}
 	}
 
+	// F-66: member events are how a room departure becomes visible —
+	// re-derive the mesh NOW instead of waiting up to a full renewal
+	// tick with a stale peer. Cheap no-op when no call is joined
+	// (reconcile early-returns under groupMu).
+	_ = m.reconcileGroupMesh()
+
 	m.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   evt.RoomID.String(),
