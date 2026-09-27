@@ -764,6 +764,9 @@ func (c *XMPPCore) readStreamStart() error {
 			return fmt.Errorf("read stream: %w", err)
 		}
 		buf.WriteByte(b)
+		if buf.Len() > streamHeadMax {
+			return fmt.Errorf("stream header exceeds %d bytes", streamHeadMax)
+		}
 
 		if b != '>' {
 			continue
@@ -887,6 +890,9 @@ func (c *XMPPCore) startTLS() error {
 			return fmt.Errorf("starttls read: %w", err)
 		}
 		buf.WriteByte(b)
+		if buf.Len() > starttlsMax {
+			return fmt.Errorf("starttls element exceeds %d bytes", starttlsMax)
+		}
 		data := buf.String()
 		if strings.Contains(data, "/>") || strings.Contains(data, "</proceed>") || strings.Contains(data, "</failure>") {
 			if strings.Contains(data, "failure") {
@@ -990,6 +996,61 @@ func (c *XMPPCore) authSASLPlain() error {
 	return c.readSASLResult()
 }
 
+const (
+	// saslElementMax bounds one SASL element read from the wire (F-80):
+	// challenge/success/failure are <1 KiB; the old read loop had ONLY a
+	// 15s deadline — a server streaming bytes without '>' filled buf
+	// without bound inside those 15 seconds (and re-copied the whole
+	// buffer on every byte).
+	saslElementMax = 16 << 10
+	// streamHeadMax bounds the read up to </stream:features> (F-80):
+	// the features block is small; the old loop was time-bound only.
+	streamHeadMax = 64 << 10
+	// iqResponseMax bounds a raw IQ response (F-80): roster-sized
+	// responses are ~1 MB worst case; the old loop was time-bound only.
+	iqResponseMax = 8 << 20
+	// starttlsMax bounds the <proceed/> element read before TLS (F-80):
+	// it is <1 KiB; the old loop was time-bound (10s) only.
+	starttlsMax = 4 << 10
+	// scramIterMin/scramIterMax bound the SERVER-declared PBKDF2
+	// iteration count (F-80): legit servers use ~4096; i=2^31 burned
+	// multi-minutes of CPU per login attempt, i<=0 skipped key
+	// stretching entirely.
+	scramIterMin = 1
+	scramIterMax = 1_000_000
+	// scramSaltMax bounds the SERVER-declared salt (RFC 5802 salts are
+	// 16-24 bytes; a multi-KiB salt HMAC'd `iterations` times is CPU
+	// amplification).
+	scramSaltMax = 1024
+)
+
+// parseScramServerFirst parses and VALIDATES the server-first SCRAM
+// message (F-80): every parameter is server-controlled — iterations
+// bounded to [scramIterMin, scramIterMax], salt to scramSaltMax. The
+// nonce-prefix check moved here unchanged.
+func parseScramServerFirst(serverFirst, clientNonce string) (serverNonce string, salt []byte, iterations int, err error) {
+	params := parseSCRAMParams(serverFirst)
+	serverNonce = params["r"]
+	if !strings.HasPrefix(serverNonce, clientNonce) {
+		return "", nil, 0, errors.New("scram: server nonce doesn't start with client nonce")
+	}
+	salt, err = base64.StdEncoding.DecodeString(params["s"])
+	if err != nil {
+		return "", nil, 0, fmt.Errorf("scram: bad salt: %w", err)
+	}
+	if len(salt) > scramSaltMax {
+		return "", nil, 0, fmt.Errorf("scram: salt too large (%d bytes, max %d)", len(salt), scramSaltMax)
+	}
+	iterations, err = strconv.Atoi(params["i"])
+	if err != nil {
+		return "", nil, 0, fmt.Errorf("scram: bad iterations: %w", err)
+	}
+	if iterations < scramIterMin || iterations > scramIterMax {
+		return "", nil, 0, fmt.Errorf("scram: iterations out of range (%d)", iterations)
+	}
+	return serverNonce, salt, iterations, nil
+}
+
 func (c *XMPPCore) authSASLScram(hashFunc func() hash.Hash, mechName string) error {
 	c.mu.RLock()
 	bareJID := c.bareJID
@@ -1021,24 +1082,12 @@ func (c *XMPPCore) authSASLScram(hashFunc func() hash.Hash, mechName string) err
 		return err
 	}
 
-	// Parse challenge: r=nonce,s=salt,i=iterations
+	// Parse + validate challenge: r=nonce,s=salt,i=iterations (F-80:
+	// every parameter is SERVER-controlled — bounds live in the helper).
 	serverFirst := string(challenge)
-	params := parseSCRAMParams(serverFirst)
-	serverNonce := params["r"]
-	saltB64 := params["s"]
-	iterStr := params["i"]
-
-	if !strings.HasPrefix(serverNonce, clientNonce) {
-		return errors.New("scram: server nonce doesn't start with client nonce")
-	}
-
-	salt, err := base64.StdEncoding.DecodeString(saltB64)
+	serverNonce, salt, iterations, err := parseScramServerFirst(serverFirst, clientNonce)
 	if err != nil {
-		return fmt.Errorf("scram: bad salt: %w", err)
-	}
-	iterations, err := strconv.Atoi(iterStr)
-	if err != nil {
-		return fmt.Errorf("scram: bad iterations: %w", err)
+		return err
 	}
 
 	// Compute SCRAM keys
@@ -1104,6 +1153,9 @@ func (c *XMPPCore) readSASLElement() (elemName, content string, err error) {
 			return "", "", fmt.Errorf("sasl read: %w", readErr)
 		}
 		buf.WriteByte(b)
+		if buf.Len() > saslElementMax {
+			return "", "", fmt.Errorf("sasl element exceeds %d bytes", saslElementMax)
+		}
 		if b != '>' {
 			continue
 		}
@@ -1226,6 +1278,9 @@ func (c *XMPPCore) readRawIQResponse() (string, error) {
 			return "", fmt.Errorf("read iq: %w", err)
 		}
 		buf.WriteByte(b)
+		if buf.Len() > iqResponseMax {
+			return "", fmt.Errorf("iq response exceeds %d bytes", iqResponseMax)
+		}
 		if b != '>' {
 			continue
 		}

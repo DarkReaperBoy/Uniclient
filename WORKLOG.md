@@ -10972,3 +10972,74 @@ path traversal, download ceilings, shared-temp planting, image
 dimension budgets, uncapped response bodies, timeout-less fetches,
 truncated-transfer integrity, partial cleanup, **remote-signal crash
 (this slice)**.
+
+## Slice 316 (2026-09-28) — F-80: XMPP SCRAM login parameters +
+wire-element reads unbounded (hostile-server DoS at login)
+
+1. **Class** (fresh sweep after F-79): the "read until delimiter" wire
+   loops were time-bound ONLY — four sites (`readSASLElement`,
+   `readStreamStart`, `readRawIQResponse`, `startTLS`) each had a
+   10-15s read deadline but NO size bound: a server streaming bytes
+   without the delimiter pushes GBs into `buf` inside those seconds —
+   and every iteration re-copied the whole buffer (`buf.String()` /
+   `bytes.Contains`) = O(n²) on top. The SCRAM server challenge was
+   then trusted verbatim: `i=2000000000` → PBKDF2 multi-minute CPU
+   burn per login (only parseability checked), `i=0` → authentication
+   with NO key stretching, arbitrarily large `s=` salt → decode +
+   HMAC × iterations (amplification).
+2. **Fix**: per-element caps sized to their class (`saslElementMax`
+   16 KiB, `streamHeadMax` 64 KiB, `iqResponseMax` 8 MiB — roster
+   IQs ~1 MB worst case, `starttlsMax` 4 KiB) + pure
+   `parseScramServerFirst` (nonce-prefix check MOVED unchanged, salt
+   ≤ `scramSaltMax` 1024 B (RFC: 16-24), iterations ∈
+   [`scramIterMin`=1, `scramIterMax`=1_000_000] — legit ~4096, worst
+   case ≈1s CPU).
+3. **Tests-first**: seam-RED quoted (`undefined: saslElementMax`);
+   GREEN ×5 — hostile endless SASL element (fake net.Conn, no
+   wall-clock, F-9) → `exceeds 16384 bytes`, valid challenge
+   round-trip, huge/zero/negative iterations, oversized salt, and the
+   EXISTING nonce/salt/parse messages pinned (moved, not dropped).
+4. **Self-caught**: the first cap-insert anchor
+   (`buf.WriteByte(b)` + `if b != '>'`) matched 2 of the 4 similar
+   loops — count==1 assert failed, script aborted atomically, nothing
+   written; re-spliced per function REGION and capped all FOUR loops
+   (the disambiguation itself exposed readStreamStart/startTLS as the
+   same class).
+5. **Validation**: whole tree **14 ok / 0 FAIL**, `-race` cores ok
+   (11.3s), **XMPP local-server live auth test green (the exact path
+   touched)**, live dendrite ok (3.7s), vet incl. `-tags goolm,live`,
+   gofmt clean. BUGS machine check: **80 F rows, no gaps/dupes, open =
+   B-25 only**.
+
+**B-25 re-probe: still denied → open** (57th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 315's)
+Open: **B-25 ONLY** (57× denied re-probes at ts.arcticblaze.net;
+environmental, flaps both directions; opportunistic re-probe each
+slice). **F-rows = 80**, B-rows = 1. **slice 312 = a backend fully
+eliminated per owner order (name scrubbed repo-wide, 0 matches — keep
+it at ZERO everywhere; git history retains old commits)**; F-74 image
+dimension budget; F-75 uncapped response bodies (25 sites); F-76
+timeout-less discovery fetches (slice-285 checker gap); F-77 truncated
+TeamSpeak transfers accepted (both directions); F-78 failed downloads
+leaving partials; F-79 remote call-signal parse errors dropped + [0]
+indexing = remote client crash; **slice 316 = F-80 XMPP SCRAM login
+params + 4 wire-element loops unbounded (hostile-server login DoS:
+parseScramServerFirst bounds + sasl/streamHead/iq/starttls element
+caps)**. Dendrite at 127.0.0.1:8008 (recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: … 69
+`36030972`, 70 `821eb674`, 71 `f324939f`, **72 `b6a573b9`**.
+Paths/toolchain per slice-295 anchor (repo `/tmp/uniclient_repo`,
+gate `/tmp/gate258.sh`, Go 1.27.1 store path, `GOTOOLCHAIN=local`,
+always `-tags goolm`, live = `-tags goolm,live ./tests/`, char-class
+token extraction in shell only; ANCHOR recipe: `grep -o
+'github_pat[_][A-Za-z0-9]*' <(git remote get-url origin)`; secret
+scan = added lines only + whole-tree real-length literals).
+Remaining horizon: B-25's env flap + the two always-owner rungs (§11
+`[~]` real-phone/email live sign-in, `[ ]` first non-prerelease ≥
+v0.10.3 per slice-281). Owner objective: scrub the eliminated backend
+(done, 312), work the rest of the cores, report when done. Slices this
+contract: 313 (F-75/76), 314 (F-77/78), 315 (F-79), 316 (F-80).
+Audit classes drained: … timeout-less fetches, truncated-transfer
+integrity, partial cleanup, remote-signal crash, **login-path
+parameter/wire-element bounds (this slice)**.
