@@ -75,6 +75,9 @@ type MatrixCore struct {
 	groupMembers map[id.UserID]matrixCallMemberContent
 	groupRenew   context.CancelFunc
 	groupPeers   map[string]*matrixCall
+	// VoiceCore surface for the mesh (slice 298)
+	groupVoiceHandler func(sender string, opus []byte) // guarded by groupMu
+	groupVoiceMuted   bool                             // guarded by groupMu
 
 	// E2EE (Olm/Megolm — pure Go, no SQL)
 	olmMachine         *crypto.OlmMachine
@@ -143,6 +146,12 @@ type matrixCall struct {
 	pendingCandidates []webrtc.ICECandidateInit
 	remoteSet         bool // true after SetRemoteDescription
 	mu                sync.Mutex
+
+	// Group mesh (B-6): sender attribution for the VoiceCore handler +
+	// RTP counters for driven (SendVoiceFrame) packets.
+	GroupSender id.UserID
+	gseq        uint32
+	gts         uint32
 
 	// Pluggable audio I/O — set via SetCallAudioSource/SetCallAudioSink.
 	// If nil, sends silence and discards incoming audio.

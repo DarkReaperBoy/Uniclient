@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/pion/webrtc/v4"
@@ -356,10 +357,12 @@ func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer)
 	}
 	call := &matrixCall{
 		ID: conf, RoomID: room, GroupConf: conf,
-		RemoteParty: peer.Device, State: CallStateConnecting,
+		RemoteParty: peer.Device, GroupSender: peer.UserID,
+		State:     CallStateConnecting,
 		StartTime: time.Now(), IsOutgoing: true,
 		pc: pc, audioTrack: track, cancel: callCancel,
 	}
+	call.audioSink = func(b []byte) { m.emitGroupVoice(string(peer.UserID), b) }
 
 	m.groupMu.Lock()
 	if m.groupPeers == nil {
@@ -399,12 +402,8 @@ func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer)
 	case <-time.After(5 * time.Second):
 	}
 
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-		m.sendAudio(callCtx, call)
-	}()
-
+	// Group frames are DRIVEN by SendVoiceFrame — the 1:1 silence loop
+	// would interleave and drown them (slice-298 decision).
 	invite := &event.CallInviteEventContent{
 		BaseCallEventContent: event.BaseCallEventContent{
 			CallID:  conf,
@@ -469,10 +468,12 @@ func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInvit
 	}
 	call := &matrixCall{
 		ID: conf, RoomID: evt.RoomID, GroupConf: conf,
-		RemoteParty: ci.PartyID, State: CallStateConnecting,
+		RemoteParty: ci.PartyID, GroupSender: evt.Sender,
+		State:     CallStateConnecting,
 		StartTime: time.Now(),
 		pc:        pc, audioTrack: track, cancel: callCancel,
 	}
+	call.audioSink = func(b []byte) { m.emitGroupVoice(string(evt.Sender), b) }
 	m.groupMu.Lock()
 	m.groupPeers[peerKey] = call
 	m.groupMu.Unlock()
@@ -532,12 +533,6 @@ func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInvit
 		}
 	}
 
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-		m.sendAudio(callCtx, call)
-	}()
-
 	m.fireUpdate(Update{
 		Type:   UpdateCallState,
 		ChatID: call.RoomID.String(),
@@ -547,4 +542,124 @@ func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInvit
 		},
 		Platform: mxPlatform,
 	})
+}
+
+// ─── VoiceCore surface for the mesh (slice 298) ─────────────────────────────
+// The engine's startVoiceRunner type-asserts cores.VoiceCore and drives
+// the shared pipeline: mic frames in via SendVoiceFrame (fan-out to
+// every mesh peer), remote Opus out via OnVoiceFrame (sender-tagged).
+
+// OnVoiceFrame registers the receiver for remote group voice.
+func (m *MatrixCore) OnVoiceFrame(handler func(sender string, opus []byte)) {
+	m.groupMu.Lock()
+	m.groupVoiceHandler = handler
+	m.groupMu.Unlock()
+}
+
+// SetVoiceMuted toggles client-side self-mute for the group call
+// (matrix has no server-side mute for our own feed — we simply stop
+// writing to the mesh).
+func (m *MatrixCore) SetVoiceMuted(muted bool) error {
+	m.groupMu.Lock()
+	m.groupVoiceMuted = muted
+	m.groupMu.Unlock()
+	return nil
+}
+
+// SendVoiceFrame writes one 20 ms Opus packet to EVERY live mesh peer.
+func (m *MatrixCore) SendVoiceFrame(opus []byte) error {
+	m.groupMu.Lock()
+	muted := m.groupVoiceMuted
+	peers := make([]*matrixCall, 0, len(m.groupPeers))
+	for _, c := range m.groupPeers {
+		peers = append(peers, c)
+	}
+	m.groupMu.Unlock()
+	if muted || len(opus) == 0 {
+		return nil
+	}
+	for _, c := range peers {
+		m.writeGroupRTP(c, opus)
+	}
+	return nil
+}
+
+// writeGroupRTP packetizes one Opus frame with per-peer RTP counters
+// (same header shape as the 1:1 sendAudio loop: PT 111, zero SSRC).
+func (m *MatrixCore) writeGroupRTP(call *matrixCall, frame []byte) {
+	if call == nil || call.audioTrack == nil {
+		return
+	}
+	call.mu.Lock()
+	call.gseq++
+	call.gts += 960
+	seq, ts := call.gseq, call.gts
+	call.mu.Unlock()
+
+	header := make([]byte, 12)
+	header[0] = 0x80
+	header[1] = 111
+	header[2] = byte(seq >> 8)
+	header[3] = byte(seq)
+	header[4] = byte(ts >> 24)
+	header[5] = byte(ts >> 16)
+	header[6] = byte(ts >> 8)
+	header[7] = byte(ts)
+	pkt := make([]byte, 0, 12+len(frame))
+	pkt = append(pkt, header...)
+	pkt = append(pkt, frame...)
+	_, _ = call.audioTrack.Write(pkt)
+}
+
+// emitGroupVoice hands one received Opus frame to the engine handler.
+func (m *MatrixCore) emitGroupVoice(sender string, payload []byte) {
+	m.groupMu.Lock()
+	h := m.groupVoiceHandler
+	m.groupMu.Unlock()
+	if h != nil {
+		h(sender, payload)
+	}
+}
+
+// GetGroupCall is the engine's groupCaller contract: joined → an
+// ACTIVE IsGroup session with live participants (one entry per user,
+// expired devices filtered, conf-scoped); not joined or another room
+// → (nil, nil) so the engine reports "no active call".
+func (m *MatrixCore) GetGroupCall(chatID string) (*CallSession, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	m.groupMu.Lock()
+	defer m.groupMu.Unlock()
+	if m.groupConfID == "" || string(m.groupRoomID) != chatID {
+		return nil, nil
+	}
+	conf := m.groupConfID
+	now := time.Now().UnixMilli()
+	seen := make(map[id.UserID]bool)
+	var participants []CallParticipant
+	for uid, content := range m.groupMembers {
+		if seen[uid] {
+			continue
+		}
+		for _, call := range content.Calls {
+			if call.CallID != conf {
+				continue
+			}
+			if len(call.liveDevices(now)) == 0 {
+				continue
+			}
+			seen[uid] = true
+			participants = append(participants, CallParticipant{UserID: string(uid)})
+			break
+		}
+	}
+	return &CallSession{
+		ID:           conf,
+		ChatID:       chatID,
+		IsGroup:      true,
+		State:        CallStateActive,
+		Participants: participants,
+		Meta:         map[string]string{"participants_count": strconv.Itoa(len(participants))},
+	}, nil
 }

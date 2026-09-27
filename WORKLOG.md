@@ -9966,3 +9966,64 @@ live rung), then F-62 + row closure**. F-rows 61. Streak: 54 at
 `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`, Go 1.27.1 store path,
 char-class token extraction in shell only — literals never committed).
 gate297 = light scope; standalone with rc check.
+
+---
+
+## Slice 298 (2026-09-26) — B-6 mesh AUDIO lands: VoiceCore surface +
+## two-core loopback proof (20/0 green, -race clean)
+
+The audio half of Tier-1, tests-first:
+
+1. **`TestMeshAudioLoopback` — the milestone**: two `MatrixCore`s,
+   two scripted homeservers, a manual event relay (invite/answer/
+   candidates pumped between handlers with sender tags, cursor-based,
+   `meshPuts` snapshot container replacing the bare slice because the
+   relay polls CONTINUOUSLY — a bare slice would have been a real data
+   race, caught by design before `-race` ever ran). A reconciles
+   (`alice < bob` → offer), ICE connects on host candidates, and
+   **`A.SendVoiceFrame(frame)` arrives at `B.OnVoiceFrame` with
+   sender `@alice:test`, byte-exact** (0.24 s).
+2. **`TestMeshVoiceMuteStopsFrames`**: mute drops every frame (300 ms
+   silence window), unmuting restores delivery — the flag must flip,
+   not drop once (0.55 s).
+3. **`TestMatrixGetGroupCall`**: joined → ACTIVE IsGroup session,
+   `participants_count` = live users only (expired device filtered
+   out), wrong room → `(nil, nil)` (what the engine reads as "no call").
+4. **VoiceCore impl on `MatrixCore`** (the engine's runtime
+   `acc.Core.(cores.VoiceCore)` assertion in `startVoiceRunner`):
+   `SendVoiceFrame` fans one 20 ms Opus packet to every live peer via
+   `writeGroupRTP` (per-peer RTP counters under `call.mu`, PT 111 /
+   zero SSRC — same header shape as the 1:1 loop), `OnVoiceFrame`
+   stores the sender-tagged handler, `SetVoiceMuted` toggles client-
+   side self-mute (matrix has no server-side mute for our feed).
+   Received frames reach the handler through each peer's `audioSink`
+   closure (`GroupSender` field added to `matrixCall`).
+5. **Silence loops REMOVED from both group create paths** (offer and
+   answer): group frames are driven — the 1:1 silence loop would
+   interleave and drown them (the mute test fails instantly if it
+   comes back).
+6. **Compile-time pin for the engine's runtime type-asserts**:
+   `_ VoiceCore = (*MatrixCore)(nil)` + the `groupCaller` shape — a
+   drifted method signature now breaks the build instead of silently
+   stopping the voice pipeline or the group bar.
+
+**Self-caught during wiring**: my `meshRelay` first referenced
+`*[]meshPut` against a `*meshPuts` field (param type fixed), the
+`&puts` double-pointer after the container refactor, and an anchor
+mismatch from gofmt's struct-column alignment (`pc:        pc`) — each
+fixed before any result was trusted.
+
+**Validation**: group suite **20 PASS / 0 FAIL**, `-race` green (the
+relay + snapshot container are concurrency by design), whole tree
+**14 ok**, gofmt/vet clean, **B-25 re-probe: still denied → open**
+(37th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 297's)
+Open: **B-25** (37×, environmental) + **B-6 IN PROGRESS** —
+membership/join/decision/transport/audio + engine contracts ALL DONE
+and loopback-proven; **remaining for F-62: live two-account proof
+(needs real homeserver accounts — same owner/env class as every
+other `[~]` live rung), then row closure**. F-rows 61. Streak: 55 at
+`55f767fc`. Paths/toolchain/owner orders per slice-295 anchor. gate =
+`/tmp/gate258.sh` (gofmt → vet → vet(live) → full suite → race legs).
+gate298 = light scope; standalone with rc check.

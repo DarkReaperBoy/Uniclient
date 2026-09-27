@@ -29,27 +29,44 @@ type meshPut struct {
 	Body string
 }
 
+// meshPuts is the race-safe capture store: the HTTP handlers append
+// under mu while relays/tests snapshot (the loopback relay polls
+// CONTINUOUSLY, so a bare slice would be a real data race).
+type meshPuts struct {
+	mu   sync.Mutex
+	list []meshPut
+}
+
+func (p *meshPuts) append(x meshPut) {
+	p.mu.Lock()
+	p.list = append(p.list, x)
+	p.mu.Unlock()
+}
+
+func (p *meshPuts) snapshot() []meshPut {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]meshPut, len(p.list))
+	copy(out, p.list)
+	return out
+}
+
 // newMeshHomeserver captures BOTH state and message event PUTs.
-func newMeshHomeserver(t *testing.T) (*httptest.Server, *[]meshPut) {
+func newMeshHomeserver(t *testing.T) (*httptest.Server, *meshPuts) {
 	t.Helper()
-	var puts []meshPut
-	var mu sync.Mutex
+	puts := &meshPuts{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
 		switch {
 		case strings.Contains(p, "/state/") && r.Method == http.MethodPut:
 			idx := strings.Index(p, "/state/")
 			parts := strings.SplitN(p[idx+len("/state/"):], "/", 2)
-			mu.Lock()
-			puts = append(puts, meshPut{Kind: "state", Type: parts[0], Body: readBody(r)})
-			mu.Unlock()
+			puts.append(meshPut{Kind: "state", Type: parts[0], Body: readBody(r)})
 			writeEventID(w)
 		case strings.Contains(p, "/send/") && r.Method == http.MethodPut:
 			idx := strings.Index(p, "/send/")
 			parts := strings.SplitN(p[idx+len("/send/"):], "/", 2)
-			mu.Lock()
-			puts = append(puts, meshPut{Kind: "send", Type: parts[0], Body: readBody(r)})
-			mu.Unlock()
+			puts.append(meshPut{Kind: "send", Type: parts[0], Body: readBody(r)})
 			writeEventID(w)
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -57,7 +74,7 @@ func newMeshHomeserver(t *testing.T) (*httptest.Server, *[]meshPut) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	return srv, &puts
+	return srv, puts
 }
 
 func readBody(r *http.Request) string { b, _ := io.ReadAll(r.Body); return string(b) }
@@ -163,14 +180,14 @@ func TestGroupReconcileSendsConfTaggedOffer(t *testing.T) {
 		t.Fatal("peer not registered after reconcile")
 	}
 
-	var invite *meshPut
-	for i := range *puts {
-		if (*puts)[i].Kind == "send" && (*puts)[i].Type == event.CallInvite.Type {
-			invite = &(*puts)[i]
+	var invite meshPut
+	for _, p := range puts.snapshot() {
+		if p.Kind == "send" && p.Type == event.CallInvite.Type {
+			invite = p
 		}
 	}
-	if invite == nil {
-		t.Fatalf("no conf-tagged invite sent; puts=%+v", *puts)
+	if invite.Body == "" {
+		t.Fatalf("no conf-tagged invite sent; puts=%+v", puts.snapshot())
 	}
 	var body struct {
 		ConfID string `json:"conf_id"`
@@ -230,15 +247,15 @@ func TestGroupIncomingInviteRoutesToMesh(t *testing.T) {
 	// The answer (auto-accept) must go out conf-tagged.
 	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
-		for i := range *puts {
-			p := (*puts)[i]
+		for _, p := range puts.snapshot() {
+			p := p
 			if p.Kind == "send" && p.Type == event.CallAnswer.Type && strings.Contains(p.Body, `"conf_id":"conf_x"`) {
 				return // GREEN
 			}
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	t.Fatalf("no conf-tagged answer observed; puts=%+v", *puts)
+	t.Fatalf("no conf-tagged answer observed; puts=%+v", puts.snapshot())
 }
 
 // TestGroupIncomingInviteWrongConfIgnored: another room's call must be
@@ -283,8 +300,7 @@ func TestSendICECandidatesConfTagged(t *testing.T) {
 	}})
 
 	found := false
-	for i := range *puts {
-		p := (*puts)[i]
+	for _, p := range puts.snapshot() {
 		if p.Kind == "send" && p.Type == event.CallCandidates.Type {
 			if !strings.Contains(p.Body, `"conf_id":"conf_x"`) {
 				t.Fatalf("candidates not conf-tagged: %s", p.Body)
@@ -293,7 +309,7 @@ func TestSendICECandidatesConfTagged(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("no candidates event sent; puts=%+v (mid=%s)", *puts, mid)
+		t.Fatalf("no candidates event sent; puts=%+v (mid=%s)", puts.snapshot(), mid)
 	}
 }
 
