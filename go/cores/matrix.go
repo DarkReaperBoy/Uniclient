@@ -67,6 +67,14 @@ type MatrixCore struct {
 	activeCalls map[string]*matrixCall
 	callsMu     sync.RWMutex
 
+	// MSC3401 group calls (B-6, Tier-1 full-mesh)
+	groupMu      sync.Mutex
+	groupConfID  string
+	groupRoomID  id.RoomID
+	groupSession string
+	groupMembers map[id.UserID]matrixCallMemberContent
+	groupRenew   context.CancelFunc
+
 	// E2EE (Olm/Megolm — pure Go, no SQL)
 	olmMachine         *crypto.OlmMachine
 	cryptoStore        *crypto.MemoryStore
@@ -1259,8 +1267,77 @@ func (m *MatrixCore) StartCall(chatID string, video bool) (*CallSession, error) 
 }
 
 // JoinGroupCall joins an existing group call in a room (not yet implemented).
+// JoinGroupCall joins (or creates) the room's MSC3401 group call and
+// keeps our membership alive. Tier-1 full-mesh: signalling rides room
+// events carrying conf_id (documented deviation — see F-62); the
+// N×(N−1) peer mesh lands with the next slices.
 func (m *MatrixCore) JoinGroupCall(chatID string) (*CallSession, error) {
-	return nil, fmt.Errorf("%w: matrix group calls (MSC3401) not yet implemented", ErrNotSupported)
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	roomID := id.RoomID(chatID)
+
+	// Adopt the room's existing m.call state, or create one.
+	var existing struct {
+		CallID string `json:"m.call_id"`
+	}
+	conf := ""
+	if err := m.client.StateEvent(m.ctx, roomID, matrixCallStateType, "", &existing); err == nil {
+		conf = strings.TrimSpace(existing.CallID)
+	}
+	if conf == "" {
+		conf = matrixNewConfID()
+		if _, err := m.client.SendStateEvent(m.ctx, roomID, matrixCallStateType, "", map[string]string{"m.call_id": conf}); err != nil {
+			return nil, fmt.Errorf("create group call: %w", err)
+		}
+	}
+
+	m.groupMu.Lock()
+	if m.groupSession == "" {
+		m.groupSession = matrixNewSessionID()
+	}
+	sess := m.groupSession
+	m.groupConfID = conf
+	m.groupRoomID = roomID
+	if m.groupMembers == nil {
+		m.groupMembers = make(map[id.UserID]matrixCallMemberContent)
+	}
+	if m.groupRenew != nil {
+		m.groupRenew()
+	}
+	renewCtx, renewCancel := context.WithCancel(m.ctx)
+	m.groupRenew = renewCancel
+	m.groupMu.Unlock()
+
+	if err := m.publishGroupMembership(roomID, conf, sess, time.Now().UnixMilli()); err != nil {
+		return nil, fmt.Errorf("publish membership: %w", err)
+	}
+
+	// Renew at half the lease so one dropped state event never expires
+	// us mid-call.
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		ticker := time.NewTicker(time.Duration(matrixDeviceTTLMillis/2) * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-renewCtx.Done():
+				return
+			case <-m.ctx.Done():
+				return
+			case <-ticker.C:
+				_ = m.publishGroupMembership(roomID, conf, sess, time.Now().UnixMilli())
+			}
+		}
+	}()
+
+	return &CallSession{
+		ID:      conf,
+		ChatID:  chatID,
+		IsGroup: true,
+		State:   CallStateActive,
+	}, nil
 }
 
 // EndCall terminates an active call and sends a hangup event.
@@ -3166,6 +3243,11 @@ func (m *MatrixCore) setupSyncer() {
 	})
 	syncer.OnEventType(event.CallHangup, func(ctx context.Context, evt *event.Event) {
 		m.handleCallHangup(evt)
+	})
+
+	// MSC3401 group-call membership (B-6)
+	syncer.OnEventType(matrixCallMemberStateType, func(ctx context.Context, evt *event.Event) {
+		m.handleGroupMemberEvent(evt)
 	})
 	syncer.OnEventType(event.CallSelectAnswer, func(ctx context.Context, evt *event.Event) {
 		// Multi-device: if another device answered, end our ringing state

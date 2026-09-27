@@ -9793,3 +9793,65 @@ light-up + a live two-account proof are the next slices).
 **B-25 re-probe: still denied → open** (33rd consecutive).
 
 gate294 = light scope; standalone with rc check.
+
+---
+
+## Slice 295 (2026-09-26) — /tmp wipe + recovery, gate rebuilt, B-6
+## join flow GREEN (membership publish + adoption + renewal)
+
+### COMPACTION ANCHOR — current state a resume MUST carry
+- Repo: `github.com/DarkReaperBoy/Uniclient`, local clone
+  `/tmp/uniclient_repo` (re-cloned this slice; **/tmp is a tmpfs and
+  was wiped** — everything had been pushed, so recovery = clone +
+  restore origin URL with token + rebuild `/tmp/gate258.sh` from
+  verify.yml's proven commands; gate green on the fresh clone).
+- Open BUGS rows: **B-25** (TS guest-text flap, 34 straight denied
+  re-probes, environmental) and **B-6** (matrix group calls, IN
+  PROGRESS this slice). Everything else fixed: **61 F-rows**.
+- CI green streak: **52** at `a5e8a323` before this slice; gate =
+  `/tmp/gate258.sh` (gofmt → vet → vet(live) → full suite → race legs
+  webm/vp9anim + cores subset mirroring verify.yml).
+- Toolchain: Go 1.27.1 at
+  `/nix/store/wzf7v2cm02izb6c7j0y7zqxv8iw50hz4-go-1.27.1/bin`,
+  `GOTOOLCHAIN=local`, always `-tags goolm` (live tests:
+  `-tags goolm,live ./tests/`). Token extracted only via
+  `grep -o 'github_pat_[A-Za-z0-9_]*' <(git remote get-url origin)`.
+- B-6 design (decided, do not re-litigate): Tier-1 full-mesh;
+  membership via `org.matrix.msc3401.call.member` state events;
+  transport = `m.call.*` ROOM events carrying `conf_id` (documented
+  deviation from to-device/Olm; interop limitation → F-62 row);
+  remaining work = mesh SDP fan-out (N×N−1) + audio mix + engine/GUI
+  light-up + live two-account proof.
+- Owner standing orders: work unprompted till everything is done; no
+  waiting; English; never ask owner technical questions; BUGS.md is
+  the open list; releases stay prerelease until owner approves.
+
+### B-6 slice-295 work
+1. **Behavioral RED captured**: both join tests quoted the old
+   `JoinGroupCall` body — `not supported by this platform: matrix
+   group calls (MSC3401) not yet implemented`.
+2. **JoinGroupCall implemented** (replaces ErrNotSupported):
+   adopts the room's existing `m.call` state (`m.call_id`) or creates
+   one; publishes our `m.call.member` (state_key = own MXID,
+   spec-shaped: `m.calls[0]` with `device_id`/`session_id`/fresh
+   `expires_ts`/usermedia feed, **empty foci = full-mesh marker**);
+   starts a renewal goroutine at half the 60 s lease (cancelable,
+   exits on renew-join or m.ctx); returns an ACTIVE `CallSession` with
+   `IsGroup: true` (what engine `GetGroupCall` + the generic call UI
+   consume). Membership handler registered in `setupSyncer` (stores
+   `groupMembers` from `Content.VeryRaw`; expiry filtering stays at
+   read time via `liveDevices`).
+3. **Tests**: scripted mini-homeserver (httptest GET/PUT state
+   endpoints) — `TestJoinGroupCallCreatesConfAndPublishesMembership`
+   (asserts state_key, conf↔member consistency, empty foci, fresh
+   lease bounds, feed purpose, session state) +
+   `TestJoinGroupCallAdoptsExistingConf` (no re-create, member carries
+   adopted id). Seam/build notes: test-side `newMatrixTestClient` was
+   a phantom helper I invented — replaced with `mautrix.NewClient`
+   inline before the first run; renewal goroutine cancelled via
+   `t.Cleanup`.
+4. **Validation**: GREEN ×2 (+ the 5 membership units), `-race` on
+   all group-call tests, whole tree **14 ok**, gofmt/vet clean,
+   **B-25 re-probe: still denied → open** (34th consecutive).
+
+gate295 = light scope; standalone with rc check.

@@ -19,7 +19,11 @@ package cores
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"time"
+
+	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 )
 
 const (
@@ -97,4 +101,64 @@ func matrixNewConfID() string {
 		return "conf_" + hex.EncodeToString([]byte(time.Now().UTC().Format("150405.000000000")))
 	}
 	return "conf_" + hex.EncodeToString(b[:])
+}
+
+// MSC3401 event types. Built explicitly with Class: event.StateEventType —
+// event.NewEventType guesses Message class for org.matrix.* names.
+var (
+	matrixCallMemberStateType = event.Type{Type: matrixCallMemberEventType, Class: event.StateEventType}
+	matrixCallStateType       = event.Type{Type: matrixCallEventType, Class: event.StateEventType}
+)
+
+// matrixNewSessionID mints the per-app-load session id MSC3401 requires.
+func matrixNewSessionID() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "gs-" + time.Now().UTC().Format("20060102150405.000000000")
+	}
+	return "gs-" + hex.EncodeToString(b[:])
+}
+
+// publishGroupMembership writes our own m.call.member state event
+// (state_key = our MXID, spec-mandated) with a fresh lease.
+func (m *MatrixCore) publishGroupMembership(roomID id.RoomID, conf, sess string, now int64) error {
+	content := matrixCallMemberContent{
+		Calls: []matrixCallMemberCall{{
+			CallID: conf,
+			Foci:   []string{}, // full-mesh: no focus
+			Devices: []matrixCallDevice{{
+				DeviceID:  m.deviceID.String(),
+				SessionID: sess,
+				ExpiresTS: now + matrixDeviceTTLMillis,
+				Feeds: []matrixCallFeed{{
+					Purpose:  matrixFeedUserMedia,
+					StreamID: "ms-" + sess,
+					TrackID:  "mt-" + sess,
+					Settings: map[string]interface{}{"m.maxbr": 48000},
+				}},
+			}},
+		}},
+	}
+	_, err := m.client.SendStateEvent(m.ctx, roomID, matrixCallMemberStateType, m.userID.String(), content)
+	return err
+}
+
+// handleGroupMemberEvent stores a participant's membership (the mesh
+// diff consumes it next slice); expired devices are filtered at READ
+// time via liveDevices, per spec.
+func (m *MatrixCore) handleGroupMemberEvent(evt *event.Event) {
+	if evt.StateKey == nil {
+		return
+	}
+	var content matrixCallMemberContent
+	if err := json.Unmarshal(evt.Content.VeryRaw, &content); err != nil {
+		return
+	}
+	uid := id.UserID(*evt.StateKey)
+	m.groupMu.Lock()
+	if m.groupMembers == nil {
+		m.groupMembers = make(map[id.UserID]matrixCallMemberContent)
+	}
+	m.groupMembers[uid] = content
+	m.groupMu.Unlock()
 }
