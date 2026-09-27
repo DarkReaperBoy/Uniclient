@@ -10092,3 +10092,52 @@ shell only — literals never committed). Remaining horizon: only
 B-25's environment flap + the two always-owner rungs (§11 `[~]`
 live sign-in with real phone/email, `[ ]` first non-prerelease).
 gate300 = light scope; standalone with rc check.
+
+---
+
+## Slice 301 (2026-09-27) — F-63: EndCall now LEAVES group calls
+## (the F-62 exit path audit, found+fixed same slice)
+
+Auditing the fresh B-6 feature's teardown path found a user-stuck bug:
+
+1. **The finding (behavioral RED quoted)**: `MatrixCore.EndCall` only
+   knew the 1:1 `activeCalls` table — a group conf id is never in it,
+   so the GUI's hang-up returned `ErrNotFound` while the membership
+   renewal kept publishing forever, `groupPeers` kept mesh links open,
+   and voice kept flowing. RED: `EndCall(conf) = not found, want nil`
+   (both new tests).
+2. **The fix**: group leg keyed on `m.groupConfID` — cancel renewal
+   (test watches the CancelFunc), `cleanupCall` every mesh peer, clear
+   conf/room/members/peers, publish membership with an EMPTY `m.calls`
+   array (MSC3401: leave the call, stay in the room → the other side's
+   `reconcileGroupMesh` closes its peer on the next membership event),
+   fire IsGroup `CallStateEnded`; unknown 1:1 ids keep the old
+   ErrNotFound contract (pinned).
+3. **Tests**: `TestEndCallLeavesGroupCall` (renewal canceled, conf
+   cleared, 0 peers, `GetGroupCall` → (nil,nil), empty-membership PUT
+   captured on the mini-server, unknown-id preserved) +
+   `TestSendVoiceFrameAfterLeaveIsNoop` (late mic frame after leave =
+   silent, no error).
+4. **Validation**: group suite **20 PASS / 0 FAIL**, `-race` green,
+   whole tree **14 ok**, live dendrite test STILL green (3.7s) after
+   the change, gofmt/vet clean.
+5. **Docs**: BUGS **F-63** row (machine check: 63 F rows, no gaps,
+   no dupes, open = B-25 only).
+
+**B-25 re-probe: still denied → open** (39th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 300's)
+Open: **B-25 ONLY** (39× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 63**,
+B-rows = 1. B-6 CLOSED (F-62 live dendrite proof) + its exit-path
+follow-up F-63 closed. Dendrite still running at 127.0.0.1:8008
+(binaries ~/go/bin, config ~/.cache/uniclient-dendrite; recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 57 at
+`5fec012a` before this slice. Paths/toolchain/owner orders per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`,
+live = `-tags goolm,live ./tests/`, char-class token extraction in
+shell only). Remaining horizon: B-25's env flap + the two always-owner
+rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
+non-prerelease ≥ v0.10.3 per the slice-281 version rule).
+gate301 = light scope; standalone with rc check.

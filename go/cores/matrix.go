@@ -1401,6 +1401,60 @@ func (m *MatrixCore) EndCall(callID string) error {
 		return ErrAuth
 	}
 
+	// Group leg (F-63): a conf id is never in activeCalls — leaving a
+	// group call means canceling the membership renewal, publishing an
+	// EMPTY calls array (MSC3401: leave the call, stay in the room, so
+	// the other side's reconcile closes its peer too), and tearing down
+	// every mesh link. The old code fell through to ErrNotFound here,
+	// so the GUI's hang-up could NOT leave: membership renewed forever
+	// and voice kept flowing (RED: "EndCall(conf) = not found").
+	m.groupMu.Lock()
+	isGroup := m.groupConfID != "" && callID == m.groupConfID
+	var (
+		leaveRoom id.RoomID
+		leaveRenw context.CancelFunc
+		leavePees []*matrixCall
+	)
+	if isGroup {
+		leaveRoom = m.groupRoomID
+		leaveRenw = m.groupRenew
+		m.groupRenew = nil
+		m.groupConfID = ""
+		m.groupRoomID = ""
+		m.groupMembers = nil
+		for _, c := range m.groupPeers {
+			leavePees = append(leavePees, c)
+		}
+		m.groupPeers = nil
+	}
+	m.groupMu.Unlock()
+
+	if isGroup {
+		if leaveRenw != nil {
+			leaveRenw()
+		}
+		for _, c := range leavePees {
+			if c != nil {
+				m.cleanupCall(c)
+			}
+		}
+		_, pubErr := m.client.SendStateEvent(m.ctx, leaveRoom, matrixCallMemberStateType, m.userID.String(),
+			matrixCallMemberContent{Calls: []matrixCallMemberCall{}})
+		m.fireUpdate(Update{
+			Type:   UpdateCallState,
+			ChatID: leaveRoom.String(),
+			Call: &CallSession{
+				ID: callID, ChatID: leaveRoom.String(), IsGroup: true,
+				State: CallStateEnded,
+			},
+			Platform: mxPlatform,
+		})
+		if pubErr != nil {
+			return fmt.Errorf("publish leave membership: %w", pubErr)
+		}
+		return nil
+	}
+
 	m.callsMu.Lock()
 	call, ok := m.activeCalls[callID]
 	if ok {
