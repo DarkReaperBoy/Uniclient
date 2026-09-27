@@ -365,7 +365,9 @@ func (b *BaleCore) UploadRawPUT(url string, data []byte) error {
 		return err
 	}
 	defer resp.Body.Close()
-	io.ReadAll(resp.Body)
+	// Bounded drain for connection reuse (F-56 pattern) — the result
+	// was always discarded; the bare ReadAll was an unbounded OOM sink.
+	drainBodyLimited(resp.Body)
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
@@ -601,7 +603,7 @@ func (b *BaleCore) apiRequest(method string, params map[string]interface{}) (map
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readBodyCapped(resp.Body, apiBodyCeiling)
 	if err != nil {
 		return nil, fmt.Errorf("%w: read response: %v", ErrNetwork, err)
 	}
@@ -681,7 +683,7 @@ func (b *BaleCore) apiRequestMultipart(method string, fields map[string]string, 
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readBodyCapped(resp.Body, apiBodyCeiling)
 	if err != nil {
 		return nil, fmt.Errorf("%w: read response: %v", ErrNetwork, err)
 	}
@@ -751,7 +753,7 @@ func (b *BaleCore) pollLoop() {
 			continue
 		}
 
-		body, err := io.ReadAll(resp.Body)
+		body, err := readBodyCapped(resp.Body, apiBodyCeiling)
 		resp.Body.Close()
 		if err != nil {
 			time.Sleep(1 * time.Second)
@@ -3426,7 +3428,7 @@ func (b *BaleCore) wsPost(service, method string, payload map[string]interface{}
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readBodyCapped(resp.Body, apiBodyCeiling)
 	if err != nil {
 		return nil, fmt.Errorf("%w: read response: %v", ErrNetwork, err)
 	}

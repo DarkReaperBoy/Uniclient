@@ -4121,7 +4121,7 @@ func (c *XMPPCore) UploadFileHTTP(putURL string, data []byte, contentType string
 	req.Header.Set("Content-Type", contentType)
 	req.ContentLength = int64(len(data))
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := transferHTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
@@ -4144,7 +4144,7 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 		return err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := transferHTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
@@ -7020,12 +7020,12 @@ func (c *XMPPCore) NegotiateChannelBinding(bindingType string) string {
 // DiscoverAlternativeConnections queries well-known URLs for WebSocket/BOSH endpoints.
 func (c *XMPPCore) DiscoverAlternativeConnections(domain string) (wsURL, boshURL string, err error) {
 	url := "https://" + domain + "/.well-known/host-meta"
-	resp, err := http.Get(url)
+	resp, err := apiHTTPClient.Get(url)
 	if err != nil {
 		return "", "", fmt.Errorf("fetch host-meta: %w", err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := readBodyCapped(resp.Body, apiBodyCeiling)
 	if err != nil {
 		return "", "", fmt.Errorf("read host-meta: %w", err)
 	}
@@ -7128,12 +7128,12 @@ func (c *XMPPCore) ConnectBOSH(boshURL, domain string) (string, error) {
 			`rid='%d' `+
 			`content='text/xml; charset=utf-8'/>`,
 		xmlEscape(domain), time.Now().UnixNano()%1000000)
-	resp, err := http.Post(boshURL, "text/xml; charset=utf-8", strings.NewReader(body))
+	resp, err := apiHTTPClient.Post(boshURL, "text/xml; charset=utf-8", strings.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("bosh init: %w", err)
 	}
 	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readBodyCapped(resp.Body, apiBodyCeiling)
 	if err != nil {
 		return "", fmt.Errorf("bosh read: %w", err)
 	}
@@ -7185,13 +7185,13 @@ func (c *XMPPCore) InstantStreamResumption(token string) error {
 // DiscoverHostMeta2 implements XEP-0487 Host Meta 2 — JSON-based host-meta discovery.
 func (c *XMPPCore) DiscoverHostMeta2(domain string) (map[string]string, error) {
 	url := fmt.Sprintf("https://%s/.well-known/host-meta.json", domain)
-	resp, err := http.Get(url)
+	resp, err := apiHTTPClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("xmpp: host-meta2: %w", err)
 	}
 	defer resp.Body.Close()
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeJSONBody(resp.Body, &result); err != nil {
 		return nil, fmt.Errorf("xmpp: host-meta2 parse: %w", err)
 	}
 	links := make(map[string]string)

@@ -2334,7 +2334,10 @@ func (g *GitHubCore) pollNotifications() {
 		return // nothing new, and this request was FREE
 	}
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := readBodyCapped(resp.Body, apiBodyCeiling)
+	if err != nil {
+		return // hostile/broken body: skip this poll cycle (F-75)
+	}
 	var notifs []map[string]any
 	json.Unmarshal(body, &notifs)
 
@@ -2468,11 +2471,15 @@ func (g *GitHubCore) doAPI(method, url string, body []byte, extraHeaders map[str
 			return nil, 0, nil, fmt.Errorf("%w: %v", ErrNetwork, err)
 		}
 
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, rerr := readBodyCapped(resp.Body, apiBodyCeiling)
 		resp.Body.Close()
 
 		// Track rate limit budget from every response
 		g.rl.updateFromHeaders(resp.Header)
+		if rerr != nil {
+			// Bounded (F-75): never parse a truncated value as real.
+			return nil, 0, nil, fmt.Errorf("%w: read response: %v", ErrNetwork, rerr)
+		}
 
 		// 429 Too Many Requests — honor Retry-After
 		if resp.StatusCode == 429 && attempt < 3 {

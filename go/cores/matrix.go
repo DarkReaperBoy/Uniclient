@@ -6156,25 +6156,33 @@ func (m *MatrixCore) DeviceAuthGrant(scope string) (map[string]interface{}, erro
 
 // GetClientWellKnown discovers homeserver URLs via .well-known.
 func (m *MatrixCore) GetClientWellKnown(domain string) (map[string]interface{}, error) {
-	resp, err := http.Get("https://" + domain + "/.well-known/matrix/client")
+	resp, err := apiHTTPClient.Get("https://" + domain + "/.well-known/matrix/client")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
+	// Bounded (F-75); the decode error is now surfaced instead of
+	// swallowed — absent/invalid well-known = caller's fallback path.
+	if err := decodeJSONBody(resp.Body, &result); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
 // GetSupportContacts returns admin contact info (v1.10).
 func (m *MatrixCore) GetSupportContacts(domain string) (map[string]interface{}, error) {
-	resp, err := http.Get("https://" + domain + "/.well-known/matrix/support")
+	resp, err := apiHTTPClient.Get("https://" + domain + "/.well-known/matrix/support")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
+	// Bounded (F-75); the decode error is now surfaced instead of
+	// swallowed — absent/invalid well-known = caller's fallback path.
+	if err := decodeJSONBody(resp.Body, &result); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 

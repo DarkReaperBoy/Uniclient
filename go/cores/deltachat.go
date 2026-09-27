@@ -4279,7 +4279,12 @@ func (d *DeltaChatCore) syncFolder(folder string) error {
 			case imapclient.FetchItemDataUID:
 				uid = it.UID
 			case imapclient.FetchItemDataBodySection:
-				data, _ := io.ReadAll(it.Literal)
+				// Bounded (F-75): hostile mail server can stream
+				// gigabytes; downloadCeiling matches the message size class.
+				data, lerr := readBodyCapped(it.Literal, downloadCeiling)
+				if lerr != nil {
+					continue // skip this section, memory stays bounded
+				}
 				if it.Section != nil && it.Section.Specifier == imap.PartSpecifierHeader {
 					headerBytes = data
 				} else {
@@ -5351,7 +5356,7 @@ func (d *DeltaChatCore) parseWebxdcManifest(path string) (*DeltaChatWebxdcInfo, 
 			if err != nil {
 				continue
 			}
-			data, _ := io.ReadAll(rc)
+			data, _ := readBodyCapped(rc, downloadCeiling)
 			rc.Close()
 			// Parse simple TOML (key = "value" lines)
 			for _, line := range strings.Split(string(data), "\n") {
@@ -5406,7 +5411,7 @@ func (d *DeltaChatCore) GetWebxdcBlob(chatID, msgID, blobName string) ([]byte, s
 			if err != nil {
 				return nil, "", err
 			}
-			data, err := io.ReadAll(rc)
+			data, err := readBodyCapped(rc, downloadCeiling)
 			rc.Close()
 			if err != nil {
 				return nil, "", err
@@ -6539,7 +6544,7 @@ func (d *DeltaChatCore) DownloadFullMessage(chatID, msgID string) error {
 			break
 		}
 		if bodySection, ok := item.(imapclient.FetchItemDataBodySection); ok {
-			data, err := io.ReadAll(bodySection.Literal)
+			data, err := readBodyCapped(bodySection.Literal, downloadCeiling)
 			if err != nil {
 				return fmt.Errorf("read body: %w", err)
 			}

@@ -5853,7 +5853,7 @@ func (c *MumbleCore) GetPublicServers() ([]MumblePublicServer, error) {
 	}
 	req.Header.Set("User-Agent", mumbleRelease)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := apiHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("mumble public list: %w", err)
 	}
@@ -5863,7 +5863,7 @@ func (c *MumbleCore) GetPublicServers() ([]MumblePublicServer, error) {
 		return nil, fmt.Errorf("mumble public list: HTTP %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readBodyCapped(resp.Body, apiBodyCeiling)
 	if err != nil {
 		return nil, fmt.Errorf("mumble public list: read body: %w", err)
 	}

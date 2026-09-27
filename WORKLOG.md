@@ -10745,3 +10745,76 @@ Remaining horizon: B-25's env flap + the two always-owner rungs (§11
 v0.10.3 per slice-281). Standing in-flight audit: unbounded API
 response-body reads (the 11 bare `io.ReadAll(resp.Body)` +
 `json.NewDecoder(resp.Body)` sites in cores) — next slice candidate.
+
+## Slice 313 (2026-09-27) — F-75/F-76: uncapped response bodies +
+timeout-less discovery fetches (re-checking the slice-285 checker)
+
+1. **F-75 — 25 unbounded body reads (memory OOM).** Census over prod:
+   10 bare `io.ReadAll(resp.Body)` (xmpp ×2, mumble, github ×2, bale
+   ×5 — bale `UploadRawPUT` still had the exact F-56 discarded-drain
+   pattern), 3 streaming `json.NewDecoder(resp.Body)` (streaming ≠ safe
+   — the decoder buffers the whole value), deltachat IMAP fetch
+   literals (hostile mail server), and zip entries of received .xdc
+   apps (zip bomb from a normal chat open). Fix: `readBodyCapped(r,
+   max)` (LimitReader(max+1), overflow DISCARDS the partial so a
+   truncated value is never parsed as real) + `apiBodyCeiling` 64 MiB
+   + `ErrBodyTooLarge` + `decodeJSONBody`; IMAP/zip reuse
+   `downloadCeiling` (message/file size class). Behavior upgrades:
+   github poll skips a hostile cycle, doAPI returns ErrNetwork instead
+   of parsing truncated JSON, matrix well-known SURFACES the decode
+   error (was swallowed).
+2. **F-76 — slice-285's checker gap (self-caught).** The hang/TLS
+   audit reported "0 timeout findings" because it counted only explicit
+   `http.Client{…}` constructions — but `http.Get`/`http.Post`/
+   `http.DefaultClient` (Timeout 0) covered 8 sites: xmpp host-meta
+   ×2 + BOSH, matrix well-known ×2, mumble list, xmpp upload/download.
+   Fix: `apiHTTPClient` (Timeout 30 s) for metadata; for transfers a
+   `transferHTTPClient` with `ResponseHeaderTimeout` 30 s (full-body
+   Timeout would kill large transfers — F-72 caps BYTES; body phase
+   stays core-context cancellable).
+3. **Tests-first**: seam-RED quoted (`undefined: apiBodyCeiling`);
+   GREEN ×5 — endless-stream rejects, exact-ceiling pass (F-53 cap+1),
+   oversized-JSON rejects, timeout construction pins (no wall-clock,
+   F-9), source-scan pin (comments + _test files skipped) — the pin
+   went RED 25 sites → GREEN 0 after wiring. Self-caught: first scan
+   only covered `resp.Body` — extended mid-slice to IMAP literals +
+   zip entries after spotting them in the deltachat census (RED 21 →
+   25, recorded honestly).
+4. **Validation**: whole tree **14 ok / 0 FAIL**, `-race` cores ok
+   (11.7s), live dendrite ok (3.7s), vet incl. `-tags goolm,live`,
+   gofmt clean. BUGS machine check: **76 F rows, no gaps/dupes, open =
+   B-25 only**.
+
+**B-25 re-probe: still denied → open** (54th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 312's)
+Open: **B-25 ONLY** (54× denied re-probes at ts.arcticblaze.net;
+environmental, flaps both directions; opportunistic re-probe each
+slice). **F-rows = 76**, B-rows = 1. F-74 image dimension budget;
+**slice 312 = a backend fully eliminated per owner order (name
+scrubbed repo-wide, 0 matches; git history retains old commits)**;
+**slice 313 = F-75 uncapped response bodies (25 sites → readBodyCapped
+/apiBodyCeiling 64MiB) + F-76 timeout-less discovery fetches (8 sites
+→ apiHTTPClient/transferHTTPClient; slice-285 checker gap)**. Dendrite
+running at 127.0.0.1:8008 (binaries ~/go/bin, config
+~/.cache/uniclient-dendrite; recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 66 at
+`ba91fe05`, 67 at `491e881c`, 68 at `70a0d4ce`, **69 at `36030972`**.
+Paths/toolchain per slice-295 anchor (repo `/tmp/uniclient_repo`,
+gate `/tmp/gate258.sh`, Go 1.27.1 store path, `GOTOOLCHAIN=local`,
+always `-tags goolm`, live = `-tags goolm,live ./tests/`, char-class
+token extraction in shell only; ANCHOR recipe form:
+`grep -o 'github_pat[_][A-Za-z0-9]*' <(git remote get-url origin)`;
+secret scan = added lines only + whole-tree real-length literals
+(slice-312 self-caught: full-diff scan false-positives on the PAT UI
+placeholder as context)). Remaining horizon: B-25's env flap + the
+two always-owner rungs (§11 `[~]` real-phone/email live sign-in, `[ ]`
+first non-prerelease ≥ v0.10.3 per slice-281). Owner objective this
+contract: scrub every mention of the eliminated backend from the
+repo, push, then work on the rest of the cores and report — scrub
+done+pushed (slice 312), cores audit continuing; audit classes drained so far: test-quality
+trilogy, data-loss, response-size/gzip, TLS/timeouts, TOFU,
+staticcheck×2, validation batteries, docs/env-var/path claims,
+teardown paths, styling fuzz, path traversal, download ceilings,
+shared-temp planting, image dimension budgets, uncapped response
+bodies, timeout-less fetches.

@@ -4,9 +4,11 @@
 package cores
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 )
 
@@ -1150,4 +1152,65 @@ func boundedCopy(dst io.Writer, src io.Reader, max int64) (int64, error) {
 		return n, fmt.Errorf("%w: more than %d bytes", ErrFileTooLarge, max)
 	}
 	return n, err
+}
+
+// apiBodyCeiling bounds one API/metadata response body read fully into
+// memory (F-75): a hostile server streaming an endless body OOM'd the
+// client because every core did a bare io.ReadAll/Decode on
+// resp.Body. Package-level so tests shrink it.
+var apiBodyCeiling int64 = 64 << 20 // 64 MiB — generous for any legit API page
+
+// ErrBodyTooLarge is returned when a response body exceeds apiBodyCeiling.
+var ErrBodyTooLarge = errors.New("response body exceeds ceiling")
+
+// readBodyCapped reads r fully but fails with ErrBodyTooLarge when the
+// stream tried to exceed max (F-53 cap+1 pattern: exactly-max passes).
+// On overflow the partial buffer is DISCARDED — a truncated value must
+// never be parsed as a real one.
+func readBodyCapped(r io.Reader, max int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, max+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > max {
+		return nil, fmt.Errorf("%w: more than %d bytes", ErrBodyTooLarge, max)
+	}
+	return data, nil
+}
+
+// decodeJSONBody reads a bounded JSON response body and unmarshals it.
+// Streaming json.Decoder is the same memory risk as ReadAll: it buffers
+// the whole value before returning it — the ceiling must sit in front.
+func decodeJSONBody(r io.Reader, v any) error {
+	data, err := readBodyCapped(r, apiBodyCeiling)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, v)
+}
+
+// apiHTTPClient bounds metadata/discovery fetches (host-meta,
+// .well-known, BOSH init, server lists). http.Get/http.Post used
+// http.DefaultClient — Timeout 0 — so a stalling server hung the fetch
+// forever (F-76; the slice-285 audit only counted explicit
+// http.Client{…} constructions and missed the package helpers).
+var apiHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
+// transferHTTPClient bounds HTTP upload/download REQUESTS: full-body
+// Timeout would kill large transfers (F-72 caps the BYTES instead), so
+// only the header wait is bounded — a server that accepts the socket
+// and then never answers headers cannot hang the transfer. The body
+// phase stays cancellable via the core context.
+var transferHTTPClient = &http.Client{
+	Transport: newTransferTransport(),
+}
+
+func newTransferTransport() http.RoundTripper {
+	tr, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return &http.Transport{Proxy: http.ProxyFromEnvironment}
+	}
+	clone := tr.Clone()
+	clone.ResponseHeaderTimeout = 30 * time.Second
+	return clone
 }
