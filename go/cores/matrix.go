@@ -74,6 +74,7 @@ type MatrixCore struct {
 	groupSession string
 	groupMembers map[id.UserID]matrixCallMemberContent
 	groupRenew   context.CancelFunc
+	groupPeers   map[string]*matrixCall
 
 	// E2EE (Olm/Megolm — pure Go, no SQL)
 	olmMachine         *crypto.OlmMachine
@@ -131,6 +132,7 @@ type matrixCall struct {
 	StartTime   time.Time
 	IsOutgoing  bool
 	RemoteParty string // remote party_id
+	GroupConf   string // MSC3401 conf_id ("" = 1:1 call)
 
 	// WebRTC
 	pc         *wrtc.PeerConnection
@@ -1302,12 +1304,27 @@ func (m *MatrixCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	if m.groupMembers == nil {
 		m.groupMembers = make(map[id.UserID]matrixCallMemberContent)
 	}
+	var stalePeers []*matrixCall
+	if old := m.groupConfID; old != "" && old != conf {
+		for _, c := range m.groupPeers {
+			stalePeers = append(stalePeers, c)
+		}
+		m.groupPeers = nil
+	}
+	if m.groupPeers == nil {
+		m.groupPeers = make(map[string]*matrixCall)
+	}
 	if m.groupRenew != nil {
 		m.groupRenew()
 	}
 	renewCtx, renewCancel := context.WithCancel(m.ctx)
 	m.groupRenew = renewCancel
 	m.groupMu.Unlock()
+	for _, c := range stalePeers {
+		if c != nil {
+			m.cleanupCall(c)
+		}
+	}
 
 	if err := m.publishGroupMembership(roomID, conf, sess, time.Now().UnixMilli()); err != nil {
 		return nil, fmt.Errorf("publish membership: %w", err)
@@ -1328,6 +1345,9 @@ func (m *MatrixCore) JoinGroupCall(chatID string) (*CallSession, error) {
 				return
 			case <-ticker.C:
 				_ = m.publishGroupMembership(roomID, conf, sess, time.Now().UnixMilli())
+				// Expiry-driven removals need a reconcile too: remote
+				// leases vanish WITHOUT any new state event arriving.
+				_ = m.reconcileGroupMesh()
 			}
 		}
 	}()
@@ -1646,7 +1666,13 @@ func (m *MatrixCore) sendICECandidates(call *matrixCall, candidates []webrtc.ICE
 		Candidates: matrixCandidates,
 	}
 
-	m.client.SendMessageEvent(m.ctx, call.RoomID, event.CallCandidates, content)
+	var payload interface{} = content
+	if call.GroupConf != "" {
+		if w, err := withConfID(content, call.GroupConf); err == nil {
+			payload = w
+		}
+	}
+	m.client.SendMessageEvent(m.ctx, call.RoomID, event.CallCandidates, payload)
 }
 
 // handleIncomingAudio reads RTP packets from a remote audio track and delivers
@@ -1776,6 +1802,40 @@ func (m *MatrixCore) handleCallAnswer(evt *event.Event) {
 		return
 	}
 
+	if peekGroupConf(evt) != "" {
+		if ca.PartyID == m.deviceID.String() {
+			return
+		}
+		peerKey := groupPeerKey(string(evt.Sender), ca.PartyID)
+		m.groupMu.Lock()
+		call := m.groupPeers[peerKey]
+		m.groupMu.Unlock()
+		if call == nil || call.pc == nil || !call.IsOutgoing {
+			return
+		}
+		call.RemoteParty = ca.PartyID
+		if err := call.pc.SetRemoteDescription(webrtc.SessionDescription{
+			Type: webrtc.SDPTypeAnswer,
+			SDP:  ca.Answer.SDP,
+		}); err != nil {
+			return
+		}
+		m.flushPendingCandidates(call)
+		call.mu.Lock()
+		call.State = CallStateConnecting
+		call.mu.Unlock()
+		m.fireUpdate(Update{
+			Type:   UpdateCallState,
+			ChatID: evt.RoomID.String(),
+			Call: &CallSession{
+				ID: call.ID, ChatID: evt.RoomID.String(), IsGroup: true,
+				State: CallStateConnecting,
+			},
+			Platform: mxPlatform,
+		})
+		return
+	}
+
 	m.callsMu.RLock()
 	call, ok := m.activeCalls[ca.CallID]
 	m.callsMu.RUnlock()
@@ -1829,6 +1889,26 @@ func (m *MatrixCore) handleCallCandidates(evt *event.Event) {
 
 	// Ignore our own events
 	if cc.PartyID == m.deviceID.String() {
+		return
+	}
+
+	if peekGroupConf(evt) != "" {
+		peerKey := groupPeerKey(string(evt.Sender), cc.PartyID)
+		m.groupMu.Lock()
+		call := m.groupPeers[peerKey]
+		m.groupMu.Unlock()
+		if call == nil || call.pc == nil {
+			return
+		}
+		for _, c := range cc.Candidates {
+			idx := uint16(c.SDPMLineIndex)
+			mid := c.SDPMID
+			m.addICECandidate(call, webrtc.ICECandidateInit{
+				Candidate:     c.Candidate,
+				SDPMLineIndex: &idx,
+				SDPMid:        &mid,
+			})
+		}
 		return
 	}
 
@@ -3460,6 +3540,17 @@ func (m *MatrixCore) updateRoomTopic(evt *event.Event) {
 }
 
 func (m *MatrixCore) handleCallInvite(evt *event.Event) {
+	// Group leg (B-6): conf_id-tagged invites route to the mesh, never
+	// the 1:1 table.
+	if conf := peekGroupConf(evt); conf != "" {
+		evt.Content.ParseRaw(evt.Type)
+		ci, ok := evt.Content.Parsed.(*event.CallInviteEventContent)
+		if !ok || ci.PartyID == m.deviceID.String() {
+			return
+		}
+		m.handleGroupCallInvite(evt, ci, conf)
+		return
+	}
 	evt.Content.ParseRaw(evt.Type)
 	ci, ok := evt.Content.Parsed.(*event.CallInviteEventContent)
 	if !ok {
@@ -3573,6 +3664,19 @@ func (m *MatrixCore) handleCallInvite(evt *event.Event) {
 func (m *MatrixCore) handleCallHangup(evt *event.Event) {
 	evt.Content.ParseRaw(evt.Type)
 	if ch, ok := evt.Content.Parsed.(*event.CallHangupEventContent); ok {
+		if peekGroupConf(evt) != "" {
+			m.dropGroupPeer(groupPeerKey(string(evt.Sender), ch.PartyID))
+			m.fireUpdate(Update{
+				Type:   UpdateCallState,
+				ChatID: evt.RoomID.String(),
+				Call: &CallSession{
+					ID: ch.CallID, ChatID: evt.RoomID.String(), IsGroup: true,
+					State: CallStateEnded,
+				},
+				Platform: mxPlatform,
+			})
+			return
+		}
 		m.callsMu.Lock()
 		delete(m.activeCalls, ch.CallID)
 		m.callsMu.Unlock()

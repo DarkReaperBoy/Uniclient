@@ -9910,3 +9910,59 @@ streak was 52 → 53 at `2a5ac372`; secret-scan recipe lives in this
 journal in char-class form only.
 
 gate296 = light scope; standalone with rc check.
+
+---
+
+## Slice 297 (2026-09-26) — B-6: conf-tagged SDP fan-out landed
+## (offer/answer/candidates/hangup dispatch + reconcile), 17/0 green
+
+The mesh TRANSPORT is in. Tests-first (seam-RED `core.groupPeers
+undefined` → GREEN ×5 on the wire suite):
+
+1. **Conf-aware dispatch on all four `m.call.*` handlers** in
+   matrix.go: `peekGroupConf(evt)` reads `conf_id` from the raw body —
+   present → group branch (register/lookup `groupPeers[mxid|device]`),
+   absent → the untouched 1:1 path. Invite routes to
+   `handleGroupCallInvite`, answer applies to the outgoing mesh peer,
+   candidates feed `addICECandidate`, hangup drops the peer + fires an
+   IsGroup Ended update. **Foreign confs are ignored** (pinned by
+   test), group invites never leak into `activeCalls` (pinned).
+2. **`reconcileGroupMesh`**: conf-filtered membership → live-device
+   diff (a room may carry several calls) → closed peers for departed/
+   expired devices (pinned), offers for missing peers on the
+   should-offer side (pinned: real SDP `v=0` + `conf_id` + own
+   `party_id` observed on the wire via the mini-homeserver).
+   Triggered by membership events AND the renewal tick (expiry-driven
+   removals arrive WITHOUT any event).
+3. **`sendGroupOffer`**: pion PC + opus track, peer registered BEFORE
+   the invite goes out (fast-answer race), gather ≤5 s, conf-tagged
+   invite; **`handleGroupCallInvite`** auto-answers inline (group
+   calls have no ringing UI), registers before answering, conf-tagged
+   answer + `sendAudio` loop. `matrixCall.GroupConf` drives the
+   `withConfID` wrap in `sendICECandidates` (pinned).
+4. **JoinGroupCall hardening**: conf change closes stale peers
+   (`stalePeers` sweep).
+
+**Self-caught during wiring** (all before GREEN): `event.Event.Content`
+is a **value** field (my `== nil` check and `&event.Content{}` test
+builds were both wrong — fixed to value semantics); OnTrack's receiver
+is pion's `*webrtc.RTPReceiver` not `*wrtc.*` (two sites);
+`Lifetime` is `int` not `int64`; a dropped trailing comma from my own
+python replace (parser caught it); an invented test helper
+(`wrtcNewOpusTrack`) defined before first run.
+
+**Validation**: group-call suite **17 PASS / 0 FAIL**, `-race` green,
+whole tree **14 ok**, gofmt/vet clean, **B-25 re-probe: still denied →
+open** (36th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 296's)
+Open: **B-25** (36× denied; environmental) + **B-6 IN PROGRESS** —
+membership + join + mesh decision + conf-tagged transport DONE;
+**remaining: audio fan-in/out for the mesh (per-peer sink → mix →
+source), engine `GetGroupCall`/GUI light-up for matrix, a live
+two-account proof (blocked on homeserver accounts like every other
+live rung), then F-62 + row closure**. F-rows 61. Streak: 54 at
+`7c9458f4`. Paths/toolchain/owner orders per slice-295 anchor (repo
+`/tmp/uniclient_repo`, gate `/tmp/gate258.sh`, Go 1.27.1 store path,
+char-class token extraction in shell only — literals never committed).
+gate297 = light scope; standalone with rc check.

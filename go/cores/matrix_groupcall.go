@@ -17,14 +17,19 @@ package cores
 // the F-62 row, not hidden here.
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"time"
 
+	"github.com/pion/webrtc/v4"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
+
+	"uniclient/wrtc"
 )
 
 const (
@@ -162,6 +167,9 @@ func (m *MatrixCore) handleGroupMemberEvent(evt *event.Event) {
 	}
 	m.groupMembers[uid] = content
 	m.groupMu.Unlock()
+	// Membership changed → re-derive the mesh. Best-effort: the next
+	// renewal tick reconciles again, so a failed pass self-heals.
+	_ = m.reconcileGroupMesh()
 }
 
 // ─── mesh decision layer (slice 296) ────────────────────────────────────────
@@ -236,4 +244,307 @@ func withConfID(content interface{}, conf string) (map[string]interface{}, error
 	}
 	m["conf_id"] = conf
 	return m, nil
+}
+
+// ─── mesh transport wiring (slice 297) ───────────────────────────────────────
+
+// peekGroupConf extracts the conf_id discriminator (group m.call.*
+// events carry it; the 1:1 stack never does) from the raw event body.
+func peekGroupConf(evt *event.Event) string {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(evt.Content.VeryRaw, &raw); err != nil {
+		return ""
+	}
+	return confIDFromRaw(raw)
+}
+
+// dropGroupPeer removes and closes one mesh peer (key = "mxid|device").
+func (m *MatrixCore) dropGroupPeer(key string) {
+	m.groupMu.Lock()
+	call := m.groupPeers[key]
+	delete(m.groupPeers, key)
+	m.groupMu.Unlock()
+	if call != nil {
+		m.cleanupCall(call)
+	}
+}
+
+// reconcileGroupMesh diffs live membership against open peer
+// connections: departed/expired devices are closed, missing peers on
+// the SHOULD-OFFER side get an offer (the lexicographic rule makes
+// exactly one side of every pair connect, so no glare). Membership is
+// filtered to OUR conf first — a room may carry several calls.
+func (m *MatrixCore) reconcileGroupMesh() error {
+	m.groupMu.Lock()
+	conf, room := m.groupConfID, m.groupRoomID
+	if conf == "" || room == "" {
+		m.groupMu.Unlock()
+		return nil
+	}
+	filtered := make(map[id.UserID]matrixCallMemberContent, len(m.groupMembers))
+	for uid, content := range m.groupMembers {
+		var kept []matrixCallMemberCall
+		for _, c := range content.Calls {
+			if c.CallID == conf {
+				kept = append(kept, c)
+			}
+		}
+		if len(kept) > 0 {
+			filtered[uid] = matrixCallMemberContent{Calls: kept}
+		}
+	}
+	now := time.Now().UnixMilli()
+	ownKey := groupPeerKey(string(m.userID), m.deviceID.String())
+	desired := groupPeersToConnect(m.userID, m.deviceID.String(), filtered, now)
+	desiredSet := make(map[string]bool, len(desired))
+	for _, p := range desired {
+		desiredSet[p.key] = true
+	}
+	var toClose []*matrixCall
+	for key, call := range m.groupPeers {
+		if !desiredSet[key] {
+			delete(m.groupPeers, key)
+			toClose = append(toClose, call)
+		}
+	}
+	var toOffer []groupPeer
+	for _, p := range desired {
+		if _, open := m.groupPeers[p.key]; open {
+			continue
+		}
+		if groupShouldOffer(ownKey, p.key) {
+			toOffer = append(toOffer, p)
+		}
+	}
+	m.groupMu.Unlock()
+
+	for _, c := range toClose {
+		m.cleanupCall(c)
+	}
+	var firstErr error
+	for _, p := range toOffer {
+		if err := m.sendGroupOffer(room, conf, p); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// sendGroupOffer creates the OFFER side of one mesh link: pion PC +
+// opus track, conf-tagged m.call.invite with a real SDP, peer
+// registered BEFORE the invite goes out so a fast answer cannot race
+// the store.
+func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer) error {
+	pc, err := m.createPeerConnection()
+	if err != nil {
+		return fmt.Errorf("group offer pc: %w", err)
+	}
+	callCtx, callCancel := context.WithCancel(m.ctx)
+	track, err := wrtc.NewTrackLocalStaticRTP(
+		webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2},
+		"audio", "uniclient-audio",
+	)
+	if err != nil {
+		pc.Close()
+		callCancel()
+		return fmt.Errorf("group offer track: %w", err)
+	}
+	if _, err := pc.AddTrack(track); err != nil {
+		pc.Close()
+		callCancel()
+		return fmt.Errorf("group offer add track: %w", err)
+	}
+	call := &matrixCall{
+		ID: conf, RoomID: room, GroupConf: conf,
+		RemoteParty: peer.Device, State: CallStateConnecting,
+		StartTime: time.Now(), IsOutgoing: true,
+		pc: pc, audioTrack: track, cancel: callCancel,
+	}
+
+	m.groupMu.Lock()
+	if m.groupPeers == nil {
+		m.groupPeers = make(map[string]*matrixCall)
+	}
+	if _, open := m.groupPeers[peer.key]; open {
+		m.groupMu.Unlock()
+		pc.Close()
+		callCancel()
+		return nil
+	}
+	m.groupPeers[peer.key] = call
+	m.groupMu.Unlock()
+
+	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
+		if c == nil {
+			return
+		}
+		m.sendICECandidates(call, []webrtc.ICECandidateInit{c.ToJSON()})
+	})
+	pc.OnTrack(func(t *wrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+		m.handleIncomingAudio(callCtx, call, t)
+	})
+
+	offer, err := pc.CreateOffer(nil)
+	if err != nil {
+		m.dropGroupPeer(peer.key)
+		return fmt.Errorf("group offer sdp: %w", err)
+	}
+	if err := pc.SetLocalDescription(offer); err != nil {
+		m.dropGroupPeer(peer.key)
+		return fmt.Errorf("group offer local: %w", err)
+	}
+	gatherDone := wrtc.GatheringCompletePromise(pc)
+	select {
+	case <-gatherDone:
+	case <-time.After(5 * time.Second):
+	}
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.sendAudio(callCtx, call)
+	}()
+
+	invite := &event.CallInviteEventContent{
+		BaseCallEventContent: event.BaseCallEventContent{
+			CallID:  conf,
+			Version: "1",
+			PartyID: m.deviceID.String(),
+		},
+		Lifetime: int(matrixDeviceTTLMillis),
+		Offer: event.CallData{
+			Type: event.CallDataTypeOffer,
+			SDP:  pc.LocalDescription().SDP,
+		},
+	}
+	payload, err := withConfID(invite, conf)
+	if err != nil {
+		m.dropGroupPeer(peer.key)
+		return fmt.Errorf("conf-tag invite: %w", err)
+	}
+	if _, err := m.client.SendMessageEvent(m.ctx, room, event.CallInvite, payload); err != nil {
+		m.dropGroupPeer(peer.key)
+		return fmt.Errorf("send group invite: %w", err)
+	}
+	return nil
+}
+
+// handleGroupCallInvite is the ANSWER side: auto-accept (group calls
+// have no ringing UI), register the peer before answering so the
+// reply path resolves, answer conf-tagged.
+func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInviteEventContent, conf string) {
+	m.groupMu.Lock()
+	if conf != m.groupConfID || m.groupConfID == "" {
+		m.groupMu.Unlock()
+		return // foreign conf or not joined
+	}
+	peerKey := groupPeerKey(string(evt.Sender), ci.PartyID)
+	if _, exists := m.groupPeers[peerKey]; exists {
+		m.groupMu.Unlock()
+		return
+	}
+	if m.groupPeers == nil {
+		m.groupPeers = make(map[string]*matrixCall)
+	}
+	m.groupMu.Unlock()
+
+	pc, err := m.createPeerConnection()
+	if err != nil {
+		return
+	}
+	callCtx, callCancel := context.WithCancel(m.ctx)
+	track, err := wrtc.NewTrackLocalStaticRTP(
+		webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2},
+		"audio", "uniclient-audio",
+	)
+	if err != nil {
+		pc.Close()
+		callCancel()
+		return
+	}
+	if _, err := pc.AddTrack(track); err != nil {
+		pc.Close()
+		callCancel()
+		return
+	}
+	call := &matrixCall{
+		ID: conf, RoomID: evt.RoomID, GroupConf: conf,
+		RemoteParty: ci.PartyID, State: CallStateConnecting,
+		StartTime: time.Now(),
+		pc:        pc, audioTrack: track, cancel: callCancel,
+	}
+	m.groupMu.Lock()
+	m.groupPeers[peerKey] = call
+	m.groupMu.Unlock()
+
+	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
+		if c == nil {
+			return
+		}
+		m.sendICECandidates(call, []webrtc.ICECandidateInit{c.ToJSON()})
+	})
+	pc.OnTrack(func(t *wrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+		m.handleIncomingAudio(callCtx, call, t)
+	})
+
+	if ci.Offer.SDP != "" {
+		if err := pc.SetRemoteDescription(webrtc.SessionDescription{
+			Type: webrtc.SDPTypeOffer,
+			SDP:  ci.Offer.SDP,
+		}); err != nil {
+			m.dropGroupPeer(peerKey)
+			return
+		}
+		m.flushPendingCandidates(call)
+	}
+
+	answer, err := pc.CreateAnswer(nil)
+	if err != nil {
+		m.dropGroupPeer(peerKey)
+		return
+	}
+	if err := pc.SetLocalDescription(answer); err != nil {
+		m.dropGroupPeer(peerKey)
+		return
+	}
+	gatherDone := wrtc.GatheringCompletePromise(pc)
+	select {
+	case <-gatherDone:
+	case <-time.After(5 * time.Second):
+	}
+
+	answerContent := &event.CallAnswerEventContent{
+		BaseCallEventContent: event.BaseCallEventContent{
+			CallID:  conf,
+			Version: "1",
+			PartyID: m.deviceID.String(),
+		},
+		Answer: event.CallData{
+			Type: event.CallDataTypeAnswer,
+			SDP:  pc.LocalDescription().SDP,
+		},
+	}
+	payload, err := withConfID(answerContent, conf)
+	if err == nil {
+		if _, sendErr := m.client.SendMessageEvent(m.ctx, call.RoomID, event.CallAnswer, payload); sendErr != nil {
+			m.dropGroupPeer(peerKey)
+			return
+		}
+	}
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.sendAudio(callCtx, call)
+	}()
+
+	m.fireUpdate(Update{
+		Type:   UpdateCallState,
+		ChatID: call.RoomID.String(),
+		Call: &CallSession{
+			ID: conf, ChatID: call.RoomID.String(), IsGroup: true,
+			State: CallStateConnecting,
+		},
+		Platform: mxPlatform,
+	})
 }
