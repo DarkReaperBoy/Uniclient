@@ -907,11 +907,16 @@ func (g *GitHubCore) DownloadFile(fileRef FileRef, dest string, progress func(re
 		total = fileRef.Size
 	}
 
-	written, err := io.Copy(f, resp.Body)
+	written, err := boundedCopy(f, resp.Body, downloadCeiling)
+	if err != nil {
+		f.Close()
+		os.Remove(dest) // never leave a truncated/partial behind
+		return err
+	}
 	if progress != nil {
 		progress(written, total)
 	}
-	return err
+	return nil
 }
 
 // SendImageBase64 uploads a base64-encoded image and posts it as a comment.

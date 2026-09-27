@@ -5,6 +5,7 @@ package cores
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"time"
 )
@@ -23,6 +24,7 @@ var (
 	ErrSessionExpired = errors.New("session expired")
 	ErrDisconnected   = errors.New("disconnected")
 	ErrTimeout        = errors.New("operation timed out")
+	ErrFileTooLarge   = errors.New("exceeds download ceiling")
 )
 
 // --- Enums ---
@@ -1131,4 +1133,21 @@ type AlbumItem struct {
 // MediaAlbumSender can send multiple media items as a single album message.
 type MediaAlbumSender interface {
 	SendMediaAlbum(chatID string, items []AlbumItem, silent bool, scheduleDate int64) ([]*Message, error)
+}
+
+// downloadCeiling is the hard cap for a single download written to
+// disk — the disk-side twin of matrixMediaMaxBytes (F-53): a hostile
+// server or a lying Content-Length streamed forever and filled the
+// volume (F-72). Package-level so tests shrink it.
+var downloadCeiling int64 = 512 * 1024 * 1024
+
+// boundedCopy copies src → dst but stops at max+1 bytes and fails with
+// ErrFileTooLarge when the stream tried to exceed max. Returns the
+// bytes actually copied (≤ max+1).
+func boundedCopy(dst io.Writer, src io.Reader, max int64) (int64, error) {
+	n, err := io.Copy(dst, io.LimitReader(src, max+1))
+	if n > max {
+		return n, fmt.Errorf("%w: more than %d bytes", ErrFileTooLarge, max)
+	}
+	return n, err
 }

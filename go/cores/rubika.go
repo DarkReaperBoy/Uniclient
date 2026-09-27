@@ -2456,6 +2456,9 @@ func (r *RubikaCore) DownloadFile(fileRef FileRef, dest string, progress func(re
 	if totalSize <= 0 {
 		totalSize = chunkSize // unknown size, download one chunk
 	}
+	if totalSize > downloadCeiling {
+		return fmt.Errorf("%w: declared size %d > %d", ErrFileTooLarge, totalSize, downloadCeiling)
+	}
 
 	f, err := os.Create(dest)
 	if err != nil {
@@ -2486,7 +2489,12 @@ func (r *RubikaCore) DownloadFile(fileRef FileRef, dest string, progress func(re
 			return fmt.Errorf("download chunk: %w", err)
 		}
 
-		n, err := io.Copy(f, resp.Body)
+		// CopyN: exactly the requested chunk — a hostile server must not
+		// stream more bytes than the range we asked for (F-72).
+		n, err := io.CopyN(f, resp.Body, end-start+1)
+		if err == io.EOF {
+			err = nil // short chunk: keep what arrived, size checks below
+		}
 		resp.Body.Close()
 		if err != nil {
 			return fmt.Errorf("write chunk: %w", err)

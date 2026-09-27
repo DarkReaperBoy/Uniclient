@@ -10558,3 +10558,68 @@ sign-in, `[ ]` first non-prerelease ≥ v0.10.3 per slice-281). Owner
 posture: "continue till eternity… done unprompted; make sure
 compaction knows" — every slice appends its own anchor here.
 gate308 = light scope; standalone with rc check.
+
+---
+
+## Slice 309 (2026-09-27) — F-72: network bodies streamed to disk with
+## NO ceiling (hostile-server disk fill; F-53's disk-side twin)
+
+Same family as F-53 (memory got a cap in slice 283; disk did not):
+
+1. **The finding (4 sites)**: `github.DownloadFile` — `io.Copy(f,
+   resp.Body)` with `total` computed for PROGRESS only, never
+   enforced; `bale.DownloadFile` the same; `xmpp.DownloadFileHTTP`'s
+   manual 32 KiB loop with no bound at all; `rubika`'s chunk loop
+   copying each chunk response in full (a hostile server answers a
+   10 KB range with gigabytes) with the loop count itself driven by
+   the server-supplied `fileRef.Size`. Hostile server or lying
+   Content-Length → copy runs until the volume is full; reachable
+   from one click or from auto-download paths.
+2. **Fix**: shared `downloadCeiling` = 512 MiB (same ceiling F-53 gave
+   matrix; package-level so tests shrink it) + `ErrFileTooLarge`
+   sentinel + `boundedCopy` (LimitReader(max+1); fails when the stream
+   TRIED to exceed max). Wired: github/bale → `boundedCopy` +
+   `os.Remove(dest)` on failure (no truncated partial left behind);
+   xmpp checks the ceiling BEFORE the write and removes the partial;
+   rubika checks `totalSize > ceiling` upfront AND copies each range
+   with `io.CopyN(…, rangeLen)` (short chunk tolerated, oversized
+   reply impossible).
+3. **Tests-first**: seam-RED quoted (`undefined: downloadCeiling`);
+   GREEN ×5 — primitive under/over limit + TWO behavioral httptest
+   streams (hostile endpoint loops 6 MiB at a 1 KiB ceiling →
+   `exceeds download ceiling` + dest removed) + source-scan pins
+   (raw copies gone, `CopyN` present). **Self-caught**: the xmpp scan
+   needle used the MESSAGE TEXT instead of the sentinel — the
+   behavioral test passed while the scan false-failed → needle =
+   `ErrFileTooLarge`; also caught before any result was trusted: a
+   `t := TrimSpace` shadowing `*testing.T` and a literal `\\n` split
+   in the scanner.
+4. **Validation**: whole `cores` suite green, `-race` green (11s),
+   whole tree **14 ok**, live dendrite test green (3.8s), vet incl.
+   `-tags goolm,live`, gofmt clean. BUGS machine check: **72 F rows,
+   no gaps/dupes, open = B-25 only**.
+
+**B-25 re-probe: still denied → open** (50th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 308's)
+Open: **B-25 ONLY** (50× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 72**,
+B-rows = 1. B-6 CLOSED F-62…F-69; F-70 styling OOB; F-71 path
+traversal; F-72 download ceiling (this slice). Dendrite running at
+127.0.0.1:8008 (binaries ~/go/bin, config
+~/.cache/uniclient-dendrite; recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 65 at
+`1b7d529f` before this slice. Paths/toolchain/owner orders per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`,
+live = `-tags goolm,live ./tests/`, char-class token extraction in
+shell only — literals never committed; ANCHOR recipe form:
+`grep -o 'github_pat[_][A-Za-z0-9]*' <(git remote get-url origin)`).
+Remaining horizon: B-25's env flap + the two always-owner rungs (§11
+`[~]` real-phone/email live sign-in, `[ ]` first non-prerelease ≥
+v0.10.3 per slice-281). Owner posture: "continue till eternity… done
+unprompted; make sure compaction knows" — every slice appends its own
+anchor here; audit classes already drained: test-quality trilogy,
+data-loss, response-size/gzip, TLS/timeouts, TOFU, staticcheck×2,
+validation batteries, docs/env-var/path claims, teardown paths,
+styling fuzz, path traversal, download ceilings.

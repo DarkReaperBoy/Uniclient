@@ -4166,6 +4166,14 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
+			// F-72: the manual loop had NO ceiling — a hostile
+			// endpoint streaming forever filled the disk. Check BEFORE
+			// writing so the partial stays under the cap, then remove.
+			if received+int64(n) > downloadCeiling {
+				f.Close()
+				os.Remove(dest)
+				return fmt.Errorf("%w: more than %d bytes", ErrFileTooLarge, downloadCeiling)
+			}
 			if _, writeErr := f.Write(buf[:n]); writeErr != nil {
 				return writeErr
 			}

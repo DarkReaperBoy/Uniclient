@@ -1624,8 +1624,12 @@ func (b *BaleCore) DownloadFile(fileRef FileRef, dest string, progress func(recv
 		}
 	}
 
-	_, err = io.Copy(outFile, reader)
-	return err
+	if _, err := boundedCopy(outFile, reader, downloadCeiling); err != nil {
+		outFile.Close()
+		os.Remove(dest) // never leave a truncated/partial behind
+		return err
+	}
+	return nil
 }
 
 // --- Core Interface: Media ---
