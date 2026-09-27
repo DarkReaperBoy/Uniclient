@@ -10493,3 +10493,68 @@ only). Remaining horizon: B-25's env flap + the two always-owner rungs
 "continue till eternity… done unprompted" — keep slicing; doc the
 negative audits too.
 gate307 = light scope; standalone with rc check (no prod changes).
+
+---
+
+## Slice 308 (2026-09-27) — F-71: server-origin path components reached
+## filepath.Join RAW (hostile-homeserver traversal → disk write)
+
+New audit class: **who controls the string that lands in a path?**
+
+1. **The finding**: media `msgID`s are matrix event IDs — opaque
+   strings a hostile homeserver fully controls (`../../x` is a valid
+   opaque ID) — and they reached `filepath.Join` raw at five sites
+   (`media.go:170`, `mediastream.go:380`, `pending.go` ×3) with the
+   server-named `ext` appended; `accountID` (issued at login by that
+   same server) reached SEVEN `e.mediaDir/<accountID>/…` dirs raw;
+   profile-music `DocID` (wire-origin) likewise; `export.go`'s
+   `sanitizeFileName` let a literal `".."` chatID land the chat dir ON
+   exportDir (escaping `chats/`, able to clobber export files).
+   `filepath.Join(dir, "../../evil")` cleans to an escaped path, then
+   `DownloadFile`'s `os.Create` writes attacker bytes there —
+   arbitrary relative-path write from message sync alone (§1.10 / the
+   F-52 disk surface).
+2. **Fix**: new `safePathSegment()` (`engine/pathsafe.go`) — both
+   separators are dividers, final element only, empty/`"."`/`".."` →
+   `"file"`; legit IDs (`$id:domain`, negative telegram ids, dots)
+   pass through byte-identical. Wired at all 12 sites INCLUDING the
+   `media.go:580` thumb-compare (builder and comparison must sanitize
+   identically or thumb detection silently breaks) +
+   `sanitizeFileName`'s `.`/`".."` fallback.
+3. **Tests-first**: seam-RED quoted (`undefined: safePathSegment`);
+   three behavioral tests (legit IDs unchanged / traversal neutralized
+   / `Join(dir, safePathSegment(evil))` never escapes `dir`) +
+   source-scan pin `TestRawServerIDJoinsGone` asserting the raw-join
+   lines are GONE (comment lines skipped — slice-284's
+   match-your-own-comment lesson).
+4. **Self-caught mid-slice**: first wiring script died on a Python
+   unterminated string (the export.go anchor) AFTER its earlier
+   `apply()` calls had already written files — so the run was
+   PARTIAL: the scan test passed on the three files wired before the
+   crash while `avatars.go`'s anchor (`count=2`, two identical sites)
+   aborted the rest. Re-ran with replace-all + explicit expect counts;
+   every site verified wired. GREEN ×4.
+5. **Validation**: whole `engine` suite green, `-race` engine green
+   (123s), whole tree **14 ok**, live dendrite test green (3.7s),
+   vet incl. `-tags goolm,live`, gofmt clean. BUGS machine check:
+   **71 F rows, no gaps/dupes, open = B-25 only**.
+
+**B-25 re-probe: still denied → open** (49th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 307's)
+Open: **B-25 ONLY** (49× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 71**,
+B-rows = 1. B-6 CLOSED F-62…F-69; F-70 styling OOB; F-71 path
+traversal (this slice). Dendrite running at 127.0.0.1:8008 (binaries
+~/go/bin, config ~/.cache/uniclient-dendrite; recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 64 at
+`72e6e424` before this slice. Paths/toolchain/owner orders per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`,
+live = `-tags goolm,live ./tests/`, char-class token extraction in
+shell only — literals never committed). Remaining horizon: B-25's env
+flap + the two always-owner rungs (§11 `[~]` real-phone/email live
+sign-in, `[ ]` first non-prerelease ≥ v0.10.3 per slice-281). Owner
+posture: "continue till eternity… done unprompted; make sure
+compaction knows" — every slice appends its own anchor here.
+gate308 = light scope; standalone with rc check.

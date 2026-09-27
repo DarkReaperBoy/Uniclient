@@ -1870,7 +1870,7 @@ func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) 
 	if v, ok := cs.Meta["talk_power"]; ok && v == "blocked" {
 		info.TalkPowerBlocked = true
 	}
-	avatarDir := filepath.Join(e.mediaDir, accountID, "avatars")
+	avatarDir := filepath.Join(e.mediaDir, safePathSegment(accountID), "avatars")
 	for _, p := range cs.Participants {
 		gcp := GroupCallParticipant{
 			UserID:             p.UserID,

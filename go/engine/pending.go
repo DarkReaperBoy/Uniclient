@@ -653,7 +653,7 @@ func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []str
 		if ext == "" {
 			ext = ".bin"
 		}
-		tmpPath := filepath.Join(tmpDir, msgID+ext)
+		tmpPath := filepath.Join(tmpDir, safePathSegment(msgID)+ext)
 
 		if info, statErr := os.Stat(tmpPath); statErr == nil {
 			if expectedSize <= 0 || info.Size() >= expectedSize {
@@ -1168,7 +1168,7 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 		if ext == "" {
 			ext = ".bin"
 		}
-		tmpPath := filepath.Join(tmpDir, p.MsgID+ext)
+		tmpPath := filepath.Join(tmpDir, safePathSegment(p.MsgID)+ext)
 		defer os.Remove(tmpPath)
 
 		ref := cores.FileRef{
@@ -1344,7 +1344,7 @@ func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 		if ext == "" {
 			ext = ".bin"
 		}
-		tmpPath := filepath.Join(tmpDir, msgID+ext)
+		tmpPath := filepath.Join(tmpDir, safePathSegment(msgID)+ext)
 
 		ref := cores.FileRef{
 			ID: remoteRef.String, Name: fName.String,

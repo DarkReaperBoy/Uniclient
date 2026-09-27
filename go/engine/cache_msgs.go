@@ -3162,7 +3162,7 @@ func (e *Engine) FetchPeerStories(accountID, peerID string) (string, error) {
 		return storiesJSON, nil
 	}
 
-	dir := filepath.Join(e.mediaDir, accountID, "stories")
+	dir := filepath.Join(e.mediaDir, safePathSegment(accountID), "stories")
 	os.MkdirAll(dir, 0o755)
 
 	type storyFull map[string]interface{}

@@ -64,7 +64,7 @@ func (e *Engine) DownloadPendingAvatars(accountID string) {
 	}
 
 	// Check which ones already have avatars on disk.
-	avatarDir := filepath.Join(e.mediaDir, accountID, "avatars")
+	avatarDir := filepath.Join(e.mediaDir, safePathSegment(accountID), "avatars")
 	os.MkdirAll(avatarDir, 0o755)
 
 	var toDownload []string
@@ -104,7 +104,7 @@ func (e *Engine) DownloadSingleAvatar(accountID, chatID string) (string, error) 
 	if !ok {
 		return "", fmt.Errorf("platform does not support avatar download")
 	}
-	avatarDir := filepath.Join(e.mediaDir, accountID, "avatars")
+	avatarDir := filepath.Join(e.mediaDir, safePathSegment(accountID), "avatars")
 	os.MkdirAll(avatarDir, 0o755)
 	destPath := filepath.Join(avatarDir, chatID+".jpg")
 	if _, err := os.Stat(destPath); err == nil {

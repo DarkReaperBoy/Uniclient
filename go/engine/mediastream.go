@@ -369,7 +369,7 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 	}
 
 	// Same canonical path executeDownload writes (media.go executeDownload).
-	dir := filepath.Join(e.mediaDir, accountID, "full")
+	dir := filepath.Join(e.mediaDir, safePathSegment(accountID), "full")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, "", 0, err
 	}
@@ -377,7 +377,7 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 	if ext == "" {
 		ext = ".bin"
 	}
-	path := filepath.Join(dir, msgID+"_"+fmt.Sprint(seq)+ext)
+	path := filepath.Join(dir, safePathSegment(msgID)+"_"+fmt.Sprint(seq)+ext)
 
 	// Claim the file before opening: a download worker already inside
 	// executeDownload holds this key (os.Create = O_TRUNC), and Cancel

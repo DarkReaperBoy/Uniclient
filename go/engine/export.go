@@ -763,7 +763,9 @@ func sanitizeFileName(name string) string {
 	if len(s) > 100 {
 		s = s[:100]
 	}
-	if s == "" {
+	if s == "" || s == "." || s == ".." {
+		// F-71: a chatID of literally ".." would land the chat dir ON
+		// exportDir (escaping chats/) and could clobber export files.
 		s = fmt.Sprintf("chat_%d", rand.Int63())
 	}
 	return s

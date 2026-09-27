@@ -167,7 +167,8 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 	if ext == "" {
 		ext = ".bin"
 	}
-	localPath := filepath.Join(dir, job.MsgID+"_"+fmt.Sprint(job.Seq)+ext)
+	// F-71: job.MsgID is server-origin (matrix event IDs are opaque).
+	localPath := filepath.Join(dir, safePathSegment(job.MsgID)+"_"+fmt.Sprint(job.Seq)+ext)
 
 	// Update state to downloading.
 	e.db.Exec(
@@ -577,7 +578,9 @@ type mediaVictim struct {
 // isThumb reports whether a local path lives in the account's thumbnail dir,
 // which is never evicted.
 func (e *Engine) isThumb(accID, localPath string) bool {
-	return filepath.Dir(localPath) == filepath.Join(e.mediaDir, accID, "thumb")
+	// F-71: identical sanitization as the builder — compare the same
+	// segment the path was built from.
+	return filepath.Dir(localPath) == filepath.Join(e.mediaDir, safePathSegment(accID), "thumb")
 }
 
 // dropVictim removes the file and clears its DB pointer.

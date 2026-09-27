@@ -440,7 +440,7 @@ func (e *Engine) PlayProfileMusicTrack(accountID, docID string) error {
 	if !ok {
 		return fmt.Errorf("platform cannot download profile music")
 	}
-	dir := filepath.Join(e.mediaDir, accountID, "full")
+	dir := filepath.Join(e.mediaDir, safePathSegment(accountID), "full")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -448,7 +448,7 @@ func (e *Engine) PlayProfileMusicTrack(accountID, docID string) error {
 	if ext == "" {
 		ext = ".bin"
 	}
-	dest := filepath.Join(dir, "profilemusic_"+track.DocID+ext)
+	dest := filepath.Join(dir, "profilemusic_"+safePathSegment(track.DocID)+ext)
 	if _, statErr := os.Stat(dest); statErr != nil {
 		ref := cores.FileRef{
 			ID:       track.DocID,
