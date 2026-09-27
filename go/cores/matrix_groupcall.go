@@ -789,12 +789,14 @@ var matrixRenewInterval = time.Duration(matrixDeviceTTLMillis/2) * time.Millisec
 const matrixRenewMaxConsecutiveFails = 3
 
 // runGroupRenewal is the membership-renewal goroutine body: publish a
-// fresh lease every matrixRenewInterval and re-derive the mesh (remote
-// leases vanish WITHOUT any new state event arriving). Exits on
-// renewCtx/m.ctx cancellation — including the self-teardown below,
-// which cancels renewCtx via leaveGroupCallInternal.
-func (m *MatrixCore) runGroupRenewal(renewCtx context.Context, roomID id.RoomID, conf, sess string) {
-	ticker := time.NewTicker(matrixRenewInterval)
+// fresh lease every `interval` and re-derive the mesh (remote leases
+// vanish WITHOUT any new state event arriving). Exits on renewCtx/
+// m.ctx cancellation — including the self-teardown below, which
+// cancels renewCtx via leaveGroupCallInternal. The interval is a
+// PARAMETER (F-82): reading the package-global inside this goroutine
+// raced test writes to it (race detector trace, WORKLOG 317).
+func (m *MatrixCore) runGroupRenewal(renewCtx context.Context, roomID id.RoomID, conf, sess string, interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	fails := 0
 	for {

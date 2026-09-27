@@ -1383,11 +1383,16 @@ func (m *MatrixCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	}
 
 	// Renew at half the lease so one dropped state event never expires
-	// us mid-call.
+	// us mid-call. The interval is captured HERE — on the CALLER
+	// goroutine — so the spawned goroutine never reads the global
+	// (F-82: an async read inside the goroutine raced test writes to
+	// matrixRenewInterval; caller-side capture is ordered w.r.t. every
+	// test statement).
+	interval := matrixRenewInterval
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
-		m.runGroupRenewal(renewCtx, roomID, conf, sess)
+		m.runGroupRenewal(renewCtx, roomID, conf, sess, interval)
 	}()
 
 	return &CallSession{

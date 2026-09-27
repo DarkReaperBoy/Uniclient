@@ -18,6 +18,16 @@ import (
 func TestJoinGroupCallClosesStaleConfPeers(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL) // groupConfID = conf_x
+	// F-82: cancel the renewal this test spawns — the loop used to
+	// survive the test (its first tick reads state long after cleanup)
+	// and raced later tests' setup.
+	t.Cleanup(func() {
+		core.groupMu.Lock()
+		if core.groupRenew != nil {
+			core.groupRenew()
+		}
+		core.groupMu.Unlock()
+	})
 	_, stale := seedCallState(t, core) // peer bound to conf_x
 
 	// The mini-server 404s the m.call state GET → JoinGroupCall mints a

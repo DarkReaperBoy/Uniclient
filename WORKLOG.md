@@ -11043,3 +11043,76 @@ contract: 313 (F-75/76), 314 (F-77/78), 315 (F-79), 316 (F-80).
 Audit classes drained: … timeout-less fetches, truncated-transfer
 integrity, partial cleanup, remote-signal crash, **login-path
 parameter/wire-element bounds (this slice)**.
+
+## Slice 317 (2026-09-28) — F-81 (bale photo element panic) + F-82
+(renewal goroutine data race caught by −race)
+
+1. **F-81 — type-unguarded array element = remote panic.** The bare
+   assertion census run after F-79 flagged exactly one REAL site:
+   `extractAttachments` len-guarded `photo` but bare-asserted the
+   element type — hostile/malformed Bale server sends a non-map
+   element → interface-conversion panic while parsing a normal
+   message. (matrix's other hit = self-assert on a locally-built map;
+   telegram's two = switch-match-guaranteed `@type` strings — both
+   triaged SAFE with evidence.) comma-ok + skip. RED behavioral:
+   pre-fix the test DIED with the exact panic (quoted); GREEN ×2.
+2. **F-82 — DATA RACE found by the battery itself.** The full
+   `-race cores` leg (green at slice 316's gate) FAILED this slice:
+   `renewTestCore` writes the package-global `matrixRenewInterval`
+   (test goroutine) while a renewal goroutine spawned by an EARLIER
+   test's JoinGroupCall reads it at goroutine start (scheduled late);
+   `rejoin_test` never cancelled the renewal it spawned, leaving the
+   loop alive into later tests. **Root fix in product code**: the
+   interval is now captured ONCE at the spawn site (caller goroutine —
+   ordered w.r.t. every test statement) and passed as a parameter;
+   spawned goroutines never read the global again. rejoin_test got
+   the missing cancellation cleanup (join/renew tests already had it).
+   RED: source-scan pin (3 failures quoted) + the captured race trace;
+   GREEN: the previously-failing full `-race` run + `-race -count=3`
+   on groupcall/renew/join.
+3. **Self-caught**: the row-insert script's string literals broke on
+   quote/character escaping (SyntaxError → NOTHING written, BUGS still
+   80 rows — verified by the machine check failing at 80); rewrote the
+   rows as triple-quoted strings → 82 rows, shapes OK.
+4. **Validation**: whole tree **14 ok / 0 FAIL**, full `-race` cores
+   ok (the run that failed), `-race -count=3` matrix tests ok, live
+   dendrite ok (3.7s), vet incl. `-tags goolm,live`, gofmt clean.
+   BUGS machine check: **82 F rows, no gaps/dupes, open = B-25 only**.
+   staticcheck re-run this contract: **216 total (floor 217) / 31
+   bug-class (floor 32)** — no regressions from slices 313-317;
+   deadcode @latest re-run flags 0 symbols introduced this contract
+   (its entry-point model now excludes test-only callers — raw count
+   not comparable to the slice-274 worklist; recorded as tool drift).
+
+**B-25 re-probe: still denied → open** (58th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 316's)
+Open: **B-25 ONLY** (58× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 82**,
+B-rows = 1. **slice 312 = a backend fully eliminated per owner order
+(name scrubbed repo-wide, 0 matches — keep at ZERO; git history
+retains old commits)**. This contract's slices: 313 (F-75 uncapped
+response bodies ×25 sites, F-76 timeout-less fetches — slice-285
+checker gap), 314 (F-77 truncated TeamSpeak transfers both
+directions, F-78 failed downloads leaving partials), 315 (F-79 remote
+call-signal dropped parses + [0] indexing = remote crash), 316 (F-80
+XMPP SCRAM login params + 4 wire-element loops unbounded), **317 (F-81
+bale photo element panic, F-82 renewal-goroutine data race)**.
+Dendrite at 127.0.0.1:8008 (recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 70
+`821eb674`, 71 `f324939f`, 72 `b6a573b9`, 73 `04a0a39a`, next = 317's
+push. Paths/toolchain per slice-295 anchor (repo
+`/tmp/uniclient_repo`, gate `/tmp/gate258.sh`, Go 1.27.1 store path,
+`GOTOOLCHAIN=local`, always `-tags goolm`, live = `-tags goolm,live
+./tests/`; ANCHOR recipe: `grep -o 'github_pat[_][A-Za-z0-9]*' <(git
+remote get-url origin)`; secret scan = added lines only + whole-tree
+real-length literals; staticcheck solo `ulimit -v` + GOGC=40, deadcode
+UNCAPPED (ulimit crash caught slice 317)). Remaining horizon: B-25's
+env flap + the two always-owner rungs (§11 `[~]` real-phone/email live
+sign-in, `[ ]` first non-prerelease ≥ v0.10.3 per slice-281). Owner
+objective: scrub the eliminated backend (done, 312), work the rest of
+the cores, report when done — audit sweeps completed so far this
+contract: panic/assertion census, Atoi/slicing census, status/close
+census, staticcheck, deadcode, response-body census; classes drained:
+… remote-signal crash, login-path bounds, bare-assert panics, test-
+global data races.

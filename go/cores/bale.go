@@ -2528,15 +2528,20 @@ func (b *BaleCore) extractAttachments(m map[string]interface{}) []FileRef {
 
 	// Photo (array of PhotoSize, pick largest)
 	if photos, ok := m["photo"].([]interface{}); ok && len(photos) > 0 {
-		largest := photos[len(photos)-1].(map[string]interface{})
-		attachments = append(attachments, FileRef{
-			ID:       jsonString(largest, "file_id"),
-			Name:     "photo.jpg",
-			MimeType: "image/jpeg",
-			Size:     jsonInt64(largest, "file_size"),
-			Width:    int(jsonInt64(largest, "width")),
-			Height:   int(jsonInt64(largest, "height")),
-		})
+		// F-81: element type was asserted BARE (len-guarded only) — a
+		// hostile/malformed server sending a non-map element crashed
+		// the client with an interface-conversion panic.
+		largest, isMap := photos[len(photos)-1].(map[string]interface{})
+		if isMap {
+			attachments = append(attachments, FileRef{
+				ID:       jsonString(largest, "file_id"),
+				Name:     "photo.jpg",
+				MimeType: "image/jpeg",
+				Size:     jsonInt64(largest, "file_size"),
+				Width:    int(jsonInt64(largest, "width")),
+				Height:   int(jsonInt64(largest, "height")),
+			})
+		}
 	}
 
 	// Document
