@@ -56,6 +56,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"uniclient/utils"
@@ -7386,7 +7387,29 @@ func applyStyling(text string) (string, []TextEntity) {
 		out = append(out, TextEntity{Type: typ, Offset: sOff, Length: eOff - sOff})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Offset < out[j].Offset })
-	return sb.String(), out
+
+	// F-70: entity offsets come from per-chunk byte counting in the
+	// copy loop; on INVALID-UTF-8 input (our stanza parser does not
+	// enforce XML's UTF-8 rule — a hostile server can send anything)
+	// re-decoding the output can MERGE chunks and shrink the string
+	// (fuzz: `\xc3**\xa9*` → two counted chunks re-decode as ONE `é`),
+	// leaving entities pointing past the end of the text. The GUI
+	// renderer slices by these bounds — OOB. Clip to the REAL final
+	// bounds; on valid UTF-8 (the XML-spec case) counting and re-decode
+	// agree exactly, so nothing changes for real messages.
+	final := sb.String()
+	text16 := len(utf16.Encode([]rune(final)))
+	filtered := out[:0]
+	for _, e := range out {
+		if e.Offset >= text16 {
+			continue // wholly outside — drop
+		}
+		if e.Offset+e.Length > text16 {
+			e.Length = text16 - e.Offset
+		}
+		filtered = append(filtered, e)
+	}
+	return final, filtered
 }
 
 // SendSpoilerMessage implements XEP-0382 — send message with hidden content.

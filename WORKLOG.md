@@ -10381,3 +10381,60 @@ shell only). Remaining horizon: B-25's env flap + the two always-owner
 rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
 non-prerelease ≥ v0.10.3 per the slice-281 version rule).
 gate305 = light scope; standalone with rc check.
+
+---
+
+## Slice 306 (2026-09-27) — F-70: fuzzing the styling layer found a
+## hostile-server OOB (entity bounds past end of message)
+
+First-ever fuzzing of the two XMPP styling parsers (F-60 wired
+`applyStyling` into the receive path; it byte-slices with indices from
+a marker scan — a panic/OOB there kills the client on ONE hostile
+message, §1.10):
+
+1. **Two new targets** (now **24 fuzz targets** in the tree):
+   `FuzzParseMessageStyling` (span shape + non-degenerate text) and
+   `FuzzApplyStyling` (three invariants: UTF-8 preservation, entity
+   bounds inside the cleaned text in UTF-16 units, determinism).
+2. **Phase 1 — oracle honesty**: first run failed in 0.4 s on input
+   `\xb7` — but the invariant demanded valid UTF-8 of ALL outputs while
+   the input was invalid; the contract is *preservation* (XML bodies
+   are valid UTF-8 by spec; our stanza parser does not enforce it).
+   Oracle gated `utf8.ValidString(text) ⇒ utf8.ValidString(cleaned)`;
+   the `\xb7` seed stays as the pass-through pin.
+3. **Phase 2 — REAL bug behind the oracle**: re-fuzz found
+   `\xc3**\xa9*` → `entity {bold Offset:1 Length:1} escapes "é" (1 utf16
+   units)`. Root cause: `applyStyling` counts copy-loop CHUNKS, but on
+   invalid UTF-8 the output's re-decode MERGES chunks (C3+…+A9 → one
+   `é`) and shrinks the string — entity offsets land past the end →
+   the GUI renderer slices out of range (B-14-class failure mode on
+   the styling layer). **Fix**: clip every entity to the TRUE final
+   utf16 length (drop if wholly outside, clip Length otherwise); on
+   valid UTF-8 counting and re-decode agree exactly → zero behavior
+   change for real messages.
+4. **Evidence**: both crasher seeds committed as regression corpus;
+   deep fuzz re-run **GREEN ×2 (45 s each: 469,884 + 478,405 execs,
+   92 corpus entries)**; whole `cores` suite **470 PASS / 0 FAIL**;
+   `-race` ×3 consecutive clean (the one FAIL mid-battery was a
+   transient — three straight reruns green, plain ×2 also green);
+   whole tree **14 ok**; live dendrite test green (3.9s); vet incl.
+   `-tags goolm,live`. BUGS machine check: **70 F rows, no gaps/dupes,
+   open = B-25 only**.
+
+**B-25 re-probe: still denied → open** (46th consecutive).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 305's)
+Open: **B-25 ONLY** (46× denied re-probes at ts.arcticblaze.net;
+environmental; opportunistic re-probe each slice). **F-rows = 70**,
+B-rows = 1. B-6 CLOSED across F-62…F-69; F-70 = styling OOB (fuzz).
+Dendrite running at 127.0.0.1:8008 (binaries ~/go/bin, config
+~/.cache/uniclient-dendrite; recipe in
+`go/tests/matrix_groupcall_live_test.go` header). Streak: 62 at
+`ca6f531a` before this slice. Paths/toolchain/owner orders per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`,
+live = `-tags goolm,live ./tests/`, char-class token extraction in
+shell only). Remaining horizon: B-25's env flap + the two always-owner
+rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first
+non-prerelease ≥ v0.10.3 per the slice-281 version rule).
+gate306 = light scope; standalone with rc check.
