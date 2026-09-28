@@ -23,7 +23,10 @@ page for every release tag (all marked pre-release for now):
 - **Windows** — `uniclient-windows-amd64.exe` (pure Go, no runtime deps).
 - **Android** — `uniclient.apk` (arm64).
 - **Web** — a WASM build of the same GUI, deployed to
-  `https://darkreaperboy.github.io/Uniclient/`.
+  `https://darkreaperboy.github.io/Uniclient/`. Opening the page revalidates
+  its own assets: a status bar shows download progress while the newest
+  `uniclient.wasm` is pulled (instant when already up to date), then the
+  app boots.
 
 One single binary per platform — the GUI, the engine host, and every core
 compile into it. Headless/CLI behavior (when present) is a flag on the same

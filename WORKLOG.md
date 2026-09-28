@@ -11519,3 +11519,35 @@ uncapped; ANCHOR recipe: `grep -o 'github_pat[_][A-Za-z0-9]*' <(git
 remote get-url origin)`; secret scan = added lines only + whole-tree
 real-length literals). Owner objective now: inform — all tasks that
 didn't require the owner are done.
+
+### slice 323 — owner asks: nix gate every release, self-updating web shell, v0.10.3
+Owner: "make the nix file function correctly as in the README command;
+`nix run github:DarkReaperBoy/Uniclient` must work properly and
+automatically every release; make release v0.10.3; the GitHub Pages site
+must update its wasm/js when opened — with a status bar/indicator while
+updating — then load the wasm; you're the senior dev, do the right call.
+btw don't use release as source of wasm or any wasteful api requests —
+push the wasm to gh-pages so it could be direct."
+- flake.nix version 0.10.2 → 0.10.3 (slice-281 rule: next ≥ v0.10.3;
+  monotone over released v0.10.2).
+- release.yml: new **nix** job (install-nix → on v* tags flake version
+  must equal tag → `nix build .#uniclient` → `uniclient -h` smoke run =
+  loader-level proof) added to `release` needs, so every release proves
+  the README `nix run github:…` path before publishing; `web` now
+  `needs: [test]` (no pages deploy from failed code). verify.yml gains
+  the same nix job (dispatch-only).
+- gh-pages `index.html` shell (still generated at CI time only — §1.4,
+  main never has JS/HTML): owner vetoed the release-asset + GitHub-API
+  design (v1 scrapped pre-ship, zero API calls ever). Shell now pulls
+  `uniclient.wasm`/`wasm_exec.js` **direct from gh-pages same-origin**
+  with `cache: "no-cache"` revalidation (304 = nothing to do, changed
+  deploy = fresh bytes), status bar + determinate progress bar with
+  MB/MB byte counter while downloading, ETag-derived
+  `updated`/`up to date`/`downloaded` readout in the detail line,
+  offline `force-cache` fallback, Retry button on failure, overlay hides
+  when Gio's canvas attaches; wasm_exec.js refreshed the same way with
+  the static tag as fallback.
+- Release v0.10.3 = tag after push; stays `prerelease: true` (standing
+  rule §11 rung not flipped by owner).
+- Docs: AGENTS §5 job list rewritten to real job names + nix gate +
+  shell behavior; §6 flake-gate sentence; checklist +2; README web bullet.

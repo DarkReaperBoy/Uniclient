@@ -20,7 +20,7 @@
         # { go = buildPackages.go_1_27; }).
         uniclient = pkgs.buildGoLatestModule {
           pname = "uniclient";
-          version = "0.10.2";
+          version = "0.10.3";
           # The Go module root is the go/ directory — but a store directory
           # unpacks under its own basename, and buildGoModule exports
           # GOPATH="$TMPDIR/go", so src=./go unpacked to /build/go == GOPATH.

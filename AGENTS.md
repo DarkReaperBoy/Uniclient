@@ -222,21 +222,34 @@ is trusted. Re-verify with `scripts/gio_probe` if gio is upgraded.
 `workflow_dispatch`. Never `on: push` to a branch.
 
 Jobs:
-1. **test** — `go vet`, `gofmt -l` gate, `go test ./...` (tags goolm) on linux.
-2. **build-native** — linux/amd64 + linux/arm64 (CGO, -s -w, UPX),
-   windows/amd64 (CGO_ENABLED=0, -s -w, UPX) → `uniclient-<os>-<arch>[.exe]`.
-3. **build-android** — gogio → `uniclient.apk`.
-4. **build-web** — wasm → checkout orphan `gh-pages`, write `index.html` +
-   `wasm_exec.js` (from `$GOROOT/lib`) + `uniclient.wasm`, force-push.
-   Assets use **relative** paths; base URL is `/Uniclient/`.
-5. Attach everything to the GitHub release, **`prerelease: true`**.
+1. **test** — `gofmt -l` gate, `go vet` (+ `live`-tagged), `go test ./...`
+   (tags goolm) + the race legs, on linux.
+2. **nix** — installs Nix, builds `.#uniclient`, smoke-runs the binary
+   (`uniclient -h`, loader-level proof), and on `v*` tags fails unless
+   `flake.nix`'s `version` equals the tag. This is the gate that keeps
+   `nix run github:DarkReaperBoy/Uniclient` working on every release.
+3. **linux / windows / android** — `uniclient-<os>-<arch>[.exe]`
+   (CGO, `-s -w`, UPX) and gogio → `uniclient.apk`.
+4. **web** — needs **test** (no pages deploy from failed code); builds
+   wasm, writes `index.html` + `wasm_exec.js` (from `$GOROOT/lib`) +
+   `uniclient.wasm` into an orphan `gh-pages`, force-push. The
+   `index.html` shell **self-updates from gh-pages directly**: it
+   revalidates its own same-origin assets (`cache: "no-cache"` → 304
+   when unchanged, fresh bytes when a deploy changed them — zero API
+   calls), shows a status bar with a determinate progress/byte counter
+   while downloading, reports `updated`/`up to date` from stored ETags,
+   then instantiates the wasm and hides the overlay once Gio's canvas
+   attaches. Assets use **relative** paths; base URL is `/Uniclient/`.
+   gh-pages is the wasm distribution — releases carry no wasm assets.
+5. Attach everything else to the GitHub release, **`prerelease: true`**.
 
 One artifact name per platform, all called `uniclient-*`. No tarballs unless
 the owner asks.
 
 **`.github/workflows/verify.yml`** — dispatch-only manual verification runner
 (constitution-compliant: `workflow_dispatch` trigger, never `on: push`).
-Runs the full quality gate (gofmt/vet/tests), windows+wasm cross-builds, and
+Runs the full quality gate (gofmt/vet/tests), windows+wasm cross-builds, the
+same **nix** gate as release.yml, and
 an **Xvfb GUI smoke** that boots the real binary and uploads screenshots as
 artifacts for review. Use it to verify any commit without cutting a release
 — this is also the ONLY way to build/test on machines too small to compile
@@ -249,7 +262,10 @@ Root `flake.nix` provides `packages.default` (the app, built with Nix's cgo
 against Nix libs) and a dev shell. Owner runs:
 `nix run github:DarkReaperBoy/Uniclient`. Release binaries built on glibc CI
 runners will not start on NixOS (dynamic linker path) — that is expected;
-the flake is the supported path there. Never "fix" this by shipping Nix
+the flake is the supported path there. Every release runs release.yml's
+**nix** job (`nix build .#uniclient` + smoke run + tag↔version match), so a
+broken vendorHash or Go-toolchain bump fails the release instead of the
+owner's `nix run`. Never "fix" this by shipping Nix
 store paths in binaries.
 
 ## 7. GUI spec (AyuGram layout 1:1, Material Design)
@@ -399,6 +415,10 @@ is the next task.
 - [x] flake.nix for NixOS (run + dev shell)
 - [x] release.yml: tag-only triggers, linux+windows+android+wasm, UPX, prerelease
 - [x] gh-pages WASM deploy to /Uniclient/
+- [x] nix gate on every release (release.yml `nix` job: build + smoke run +
+      flake version must match tag) so `nix run github:…` can't ship broken
+- [x] gh-pages shell self-updates with status bar/progress (same-origin
+      revalidation, no API calls), loads wasm after the indicator
 - [x] ci.yml removed (per owner: CI only on release)
 - [x] gofmt/vet/tests green; linux/windows/wasm builds verified
 - [x] AGENTS.md updated: placeholder ban (§1.10), AyuGram-1:1 layout rule

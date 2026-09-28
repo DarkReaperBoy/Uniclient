@@ -62,6 +62,40 @@ jobs:
           GOMEMLIMIT: 900MiB
           GOGC: "30"
 
+  nix:
+    name: Nix flake gate (nix run github:…)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - name: flake.nix version must match the release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)";/\1/p' flake.nix)
+          if [ "$want" != "$have" ]; then
+            echo "flake.nix version=$have but releasing v$want — bump version in flake.nix first"
+            exit 1
+          fi
+      - name: nix build .#uniclient
+        run: nix build .#uniclient -L
+      - name: Smoke-run the built binary
+        # `uniclient -h` returns at flag parsing (exit 0 or 2) before any
+        # GUI — loader-level proof that `nix run github:…` would work.
+        run: |
+          set +e
+          out=$(./result/bin/uniclient -h 2>&1)
+          rc=$?
+          set -e
+          echo "$out"
+          case "$rc" in
+            0|2) echo "smoke OK (exit $rc)" ;;
+            *) echo "unexpected exit $rc"; exit 1 ;;
+          esac
+
   cross-builds:
     name: Cross-builds (windows + wasm)
     runs-on: ubuntu-latest
