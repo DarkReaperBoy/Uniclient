@@ -11425,3 +11425,97 @@ Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`, live
 objective: scrub the eliminated backend (done), work the rest of the
 cores (BUGS open list now EMPTY), report — report delivered after
 slice 321 lands.
+
+## Slice 322 (2026-09-28) — closing verification sweep (no code
+changes): every non-owner task checked end-to-end
+
+Owner objective: "do everything that you need to do, that doesn't
+require me … only inform me when tasks are done." Audit before
+claiming done — each check run fresh at HEAD (`7941ba95`):
+
+1. **Dependency health**: `go mod verify` = all modules verified;
+   `go mod tidy -diff` = clean (no drift since slice 271's CVE
+   hardening).
+2. **govulncheck against the LIVE database** (solo, uncapped per the
+   slice-271 method note; `-tags goolm` required — without it the
+   mautrix libolm cgo package fails to load on a host without
+   olm/olm.h): **"Your code is affected by 0 vulnerabilities"**, 0 in
+   imported packages, 1 in required modules (GO-2026-5932 openpgp —
+   the known unfixable, uncalled) — the documented theoretical
+   minimum from slice 271 holds.
+3. **staticcheck re-run** (solo, ulimit -v + GOGC=40): **216 total /
+   31 bug-class = exact floor match** (floors 217/32 set at slice
+   316) — slices 317–321 (teamspace/matrix/engine rewrites) introduced
+   ZERO new findings; remaining = documented baseline debt (ST1003
+   Id-vs-ID names, protocol-bound SA1019 deprecations, S1xxx
+   simplifications).
+4. **deadcode re-run** (`-tags goolm,live`, uncapped): 464 = exact
+   slice-316 baseline; **0 findings on any symbol introduced this
+   contract** (receiveTSFile/sendTSFile/parseTSSize/tsExecVerified/
+   serverGroupContains/unmarshalCallSignal/fingerprintLabel/firstSSRC/
+   readBodyCapped/decodeJSONBody/apiHTTPClient/transferHTTPClient/
+   fireProof/takeProofs — all reachable).
+5. **Cross-builds**: local = CI's exact commands — windows amd64 exe
+   (66 MB) + js/wasm (88 MB) both `rc=0` from `./cmd/uniclient`
+   (note: `go build ./...` for js fails in NON-product packages like
+   standalone `uniclient/audio` — the product contract is cmd-level,
+   which is what CI builds and what passes). Android = CI-gated via
+   the gogio+NDK job (no local NDK; recorded as the standing
+   practice, WORKLOG:1224). CI matrix for HEAD: test + cross-builds +
+   android jobs all green.
+6. **Full live battery**: `go test -tags goolm,live ./tests/` with
+   dendrite up → **rc=0, package ok in 229.5s** (every core's live
+   tests pass or honest-skip; includes the local-TS3 strict RoundTrip
+   + JoinChannelProof and the arcticblaze policy runs).
+7. **Fuzz sweep**: all **24 fuzz targets × 4s each** (`-fuzz ^Fuzz…$`
+   per target, `-tags goolm`) → **0 crashes / 0 findings** — parsers
+   (TS wire/EAX/styling/matrix/IRC/PROXY/deltachat-headers/qr/lottie/
+   ogg/webm/h264/vp9/aac/voice/mumble-URL) all hold post-slices-317…321.
+8. **nix build .#uniclient**: **rc=0**, binary runs (`--help` prints
+   flags) — F-59's vendorHash recipe still exact; `result` symlink
+   gitignored ✓.
+9. **Docs/claims consistency**: parity machine count re-done
+   (3rd-cell classify over research/ayugram_parity.md, header rows
+   excluded) = **PRESENT 195 · PARTIAL 2 · MISSING 0 · CORE-ONLY 3 ·
+   SUM 200** — matches AGENTS "195/200 (97.5%)" and README. BUGS
+   invariant: **86 F rows, no gaps/dupes, OPEN LIST EMPTY**. The
+   eliminated backend's name greps **0** everywhere (self-caught: this
+   entry first reintroduced it — reworded, zero-match invariant holds).
+   worktree clean, HEAD == origin/main, HEAD
+   CI `conclusion: success`.
+
+**End state**: nothing buildable remains that doesn't need the owner.
+The only open rungs are AGENTS §11 `[~]` real-phone/email live
+sign-ins (xmpp/bale/deltachat) and `[ ]` first non-prerelease ≥
+v0.10.3 — both definitionally owner's.
+
+### COMPACTION ANCHOR (refresh — supersedes slice 321's)
+**OPEN LIST = EMPTY** (B-25 closed 318, B-58 closed 321; 86 F rows,
+no gaps/dupes; docs claims re-verified at slice 322). All non-owner
+tasks DONE and re-verified at `7941ba95`: mod verify+tidy clean;
+govulncheck (tags goolm) 0/0/1-openpgp; staticcheck 216/31 = floors;
+deadcode 464 = baseline (0 new); local win+wasm CI-command builds
+rc=0; android CI-gated; live battery rc=0 (229s); fuzz 24×4s = 0
+crashes; `nix build .#uniclient` rc=0 (F-59 recipe still exact);
+parity 195/2/0/3=200. Owner-only rungs: §11 `[~]` live sign-ins,
+`[ ]` non-prerelease ≥ v0.10.3. This contract's slices: 312 (backend
+eliminated per owner order — name scrubbed repo-wide, 0 matches, keep
+ZERO; git history retains old commits), 313 (F-75/76), 314 (F-77/78),
+315 (F-79), 316 (F-80), 317 (F-81/82), 318 (F-83 + B-25 CLOSED), 319
+(F-84), 320 (F-85), 321 (F-86 + B-58 CLOSED), **322 (verification
+sweep — no code changes)**. Infra: dendrite 127.0.0.1:8008; local TS3
+3.13.7 at 127.0.0.1:9987 (recipe + serverquery grant syntax +
+antiflood raise in teamspeak_live_test.go header; classification
+probe `go/tests/ts3_admin_probe_test.go`, env TS3_SQ_PASSWORD/
+TS3_PROBE_SGID/TS3_PROBE_BANID; antiflood-raised state persists only
+while the server runs; stop: `pkill -x ts3server`). Streak: 75
+`b93650c7`, 76 `b32d0073`, 77 `ca825afd`, 78 `7941ba95`, next = 322's
+push. Paths/toolchain per slice-295 anchor (repo
+`/tmp/uniclient_repo`, gate `/tmp/gate258.sh`, Go 1.27.1 store path,
+`GOTOOLCHAIN=local`, always `-tags goolm`, live = `-tags goolm,live
+./tests/`; govulncheck MUST use `-tags goolm` (libolm cgo otherwise)
+and runs UNCAPPED; staticcheck solo `ulimit -v` + GOGC=40; deadcode
+uncapped; ANCHOR recipe: `grep -o 'github_pat[_][A-Za-z0-9]*' <(git
+remote get-url origin)`; secret scan = added lines only + whole-tree
+real-length literals). Owner objective now: inform — all tasks that
+didn't require the owner are done.
