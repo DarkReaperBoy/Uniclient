@@ -12,6 +12,32 @@
 // Env: TS3_LIVE_SERVER (default "ts.arcticblaze.net:9987" — a public TS3 server),
 //
 //	TS3_LIVE_NICKNAME (default a random throwaway).
+//
+// STRICT oracle on a self-hosted server (F-83/B-25 recipe, same shape
+// as the dendrite one): public servers revoke guest text, so
+// TestTeamSpeakLiveRoundTrip only delivers a hard assertion against a
+// server WE control. Local setup (binary ~10 MB, no account needed):
+//
+//	mkdir -p ~/.cache/uniclient-ts3server && cd ~/.cache/uniclient-ts3server
+//	curl -LO https://files.teamspeak-services.com/releases/server/3.13.7/teamspeak3-server_linux_amd64-3.13.7.tar.bz2
+//	tar -xjf teamspeak3-server_linux_amd64-3.13.7.tar.bz2
+//	cd teamspeak3-server_linux_amd64
+//	printf 'default_voice_port=9987\nquery_port=10011\n' > ts3server.ini
+//	./ts3server license_accepted=1 inifile=ts3server.ini   # keep running
+//
+// First start prints `loginname= "serveradmin", password= "..."` ONCE
+// (console → ts3server.stdout); redeem it once per boot to disable the
+// connect-rate ban that rapid test loops otherwise trip (id=3329,
+// auto-expires ~30 s):
+//
+//	login serveradmin <password>   # via TCP 10011 (raw serverquery)
+//	use 0
+//	serveredit virtualserver_antiflood_points_needed_ip_block=2147483647
+//	serveredit virtualserver_antiflood_points_needed_command_block=2147483647
+//
+// Then: TS3_LIVE_SERVER=127.0.0.1:9987 go test -tags goolm,live ./tests/
+// -run TestTeamSpeakLive -v -timeout 180s — RoundTrip becomes the
+// STRICT two-client delivery assertion (send accepted ⇒ B MUST receive).
 package tests
 
 import (
@@ -76,63 +102,83 @@ func TestTeamSpeakLiveRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateVault: %v", err)
 	}
-	defer vault.Close()
-	store := utils.NewSessionStore(vault, "ts3-live-2")
+	t.Cleanup(func() { vault.Close() })
 
-	core := cores.NewTeamSpeakCore(store)
-	defer core.Close()
-
-	cfg := cores.AuthConfig{
-		Extra: map[string]string{
-			"server_address": server,
-			"nickname":       nickname,
-		},
-	}
-
-	if err := core.Authenticate(cfg); err != nil {
+	// TWO clients (F-83/B-25): the sender's own echo is dropped by
+	// design, so delivery can only be proven by a RECEIVER.
+	coreA := cores.NewTeamSpeakCore(utils.NewSessionStore(vault, "ts3-live-2"))
+	defer coreA.Close()
+	if err := coreA.Authenticate(cores.AuthConfig{Extra: map[string]string{
+		"server_address": server,
+		"nickname":       nickname,
+	}}); err != nil {
 		t.Skipf("handshake failed on %s: %v", server, err)
 	}
 
-	// Collect incoming text messages.
+	coreB := cores.NewTeamSpeakCore(utils.NewSessionStore(vault, "ts3-live-2b"))
+	defer coreB.Close()
+	if err := coreB.Authenticate(cores.AuthConfig{Extra: map[string]string{
+		"server_address": server,
+		"nickname":       nickname + "-b",
+	}}); err != nil {
+		t.Skipf("B handshake failed on %s: %v", server, err)
+	}
+
 	recv := make(chan *cores.Message, 16)
-	core.OnUpdate(func(u cores.Update) {
+	coreB.OnUpdate(func(u cores.Update) {
 		if u.Type == cores.UpdateNewMessage && u.Message != nil && !u.Message.IsOutgoing {
 			recv <- u.Message
 		}
 	})
 
-	// 1. Channel list.
-	dialogs, err := core.GetDialogs(cores.PaginationOpts{Limit: 100})
+	// Channel list (cached from handshake — coverage of GetDialogs).
+	dialogs, err := coreA.GetDialogs(cores.PaginationOpts{Limit: 100})
 	if err != nil {
 		t.Fatalf("GetDialogs: %v", err)
 	}
 	t.Logf("server has %d channels", len(dialogs))
 
-	// 2. Send a text message to the server-wide chat ("server" chat id).
+	// CHANNEL chat — the product's primary path. Both clients auto-join
+	// the default channel on connect, so B is subscribed.
+	room := fmt.Sprintf("ch:%d", coreA.DefaultChannelID())
 	text := fmt.Sprintf("uniclient live round-trip %d", time.Now().UnixNano()%1000000)
-	sent, err := core.SendMessage("server", cores.OutgoingMessage{Text: text})
+	sent, err := coreA.SendMessage(room, cores.OutgoingMessage{Text: text})
 	if err != nil {
-		// Server-side guest-text permission drift (it flipped mid-session
-		// on 2026-09-24: this exact send passed the morning battery and
-		// was denied in the afternoon — BUGS B-25). The STRUCTURED error
-		// itself arrived over the encrypted command channel, so the
-		// transport is proven; only delivery stays opportunistic. Anything
-		// transport-shaped (timeout/network/decrypt) still fails hard.
+		// Public servers may revoke guest text entirely (B-25: both
+		// channel AND server modes were denied on the default public
+		// server — probe evidence, WORKLOG 318). The STRUCTURED error
+		// arrived over the encrypted command channel, so the transport
+		// is proven; only delivery policy varies by environment.
 		if errors.Is(err, cores.ErrPermission) {
 			t.Skipf("server denied guest text (%v) — encrypted command channel proven by the structured error; delivery opportunistic, environment not client", err)
 		}
 		t.Fatalf("SendMessage: %v", err)
 	}
-	t.Logf("sent message id=%s text=%q", sent.ID, text)
+	t.Logf("sent message id=%s via %s", sent.ID, room)
 
+	// STRICT delivery oracle (F-83): the send was accepted (ok-line or
+	// self-echo proof) → the receiver MUST get it. Before F-83 this
+	// assertion was impossible: the server's omitted success reply made
+	// accepted sends report "response lost", and a single client can
+	// never observe its own (dropped) echo.
 	select {
 	case m := <-recv:
-		t.Logf("received a live server message (proves S2C delivery): %q from %q", m.Text, m.SenderName)
-	case <-time.After(20 * time.Second):
-		// Public servers may restrict guest text permissions; treat a
-		// missing echo as non-fatal (the send itself went through the
-		// encrypted command channel and was ACKed).
-		t.Logf("no echo within 20s (guest text permissions?) — send was ACKed, command channel verified")
+		if m.Text != text {
+			t.Fatalf("received WRONG text: %q (want %q)", m.Text, text)
+		}
+		t.Logf("DELIVERED: B received the exact text (strict two-client round-trip): %q", m.Text)
+	case <-time.After(25 * time.Second):
+		t.Fatalf("send accepted but B never received within 25s — delivery oracle FAILED")
+	}
+
+	// B-25's original subject kept visible as a policy probe (never
+	// fatal): server-wide guest text is a permission the public server
+	// revoked (58 denied re-probes); the product surfaces ErrPermission
+	// honestly from the "server" chat row.
+	if _, err := coreA.SendMessage("server", cores.OutgoingMessage{Text: text + " (server-policy probe)"}); err != nil {
+		t.Logf("server-wide guest text: %v (policy probe — public-server permission, not transport)", err)
+	} else {
+		t.Logf("server-wide guest text: ACKed on this server")
 	}
 }
 

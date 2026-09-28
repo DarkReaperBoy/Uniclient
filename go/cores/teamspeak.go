@@ -1308,6 +1308,12 @@ type tsConnection struct {
 	// Incoming command channel
 	cmdCh chan tsIncomingCmd
 
+	// F-83: buffered proof that OUR OWN text came back through the
+	// server (notifytextmessage, invoker == self). The in-client TS3
+	// protocol does NOT reliably send `error id=0` success replies, so
+	// for sendtextmessage this echo IS the delivery proof.
+	selfEcho chan struct{}
+
 	// When set, tsExec is waiting for a response — tsCommandLoop defers to it
 	execCh   chan tsIncomingCmd
 	execMu   sync.Mutex
@@ -2115,6 +2121,7 @@ func (t *TeamSpeakCore) tsConnect(addr string) error {
 		pendingCmds: make(map[uint16]*tsPendingCmd),
 		recvQueue:   [2]map[uint16]*tsDecryptedPkt{make(map[uint16]*tsDecryptedPkt), make(map[uint16]*tsDecryptedPkt)},
 		cmdCh:       make(chan tsIncomingCmd, 64),
+		selfEcho:    make(chan struct{}, 1),
 	}
 
 	// Initialize packet IDs to 0
@@ -2918,8 +2925,31 @@ func (t *TeamSpeakCore) tsCommandLoop() {
 // success (BUGS B-24). Var rather than const so tests can shrink it.
 var tsExecVoidTimeout = 5 * time.Second
 
+// takeSelfEcho drains a pending self-text echo (F-83). Called by
+// SendMessage BEFORE issuing the next command so a stale echo can
+// never satisfy a later send.
+func (tc *tsConnection) takeSelfEcho() bool {
+	select {
+	case <-tc.selfEcho:
+		return true
+	default:
+		return false
+	}
+}
+
 // tsExec sends a command and waits for the response (error line).
 func (t *TeamSpeakCore) tsExec(cmd string) ([]map[string]string, error) {
+	return t.tsExecProof(cmd, nil)
+}
+
+// tsExecProof is tsExec with an optional in-band PROOF channel (F-83):
+// a value received on `proof` is definitive evidence the command took
+// effect — used for sendtextmessage where the server's own echo back
+// to us (invoker == self) proves delivery even when the in-client
+// protocol omits the `error id=0` success reply (wire-proven on BOTH
+// live servers, WORKLOG 318). A nil proof keeps the exact B-24
+// behavior (silence = lost).
+func (t *TeamSpeakCore) tsExecProof(cmd string, proof <-chan struct{}) ([]map[string]string, error) {
 	tc := t.tsConn
 	if tc == nil {
 		return nil, ErrAuth
@@ -2986,6 +3016,14 @@ func (t *TeamSpeakCore) tsExec(cmd string) ([]map[string]string, error) {
 			}
 		case <-dataTimeout:
 			// Got data but no error terminator — server omitted it, treat as success
+			var result []map[string]string
+			for _, dl := range dataLines {
+				result = append(result, tsParseKVList(dl)...)
+			}
+			return result, nil
+		case <-proof:
+			// Definitive in-band proof (F-83): e.g. our own text echo
+			// came back — success even though no `error id=` arrived.
 			var result []map[string]string
 			for _, dl := range dataLines {
 				result = append(result, tsParseKVList(dl)...)
@@ -3072,6 +3110,14 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 	isSelfEcho := invokerID == t.myClientID
 	t.clientInfoMu.RUnlock()
 	if isSelfEcho {
+		// F-83: the echo is the send's delivery proof — signal the
+		// in-flight tsExecProof (buffered; drop-on-full = already seen).
+		if tc := t.tsConn; tc != nil {
+			select {
+			case tc.selfEcho <- struct{}{}:
+			default:
+			}
+		}
 		return
 	}
 
@@ -3669,7 +3715,15 @@ func (t *TeamSpeakCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 		cmd = fmt.Sprintf("sendtextmessage targetmode=3 msg=%s", tsEscape(msg.Text))
 	}
 
-	if err := t.tsExecSimple(cmd); err != nil {
+	// F-83: drain any stale echo from an earlier send, then let this
+	// send accept its OWN echo as the success proof (the in-client
+	// protocol often sends no `error id=0` for sendtextmessage).
+	if tc := t.tsConn; tc != nil {
+		tc.takeSelfEcho()
+		if _, err := t.tsExecProof(cmd, tc.selfEcho); err != nil {
+			return nil, err
+		}
+	} else if err := t.tsExecSimple(cmd); err != nil {
 		return nil, err
 	}
 

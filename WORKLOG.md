@@ -11116,3 +11116,83 @@ contract: panic/assertion census, Atoi/slicing census, status/close
 census, staticcheck, deadcode, response-body census; classes drained:
 … remote-signal crash, login-path bounds, bare-assert panics, test-
 global data races.
+
+## Slice 318 (2026-09-28) — F-83 (= B-25 CLOSED): TS3 text-delivery
+oracle restored via self-echo proof + strict two-client RoundTrip;
+opens B-58 (silent success replies)
+
+Owner instruction: "do B-25 if you don't need me". Diagnosis path:
+1. **Re-probe hypothesis "channel mode works" → DISPROVEN by wire
+   probe**: on the public server a guest's CHANNEL send is ALSO denied
+   (`insufficient client permissions`); the message the test "received"
+   was a level-up BOT broadcast, not echo. Guest text revoked in BOTH
+   modes → re-pointing the oracle there impossible.
+2. **Self-hosted TS3 3.13.7** (~10 MB official binary, no account —
+   dendrite pattern): delivered channel text LOCALLY while the SENDER
+   still reported `response lost` → root cause hunt via wire logs
+   (UNICLIENT_TS3_DEBUG):
+   - NO `error id=0` ever appears for successful no-data commands —
+     on BOTH servers (clientupdate: broadcast `notifyclientupdated`
+     arrived twice, no error line; `RawExec(clientupdate)` → false
+     "response lost" on arcticblaze TOO). Packet-queue forensics: the
+     expected packet NEVER arrives (server didn't send it) — zero
+     decrypt/parse drops, queue gaps all resolve → the in-client
+     protocol simply omits success replies (ServerQuery always
+     replies; the in-client protocol does not — the B-24 "silence =
+     lost" rule over-fires).
+   - Red herrings disposed: bot spam ≠ echo; "missing packet5" = the
+     never-sent ok-line, not a client drop; `GetDialogs` uses handshake
+     CACHE (never execs) so its success proved nothing about replies.
+3. **Fix (F-83)**: `tsExecProof(cmd, proof)` — optional in-band proof
+   channel (nil ⇒ exact B-24 behavior); `selfEcho` signaled when
+   tsHandleTextMessage sees OUR OWN echo (invoker == self — the
+   server's echo IS delivery proof for sendtext, with or without an
+   ok-line); `takeSelfEcho` drains stale proofs before each send.
+4. **RoundTrip rebuilt**: two clients, channel chat, STRICT — send
+   accepted ⇒ B must receive the exact text in 25 s (Fatal otherwise);
+   ErrPermission ⇒ honest Skip; server-chat kept as a never-fatal
+   policy probe (B-25's original subject stays visible).
+5. **Environment ops**: local server tripped a connect-rate ban
+   (id=3329, auto-expires ~30 s, NOT in `banlist` — proven by
+   `banlist` = empty) under rapid test loops; raised
+   `virtualserver_antiflood_points_needed_ip_block/_command_block` to
+   2147483647 via serverquery (serveradmin password printed ONCE at
+   first start → ts3server.stdout) → 6/6 rapid strict PASSes after.
+   Recipe documented in the test header.
+6. **Evidence**: seam-RED quoted (`unknown field selfEcho`); unit
+   GREEN ×3 (proof succeeds with no reply; nil-proof still errors —
+   B-24 regression guard; stale-proof drain); live: local RoundTrip
+   strict PASS ×11 total (3 spaced + 6 rapid + 2 earlier), local
+   Handshake PASS, local LargeMessage PASS **via channel-mode
+   delivery**; arcticblaze RoundTrip honest SKIP (both modes denied =
+   now evidence), arcticblaze Handshake PASS, arcticblaze
+   LargeMessage PASS (semantic path — unchanged). Probe test removed
+   after diagnostics.
+7. **Validation**: whole tree 14 ok, vet incl. `-tags goolm,live`,
+   gofmt clean. BUGS machine check: **83 F rows, open = B-58 ONLY —
+   B-25 CLOSED after 58 denied re-probes**.
+
+### COMPACTION ANCHOR (refresh — supersedes slice 317's)
+Open: **B-58 ONLY** (TS3 no-data commands false-fail when the
+in-client protocol omits success replies — clientupdate wire-proven on
+BOTH servers; next step = generalize F-83's proof channel per command
+(clientmove→notifyclientmoved etc.) after probing clientmove).
+**F-rows = 83**, B-rows = 1. **B-25 CLOSED at slice 318 (= F-83:
+self-echo proof + strict two-client RoundTrip; local-server recipe in
+teamspeak_live_test.go header; local server running at
+127.0.0.1:9987)**. Slice history this contract: 312 (backend
+eliminated per owner order — name scrubbed repo-wide, 0 matches, keep
+it ZERO; git history retains old commits), 313 (F-75/76), 314
+(F-77/78), 315 (F-79), 316 (F-80), 317 (F-81/82), **318 (F-83)**.
+Dendrite at 127.0.0.1:8008. Streak: … 71 `f324939f`, 72 `b6a573b9`,
+73 `04a0a39a`, 74 `405af385`, next = 318's push. Paths/toolchain per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`, live
+= `-tags goolm,live ./tests/`; ANCHOR recipe: `grep -o
+'github_pat[_][A-Za-z0-9]*' <(git remote get-url origin)`; secret scan
+= added lines only + whole-tree real-length literals; staticcheck solo
+ulimit+GOGC=40, deadcode UNCAPPED). B-25 re-probes ENDED (row closed).
+Remaining horizon: B-58 (buildable — next slice) + the two always-
+owner rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first non-
+prerelease ≥ v0.10.3 per slice-281). Owner objective: scrub backend
+(done), work the cores, report when done — NOT done yet: B-58 open.
