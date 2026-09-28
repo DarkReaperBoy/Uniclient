@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17212B">
+<title>Uniclient</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body { margin:0; height:100%; background:#17212B; color:#e7ecf1;
+    font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  #boot { position:fixed; inset:0; z-index:10; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:14px; padding:24px;
+    box-sizing:border-box; text-align:center; background:#17212B; }
+  #boot .logo { font-size:22px; font-weight:600; letter-spacing:.04em; }
+  #status { min-height:1.4em; opacity:.9; font-size:14px; }
+  #detail { min-height:1.2em; opacity:.55; font-size:12px; font-variant-numeric:tabular-nums; }
+  #bar { width:min(340px,80vw); height:8px; border-radius:99px; background:#26333f;
+    overflow:hidden; }
+  #fill { height:100%; width:0%; border-radius:99px;
+    background:linear-gradient(90deg,#3aa0ff,#61d4ff); transition:width .2s ease; }
+  #fill.indet { width:38%; animation:slide 1.2s ease-in-out infinite; }
+  @keyframes slide { 0% { margin-left:-40%; } 100% { margin-left:105%; } }
+  #retry { display:none; padding:8px 20px; border-radius:8px; border:1px solid #3aa0ff;
+    background:transparent; color:#61d4ff; font-size:14px; cursor:pointer; }
+  canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+</style>
+</head>
+<body>
+  <div id="boot">
+    <div class="logo">Uniclient</div>
+    <div id="status">Starting…</div>
+    <div id="bar"><div id="fill" class="indet"></div></div>
+    <div id="detail"></div>
+    <button id="retry">Retry</button>
+  </div>
+  <script src="wasm_exec.js"></script>
+  <script>
+  "use strict";
+  (function () {
+    var REV_JS = "uniclient.js.rev";
+    var REV_WASM = "uniclient.wasm.rev";
+
+    function $(id) { return document.getElementById(id); }
+    function fmtMB(n) { return (n / 1048576).toFixed(1) + " MB"; }
+    function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+    function revOf(resp) {
+      return resp.headers.get("etag") || resp.headers.get("last-modified") || "";
+    }
+
+    // Status text + progress bar. pct=null -> indeterminate animation.
+    function setStatus(text, pct, detail) {
+      $("status").textContent = text;
+      var fill = $("fill");
+      if (pct == null) {
+        fill.className = "indet";
+        fill.style.width = "";
+      } else {
+        fill.className = "";
+        fill.style.width = Math.max(0, Math.min(100, pct * 100)).toFixed(1) + "%";
+      }
+      $("detail").textContent = detail || "";
+    }
+
+    // One same-origin asset, streamed so the bar shows real bytes.
+    // cache:"no-cache" always revalidates: unchanged file -> cheap 304
+    // answered from the HTTP cache (no redownload), changed file (every
+    // gh-pages deploy) -> the new bytes. No API calls, ever.
+    async function stream(url, label) {
+      var resp = await fetch(url, { cache: "no-cache" });
+      if (!resp.ok) throw new Error(label + " — HTTP " + resp.status);
+      var rev = revOf(resp);
+      var total = Number(resp.headers.get("content-length")) || 0;
+      var chunks = [], got = 0;
+      if (resp.body) {
+        var reader = resp.body.getReader();
+        for (;;) {
+          var step = await reader.read();
+          if (step.done) break;
+          chunks.push(step.value);
+          got += step.value.length;
+          setStatus(label, total ? got / total : null,
+            total ? fmtMB(got) + " / " + fmtMB(total) : fmtMB(got));
+        }
+      } else {
+        var all = new Uint8Array(await resp.arrayBuffer());
+        chunks = [all]; got = all.length;
+      }
+      var out = new Uint8Array(got), off = 0;
+      for (var i = 0; i < chunks.length; i++) { out.set(chunks[i], off); off += chunks[i].length; }
+      return { bytes: out, rev: rev };
+    }
+
+    // updated | up to date | downloaded (first visit), from the ETag we
+    // stored last time — proof on screen that the page really refreshed.
+    function compareRev(key, rev) {
+      var prev = lsGet(key);
+      if (rev) lsSet(key, rev);
+      if (!rev) return prev ? "up to date" : "downloaded";
+      if (prev === null) return "downloaded";
+      return prev === rev ? "up to date" : "updated";
+    }
+
+    var running = false;
+    async function boot() {
+      if (running) return;
+      running = true;
+      $("retry").style.display = "none";
+      try {
+        if (typeof Go === "undefined") throw new Error("wasm_exec.js failed to load");
+        // wasm_exec.js (small): refresh it too so it always matches the
+        // wasm built by the same deploy; the static tag above is the
+        // fallback when this fetch fails.
+        var jsState = "";
+        try {
+          var js = await stream("wasm_exec.js", "Loading wasm_exec.js…");
+          jsState = compareRev(REV_JS, js.rev);
+          if (jsState === "updated") {
+            var s = document.createElement("script");
+            s.textContent = new TextDecoder().decode(js.bytes);
+            document.head.appendChild(s); // overrides the static copy
+          }
+        } catch (e) { jsState = "bundled"; } // static wasm_exec.js stays
+        // The wasm itself — the big one the bar is for.
+        var wasm;
+        try {
+          wasm = await stream("uniclient.wasm", "Updating uniclient.wasm…");
+        } catch (e) {
+          // Offline: take whatever the HTTP cache still holds.
+          setStatus("Updating uniclient.wasm…", null, "offline — using cached copy");
+          var cached = await fetch("uniclient.wasm", { cache: "force-cache" });
+          if (!cached.ok) throw e;
+          wasm = { bytes: new Uint8Array(await cached.arrayBuffer()), rev: revOf(cached) };
+        }
+        var wasmState = compareRev(REV_WASM, wasm.rev);
+        setStatus("Starting Uniclient…", 1,
+          "wasm: " + fmtMB(wasm.bytes.length) + " — " + wasmState + " · js: " + jsState);
+        // Drop the overlay the moment Gio attaches its real canvas.
+        var obs = new MutationObserver(function () {
+          if (document.querySelector("canvas")) {
+            $("boot").style.display = "none";
+            obs.disconnect();
+          }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+        var go = new Go();
+        var built = await WebAssembly.instantiate(wasm.bytes, go.importObject);
+        await go.run(built.instance);
+        throw new Error("Uniclient exited"); // app closed -> offer relaunch
+      } catch (e) {
+        running = false;
+        setStatus("Uniclient stopped", null, String((e && e.message) || e));
+        $("retry").style.display = "inline-block";
+      }
+    }
+
+    $("retry").addEventListener("click", function () { boot(); });
+    boot();
+  })();
+  </script>
+</body>
+</html>
