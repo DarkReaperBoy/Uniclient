@@ -11351,3 +11351,77 @@ Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`, live
 = added lines only + whole-tree real-length literals). Remaining
 horizon: **B-58 (buildable)** + two always-owner rungs (§11 `[~]`
 real-phone/email live sign-in, `[ ]` first non-prerelease ≥ v0.10.3).
+
+## Slice 321 (2026-09-28) — F-86 (= B-58 CLOSED): SetAdmin's
+clid/dbid bug + read-back verification for silent no-data commands —
+OPEN LIST NOW EMPTY
+
+1. **Wire probes (local 3.13.7, temp classification probe kept in
+   `go/tests/ts3_admin_probe_test.go` as the documented instrument)**:
+   - `servergroupaddclient` with the GUI's ID → **`invalid
+     clientID`**: GetMembers hands out `ci.clid` (SESSION id) while
+     the command wants the DATABASE id — **SetAdmin was broken on
+     every call since the day it shipped** (clid=86 vs dbid=78);
+   - with the dbid resolved: `servergroupaddclient` and `bandel`
+     succeed but **never reply** (silent-success class of F-83,
+     proven now for the admin family); errors always arrive
+     (2564/2568/3328/1539);
+   - `notifyservergroupclientadded` broadcast observed, but its fields
+     are sgid/clid/cluid — SetAdmin only knows dbid → no usable match
+     key → **read-back is the correct mechanism** (F-85's proof
+     channel can't key this one);
+   - guests lack `servergroupclientlist`/`banlist` view perms (in
+     production the GUI operator holds them by construction — the
+     member/ban lists render from those same commands);
+   - serverquery archaeology (recorded for the recipe): grants need
+     `permnegated=0 permskip=0` (bare form → 1539), `permfind
+     permsid=…` (not permname), `use {0|sid}` quirks — the temp
+     probe's in-test sq grant was dropped as environment noise.
+2. **Fix**: `tsExecVerified(cmd, verify)` — on any error the read-back
+   decides: verify==true rescues (goal state holds — empty ban list =
+   ban gone), otherwise the ORIGINAL error returns UNCHANGED (2568
+   stays ErrPermission; never a false-ack, B-24). `serverGroupContains`
+   classifies `servergroupclientlist` rows: present / absent /
+   1281-empty→ErrNotFound / unavailable→error (never a silent
+   decision). SetAdmin: clid→dbid via `clientinfo` (data row →
+   grace-safe on silent servers) + add/del confirmed by membership
+   read-back; UnbanMember confirmed via `banlist`.
+3. **Tests-first**: seam-RED quoted (`undefined: tsExecVerified`);
+   GREEN ×5 — silent+done rescues, silent+not-done keeps the error,
+   permission-denied needs done-state (both branches), membership
+   read-back matrix (present/absent/empty×want/unavailable), wiring
+   source-scan (clientinfo + tsExecVerified + banlist in place).
+4. **Validation**: whole tree **14 ok / 0 FAIL**, `-race` cores ok,
+   vet incl. `-tags goolm,live`, gofmt clean. BUGS machine check:
+   **86 F rows, no gaps/dupes, OPEN LIST EMPTY for the first time**
+   (B-58 closed: remaining uncalled admin API documented as
+   wire-on-use in F-86).
+
+**B-25 re-probes ended (closed slice 318).**
+
+### COMPACTION ANCHOR (refresh — supersedes slice 320's)
+**OPEN LIST = EMPTY** (B-25 closed at 318, B-58 closed at 321 —
+every BUGS row is Fixed; 86 F rows, no gaps/dupes). Remaining
+non-code rungs: AGENTS §11 `[~]` real-phone/email live sign-in (xmpp/
+bale/deltachat) and `[ ]` first non-prerelease ≥ v0.10.3 — both
+owner-only. This contract's slices: 312 (backend eliminated per owner
+order — name scrubbed repo-wide, 0 matches, keep ZERO; git history
+retains old commits), 313 (F-75/76), 314 (F-77/78), 315 (F-79), 316
+(F-80), 317 (F-81/82), 318 (F-83 + B-25 CLOSED), 319 (F-84), 320
+(F-85), **321 (F-86 + B-58 CLOSED)**. Infrastructure: dendrite
+127.0.0.1:8008; local TS3 3.13.7 at 127.0.0.1:9987 (recipe +
+serverquery grant syntax in teamspeak_live_test.go header; antiflood
+`virtualserver_antiflood_points_needed_*_block` raised via serverquery
+once per boot — serveradmin password printed ONCE at first start →
+ts3server.stdout; temp classification probe: go/tests/
+ts3_admin_probe_test.go, env TS3_SQ_PASSWORD/TS3_PROBE_SGID/
+TS3_PROBE_BANID). Streak: 74 `405af385`, 75 `b93650c7`, 76
+`b32d0073`, 77 `ca825afd`, next = 321's push. Paths/toolchain per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`, live
+= `-tags goolm,live ./tests/`; ANCHOR recipe: `grep -o
+'github_pat[_][A-Za-z0-9]*' <(git remote get-url origin)`; secret scan
+= added lines only + whole-tree real-length literals). Owner
+objective: scrub the eliminated backend (done), work the rest of the
+cores (BUGS open list now EMPTY), report — report delivered after
+slice 321 lands.

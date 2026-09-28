@@ -2998,6 +2998,49 @@ func (tc *tsConnection) takeProofs() bool {
 	}
 }
 
+// tsExecVerified sends cmd and — when the in-client protocol omits the
+// success reply OR the reply is lost — confirms the EFFECT through
+// verify (a read-back the protocol DOES answer: data rows, grace-safe).
+// verify==true rescues the command; anything else returns the
+// ORIGINAL error unchanged (B-24: never false-ack — a real
+// permission-denied stays denied unless the read-back proves the goal
+// state already holds). F-86.
+func (t *TeamSpeakCore) tsExecVerified(cmd string, verify func() (bool, error)) ([]map[string]string, error) {
+	rows, err := t.tsExec(cmd)
+	if err == nil {
+		return rows, nil // reply (or data-grace) said success
+	}
+	ok, verr := verify()
+	if verr == nil && ok {
+		return rows, nil
+	}
+	return nil, err
+}
+
+// serverGroupContains builds the read-back for servergroupadd/delclient
+// (F-86): the group's member list IS answered (data rows, or the
+// 1281-empty-list error → ErrNotFound). present==want means the
+// membership took effect. An unavailable read-back (permission etc.)
+// returns its error — never a decision.
+func (t *TeamSpeakCore) serverGroupContains(sgid, cldbid int, wantPresent bool) func() (bool, error) {
+	return func() (bool, error) {
+		rows, err := t.tsExec(fmt.Sprintf("servergroupclientlist sgid=%d", sgid))
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return !wantPresent, nil // empty list: nobody in the group
+			}
+			return false, err
+		}
+		want := strconv.Itoa(cldbid)
+		for _, r := range rows {
+			if r["cldbid"] == want {
+				return wantPresent, nil
+			}
+		}
+		return !wantPresent, nil
+	}
+}
+
 // tsExec sends a command and waits for the response (error line).
 func (t *TeamSpeakCore) tsExec(cmd string) ([]map[string]string, error) {
 	return t.tsExecProof(cmd, nil)
@@ -4463,7 +4506,26 @@ func (t *TeamSpeakCore) UnbanMember(_ string, userID string) error {
 	if err != nil {
 		return fmt.Errorf("%w: invalid ban ID", ErrInvalidInput)
 	}
-	return t.tsExecSimple(fmt.Sprintf("bandel banid=%d", banID))
+	// F-86: bandel is wire-proven SILENT on success — confirm through
+	// banlist (data rows; empty list → ErrNotFound = every ban gone,
+	// ours included → goal state holds).
+	banIDStr := strconv.Itoa(banID)
+	_, verr := t.tsExecVerified(fmt.Sprintf("bandel banid=%d", banID), func() (bool, error) {
+		rows, berr := t.tsExec("banlist")
+		if berr != nil {
+			if errors.Is(berr, ErrNotFound) {
+				return true, nil // empty ban list → the ban is gone
+			}
+			return false, berr
+		}
+		for _, r := range rows {
+			if r["banid"] == banIDStr {
+				return false, nil // still banned
+			}
+		}
+		return true, nil
+	})
+	return verr
 }
 
 // GetMembers returns the list of clients in the specified channel.
@@ -4525,9 +4587,29 @@ func (t *TeamSpeakCore) SetAdmin(chatID string, userID string, admin bool) error
 		return ErrAuth
 	}
 
-	dbid, err := strconv.Atoi(userID)
+	// F-86: the GUI's User.ID is the SESSION id (clid — GetMembers
+	// hands out ci.clid) but servergroupaddclient wants the DATABASE
+	// id — sending the clid answered "invalid clientID" on every call
+	// (wire-proven: clid=86 vs dbid=78, WORKLOG 321). clientinfo
+	// resolves it; its reply is a DATA row, so it also survives
+	// silent-reply servers (grace path).
+	clid, err := strconv.Atoi(userID)
 	if err != nil {
 		return fmt.Errorf("%w: invalid user ID", ErrInvalidInput)
+	}
+	irows, ierr := t.tsExec(fmt.Sprintf("clientinfo clid=%d", clid))
+	if ierr != nil {
+		return fmt.Errorf("resolve client %d: %w", clid, ierr)
+	}
+	dbid := 0
+	for _, r := range irows {
+		if v, perr := strconv.Atoi(r["client_database_id"]); perr == nil && v > 0 {
+			dbid = v
+			break
+		}
+	}
+	if dbid == 0 {
+		return fmt.Errorf("%w: cannot resolve database id for client %d", ErrNotFound, clid)
 	}
 
 	rows, err := t.tsExec("servergrouplist")
@@ -4549,10 +4631,19 @@ func (t *TeamSpeakCore) SetAdmin(chatID string, userID string, admin bool) error
 		return fmt.Errorf("%w: could not find admin server group", ErrNotFound)
 	}
 
+	// F-86: silent-reply servers never answer these — confirm via the
+	// member-list read-back instead of trusting a reply that may never
+	// come (bandel/servergroup* were wire-proven silent).
 	if admin {
-		return t.tsExecSimple(fmt.Sprintf("servergroupaddclient sgid=%d cldbid=%d", adminSGID, dbid))
+		_, verr := t.tsExecVerified(
+			fmt.Sprintf("servergroupaddclient sgid=%d cldbid=%d", adminSGID, dbid),
+			t.serverGroupContains(adminSGID, dbid, true))
+		return verr
 	}
-	return t.tsExecSimple(fmt.Sprintf("servergroupdelclient sgid=%d cldbid=%d", adminSGID, dbid))
+	_, verr := t.tsExecVerified(
+		fmt.Sprintf("servergroupdelclient sgid=%d cldbid=%d", adminSGID, dbid),
+		t.serverGroupContains(adminSGID, dbid, false))
+	return verr
 }
 
 // ──────────────────────────── Core Interface: Contacts ────────────────────────────
