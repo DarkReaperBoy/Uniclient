@@ -11564,3 +11564,28 @@ push the wasm to gh-pages so it could be direct."
   that exact lockless shape as its first flake-touching step** (checkout has
   no lock → flag path genuinely exercised on every release/dispatch). CI
   never commits flake.lock; gitignore line 36 stays.
+- **slice 323 VERIFIED end-to-end**: release run 36430803490 all 8 jobs
+  green on first pass (test, nix gate, linux amd64/arm64, windows,
+  android, web, publish). Release `v0.10.3` exists, `prerelease: true`
+  (standing rule), assets = checksums + linux×2 + windows + apk, no wasm
+  asset (owner design — gh-pages is the wasm source). gh-pages live:
+  index.html = 6962B new shell (10/10 content checks: status bar,
+  progress bar, retry, 0× api.github.com, 0× /releases, no-cache
+  revalidation, MB readout, ETag readout, canvas-gated hide);
+  uniclient.wasm = 88455158B, last-modified today (fresh v0.10.3 build),
+  content-type application/wasm; conditional GET with current ETag →
+  **HTTP 304, 0 bytes** (the "up to date" fast path works live);
+  wasm_exec.js 16992B present. README command at final main
+  (`nix run github:DarkReaperBoy/Uniclient --no-write-lock-file -- -h`)
+  rc=0; flake.lock `git ls-files` = 0 (never committed), still gitignored
+  line 36. Deployed shell behavior proven without a browser (owner:
+  "don't use browser use") — Node harness ran the EXACT inline script
+  from the live index.html bytes against mocked DOM/localStorage/
+  MutationObserver/Go with real Response streams + real WebAssembly:
+  **24/24** — s1 first visit (determinate progress bar, downloaded
+  readout, only same-origin fetches = zero API calls, both no-cache,
+  etags stored, overlay hides on canvas attach), s2 reload → up to date,
+  s3 changed etag → updated + refreshed wasm_exec.js injected,
+  s4 fetch failure → "Uniclient stopped" + Retry button → retry boots
+  clean, s5 network down → force-cache offline fallback boots. Harness
+  at /tmp/shell_test.mjs. Tasks done; owner informed.
