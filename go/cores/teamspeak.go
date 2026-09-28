@@ -2659,11 +2659,15 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	case "notifycliententerview":
 		t.tsHandleClientEnter(cmd.params)
 	case "notifyclientleftview":
+		// F-85: this broadcast proves kick/ban took effect.
+		if tc := t.tsConn; tc != nil {
+			tc.fireProof("notifyclientleftview", cmd.params)
+		}
 		t.tsHandleClientLeave(cmd.params)
 	case "notifyclientmoved":
 		// F-84: this broadcast IS clientmove's success proof.
 		if tc := t.tsConn; tc != nil {
-			tc.fireProof("notifyclientmoved", cmd.params["clid"])
+			tc.fireProof("notifyclientmoved", cmd.params)
 		}
 		t.tsHandleClientMoved(cmd.params)
 	case "channellist":
@@ -2701,6 +2705,11 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	case "channellistfinished":
 		// Done receiving channel list
 	case "notifychannelcreated":
+		// F-85: this broadcast proves channelcreate took effect AND
+		// carries the new cid CreateChannel reads back.
+		if tc := t.tsConn; tc != nil {
+			tc.fireProof("notifychannelcreated", cmd.params)
+		}
 		cid, err := strconv.Atoi(cmd.params["cid"])
 		if err != nil {
 			return
@@ -2733,6 +2742,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform: ts3Platform,
 		})
 	case "notifychanneledited", "notifychannelmoved":
+		// F-85: edited/moved broadcasts prove channeledit took effect.
+		if tc := t.tsConn; tc != nil {
+			tc.fireProof(cmd.name, cmd.params)
+		}
 		cid, err := strconv.Atoi(cmd.params["cid"])
 		if err != nil {
 			return
@@ -2765,7 +2778,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		}
 		// F-84: this broadcast IS clientupdate's success proof.
 		if tc := t.tsConn; tc != nil {
-			tc.fireProof("notifyclientupdated", strconv.Itoa(clid))
+			tc.fireProof("notifyclientupdated", cmd.params)
 		}
 		t.clientInfoMu.Lock()
 		// Own talk power rides this event too (observed live:
@@ -2859,6 +2872,11 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	case "notifyclientneededpermissions":
 		// Server tells us what permissions we need — informational
 	case "notifyclientchatcomposing":
+		// F-85: the typing broadcast proves clientchatcomposing took
+		// effect (echoed to the sender when the server sends it).
+		if tc := t.tsConn; tc != nil {
+			tc.fireProof("notifyclientchatcomposing", cmd.params)
+		}
 		clid, err := strconv.Atoi(cmd.params["clid"])
 		if err != nil {
 			return
@@ -2935,22 +2953,35 @@ func (t *TeamSpeakCore) tsCommandLoop() {
 // success (BUGS B-24). Var rather than const so tests can shrink it.
 var tsExecVoidTimeout = 5 * time.Second
 
-// tsProof is an in-band success proof for tsExecProof (F-83/F-84): a
-// server notification whose (name, clid) pair matches the PENDING
-// command is that command's effect — the definitive success signal on
-// servers that omit `error id=0`. The name+clid match is the B-24
-// anti-false-ack guard: unrelated events never satisfy a pending
-// command, and stale proofs are drained before each send.
+// tsProof is an in-band success proof for tsExecProof (F-83/F-84/F-85):
+// a server broadcast whose params prove the PENDING command took
+// effect — the definitive success signal on servers that omit
+// `error id=0` (wire-proven on both live servers). It carries the
+// broadcast's FULL params (F-85) so the waiter can match on whatever
+// key its command dictates AND read result fields back (CreateChannel
+// gets its new cid from notifychannelcreated's params — in-client
+// channelcreate sends neither a data row nor an ok-line).
 type tsProof struct {
+	name   string
+	fields map[string]string
+}
+
+// tsWant is what a pending command awaits: a broadcast with this name
+// whose params[key] equals val. The name+key+val match is the B-24
+// anti-false-ack guard: unrelated events (or the same event for a
+// different client/channel) never satisfy a pending command, and stale
+// proofs are drained before each send.
+type tsWant struct {
 	name string
-	clid string
+	key  string
+	val  string
 }
 
 // fireProof records a proof without blocking (buffered; drop-on-full:
 // the waiter drains what it needs).
-func (tc *tsConnection) fireProof(name, clid string) {
+func (tc *tsConnection) fireProof(name string, fields map[string]string) {
 	select {
-	case tc.proofs <- tsProof{name: name, clid: clid}:
+	case tc.proofs <- tsProof{name: name, fields: fields}:
 	default:
 	}
 }
@@ -2972,13 +3003,16 @@ func (t *TeamSpeakCore) tsExec(cmd string) ([]map[string]string, error) {
 	return t.tsExecProof(cmd, nil)
 }
 
-// tsExecProof is tsExec with an optional in-band PROOF (F-83/F-84):
-// `want`, when non-nil, names the broadcast (event + clid) that counts
-// as definitive success — for commands whose `error id=0` reply the
-// in-client protocol often omits (sendtextmessage, clientmove,
-// clientupdate — wire-proven on both live servers, WORKLOGs 318/319).
-// A nil `want` keeps the exact B-24 behavior (silence = lost).
-func (t *TeamSpeakCore) tsExecProof(cmd string, want *tsProof) ([]map[string]string, error) {
+// tsExecProof is tsExec with an optional in-band PROOF (F-83/F-84/F-85):
+// `want`, when non-nil, names the broadcast (event + params key/value)
+// that counts as definitive success — for commands whose `error id=0`
+// reply the in-client protocol often omits (sendtextmessage,
+// clientmove, clientupdate, channelcreate/edit, kick/ban — wire-proven
+// on both live servers, WORKLOGs 318/319/320). On a proof hit the
+// broadcast's params are appended as a result row (cid for
+// channelcreate). A nil `want` keeps the exact B-24 behavior
+// (silence = lost).
+func (t *TeamSpeakCore) tsExecProof(cmd string, want *tsWant) ([]map[string]string, error) {
 	tc := t.tsConn
 	if tc == nil {
 		return nil, ErrAuth
@@ -3059,18 +3093,21 @@ func (t *TeamSpeakCore) tsExecProof(cmd string, want *tsProof) ([]map[string]str
 			}
 			return result, nil
 		case p := <-proofs:
-			if p.name == want.name && p.clid == want.clid {
-				// Definitive in-band proof (F-83/F-84): the server's
-				// broadcast of THIS command's effect — success even
-				// though no `error id=` arrived.
+			if want != nil && p.name == want.name && p.fields[want.key] == want.val {
+				// Definitive in-band proof (F-83/F-84/F-85): the
+				// server's broadcast of THIS command's effect — success
+				// even though no `error id=` arrived. Its params come
+				// back as a result row (F-85: CreateChannel reads the
+				// new cid from notifychannelcreated).
 				var result []map[string]string
 				for _, dl := range dataLines {
 					result = append(result, tsParseKVList(dl)...)
 				}
+				result = append(result, p.fields)
 				return result, nil
 			}
-			// Unrelated event (concurrent, different client) — keep
-			// waiting for our proof or the deadline (B-24 guard).
+			// Unrelated event (concurrent, different client/channel) —
+			// keep waiting for our proof or the deadline (B-24 guard).
 		case <-deadline:
 			if len(dataLines) == 0 {
 				// Pure silence: the response was lost. Returning nil here
@@ -3154,7 +3191,7 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 	if isSelfEcho {
 		// F-83: our own echo is the send's delivery proof.
 		if tc := t.tsConn; tc != nil {
-			tc.fireProof("notifytextmessage", strconv.Itoa(invokerID))
+			tc.fireProof("notifytextmessage", kv)
 		}
 		return
 	}
@@ -3676,6 +3713,13 @@ func (t *TeamSpeakCore) CreateGroup(name string, members []string) (*Dialog, err
 
 // CreateChannel creates a new channel on the server with the given name and description.
 func (t *TeamSpeakCore) CreateChannel(name string, description string) (*Dialog, error) {
+	// Snapshot self id BEFORE taking t.mu (B-40: never acquire
+	// clientInfoMu while t.mu is held) — notifychannelcreated matches
+	// on invokerid == self (F-85).
+	t.clientInfoMu.RLock()
+	selfClid := t.myClientID
+	t.clientInfoMu.RUnlock()
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
@@ -3688,7 +3732,7 @@ func (t *TeamSpeakCore) CreateChannel(name string, description string) (*Dialog,
 	}
 	cmd += " channel_flag_semi_permanent=1"
 
-	rows, err := t.tsExec(cmd)
+	rows, err := t.tsExecProof(cmd, &tsWant{name: "notifychannelcreated", key: "invokerid", val: strconv.Itoa(selfClid)})
 	if err != nil {
 		return nil, err
 	}
@@ -3757,7 +3801,7 @@ func (t *TeamSpeakCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 	// echo) as the success proof — the in-client protocol often omits
 	// the `error id=0` reply. Stale proofs are drained inside
 	// tsExecProof before the command goes out.
-	if _, err := t.tsExecProof(cmd, &tsProof{name: "notifytextmessage", clid: senderID}); err != nil {
+	if _, err := t.tsExecProof(cmd, &tsWant{name: "notifytextmessage", key: "invokerid", val: senderID}); err != nil {
 		return nil, err
 	}
 
@@ -4283,7 +4327,9 @@ func (t *TeamSpeakCore) EditChatTitle(chatID string, title string) error {
 	if kind != "ch" {
 		return fmt.Errorf("%w: teamspeak only supports editing channel titles", ErrNotSupported)
 	}
-	return t.tsExecSimple(fmt.Sprintf("channeledit cid=%d channel_name=%s", id, tsEscape(title)))
+	_, err = t.tsExecProof(fmt.Sprintf("channeledit cid=%d channel_name=%s", id, tsEscape(title)),
+		&tsWant{name: "notifychanneledited", key: "cid", val: strconv.Itoa(id)})
+	return err
 }
 
 // EditChatDescription updates the topic of a channel on the server.
@@ -4301,7 +4347,9 @@ func (t *TeamSpeakCore) EditChatDescription(chatID string, description string) e
 	if kind != "ch" {
 		return fmt.Errorf("%w: teamspeak only supports editing channel descriptions", ErrNotSupported)
 	}
-	return t.tsExecSimple(fmt.Sprintf("channeledit cid=%d channel_description=%s", id, tsEscape(description)))
+	_, err = t.tsExecProof(fmt.Sprintf("channeledit cid=%d channel_description=%s", id, tsEscape(description)),
+		&tsWant{name: "notifychanneledited", key: "cid", val: strconv.Itoa(id)})
+	return err
 }
 
 // LeaveChat is not supported on TeamSpeak and returns an unsupported error.
@@ -4361,7 +4409,7 @@ func (t *TeamSpeakCore) AddMembers(chatID string, userIDs []string) error {
 			continue
 		}
 		if _, moveErr := t.tsExecProof(fmt.Sprintf("clientmove clid=%d cid=%d", clid, id),
-			&tsProof{name: "notifyclientmoved", clid: strconv.Itoa(clid)}); moveErr != nil {
+			&tsWant{name: "notifyclientmoved", key: "clid", val: strconv.Itoa(clid)}); moveErr != nil {
 			return moveErr
 		}
 	}
@@ -4380,8 +4428,10 @@ func (t *TeamSpeakCore) RemoveMember(_ string, userID string) error {
 	if err != nil {
 		return fmt.Errorf("%w: invalid user ID", ErrInvalidInput)
 	}
-	return t.tsExecSimple(fmt.Sprintf("clientkick clid=%d reasonid=4 reasonmsg=%s",
-		clid, tsEscape("Removed")))
+	_, err = t.tsExecProof(fmt.Sprintf("clientkick clid=%d reasonid=4 reasonmsg=%s",
+		clid, tsEscape("Removed")),
+		&tsWant{name: "notifyclientleftview", key: "clid", val: strconv.Itoa(clid)})
+	return err
 }
 
 // BanMember bans a client from the server.
@@ -4396,7 +4446,9 @@ func (t *TeamSpeakCore) BanMember(_ string, userID string) error {
 	if err != nil {
 		return fmt.Errorf("%w: invalid user ID", ErrInvalidInput)
 	}
-	return t.tsExecSimple(fmt.Sprintf("banclient clid=%d banreason=%s", clid, tsEscape("Banned")))
+	_, err = t.tsExecProof(fmt.Sprintf("banclient clid=%d banreason=%s", clid, tsEscape("Banned")),
+		&tsWant{name: "notifyclientleftview", key: "clid", val: strconv.Itoa(clid)})
+	return err
 }
 
 // UnbanMember removes a ban by ban ID.
@@ -4660,6 +4712,11 @@ func (t *TeamSpeakCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialo
 
 // SendTyping sends a typing indicator as a plugin command to a DM target.
 func (t *TeamSpeakCore) SendTyping(chatID string) error {
+	// Snapshot self id BEFORE taking t.mu (B-40 lock order, F-85).
+	t.clientInfoMu.RLock()
+	selfClid := t.myClientID
+	t.clientInfoMu.RUnlock()
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
@@ -4672,7 +4729,9 @@ func (t *TeamSpeakCore) SendTyping(chatID string) error {
 	if kind != "dm" {
 		return fmt.Errorf("%w: typing indicators only supported for DMs", ErrNotSupported)
 	}
-	return t.tsExecSimple(fmt.Sprintf("clientchatcomposing clid=%d", id))
+	_, err = t.tsExecProof(fmt.Sprintf("clientchatcomposing clid=%d", id),
+		&tsWant{name: "notifyclientchatcomposing", key: "clid", val: strconv.Itoa(selfClid)})
+	return err
 }
 
 // CreatePoll is not supported on TeamSpeak and returns an unsupported error.
@@ -4783,7 +4842,7 @@ func (t *TeamSpeakCore) tsClientUpdate(params string) error {
 		return ErrAuth
 	}
 	_, err := t.tsExecProof("clientupdate "+params,
-		&tsProof{name: "notifyclientupdated", clid: strconv.Itoa(selfClid)})
+		&tsWant{name: "notifyclientupdated", key: "clid", val: strconv.Itoa(selfClid)})
 	return err
 }
 
@@ -5128,6 +5187,11 @@ func (t *TeamSpeakCore) SetPhoneticNickname(name string) error {
 
 // CreateChannelFull creates a new channel with the given name and optional properties.
 func (t *TeamSpeakCore) CreateChannelFull(name string, opts map[string]string) (int, error) {
+	// Snapshot self id BEFORE taking t.mu (B-40 lock order, F-85).
+	t.clientInfoMu.RLock()
+	selfClid := t.myClientID
+	t.clientInfoMu.RUnlock()
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
@@ -5145,7 +5209,7 @@ func (t *TeamSpeakCore) CreateChannelFull(name string, opts map[string]string) (
 	}
 	cmd := b.String()
 
-	rows, err := t.tsExec(cmd)
+	rows, err := t.tsExecProof(cmd, &tsWant{name: "notifychannelcreated", key: "invokerid", val: strconv.Itoa(selfClid)})
 	if err != nil {
 		return 0, err
 	}
@@ -5865,7 +5929,7 @@ func (t *TeamSpeakCore) JoinChannel(cid int, password string) error {
 	if password != "" {
 		cmd += fmt.Sprintf(" cpw=%s", tsEscape(password))
 	}
-	if _, err := t.tsExecProof(cmd, &tsProof{name: "notifyclientmoved", clid: strconv.Itoa(selfClid)}); err != nil {
+	if _, err := t.tsExecProof(cmd, &tsWant{name: "notifyclientmoved", key: "clid", val: strconv.Itoa(selfClid)}); err != nil {
 		return err
 	}
 	// channellist does NOT carry channel_needed_talk_power — fetch it
@@ -8123,7 +8187,7 @@ func (t *TeamSpeakCore) RequestClientsMove(clids []int, cid int, password string
 		if password != "" {
 			cmd += fmt.Sprintf(" cpw=%s", tsEscape(password))
 		}
-		if _, err := t.tsExecProof(cmd, &tsProof{name: "notifyclientmoved", clid: strconv.Itoa(clid)}); err != nil {
+		if _, err := t.tsExecProof(cmd, &tsWant{name: "notifyclientmoved", key: "clid", val: strconv.Itoa(clid)}); err != nil {
 			return err
 		}
 	}

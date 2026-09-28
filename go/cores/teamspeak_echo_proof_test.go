@@ -27,7 +27,7 @@ func TestTakeProofsDrainsStaleProof(t *testing.T) {
 	tc := &tsConnection{proofs: make(chan tsProof, 8)}
 	// A stale proof from a PREVIOUS send must be drainable before the
 	// next command — otherwise it would falsely satisfy the next exec.
-	tc.fireProof("notifytextmessage", "5")
+	tc.fireProof("notifytextmessage", map[string]string{"invokerid": "5"})
 	if !tc.takeProofs() {
 		t.Fatal("stale proof not drained")
 	}
@@ -44,16 +44,17 @@ func TestTSExecProofChannelSucceedsWithoutReply(t *testing.T) {
 	// (what SendMessage wires to the self-text echo).
 	go func() {
 		time.Sleep(30 * time.Millisecond)
-		tc.fireProof("notifytextmessage", "5")
+		tc.fireProof("notifytextmessage", map[string]string{"invokerid": "5"})
 	}()
 
 	rows, err := core.tsExecProof("sendtextmessage targetmode=2 target=1 msg=proof",
-		&tsProof{name: "notifytextmessage", clid: "5"})
+		&tsWant{name: "notifytextmessage", key: "invokerid", val: "5"})
 	if err != nil {
 		t.Fatalf("proof channel must count as success: %v", err)
 	}
-	if len(rows) != 0 {
-		t.Fatalf("unexpected rows: %v", rows)
+	// F-85: the proof's params come back as a result row.
+	if len(rows) != 1 || rows[0]["invokerid"] != "5" {
+		t.Fatalf("proof fields not returned as result row: %v", rows)
 	}
 }
 

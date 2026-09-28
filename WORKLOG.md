@@ -11275,3 +11275,79 @@ deadline, skip non-matching, Fatalf only on timeout). Post-fix:
 arcticblaze full TS suite **2× green including a full strict DELIVERY
 PASS on the public server** (send ACKed + B received the exact text),
 local strict ×1 again.
+
+## Slice 320 (2026-09-28) — F-85: proof generalized to broadcast
+params — remaining product no-data commands wired (create/edit/kick/
+ban/typing); B-58 narrowed to three precise items
+
+1. **Classification battery (temp probes, deleted after evidence —
+   quotes below)** on the local server, after granting guest perms via
+   serverquery (`servergroupaddperm … permnegated=0 permskip=0` — the
+   un-suffixed form returns 1539 parameter-not-found; `permfind
+   permsid=` for id lookup, `permidgetbyname` is NOT the syntax):
+   - channelcreate → **SILENT success** (no data row, no ok-line) but
+     `notifychannelcreated cid=3 … invokerid=59` broadcast ARRIVED →
+     proof viable, invokerid==self is the match key, cid rides in
+     params;
+   - clientedit(self) → SILENT success + `notifyclientupdated` echo
+     (F-84 channel already covers it);
+   - channelsubscribe/channelsubscribeall → silent (known);
+   - permission failures ALWAYS reply (2568/1539/2565 + failed_permid
+     in the wire) — the protocol omits only SUCCESS replies.
+2. **Fix**: `tsProof{name, fields map[string]string}` (F-83/F-84's
+   fixed `clid` key subsumed) + `tsWant{name, key, val}` — the waiter
+   names the exact param its command dictates; match = name+key+val
+   (B-24 anti-false-ack at the generalized matcher); on a proof hit
+   the broadcast params are appended AS A RESULT ROW so CreateChannel's
+   existing `rows[0]["cid"]` extraction reads the new cid straight from
+   `notifychannelcreated` (no other change needed). Fires added for
+   created / edited+moved / leftview / composing; moved/updated/text
+   fires now pass the whole params map. Wired: CreateChannel +
+   CreateChannelFull (invokerid==self, snapshot BEFORE t.mu per B-40),
+   EditChatTitle/Description (cid), RemoveMember/BanMember
+   (clid→notifyclientleftview), SendTyping (self→composing).
+3. **Self-caught #1 (misread)**: a truncated `sed` output made me
+   believe ClientEdit built its command and returned nil without
+   sending; a doomed test was written, failed, then `repr` of the real
+   function showed `return t.tsExecSimple(b.String())` — ClientEdit
+   DOES send. Test deleted (also: TX isn't observable in the exec
+   harness — cmdCh carries RECEIVE-side commands only, which the
+   failing test revealed); ClientEdit has no prod callers → not wired.
+   **Self-caught #2**: the first mega-edit's last anchor mismatched →
+   atomic abort, nothing written (re-ran with exact text).
+   **Self-caught #3**: five `return t.tsExecProof(...)` in error-only
+   functions → compile errors fixed to `_, err = …; return err`.
+4. **Tests-first**: seam-RED quoted (`cannot use map[string]string …
+   as string value in argument to tc.fireProof`); GREEN ×13 — new
+   fields-row CID test, key-mismatch rejection, migrated F-83/F-84
+   suites (echo/move/stale/nil-proof/exec-harness).
+5. **LIVE**: local strict RoundTrip DELIVERED + JoinChannelProof PASS;
+   arcticblaze JoinChannelProof PASS + RoundTrip honest SKIP (policy).
+6. **Validation**: whole tree **14 ok / 0 FAIL**, vet incl.
+   `-tags goolm,live`, gofmt clean. BUGS machine check: **85 F rows,
+   no gaps/dupes, open = B-58 only** (narrowed to: UnbanMember probe,
+   SetAdmin dbid→clid key mismatch, GUI-unreachable admin family →
+   wire-on-use).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 319's)
+Open: **B-58 ONLY** (remaining silent no-data commands, narrowed at
+slice 320: (a) UnbanMember→bandel probe needed [grant syntax:
+`permnegated=0 permskip=0`], (b) SetAdmin key mismatch dbid vs
+clid/cluid → resolve dbid→clid, (c) GUI-unreachable admin family →
+wire-on-use; keep F-85 drain-before-send + name+key+val). **F-rows =
+85**, B-rows = 1. B-25 CLOSED at slice 318 (F-83). This contract: 312
+(backend eliminated per owner order — name scrubbed repo-wide, 0
+matches, keep ZERO; git history retains old commits), 313 (F-75/76),
+314 (F-77/78), 315 (F-79), 316 (F-80), 317 (F-81/82), 318 (F-83 +
+B-58 opened), 319 (F-84), **320 (F-85)**. Infrastructure: dendrite
+127.0.0.1:8008; local TS3 3.13.7 at 127.0.0.1:9987 (recipe +
+serverquery grant syntax in teamspeak_live_test.go header; antiflood
+raised once per boot). Streak: 73 `04a0a39a`, 74 `405af385`, 75
+`b93650c7`, **76 `b32d0073`**, next = 320's push. Paths/toolchain per
+slice-295 anchor (repo `/tmp/uniclient_repo`, gate `/tmp/gate258.sh`,
+Go 1.27.1 store path, `GOTOOLCHAIN=local`, always `-tags goolm`, live
+= `-tags goolm,live ./tests/`; ANCHOR recipe: `grep -o
+'github_pat[_][A-Za-z0-9]*' <(git remote get-url origin)`; secret scan
+= added lines only + whole-tree real-length literals). Remaining
+horizon: **B-58 (buildable)** + two always-owner rungs (§11 `[~]`
+real-phone/email live sign-in, `[ ]` first non-prerelease ≥ v0.10.3).

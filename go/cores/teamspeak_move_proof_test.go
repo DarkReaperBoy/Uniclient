@@ -30,10 +30,10 @@ func TestProofMatchingClidSucceeds(t *testing.T) {
 
 	go func() {
 		time.Sleep(30 * time.Millisecond)
-		tc.fireProof("notifyclientmoved", "7")
+		tc.fireProof("notifyclientmoved", map[string]string{"clid": "7"})
 	}()
 	if _, err := core.tsExecProof("clientmove clid=7 cid=2",
-		&tsProof{name: "notifyclientmoved", clid: "7"}); err != nil {
+		&tsWant{name: "notifyclientmoved", key: "clid", val: "7"}); err != nil {
 		t.Fatalf("matching proof must count as success: %v", err)
 	}
 }
@@ -50,10 +50,10 @@ func TestProofWrongClidIsRejected(t *testing.T) {
 
 	go func() {
 		time.Sleep(30 * time.Millisecond)
-		tc.fireProof("notifyclientmoved", "9") // NOT our clid=7
+		tc.fireProof("notifyclientmoved", map[string]string{"clid": "9"}) // NOT our clid=7
 	}()
 	if _, err := core.tsExecProof("clientmove clid=7 cid=2",
-		&tsProof{name: "notifyclientmoved", clid: "7"}); err == nil {
+		&tsWant{name: "notifyclientmoved", key: "clid", val: "7"}); err == nil {
 		t.Fatal("wrong-clid proof accepted — false ack (B-24)")
 	}
 }
@@ -69,10 +69,10 @@ func TestProofWrongNameIsRejected(t *testing.T) {
 
 	go func() {
 		time.Sleep(30 * time.Millisecond)
-		tc.fireProof("notifyclientupdated", "7") // right clid, wrong event
+		tc.fireProof("notifyclientupdated", map[string]string{"clid": "7"}) // right clid, wrong event
 	}()
 	if _, err := core.tsExecProof("clientmove clid=7 cid=2",
-		&tsProof{name: "notifyclientmoved", clid: "7"}); err == nil {
+		&tsWant{name: "notifyclientmoved", key: "clid", val: "7"}); err == nil {
 		t.Fatal("wrong-name proof accepted — false ack (B-24)")
 	}
 }
@@ -87,10 +87,10 @@ func TestStaleProofsDrainedBeforeSend(t *testing.T) {
 	t.Cleanup(func() { tsExecVoidTimeout = old })
 
 	// Stale proof sits in the buffer BEFORE this exec starts.
-	tc.fireProof("notifyclientmoved", "7")
+	tc.fireProof("notifyclientmoved", map[string]string{"clid": "7"})
 
 	if _, err := core.tsExecProof("clientmove clid=7 cid=2",
-		&tsProof{name: "notifyclientmoved", clid: "7"}); err == nil {
+		&tsWant{name: "notifyclientmoved", key: "clid", val: "7"}); err == nil {
 		t.Fatal("stale proof from a previous command satisfied the new one — false ack (B-24)")
 	}
 }
