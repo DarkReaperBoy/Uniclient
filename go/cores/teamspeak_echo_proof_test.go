@@ -23,19 +23,15 @@ import (
 // Seam-RED (WORKLOG 318): undefined: tsExecProof / selfEcho /
 // takeSelfEcho.
 
-func TestTakeSelfEchoDrainsStaleProof(t *testing.T) {
-	tc := &tsConnection{selfEcho: make(chan struct{}, 1)}
-	// A stale echo from a PREVIOUS send must be drainable before the
-	// next send — otherwise it would falsely satisfy the next exec.
-	select {
-	case tc.selfEcho <- struct{}{}:
-	default:
-		t.Fatal("seed")
-	}
-	if !tc.takeSelfEcho() {
+func TestTakeProofsDrainsStaleProof(t *testing.T) {
+	tc := &tsConnection{proofs: make(chan tsProof, 8)}
+	// A stale proof from a PREVIOUS send must be drainable before the
+	// next command — otherwise it would falsely satisfy the next exec.
+	tc.fireProof("notifytextmessage", "5")
+	if !tc.takeProofs() {
 		t.Fatal("stale proof not drained")
 	}
-	if tc.takeSelfEcho() {
+	if tc.takeProofs() {
 		t.Fatal("second take on empty channel reported a proof")
 	}
 }
@@ -48,13 +44,11 @@ func TestTSExecProofChannelSucceedsWithoutReply(t *testing.T) {
 	// (what SendMessage wires to the self-text echo).
 	go func() {
 		time.Sleep(30 * time.Millisecond)
-		select {
-		case tc.selfEcho <- struct{}{}:
-		default:
-		}
+		tc.fireProof("notifytextmessage", "5")
 	}()
 
-	rows, err := core.tsExecProof("sendtextmessage targetmode=2 target=1 msg=proof", tc.selfEcho)
+	rows, err := core.tsExecProof("sendtextmessage targetmode=2 target=1 msg=proof",
+		&tsProof{name: "notifytextmessage", clid: "5"})
 	if err != nil {
 		t.Fatalf("proof channel must count as success: %v", err)
 	}

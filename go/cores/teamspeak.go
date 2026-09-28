@@ -1308,11 +1308,13 @@ type tsConnection struct {
 	// Incoming command channel
 	cmdCh chan tsIncomingCmd
 
-	// F-83: buffered proof that OUR OWN text came back through the
-	// server (notifytextmessage, invoker == self). The in-client TS3
-	// protocol does NOT reliably send `error id=0` success replies, so
-	// for sendtextmessage this echo IS the delivery proof.
-	selfEcho chan struct{}
+	// F-83/F-84: buffered in-band success proofs. The in-client TS3
+	// protocol does NOT reliably send `error id=0` replies for no-data
+	// commands — the server's own broadcast (typed name+clid) IS the
+	// proof: our text echo for sendtextmessage, notifyclientmoved for
+	// clientmove, notifyclientupdated for clientupdate (wire-proven on
+	// both live servers, WORKLOGs 318/319).
+	proofs chan tsProof
 
 	// When set, tsExec is waiting for a response — tsCommandLoop defers to it
 	execCh   chan tsIncomingCmd
@@ -2121,7 +2123,7 @@ func (t *TeamSpeakCore) tsConnect(addr string) error {
 		pendingCmds: make(map[uint16]*tsPendingCmd),
 		recvQueue:   [2]map[uint16]*tsDecryptedPkt{make(map[uint16]*tsDecryptedPkt), make(map[uint16]*tsDecryptedPkt)},
 		cmdCh:       make(chan tsIncomingCmd, 64),
-		selfEcho:    make(chan struct{}, 1),
+		proofs:      make(chan tsProof, 8),
 	}
 
 	// Initialize packet IDs to 0
@@ -2659,6 +2661,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	case "notifyclientleftview":
 		t.tsHandleClientLeave(cmd.params)
 	case "notifyclientmoved":
+		// F-84: this broadcast IS clientmove's success proof.
+		if tc := t.tsConn; tc != nil {
+			tc.fireProof("notifyclientmoved", cmd.params["clid"])
+		}
 		t.tsHandleClientMoved(cmd.params)
 	case "channellist":
 		// Parse channel entries from |-separated list in raw data
@@ -2756,6 +2762,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		clid, err := strconv.Atoi(cmd.params["clid"])
 		if err != nil {
 			return
+		}
+		// F-84: this broadcast IS clientupdate's success proof.
+		if tc := t.tsConn; tc != nil {
+			tc.fireProof("notifyclientupdated", strconv.Itoa(clid))
 		}
 		t.clientInfoMu.Lock()
 		// Own talk power rides this event too (observed live:
@@ -2925,12 +2935,32 @@ func (t *TeamSpeakCore) tsCommandLoop() {
 // success (BUGS B-24). Var rather than const so tests can shrink it.
 var tsExecVoidTimeout = 5 * time.Second
 
-// takeSelfEcho drains a pending self-text echo (F-83). Called by
-// SendMessage BEFORE issuing the next command so a stale echo can
-// never satisfy a later send.
-func (tc *tsConnection) takeSelfEcho() bool {
+// tsProof is an in-band success proof for tsExecProof (F-83/F-84): a
+// server notification whose (name, clid) pair matches the PENDING
+// command is that command's effect — the definitive success signal on
+// servers that omit `error id=0`. The name+clid match is the B-24
+// anti-false-ack guard: unrelated events never satisfy a pending
+// command, and stale proofs are drained before each send.
+type tsProof struct {
+	name string
+	clid string
+}
+
+// fireProof records a proof without blocking (buffered; drop-on-full:
+// the waiter drains what it needs).
+func (tc *tsConnection) fireProof(name, clid string) {
 	select {
-	case <-tc.selfEcho:
+	case tc.proofs <- tsProof{name: name, clid: clid}:
+	default:
+	}
+}
+
+// takeProofs drains every pending proof (F-83/F-84): called inside
+// tsExecProof BEFORE the command is sent so a stale proof from a
+// previous (timed-out) command can never satisfy the next one.
+func (tc *tsConnection) takeProofs() bool {
+	select {
+	case <-tc.proofs:
 		return true
 	default:
 		return false
@@ -2942,14 +2972,13 @@ func (t *TeamSpeakCore) tsExec(cmd string) ([]map[string]string, error) {
 	return t.tsExecProof(cmd, nil)
 }
 
-// tsExecProof is tsExec with an optional in-band PROOF channel (F-83):
-// a value received on `proof` is definitive evidence the command took
-// effect — used for sendtextmessage where the server's own echo back
-// to us (invoker == self) proves delivery even when the in-client
-// protocol omits the `error id=0` success reply (wire-proven on BOTH
-// live servers, WORKLOG 318). A nil proof keeps the exact B-24
-// behavior (silence = lost).
-func (t *TeamSpeakCore) tsExecProof(cmd string, proof <-chan struct{}) ([]map[string]string, error) {
+// tsExecProof is tsExec with an optional in-band PROOF (F-83/F-84):
+// `want`, when non-nil, names the broadcast (event + clid) that counts
+// as definitive success — for commands whose `error id=0` reply the
+// in-client protocol often omits (sendtextmessage, clientmove,
+// clientupdate — wire-proven on both live servers, WORKLOGs 318/319).
+// A nil `want` keeps the exact B-24 behavior (silence = lost).
+func (t *TeamSpeakCore) tsExecProof(cmd string, want *tsProof) ([]map[string]string, error) {
 	tc := t.tsConn
 	if tc == nil {
 		return nil, ErrAuth
@@ -2975,6 +3004,14 @@ func (t *TeamSpeakCore) tsExecProof(cmd string, proof <-chan struct{}) ([]map[st
 		tc.execWait = false
 		tc.execMu.Unlock()
 	}()
+
+	// Drain stale proofs first (F-83/F-84): a proof left over from a
+	// previous timed-out command must never satisfy THIS one (B-24).
+	var proofs <-chan tsProof
+	if want != nil {
+		tc.takeProofs()
+		proofs = tc.proofs
+	}
 
 	if _, err := tc.tsSendCommand(cmd); err != nil {
 		return nil, err
@@ -3021,14 +3058,19 @@ func (t *TeamSpeakCore) tsExecProof(cmd string, proof <-chan struct{}) ([]map[st
 				result = append(result, tsParseKVList(dl)...)
 			}
 			return result, nil
-		case <-proof:
-			// Definitive in-band proof (F-83): e.g. our own text echo
-			// came back — success even though no `error id=` arrived.
-			var result []map[string]string
-			for _, dl := range dataLines {
-				result = append(result, tsParseKVList(dl)...)
+		case p := <-proofs:
+			if p.name == want.name && p.clid == want.clid {
+				// Definitive in-band proof (F-83/F-84): the server's
+				// broadcast of THIS command's effect — success even
+				// though no `error id=` arrived.
+				var result []map[string]string
+				for _, dl := range dataLines {
+					result = append(result, tsParseKVList(dl)...)
+				}
+				return result, nil
 			}
-			return result, nil
+			// Unrelated event (concurrent, different client) — keep
+			// waiting for our proof or the deadline (B-24 guard).
 		case <-deadline:
 			if len(dataLines) == 0 {
 				// Pure silence: the response was lost. Returning nil here
@@ -3110,13 +3152,9 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 	isSelfEcho := invokerID == t.myClientID
 	t.clientInfoMu.RUnlock()
 	if isSelfEcho {
-		// F-83: the echo is the send's delivery proof — signal the
-		// in-flight tsExecProof (buffered; drop-on-full = already seen).
+		// F-83: our own echo is the send's delivery proof.
 		if tc := t.tsConn; tc != nil {
-			select {
-			case tc.selfEcho <- struct{}{}:
-			default:
-			}
+			tc.fireProof("notifytextmessage", strconv.Itoa(invokerID))
 		}
 		return
 	}
@@ -3715,15 +3753,11 @@ func (t *TeamSpeakCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 		cmd = fmt.Sprintf("sendtextmessage targetmode=3 msg=%s", tsEscape(msg.Text))
 	}
 
-	// F-83: drain any stale echo from an earlier send, then let this
-	// send accept its OWN echo as the success proof (the in-client
-	// protocol often sends no `error id=0` for sendtextmessage).
-	if tc := t.tsConn; tc != nil {
-		tc.takeSelfEcho()
-		if _, err := t.tsExecProof(cmd, tc.selfEcho); err != nil {
-			return nil, err
-		}
-	} else if err := t.tsExecSimple(cmd); err != nil {
+	// F-83/F-84: accept the server's broadcast of THIS send (our own
+	// echo) as the success proof — the in-client protocol often omits
+	// the `error id=0` reply. Stale proofs are drained inside
+	// tsExecProof before the command goes out.
+	if _, err := t.tsExecProof(cmd, &tsProof{name: "notifytextmessage", clid: senderID}); err != nil {
 		return nil, err
 	}
 
@@ -4326,7 +4360,8 @@ func (t *TeamSpeakCore) AddMembers(chatID string, userIDs []string) error {
 		if err != nil {
 			continue
 		}
-		if moveErr := t.tsExecSimple(fmt.Sprintf("clientmove clid=%d cid=%d", clid, id)); moveErr != nil {
+		if _, moveErr := t.tsExecProof(fmt.Sprintf("clientmove clid=%d cid=%d", clid, id),
+			&tsProof{name: "notifyclientmoved", clid: strconv.Itoa(clid)}); moveErr != nil {
 			return moveErr
 		}
 	}
@@ -4736,12 +4771,20 @@ func (t *TeamSpeakCore) TerminateSession(sessionID string) error {
 // ──────────────────────────── Client Self-Update (clientupdate) ────────────────────────────
 
 func (t *TeamSpeakCore) tsClientUpdate(params string) error {
+	// Snapshot self id BEFORE taking t.mu (B-40: never acquire
+	// clientInfoMu while t.mu is held).
+	t.clientInfoMu.RLock()
+	selfClid := t.myClientID
+	t.clientInfoMu.RUnlock()
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
 		return ErrAuth
 	}
-	return t.tsExecSimple("clientupdate " + params)
+	_, err := t.tsExecProof("clientupdate "+params,
+		&tsProof{name: "notifyclientupdated", clid: strconv.Itoa(selfClid)})
+	return err
 }
 
 // ClientUpdate sends a clientupdate command with the given key=value pairs.
@@ -5822,7 +5865,7 @@ func (t *TeamSpeakCore) JoinChannel(cid int, password string) error {
 	if password != "" {
 		cmd += fmt.Sprintf(" cpw=%s", tsEscape(password))
 	}
-	if err := t.tsExecSimple(cmd); err != nil {
+	if _, err := t.tsExecProof(cmd, &tsProof{name: "notifyclientmoved", clid: strconv.Itoa(selfClid)}); err != nil {
 		return err
 	}
 	// channellist does NOT carry channel_needed_talk_power — fetch it
@@ -8080,7 +8123,7 @@ func (t *TeamSpeakCore) RequestClientsMove(clids []int, cid int, password string
 		if password != "" {
 			cmd += fmt.Sprintf(" cpw=%s", tsEscape(password))
 		}
-		if err := t.tsExecSimple(cmd); err != nil {
+		if _, err := t.tsExecProof(cmd, &tsProof{name: "notifyclientmoved", clid: strconv.Itoa(clid)}); err != nil {
 			return err
 		}
 	}

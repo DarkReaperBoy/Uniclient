@@ -157,17 +157,31 @@ func TestTeamSpeakLiveRoundTrip(t *testing.T) {
 	t.Logf("sent message id=%s via %s", sent.ID, room)
 
 	// STRICT delivery oracle (F-83): the send was accepted (ok-line or
-	// self-echo proof) → the receiver MUST get it. Before F-83 this
-	// assertion was impossible: the server's omitted success reply made
-	// accepted sends report "response lost", and a single client can
-	// never observe its own (dropped) echo.
-	select {
-	case m := <-recv:
-		if m.Text != text {
-			t.Fatalf("received WRONG text: %q (want %q)", m.Text, text)
+	// self-echo proof) → the receiver MUST get OUR text. Before F-83
+	// this assertion was impossible: the server's omitted success reply
+	// made accepted sends report "response lost", and a single client
+	// can never observe its own (dropped) echo. Public servers also
+	// push unrelated traffic (bot level-up broadcasts on join) — skip
+	// those and keep waiting (LargeMessage's ignore-and-wait pattern;
+	// self-caught: the first version Fatalf'd on the FIRST unrelated
+	// message, WORKLOG 319).
+	got := false
+	deadline := time.After(25 * time.Second)
+loop:
+	for {
+		select {
+		case m := <-recv:
+			if m.Text == text {
+				t.Logf("DELIVERED: B received the exact text (strict two-client round-trip): %q", m.Text)
+				got = true
+				break loop
+			}
+			t.Logf("ignoring unrelated message (%d bytes)", len(m.Text))
+		case <-deadline:
+			break loop
 		}
-		t.Logf("DELIVERED: B received the exact text (strict two-client round-trip): %q", m.Text)
-	case <-time.After(25 * time.Second):
+	}
+	if !got {
 		t.Fatalf("send accepted but B never received within 25s — delivery oracle FAILED")
 	}
 
@@ -180,6 +194,70 @@ func TestTeamSpeakLiveRoundTrip(t *testing.T) {
 	} else {
 		t.Logf("server-wide guest text: ACKed on this server")
 	}
+}
+
+// TestTeamSpeakLiveJoinChannelProof (F-84): the product's channel-join
+// must succeed on a server that NEVER sends `error id=0` — the
+// notifyclientmoved broadcast is the in-band proof (wire-proven on the
+// local 3.13.7 server: `clientmove` executed while tsExec reported
+// "response lost", WORKLOG 319). On servers that DO reply, the reply
+// path wins as before; on servers that deny, honest Skip (policy).
+// Battery-safe: joins a non-default channel and moves on.
+func TestTeamSpeakLiveJoinChannelProof(t *testing.T) {
+	server := osGetenvDefault("TS3_LIVE_SERVER", "ts.arcticblaze.net:9987")
+
+	dir := t.TempDir()
+	vault, err := utils.CreateVault(filepath.Join(dir, "test.vault"), "live-test")
+	if err != nil {
+		t.Fatalf("CreateVault: %v", err)
+	}
+	t.Cleanup(func() { vault.Close() })
+	core := cores.NewTeamSpeakCore(utils.NewSessionStore(vault, "ts3-join-proof"))
+	defer core.Close()
+	if err := core.Authenticate(cores.AuthConfig{Extra: map[string]string{
+		"server_address": server,
+		"nickname":       fmt.Sprintf("uc-join-%d", rand.Intn(100000)),
+	}}); err != nil {
+		t.Skipf("handshake failed on %s: %v", server, err)
+	}
+
+	defaultRoom := fmt.Sprintf("ch:%d", core.DefaultChannelID())
+	dialogs, err := core.GetDialogs(cores.PaginationOpts{Limit: 100})
+	if err != nil {
+		t.Fatalf("GetDialogs: %v", err)
+	}
+
+	var candidates []int
+	for _, d := range dialogs {
+		if d.ID == "server" || d.ID == defaultRoom {
+			continue
+		}
+		var cid int
+		if _, scanErr := fmt.Sscanf(d.ID, "ch:%d", &cid); scanErr == nil {
+			candidates = append(candidates, cid)
+		}
+	}
+	if len(candidates) == 0 {
+		t.Skipf("no non-default channel to join on %s (only %s)", server, defaultRoom)
+	}
+
+	var permDenied bool
+	var lastErr error
+	for _, cid := range candidates {
+		if jerr := core.JoinChannel(cid, ""); jerr == nil {
+			t.Logf("JOINED ch:%d — success via ok-line or notifyclientmoved proof (silent-reply server: F-84)", cid)
+			return
+		} else if errors.Is(jerr, cores.ErrPermission) {
+			permDenied = true
+			lastErr = jerr
+		} else {
+			lastErr = jerr
+		}
+	}
+	if permDenied {
+		t.Skipf("guest channel join denied (%v) — policy, environment not client", lastErr)
+	}
+	t.Fatalf("JoinChannel failed on every candidate channel: %v", lastErr)
 }
 
 // TestTeamSpeakLiveLargeMessage: BUGS.md B-1 evidence — a command bigger

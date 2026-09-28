@@ -11196,3 +11196,82 @@ Remaining horizon: B-58 (buildable — next slice) + the two always-
 owner rungs (§11 `[~]` real-phone/email live sign-in, `[ ]` first non-
 prerelease ≥ v0.10.3 per slice-281). Owner objective: scrub backend
 (done), work the cores, report when done — NOT done yet: B-58 open.
+
+## Slice 319 (2026-09-29) — F-84: typed in-band proofs — silent-reply
+class generalized (clientmove/clientupdate families); B-58 sharpened
+
+1. **Probe evidence (B-58 sizing)**: after F-83 landed, wire probes on
+   the local 3.13.7 server proved the silent-success class is WIDE:
+   - `clientmove clid=X cid=2` → server broadcast
+     `notifyclientmoved ctid=2 reasonid=0 clid=37` (move HAPPENED)
+     while tsExec reported `response lost` — the exact false-fail;
+   - `channelsubscribeall` + `channelsubscribe` → same `response lost`
+     (silent success);
+   - errors ALWAYS arrive (2568/1539/2565) — the protocol omits only
+     SUCCESS replies for no-data commands. (Two temp probe tests did
+     the diagnostics, then were deleted; evidence preserved here.)
+2. **Fix (mechanism, generalizing F-83)**: `tsProof{name, clid}` typed
+   channel (`proofs` on tsConnection; F-83's `selfEcho chan struct{}`
+   subsumed), `fireProof` from the notifyclientmoved /
+   notifyclientupdated handlers + the text-echo branch;
+   `tsExecProof(cmd, want *tsProof)` drains stale proofs BEFORE sending
+   (B-24 false-ack guard) and accepts ONLY a broadcast whose name AND
+   clid match the pending command — wrong-clid / wrong-name events keep
+   waiting (both pinned by tests).
+3. **Wired product paths**: JoinChannel (self clid snapshotted BEFORE
+   t.mu per B-40), AddMembers + RequestClientsMove (moved clid),
+   tsClientUpdate → nickname/mute family (self clid, snapshot pre-lock),
+   SendMessage (echo — same channel now). ~85 remaining tsExecSimple
+   sites are admin/subscribe ops → B-58 row kept OPEN with the precise
+   sweep plan (probe → wire broadcast-bearing ones → decide read-back
+   verification for broadcast-less ones).
+4. **Tests-first**: seam-RED quoted (`undefined: tsProof / fireProof`);
+   GREEN ×11 unit — matching-clid success, wrong-clid rejected,
+   wrong-name rejected, stale-proof drain, F-83 trio migrated to the
+   typed channel, exec-harness trio unchanged; compile self-caught:
+   `if x := twoValueCall()` invalid at 4 sites (Go needs `_`) — fixed.
+5. **LIVE proof (both environments)**: new battery test
+   `TestTeamSpeakLiveJoinChannelProof` — local PASS ("JOINED ch:2 —
+   success via ok-line or notifyclientmoved proof", the silent-reply
+   path) and arcticblaze PASS ("JOINED ch:40"). RoundTrip strict ×11
+   (F-83) unaffected.
+6. **Validation**: whole tree **14 ok / 0 FAIL**, vet incl.
+   `-tags goolm,live`, gofmt clean. BUGS machine check: **84 F rows,
+   no gaps/dupes, open = B-58 only** (evidence refreshed: silent class
+   now sized at clientupdate/clientmove/subscribe family + ~85 admin
+   sites remaining).
+
+### COMPACTION ANCHOR (refresh — supersedes slice 318's)
+Open: **B-58 ONLY** (TS3 no-data commands false-fail on silent-reply
+servers — FIXED for text/move/update families (F-83/F-84); REMAINING =
+~85 tsExecSimple admin/subscribe sites: probe en masse on the local
+server, wire tsExecProof where a broadcast exists, decide read-back
+verification for broadcast-less ones; keep drain-before-send +
+name+clid match). **F-rows = 84**, B-rows = 1. **B-25 CLOSED at slice
+318 (F-83).** Slice history this contract: 312 (backend eliminated per
+owner order — name scrubbed repo-wide, 0 matches, keep ZERO; git
+history retains old commits), 313 (F-75/76), 314 (F-77/78), 315
+(F-79), 316 (F-80), 317 (F-81/82), 318 (F-83 + B-58 opened), **319
+(F-84)**. Infrastructure: dendrite 127.0.0.1:8008; **local TS3 3.13.7
+at 127.0.0.1:9987** (recipe in teamspeak_live_test.go header; antiflood
+raised via serverquery once per boot: serveradmin password printed
+ONCE at first start → ts3server.stdout). Streak: 72 `b6a573b9`, 73
+`04a0a39a`, 74 `405af385`, **75 `b93650c7`**, next = 319's push.
+Paths/toolchain per slice-295 anchor (repo `/tmp/uniclient_repo`, gate
+`/tmp/gate258.sh`, Go 1.27.1 store path, `GOTOOLCHAIN=local`, always
+`-tags goolm`, live = `-tags goolm,live ./tests/`; ANCHOR recipe:
+`grep -o 'github_pat[_][A-Za-z0-9]*' <(git remote get-url origin)`;
+secret scan = added lines only + whole-tree real-length literals).
+B-25 re-probes ENDED (closed). Remaining horizon: **B-58 (buildable —
+next slice)** + the two always-owner rungs (§11 `[~]` real-phone/email
+live sign-in, `[ ]` first non-prerelease ≥ v0.10.3 per slice-281).
+
+**Slice 319 addendum — flake self-caught in the new oracle**: the
+first strict RoundTrip version Fatalf'd on the FIRST unrelated recv
+(public servers push a bot level-up broadcast on join) — failed 1 of3
+arcticblaze full-suite runs with `received WRONG text: <LEVELUP
+banner>`. Fixed to LargeMessage's ignore-and-wait pattern (loop to
+deadline, skip non-matching, Fatalf only on timeout). Post-fix:
+arcticblaze full TS suite **2× green including a full strict DELIVERY
+PASS on the public server** (send ACKed + B received the exact text),
+local strict ×1 again.

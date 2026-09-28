@@ -27,7 +27,7 @@ func newExecHarness(t *testing.T) (*TeamSpeakCore, *tsConnection, func()) {
 		conn:        conn,
 		addr:        ua,
 		cmdCh:       make(chan tsIncomingCmd, 16),
-		selfEcho:    make(chan struct{}, 1), // F-83 proof channel
+		proofs:      make(chan tsProof, 8), // F-83/F-84 proof channel
 		pendingCmds: map[uint16]*tsPendingCmd{},
 	}
 	core := &TeamSpeakCore{tsConn: tc, ctx: context.Background()}
