@@ -17,7 +17,10 @@ Binaries land on the [Releases](https://github.com/DarkReaperBoy/Uniclient/relea
 page for every release tag (all marked pre-release for now):
 
 - **Linux** (amd64/arm64) — `uniclient-linux-<arch>`. On NixOS use the flake
-  instead: `nix run github:DarkReaperBoy/Uniclient` (release binaries are
+  instead: `nix run github:DarkReaperBoy/Uniclient --no-write-lock-file`
+  (the repo ships no `flake.lock` on purpose — inputs stay dynamic — and a
+  remote flake checkout is read-only, so the flag lets nix resolve the
+  inputs in memory instead of failing on a lock write; release binaries are
   built against glibc CI runners and won't start under Nix's loader — the
   flake is the supported path there).
 - **Windows** — `uniclient-windows-amd64.exe` (pure Go, no runtime deps).

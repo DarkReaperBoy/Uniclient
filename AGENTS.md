@@ -260,7 +260,13 @@ instead).
 
 Root `flake.nix` provides `packages.default` (the app, built with Nix's cgo
 against Nix libs) and a dev shell. Owner runs:
-`nix run github:DarkReaperBoy/Uniclient`. Release binaries built on glibc CI
+`nix run github:DarkReaperBoy/Uniclient --no-write-lock-file`.
+**`flake.lock` is deliberately never committed** (gitignored; not from the
+owner's device, not from CI — owner rule: no hardcoded pins, inputs stay
+dynamic). A remote `github:` checkout is read-only, so without the flag nix
+fails with "cannot write modified lock file" — the flag resolves inputs in
+memory instead and cannot go stale across releases; both workflows' nix
+gate runs that exact lockless shape first. Release binaries built on glibc CI
 runners will not start on NixOS (dynamic linker path) — that is expected;
 the flake is the supported path there. Every release runs release.yml's
 **nix** job (`nix build .#uniclient` + smoke run + tag↔version match), so a

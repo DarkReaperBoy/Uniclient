@@ -11551,3 +11551,16 @@ push the wasm to gh-pages so it could be direct."
   rule §11 rung not flipped by owner).
 - Docs: AGENTS §5 job list rewritten to real job names + nix gate +
   shell behavior; §6 flake-gate sentence; checklist +2; README web bullet.
+- **Root cause of the broken README command** (owner: "make the nix file
+  function correctly, as in the command in the readme"): `flake.lock` is
+  gitignored (line 36, owner rule) — a remote `github:` checkout is
+  read-only, so the bare command died with "cannot write modified lock
+  file" while local/CI builds (writable) silently kept working. Before/after
+  on the same ref: bare → error; `--no-write-lock-file` → rc=0, app runs.
+  Owner: no lock pushed from device OR CI, no hardcoded pins, must not be a
+  problem next releases → **decision: README command gains
+  `--no-write-lock-file`** (nix resolves inputs in memory; nothing pinned;
+  structurally can never go stale) **and both workflows' nix gate now runs
+  that exact lockless shape as its first flake-touching step** (checkout has
+  no lock → flag path genuinely exercised on every release/dispatch). CI
+  never commits flake.lock; gitignore line 36 stays.

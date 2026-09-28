@@ -80,21 +80,21 @@ jobs:
             echo "flake.nix version=$have but releasing v$want — bump version in flake.nix first"
             exit 1
           fi
-      - name: nix build .#uniclient
-        run: nix build .#uniclient -L
-      - name: Smoke-run the built binary
-        # `uniclient -h` returns at flag parsing (exit 0 or 2) before any
-        # GUI — loader-level proof that `nix run github:…` would work.
+      - name: README command shape — lockless `nix run`
+        # No flake.lock in the repo (owner rule, gitignored): this is the
+        # exact no-lock/no-write path `nix run github:… --no-write-lock-file`
+        # takes on the owner's machine — build + `uniclient -h` smoke in one.
         run: |
           set +e
-          out=$(./result/bin/uniclient -h 2>&1)
+          nix run --no-write-lock-file . -- -h
           rc=$?
           set -e
-          echo "$out"
           case "$rc" in
             0|2) echo "smoke OK (exit $rc)" ;;
-            *) echo "unexpected exit $rc"; exit 1 ;;
+            *) echo "nix run failed (exit $rc)"; exit 1 ;;
           esac
+      - name: nix build .#uniclient (packages.default)
+        run: nix build .#uniclient -L
 
   cross-builds:
     name: Cross-builds (windows + wasm)
