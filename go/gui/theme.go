@@ -479,7 +479,7 @@ var platforms = []platformMeta{
 	{ID: "irc", Title: "IRC", Desc: "IRCv3, SASL, verified against real servers.", Letter: "I"},
 	{ID: "matrix", Title: "Matrix", Desc: "mautrix, E2EE via goolm (pure Go).", Letter: "M"},
 	{ID: "github", Title: "GitHub", Desc: "Issues, PRs, notifications as chats.", Letter: "G"},
-	{ID: "xmpp", Title: "XMPP", Desc: "mellium-based core.", Letter: "X"},
+	{ID: "xmpp", Title: "XMPP", Desc: "Own XMPP client (SASL, IBR, jingle calls).", Letter: "X"},
 	{ID: "mumble", Title: "Mumble", Desc: "VoIP: channels, text chat, OCB2 voice crypto. Live-verified.", Letter: "U"},
 	{ID: "teamspeak", Title: "TeamSpeak 3", Desc: "TS3 client protocol: EAX-encrypted commands, voice. Live-verified.", Letter: "S"},
 	{ID: "deltachat", Title: "Delta Chat", Desc: "Email-based chat (IMAP/SMTP).", Letter: "Δ"},

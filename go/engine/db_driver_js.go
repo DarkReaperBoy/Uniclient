@@ -1,9 +1,10 @@
 //go:build js
 
 // On WASM/web, we register a no-op SQL driver. The engine's existing code all
-// compiles and runs — queries return empty results, writes silently succeed.
-// Persistent caching on web is handled by the host layer using browser storage
-// (IndexedDB). The Go WASM module only handles protocol/networking.
+// compiles and runs — queries return no rows, writes are dropped. The cache
+// is therefore SESSION-ONLY on web: message history/media lists exist for
+// what arrives live from a connected backend and do not survive a reload.
+// Only the vault (utils/vault_io_js.go) persists across page loads.
 
 package engine
 

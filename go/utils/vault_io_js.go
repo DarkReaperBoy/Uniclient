@@ -9,11 +9,12 @@ import (
 	"syscall/js"
 )
 
-// Vault persistence backend for the web build: browser localStorage keyed
-// per vault path. There is no filesystem on js/wasm — the vault (accounts,
-// credentials, config, the source of truth per engine/accounts.go) persists
-// across page reloads here. The path argument is kept for API symmetry and
-// hashed into the storage key so distinct vaults never collide.
+// Vault persistence backend for the web build: browser localStorage. There
+// is no filesystem on js/wasm — the vault (accounts, credentials, config,
+// the source of truth per engine/accounts.go) persists across page reloads
+// here. One origin carries exactly one vault ("uniclient.vault"), so the
+// path argument is intentionally ignored; every tab of the origin shares
+// the same vault and coordinates through the flush-time merge (F-87).
 
 func vaultStorageKey(path string) string {
 	// One vault per origin in practice; keep a stable suffix.
@@ -39,6 +40,17 @@ func writeVaultBytes(path string, data []byte) error {
 	}
 	ls.Call("setItem", vaultStorageKey(path), string(data))
 	return nil
+}
+
+// vaultPathExists reports whether a vault is stored at path (VaultExists
+// backs engine.Init's create-vs-open decision).
+func vaultPathExists(path string) bool {
+	ls := js.Global().Get("localStorage")
+	if !ls.Truthy() {
+		return false
+	}
+	v := ls.Call("getItem", vaultStorageKey(path))
+	return v.Type() == js.TypeString
 }
 
 // mergeForeignVaultData is the js/wasm side of the flush-time cross-instance
@@ -78,14 +90,4 @@ func (v *Vault) mergeForeignVaultData() {
 		return
 	}
 	mergeVaultData(v.data, foreign)
-}
-
-// vaultPathExists reports whether a vault is stored at path.
-func vaultPathExists(path string) bool {
-	ls := js.Global().Get("localStorage")
-	if !ls.Truthy() {
-		return false
-	}
-	v := ls.Call("getItem", vaultStorageKey(path))
-	return v.Type() == js.TypeString
 }

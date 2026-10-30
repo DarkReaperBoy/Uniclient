@@ -53,7 +53,8 @@ func writeVaultBytes(path string, data []byte) error {
 	return nil
 }
 
-// vaultPathExists reports whether a vault is stored at path.
+// vaultPathExists reports whether a vault is stored at path (VaultExists
+// backs engine.Init's create-vs-open decision).
 func vaultPathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
