@@ -8,10 +8,35 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 (chunked recon of never-mapped surfaces; the web surface closed in cycle 1)
-- item: BUGS.md R10 — matrix_groupcall GatheringCompletePromise callers on web
-- next: R10 audit → P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
-- owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault password decision; real-account sign-ins (xmpp/bale/deltachat, mic/speaker, Android device); first non-prerelease
-- last-gate: green @ 01dd3f9 (session 324 P7: dev-test + 15 shell + 6 app E2E + YAML)
+- item: constitution v3.1 (owner directive) — landed this session
+- next: write scripts/gate.sh (§9 first-commit rule) → R10 audit → P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
+- owner-waiting: GH_TOKEN to push session-326 commit (F-93); re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
+- last-gate: green @ 01dd3f9 (code untouched since — v3.1 is docs-only)
+
+## Session 326 — constitution v3.1: the four weaknesses, fixed in-file (2026-10-31)
+
+Owner directive: the agent had reported AGENTS.md's weaknesses (unenforceable prose,
+no yield metric, playtest gap — "code reaches my GUI broken because it is not
+playtested"); fix them inside the file itself, without the owner.
+
+- Law 21 "No unplayed GUI — the owner is never the playtester": every gui/ change
+  must be DRIVEN before it counts — the real wasm through a Puppeteer journey that
+  exercises the change (console clean), or native under Xvfb with a screenshot
+  actually looked at. No journey → write the journey first. Sandbox can't run it →
+  BLOCKED-env in BUGS.md, never claimed "works".
+- §3 evidence rule extended: for gui/ changes the evidence is a driven journey
+  (E2E transcript or screenshot + what was seen), never "the logic looks right".
+- §0.5 + §9: a clean turn-end now requires gate green; scripts/gate.sh must exist
+  from the first session on (that session's first commit if missing) — enforcement
+  executable, not remembered.
+- §4 yield steering: each P2 sweep records its finding count here; two consecutive
+  zero-finding sweeps redirect effort to §7 parity rows, features, P4 PERF.
+- Header mandate compressed 2 lines to hold the ≤~300-line budget (final: 299).
+- Evidence: docs-only — diff reviewed, law list append-only (21 added, 16-20
+  unshifted, code cross-refs intact), wc -l = 299.
+- Push BLOCKED: GH_TOKEN absent from env (BUGS.md F-93, owner rung §10); commit
+  is local until the next boot with a token.
+- Next: scripts/gate.sh → R10 → P0 chunk 1.
 
 ## Session 325 — constitution v3 (2026-10-31)
 

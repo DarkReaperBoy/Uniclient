@@ -11,6 +11,7 @@ hardening pass carry the risk ID from
 
 | # | Where | What | Evidence / how to see it | Next step |
 |---|-------|------|--------------------------|-----------|
+| F-93 | repo (NEEDS_OWNER) | GH_TOKEN absent from env — session-326 commit (constitution v3.1) cannot be pushed to origin/main; work survives only in this VM until pushed. | `git status` shows main ahead of origin/main after the session-326 commit; push fails auth. | Owner: provide GH_TOKEN out-of-band (never in chat/files/logs). Agent pushes on next §0 boot. |
 | R9 | web vault | Web vault is ciphertext-at-rest with a fixed default password (env/flags unreachable in a wasm argv) — no KDF secret on this target. | research/web_hardening_2026-10.md §3 R9; AGENTS.md §2 web persistence. | Owner decision: accept (product behavior) or spec a web passcode derivation path. Not silently changeable. |
 | R10 | wrtc/js.go | GatheringCompletePromise(js) returns an immediately-closed channel — callers awaiting full ICE gathering send early answers on web. Callers are voice paths (media unsupported on web), matrix group-call signaling needs a check. | research/web_hardening_2026-10.md §3 R10. | Audit matrix_groupcall.go callers; if any signaling path awaits it on web, trickle candidates instead. |
 

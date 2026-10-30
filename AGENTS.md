@@ -5,10 +5,8 @@
 >    result). Never ask technical, architectural, or "should I continue?" questions. The only
 >    permitted asks: the GitHub token (if missing from env) and owner-only rungs (§10) — log
 >    those in BUGS.md and keep working.
-> 2. **"continue" = run §0 Boot, then execute §3's atomic loop back-to-back.** Never stop
->    after one task. Chain work cycles (research → failing test → change → gate → push)
->    until context grows heavy (~75%), then rewrite the WORKLOG STATE block, push, and
->    yield cleanly for the next "continue".
+> 2. **"continue" = §0 Boot, then §3's atomic loop back-to-back** — chain work cycles
+>    until context grows heavy (~75%), rewrite STATE, push, yield cleanly.
 > 3. A finished phase, an empty BUGS.md, a green release — none of that is a stop. Take the
 >    next item or open the next cycle (§4). The loop is permanent; the target is perfection.
 
@@ -34,8 +32,8 @@ this file in the same commit. Keep it under ~300 lines.
    topmost open row (severity order, §1.16); (4) the current cycle-phase item (§4);
    (5) housekeeping — dep bumps (§1.18), warning sweeps, doc-truth fixes; (6) nothing open
    → open the next cycle (§4). An agent is never "done".
-5. Work it through the atomic loop (§3). The only clean end to a turn: STATE rewritten,
-   committed, pushed — then yield.
+5. Work it through the atomic loop (§3). The only clean end to a turn: gate green (§9),
+   STATE rewritten, committed, pushed — then yield.
 
 ## 1. Owner requirements (NON-NEGOTIABLE — wins over everything)
 
@@ -80,6 +78,11 @@ this file in the same commit. Keep it under ~300 lines.
 19. **If a change cannot be tested, it cannot be made.** Build the harness first.
 20. **Unspecified → do what a senior Unix engineer would do, then verify.** The bar is
     production-ready and rock solid.
+21. **No unplayed GUI — the owner is never the playtester.** Every `gui/` change is
+    *driven* before it counts: the real wasm through a Puppeteer journey that exercises
+    the change (console clean), or the native binary under Xvfb with a screenshot you
+    actually looked at. No journey → write it first. Sandbox can't run it → BLOCKED-env
+    in BUGS.md, never claimed "works".
 
 ## 2. Architecture
 
@@ -146,7 +149,9 @@ STATE/BUGS/WORKLOG → commit → push → next item
   or regenerated goldens. A deliberate behavior change updates its `TestKnown_*` pin in
   the same commit and says so.
 - **Evidence rule:** "done/works/fixed" only from command output seen THIS session —
-  never from memory or from reading code. WORKLOG entries cite the command + result.
+  never from memory or from reading code. For `gui/` changes the evidence is a driven
+  journey (E2E transcript or screenshot + what you saw), never "the logic looks
+  right". WORKLOG entries cite the command + result.
 
 ## 4. The hardening cycle (endless)
 
@@ -154,7 +159,9 @@ Cycle + phase live in the WORKLOG STATE block. A phase starts only when the prev
 GATE is met and recorded. Crash/data-loss/security findings interrupt any phase — fix via
 the loop, then resume. After P7: cycle += 1 and back to P2 with fresh lenses (redo P0 only
 for surfaces never mapped or heavily changed since). Dependency bumps are allowed in any
-phase as their own commits (§1.18).
+phase as their own commits (§1.18). **Yield steering:** each P2 sweep records its finding
+count in WORKLOG; two consecutive zero-finding sweeps → shift weight to §7 parity rows,
+feature gaps, and P4 PERF.
 
 | # | Phase | Do | EXIT GATE |
 |---|---|---|---|
@@ -272,10 +279,11 @@ change reaches rung 4.
 7. **CI = the release gate** (§5). Machine too small to compile gotd → `gh workflow run
    verify.yml`, watch the run, read logs + screenshots.
 
-`scripts/gate.sh` (create in P1 if missing): `quick` = gofmt + vet + tests on changed
-packages AND their importers, after every commit; `full` = every tier above except live,
-at phase ends / after dep bumps / before tags; `web` = the wasm build + the Puppeteer
-suite. Until it exists, run the commands directly.
+`scripts/gate.sh` must exist from the first session on — writing it is that session's
+first commit if missing (enforcement is executable, not remembered): `quick` = gofmt +
+vet + tests on changed packages AND their importers, after every commit; `full` = every
+tier above except live, at phase ends / after dep bumps / before tags; `web` = the wasm
+build + the Puppeteer suite (until written, run the tiers directly).
 
 ## 10. Owner-only rungs & pre-push invariants
 
