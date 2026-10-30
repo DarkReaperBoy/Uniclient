@@ -320,3 +320,38 @@ SERVER_DELAY_MS=0 node scripts/web-test/measure-boot.mjs.
   renders inside a Gio canvas — a black box for screen readers. That is
   an upstream Gio characteristic, far beyond the shell. Puppeteer is
   Chromium-only; Firefox/WebKit surfaces remain unaudited.
+
+
+## 10. Phase 6 record (2026-10-31) — web security verification
+
+- **Secret sweep:** zero token/PEM matches across go/ scripts/ .github/
+  *.md (scoped rg, patterns ghp_/github_pat_/BEGIN PRIVATE KEY). The
+  GitHub token used for pushes is one-shot URL auth, never stored.
+- **XSS surface:** the shell writes ONLY via textContent (0 DOM sinks —
+  innerHTML/document.write/insertAdjacentHTML: 0 matches), and the app
+  itself renders inside a Gio canvas with no DOM at all — the entire
+  HTML-injection class does not exist on this target. Message text
+  cannot become markup by construction.
+- **Open redirect / dangerous schemes:** openext_web.go opens links via
+  sanitizeURL's scheme allowlist (http/https/tg) — javascript: and
+  friends are refused before window.open.
+- **Script-injection of refreshed wasm_exec.js:** same-origin bytes
+  only (the revalidation fetch is origin-relative); an attacker who can
+  write those bytes already owns the gh-pages branch (=repo admin).
+- **Errors:** shell failures surface labels + HTTP codes + exception
+  messages — no internals, no URLs beyond the failing asset name.
+- **Cross-tab merge (F-87):** decrypts only same-origin localStorage
+  bytes with this instance's key; origin-scoped by the browser.
+- **Telegram api_id/api_hash in bootstrap:** the publicly-known
+  tdesktop reference pair — deliberate, standard for MTProto clients,
+  not a leak (unchanged this session, restated for the record).
+- **R9 (web vault fixed default password):** threat model documented
+  (ciphertext-at-rest only; env/flags unreachable in a wasm argv; the
+  native vault-password feature does not map to the web target).
+  OWNER-DECISION REQUIRED — held open in BUGS.md, not silently changed.
+- Authorization on "protected routes/API": n/a — a static site; the
+  app's only APIs are the messengers' own (previous slices hardened the
+  hostile-server surfaces: F-71..F-86 traversal/DoS/parsing).
+
+Phase 6 exit: every item verified; R9 needs the owner, nothing silently
+changed.
