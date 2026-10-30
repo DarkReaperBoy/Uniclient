@@ -259,3 +259,38 @@ Phase 4 baseline, R9 → owner decision, held open in BUGS.md).
 
 Suite state at gate: dev-test.sh ALL GATES GREEN (native engine/cores/
 utils/bootstrap + js gui/audio legs); puppeteer shell 14/14, app 6/6.
+
+
+## 8. Phase 4 record — measured before/after (2026-10-31)
+
+Baseline first (scripts/web-test/measure-boot.mjs, SERVER_DELAY_MS=0,
+headless Chrome + SwiftShader, 1280x800, local identity server):
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| boot: download+fetch (88.5 MB local) | 724 ms | 682 ms | noise |
+| boot: wasm compile | 235 ms | 202 ms | noise |
+| boot: engine init → first canvas | 983 ms | 957 ms | noise |
+| boot: total → canvas | 1943 ms | 1825 ms | ~6% |
+| **JS heap after boot (steady, app lifetime)** | **88 MB** | **3 MB** | **-85 MB** |
+| **JS heap PEAK during boot** | **170 MB** | **133 MB** | **-37 MB** |
+
+Optimizations (both in the gh-pages shell, one measured win each):
+1. Release the module bytes after instantiate — `wasm.bytes = null`.
+   The ~88 MB ArrayBuffer stayed reachable for the app's entire
+   lifetime via the boot closure (go.run never resolves while the app
+   runs). Compiled wasm code is resident; the raw bytes are dead
+   weight. Steady heap 88 -> 3 MB.
+2. Assemble the streamed module in place — allocate the output buffer
+   once from content-length and copy each chunk at its offset, instead
+   of collecting chunks then copying into a second full-size buffer.
+   Peak during download 170 -> 133 MB (single 88 MB buffer + reader).
+
+REJECTED (measured, not guessed): instantiateStreaming. Compile time
+is only ~200 ms — overlapping it with the download saves <5% of a real
+network boot, while breaking the offline force-cache fallback's byte
+path and adding a tee-buffer risk. Marginal gain, real complexity.
+
+Verify: shell tier 14/14 + app tier 6/6 against the optimized shell
+(behavior-identical per the suite); numbers above from
+SERVER_DELAY_MS=0 node scripts/web-test/measure-boot.mjs.

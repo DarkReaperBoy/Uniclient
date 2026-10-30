@@ -95,7 +95,8 @@ export function startServer(root, port = 8099) {
     const CHUNK = 256 * 1024;
     // Small inter-chunk delay keeps the determinate progress bar observable
     // by the tests (instant local reads would flash by in one frame).
-    const DELAY_MS = 15;
+    // Performance measurements set SERVER_DELAY_MS=0 for real timings.
+    const DELAY_MS = Number(process.env.SERVER_DELAY_MS ?? 15);
     let off = 0;
     const pump = () => {
       if (off >= body.length) {

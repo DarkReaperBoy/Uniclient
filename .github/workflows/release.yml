@@ -317,22 +317,35 @@ jobs:
                 if (!resp.ok) throw new Error(label + " — HTTP " + resp.status);
                 var rev = revOf(resp);
                 var total = Number(resp.headers.get("content-length")) || 0;
+                // Assemble in place when the size is known up front: the
+                // module is ~88 MB, so a chunks-array + final-copy design
+                // held TWO copies at peak (measured 170 MB of JS heap on a
+                // low-RAM budget). With content-length the peak is the
+                // output buffer alone.
+                var out = total ? new Uint8Array(total) : null;
                 var chunks = [], got = 0;
                 if (resp.body) {
                   var reader = resp.body.getReader();
                   for (;;) {
                     var step = await reader.read();
                     if (step.done) break;
-                    chunks.push(step.value);
+                    if (out && got + step.value.length <= out.length) {
+                      out.set(step.value, got);
+                    } else {
+                      chunks.push(step.value);
+                    }
                     got += step.value.length;
                     setStatus(label, total ? got / total : null,
                       total ? fmtMB(got) + " / " + fmtMB(total) : fmtMB(got));
                   }
                 } else {
                   var all = new Uint8Array(await resp.arrayBuffer());
-                  chunks = [all]; got = all.length;
+                  out = all; got = all.length;
                 }
-                var out = new Uint8Array(got), off = 0;
+                if (!out) {
+                  out = new Uint8Array(got);
+                }
+                var off = 0;
                 for (var i = 0; i < chunks.length; i++) { out.set(chunks[i], off); off += chunks[i].length; }
                 return { bytes: out, rev: rev };
               }
@@ -413,6 +426,11 @@ jobs:
                   bootObs.observe(document.body, { childList: true, subtree: true });
                   var go = new Go();
                   var built = await WebAssembly.instantiate(wasm.bytes, go.importObject);
+                  // The raw module bytes are ~88 MB of JS heap that stay
+                  // reachable for the whole app lifetime via this closure
+                  // (go.run never resolves while the app runs). The
+                  // compiled code is resident — release the bytes.
+                  wasm.bytes = null;
                   await go.run(built.instance);
                   throw new Error("Uniclient exited"); // app closed -> offer relaunch
                 } catch (e) {
