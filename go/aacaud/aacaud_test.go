@@ -5,9 +5,9 @@ package aacaud
 // The fixtures under testdata/ are shaped like what Telegram sends: an
 // MP4 carrying H.264 video plus an AAC-LC audio track.
 //
-//	talk.mp4    regular video: 128x96 H.264 + AAC-LC 96k STEREO 48 kHz, 1.5 s
-//	note.mp4    round video note: 192x192 H.264 + AAC-LC 64k MONO 48 kHz, 1.0 s
-//	silent.mp4  video only — the negative case (no `soun` trak)
+//      talk.mp4    regular video: 128x96 H.264 + AAC-LC 96k STEREO 48 kHz, 1.5 s
+//      note.mp4    round video note: 192x192 H.264 + AAC-LC 64k MONO 48 kHz, 1.0 s
+//      silent.mp4  video only — the negative case (no `soun` trak)
 //
 // Two independent kinds of pin:
 //
@@ -42,6 +42,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -213,18 +215,46 @@ func TestDecodeMatchesFFmpegReference(t *testing.T) {
 	}
 }
 
+// ffmpeg reference digests per ffmpeg major line. The aac_fixed decoder is
+// frozen upstream, but its output still legitimately differs BETWEEN major
+// versions; a pin is only meaningful against the line it was derived from.
+// ffmpeg 6.x = the CI runner line (ubuntu-latest), ffmpeg 7.x derived on
+// Debian trixie's 7.1.5 with this exact invocation.
+var ffmpegRefPins = map[int]map[string]string{
+	6: {"talk.mp4": talkPCMFFmpegSHA256, "note.mp4": notePCMFFmpegSHA256},
+	7: {
+		"talk.mp4": "b9aa2576848d84bc79f81d829426427fd0b1fa76dc13119f9ef48d3a2447d5a3",
+		"note.mp4": "bab7fa9a17c5fcd79acce89c207444b32efb0d73a4da7aa99812b83dad5109e6",
+	},
+}
+
 // Provenance: re-derive the pinned constants from the committed MP4s with
 // ffmpeg itself, so the pins are never taken on trust. Skipped when ffmpeg
-// is absent (CI). Note the decoder flag comes BEFORE -i — see the header
-// comment for why getting that wrong silently switches oracles.
+// is absent (CI) or its major line has no characterized pin table.
 func TestReferenceIsGenuineFFmpeg(t *testing.T) {
 	ff, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		t.Skip("ffmpeg not available")
 	}
+	vb, err := exec.Command(ff, "-version").Output()
+	if err != nil {
+		t.Skipf("ffmpeg -version failed: %v", err)
+	}
+	vm := regexp.MustCompile(`ffmpeg version (\d+)\.`).FindSubmatch(vb)
+	if vm == nil {
+		t.Skipf("cannot parse ffmpeg version from %q", vb)
+	}
+	major, err := strconv.Atoi(string(vm[1]))
+	if err != nil {
+		t.Skipf("cannot parse ffmpeg major from %q", vm[1])
+	}
+	pins, ok := ffmpegRefPins[major]
+	if !ok {
+		t.Skipf("ffmpeg major %d has no characterized pin table — add one derived with this exact invocation", major)
+	}
 	for _, c := range []struct{ file, want string }{
-		{"talk.mp4", talkPCMFFmpegSHA256},
-		{"note.mp4", notePCMFFmpegSHA256},
+		{"talk.mp4", pins["talk.mp4"]},
+		{"note.mp4", pins["note.mp4"]},
 	} {
 		t.Run(c.file, func(t *testing.T) {
 			src := filepath.Join("testdata", c.file)
