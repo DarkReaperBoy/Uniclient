@@ -206,6 +206,13 @@ func (v *Vault) flushWithExistingKey() error {
 }
 
 func (v *Vault) flush(salt []byte) error {
+	// Cross-instance merge (js/wasm): localStorage is shared by every tab of
+	// the origin and each tab holds its own in-memory image — without a
+	// re-read+merge before the flush, a save from one tab erases every
+	// account/session another tab wrote in the meantime (risk R1). Native is
+	// a no-op: the single-instance lock file makes concurrent writers
+	// impossible.
+	v.mergeForeignVaultData()
 	plaintext, err := json.Marshal(v.data)
 	if err != nil {
 		return fmt.Errorf("marshal data: %w", err)
@@ -264,4 +271,23 @@ func ImportVault(srcPath, destPath, password string) (*Vault, error) {
 
 func deriveVaultKey(password string, salt []byte) []byte {
 	return argon2.IDKey([]byte(password), salt, Argon2Iterations, Argon2Memory, Argon2Parallelism, KeySize)
+}
+
+// mergeVaultData folds foreign bucket/key pairs into ours. Key-level
+// conflicts go to OURS: this instance is about to persist its own newer
+// write, and adopting theirs would silently drop the user action that
+// triggered this flush.
+func mergeVaultData(ours, foreign map[string]map[string]json.RawMessage) {
+	for bucket, keys := range foreign {
+		ob, ok := ours[bucket]
+		if !ok {
+			ob = make(map[string]json.RawMessage, len(keys))
+			ours[bucket] = ob
+		}
+		for k, v := range keys {
+			if _, exists := ob[k]; !exists {
+				ob[k] = v
+			}
+		}
+	}
 }

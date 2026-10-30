@@ -195,13 +195,12 @@ export async function suite(t, ctx) {
     });
   });
 
-  // b6 — two tabs clobber the vault (KNOWN BEHAVIOR, risk R1 — pinned
-  //      as-is; Phase 2 flips the expectation). Both tabs must boot BEFORE
-  //      any account exists: a tab that starts with an account in the
-  //      vault never shows the welcome CTA. The vault is DECRYPTED in the
-  //      test (Argon2id+AES-GCM, same params as the app) so the assertion
-  //      counts accounts exactly — no ciphertext-size guessing.
-  await t("b6 two-tab vault clobber (KNOWN R1)", async (a) => {
+  // b6 — two tabs: the second tab's flush must preserve the first tab's
+  //      account (R1 fix). Both tabs must boot BEFORE any account exists:
+  //      a tab that starts with an account in the vault never shows the
+  //      welcome CTA. The vault is DECRYPTED in the test (Argon2id+AES-GCM,
+  //      same params as the app) so the assertion counts accounts exactly.
+  await t("b6 two-tab vault merge preserves both accounts (R1)", async (a) => {
     await withBrowser(async (b) => {
       const vaultRaw = (page) => page.evaluate(() => localStorage.getItem("uniclient.vault") || "");
 
@@ -244,10 +243,10 @@ export async function suite(t, ctx) {
       const v2 = await decryptVault(raw2);
       const n2 = accountCount(v2);
 
-      // KNOWN BEHAVIOR (R1): tab2's flush rewrote the vault from its own
-      // stale in-memory image, so the persisted vault holds ONE account —
-      // tab1's is gone. Correct behavior: 2. Flip when R1 is fixed.
-      a.ok(n2 === 1, `KNOWN R1 clobber: vault holds ${n2} account(s) after the second tab added (correct behavior: 2)`);
+      // R1 CONTRACT: tab2's flush re-reads and merges the persisted vault
+      // before writing, so BOTH accounts survive. Before the fix this was
+      // exactly 1 (tab2's stale in-memory image erased tab1's account).
+      a.ok(n2 === 2, `vault must hold both accounts after the second tab added (got ${n2})`);
       writeFileSync(join(artifacts, "b6-vault-after-tab2.json"), JSON.stringify(v2, null, 2));
     });
   });

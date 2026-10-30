@@ -58,3 +58,9 @@ func vaultPathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
+
+// mergeForeignVaultData is the native side of the flush-time cross-instance
+// merge: a no-op. Native enforces one engine instance per config dir via the
+// lock file, so no other writer can exist and a re-read+merge would only
+// mask a broken lock.
+func (v *Vault) mergeForeignVaultData() {}
