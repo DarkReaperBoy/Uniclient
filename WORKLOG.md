@@ -36,6 +36,36 @@ fresh AGENTS.md/BUGS.md are the reset). Full phase log lives in
     R4 (web picker offers TCP-impossible backends), R5 (no post-boot
     crash surface in the shell), R6 (observer accumulation) — queued.
 
-Next: finish Phase 2 fixes, then Phases 3-7 (prune/refactor → perf
-baseline+measure → UI/UX polish → security → full verification incl. the
-live deployed-site tier), one final WORKLOG update + changelog by phase.
+**Phase 2 (correctness, red-first, one bug per iteration):** all six
+web findings fixed — F-87 two-tab vault clobber (merge-before-flush),
+F-88 getUserMedia failure-path leak (per-attempt ownership), F-89 mic
+rate read off the wrong object + no resample (AudioBuffer + streaming
+resample; the read was a first-real-callback panic), F-90 web picker
+offered TCP-impossible backends (js shows github/matrix/bale only),
+F-91 no crash surface after canvas attach (window error/rejection →
+overlay+Retry), F-92 observer accumulation (one tracked bootObs).
+R10 audited: not a bug (trickle contract, comment corrected).
+- **Phase 3:** comment/doc lies fixed (vault storage key, phantom
+  IndexedDB host layer, XMPP "mellium" picker copy); dead-code deletion
+  of vaultPathExists REVERTED by the suite — VaultExists→engine.Init
+  uses it (usage analysis must catch wrappers).
+- **Phase 4 (measured):** shell boot steady heap 88→3 MB (module bytes
+  released post-instantiate — they were pinned for the app lifetime),
+  download peak 170→133 MB (in-place assembly); instantiateStreaming
+  REJECTED with numbers (compile is only ~200 ms). Harness:
+  scripts/web-test/measure-boot.mjs.
+- **Phase 5:** #status live region + noscript fallback (s15);
+  below-fold-Bale resolved-by-design (scrollable List).
+- **Phase 6:** secret sweep clean, zero DOM sinks (canvas = no HTML
+  injection surface), scheme-allowlisted link opening; R9 (web vault
+  fixed default password) needs an OWNER decision — held open.
+- **Phase 7:** full battery green (gofmt/vet/vet-live/14-pkg suite/
+  race legs/dev-test/15-shell/6-app/YAML). PRODUCTION: GitHub Pages
+  serving is currently DISABLED on the repo (owner action ~22:00 UTC,
+  gh-pages branch intact, Pages API 404) — the live tier skips with
+  that reason; re-enabling + cutting v0.10.4 left to the owner.
+
+Next (owner): re-enable Pages and cut v0.10.4 to ship the hardening;
+decide R9 (web vault password); the standing owner-only rungs (live
+sign-ins, first non-prerelease). Next (agent): continue from BUGS.md
+open rows; the puppeteer suite now guards every web-touching change.

@@ -355,3 +355,40 @@ SERVER_DELAY_MS=0 node scripts/web-test/measure-boot.mjs.
 
 Phase 6 exit: every item verified; R9 needs the owner, nothing silently
 changed.
+
+
+## 11. Phase 7 record (2026-10-31) — full verification
+
+Everything re-run at the final state, CI-parity shapes:
+
+| Gate | Result |
+|---|---|
+| gofmt -l | clean |
+| go vet -tags goolm ./... | OK |
+| go vet -tags goolm,live ./tests/ | OK |
+| go test -tags goolm ./... (native, cgo) | 14 packages ok, 0 fail |
+| race: webm + vp9anim | ok |
+| race: cores CI subset | ok (7.9s) |
+| dev-test.sh (native + js gui/audio legs) | ALL GATES GREEN |
+| puppeteer shell tier | 15/15 |
+| puppeteer app tier (real 88.5 MB wasm) | 6/6 |
+| release/verify/flake YAML | parse, jobs intact |
+| live tier (production) | SKIPPED — see below |
+
+**PRODUCTION FINDING (owner action mid-session):** at ~22:00 UTC the
+deployed site began answering 404 for every path while the gh-pages
+BRANCH remains intact (index 6962 B, wasm 88,455,158 B, v0.10.3
+commit) — and the GitHub Pages API returns 404 for the repo: **Pages
+serving is currently DISABLED on the repository**, another live owner
+action in the same window as the AGENTS/WORKLOG/BUGS deletions
+(19:55 UTC). The live tier now probes availability first and SKIPS
+with that reason instead of failing boots against a 404 page. The
+release pipeline is untouched and will deploy on the next v* tag once
+the owner re-enables Pages; re-enabling and cutting v0.10.4 were left
+to the owner deliberately — the owner was actively reconfiguring the
+repo during this session and no release was ordered.
+
+**Browser-GUI checklist (§6) final status:** every [x] item verified by
+its automated test this phase; weak-network soak covered by the
+throttled (15 ms/chunk) and unthrottled boots; the live tier is
+owner-blocked (not a regression — same bytes verified locally).

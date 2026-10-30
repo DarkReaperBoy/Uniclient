@@ -11,6 +11,20 @@ export async function suite(t, ctx) {
   mkdirSync(artifacts, { recursive: true });
   const timings = [];
 
+  // Production availability check: the tier must SKIP with a precise
+  // reason when the site is down (e.g. GitHub Pages disabled by the
+  // owner) instead of failing three boots against a 404 page.
+  {
+    const probe = await fetch(liveUrl, { redirect: "follow" }).catch((e) => null);
+    if (!probe || !probe.ok) {
+      const status = probe ? `HTTP ${probe.status}` : "unreachable";
+      await t(`live tier: production site unavailable (${status})`, async (a) => {
+        a.skip(`https://darkreaperboy.github.io/Uniclient/ answers ${status} — Pages serving is off (owner-controlled). Run again once the site is enabled.`);
+      });
+      return;
+    }
+  }
+
   const newPage = async (viewport) => {
     const page = await ctx.browser.newPage();
     const errors = [];

@@ -33,9 +33,15 @@ node run.mjs --live            # deployed-site tier
 ```
 
 Env: `UC_WASM` (real wasm path, default `dist/uniclient.wasm`),
-`PORT` (test server port, default 8099), `PUPPETEER_EXECUTABLE_PATH`
-(system Chrome in CI instead of a download), `UC_DEBUG=1` (dumps the
-DOM-history log on wait failures).
+`PORT` (test server port, default 8099), `SERVER_DELAY_MS` (inter-chunk
+throttle; 15 keeps the progress bar testable, 0 = real timings),
+`PUPPETEER_EXECUTABLE_PATH` (system Chrome in CI instead of a download),
+`UC_DEBUG=1` (dumps the DOM-history log on wait failures).
+
+`measure-boot.mjs` is the performance harness (boot phase segments +
+JS-heap peak sampling) — run with `SERVER_DELAY_MS=0` for real numbers.
+The live tier probes production first and SKIPS with a reason if the
+site is down (e.g. Pages disabled by the owner).
 
 Artifacts land in `artifacts/` (screenshots, boot timings, decrypted
 vault dumps) — gitignored, kept for review.
