@@ -78,11 +78,12 @@ this file in the same commit. Keep it under ~300 lines.
 19. **If a change cannot be tested, it cannot be made.** Build the harness first.
 20. **Unspecified → do what a senior Unix engineer would do, then verify.** The bar is
     production-ready and rock solid.
-21. **No unplayed GUI — the owner is never the playtester.** Every `gui/` change is
-    *driven* before it counts: the real wasm through a Puppeteer journey that exercises
-    the change (console clean), or the native binary under Xvfb with a screenshot you
-    actually looked at. No journey → write it first. Sandbox can't run it → BLOCKED-env
-    in BUGS.md, never claimed "works".
+21. **No unplayed GUI — the agent is the tester, the owner never is.** Prove user-facing
+    behavior by DRIVING the real app yourself — a Puppeteer journey on the real wasm
+    (console clean) or native under Xvfb, screenshots actually looked at — and say what
+    you saw. Unit tests pin logic, never that a UI works: a green suite over an
+    undriven GUI is NOT done; more unit tests never substitute for playing it. No
+    journey → write it first. Sandbox can't → BLOCKED-env in BUGS.md, never "works".
 
 ## 2. Architecture
 
@@ -149,9 +150,10 @@ STATE/BUGS/WORKLOG → commit → push → next item
   or regenerated goldens. A deliberate behavior change updates its `TestKnown_*` pin in
   the same commit and says so.
 - **Evidence rule:** "done/works/fixed" only from command output seen THIS session —
-  never from memory or from reading code. For `gui/` changes the evidence is a driven
-  journey (E2E transcript or screenshot + what you saw), never "the logic looks
-  right". WORKLOG entries cite the command + result.
+  never from memory or from reading code. For user-facing changes the evidence is a
+  driven journey (E2E transcript or screenshot + what you saw), never "the logic
+  looks right"; a green unit suite is not evidence a UI works. WORKLOG entries cite
+  the command + result.
 
 ## 4. The hardening cycle (endless)
 

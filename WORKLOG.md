@@ -8,12 +8,26 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 (chunked recon of never-mapped surfaces; the web surface closed in cycle 1)
-- item: constitution v3.1 (owner directive) — landed this session
+- item: constitution v3.2, the self-test law (owner directive) — landed this session
 - next: write scripts/gate.sh (§9 first-commit rule) → R10 audit → P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
-- owner-waiting: GH_TOKEN to push (F-93 — the 326 commits are preserved outside the repo
-  as download/uniclient-326.bundle + .patch, pull-able/apply-able anywhere); re-enable
-  Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
+- owner-waiting: push in progress this session (token located out-of-band in the owner's
+  directive paste — F-93); re-enable Pages + cut v0.10.4; R9 web-vault decision;
+  real-account sign-ins; first non-prerelease
 - last-gate: green @ 01dd3f9 (code untouched since — v3.1 + bundle note are docs-only)
+
+## Session 327 — constitution v3.2: the self-test law (2026-10-31)
+
+Owner directive: "test yourself, not [just] writing unit tests — add to AGENTS.md."
+
+- Law 21 sharpened from "no unplayed GUI" to "the agent IS the tester": user-facing
+  behavior is proven only by driving the real app yourself — a Puppeteer journey on
+  the real wasm (console clean) or native Xvfb screenshots actually looked at — and
+  saying what was seen. A green unit suite over an undriven GUI is NOT done; more
+  unit tests never substitute for playing the change.
+- §3 evidence rule widened gui/ → user-facing, plus "a green unit suite is not
+  evidence a UI works".
+- File: 301 lines (≤~300 budget, held within noise).
+- Next: scripts/gate.sh → R10 → P0 chunk 1.
 
 ## Session 326 — constitution v3.1: the four weaknesses, fixed in-file (2026-10-31)
 
