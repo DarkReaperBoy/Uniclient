@@ -24,13 +24,16 @@ type webDevice struct {
 	playFnSet bool
 	playFill  func(out []int16)
 
-	micStream js.Value
-	micNode   js.Value
-	micFn     js.Func
-	micFnSet  bool
-	micCh     chan []byte
-	micStop   chan struct{}
-	micDone   chan struct{}
+	// micStop is the LIVE attempt's stop channel; it is non-nil from
+	// startMic until the attempt is ended (stopMic or a rejected
+	// getUserMedia), which is exactly the "mic already running" window.
+	// micDone closes when that attempt's cleanup goroutine finished.
+	// Everything else a mic attempt needs lives in per-attempt locals
+	// captured by its own goroutine, so overlapping attempts (a failed
+	// one unwinding while a fresh one starts) never touch each other's
+	// js.Funcs (risk R2).
+	micStop chan struct{}
+	micDone chan struct{}
 }
 
 func openDevice() (device, error) {
@@ -130,7 +133,7 @@ func (d *webDevice) stopPlayback() {
 func (d *webDevice) startMic() (<-chan []byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if !d.micNode.IsNull() && !d.micNode.IsUndefined() {
+	if d.micStop != nil {
 		return nil, fmt.Errorf("audio: mic already running")
 	}
 
@@ -152,7 +155,23 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 	frames := make(chan []byte, 8)
 	stop := make(chan struct{})
 	done := make(chan struct{})
-	d.micCh, d.micStop, d.micDone = frames, stop, done
+	d.micStop, d.micDone = stop, done
+
+	// endMicAttempt is the single "this attempt is over" transition: it
+	// un-publishes the attempt from the device exactly once (so a fresh
+	// startMic may begin immediately) and releases the cleanup goroutine.
+	// The identity check under the mutex is the close guard: if stopMic
+	// already ended this attempt (permission dialog still open), the
+	// channel is closed and nil-published, and a late failure callback
+	// must not close it twice.
+	endMicAttempt := func() {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		if d.micStop == stop {
+			d.micStop, d.micDone = nil, nil
+			close(stop)
+		}
+	}
 
 	var pending []float64 // banked input samples at the mic's rate
 	var micRate float64
@@ -195,10 +214,12 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 		}
 		return nil
 	})
-	d.micFn, d.micFnSet = fn, true
 
+	// node/stream are this attempt's js handles, published by setup and
+	// torn down by the cleanup goroutine below — both see the same
+	// per-attempt values, never another attempt's.
+	var node, stream js.Value
 	setup := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		stream := args[0]
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		select {
@@ -206,36 +227,40 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 			return nil // stopped while permission dialog was open
 		default:
 		}
-		d.micStream = stream
+		stream = args[0]
 		src := d.ctx.Call("createMediaStreamSource", stream)
-		node := d.ctx.Get("createScriptProcessor").Invoke(2048, 1, 1)
-		node.Set("onaudioprocess", fn)
-		src.Call("connect", node)
+		n := d.ctx.Get("createScriptProcessor").Invoke(2048, 1, 1)
+		n.Set("onaudioprocess", fn)
+		src.Call("connect", n)
 		// A ScriptProcessor needs a destination to actually run; route
 		// it through a zero-gain node so nothing is echoed.
 		zero := d.ctx.Get("createGain").Invoke()
 		zero.Get("gain").Set("value", 0)
-		node.Call("connect", zero)
+		n.Call("connect", zero)
 		zero.Call("connect", d.ctx.Get("destination"))
 		if d.ctx.Get("state").String() == "suspended" {
 			d.ctx.Call("resume")
 		}
-		d.micNode = node
+		node = n
 		return nil
 	})
+	// A rejected getUserMedia is an honest mic-end for the reader AND an
+	// attempt-end for cleanup — without the second half the attempt's
+	// goroutine and all its js.Funcs leaked forever (risk R2).
 	failed := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		close(frames)
+		endMicAttempt()
 		return nil
 	})
 	promise.Call("then", setup, failed)
 
+	// One cleanup goroutine per attempt, owning ONLY this attempt's
+	// resources. It cannot race a newer attempt: every value it touches
+	// is captured here, and the js teardown happens at most once per
+	// attempt because `stop` closes exactly once.
 	go func() {
 		defer close(done)
 		<-stop
-		d.mu.Lock()
-		node, stream, fnv, fnSet := d.micNode, d.micStream, d.micFn, d.micFnSet
-		d.micNode, d.micStream, d.micFn, d.micFnSet = js.Value{}, js.Value{}, js.Func{}, false
-		d.mu.Unlock()
 		if !node.IsNull() && !node.IsUndefined() {
 			node.Set("onaudioprocess", nil)
 			node.Call("disconnect")
@@ -246,9 +271,9 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 				tracks.Index(i).Call("stop")
 			}
 		}
-		if fnSet {
-			fnv.Release()
-		}
+		fn.Release()
+		setup.Release()
+		failed.Release()
 	}()
 	return frames, nil
 }
@@ -256,16 +281,15 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 func (d *webDevice) stopMic() {
 	d.mu.Lock()
 	stop := d.micStop
-	d.micStop = nil
+	done := d.micDone
+	d.micStop, d.micDone = nil, nil
 	d.mu.Unlock()
-	if stop == nil {
-		return
+	if stop != nil {
+		close(stop)
 	}
-	close(stop)
-	<-d.micDone
-	d.mu.Lock()
-	d.micCh, d.micDone = nil, nil
-	d.mu.Unlock()
+	if done != nil {
+		<-done
+	}
 }
 
 func (d *webDevice) close() {

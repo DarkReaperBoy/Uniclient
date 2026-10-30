@@ -18,43 +18,13 @@ export GOMEMLIMIT=3GiB GOGC=20
 echo "== native: engine/cores/utils/bootstrap =="
 CGO_ENABLED=1 go test -tags goolm -count=1 ./engine/... ./cores/... ./utils/... ./bootstrap/...
 
-echo "== wasm: gui (node exec) =="
-WASM_RUNNER=$(mktemp -d)/go_js_wasm_exec.sh
-{
-  echo '#!/bin/sh'
-  echo 'TESTBIN="$1"; shift'
-  echo 'NODE_SCRIPT=$(mktemp /tmp/wasm-run-XXXXXX.js)'
-  echo "OUT=\$(mktemp /tmp/wasm-out-XXXXXX.txt)"
-  echo 'cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$NODE_SCRIPT"'
-  cat << 'PREP'
-cat >> "$NODE_SCRIPT" << 'EOF2'
-
-(async () => {
-  const go = new Go();
-  go.argv = [process.argv[2]];
-  const wasmBinary = require('fs').readFileSync(process.argv[2]);
-  try {
-    const result = await WebAssembly.instantiate(wasmBinary, go.importObject);
-    const code = await go.run(result.instance);
-    process.exit(code === undefined ? 0 : code);
-  } catch (err) {
-    console.error(String(err && err.stack || err).split('\n')[0]);
-    process.exit(2);
-  }
-})();
-EOF2
-node "$NODE_SCRIPT" "$TESTBIN" > "$OUT" 2>/tmp/wasm-err.txt
-RC=$?
-cat "$OUT"
-VERDICT=$(grep -E "^(PASS|FAIL|ok |--- FAIL)" "$OUT" | tail -1)
-[ "$RC" -ne 0 ] && echo "$VERDICT" | grep -q "^PASS" && RC=0
-rm -f "$NODE_SCRIPT" "$OUT"
-exit $RC
-PREP
-} > "$WASM_RUNNER"
-chmod +x "$WASM_RUNNER"
-GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags goolm -count=1 -exec "$WASM_RUNNER" ./gui/...
-rm -rf "$(dirname "$WASM_RUNNER")"
+echo "== wasm: gui + audio (node exec) =="
+# The shared runner is VERDICT-FIRST: a printed --- FAIL line always fails
+# the leg, and the only tolerated crash is the known post-PASS teardown.
+# (The inline runner this replaces rescued a FAIL-ing binary whenever node
+# exited 0 after a panic — a false green.)
+WASM_RUNNER="$ROOT/scripts/wasm-test-runner.sh"
+GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags goolm -count=1 -exec "$WASM_RUNNER" ./gui/... ./audio/...
 
 echo "== vet + gofmt =="
 # Native vet for every package that builds without system dev headers; the
