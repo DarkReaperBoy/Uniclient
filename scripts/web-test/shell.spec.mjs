@@ -39,10 +39,34 @@ const RECORDER = () => {
 export async function suite(t, ctx) {
   const { server, fixtures, goRoot } = ctx;
 
+  // OBS_COUNTER patches MutationObserver with a subclass that counts
+  // live (observed-but-not-disconnected) instances in window.__obsActive —
+  // s14's proof that the shell disconnects stale boot observers (R6).
+  const OBS_COUNTER = () => {
+    const Orig = MutationObserver;
+    let active = 0;
+    class CountingMO extends Orig {
+      observe(target, options) {
+        super.observe(target, options);
+        active++;
+      }
+      disconnect() {
+        super.disconnect();
+        if (!this._ucDisc) {
+          active--;
+          this._ucDisc = true;
+        }
+      }
+    }
+    window.MutationObserver = CountingMO;
+    window.__obsActive = () => active;
+  };
+
   const freshPage = async (opts = {}) => {
     const context = opts.isolated ? await ctx.browser.createBrowserContext() : null;
     const page = context ? await context.newPage() : await ctx.browser.newPage();
     page._ucContext = context;
+    if (opts.countObservers) await page.evaluateOnNewDocument(OBS_COUNTER);
     await page.evaluateOnNewDocument(RECORDER);
     const errors = [];
     page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
@@ -88,12 +112,13 @@ export async function suite(t, ctx) {
     });
 
   // cond (plain object, all fields optional): {status, detail, detailRe, det,
-  // after, overlayHidden}
+  // after, count} — count requires that many MATCHING records in history
+  // (boots repeat states; a unique detail is not always available).
   const waitRec = async (page, cond, what, timeout = 10000) => {
     await page
       .waitForFunction(
-        (c) =>
-          (window.__ucLog || []).some((r) => {
+        (c) => {
+          const matches = (window.__ucLog || []).filter((r) => {
             if (c.status && r.status !== c.status) return false;
             if (c.detail && !r.detail.includes(c.detail)) return false;
             if (c.detailRe && !new RegExp(c.detailRe).test(r.detail)) return false;
@@ -103,14 +128,17 @@ export async function suite(t, ctx) {
             }
             if (c.after && !(r.t > c.after)) return false;
             return true;
-          }),
+          });
+          return matches.length >= (c.count || 1);
+        },
         { timeout, polling: 50 },
         cond,
       )
       .catch(async (e) => {
         if (process.env.UC_DEBUG) {
           const log = await page.evaluate(() => window.__ucLog || []).catch(() => "evaluate failed");
-          console.error(`[debug] __ucLog for "${what}":`, JSON.stringify(log).slice(0, 3000));
+          console.error(`[debug] cond for "${what}":`, JSON.stringify(cond));
+          console.error(`[debug] __ucLog for "${what}":`, JSON.stringify(log).slice(-1200));
         }
         throw new Error(`${what}: ${e.message}`);
       });
@@ -345,6 +373,70 @@ export async function suite(t, ctx) {
     } finally {
       await closePage(page);
       setFixtureWasm("dummy.wasm");
+    }
+  });
+
+  // ── s13: after the canvas attached and the overlay hid, a late wasm
+  //        panic / uncaught script error must surface — overlay back with
+  //        the error and a Retry, never a dead silent page (risk R5).
+  await t("s13 late crash re-shows the overlay with a retry (R5)", async (a) => {
+    const page = await freshPage();
+    try {
+      await boot(page);
+      await waitRec(page, { status: "Starting Uniclient…" }, "booted");
+      await attachCanvas(page);
+      await waitOverlayHidden(page, "overlay hidden on canvas attach");
+      // synth windows-error AFTER boot. Throwing through an inline
+      // <script> keeps the message same-origin — puppeteer's evaluate
+      // context is treated as cross-origin and masks it as
+      // "Script error.".
+      await page.evaluate(() => {
+        const s = document.createElement("script");
+        s.textContent = "setTimeout(function () { throw new Error('synthetic late crash'); }, 0);";
+        document.head.appendChild(s);
+      });
+      await waitRec(page, { status: "Uniclient stopped", detail: "synthetic late crash" },
+        "uncaught error surfaces as stopped + retry", 8000);
+      a.ok(await retryVisible(page), "retry visible after late crash");
+      // unhandled rejection leg — same surface, same inline-script vector
+      // (puppeteer's evaluate absorbs the rejection there).
+      await page.evaluate(() => {
+        const s = document.createElement("script");
+        s.textContent = "Promise.reject(new Error('synthetic rejection'));";
+        document.head.appendChild(s);
+      });
+      await waitRec(page, { status: "Uniclient stopped", detail: "synthetic rejection" },
+        "unhandled rejection surfaces", 8000);
+    } finally {
+      await closePage(page);
+    }
+  });
+
+  // ── s14: failed boots must not stack connected MutationObservers (R6).
+  //        The shell's boot observer hides the overlay on canvas attach —
+  //        every failed boot used to leave one connected forever (self-
+  //        healing at first success, but a leak while failing). Counted
+  //        via a patched MutationObserver: a retry boot must not grow the
+  //        live count.
+  await t("s14 failed boots do not stack boot observers (R6)", async (a) => {
+    // A boot that reaches the wasm stage (dummy module: instantiate fails
+    // AFTER the boot observer exists) and stops — then a retry boot. The
+    // failed boot's observer must not survive into the next boot.
+    const page = await freshPage({ countObservers: true });
+    try {
+      await boot(page);
+      await waitRec(page, { status: "Uniclient stopped", detail: "WebAssembly.instantiate" },
+        "first boot reaches the observer stage and stops", 20000);
+      const active1 = await page.evaluate(() => window.__obsActive());
+      await page.$eval("#retry", (el) => el.click());
+      // Measure at the retry's SECOND stop — boots repeat states, so the
+      // wait requires TWO stop records (retry's observer exists by then).
+      await waitRec(page, { status: "Uniclient stopped", detail: "WebAssembly.instantiate()", count: 2 },
+        "retry reaches its own observer and stops", 20000);
+      const active2 = await page.evaluate(() => window.__obsActive());
+      a.ok(active2 <= active1, `retry boot grew live observers: ${active1} -> ${active2} (R6: failed boot's observer never disconnected)`);
+    } finally {
+      await closePage(page);
     }
   });
 

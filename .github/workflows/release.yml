@@ -347,7 +347,23 @@ jobs:
                 return prev === rev ? "up to date" : "updated";
               }
           
-              var running = false;
+              // Crash surface (risk R5): after the overlay hides, a wasm panic or
+          // any other uncaught script error would leave a dead silent page.
+          // Surface it — overlay back with the error and the Retry button.
+          function crash(text) {
+            running = false;
+            setStatus("Uniclient stopped", null, String(text));
+            $("retry").style.display = "inline-block";
+          }
+          window.addEventListener("error", function (e) {
+            crash((e && e.message) || "script error");
+          });
+          window.addEventListener("unhandledrejection", function (e) {
+            crash((e && e.reason && (e.reason.message || e.reason)) || "unhandled rejection");
+          });
+
+          var running = false;
+          var bootObs = null;
               async function boot() {
                 if (running) return;
                 running = true;
@@ -382,13 +398,19 @@ jobs:
                   setStatus("Starting Uniclient…", 1,
                     "wasm: " + fmtMB(wasm.bytes.length) + " — " + wasmState + " · js: " + jsState);
                   // Drop the overlay the moment Gio attaches its real canvas.
-                  var obs = new MutationObserver(function () {
+                  // One observer per page, not per boot: a failed boot used
+                  // to leave its observer connected forever (risk R6).
+                  if (bootObs) {
+                    bootObs.disconnect();
+                  }
+                  bootObs = new MutationObserver(function () {
                     if (document.querySelector("canvas")) {
                       $("boot").style.display = "none";
-                      obs.disconnect();
+                      bootObs.disconnect();
+                      bootObs = null;
                     }
                   });
-                  obs.observe(document.body, { childList: true, subtree: true });
+                  bootObs.observe(document.body, { childList: true, subtree: true });
                   var go = new Go();
                   var built = await WebAssembly.instantiate(wasm.bytes, go.importObject);
                   await go.run(built.instance);
