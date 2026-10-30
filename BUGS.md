@@ -11,12 +11,10 @@ hardening pass carry the risk ID from
 
 | # | Where | What | Evidence / how to see it | Next step |
 |---|-------|------|--------------------------|-----------|
-| R5 | gh-pages shell (release.yml heredoc) | After the boot overlay hides, a later wasm panic/exit leaves a dead silent page — no crash surface, no retry. | research/web_hardening_2026-10.md §3 R5; pinned in the suite's KNOWN list. | Add a window error/unhandledrejection handler that re-shows the overlay + Retry; extend shell.spec. |
-| R6 | gh-pages shell (release.yml heredoc) | MutationObserver accumulates across failed boots (self-heals at first canvas attach). | research/web_hardening_2026-10.md §3 R6. | Disconnect the previous observer at boot() start; prove via a monkeypatched MutationObserver counter in shell.spec. |
 | R9 | web vault | Web vault is ciphertext-at-rest with a fixed default password (env/flags unreachable in a wasm argv) — no KDF secret on this target. | research/web_hardening_2026-10.md §3 R9; AGENTS.md §2 web persistence. | Owner decision: accept (product behavior) or spec a web passcode derivation path. Not silently changeable. |
 | R10 | wrtc/js.go | GatheringCompletePromise(js) returns an immediately-closed channel — callers awaiting full ICE gathering send early answers on web. Callers are voice paths (media unsupported on web), matrix group-call signaling needs a check. | research/web_hardening_2026-10.md §3 R10. | Audit matrix_groupcall.go callers; if any signaling path awaits it on web, trickle candidates instead. |
 
-*Nothing else open. Known cosmetic/doc lies are tracked as R7 (Phase 3).*
+*Open: R9 (owner decision) and R10. R5/R6 were fixed in cycle 1 as F-91/F-92 — their stale open rows were pruned 2026-10-31 (evidence in the Fixed table).*
 
 ## Fixed
 

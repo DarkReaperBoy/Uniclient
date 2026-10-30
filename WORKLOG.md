@@ -1,11 +1,42 @@
 # WORKLOG.md — the session journal
 
-One entry per work session, newest first. This is the resume-from-zero
-mechanism: the last entry tells the next agent what happened and what is
-next. (The pre-2026-10 history was deleted by the owner on 2026-10-30 —
-it lives in git history if ever needed.)
+Top: the **STATE block** — rewritten every session, the resume pointer for the
+next agent. Below: one entry per work session, newest first. This is the
+resume-from-zero mechanism. (The pre-2026-10 history was deleted by the owner
+on 2026-10-30 — it lives in git history if ever needed.)
 
-## Session 324 — web hardening pass (2026-10-30/31, in progress)
+## STATE
+
+- cycle: 2 | phase: P0 (chunked recon of never-mapped surfaces; the web surface closed in cycle 1)
+- item: BUGS.md R10 — matrix_groupcall GatheringCompletePromise callers on web
+- next: R10 audit → P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
+- owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault password decision; real-account sign-ins (xmpp/bale/deltachat, mic/speaker, Android device); first non-prerelease
+- last-gate: green @ 01dd3f9 (session 324 P7: dev-test + 15 shell + 6 app E2E + YAML)
+
+## Session 325 — constitution v3 (2026-10-31)
+
+Owner directive: one perfect AGENTS.md — endless "continue" loop, least words,
+no context blowups, history out of the constitution. Merged the live file with
+the three draft constitutions (owner paste) and the four failure-mode fixes
+(chunked P0, execution mandate, comment carve-outs, blessed test triad).
+
+- AGENTS.md rebuilt: new §0 boot/mandate, §3 atomic loop (3-strike, evidence
+  rule, never-weaken-tests), §4 endless hardening cycle (gates, cycle+1→P2),
+  §9 ladder + gate.sh plan; law items 16-20 added (severity, comments, deps,
+  untestable, judgment). Section numbers §1.x/§2/§7/§8/§9 preserved — the 29
+  code-comment cross-references stay true, zero code edits needed.
+- WORKLOG: STATE block added at the top (this block).
+- BUGS.md: stale open rows R5/R6 pruned (both were fixed in cycle 1 as
+  F-91/F-92; the Fixed rows carry the evidence). Open: R9 (owner decision),
+  R10.
+- Repo visibility: private → public again (owner instruction — free-tier web
+  testing). Pages serving remains disabled (owner action 2026-10-30; gh-pages
+  branch intact); the E2E --live tier skips until re-enabled.
+- Evidence: verified against a fresh clone (workflows, scripts/web-test,
+  dev-test.sh, Makefile, BUGS/WORKLOG/research cross-refs); docs-only change.
+- Next: R10, then P0 chunk 1.
+
+## Session 324 — web hardening pass (2026-10-30/31, complete)
 
 Owner instruction: run the phased production-hardening prompt **against
 the web target**; free choice of test interface ("do whatever you want
