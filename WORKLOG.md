@@ -10,8 +10,10 @@ on 2026-10-30 — it lives in git history if ever needed.)
 - cycle: 2 | phase: P0 (chunked recon of never-mapped surfaces; the web surface closed in cycle 1)
 - item: constitution v3.1 (owner directive) — landed this session
 - next: write scripts/gate.sh (§9 first-commit rule) → R10 audit → P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
-- owner-waiting: GH_TOKEN to push session-326 commit (F-93); re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: green @ 01dd3f9 (code untouched since — v3.1 is docs-only)
+- owner-waiting: GH_TOKEN to push (F-93 — the 326 commits are preserved outside the repo
+  as download/uniclient-326.bundle + .patch, pull-able/apply-able anywhere); re-enable
+  Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
+- last-gate: green @ 01dd3f9 (code untouched since — v3.1 + bundle note are docs-only)
 
 ## Session 326 — constitution v3.1: the four weaknesses, fixed in-file (2026-10-31)
 
@@ -34,8 +36,11 @@ playtested"); fix them inside the file itself, without the owner.
 - Header mandate compressed 2 lines to hold the ≤~300-line budget (final: 299).
 - Evidence: docs-only — diff reviewed, law list append-only (21 added, 16-20
   unshifted, code cross-refs intact), wc -l = 299.
-- Push BLOCKED: GH_TOKEN absent from env (BUGS.md F-93, owner rung §10); commit
-  is local until the next boot with a token.
+- Push BLOCKED: GH_TOKEN absent from env, no gh CLI, no stored credentials (verified);
+  commits 3206776 + this one preserved outside the repo as download/uniclient-326.bundle
+  (git bundle, verified) and download/uniclient-326.patch — owner can pull/apply or a
+  future session with a token pushes. Zero code touched; no secrets in either file
+  (bundle carries only repo objects).
 - Next: scripts/gate.sh → R10 → P0 chunk 1.
 
 ## Session 325 — constitution v3 (2026-10-31)
