@@ -4,6 +4,7 @@ package audio
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"syscall/js"
 )
@@ -177,40 +178,55 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 	var micRate float64
 	fn := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		buf := args[0].Get("inputBuffer")
-		ch := buf.Get("getChannelData").Invoke(0)
-		n := ch.Length()
 		if micRate == 0 {
-			micRate = ch.Get("sampleRate").Float()
+			// The rate lives on the AudioBuffer; the channel data it
+			// hands out has no such property (reading it there was a
+			// first-callback panic — R3).
+			micRate = buf.Get("sampleRate").Float()
 			if micRate == 0 {
 				micRate = 48000
 			}
 		}
+		ch := buf.Get("getChannelData").Invoke(0)
+		n := ch.Length()
 		for i := 0; i < n; i++ {
 			pending = append(pending, ch.Index(i).Float())
 		}
-		// Convert to s16 at 48 kHz in 960-sample frames.
-		for len(pending) >= 960 {
+		// Emit 20 ms 48 kHz s16 frames. Browsers may run the context at
+		// its own rate despite the requested 48000 (older Safari) — the
+		// bank is resampled from micRate to 48k, so framing and pitch
+		// stay correct (R3). At 48k the interpolation collapses to a
+		// bit-exact passthrough.
+		const outRate = 48000.0
+		step := micRate * 960 / outRate // input samples per output frame
+		// The last output sample interpolates at input position
+		// step*959/960; one input beyond it must exist.
+		need := int(step*959/960) + 2
+		for len(pending) >= need {
 			frame := make([]byte, 1920)
-			for i := 0; i < 960; i++ {
-				v := pending[i]
+			for j := 0; j < 960; j++ {
+				pos := float64(j) * step / 960
+				i0 := int(pos)
+				frac := pos - float64(i0)
+				v := pending[i0]*(1-frac) + pending[i0+1]*frac
 				if v > 1 {
 					v = 1
 				} else if v < -1 {
 					v = -1
 				}
 				s := int16(v * 32767)
-				frame[2*i] = byte(s)
-				frame[2*i+1] = byte(s >> 8)
+				frame[2*j] = byte(s)
+				frame[2*j+1] = byte(s >> 8)
 			}
-			pending = pending[960:]
+			pending = pending[int(math.Ceil(step)):]
 			select {
 			case frames <- frame:
 			case <-stop:
 				return nil
 			}
 		}
-		if len(pending) > 960*8 {
-			pending = pending[len(pending)-960:]
+		if len(pending) > need*9 {
+			pending = pending[len(pending)-need:]
 		}
 		return nil
 	})
