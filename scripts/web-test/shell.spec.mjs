@@ -440,6 +440,31 @@ export async function suite(t, ctx) {
     }
   });
 
+  // ── s15: boot overlay accessibility — screen readers get the boot state
+  //        (live region) and a JavaScript-disabled page explains itself.
+  await t("s15 overlay a11y: live region + noscript fallback", async (a) => {
+    const page = await freshPage();
+    try {
+      await boot(page);
+      await waitRec(page, { detailRe: "MB" }, "booted");
+      const aria = await page.evaluate(() => {
+        const st = document.querySelector("#status");
+        return {
+          role: st.getAttribute("role"),
+          live: st.getAttribute("aria-live"),
+          noscript: !!document.querySelector("noscript"),
+          noscriptText: (document.querySelector("noscript") || {}).textContent || "",
+        };
+      });
+      a.eq(aria.role, "status", "#status must be a live region (role=status)");
+      a.eq(aria.live, "polite", "#status must announce politely (aria-live=polite)");
+      a.ok(aria.noscript, "a <noscript> fallback must exist");
+      a.ok(aria.noscriptText.trim().length > 10, "noscript must explain that JavaScript is required");
+    } finally {
+      await closePage(page);
+    }
+  });
+
   // ── s12: same-origin only — no external/API calls anywhere.
   await t("s12 network surface is same-origin only", async (a) => {
     const page = await freshPage();

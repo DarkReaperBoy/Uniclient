@@ -274,11 +274,12 @@ jobs:
           <body>
             <div id="boot">
               <div class="logo">Uniclient</div>
-              <div id="status">Starting…</div>
+              <div id="status" role="status" aria-live="polite">Starting…</div>
               <div id="bar"><div id="fill" class="indet"></div></div>
               <div id="detail"></div>
               <button id="retry">Retry</button>
             </div>
+            <noscript>Uniclient needs JavaScript and WebAssembly to run — please enable JavaScript and reload.</noscript>
             <script src="wasm_exec.js"></script>
             <script>
             "use strict";

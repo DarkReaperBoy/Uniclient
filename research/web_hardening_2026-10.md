@@ -294,3 +294,29 @@ path and adding a tee-buffer risk. Marginal gain, real complexity.
 Verify: shell tier 14/14 + app tier 6/6 against the optimized shell
 (behavior-identical per the suite); numbers above from
 SERVER_DELAY_MS=0 node scripts/web-test/measure-boot.mjs.
+
+
+## 9. Phase 5 record (2026-10-31) — shell a11y + state review
+
+- #status is now role=status + aria-live=polite (screen readers hear the
+  boot/stop states; #detail stays visual-only — its MB counter would
+  spam live regions), and the page carries a <noscript> fallback that
+  says JavaScript+WebAssembly are required. Pinned by shell test s15
+  (red before: role=null). Shell tier 15/15.
+- Verified-by-design: the native 9-card picker lives in a scrollable
+  material.List (the "Bale below the fold" screenshot was just the
+  unscrolled state); the web picker (F-90) is 3 cards, all above the
+  fold at 1280x800 and 375x812.
+- State coverage on the web surface: loading (determinate progress +
+  MB/MB), error (stopped + message + Retry), offline (force-cache
+  fallback), slow network (unthrottled + throttled boots tested),
+  double-submit (retry guard, server-counted), refresh mid-flow,
+  back-button, no-localStorage. Permission-denied states belong to
+  getUserMedia (voice) — unreachable on web until a web-capable voice
+  backend ships (F-88/F-89 cover the paths).
+- Contrast: overlay text #e7ecf1 on #17212B ≈ 13:1; dimmed detail
+  (opacity .55) ≈ 7:1 — both past WCAG AA.
+- KNOWN LIMITATION (documented, not a regression): the app UI itself
+  renders inside a Gio canvas — a black box for screen readers. That is
+  an upstream Gio characteristic, far beyond the shell. Puppeteer is
+  Chromium-only; Firefox/WebKit surfaces remain unaudited.
