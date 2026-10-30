@@ -38,6 +38,11 @@ cat "$OUT"
 if grep -q -- '--- FAIL' "$OUT" || tail -1 "$OUT" | grep -q '^FAIL'; then
   exit 1
 fi
+# A wasm panic kills the binary before the test framework prints any
+# verdict, and node can still exit 0 — a bare panic line is a failure.
+if grep -q '^panic:' "$OUT"; then
+  exit 1
+fi
 if [ "$RC" -eq 0 ]; then
   exit 0
 fi
