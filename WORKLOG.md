@@ -8,12 +8,11 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 (chunked recon of never-mapped surfaces; the web surface closed in cycle 1)
-- item: constitution v3.2, the self-test law (owner directive) — landed this session
+- item: constitution v3.2 (self-test law) — landed AND pushed; main @ 4013491
 - next: write scripts/gate.sh (§9 first-commit rule) → R10 audit → P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
-- owner-waiting: push in progress this session (token located out-of-band in the owner's
-  directive paste — F-93); re-enable Pages + cut v0.10.4; R9 web-vault decision;
-  real-account sign-ins; first non-prerelease
-- last-gate: green @ 01dd3f9 (code untouched since — v3.1 + bundle note are docs-only)
+- owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account
+  sign-ins; first non-prerelease
+- last-gate: green @ 01dd3f9 (docs-only since — no code touched)
 
 ## Session 327 — constitution v3.2: the self-test law (2026-10-31)
 
@@ -27,6 +26,11 @@ Owner directive: "test yourself, not [just] writing unit tests — add to AGENTS
 - §3 evidence rule widened gui/ → user-facing, plus "a green unit suite is not
   evidence a UI works".
 - File: 301 lines (≤~300 budget, held within noise).
+- Push: main 455ba54..4013491 — token from the owner's out-of-band paste, used
+  transiently (credential helper, never printed/filed/URL'd); F-93 closed. First
+  attempt failed on an empty password (env var lost between shell calls), not on
+  the token — per-candidate dry-run proved the credential good. download/ bundle
+  + patch deleted as superseded.
 - Next: scripts/gate.sh → R10 → P0 chunk 1.
 
 ## Session 326 — constitution v3.1: the four weaknesses, fixed in-file (2026-10-31)
