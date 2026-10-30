@@ -14,6 +14,7 @@ package gui
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -347,6 +348,9 @@ func TestLeaveChatReleasesStreamSources(t *testing.T) {
 // the viewer path — not consume the marker and show nothing until the
 // next tap. RED before the fix.
 func TestInlinePlayFailureHandsOffToSystemPlayer(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("no filesystem on js/wasm — downloaded-file paths cannot exist there")
+	}
 	h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.mp4")

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"uniclient/qrscan"
@@ -24,8 +25,13 @@ func qrFixture(t *testing.T, name string) []byte {
 // TestInviteHashFromQRImage: every QR shape the flow accepts or refuses.
 // Positive rows must yield the exact invite hash the confirm card will
 // check with the server; negative rows must fail with the right sentinel
-// so the toast names the real problem (§1.10).
+// so the toast names the real problem (§1.10). Runs on CI/native only —
+// js/wasm has no filesystem to read the shared fixtures (decoder-quality
+// coverage lives in qrscan's own suite).
 func TestInviteHashFromQRImage(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("fixture files are unreachable on js/wasm (no filesystem by design)")
+	}
 	cases := []struct {
 		file     string
 		wantHash string

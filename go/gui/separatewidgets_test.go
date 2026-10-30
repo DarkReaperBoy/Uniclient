@@ -3,6 +3,7 @@ package gui
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -18,8 +19,12 @@ import (
 // ANY window's openChat/openForward, wiping another window's pick).
 // All must live on the per-window App ("each window owns its widgets",
 // slice 168). This test pins the fix structurally: each name may be
-// declared ONLY inside the App struct.
+// declared ONLY inside the App struct. Source-reading guard — CI/native
+// only (no filesystem on js/wasm).
 func TestSeparateWindowWidgetsAreNotPackageLevel(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("source files are unreachable on js/wasm (no filesystem by design)")
+	}
 	// name → the type token its declaration line must carry.
 	targets := [][2]string{
 		{"inlineKbdBtns", "widget.Clickable"},
@@ -87,8 +92,12 @@ func TestSeparateWindowWidgetsAreNotPackageLevel(t *testing.T) {
 // (and the pure helper lastOwnMsgID had zero production callers) — the
 // slice-152 inline "Seen" receipt could never render. The unit-tested
 // pure layers hid the missing wire (B-12/B-13 class). Pins the
-// assignment + the App-scoped read.
+// assignment + the App-scoped read. Source-reading guard — CI/native only
+// (no filesystem on js/wasm).
 func TestSeenInlineReceiptIsWired(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("source files are unreachable on js/wasm (no filesystem by design)")
+	}
 	data, err := os.ReadFile("chat.go")
 	if err != nil {
 		t.Fatal(err)

@@ -13,11 +13,15 @@ package gui
 
 import (
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestGUISourcesHaveNoControlCharLabels(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("source files are unreachable on js/wasm (no filesystem by design)")
+	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
