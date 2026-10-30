@@ -139,9 +139,11 @@ J8 **Vault continuity:** accounts added survive reload via localStorage;
   Documented product behavior (vault password UI is a native-side
   feature); flagged for Phase 6 review, not silently changed.
 - **R10 — GatheringCompletePromise (js) returns an immediately-closed
-  channel** ⇒ callers that await full ICE gathering send early answers
-  on web. Callers are voice paths (media unsupported on web anyway);
-  matrix group-call signaling needs a check in Phase 2.
+  channel** ⇒ RESOLVED BY AUDIT (Phase 2): every caller relays late ICE
+  candidates through OnICECandidate → sendICECandidates (trickle), and
+  each caller's native wait is bounded at 5s anyway — shipping SDP
+  before gathering completes matches browser-native negotiation. The
+  wrtc/js.go comment now documents the contract. Not a bug.
 
 Clean areas verified during recon: release.yml web job ordering (needs
 test, then deploys), verify.yml parity, flake.yml hash recipe, scripts/
@@ -237,3 +239,23 @@ KNOWN BEHAVIOR pinned by the suite (flips when fixed):
 Phase 1 exit gate: **full suite green**: native vet/vet-live/all-package
 tests/race legs + dev-test.sh js leg + puppeteer shell 12/12 + app 6/6.
 
+
+
+## 7. Phase 2 record (2026-10-30/31) — all six findings fixed, red→green
+
+| Risk | Bug | Fix | Verification |
+|---|---|---|---|
+| R1 data loss | two tabs clobbered the web vault (full-image rewrite per save) | flush-time cross-instance merge (js re-reads+merges; native no-op) | F-87: merge unit tests + puppeteer b6 flipped 1→2 accounts |
+| R2 leak | rejected getUserMedia leaked goroutine + js.Funcs per attempt | per-attempt ownership + single end-transition claim | F-88: js-tagged failure-path test (was: stop channel armed forever) |
+| R3 wrong behavior + crash | mic rate read off the wrong JS object (panics in real browsers); no resample | rate from the AudioBuffer + streaming linear resample to 48k | F-89: framing tests (44.1k: 19 frames where a slicer yields 18; exact-48k passthrough) |
+| R4 wrong behavior (§1.10) | web picker offered 6 TCP-impossible backends | pickerPlatformsFor(goos): web shows github/matrix/bale only | F-90: platform test (native AND GOOS=js legs) + E2E 6/6 |
+| R5 UX-on-failure | dead silent page after canvas attach on a later crash | window error + unhandledrejection → overlay + Retry | F-91: s13 both legs red pre-fix |
+| R6 leak | failed boots stacked MutationObservers | one tracked bootObs, disconnected at each boot | F-92: s14 observer counter 2→3 pre-fix, flat post-fix |
+| R10 | GatheringCompletePromise(js) immediate return | audited: not a bug (trickle contract) | callers send candidates via OnICECandidate; comment corrected |
+
+Phase 2 exit gate: **full sweep of the web surface yields zero findings
+above cosmetic severity** (remaining: R7 comment lies → Phase 3, R8 →
+Phase 4 baseline, R9 → owner decision, held open in BUGS.md).
+
+Suite state at gate: dev-test.sh ALL GATES GREEN (native engine/cores/
+utils/bootstrap + js gui/audio legs); puppeteer shell 14/14, app 6/6.

@@ -262,8 +262,12 @@ func ConfigureStatsInterceptor(*interceptor.Registry) error { return nil }
 func ConfigureTWCCSender(*MediaEngine, *interceptor.Registry) error { return nil }
 
 // GatheringCompletePromise mirrors the native function; on js/wasm the
-// browser fires ICE gathering events, so the returned channel is closed
-// immediately (gathering treated as complete).
+// returned channel is closed immediately. That is correct-by-trickle:
+// every caller (matrix_groupcall offer/answer, deltachat) relays late
+// candidates through OnICECandidate -> sendICECandidates, so shipping
+// the SDP without waiting for gathering matches how browsers negotiate
+// anyway — and each caller's wait is additionally bounded by a 5s timer
+// on native.
 func GatheringCompletePromise(_ *PeerConnection) (gatherComplete <-chan struct{}) {
 	ch := make(chan struct{})
 	close(ch)
