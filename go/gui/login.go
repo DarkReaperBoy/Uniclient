@@ -93,17 +93,32 @@ func (a *App) layoutLogin(gtx layout.Context, f frame) layout.Dimensions {
 	return a.layoutPicker(gtx, f, false)
 }
 
-// layoutPicker: grid of backend cards with per-backend description.
+// layoutPicker: grid of backend cards with per-backend description. The
+// offer list is build-filtered (pickerPlatforms): on js/wasm only the
+// fetch/WebSocket backends appear — a TCP-dialing backend's login form
+// can only ever end in a connection error, which §1.10 forbids offering.
 func (a *App) layoutPicker(gtx layout.Context, f frame, welcome bool) layout.Dimensions {
 	for len(platformBtns) < len(platforms) {
 		platformBtns = append(platformBtns, widget.Clickable{})
 	}
-	for i := range platforms {
-		if platformBtns[i].Clicked(gtx) {
+	offer := pickerPlatforms()
+	// offer indexes into platforms/platformBtns so the per-entry click
+	// targets stay stable across builds.
+	offerIdx := make([]int, len(offer))
+	for k, p := range offer {
+		for i := range platforms {
+			if platforms[i].ID == p.ID {
+				offerIdx[k] = i
+				break
+			}
+		}
+	}
+	for k := range offer {
+		if platformBtns[offerIdx[k]].Clicked(gtx) {
 			a.mu.Lock()
 			a.showPicker = false
 			a.mu.Unlock()
-			a.addAccount(platforms[i].ID)
+			a.addAccount(offer[k].ID)
 		}
 	}
 
@@ -135,18 +150,18 @@ func (a *App) layoutPicker(gtx layout.Context, f frame, welcome bool) layout.Dim
 				if gtx.Constraints.Max.X < gtx.Dp(unit.Dp(480)) {
 					cols = 1
 				}
-				rows := (len(platforms) + cols - 1) / cols
+				rows := (len(offer) + cols - 1) / cols
 				var rowList widget.List
 				rowList.Axis = layout.Vertical
 				return material.List(a.ui.Theme, &rowList).Layout(gtx, rows, func(gtx layout.Context, r int) layout.Dimensions {
 					return gridRow(gtx, cols, func(col int) layout.Widget {
-						i := r*cols + col
+						k := r*cols + col
 						return func(gtx layout.Context) layout.Dimensions {
-							if i >= len(platforms) {
+							if k >= len(offer) {
 								return layout.Dimensions{}
 							}
 							return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return a.platformCard(gtx, &platformBtns[i], platforms[i])
+								return a.platformCard(gtx, &platformBtns[offerIdx[k]], offer[k])
 							})
 						}
 					})

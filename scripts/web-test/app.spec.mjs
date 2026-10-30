@@ -13,9 +13,11 @@ import { decryptVault, accountCount } from "./vault-crypto.mjs";
 // Click targets are CALIBRATED against the current app at 1280x800 canvas
 // space (the CI gui-smoke's 559,445 is Xvfb-window-relative, ~80px left
 // and ~37px up of canvas space). The welcome CTA blue button center is
-// (639, 482); the Telegram card center in the picker grid is (396, 215).
+// (639, 482); the FIRST picker card center is (396, 215) — on the web
+// build that is GitHub (the picker only offers fetch/WebSocket backends,
+// F-90; natively it would be Telegram).
 const CLICK_CTA = { x: 639, y: 482 };
-const CLICK_CARD = { x: 396, y: 215 };
+const CLICK_CARD = { x: 394, y: 447 }; // first web-picker card (Matrix; see F-90 comment above)
 const VIEW = { width: 1280, height: 800 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

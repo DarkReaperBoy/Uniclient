@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"image"
 	"image/color"
+	"runtime"
 	"strings"
 	"time"
 
@@ -483,6 +484,40 @@ var platforms = []platformMeta{
 	{ID: "teamspeak", Title: "TeamSpeak 3", Desc: "TS3 client protocol: EAX-encrypted commands, voice. Live-verified.", Letter: "S"},
 	{ID: "deltachat", Title: "Delta Chat", Desc: "Email-based chat (IMAP/SMTP).", Letter: "Δ"},
 	{ID: "bale", Title: "Bale", Desc: "Iranian messenger (experimental).", Letter: "B"},
+}
+
+// webConnectable lists the backends whose transport exists inside a
+// browser: GitHub + Matrix ride HTTPS (net/http -> fetch on js/wasm), Bale
+// rides gRPC-Web over WebSocket. Every other core dials raw TCP/UDP, which
+// no browser can do — offering them in the web picker would be a login
+// form that can only ever end in a connection error (AGENTS.md §1.10:
+// hide what cannot work, never fake it). Keep in sync with the web
+// capability truth table in AGENTS.md §2.
+var webConnectable = map[string]bool{
+	"github": true,
+	"matrix": true,
+	"bale":   true,
+}
+
+// pickerPlatformsFor returns the backends the picker offers on a given
+// GOOS. Native builds see every backend; js/wasm sees only the ones whose
+// transport exists in a browser.
+func pickerPlatformsFor(goos string) []platformMeta {
+	if goos != "js" {
+		return platforms
+	}
+	out := make([]platformMeta, 0, len(platforms))
+	for _, p := range platforms {
+		if webConnectable[p.ID] {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// pickerPlatforms is the picker's offer list for this build.
+func pickerPlatforms() []platformMeta {
+	return pickerPlatformsFor(runtime.GOOS)
 }
 
 func platformTitle(id string) string {
