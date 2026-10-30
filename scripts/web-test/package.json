@@ -1,0 +1,15 @@
+{
+  "name": "uniclient-web-test",
+  "private": true,
+  "type": "module",
+  "description": "Puppeteer E2E suite for the Uniclient WASM shell and app. Test-only infra; never shipped, never a runtime dependency (AGENTS.md §1.1 carve-out).",
+  "scripts": {
+    "test": "node run.mjs",
+    "test:live": "node run.mjs --live"
+  },
+  "dependencies": {
+    "hash-wasm": "^4.12.0",
+    "pngjs": "^7.0.0",
+    "puppeteer": "^24.0.0"
+  }
+}

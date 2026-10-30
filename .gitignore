@@ -34,3 +34,12 @@ uniclient
 # Reproducibility lock the owner explicitly dropped (commit dc4ac073);
 # regenerates on demand with `nix develop`.
 flake.lock
+
+# Local cgo sysroot env emitted by scripts/devroot-setup.sh (was accidentally
+# committed once — c442b51c; never again)
+devroot.env
+
+# Web E2E harness (scripts/web-test/): generated fixtures, artifacts, deps
+scripts/web-test/fixtures/
+scripts/web-test/artifacts/
+scripts/web-test/node_modules/
