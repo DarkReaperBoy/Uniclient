@@ -4,19 +4,19 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 338 (2026-11-01)**: iterations 21-26 DONE —
-  business.go (R34+R35+R36), settingspremium.go (**R37**), settingsstars
-  .go (**R38**, incl. the append-into-frame-visible-slice half — siblings
-  with paging MUST build fresh slices, not append), foldermgr.go (**R39**
-  + the settings-shell exclusivity matrix), stickermanager.go (**R40** —
-  six writer sites), profileedit.go (**R41** — flag race via atomic.Bool,
-  write-only busy state removed, matrix COMPLETE for every opener). R34 =
-  the systemic one: frame-carried sub-page structs mutated in place by
-  background tails under a.mu vs layout reads under frameMu — five of
-  six swept files install copies via their update<Page> helper
-  (profileedit's loader was already fresh-replace). **Sibling sweep
-  continues** (one iteration per file, order in MAP): exportdlg.go →
-  twofa.go → instantview.go's load tail.
+- **P0 chunk 3, session 339**: iterations 21-27 DONE — business.go
+  (R34+R35+R36), settingspremium.go (**R37**), settingsstars.go
+  (**R38**, incl. the append-into-frame-visible-slice half — siblings
+  with paging MUST build fresh slices, not append), foldermgr.go
+  (**R39** + the settings-shell exclusivity matrix), stickermanager.go
+  (**R40** — six writer sites), profileedit.go (**R41** — flag race via
+  atomic.Bool, write-only busy state removed, matrix COMPLETE for every
+  opener), exportdlg.go (**R42** + **R43** — the engine-event writers +
+  start-tail via updateExportDlg; the never-reset checkbox seed flag;
+  contentDialogSurface peer, NO matrix gap). **Sibling sweep
+  ends** (one iteration per file, order in MAP): twofa.go →
+  instantview.go's load tail. Tab-exact python-heredoc edits
+  (scripts/r42_exportdlg_fix.py) dodge the Edit-tool gofmt trap.
 - **CI proofs**: ALL CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
   **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38
   **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40
@@ -26,6 +26,10 @@ This is not history — stale lines are lies.
   must match the release tag" gate, `skipped` by design off release
   tags). Local -race on the gui package fits the box (proven
   337/338/339 — use it before falling back to CI).
+- **Fresh-cache -race build OOM (session 339)**: after a wipe, the gui
+  race build (`-race -gcflags=all=-c=1`) gets killed once on gotd/td/tg
+  — RETRY the same command; the build cache carries progress and the
+  second attempt completes. Don't lower GOMEMLIMIT or split the leg.
 - **Wipe #7 (session 339 boot)**: repo + toolchain + download/ copies
   gone again (same shape as wipe #6); the upload token file survived.
   Full recipe re-run from zero (clone → go1.27.1 tarball → mod

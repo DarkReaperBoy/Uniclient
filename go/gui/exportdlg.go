@@ -181,6 +181,13 @@ func (a *App) openExportDialog(accountID string) {
 			"media_photos": true, "media_video": true,
 		},
 	}
+	// R43: re-seed the checkbox pool on every open. The flag survived the
+	// close (nothing ever reset it), so the second open kept the previous
+	// session's toggles on screen while this fresh map held the defaults —
+	// Start would export the map, not the display. GUI-loop-only flag
+	// (layout + open/close; no background writer, unlike R41's load tail),
+	// so the plain bool stays — no atomic needed.
+	a.exportOptsSynced = false
 	a.mu.Unlock()
 	exportSizeEd.SetText("")
 	a.invalidate()
@@ -191,37 +198,65 @@ func (a *App) openExportDialog(accountID string) {
 func (a *App) closeExportDialog() {
 	a.mu.Lock()
 	a.exportDlg = nil
+	// R43: same reset on close (R41's profileEdSynced shape) — the pool
+	// always re-seeds from the next open's fresh checked map.
+	a.exportOptsSynced = false
 	a.mu.Unlock()
 	a.invalidate()
 }
 
-// startExport runs the engine takeout with the checked options.
-func (a *App) startExport() {
+// updateExportDlg (R42): copy-on-write installer — the R34/R40 discipline.
+// fn mutates a COPY of the wizard state (returning false leaves the head
+// alone); the copy is installed under a.mu, never an in-place mutation, so
+// a frame that captured the old pointer keeps a frozen view while the
+// engine's event goroutine and the start-failure tail swap the head.
+func (a *App) updateExportDlg(fn func(d *exportDlgState) bool) {
 	a.mu.Lock()
-	d := a.exportDlg
-	if d == nil || d.running {
-		a.mu.Unlock()
+	defer a.mu.Unlock()
+	if a.exportDlg == nil {
 		return
 	}
-	checked := make(map[string]bool, len(d.checked))
-	for k, v := range d.checked {
-		checked[k] = v
+	next := *a.exportDlg
+	if !fn(&next) {
+		return
 	}
-	accountID := d.accountID
-	d.running = true
-	d.err = nil
-	d.done = nil
-	d.progress = nil
-	a.mu.Unlock()
+	a.exportDlg = &next
+}
+
+// startExport runs the engine takeout with the checked options.
+func (a *App) startExport() {
+	checked := map[string]bool{}
+	accountID := ""
+	started := false
+	a.updateExportDlg(func(cur *exportDlgState) bool {
+		if cur.running {
+			return false
+		}
+		for k, v := range cur.checked {
+			checked[k] = v
+		}
+		accountID = cur.accountID
+		cur.running = true
+		cur.err = nil
+		cur.done = nil
+		cur.progress = nil
+		started = true
+		return true
+	})
+	if !started {
+		return
+	}
 	size := parseExportSizeLimit(exportSizeEd.Text())
 	go func() {
 		if err := a.eng.StartExport(accountID, exportSettingsFromChecks(checked, size)); err != nil {
 			a.setToast("Export: " + err.Error())
-			a.mu.Lock()
-			if a.exportDlg != nil {
-				a.exportDlg.running = false
-			}
-			a.mu.Unlock()
+			a.updateExportDlg(func(cur *exportDlgState) bool {
+				if cur.accountID != accountID {
+					return false // stale tail: another dialog is open now
+				}
+				cur.running = false
+				return true
+			})
 			a.invalidate()
 		}
 	}()
@@ -230,14 +265,12 @@ func (a *App) startExport() {
 
 // cancelExport stops the running engine export.
 func (a *App) cancelExport() {
-	a.mu.Lock()
-	d := a.exportDlg
 	accountID := ""
-	if d != nil {
-		d.running = false
-		accountID = d.accountID
-	}
-	a.mu.Unlock()
+	a.updateExportDlg(func(cur *exportDlgState) bool {
+		accountID = cur.accountID
+		cur.running = false
+		return true
+	})
 	if accountID != "" {
 		a.eng.CancelExport(accountID)
 	}
@@ -263,37 +296,43 @@ func (a *App) skipExportFile() {
 
 // onExportProgress updates the wizard from an engine progress event.
 func (a *App) onExportProgress(ev engine.ExportProgressEvent, accountID string) {
-	a.mu.Lock()
-	if d := a.exportDlg; d != nil && d.accountID == accountID {
-		p := ev
-		d.progress = &p
-		d.running = true
-	}
-	a.mu.Unlock()
+	p := ev
+	a.updateExportDlg(func(cur *exportDlgState) bool {
+		if cur.accountID != accountID {
+			return false
+		}
+		cur.progress = &p
+		cur.running = true
+		return true
+	})
 	a.invalidate()
 }
 
 // onExportError shows the engine's export failure.
 func (a *App) onExportError(ev engine.ExportErrorEvent, accountID string) {
-	a.mu.Lock()
-	if d := a.exportDlg; d != nil && d.accountID == accountID {
-		e := ev
-		d.err = &e
-		d.running = false
-	}
-	a.mu.Unlock()
+	e := ev
+	a.updateExportDlg(func(cur *exportDlgState) bool {
+		if cur.accountID != accountID {
+			return false
+		}
+		cur.err = &e
+		cur.running = false
+		return true
+	})
 	a.invalidate()
 }
 
 // onExportComplete shows the engine's export success card.
 func (a *App) onExportComplete(ev engine.ExportCompleteEvent, accountID string) {
-	a.mu.Lock()
-	if d := a.exportDlg; d != nil && d.accountID == accountID {
-		c := ev
-		d.done = &c
-		d.running = false
-	}
-	a.mu.Unlock()
+	c := ev
+	a.updateExportDlg(func(cur *exportDlgState) bool {
+		if cur.accountID != accountID {
+			return false
+		}
+		cur.done = &c
+		cur.running = false
+		return true
+	})
 	a.invalidate()
 }
 

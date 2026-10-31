@@ -706,6 +706,56 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### exportdlg.go (581→617 lines — session 339, read in full: the Export-data takeout wizard, matrix row 208 / slice 100, opened from Settings → Data & Storage; chunk 3 iteration 27, the R34 sibling sweep #6, VERDICT: R42 + R43 fixed, rest CLEAN)
+- Scope: pure helpers (exportOptionGroups/parseExportSizeLimit/
+  exportProgressPercent/exportErrorText/exportSettingsFromChecks/
+  firstTakeoutAccount — all test-locked in exportdlg_test.go), the
+  wizard state + lifecycle (open/close/start/cancel/skip), the three
+  engine-event handlers, the layout (options list + progress card +
+  done card).
+- **R42 FIXED**: exportDlgState was R34's pre-fix shape — the engine's
+  event goroutine (onExportProgress/onExportError/onExportComplete via
+  onEvent, state.go:1089-1103) and startExport's failure tail mutated
+  running/progress/err/done IN PLACE under a.mu while layout read them
+  through the frame pointer under frameMu only. updateExportDlg(fn)
+  copy-on-write installer (the R34/R40 shape); all six writer sites
+  converted (three event handlers + failure tail with accountID
+  staleness guards — the old tail had NO guard and could stomp a dialog
+  reopened for another account; startExport's head keeps check-and-
+  install atomic inside fn, the checked-map snapshot still deep-copied
+  under the lock; cancelExport keeps the engine call off the lock).
+- **R43 FIXED**: exportOptsSynced (state.go:513) was never reset — the
+  checkbox pool seeded once per PROCESS; every open after the first kept
+  the previous session's toggles on screen while the fresh checked map
+  held the defaults, and Start exported the map, not the display. Reset
+  at open+close (R41's profileEdSynced shape minus the atomic — the flag
+  is GUI-loop-only here, no background writer, grep-verified).
+- **Layer audit — NO matrix gap**: the wizard is NOT a settings-shell
+  sub-page; it is a contentDialogSurface peer (app.go:293, priority
+  chain newChat→…→folderImport→export) that REPLACES the content pane
+  above settings (app.go:171/218). Coexistence is by design —
+  callsbox_test pins the chain precedence, and a higher-priority dialog
+  shadowing a running export is the documented behavior (closeExport
+  "cancels nothing — a running export keeps going and reports via
+  toasts"). No R39-class matrix obligations apply.
+- Rest of the file CLEAN: skipExportFile reads under a.mu and calls the
+  engine off the lock; the Esc/Close guards read d.running through the
+  frame pointer (frozen-view safe post-R42); exportOptBools pool +
+  exportSizeEd are package widgets rendered only in the main window's
+  content pane (the separate-window branch returns before any content
+  dialog — re-verified this iteration); pure helpers nil-tolerant and
+  test-locked.
+- GREEN: exportdlg_r42_test.go ×5 (TestExportDlgStateIsCopyOnWrite —
+  3-writer hammer vs a held-pointer reader; TestUpdateExportDlgContract;
+  TestExportDlgForeignAccountGuarded; TestStartExportReplacesStateAndTailLands;
+  TestExportOptsSyncedResetsOnOpenClose) clean under LOCAL -race; CI
+  race-leg extended with all five. Full gui suite 893/893.
+- Sibling sweep: twofa.go next (then instantview.go's load tail). The
+  tab-exact python-heredoc edit path (scripts/r42_exportdlg_fix.py)
+  avoided the Edit-tool gofmt trap entirely this iteration.
+
+
+
 ### profileedit.go (487→489 lines — session 338, read in full: the own-profile editor settings page, slice 71; chunk 3 iteration 26, the R34 sibling sweep #5, VERDICT: R41 fixed, rest CLEAN)
 - Scope: state + lifecycle (open/close/load), pure validators
   (validateUsername/validateBio/parseBirthday/birthdayLabel), the
@@ -869,8 +919,11 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   plus the settings-shell exclusivity matrix), stickermanager.go (R40,
   iteration 25), profileedit.go (R41, iteration 26 — flag race + dead
   busy state + the matrix completion: EVERY opener now nils all
-  siblings).** Remaining, in read order: exportdlg.go, twofa.go (auth
-  flows), plus instantview.go's load tail.
+  siblings), exportdlg.go (R42+R43, iteration 27 — the engine-event
+  writers + start-failure tail through updateExportDlg; the never-reset
+  checkbox seed flag; NO matrix gap: the wizard is a contentDialogSurface
+  peer, coexistence by design, callsbox_test pins the chain).** Remaining,
+  in read order: twofa.go (auth flows), plus instantview.go's load tail.
 
 
 

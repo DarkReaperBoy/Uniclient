@@ -8,10 +8,34 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: R40/R41 CI proofs CLOSED at job+step level (session 339 boot — wipe #7, full re-clone from zero; both pending runs verified via API: all 5 jobs success, Race steps green, only non-success step anywhere is the Nix release-tag gate skipped by design). Sweep pointer unchanged: 5 of 7 done, exportdlg.go next
-- next: the R34 sibling sweep continues: exportdlg.go, twofa.go, instantview.go load tail (one iteration per file, order in MAP; append/paging siblings build fresh slices); after the sweep: the remaining unscanned gui files by size (media.go 1,186, giveaways.go 1,171, callsbox.go 1,089, poll.go 972, stories.go 960, …); CI ALL CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40 **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**
+- item: iteration 27 DONE — exportdlg.go (581→617 lines, read in full — the R34 sibling sweep #6); **R42** (exportDlgState write-races-layout: the engine-event goroutine's three handlers + the start-failure tail mutated running/progress/err/done in place → updateExportDlg copy-on-write, all six writer sites converted, accountID guards incl. the previously-unguarded start tail; ×4 pins, local -race clean, CI race-leg extended) + **R43** (exportOptsSynced never reset — checkbox pool seeded once per PROCESS; second open showed stale toggles while the fresh map held defaults → reset at open+close, R41's shape minus the atomic, GUI-loop-only flag; ×1 pin). Layer audit: the wizard is a contentDialogSurface peer — NO settings-shell matrix gap. Rows in BUGS, section in MAP. Sweep: 6 of 7 done (twofa.go next)
+- next: the R34 sibling sweep ends: twofa.go, instantview.go load tail (one iteration per file, order in MAP); after the sweep: the remaining unscanned gui files by size (media.go 1,186, giveaways.go 1,171, callsbox.go 1,089, poll.go 972, stories.go 960, …); CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40 **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**; R42/R43's run to dispatch this session
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: R40 CI **41238742290 = SUCCESS** (1d143036) and R41 CI **41239171673 = SUCCESS** (733d220b), each verified at job AND step level via the API — all 5 jobs green, Race step green; local full GREEN before dispatch: gofmt clean, vet OK, full gui suite **888/888**, gate quick GREEN ×6
+- last-gate: local full GREEN — gofmt clean, full gui suite **893/893** (+5 R42/R43 pins), LOCAL -race clean on the new pin set (fresh-cache race build OOMs once on gotd/tg — the retry completes, cache carries progress); R42/R43 CI dispatch next
+
+## Session 339 — iteration 27: exportdlg.go = R42 + R43 (2026-11-01)
+
+- Boot after **wipe #7** (repo + toolchain gone; upload token survived).
+  Full recipe re-run (clone → go1.27.1 → mod download → devroot-setup,
+  ~10 min). First act: closed the R40/R41 CI proofs via the API —
+  41238742290 (1d143036) + 41239171673 (733d220b), both SUCCESS at job
+  AND step level (all 5 jobs, Race steps green; the Nix release-tag gate
+  skips off tags by design). Docs commit 5c00045c.
+- **R42** (the R34 class, sweep #6): the export wizard's state was
+  mutated in place by the engine's event goroutine
+  (onExportProgress/Error/Complete) and startExport's failure tail —
+  no accountID guard on that tail, either. updateExportDlg copy-on-write
+  installer; all six writers converted. **R43** (the R35 class): the
+  checkbox-pool seed flag was never reset — one seed per PROCESS, so
+  every reopen showed stale toggles over a fresh-defaults map; Start
+  exported the map, not the display. Reset at open+close. Layer audit:
+  the wizard is a contentDialogSurface peer — coexistence by design,
+  no matrix gap.
+- GREEN: exportdlg_r42_test.go ×5, LOCAL -race clean, full gui suite
+  **893/893**. CI race-leg filter extended. Edits made tab-exact via
+  python heredoc (scripts/r42_exportdlg_fix.py) — the Edit-tool gofmt
+  trap avoided entirely. Fresh-cache -race build OOMs once on gotd/tg;
+  the retry completes (build cache carries progress).
 
 ## Session 338 — iteration 21: business.go = R34 + R35 + R36 (2026-11-01)
 
