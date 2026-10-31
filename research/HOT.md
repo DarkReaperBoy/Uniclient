@@ -16,13 +16,14 @@ This is not history — stale lines are lies.
   MAP. **v3 candidate queue EXHAUSTED** — next lens is the R29 systemic
   watch item (dead content-pane openers in separate windows), then the
   unscanned gui files.
-- **Proofs**: R25 proof **41205692894 (bf9ea2bf) = SUCCESS at job AND
-  step level** (all 5 jobs; race leg incl. the gui pins green). R27
-  proof **41206658703 (d029af30) IN FLIGHT at last check — read its
-  result next session before trusting the R27 hammer's race green**;
-  note it predates R28/R29 (docs-only + gui code — the R28/R29 changes
-  are covered by the same test-suite legs it runs, but a fresh dispatch
-  is cheap if anything smells). Local -race on gui still OOMs on gotd.
+- **Proofs all landed (session 335)**: R25 proof **41205692894
+  (bf9ea2bf) = SUCCESS** and R27 proof **41206658703 (d029af30) =
+  SUCCESS** — both verified at job AND step level (all 5 jobs each; the
+  Race legs carry the extended gui pins: R18/R23/R24/R25 + the
+  TestShotRenderPipelineIsSerialized R27 pin). R28/R29 landed after the
+  dispatch but are pure gui-code + test changes covered by the same
+  Test legs those runs execute — no dedicated proof pending. Local
+  -race on gui still OOMs on gotd; CI is the race proof path.
 - **Wipe #4 lessons (session 335 boot)**: only the repo clone was gone —
   /home/z/my-project/toolchain SURVIVED (go 1.27.0 + mod cache), but
   **scripts/ was wiped: scanner v3 (pkgvar_scan_v3) is GONE** — its queue

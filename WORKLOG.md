@@ -11,7 +11,7 @@ on 2026-10-30 — it lives in git history if ever needed.)
 - item: iterations 8-17 DONE (separate/menu/webpage/cornerreply/cornerreaction/richtext CLEAN; R23-R29 FIXED — suggestionbar, rubberband, instantview ×2, msgshot, translatebar, profilemusic; rows in BUGS Fixed); v3 candidate queue EXHAUSTED (all 8 flagged files read in full, sections in MAP)
 - next: read verify.yml 41206658703 (d029af30 — R27 proof, IN FLIGHT; R25 proof 41205692894 = SUCCESS verified at step level), then chunk 3 iteration 18 = the R29 systemic sweep (which content-pane dialog openers are reachable from separate windows — every button that sets state only layoutMain paints is a dead button, §1.10)
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick GREEN ×2 (4/4 runner contracts, js leg, full gui suite incl. R25/R26 tests); gofmt trap rule in HOT — always gofmt -w with devroot.env after Edit-tool writes
+- last-gate: quick GREEN ×5 this session (4/4 runner contracts, js leg, full gui suite); CI proofs R25 41105692894 + R27 41206658703 both SUCCESS at job+step level (race legs carry the gui pins); gofmt trap rule in HOT
 
 ## Session 335 — wipe #4 boot, instantview.go: R25 + R26 (2026-10-31)
 
