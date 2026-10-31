@@ -96,10 +96,8 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string, onEvent func([
 		case "deltachat":
 			return cores.NewDeltaChatCore(store), nil
 		case "teamspeak":
-			// Stale core: hidden from the GUI until rewritten (AGENTS.md §8).
 			return cores.NewTeamSpeakCore(store), nil
 		case "mumble":
-			// Stale core: hidden from the GUI until rewritten (AGENTS.md §8).
 			c := &cores.MumbleCore{}
 			c.Session = store
 			return c, nil
