@@ -4,7 +4,7 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 339**: iterations 21-28 DONE — business.go
+- **P0 chunk 3, sessions 338-340**: iterations 21-32 DONE — business.go
   (R34+R35+R36), settingspremium.go (**R37**), settingsstars.go
   (**R38**, incl. the append-into-frame-visible-slice half — siblings
   with paging MUST build fresh slices, not append), foldermgr.go
@@ -23,8 +23,11 @@ This is not history — stale lines are lies.
   is now copy-on-write; the per-file lens works the unscanned queue by
   size: media.go 1,186 DONE CLEAN (iteration 30), giveaways.go 1,171
   DONE (**R47** + **R48**, iteration 31 — incl. the unlocked dateIdx
-  clamp / send-dead bug), callsbox.go 1,089 next.** Tab-exact
-  python-heredoc edits dodge the Edit-tool gofmt trap.
+  clamp / send-dead bug), callsbox.go 1,089 DONE (**R49** + **R50**,
+  iteration 32 — the load tail appended into the frame-shared backing
+  array + had NO session guard; callsBoxGen key + fresh-slice merge),
+  poll.go 972 next.** Tab-exact python-heredoc edits dodge the
+  Edit-tool gofmt trap.
 - **CI proofs**: ALL CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
   **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38
   **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40
@@ -32,12 +35,13 @@ This is not history — stale lines are lies.
   SUCCESS at job AND step level (all 5 jobs each; Race steps green;
   the only non-success step anywhere is the Nix "flake.nix version
   must match the release tag" gate, `skipped` by design off release
-  tags). CLOSED this session: R42/R43 **41244407673 (9b2cf32d)** and
-  R44/R45 **41245057374 (1476115a)** — all 5 jobs success at step
+  tags). CLOSED: R42/R43 **41244407673 (9b2cf32d)**, R44/R45
+  **41245057374 (1476115a)**, R46 **41245678978 (d8b4ce01)** and
+  R47/R48 **41246248716 (12165b24)** — all 5 jobs success at step
   level, Race green (the race leg now carries R34×2 + R37×2 + R38×3 +
-  R39×3 + R40×3 + R41×3 + R42/R43×5 + R44/R45×5 + R46×5 + R47/R48×6
-  pins). Pending: **41245678978** (R46, d8b4ce01) + **41246248716**
-  (R47+R48, 12165b24) — verify EACH. Local -race on the gui
+  R39×3 + R40×3 + R41×3 + R42/R43×5 + R44/R45×5 + R46×5 + R47/R48×6 +
+  R49/R50×5 pins). Pending: NONE — dispatch a run for the R49/R50
+  commit after pushing. Local -race on the gui
   package fits the box (proven 337/338/339 — use it before falling
   back to CI).
 - **Fresh-cache -race build OOM (session 339)**: after a wipe, the gui
@@ -70,6 +74,14 @@ This is not history — stale lines are lies.
   harness for engine-touching gui code (zero Engine errors fast on
   getAccount miss) — and a bare `&App{}` works for pure-state methods
   (updateBusinessPage & friends; a.invalidate is nil-win-guarded).
+- Bash shells reset between tool calls (session 340): source the env
+  in EVERY call — `. ./devroot.env && unset GOROOT && export
+  GOMODCACHE=/home/z/my-project/toolchain/mod
+  GOCACHE=/home/z/my-project/toolchain/gocache GOFLAGS=-p=1
+  GOMEMLIMIT=3GiB GOGC=20`, then work from go/. scripts/env.sh alone
+  sets GOROOT/PATH but NOT PKG_CONFIG_PATH — gui (CGO) builds then
+  fail on xkbcommon/wayland-client; and once devroot's go is on PATH,
+  GOROOT must be unset (two go trees sharing one GOCACHE poison it).
 - Toolchain recovery recipe: `scripts/env.sh` header steps 1-5 (proven
   through wipes #2/#3/#5/#6). Working combo after a wipe:
   `sh scripts/devroot-setup.sh && . ./devroot.env` + `export

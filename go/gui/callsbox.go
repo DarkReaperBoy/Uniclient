@@ -243,6 +243,7 @@ func (a *App) openCallsBox(accountID string) {
 	a.callsBoxBusy = true
 	a.callsBoxDone = false
 	a.callsBoxLoad = true
+	a.callsBoxGen++
 	a.callsBoxMenu = nil
 	a.callsRowMenu = nil
 	a.callsClearDlg = false
@@ -264,46 +265,75 @@ func (a *App) closeCallsBox() {
 	a.invalidate()
 }
 
-// loadCallsBoxPage fetches one page of call history at offsetID, groups it
-// into rows, and appends (first page replaces). Entries are filtered to
-// strictly-older-than-offset as a dedupe guard; a short or empty page marks
-// the history exhausted.
+// loadCallsBoxPage fetches one page of call history at offsetID off the GUI
+// loop and hands the result to applyCallsBoxPage. The session key
+// (callsBoxGen) is captured at fire time so a switch, reopen, or clear
+// racing the round-trip drops the result instead of applying it (R50).
 func (a *App) loadCallsBoxPage(accountID string, offsetID, limit int) {
+	a.mu.Lock()
+	gen := a.callsBoxGen
+	a.mu.Unlock()
 	go func() {
 		entries, err := a.eng.GetCallHistory(accountID, offsetID, limit)
-		a.mu.Lock()
-		first := offsetID == 0
-		if err != nil {
-			a.callsBoxBusy = false
-			a.callsBoxLoad = false
-			a.mu.Unlock()
-			a.setToast("Calls: " + err.Error())
-			return
-		}
-		if offsetID > 0 {
-			kept := entries[:0]
-			for _, e := range entries {
-				if id, convErr := strconv.Atoi(e.MsgID); convErr == nil && id < offsetID {
-					kept = append(kept, e)
-				}
-			}
-			entries = kept
-		}
-		if len(entries) < limit {
-			a.callsBoxDone = true
-		}
-		if len(entries) > 0 {
-			merged := append(a.callsBoxRows, groupCallEntries(entries)...)
-			sortCallBoxRows(merged)
-			a.callsBoxRows = merged
-		} else if first {
-			a.callsBoxRows = nil
-		}
+		a.applyCallsBoxPage(accountID, gen, offsetID, limit, entries, err)
+	}()
+}
+
+// callsBoxSessionLive reports whether the given load session still owns
+// the box. Caller must hold a.mu.
+func (a *App) callsBoxSessionLive(accountID string, gen int) bool {
+	return a.callsBoxOpen && a.callsBoxFor == accountID && a.callsBoxGen == gen
+}
+
+// applyCallsBoxPage installs one fetched page into the head. R50: applies
+// only while the box is still open for the same account and load session —
+// a stale tail returns without touching busy (the newer session owns it)
+// or toasting its error. R49: pages merge through a FRESH slice, never
+// append into a.callsBoxRows — the head's backing array is shared with
+// in-flight frames, and the delete shift leaves spare capacity, so an
+// in-place append+sort would write into and permute what a frame is still
+// reading. Entries are filtered to strictly-older-than-offset as a dedupe
+// guard; a short or empty page marks the history exhausted.
+func (a *App) applyCallsBoxPage(accountID string, gen, offsetID, limit int, entries []engine.CallHistoryEntry, err error) {
+	a.mu.Lock()
+	if !a.callsBoxSessionLive(accountID, gen) {
+		a.mu.Unlock()
+		return
+	}
+	first := offsetID == 0
+	if err != nil {
 		a.callsBoxBusy = false
 		a.callsBoxLoad = false
 		a.mu.Unlock()
-		a.invalidate()
-	}()
+		a.setToast("Calls: " + err.Error())
+		return
+	}
+	if offsetID > 0 {
+		kept := entries[:0]
+		for _, e := range entries {
+			if id, convErr := strconv.Atoi(e.MsgID); convErr == nil && id < offsetID {
+				kept = append(kept, e)
+			}
+		}
+		entries = kept
+	}
+	if len(entries) < limit {
+		a.callsBoxDone = true
+	}
+	if len(entries) > 0 {
+		grouped := groupCallEntries(entries)
+		merged := make([]callBoxRow, len(a.callsBoxRows), len(a.callsBoxRows)+len(grouped))
+		copy(merged, a.callsBoxRows)
+		merged = append(merged, grouped...)
+		sortCallBoxRows(merged)
+		a.callsBoxRows = merged
+	} else if first {
+		a.callsBoxRows = nil
+	}
+	a.callsBoxBusy = false
+	a.callsBoxLoad = false
+	a.mu.Unlock()
+	a.invalidate()
 }
 
 // loadCallsBoxMore loads the next page (tdesktop kPerPageCount = 100) when
@@ -329,7 +359,11 @@ func (a *App) loadCallsBoxMore() {
 }
 
 // clearCallsBoxAll runs the Clear-all flow: deletePhoneCallHistory (revoke
-// honored), then reload the first page (tdesktop ClearCallsBox).
+// honored), then reload the first page (tdesktop ClearCallsBox). R50: the
+// reload chains AFTER the engine clear — fired in parallel it raced the
+// deletion server-side and could land the pre-clear rows as the "cleared"
+// first page; a failed clear recovers the busy/loading flags under the
+// session guard instead of spinning "Loading…" forever.
 func (a *App) clearCallsBoxAll(revoke bool) {
 	a.mu.Lock()
 	acc := a.callsBoxFor
@@ -339,16 +373,32 @@ func (a *App) clearCallsBoxAll(revoke bool) {
 	a.callsBoxBusy = true
 	a.callsBoxDone = false
 	a.callsBoxLoad = true
+	a.callsBoxGen++
+	gen := a.callsBoxGen
 	a.mu.Unlock()
 	a.invalidate()
 	go func() {
 		if err := a.eng.ClearCallHistory(acc, revoke); err != nil {
 			a.setToast("Clear call history: " + err.Error())
+			a.callsBoxClearFailed(acc, gen)
 			return
 		}
 		a.setToast("Call history cleared")
+		a.loadCallsBoxPage(acc, 0, 20)
 	}()
-	a.loadCallsBoxPage(acc, 0, 20)
+}
+
+// callsBoxClearFailed recovers the busy/loading flags after a failed
+// clear. R50: session-guarded — if the box moved on (switch, reopen, or a
+// newer clear), the newer session owns the flags and they stay untouched.
+func (a *App) callsBoxClearFailed(accountID string, gen int) {
+	a.mu.Lock()
+	if a.callsBoxSessionLive(accountID, gen) {
+		a.callsBoxBusy = false
+		a.callsBoxLoad = false
+	}
+	a.mu.Unlock()
+	a.invalidate()
 }
 
 // deleteCallsBoxGroup deletes one row's call messages (tdesktop row context

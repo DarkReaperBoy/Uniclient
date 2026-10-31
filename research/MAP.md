@@ -706,6 +706,66 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### callsbox.go (1,089→1,139 lines — session 340, read in full: the Calls box, tdesktop calls_box_controller parity, slice 154 — grouped call-history rows (peer × day × direction), redial, show-in-chat jump, per-group delete, clear-all + revoke, the group-calls subsection; chunk 3 iteration 32, the unscanned queue by size #3, VERDICT: R49 + R50 fixed, rest CLEAN)
+- Scope: pure helpers (callDirOf/groupCallEntries/sortCallBoxRows/callBoxRowID/
+  callBoxStatus/callsBoxNextOffset/callsBoxMenuItems — test-locked in
+  callsbox_test.go), the page lifecycle (openCallsBox/closeCallsBox/
+  loadCallsBoxPage/loadCallsBoxMore/applyCallsBoxPage/callsBoxSessionLive),
+  clearCallsBoxAll/callsBoxClearFailed, deleteCallsBoxGroup,
+  redialCallsBoxRow/openCallsBoxPeer, layoutCallsBox + header/body/row
+  widgets/menus/dialogs, callsBoxGroupCalls + flexForEach.
+- **R49 FIXED**: the load tail merged fetched pages with
+  `append(a.callsBoxRows, …)` + an IN-PLACE sortCallBoxRows — the head's
+  backing array is frame-shared (snapshot copies the slice header,
+  state.go), and deleteCallsBoxGroup's shift keeps the array while
+  shrinking the length, leaving spare capacity; a page landing after a
+  delete then wrote into that capacity AND permuted the shared prefix
+  while the GUI loop was still laying out rows from the pre-delete frame
+  (the R38 class; the pre-fix shape's array reuse is scratch-proven —
+  scripts/r49_red_proof.go prints true). applyCallsBoxPage now builds a
+  FRESH slice (make+copy+append+sort); the old array stays intact for
+  frames still holding it.
+- **R50 FIXED**: the load tail had NO session guard — a fetch outliving its
+  load session landed anyway: account A's rows installed after the box
+  moved to account B; a reopen stomped by the previous session's tail; an
+  in-flight load-more resurrected rows a clear-all had just nilled; every
+  stale landing reset callsBoxBusy under the NEWER session (double loads).
+  Two clear-flow halves in the same class: the first-page reload fired in
+  PARALLEL with eng.ClearCallHistory (the search could beat the deletion
+  server-side and land pre-clear rows as the "cleared" page — now chained
+  after the clear succeeds), and a FAILED clear left busy/load true forever
+  ("Loading…" until reopen — callsBoxClearFailed recovers the flags under
+  the session guard). Session key: callsBoxGen (state.go) — openCallsBox
+  and clearCallsBoxAll bump it; tails install only while
+  callsBoxSessionLive (open ∧ same account ∧ same gen); stale tails never
+  touch busy or toast.
+- Rest of the file CLEAN: openCallsBoxPeer's unlocked iteration over
+  a.chats is snapshot-safe — a.chats' ONLY writer is refreshChats
+  (state.go:909) which REPLACES the head with a fresh engine slice, never
+  mutating in place (grep-verified single write site; the same discipline
+  the frame snapshot relies on). Redial delegates to startDMCall
+  (callui.go:243) and the group-call join to joinGroupCallFromVoice
+  (groupcall.go:306) — both already goroutine-wrapped engine calls, no
+  R48. deleteCallsBoxGroup shifts rows in place but is GUI-loop-only
+  (same goroutine as the frame reads — sequential; and R49's fresh merge
+  neutralizes the spare-capacity trap the shift leaves).
+  callsRowBounds/callsBoxMenuRect/callsRowMenuRect and the package widget
+  pools (callsBoxList/callsBoxRowBtns/callsBoxRedial/callsBoxGcRow/
+  callsBoxGcJoin/callsCtxMenuRow/callsClear*/callsDel*) are the documented
+  GUI-loop-only a.wid pattern; the revoke checkboxes are package widget
+  state read on the GUI loop at confirm time. The Esc layer and pane-tag
+  press routing follow the established chatPaneTag pattern.
+- Watch item (P4, cosmetic): groupCallEntries groups only WITHIN a fetched
+  page — a peer/day/direction group split across a page boundary renders
+  as two adjacent rows (tdesktop's Row::canAddItem merges across pages via
+  its persistent group map). Rare (needs the boundary mid-day for the same
+  peer+direction); fold only if ever reported.
+- GREEN: callsbox_r49_test.go ×5 clean under LOCAL -race; CI race-leg
+  extended. Full gui suite 914 PASS / 0 FAIL / 3 SKIP (environmental).
+- Next in the unscanned queue: poll.go (972), stories.go (960), …
+
+
+
 ### giveaways.go (1,171→1,248 lines — session 339, read in full: the Stars giveaway creation box + prepaid launch + the country/channel pickers, slices 213-214; chunk 3 iteration 31, the unscanned queue by size #2, VERDICT: R47 + R48 fixed, rest CLEAN)
 - Scope: pure helpers (labels/defaults/presets/candidates/sortedKeys —
   test-locked in giveaways_test.go + giveaways_pickers_test.go), the box

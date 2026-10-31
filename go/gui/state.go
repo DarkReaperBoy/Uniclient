@@ -405,6 +405,7 @@ type App struct {
 	callsBoxBusy   bool
 	callsBoxDone   bool
 	callsBoxLoad   bool
+	callsBoxGen    int // R50: load-session key; open/clear bump it, tails apply only on a match
 	callsBoxMenu   *callsBoxMenuTarget
 	callsRowMenu   *callsRowMenuTarget
 	callsClearDlg  bool

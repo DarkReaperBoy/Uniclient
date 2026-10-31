@@ -8,11 +8,34 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 31 DONE — giveaways.go (1,171→1,248 lines, read in full — the unscanned queue by size #2); **R47** (giveawayDlgState write-races-layout across ~17 sites incl. the UNLOCKED dateIdx clamp on the frozen frame pointer — the send-dead half; create-tail guard strengthened to close the same-chat reopen stomp → updateGiveaway copy-on-write + clampGiveawayDateIdx; ×6 pins, local -race clean, CI race-leg extended) + **R48** (openPrepaidLaunch's sync GetGiveawayPeriodMax on the GUI loop → goroutine-wrapped; inspection-verified, guard pinned). Rows in BUGS, section in MAP. ALSO this session: iteration 30 — media.go (1,186 lines): **CLEAN** — no frame-carried struct of its own; f.downloads read-only here (writers verified CoW at iteration 20); mediaImgCache self-locked; mediaTickerOn a.mu on both sides; actMedia copies msg before goroutines; P4 watch: per-bubble MediaState() getters join musicRow's fold candidate. Section in MAP, no BUGS row. ALSO this session: iteration 29 — instantview.go state lifecycle (**R46** (the IV reader's state mutated in place by the open load tail + ivLandRelated under a.mu with pointer-identity retirement that doesn't stop frameMu reads, plus the two GUI-loop heads — lost-click class → updateIV copy-on-write returning the head; staleness = openID (fresh counter per open, install-immutable — identity breaks under copy-on-write) + gen (R26, within-session; gen alone can't retire a reopen straggler, pinned); pushHistory builds fresh slices, the R38 rule; detailsOpen/slideIdx stay shared GUI-loop-only maps, docBusy keeps ivDocMu (claim re-verified); R26 pins updated to head-observation; ×5 pins, local -race clean, CI race-leg extended). **THE R34 SYSTEMIC WATCH IS CLOSED — every frame-carried gui surface is now copy-on-write.** Row in BUGS, section in MAP
-- ALSO this session: iterations 27-28 — exportdlg.go (**R42** + **R43**), twofa.go (**R44** + **R45**); R40/R41 CI proofs closed at job+step level; wipe #7 recovery
-- next: the unscanned gui files by size (callsbox.go 1,089 next, then poll.go 972, stories.go 960, …) — full read+audit per file; CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40 **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**; CLOSED: R42/R43 **41244407673 (9b2cf32d)** + R44/R45 **41245057374 (1476115a)**, all 5 jobs at step level; pending: **41245678978** (R46, d8b4ce01) + **41246248716** (R47+R48, 12165b24)
+- item: iteration 32 DONE — callsbox.go (1,089→1,139 lines, read in full — the unscanned queue by size #3); **R49** (the load tail appended fetched pages into a.callsBoxRows and sorted IN PLACE — the frame-shared backing array, armed by the delete shift's spare capacity, the R38 class → applyCallsBoxPage fresh-slice merge; the pre-fix array reuse is scratch-proven by scripts/r49_red_proof.go) + **R50** (the tail had NO session guard — cross-account/reopen/clear stomps, stale-busy double loads, the clear flow's reload racing the engine clear, and the failed-clear busy deadlock → callsBoxGen session key + callsBoxSessionLive guard + chained reload + callsBoxClearFailed). callsbox_r49_test.go ×5, local -race clean, CI race-leg extended. Rows in BUGS, section in MAP
+- ALSO this session (339, carried in STATE): iterations 29-31 — instantview.go (**R46** — closed the R34 systemic watch), media.go (CLEAN), giveaways.go (**R47** + **R48**); iterations 27-28 — exportdlg.go (**R42** + **R43**), twofa.go (**R44** + **R45**)
+- next: the unscanned gui files by size (poll.go 972 next, then stories.go 960, …) — full read+audit per file; CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40 **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**, R42/R43 **41244407673 (9b2cf32d)**, R44/R45 **41245057374 (1476115a)**, R46 **41245678978 (d8b4ce01)**, R47/R48 **41246248716 (12165b24)** — all 5 jobs each; pending: the R49/R50 dispatch (this commit)
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local full GREEN — gofmt clean, full gui suite **909/909** (+6 R47 pins on top of 903), LOCAL -race clean on all four new pin sets; R42/R43 CI **41244407673** + R44/R45 **41245057374** = SUCCESS (all 5 jobs at step level, Race green); R46 **41245678978** + R47/R48 **41246248716** in flight
+- last-gate: local full GREEN — gofmt clean, full gui suite **914 PASS / 0 FAIL / 3 SKIP** (environmental; +5 R49/R50 pins on top of 909), LOCAL -race clean on the new pins; R46 CI **41245678978** + R47/R48 CI **41246248716** = SUCCESS (all 5 jobs at step level, Race green); R49/R50 CI dispatch pending
+
+## Session 340 — iteration 32: callsbox.go = R49 + R50; R46/R47/R48 CI closed (2026-11-01)
+
+- Verified the pending CI at job AND step level: R46 **41245678978
+  (d8b4ce01)** and R47/R48 **41246248716 (12165b24)** — all 5 jobs
+  each SUCCESS, Race steps green.
+- Iteration 32 — callsbox.go (the Calls box, tdesktop parity slice
+  154): **R49** (load-tail append + in-place sort into the
+  frame-shared backing array — armed by the delete shift's spare
+  capacity → fresh-slice merge in applyCallsBoxPage;
+  scripts/r49_red_proof.go prints the pre-fix array reuse) + **R50**
+  (no session guard on the tail — cross-account/reopen/clear stomps,
+  stale busy resets, the clear flow's parallel reload, and the
+  failed-clear busy deadlock → callsBoxGen + applyCallsBoxPage guard
+  + chained reload + callsBoxClearFailed). ×5 pins in
+  callsbox_r49_test.go, local -race clean, suite 914 PASS / 0 FAIL /
+  3 SKIP (environmental). CI race-leg extended (r49_ci_filter.py).
+- Env note (also in HOT): Bash shells reset between tool calls —
+  re-source `. ./devroot.env && unset GOROOT && export
+  GOMODCACHE=/home/z/my-project/toolchain/mod
+  GOCACHE=/home/z/my-project/toolchain/gocache GOFLAGS=-p=1
+  GOMEMLIMIT=3GiB GOGC=20` in EVERY call; scripts/env.sh alone lacks
+  PKG_CONFIG_PATH (gui CGO builds fail on xkbcommon/wayland).
 
 ## Session 339 — iterations 30-31: media.go CLEAN; giveaways.go = R47 + R48 (2026-11-01)
 
