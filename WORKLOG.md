@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: R15 + R16 fixed this session (runner false-green hole + R14 test self-deadlock, found via CI 41174703134 = FAILURE; Ctrl+Tab dead shortcut, found in recon); chunk 3 iterations 1-4 DONE (chat.go, sidebar.go, chatsearch.go, shortcuts.go)
-- next: read verify.yml run 41179413739 (native proof for R15+R14+R16, on c4f733b4 — dispatched after 41177906124 sat queued ~50min with zero other runs; cancel 41177906124 if it ever starts), then chunk 3 iteration 5 (next surface from MAP chunk table)
+- item: R15 + R16 + R17 fixed this session (runner false-green hole + R14 test self-deadlock; Ctrl+Tab dead shortcut; stale About version); chunk 3 iterations 1-5 DONE (chat.go, sidebar.go, chatsearch.go, shortcuts.go, settings.go)
+- next: read verify.yml run 41179413739 (native proof R15+R14+R16, on c4f733b4) and the post-R17 dispatch (see HOT) — then chunk 3 iteration 6 (next surface from MAP chunk table)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (runner self-test + js vet + full gui suite with verdict discipline, 907 tests; audio leg green)
 
@@ -77,6 +77,16 @@ on 2026-10-30 — it lives in git history if ever needed.)
   reaches the generic loop. Full gui suite green; gate quick GREEN.
   escTarget/handlers mapped (MAP chunk-3 entry); cross-window watch items
   from the sidebar iteration live in handleEscTarget/handleSearchShortcut.
+- Same session: **chunk 3 iteration 5 — settings.go mapped + R17 fixed**.
+  R17 (BUGS.md): the About page showed appVersion 0.7.0 on the v0.10.3
+  release line — flake.nix is tag-enforced by release.yml but nothing tied
+  appVersion to it (format test only checked "looks numeric"). Fix: const
+  bumped to 0.10.3 + TestAppVersionMatchesReleaseLine pins appVersion ==
+  flake.nix (native source-reader, skips js like the separatewidgets guard);
+  About shortcut list gained the Ctrl+Tab row (R16 parity) — RED on js,
+  GREEN after. Settings shell mapped (rail/pages, toggleRow one-shot sync
+  with the 128-cap reset, Ayu ghost global+per-account, capability gates);
+  P3 watch item: toggles never re-sync from later config pushes.
 
 ## Session 331 — P0 chunk 2 complete: state.go 100%, R14 opened (2026-10-31)
 

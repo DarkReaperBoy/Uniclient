@@ -1605,7 +1605,7 @@ func (a *App) chips(gtx layout.Context, f frame) []layout.FlexChild {
 
 // appVersion is the Uniclient version shown on the About page (bumped at
 // release time; the release pipeline tags the same number).
-const appVersion = "0.7.0"
+const appVersion = "0.10.3"
 
 // aboutRow is one key/description line on the About page.
 type aboutRow struct {
@@ -1618,6 +1618,7 @@ func shortcutRows() []aboutRow {
 	return []aboutRow{
 		{"Esc", "close the topmost surface (menu, panel, search…)"},
 		{"Ctrl+F", "search in the open chat, or filter the chat list"},
+		{"Ctrl+Tab", "next account (Ctrl+Shift+Tab: previous)"},
 		{"Ctrl+↑ / Ctrl+↓", "previous / next chat"},
 		{"Ctrl+PgUp / Ctrl+PgDn", "previous / next chat"},
 		{"Right-click", "context menu (chat row, bubble, header, folder tab)"},

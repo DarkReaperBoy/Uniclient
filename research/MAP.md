@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go + R16) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -296,3 +296,33 @@ layer; iteration 4, produced R16)
 - Pure mappers (chatSwitchAction, chatEdgeAction, jumplistDigit,
   pinnedJumpChat, showContactsKey, readChatKey, accountScopeCycle,
   accountSwitchStep, neighborChat, escTarget) are all unit-tested.
+
+### settings.go (1,717 lines — session 332, read in full: the settings shell;
+iteration 5, produced R17)
+- **Shell**: layoutSettings = self-handled Esc (settingsKeyTag, pointer-
+  transparent) + header + rail (9 sections, AyuGram order) + scrolling page.
+  settingsPage routes to sub-managers FIRST (profileEdit, stickerMgr,
+  folderMgr, premiumPage, starsPage, businessPage) then the 9 sections.
+  Every toggle/row backs a real engine call (§1.10 honored: capability-
+  gated rows — twofa, takeout export, premium/stars/business Telegram-only,
+  tray on tray platforms, app icon picker on WM_SETICON/_NET_WM_ICON).
+- **toggleRow + settingsSwitches map**: package-level widget pool keyed by
+  config field ("cfg:x", "notify:x:acct", "ghost:acct:field", "drawer:x");
+  syncs the switch from the config value ONCE (settingsSynced), then user
+  flips drive apply closures. Cap 128 → map reset (re-sync). Main-window-
+  only by render path (Root routes settings away from separate windows —
+  session-331 audit stands). Watch item (P3, UX): after first sync the
+  switch never re-syncs from config pushes (external change → stale toggle
+  until the 128-cap reset or restart); tdesktop re-syncs on config push.
+- **Ayu page**: global defaults (config) + per-account ghost overrides
+  (engine ghost store, chips selector, reset button); mark-string editors
+  (ayuDeletedEd/ayuEditedEd, one-shot synced, Apply → engine goroutine);
+  drawer-row visibility; message-filter row; app-icon grid; avatar corners.
+- Lock discipline: clean — a.mu around short field sets (settingsSect,
+  ghostSel, notifyAccts mutations), engine calls (SetContactSignUpNotification,
+  SetCallsDisabledHere, ClearCacheByTag/ClearCache, UpdateConfigFromBridge,
+  ClearAccountGhostOverrides) all in goroutines with toast+refresh.
+- **R17 (fixed this session)**: appVersion was 0.7.0 on the v0.10.3 line —
+  bumped + TestAppVersionMatchesReleaseLine pins appVersion == flake.nix
+  version (the string release.yml enforces against the tag); About shortcut
+  list gained the Ctrl+Tab row (R16 parity), pinned by TestShortcutRows.
