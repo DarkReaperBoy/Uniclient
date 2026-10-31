@@ -4,25 +4,23 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 338 (2026-11-01)**: iteration 21 DONE — business.go
-  read in full, **R34+R35+R36** landed (rows in BUGS, section in MAP).
-  R34 is the systemic one: frame-carried sub-page structs mutated in place
-  by background tails under a.mu vs layout reads under frameMu —
-  business.go now installs copies via updateBusinessPage (every
-  post-install mutation, UI handlers included; accountID staleness guards
-  on the tails). **The sibling sweep is the priority read order**:
-  settingspremium.go → settingsstars.go → foldermgr.go →
-  stickermanager.go → profileedit.go → exportdlg.go → twofa.go →
-  instantview.go's load tail. One iteration per file; do NOT mass-edit
-  (iv's docBusy is ivDocMu-guarded, msgshot is shotMu-serialized — the
-  shapes differ). RED method that worked twice now: dep-free scratch
-  repro of the pre-fix shape under `go run -race`.
+- **P0 chunk 3, session 338 (2026-11-01)**: iterations 21+22 DONE —
+  business.go (R34+R35+R36) and settingspremium.go (**R37**, the first
+  R34 sibling). R34 = the systemic one: frame-carried sub-page structs
+  mutated in place by background tails under a.mu vs layout reads under
+  frameMu — both files now install copies via their update<Page>
+  helper. **Sibling sweep continues** (one iteration per file, order in
+  MAP): settingsstars.go → foldermgr.go → stickermanager.go →
+  profileedit.go → exportdlg.go → twofa.go → instantview.go's load
+  tail. RED method that worked twice now: dep-free scratch repro of
+  the pre-fix shape under `go run -race`.
 - **CI proofs**: R32/R33 CLOSED — run **41222152669 (be7541e4) = SUCCESS
-  at job AND step level** (all 5 jobs; Race step green). R34/R35/R36's
-  commit dispatched at session end — check at job+step level (the race
-  leg carries the two new pins TestBusinessPageStateIsCopyOnWrite +
-  TestUpdateBusinessPageContract). Local -race on the gui package fits
-  the box now (proven 337/338 — use it before falling back to CI).
+  at job AND step level** (all 5 jobs; Race step green). R34-R36 commit
+  (f14028a6) dispatched as **41236970838**; the R37 commit's dispatch
+  goes out with it — check BOTH at job+step level (the race leg now
+  carries R34's two pins + R37's two pins). Local -race on the gui
+  package fits the box (proven 337/338 — use it before falling back
+  to CI).
 - **Wipe #6 (session 338 boot)**: repo + toolchain + download/ copies
   gone; the upload token file survived. Full recipe re-run from zero
   (clone → go1.27.1 tarball → mod download → devroot-setup), ~10 min.

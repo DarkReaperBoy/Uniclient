@@ -115,6 +115,30 @@ var (
 	noAdsRevert map[string]bool
 )
 
+// updatePremiumPage applies fn to a COPY of the live Premium page state
+// and installs the copy under a.mu — R34's copy-on-write contract for
+// frame-carried sub-page structs (R37, the first sibling swept after
+// business.go): the struct a frame holds stays immutable for that frame's
+// life, so the load tail cannot write-race the layout's field reads
+// (snapshot() at state.go:2362 installs the live pointer; its own
+// contract says "only replaced, never mutated in place"). fn re-validates
+// staleness itself (accountID match); returning false aborts the install,
+// leaving the head alone. Returns the installed copy, or nil when the
+// page is closed / fn aborted.
+func (a *App) updatePremiumPage(fn func(st *premiumPageState) bool) *premiumPageState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.premiumPage == nil {
+		return nil
+	}
+	next := *a.premiumPage
+	if !fn(&next) {
+		return nil
+	}
+	a.premiumPage = &next
+	return &next
+}
+
 // openPremiumPage starts the page for an account and loads its data.
 func (a *App) openPremiumPage(accountID string) {
 	a.mu.Lock()
@@ -140,36 +164,34 @@ func (a *App) closePremiumPage() {
 func (a *App) loadPremiumPage(accountID string) {
 	promo, errP := a.eng.GetPremiumPromo(accountID)
 	limits, errL := a.eng.GetAllFolderLimits(accountID)
-	a.mu.Lock()
-	st := a.premiumPage
-	if st == nil || st.accountID != accountID {
-		a.mu.Unlock()
-		return
-	}
-	st.loading = false
-	if errP != nil {
-		st.err = errP.Error()
-	} else {
-		st.err = ""
-		st.loaded = true
-		st.promo = promo
-	}
-	if errL == nil && limits != nil {
-		st.limits = limits
-	}
-	a.mu.Unlock()
+	a.updatePremiumPage(func(n *premiumPageState) bool {
+		if n.accountID != accountID {
+			return false // closed or switched mid-fetch
+		}
+		n.loading = false
+		if errP != nil {
+			n.err = errP.Error()
+		} else {
+			n.err = ""
+			n.loaded = true
+			n.promo = promo
+		}
+		if errL == nil && limits != nil {
+			n.limits = limits
+		}
+		return true
+	})
 	a.invalidate()
 }
 
 // reloadPremiumPage re-pulls after a mutation or manual reload.
 func (a *App) reloadPremiumPage() {
-	a.mu.Lock()
 	acc := ""
-	if st := a.premiumPage; st != nil {
-		acc = st.accountID
-		st.loading = true
-	}
-	a.mu.Unlock()
+	a.updatePremiumPage(func(n *premiumPageState) bool {
+		acc = n.accountID
+		n.loading = true
+		return true
+	})
 	if acc != "" {
 		go a.loadPremiumPage(acc)
 	}

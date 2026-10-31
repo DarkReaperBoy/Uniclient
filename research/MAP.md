@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36, settingspremium.go + R37 — the R34 sibling sweep has begun) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -706,6 +706,32 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### settingspremium.go (635→665 lines — session 338, read in full: the Telegram Premium settings page, slice 143; chunk 3 iteration 22, the R34 sibling sweep #1, VERDICT: R37 fixed, rest CLEAN)
+- Scope: pure helpers (currencyExponent/formatPremiumPrice/premiumLimitRows
+  — test-locked), page lifecycle (open/close/load/reload), the subscribe
+  deep-link flow, status card with the AyuGram local-premium toggle, the
+  no-ads lever, plan rows, limits comparison, account chips, entry card.
+- **R37 FIXED**: premiumPageState had R34's pre-fix shape — load tail +
+  reload mutated the struct in place under a.mu vs layout reads via the
+  frame pointer under frameMu. Now updatePremiumPage(fn) copy-on-write
+  (the R34 fix applied to the sibling); both writer sites converted;
+  cross-file access verified nil-install-only. settingspremium_r37_test.go
+  ×2, local -race clean, CI race-leg carries the pins.
+- Rest of the file CLEAN — notably: noAdsRevert is a.mu-guarded on BOTH
+  sides (the R24 lesson already applied there: background failure path
+  queues the revert under a.mu, the GUI-thread drain reads+deletes under
+  a.mu); settingsSwitch/settingsSynced maps are GUI-loop-only; the
+  local-premium and no-ads toggles dispatch engine calls via goroutines
+  (st.accountID is an install-immutable field — safe to read from the
+  goroutine, verified no writer exists); premiumEntryVisible hides the
+  entry for non-Telegram accounts (§1.10); serverPremium separates
+  server-granted from local premium honestly.
+- Sibling sweep continues: settingsstars.go next (then foldermgr.go,
+  stickermanager.go, profileedit.go, exportdlg.go, twofa.go,
+  instantview.go's load tail).
+
+
+
 ### business.go (1,864→1,972 lines — session 338, read in full: the Telegram Business settings page, slice 148; chunk 3 iteration 21, VERDICT: R34 + R35 + R36 fixed, rest CLEAN)
 - Scope: pure model (bizWeek wire↔editor conversion, lenient time parsing —
   unit-tested in business_test.go), page lifecycle (open/close/load/reload),
@@ -737,18 +763,18 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   in separate windows — the app.go separate branch returns before any
   settings surface, re-verified this iteration); cross-file writers of
   a.businessPage are all nil-installs (settings-shell exclusivity).
-- **SYSTEMIC WATCH (P1-class, feeds chunk 3)**: premiumPage
-  (settingspremium.go), ivState (instantview.go) and every other
-  frame-carried sub-page/state pointer share R34's pre-fix shape —
+- **SYSTEMIC WATCH (P1-class, feeds chunk 3)**: every frame-carried
+  sub-page/state pointer shares R34's pre-fix shape —
   background tails mutate the struct in place under a.mu, layout reads
   via the frame pointer under frameMu. Pre-R32 these were judged "clean"
   under the a.mu-suffices reading; R32/R34's discipline says otherwise.
   Each sibling gets its own iteration fix (copy-on-write installer or
   per-field atomics where a struct is overkill) — do NOT mass-edit:
   surfaces differ (iv's docBusy is already ivDocMu-guarded; msgshot
-  serialized by shotMu). Candidates in read order: settingspremium.go,
-  settingsstars.go, foldermgr.go, stickermanager.go, profileedit.go,
-  exportdlg.go, twofa.go (auth flows), plus instantview.go's load tail.
+  serialized by shotMu). **DONE: settingspremium.go (R37, iteration 22).**
+  Remaining, in read order: settingsstars.go, foldermgr.go,
+  stickermanager.go, profileedit.go, exportdlg.go, twofa.go (auth flows),
+  plus instantview.go's load tail.
 
 
 

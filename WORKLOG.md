@@ -8,10 +8,11 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 21 DONE — business.go (1,864 lines, read in full — the Telegram Business settings page); **R34** (businessPageState mutated in place by six background RPC tails under a.mu vs layout reads via the frame pointer under frameMu — R32's class, struct-flavored → updateBusinessPage copy-on-write installer for EVERY post-install mutation, accountID staleness guards on all tails; RED via dep-free scratch repro under -race, GREEN via local -race on the pins + CI race-leg extension) + **R35** (recipient/exclude/offline checkboxes never seeded, never read — Save sent the wire-primed st.recips/st.offline → seeded via seedBizRecipWidgets, read back in bizEditorData, at-least-one guard) + **R36** (quick-reply rename row uncancellable — shared Cancel only cleared the new-form flag; new form + rename row shared the name editor → one inline edit slot via three extracted click methods). Rows in BUGS Fixed, section in MAP. MAP also gains the **P1-class systemic watch**: premiumPage/ivState/every frame-carried sub-page pointer shares R34's pre-fix shape — one iteration per sibling, do NOT mass-edit
-- next: the remaining unscanned gui files (chunk-3 per-file lens; the R34 sibling sweep is now the priority order: settingspremium.go, settingsstars.go, foldermgr.go, stickermanager.go, profileedit.go, exportdlg.go, twofa.go, instantview.go load tail); CI proof for the R32/R33 commit CLOSED this session — run **41222152669 (be7541e4) = SUCCESS at job AND step level** (all 5 jobs; Race step green carrying the R32 pin) — the R34/R35/R36 commit's CI is pending dispatch
+- item: iteration 22 DONE — settingspremium.go (635 lines, read in full — the R34 sibling sweep #1); **R37** (premiumPageState load tail + reload mutated the struct in place under a.mu vs layout reads via the frame pointer → updatePremiumPage copy-on-write installer, both writer sites converted, cross-file access verified nil-install-only; pins clean under local -race, CI race-leg extended). Row in BUGS, section in MAP. The R34 sibling sweep continues (settingsstars.go next; remaining order in MAP)
+- ALSO this session: iteration 21 DONE — business.go (1,864 lines, read in full); **R34** (businessPageState write-races-layout on six background RPC tails → updateBusinessPage copy-on-write for EVERY post-install mutation + accountID staleness guards; RED via dep-free scratch repro under -race, GREEN via local -race pins + CI race-leg) + **R35** (recipient/exclude/offline checkboxes never seeded nor read → seedBizRecipWidgets + read-back + at-least-one guard) + **R36** (quick-reply rename uncancellable + shared-editor slot → one inline edit slot via three extracted click methods)
+- next: the R34 sibling sweep continues: settingsstars.go, foldermgr.go, stickermanager.go, profileedit.go, exportdlg.go, twofa.go, instantview.go load tail (one iteration per file, order in MAP); CI: R32/R33 proof CLOSED (41222152669 = SUCCESS all 5 jobs at step level); the R34/R35/R36 commit's run **41236970838** and the R37 commit's run both need job+step verification once complete
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite **874/874** (+6 new pins), gate quick GREEN (js leg + 4/4 wasm-runner contracts), LOCAL -race clean on the R34 pins; CI proof for the R34/R35/R36 commit pending dispatch
+- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite **876/876** (+8 new pins across R34-R37), gate quick GREEN ×2 (js leg + 4/4 wasm-runner contracts), LOCAL -race clean on the R34 AND R37 pins; CI runs for the R34-R36 and R37 commits pending verification
 
 ## Session 338 — iteration 21: business.go = R34 + R35 + R36 (2026-11-01)
 
@@ -52,6 +53,15 @@ on 2026-10-30 — it lives in git history if ever needed.)
 - Full gui suite 874/874 (868 + 6); gate quick GREEN (js leg + 4/4
   wasm-runner contracts). MAP gains the P1-class systemic watch for the
   R34 sibling sub-pages (read order listed there).
+- **Iteration 22 (same session): settingspremium.go = R37.** Read in
+  full; premiumPageState had R34's pre-fix shape (load tail + reload in
+  place under a.mu vs frame-pointer reads). Fix: updatePremiumPage
+  copy-on-write installer (same shape as business.go's), both writer
+  sites converted, cross-file access verified nil-install-only. Rest of
+  the file clean (noAdsRevert a.mu-guarded both sides; settings maps
+  GUI-loop-only; accountID install-immutable). settingspremium_r37_test
+  .go ×2, local -race clean, CI race-leg extended. Full gui suite
+  876/876; gate quick GREEN.
 
 
 ## Session 337 — iteration 20: state.go part 2 = R32 + R33 (2026-11-01)
