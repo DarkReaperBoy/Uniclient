@@ -9,9 +9,9 @@ on 2026-10-30 — it lives in git history if ever needed.)
 
 - cycle: 2 | phase: P0 (chunked recon of never-mapped surfaces; the web surface closed in cycle 1)
 - item: gate.sh landed+verified; R10 closed (verified not-a-bug) — session 328
-- next: npm ci in scripts/web-test (web-tier prerequisite) → P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
+- next: P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick GREEN this session (scoped legs: native qrscan + js gui/cmd, wasm runner)
+- last-gate: quick GREEN + web GREEN this session (full E2E: s-tier + b1-b6, real Chrome, exit 0)
 
 ## Session 328 — gate.sh landed; R10 closed; toolchain recovered (2026-10-31)
 
@@ -47,7 +47,11 @@ native gui builds, which the gate does not do).
   Telegram/DeltaChat callers never run on web (TCP). Evidence in BUGS Fixed.
 - Evidence: /tmp/gate-quick.log (scoped run GREEN, exit 0), git status clean
   post-probe, BUGS.md/WORKLOG.md updated in the same commit.
-- Next: npm ci (web tier) → P0 chunk 1.
+- Web tier restored and verified: npm ci (puppeteer postinstall blocked by npm
+  policy, but Chrome-for-Testing 148 found + verified, cache relocated to
+  my-project/toolchain/puppeteer-cache, PUPPETEER_CACHE_DIR in env.sh);
+  gate.sh web GREEN (exit 0): wasm build + s-tier + b1-b6 against real Chrome.
+- Next: P0 chunk 1.
 
 ## Session 327 — constitution v3.2: the self-test law (2026-10-31)
 
