@@ -16,13 +16,14 @@ import (
 // row the rectangle touches. The overlay passes pointer events through
 // (bubbles keep their tap-to-toggle; the list keeps wheel scrolling —
 // desktop mouse drags do not scroll a Gio List, so there is no fight).
+// Gesture state (rubberOn/rubberStart/rubberCur) lives on the App — R23:
+// this overlay renders in BOTH window branches (layoutChatView ←
+// layoutMain/separateChatView), and package-level state let another
+// window's frame kill an in-flight drag (selOn early-exit) or paint this
+// window's rectangle on the other viewport.
 
-var (
-	rubberTag   = new(struct{})
-	rubberOn    bool // gesture in progress (frame-loop only)
-	rubberStart image.Point
-	rubberCur   image.Point
-)
+// rubberTag is the overlay's opaque event tag (immutable — safe to share).
+var rubberTag = new(struct{})
 
 // rubberSelectRect normalizes the gesture's points into a rectangle —
 // drags in any direction (up-left, down-right…) produce the same rect.
@@ -60,7 +61,7 @@ func rubberHits(bounds map[int]image.Rectangle, rect image.Rectangle) []int {
 func (a *App) rubberBandOverlay(gtx layout.Context, f frame, size image.Point) {
 	if !f.selOn {
 		// Selection mode left mid-drag: drop the gesture.
-		rubberOn = false
+		a.rubberOn = false
 		return
 	}
 
@@ -88,25 +89,25 @@ func (a *App) rubberBandOverlay(gtx layout.Context, f frame, size image.Point) {
 		switch e.Kind {
 		case pointer.Press:
 			if e.Buttons == pointer.ButtonPrimary {
-				rubberOn = true
-				rubberStart = e.Position.Round().Add(image.Pt(0, a.listTop))
-				rubberCur = rubberStart
+				a.rubberOn = true
+				a.rubberStart = e.Position.Round().Add(image.Pt(0, a.listTop))
+				a.rubberCur = a.rubberStart
 			}
 		case pointer.Drag:
-			if rubberOn {
-				rubberCur = e.Position.Round().Add(image.Pt(0, a.listTop))
+			if a.rubberOn {
+				a.rubberCur = e.Position.Round().Add(image.Pt(0, a.listTop))
 			}
 		case pointer.Release, pointer.Cancel:
-			if rubberOn {
-				rect := rubberSelectRect(rubberStart, rubberCur)
+			if a.rubberOn {
+				rect := rubberSelectRect(a.rubberStart, a.rubberCur)
 				a.rubberApply(f, rubberHits(a.rowBounds, rect))
-				rubberOn = false
+				a.rubberOn = false
 			}
 		}
 	}
 
-	if rubberOn {
-		rect := rubberSelectRect(rubberStart, rubberCur)
+	if a.rubberOn {
+		rect := rubberSelectRect(a.rubberStart, a.rubberCur)
 		// Pane coords → this overlay's local space.
 		r := rect.Sub(image.Pt(0, a.listTop))
 		defer op.Offset(r.Min).Push(gtx.Ops).Pop()

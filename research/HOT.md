@@ -11,18 +11,23 @@ This is not history — stale lines are lies.
   Durable lesson kept: if a run ever sits `queued` with zero in-progress runs,
   check `actions/permissions` FIRST (repo-level disable) — not runner
   starvation. The three 411779-411799 zombie dispatches are permanent, ignore.
-- **P0 chunk 3 iteration 8 DONE (session 334)**: separate.go (359 ln) read in
-  full — **VERDICT CLEAN**, the multi-window core is the best-defended file in
-  gui (registry sepMu-guarded, uniform sepMu→a.mu order verified at openChat
-  1400-1426, hop discipline holds, lock-bus subscribe-before-boot-decision is
-  airtight, reopen guard unreachable from separate Apps). MAP has the full
-  write-up. **Chunk-3 ranking queue now in MAP** (pkg-var scan v2 +
-  separateChatView-reachability rule): next = rubberband.go (message-list
-  selection gesture = chat surface = multi-window), then menu.go, richtext.go,
-  instantview.go, msgshot.go, cornerreply.go, profilemusic.go. Scanner lives at
-  `scripts/pkgvar_write_scan.py` (v2 — v1 missed grouped var blocks; business.go's
-  whole widget pool was invisible). ivDocDone one-shot-on-failure watch item is
-  in MAP (instantview iteration confirms before any R-number).
+- **P0 chunk 3, session 334**: iterations 8+9 DONE — separate.go (multi-window
+  core, **VERDICT CLEAN**, full invariant audit in MAP) and rubberband.go
+  (**R23 FIXED**: package-level gesture state vs per-App selOn — other
+  window's frame killed in-flight rubber-band drags or painted phantom
+  rects; moved to App fields; TestRubberBandGestureIsPerWindow drives the
+  real overlay via input.Router; gate quick GREEN; **native proof dispatched
+  to verify.yml — READ ITS RESULT before trusting native green for R23**).
+  **frameMu discovery (load-bearing)**: Root() holds frameMu for the entire
+  frame, so layout-only package state cannot data-race — residual bug shapes
+  are semantic cross-window bleed (R14/R23) and outside-layout writes
+  (R22-class maps). Chunk-3 ranking queue + this lens live in MAP; scanner
+  at `scripts/pkgvar_write_scan.py` (v2 — grouped var blocks). Next:
+  menu.go (25 label write-sites + context menus in separate windows), then
+  richtext.go, instantview.go (ivDocDone watch item), msgshot.go,
+  cornerreply.go, profilemusic.go. Gio harness lessons in MAP: pointer.Drag
+  is not queueable (Move-while-pressed synthesizes Drag), pane-coord
+  boundaries make edge presses miss rows.
 - Toolchain recovery recipe: `scripts/env.sh` header steps 1-5 — proven through
   **wipe #3** (session 333: full re-download of go 1.27.0 + mod-cache refill
   1.3G). VM wipes are routine — source it first thing. web-test node_modules +

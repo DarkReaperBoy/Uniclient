@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go + pkg-var ranking queue) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go + pkg-var ranking queue, rubberband.go + R23) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -448,6 +448,33 @@ core — registry, hop discipline, lock bus; iteration 8, VERDICT: CLEAN)
 - **Teardown**: CloseSeparateWindowsAndWait snapshots under sepMu, Perform(Close)
   each, sepWG.Wait() drains every loop before engine teardown.
 
+### rubberband.go (136 lines — session 334, read in full: the
+message-list rubber-band selection overlay; iteration 9, produced R23)
+- **Structure**: pure rect math (rubberSelectRect, rubberHits — both test-
+  locked since slice 84) + rubberBandOverlay mounted at chat.go:711 inside
+  messageList (chat.go:613) ← layoutChatView — the shared renderer BOTH
+  windows use. Pass-through hit node (pointer.PassOp) so bubbles keep
+  tap-to-toggle and the list keeps wheel scroll; events via package
+  rubberTag; points converted to pane coords with per-App a.listTop;
+  rubberApply locks a.mu to write a.sel (the only locked part — clean).
+- **R23 (fixed this session)**: rubberOn/rubberStart/rubberCur were
+  package-level while f.selOn is per-App → other window's frame (a) killed
+  an in-flight drag via the selOn early-exit, (b) painted a phantom rect
+  when both windows selected. No data race ONLY because frameMu (app.go:25)
+  serializes all Root() frames — semantic bleed stayed. Gesture state moved
+  to App fields beside the R19 viewer group; rubberTag stays package-level
+  (immutable). RED compile-seam → GREEN full-lifecycle test via input.Router
+  (two windows, live pointer events, release-selects-rows assertion).
+- **frameMu discovery (load-bearing for the whole queue)**: frames serialize
+  on frameMu held for the entire Root() — layout-only package state cannot
+  DATA-race; the bug class for chat-surface package state is semantic
+  cross-window bleed (R14/R23 shape), not memory races. Fatal-map shape
+  (R22) only appears when writes happen OUTSIDE layout (loaders/goroutines).
+- Harness lessons for future gesture tests: pointer.Drag is NOT a queueable
+  kind (Router synthesizes Drag delivery from Move-while-pressed);
+  pane-coord boundaries (listTop offsets) make edge-adjacent presses miss
+  rows — place test geometry strictly inside row bounds.
+
 ### Chunk-3 ranking queue (session 334 — pkg-var scan v2, method note)
 Scanner: `scripts/pkgvar_write_scan.py` (v2; v1 missed grouped `var (...)` blocks
 — business.go's whole widget pool was invisible). Ranking rule from the R14/R18/
@@ -457,16 +484,17 @@ settings, login, dialogs, drawer, voice tab are main-window-only per the
 separate.go:5-7 header). Verified this session: swipeG (swipeaction.go) is
 sidebar-only → main-window-only, downgrade to P3 fold-in; business.go's var
 block (bizTimeEds etc.) mounts via settings.go:384 → main-only, P3 fold-in.
-Next-iteration queue by exposure:
-1. rubberband.go — rubberOn/rubberCur/rubberStart, message-list selection
-   gesture = chat surface = multi-window (highest)
-2. menu.go — `label` var with 25 write-sites + context menus that open in
+Next-iteration queue by exposure (rubberband.go done — R23):
+1. menu.go — `label` var with 25 write-sites + context menus that open in
    separate windows
-3. richtext.go — linkTags (map-ish, richtext.go:366) — message-text rendering
-4. instantview.go (1,738 ln) — ivDocDone; see watch item below
-5. msgshot.go — shotSmallFaceCache, chat-bubble context
-6. cornerreply.go — hoverChatOn, chat surface
-7. profilemusic.go — musicList, profile panel = R22's surface
+2. richtext.go — linkTags (map-ish, richtext.go:366) — message-text rendering
+3. instantview.go (1,738 ln) — ivDocDone; see watch item below
+4. msgshot.go — shotSmallFaceCache, chat-bubble context
+5. cornerreply.go — hoverChatOn, chat surface
+6. profilemusic.go — musicList, profile panel = R22's surface
+NOTE (frameMu, discovered at rubberband): layout-only package state cannot
+race — the residual bug shape on chat surfaces is semantic bleed (R23) or
+outside-layout writes (R22-class maps). Apply that lens when reading these.
 Watch item carried (verified: no clear-path anywhere in the package — grep
 1096/1098/1735 is the complete usage set): ivDocDone marks a photo done BEFORE
 DownloadIVPhoto runs and the error path returns silently (instantview.go:

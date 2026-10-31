@@ -3,9 +3,77 @@ package gui
 import (
 	"image"
 	"testing"
+
+	"gioui.org/f32"
+	"gioui.org/io/input"
+	"gioui.org/io/pointer"
+	"gioui.org/layout"
+	"gioui.org/op"
+
+	"uniclient/engine"
 )
 
 // Rubber-band selection (slice 84, AyuGram §3): rect math + row hit tests.
+
+// TestRubberBandGestureIsPerWindow pins the R23 fix: the overlay renders in
+// BOTH window branches (layoutChatView ← layoutMain/separateChatView), so the
+// gesture state must live on the App. Package-level state let another
+// window's frame (a) kill an in-flight drag via the selOn early-exit and
+// (b) paint this window's selection rectangle on the other viewport.
+func TestRubberBandGestureIsPerWindow(t *testing.T) {
+	// Window A: chat in selection mode, user starts a rubber-band drag.
+	var ra input.Router
+	var opsA op.Ops
+	a := &App{ui: NewUI(), rowBounds: map[int]image.Rectangle{}, listTop: 100}
+	gtxA := layout.Context{Ops: &opsA, Source: ra.Source(), Constraints: layout.Exact(image.Pt(400, 400))}
+	fOn := frame{selOn: true, messages: []engine.CachedMessage{{MsgID: "m0"}, {MsgID: "m1"}}}
+	a.rubberBandOverlay(gtxA, fOn, image.Pt(400, 400)) // declare handlers
+	ra.Frame(gtxA.Ops)
+	ra.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: f32.Pt(50, 40)}) // pane y=140: inside row 0
+	a.rubberBandOverlay(gtxA, fOn, image.Pt(400, 400))                                                                            // deliver Press
+	if !a.rubberOn {
+		t.Fatal("gesture did not start on press")
+	}
+
+	// Window B: another chat, NOT in selection mode, renders a frame (a
+	// typing indicator, toast, incoming message — anything). Its overlay's
+	// early-exit must not touch window A's in-flight gesture.
+	var rb input.Router
+	var opsB op.Ops
+	b := &App{ui: NewUI(), rowBounds: map[int]image.Rectangle{}}
+	gtxB := layout.Context{Ops: &opsB, Source: rb.Source(), Constraints: layout.Exact(image.Pt(400, 400))}
+	b.rubberBandOverlay(gtxB, frame{}, image.Pt(400, 400))
+	rb.Frame(gtxB.Ops)
+	b.rubberBandOverlay(gtxB, frame{}, image.Pt(400, 400))
+	if !a.rubberOn {
+		t.Fatal("cross-window bleed: window B's frame killed window A's rubber-band drag (B-47 class, R23)")
+	}
+	// ...and B never picked up A's gesture (the phantom rectangle):
+	if b.rubberOn {
+		t.Fatal("cross-window bleed: window B adopted window A's selection rectangle (B-47 class, R23)")
+	}
+
+	// A's drag continues tracking on A alone.
+	// Gio synthesizes Drag delivery from Move events while pressed
+	// (pointer.Drag is not a queueable kind).
+	ra.Queue(pointer.Event{Kind: pointer.Move, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: f32.Pt(120, 180)})
+	a.rubberBandOverlay(gtxA, fOn, image.Pt(400, 400))
+	if want := (image.Pt(120, 180)).Add(image.Pt(0, a.listTop)); a.rubberCur != want {
+		t.Fatalf("drag not tracked: cur = %v, want %v (pane coords)", a.rubberCur, want)
+	}
+
+	// Release applies the selection on A (rows hit by the drag rect).
+	a.rowBounds[0] = image.Rect(0, 100, 400, 160)
+	a.rowBounds[1] = image.Rect(0, 160, 400, 220)
+	ra.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: f32.Pt(120, 180)})
+	a.rubberBandOverlay(gtxA, fOn, image.Pt(400, 400))
+	if a.rubberOn {
+		t.Fatal("gesture did not end on release")
+	}
+	if !a.sel["m0"] || !a.sel["m1"] {
+		t.Fatalf("release did not select hit rows: sel = %v", a.sel)
+	}
+}
 
 func TestRubberSelectRect(t *testing.T) {
 	start, cur := image.Pt(100, 50), image.Pt(200, 150)

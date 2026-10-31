@@ -8,11 +8,10 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: CI proofs closed — 41184046305 (R20/R21) + 41184562534 (R22) both verified SUCCESS at job+step level; chunk 3 iteration 8 DONE (separate.go, 359 ln, read in full — VERDICT CLEAN: registry sepMu-guarded, uniform sepMu→a.mu order, hop discipline verified field-by-field, lock-bus subscribe-before-boot-decision airtight, reopen guard unreachable from separate Apps); pkg-var scan v2 built (grouped var blocks — v1 was blind to them) + chunk-3 ranking queue in MAP (separateChatView-reachability rule); swipeG + business.go var block verified main-window-only → P3 fold-in
-- next: chunk 3 iteration 9 = rubberband.go (message-list selection gesture = chat surface = multi-window exposure, top of MAP queue), then menu.go, richtext.go, instantview.go (ivDocDone watch item), msgshot.go, cornerreply.go, profilemusic.go
+- item: CI proofs closed — 41184046305 (R20/R21) + 41184562534 (R22) both verified SUCCESS at job+step level; iteration 8 separate.go read in full (VERDICT CLEAN, all invariants tool-verified); pkg-var scan v2 + chunk-3 ranking queue in MAP; iteration 9 rubberband.go → R23 FIXED (package-level gesture state vs per-App selOn: other window's frame killed in-flight drags / painted phantom rects; moved to App fields, RED→GREEN via input.Router lifecycle test; gate quick GREEN)
+- next: read the verify.yml dispatch for R23's native proof, then chunk 3 iteration 10 = menu.go (25 label write-sites + context menus in separate windows), then richtext.go, instantview.go (ivDocDone watch item), msgshot.go, cornerreply.go, profilemusic.go
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: docs-only session (3 .md files, zero Go changes — Go tree
-  byte-identical to a8880414, CI-proven green at 41184562534 this session)
+- last-gate: quick GREEN (4/4 runner contracts incl. flag forwarding, js vet, full gui suite incl. R23 test)
 
 ## Session 334 — CI proofs closed, separate.go clean, ranking queue (2026-10-31)
 
@@ -40,14 +39,37 @@ on 2026-10-30 — it lives in git history if ever needed.)
   - Lock-bus boot race closed BY ORDER: Start subscribes (state.go:684)
     before the boot decision reads lockEngaged (720-729) — a broadcast in
     the gap lands as a hop and lockEngaged still boots the window locked.
+- **Iteration 9 + R23: rubberband.go (136 lines, read in full).** Top of the
+  new ranking queue. The rubber-band gesture state (rubberOn/rubberStart/
+  rubberCur) was package-level while the overlay renders in BOTH window
+  branches (messageList ← layoutChatView ← layoutMain/separateChatView) and
+  f.selOn is per-App: window B's frame while not selecting KILLED window A's
+  mid-drag gesture (selOn early-exit); both selecting → B painted A's
+  phantom rect. No data race only because frameMu serializes Root() frames
+  — semantic bleed remained. Fix = R19 pattern: state moved to App fields
+  (frame-loop-only group, provenance comment), rubberTag stays package-level
+  (immutable). RED compile-seam → TestRubberBandGestureIsPerWindow drives
+  the REAL overlay via input.Router with live pointer events across two
+  App instances (press → other-window frames → drag tracks pane coords →
+  release selects exactly the hit rows). Full gui suite green (js leg);
+  gate quick GREEN (4/4 runner contracts). Native proof → verify.yml
+  dispatch this session. Two Gio harness lessons recorded in MAP:
+  pointer.Drag is not a queueable kind (Move-while-pressed synthesizes
+  Drag delivery); pane-coord boundaries make edge-adjacent presses miss.
 - **pkg-var scanner v2** (`scripts/pkgvar_write_scan.py`): v1 missed grouped
   `var (...)` blocks — business.go's entire widget pool was invisible.
   v2 surfaces the full runtime-written package-state inventory of all ~100
   gui files. Combined with the separateChatView-reachability rule (separate
   windows render ONLY layoutChatView — separate.go:5-7 header), this yields
-  the chunk-3 ranking queue now in MAP. Verified this session: swipeG is
+  the chunk-3 ranking queue now in MAP (rubberband.go was #1 and indeed
+  produced R23 — the method predicts). Verified this session: swipeG is
   sidebar-only and business.go's var block is settings-only → both
   main-window-only, downgraded to P3 fold-ins (no race, single GUI loop).
+- **frameMu discovery (this session, load-bearing)**: Root() holds frameMu
+  (app.go:25) for the ENTIRE frame — all windows' layouts serialize. So
+  layout-only package state cannot data-race; the residual bug shapes are
+  semantic cross-window bleed (R14/R23) and outside-layout writes (R22
+  fatal-map class). This lens now heads the MAP queue note.
 - **ivDocDone watch item** (instantview.go:1096-1110, verified by complete
   grep — 3 usage sites total, no clear-path anywhere): one-shot mark happens
   BEFORE the download and the error path returns silently → a transient

@@ -647,6 +647,12 @@ type App struct {
 	// branches (app.go Root), so two windows' GUI loops raced on them.
 	mvBoxW, mvBoxH       int
 	mvScaledW, mvScaledH float32
+	// rubber-band gesture state (frame-loop only, PER WINDOW — R23): the
+	// overlay renders in BOTH window branches (layoutChatView), so another
+	// window's frame must never see (or reset) this window's in-flight
+	// drag. Was package-level — B-47 class.
+	rubberOn               bool
+	rubberStart, rubberCur image.Point
 }
 
 func New(win *app.Window, eng *engine.Engine) *App {
