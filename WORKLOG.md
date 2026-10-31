@@ -8,11 +8,12 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 22 DONE — settingspremium.go (635 lines, read in full — the R34 sibling sweep #1); **R37** (premiumPageState load tail + reload mutated the struct in place under a.mu vs layout reads via the frame pointer → updatePremiumPage copy-on-write installer, both writer sites converted, cross-file access verified nil-install-only; pins clean under local -race, CI race-leg extended). Row in BUGS, section in MAP. The R34 sibling sweep continues (settingsstars.go next; remaining order in MAP)
+- item: iteration 23 DONE — settingsstars.go (545 lines, read in full — the R34 sibling sweep #2); **R38** (starsPageState: R34's shape PLUS the append path appending INTO the frame-visible Txns slice — header race vs the layout's range loop → updateStarsPage copy-on-write for all five writer sites + FRESH StarsStatus/ Txns slice on append; head now skips the fetch when the page is gone; dead filter capture dropped; ×3 pins, local -race clean, CI race-leg extended). Row in BUGS, section in MAP. Sweep: 2 of 7 done (foldermgr.go next)
+- ALSO this session: iteration 22 — settingspremium.go (**R37**, updatePremiumPage copy-on-write); iteration 21 — business.go (**R34** write-races-layout + copy-on-write installer, **R35** dead recipient checkboxes, **R36** uncancellable QR rename)
 - ALSO this session: iteration 21 DONE — business.go (1,864 lines, read in full); **R34** (businessPageState write-races-layout on six background RPC tails → updateBusinessPage copy-on-write for EVERY post-install mutation + accountID staleness guards; RED via dep-free scratch repro under -race, GREEN via local -race pins + CI race-leg) + **R35** (recipient/exclude/offline checkboxes never seeded nor read → seedBizRecipWidgets + read-back + at-least-one guard) + **R36** (quick-reply rename uncancellable + shared-editor slot → one inline edit slot via three extracted click methods)
-- next: the R34 sibling sweep continues: settingsstars.go, foldermgr.go, stickermanager.go, profileedit.go, exportdlg.go, twofa.go, instantview.go load tail (one iteration per file, order in MAP); CI: R32/R33 proof CLOSED (41222152669 = SUCCESS all 5 jobs at step level); the R34/R35/R36 commit's run **41236970838** and the R37 commit's run both need job+step verification once complete
+- next: the R34 sibling sweep continues: foldermgr.go, stickermanager.go, profileedit.go, exportdlg.go, twofa.go, instantview.go load tail (one iteration per file, order in MAP; siblings with append/paging must build fresh slices — R38's deep half); CI: R32/R33 CLOSED (41222152669); runs **41236970838** (R34-R36, f14028a6), **41237343094** (R37, e6de37fc) in progress — verify at job+step level, then dispatch + verify the R38 commit's run
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite **876/876** (+8 new pins across R34-R37), gate quick GREEN ×2 (js leg + 4/4 wasm-runner contracts), LOCAL -race clean on the R34 AND R37 pins; CI runs for the R34-R36 and R37 commits pending verification
+- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite **879/879** (+11 new pins across R34-R38), gate quick GREEN ×3 (js leg + 4/4 wasm-runner contracts), LOCAL -race clean on the R34/R37/R38 pins; CI runs for R34-R36/R37 pending verification, R38's dispatch next
 
 ## Session 338 — iteration 21: business.go = R34 + R35 + R36 (2026-11-01)
 
@@ -62,6 +63,15 @@ on 2026-10-30 — it lives in git history if ever needed.)
   GUI-loop-only; accountID install-immutable). settingspremium_r37_test
   .go ×2, local -race clean, CI race-leg extended. Full gui suite
   876/876; gate quick GREEN.
+- **Iteration 23 (same session): settingsstars.go = R38.** Read in full;
+  starsPageState had R34's shape PLUS the append half (append into the
+  frame-visible Txns slice — header race vs the layout's range loop).
+  Fix: updateStarsPage copy-on-write for all five writer sites; the
+  append builds a FRESH StarsStatus + fresh Txns slice (old balance
+  kept); the load head now skips the fetch when the page is gone; the
+  dead filter capture in reload dropped. settingsstars_r38_test.go ×3
+  (hammer + append-purity + contract), local -race clean, CI race-leg
+  extended with all three. Full gui suite 879/879; gate quick GREEN.
 
 
 ## Session 337 — iteration 20: state.go part 2 = R32 + R33 (2026-11-01)

@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36, settingspremium.go + R37 — the R34 sibling sweep has begun) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36, settingspremium.go + R37, settingsstars.go + R38 — the R34 sibling sweep: 2 of 7 done) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -706,6 +706,29 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### settingsstars.go (545→588 lines — session 338, read in full: the Telegram Stars settings page; chunk 3 iteration 23, the R34 sibling sweep #2, VERDICT: R38 fixed, rest CLEAN)
+- Scope: pure helpers (formatStars/txn labels/status chips, filter tabs —
+  test-locked), page lifecycle (open/close/load with append mode/filter/
+  reload/load-more), balance card, filter tabs, transaction rows, account
+  chips, entry card.
+- **R38 FIXED**: starsPageState had R34's pre-fix shape PLUS the deeper
+  append half — `st.status.Txns = append(...)` wrote into the frame-visible
+  slice (header race vs the layout's range loop). Fix: updateStarsPage
+  copy-on-write installer for all five writer sites (load head/tail,
+  setStarsFilter, reload, loadMore guard; the head now skips the fetch when
+  the page is gone); the append path builds a FRESH StarsStatus with a
+  FRESH Txns slice (old balance kept, old rows copied, new concatenated).
+  settingsstars_r38_test.go ×3 (hammer + the deep append-purity pin +
+  contract), local -race clean, CI race-leg carries all three.
+- Rest of the file CLEAN: appending is guard-internal (never read by
+  layout — verified); txn rows receive value copies; tab/filter switching
+  clears status honestly (loading state); the dead `filter` capture in the
+  old reload was removed with the conversion.
+- Sibling sweep: foldermgr.go next (then stickermanager.go, profileedit.go,
+  exportdlg.go, twofa.go, instantview.go's load tail).
+
+
+
 ### settingspremium.go (635→665 lines — session 338, read in full: the Telegram Premium settings page, slice 143; chunk 3 iteration 22, the R34 sibling sweep #1, VERDICT: R37 fixed, rest CLEAN)
 - Scope: pure helpers (currencyExponent/formatPremiumPrice/premiumLimitRows
   — test-locked), page lifecycle (open/close/load/reload), the subscribe
@@ -771,10 +794,12 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   Each sibling gets its own iteration fix (copy-on-write installer or
   per-field atomics where a struct is overkill) — do NOT mass-edit:
   surfaces differ (iv's docBusy is already ivDocMu-guarded; msgshot
-  serialized by shotMu). **DONE: settingspremium.go (R37, iteration 22).**
-  Remaining, in read order: settingsstars.go, foldermgr.go,
-  stickermanager.go, profileedit.go, exportdlg.go, twofa.go (auth flows),
-  plus instantview.go's load tail.
+  serialized by shotMu). **DONE: settingspremium.go (R37, iteration 22),
+  settingsstars.go (R38, iteration 23 — including the deeper append-into-
+  frame-visible-slice half; future siblings with append/paging shapes must
+  build fresh slices the same way).** Remaining, in read order:
+  foldermgr.go, stickermanager.go, profileedit.go, exportdlg.go, twofa.go
+  (auth flows), plus instantview.go's load tail.
 
 
 

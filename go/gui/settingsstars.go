@@ -129,6 +129,30 @@ var (
 	starsAcctBtns  []widget.Clickable
 )
 
+// updateStarsPage applies fn to a COPY of the live Stars page state and
+// installs the copy under a.mu — R34's copy-on-write contract (R38, the
+// second sibling swept): the struct a frame holds stays immutable for
+// that frame's life, so the load/filter/reload tails cannot write-race
+// the layout's field reads. The append path additionally builds a FRESH
+// StarsStatus with a fresh Txns slice (the pre-fix code appended into the
+// frame-visible slice in place — the slice-header write raced the range
+// loop in layoutStarsPage). fn re-validates staleness itself (accountID
+// match); false aborts the install. Returns the installed copy, or nil
+// when the page is closed / fn aborted.
+func (a *App) updateStarsPage(fn func(st *starsPageState) bool) *starsPageState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.starsPage == nil {
+		return nil
+	}
+	next := *a.starsPage
+	if !fn(&next) {
+		return nil
+	}
+	a.starsPage = &next
+	return &next
+}
+
 // openStarsPage starts the page for an account and loads its data.
 func (a *App) openStarsPage(accountID string) {
 	a.mu.Lock()
@@ -155,84 +179,92 @@ func (a *App) closeStarsPage() {
 // rows and adds the next page).
 func (a *App) loadStarsPage(accountID, offset string, appendMode bool) {
 	filter := ""
-	a.mu.Lock()
-	if st := a.starsPage; st != nil && st.accountID == accountID {
-		filter = st.filter
+	if a.updateStarsPage(func(n *starsPageState) bool {
+		if n.accountID != accountID {
+			return false // closed or switched — skip the fetch entirely
+		}
+		filter = n.filter
 		if appendMode {
-			st.appending = true
+			n.appending = true
 		}
+		return true
+	}) == nil {
+		return
 	}
-	a.mu.Unlock()
 	status, err := a.eng.GetMyStars(accountID, offset, filter)
-	a.mu.Lock()
-	st := a.starsPage
-	if st == nil || st.accountID != accountID {
-		a.mu.Unlock()
-		return
-	}
-	if appendMode {
-		st.appending = false
-	} else {
-		st.loading = false
-	}
-	if err != nil {
-		if !appendMode {
-			st.err = err.Error()
+	a.updateStarsPage(func(n *starsPageState) bool {
+		if n.accountID != accountID {
+			return false // closed or switched mid-fetch
 		}
-		a.mu.Unlock()
-		a.invalidate()
-		return
-	}
-	st.err = ""
-	st.loaded = true
-	if status != nil {
-		if appendMode && st.status != nil {
-			st.status.Txns = append(st.status.Txns, status.Txns...)
-			st.status.NextOffset = status.NextOffset
+		if appendMode {
+			n.appending = false
 		} else {
-			st.status = status
+			n.loading = false
 		}
-		st.nextPage = status.NextOffset
-	} else {
-		if !appendMode {
-			st.status = nil
+		if err != nil {
+			if !appendMode {
+				n.err = err.Error()
+			}
+			return true
 		}
-		st.nextPage = ""
-	}
-	a.mu.Unlock()
+		n.err = ""
+		n.loaded = true
+		if status != nil {
+			if appendMode && n.status != nil {
+				// Fresh status + fresh Txns slice: a frame holding the
+				// previous page must keep iterating its own (immutable)
+				// slice — never append into the frame-visible backing.
+				merged := &cores.StarsStatus{
+					BalanceNano: n.status.BalanceNano,
+					NextOffset:  status.NextOffset,
+				}
+				merged.Txns = make([]cores.StarsTxn, 0, len(n.status.Txns)+len(status.Txns))
+				merged.Txns = append(merged.Txns, n.status.Txns...)
+				merged.Txns = append(merged.Txns, status.Txns...)
+				n.status = merged
+			} else {
+				n.status = status
+			}
+			n.nextPage = status.NextOffset
+		} else {
+			if !appendMode {
+				n.status = nil
+			}
+			n.nextPage = ""
+		}
+		return true
+	})
 	a.invalidate()
 }
 
 // setStarsFilter switches the history filter and reloads the first page.
 func (a *App) setStarsFilter(filter string) {
-	a.mu.Lock()
-	st := a.starsPage
-	if st == nil || st.filter == filter {
-		a.mu.Unlock()
+	acc := ""
+	if a.updateStarsPage(func(n *starsPageState) bool {
+		if n.filter == filter {
+			return false
+		}
+		n.filter = filter
+		n.loading = true
+		n.status = nil
+		n.nextPage = ""
+		acc = n.accountID
+		return true
+	}) == nil {
 		return
 	}
-	st.filter = filter
-	st.loading = true
-	st.status = nil
-	st.nextPage = ""
-	acc := st.accountID
-	a.mu.Unlock()
 	go a.loadStarsPage(acc, "", false)
 	a.invalidate()
 }
 
 // reloadStarsPage re-pulls the first page.
 func (a *App) reloadStarsPage() {
-	a.mu.Lock()
 	acc := ""
-	filter := ""
-	if st := a.starsPage; st != nil {
-		acc = st.accountID
-		filter = st.filter
-		st.loading = true
-		_ = filter
-	}
-	a.mu.Unlock()
+	a.updateStarsPage(func(n *starsPageState) bool {
+		acc = n.accountID
+		n.loading = true
+		return true
+	})
 	if acc != "" {
 		go a.loadStarsPage(acc, "", false)
 	}
@@ -240,14 +272,16 @@ func (a *App) reloadStarsPage() {
 
 // loadMoreStars fetches the next page when one exists.
 func (a *App) loadMoreStars() {
-	a.mu.Lock()
-	st := a.starsPage
-	if st == nil || st.nextPage == "" || st.appending {
-		a.mu.Unlock()
+	acc, off := "", ""
+	if a.updateStarsPage(func(n *starsPageState) bool {
+		if n.nextPage == "" || n.appending {
+			return false
+		}
+		acc, off = n.accountID, n.nextPage
+		return true
+	}) == nil {
 		return
 	}
-	acc, off := st.accountID, st.nextPage
-	a.mu.Unlock()
 	go a.loadStarsPage(acc, off, true)
 }
 
