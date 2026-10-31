@@ -61,3 +61,59 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 | Chunk | Packages | Status |
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
+| 2 | gui (state/mutex core — iteration 1 of N) | in progress (330) |
+
+## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
+
+gui = ONE package, 91,617 lines / ~90 files — chunked by surface, one per iteration.
+Iteration 1 = the state core: `state.go` (2,837 lines, read: struct head 1-180,
+lifecycle 642-803, refreshers 807-891, event dispatch 970-1114, openChat 1341-1415,
+func inventory) + `app.go` (449 lines, func inventory + Root frame entry). NOT yet
+read: struct tail 181-641 (feature-state field groups), refreshMessages/mergeMessages
+(892-969), downloads/auth/composer bodies (1115-1340, 1416-1747), cfg/load*/apply*
+families (1748-2837), and every other gui file.
+
+### State model
+- `App` (state.go:30) = root state: `win/ui/eng` + per-window widget state
+  (`wid widgets`, clickables — GUI-loop-only, NO lock) + `separate *chatKey`
+  (multi-window, slice 168) + ONE `mu sync.Mutex` guarding ~all world/session state
+  (accounts, chats, messages+msgFor, selected, search, mode, auth, + ~40
+  "slice NNN"-labeled feature groups). Provenance discipline is exemplary: every
+  field group cites its slice; bug fixes cite B-NN.
+- Small specialist mutexes exist (`loopLogMu` diagnostic throttle); `sepMu` guards
+  the global `mainRef` (separate-window registry); `lockEngaged` is process-wide
+  atomic for the passcode.
+- Event wiring: `Start()` uses `eng.Subscribe` (fan-out) — NEVER `SetEventCallback`
+  (would replace every subscriber); lock-bus share for passcode state; theme/config
+  applied BEFORE the first frame (single-threaded window documented); separate
+  windows skip tray/taskbar/notify/ConnectAll (main-window-owned singletons).
+- Event flow: `onEvent` JSON envelope `{type, account_id, timestamp_ms, data}` →
+  ~20-case switch → per-type unmarshal → handler; refreshers spawned with `go`;
+  `onMessageEvent` cheap-paths only the open chat (msgFor match). Every state
+  mutation ends in `invalidate()` (win.Invalidate from any goroutine).
+- openChat: flush LEAVING chat's draft → leaveChatMediaReset (B-4/B-9: explicitly
+  called WITHOUT a.mu — closeSrc reaches the engine file guard) → separate-window
+  retarget (sepMoveRegistry + queueDeselectElsewhere, one window per chat) → one
+  locked block resets view state (selected/loadingMsgs/messages/olderDone/cMode…).
+
+### Lock-discipline audit (the chunk's headline)
+awk lock-state scanner over ALL gui/*.go, defer-aware, both call forms
+(`a.eng.X` and captured `eng.X`): **749 `a.mu.Lock()` sites, ZERO engine calls
+under the lock.** Refreshers follow engine-call-first-then-lock
+(refreshAccounts/refreshChats). "…Locked()" suffix = call-with-lock-held contract
+(acctFilterLocked, authAcctLocked). The §2 mutex law holds at the gui layer.
+
+### Watch items (P2/P4 candidates — NOT BUGS rows until verified/measured)
+- Typing events spawn a goroutine + 4 s sleep per event (state.go:1004) — churn
+  under rapid typing, not a leak (self-exits). P2 lens: goroutine lifecycles.
+- refreshAccounts queries transcription/saved caps SERIALLY per account on one
+  goroutine (state.go:815-819) — boot-time latency with many/slow accounts.
+  P4 lens: measure before touching.
+- R11 interplay: gui has no boot-failure surface of its own — engine-init failure
+  dies in main.go's goroutine (R11 stands; the web shell overlay only covers
+  pre-canvas web boots).
+
+### Journeys mapped
+boot → Start (subscribe+theme+lock) → go refresh*+ConnectAll → events → invalidate
+→ frame reads state; open-chat (draft flush → media reset → state reset → load);
+typing indicator lifecycle; desktop-notification gate on every incoming message.

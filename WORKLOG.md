@@ -8,10 +8,10 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 (chunked recon; web surface closed in cycle 1)
-- item: P0 chunk 2 (gui state/mutex surfaces, one package per iteration) — starting
-- next: rebuild toolchain (scripts/env.sh recipe) → read verify.yml run 41152637658 → chunk-2 iterations
+- item: P0 chunk 2 iteration 1 DONE (gui state core + lock audit → MAP.md)
+- next: chunk 2 iteration 2 — state.go remaining bodies (MAP "NOT yet read" list), then other gui surfaces
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: docs-only session 330 (no toolchain on the VM yet); prior: quick GREEN, CI 41152637658 in flight
+- last-gate: docs/research-only session (no Go code touched); CI 41152637658 read = SUCCESS; quick gate trivially green post-rebuild
 
 ## Session 330 — constitution v3.4: law 22/23, HOT store; wipe #2 survived (2026-10-31)
 
@@ -50,6 +50,23 @@ work endlessly through all phases.
   diff reviewed, laws 19-23 sequential, cross-refs (§3/§8/§9.5/§9.6/§1.15) all
   resolve, wc -l = 316.
 - Next: rebuild toolchain → read CI run 41152637658 → P0 chunk 2.
+
+Post-constitution work, same session:
+
+- Toolchain rebuilt from the new recipe: Go 1.27.0 + 1.3G module cache;
+  env.sh had a real bug — sourced from bash, `$0` is the SHELL, so TOOLCHAIN
+  resolved to `//../toolchain` and go vanished from PATH; fixed with
+  BASH_SOURCE + a missing-go warning (e8e58c23). Verified: sourced → go on
+  PATH, mod cache refilled, `gate.sh quick` exit 0.
+- CI run 41152637658 read via API: completed / SUCCESS on 593bb350 — the
+  native-gotd proof for session 329's bootstrap comment-strip. HOT pruned.
+- **P0 chunk 2 iteration 1 DONE**: gui state core mapped → MAP.md (App struct
+  model, Start/onEvent/openChat, lock audit). Headline: awk scanner over all
+  gui/*.go (defer-aware, both call forms) — 749 a.mu.Lock() sites, ZERO
+  engine calls under the lock; mutex law holds at the gui layer. Two watch
+  items registered (typing-goroutine churn, serial per-account caps) as P2/P4
+  candidates, not BUGS rows. state.go is 2,837 lines — iteration 2 continues
+  from MAP's "NOT yet read" list.
 
 ## Session 329 — constitution v3.3: human-sim law, push law, ladder provenance (2026-10-31)
 
