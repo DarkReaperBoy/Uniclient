@@ -15,7 +15,12 @@
 # back to §9.7 (dispatch verify.yml). Long processes are reaped between tool
 # calls — run foreground; the build cache carries progress across calls.
 
-TOOLCHAIN="${TOOLCHAIN:-$(cd "$(dirname "$0")/.." && pwd)/../toolchain}"
+# Sourced, never executed (exports must reach the caller's shell): `. scripts/env.sh`
+
+_self="${BASH_SOURCE[0]:-$0}"
+TOOLCHAIN="${TOOLCHAIN:-$(cd "$(dirname "$_self")/.." && pwd)/../toolchain}"
+unset _self
+[ -x "$TOOLCHAIN/go/bin/go" ] || echo "env.sh: warning — no go at $TOOLCHAIN/go (see recovery steps above)" >&2
 export GOROOT="$TOOLCHAIN/go"
 export PATH="$GOROOT/bin:$PATH"
 export GOMODCACHE="$TOOLCHAIN/mod"
