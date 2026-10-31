@@ -16,16 +16,18 @@ This is not history — stale lines are lies.
   CLOSED.** **41182590400** (4883033a) = **SUCCESS — native+race proof for
   R18+R19 landed.** **41184046305** (2e606d58, dispatched this session) =
   native proof for R20+R21 — READ ITS RESULT next session before trusting
-  native green for those. If a run ever sits `queued` with zero in-progress
-  runs again, check `actions/permissions` FIRST, not runner starvation.
+  native green for those. **41184562534** (a8880414, also in flight) = the
+  R22 proof. If a run ever sits `queued` with zero in-progress runs again,
+  check `actions/permissions` FIRST, not runner starvation.
 - **P0 chunk 3 in flight** (per-file gui surfaces): DONE so far — chat.go,
   sidebar.go, chatsearch.go, shortcuts.go, settings.go (331-332), mediaview.go
-  (333 — produced R18 viewer-Share deadlock + R19 cross-window viewer
-  bookkeeping race, both FIXED). MAP.md chunk table is the tracker; chunk 2
-  (state core) DONE; R14-R21 all FIXED. Next iteration: next surface from the
-  MAP chunk table (candidates by size: profile.go 779, login.go 547,
-  widgets.go 485, contacts.go 464; separate.go 359 is small but central to
-  the multi-window theme).
+  + profile.go (333). MAP.md chunk table is the tracker; chunk 2 (state
+  core) DONE; R14-R22 all FIXED. Session 333 alone produced R18-R22 (five:
+  viewer-Share deadlock, cross-window viewer bookkeeping race, failed-send
+  tick mapping + Resend wiring, runner flag-dropping, panel mute-pool fatal
+  map race). Next iteration: login.go 547 / widgets.go 485 / contacts.go
+  464 / emoji.go 446 / stickers.go 436 — or separate.go 359, small but
+  central to the multi-window theme that keeps producing bugs.
 - **Session 333 also produced R20 + R21** (same session, later turns): R20 =
   the outgoing-status tick mapping was shifted against the engine consts
   (a permanently failed send drew the DELIVERED double-check; RetryPending
