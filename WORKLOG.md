@@ -9,9 +9,9 @@ on 2026-10-30 — it lives in git history if ever needed.)
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
 - item: iteration 18 DONE — the R29 systemic dead-opener sweep = R30 FIXED (19 dead openers across 9 every-window surfaces; header/attach/member/saved-list menus + mute clock + Filter-Like-This + prepaid Launch + call rating + Ctrl+J contacts + the call bar's JOIN-then-mode-1 orphaned call; row in BUGS, method + section in MAP, deadopeners_r30_test.go ×7). boostGiveawayBtn found DORMANT (never rendered anywhere — watch item in MAP, not §1.10)
-- next: read verify.yml 41211044402 (8862c468 — R30 proof, IN FLIGHT), then chunk 3 continues — the remaining unscanned gui files and state.go's remaining body (refreshMessages/mergeMessages 892-969, downloads/auth/composer, cfg/load*/apply* 1748-2837)
+- next: chunk 3 continues — the remaining unscanned gui files + state.go remaining body (refreshMessages/mergeMessages 892-969, downloads/auth/composer 1115-1340 & 1416-1747, cfg/load*/apply* 1748-2837); R30 proof CLOSED — the remaining unscanned gui files and state.go's remaining body (refreshMessages/mergeMessages 892-969, downloads/auth/composer, cfg/load*/apply* 1748-2837)
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local quick GREEN this session (gofmt clean, go vet clean, full gui suite ok ×3 — incl. the 7 R30 tests); R30 CI proof dispatched: **41211044402 (8862c468) — READ ITS RESULT next session** (verify at job+step level, race leg carries the gui pins); previous proofs: R25 41105692894 + R27 41206658703 both SUCCESS
+- last-gate: local quick GREEN this session (gofmt clean, go vet clean, full gui suite ok ×3 — incl. the 7 R30 tests); R30 proof **41211044402 (8862c468) = SUCCESS at job AND step level** (all 5 jobs; Race leg green with the gui pins; the 7 R30 tests ran in the Test step)
 
 ## Session 336 — iteration 18: the R29 systemic sweep = R30 (2026-10-31)
 
