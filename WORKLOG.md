@@ -8,11 +8,46 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 (chunked recon of never-mapped surfaces; the web surface closed in cycle 1)
-- item: constitution v3.2 (self-test law) — landed AND pushed; main @ 4013491
-- next: write scripts/gate.sh (§9 first-commit rule) → R10 audit → P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
-- owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account
-  sign-ins; first non-prerelease
-- last-gate: green @ 01dd3f9 (docs-only since — no code touched)
+- item: gate.sh landed+verified; R10 closed (verified not-a-bug) — session 328
+- next: npm ci in scripts/web-test (web-tier prerequisite) → P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
+- owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
+- last-gate: quick GREEN this session (scoped legs: native qrscan + js gui/cmd, wasm runner)
+
+## Session 328 — gate.sh landed; R10 closed; toolchain recovered (2026-10-31)
+
+Sandbox recycle wiped Go + PATH + the web-test node_modules. Recovery: go 1.27.0
+installed at my-project/toolchain/go (survives recycles); module cache moved to
+my-project/toolchain/mod (1.2G, same reason); env recipe in
+my-project/toolchain/env.sh (PATH/GOMODCACHE/GOCACHE/GOFLAGS/GOMEMLIMIT/GOGC).
+Repo's scripts/devroot-setup.sh covers the CGO sysroot case (needed only for
+native gui builds, which the gate does not do).
+
+- scripts/gate.sh (§9 first-commit rule): quick = gofmt + vet + test on changed
+  packages since base AND their importer closure (test imports count as edges),
+  split native/js legs exactly like dev-test.sh; full = all tiers except
+  live/owner incl. cross-builds + web E2E (explicit SKIP lines, never silent);
+  web = wasm build + Puppeteer suite. Untracked .go files scope too (new files
+  are the common case). go/third_party/anet (nested module) warns, not gates.
+- VERIFIED BY DRIVING IT, not by reading it: probe test in qrscan (uncommitted,
+  deleted after) → quick selected uniclient/qrscan + gui + cmd/uniclient (the
+  correct importer closure, correct native/js split), native test ok 0.021s,
+  js test ok 1.651s via wasm runner, quick gate GREEN; clean tree → trivially
+  green. The probe caught TWO real bugs pre-landing: (1) git diff ignores
+  untracked files — new code was invisible to the gate; (2) go list -f does
+  NOT interpret \t (literal backslash-t in output) so the awk tab-split never
+  matched — the gate would have green-lit everything; format now built with
+  printf. Long compiles die with the tool call (sandbox reaps processes
+  between calls) — build cache carries progress across runs; gotd-js toll
+  paid once, warm now.
+- R10 CLOSED (verified not-a-bug, no code change): every web-reachable matrix
+  call site registers OnICECandidate→sendICECandidates BEFORE the
+  GatheringCompletePromise wait (1:1 offer 1224→1254; 1:1 answer pc@3692+
+  trickle@3730, AcceptCall@1543; group 413→432 and 514→544). On js the SDP
+  ships immediately and candidates trickle — browser-native behavior.
+  Telegram/DeltaChat callers never run on web (TCP). Evidence in BUGS Fixed.
+- Evidence: /tmp/gate-quick.log (scoped run GREEN, exit 0), git status clean
+  post-probe, BUGS.md/WORKLOG.md updated in the same commit.
+- Next: npm ci (web tier) → P0 chunk 1.
 
 ## Session 327 — constitution v3.2: the self-test law (2026-10-31)
 
