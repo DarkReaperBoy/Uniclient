@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: R15 fixed this session (wasm-test-runner false-green hole + R14 test self-deadlock, found via CI 41174703134 = FAILURE); chunk 3 iterations 1-3 DONE (chat.go, sidebar.go, chatsearch.go)
-- next: read verify.yml run 41177906124 (R15+R14 native proof, on 51b3d240 — queued >20min on GitHub's side, still pending at last check), then chunk 3 iteration 4 (next surface: pick the next file from MAP chunk table, e.g. shortcuts.go given the cross-window watch items)
+- item: R15 + R16 fixed this session (runner false-green hole + R14 test self-deadlock, found via CI 41174703134 = FAILURE; Ctrl+Tab dead shortcut, found in recon); chunk 3 iterations 1-4 DONE (chat.go, sidebar.go, chatsearch.go, shortcuts.go)
+- next: read verify.yml run 41177906124 (R15+R14 native proof — STILL QUEUED on GitHub's side at last check, >40min; re-check, and if it never starts consider a fresh dispatch) then dispatch a NEW run for the R16 commit; then chunk 3 iteration 5 (next surface from MAP chunk table)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (runner self-test + js vet + full gui suite with verdict discipline, 907 tests; audio leg green)
 
@@ -67,6 +67,16 @@ on 2026-10-30 — it lives in git history if ever needed.)
   above sidebar search. Scope note: from-picker offers senders from the
   loaded window only. Watch item: one goroutine per keystroke (no debounce,
   P4 churn family).
+- Same session: **chunk 3 iteration 4 — shortcuts.go mapped + R16 fixed**.
+  R16 (BUGS.md): Ctrl+Tab/Ctrl+Shift+Tab account-scope cycling was DEAD —
+  the generic ModCtrl drain ran before the Tab-specific drain and gio
+  delivers a key event once per frame, so the broader filter consumed Tab
+  presses without acting. Fix = drain reorder (Tab first, with a comment
+  naming the rule); RED-first TestCtrlTabReachesAccountSwitchLoop
+  (input.Router harness) pins the order + control-asserts Ctrl+Up still
+  reaches the generic loop. Full gui suite green; gate quick GREEN.
+  escTarget/handlers mapped (MAP chunk-3 entry); cross-window watch items
+  from the sidebar iteration live in handleEscTarget/handleSearchShortcut.
 
 ## Session 331 — P0 chunk 2 complete: state.go 100%, R14 opened (2026-10-31)
 

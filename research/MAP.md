@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go + R16) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -265,3 +265,34 @@ surface, post-R14 shape)
   type fires an engine FTS query per keystroke (no debounce); staleness
   guard keeps results correct, cost is query churn only. Same family as
   typing-tick / refreshChats / serial-caps.
+
+### shortcuts.go (447 lines — session 332, read in full: the global keyboard
+layer; iteration 4, produced R16)
+- **layoutShortcuts** = window-wide pointer-transparent key layer (registered
+  LAST in Root, both window branches) + five event drains in a FIXED order:
+  Esc (escTarget chain) → Ctrl+F → Ctrl+Tab/Shift+Tab (account scope, slice
+  147) → generic ModCtrl (chat switch/edge/jumplist/contacts/read) → Alt
+  arrows. **R16 (fixed this session)**: the Tab drain must precede the
+  generic ModCtrl drain — gio delivers a key event to a handler once per
+  frame, so a broader earlier filter starves narrower later ones; Ctrl+Tab
+  account cycling was dead until the reorder (RED-first
+  TestCtrlTabReachesAccountSwitchLoop pins the order, input.Router harness).
+  Esc/Ctrl+F/Alt verified collision-free.
+- **escTarget** is pure over the FRAME (unit-tested): self-handled surfaces
+  (dialogs, viewer, drawer, contacts, calls box, settings, sched panel)
+  return "" — their own layouts consume Esc first; then menu/headerMenu/
+  folderMenu/chatMenu/attach/botcmds/emoji/selection/inChatSearch/panel/
+  search/archive in dismissal order.
+- **Handlers all act per-App** (whichever window's loop received the key):
+  chat switch/edge/jumplist → openChat (retargets a separate window via
+  sepMoveRegistry — per-window behavior, correct); readChat → engine call in
+  a goroutine; switchAccountScope under a.mu + refreshFolders outside.
+  Cross-window watch items (from the sidebar iteration) live here:
+  handleEscTarget "search" → sidebarSearch.SetText("") — reachable only via
+  the main App's f.search invariant; handleSearchShortcut's fallback
+  FocusCmd{Tag:&sidebarSearch} — wrong-window edge when a separate window is
+  empty. Candidate hardening: per-window routing when this file is next
+  touched.
+- Pure mappers (chatSwitchAction, chatEdgeAction, jumplistDigit,
+  pinnedJumpChat, showContactsKey, readChatKey, accountScopeCycle,
+  accountSwitchStep, neighborChat, escTarget) are all unit-tested.

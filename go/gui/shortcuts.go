@@ -311,6 +311,22 @@ func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 			continue
 		}
 	}
+	// Ctrl+Tab / Ctrl+Shift+Tab (slice 147): cycle the account scope
+	// ("" = all chats, then each account, wrapping). MUST drain BEFORE the
+	// generic ModCtrl loop below: a key event is delivered to a handler
+	// once per frame, so the broader filter would otherwise consume Tab
+	// presses without acting on them (R16 — account cycling was dead).
+	for {
+		ev, ok := gtx.Source.Event(key.Filter{Name: key.NameTab, Required: key.ModCtrl})
+		if !ok {
+			break
+		}
+		if ke, is := ev.(key.Event); is && ke.State == key.Press {
+			if step := accountSwitchStep(ke.Name, true, ke.Modifiers.Contain(key.ModShift)); step != 0 {
+				a.switchAccountScope(step)
+			}
+		}
+	}
 	// Alt+Up/Down (tdesktop ChatNext/ChatPrevious) ride the same switch.
 	for {
 		ev, ok := gtx.Source.Event(key.Filter{Required: key.ModAlt})
@@ -323,19 +339,6 @@ func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 		}
 		if step := chatSwitchAction(ke.Name, false, true); step != 0 {
 			a.handleChatSwitch(f, step)
-		}
-	}
-	// Ctrl+Tab / Ctrl+Shift+Tab (slice 147): cycle the account scope
-	// ("" = all chats, then each account, wrapping).
-	for {
-		ev, ok := gtx.Source.Event(key.Filter{Name: key.NameTab, Required: key.ModCtrl})
-		if !ok {
-			break
-		}
-		if ke, is := ev.(key.Event); is && ke.State == key.Press {
-			if step := accountSwitchStep(ke.Name, true, ke.Modifiers.Contain(key.ModShift)); step != 0 {
-				a.switchAccountScope(step)
-			}
 		}
 	}
 }
