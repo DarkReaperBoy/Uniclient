@@ -9,7 +9,7 @@ on 2026-10-30 — it lives in git history if ever needed.)
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
 - item: R15 fixed this session (wasm-test-runner false-green hole + R14 test self-deadlock, found via CI 41174703134 = FAILURE); chunk 3 iteration 1 DONE (chat.go)
-- next: read verify.yml run <R15-NATIVE — fill after dispatch> (R15+R14 native proof), then chunk 3 iteration 2 (next surface: sidebar.go, 36KB, the chat-list journey)
+- next: read verify.yml run 41177906124 (R15+R14 native proof, on 51b3d240 — dispatched this session), then chunk 3 iteration 2 (next surface: sidebar.go, 36KB, the chat-list journey)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (runner self-test + js vet + full gui suite with verdict discipline, 907 tests; audio leg green)
 

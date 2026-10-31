@@ -4,16 +4,16 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **verify.yml run 41174703134 (R14 native proof) = FAILURE — do NOT trust
-  the R14 "native dispatched" claim until re-run green.** The R14 fix's own
-  test TestInSearchFromPanelIsPerWindow self-deadlocks: it holds a.mu and
-  then calls snapshot() which locks a.mu again (chatsearch_test.go:24-25,
-  state.go:2178). Worse: **wasm-test-runner.sh had a false-green hole** — a
-  deadlocked js test drains node's event loop → node exits 0 with no verdict
-  → runner's `RC==0 → exit 0` short-circuit declared GREEN (session 331's
-  "gui suite 0.596s green" was FALSE; the suite silently truncated at this
-  test). Both being fixed this session; native proof requires a fresh
-  verify.yml run.
+- **verify.yml run 41177906124** (R15+R14 native proof, on 51b3d240) is
+  in flight — READ ITS RESULT before trusting native green. History:
+  41174703134 (R14 alone) = FAILURE — the R14 fix's own test
+  TestInSearchFromPanelIsPerWindow self-deadlocked (held a.mu, then
+  called snapshot() which locks a.mu again), and the local js leg had
+  FALSE-GREENED it: **wasm-test-runner.sh accepted node exit 0 with no
+  verdict** (a hung wasm drains node's event loop) — the suite silently
+  truncated at that test. Both FIXED this session (runner now requires
+  the binary's PASS line; regression harness scripts/test-wasm-runner.sh
+  wired into the gates; test no longer holds the lock). R15 in BUGS.md.
 - **P0 chunk 3 in flight** (per-file gui surfaces): chat.go DONE (iteration 1).
   Next: sidebar.go (36KB, the chat-list journey). MAP.md chunk table is the
   tracker. Chunk 2 (state core) DONE; R14 (found there) is FIXED.
