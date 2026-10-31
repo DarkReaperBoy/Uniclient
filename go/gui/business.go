@@ -266,6 +266,13 @@ func (r bizRecipients) toMap() map[string]interface{} {
 	}
 }
 
+// any reports whether at least one positive recipient class is selected
+// (the server rejects an all-false selection — the client-side guard
+// mirrors the date-range validation's shape).
+func (r bizRecipients) any() bool {
+	return r.existing || r.newChats || r.contacts || r.nonContacts
+}
+
 // mapBool/mapInt read leniently from the engine's JSON-decoded maps.
 func mapBool(m map[string]interface{}, k string) bool {
 	if v, ok := m[k].(bool); ok {
@@ -405,6 +412,34 @@ func init() {
 	bizToEd.SingleLine = true
 }
 
+// updateBusinessPage applies fn to a COPY of the live business page state
+// and installs the copy under a.mu — snapshot()'s contract ("only ever
+// replaced, never mutated in place") extended to the sub-page: the struct
+// a frame holds stays immutable for that frame's life, so the RPC tails
+// can no longer write-race the layout's field reads (R34; the pre-fix
+// shape mutated *businessPageState in place under a.mu while the GUI loop
+// read it through the frame pointer under frameMu only — R32's class).
+// fn runs under the lock on the fresh copy and must re-validate staleness
+// itself (accountID match, busy guards — the head may have been replaced
+// since dispatch); returning false aborts the install, leaving the head
+// alone. Returns the installed copy, or nil when the page is closed / fn
+// aborted. Callers may read the RETURNED struct afterwards (it is retired
+// the moment a later install replaces it, and retired structs are never
+// written again — that is the whole point).
+func (a *App) updateBusinessPage(fn func(st *businessPageState) bool) *businessPageState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.businessPage == nil {
+		return nil
+	}
+	next := *a.businessPage
+	if !fn(&next) {
+		return nil
+	}
+	a.businessPage = &next
+	return &next
+}
+
 // openBusinessPage starts the page for an account and loads its data.
 func (a *App) openBusinessPage(accountID string) {
 	a.mu.Lock()
@@ -439,40 +474,38 @@ func (a *App) loadBusinessPage(accountID string) {
 	}
 	tzs, errT := a.eng.GetTimezones(accountID)
 	replies, errR := a.eng.GetQuickReplies(accountID)
-	a.mu.Lock()
-	st := a.businessPage
-	if st == nil || st.accountID != accountID {
-		a.mu.Unlock()
-		return
-	}
-	st.loading = false
-	if errI != nil {
-		st.err = errI.Error()
-	} else {
-		st.err = ""
-		st.loaded = true
-		st.info = info
-	}
-	if errT == nil && tzs != nil {
-		st.timezones, st.tzLoaded = tzs, true
-	}
-	if errR == nil && replies != nil {
-		st.replies = replies
-	}
-	a.mu.Unlock()
+	a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.accountID != accountID {
+			return false // closed or switched mid-fetch
+		}
+		n.loading = false
+		if errI != nil {
+			n.err = errI.Error()
+		} else {
+			n.err = ""
+			n.loaded = true
+			n.info = info
+		}
+		if errT == nil && tzs != nil {
+			n.timezones, n.tzLoaded = tzs, true
+		}
+		if errR == nil && replies != nil {
+			n.replies = replies
+		}
+		return true
+	})
 	a.invalidate()
 }
 
 // reloadBusinessPage re-pulls after a mutation or manual reload.
 func (a *App) reloadBusinessPage() {
-	a.mu.Lock()
 	acc := ""
-	if st := a.businessPage; st != nil {
-		acc = st.accountID
-		st.loading = true
-		st.editorErr = ""
-	}
-	a.mu.Unlock()
+	a.updateBusinessPage(func(n *businessPageState) bool {
+		acc = n.accountID
+		n.loading = true
+		n.editorErr = ""
+		return true
+	})
 	if acc != "" {
 		go a.loadBusinessPage(acc)
 	}
@@ -508,7 +541,23 @@ func (a *App) bizEditorData(st *businessPageState) (map[string]interface{}, erro
 			"weekly_open": w.toWire(),
 		}, nil
 	case "greeting", "away":
-		data := st.recips.toMap()
+		// R35: the recipient/offline checkboxes used to be pure
+		// decoration — Save sent the wire-primed st.recips/st.offline,
+		// so nothing the user checked ever applied. The widgets are now
+		// seeded on editor open (bizToggleEditor) and read back here,
+		// on the UI goroutine, exactly like the text editors.
+		growBools(&bizRecChks, 4)
+		rec := bizRecipients{
+			newChats:    bizRecChks[0].Value,
+			existing:    bizRecChks[1].Value,
+			contacts:    bizRecChks[2].Value,
+			nonContacts: bizRecChks[3].Value,
+			exclude:     bizExcludeChk.Value,
+		}
+		if !rec.any() {
+			return nil, fmt.Errorf("select at least one recipient")
+		}
+		data := rec.toMap()
 		data["message"] = bizMsgEd.Text()
 		data["shortcut_name"] = st.editor
 		if g := bizSubMap(st.info, st.editor); g != nil {
@@ -517,7 +566,7 @@ func (a *App) bizEditorData(st *businessPageState) (map[string]interface{}, erro
 		if st.editor == "greeting" {
 			data["no_activity_days"] = st.inactDays
 		} else {
-			data["offline_only"] = st.offline
+			data["offline_only"] = bizOfflineChk.Value
 			data["schedule"] = st.awayMode
 			if st.awayMode == "custom" {
 				s, okS := parseBizDate(bizFromEd.Text())
@@ -566,25 +615,36 @@ func (a *App) bizApplyClicked(st *businessPageState) {
 	}
 	data, err := a.bizEditorData(st)
 	acc, feature := st.accountID, st.editor
-	a.mu.Lock()
-	st.busy = true
-	st.editorErr = ""
-	a.mu.Unlock()
+	// The busy flag is claimed on the CURRENT head (the frame's copy may
+	// be one update behind) — the install aborts if a prior apply is
+	// still in flight or the page moved on (R34 + R31's staleness rule).
+	if a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.accountID != acc || n.busy {
+			return false
+		}
+		n.busy = true
+		n.editorErr = ""
+		return true
+	}) == nil {
+		return
+	}
 	a.invalidate()
 	go func() {
 		if err == nil {
 			err = a.eng.SetBusinessFeature(acc, feature, data)
 		}
-		a.mu.Lock()
-		if s := a.businessPage; s != nil {
-			s.busy = false
-			if err != nil {
-				s.editorErr = err.Error()
-			} else {
-				s.editor = ""
+		a.updateBusinessPage(func(n *businessPageState) bool {
+			if n.accountID != acc {
+				return false // switched accounts mid-apply
 			}
-		}
-		a.mu.Unlock()
+			n.busy = false
+			if err != nil {
+				n.editorErr = err.Error()
+			} else {
+				n.editor = ""
+			}
+			return true
+		})
 		if err == nil {
 			a.setToast("Saved")
 		}
@@ -594,29 +654,33 @@ func (a *App) bizApplyClicked(st *businessPageState) {
 
 // removeBusinessFeature clears the open editor's feature.
 func (a *App) removeBusinessFeature() {
-	a.mu.Lock()
-	st := a.businessPage
-	if st == nil || st.busy {
-		a.mu.Unlock()
+	acc, feature := "", ""
+	if a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.busy {
+			return false
+		}
+		acc, feature = n.accountID, n.editor
+		n.busy = true
+		n.editorErr = ""
+		return true
+	}) == nil {
 		return
 	}
-	acc, feature := st.accountID, st.editor
-	st.busy = true
-	st.editorErr = ""
-	a.mu.Unlock()
 	a.invalidate()
 
 	err := a.eng.SetBusinessFeature(acc, feature, map[string]interface{}{})
-	a.mu.Lock()
-	if st = a.businessPage; st != nil {
-		st.busy = false
-		if err != nil {
-			st.editorErr = err.Error()
-		} else {
-			st.editor = ""
+	a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.accountID != acc {
+			return false // switched accounts mid-remove
 		}
-	}
-	a.mu.Unlock()
+		n.busy = false
+		if err != nil {
+			n.editorErr = err.Error()
+		} else {
+			n.editor = ""
+		}
+		return true
+	})
 	if err == nil {
 		a.setToast("Removed")
 	}
@@ -626,29 +690,33 @@ func (a *App) removeBusinessFeature() {
 // bizCreateQuickReply creates a shortcut; name/text are captured on the
 // UI goroutine by the caller.
 func (a *App) bizCreateQuickReply(name, text string) {
-	a.mu.Lock()
-	st := a.businessPage
-	if st == nil || st.busy {
-		a.mu.Unlock()
+	acc := ""
+	if a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.busy {
+			return false
+		}
+		acc = n.accountID
+		n.busy = true
+		n.editorErr = ""
+		return true
+	}) == nil {
 		return
 	}
-	acc := st.accountID
-	st.busy = true
-	st.editorErr = ""
-	a.mu.Unlock()
 	a.invalidate()
 
 	_, err := a.eng.CreateQuickReply(acc, name, text)
-	a.mu.Lock()
-	if st = a.businessPage; st != nil {
-		st.busy = false
-		if err != nil {
-			st.editorErr = err.Error()
-		} else {
-			st.qrNewOpen = false
+	a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.accountID != acc {
+			return false
 		}
-	}
-	a.mu.Unlock()
+		n.busy = false
+		if err != nil {
+			n.editorErr = err.Error()
+		} else {
+			n.qrNewOpen = false
+		}
+		return true
+	})
 	if err == nil {
 		a.setToast("Shortcut created")
 	}
@@ -658,29 +726,33 @@ func (a *App) bizCreateQuickReply(name, text string) {
 // bizRenameQuickReply applies the inline rename; the name is captured on
 // the UI goroutine by the caller.
 func (a *App) bizRenameQuickReply(id int, name string) {
-	a.mu.Lock()
-	st := a.businessPage
-	if st == nil || st.busy {
-		a.mu.Unlock()
+	acc := ""
+	if a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.busy {
+			return false
+		}
+		acc = n.accountID
+		n.busy = true
+		n.editorErr = ""
+		return true
+	}) == nil {
 		return
 	}
-	acc := st.accountID
-	st.busy = true
-	st.editorErr = ""
-	a.mu.Unlock()
 	a.invalidate()
 
 	err := a.eng.RenameQuickReply(acc, id, name)
-	a.mu.Lock()
-	if st = a.businessPage; st != nil {
-		st.busy = false
-		if err != nil {
-			st.editorErr = err.Error()
-		} else {
-			st.qrRenameID = 0
+	a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.accountID != acc {
+			return false
 		}
-	}
-	a.mu.Unlock()
+		n.busy = false
+		if err != nil {
+			n.editorErr = err.Error()
+		} else {
+			n.qrRenameID = 0
+		}
+		return true
+	})
 	if err == nil {
 		a.setToast("Shortcut renamed")
 	}
@@ -689,27 +761,31 @@ func (a *App) bizRenameQuickReply(id int, name string) {
 
 // bizDeleteQuickReply removes a shortcut (slice 139's engine surface).
 func (a *App) bizDeleteQuickReply(id int) {
-	a.mu.Lock()
-	st := a.businessPage
-	if st == nil || st.busy {
-		a.mu.Unlock()
+	acc := ""
+	if a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.busy {
+			return false
+		}
+		acc = n.accountID
+		n.busy = true
+		n.editorErr = ""
+		return true
+	}) == nil {
 		return
 	}
-	acc := st.accountID
-	st.busy = true
-	st.editorErr = ""
-	a.mu.Unlock()
 	a.invalidate()
 
 	err := a.eng.DeleteQuickReplyShortcut(acc, id)
-	a.mu.Lock()
-	if st = a.businessPage; st != nil {
-		st.busy = false
-		if err != nil {
-			st.editorErr = err.Error()
+	a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.accountID != acc {
+			return false
 		}
-	}
-	a.mu.Unlock()
+		n.busy = false
+		if err != nil {
+			n.editorErr = err.Error()
+		}
+		return true
+	})
 	if err == nil {
 		a.setToast("Shortcut deleted")
 	}
@@ -951,22 +1027,60 @@ func (a *App) layoutBusinessPage(gtx layout.Context, f frame) layout.Dimensions 
 }
 
 // bizToggleEditor opens/closes a section editor (priming the widget
-// state from the loaded read model on open).
+// state from the loaded read model on open). Widget priming (SetText /
+// checkbox seeding) is GUI-loop-only state; the state writes go through
+// the copy-on-write installer (R34).
 func (a *App) bizToggleEditor(key string) {
-	a.mu.Lock()
-	st := a.businessPage
+	opened := false
+	st := a.updateBusinessPage(func(n *businessPageState) bool {
+		if n.editor == key {
+			n.editor = "" // close: no re-priming below
+			return true
+		}
+		opened = true
+		n.editor = key
+		n.editorErr = ""
+		switch key {
+		case "hours":
+			wh := bizSubMap(n.info, "work_hours")
+			n.hours = bizWeekFromWire(mapSlice(wh, "weekly_open"))
+			n.tzPick = mapStr(wh, "timezone_id")
+			n.tzOpen = false
+		case "greeting", "away":
+			g := bizSubMap(n.info, key)
+			n.recips.fromMap(g)
+			if key == "greeting" {
+				n.inactDays = mapInt(g, "no_activity_days")
+				if n.inactDays == 0 {
+					n.inactDays = 7
+				}
+			} else {
+				n.offline = mapBool(g, "offline_only")
+				n.awayMode = mapStr(g, "schedule")
+				if n.awayMode == "" {
+					n.awayMode = "always"
+				}
+				if sd, ed := mapInt(g, "start_date"), mapInt(g, "end_date"); sd > 0 && ed > 0 {
+					n.awayFrom = time.Unix(int64(sd), 0).UTC().Format("2006-01-02")
+					n.awayTo = time.Unix(int64(ed), 0).UTC().Format("2006-01-02")
+				}
+			}
+		case "replies":
+			n.qrNewOpen = false
+			n.qrRenameID = 0
+		}
+		return true
+	})
 	if st == nil {
-		a.mu.Unlock()
 		return
 	}
-	if st.editor == key {
-		st.editor = ""
-		a.mu.Unlock()
-		a.invalidate()
+	a.invalidate()
+	if !opened {
 		return
 	}
-	st.editor = key
-	st.editorErr = ""
+	// Widget priming — the checkboxes were never seeded pre-R35 (they
+	// rendered unchecked regardless of the server's state, and nothing
+	// read them back on Save either).
 	switch key {
 	case "location":
 		loc := bizSubMap(st.info, "location")
@@ -984,30 +1098,12 @@ func (a *App) bizToggleEditor(key string) {
 			bizLonEd.SetText("")
 		}
 	case "hours":
-		wh := bizSubMap(st.info, "work_hours")
-		st.hours = bizWeekFromWire(mapSlice(wh, "weekly_open"))
-		st.tzPick = mapStr(wh, "timezone_id")
-		st.tzOpen = false
 		syncBizTimeEditors(st.hours)
 	case "greeting", "away":
 		g := bizSubMap(st.info, key)
-		st.recips.fromMap(g)
 		bizMsgEd.SetText(mapStr(g, "message"))
-		if key == "greeting" {
-			st.inactDays = mapInt(g, "no_activity_days")
-			if st.inactDays == 0 {
-				st.inactDays = 7
-			}
-		} else {
-			st.offline = mapBool(g, "offline_only")
-			st.awayMode = mapStr(g, "schedule")
-			if st.awayMode == "" {
-				st.awayMode = "always"
-			}
-			if sd, ed := mapInt(g, "start_date"), mapInt(g, "end_date"); sd > 0 && ed > 0 {
-				st.awayFrom = time.Unix(int64(sd), 0).UTC().Format("2006-01-02")
-				st.awayTo = time.Unix(int64(ed), 0).UTC().Format("2006-01-02")
-			}
+		seedBizRecipWidgets(st)
+		if key == "away" {
 			bizFromEd.SetText(st.awayFrom)
 			bizToEd.SetText(st.awayTo)
 			if st.awayMode == "custom" && st.awayFrom == "" {
@@ -1019,12 +1115,23 @@ func (a *App) bizToggleEditor(key string) {
 		in := bizSubMap(st.info, "intro")
 		bizTitleEd.SetText(mapStr(in, "title"))
 		bizDescEd.SetText(mapStr(in, "description"))
-	case "replies":
-		st.qrNewOpen = false
-		st.qrRenameID = 0
 	}
-	a.mu.Unlock()
-	a.invalidate()
+}
+
+// seedBizRecipWidgets primes the recipient checkboxes from the state the
+// wire primed (R35): the label order is New chats / Existing chats /
+// Contacts / Non-contacts, matching bizMsgEditor's rows, plus the
+// exclude and (away editor only) offline toggles.
+func seedBizRecipWidgets(st *businessPageState) {
+	growBools(&bizRecChks, 4)
+	bizRecChks[0].Value = st.recips.newChats
+	bizRecChks[1].Value = st.recips.existing
+	bizRecChks[2].Value = st.recips.contacts
+	bizRecChks[3].Value = st.recips.nonContacts
+	bizExcludeChk.Value = st.recips.exclude
+	if st.editor == "away" {
+		bizOfflineChk.Value = st.offline
+	}
 }
 
 // mapSlice digs the weekly_open slice out of the read model.
@@ -1121,19 +1228,23 @@ func (a *App) bizFieldRow(gtx layout.Context, ed *widget.Editor, hint string) la
 // bizHoursEditor renders the opening-hours editor body pieces.
 func (a *App) bizHoursEditor(gtx layout.Context, st *businessPageState) []layout.FlexChild {
 	if biz247Btn.Clicked(gtx) {
-		a.mu.Lock()
-		st.hours.set247()
-		a.mu.Unlock()
-		syncBizTimeEditors(st.hours)
+		if n := a.updateBusinessPage(func(n *businessPageState) bool {
+			n.hours.set247()
+			return true
+		}); n != nil {
+			syncBizTimeEditors(n.hours)
+		}
 		a.invalidate()
 	}
 	if bizTzToggleBtn.Clicked(gtx) {
-		a.mu.Lock()
-		st.tzOpen = !st.tzOpen
-		if st.tzOpen {
+		open := !st.tzOpen
+		a.updateBusinessPage(func(n *businessPageState) bool {
+			n.tzOpen = open
+			return true
+		})
+		if open {
 			bizTzSearch.SetText("")
 		}
-		a.mu.Unlock()
 		a.invalidate()
 	}
 	growClickables(&bizAddIvlBtns, 7)
@@ -1182,17 +1293,24 @@ func (a *App) bizHoursEditor(gtx layout.Context, st *businessPageState) []layout
 		d := d
 		ivls := st.hours[d]
 		if bizAddIvlBtns[d].Clicked(gtx) {
-			a.mu.Lock()
-			st.hours[d] = append(st.hours[d], bizIVL{start: 9 * 60, end: 17 * 60})
-			a.mu.Unlock()
-			syncBizTimeEditors(st.hours)
+			if n := a.updateBusinessPage(func(n *businessPageState) bool {
+				n.hours[d] = append(n.hours[d], bizIVL{start: 9 * 60, end: 17 * 60})
+				return true
+			}); n != nil {
+				syncBizTimeEditors(n.hours)
+			}
 			a.invalidate()
 		}
 		if bizDelIvlBtns[d].Clicked(gtx) && len(st.hours[d]) > 0 {
-			a.mu.Lock()
-			st.hours[d] = st.hours[d][:len(st.hours[d])-1]
-			a.mu.Unlock()
-			syncBizTimeEditors(st.hours)
+			if n := a.updateBusinessPage(func(n *businessPageState) bool {
+				if len(n.hours[d]) == 0 {
+					return false
+				}
+				n.hours[d] = n.hours[d][:len(n.hours[d])-1]
+				return true
+			}); n != nil {
+				syncBizTimeEditors(n.hours)
+			}
 			a.invalidate()
 		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -1346,10 +1464,11 @@ func (a *App) bizTzPicker(gtx layout.Context, st *businessPageState) layout.Dime
 			return list.Layout(gtx, len(rows), func(gtx layout.Context, i int) layout.Dimensions {
 				tz := rows[i]
 				if bizTzRowBtns[i].Clicked(gtx) {
-					a.mu.Lock()
-					st.tzPick = tz.ID
-					st.tzOpen = false
-					a.mu.Unlock()
+					a.updateBusinessPage(func(n *businessPageState) bool {
+						n.tzPick = tz.ID
+						n.tzOpen = false
+						return true
+					})
 					a.invalidate()
 				}
 				active := st.tzPick == tz.ID
@@ -1455,8 +1574,11 @@ func (a *App) bizMsgEditor(gtx layout.Context, st *businessPageState, greeting b
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, a.bizChipRow(gtx, st, []string{"7", "14", "21", "28"}, func(sel string) {
-							if n, err := strconv.Atoi(sel); err == nil {
-								st.inactDays = n
+							if days, err := strconv.Atoi(sel); err == nil {
+								a.updateBusinessPage(func(n *businessPageState) bool {
+									n.inactDays = days
+									return true
+								})
 							}
 						}, func(sel string) bool {
 							return st.inactDays == mustAtoi(sel)
@@ -1480,16 +1602,26 @@ func (a *App) bizMsgEditor(gtx layout.Context, st *businessPageState, greeting b
 						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, a.bizChipRow(gtx, st, []string{"Always", "Outside opening hours", "Custom"}, func(sel string) {
 							switch sel {
 							case "Always":
-								st.awayMode = "always"
+								a.updateBusinessPage(func(n *businessPageState) bool {
+									n.awayMode = "always"
+									return true
+								})
 							case "Outside opening hours":
-								st.awayMode = "outside_work_hours"
+								a.updateBusinessPage(func(n *businessPageState) bool {
+									n.awayMode = "outside_work_hours"
+									return true
+								})
 							case "Custom":
-								if st.awayMode != "custom" {
-									st.awayMode = "custom"
-									if bizFromEd.Text() == "" {
-										bizFromEd.SetText(time.Now().UTC().Format("2006-01-02"))
-										bizToEd.SetText(time.Now().UTC().AddDate(0, 0, 7).Format("2006-01-02"))
+								a.updateBusinessPage(func(n *businessPageState) bool {
+									if n.awayMode != "custom" {
+										n.awayMode = "custom"
+										return true
 									}
+									return false
+								})
+								if st.awayMode != "custom" && bizFromEd.Text() == "" {
+									bizFromEd.SetText(time.Now().UTC().Format("2006-01-02"))
+									bizToEd.SetText(time.Now().UTC().AddDate(0, 0, 7).Format("2006-01-02"))
 								}
 							}
 						}, func(sel string) bool {
@@ -1578,23 +1710,62 @@ func (a *App) bizChipRow(gtx layout.Context, st *businessPageState, options []st
 	return children
 }
 
+// bizQRNewClicked opens (or closes) the new-shortcut form — exactly one
+// inline edit slot (R36): opening the form closes any open rename row.
+// The editor priming is GUI-loop widget state, done on the caller's
+// (UI) goroutine.
+func (a *App) bizQRNewClicked() {
+	open := false
+	n := a.updateBusinessPage(func(n *businessPageState) bool {
+		open = !n.qrNewOpen
+		n.qrNewOpen = open
+		if open {
+			n.qrRenameID = 0 // one slot at a time
+		}
+		return true
+	})
+	if n != nil && open {
+		bizQRNameEd.SetText("")
+		bizQRTextEd.SetText("")
+	}
+	a.invalidate()
+}
+
+// bizQRCancelClicked closes whichever inline edit slot is open. Pre-R36
+// this only cleared the new-form flag, so a rename row could NOT be
+// cancelled — its Cancel button was a no-op once renaming started.
+func (a *App) bizQRCancelClicked() {
+	a.updateBusinessPage(func(n *businessPageState) bool {
+		n.qrNewOpen = false
+		n.qrRenameID = 0
+		return true
+	})
+	a.invalidate()
+}
+
+// bizQRRenameRowClicked opens a shortcut's inline rename row — one slot
+// (R36): the new-shortcut form closes (it shared the name editor and the
+// cancel button with the rename row before; opening both at once
+// clobbered each other's text).
+func (a *App) bizQRRenameRowClicked(id int, name string) {
+	n := a.updateBusinessPage(func(n *businessPageState) bool {
+		n.qrRenameID = id
+		n.qrNewOpen = false
+		return true
+	})
+	if n != nil {
+		bizQRNameEd.SetText(name)
+	}
+	a.invalidate()
+}
+
 // bizRepliesEditor renders the quick-reply manager body.
 func (a *App) bizRepliesEditor(gtx layout.Context, st *businessPageState) []layout.FlexChild {
 	if bizQRNewBtn.Clicked(gtx) {
-		a.mu.Lock()
-		st.qrNewOpen = !st.qrNewOpen
-		if st.qrNewOpen {
-			bizQRNameEd.SetText("")
-			bizQRTextEd.SetText("")
-		}
-		a.mu.Unlock()
-		a.invalidate()
+		a.bizQRNewClicked()
 	}
 	if bizQRCancel.Clicked(gtx) {
-		a.mu.Lock()
-		st.qrNewOpen = false
-		a.mu.Unlock()
-		a.invalidate()
+		a.bizQRCancelClicked()
 	}
 	if bizQRCreate.Clicked(gtx) {
 		go a.bizCreateQuickReply(bizQRNameEd.Text(), bizQRTextEd.Text())
@@ -1652,11 +1823,7 @@ func (a *App) bizRepliesEditor(gtx layout.Context, st *businessPageState) []layo
 	for i, q := range st.replies {
 		i, q := i, q
 		if bizQRRenBtns[i].Clicked(gtx) && st.qrRenameID != q.ID {
-			a.mu.Lock()
-			st.qrRenameID = q.ID
-			bizQRNameEd.SetText(q.Name)
-			a.mu.Unlock()
-			a.invalidate()
+			a.bizQRRenameRowClicked(q.ID, q.Name)
 		}
 		if bizQRDelBtns[i].Clicked(gtx) {
 			go a.bizDeleteQuickReply(q.ID)

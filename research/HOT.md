@@ -4,62 +4,49 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 337 (2026-11-01)**: iteration 20 DONE — state.go
-  part 2 finished the file. **R32**: UI.avatarCorners plain int written by
-  refreshConfig from five goroutine contexts vs per-frame layout reads →
-  atomic.Int32; RED = dep-free scratch repro under -race (DATA RACE at
-  applyAvatarCorners vs avatarRadiusPx), GREEN = LOCAL -race clean on the
-  new pin (avatarcorners_r32_test.go — first session the race build fit
-  the 4 GiB box) + CI race-leg filter extended. **R33**:
-  show_sender_name dead-load + hardcoded-true applyReactionsNotify
-  stomped other clients' setting → senderName on notifyAcctState via pure
-  applyReactionsMap (notifyaccts_r33_test.go). Rows in BUGS; part-2
-  section + two P4 watch items in MAP (applyGhostFlag split RMW;
-  addAccount authAcct clobber). Next: unscanned gui files; verify the CI
-  run for the R32/R33 commit at job+step level once dispatched.
-- **Wipe #5 (session 337 boot)**: BOTH repo and toolchain gone. Full
-  env.sh recipe re-run from zero (clone → tarball → mod download →
-  devroot-setup). Confirmed: **the WORKLOG STATE block is the resume
-  truth, not any handoff summary** (summary said chunk 2 iteration 2;
-  repo was at chunk 3 iteration 19). The upload token file was still
-  there for the clone.
-- **Proofs (session 335, all landed)**: R25 proof **41205692894
-  (bf9ea2bf) = SUCCESS** and R27 proof **41206658703 (d029af30) =
-  SUCCESS** — both verified at job AND step level (all 5 jobs each; the
-  Race legs carry the extended gui pins: R18/R23/R24/R25 + the
-  TestShotRenderPipelineIsSerialized R27 pin). R28/R29/R30 are pure
-  gui-code + test changes covered by the same Test legs those runs
-  execute — R30's dispatch goes out with its commit; check the run at
-  job+step level. Local -race on gui still OOMs on gotd; CI is the race
-  proof path.
-- **Wipe #4 lessons (session 335 boot)**: only the repo clone was gone —
-  /home/z/my-project/toolchain SURVIVED (go 1.27.0 + mod cache), but
-  **scripts/ was wiped: scanner v3 (pkgvar_scan_v3) is GONE** — its queue
-  is fully baked into MAP so it is not needed unless the scan must rerun
-  (rebuild: go/ast walk of package vars; v2's regex let struct fields
-  leak). **Two toolchains now exist**: env.sh's
-  /home/z/my-project/toolchain (go1.27.0) vs devroot-setup's ~/.local/go
-  (go1.27.1) — mixing them poisons GOCACHE with version-mismatch
-  objects. Working combo after a wipe: `sh scripts/devroot-setup.sh && .
-  ./devroot.env` + `export GOMODCACHE=/home/z/my-project/toolchain/mod
-  GOCACHE=/home/z/my-project/toolchain/gocache` (reuse the survived mod
-  cache; go test needs `-tags goolm`; env.sh's 1.27.0 URL is one patch
-  behind — devroot-setup installs 1.27.1, standardize on it).
-- **Edit-tool + gofmt trap (cost one gate cycle)**: every Edit/MultiEdit
-  write normalizes tabs→spaces across the WHOLE .go file; `gofmt -w`
-  restores them — but ONLY with devroot.env sourced (a fresh shell says
-  "gofmt: command not found" and an `&&` chain hides it). RULE: after any
-  Edit to .go files, run `. ../devroot.env && gofmt -w <file> && gofmt -l
-  ./gui/` and expect EMPTY output before gating/committing; if git diff
-  --stat shows a whole-file rewrite, gofmt never ran.
-- R24 native+race proof **41189550503 (cf60ce4d) = SUCCESS, all 5 jobs at
-  step level** — the gui pins (R18/R23/R24) are proven under -race on CI;
-  the race-leg filter now also carries TestIVPhotoClaimGuarded (R25).
+- **P0 chunk 3, session 338 (2026-11-01)**: iteration 21 DONE — business.go
+  read in full, **R34+R35+R36** landed (rows in BUGS, section in MAP).
+  R34 is the systemic one: frame-carried sub-page structs mutated in place
+  by background tails under a.mu vs layout reads under frameMu —
+  business.go now installs copies via updateBusinessPage (every
+  post-install mutation, UI handlers included; accountID staleness guards
+  on the tails). **The sibling sweep is the priority read order**:
+  settingspremium.go → settingsstars.go → foldermgr.go →
+  stickermanager.go → profileedit.go → exportdlg.go → twofa.go →
+  instantview.go's load tail. One iteration per file; do NOT mass-edit
+  (iv's docBusy is ivDocMu-guarded, msgshot is shotMu-serialized — the
+  shapes differ). RED method that worked twice now: dep-free scratch
+  repro of the pre-fix shape under `go run -race`.
+- **CI proofs**: R32/R33 CLOSED — run **41222152669 (be7541e4) = SUCCESS
+  at job AND step level** (all 5 jobs; Race step green). R34/R35/R36's
+  commit dispatched at session end — check at job+step level (the race
+  leg carries the two new pins TestBusinessPageStateIsCopyOnWrite +
+  TestUpdateBusinessPageContract). Local -race on the gui package fits
+  the box now (proven 337/338 — use it before falling back to CI).
+- **Wipe #6 (session 338 boot)**: repo + toolchain + download/ copies
+  gone; the upload token file survived. Full recipe re-run from zero
+  (clone → go1.27.1 tarball → mod download → devroot-setup), ~10 min.
+  Confirmed again: the WORKLOG STATE block is the resume truth (HEAD was
+  one commit AHEAD of the handoff summary). If a verify.yml dispatch is
+  redundant (an earlier run for the same SHA already succeeded), cancel
+  it — CI minutes are not free.
+- **Edit-tool + gofmt trap (hit AGAIN in 338 — cost one gate cycle)**:
+  every Edit/MultiEdit write normalizes tabs→spaces across the WHOLE
+  .go file; `gofmt -w` restores them — but ONLY with devroot.env
+  sourced. RULE: after any Edit to .go files, run
+  `. ../devroot.env && gofmt -w <file> && gofmt -l ./gui/` (from go/gui)
+  and expect EMPTY output before gating/committing.
 - Gio harness lessons in MAP: pointer.Drag is not queueable
   (Move-while-pressed synthesizes Drag), pane-coord boundaries make edge
   presses miss rows. Bare `&App{eng: &engine.Engine{}}` is a viable
   harness for engine-touching gui code (zero Engine errors fast on
-  getAccount miss) — used by TestIVPhotoRetryAfterFailure.
+  getAccount miss) — and a bare `&App{}` works for pure-state methods
+  (updateBusinessPage & friends; a.invalidate is nil-win-guarded).
 - Toolchain recovery recipe: `scripts/env.sh` header steps 1-5 (proven
-  through wipes #2/#3/#4). web-test node_modules + chrome NOT re-verified
-  after wipe #4 (only needed for web-gate legs).
+  through wipes #2/#3/#5/#6). Working combo after a wipe:
+  `sh scripts/devroot-setup.sh && . ./devroot.env` + `export
+  GOMODCACHE=/home/z/my-project/toolchain/mod
+  GOCACHE=/home/z/my-project/toolchain/gocache` (go test needs `-tags
+  goolm`; the gui race build fits the 4GiB box with -gcflags=all=-c=1).
+  web-test node_modules + chrome NOT re-verified after wipe #6 (only
+  needed for web-gate legs).

@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -703,6 +703,52 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 - **Watch item RESOLVED (iteration 18 = R30)**: the dedicated sweep ran —
   see the dead-openers section below; 19 openers were dead in separate
   windows and are now gated/hidden.
+
+
+
+### business.go (1,864→1,972 lines — session 338, read in full: the Telegram Business settings page, slice 148; chunk 3 iteration 21, VERDICT: R34 + R35 + R36 fixed, rest CLEAN)
+- Scope: pure model (bizWeek wire↔editor conversion, lenient time parsing —
+  unit-tested in business_test.go), page lifecycle (open/close/load/reload),
+  feature apply/remove, quick-reply CRUD, the six editor bodies, account
+  chips, honest state subtitles, the Settings entry card.
+- **R34 FIXED** (the headline): businessPageState was mutated in place by
+  six background RPC tails under a.mu while layout read ~12 fields through
+  the frame pointer under frameMu only — R32's write-races-layout class,
+  struct-flavored. snapshot()'s "only replaced, never mutated" contract
+  now extends to the sub-page: updateBusinessPage(fn) copy-on-write
+  installs every post-install mutation (tails with accountID staleness
+  guards, reload, toggle, hours/tz/chip/QR click handlers); UI handlers
+  land on the current head so updates can't go lost. RED scratch repro
+  + GREEN pin under local -race; CI race leg carries it.
+- **R35 FIXED**: recipient/exclude/offline checkboxes were never seeded
+  and never read — Save sent the wire-primed st.recips/st.offline. Now
+  seeded on editor open (seedBizRecipWidgets) and read back in
+  bizEditorData with an at-least-one-recipient guard.
+- **R36 FIXED**: one inline edit slot for quick replies — the shared
+  Cancel only cleared the new-form flag (a started rename was
+  uncancellable) and the new form + rename row shared the name editor;
+  three extracted click methods (bizQRNew/bizQRCancel/bizQRRenameRow
+  Clicked) make the slot single.
+- Rest of the file CLEAN: pure model nil-tolerant and test-locked;
+  bizTimeEds pool + bizSlotDay rebuilt only on structural changes on the
+  GUI loop; the four QR CRUD RPCs are `go`-wrapped at the call sites with
+  widget args captured at the go statement (UI-goroutine evaluation);
+  package widget pools are main-window-only (settings shell never renders
+  in separate windows — the app.go separate branch returns before any
+  settings surface, re-verified this iteration); cross-file writers of
+  a.businessPage are all nil-installs (settings-shell exclusivity).
+- **SYSTEMIC WATCH (P1-class, feeds chunk 3)**: premiumPage
+  (settingspremium.go), ivState (instantview.go) and every other
+  frame-carried sub-page/state pointer share R34's pre-fix shape —
+  background tails mutate the struct in place under a.mu, layout reads
+  via the frame pointer under frameMu. Pre-R32 these were judged "clean"
+  under the a.mu-suffices reading; R32/R34's discipline says otherwise.
+  Each sibling gets its own iteration fix (copy-on-write installer or
+  per-field atomics where a struct is overkill) — do NOT mass-edit:
+  surfaces differ (iv's docBusy is already ivDocMu-guarded; msgshot
+  serialized by shotMu). Candidates in read order: settingspremium.go,
+  settingsstars.go, foldermgr.go, stickermanager.go, profileedit.go,
+  exportdlg.go, twofa.go (auth flows), plus instantview.go's load tail.
 
 
 

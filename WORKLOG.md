@@ -8,10 +8,51 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 20 DONE — state.go part 2 (downloads/auth/composer tail + cfg/load*/apply* + snapshot/frame) FINISHED THE FILE; **R32** (UI.avatarCorners plain int written from five refreshConfig goroutine contexts vs per-frame layout reads → atomic.Int32; RED via dep-free scratch repro under -race, GREEN via local -race single-test + CI race-leg pin) + **R33** (reactions-notify show_sender_name dead-load + hardcoded-true apply stomped other clients' setting → carried on notifyAcctState through the pure applyReactionsMap). Rows in BUGS Fixed, part-2 section in MAP. Two P4 watch items added (applyGhostFlag split RMW; addAccount authAcct clobber)
-- next: the remaining unscanned gui files (chunk-3 per-file lens; state.go is DONE — both parts mapped); then check the CI run dispatched with the R32/R33 commit at job+step level (the race leg carries the new TestAvatarCornersCrossGoroutineIsAtomic pin)
+- item: iteration 21 DONE — business.go (1,864 lines, read in full — the Telegram Business settings page); **R34** (businessPageState mutated in place by six background RPC tails under a.mu vs layout reads via the frame pointer under frameMu — R32's class, struct-flavored → updateBusinessPage copy-on-write installer for EVERY post-install mutation, accountID staleness guards on all tails; RED via dep-free scratch repro under -race, GREEN via local -race on the pins + CI race-leg extension) + **R35** (recipient/exclude/offline checkboxes never seeded, never read — Save sent the wire-primed st.recips/st.offline → seeded via seedBizRecipWidgets, read back in bizEditorData, at-least-one guard) + **R36** (quick-reply rename row uncancellable — shared Cancel only cleared the new-form flag; new form + rename row shared the name editor → one inline edit slot via three extracted click methods). Rows in BUGS Fixed, section in MAP. MAP also gains the **P1-class systemic watch**: premiumPage/ivState/every frame-carried sub-page pointer shares R34's pre-fix shape — one iteration per sibling, do NOT mass-edit
+- next: the remaining unscanned gui files (chunk-3 per-file lens; the R34 sibling sweep is now the priority order: settingspremium.go, settingsstars.go, foldermgr.go, stickermanager.go, profileedit.go, exportdlg.go, twofa.go, instantview.go load tail); CI proof for the R32/R33 commit CLOSED this session — run **41222152669 (be7541e4) = SUCCESS at job AND step level** (all 5 jobs; Race step green carrying the R32 pin) — the R34/R35/R36 commit's CI is pending dispatch
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite 868/868, gate quick GREEN (js leg + 4/4 wasm-runner contracts), LOCAL -race on the R32 pin clean (first session the race build fit the box); CI proof for the R32/R33 commit pending dispatch
+- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite **874/874** (+6 new pins), gate quick GREEN (js leg + 4/4 wasm-runner contracts), LOCAL -race clean on the R34 pins; CI proof for the R34/R35/R36 commit pending dispatch
+
+## Session 338 — iteration 21: business.go = R34 + R35 + R36 (2026-11-01)
+
+- Boot after **wipe #6** (repo + toolchain + download/ copies all gone;
+  upload token file survived). Full recovery recipe re-run from zero:
+  clone (HEAD be7541e4 — one commit AHEAD of the summary pointer, as
+  expected: the WORKLOG STATE block, not any handoff summary, is the
+  truth), go1.27.1 tarball, mod download, devroot-setup. Cancelled a
+  redundant verify.yml dispatch (41233516479) after finding the R32/R33
+  proof already landed: **41222152669 (be7541e4) = SUCCESS, all 5 jobs at
+  step level, Race step green** — that closes R32/R33's CI proof.
+- Read business.go in full (per-file lens): pure model (bizWeek
+  wire↔editor, lenient parsing — already test-locked), lifecycle, apply/
+  remove, QR CRUD, the six editor bodies, subtitles, entry card.
+- **R34** (the headline — write-races-layout on a sub-page struct):
+  snapshot() installs the LIVE *businessPageState pointer (state.go:2364)
+  and its own contract says "only replaced, never mutated in place" — but
+  six background tails mutated it in place under a.mu while layout read
+  ~12 fields under frameMu only. RED: dep-free scratch repro
+  (scripts-side, not committed) flags DATA RACE at loadTail vs
+  layoutReads under `go run -race`. Fix: updateBusinessPage(fn) — clone,
+  fn on the copy under a.mu, install; EVERY post-install mutation routed
+  through it (six tails with accountID guards — closing a pre-existing
+  cross-account clobber in apply/remove/QR tails — reload, toggle,
+  hours/tz/chip/QR handlers; UI handlers land on the current head so
+  updates can't go lost; the busy-claim reads the current head, not the
+  frame's copy). GREEN: business_r34_test.go ×2 (hammer + installer
+  contract) clean under LOCAL -race; CI race-leg filter extended.
+- **R35** (dead checkboxes): bizRecChks/bizExcludeChk/bizOfflineChk
+  rendered but never seeded from the wire and never read — Save sent the
+  stale st.recips/st.offline. Now seeded (seedBizRecipWidgets, label
+  order matching bizMsgEditor) and read back in bizEditorData with an
+  at-least-one-recipient guard. business_r35_test.go ×2.
+- **R36** (uncancellable rename + shared-editor slot): the QR Cancel
+  button only cleared qrNewOpen — qrRenameID stayed set; the new form and
+  the rename row also shared bizQRNameEd. One inline edit slot via three
+  extracted bare-App-testable click methods. business_r36_test.go ×2.
+- Full gui suite 874/874 (868 + 6); gate quick GREEN (js leg + 4/4
+  wasm-runner contracts). MAP gains the P1-class systemic watch for the
+  R34 sibling sub-pages (read order listed there).
+
 
 ## Session 337 — iteration 20: state.go part 2 = R32 + R33 (2026-11-01)
 
