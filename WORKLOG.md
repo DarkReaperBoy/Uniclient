@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: CI proofs closed — 41184046305 (R20/R21) + 41184562534 (R22) both verified SUCCESS at job+step level; iteration 8 separate.go read in full (VERDICT CLEAN, all invariants tool-verified); pkg-var scan v2 + chunk-3 ranking queue in MAP; iteration 9 rubberband.go → R23 FIXED (package-level gesture state vs per-App selOn: other window's frame killed in-flight drags / painted phantom rects; moved to App fields, RED→GREEN via input.Router lifecycle test; gate quick GREEN)
-- next: read the verify.yml dispatch for R23's native proof, then chunk 3 iteration 10 = menu.go (25 label write-sites + context menus in separate windows), then richtext.go, instantview.go (ivDocDone watch item), msgshot.go, cornerreply.go, profilemusic.go
+- item: CI proofs closed — 41184046305 (R20/R21) + 41184562534 (R22) both verified SUCCESS at job+step level; iteration 8 separate.go CLEAN (all invariants tool-verified); scanner v3 (go/ast, exact) + chunk-3 ranking queue in MAP; iteration 9 rubberband.go → R23 FIXED (package gesture state vs per-App selOn; moved to App fields, RED→GREEN input.Router lifecycle test; gate quick GREEN; native proof 41188229919 in flight); iteration 10 menu.go CLEAN (pools already per-App; 3 P3 polish notes in MAP)
+- next: read verify.yml 41188229919 (R23 native proof, ea3b12ac), then chunk 3 iteration 11 = webpage.go (webPhotoDone/webPhotoFailed maps in link previews — R22 fatal class if download goroutines write them), then suggestionbar.go, cornerreply.go + cornerreaction.go, richtext.go, instantview.go, msgshot.go, translatebar.go + profilemusic.go
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (4/4 runner contracts incl. flag forwarding, js vet, full gui suite incl. R23 test)
 
@@ -56,20 +56,27 @@ on 2026-10-30 — it lives in git history if ever needed.)
   dispatch this session. Two Gio harness lessons recorded in MAP:
   pointer.Drag is not a queueable kind (Move-while-pressed synthesizes
   Drag delivery); pane-coord boundaries make edge-adjacent presses miss.
-- **pkg-var scanner v2** (`scripts/pkgvar_write_scan.py`): v1 missed grouped
-  `var (...)` blocks — business.go's entire widget pool was invisible.
-  v2 surfaces the full runtime-written package-state inventory of all ~100
-  gui files. Combined with the separateChatView-reachability rule (separate
-  windows render ONLY layoutChatView — separate.go:5-7 header), this yields
-  the chunk-3 ranking queue now in MAP (rubberband.go was #1 and indeed
-  produced R23 — the method predicts). Verified this session: swipeG is
-  sidebar-only and business.go's var block is settings-only → both
-  main-window-only, downgraded to P3 fold-ins (no race, single GUI loop).
-- **frameMu discovery (this session, load-bearing)**: Root() holds frameMu
-  (app.go:25) for the ENTIRE frame — all windows' layouts serialize. So
-  layout-only package state cannot data-race; the residual bug shapes are
-  semantic cross-window bleed (R14/R23) and outside-layout writes (R22
-  fatal-map class). This lens now heads the MAP queue note.
+- **Iteration 10: menu.go (936 lines, read in full) — VERDICT CLEAN.** All
+  menu button pools already per-App on a.wid (growClickables; line 61's
+  `var ()` is the vestigial empty block from that migration). openMenu's
+  four async lookups all follow engine-call-outside-lock + guarded locked
+  write (stale results discarded); menuActionsFor's 40+ actions all
+  copy-capture + goroutine + toast; R18's caller unlocked; R20's Resend
+  present; pane routing all per-App GUI-loop state. Three P3 polish notes
+  in MAP: misnamed …Locked() helpers that TAKE the lock (deadlock trap if
+  the convention is followed against them), a.fwdSel unlocked-vs-locked
+  sibling inconsistency (all accessors GUI-loop — no race), and the
+  forward goroutine reading frozen widget state from inside `go`.
+- **Scanner v3 (go/ast, exact)** — `/home/z/my-project/scripts/pkgvar_scan_v3/`.
+  Regex failed twice (v1 missed grouped var blocks; v2's `var ()` open-
+  never-closed let struct fields leak in — menu.go's label/run were false
+  positives). v3 uses go/parser + AssignStmt LHS root-unwrapping. The exact
+  inventory RESHUFFLED the queue: webpage.go (webPhotoDone/webPhotoFailed
+  MAPS + linkPreview — written from download goroutines? → R22 fatal
+  class) and suggestionbar.go (suggStates map + fetch flags) jump ahead of
+  the previous queue. Queue + the frameMu lens (layout-only package state
+  cannot race; residual shapes = R23 semantic bleed / R22 outside-layout
+  map writes) live in MAP.
 - **ivDocDone watch item** (instantview.go:1096-1110, verified by complete
   grep — 3 usage sites total, no clear-path anywhere): one-shot mark happens
   BEFORE the download and the error path returns silently → a transient

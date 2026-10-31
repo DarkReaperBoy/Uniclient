@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go + pkg-var ranking queue, rubberband.go + R23) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go + pkg-var ranking, rubberband.go + R23, menu.go clean) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -475,29 +475,65 @@ message-list rubber-band selection overlay; iteration 9, produced R23)
   pane-coord boundaries (listTop offsets) make edge-adjacent presses miss
   rows — place test geometry strictly inside row bounds.
 
-### Chunk-3 ranking queue (session 334 — pkg-var scan v2, method note)
-Scanner: `scripts/pkgvar_write_scan.py` (v2; v1 missed grouped `var (...)` blocks
-— business.go's whole widget pool was invisible). Ranking rule from the R14/R18/
-R19/R22 cluster: **risk = runtime-written package var × reachable from
-separateChatView** (separate windows render ONLY layoutChatView; sidebar,
-settings, login, dialogs, drawer, voice tab are main-window-only per the
-separate.go:5-7 header). Verified this session: swipeG (swipeaction.go) is
-sidebar-only → main-window-only, downgrade to P3 fold-in; business.go's var
-block (bizTimeEds etc.) mounts via settings.go:384 → main-only, P3 fold-in.
-Next-iteration queue by exposure (rubberband.go done — R23):
-1. menu.go — `label` var with 25 write-sites + context menus that open in
-   separate windows
-2. richtext.go — linkTags (map-ish, richtext.go:366) — message-text rendering
-3. instantview.go (1,738 ln) — ivDocDone; see watch item below
-4. msgshot.go — shotSmallFaceCache, chat-bubble context
-5. cornerreply.go — hoverChatOn, chat surface
-6. profilemusic.go — musicList, profile panel = R22's surface
-NOTE (frameMu, discovered at rubberband): layout-only package state cannot
-race — the residual bug shape on chat surfaces is semantic bleed (R23) or
-outside-layout writes (R22-class maps). Apply that lens when reading these.
-Watch item carried (verified: no clear-path anywhere in the package — grep
-1096/1098/1735 is the complete usage set): ivDocDone marks a photo done BEFORE
-DownloadIVPhoto runs and the error path returns silently (instantview.go:
-1096-1110) → one transient failure = permanent thumbnail-only for that photo
-until restart; map also unbounded. Confirmed at the instantview iteration
-whether the error is reachable in practice before filing an R-number.
+### menu.go (936 lines — session 334, read in full: pane press
+routing, message context menu, reaction picker, forward dialog; iteration
+10, VERDICT: CLEAN, no R-number)
+- **Pools all per-App**: menuBtns/menuReactBtns/menuPickBtns/fwdChatBtns live
+  on a.wid via growClickables — the R22 lesson already applied here (line
+  61's `var ()` is the vestigial empty block left after that migration).
+  chatPaneTag/defaultQuickReactions are the only real package vars (opaque
+  event tag; read-only fallback slice).
+- **Menu state lifecycle**: openMenu writes a.menu under lock, then spawns
+  up to 4 async lookups (shadow-ban, edit-revisions, caps, reactions) —
+  every one follows engine-call-outside-lock + GUARDED locked write (menu
+  still open + same MsgID → stale results discarded). closeMenu locked.
+  menuActionsFor = 40+ actions, all copy-capture + goroutine engine calls
+  + honest toasts; R18's openForward caller (menu.go:354) holds no lock;
+  R20's Resend present; f.menu reads come from the snapshot frame.
+- **Pane routing** (processPaneEvents → onPanePress): outside-press
+  dismissal for attach/emoji/header/context menus via per-App rects;
+  selection-mode row toggles; right-click → openMenu. All GUI-loop on
+  per-App state.
+- **P3 polish notes** (no bug, all verified benign by render-path):
+  (a) menuCapsForLocked/availForLocked are MISNAMED — they TAKE the lock
+  (openMenu calls them unlocked; the …Locked() convention means
+  call-with-lock-held — following the convention against these two would
+  self-deadlock). Rename when touched. (b) a.fwdSel written unlocked
+  (menu.go:829/866/888/898) while sibling a.fwd is locked — every fwdSel
+  accessor is GUI-loop (traced: openForward select.go:154 init,
+  forwardToSelection, dialog handlers), so no race; discipline miss only.
+  (c) forwardToSelection's goroutine reads a.wid.fwdHideAuthor/
+  fwdHideCaptions/fwdComment .Value from INSIDE the goroutine — benign
+  because the dialog closed before spawn so the widgets freeze, but the
+  clean pattern captures values before `go`.
+
+### Chunk-3 ranking queue (session 334 — scanner v3 (go/ast, exact) +
+separateChatView-reachability rule)
+Scanner history: v1 (regex) missed grouped var blocks; v2's `var ()` bug let
+struct fields leak in (menu.go label/run were false positives); **v3 =
+/home/z/my-project/scripts/pkgvar_scan_v3/main.go — go/ast based, exact**
+(run: `go run main.go <gui-dir>`). Ranking rule from the R14/R18/R19/R22/R23
+cluster: **risk = runtime-written package var × reachable from
+separateChatView × writes OUTSIDE layout** (frameMu serializes Root() —
+layout-only package state cannot data-race; the residual shapes are
+semantic bleed R14/R23 and outside-layout map writes R22/fatal).
+Main-window-only VERIFIED so far: swipeG (sidebar mount), business.go var
+block (settings.go:384), menu pools (now per-App), sidebar/dialog/login
+surfaces, notify_linux (separate windows skip the DBus server by design).
+Next-iteration queue (v3-exact, chat-surface first):
+1. webpage.go — webPhotoDone/webPhotoFailed MAPS + linkPreview in message
+   bubbles; if written from download goroutines → R22 fatal class (highest)
+2. suggestionbar.go — suggStates map + suggFetching/suggDismissed; the bar
+   renders above the composer in the chat surface; fetch-goroutine writes?
+3. cornerreply.go — hoverMsgID/hoverChatOn (fed from processPaneEvents,
+   chat pane) + cornerreaction.go favReactions/favAttempted
+4. richtext.go — linkTags (message-text rendering)
+5. instantview.go (1,738 ln) — ivDocDone watch item stands
+6. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
+7. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
+   musicList (profile panel = R22's surface)
+Watch item carried (verified: no clear-path anywhere): ivDocDone marks a
+photo done BEFORE DownloadIVPhoto runs and the error path returns silently
+(instantview.go:1096-1110) → one transient failure = permanent
+thumbnail-only until restart; map unbounded. Confirm at the instantview
+iteration before filing an R-number.
