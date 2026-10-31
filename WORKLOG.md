@@ -8,10 +8,10 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 (chunked recon; web surface closed in cycle 1)
-- item: constitution v3.3 landed; P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
-- next: finish P0 chunk 1, then chunk 2 (gui state/mutex surfaces)
+- item: P0 chunk 1 DONE (cmd/uniclient + bootstrap → MAP.md); verify.yml run 41152637658 in flight
+- next: read verify.yml run 41152637658 (native-gotd proof of the bootstrap comment strip) → P0 chunk 2 (gui state/mutex surfaces, one package per iteration)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick + web GREEN session 328; docs-only since
+- last-gate: quick GREEN (js legs real; native legs explicit §9.7 OOM skip → CI run 41152637658)
 
 ## Session 329 — constitution v3.3: human-sim law, push law, ladder provenance (2026-10-31)
 
@@ -33,7 +33,21 @@ Owner directive (three adds, AGENTS.md-first gate):
 - §9 gate.sh paragraph recompressed (it exists now — doc truth).
 - File: 305 lines (5 over the ~300 target — the price of two new directives;
   next pure-docs session should reclaim).
-- Next: P0 chunk 1.
+- P0 chunk 1 DONE same session: cmd/uniclient + bootstrap read in full →
+  research/MAP.md (entry points, wiring, journeys, risks R11-R13 now open in
+  BUGS.md). Doc-truth fix riding the chunk: bootstrap's stale "TS/Mumble
+  hidden until rewritten" comments stripped — the GUI picker offers both
+  natively (gui/theme.go platform list); AGENTS.md §8 LIVE stands.
+- Machine truth learned the hard way: this VM has a 4GiB cgroup and gotd/td/tg
+  peaks 3.2GB RSS compiling even with -gcflags=all=-c=1 → native gotd legs
+  OOM-kill (dmesg evidence). gate.sh learned an honest fallback: compile-OOM
+  → one explicit "SKIP (§9.7 — dispatch verify.yml)" line, every other
+  failure stays hard. verify.yml dispatched via API (run 41152637658,
+  in_progress at yield) — the native proof for this session's Go commits.
+  js legs are real and green here (gui 1.707s via wasm runner).
+- Tooling quirk logged: the Edit tool space-normalizes tab-indented Go files
+  on rewrite — always gofmt -w after edits + run the gate (it caught this).
+- Next: read the CI run, then P0 chunk 2.
 
 ## Session 328 — gate.sh landed; R10 closed; toolchain recovered (2026-10-31)
 

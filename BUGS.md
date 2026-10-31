@@ -11,9 +11,12 @@ hardening pass carry the risk ID from
 
 | # | Where | What | Evidence / how to see it | Next step |
 |---|-------|------|--------------------------|-----------|
+| R11 | cmd/uniclient/main.go | `log.Fatal(err)` in run()'s goroutine on engine-init failure — os.Exit skips all defers; on js/wasm there is no exit at all. Failure-path UX needs a driven reproduction. | research/MAP.md chunk 1; read this session. | P2/law-21b: reproduce the boot-failure journey on web + native, then decide surface. |
+| R12 | bootstrap/bootstrap.go | migrateOldSessions: a session file named exactly `.json` yields accountID `""` → junk vault session row (boundary case). | research/MAP.md chunk 1; read this session. | P2 boundary sweep: red test on the `.json`-filename edge, then guard. |
+| R13 | bootstrap/bootstrap.go | Second Init() overwrites the package-global engine without shutdown — first engine leaks (test-harness-only path today). | research/MAP.md chunk 1; read this session. | P2: either guard (error on double Init) or document single-boot contract in a test. |
 | R9 | web vault | Web vault is ciphertext-at-rest with a fixed default password (env/flags unreachable in a wasm argv) — no KDF secret on this target. | research/web_hardening_2026-10.md §3 R9; AGENTS.md §2 web persistence. | Owner decision: accept (product behavior) or spec a web passcode derivation path. Not silently changeable. |
 
-*Open: R9 only (owner decision). R10 verified NOT a bug (see Fixed table). R5/R6 were fixed in cycle 1 as F-91/F-92.*
+*Open: R11 R12 R13 (from MAP chunk 1) and R9 (owner decision). R10 verified NOT a bug (Fixed table).*
 
 ## Fixed
 
