@@ -17,10 +17,12 @@ This is not history — stale lines are lies.
   — THIRTEEN writer sites via updateTwoFADlg incl. GUI-loop clicks;
   accountID guards REPLACE pointer-identity guards, which break under
   copy-on-write; the settings-row map refresh via the R38 fresh-map
-  rule). **The named R34 sibling sweep is COMPLETE (7 of 7)** — only
-  instantview.go's load tail remains from the systemic watch (docBusy
-  already ivDocMu-guarded: verify, then close the watch). Tab-exact
-  python-heredoc edits dodge the Edit-tool gofmt trap.
+  rule), instantview.go (**R46** — updateIV + openID/gen staleness keys,
+  fresh-slice pushHistory, docBusy's ivDocMu claim re-verified).
+  **THE R34 SYSTEMIC WATCH IS CLOSED — every frame-carried gui surface
+  is now copy-on-write; the per-file lens returns to the unscanned queue
+  by size (media.go 1,186 next).** Tab-exact python-heredoc edits dodge
+  the Edit-tool gofmt trap.
 - **CI proofs**: ALL CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
   **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38
   **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40

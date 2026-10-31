@@ -8,11 +8,25 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 28 DONE — twofa.go (661→726 lines, read in full — the R34 sibling sweep #7, the LAST named sibling); **R44** (twofaDlgState write-races-layout across THIRTEEN writer sites — four background tails with pointer-identity guards that don't stop frameMu reads + every GUI-loop click writer → updateTwoFADlg copy-on-write, accountID guards replacing identity guards which BREAK under copy-on-write; ×4 pins, local -race clean, CI race-leg extended) + **R45** (settings-row map never refreshed after a mutation — the row kept the pre-mutation On/Off until settings reopen while the comment promised server truth → refreshTwoFARowState fresh-map install, the R38 rule; ×1 pin). Layer audit: contentDialogSurface peer — no matrix gap. Rows in BUGS, section in MAP. **The named sweep is COMPLETE (7 of 7)**; only instantview.go's load tail remains from the watch list
-- ALSO this session: iteration 27 — exportdlg.go (**R42** + **R43**); R40/R41 CI proofs closed at job+step level; wipe #7 recovery
-- next: close the R34 systemic watch's last item — instantview.go's load tail (iv's docBusy already ivDocMu-guarded per the watch note: verify, then close the watch); after that: the remaining unscanned gui files by size (media.go 1,186, giveaways.go 1,171, callsbox.go 1,089, poll.go 972, stories.go 960, …); CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40 **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**; pending: **41244407673** (R42+R43, 9b2cf32d) + **41245057374** (R44+R45, 1476115a)
+- item: iteration 29 DONE — instantview.go state lifecycle (the R34 systemic watch's LAST entry); **R46** (the IV reader's state mutated in place by the open load tail + ivLandRelated under a.mu with pointer-identity retirement that doesn't stop frameMu reads, plus the two GUI-loop heads — lost-click class → updateIV copy-on-write returning the head; staleness = openID (fresh counter per open, install-immutable — identity breaks under copy-on-write) + gen (R26, within-session; gen alone can't retire a reopen straggler, pinned); pushHistory builds fresh slices, the R38 rule; detailsOpen/slideIdx stay shared GUI-loop-only maps, docBusy keeps ivDocMu (claim re-verified); R26 pins updated to head-observation; ×5 pins, local -race clean, CI race-leg extended). **THE R34 SYSTEMIC WATCH IS CLOSED — every frame-carried gui surface is now copy-on-write.** Row in BUGS, section in MAP
+- ALSO this session: iterations 27-28 — exportdlg.go (**R42** + **R43**), twofa.go (**R44** + **R45**); R40/R41 CI proofs closed at job+step level; wipe #7 recovery
+- next: the unscanned gui files by size (media.go 1,186, giveaways.go 1,171, callsbox.go 1,089, poll.go 972, stories.go 960, …) — the R34 watch is closed, so the per-file lens returns to the full read+audit; CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40 **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**; pending: **41244407673** (R42+R43, 9b2cf32d) + **41245057374** (R44+R45, 1476115a)
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local full GREEN — gofmt clean, full gui suite **898/898** (+5 R44/R45 pins on top of R42/R43's 893), LOCAL -race clean on both new pin sets; R42/R43 CI **41244407673** + R44/R45 CI **41245057374** in flight, both pending job+step verification
+- last-gate: local full GREEN — gofmt clean, full gui suite **903/903** (+5 R46 pins on top of 898), LOCAL -race clean on all three new pin sets; CI **41244407673** (R42/R43) + **41245057374** (R44/R45) in flight, R46's dispatch next
+
+## Session 339 — iteration 29: instantview.go = R46 — THE R34 WATCH CLOSED (2026-11-01)
+
+- **R46** (the systemic watch's last entry): the IV reader's state was
+  mutated in place by the open load tail and ivLandRelated (pointer-
+  identity retirement doesn't stop the frameMu reads) plus the two
+  GUI-loop heads (lost-click class). updateIV copy-on-write; staleness =
+  openID + gen (identity breaks under copy-on-write; gen alone can't
+  retire a reopen straggler); pushHistory builds fresh slices (R38).
+  detailsOpen/slideIdx stay shared GUI-loop-only maps; docBusy keeps
+  ivDocMu (re-verified). R26 pins updated to head-observation.
+- GREEN: instantview_r46_test.go ×5, LOCAL -race clean, full gui suite
+  **903/903**. CI race-leg extended. Python heredoc edits
+  (scripts/r46_instantview_fix.py).
 
 ## Session 339 — iteration 28: twofa.go = R44 + R45 — the named sweep COMPLETE (2026-11-01)
 

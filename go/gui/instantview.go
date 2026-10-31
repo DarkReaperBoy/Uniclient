@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gioui.org/font"
@@ -468,6 +469,13 @@ type ivState struct {
 	// captured or it is dropped whole (R26).
 	gen uint64
 
+	// openID (R46, install-immutable): identifies THIS reader session
+	// across copy-on-write installs — assigned at open, copied into every
+	// head. Tails guard on it because pointer identity breaks under
+	// copy-on-write (every install swaps the pointer); gen still retires
+	// in-flight navigations within the session.
+	openID uint64
+
 	detailsOpen map[string]bool // block idx → override
 	slideIdx    map[string]int  // slideshow block idx → item index
 	docBusy     map[string]bool // video/audio doc key → download in flight
@@ -477,10 +485,15 @@ type ivState struct {
 // back stack (capped at ivHistMax).
 func (s *ivState) pushHistory(next *ivPage) {
 	if s.page != nil {
-		s.hist = append(s.hist, s.page)
-		if len(s.hist) > ivHistMax {
-			s.hist = s.hist[len(s.hist)-ivHistMax:]
+		// R46/R38: build a FRESH slice — never append into a backing array a
+		// previous head still holds.
+		h := make([]*ivPage, 0, len(s.hist)+1)
+		h = append(h, s.hist...)
+		h = append(h, s.page)
+		if len(h) > ivHistMax {
+			h = h[len(h)-ivHistMax:]
 		}
+		s.hist = h
 	}
 	s.page = next
 	if s.page != nil {
@@ -548,45 +561,73 @@ func (a *App) openInstantView(accountID, pageURL string) {
 		return
 	}
 	a.mu.Lock()
-	st := &ivState{accountID: accountID, url: pageURL, loading: true}
+	st := &ivState{accountID: accountID, url: pageURL, loading: true, openID: ivOpenSeq.Add(1)}
 	a.iv = st
 	a.mu.Unlock()
 	a.invalidate()
 	go func() {
 		data, err := a.eng.GetInstantViewPage(accountID, pageURL)
-		a.mu.Lock()
-		cur := a.iv
-		if cur != st {
-			a.mu.Unlock()
-			return // user moved on
+		openID := st.openID
+		var p *ivPage
+		if err == nil {
+			p = parseIVPage(data)
+		}
+		head := a.updateIV(func(cur *ivState) bool {
+			if cur.openID != openID {
+				return false // a different reader session is open now
+			}
+			if err != nil {
+				cur.loading = false
+				cur.err = err.Error()
+				return true
+			}
+			if p == nil {
+				cur.loading = false
+				cur.err = "no instant view for this page"
+				return true
+			}
+			cur.page = p
+			cur.loading = false
+			cur.err = ""
+			return true
+		})
+		a.invalidate()
+		if head == nil {
+			return // user moved on — no toast, no fallback
 		}
 		if err != nil {
-			cur.loading = false
-			cur.err = err.Error()
-			a.mu.Unlock()
-			a.invalidate()
 			a.setToast("Instant View unavailable: " + err.Error())
-			return
-		}
-		p := parseIVPage(data)
-		if p == nil {
-			cur.loading = false
-			cur.err = "no instant view for this page"
-			a.mu.Unlock()
-			a.invalidate()
+		} else if p == nil {
 			openExternalAsync(pageURL, func(e error) {
 				if e != nil {
 					a.setToast("Open link failed: " + e.Error())
 				}
 			})
-			return
 		}
-		cur.page = p
-		cur.loading = false
-		cur.err = ""
-		a.mu.Unlock()
-		a.invalidate()
 	}()
+}
+
+// updateIV (R46): copy-on-write installer — the R34 discipline. fn
+// mutates a COPY of the reader state (returning false leaves the head
+// alone); the copy is installed under a.mu, never an in-place mutation,
+// so a frame that captured the old pointer keeps a frozen view while the
+// open and related-fetch tails swap the head. Returns the installed head
+// (nil when aborted). Guards inside fns are openID/gen-based — pointer
+// identity breaks under copy-on-write. The detailsOpen/slideIdx/docBusy
+// maps stay shared across heads by design (GUI-loop-only writers for the
+// first two, ivDocMu for the third).
+func (a *App) updateIV(fn func(st *ivState) bool) *ivState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.iv == nil {
+		return nil
+	}
+	next := *a.iv
+	if !fn(&next) {
+		return nil
+	}
+	a.iv = &next
+	return &next
 }
 
 // ivOpenRelated navigates inside the reader (related-article row):
@@ -597,23 +638,25 @@ func (a *App) ivOpenRelated(accountID, pageURL string) {
 	if accountID == "" || pageURL == "" {
 		return
 	}
+	openID, gen := uint64(0), uint64(0)
 	a.mu.Lock()
-	cur := a.iv
-	if cur == nil || cur.accountID != accountID {
-		a.mu.Unlock()
+	if cur := a.iv; cur != nil && cur.accountID == accountID {
+		next := *cur // R46: copy-on-write — never mutate the head in place
+		next.loading = true
+		next.err = ""
+		next.gen++
+		gen = next.gen
+		openID = next.openID
+		a.iv = &next
+	}
+	a.mu.Unlock()
+	if openID == 0 {
 		return
 	}
-	cur.loading = true
-	cur.err = ""
-	cur.gen++
-	gen := cur.gen
-	a.mu.Unlock()
 	a.invalidate()
 	go func() {
 		data, err := a.eng.GetInstantViewPage(accountID, pageURL)
-		a.mu.Lock()
-		landed, fallback := a.ivLandRelated(cur, gen, data, err)
-		a.mu.Unlock()
+		landed, fallback := a.ivLandRelated(openID, gen, data, err)
 		if !landed {
 			return
 		}
@@ -630,28 +673,34 @@ func (a *App) ivOpenRelated(accountID, pageURL string) {
 	}()
 }
 
-// ivLandRelated applies a completed related-article fetch under a.mu.
-// False when the fetch is stale — the state was replaced, or the user
-// backed out / navigated again while it was in flight (generation
-// mismatch): a straggler page must never enter the history (R26).
-func (a *App) ivLandRelated(st *ivState, gen uint64, data []byte, err error) (landed, browserFallback bool) {
-	cur := a.iv
-	if cur == nil || cur != st || cur.gen != gen {
-		return false, false
-	}
-	if err != nil {
-		cur.loading = false
-		cur.err = err.Error()
-		return true, false
-	}
-	p := parseIVPage(data)
-	if p == nil {
-		cur.loading = false
-		cur.err = "no instant view for this page"
-		return true, true
-	}
-	cur.pushHistory(p)
-	return true, false
+// ivLandRelated applies a completed related-article fetch. Not landed
+// when the fetch is stale — the reader was closed or reopened
+// (openID mismatch), or the user backed out / navigated again while it
+// was in flight (generation mismatch): a straggler page must never enter
+// the history (R26). R46: copy-on-write through updateIV — the
+// frame-held state is never mutated in place.
+func (a *App) ivLandRelated(openID, gen uint64, data []byte, err error) (landed, browserFallback bool) {
+	fallback := false
+	head := a.updateIV(func(cur *ivState) bool {
+		if cur.openID != openID || cur.gen != gen {
+			return false
+		}
+		if err != nil {
+			cur.loading = false
+			cur.err = err.Error()
+			return true
+		}
+		p := parseIVPage(data)
+		if p == nil {
+			cur.loading = false
+			cur.err = "no instant view for this page"
+			fallback = true
+			return true
+		}
+		cur.pushHistory(p)
+		return true
+	})
+	return head != nil, fallback
 }
 
 // ivBack: history pop, or close at the root. Bumps the generation so a
@@ -659,16 +708,14 @@ func (a *App) ivLandRelated(st *ivState, gen uint64, data []byte, err error) (la
 func (a *App) ivBack() {
 	a.mu.Lock()
 	st := a.iv
-	if st == nil {
-		a.mu.Unlock()
-		return
-	}
-	st.gen++
-	if !st.back() {
-		a.iv = nil
-		a.mu.Unlock()
-		a.invalidate()
-		return
+	if st != nil {
+		next := *st // R46: copy-on-write — never mutate the head in place
+		next.gen++
+		if !next.back() {
+			a.iv = nil
+		} else {
+			a.iv = &next
+		}
 	}
 	a.mu.Unlock()
 	a.invalidate()
@@ -1764,6 +1811,9 @@ func blendSurface(c color.NRGBA, alpha float32) color.NRGBA {
 // ivDocMu guards the reader's package-level photo map and the per-state
 // docBusy flags (download goroutines are not frames — frameMu does not
 // cover them).
+// ivOpenSeq assigns each reader session its openID (R46).
+var ivOpenSeq atomic.Uint64
+
 var ivDocMu sync.Mutex
 
 // ivPhotoBusy is the in-flight claim set for IV photo downloads (keyed by

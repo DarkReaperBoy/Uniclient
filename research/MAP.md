@@ -706,6 +706,41 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### instantview.go state lifecycle (session 339, chunk 3 iteration 29 — the R34 systemic watch's LAST entry, VERDICT: R46 fixed, rest CLEAN — the file was read in full at session 335)
+- Scope this iteration: ivState + pushHistory/back, openInstantView's
+  load tail, ivOpenRelated/ivLandRelated (R26's landing gate), ivBack,
+  the detailsOpen/slideIdx map writers, docBusy (the watch note's claim).
+- **R46 FIXED**: the reader's state was R34's pre-fix shape —
+  openInstantView's tail and ivLandRelated mutated loading/err/page/hist/
+  url in place under a.mu with pointer-identity retirement (which does
+  not stop the frameMu reads); ivOpenRelated's head and ivBack wrote the
+  same fields in place on the GUI loop (lost-click class). updateIV(fn)
+  copy-on-write installer returning the installed head; the staleness
+  key is openID (fresh ivOpenSeq counter per open, install-immutable
+  — pointer identity BREAKS under copy-on-write) PLUS gen (R26's
+  within-session key; gen alone cannot retire a straggler across a
+  reopen walking the same sequence — pinned). pushHistory builds a
+  FRESH hist slice (R38 rule).
+- **Scoped OUT deliberately (the do-NOT-mass-edit discipline)**:
+  detailsOpen/slideIdx stay shared-map in-place writes — GUI-loop-only
+  writers and readers, shared across heads by shallow copy, so no race
+  and no lost click; docBusy keeps ivDocMu (claim re-verified: both the
+  download goroutines and the layout reads take it).
+- R26's pins updated to the landing semantics (observe the installed
+  head; the straggler/fallback/error cases all preserved).
+- GREEN: instantview_r46_test.go ×5 (TestIVStateIsCopyOnWrite — hammer
+  over the real open/related/back entry points vs a lock-free
+  current-head reader; TestUpdateIVContract; TestIVOpenTailLandsCopyOnWrite;
+  TestIVOpenIDsRetireStragglers — the reopen-straggler case identity used
+  to cover and gen alone cannot; TestIVPushHistoryBuildsFreshSlice) clean
+  under LOCAL -race; CI race-leg extended. Full gui suite 903/903.
+- **THE R34 SYSTEMIC WATCH IS CLOSED** — every frame-carried gui surface
+  (settings sub-pages, content dialogs, the IV reader) installs copies;
+  the next phase returns to the unscanned-file queue by size (media.go,
+  giveaways.go, callsbox.go, poll.go, stories.go, …).
+
+
+
 ### twofa.go (661→726 lines — session 339, read in full: the Two-Step Verification (2FA cloud password) editor, slice 120, opened from Privacy & Security; chunk 3 iteration 28, the R34 sibling sweep #7 — the LAST named sibling, VERDICT: R44 + R45 fixed, rest CLEAN)
 - Scope: pure helpers (twofaMainActions/twofaValidateNew/twofaLooksLikeEmail/
   twofaGoToEmailCode/twofaStateSummary/twofaRowValue — all pinned in
@@ -977,9 +1012,10 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   (R44+R45, iteration 28 — ALL thirteen writer sites through
   updateTwoFADlg incl. the GUI-loop clicks, accountID guards replacing
   the pointer-identity guards that break under copy-on-write; plus the
-  settings-row map refresh via the R38 fresh-map rule).** The named
-  sweep is COMPLETE; remaining from the watch list: instantview.go's
-  load tail only.
+  settings-row map refresh via the R38 fresh-map rule), instantview.go
+  (R46, iteration 29 — updateIV + openID/gen staleness keys + fresh-slice
+  pushHistory; the watch's LAST entry).** **THE WATCH IS CLOSED: every
+  frame-carried gui surface is now copy-on-write.**
 
 
 
