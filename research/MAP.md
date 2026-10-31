@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + R18, R19) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -381,3 +381,41 @@ media viewer; iteration 6, produced R18 + R19)
   action. The "file:"-keyed cache resets wholesale at 256 entries — a
   large album walked via filmstrip can thrash decodes (P4 churn family
   lens, unmeasured).
+
+### profile.go (780 lines — session 333, read in full: the right info
+panel; iteration 7, produced R22)
+- **Structure**: AyuGram third pane for DM profiles (username/phone/bio,
+  block/unblock, share contact as vCard, add contact) and group/channel
+  member lists (role badges, member search), plus shared-media tabs
+  (photos prefetched 60, others lazy), bot sections (description, command
+  chips → composer insert, privacy link), profile music (capability-gated,
+  §1.10), groups-in-common (async, slice 107), TTL row, notifications
+  toggle with timed-mute picker.
+- **Journey**: openPanel (locked flag+key set, loadPanel in a goroutine) →
+  loadPanel: reads chat type/muted under lock, engine calls OUTSIDE
+  (GetUserProfile/GetChatMembers/GetSharedMediaCounts/GetSharedMedia,
+  bot cmds for bots, profile music when supported, common chats spawned),
+  then one locked block writes all panel state + panelLoaded → invalidate.
+  hdrPresence piggybacks on the fresh profile (slice 28). All actions
+  (mute/block/add-contact) are engine calls in goroutines with toasts —
+  clean; errors degrade to empty sections (loaded data honesty).
+- **R22 (fixed this session)**: panelSwitches/panelSynced were PACKAGE
+  maps — the panel renders in every window (layoutChatView →
+  layoutInfoPanel in both Root branches), so two open panels = two GUI
+  goroutines in one Go map = fatal runtime panic. Moved to a.wid
+  (panelSwitch became a method, lazy-init for bare-App harnesses);
+  compile-seam RED test pins per-window pool + one-shot bookkeeping.
+  Every other keyed pool on a.wid was already per-App — this was the
+  straggler; the settings*/sidebar* pools remain main-window-only by
+  render path (P3 fold-in notes stand).
+- **One-shot sync watch item (verified this session, P3 — same family as
+  the settings toggles)**: the mute switch syncs from panelMuted ONCE per
+  chat key (panelSynced[key]), and NO path ever clears it — not loadPanel
+  (verified: its only callers are openPanel/block/add-contact/member
+  dialogs), not any engine event. So a mute changed from the sidebar
+  quick-action (or another device) leaves the panel toggle stale even
+  after closing and REOPENING the panel for that chat; it re-syncs only
+  at the 64-cap pool reset or process restart. Fix shape when touched:
+  openPanel (or loadPanel) clears panelSynced for the opening chat.
+- Streamer-mode masking honored on avatar/name/sub (isPanelSubCount lets
+  member/online counts through).

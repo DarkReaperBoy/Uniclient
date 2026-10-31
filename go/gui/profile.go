@@ -21,23 +21,32 @@ import (
 // per-chat notifications toggle. Every row reads engine state; every action
 // dispatches a real engine call (§1.10).
 
-// panelSwitches pools the panel's toggle (mute) per chat.
-var (
-	panelSwitches = map[string]*widget.Bool{}
-	panelSynced   = map[string]bool{}
-)
-
-func panelSwitch(key string) *widget.Bool {
-	if s, ok := panelSwitches[key]; ok {
+// panelSwitch pools the panel's mute toggle per chat — ON THE APP (R22):
+// the info panel renders in every window (layoutChatView → layoutInfoPanel
+// in both Root branches), and the pool used to be package-level maps; two
+// windows with panels open hit them from two GUI goroutines, and Go maps
+// are not concurrency-safe — a FATAL runtime panic, not a mere race.
+func (a *App) panelSwitch(key string) *widget.Bool {
+	if a.wid.panelSwitches == nil {
+		a.wid.panelSwitches = make(map[string]*widget.Bool)
+		a.wid.panelSynced = make(map[string]bool)
+	}
+	if s, ok := a.wid.panelSwitches[key]; ok {
 		return s
 	}
-	if len(panelSwitches) > 64 {
-		panelSwitches = make(map[string]*widget.Bool)
-		panelSynced = make(map[string]bool)
+	if len(a.wid.panelSwitches) > 64 {
+		a.wid.panelSwitches = make(map[string]*widget.Bool)
+		a.wid.panelSynced = make(map[string]bool)
 	}
 	s := new(widget.Bool)
-	panelSwitches[key] = s
+	a.wid.panelSwitches[key] = s
 	return s
+}
+
+// panelSyncedFor reports whether this window already one-shot-synced the
+// toggle for key (test seam for the per-window contract, R22).
+func (a *App) panelSyncedFor(key string) bool {
+	return a.wid.panelSynced[key]
 }
 
 // colorNRGBA aliases the color type for tests.
@@ -410,10 +419,10 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 	// Notifications toggle.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		key := "panel:mute:" + k.ChatID
-		sw := panelSwitch(key)
-		if !panelSynced[key] {
+		sw := a.panelSwitch(key)
+		if !a.wid.panelSynced[key] {
 			sw.Value = !f.panelMuted
-			panelSynced[key] = true
+			a.wid.panelSynced[key] = true
 		}
 		prev := sw.Value
 		d := a.muteRowWithPicker(gtx, f, k, sw)

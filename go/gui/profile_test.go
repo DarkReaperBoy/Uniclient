@@ -99,3 +99,25 @@ func TestFilterMembers(t *testing.T) {
 		t.Errorf("no match = %+v", got)
 	}
 }
+
+// R22: the panel's mute-toggle pool was package-level maps — but the info
+// panel renders in EVERY window (layoutChatView → layoutInfoPanel, both
+// Root branches), so two panels open at once means two GUI goroutines
+// hitting panelSwitches/panelSynced concurrently: Go maps are not
+// concurrency-safe, that is a FATAL runtime panic, not just a race. The
+// pool must live on the App (per window), like every other keyed widget
+// pool on a.wid.
+func TestPanelSwitchPoolIsPerWindow(t *testing.T) {
+	a, b := &App{}, &App{}
+	sa := a.panelSwitch("panel:mute:x")
+	sa.Value = true
+	if got := b.panelSwitch("panel:mute:x"); got.Value {
+		t.Fatal("panel switch pool leaked across App instances: package-level state (R22)")
+	}
+	// The one-shot sync bookkeeping must be per window too: after window
+	// A's render one-shot-syncs its toggle, window B's is still unsynced.
+	a.wid.panelSynced["panel:mute:x"] = true
+	if !a.panelSyncedFor("panel:mute:x") || b.panelSyncedFor("panel:mute:x") {
+		t.Fatal("panelSynced must track each window's own one-shot sync")
+	}
+}

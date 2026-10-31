@@ -417,6 +417,8 @@ type widgets struct {
 	mediaClicks                map[string]*widget.Clickable
 	mediaPlayClickables        map[string]*widget.Clickable
 	memberRowBtns              map[string]*widget.Clickable
+	panelSwitches              map[string]*widget.Bool // R22: per-window mute-toggle pool (was package-level — fatal map race with two panels)
+	panelSynced                map[string]bool         // R22: one-shot sync bookkeeping, per window
 	seekBarTags                map[string]*struct{}
 	seekBarApplied             map[string]float64
 	msgReactBtns               map[string]*widget.Clickable
@@ -446,6 +448,8 @@ func (w *widgets) init() {
 	w.mediaPlayClickables = make(map[string]*widget.Clickable)
 	w.paidUnlockBtns = make(map[string]*widget.Clickable) // slice 238: star-wall unlock (B-12 — first wall render wrote a nil map)
 	w.memberRowBtns = make(map[string]*widget.Clickable)
+	w.panelSwitches = make(map[string]*widget.Bool)
+	w.panelSynced = make(map[string]bool)
 	w.commentChipBtns = make(map[string]*widget.Clickable)
 	w.seekBarTags = make(map[string]*struct{})
 	w.seekBarApplied = make(map[string]float64)
