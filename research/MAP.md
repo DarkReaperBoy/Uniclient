@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (sidebar/chat/settings/... one per iteration) | pending |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -145,3 +145,47 @@ content priority) + layoutMain (narrow/desktop chains) read in full.
 boot → Start (subscribe+theme+lock) → go refresh*+ConnectAll → events → invalidate
 → frame reads state; open-chat (draft flush → media reset → state reset → load);
 typing indicator lifecycle; desktop-notification gate on every incoming message.
+
+## Chunk 3 — go/gui, per-file surfaces (from session 331)
+
+### chat.go (1,578 lines — session 331, read in full: layout chain, messageList,
+messageRow bubble tree, composer; header/bars skimmed at the overlay level)
+- **layoutChatView** priority chain: no-selection → emptyState; fwd picker → full
+  pane; panelOpen+narrow → info panel; schedPanel; adminPanel; statsPanel;
+  boostPanel; then pane events; savedListOpen → chat+lists flex; panelOpen →
+  desktop 3-pane; else chatPaneColumn. **chatPaneColumn** = header + divider +
+  conditional strips (forum tabs / topic bar / thread bar / saved-scope bar /
+  call bar / sel-or-pinned bar / in-chat search / translate bar / sponsored bar,
+  each adding to a.listTop) + messageList-or-topicList + reply keyboard +
+  composer variant (JOIN bar if NotJoined, restricted bar, voice-rec panel,
+  else composerBar) + a 20-deep overlay chain (context menu, send-confirm card,
+  forum dialog, header menu, attach, emoji, bot cmds, inline results, emoji
+  autocomplete, del/report/sponsored/sendAs/paid/sched/poll/reactors/shadow/
+  editHist/deleted/seen/msgDetail/stickerSet dialogs).
+- **messageList**: msgFrameLastOwn per pass (B-47/B-48 honored); wallpaper or
+  chat-theme background under rows; 200 ms invalidation loop while
+  typing/sending/downloading; row model = buildChatRows + sponsored + similar
+  (collapsed gating via per-chat override); loading spinner / empty intro;
+  rowBounds rebuilt per frame (frame-loop bookkeeping); scroll-up pagination
+  trigger at First==0 && Offset<=64 && !loadingOlder && !olderDone → loadOlder
+  (which re-guards under a.mu).
+- **messageRow**: service → centered pill or gift card; bare stickers no chrome;
+  standard bubble = forwarded header (masked in streamer mode) + poll + webpage
+  card + media (paid wall owns the row when locked) + reply quote + sender
+  (name color/rank, anti-recall fade) + rich text w/ spoilers + meta strip;
+  zalgo/bidi filter and deleted-mark applied to the RENDER copy only (cache
+  untouched — good).
+- **composerBar/trySubmitComposer**: shared submit gate (empty/limit/slow-mode/
+  in-flight), Enter vs Ctrl+Enter modes (tdesktop setting, slice 155),
+  Ctrl+Enter only while composer focused, slow-tick armed while waiting,
+  ensureSendAs per chat. Draft: cleared only on successful send (state.go
+  clearDraftAfterSend path).
+- **Watch item (P2 candidate, needs reference verification per law 22/23)**:
+  trySubmitComposer clears the composer BEFORE sendText's async result — a
+  failed send (engine error) leaves the field empty + a toast; tdesktop keeps
+  the typed text on failure. Not registered in BUGS.md until the reference
+  behavior is confirmed against AyuGramDesktop (or the parity doc is updated
+  with the owner's decision). Same pattern exists in the inline-bot,
+  music-attach, and sticker send paths.
+- Lock discipline in this file: all state writes via a.mu (or documented
+  frame-loop-only fields); no engine calls under the lock; clean.

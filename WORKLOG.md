@@ -7,11 +7,11 @@ on 2026-10-30 — it lives in git history if ever needed.)
 
 ## STATE
 
-- cycle: 2 | phase: P0 recon, interrupted for R14 (fixed this session) — resuming P0 chunk 3
-- item: R14 FIXED (red→green, all gates); P0 chunk 2 DONE prior
-- next: read verify.yml run 41174703134 (R14 native proof, in flight) then P0 chunk 3 — remaining gui files, one surface per iteration
+- cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
+- item: chunk 3 iteration 1 DONE (chat.go → MAP.md); R14 fixed earlier this session
+- next: read verify.yml run 41174703134 (R14 native proof — still in_progress at last check), then chunk 3 iteration 2 (next surface: sidebar.go, 36KB, the chat-list journey)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick GREEN (gui+cmd closure, js legs) + web GREEN (full Puppeteer s1-s15+b1-b6); native → verify.yml in flight
+- last-gate: quick GREEN (gui+cmd closure) + web GREEN (full Puppeteer) for R14; research-only since (chat.go)
 
 ## Session 331 — P0 chunk 2 complete: state.go 100%, R14 opened (2026-10-31)
 
@@ -58,8 +58,23 @@ interrupting P0 as a race-class finding):
   space-indented; a "failed" MultiEdit can still have applied earlier edits —
   ALWAYS re-grep the file state after any MultiEdit error before retrying
   (this session: 2 of 5 edits landed despite the error report).
-- Native proof: verify.yml dispatched post-push (id recorded at dispatch);
-  next session reads the run — same pattern as 329.
+- Native proof: verify.yml dispatched post-push (run 41174703134); next
+  session reads the run — same pattern as 329.
+
+Post-fix work, same session:
+
+- Constitution: language rule added to mandate point 1 (English replies;
+  non-English owner input = instruction; switch only on explicit ask) —
+  owner directive, commit f2bbff62.
+- P0 chunk 3 opened, iteration 1 = chat.go (1,578 lines) read in full →
+  MAP.md: layout priority chain, the 20-deep overlay chain, messageList row
+  model + pagination trigger, messageRow bubble tree, composer submit gate.
+  Lock discipline clean throughout.
+- Watch item registered (NOT a BUGS row — needs reference verification per
+  law 22/23): trySubmitComposer clears the composer before the async send
+  result; a failed send loses the typed text (tdesktop keeps it). Same
+  pattern in inline-bot/music-attach/sticker send paths.
+- CI 41174703134 still in_progress at yield.
 
 ## Session 330 — constitution v3.4: law 22/23, HOT store; wipe #2 survived (2026-10-31)
 
