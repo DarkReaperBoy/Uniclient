@@ -463,6 +463,11 @@ type ivState struct {
 	page      *ivPage
 	hist      []*ivPage // back stack for related-article navigation
 
+	// gen is the fetch generation (a.mu-guarded): every navigation or
+	// back bumps it, and a landing fetch must match the generation it
+	// captured or it is dropped whole (R26).
+	gen uint64
+
 	detailsOpen map[string]bool // block idx → override
 	slideIdx    map[string]int  // slideshow block idx → item index
 	docBusy     map[string]bool // video/audio doc key → download in flight
@@ -536,19 +541,22 @@ func (s *ivState) setSlideAt(path string, i int) {
 
 // openInstantView opens the reader on url (async fetch). On fetch error
 // it toasts and falls back to the browser — never a dead overlay (§1.10).
+// The goroutine captures the state pointer: any replacement (reopen,
+// close) retires it, and only the current state is written.
 func (a *App) openInstantView(accountID, pageURL string) {
 	if accountID == "" || pageURL == "" {
 		return
 	}
 	a.mu.Lock()
-	a.iv = &ivState{accountID: accountID, url: pageURL, loading: true}
+	st := &ivState{accountID: accountID, url: pageURL, loading: true}
+	a.iv = st
 	a.mu.Unlock()
 	a.invalidate()
 	go func() {
 		data, err := a.eng.GetInstantViewPage(accountID, pageURL)
 		a.mu.Lock()
 		cur := a.iv
-		if cur == nil || cur.accountID != accountID || cur.url != pageURL {
+		if cur != st {
 			a.mu.Unlock()
 			return // user moved on
 		}
@@ -582,7 +590,9 @@ func (a *App) openInstantView(accountID, pageURL string) {
 }
 
 // ivOpenRelated navigates inside the reader (related-article row):
-// fetches the next page, pushing history.
+// fetches the next page, pushing history. The fetch captures the state
+// pointer AND its generation, so backing out or navigating again while it
+// is in flight retires it (R26).
 func (a *App) ivOpenRelated(accountID, pageURL string) {
 	if accountID == "" || pageURL == "" {
 		return
@@ -595,44 +605,57 @@ func (a *App) ivOpenRelated(accountID, pageURL string) {
 	}
 	cur.loading = true
 	cur.err = ""
+	cur.gen++
+	gen := cur.gen
 	a.mu.Unlock()
 	a.invalidate()
 	go func() {
 		data, err := a.eng.GetInstantViewPage(accountID, pageURL)
 		a.mu.Lock()
-		cur := a.iv
-		if cur == nil || cur.accountID != accountID || !cur.loading {
-			a.mu.Unlock()
+		landed, fallback := a.ivLandRelated(cur, gen, data, err)
+		a.mu.Unlock()
+		if !landed {
 			return
 		}
+		a.invalidate()
 		if err != nil {
-			cur.loading = false
-			cur.err = err.Error()
-			a.mu.Unlock()
-			a.invalidate()
 			a.setToast("Instant View unavailable: " + err.Error())
-			return
-		}
-		p := parseIVPage(data)
-		if p == nil {
-			cur.loading = false
-			cur.err = "no instant view for this page"
-			a.mu.Unlock()
-			a.invalidate()
+		} else if fallback {
 			openExternalAsync(pageURL, func(e error) {
 				if e != nil {
 					a.setToast("Open link failed: " + e.Error())
 				}
 			})
-			return
 		}
-		cur.pushHistory(p)
-		a.mu.Unlock()
-		a.invalidate()
 	}()
 }
 
-// ivBack: history pop, or close at the root.
+// ivLandRelated applies a completed related-article fetch under a.mu.
+// False when the fetch is stale — the state was replaced, or the user
+// backed out / navigated again while it was in flight (generation
+// mismatch): a straggler page must never enter the history (R26).
+func (a *App) ivLandRelated(st *ivState, gen uint64, data []byte, err error) (landed, browserFallback bool) {
+	cur := a.iv
+	if cur == nil || cur != st || cur.gen != gen {
+		return false, false
+	}
+	if err != nil {
+		cur.loading = false
+		cur.err = err.Error()
+		return true, false
+	}
+	p := parseIVPage(data)
+	if p == nil {
+		cur.loading = false
+		cur.err = "no instant view for this page"
+		return true, true
+	}
+	cur.pushHistory(p)
+	return true, false
+}
+
+// ivBack: history pop, or close at the root. Bumps the generation so a
+// related fetch still in flight cannot land on the popped state (R26).
 func (a *App) ivBack() {
 	a.mu.Lock()
 	st := a.iv
@@ -640,6 +663,7 @@ func (a *App) ivBack() {
 		a.mu.Unlock()
 		return
 	}
+	st.gen++
 	if !st.back() {
 		a.iv = nil
 		a.mu.Unlock()
