@@ -58,6 +58,11 @@ jobs:
           CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./webm/ ./vp9anim/
           CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./cores/ \
             -run 'TestHandshake|TestMyChannelID|TestTSExec|TestTS3|TestTeamSpeak|TestTSCommandQueue|TestSendVoice|TestGetGroupCall|TestMatrix|TestTruncate|TestParseRawHeaders|TestAutocrypt|TestDeltaChat|TestGitHub|TestLockOrder'
+          # R24: the gui package's cross-goroutine tests need the race
+          # detector too (the js leg has none). Filtered to the concurrency
+          # pins so the memory cap holds.
+          CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./gui/ \
+            -run 'TestSuggestionMapsAreGuarded|TestRubberBandGestureIsPerWindow|TestViewerShareCompletes'
         env:
           GOMEMLIMIT: 900MiB
           GOGC: "30"

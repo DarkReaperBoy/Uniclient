@@ -7,14 +7,15 @@ package gui
 // can act on with REAL local surface — the rest stay hidden exactly
 // like tdesktop hides unknown keys):
 //
-//	BIRTHDAY_CONTACTS_TODAY → open the contact's chat
-//	BIRTHDAY_SETUP          → own profile editor (birthday field)
-//	custom server card      → openLinkExternal(URL)
-//	PREMIUM_OFFER           → Premium settings page
-//	USERPIC_SETUP           → own profile editor (avatar)
+//      BIRTHDAY_CONTACTS_TODAY → open the contact's chat
+//      BIRTHDAY_SETUP          → own profile editor (birthday field)
+//      custom server card      → openLinkExternal(URL)
+//      PREMIUM_OFFER           → Premium settings page
+//      USERPIC_SETUP           → own profile editor (avatar)
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"image"
@@ -143,6 +144,67 @@ var (
 	suggDismissed = map[string]map[string]bool{} // accountID → key (GUI-local mirror)
 )
 
+// suggMu guards the three maps above (R24): the fetch goroutine publishes
+// into suggStates and releases suggFetching while the GUI loop reads them
+// every frame — unguarded that is a fatal concurrent-map panic, and frameMu
+// does not help (the goroutine is not a frame). suggDismissed's inner maps
+// are GUI-loop-only (mutated via suggDismissedStore on clicks), so handing
+// one out through suggDismissedFor stays single-goroutine.
+var suggMu sync.Mutex
+
+// suggStateFor reads one account's fetched state (locked).
+func suggStateFor(acc string) (*suggestionFetchState, bool) {
+	suggMu.Lock()
+	defer suggMu.Unlock()
+	cur, ok := suggStates[acc]
+	return cur, ok
+}
+
+// suggStateStore publishes one account's fetched state (locked; the
+// caller builds the struct first — it is immutable after publish).
+func suggStateStore(acc string, st *suggestionFetchState) {
+	suggMu.Lock()
+	suggStates[acc] = st
+	suggMu.Unlock()
+}
+
+// suggFetchingStart test-and-sets the in-flight flag: false = a fetch is
+// already running (locked).
+func suggFetchingStart(acc string) bool {
+	suggMu.Lock()
+	defer suggMu.Unlock()
+	if suggFetching[acc] {
+		return false
+	}
+	suggFetching[acc] = true
+	return true
+}
+
+// suggFetchingDone releases the in-flight flag (locked).
+func suggFetchingDone(acc string) {
+	suggMu.Lock()
+	delete(suggFetching, acc)
+	suggMu.Unlock()
+}
+
+// suggDismissedFor reads one account's dismissal set (locked read of the
+// outer map; the inner map is GUI-loop-only).
+func suggDismissedFor(acc string) map[string]bool {
+	suggMu.Lock()
+	defer suggMu.Unlock()
+	return suggDismissed[acc]
+}
+
+// suggDismissedStore records one dismissal (locked).
+func suggDismissedStore(acc, key string) {
+	suggMu.Lock()
+	if suggDismissed[acc] == nil {
+		suggDismissed[acc] = map[string]bool{}
+	}
+	suggDismissed[acc][key] = true
+	suggMu.Unlock()
+}
+
 // suggStaleTTL mirrors tdesktop's hourly refresh.
 const suggStaleTTL = time.Hour
 
@@ -153,21 +215,19 @@ func (a *App) ensureSuggestionState(f frame) {
 		return
 	}
 	acc := f.accounts[0] // the visible account owns the bar (tdesktop: one per session)
-	cur, ok := suggStates[acc.ID]
-	if ok && time.Since(cur.fetched) < suggStaleTTL {
+	if cur, ok := suggStateFor(acc.ID); ok && time.Since(cur.fetched) < suggStaleTTL {
 		return
 	}
-	if suggFetching[acc.ID] {
+	if !suggFetchingStart(acc.ID) {
 		return
 	}
-	suggFetching[acc.ID] = true
 	go func() {
-		defer delete(suggFetching, acc.ID)
+		defer suggFetchingDone(acc.ID)
 		st, err := a.eng.GetSuggestionState(acc.ID)
 		if err != nil || st == nil {
 			return
 		}
-		suggStates[acc.ID] = &suggestionFetchState{st: st, fetched: time.Now()}
+		suggStateStore(acc.ID, &suggestionFetchState{st: st, fetched: time.Now()})
 		a.invalidate()
 	}()
 }
@@ -179,7 +239,7 @@ func (a *App) guiSuggestionState(f frame) suggestionState {
 		return suggestionState{}
 	}
 	acc := f.accounts[0]
-	cur, ok := suggStates[acc.ID]
+	cur, ok := suggStateFor(acc.ID)
 	if !ok || cur.st == nil {
 		return suggestionState{}
 	}
@@ -188,7 +248,7 @@ func (a *App) guiSuggestionState(f frame) suggestionState {
 		Custom:           cur.st.Custom,
 		BirthdayContacts: cur.st.BirthdayContacts,
 		Self:             cur.st.Self,
-		dismissed:        suggDismissed[acc.ID],
+		dismissed:        suggDismissedFor(acc.ID),
 	}
 }
 
@@ -209,10 +269,7 @@ func (a *App) layoutSuggestionBar(gtx layout.Context, f frame) layout.Dimensions
 	}
 	if suggCloseBtn.Clicked(gtx) {
 		key := card.Key
-		if suggDismissed[acc.ID] == nil {
-			suggDismissed[acc.ID] = map[string]bool{}
-		}
-		suggDismissed[acc.ID][key] = true
+		suggDismissedStore(acc.ID, key)
 		go func() {
 			_ = a.eng.DismissSuggestion(acc.ID, key)
 			a.setToast("Suggestion dismissed")
@@ -284,9 +341,9 @@ func suggestionGlyph(key string) *widget.Icon {
 func (a *App) suggestionActivated(accountID string, card *promoSuggestionInfo) {
 	switch card.Key {
 	case "BIRTHDAY_CONTACTS_TODAY":
-		if st := suggStates[accountID]; st != nil && len(st.st.BirthdayContacts) > 0 {
-			uid := fmt.Sprintf("%d", st.st.BirthdayContacts[0].UserID)
-			title := st.st.BirthdayContacts[0].Name
+		if cur, ok := suggStateFor(accountID); ok && cur.st != nil && len(cur.st.BirthdayContacts) > 0 {
+			uid := fmt.Sprintf("%d", cur.st.BirthdayContacts[0].UserID)
+			title := cur.st.BirthdayContacts[0].Name
 			a.openChat(chatKey{AccountID: accountID, ChatID: uid}, title)
 		}
 	case "BIRTHDAY_SETUP", "USERPIC_SETUP":

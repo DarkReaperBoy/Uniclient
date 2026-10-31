@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: CI proofs closed — 41184046305 (R20/R21) + 41184562534 (R22) both verified SUCCESS at job+step level; iterations 8+10+11 CLEAN (separate.go — all invariants tool-verified; menu.go — pools already per-App, 3 P3 notes; webpage.go — maps mutex-guarded, 2 P4 notes); scanner v3 (go/ast, exact) + chunk-3 ranking queue in MAP; iteration 9 rubberband.go → R23 FIXED (package gesture state vs per-App selOn; App fields, RED→GREEN input.Router lifecycle test; gate quick GREEN; native proof 41188229919 in flight)
-- next: read verify.yml 41188229919 (R23 native proof, ea3b12ac), then chunk 3 iteration 12 = suggestionbar.go (suggStates map + suggFetching/suggDismissed — fetch-goroutine writes?), then cornerreply.go + cornerreaction.go, richtext.go, instantview.go (ivDocDone watch), msgshot.go, translatebar.go + profilemusic.go
+- item: CI proofs closed — 41184046305 (R20/R21) + 41184562534 (R22) verified SUCCESS at job+step level; iterations 8/10/11 CLEAN (separate.go, menu.go, webpage.go); R23 FIXED (rubberband gesture state → App fields; input.Router lifecycle test); R24 FIXED (suggestionbar maps unguarded vs fetch goroutine → six suggMu helpers; verify.yml race leg extended to gui concurrency pins); scanner v3 (go/ast) + chunk-3 queue in MAP
+- next: read verify.yml runs for R23+R24 native/race proofs (41188229919 for R23 in flight; R24 dispatch pending this push), then chunk 3 iteration 13 = cornerreply.go + cornerreaction.go (hover state fed from processPaneEvents), then richtext.go, instantview.go (ivDocDone watch), msgshot.go, translatebar.go + profilemusic.go
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (4/4 runner contracts incl. flag forwarding, js vet, full gui suite incl. R23 test)
 
@@ -73,16 +73,41 @@ on 2026-10-30 — it lives in git history if ever needed.)
   positives). v3 uses go/parser + AssignStmt LHS root-unwrapping. Queue +
   the frameMu lens (layout-only package state cannot race; residual shapes
   = R23 semantic bleed / R22 outside-layout map writes) live in MAP.
+- **Iteration 11: webpage.go (296 lines, read in full) — VERDICT CLEAN.**
+  The exact-map scan's top suspect was defended: webPhotoDone/Failed and
+  linkPreview are all mutex-guarded on every access; pools per-App with a
+  512-cap; fail-pin is documented intent. Two P4 notes in MAP:
+  webPhotoFailed is dead state (shadowed by done at its only read), and
+  parseWebPage re-parses ContentRaw every frame (measure before touching).
+- **Iteration 12 + R24: suggestionbar.go (301 lines, read in full).**
+  #2 on the v3 queue, and the read found the missing guard: suggStates/
+  suggFetching/suggDismissed were package maps with NO mutex while the
+  fetch goroutine (delete from suggFetching + write suggStates on
+  completion) raced the GUI loop's EVERY-FRAME reads (ensureSuggestionState
+  runs per frame from the sidebar bar). Fatal concurrent-map class, ONE
+  window + one slow fetch, reachable at every boot + hourly TTL refresh;
+  frameMu irrelevant (goroutine is not a frame). R22's crash class but
+  easier to hit. Fixed with six suggMu-guarded helpers (immutable-after-
+  build publish; inner dismissed maps GUI-loop-only, documented). RED
+  compile-seam: TestSuggestionMapsAreGuarded (all six helpers undefined
+  pre-fix) hammers both sides through the helpers; deterministic-safe on
+  js, and **the verify.yml race leg was extended to run the gui
+  concurrency pins under -race** (filtered: R18/R23/R24 tests; the js leg
+  has no race detector, native CI is the proof). Full gui suite green;
+  gate quick GREEN (4/4 contracts). P4 noted: dead method
+  suggestionState.dismiss (zero callers); suggBar/CloseBtn package
+  clickables are sidebar-only (P3 fold-in family).
 - **ivDocDone watch item** (instantview.go:1096-1110, verified by complete
   grep — 3 usage sites total, no clear-path anywhere): one-shot mark happens
   BEFORE the download and the error path returns silently → a transient
   DownloadIVPhoto failure permanently pins that photo to its thumbnail until
   restart; map also unbounded. Carried in MAP; the instantview iteration
   confirms real-world reachability before any R-number.
-- Docs-only session (MAP/HOT/WORKLOG + scripts/; zero Go changes — verified
-  `git diff --stat`: 3 .md files only). Go tree byte-identical to a8880414,
-  whose CI run 41184562534 was verified SUCCESS at job+step level this session
-  — build green transitively. Pushed per §1.14.
+- Docs+code session: R23 (rubberband gesture state → App fields) and R24
+  (suggestion maps → suggMu-guarded helpers + CI gui race leg) landed;
+  iterations 8/10/11 mapped clean; BUGS/MAP/HOT/WORKLOG updated. Full gui
+  suite green under the js leg; gate quick GREEN on both fixes. Pushed per
+  §1.14; native + race proofs dispatched to verify.yml.
 
 ## Session 333 — wipe #3, CI zombie dispatches, R18+R19 (2026-10-31)
 

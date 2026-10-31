@@ -26,11 +26,15 @@ This is not history — stale lines are lies.
   is now **v3 (go/ast, exact)** at `/home/z/my-project/scripts/pkgvar_scan_v3`
   (v2's regex let menu.go struct fields leak in as false positives).
   Iteration 10 menu.go CLEAN (pools already per-App; 3 P3 notes in MAP).
-  Iteration 11 webpage.go CLEAN too (maps mutex-guarded; webPhotoFailed is
-  dead state + per-frame JSON re-parse = 2 P4 notes in MAP; 2 of 3 top scan
-  suspects were already guarded — scan flags, read confirms). Next per the
-  queue in MAP: **suggestionbar.go (suggStates map — fetch-goroutine
-  writes?), then cornerreply.go + cornerreaction.go, richtext.go,
+  Iteration 11 webpage.go CLEAN (maps mutex-guarded; 2 P4 notes). Iteration
+  12 suggestionbar.go → **R24 FIXED**: suggStates/suggFetching/suggDismissed
+  had NO mutex — the fetch goroutine raced the GUI loop's every-frame reads
+  (fatal concurrent-map class, reachable at every boot; goroutine ≠ frame
+  so frameMu irrelevant). Six suggMu-guarded helpers; compile-seam RED test
+  hammers both sides; **verify.yml race leg extended to the gui concurrency
+  pins (R18/R23/R24) — js has no race detector, native CI is the proof;
+  READ THE DISPATCHED RUNS before trusting race green**. Next per the queue
+  in MAP: **cornerreply.go + cornerreaction.go, then richtext.go,
   instantview.go (ivDocDone watch item), msgshot.go, translatebar.go +
   profilemusic.go**.
   Gio harness lessons in MAP: pointer.Drag is not queueable

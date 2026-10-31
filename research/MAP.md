@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go — all clean but R23) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -532,6 +532,30 @@ cards + composer toggle; iteration 11, VERDICT: CLEAN, no R-number)
 - Card tap: HasIV → openInstantView (in-app reader), else openext browser
   pipeline with toast. Honest gating throughout (no thumb → no fake card).
 
+### suggestionbar.go (301 lines — session 334, read in full: the chat-list
+top-bar suggestion card; iteration 12, produced R24)
+- **R24 (fixed this session)**: suggStates/suggFetching/suggDismissed were
+  package maps with NO guard — the fetch goroutine (ensureSuggestionState)
+  deleted from suggFetching and wrote suggStates on completion while the
+  GUI loop read both maps EVERY frame (the bar mounts at sidebar.go:135 and
+  calls ensureSuggestionState per frame). Fatal concurrent-map class, one
+  window + one slow fetch, reachable at every boot and hourly TTL refresh.
+  Fixed with six suggMu-guarded helpers; the published struct is
+  immutable-after-build; inner dismissed maps stay GUI-loop-only.
+  TestSuggestionMapsAreGuarded (compile-seam RED, hammer both sides) +
+  the verify.yml race leg now runs the gui concurrency pins under -race
+  (js has no race detector — native CI is the proof; filtered to
+  R18/R23/R24 pins to hold the memory cap).
+- **Structure**: pickSuggestion = pure tdesktop-priority card chooser
+  (test-locked); the bar renders only when a card is active (honest empty);
+  dismiss = local map write + engine DismissSuggestion in a goroutine with
+  toast; suggestionActivated routes taps to real actions (openChat /
+  profile edit / premium page / external link).
+- **P4**: suggestionState.dismiss (:120) is dead code — zero callers (the
+  dismiss click writes via suggDismissedStore directly). Drop when touched.
+- suggBarBtn/suggCloseBtn package clickables: sidebar-mounted (main-window
+  only) — frameMu covers them; P3 fold-in with the other sidebar pools.
+
 ### Chunk-3 ranking queue (session 334 — scanner v3 (go/ast, exact) +
 separateChatView-reachability rule)
 Scanner history: v1 (regex) missed grouped var blocks; v2's `var ()` bug let
@@ -545,16 +569,14 @@ semantic bleed R14/R23 and outside-layout map writes R22/fatal).
 Main-window-only VERIFIED so far: swipeG (sidebar mount), business.go var
 block (settings.go:384), menu pools (now per-App), sidebar/dialog/login
 surfaces, notify_linux (separate windows skip the DBus server by design).
-Next-iteration queue (v3-exact, chat-surface first; webpage.go DONE — clean,
-   maps mutex-guarded, see its section):
-1. suggestionbar.go — suggStates map + suggFetching/suggDismissed; the bar
-   renders above the composer in the chat surface; fetch-goroutine writes?
-2. cornerreply.go — hoverMsgID/hoverChatOn (fed from processPaneEvents,
+Next-iteration queue (v3-exact, chat-surface first; webpage.go DONE clean,
+   suggestionbar.go DONE — R24 fixed, see its section):
+1. cornerreply.go — hoverMsgID/hoverChatOn (fed from processPaneEvents,
    chat pane) + cornerreaction.go favReactions/favAttempted
-3. richtext.go — linkTags (message-text rendering)
-4. instantview.go (1,738 ln) — ivDocDone watch item stands
-5. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
-6. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
+2. richtext.go — linkTags (message-text rendering)
+3. instantview.go (1,738 ln) — ivDocDone watch item stands
+4. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
+5. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
    musicList (profile panel = R22's surface)
 Watch item carried (verified: no clear-path anywhere): ivDocDone marks a
 photo done BEFORE DownloadIVPhoto runs and the error path returns silently
