@@ -5,6 +5,9 @@
 >    result). Never ask technical, architectural, or confirmation questions, and never
 >    wait for a yes — decide, log the call in WORKLOG, proceed. The only permitted asks
 >    are the GitHub token and owner-only rungs (§10), logged in BUGS.md.
+>    **Language:** reply in English only. Owner input in another language (e.g. Chinese)
+>    is an INSTRUCTION — interpret and execute it, still answering in English. Switch
+>    output language only when the owner explicitly asks.
 > 2. **"continue" = §0 Boot, then §3's atomic loop back-to-back** — chain work cycles
 >    until context grows heavy (~75%), rewrite STATE, push, yield cleanly.
 > 3. A finished phase, an empty BUGS.md, a green release — none of that is a stop. Work
