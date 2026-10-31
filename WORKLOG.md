@@ -8,10 +8,30 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 27 DONE — exportdlg.go (581→617 lines, read in full — the R34 sibling sweep #6); **R42** (exportDlgState write-races-layout: the engine-event goroutine's three handlers + the start-failure tail mutated running/progress/err/done in place → updateExportDlg copy-on-write, all six writer sites converted, accountID guards incl. the previously-unguarded start tail; ×4 pins, local -race clean, CI race-leg extended) + **R43** (exportOptsSynced never reset — checkbox pool seeded once per PROCESS; second open showed stale toggles while the fresh map held defaults → reset at open+close, R41's shape minus the atomic, GUI-loop-only flag; ×1 pin). Layer audit: the wizard is a contentDialogSurface peer — NO settings-shell matrix gap. Rows in BUGS, section in MAP. Sweep: 6 of 7 done (twofa.go next)
-- next: the R34 sibling sweep ends: twofa.go, instantview.go load tail (one iteration per file, order in MAP); after the sweep: the remaining unscanned gui files by size (media.go 1,186, giveaways.go 1,171, callsbox.go 1,089, poll.go 972, stories.go 960, …); CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40 **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**; pending: **41244407673** (R42+R43, 9b2cf32d)
+- item: iteration 28 DONE — twofa.go (661→726 lines, read in full — the R34 sibling sweep #7, the LAST named sibling); **R44** (twofaDlgState write-races-layout across THIRTEEN writer sites — four background tails with pointer-identity guards that don't stop frameMu reads + every GUI-loop click writer → updateTwoFADlg copy-on-write, accountID guards replacing identity guards which BREAK under copy-on-write; ×4 pins, local -race clean, CI race-leg extended) + **R45** (settings-row map never refreshed after a mutation — the row kept the pre-mutation On/Off until settings reopen while the comment promised server truth → refreshTwoFARowState fresh-map install, the R38 rule; ×1 pin). Layer audit: contentDialogSurface peer — no matrix gap. Rows in BUGS, section in MAP. **The named sweep is COMPLETE (7 of 7)**; only instantview.go's load tail remains from the watch list
+- ALSO this session: iteration 27 — exportdlg.go (**R42** + **R43**); R40/R41 CI proofs closed at job+step level; wipe #7 recovery
+- next: close the R34 systemic watch's last item — instantview.go's load tail (iv's docBusy already ivDocMu-guarded per the watch note: verify, then close the watch); after that: the remaining unscanned gui files by size (media.go 1,186, giveaways.go 1,171, callsbox.go 1,089, poll.go 972, stories.go 960, …); CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40 **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**; pending: **41244407673** (R42+R43, 9b2cf32d) + R44/R45's run this session
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local full GREEN — gofmt clean, full gui suite **893/893** (+5 R42/R43 pins), LOCAL -race clean on the new pin set (fresh-cache race build OOMs once on gotd/tg — the retry completes, cache carries progress); R42/R43 CI **41244407673** dispatched (9b2cf32d), pending verification at job+step level
+- last-gate: local full GREEN — gofmt clean, full gui suite **898/898** (+5 R44/R45 pins on top of R42/R43's 893), LOCAL -race clean on both new pin sets; R42/R43 CI **41244407673** in flight, R44/R45's dispatch next
+
+## Session 339 — iteration 28: twofa.go = R44 + R45 — the named sweep COMPLETE (2026-11-01)
+
+- **R44** (the R34 class, sweep #7 — the LAST named sibling): the 2FA
+  editor's state was mutated in place by four background tails (load,
+  mutation, refresh, cancel-email — all with pointer-identity guards
+  that don't stop the frameMu reads) AND every GUI-loop click writer.
+  updateTwoFADlg copy-on-write; guards switched to accountID (identity
+  breaks under copy-on-write); thirteen writer sites converted; the
+  lost-click class (a click writing to a frozen head) fixed with them.
+- **R45** (the R35 staleness class): the settings-row map was never
+  refreshed after a mutation — the row behind the dialog kept the
+  pre-mutation On/Off until settings reopen. refreshTwoFARowState
+  installs a fresh map (the R38 fresh-map rule), called from
+  twofaFinish's refresh.
+- GREEN: twofa_r44_test.go ×5, LOCAL -race clean, full gui suite
+  **898/898**. CI race-leg extended. Edits tab-exact via python
+  heredoc (scripts/r44_twofa_fix.py, 1-space-per-level literals + T()
+  expansion + gofmt -w safety net).
 
 ## Session 339 — iteration 27: exportdlg.go = R42 + R43 (2026-11-01)
 

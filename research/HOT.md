@@ -4,7 +4,7 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 339**: iterations 21-27 DONE — business.go
+- **P0 chunk 3, session 339**: iterations 21-28 DONE — business.go
   (R34+R35+R36), settingspremium.go (**R37**), settingsstars.go
   (**R38**, incl. the append-into-frame-visible-slice half — siblings
   with paging MUST build fresh slices, not append), foldermgr.go
@@ -13,10 +13,14 @@ This is not history — stale lines are lies.
   atomic.Bool, write-only busy state removed, matrix COMPLETE for every
   opener), exportdlg.go (**R42** + **R43** — the engine-event writers +
   start-tail via updateExportDlg; the never-reset checkbox seed flag;
-  contentDialogSurface peer, NO matrix gap). **Sibling sweep
-  ends** (one iteration per file, order in MAP): twofa.go →
-  instantview.go's load tail. Tab-exact python-heredoc edits
-  (scripts/r42_exportdlg_fix.py) dodge the Edit-tool gofmt trap.
+  contentDialogSurface peer, NO matrix gap), twofa.go (**R44** + **R45**
+  — THIRTEEN writer sites via updateTwoFADlg incl. GUI-loop clicks;
+  accountID guards REPLACE pointer-identity guards, which break under
+  copy-on-write; the settings-row map refresh via the R38 fresh-map
+  rule). **The named R34 sibling sweep is COMPLETE (7 of 7)** — only
+  instantview.go's load tail remains from the systemic watch (docBusy
+  already ivDocMu-guarded: verify, then close the watch). Tab-exact
+  python-heredoc edits dodge the Edit-tool gofmt trap.
 - **CI proofs**: ALL CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
   **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38
   **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40

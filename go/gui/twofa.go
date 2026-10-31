@@ -183,16 +183,18 @@ func (a *App) openTwoFADialog(accountID string) {
 	a.invalidate()
 	go func() {
 		st, err := a.eng.GetCloudPasswordState(accountID)
-		a.mu.Lock()
-		if cur := a.twofaDlg; cur != nil && cur == d {
+		a.updateTwoFADlg(func(cur *twofaDlgState) bool {
+			if cur.accountID != accountID {
+				return false
+			}
 			cur.loading = false
 			if err != nil {
 				cur.errMsg = err.Error()
 			} else {
 				cur.state = &st
 			}
-		}
-		a.mu.Unlock()
+			return true
+		})
 		a.invalidate()
 	}()
 }
@@ -205,13 +207,42 @@ func (a *App) closeTwoFADialog() {
 	a.invalidate()
 }
 
+// updateTwoFADlg (R44): copy-on-write installer — the R34/R40 discipline.
+// fn mutates a COPY of the editor state (returning false leaves the head
+// alone); the copy is installed under a.mu, never an in-place mutation, so
+// a frame that captured the old pointer keeps a frozen view while the
+// load and mutation tails swap the head. Guards are accountID-based (the
+// pointer-identity guards the tails used pre-fix break under copy-on-write:
+// every install swaps the pointer); accountID is install-immutable.
+func (a *App) updateTwoFADlg(fn func(d *twofaDlgState) bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.twofaDlg == nil {
+		return
+	}
+	next := *a.twofaDlg
+	if !fn(&next) {
+		return
+	}
+	a.twofaDlg = &next
+}
+
 // twofaFinish applies a mutation and refreshes the state card on success.
 func (a *App) twofaFinish(d *twofaDlgState, what string, call func() error) {
-	d.busy = true
+	accountID := d.accountID
+	a.updateTwoFADlg(func(cur *twofaDlgState) bool {
+		if cur.accountID != accountID {
+			return false
+		}
+		cur.busy = true
+		return true
+	})
 	go func() {
 		err := call()
-		a.mu.Lock()
-		if cur := a.twofaDlg; cur != nil && cur == d {
+		a.updateTwoFADlg(func(cur *twofaDlgState) bool {
+			if cur.accountID != accountID {
+				return false
+			}
 			cur.busy = false
 			if err != nil {
 				cur.errMsg = err.Error()
@@ -219,24 +250,47 @@ func (a *App) twofaFinish(d *twofaDlgState, what string, call func() error) {
 				cur.errMsg = ""
 				cur.step = twofaStepMain
 			}
-		}
-		a.mu.Unlock()
+			return true
+		})
 		if err != nil {
 			a.setToast(what + ": " + err.Error())
 		} else {
 			a.setToast(what)
 		}
-		// Refresh the live state either way (server truth wins).
-		if st, err := a.eng.GetCloudPasswordState(d.accountID); err == nil {
-			a.mu.Lock()
-			if cur := a.twofaDlg; cur != nil && cur == d {
+		// Refresh the live state either way (server truth wins) — the dialog
+		// card AND the settings-row map (R45: the row behind the dialog stayed
+		// stale until settings was reopened).
+		if st, err := a.eng.GetCloudPasswordState(accountID); err == nil {
+			a.updateTwoFADlg(func(cur *twofaDlgState) bool {
+				if cur.accountID != accountID {
+					return false
+				}
 				cur.state = &st
 				cur.loading = false
-			}
-			a.mu.Unlock()
+				return true
+			})
+			a.refreshTwoFARowState(accountID, st)
 		}
 		a.invalidate()
 	}()
+}
+
+// refreshTwoFARowState (R45): install the fresh server truth into the
+// settings-row map. Copy-on-write — the R38 fresh-map rule: the frame
+// carries the map, so it is replaced, never mutated in place. A nil map
+// (privacy not loaded yet) stays nil.
+func (a *App) refreshTwoFARowState(accountID string, st cores.CloudPasswordState) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.twofaStates == nil {
+		return
+	}
+	fresh := make(map[string]cores.CloudPasswordState, len(a.twofaStates)+1)
+	for k, v := range a.twofaStates {
+		fresh[k] = v
+	}
+	fresh[accountID] = st
+	a.twofaStates = fresh
 }
 
 // layoutTwoFADialog renders the 2FA editor (content-pane replacement like
@@ -265,8 +319,15 @@ func (a *App) layoutTwoFADialog(gtx layout.Context, f frame) layout.Dimensions {
 		a.closeTwoFADialog()
 	}
 	if twofaBackBtn.Clicked(gtx) {
-		d.step = twofaStepMain
-		d.errMsg = ""
+		acct := d.accountID
+		a.updateTwoFADlg(func(cur *twofaDlgState) bool {
+			if cur.accountID != acct {
+				return false
+			}
+			cur.step = twofaStepMain
+			cur.errMsg = ""
+			return true
+		})
 		a.invalidate()
 	}
 
@@ -364,17 +425,24 @@ func (a *App) twofaMainBody(gtx layout.Context, f frame, d *twofaDlgState) []lay
 		body = append(body, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if btn.Clicked(gtx) {
 				twofaClearEditors()
-				switch act {
-				case twofaActSet, twofaActChange:
-					d.step = twofaStepNew
-				case twofaActDisable:
-					d.step = twofaStepDisable
-				case twofaActSetEmail, twofaActChangeEmail:
-					d.step = twofaStepEmail
-				case twofaActConfirmEmail:
-					d.step = twofaStepEmailCode
-				}
-				d.errMsg = ""
+				acct := d.accountID
+				a.updateTwoFADlg(func(cur *twofaDlgState) bool {
+					if cur.accountID != acct {
+						return false
+					}
+					switch act {
+					case twofaActSet, twofaActChange:
+						cur.step = twofaStepNew
+					case twofaActDisable:
+						cur.step = twofaStepDisable
+					case twofaActSetEmail, twofaActChangeEmail:
+						cur.step = twofaStepEmail
+					case twofaActConfirmEmail:
+						cur.step = twofaStepEmailCode
+					}
+					cur.errMsg = ""
+					return true
+				})
 				a.invalidate()
 			}
 			bl := material.ButtonLayout(a.ui.Theme, btn)
@@ -418,7 +486,14 @@ func (a *App) twofaNewBody(gtx layout.Context, f frame, d *twofaDlgState) []layo
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if twofaSaveBtn.Clicked(gtx) && !d.busy {
 				if err := twofaValidateNew(hasCur, twofaCurEd.Text(), twofaNewEd.Text(), twofaNew2Ed.Text()); err != nil {
-					d.errMsg = err.Error()
+					acct := d.accountID
+					a.updateTwoFADlg(func(cur *twofaDlgState) bool {
+						if cur.accountID != acct {
+							return false
+						}
+						cur.errMsg = err.Error()
+						return true
+					})
 					a.invalidate()
 				} else {
 					cur, new1, hint := twofaCurEd.Text(), twofaNewEd.Text(), twofaHintEd.Text()
@@ -452,7 +527,14 @@ func (a *App) twofaDisableBody(gtx layout.Context, f frame, d *twofaDlgState) []
 			if twofaDisableBtn.Clicked(gtx) && !d.busy {
 				cur := twofaCurEd.Text()
 				if cur == "" {
-					d.errMsg = errTwoFACurrentRequired.Error()
+					acct := d.accountID
+					a.updateTwoFADlg(func(c *twofaDlgState) bool {
+						if c.accountID != acct {
+							return false
+						}
+						c.errMsg = errTwoFACurrentRequired.Error()
+						return true
+					})
 					a.invalidate()
 				} else {
 					twofaClearEditors()
@@ -488,11 +570,25 @@ func (a *App) twofaEmailBody(gtx layout.Context, f frame, d *twofaDlgState) []la
 			if twofaEmailBtn.Clicked(gtx) && !d.busy {
 				cur, email := twofaCurEd.Text(), twofaEmailEd.Text()
 				if email == "" || !twofaLooksLikeEmail(email) {
-					d.errMsg = "Enter a valid email address"
+					acct := d.accountID
+					a.updateTwoFADlg(func(c *twofaDlgState) bool {
+						if c.accountID != acct {
+							return false
+						}
+						c.errMsg = "Enter a valid email address"
+						return true
+					})
 					a.invalidate()
 				} else {
 					twofaClearEditors()
-					d.emailSent = email
+					acct := d.accountID
+					a.updateTwoFADlg(func(c *twofaDlgState) bool {
+						if c.accountID != acct {
+							return false
+						}
+						c.emailSent = email
+						return true
+					})
 					a.twofaFinishSendEmail(d, cur, email)
 				}
 			}
@@ -505,20 +601,29 @@ func (a *App) twofaEmailBody(gtx layout.Context, f frame, d *twofaDlgState) []la
 
 // twofaFinishSendEmail submits the email then advances to the code step.
 func (a *App) twofaFinishSendEmail(d *twofaDlgState, cur, email string) {
-	d.busy = true
-	go func() {
-		err := a.eng.SetCloudPasswordEmail(d.accountID, cur, email)
-		a.mu.Lock()
-		if cur2 := a.twofaDlg; cur2 != nil && cur2 == d {
-			cur2.busy = false
-			if err != nil {
-				cur2.errMsg = err.Error()
-			} else {
-				cur2.errMsg = ""
-				twofaGoToEmailCode(cur2)
-			}
+	accountID := d.accountID
+	a.updateTwoFADlg(func(c *twofaDlgState) bool {
+		if c.accountID != accountID {
+			return false
 		}
-		a.mu.Unlock()
+		c.busy = true
+		return true
+	})
+	go func() {
+		err := a.eng.SetCloudPasswordEmail(accountID, cur, email)
+		a.updateTwoFADlg(func(c *twofaDlgState) bool {
+			if c.accountID != accountID {
+				return false
+			}
+			c.busy = false
+			if err != nil {
+				c.errMsg = err.Error()
+			} else {
+				c.errMsg = ""
+				twofaGoToEmailCode(c)
+			}
+			return true
+		})
 		if err != nil {
 			a.setToast("Recovery email: " + err.Error())
 		} else {
@@ -551,7 +656,14 @@ func (a *App) twofaEmailCodeBody(gtx layout.Context, f frame, d *twofaDlgState) 
 			if twofaConfirmBtn.Clicked(gtx) && !d.busy {
 				code := twofaCodeEd.Text()
 				if code == "" {
-					d.errMsg = "Enter the code from the email"
+					acct := d.accountID
+					a.updateTwoFADlg(func(c *twofaDlgState) bool {
+						if c.accountID != acct {
+							return false
+						}
+						c.errMsg = "Enter the code from the email"
+						return true
+					})
 					a.invalidate()
 				} else {
 					twofaClearEditors()
@@ -570,17 +682,20 @@ func (a *App) twofaEmailCodeBody(gtx layout.Context, f frame, d *twofaDlgState) 
 				}()
 			}
 			if twofaCancelEmailBt.Clicked(gtx) && !d.busy {
+				acct := d.accountID
 				go func() {
-					if err := a.eng.CancelPasswordEmail(d.accountID); err != nil {
+					if err := a.eng.CancelPasswordEmail(acct); err != nil {
 						a.setToast("Cancel: " + err.Error())
 					} else {
 						a.setToast("Email change cancelled")
 					}
-					a.mu.Lock()
-					if cur := a.twofaDlg; cur != nil && cur == d {
+					a.updateTwoFADlg(func(cur *twofaDlgState) bool {
+						if cur.accountID != acct {
+							return false
+						}
 						cur.step = twofaStepMain
-					}
-					a.mu.Unlock()
+						return true
+					})
 					a.invalidate()
 				}()
 			}

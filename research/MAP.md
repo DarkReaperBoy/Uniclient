@@ -706,6 +706,57 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### twofa.go (661→726 lines — session 339, read in full: the Two-Step Verification (2FA cloud password) editor, slice 120, opened from Privacy & Security; chunk 3 iteration 28, the R34 sibling sweep #7 — the LAST named sibling, VERDICT: R44 + R45 fixed, rest CLEAN)
+- Scope: pure helpers (twofaMainActions/twofaValidateNew/twofaLooksLikeEmail/
+  twofaGoToEmailCode/twofaStateSummary/twofaRowValue — all pinned in
+  twofa_test.go), the editor lifecycle (open/close/load), the mutation
+  flows (twofaFinish/twofaFinishSendEmail + the cancel-email tail), the
+  five step bodies, the settings-row map (twofaStates).
+- **R44 FIXED**: the editor state was R34's pre-fix shape across THIRTEEN
+  writer sites — four background tails (load, mutation, refresh,
+  cancel-email) with pointer-identity guards (cur == d) that do not stop
+  the frameMu-side reads, plus every GUI-loop click writer (Back, action
+  rows, three form validations, emailSent). updateTwoFADlg(fn)
+  copy-on-write installer; guards are accountID-based — pointer identity
+  BREAKS under copy-on-write (every install swaps the pointer, a tail's
+  captured d would never match again); accountID is install-immutable
+  (written once at open, never by any fn). The engine-call closures keep
+  reading d.accountID lazily (the profileedit-blessed immutable-field
+  pattern). Converting the GUI-loop writers also fixes the lost-click
+  class (a click landing after a frame snapshot wrote to the frozen head
+  and vanished — a dead-looking button).
+- **R45 FIXED**: the settings-row map (twofaStates, loaded once by
+  loadPrivacy on openSettings) was never refreshed after a mutation —
+  the Privacy & Security row kept the pre-mutation On/Off until settings
+  was reopened, while twofaFinish's comment promised "server truth
+  wins". refreshTwoFARowState installs a FRESH map (copy + the one key)
+  under a.mu — the R38 fresh-map rule (the frame carries the map; an
+  in-place write would race the frameMu read exactly like R38's slice);
+  nil map stays nil (privacy not loaded yet).
+- **Layer audit — NO matrix gap**: the editor is a contentDialogSurface
+  peer (priority 15; the passcode lock outranks it — pinned by
+  TestContentPaneDialogSurfaceTwoFA). Coexistence by design; the
+  teardown nil in state.go:1483 is the wholesale dialog-clear block.
+- Rest of the file CLEAN: the busy-gate reads through the frame pointer
+  are frozen-view safe post-R44 (the busy=true installs happen
+  synchronously on the GUI loop, so the double-submit guard is sound);
+  the editors are package widgets rendered only in the main window's
+  content pane; twofaClearEditors runs on the GUI thread; the resend
+  button is toast-only (no state change); loadPrivacy is the documented
+  build-outside-lock install-under-lock shape.
+- GREEN: twofa_r44_test.go ×5 (TestTwoFADlgStateIsCopyOnWrite — hammer
+  over the real finish/sendemail entry points; TestUpdateTwoFADlgContract
+  — incl. the foreign-account guard; TestTwoFALoadTailLandsCopyOnWrite;
+  TestTwoFAFinishTailLandsCopyOnWrite; TestTwoFARowMapRefreshIsCopyOnWrite)
+  clean under LOCAL -race; CI race-leg extended with all five. Full gui
+  suite 898/898.
+- **The named R34 sibling sweep is COMPLETE (7 of 7)**. Remaining from
+  the systemic watch: instantview.go's load tail only (iv's docBusy is
+  already ivDocMu-guarded per the watch note — verify, then close the
+  watch item).
+
+
+
 ### exportdlg.go (581→617 lines — session 339, read in full: the Export-data takeout wizard, matrix row 208 / slice 100, opened from Settings → Data & Storage; chunk 3 iteration 27, the R34 sibling sweep #6, VERDICT: R42 + R43 fixed, rest CLEAN)
 - Scope: pure helpers (exportOptionGroups/parseExportSizeLimit/
   exportProgressPercent/exportErrorText/exportSettingsFromChecks/
@@ -922,8 +973,13 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   siblings), exportdlg.go (R42+R43, iteration 27 — the engine-event
   writers + start-failure tail through updateExportDlg; the never-reset
   checkbox seed flag; NO matrix gap: the wizard is a contentDialogSurface
-  peer, coexistence by design, callsbox_test pins the chain).** Remaining,
-  in read order: twofa.go (auth flows), plus instantview.go's load tail.
+  peer, coexistence by design, callsbox_test pins the chain), twofa.go
+  (R44+R45, iteration 28 — ALL thirteen writer sites through
+  updateTwoFADlg incl. the GUI-loop clicks, accountID guards replacing
+  the pointer-identity guards that break under copy-on-write; plus the
+  settings-row map refresh via the R38 fresh-map rule).** The named
+  sweep is COMPLETE; remaining from the watch list: instantview.go's
+  load tail only.
 
 
 
