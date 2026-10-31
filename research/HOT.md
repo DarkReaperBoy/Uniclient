@@ -11,11 +11,12 @@ This is not history — stale lines are lies.
   own release.yml). Re-enabled via API this session (full-scope token,
   decision logged in WORKLOG 333). The three old dispatches (41179924424 /
   41179413739 / 41177906124) are PERMANENT zombies — never enqueued, cancel
-  409s ("has not been queued yet"), delete 403s; ignore them. Fresh dispatch
-  on re-enable works: **41181306179** (b58d7a102 = HEAD) = the native proof
-  for R15+R14+R16+R17 — READ ITS RESULT next session before trusting native
-  green. If a run ever sits `queued` with zero in-progress runs again, check
-  `actions/permissions` FIRST, not runner starvation.
+  409s ("has not been queued yet"), delete 403s; ignore them. **41181306179
+  (b58d7a102) = SUCCESS — native proof for R15+R14+R16+R17, CI backlog
+  CLOSED.** **41182590400** (4883033a, dispatched this session) = native +
+  race-leg proof for R18+R19 — READ ITS RESULT next session before trusting
+  native green for those. If a run ever sits `queued` with zero in-progress
+  runs again, check `actions/permissions` FIRST, not runner starvation.
 - **P0 chunk 3 in flight** (per-file gui surfaces): DONE so far — chat.go,
   sidebar.go, chatsearch.go, shortcuts.go, settings.go (331-332), mediaview.go
   (333 — produced R18 viewer-Share deadlock + R19 cross-window viewer

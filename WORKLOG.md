@@ -8,10 +8,56 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: R15 + R16 + R17 fixed this session (runner false-green hole + R14 test self-deadlock; Ctrl+Tab dead shortcut; stale About version); chunk 3 iterations 1-5 DONE (chat.go, sidebar.go, chatsearch.go, shortcuts.go, settings.go)
-- next: read verify.yml run 41179413739 (native proof R15+R14+R16, on c4f733b4) and the post-R17 dispatch (see HOT) — then chunk 3 iteration 6 (next surface from MAP chunk table)
-- owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick GREEN (runner self-test + js vet + full gui suite with verdict discipline, 907 tests; audio leg green)
+- item: wipe #3 survived via env.sh recipe (zero loss); CI found repo-DISABLED → re-enabled (zombie dispatches diagnosed, 3 permanent); R18 + R19 fixed (viewer Share deadlock; cross-window viewer bookkeeping race); chunk 3 iterations 1-6 DONE (chat.go, sidebar.go, chatsearch.go, shortcuts.go, settings.go, mediaview.go)
+- next: read verify.yml 41182590400 (native+race proof R18/R19, on 4883033a) — then chunk 3 iteration 7 (next surface from MAP chunk table; candidates: profile.go 779, login.go 547, widgets.go 485, contacts.go 464, separate.go 359)
+- owner-waiting: re-enable Pages + cut v0.10.4 (NOTE: release.yml needs Actions — it was found disabled this session and re-enabled; if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
+- last-gate: quick GREEN (runner self-test 3/3, js vet, full gui suite incl. 2 new R18/R19 tests, audio leg green)
+
+## Session 333 — wipe #3, CI zombie dispatches, R18+R19 (2026-10-31)
+
+- Opened on a fully-wiped VM (wipe #3): tree + toolchain + mod cache gone.
+  Recovery per the env.sh header, ~5 min: clone (origin at b58d7a10), curl
+  go 1.27.0, `go mod download` (1.3G). Zero progress loss — the §1.14
+  recipe proven a third time; HOT.md updated.
+- STATE queued "read the starved verify runs": all three still `queued` with
+  ZERO in-progress runs and no self-hosted runners. Not starvation —
+  `actions/permissions` returned **enabled:false**: Actions was disabled at
+  the repo level sometime after the 07:16 dispatch. Decision (logged here,
+  no confirmation per the standing directive): re-enabled via API — the
+  workflow is dispatch-only and free on a public repo, the queued runs are
+  needed for §9.7 native proofs, and a disabled Actions also blocks the
+  OWNER's own queued item (release.yml for v0.10.4). One PUT, reversible.
+- The three old dispatches turned out to be **zombie runs**: accepted while
+  Actions was disabled, never enqueued; cancel 409s ("has not been queued
+  yet"), delete 403s. Permanent queue litter — documented, ignored. Fresh
+  dispatch on re-enable: **41181306179 = SUCCESS on b58d7a102** — the
+  native proof for R15+R14+R16+R17, CI backlog CLOSED.
+- Main work: **chunk 3 iteration 6 — mediaview.go mapped** (1,041 lines,
+  read in full; MAP.md entry). Two bugs fell out, both fixed same session:
+  - **R18 — the viewer Share button DEADLOCKED the window**: viewerShare
+    held a.mu across openForward, which locks a.mu itself (select.go:159) —
+    same-goroutine double-Lock, non-reentrant mutex, the R14/CI-41174703134
+    shape but on a live user path (reachable in every window; the other two
+    openForward callers were already correct). Fix: openForward outside the
+    lock. RED-first with a WATCHDOG (TestViewerShareCompletes, goroutine +
+    5 s deadline) so the failing shape fails fast instead of hanging the
+    runner — the R15 lesson applied. RED confirmed at runtime (5.01 s), then
+    GREEN with behavior assertions.
+  - **R19 — viewer box/scaled bookkeeping was package-level** (mvBoxW/H,
+    mvScaledW/H): layoutMediaView renders in BOTH Root branches, so two
+    windows with viewers open race on the four vars and one window's pan
+    clamp reads the other's box (B-47 class; the gesture fields were already
+    per-App — the box bookkeeping never got converted). Fix: App fields +
+    clamp methods. Compile-seam RED test
+    (TestViewerBoxBookkeepingIsPerWindow), GREEN after.
+- Verification: full gui suite green through the fixed runner; audio leg
+  green; gate quick GREEN (runner self-test 3/3 contracts inside the gate);
+  fresh verify.yml dispatched on the fix commit — **41182590400** (4883033a)
+  = native + race-leg proof for R18/R19, read next session.
+- Process note: the sandbox editing tool space-indented whole files on two
+  edits (raw diff 8.5k lines); caught via `git diff --stat` vs
+  `--ignore-all-space`, normalized with `gofmt -w` before commit. Final
+  commit diff is semantic-only (144 insertions).
 
 ## Session 332 — R15: the js test runner had a false-green hole; R14's test self-deadlocked (2026-10-31)
 
