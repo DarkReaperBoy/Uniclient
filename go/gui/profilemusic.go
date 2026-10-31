@@ -522,10 +522,23 @@ func (a *App) centerLoader(gtx layout.Context) layout.Dimensions {
 	})
 }
 
+// profileMusicSectionShown gates the Music section to windows that can
+// actually open the playlist: the tap-through is a content-pane dialog
+// (layoutContentPaneDialog), which only the MAIN window renders — the
+// separate branch returns before any dialog surface. A shown-but-dead
+// button there would violate §1.10 (R29).
+func profileMusicSectionShown(a *App) bool {
+	return !a.isSeparate()
+}
+
 // panelMusicSection renders the profile panel's Music section (tdesktop's
 // MusicButton: the first song + a tap-through to the playlist). Hidden
-// when the peer has no music (§1.10 — no dead UI).
+// when the peer has no music (§1.10 — no dead UI), and in separate
+// windows (R29 — the playlist is a main-window surface).
 func (a *App) panelMusicSection(gtx layout.Context, f frame) []layout.FlexChild {
+	if !profileMusicSectionShown(a) {
+		return nil
+	}
 	tracks := f.panelMusic
 	if len(tracks) == 0 {
 		return nil
