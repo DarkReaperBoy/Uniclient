@@ -7,11 +7,33 @@ on 2026-10-30 — it lives in git history if ever needed.)
 
 ## STATE
 
-- cycle: 2 | phase: P0 (chunked recon of never-mapped surfaces; the web surface closed in cycle 1)
-- item: gate.sh landed+verified; R10 closed (verified not-a-bug) — session 328
-- next: P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
+- cycle: 2 | phase: P0 (chunked recon; web surface closed in cycle 1)
+- item: constitution v3.3 landed; P0 chunk 1 (cmd/uniclient + bootstrap → research/MAP.md)
+- next: finish P0 chunk 1, then chunk 2 (gui state/mutex surfaces)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick GREEN + web GREEN this session (full E2E: s-tier + b1-b6, real Chrome, exit 0)
+- last-gate: quick + web GREEN session 328; docs-only since
+
+## Session 329 — constitution v3.3: human-sim law, push law, ladder provenance (2026-10-31)
+
+Owner directive (three adds, AGENTS.md-first gate):
+
+- Law 21 rewritten: the agent is the tester AND plays the app like a human —
+  (a) scenario-complete test design (zero/one/many, nil/empty/malformed/oversize,
+  boundaries, rapid repeats, interrupt-mid-action, offline); (b) goal-directed
+  journeys on the real app (boot, add account, every screen/menu, send/receive/
+  edit/delete) hunting jank/slowdown/logic-error ROOT causes → P2 fix, P4 optimize.
+- §1.14 sharpened: every atomic change commits AND pushes the moment it's green;
+  working files live in repo folders, never outside; only artifacts/toolchains
+  untracked; what is not on GitHub does not exist.
+- §4 intro: merging phases or skipping a gate = failure; ladder is stack-agnostic
+  (owner directive — hardens any program, any language). The owner's pasted
+  P0-P7 ladder was verified rule-by-rule against §4 + §1/§3: all 11 global rules
+  and all 8 phase gates were already law (merged in v3 from this same paste);
+  the explicit no-merge sentence is the only addition.
+- §9 gate.sh paragraph recompressed (it exists now — doc truth).
+- File: 305 lines (5 over the ~300 target — the price of two new directives;
+  next pure-docs session should reclaim).
+- Next: P0 chunk 1.
 
 ## Session 328 — gate.sh landed; R10 closed; toolchain recovered (2026-10-31)
 

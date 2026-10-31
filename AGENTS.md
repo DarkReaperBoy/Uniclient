@@ -2,9 +2,8 @@
 
 > **AUTONOMOUS EXECUTION MANDATE — read first.**
 > 1. The owner is **not a programmer** and only ever says "continue" (or reports a live-test
->    result). Never ask technical, architectural, or "should I continue?" questions. The only
->    permitted asks: the GitHub token (if missing from env) and owner-only rungs (§10) — log
->    those in BUGS.md and keep working.
+>    result). Never ask technical, architectural, or "should I continue?" questions — the
+>    only permitted asks are the GitHub token and owner-only rungs (§10), logged in BUGS.md.
 > 2. **"continue" = §0 Boot, then §3's atomic loop back-to-back** — chain work cycles
 >    until context grows heavy (~75%), rewrite STATE, push, yield cleanly.
 > 3. A finished phase, an empty BUGS.md, a green release — none of that is a stop. Take the
@@ -64,7 +63,10 @@ this file in the same commit. Keep it under ~300 lines.
     completely, not patched; a solid pure-Go library beats custom code.
 13. **Research → think → rate → plan → failing test → code → verify-against-real.**
     Dockerized server before official server. "It compiles" is not done.
-14. **Push after every unit of progress.** Only what is on GitHub survives VM resets.
+14. **Every atomic change: commit + push the moment it's green — the sandbox dies at
+    random.** Working files live in their repo folders (`scripts/`, `research/`, state
+    docs at root, tests beside code) — never outside the repo; only artifacts and
+    toolchains stay untracked. What is not on GitHub does not exist.
 15. **TeamSpeak & Mumble: 1:1 wire compatibility** with official protocols/clients, pinned
     to upstream test vectors, retested on public servers whenever protocol code changes.
 16. **Severity decides everything:** data-loss/crash > security > wrong behavior >
@@ -78,12 +80,15 @@ this file in the same commit. Keep it under ~300 lines.
 19. **If a change cannot be tested, it cannot be made.** Build the harness first.
 20. **Unspecified → do what a senior Unix engineer would do, then verify.** The bar is
     production-ready and rock solid.
-21. **No unplayed GUI — the agent is the tester, the owner never is.** Prove user-facing
-    behavior by DRIVING the real app yourself — a Puppeteer journey on the real wasm
-    (console clean) or native under Xvfb, screenshots actually looked at — and say what
-    you saw. Unit tests pin logic, never that a UI works: a green suite over an
-    undriven GUI is NOT done; more unit tests never substitute for playing it. No
-    journey → write it first. Sandbox can't → BLOCKED-env in BUGS.md, never "works".
+21. **The agent is the tester and plays the app like a human.** (a) Scenario-complete
+    tests — every test designed against the full matrix: zero/one/many, nil/empty/
+    malformed/oversize, boundaries, rapid repeats, interrupt-mid-action, offline.
+    (b) Goal-directed journeys on the REAL app (per change + standing passes): boot,
+    add an account, open every screen/menu, send/receive/edit/delete messages —
+    Puppeteer on the wasm or Xvfb+xdotool native — hunting jank, slowdowns, logic
+    errors at their ROOT cause, then fixing (P2 loop) and optimizing (P4). A green
+    unit suite never substitutes for playing it. No journey → write it first;
+    sandbox can't → BLOCKED-env in BUGS.md, never "works".
 
 ## 2. Architecture
 
@@ -158,8 +163,9 @@ STATE/BUGS/WORKLOG → commit → push → next item
 ## 4. The hardening cycle (endless)
 
 Cycle + phase live in the WORKLOG STATE block. A phase starts only when the previous EXIT
-GATE is met and recorded. Crash/data-loss/security findings interrupt any phase — fix via
-the loop, then resume. After P7: cycle += 1 and back to P2 with fresh lenses (redo P0 only
+GATE is met and recorded — merging phases or skipping a gate = failure. The ladder is
+stack-agnostic (owner directive 2026-10-31): it hardens any program, any language.
+Crash/data-loss/security findings interrupt any phase — fix via the loop, then resume. After P7: cycle += 1 and back to P2 with fresh lenses (redo P0 only
 for surfaces never mapped or heavily changed since). Dependency bumps are allowed in any
 phase as their own commits (§1.18). **Yield steering:** each P2 sweep records its finding
 count in WORKLOG; two consecutive zero-finding sweeps → shift weight to §7 parity rows,
@@ -281,11 +287,9 @@ change reaches rung 4.
 7. **CI = the release gate** (§5). Machine too small to compile gotd → `gh workflow run
    verify.yml`, watch the run, read logs + screenshots.
 
-`scripts/gate.sh` must exist from the first session on — writing it is that session's
-first commit if missing (enforcement is executable, not remembered): `quick` = gofmt +
-vet + tests on changed packages AND their importers, after every commit; `full` = every
-tier above except live, at phase ends / after dep bumps / before tags; `web` = the wasm
-build + the Puppeteer suite (until written, run the tiers directly).
+`scripts/gate.sh` exists — keep it true: `quick` (changed packages + importers) after
+every commit; `full` (every tier except live) at phase ends, dep bumps, pre-tag; `web`
+(wasm build + Puppeteer suite) for GUI work.
 
 ## 10. Owner-only rungs & pre-push invariants
 
