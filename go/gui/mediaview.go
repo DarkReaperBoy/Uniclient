@@ -302,7 +302,7 @@ func (a *App) viewerResetGesture() {
 	a.mvZoom = 1
 	a.mvPan = f32.Point{}
 	a.mvLastPressAt = time.Time{}
-	mvScaledW, mvScaledH = 0, 0
+	a.mvScaledW, a.mvScaledH = 0, 0
 }
 
 // chatTitleFor looks the chat title up (viewer top bar).
@@ -590,7 +590,7 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 	if boxW <= 0 || boxH <= 0 {
 		return layout.Dimensions{}
 	}
-	mvBoxW, mvBoxH = boxW, boxH
+	a.mvBoxW, a.mvBoxH = boxW, boxH
 
 	// Resolve the best available pixels: downloaded file → full image;
 	// otherwise the inline thumbnail. Decodes are async + cached; the next
@@ -633,7 +633,7 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 		if w <= 0 || h <= 0 {
 			w, h = boxW, boxH
 		}
-		mvScaledW, mvScaledH = float32(w), float32(h)
+		a.mvScaledW, a.mvScaledH = float32(w), float32(h)
 		return roundedFill(gtx, color.NRGBA{A: 0x30}, 0, func(gtx layout.Context) layout.Dimensions {
 			return layout.Dimensions{Size: image.Pt(w, h)}
 		})
@@ -642,7 +642,7 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 	w0, h0 := img.Bounds().Dx(), img.Bounds().Dy()
 	total := fitScale(w0, h0, boxW, boxH) * a.mvZoom
 	sw, sh := float32(w0)*total, float32(h0)*total
-	mvScaledW, mvScaledH = sw, sh
+	a.mvScaledW, a.mvScaledH = sw, sh
 
 	// Clamp pan so a zoomed image always covers the box.
 	a.mvPan = f32.Pt(
@@ -718,7 +718,7 @@ func (a *App) processViewerImageEvents(gtx layout.Context, f frame) {
 				a.mvPan.X = panAfterZoom(a.mvPan.X, pe.Position.X, cx, k)
 				a.mvPan.Y = panAfterZoom(a.mvPan.Y, pe.Position.Y, cy, k)
 				a.mvZoom = newZoom
-				a.mvPan = clampViewerPan2(a.mvPan, mvScaledW*k, mvScaledH*k)
+				a.mvPan = a.clampPan(a.mvPan, a.mvScaledW*k, a.mvScaledH*k)
 				a.mvLastPressAt = time.Time{} // fresh pair needed for next toggle
 				a.invalidate()
 			} else {
@@ -730,7 +730,7 @@ func (a *App) processViewerImageEvents(gtx layout.Context, f frame) {
 			if a.mvZoom > 1.01 {
 				a.mvPan.X += pe.Position.X - last.X
 				a.mvPan.Y += pe.Position.Y - last.Y
-				a.mvPan = clampViewerPanNow(a.mvPan)
+				a.mvPan = a.clampPanNow(a.mvPan)
 				a.invalidate()
 			}
 			last = pe.Position
@@ -740,29 +740,24 @@ func (a *App) processViewerImageEvents(gtx layout.Context, f frame) {
 	}
 }
 
-// clampViewerPanNow clamps pan with the last painted image size (one frame
-// stale at most — every pan invalidates).
-func clampViewerPanNow(pan f32.Point) f32.Point {
-	return clampViewerPan2(pan, mvScaledW, mvScaledH)
+// clampPanNow clamps pan with THIS window's last painted image size (one
+// frame stale at most — every pan invalidates).
+func (a *App) clampPanNow(pan f32.Point) f32.Point {
+	return a.clampPan(pan, a.mvScaledW, a.mvScaledH)
 }
 
-// clampViewerPan2 clamps pan against the center box (mvBoxW/H globals).
-func clampViewerPan2(pan f32.Point, scaledW, scaledH float32) f32.Point {
-	if scaledW <= 0 || scaledH <= 0 || mvBoxW <= 0 || mvBoxH <= 0 {
+// clampPan clamps pan against this window's center box (a.mvBoxW/H —
+// per-App frame-loop bookkeeping, R19: never package-level again; two
+// windows can each have a viewer open, app.go Root renders both branches).
+func (a *App) clampPan(pan f32.Point, scaledW, scaledH float32) f32.Point {
+	if scaledW <= 0 || scaledH <= 0 || a.mvBoxW <= 0 || a.mvBoxH <= 0 {
 		return pan
 	}
 	return f32.Pt(
-		clampPanAxis(pan.X, scaledW, float32(mvBoxW)),
-		clampPanAxis(pan.Y, scaledH, float32(mvBoxH)),
+		clampPanAxis(pan.X, scaledW, float32(a.mvBoxW)),
+		clampPanAxis(pan.Y, scaledH, float32(a.mvBoxH)),
 	)
 }
-
-// mvBox/mvScaled carry the last frame's viewer center box + painted image
-// size (frame-loop bookkeeping, single GUI goroutine).
-var (
-	mvBoxW, mvBoxH       int
-	mvScaledW, mvScaledH float32
-)
 
 // viewerCaption: sender + message text under the image.
 func (a *App) viewerCaption(gtx layout.Context, f frame) layout.Dimensions {
@@ -914,8 +909,12 @@ func (a *App) viewerShare(v *viewerState, it engine.SharedMediaItem) {
 		SenderName:  it.SenderName,
 		ContentText: it.Text,
 	}
-	a.mu.Lock()
+	// openForward locks a.mu ITSELF (select.go) and hops widget state — it
+	// must never be called with a.mu held: Go mutexes are non-reentrant, and
+	// holding it here deadlocked the whole window on Share (R18; the same
+	// double-lock shape CI 41174703134 caught in the R14 test).
 	a.openForward([]engine.CachedMessage{m})
+	a.mu.Lock()
 	a.viewer = nil
 	a.mu.Unlock()
 	a.viewerResetGesture()

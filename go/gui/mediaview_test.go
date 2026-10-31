@@ -2,6 +2,9 @@ package gui
 
 import (
 	"testing"
+	"time"
+
+	"gioui.org/f32"
 
 	"uniclient/engine"
 )
@@ -166,5 +169,54 @@ func TestViewerIsVideo(t *testing.T) {
 	}
 	if viewerIsVideo(engine.SharedMediaItem{MediaType: engine.MediaImage}) {
 		t.Error("image should not be video")
+	}
+}
+
+// R18: the viewer's Share button used to deadlock the whole window —
+// viewerShare held a.mu across openForward, which locks a.mu again (Go
+// mutexes are non-reentrant; the same shape CI run 41174703134 caught in
+// the R14 test). A watchdog, not a parked call: the failing shape must
+// FAIL fast instead of hanging the runner.
+func TestViewerShareCompletes(t *testing.T) {
+	a := &App{}
+	v := &viewerState{accountID: "acct", chatID: "chat", chatTitle: "t", kind: "image", anchor: "m1"}
+	it := engine.SharedMediaItem{MsgID: "m1", SenderName: "s", Text: "caption"}
+	done := make(chan struct{})
+	go func() {
+		a.viewerShare(v, it)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("viewerShare deadlocked: it must not hold a.mu across openForward (which locks a.mu itself) — R18")
+	}
+	a.mu.Lock()
+	fwd := a.fwd
+	viewer := a.viewer
+	a.mu.Unlock()
+	if len(fwd) != 1 || fwd[0].MsgID != "m1" {
+		t.Fatalf("share did not hand the viewed message to the forward picker: got %v", fwd)
+	}
+	if viewer != nil {
+		t.Fatal("share must close the viewer behind the forward picker")
+	}
+}
+
+// R19: the viewer's box/scaled bookkeeping used to be package-level vars —
+// but layoutMediaView renders in BOTH window branches (app.go Root), so two
+// windows' GUI loops raced on them and one window's clamp math read the
+// other window's box (B-47 class). The fields must live on App, per window.
+func TestViewerBoxBookkeepingIsPerWindow(t *testing.T) {
+	a, b := &App{}, &App{}
+	a.mvBoxW, a.mvBoxH = 100, 50
+	a.mvScaledW, a.mvScaledH = 300, 150
+	if b.mvBoxW != 0 || b.mvBoxH != 0 || b.mvScaledW != 0 || b.mvScaledH != 0 {
+		t.Fatal("viewer box bookkeeping leaked across App instances: package-level state (R19)")
+	}
+	// The drag clamp must use THIS window's last painted size, not another
+	// window's (the pre-fix clampViewerPanNow read package globals).
+	if p := a.clampPanNow(f32.Pt(9999, 0)); p.X > 100 {
+		t.Fatalf("clamp against a 300-wide image in a 100-wide box: got pan.X=%v, want <=100", p.X)
 	}
 }

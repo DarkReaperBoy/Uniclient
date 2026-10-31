@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + R18, R19) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -326,3 +326,56 @@ iteration 5, produced R17)
   bumped + TestAppVersionMatchesReleaseLine pins appVersion == flake.nix
   version (the string release.yml enforces against the tag); About shortcut
   list gained the Ctrl+Tab row (R16 parity), pinned by TestShortcutRows.
+
+### mediaview.go (1,041 lines — session 333, read in full: the fullscreen
+media viewer; iteration 6, produced R18 + R19)
+- **Structure**: viewerState (a.viewer, mu-guarded pointer, frame reads via
+  snapshot) = account/chat/kind/anchor/items/index/loaded/deleting. Two
+  entry points: openViewerFromMsg (tapped bubble → synthetic item shows
+  instantly, filmstrip backfills async via GetSharedMedia in a goroutine
+  with account+chat+kind staleness guard, mergeViewerItems splices the
+  anchor if the kind filter excluded it) and openViewerAt (info-panel
+  gallery, same async fill). closeViewer releases the h264 stream reader +
+  pauses its own audio track immediately instead of waiting for the
+  48-entry eviction (B-4/B-9 honored).
+- **Layout chain** (renders in BOTH Root branches — app.go :65 separate,
+  :104 main; overlays everything below toast/shortcuts): key layer (Esc/
+  arrows), press-to-close backdrop, scrim, top bar (close | title+date |
+  folder-reveal/save/share/PiP/delete), center (aspect-fit image or video
+  poster + zoom-pan gestures + side chevrons + play badge), caption,
+  video transport (zero-height unless a live player), filmstrip (52px
+  thumbs, accent backing on current), live download progress row, delete
+  confirmation card last (on top).
+- **Zoom/pan model**: double-click toggles fit↔2.5x anchored at the cursor
+  (panAfterZoom keeps the point stationary, 350ms/10dp double-click
+  window), drag pans while zoomed, clampPanAxis keeps edges reachable and
+  centers an axis smaller than the box. All gesture state per-App frame-
+  loop fields. Pure helpers unit-tested.
+- **Actions, all engine-backed** (§1.10): save = copy local / download-
+  then-copy (setSaveOnDone); share → forward picker; play = in-app h264
+  when downloaded, ranged-stream when not (slice 229), system-player
+  fallback for audio-bearing containers; delete = confirm card → engine
+  DeleteMessage with revoke=IsOutgoing; PiP pop-out keeps the decoder.
+- **R18 (fixed this session)**: viewerShare held a.mu across openForward
+  (which locks a.mu itself) → same-goroutine double-Lock = the Share
+  button DEADLOCKED the whole window. Fixed by calling openForward outside
+  the lock; RED-first watchdog test (TestViewerShareCompletes, 5s deadline
+  — fails fast, does not park the runner; the R15 lesson).
+- **R19 (fixed this session)**: mvBoxW/H + mvScaledW/H were PACKAGE vars —
+  both windows' GUI loops write them every frame (viewer renders in both
+  branches) → cross-window data race + one window's pan clamp reading the
+  other's box. Moved to per-App frame-loop fields; clamps became methods
+  (a.clampPan/a.clampPanNow). Compile-seam RED test
+  (TestViewerBoxBookkeepingIsPerWindow, the F-90/R14 pattern).
+- Lock discipline otherwise clean: GetSharedMedia/RequestDownload/
+  DeleteMessage all in goroutines; a.mu only around short field sets;
+  package caches with their OWN locks (h264Players mutex + snapshot-only
+  access; mediaImgs get/store/start/fail) are cross-window-safe by design.
+  Input tags (viewerKeyTag/viewerBgTag/viewerImgTag) are shared identities
+  — fine, each window routes events on its own queue.
+- Watch item (minor, P3): viewerProgress reads f.downloads per frame —
+  fine; the filmstrip re-decodes thumbs through mediaImgs per paint (cache
+  hits after first frame; pending-map dedupes in-flight decodes) — no
+  action. The "file:"-keyed cache resets wholesale at 256 entries — a
+  large album walked via filmstrip can thrash decodes (P4 churn family
+  lens, unmeasured).

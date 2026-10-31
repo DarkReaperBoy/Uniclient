@@ -17,9 +17,13 @@ This is not history — stale lines are lies.
   green. If a run ever sits `queued` with zero in-progress runs again, check
   `actions/permissions` FIRST, not runner starvation.
 - **P0 chunk 3 in flight** (per-file gui surfaces): DONE so far — chat.go,
-  sidebar.go, chatsearch.go, shortcuts.go, settings.go (sessions 331-332;
-  R16 and R17 came out of the last two). MAP.md chunk table is the tracker;
-  chunk 2 (state core) DONE; R14-R17 all FIXED.
+  sidebar.go, chatsearch.go, shortcuts.go, settings.go (331-332), mediaview.go
+  (333 — produced R18 viewer-Share deadlock + R19 cross-window viewer
+  bookkeeping race, both FIXED). MAP.md chunk table is the tracker; chunk 2
+  (state core) DONE; R14-R19 all FIXED. Next iteration: next surface from the
+  MAP chunk table (candidates by size: profile.go 779, login.go 547,
+  widgets.go 485, contacts.go 464; separate.go 359 is small but central to
+  the multi-window theme).
 - **Watch item needing reference verification (law 22/23)**: failed send loses
   the typed text (composer cleared before the async result; tdesktop keeps it)
   — chat.go trySubmitComposer + inline-bot/music-attach/sticker send paths.

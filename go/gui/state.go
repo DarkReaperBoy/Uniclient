@@ -641,6 +641,12 @@ type App struct {
 	mvPan          f32.Point
 	mvLastPressAt  time.Time
 	mvLastPressPos f32.Point
+	// media viewer box/scaled bookkeeping (frame-loop only, PER WINDOW —
+	// R19): the center box + last painted image size, read by the pan
+	// clamp. Was package-level: layoutMediaView renders in BOTH window
+	// branches (app.go Root), so two windows' GUI loops raced on them.
+	mvBoxW, mvBoxH       int
+	mvScaledW, mvScaledH float32
 }
 
 func New(win *app.Window, eng *engine.Engine) *App {
