@@ -9,9 +9,9 @@ on 2026-10-30 — it lives in git history if ever needed.)
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
 - item: iterations 18-19 DONE — R30 (19 dead openers in separate windows) + R31 (four unguarded async a.messages installers → a.uiGen generation counter, 12 bump sites, 4 guarded extracted installers); rows in BUGS Fixed, sections in MAP (19 dead openers across 9 every-window surfaces; header/attach/member/saved-list menus + mute clock + Filter-Like-This + prepaid Launch + call rating + Ctrl+J contacts + the call bar's JOIN-then-mode-1 orphaned call; row in BUGS, method + section in MAP, deadopeners_r30_test.go ×7). boostGiveawayBtn found DORMANT (never rendered anywhere — watch item in MAP, not §1.10)
-- next: read R31 CI proof result, then state.go part 2 (downloads/auth/composer 1115-1340 & 1416-1747, cfg/load*/apply* 1748-2837) and the unscanned gui files — the remaining unscanned gui files and state.go's remaining body (refreshMessages/mergeMessages 892-969, downloads/auth/composer, cfg/load*/apply* 1748-2837)
+- next: read verify.yml 41213092936 (2970c0c2 — R31 proof, IN FLIGHT), then state.go part 2 (downloads/auth/composer 1115-1340 & 1416-1747, cfg/load*/apply* 1748-2837) and the unscanned gui files — the remaining unscanned gui files and state.go's remaining body (refreshMessages/mergeMessages 892-969, downloads/auth/composer, cfg/load*/apply* 1748-2837)
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local quick GREEN (gofmt/vet/full gui suite ×2 incl. 4 R31 tests); R30 proof **41211044402 (8862c468) = SUCCESS at job+step level**; R31 CI dispatch pending
+- last-gate: local quick GREEN (gofmt/vet/full gui suite ×2 incl. 4 R31 tests); R30 proof **41211044402 (8862c468) = SUCCESS at job+step level**; R31 CI proof dispatched: **41213092936 (2970c0c2) — READ ITS RESULT next session**
 
 ## Session 336 — iteration 18: the R29 systemic sweep = R30 (2026-10-31)
 

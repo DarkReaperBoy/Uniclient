@@ -14,8 +14,8 @@ This is not history — stale lines are lies.
   guard (a chat/scope switch mid-fetch installed the old view's window +
   msgFor into the new view — sends resolve via msgFor) → a.uiGen
   generation counter (12 bump sites) + guarded extracted installers,
-  deadinstalls_r31_test.go ×4; **R31 CI dispatch pending — read its
-  result next session**. Next: state.go part 2 (downloads/auth/composer,
+  deadinstalls_r31_test.go ×4; **R31 CI proof dispatched:
+  41213092936 (2970c0c2) — read its result next session**. Next: state.go part 2 (downloads/auth/composer,
   cfg/load*/apply* tail) + unscanned gui files.
 - **Proofs (session 335, all landed)**: R25 proof **41205692894
   (bf9ea2bf) = SUCCESS** and R27 proof **41206658703 (d029af30) =
