@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36, settingspremium.go + R37, settingsstars.go + R38 — the R34 sibling sweep: 2 of 7 done) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36, settingspremium.go + R37, settingsstars.go + R38, foldermgr.go + R39 — the R34 sibling sweep: 3 of 7 done) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -706,6 +706,28 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### foldermgr.go (501→543 lines — session 338, read in full: the chat-folders manager settings page; chunk 3 iteration 24, the R34 sibling sweep #3, VERDICT: R39 fixed, rest CLEAN)
+- Scope: pure helpers (chats label, suggests-visible filter, swapFolderIDs
+  — test-locked), page lifecycle (open/close/load/reload), server-side
+  reorder + delete (async + toast + reload), suggested-folder seeding into
+  the create dialog, rows + account chips + entry card.
+- **R39 FIXED**: folderMgrState load tail + reload mutated in place under
+  a.mu vs layout reads via the frame pointer → updateFolderMgr copy-on-write
+  (the R34 fix). PLUS the settings-shell exclusivity matrix completed:
+  openFolderMgr now nils all five siblings, openPremiumPage gained the
+  missing starsPage nil (the gap was reachable via suggestionbar.go:352's
+  premium opener; shadow order made it benign but a stale page resurrected
+  after close). **Matrix audit result**: openStarsPage/openBusinessPage
+  complete; openProfileEdit misses 4 siblings, openStickerMgr misses 3 —
+  complete them in those files' own iterations.
+- Rest of the file CLEAN: reorder/delete capture values before their
+  goroutines (acc/folder/nums); non-numeric folder IDs skip the reorder
+  honestly; openFolderDlgSuggested installs a fresh dialog state.
+- Sibling sweep: stickermanager.go next (then profileedit.go, exportdlg.go,
+  twofa.go, instantview.go's load tail — carry the matrix completion there).
+
+
+
 ### settingsstars.go (545→588 lines — session 338, read in full: the Telegram Stars settings page; chunk 3 iteration 23, the R34 sibling sweep #2, VERDICT: R38 fixed, rest CLEAN)
 - Scope: pure helpers (formatStars/txn labels/status chips, filter tabs —
   test-locked), page lifecycle (open/close/load with append mode/filter/
@@ -797,9 +819,11 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   serialized by shotMu). **DONE: settingspremium.go (R37, iteration 22),
   settingsstars.go (R38, iteration 23 — including the deeper append-into-
   frame-visible-slice half; future siblings with append/paging shapes must
-  build fresh slices the same way).** Remaining, in read order:
-  foldermgr.go, stickermanager.go, profileedit.go, exportdlg.go, twofa.go
-  (auth flows), plus instantview.go's load tail.
+  build fresh slices the same way), foldermgr.go (R39, iteration 24 —
+  plus the settings-shell exclusivity matrix: openProfileEdit still misses
+  4 siblings and openStickerMgr 3; complete them in their iterations).**
+  Remaining, in read order: stickermanager.go, profileedit.go,
+  exportdlg.go, twofa.go (auth flows), plus instantview.go's load tail.
 
 
 

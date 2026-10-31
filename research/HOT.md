@@ -4,22 +4,23 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 338 (2026-11-01)**: iterations 21-23 DONE —
+- **P0 chunk 3, session 338 (2026-11-01)**: iterations 21-24 DONE —
   business.go (R34+R35+R36), settingspremium.go (**R37**), settingsstars
   .go (**R38**, incl. the append-into-frame-visible-slice half — siblings
-  with paging MUST build fresh slices, not append). R34 = the systemic
-  one: frame-carried sub-page structs mutated in place by background
-  tails under a.mu vs layout reads under frameMu — all three files now
-  install copies via their update<Page> helper. **Sibling sweep
-  continues** (one iteration per file, order in MAP): foldermgr.go →
-  stickermanager.go → profileedit.go → exportdlg.go → twofa.go →
-  instantview.go's load tail.
+  with paging MUST build fresh slices, not append), foldermgr.go (**R39**
+  + the settings-shell exclusivity matrix: openProfileEdit still misses
+  4 siblings, openStickerMgr 3 — complete them in their iterations). R34
+  = the systemic one: frame-carried sub-page structs mutated in place by
+  background tails under a.mu vs layout reads under frameMu — all four
+  files now install copies via their update<Page> helper. **Sibling sweep
+  continues** (one iteration per file, order in MAP): stickermanager.go →
+  profileedit.go → exportdlg.go → twofa.go → instantview.go's load tail.
 - **CI proofs**: R32/R33 CLOSED — **41222152669 (be7541e4) = SUCCESS at
-  job AND step level**. In progress: **41236970838** (R34-R36, f14028a6),
-  **41237343094** (R37, e6de37fc); the R38 commit's dispatch goes out
-  with it — verify EACH at job+step level (the race leg carries R34×2 +
-  R37×2 + R38×3 pins). Local -race on the gui package fits the box
-  (proven 337/338 — use it before falling back to CI).
+  job AND step level**. Pending: **41236970838** (R34-R36, f14028a6),
+  **41237343094** (R37, e6de37fc), the R38 run (6fdb1835) and the R39
+  dispatch — verify EACH at job+step level (the race leg carries R34×2 +
+  R37×2 + R38×3 + R39×3 pins). Local -race on the gui package fits the
+  box (proven 337/338 — use it before falling back to CI).
 - **Wipe #6 (session 338 boot)**: repo + toolchain + download/ copies
   gone; the upload token file survived. Full recipe re-run from zero
   (clone → go1.27.1 tarball → mod download → devroot-setup), ~10 min.

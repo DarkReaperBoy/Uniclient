@@ -143,10 +143,11 @@ func (a *App) updatePremiumPage(fn func(st *premiumPageState) bool) *premiumPage
 func (a *App) openPremiumPage(accountID string) {
 	a.mu.Lock()
 	a.premiumPage = &premiumPageState{accountID: accountID, loading: true}
-	a.profileEdit = nil // one sub-page at a time (settings shell)
-	a.stickerMgr = nil
-	a.folderMgr = nil
-	a.businessPage = nil
+	a.profileEdit = nil  // one sub-page at a time (settings shell) — the
+	a.stickerMgr = nil   // exclusivity matrix: every open<Page> nils every
+	a.folderMgr = nil    // sibling (R39 completed this one — starsPage was
+	a.businessPage = nil // missing; suggestionbar's premium opener made the
+	a.starsPage = nil    // gap reachable, the shell's shadow order benign)
 	a.mu.Unlock()
 	go a.loadPremiumPage(accountID)
 	a.invalidate()

@@ -87,13 +87,38 @@ var (
 	folderMgrAcctBtns []widget.Clickable
 )
 
+// updateFolderMgr applies fn to a COPY of the live Folders manager state
+// and installs the copy under a.mu — R34's copy-on-write contract (R39,
+// the third sibling swept): the struct a frame holds stays immutable for
+// that frame's life, so the load tail cannot write-race the layout's
+// field reads. fn re-validates staleness itself (accountID match); false
+// aborts the install. Returns the installed copy, or nil when the page
+// is closed / fn aborted.
+func (a *App) updateFolderMgr(fn func(st *folderMgrState) bool) *folderMgrState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.folderMgr == nil {
+		return nil
+	}
+	next := *a.folderMgr
+	if !fn(&next) {
+		return nil
+	}
+	a.folderMgr = &next
+	return &next
+}
+
 // openFolderMgr starts the manager for an account and loads its data.
 func (a *App) openFolderMgr(accountID string) {
 	a.mu.Lock()
 	a.folderMgr = &folderMgrState{accountID: accountID, loading: true}
-	a.profileEdit = nil // one sub-page at a time (settings shell)
-	a.stickerMgr = nil
-	a.businessPage = nil
+	a.profileEdit = nil  // one sub-page at a time (settings shell) — the
+	a.stickerMgr = nil   // matrix is COMPLETE now: every open<Page> nils
+	a.businessPage = nil // every sibling (openFolderMgr used to miss
+	a.premiumPage = nil  // premium/stars, openPremiumPage missed stars —
+	a.starsPage = nil    // reachable via suggestionbar's premium opener;
+	// the shell's shadow order made it benign but a stale page
+	// reappeared after close)
 	a.mu.Unlock()
 	go a.loadFolderMgr(accountID)
 	a.invalidate()
@@ -111,24 +136,23 @@ func (a *App) closeFolderMgr() {
 func (a *App) loadFolderMgr(accountID string) {
 	folders, errF := a.eng.GetFolders(accountID)
 	suggested, errS := a.eng.GetSuggestedFolders(accountID)
-	a.mu.Lock()
-	st := a.folderMgr
-	if st == nil || st.accountID != accountID {
-		a.mu.Unlock()
-		return
-	}
-	st.loading = false
-	if errF != nil {
-		st.err = errF.Error()
-	} else {
-		st.err = ""
-		st.loaded = true
-		st.folders = folders
-	}
-	if errS == nil {
-		st.suggested = suggested
-	}
-	a.mu.Unlock()
+	a.updateFolderMgr(func(n *folderMgrState) bool {
+		if n.accountID != accountID {
+			return false // closed or switched mid-fetch
+		}
+		n.loading = false
+		if errF != nil {
+			n.err = errF.Error()
+		} else {
+			n.err = ""
+			n.loaded = true
+			n.folders = folders
+		}
+		if errS == nil {
+			n.suggested = suggested
+		}
+		return true
+	})
 	a.invalidate()
 }
 
@@ -173,13 +197,12 @@ func (a *App) applyFolderMgrDelete(st *folderMgrState, folder engine.FolderInfo)
 
 // reloadFolderMgr re-pulls after a mutation.
 func (a *App) reloadFolderMgr() {
-	a.mu.Lock()
 	acc := ""
-	if st := a.folderMgr; st != nil {
-		acc = st.accountID
-		st.loading = true
-	}
-	a.mu.Unlock()
+	a.updateFolderMgr(func(n *folderMgrState) bool {
+		acc = n.accountID
+		n.loading = true
+		return true
+	})
 	if acc != "" {
 		go a.loadFolderMgr(acc)
 	}
