@@ -23,12 +23,17 @@ This is not history — stale lines are lies.
   frame, so layout-only package state cannot data-race — residual bug shapes
   are semantic cross-window bleed (R14/R23) and outside-layout writes
   (R22-class maps). Chunk-3 ranking queue + this lens live in MAP; scanner
-  at `scripts/pkgvar_write_scan.py` (v2 — grouped var blocks). Next:
-  menu.go (25 label write-sites + context menus in separate windows), then
-  richtext.go, instantview.go (ivDocDone watch item), msgshot.go,
-  cornerreply.go, profilemusic.go. Gio harness lessons in MAP: pointer.Drag
-  is not queueable (Move-while-pressed synthesizes Drag), pane-coord
-  boundaries make edge presses miss rows.
+  is now **v3 (go/ast, exact)** at `/home/z/my-project/scripts/pkgvar_scan_v3`
+  (v2's regex let menu.go struct fields leak in as false positives).
+  Iteration 10 menu.go CLEAN (pools already per-App; 3 P3 notes in MAP).
+  Next per the v3-reshuffled queue in MAP: **webpage.go (webPhotoDone/
+  webPhotoFailed MAPS in link previews — R22 fatal class if download
+  goroutines write them), then suggestionbar.go (suggStates map),
+  cornerreply.go + cornerreaction.go, richtext.go, instantview.go
+  (ivDocDone watch item), msgshot.go, translatebar.go + profilemusic.go**.
+  Gio harness lessons in MAP: pointer.Drag is not queueable
+  (Move-while-pressed synthesizes Drag), pane-coord boundaries make edge
+  presses miss rows.
 - Toolchain recovery recipe: `scripts/env.sh` header steps 1-5 — proven through
   **wipe #3** (session 333: full re-download of go 1.27.0 + mod-cache refill
   1.3G). VM wipes are routine — source it first thing. web-test node_modules +
