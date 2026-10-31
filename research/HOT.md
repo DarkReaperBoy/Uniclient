@@ -16,9 +16,7 @@ This is not history — stale lines are lies.
   (**R23 FIXED**: package-level gesture state vs per-App selOn — other
   window's frame killed in-flight rubber-band drags or painted phantom
   rects; moved to App fields; TestRubberBandGestureIsPerWindow drives the
-  real overlay via input.Router; gate quick GREEN; **native proof = verify.yml
-  41188229919 (ea3b12ac) — READ ITS RESULT before trusting native green
-  for R23**).
+  real overlay via input.Router; gate quick GREEN; native proof 41188229919 = **SUCCESS** at job level, all 5 legs).
   **frameMu discovery (load-bearing)**: Root() holds frameMu for the entire
   frame, so layout-only package state cannot data-race — residual bug shapes
   are semantic cross-window bleed (R14/R23) and outside-layout writes
@@ -33,7 +31,9 @@ This is not history — stale lines are lies.
   so frameMu irrelevant). Six suggMu-guarded helpers; compile-seam RED test
   hammers both sides; **verify.yml race leg extended to the gui concurrency
   pins (R18/R23/R24) — js has no race detector, native CI is the proof;
-  READ THE DISPATCHED RUNS before trusting race green**. Next per the queue
+  R23 proof 41188229919 = SUCCESS all 5 legs; R24 proof = 41189550503
+  (cf60ce4d) in flight — READ ITS RESULT before trusting race green for
+  the new gui leg**. Next per the queue
   in MAP: **cornerreply.go + cornerreaction.go, then richtext.go,
   instantview.go (ivDocDone watch item), msgshot.go, translatebar.go +
   profilemusic.go**.
