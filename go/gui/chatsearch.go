@@ -21,8 +21,7 @@ import (
 // and jump-to-message. Escape closes.
 
 var (
-	inSearchKeyTag    = new(struct{})
-	inSearchFromPanel bool // frame-loop: user picker open
+	inSearchKeyTag = new(struct{})
 )
 
 // inChatSearchKey: the staleness guard key for async result writes.
@@ -223,7 +222,9 @@ func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.
 		a.inChatSearchStep(1)
 	}
 	if a.wid.inSearchFromBtn.Clicked(gtx) {
-		inSearchFromPanel = !inSearchFromPanel
+		a.mu.Lock()
+		a.inSearchFromPanel = !a.inSearchFromPanel
+		a.mu.Unlock()
 		a.invalidate()
 	}
 
@@ -244,8 +245,9 @@ func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.
 			return a.inChatSearchBar(gtx, f)
 		}),
 	}
-	// From-user picker (AyuGram "search from [user]", slice 26).
-	if inSearchFromPanel {
+	// From-user picker (AyuGram "search from [user]", slice 26). Per-window
+	// state on the frame (R14) — never a package read.
+	if f.inSearchFromPanel {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.inChatFromPicker(gtx, f, k)
 		}))
@@ -315,7 +317,7 @@ func (a *App) inChatSearchBar(gtx layout.Context, f frame) layout.Dimensions {
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						btn := a.ui.IconButton(&a.wid.inSearchFromBtn, iconSocialPerson, "Search from a person")
 						btn.Color = a.ui.p.TextDim
-						if f.inSearchFrom != "" || inSearchFromPanel {
+						if f.inSearchFrom != "" || f.inSearchFromPanel {
 							btn.Color = a.ui.p.Accent
 						}
 						return btn.Layout(gtx)
@@ -468,8 +470,8 @@ func (a *App) setInSearchFrom(k chatKey, id, name string) {
 	a.mu.Lock()
 	a.inSearchFrom = id
 	a.inSearchFromName = name
+	a.inSearchFromPanel = false // R14: per-window picker closes on pick
 	a.mu.Unlock()
-	inSearchFromPanel = false
 	a.invalidate()
 	q := a.wid.inSearchEd.Text()
 	a.onInChatSearchChanged(q, k)

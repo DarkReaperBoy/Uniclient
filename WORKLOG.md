@@ -7,11 +7,11 @@ on 2026-10-30 — it lives in git history if ever needed.)
 
 ## STATE
 
-- cycle: 2 | phase: P0 (chunked recon; web surface closed in cycle 1)
-- item: P0 chunk 2 DONE (gui state core: state.go 100% + app.go Root/layoutMain → MAP.md; R14 opened)
-- next: P0 chunk 3 — remaining gui files, one surface per iteration (start: chat.go or sidebar.go), OR P2 on R14 if the race row is preferred first (severity order says R14 topmost)
+- cycle: 2 | phase: P0 recon, interrupted for R14 (fixed this session) — resuming P0 chunk 3
+- item: R14 FIXED (red→green, all gates); P0 chunk 2 DONE prior
+- next: read verify.yml run (R14 native proof, id at dispatch — in flight) then P0 chunk 3 — remaining gui files, one surface per iteration
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: research-only session (no Go code touched) — gate quick trivially green on clean tree
+- last-gate: quick GREEN (gui+cmd closure, js legs) + web GREEN (full Puppeteer s1-s15+b1-b6); native → verify.yml in flight
 
 ## Session 331 — P0 chunk 2 complete: state.go 100%, R14 opened (2026-10-31)
 
@@ -35,6 +35,31 @@ on 2026-10-30 — it lives in git history if ever needed.)
   one surface per iteration) queued.
 - Research-only session (no Go code touched) — no gate run needed beyond the
   clean tree check.
+
+Same session, after the recon: **R14 fixed** (BUGS topmost row per §0.4(3),
+interrupting P0 as a race-class finding):
+
+- RED seen: TestInSearchFromPanelIsPerWindow fails to compile on the old
+  code (`a.inSearchFromPanel undefined`) — the F-90 seam pattern. Fix: flag
+  into App (a.mu-guarded, slice-18 group) + through snapshot() into frame;
+  all 5 sites converted; package var deleted; invalidate() order preserved
+  in setInSearchFrom (caught my own accidental drop mid-edit).
+- Machine truth again: bare `go test ./gui/` native = gotd compile OOM
+  (dmesg: compile killed, anon-rss 3.3GB, 4GiB cgroup) — the js leg is the
+  only local path; documented in §9.7, followed it.
+- GREEN: gui suite js/wasm 0.596s; gate quick GREEN (correct closure: gui +
+  cmd/uniclient); web tier first run was an honest SKIP (node_modules wiped
+  with the VM) → restored per env.sh recipe (npm ci + chrome 148 to
+  toolchain/puppeteer-cache) → **web gate GREEN**: full Puppeteer suite on
+  the rebuilt wasm, s1-s15 + b1-b6, clean console (law 21b satisfied at the
+  tiers this machine can run; the two-window scenario itself is native-only
+  and pinned by the unit test at the state level).
+- Edit-tool lesson (session 329's, repeated): chatsearch/state are
+  space-indented; a "failed" MultiEdit can still have applied earlier edits —
+  ALWAYS re-grep the file state after any MultiEdit error before retrying
+  (this session: 2 of 5 edits landed despite the error report).
+- Native proof: verify.yml dispatched post-push (id recorded at dispatch);
+  next session reads the run — same pattern as 329.
 
 ## Session 330 — constitution v3.4: law 22/23, HOT store; wipe #2 survived (2026-10-31)
 

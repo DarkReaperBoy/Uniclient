@@ -4,11 +4,14 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **R14 is BUGS.md topmost** (race class): package-level `inSearchFromPanel` in
-  gui/chatsearch.go — cross-window unsynchronized access; fix = per-App field,
-  red test = two App instances toggling independently. Caught in P0 recon
-  (session 331); fix belongs to P2.
-- **P0 chunk 2 DONE** (gui state core); chunk 3 = remaining ~88 gui files, one
-  surface per iteration (MAP.md chunk table is the tracker).
-- Toolchain recovery recipe: `scripts/env.sh` (BASH_SOURCE-fixed, proven).
-  VM wipes are routine — source it first thing; `. scripts/env.sh` from repo root.
+- **verify.yml run for R14's native proof is in flight** (dispatched after the
+  R14 push; find the run via the actions API on DarkReaperBoy/Uniclient, ref =
+  the R14 fix commit) — READ ITS RESULT before trusting native green for the
+  next Go change. Same pattern as session 329's run 41152637658 (that one came
+  back SUCCESS).
+- **P0 chunk 3 next**: remaining ~88 gui files, one surface per iteration
+  (MAP.md chunk table is the tracker). Chunk 2 (state core) is DONE; R14 found
+  there is FIXED (red→green, quick+web gates).
+- Toolchain recovery recipe: `scripts/env.sh` (proven twice). VM wipes are
+  routine — source it first thing. web-test node_modules + chrome cache were
+  restored this session (npm ci + puppeteer browsers install chrome).
