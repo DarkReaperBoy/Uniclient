@@ -10,7 +10,7 @@ This is not history — stale lines are lies.
   mainOnlySurfaceShown + the call-bar JOIN/LEAVE rework — JOIN used to
   orphan a live group call with no UI in any window). Row in BUGS,
   method + sections in MAP, deadopeners_r30_test.go ×7, local gate
-  green; **CI dispatch pending**. v3 queue exhausted; R29 watch item
+  green; CI proof dispatched: **41211044402 (8862c468) — read the result next session**. v3 queue exhausted; R29 watch item
   resolved. Next: remaining unscanned gui files + state.go's remaining
   body.
 - **Proofs (session 335, all landed)**: R25 proof **41205692894
