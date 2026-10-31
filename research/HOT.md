@@ -4,9 +4,11 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 2 in flight (gui):** iteration 1 done (state core + lock audit →
-  MAP.md). Iteration 2 = state.go remaining bodies (refreshMessages/mergeMessages,
-  downloads/auth/composer, cfg/load*/apply*) — work from MAP's "NOT yet read"
-  list and keep it updated as you go.
-- Toolchain recovery recipe: `scripts/env.sh` (BASH_SOURCE-fixed, e8e58c23,
-  proven: gate quick exit 0). VM wipes are routine — source it first thing.
+- **R14 is BUGS.md topmost** (race class): package-level `inSearchFromPanel` in
+  gui/chatsearch.go — cross-window unsynchronized access; fix = per-App field,
+  red test = two App instances toggling independently. Caught in P0 recon
+  (session 331); fix belongs to P2.
+- **P0 chunk 2 DONE** (gui state core); chunk 3 = remaining ~88 gui files, one
+  surface per iteration (MAP.md chunk table is the tracker).
+- Toolchain recovery recipe: `scripts/env.sh` (BASH_SOURCE-fixed, proven).
+  VM wipes are routine — source it first thing; `. scripts/env.sh` from repo root.

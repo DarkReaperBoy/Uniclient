@@ -8,10 +8,33 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 (chunked recon; web surface closed in cycle 1)
-- item: P0 chunk 2 iteration 1 DONE (gui state core + lock audit → MAP.md)
-- next: chunk 2 iteration 2 — state.go remaining bodies (MAP "NOT yet read" list), then other gui surfaces
+- item: P0 chunk 2 DONE (gui state core: state.go 100% + app.go Root/layoutMain → MAP.md; R14 opened)
+- next: P0 chunk 3 — remaining gui files, one surface per iteration (start: chat.go or sidebar.go), OR P2 on R14 if the race row is preferred first (severity order says R14 topmost)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: docs/research-only session (no Go code touched); CI 41152637658 read = SUCCESS; quick gate trivially green post-rebuild
+- last-gate: research-only session (no Go code touched) — gate quick trivially green on clean tree
+
+## Session 331 — P0 chunk 2 complete: state.go 100%, R14 opened (2026-10-31)
+
+- state.go read to the end (2,837/2,837): struct tail, refreshMessages/
+  mergeMessages, downloads, auth flows, openChat full body, sendText/composer/
+  loadOlder, cfgSnapshot/openSettings, load*/apply* families, snapshot() +
+  frame struct; app.go Root (separate-window routing, passcode gate) +
+  layoutMain both chains.
+- **R14 opened (BUGS.md topmost)**: package-level `inSearchFromPanel`
+  (chatsearch.go:25) — every window's GUI loop can write it (separate windows
+  render the chat header incl. search button) → unsynchronized cross-goroutine
+  access + UI bleed between windows; B-47 class. Call graph verified by grep
+  (chatsearch 226/248/318/472 + state.go:1477). Fix = per-App field, P2.
+- settings* package vars audited same session: main-window-only in practice
+  (Root:51-52 keeps settings out of separate windows) → no race; P3 fold-in
+  note in MAP.
+- Everything else clean: engine calls outside locks throughout auth/send/
+  pagination; copy-on-write on message mutations; re-entrancy + staleness
+  guards everywhere. mergeMessages same-timestamp edge noted (cosmetic, MAP).
+- MAP.md: chunk 2 marked mapped (330-331); chunk 3 (remaining ~88 gui files,
+  one surface per iteration) queued.
+- Research-only session (no Go code touched) — no gate run needed beyond the
+  clean tree check.
 
 ## Session 330 — constitution v3.4: law 22/23, HOT store; wipe #2 survived (2026-10-31)
 

@@ -61,7 +61,8 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 | Chunk | Packages | Status |
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
-| 2 | gui (state/mutex core — iteration 1 of N) | in progress (330) |
+| 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
+| 3 | gui — remaining files (sidebar/chat/settings/... one per iteration) | pending |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -112,6 +113,33 @@ under the lock.** Refreshers follow engine-call-first-then-lock
 - R11 interplay: gui has no boot-failure surface of its own — engine-init failure
   dies in main.go's goroutine (R11 stands; the web shell overlay only covers
   pre-canvas web boots).
+
+Iteration 2 (session 331) completed the file: struct tail 181-640, refreshMessages/
+mergeMessages, downloads 1115-1208, auth flows 1210-1335, openChat full body,
+sendText/composer/loadOlder, cfgSnapshot + openSettings, load*/apply* families,
+snapshot() + frame struct. app.go Root (separate-window routing, passcode gate,
+content priority) + layoutMain (narrow/desktop chains) read in full.
+
+### Iteration-2 findings
+- **R14 (BUGS.md): package-level `inSearchFromPanel`** (chatsearch.go:25) —
+  written/read from ANY window's GUI loop (toggle 226, reads 248/318, resets
+  at chatsearch.go:472 + state.go:1477 openChat). Separate windows render the
+  chat surface (separateChatView → layoutChatView → chatHeader → search button
+  chat.go:480), so two windows' loops hit the same bool unsynchronized: data
+  race + cross-window UI bleed (B-47 class, the exact thing the struct comment
+  warns about). Fix belongs to P2 (per-App field like the other slice-168
+  state).
+- settings* package vars (settingsSwitches/settingsSynced/ayuMarksSynced/
+  layoutSliderSeeded) — same architectural family BUT settings never renders in
+  a separate window (Root:51-52), so single-goroutine in practice → no race;
+  P3 note: fold into App with the widget-state group.
+- snapshot() copies ~200 fields under one lock; slices by reference (replace-
+  only discipline holds — onDownloadComplete copy-on-writes before mutation).
+- mergeMessages edge: older-page messages with timestamp == fresh[0].Timestamp
+  are dropped from the merged view (display-only; cache intact) — cosmetic
+  watch item for P2's boundary lens.
+- All auth/send/pagination flows: engine calls outside the lock, re-entrancy
+  guarded (loadingOlder), staleness guards (…For keys) everywhere. Clean.
 
 ### Journeys mapped
 boot → Start (subscribe+theme+lock) → go refresh*+ConnectAll → events → invalidate

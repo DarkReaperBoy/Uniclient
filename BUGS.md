@@ -11,12 +11,13 @@ hardening pass carry the risk ID from
 
 | # | Where | What | Evidence / how to see it | Next step |
 |---|-------|------|--------------------------|-----------|
+| R14 | gui/chatsearch.go:25 | Package-level `inSearchFromPanel` bool is written/read from ANY window's GUI loop (toggle :226, reads :248/:318, resets :472 + state.go:1477). Separate windows render the chat surface incl. the header search button (separateChatView → layoutChatView → chatHeader, chat.go:480), so two windows' frame loops hit the same variable unsynchronized: data race + cross-window UI bleed (B-47 class). | MAP chunk 2 iteration 2 (session 331); call-graph verified via grep this session. | P2: move the flag into App (a.mu-guarded, like every other slice-168 per-window field); red test = two App instances toggling independently. |
 | R11 | cmd/uniclient/main.go | `log.Fatal(err)` in run()'s goroutine on engine-init failure — os.Exit skips all defers; on js/wasm there is no exit at all. Failure-path UX needs a driven reproduction. | research/MAP.md chunk 1; read this session. | P2/law-21b: reproduce the boot-failure journey on web + native, then decide surface. |
 | R12 | bootstrap/bootstrap.go | migrateOldSessions: a session file named exactly `.json` yields accountID `""` → junk vault session row (boundary case). | research/MAP.md chunk 1; read this session. | P2 boundary sweep: red test on the `.json`-filename edge, then guard. |
 | R13 | bootstrap/bootstrap.go | Second Init() overwrites the package-global engine without shutdown — first engine leaks (test-harness-only path today). | research/MAP.md chunk 1; read this session. | P2: either guard (error on double Init) or document single-boot contract in a test. |
 | R9 | web vault | Web vault is ciphertext-at-rest with a fixed default password (env/flags unreachable in a wasm argv) — no KDF secret on this target. | research/web_hardening_2026-10.md §3 R9; AGENTS.md §2 web persistence. | Owner decision: accept (product behavior) or spec a web passcode derivation path. Not silently changeable. |
 
-*Open: R11 R12 R13 (from MAP chunk 1) and R9 (owner decision). R10 verified NOT a bug (Fixed table).*
+*Open: R14 (topmost — race class) R11 R12 R13 (MAP chunks 1-2) and R9 (owner decision). R10 verified NOT a bug (Fixed table).*
 
 ## Fixed
 
