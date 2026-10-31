@@ -63,6 +63,7 @@ func (a *App) openCommentThread(m engine.CachedMessage) {
 		title:   m.ContentText,
 	}
 	a.messages = nil
+	a.uiGen++ // R31: loaders still in flight for the previous view are stale
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -141,6 +142,7 @@ func (a *App) openCommentThreadDeep(k chatKey, req threadOpenReq) {
 		postID:  req.postID,
 	}
 	a.messages = nil
+	a.uiGen++ // R31: loaders still in flight for the previous view are stale
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -309,6 +311,7 @@ func (a *App) closeCommentThread() {
 	k := a.selected
 	a.threadScope = nil
 	a.messages = nil
+	a.uiGen++ // R31: the thread's in-flight loaders are stale now
 	a.loadingMsgs = true
 	a.mu.Unlock()
 	a.invalidate()

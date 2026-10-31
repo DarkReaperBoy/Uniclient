@@ -387,6 +387,16 @@ type App struct {
 	pendingTopic  *string        // topic permalink: scope the opened chat to this topic before jumping (slice 189)
 	pendingThread *threadOpenReq // comment permalink: open the chat straight into the thread view and jump to the linked comment (slice 196)
 
+	// uiGen (R31): the message-window generation. Every reset of the
+	// message scope — openChat, deselect, topic/comment/saved-scope
+	// switches — increments it under a.mu. Async installers capture the
+	// gen BEFORE their engine call and install only if it still matches
+	// at landing: a fetch that returns after the user moved on is dropped
+	// instead of installing the old view's window into the new one
+	// (cross-chat content under the wrong header, msgFor misdirecting the
+	// next send). Compare under a.mu; never crosses the snapshot.
+	uiGen int
+
 	// the Calls box (AyuGram parity slice 154): per-account call-history
 	// page — grouped rows, redial, clear-all, group-calls subsection.
 	callsBoxOpen   bool
@@ -910,6 +920,7 @@ func (a *App) refreshMessages() {
 	a.mu.Lock()
 	key := a.msgFor
 	selected := a.selected
+	gen := a.uiGen // R31: drop the install if the view moves on mid-fetch
 	a.mu.Unlock()
 	k := key
 	if k == nil {
@@ -938,7 +949,7 @@ func (a *App) refreshMessages() {
 	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 		msgs[i], msgs[j] = msgs[j], msgs[i]
 	}
-	a.mergeMessages(k, msgs)
+	a.mergeMessages(k, msgs, gen)
 }
 
 // topicScopeFor returns the open forum topic for the chat ("" = none).
@@ -956,8 +967,15 @@ func (a *App) topicScopeFor(k *chatKey) string {
 
 // mergeMessages installs a fresh newest window (oldest-first slice), keeping
 // pre-loaded older pages that fall outside it.
-func (a *App) mergeMessages(k *chatKey, fresh []engine.CachedMessage) {
+func (a *App) mergeMessages(k *chatKey, fresh []engine.CachedMessage, gen int) {
 	a.mu.Lock()
+	// R31: install only into the view that requested the fetch — a
+	// chat switch, scope switch or deselect mid-fetch drops it.
+	if a.uiGen != gen || a.selected == nil || *a.selected != *k {
+		a.mu.Unlock()
+		a.invalidate()
+		return
+	}
 	merged := fresh
 	if len(a.messages) > 0 && len(fresh) > 0 && a.messages[0].Timestamp < fresh[0].Timestamp {
 		cutoff := fresh[0].Timestamp
@@ -1436,6 +1454,8 @@ func (a *App) openChat(k chatKey, title string) {
 	a.selected = &k
 	a.loadingMsgs = true
 	a.messages = nil
+	a.uiGen++ // R31: any loader still in flight for the previous view is stale
+	openGen := a.uiGen
 	a.olderDone = false
 	a.loadingOlder = false
 	a.cMode = composerMode{}
@@ -1575,41 +1595,10 @@ func (a *App) openChat(k chatKey, title string) {
 		for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 			msgs[i], msgs[j] = msgs[j], msgs[i]
 		}
-		a.mu.Lock()
-		a.messages = msgs
-		a.msgFor = &k
-		a.loadingMsgs = false
-		// Permalink deep-link jump (slice 161): fire once the first
-		// window is in — jumpToMessageAt loads a window around the
-		// message when it is not among these rows.
-		pj := a.pendingJump
-		a.pendingJump = nil
-		// Topic permalink hop (slice 189): scope the just-opened chat
-		// to the linked topic and jump INSIDE it — the plain jump would
-		// land on the chat root window.
-		pt := a.pendingTopic
-		a.pendingTopic = nil
-		// Comment permalink hop (slice 196): open the just-opened
-		// chat straight into the comment-thread view and jump onto
-		// the linked comment — supersedes the topic/plain jumps (a
-		// link is exactly one of the three).
-		pth := a.pendingThread
-		a.pendingThread = nil
-		// Anchor the unread separator to the boundary message (only
-		// on the first load of this visit, before the read receipt).
-		if a.unreadSepMsgID == "" && a.unreadAtOpen > 0 {
-			if sepAt := unreadSepIndex(len(msgs), a.unreadAtOpen); sepAt >= 0 && sepAt < len(msgs) {
-				a.unreadSepMsgID = msgs[sepAt].MsgID
-			}
-		}
-		a.mu.Unlock()
-		if pth != nil {
-			a.openCommentThreadDeep(k, *pth)
-		} else if pt != nil {
-			a.jumpToTopicMessageAt(*pt, pj)
-		} else if pj != nil {
-			a.jumpToMessageAt(pj.msgID, pj.ts)
-		}
+		// R31: the install is generation-guarded — a chat switch, scope
+		// switch or deselect during the fetch drops it (the loader that
+		// owns the current view installs its own window).
+		a.applyOpenChatMessages(k, openGen, msgs)
 		go func() {
 			// LRead off (AyuGram): leave the chat unread locally —
 			// the drawer toggle gates the mark-on-open call.
@@ -1623,6 +1612,43 @@ func (a *App) openChat(k chatKey, title string) {
 		}()
 		a.invalidate()
 	}()
+}
+
+// applyOpenChatMessages installs the initial window for an openChat load
+// (R31: only if the open's generation still matches — a chat switch, scope
+// switch or deselect during the fetch drops the install). On a successful
+// install it also consumes the pending deep-link hops (permalink jumps,
+// slices 161/189/196) and anchors the unread separator to the boundary
+// message (first load of this visit, before the read receipt). On a drop
+// the pendings stay set for the loader that owns the current view.
+func (a *App) applyOpenChatMessages(k chatKey, gen int, msgs []engine.CachedMessage) {
+	a.mu.Lock()
+	if a.uiGen != gen || a.selected == nil || *a.selected != k {
+		a.mu.Unlock()
+		return
+	}
+	a.messages = msgs
+	a.msgFor = &k
+	a.loadingMsgs = false
+	pj := a.pendingJump
+	a.pendingJump = nil
+	pt := a.pendingTopic
+	a.pendingTopic = nil
+	pth := a.pendingThread
+	a.pendingThread = nil
+	if a.unreadSepMsgID == "" && a.unreadAtOpen > 0 {
+		if sepAt := unreadSepIndex(len(msgs), a.unreadAtOpen); sepAt >= 0 && sepAt < len(msgs) {
+			a.unreadSepMsgID = msgs[sepAt].MsgID
+		}
+	}
+	a.mu.Unlock()
+	if pth != nil {
+		a.openCommentThreadDeep(k, *pth)
+	} else if pt != nil {
+		a.jumpToTopicMessageAt(*pt, pj)
+	} else if pj != nil {
+		a.jumpToMessageAt(pj.msgID, pj.ts)
+	}
 }
 
 // sendText routes the a.wid.composer submit through the active reply/edit mode
@@ -1717,6 +1743,11 @@ func (a *App) cancelComposerMode() {
 
 // loadOlder fetches the next history page above the current window when the
 // user scrolls to the top (AyuGram HistoryWidget::loadMessages).
+// loadOlder fetches the next history page above the current window when the
+// user scrolls to the top (AyuGram HistoryWidget::loadMessages). The oldest
+// message is snapshotted under the initial lock (R31: the tag-scope offset
+// used to re-read a.messages[0] on the goroutine, outside the lock); the
+// install is generation-guarded via applyOlderPage.
 func (a *App) loadOlder() {
 	a.mu.Lock()
 	if a.loadingOlder || a.olderDone || a.selected == nil || len(a.messages) == 0 {
@@ -1726,6 +1757,11 @@ func (a *App) loadOlder() {
 	a.loadingOlder = true
 	k := *a.selected
 	oldest := a.messages[0].Timestamp
+	oldestID := 0 // slice 199: the tag scope pages by message id
+	if v, err := strconv.ParseInt(a.messages[0].MsgID, 10, 64); err == nil {
+		oldestID = int(v)
+	}
+	gen := a.uiGen // R31: drop the page if the view moves on mid-fetch
 	a.mu.Unlock()
 	go func() {
 		var older []engine.CachedMessage
@@ -1736,12 +1772,6 @@ func (a *App) loadOlder() {
 		} else if ss := a.savedScopeFor(&k); ss != nil && ss.tag != "" {
 			// Slice 199: the tag scope pages through the server-side tag
 			// search (offsetID = the window's oldest message id).
-			oldestID := 0
-			if len(a.messages) > 0 {
-				if v, err := strconv.ParseInt(a.messages[0].MsgID, 10, 64); err == nil {
-					oldestID = int(v)
-				}
-			}
 			older, err = a.eng.SearchSavedMessagesByReaction(k.AccountID, k.ChatID, "", []string{ss.tag}, oldestID, 50)
 		} else if ss := a.savedScopeFor(&k); ss != nil {
 			// Slice 197: the saved sublist pages from the saved_peer filter.
@@ -1751,24 +1781,38 @@ func (a *App) loadOlder() {
 		} else {
 			older, err = a.eng.GetMessages(k.AccountID, k.ChatID, oldest, 0, 50)
 		}
-		a.mu.Lock()
-		a.loadingOlder = false
-		if err == nil {
-			if len(older) == 0 {
-				a.olderDone = true
-			} else {
-				// older is newest-first; messages is oldest-first — prepend reversed.
-				merged := make([]engine.CachedMessage, 0, len(older)+len(a.messages))
-				for i := len(older) - 1; i >= 0; i-- {
-					merged = append(merged, older[i])
-				}
-				a.messages = append(merged, a.messages...)
-				a.loadedOlder++
-			}
-		}
+		a.applyOlderPage(k, gen, older, err)
+	}()
+}
+
+// applyOlderPage installs one fetched history page above the current
+// window (R31: only if the generation captured at fetch time still
+// matches — a chat or scope switch mid-fetch drops the page instead of
+// prepending the old view's history onto the new view's window). The
+// fetch's own loadingOlder flag clears on every path.
+func (a *App) applyOlderPage(k chatKey, gen int, older []engine.CachedMessage, err error) {
+	a.mu.Lock()
+	a.loadingOlder = false
+	if a.uiGen != gen || a.selected == nil || *a.selected != k || a.msgFor == nil || *a.msgFor != k {
 		a.mu.Unlock()
 		a.invalidate()
-	}()
+		return
+	}
+	if err == nil {
+		if len(older) == 0 {
+			a.olderDone = true
+		} else {
+			// older is newest-first; messages is oldest-first — prepend reversed.
+			merged := make([]engine.CachedMessage, 0, len(older)+len(a.messages))
+			for i := len(older) - 1; i >= 0; i-- {
+				merged = append(merged, older[i])
+			}
+			a.messages = append(merged, a.messages...)
+			a.loadedOlder++
+		}
+	}
+	a.mu.Unlock()
+	a.invalidate()
 }
 
 // ── settings surface (AyuGram parity §8) ──────────────────────────────────

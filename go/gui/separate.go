@@ -138,6 +138,7 @@ func (a *App) deselectIfShowing(k chatKey) {
 	}
 	a.selected = nil
 	a.msgFor = nil
+	a.uiGen++ // R31: any in-flight message load for this view is stale
 	a.mu.Unlock()
 	if a.isSeparate() {
 		a.sepUnregister()
@@ -250,6 +251,7 @@ func (a *App) consumeCrossWindowHops() {
 		a.mu.Lock()
 		a.selected = nil
 		a.msgFor = nil
+		a.uiGen++ // R31: any in-flight message load for this view is stale
 		a.mu.Unlock()
 		if a.isSeparate() {
 			a.sepUnregister()

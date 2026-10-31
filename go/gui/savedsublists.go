@@ -191,6 +191,7 @@ func (a *App) openSavedTag(emoji, title string) {
 	a.savedScope = &savedScopeState{title: title, tag: emoji}
 	a.savedListOpen = false
 	a.messages = nil
+	a.uiGen++ // R31: loaders still in flight for the previous view are stale
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -225,6 +226,7 @@ func (a *App) openSavedSublist(peerID, title string) {
 	a.savedScope = &savedScopeState{peerID: peerID, title: title}
 	a.savedListOpen = false
 	a.messages = nil
+	a.uiGen++ // R31: loaders still in flight for the previous view are stale
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -257,6 +259,7 @@ func (a *App) closeSavedSublist() {
 	k := a.selected
 	a.savedScope = nil
 	a.messages = nil
+	a.uiGen++ // R31: the sublist's in-flight loaders are stale now
 	a.loadingMsgs = true
 	a.mu.Unlock()
 	a.invalidate()

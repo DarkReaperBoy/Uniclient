@@ -175,6 +175,7 @@ func (a *App) jumpToMessageAt(msgID string, tsFallback int64) {
 	k := a.selected
 	msgs := a.messages
 	sepMsgID := a.unreadSepMsgID
+	gen := a.uiGen // R31: drop the jump window if the view moves on mid-fetch
 	a.mu.Unlock()
 	if k == nil {
 		return
@@ -221,7 +222,7 @@ func (a *App) jumpToMessageAt(msgID string, tsFallback int64) {
 		win = append(win, target)
 		win = append(win, newer...)
 		a.mu.Lock()
-		if cur := a.selected; cur != nil && *cur == *k {
+		if cur := a.selected; cur != nil && *cur == *k && a.uiGen == gen {
 			a.messages = win
 			a.olderDone = false
 			if row := rowIndexOf(win, msgID, a.unreadSepMsgID); row >= 0 {

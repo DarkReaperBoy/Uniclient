@@ -705,6 +705,40 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   windows and are now gated/hidden.
 
 
+
+### state.go remaining body, part 1 — refresh/merge/openChat/loadOlder (session 336, chunk 3 iteration 19, VERDICT: R31 fixed, rest CLEAN)
+- **R31 FIXED** (row in BUGS): four async installers of a.messages had no
+  install-time staleness guard — a chat/scope switch mid-fetch installed
+  the old view's window + msgFor into the new view (cross-chat content
+  under the wrong header, and send paths resolve via msgFor → the next
+  send could go to the chat the user left). Fixed with a.uiGen (the
+  message-window generation, bumped at all 12 scope-reset sites under
+  a.mu) + generation-guarded extracted installers: applyOpenChatMessages,
+  mergeMessages(gen), applyForumTopicWindow, applyOlderPage;
+  jumpToMessageAt carries the same check. loadOlder's outside-lock
+  a.messages[0] read (the tag-scope offset) folded into the initial
+  locked snapshot. Tests: deadinstalls_r31_test.go ×4.
+- **refreshMessages/refreshChats CLEAN**: engine calls outside the lock,
+  snapshot-then-fetch, scoped resolution chain (thread/saved-tag/
+  sublist/topic/plain) consistent with loadOlder's.
+- **Verified-guarded siblings** (no action, the in-repo pattern):
+  comments ×3 (threadScope identity + selected), topics jump/
+  loadTopicWindow (selected+forumTopic), savedsublists ×2 (scope+
+  selected), chrome jump (selected — now + gen), onMessageEvent
+  (msgFor), pollViewsOnce (msgFor).
+- **Watch item (P2, narrow)**: the deep-link pendings (pendingJump/
+  pendingTopic/pendingThread) are consumed only by a LIVE install, but a
+  link's pendings can be consumed by the NEXT openChat's loader if the
+  user manually navigates while the first loader is in flight (link for
+  chat A → fast manual switch to B → B's loader consumes A's jump → the
+  jump fires inside B). Window is sub-second and requires a deep link
+  racing a manual nav; if ever hit, carry the pendings as openChat
+  parameters (consumePendingOpen passes them in) instead of shared App
+  state.
+- Still unread in state.go: downloads/auth/composer 1115-1340 & 1416-1747
+  (minus the loadOlder/openChat/sendText parts now read), cfg/load*/
+  apply* tail 1748-2837 — next iteration.
+
 ### dead-openers sweep (app.go + every-window surfaces — session 335, chunk 3 iteration 18, VERDICT: R30, 19 openers fixed)
 - **Method**: Root's separate branch renders chat view + media/IV/story/
   call/pip/toast/shortcuts overlays; layoutMain alone paints the 24

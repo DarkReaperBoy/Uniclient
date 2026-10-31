@@ -8,10 +8,10 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 18 DONE — the R29 systemic dead-opener sweep = R30 FIXED (19 dead openers across 9 every-window surfaces; header/attach/member/saved-list menus + mute clock + Filter-Like-This + prepaid Launch + call rating + Ctrl+J contacts + the call bar's JOIN-then-mode-1 orphaned call; row in BUGS, method + section in MAP, deadopeners_r30_test.go ×7). boostGiveawayBtn found DORMANT (never rendered anywhere — watch item in MAP, not §1.10)
-- next: chunk 3 continues — the remaining unscanned gui files + state.go remaining body (refreshMessages/mergeMessages 892-969, downloads/auth/composer 1115-1340 & 1416-1747, cfg/load*/apply* 1748-2837); R30 proof CLOSED — the remaining unscanned gui files and state.go's remaining body (refreshMessages/mergeMessages 892-969, downloads/auth/composer, cfg/load*/apply* 1748-2837)
+- item: iterations 18-19 DONE — R30 (19 dead openers in separate windows) + R31 (four unguarded async a.messages installers → a.uiGen generation counter, 12 bump sites, 4 guarded extracted installers); rows in BUGS Fixed, sections in MAP (19 dead openers across 9 every-window surfaces; header/attach/member/saved-list menus + mute clock + Filter-Like-This + prepaid Launch + call rating + Ctrl+J contacts + the call bar's JOIN-then-mode-1 orphaned call; row in BUGS, method + section in MAP, deadopeners_r30_test.go ×7). boostGiveawayBtn found DORMANT (never rendered anywhere — watch item in MAP, not §1.10)
+- next: read R31 CI proof result, then state.go part 2 (downloads/auth/composer 1115-1340 & 1416-1747, cfg/load*/apply* 1748-2837) and the unscanned gui files — the remaining unscanned gui files and state.go's remaining body (refreshMessages/mergeMessages 892-969, downloads/auth/composer, cfg/load*/apply* 1748-2837)
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local quick GREEN this session (gofmt clean, go vet clean, full gui suite ok ×3 — incl. the 7 R30 tests); R30 proof **41211044402 (8862c468) = SUCCESS at job AND step level** (all 5 jobs; Race leg green with the gui pins; the 7 R30 tests ran in the Test step)
+- last-gate: local quick GREEN (gofmt/vet/full gui suite ×2 incl. 4 R31 tests); R30 proof **41211044402 (8862c468) = SUCCESS at job+step level**; R31 CI dispatch pending
 
 ## Session 336 — iteration 18: the R29 systemic sweep = R30 (2026-10-31)
 
@@ -46,6 +46,20 @@ on 2026-10-30 — it lives in git history if ever needed.)
   settings/folder-menu/callsbox/chatmenu-only openers; poll/schedule/
   forward/shadow/deleted dialogs (chat-view overlays); business page;
   export/2FA/privacy/lock/autodl/cloud-theme (settings-only).
+- **Iteration 19: state.go part 1 (refreshMessages/mergeMessages/openChat/
+  loadOlder) — R31 found and fixed**. Four async installers of a.messages
+  had no install-time staleness guard: a chat/scope switch mid-fetch
+  installed the old view's window + msgFor into the new view (cross-chat
+  content under the wrong header; sends resolve via msgFor → next send
+  could target the chat the user left). Fixed with a.uiGen (message-window
+  generation, bumped at all 12 scope-reset sites) + guarded extracted
+  installers (applyOpenChatMessages / mergeMessages(gen) /
+  applyForumTopicWindow / applyOlderPage; jumpToMessageAt carries the same
+  check; loadOlder's outside-lock a.messages[0] read folded into the
+  initial snapshot). RED-first deadinstalls_r31_test.go ×4; full suite
+  green. Watch item (P2): deep-link pendings can be consumed by the next
+  openChat's loader in a sub-second manual-nav race — fix = pass pendings
+  as openChat parameters if ever hit. state.go part 2 remains.
 
 ## Session 335 — wipe #4 boot, instantview.go: R25 + R26 (2026-10-31)
 

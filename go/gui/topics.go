@@ -170,6 +170,8 @@ func (a *App) openForumTopic(topicID string) {
 	k := a.selected
 	a.forumTopic = topicID
 	a.messages = nil
+	a.uiGen++ // R31: loaders still in flight for the previous view are stale
+	gen := a.uiGen
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -186,12 +188,25 @@ func (a *App) openForumTopic(topicID string) {
 		for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 			msgs[i], msgs[j] = msgs[j], msgs[i]
 		}
-		a.mu.Lock()
-		a.messages = msgs
-		a.loadingMsgs = false
-		a.mu.Unlock()
-		a.invalidate()
+		a.applyForumTopicWindow(*k, topicID, gen, msgs)
 	}()
+}
+
+// applyForumTopicWindow installs a fetched topic window (R31: only if the
+// generation captured at fetch time still matches and this window still
+// shows that topic — a chat switch, another topic, or a return to the
+// topic list mid-fetch drops the install). The guarded siblings
+// (loadTopicWindow, jumpToTopicMessageAt) keep their own checks.
+func (a *App) applyForumTopicWindow(k chatKey, topicID string, gen int, msgs []engine.CachedMessage) {
+	a.mu.Lock()
+	if a.uiGen != gen || a.selected == nil || *a.selected != k || a.forumTopic != topicID {
+		a.mu.Unlock()
+		return
+	}
+	a.messages = msgs
+	a.loadingMsgs = false
+	a.mu.Unlock()
+	a.invalidate()
 }
 
 // jumpToTopicMessageAt (slice 189): a topic permalink opens the chat
@@ -205,6 +220,7 @@ func (a *App) jumpToTopicMessageAt(topicID string, pj *jumpReq) {
 	k := a.selected
 	a.forumTopic = topicID
 	a.messages = nil
+	a.uiGen++ // R31: loaders still in flight for the previous view are stale
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -274,6 +290,7 @@ func (a *App) backToForumTopics() {
 	a.mu.Lock()
 	k := a.selected
 	a.forumTopic = ""
+	a.uiGen++ // R31: the topic's in-flight loaders are stale now
 	a.mu.Unlock()
 	a.invalidate()
 	if k != nil {

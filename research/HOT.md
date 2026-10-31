@@ -4,15 +4,19 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 336**: iteration 18 DONE = **R30** (the R29
+- **P0 chunk 3, session 336**: iterations 18-19 DONE. **R30** (the R29
   systemic dead-opener sweep): 19 openers that set main-only state from
   every-window surfaces, all fixed (menu `separate` params +
   mainOnlySurfaceShown + the call-bar JOIN/LEAVE rework — JOIN used to
   orphan a live group call with no UI in any window). Row in BUGS,
   method + sections in MAP, deadopeners_r30_test.go ×7, local gate
-  green; CI proof **41211044402 (8862c468) = SUCCESS at job AND step level** (all 5 jobs, Race leg green). v3 queue exhausted; R29 watch item
-  resolved. Next: remaining unscanned gui files + state.go's remaining
-  body.
+  green; CI proof **41211044402 (8862c468) = SUCCESS at job+step level**. **R31**: four async a.messages installers had no staleness
+  guard (a chat/scope switch mid-fetch installed the old view's window +
+  msgFor into the new view — sends resolve via msgFor) → a.uiGen
+  generation counter (12 bump sites) + guarded extracted installers,
+  deadinstalls_r31_test.go ×4; **R31 CI dispatch pending — read its
+  result next session**. Next: state.go part 2 (downloads/auth/composer,
+  cfg/load*/apply* tail) + unscanned gui files.
 - **Proofs (session 335, all landed)**: R25 proof **41205692894
   (bf9ea2bf) = SUCCESS** and R27 proof **41206658703 (d029af30) =
   SUCCESS** — both verified at job AND step level (all 5 jobs each; the
