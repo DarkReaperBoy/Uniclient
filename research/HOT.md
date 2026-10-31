@@ -4,20 +4,18 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **verify.yml queue is STARVED (GitHub side): three runs pending** — read the
-  NEWEST first: **41179924424** (on 04b4a07f — native proof for R15+R14+R16+
-  R17, the one that matters), then 41179413739 (c4f733b4, R15+R14+R16),
-  41177906124 (51b3d240, R15+R14; superseded). None started >1h after
-  dispatch with zero other runs in the repo — GitHub runner starvation;
-  cancel-API returns 409 on pending dispatches, so they were left to run as
-  duplicate proofs. History: 41174703134 (R14 alone) = FAILURE — the R14
-  fix's own test self-deadlocked (held a.mu, then called snapshot() which
-  locks a.mu again), and the local js leg had FALSE-GREENED it
-  (**wasm-test-runner.sh accepted node exit 0 with no verdict** — a hung
-  wasm drains node's event loop; the suite silently truncated). All FIXED
-  this session (runner requires the binary's PASS line, regression harness
-  scripts/test-wasm-runner.sh wired into the gates, test un-deadlocked,
-  R16 Ctrl+Tab drain order, R17 About version lockstep).
+- **CI saga RESOLVED (session 333)**: the "starved" runs were **zombie
+  dispatches** — Actions was DISABLED at the repo level (found via
+  `actions/permissions` → `enabled:false`; flipped off between Oct 31 07:16
+  and wipe #3, cause unknown — likely accidental, it also blocked the owner's
+  own release.yml). Re-enabled via API this session (full-scope token,
+  decision logged in WORKLOG 333). The three old dispatches (41179924424 /
+  41179413739 / 41177906124) are PERMANENT zombies — never enqueued, cancel
+  409s ("has not been queued yet"), delete 403s; ignore them. Fresh dispatch
+  on re-enable works: **41181306179** (b58d7a102 = HEAD) = the native proof
+  for R15+R14+R16+R17 — READ ITS RESULT next session before trusting native
+  green. If a run ever sits `queued` with zero in-progress runs again, check
+  `actions/permissions` FIRST, not runner starvation.
 - **P0 chunk 3 in flight** (per-file gui surfaces): DONE so far — chat.go,
   sidebar.go, chatsearch.go, shortcuts.go, settings.go (sessions 331-332;
   R16 and R17 came out of the last two). MAP.md chunk table is the tracker;
@@ -26,6 +24,8 @@ This is not history — stale lines are lies.
   the typed text (composer cleared before the async result; tdesktop keeps it)
   — chat.go trySubmitComposer + inline-bot/music-attach/sticker send paths.
   Verify against AyuGramDesktop, then promote to a BUGS row or drop.
-- Toolchain recovery recipe: `scripts/env.sh` (proven twice). VM wipes are
-  routine — source it first thing. web-test node_modules + chrome restored
-  this session.
+- Toolchain recovery recipe: `scripts/env.sh` header steps 1-5 — proven
+  through **wipe #3** (session 333: full re-download of go 1.27.0 + mod-cache
+  refill 1.3G). VM wipes are routine — source it first thing. web-test
+  node_modules + chrome were restored in session 332; NOT yet re-verified
+  after wipe #3 (only needed for web-gate legs).
