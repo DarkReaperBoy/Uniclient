@@ -9,7 +9,7 @@ on 2026-10-30 — it lives in git history if ever needed.)
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
 - item: R15 + R16 fixed this session (runner false-green hole + R14 test self-deadlock, found via CI 41174703134 = FAILURE; Ctrl+Tab dead shortcut, found in recon); chunk 3 iterations 1-4 DONE (chat.go, sidebar.go, chatsearch.go, shortcuts.go)
-- next: read verify.yml run 41177906124 (R15+R14 native proof — STILL QUEUED on GitHub's side at last check, >40min; re-check, and if it never starts consider a fresh dispatch) then dispatch a NEW run for the R16 commit; then chunk 3 iteration 5 (next surface from MAP chunk table)
+- next: read verify.yml run 41179413739 (native proof for R15+R14+R16, on c4f733b4 — dispatched after 41177906124 sat queued ~50min with zero other runs; cancel 41177906124 if it ever starts), then chunk 3 iteration 5 (next surface from MAP chunk table)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (runner self-test + js vet + full gui suite with verdict discipline, 907 tests; audio leg green)
 
