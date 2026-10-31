@@ -35,18 +35,18 @@ func TestSortSavedSublists(t *testing.T) {
 // entries (bounded by the block edges), every row gets pin-toggle +
 // the destructive delete entry.
 func TestSavedSublistMenuActions(t *testing.T) {
-	if got := savedSublistMenuActions(true, false, true); len(got) != 3 ||
+	if got := savedSublistMenuActions(true, false, true, false); len(got) != 3 ||
 		got[0] != "Unpin" || got[1] != "Move down" || got[2] != "Delete messages" {
 		t.Errorf("pinned top = %v", got)
 	}
-	if got := savedSublistMenuActions(true, true, false); got[0] != "Unpin" ||
+	if got := savedSublistMenuActions(true, true, false, false); got[0] != "Unpin" ||
 		!savedMenuHas(got, "Move up") || savedMenuHas(got, "Move down") {
 		t.Errorf("pinned bottom = %v", got)
 	}
-	if got := savedSublistMenuActions(true, true, true); len(got) != 4 {
+	if got := savedSublistMenuActions(true, true, true, false); len(got) != 4 {
 		t.Errorf("pinned middle = %v", got)
 	}
-	if got := savedSublistMenuActions(false, false, false); len(got) != 2 ||
+	if got := savedSublistMenuActions(false, false, false, false); len(got) != 2 ||
 		got[0] != "Pin" || got[1] != "Delete messages" {
 		t.Errorf("unpinned = %v", got)
 	}

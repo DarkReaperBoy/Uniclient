@@ -4,26 +4,24 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 335**: iterations 15-17 DONE (instantview,
-  msgshot, translatebar, profilemusic — all read in full): **R25** (IV
-  photo latch → in-flight claim), **R26** (related-fetch generation
-  gate), **R27** (shot render pipeline: lazy face caches + shared
-  opentype.Face scratch buffers raced on the save goroutine + palette
-  read racing applyTheme → shotMu + GUI-loop capture), **R28**
-  (transPickerOpen package bool → per-window App field, R14 class),
-  **R29** (profile Music section was a dead button in separate windows —
-  hidden there now). Rows in BUGS Fixed; sections + remaining notes in
-  MAP. **v3 candidate queue EXHAUSTED** — next lens is the R29 systemic
-  watch item (dead content-pane openers in separate windows), then the
-  unscanned gui files.
-- **Proofs all landed (session 335)**: R25 proof **41205692894
+- **P0 chunk 3, session 336**: iteration 18 DONE = **R30** (the R29
+  systemic dead-opener sweep): 19 openers that set main-only state from
+  every-window surfaces, all fixed (menu `separate` params +
+  mainOnlySurfaceShown + the call-bar JOIN/LEAVE rework — JOIN used to
+  orphan a live group call with no UI in any window). Row in BUGS,
+  method + sections in MAP, deadopeners_r30_test.go ×7, local gate
+  green; **CI dispatch pending**. v3 queue exhausted; R29 watch item
+  resolved. Next: remaining unscanned gui files + state.go's remaining
+  body.
+- **Proofs (session 335, all landed)**: R25 proof **41205692894
   (bf9ea2bf) = SUCCESS** and R27 proof **41206658703 (d029af30) =
   SUCCESS** — both verified at job AND step level (all 5 jobs each; the
   Race legs carry the extended gui pins: R18/R23/R24/R25 + the
-  TestShotRenderPipelineIsSerialized R27 pin). R28/R29 landed after the
-  dispatch but are pure gui-code + test changes covered by the same
-  Test legs those runs execute — no dedicated proof pending. Local
-  -race on gui still OOMs on gotd; CI is the race proof path.
+  TestShotRenderPipelineIsSerialized R27 pin). R28/R29/R30 are pure
+  gui-code + test changes covered by the same Test legs those runs
+  execute — R30's dispatch goes out with its commit; check the run at
+  job+step level. Local -race on gui still OOMs on gotd; CI is the race
+  proof path.
 - **Wipe #4 lessons (session 335 boot)**: only the repo clone was gone —
   /home/z/my-project/toolchain SURVIVED (go 1.27.0 + mod cache), but
   **scripts/ was wiped: scanner v3 (pkgvar_scan_v3) is GONE** — its queue

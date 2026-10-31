@@ -300,8 +300,10 @@ func (a *App) onCallStateEvent(accountID string, cs *cores.CallSession) {
 		go a.loadCalls() // the history row appears server-side
 		go a.scheduleCallDismiss()
 		// Rating dialog (slice 179): only calls that connected and
-		// lasted minRateCallDur (missed/declined never did).
-		if callRateable(c, now) {
+		// lasted minRateCallDur (missed/declined never did). R30: the rating
+		// card is a main-branch window modal — the call overlay renders in
+		// every window, so separate windows skip the offer (no dead dialog).
+		if callRateable(c, now) && mainOnlySurfaceShown(a) {
 			a.openRateCall(c) // consolidated (B-18): identical state + own lock
 		}
 	}

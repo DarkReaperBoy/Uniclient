@@ -19,7 +19,9 @@ func TestAttachMenuItemsMusic(t *testing.T) {
 			t.Errorf("item %q has no run func", it.label)
 		}
 	}
-	want := []string{"Photo or Video", "Music", "File", "Poll", "Location", "Contact"}
+	// R30 grouped the main-only content-pane items (Music/Location/Contact)
+	// after the everywhere-items — same set, new order.
+	want := []string{"Photo or Video", "File", "Poll", "Music", "Location", "Contact"}
 	if len(labels) != len(want) {
 		t.Fatalf("menu = %v, want %v", labels, want)
 	}

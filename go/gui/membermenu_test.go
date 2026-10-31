@@ -26,12 +26,12 @@ func TestMemberMenuGate(t *testing.T) {
 	member := engine.MemberInfo{UserID: "7", Role: "member"}
 
 	// Non-admin viewer: no menu at all.
-	if items := memberMenuItems(member, chat, ""); items != nil {
+	if items := memberMenuItems(member, chat, "", false); items != nil {
 		t.Fatalf("non-admin chat must offer no member actions: %v", items)
 	}
 	// Admin: full set for a plain member.
 	chat.IsAdmin = true
-	items := memberMenuItems(member, chat, "")
+	items := memberMenuItems(member, chat, "", false)
 	got := memberActions(items)
 	want := []string{"promote", "restrict", "ban", "remove"}
 	if len(got) != len(want) {
@@ -45,7 +45,7 @@ func TestMemberMenuGate(t *testing.T) {
 	// Creator sees the same admin powers.
 	chat.IsAdmin = false
 	chat.IsCreator = true
-	if items := memberMenuItems(member, chat, ""); len(memberActions(items)) != 4 {
+	if items := memberMenuItems(member, chat, "", false); len(memberActions(items)) != 4 {
 		t.Fatalf("creator actions = %v", memberActions(items))
 	}
 }
@@ -55,14 +55,14 @@ func TestMemberMenuRoles(t *testing.T) {
 
 	// Admin member: demote instead of promote.
 	admin := engine.MemberInfo{UserID: "7", Role: "admin"}
-	got := memberActions(memberMenuItems(admin, chat, ""))
+	got := memberActions(memberMenuItems(admin, chat, "", false))
 	if got[0] != "demote" {
 		t.Fatalf("admin first action = %q, want demote", got[0])
 	}
 
 	// Banned member: only unban.
 	banned := engine.MemberInfo{UserID: "7", Role: "banned"}
-	got = memberActions(memberMenuItems(banned, chat, ""))
+	got = memberActions(memberMenuItems(banned, chat, "", false))
 	if len(got) != 1 || got[0] != "unban" {
 		t.Fatalf("banned actions = %v, want [unban]", got)
 	}
@@ -71,7 +71,7 @@ func TestMemberMenuRoles(t *testing.T) {
 	// rights-reset the engine's RestrictMemberWithRights covers — the
 	// simple menu keeps restrict/ban/remove).
 	restricted := engine.MemberInfo{UserID: "7", Role: "restricted"}
-	got = memberActions(memberMenuItems(restricted, chat, ""))
+	got = memberActions(memberMenuItems(restricted, chat, "", false))
 	for _, a := range got {
 		if a == "promote" || a == "demote" || a == "unban" {
 			t.Fatalf("restricted actions = %v", got)
@@ -84,12 +84,12 @@ func TestMemberMenuUntouchable(t *testing.T) {
 
 	// The chat owner can never be demoted/banned/removed by the menu.
 	owner := engine.MemberInfo{UserID: "7", Role: "owner"}
-	if items := memberMenuItems(owner, chat, ""); items != nil {
+	if items := memberMenuItems(owner, chat, "", false); items != nil {
 		t.Fatalf("owner actions must be empty: %v", memberActions(items))
 	}
 	// Self has no self-service actions.
 	self := engine.MemberInfo{UserID: "7", Role: "member"}
-	if items := memberMenuItems(self, chat, "7"); items != nil {
+	if items := memberMenuItems(self, chat, "7", false); items != nil {
 		t.Fatalf("self actions must be empty: %v", memberActions(items))
 	}
 }
@@ -97,7 +97,7 @@ func TestMemberMenuUntouchable(t *testing.T) {
 func TestMemberMenuLabels(t *testing.T) {
 	chat := engine.ChatInfo{ChatID: "g1", IsAdmin: true}
 	member := engine.MemberInfo{UserID: "7", Role: "member"}
-	for _, it := range memberMenuItems(member, chat, "") {
+	for _, it := range memberMenuItems(member, chat, "", false) {
 		if it.label == "" {
 			t.Fatalf("action %q has no label", it.id)
 		}

@@ -30,42 +30,65 @@ type memberMenuState struct {
 // memberMenuItems derives the admin actions for one member (pure).
 // Gated on the viewer's admin rights (chat.IsAdmin/IsCreator); the owner
 // role and self rows get nothing (the engine would refuse anyway — the
-// GUI never offers a dead action).
-func memberMenuItems(m engine.MemberInfo, chat engine.ChatInfo, selfID string) []chatMenuAction {
+// GUI never offers a dead action). separate: Restrict/Ban open the
+// restrict/ban boxes, which only the MAIN window paints (main-branch
+// window modal, slice 191) — the info panel and its member menu render in
+// every window, so those two rows are dropped in separate windows (R30);
+// the remaining actions are direct engine calls that work from any window.
+func memberMenuItems(m engine.MemberInfo, chat engine.ChatInfo, selfID string, separate bool) []chatMenuAction {
 	if !chat.IsAdmin && !chat.IsCreator {
 		return nil
 	}
 	if m.UserID == "" || (selfID != "" && m.UserID == selfID) {
 		return nil
 	}
+	admin := func(ids ...string) []chatMenuAction {
+		if separate {
+			kept := ids[:0]
+			for _, id := range ids {
+				if id != "restrict" && id != "ban" {
+					kept = append(kept, id)
+				}
+			}
+			ids = kept
+		}
+		out := make([]chatMenuAction, 0, len(ids))
+		for _, id := range ids {
+			out = append(out, chatMenuAction{memberActionLabel(id), id})
+		}
+		return out
+	}
 	switch m.Role {
 	case "owner", "creator":
 		return nil
 	case "admin":
-		return []chatMenuAction{
-			{"Demote to member", "demote"},
-			{"Restrict", "restrict"},
-			{"Ban", "ban"},
-			{"Remove from chat", "remove"},
-		}
+		return admin("demote", "restrict", "ban", "remove")
 	case "banned":
-		return []chatMenuAction{
-			{"Unban", "unban"},
-		}
+		return admin("unban")
 	case "restricted":
-		return []chatMenuAction{
-			{"Restrict", "restrict"},
-			{"Ban", "ban"},
-			{"Remove from chat", "remove"},
-		}
+		return admin("restrict", "ban", "remove")
 	default: // member
-		return []chatMenuAction{
-			{"Promote to admin", "promote"},
-			{"Restrict", "restrict"},
-			{"Ban", "ban"},
-			{"Remove from chat", "remove"},
-		}
+		return admin("promote", "restrict", "ban", "remove")
 	}
+}
+
+// memberActionLabel maps a member-menu action id to its row label (pure).
+func memberActionLabel(id string) string {
+	switch id {
+	case "demote":
+		return "Demote to member"
+	case "restrict":
+		return "Restrict"
+	case "ban":
+		return "Ban"
+	case "remove":
+		return "Remove from chat"
+	case "unban":
+		return "Unban"
+	case "promote":
+		return "Promote to admin"
+	}
+	return id
 }
 
 // member menu button pool.
@@ -152,7 +175,7 @@ func memberDisplayName(m engine.MemberInfo) string {
 // layoutMemberMenu draws the member popup menu, clamped to its pane.
 func (a *App) layoutMemberMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.memberMenu
-	items := memberMenuItems(m.member, m.chat, selfIDOf(f, m.chat.AccountID))
+	items := memberMenuItems(m.member, m.chat, selfIDOf(f, m.chat.AccountID), a.isSeparate())
 	if len(items) == 0 {
 		a.closeMemberMenu() // stale state — the viewer's rights changed
 		return layout.Dimensions{}

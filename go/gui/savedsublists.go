@@ -538,8 +538,11 @@ type savedDelDlgState struct {
 
 // savedSublistMenuActions (pure): the row menu entries. Pinned rows get
 // the move entries bounded by the pinned-block edges; every row gets
-// the pin toggle and the destructive delete.
-func savedSublistMenuActions(pinned, canUp, canDown bool) []string {
+// the pin toggle and the destructive delete. separate: Delete needs its
+// confirm card (savedDelDlg), a main-branch window modal — the
+// saved-lists pane renders in every window, so the entry is dropped in
+// separate windows (R30); pin/move are direct engine actions and stay.
+func savedSublistMenuActions(pinned, canUp, canDown, separate bool) []string {
 	out := make([]string, 0, 4)
 	if pinned {
 		out = append(out, "Unpin")
@@ -552,7 +555,10 @@ func savedSublistMenuActions(pinned, canUp, canDown bool) []string {
 	} else {
 		out = append(out, "Pin")
 	}
-	return append(out, "Delete messages")
+	if !separate {
+		out = append(out, "Delete messages")
+	}
+	return out
 }
 
 // savedSublistMovePeers (pure): the new pinned order after moving the
@@ -655,7 +661,7 @@ func (a *App) savedSublistAct(k chatKey, lists []cores.SavedSublistInfo, row, ac
 	l := lists[row]
 	pinnedCount := savedPinnedBlockBounds(lists)
 	actions := savedSublistMenuActions(l.IsPinned, row > 0 && row-1 < pinnedCount && pinnedCount > 1,
-		row+1 < pinnedCount)
+		row+1 < pinnedCount, a.isSeparate())
 	if action < 0 || action >= len(actions) {
 		return
 	}
@@ -739,7 +745,7 @@ func (a *App) layoutSavedSublistMenu(gtx layout.Context, f frame) layout.Dimensi
 	pinnedCount := savedPinnedBlockBounds(lists)
 	actions := savedSublistMenuActions(l.IsPinned,
 		m.row > 0 && m.row < pinnedCount && pinnedCount > 1,
-		m.row+1 < pinnedCount)
+		m.row+1 < pinnedCount, a.isSeparate())
 	for len(a.wid.savedSublistMenuRows) < len(actions) {
 		a.wid.savedSublistMenuRows = append(a.wid.savedSublistMenuRows, widget.Clickable{})
 	}

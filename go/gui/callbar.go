@@ -84,27 +84,19 @@ func callJoinedLabel(title string) string {
 	return "Joined the group call in " + title
 }
 
-// callBar renders the live bar under the chat header.
+// callBar renders the live bar under the chat header. JOIN runs the real
+// engine join; once THIS window has joined THIS chat's call the button
+// becomes LEAVE (leaveJoinedCall) — in a separate window that bar is the
+// call's only visible surface (the Voice tab lives in the main window,
+// R30), and in the main window it is the honest shortcut back out when
+// the user returns to the chat mid-call.
 func (a *App) callBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	if a.wid.callJoinBtn.Clicked(gtx) {
-		acc, id, title := chat.AccountID, chat.ChatID, chat.Title
-		go func() {
-			callID, err := a.eng.JoinGroupCall(acc, id)
-			if err != nil {
-				a.setToast("Join failed: " + err.Error())
-				return
-			}
-			// Slice 102: record the joined call — the Voice tab becomes
-			// the group-call screen (participants, mute, leave).
-			a.setJoinedCall(acc, callID, id, title)
-			a.afterVoiceJoin(engine.ChatInfo{AccountID: acc, ChatID: id, Title: title})
-			a.mu.Lock()
-			a.mode = 1
-			a.mu.Unlock()
-			go a.loadCalls() // Voice tab surface (slice 64)
-			a.invalidate()
-			a.pollGroupCallOnce(acc, id)
-		}()
+		if callBarInCall(*chat, f.joinedGC) {
+			a.leaveJoinedCall()
+		} else {
+			a.callBarJoin(*chat)
+		}
 	}
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
@@ -133,13 +125,56 @@ func (a *App) callBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 						)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						btn := a.ui.PrimaryButton(&a.wid.callJoinBtn, "JOIN")
+						label := "JOIN"
+						if callBarInCall(*chat, f.joinedGC) {
+							label = "LEAVE"
+						}
+						btn := a.ui.PrimaryButton(&a.wid.callJoinBtn, label)
 						return btn.Layout(gtx)
 					}),
 				)
 			})
 		})
 	})
+}
+
+// callBarInCall reports whether THIS window has joined the open chat's
+// group call (pure) — the bar's JOIN button flips to LEAVE then.
+func callBarInCall(chat engine.ChatInfo, jc *joinedCall) bool {
+	return jc != nil && jc.accountID == chat.AccountID && jc.chatID == chat.ChatID
+}
+
+// callBarJoin runs the bar's JOIN action (the real engine join, then
+// applyCallJoinResult).
+func (a *App) callBarJoin(c engine.ChatInfo) {
+	go func() {
+		callID, err := a.eng.JoinGroupCall(c.AccountID, c.ChatID)
+		a.applyCallJoinResult(c, callID, err)
+	}()
+}
+
+// applyCallJoinResult records a successful group-call join (slice 102:
+// the joined-call state + its participant poll) or toasts the failure.
+// The Voice-tab flip (mode 1, where the group-call screen renders) is a
+// MAIN-window move — mode is a layoutMain-only surface, so a separate
+// window skips it: there the call bar itself is the in-call surface
+// (LEAVE via callBarInCall); flipping mode there painted nothing while
+// the call UI appeared in no window at all (R30).
+func (a *App) applyCallJoinResult(c engine.ChatInfo, callID string, err error) {
+	if err != nil {
+		a.setToast("Join failed: " + err.Error())
+		return
+	}
+	a.setJoinedCall(c.AccountID, callID, c.ChatID, c.Title)
+	a.afterVoiceJoin(c)
+	if mainOnlySurfaceShown(a) {
+		a.mu.Lock()
+		a.mode = 1
+		a.mu.Unlock()
+		go a.loadCalls() // Voice tab surface (slice 64)
+	}
+	a.invalidate()
+	a.pollGroupCallOnce(c.AccountID, c.ChatID)
 }
 
 // pollGroupCallOnce fetches call info for a chat and stores it.

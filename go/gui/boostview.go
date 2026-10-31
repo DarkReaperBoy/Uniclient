@@ -452,7 +452,10 @@ func (a *App) boostScroll(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	}))
 
 	// Prepaid giveaways (slice 212): already-paid entries launchable here.
-	if prepaidRows := prepaidFromBoostStatus(st); len(prepaidRows) > 0 {
+	// R30: Launch opens the giveaway creator — a content-pane dialog that
+	// only layoutMain paints; the boost panel renders in every window, so
+	// the whole section is dropped in separate windows.
+	if prepaidRows := prepaidFromBoostStatus(st); len(prepaidRows) > 0 && mainOnlySurfaceShown(a) {
 		prepaidRows := prepaidRows
 		growClickables(&a.wid.boostLaunchCells, len(prepaidRows))
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {

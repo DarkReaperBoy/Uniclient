@@ -700,11 +700,55 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   the row-menu actions are value snapshots.
 - **P4**: musicRow calls a.eng.MediaState() per row per frame (cheap
   guarded getter; fold into one call per layout if ever measurable).
-- **Watch item (systemic, from R29)**: WHICH OTHER content-pane dialog
-  openers are reachable from separate windows' surfaces (header menus,
-  panels)? Any button that sets a state only layoutMain paints is the
-  same dead-button class — needs a dedicated sweep (natural chunk-3
-  iteration 18).
+- **Watch item RESOLVED (iteration 18 = R30)**: the dedicated sweep ran —
+  see the dead-openers section below; 19 openers were dead in separate
+  windows and are now gated/hidden.
+
+
+### dead-openers sweep (app.go + every-window surfaces — session 335, chunk 3 iteration 18, VERDICT: R30, 19 openers fixed)
+- **Method**: Root's separate branch renders chat view + media/IV/story/
+  call/pip/toast/shortcuts overlays; layoutMain alone paints the 24
+  contentDialogSurface states, settings/voice pages, and the main-branch
+  modals (rate/clear/restrict/saved-delete). Enumerated every setter of
+  those states, mapped each to its opener function (33 openers), then
+  intersected call sites with the separate render tree. SAFE classes
+  verified along the way: openers living only in sidebar/drawer/settings/
+  folder-menu/callsbox/chatmenu (all main-only surfaces); poll/schedule/
+  forward/shadow/deleted dialogs (chat-view overlays, render everywhere);
+  business page (settings sub-page); exportDlg/2FA/privacy/lock/autodl/
+  cloud-theme openers (settings-only); folder create/edit/invites/import
+  (sidebar folder tabs + folder menu).
+- **Fixed (R30, deadopeners_r30_test.go)**: header menu ×6 (notifsound/
+  addmember/autodelete/gift/theme/wallpaper — headerMenuItems gained a
+  `separate` param); attach menu ×3 (Music/Location/Contact — grouped
+  behind mainOnlySurfaceShown); info panel mute clock + member menu
+  restrict/ban (memberMenuItems `separate` param, memberActionLabel
+  extracted); message menu "Filter Like This…" (gated); boost panel prepaid
+  Launch cells (section dropped); call rating offer (skipped);
+  saved-lists row menu Delete (savedSublistMenuActions `separate` param);
+  Ctrl+J contacts (key consumed, opener gated).
+- **Call bar JOIN (the worst one)**: joined for real (engine) then set
+  mode 1 — a layoutMain-only surface — so the group-call screen appeared
+  in NO window (joinedGC lives on the joining App only) while the audio
+  session ran with no leave affordance. Now: callBarJoin →
+  applyCallJoinResult skips the mode flip in separate windows;
+  callBarInCall (pure) flips the bar button JOIN→LEAVE (leaveJoinedCall)
+  once this window has joined this chat's call — in the MAIN window the
+  LEAVE state also appears when the user returns to the chat mid-call
+  (honest shortcut back out; the voice tab remains the full screen).
+- **mainOnlySurfaceShown(a)** (separate.go): R29's profileMusicSectionShown
+  generalized to the class — gates every inline opener whose target only
+  layoutMain paints. R29's helper now reads as the pattern's first
+  instance.
+- **Direct engine actions stay everywhere** (mute switch, promote/demote/
+  remove/unban, pin/move, block, wallpaper reset, clear-history confirm
+  inside the header menu itself) — they work from any window.
+- **Watch item (dormant code, not §1.10 — no window shows it)**:
+  a.wid.boostGiveawayBtn (widgets.go) has a click handler (boostview.go
+  ~320, openGiveawayCreator) but is never rendered in ANY window — the
+  giveaway creator is reachable only via prepaid Launch cells. If the
+  "Start a giveaway" button is ever surfaced, it must also be gated on
+  mainOnlySurfaceShown (same content-pane dialog).
 
 ### Chunk-3 ranking queue (session 334 — scanner v3 (go/ast, exact) +
 separateChatView-reachability rule)
@@ -725,6 +769,8 @@ v3 candidate queue EXHAUSTED (session 335): webpage/suggestionbar/
 Calibration: the v3 flags kept paying out to the very end — R25 (semantic
 latch), R27 (missing mutex + shared mutable faces), R28 (layout-written
 package bool), R29 (dead button found by reachability analysis beyond the
-scanner's shape). Next chunk-3 lens: the R29 systemic watch item — dead
-content-pane openers in separate windows — then remaining unscanned gui
-files (the scanner itself is gone; its go/ast recipe is in HOT).
+scanner's shape). The R29 systemic
+lens RAN (iteration 18 = R30, dead-openers section above). Next chunk-3
+lens: the remaining unscanned gui files (the scanner itself is gone; its
+go/ast recipe is in HOT) — plus per-file iteration on the big unread
+surfaces (state.go's remaining body, composer/messages internals).

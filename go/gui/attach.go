@@ -39,16 +39,25 @@ type attachMenuItem struct {
 }
 
 func (a *App) attachMenuItems() []attachMenuItem {
-	return []attachMenuItem{
+	// R30: Music/Location/Contact open content-pane dialogs (main-only) —
+	// the attach menu renders in every window, so they are dropped in
+	// separate windows. Photo/File use system pickers and Poll renders as a
+	// chat-view overlay — those work everywhere and stay.
+	items := []attachMenuItem{
 		{label: "Photo or Video", icon: iconImagePhoto, run: func() { a.pickAndSendExts(photoExts) }},
-		// Slice 210: Music opens the in-app music attach box (saved-music
-		// source + "Choose from files"), tdesktop music_attach_box 1:1.
-		{label: "Music", icon: iconAVNote, run: func() { a.openMusicAttach() }},
 		{label: "File", icon: iconFileAttach, run: func() { a.pickAndSendExts(nil) }},
 		{label: "Poll", icon: iconSocialPoll, run: func() { a.openPollDialog() }},
-		{label: "Location", icon: iconMapsPlace, run: func() { a.openAttachDialog("location") }},
-		{label: "Contact", icon: iconCommunicationContacts, run: func() { a.openAttachDialog("contact") }},
 	}
+	if mainOnlySurfaceShown(a) {
+		items = append(items,
+			// Slice 210: Music opens the in-app music attach box (saved-music
+			// source + "Choose from files"), tdesktop music_attach_box 1:1.
+			attachMenuItem{label: "Music", icon: iconAVNote, run: func() { a.openMusicAttach() }},
+			attachMenuItem{label: "Location", icon: iconMapsPlace, run: func() { a.openAttachDialog("location") }},
+			attachMenuItem{label: "Contact", icon: iconCommunicationContacts, run: func() { a.openAttachDialog("contact") }},
+		)
+	}
+	return items
 }
 
 // toggleAttachMenu shows or hides the attach popup (closing the emoji

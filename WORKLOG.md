@@ -8,10 +8,44 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iterations 8-17 DONE (separate/menu/webpage/cornerreply/cornerreaction/richtext CLEAN; R23-R29 FIXED — suggestionbar, rubberband, instantview ×2, msgshot, translatebar, profilemusic; rows in BUGS Fixed); v3 candidate queue EXHAUSTED (all 8 flagged files read in full, sections in MAP)
-- next: read verify.yml 41206658703 (d029af30 — R27 proof, IN FLIGHT; R25 proof 41205692894 = SUCCESS verified at step level), then chunk 3 iteration 18 = the R29 systemic sweep (which content-pane dialog openers are reachable from separate windows — every button that sets state only layoutMain paints is a dead button, §1.10)
+- item: iteration 18 DONE — the R29 systemic dead-opener sweep = R30 FIXED (19 dead openers across 9 every-window surfaces; header/attach/member/saved-list menus + mute clock + Filter-Like-This + prepaid Launch + call rating + Ctrl+J contacts + the call bar's JOIN-then-mode-1 orphaned call; row in BUGS, method + section in MAP, deadopeners_r30_test.go ×7). boostGiveawayBtn found DORMANT (never rendered anywhere — watch item in MAP, not §1.10)
+- next: commit+push R30 (§1.14) then dispatch the CI gate; after that chunk 3 continues — the remaining unscanned gui files and state.go's remaining body (refreshMessages/mergeMessages 892-969, downloads/auth/composer, cfg/load*/apply* 1748-2837)
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick GREEN ×5 this session (4/4 runner contracts, js leg, full gui suite); CI proofs R25 41105692894 + R27 41206658703 both SUCCESS at job+step level (race legs carry the gui pins); gofmt trap rule in HOT
+- last-gate: local quick GREEN this session (gofmt clean, go vet clean, full gui suite ok ×3 — incl. the 7 R30 tests); CI dispatch pending for R30 (previous proofs: R25 41105692894 + R27 41206658703 both SUCCESS at job+step level)
+
+## Session 336 — iteration 18: the R29 systemic sweep = R30 (2026-10-31)
+
+- Resumed at the STATE pointer: R27 proof 41206658703 had already closed
+  SUCCESS (job+step level, commit 68aa9192) — straight into chunk 3
+  iteration 18, the dead-opener sweep R29's watch item called for.
+- **R30 found and fixed (19 dead openers, 9 surfaces)**: enumerated the 24
+  contentDialogSurface states + settingsOpen + the main-branch modals +
+  mode 1; mapped all 33 opener functions to call sites; intersected with
+  the separate render tree (chat view + overlays). Dead-in-separate:
+  header menu ×6, attach menu ×3, mute clock, member menu ×2, Filter
+  Like This…, prepaid Launch cells, call rating, saved-lists Delete,
+  Ctrl+J contacts, and the call bar's JOIN (worst: real engine join +
+  mode-1 flip that painted nothing — the group-call UI appeared in NO
+  window; now the bar itself is the in-call surface, JOIN→LEAVE via
+  callBarInCall + leaveJoinedCall, mode flip skipped in separate
+  windows). Fixes: `separate` params on the pure menu derivations
+  (headerMenuItems/memberMenuItems/savedSublistMenuActions/
+  attachMenuItems), shared mainOnlySurfaceShown predicate (R29's helper
+  generalized), callBarJoin/applyCallJoinResult split. Direct engine
+  actions stay everywhere. RED-first: deadopeners_r30_test.go ×7
+  (compile seam + bare-App real-wiring for the join result); 16 existing
+  test calls updated for the new params (paren-aware rewriter — the
+  naive regex missed dmChat()-style first args); TestAttachMenuItemsMusic
+  re-pinned to the grouped order. Local gate: gofmt clean, vet clean,
+  full gui suite green ×3.
+- **By-catch (dormant, not a bug)**: a.wid.boostGiveawayBtn is clicked
+  (boostview.go) but never rendered in any window — the giveaway creator
+  is only reachable via prepaid Launch cells. Watch item in MAP; gate it
+  on mainOnlySurfaceShown if it is ever surfaced.
+- SAFE classes verified in the sweep (documented in MAP): sidebar/drawer/
+  settings/folder-menu/callsbox/chatmenu-only openers; poll/schedule/
+  forward/shadow/deleted dialogs (chat-view overlays); business page;
+  export/2FA/privacy/lock/autodl/cloud-theme (settings-only).
 
 ## Session 335 — wipe #4 boot, instantview.go: R25 + R26 (2026-10-31)
 

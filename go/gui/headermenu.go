@@ -43,8 +43,13 @@ func headerMenuConfirmText(id string) (title, hint string) {
 
 // headerMenuItems derives the peer-menu rows (pure, tested). giftsOK:
 // the account supports star gifts (slice 211) — user peers then get the
-// "Send a gift" row (tdesktop's profile gift entry).
-func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn, giftsOK bool) []chatMenuAction {
+// "Send a gift" row (tdesktop's profile gift entry). separate: the header
+// menu renders in EVERY window, but the rows whose actions open content-
+// pane dialogs (sound picker, add-member, TTL, gift picker, chat theme,
+// wallpaper) are dead in separate windows — only layoutMain paints those
+// dialogs — so they are dropped there (R30, the R29 class made systemic;
+// §1.10 — no shown-but-dead rows).
+func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn, giftsOK, separate bool) []chatMenuAction {
 	var items []chatMenuAction
 	if c.IsMuted {
 		items = append(items, chatMenuAction{"Unmute", "unmute"})
@@ -59,8 +64,10 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn, giftsOK 
 	} else {
 		items = append(items, chatMenuAction{"Translate to…", "transon"})
 	}
-	items = append(items, chatMenuAction{"Notification sound…", "notifsound"})
-	if c.Type == engine.ChatTypeGroupVal || c.Type == engine.ChatTypeTopicVal || c.Type == engine.ChatTypeChanVal {
+	if !separate {
+		items = append(items, chatMenuAction{"Notification sound…", "notifsound"})
+	}
+	if !separate && (c.Type == engine.ChatTypeGroupVal || c.Type == engine.ChatTypeTopicVal || c.Type == engine.ChatTypeChanVal) {
 		items = append(items, chatMenuAction{"Add members", "addmember"})
 	}
 	items = append(items, chatMenuAction{"Scheduled messages", "scheduled"})
@@ -78,16 +85,20 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn, giftsOK 
 			items = append(items, chatMenuAction{"Statistics", "stats"})
 		}
 	}
-	items = append(items, chatMenuAction{"Auto-delete…", "autodelete"})
+	if !separate {
+		items = append(items, chatMenuAction{"Auto-delete…", "autodelete"})
+	}
 	items = append(items, chatMenuAction{"Shadow-banned users…", "shadowbans"})
 	items = append(items, chatMenuAction{"View deleted messages…", "viewdeleted"})
 	items = append(items, chatMenuAction{"Clear deleted messages", "cleardeleted"})
 	if c.Type == engine.ChatTypeDMVal {
-		if giftsOK {
+		if giftsOK && !separate {
 			items = append(items, chatMenuAction{"Send a gift", "gift"})
 		}
-		items = append(items, chatMenuAction{"Change colors…", "theme"})
-		items = append(items, chatMenuAction{"Set wallpaper…", "wallpaper"})
+		if !separate {
+			items = append(items, chatMenuAction{"Change colors…", "theme"})
+			items = append(items, chatMenuAction{"Set wallpaper…", "wallpaper"})
+		}
 		if c.WallpaperJSON != "" {
 			items = append(items, chatMenuAction{"Reset wallpaper", "wallpaperreset"})
 		}
@@ -322,7 +333,9 @@ func (a *App) layoutHeaderMenu(gtx layout.Context, f frame) layout.Dimensions {
 	items := headerMenuItems(m.chat, f.profile != nil, f.profile != nil && f.profile.IsBlocked,
 		f.selected != nil && chatTranslateOn(f, f.selected),
 		// Slice 211: gifts on gift-capable platforms, user peers only.
-		m.chat.Type == engine.ChatTypeDMVal && giftAccountOK(f, m.chat.AccountID))
+		m.chat.Type == engine.ChatTypeDMVal && giftAccountOK(f, m.chat.AccountID),
+		// R30: separate windows never paint the content-pane dialogs.
+		a.isSeparate())
 	growClickables(&a.wid.headerMenuBtns, len(items))
 
 	menuW := gtx.Dp(unit.Dp(220))

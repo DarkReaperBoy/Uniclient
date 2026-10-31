@@ -14,7 +14,7 @@ func dmChat() engine.ChatInfo {
 
 func TestHeaderMenuItemsDM(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
-		items := headerMenuItems(dmChat(), false, false, false, false)
+		items := headerMenuItems(dmChat(), false, false, false, false, false)
 		labels := make([]string, len(items))
 		for i, it := range items {
 			labels[i] = it.label
@@ -33,7 +33,7 @@ func TestHeaderMenuItemsDM(t *testing.T) {
 	t.Run("muted swaps label", func(t *testing.T) {
 		c := dmChat()
 		c.IsMuted = true
-		items := headerMenuItems(c, false, false, false, false)
+		items := headerMenuItems(c, false, false, false, false, false)
 		if items[0].label != "Unmute" || items[0].id != "unmute" {
 			t.Fatalf("first item = %+v", items[0])
 		}
@@ -42,7 +42,7 @@ func TestHeaderMenuItemsDM(t *testing.T) {
 	t.Run("wallpaper adds reset (slice 218)", func(t *testing.T) {
 		c := dmChat()
 		c.WallpaperJSON = `{"id":5}`
-		items := headerMenuItems(c, false, false, false, false)
+		items := headerMenuItems(c, false, false, false, false, false)
 		found := map[string]bool{}
 		for _, it := range items {
 			found[it.id] = true
@@ -53,7 +53,7 @@ func TestHeaderMenuItemsDM(t *testing.T) {
 	})
 
 	t.Run("blocked known swaps to unblock", func(t *testing.T) {
-		items := headerMenuItems(dmChat(), true, true, false, false)
+		items := headerMenuItems(dmChat(), true, true, false, false, false)
 		found := false
 		for _, it := range items {
 			if it.id == "unblock" {
@@ -71,7 +71,7 @@ func TestHeaderMenuItemsDM(t *testing.T) {
 
 func TestHeaderMenuItemsGroupChannel(t *testing.T) {
 	g := engine.ChatInfo{AccountID: "a", ChatID: "g1", Type: engine.ChatTypeGroupVal}
-	items := headerMenuItems(g, false, false, false, false)
+	items := headerMenuItems(g, false, false, false, false, false)
 	actions := map[string]bool{}
 	for _, it := range items {
 		actions[it.id] = true
@@ -86,12 +86,12 @@ func TestHeaderMenuItemsGroupChannel(t *testing.T) {
 	if !actions["search"] || !actions["addmember"] {
 		t.Fatalf("group menu missing slice-79 rows: %v", actions)
 	}
-	if items := headerMenuItems(dmChat(), false, false, false, false); containsAction(items, "addmember") {
+	if items := headerMenuItems(dmChat(), false, false, false, false, false); containsAction(items, "addmember") {
 		t.Fatal("DM menu must not offer Add members")
 	}
 
 	c := engine.ChatInfo{AccountID: "a", ChatID: "c1", Type: engine.ChatTypeChanVal}
-	if items := headerMenuItems(c, false, false, false, false); !containsAction(items, "leave") {
+	if items := headerMenuItems(c, false, false, false, false, false); !containsAction(items, "leave") {
 		t.Fatalf("channel menu = %+v", items)
 	}
 }

@@ -326,7 +326,7 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 // While a timed mute is active the label gains a "Muted until …" subtitle
 // (slice 136) that re-renders on the minute.
 func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widget.Bool) layout.Dimensions {
-	if a.wid.muteClockBtn.Clicked(gtx) {
+	if a.wid.muteClockBtn.Clicked(gtx) && mainOnlySurfaceShown(a) {
 		title := ""
 		a.mu.Lock()
 		for i := range a.chats {
@@ -380,6 +380,13 @@ func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widg
 				})
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				// R30: the clock opens the mute-duration picker (a
+				// content-pane dialog) — dead in separate windows, so the
+				// button is hidden there. The switch beside it is a direct
+				// engine action and stays everywhere.
+				if !mainOnlySurfaceShown(a) {
+					return layout.Dimensions{}
+				}
 				btn := a.ui.IconButton(&a.wid.muteClockBtn, iconActionSchedule, "Mute duration")
 				btn.Color = a.ui.p.TextDim
 				return btn.Layout(gtx)

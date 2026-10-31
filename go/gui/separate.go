@@ -69,6 +69,20 @@ func (a *App) isSeparate() bool {
 	return a.separate != nil
 }
 
+// mainOnlySurfaceShown reports whether THIS window paints the main-only
+// surfaces: the content-pane dialogs (contentDialogSurface — layoutMain is
+// their only painter), the settings and voice pages, and the main-branch
+// window modals (call rating, clear-history, restrict/ban, saved-sublist
+// delete) that the separate branch returns before. R30 — the R29 dead-
+// button class made systemic: every opener reachable from an every-window
+// surface (header menu, attach menu, message menu, info panel, boost
+// panel, call overlay, saved-lists pane, shortcuts, call bar) is gated on
+// this; a shown-but-dead control is forbidden (§1.10). R29's
+// profileMusicSectionShown is this predicate's first instance.
+func mainOnlySurfaceShown(a *App) bool {
+	return !a.isSeparate()
+}
+
 // ── separate-window registry ──────────────────────────────────────────────
 
 // sepWindow tracks one live separate window.

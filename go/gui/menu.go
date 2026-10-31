@@ -389,7 +389,10 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 	}
 	// Ayu quick filter-add (matrix row 168): prefill a message filter
 	// from this message's text (regex-quoted, first line, capped).
-	if acts.Filter {
+	// R30: the filters editor is a content-pane dialog (main-only) — the
+	// message menu renders in every window, so the row is dropped in
+	// separate windows.
+	if acts.Filter && mainOnlySurfaceShown(a) {
 		items = append(items, menuAction{"Filter Like This…", func(gtx layout.Context) {
 			a.openAyuFilterDialogPrefilled(quickFilterPattern(m.ContentText))
 		}})

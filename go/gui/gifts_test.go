@@ -78,15 +78,15 @@ func TestGiftMenuGating(t *testing.T) {
 	group := engine.ChatInfo{Type: engine.ChatTypeGroupVal}
 
 	// giftsOK → DM menus carry the row.
-	if !containsAction(headerMenuItems(dm, false, false, false, true), "gift") {
+	if !containsAction(headerMenuItems(dm, false, false, false, true, false), "gift") {
 		t.Error("gift-capable DM menu lacks Send a gift")
 	}
 	// Non-gift platform → no row (no dead entry, §1.10).
-	if containsAction(headerMenuItems(dm, false, false, false, false), "gift") {
+	if containsAction(headerMenuItems(dm, false, false, false, false, false), "gift") {
 		t.Error("non-gift DM menu shows Send a gift")
 	}
 	// Groups never get it.
-	if containsAction(headerMenuItems(group, false, false, false, true), "gift") {
+	if containsAction(headerMenuItems(group, false, false, false, true, false), "gift") {
 		t.Error("group menu shows Send a gift")
 	}
 }

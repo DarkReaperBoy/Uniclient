@@ -301,7 +301,10 @@ func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 			continue
 		}
 		if showContactsKey(ke.Name, ctrl) {
-			if acc := currentAccount(f); acc.ID != "" {
+			// R30: the contacts page is a main-window content pane —
+			// the shortcut layer runs in every window, so separate
+			// windows consume the key without the dead opener.
+			if acc := currentAccount(f); acc.ID != "" && mainOnlySurfaceShown(a) {
 				a.openContacts(acc.ID)
 			}
 			continue
