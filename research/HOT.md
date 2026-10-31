@@ -4,19 +4,25 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 335**: iterations 15 (instantview.go) and 16
-  (msgshot.go) DONE, both read in full — **R25** (IV photo latch →
-  in-flight claim), **R26** (related-fetch generation gate), **R27**
-  (shot render pipeline: lazily-written face caches + SHARED opentype.Face
-  scratch buffers raced on the save goroutine, plus the palette read
-  racing applyTheme → shotMu + GUI-loop palette capture). Rows in BUGS
-  Fixed, sections in MAP. Native race proof: verify.yml **41205692894
-  (bf9ea2bf, carries the R25 pin) IN FLIGHT at last check — read its
-  result; it does NOT carry the R27 pin** (filter extended after
-  dispatch) → **dispatch a fresh verify.yml for 674c41f9 (R27) once it
-  finishes** (local -race on gui still OOMs on gotd). Queue after:
-  **translatebar.go (transPickerOpen), then profilemusic.go (musicList)**
-  — calibration note in MAP: v3 flags keep paying out, assume nothing.
+- **P0 chunk 3, session 335**: iterations 15-17 DONE (instantview,
+  msgshot, translatebar, profilemusic — all read in full): **R25** (IV
+  photo latch → in-flight claim), **R26** (related-fetch generation
+  gate), **R27** (shot render pipeline: lazy face caches + shared
+  opentype.Face scratch buffers raced on the save goroutine + palette
+  read racing applyTheme → shotMu + GUI-loop capture), **R28**
+  (transPickerOpen package bool → per-window App field, R14 class),
+  **R29** (profile Music section was a dead button in separate windows —
+  hidden there now). Rows in BUGS Fixed; sections + remaining notes in
+  MAP. **v3 candidate queue EXHAUSTED** — next lens is the R29 systemic
+  watch item (dead content-pane openers in separate windows), then the
+  unscanned gui files.
+- **Proofs**: R25 proof **41205692894 (bf9ea2bf) = SUCCESS at job AND
+  step level** (all 5 jobs; race leg incl. the gui pins green). R27
+  proof **41206658703 (d029af30) IN FLIGHT at last check — read its
+  result next session before trusting the R27 hammer's race green**;
+  note it predates R28/R29 (docs-only + gui code — the R28/R29 changes
+  are covered by the same test-suite legs it runs, but a fresh dispatch
+  is cheap if anything smells). Local -race on gui still OOMs on gotd.
 - **Wipe #4 lessons (session 335 boot)**: only the repo clone was gone —
   /home/z/my-project/toolchain SURVIVED (go 1.27.0 + mod cache), but
   **scripts/ was wiped: scanner v3 (pkgvar_scan_v3) is GONE** — its queue

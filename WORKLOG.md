@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iterations 8-16 DONE (separate/menu/webpage/cornerreply/cornerreaction/richtext CLEAN; suggestionbar R24, rubberband R23, instantview R25+R26, msgshot R27 FIXED — rows in BUGS Fixed); R24 proof 41189550503 = SUCCESS all 5 legs; scanner v3 queue in MAP (script wiped, see HOT)
-- next: read verify.yml 41205692894 (bf9ea2bf — R25 proof, IN FLIGHT; does NOT carry the R27 pin), then dispatch verify.yml for 674c41f9 (R27 race pin), then chunk 3 iteration 17 = translatebar.go (transPickerOpen), then profilemusic.go
+- item: iterations 8-17 DONE (separate/menu/webpage/cornerreply/cornerreaction/richtext CLEAN; R23-R29 FIXED — suggestionbar, rubberband, instantview ×2, msgshot, translatebar, profilemusic; rows in BUGS Fixed); v3 candidate queue EXHAUSTED (all 8 flagged files read in full, sections in MAP)
+- next: read verify.yml 41206658703 (d029af30 — R27 proof, IN FLIGHT; R25 proof 41205692894 = SUCCESS verified at step level), then chunk 3 iteration 18 = the R29 systemic sweep (which content-pane dialog openers are reachable from separate windows — every button that sets state only layoutMain paints is a dead button, §1.10)
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN ×2 (4/4 runner contracts, js leg, full gui suite incl. R25/R26 tests); gofmt trap rule in HOT — always gofmt -w with devroot.env after Edit-tool writes
 
@@ -72,6 +72,28 @@ on 2026-10-30 — it lives in git history if ever needed.)
   674c41f9, gate quick GREEN.
 - Queue: translatebar.go next, then profilemusic.go; R27's proof dispatch
   pending after 41205692894 lands.
+- **R25 proof landed: 41205692894 (bf9ea2bf) = SUCCESS, verified at job
+  AND step level** (all 5 jobs; the Race leg with the extended gui pins
+  incl. TestIVPhotoClaimGuarded green). R27 proof dispatched:
+  **41206658703 (d029af30) — READ ITS RESULT next session**.
+- **Iteration 17a: translatebar.go (290 lines, read in full) — R28
+  fixed, rest CLEAN** (section in MAP): transPickerOpen was a package
+  bool written by layout (R14 class) — opening the language picker in
+  window A expanded it in window B's chat and picking a language in
+  either flipped both. Now an App field (a.mu) + frame carry + openChat
+  reset, the exact R14 pattern. RED: TestTransPickerIsPerWindow
+  (compile seam). P3 watch item left in MAP: transAsked latches on
+  failed auto-translates (naive fix = per-frame re-ask spin; needs
+  backoff design). ff5d12b5.
+- **Iteration 17b: profilemusic.go (598 lines, read in full) — R29
+  fixed, rest CLEAN** (section in MAP): the panel Music section's
+  tap-through opens a content-pane dialog that only the MAIN window
+  renders, but the info panel renders in every window — a dead button
+  in separate windows (§1.10). Hidden there via profileMusicSectionShown.
+  RED: TestProfileMusicHiddenInSeparateWindows (compile seam). Package
+  widget vars (musicRows/musicList/…) verified MAIN-WINDOW-ONLY (joins
+  the business.go list in MAP); systemic dead-opener sweep queued as
+  iteration 18. 47ce870a. Gate quick GREEN ×4 this session.
 
 ## Session 334 — CI proofs closed, separate.go clean, ranking queue (2026-10-31)
 

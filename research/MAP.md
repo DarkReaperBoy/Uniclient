@@ -661,6 +661,51 @@ shot, slice 151; iteration 16, VERDICT: R27 fixed, rest CLEAN)
 - **P3-sweep note**: `w := w` loop-var shadow in wrapShotLines (Go 1.22+
   makes it redundant) — strip with the §1.17 pass.
 
+### translatebar.go (290 lines — session 335, read in full: the
+chat-wide translate bar, slice 150; iteration 17, VERDICT: R28 fixed, rest
+CLEAN)
+- **R28 FIXED**: transPickerOpen was a package bool written by layout —
+  the R14 class: the bar renders in every window whose chat has
+  translation on, so opening the language picker in window A expanded it
+  in window B too, and picking/closing in either flipped both. Now an
+  App field (a.mu) + frame carry + openChat reset (the R14 pattern).
+  Full row in BUGS Fixed.
+- Rest CLEAN: a.transChatOn/transTarget/transAsked/translations are
+  a.mu-guarded everywhere (toggle/set/ensure + the fetch goroutine's
+  publish); ensureAutoTranslation snapshots the message and takes the
+  engine call outside the lock; the picker's clickable pool is per-App
+  (a.wid.transLangBtns); transLangs is immutable.
+- **P3 watch item (transAsked latch)**: a failed auto-translate leaves
+  transAsked[key] set — the message never re-translates while the bar is
+  on (recovery: toggle off/on or change target, both clear the set).
+  Fixing naively (clear on failure) would re-ask PER FRAME — a failing
+  translator needs a cooldown/backoff design first; fold in when the
+  translate feature is next touched.
+
+### profilemusic.go (598 lines — session 335, read in full: profile
+music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
+- **R29 FIXED**: the panel Music section's tap-through was a dead button
+  in separate windows (info panel renders everywhere; the playlist is a
+  main-window content-pane dialog). Hidden there via
+  profileMusicSectionShown. Full row in BUGS Fixed.
+- Package widget vars (musicRows/musicActBtns/musicBackBtn/musicList/
+  musicRowMenuBtns) are MAIN-WINDOW-ONLY VERIFIED (only reachable via
+  layoutMain's contentDialogSurface; the separate branch returns before
+  any dialog surface) — joins the business.go-var-block list. musicList
+  carries scroll position, so if the playlist ever renders in a second
+  window these MUST move to a.wid first.
+- Rest CLEAN: a.musicDlg/a.musicRowMenu/a.panelMusic a.mu-guarded with
+  pointer+identity landing guards in the reload paths (the R26 shape);
+  engine calls all in goroutines outside the lock; st copies handed to
+  the row-menu actions are value snapshots.
+- **P4**: musicRow calls a.eng.MediaState() per row per frame (cheap
+  guarded getter; fold into one call per layout if ever measurable).
+- **Watch item (systemic, from R29)**: WHICH OTHER content-pane dialog
+  openers are reachable from separate windows' surfaces (header menus,
+  panels)? Any button that sets a state only layoutMain paints is the
+  same dead-button class — needs a dedicated sweep (natural chunk-3
+  iteration 18).
+
 ### Chunk-3 ranking queue (session 334 — scanner v3 (go/ast, exact) +
 separateChatView-reachability rule)
 Scanner history: v1 (regex) missed grouped var blocks; v2's `var ()` bug let
@@ -674,11 +719,12 @@ semantic bleed R14/R23 and outside-layout map writes R22/fatal).
 Main-window-only VERIFIED so far: swipeG (sidebar mount), business.go var
 block (settings.go:384), menu pools (now per-App), sidebar/dialog/login
 surfaces, notify_linux (separate windows skip the DBus server by design).
-Next-iteration queue (v3-exact, chat-surface first; webpage/suggestionbar/
-   cornerreply/cornerreaction/richtext/instantview/msgshot DONE — clean or
-   fixed, sections above):
-1. translatebar.go — transPickerOpen (bar in chat)
-2. profilemusic.go — musicList (profile panel = R22's surface)
-Calibration: the v3 flags keep paying out — instantview's ivDocDone was a
-real (semantic) latch (R25), and msgshot's shotFaceCache pair was a REAL
-missing-mutex + shared-mutable-faces double (R27). Assume nothing; read.
+v3 candidate queue EXHAUSTED (session 335): webpage/suggestionbar/
+   cornerreply/cornerreaction/richtext/instantview/msgshot/translatebar/
+   profilemusic all read in full — clean or R24-R29 fixed, sections above.
+Calibration: the v3 flags kept paying out to the very end — R25 (semantic
+latch), R27 (missing mutex + shared mutable faces), R28 (layout-written
+package bool), R29 (dead button found by reachability analysis beyond the
+scanner's shape). Next chunk-3 lens: the R29 systemic watch item — dead
+content-pane openers in separate windows — then remaining unscanned gui
+files (the scanner itself is gone; its go/ast recipe is in HOT).
