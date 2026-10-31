@@ -34,9 +34,11 @@ This is not history — stale lines are lies.
   R23 proof 41188229919 = SUCCESS all 5 legs; R24 proof = 41189550503
   (cf60ce4d) in flight — READ ITS RESULT before trusting race green for
   the new gui leg**. Next per the queue
-  in MAP: **cornerreply.go + cornerreaction.go, then richtext.go,
-  instantview.go (ivDocDone watch item), msgshot.go, translatebar.go +
-  profilemusic.go**.
+  in MAP: **richtext.go, then instantview.go (ivDocDone watch item),
+  msgshot.go, translatebar.go + profilemusic.go** (cornerreply +
+  cornerreaction DONE this session — both clean; cornerreply's shared
+  hover is cursor-correct by construction, cornerreaction fully
+  favMu-guarded; calibration: remaining queue skews guarded).
   Gio harness lessons in MAP: pointer.Drag is not queueable
   (Move-while-pressed synthesizes Drag), pane-coord boundaries make edge
   presses miss rows.

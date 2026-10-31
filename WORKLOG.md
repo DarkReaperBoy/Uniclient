@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: CI proofs closed — 41184046305 (R20/R21) + 41184562534 (R22) verified SUCCESS at job+step level; iterations 8/10/11 CLEAN (separate.go, menu.go, webpage.go); R23 FIXED (rubberband gesture state → App fields; input.Router lifecycle test); R24 FIXED (suggestionbar maps unguarded vs fetch goroutine → six suggMu helpers; verify.yml race leg extended to gui concurrency pins); scanner v3 (go/ast) + chunk-3 queue in MAP
-- next: read verify.yml runs for R23+R24 native/race proofs (41188229919 for R23 in flight; R24 dispatch pending this push), then chunk 3 iteration 13 = cornerreply.go + cornerreaction.go (hover state fed from processPaneEvents), then richtext.go, instantview.go (ivDocDone watch), msgshot.go, translatebar.go + profilemusic.go
+- item: R23 FIXED + native-proven (41188229919 all 5 legs SUCCESS); R24 FIXED (suggestion maps → suggMu helpers; verify.yml race leg extended to gui pins; proof 41189550503 in flight); iterations 8/10/11/13 CLEAN (separate.go, menu.go, webpage.go, cornerreply.go, cornerreaction.go — all guarded or semantically-correct-shared); scanner v3 (go/ast) + chunk-3 queue in MAP (remaining queue skews guarded per calibration)
+- next: read verify.yml 41189550503 (R24 native+race proof, cf60ce4d), then chunk 3 iteration 14 = richtext.go (linkTags), then instantview.go (ivDocDone watch item), msgshot.go, translatebar.go + profilemusic.go
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (4/4 runner contracts incl. flag forwarding, js vet, full gui suite incl. R23 test)
 
@@ -97,6 +97,15 @@ on 2026-10-30 — it lives in git history if ever needed.)
   gate quick GREEN (4/4 contracts). P4 noted: dead method
   suggestionState.dismiss (zero callers); suggBar/CloseBtn package
   clickables are sidebar-only (P3 fold-in family).
+- **Iteration 13: cornerreply.go (147) + cornerreaction.go (285), read in
+  full — BOTH CLEAN.** cornerreply's package hover state is semantically
+  correct shared (one cursor → one window's events at a time; Leave clears
+  the slot; different chats never collide on MsgID; hoverMu belt-and-
+  suspenders). cornerreaction's fav maps are favMu-guarded on every access
+  with the fetch goroutine publishing via the locked setter. P4: favAttempted
+  fail-pin (no retry this session; comment overpromises). Scanner
+  calibration: both v3-flagged files were already defended — the remaining
+  chat-surface queue skews guarded.
 - **ivDocDone watch item** (instantview.go:1096-1110, verified by complete
   grep — 3 usage sites total, no clear-path anywhere): one-shot mark happens
   BEFORE the download and the error path returns silently → a transient

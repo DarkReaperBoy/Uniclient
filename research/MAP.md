@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go clean) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -556,6 +556,29 @@ top-bar suggestion card; iteration 12, produced R24)
 - suggBarBtn/suggCloseBtn package clickables: sidebar-mounted (main-window
   only) — frameMu covers them; P3 fold-in with the other sidebar pools.
 
+### cornerreply.go (147) + cornerreaction.go (285) — session 334, read in
+full: the hover-corner pills; iteration 13, VERDICT: BOTH CLEAN
+- **cornerreply**: hoverMsgID/hoverChatOn package-level under hoverMu, fed
+  from notePaneHover (processPaneEvents Move/Enter/Leave). Sharing across
+  windows is semantically CORRECT: one cursor generates events for exactly
+  one window at a time, Leave clears the slot, and different windows show
+  different chats so MsgIDs never collide — a single-slot cache that
+  follows the cursor. Mutex is belt-and-suspenders (documented). Pools on
+  a.wid; pure gates (fastReplyGate/cornerReplyCanSend) test-locked.
+- **cornerreaction**: favReactions/favAttempted under favMu on EVERY
+  access (setter/getter/loadFavoriteReaction all locked; the fetch
+  goroutine publishes via the locked setter — the R24 lesson was already
+  applied here). Pools on a.wid; pure helpers (ownHasReaction/
+  toggleOwnReactionEmojis) test-locked.
+- **P4 (cornerreaction)**: favAttempted marks BEFORE the fetch, so an
+  error means no retry this session — the "keep the 👍 fallback until the
+  server answers" comment overpromises (it never re-asks). Fail-pin
+  family; fold in when touched.
+- Scanner calibration note: both files were v3-flagged and both were
+  already defended — the scan's remaining chat-surface candidates skew
+  guarded; expect reads to clear most of the rest (richtext/instantview/
+  msgshot/translatebar/profilemusic).
+
 ### Chunk-3 ranking queue (session 334 — scanner v3 (go/ast, exact) +
 separateChatView-reachability rule)
 Scanner history: v1 (regex) missed grouped var blocks; v2's `var ()` bug let
@@ -569,14 +592,12 @@ semantic bleed R14/R23 and outside-layout map writes R22/fatal).
 Main-window-only VERIFIED so far: swipeG (sidebar mount), business.go var
 block (settings.go:384), menu pools (now per-App), sidebar/dialog/login
 surfaces, notify_linux (separate windows skip the DBus server by design).
-Next-iteration queue (v3-exact, chat-surface first; webpage.go DONE clean,
-   suggestionbar.go DONE — R24 fixed, see its section):
-1. cornerreply.go — hoverMsgID/hoverChatOn (fed from processPaneEvents,
-   chat pane) + cornerreaction.go favReactions/favAttempted
-2. richtext.go — linkTags (message-text rendering)
-3. instantview.go (1,738 ln) — ivDocDone watch item stands
-4. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
-5. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
+Next-iteration queue (v3-exact, chat-surface first; webpage/suggestionbar/
+   cornerreply/cornerreaction DONE — clean or R24-fixed, see sections):
+1. richtext.go — linkTags (message-text rendering)
+2. instantview.go (1,738 ln) — ivDocDone watch item stands
+3. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
+4. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
    musicList (profile panel = R22's surface)
 Watch item carried (verified: no clear-path anywhere): ivDocDone marks a
 photo done BEFORE DownloadIVPhoto runs and the error path returns silently
