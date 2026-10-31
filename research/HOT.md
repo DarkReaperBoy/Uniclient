@@ -4,9 +4,9 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **verify.yml run for R14's native proof is in flight** (dispatched after the
-  R14 push; find the run via the actions API on DarkReaperBoy/Uniclient, ref =
-  the R14 fix commit) — READ ITS RESULT before trusting native green for the
+- **verify.yml run for R14's native proof is in flight**  (dispatched on
+  R14 fix commit 497a4528: run **41174703134** —
+  READ ITS RESULT before trusting native green for the
   next Go change. Same pattern as session 329's run 41152637658 (that one came
   back SUCCESS).
 - **P0 chunk 3 next**: remaining ~88 gui files, one surface per iteration
