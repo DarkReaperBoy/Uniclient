@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -189,3 +189,52 @@ messageRow bubble tree, composer; header/bars skimmed at the overlay level)
   music-attach, and sticker send paths.
 - Lock discipline in this file: all state writes via a.mu (or documented
   frame-loop-only fields); no engine calls under the lock; clean.
+
+### sidebar.go (1,050 lines — session 332, read in full: account bar/mode tabs/
+search field/folder tabs/chat list/rows; the chat-list journey)
+- **layoutSidebar** vertical chain: account bar (+dropdown menu), Chat|Voice
+  mode tabs, search field (+invite-scan glyph), search-result tabs, recent
+  searches, top peers, story strip, saved-messages rows, folder tabs (or
+  archive back row), suggestion bar, then the scrolling chat list; overlays
+  after: chat-row menu, folder-tab menu, next-unread jump btn, invite dialog.
+  All bounds bookkeeping per frame: sbAboveList accumulates, chatRowBounds/
+  sbTabBounds/sbVisible are GUI-loop-only App fields (read by chatmenu/
+  swipeaction on the same loop; chatpeek reads f.sidebarW from the frame).
+- **Chat list model**: filterChats = account filter → archive split (main list
+  hides archived unless searching; archive view is archived-only) → folder tab
+  match → title/last-msg substring search. Search rows = invite join row +
+  section headers + local chats + message results + global chats (+posts),
+  filtered by searchTab. Click model uses Update-not-Clicked to read the
+  modifier set: Ctrl+click → openSeparateWindow (slice 168), else openChat.
+- **Rows**: avatar w/ streamer mode + conn dot; title badges (verified/
+  premium/scam/fake); preview = draft (error color) > typing (accent) >
+  LastMsgText > typed media label; media thumb; trailing badges (mentions,
+  reactions, unread). Hover quick actions = 2 clickables/row (mute/read
+  toggles → engine calls in goroutines, toast + refreshChats after). Swipe
+  layer (slice 158) passes through to rows. Timed-mute chip: minute-boundary
+  InvalidateCmd + expired-mute → go refreshChats.
+- **Lock discipline**: 8 short a.mu sites, all pure field sets; engine calls
+  (MuteChat, MarkChatRead/Unread) only in spawned goroutines — clean.
+- **Package-level widgets** (sidebarSearch, accountMenuOpen, chatListBtns,
+  folderBtns, searchMsgBtns/GlobalBtns, inviteRowBtn, lists): main-window-only
+  by render path — layoutSidebar is called only from layoutMain; the drawer
+  (accountMenuOpen=false) also renders main-only (Root's separate branch
+  returns before it). Same P3 fold-in note as settings* (session 331).
+- **Cross-window exposure via the SHORTCUTS layer** (renders in EVERY window,
+  shortcuts.go): two paths reach sidebar-owned package state from a separate
+  window's loop — (1) Esc→escTarget "search"→sidebarSearch.SetText(""):
+  unreachable in separate Apps ONLY through the invariant that a.search is
+  settable solely via the main window's searchField (implicit, fragile);
+  (2) Ctrl+F with no chat open → FocusCmd{Tag:&sidebarSearch} executed on
+  whichever window's queue handled the key — in a separate window it focuses
+  an editor that renders in ANOTHER window (wrong-window no-op; the window is
+  in its empty state when reachable). With a chat open, Ctrl+F correctly hits
+  toggleInChatSearch on per-App state (separate windows carry their OWN
+  selected — separateChatView gates on f.selected, and Ctrl+Down chat-switch
+  runs openChat on the separate App's own loop/widgets: per-App wid is the
+  slice-168/B-47 design). Watch item: make the search invariant explicit (or
+  route handleSearchShortcut per-window) when shortcuts.go gets its iteration.
+- **Watch item (P4 churn family, with typing-tick/serial-caps)**: refreshChats
+  has no re-entrancy guard — the timed-mute expiry path spawns one per frame
+  until the refreshed list lands (engine round-trip window). Idempotent read,
+  last-write-wins under lock; wasted work only.

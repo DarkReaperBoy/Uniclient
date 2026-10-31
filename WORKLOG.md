@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: R15 fixed this session (wasm-test-runner false-green hole + R14 test self-deadlock, found via CI 41174703134 = FAILURE); chunk 3 iteration 1 DONE (chat.go)
-- next: read verify.yml run 41177906124 (R15+R14 native proof, on 51b3d240 — dispatched this session), then chunk 3 iteration 2 (next surface: sidebar.go, 36KB, the chat-list journey)
+- item: R15 fixed this session (wasm-test-runner false-green hole + R14 test self-deadlock, found via CI 41174703134 = FAILURE); chunk 3 iterations 1-2 DONE (chat.go, sidebar.go)
+- next: read verify.yml run 41177906124 (R15+R14 native proof, on 51b3d240 — dispatched this session), then chunk 3 iteration 3 (next surface: pick from MAP chunk table — chatsearch.go/in-search surface is a natural next given the R14 context)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (runner self-test + js vet + full gui suite with verdict discipline, 907 tests; audio leg green)
 
@@ -45,7 +45,21 @@ on 2026-10-30 — it lives in git history if ever needed.)
   blocks in gui tests audited — pure field access, no locking-method calls.
   All five production snapshot() call sites audited — none under lock.
 - Native proof: this box can't run the native gui leg (§9.7 OOM) → verify.yml
-  re-dispatched for 497a4528+this-fix; run id recorded in STATE next line.
+  re-dispatched (run 41177906124, on 51b3d240); read its result next session
+  before trusting native green.
+- Same session, after the fix: **P0 chunk 3 iteration 2 — sidebar.go mapped**
+  (1,050 lines, read in full; MAP.md chunk-3 entry). Chat-list journey:
+  filterChats (account filter → archive split → folder tab → title/last-msg
+  search), search-rows model incl. invite join row, Ctrl+click→separate
+  window via Update-not-Clicked, hover quick actions (engine calls in
+  goroutines), timed-mute minute ticker. Lock discipline clean (8 short
+  field-set sites, zero engine calls under lock). Package widgets are
+  main-window-only by render path — but the SHORTCUTS layer renders in every
+  window and two paths reach sidebar-owned package state cross-window
+  (Esc→SetText via an implicit f.search invariant; Ctrl+F FocusCmd with the
+  wrong window's queue in the empty-separate-window edge) — watch item in
+  MAP, candidate for shortcuts.go's iteration. refreshChats unguarded = P4
+  churn family watch item.
 
 ## Session 331 — P0 chunk 2 complete: state.go 100%, R14 opened (2026-10-31)
 
