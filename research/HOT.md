@@ -16,8 +16,9 @@ This is not history — stale lines are lies.
   (**R23 FIXED**: package-level gesture state vs per-App selOn — other
   window's frame killed in-flight rubber-band drags or painted phantom
   rects; moved to App fields; TestRubberBandGestureIsPerWindow drives the
-  real overlay via input.Router; gate quick GREEN; **native proof dispatched
-  to verify.yml — READ ITS RESULT before trusting native green for R23**).
+  real overlay via input.Router; gate quick GREEN; **native proof = verify.yml
+  41188229919 (ea3b12ac) — READ ITS RESULT before trusting native green
+  for R23**).
   **frameMu discovery (load-bearing)**: Root() holds frameMu for the entire
   frame, so layout-only package state cannot data-race — residual bug shapes
   are semantic cross-window bleed (R14/R23) and outside-layout writes
