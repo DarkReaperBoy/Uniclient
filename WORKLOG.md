@@ -8,10 +8,48 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 (chunked recon; web surface closed in cycle 1)
-- item: P0 chunk 1 DONE (cmd/uniclient + bootstrap → MAP.md); verify.yml run 41152637658 in flight
-- next: read verify.yml run 41152637658 (native-gotd proof of the bootstrap comment strip) → P0 chunk 2 (gui state/mutex surfaces, one package per iteration)
+- item: P0 chunk 2 (gui state/mutex surfaces, one package per iteration) — starting
+- next: rebuild toolchain (scripts/env.sh recipe) → read verify.yml run 41152637658 → chunk-2 iterations
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick GREEN (js legs real; native legs explicit §9.7 OOM skip → CI run 41152637658)
+- last-gate: docs-only session 330 (no toolchain on the VM yet); prior: quick GREEN, CI 41152637658 in flight
+
+## Session 330 — constitution v3.4: law 22/23, HOT store; wipe #2 survived (2026-10-31)
+
+Owner directive (5 adds, AGENTS.md-first): tool-verified action + reference
+implementations for undocumented protocols; an urgent-research store the next
+session MUST read; official-client differential testing for 100% cases;
+document-for-next-session + git-current-every-few-turns; never ask confirmation,
+work endlessly through all phases.
+
+- **The VM erased the whole tree before this session started** (wipe #2: repo +
+  toolchain + download copy; only upload/ and skills/ survived). Re-cloned from
+  origin at 205816e9 — zero work lost because §1.14 was obeyed. The law's new
+  "a recycle can wipe the whole tree" wording is empirical, not hypothetical.
+- Law 22 **tool-verified or it didn't happen**: plan the verification tool BEFORE
+  acting, cite its output for every claim; undocumented/ambiguous protocol →
+  mine reference implementations FIRST (§8 refs; TS → ts3j/tsdeclarations),
+  never invent wire behavior.
+- Law 23 **100% certainty = differential proof**: exactness cases (§1.15 wire,
+  vault crypto) proven by running the official client/tool against OUR build,
+  comparing bytes/behavior (§9.5 → §9.6); "matches the docs" is never 100%.
+- **research/HOT.md created** (§0.3 must-read + §6 definition): the urgent store,
+  pruned the moment stale. First edition: wipe #2 recovery, CI run to read,
+  chunk-2 pointer.
+- **scripts/env.sh committed** — the toolchain recovery recipe now lives in the
+  repo (session 328 kept it outside; wipe #2 ate it). Header carries the proven
+  full-recovery sequence.
+- Header mandate sharpened: never ask confirmation, never wait for a yes —
+  decide, log the call in WORKLOG, proceed; point 3 = work endlessly through ALL
+  phases. §1.14: push every few turns at minimum.
+- Budget: 316 lines (ceiling raised ~300 → ~320 in all 3 mentions). 5 owner
+  directives in 2 days cost +11 net (laws 22-23, HOT store, §1.14, §0.3);
+  reclaimed 5 (evidence-rule overlap with law 22, §0.4, law 21, §2 platform/
+  mutex/web-capability, §5 release/shell prose; also removed a §6-violating
+  date from §2 web-truth). Budget serves context discipline, not itself.
+- Docs-only change (no Go on the VM yet — env.sh is the rebuild plan). Evidence:
+  diff reviewed, laws 19-23 sequential, cross-refs (§3/§8/§9.5/§9.6/§1.15) all
+  resolve, wc -l = 316.
+- Next: rebuild toolchain → read CI run 41152637658 → P0 chunk 2.
 
 ## Session 329 — constitution v3.3: human-sim law, push law, ladder provenance (2026-10-31)
 

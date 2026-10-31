@@ -2,12 +2,14 @@
 
 > **AUTONOMOUS EXECUTION MANDATE — read first.**
 > 1. The owner is **not a programmer** and only ever says "continue" (or reports a live-test
->    result). Never ask technical, architectural, or "should I continue?" questions — the
->    only permitted asks are the GitHub token and owner-only rungs (§10), logged in BUGS.md.
+>    result). Never ask technical, architectural, or confirmation questions, and never
+>    wait for a yes — decide, log the call in WORKLOG, proceed. The only permitted asks
+>    are the GitHub token and owner-only rungs (§10), logged in BUGS.md.
 > 2. **"continue" = §0 Boot, then §3's atomic loop back-to-back** — chain work cycles
 >    until context grows heavy (~75%), rewrite STATE, push, yield cleanly.
-> 3. A finished phase, an empty BUGS.md, a green release — none of that is a stop. Take the
->    next item or open the next cycle (§4). The loop is permanent; the target is perfection.
+> 3. A finished phase, an empty BUGS.md, a green release — none of that is a stop. Work
+>    endlessly through ALL phases (§4): take the next item or open the next cycle. The
+>    loop is permanent; the target is perfection.
 
 Uniclient is one pure-Go, cross-platform (PC / mobile / web), multi-backend messenger. One
 native Gio GUI, many chat and voice backends — Telegram, Matrix, IRC, GitHub, XMPP, Delta
@@ -17,7 +19,7 @@ Material Design visuals.
 
 This file is **law + reference only** — history and session state live in WORKLOG.md (STATE
 block) and BUGS.md, never here. If the code contradicts anything here, the code wins: fix
-this file in the same commit. Keep it under ~300 lines.
+this file in the same commit. Keep it lean — hard ceiling ~320 lines.
 
 ## 0. Boot — every session, in order
 
@@ -25,12 +27,13 @@ this file in the same commit. Keep it under ~300 lines.
    exists. Missing state files → create them (§6 formats).
 2. **Auth:** the GitHub token comes from env (`GH_TOKEN`) or the owner, out-of-band. It
    NEVER lands in any file, log, commit, remote URL, or doc. Never force-push `main`.
-3. **Load state:** WORKLOG.md (STATE block + newest entry), then BUGS.md's open table.
-4. **Pick the next item, in this order:** (1) owner-reported (enters BUGS.md on top);
-   (2) red gate — any failing §9 tier or broken build, fix before everything; (3) BUGS.md
-   topmost open row (severity order, §1.16); (4) the current cycle-phase item (§4);
-   (5) housekeeping — dep bumps (§1.18), warning sweeps, doc-truth fixes; (6) nothing open
-   → open the next cycle (§4). An agent is never "done".
+3. **Load state:** WORKLOG.md (STATE block + newest entry), `research/HOT.md` (the
+   urgent store — MUST read), then BUGS.md's open table.
+4. **Pick the next item, in order:** (1) owner-reported (enters BUGS.md on top);
+   (2) red gate — failing §9 tier or broken build, fix before everything; (3) BUGS.md
+   topmost open row (severity, §1.16); (4) current cycle-phase item (§4); (5)
+   housekeeping — dep bumps (§1.18), warning sweeps, doc-truth fixes; (6) nothing open
+   → open the next cycle (§4).
 5. Work it through the atomic loop (§3). The only clean end to a turn: gate green (§9),
    STATE rewritten, committed, pushed — then yield.
 
@@ -63,10 +66,11 @@ this file in the same commit. Keep it under ~300 lines.
     completely, not patched; a solid pure-Go library beats custom code.
 13. **Research → think → rate → plan → failing test → code → verify-against-real.**
     Dockerized server before official server. "It compiles" is not done.
-14. **Every atomic change: commit + push the moment it's green — the sandbox dies at
-    random.** Working files live in their repo folders (`scripts/`, `research/`, state
-    docs at root, tests beside code) — never outside the repo; only artifacts and
-    toolchains stay untracked. What is not on GitHub does not exist.
+14. **Every atomic change: commit + push the moment it's green — every few turns at
+    minimum; the sandbox dies at random and a recycle can wipe the whole tree.** Working
+    files live in their repo folders (`scripts/`, `research/`, state docs at root,
+    tests beside code) — never outside the repo; only artifacts and toolchains stay
+    untracked. What is not on GitHub does not exist.
 15. **TeamSpeak & Mumble: 1:1 wire compatibility** with official protocols/clients, pinned
     to upstream test vectors, retested on public servers whenever protocol code changes.
 16. **Severity decides everything:** data-loss/crash > security > wrong behavior >
@@ -81,14 +85,22 @@ this file in the same commit. Keep it under ~300 lines.
 20. **Unspecified → do what a senior Unix engineer would do, then verify.** The bar is
     production-ready and rock solid.
 21. **The agent is the tester and plays the app like a human.** (a) Scenario-complete
-    tests — every test designed against the full matrix: zero/one/many, nil/empty/
-    malformed/oversize, boundaries, rapid repeats, interrupt-mid-action, offline.
-    (b) Goal-directed journeys on the REAL app (per change + standing passes): boot,
-    add an account, open every screen/menu, send/receive/edit/delete messages —
-    Puppeteer on the wasm or Xvfb+xdotool native — hunting jank, slowdowns, logic
-    errors at their ROOT cause, then fixing (P2 loop) and optimizing (P4). A green
-    unit suite never substitutes for playing it. No journey → write it first;
-    sandbox can't → BLOCKED-env in BUGS.md, never "works".
+    tests — full matrix: zero/one/many, nil/empty/malformed/oversize, boundaries,
+    rapid repeats, interrupt-mid-action, offline. (b) Goal-directed journeys on the
+    REAL app (per change + standing passes): boot, add account, every screen/menu,
+    send/receive/edit/delete — Puppeteer wasm or Xvfb+xdotool native — hunting jank,
+    slowdowns, logic errors at ROOT cause → fix (P2), optimize (P4). A green unit
+    suite never substitutes for playing it. No journey → write it first; sandbox
+    can't → BLOCKED-env in BUGS.md, never "works".
+22. **Tool-verified or it didn't happen.** Plan the verification tool BEFORE acting
+    (build, test, grep, capture, driven journey); cite its output for every claim (§3).
+    Undocumented/ambiguous protocol or behavior → mine reference implementations FIRST
+    — same-protocol open-source clients (§8 refs; e.g. TeamSpeak → ts3j,
+    tsdeclarations) — never invent wire behavior.
+23. **100% certainty = differential proof.** When wire compat, crypto, or encoding must
+    be exact (TS/Mumble §1.15, vault), run the official client/tool against OUR build
+    and compare bytes/behavior — dockerized server first (§9.5), official rung (§9.6).
+    "Matches the docs" is never 100%.
 
 ## 2. Architecture
 
@@ -111,22 +123,22 @@ Event flow: `cores → engine (caches+normalizes) → EngineEvent JSON →
 SetEventCallback/Subscribe → gui invalidation`. Core interface: `go/cores/base.go`;
 unsupported actions return `ErrNotSupported` and the GUI hides them.
 
-Platform truth (go 1.27, gio v0.10.2): Linux `CGO_ENABLED=1` (X11/Wayland/EGL — cgo
-required); Windows `CGO_ENABLED=0`, cross-builds from Linux; Android gogio + NDK → APK;
-Web `GOOS=js GOARCH=wasm CGO_ENABLED=0`; macOS/iOS banned.
+Platform truth (go 1.27, gio v0.10.2): Linux `CGO_ENABLED=1` (X11/Wayland/EGL, cgo
+required); Windows `CGO_ENABLED=0` (cross from Linux); Android gogio+NDK → APK; Web
+`GOOS=js GOARCH=wasm CGO_ENABLED=0`; macOS/iOS banned.
 
-**Web capability truth** (verified 2026-10-31 — browsers have no raw sockets): GitHub +
-Matrix connect over HTTPS; Bale via gRPC-Web WebSocket (calls return `ErrNotSupported` on
-web). Telegram/IRC/XMPP/DeltaChat/TeamSpeak/Mumble dial raw TCP → can never connect from a
-browser → never offered in the web picker (`webConnectable` in `gui/theme.go` is the single
-source of truth, kept in sync with this table).
+**Web capability truth** (browsers have no raw sockets): GitHub + Matrix over HTTPS;
+Bale via gRPC-Web WebSocket (calls return `ErrNotSupported` on web). Telegram/IRC/XMPP/
+DeltaChat/TeamSpeak/Mumble dial raw TCP → never browser-connectable → never in the web
+picker (`webConnectable` in `gui/theme.go`, kept in sync with this table).
+
 **Web persistence:** vault → localStorage (`uniclient.vault`, AES-GCM, default password —
 env/flags are unreachable in a wasm argv); cache DB → null driver (session-only); no
 single-instance lock — tabs coordinate via flush-time vault merge (F-87).
 
 **Mutex law** (`telegram_lockscan_test.go` enforces): never hold a core mutex across
-network I/O or an RPC. Snapshot pattern: `t.withAPI()`, `t.withSenderAPI()`, `withPeer()`.
-Every RPC is deadline-bounded (`rpcGuard`).
+network I/O or an RPC; snapshot via `t.withAPI()`/`t.withSenderAPI()`/`withPeer()`;
+every RPC is deadline-bounded (`rpcGuard`).
 
 **Deleted forever — never resurrect:** `go/bridge/`, `go/proto/` + root `proto/`,
 `go/cmd/web|bridge|cli`, `scripts/smoke/*.mjs`, `cores/demo.go` + the `-demo` flag. The
@@ -155,10 +167,9 @@ STATE/BUGS/WORKLOG → commit → push → next item
   or regenerated goldens. A deliberate behavior change updates its `TestKnown_*` pin in
   the same commit and says so.
 - **Evidence rule:** "done/works/fixed" only from command output seen THIS session —
-  never from memory or from reading code. For user-facing changes the evidence is a
-  driven journey (E2E transcript or screenshot + what you saw), never "the logic
-  looks right"; a green unit suite is not evidence a UI works. WORKLOG entries cite
-  the command + result.
+  never from memory or from reading code. User-facing changes cite a driven journey
+  (E2E transcript or screenshot + what was seen) — a green unit suite is not evidence
+  a UI works. WORKLOG entries cite the command + result.
 
 ## 4. The hardening cycle (endless)
 
@@ -184,19 +195,17 @@ feature gaps, and P4 PERF.
 
 ## 5. Release, web deploy, CI, NixOS
 
-- Release only at the P7 gate: `flake.nix` version == tag, tag `v*` (**version must be ≥
-  the newest existing tag** — the v0.9.1-after-v0.10.2 mistake must never repeat), push
-  the tag, all jobs green, `prerelease: true` until the owner flips it, record in WORKLOG.
-  Artifacts: `uniclient-<os>-<arch>[.exe]`, `uniclient.apk` — one per platform, no
-  tarballs unless asked.
+- Release only at the P7 gate: `flake.nix` version == tag; tag `v*` ≥ the newest
+  existing tag (the v0.9.1-after-v0.10.2 mistake never repeats); all jobs green;
+  `prerelease: true` until the owner flips it; record in WORKLOG. Artifacts: one
+  `uniclient-<os>-<arch>[.exe]`/`uniclient.apk` per platform, no tarballs.
 - `release.yml` (tags + dispatch): gofmt/vet/vet-live/test/race legs → nix gate (build +
   smoke + version==tag) → linux×2/windows/android builds → web job (`needs: test`;
   writes `index.html` + `wasm_exec.js` from `$GOROOT/lib` + `uniclient.wasm` to the
   orphan `gh-pages` branch, force-push; zero GitHub-API calls from the shell) → publish.
-- The self-updating shell (same-origin revalidation, ETag readout, determinate MB
-  progress, offline fallback, Retry, overlay hides on canvas attach, post-boot crash
-  surface) **exists only as `release.yml`'s heredoc** — the E2E suite extracts it from
-  there; keep them in sync.
+- The self-updating shell (same-origin revalidation, ETag, determinate MB progress,
+  offline fallback, Retry, crash surfaces) **exists only as `release.yml`'s heredoc** —
+  the E2E suite extracts it from there; keep them in sync.
 - `verify.yml` = the same gate on `workflow_dispatch` + Xvfb GUI smoke with screenshot
   artifacts; `flake.yml` = vendorHash helper. Machine too small to compile gotd →
   dispatch verify.yml and read the run.
@@ -207,7 +216,7 @@ feature gaps, and P4 PERF.
 ## 6. Files, formats & context hygiene
 
 - **AGENTS.md** — law + reference only; no history, dates, or session state; fix or cut
-  anything the code disproves, in the same commit; ≤ ~300 lines.
+  anything the code disproves, in the same commit; ≤ ~320 lines.
 - **WORKLOG.md** — starts with the **STATE block** (≤8 lines: cycle | phase | item |
   next | owner-waiting | last gate), rewritten every session; then entries newest-first
   and terse (did / evidence / next); keep <300 lines — prune old entries, git retains
@@ -216,28 +225,31 @@ feature gaps, and P4 PERF.
   evidence | next step |`; statuses OPEN / BLOCKED / NEEDS_OWNER; IDs sequential `F-<n>`
   (`R-<n>` = risk IDs from research docs); fixed rows move to the Fixed table with their
   red→green evidence. Owner-reported items enter at the top.
-- **research/** — agent scratch + cycle artifacts (`MAP.md`, `GUI_CHECKLIST.md`,
-  `PERF.md`, protocol notes). Distrust old notes; verify against primary sources.
+- **research/** — cycle artifacts (`MAP.md`, `GUI_CHECKLIST.md`, `PERF.md`, protocol
+  notes) + **`HOT.md`, the urgent store**: what the next session MUST know (in-flight
+  state, findings, decisions, recovery recipes) lands there the moment it is noticed —
+  never only in context — and is pruned the moment it is stale. Distrust old notes;
+  verify against primary sources.
 - Never commit build output, generated code, `dist/`, `artifacts/`, `flake.lock`, or
   secrets. Markdown stays short and true — delete doc lies, never pad them.
 - **Context discipline:** noisy commands → redirect to a file, `tail -40`; read by range
   (`grep -n` → `sed -n 'a,bp'`), list funcs before reading >400-line files; delegate
-  recon/log-triage to subagents when available; STATE is the only memory that must
-  survive — rewrite it before every yield; assume context can vanish between any two
-  commands (push early); end every turn in ≤5 lines: done / evidence / next.
+  recon/log-triage to subagents when available; STATE + HOT.md are the only memory
+  that must survive — rewrite them before every yield; assume context can vanish
+  between any two commands (push early); end every turn in ≤5 lines: done / evidence /
+  next.
 
 ## 7. GUI spec (the product — a horrible GUI is a release blocker)
 
 AyuGramDesktop is the spec: same three-pane layout (chat list + main chat view + optional
 right panel), same screens, behaviors, interactions — every aspect. A missing one is a
 bug, never a "difference"; `research/ayugram_parity.md` tracks the rows (195/200 PRESENT
-at last audit; the 5 non-PRESENT rows are recorded owner decisions — not buildable
-without the owner). Scrolling + Material ripple everywhere; progress/connection
-indicators (green/amber/red; empty ≠ loading); honest empty states; local passcode gate;
-Chat/Voice tabs; "one frontend, many accounts"; backend-specific UI limited to auth steps
-+ capability-gated actions. Voice renders only what the engine reports — no simulated
-calls. When unsure how something looks or behaves, open AyuGramDesktop and copy the
-behavior, never the code.
+at last audit; the 5 non-PRESENT are recorded owner decisions). Scrolling + Material
+ripple everywhere; progress indicators (green/amber/red; empty ≠ loading); honest
+empty states; local passcode gate; Chat/Voice tabs; "one frontend, many accounts";
+backend-specific UI limited to auth steps + capability-gated actions. Voice renders
+only what the engine reports — no simulated calls. Unsure how something looks or
+behaves? Open AyuGramDesktop and copy the behavior, never the code.
 
 ## 8. Cores — status, policy, references (read-only; non-Go is never a dependency)
 
@@ -273,9 +285,8 @@ change reaches rung 4.
      bytes, extracted from the release.yml heredoc) + app tier (the real wasm:
      boot→welcome→picker→auth form, vault persistence, two-tab merge). `--live` re-checks
      the deployed site when Pages is enabled. **Fail on any console error or warning.**
-     Viewports 390/820/1440. Click targets are calibrated in canvas space
-     (`scripts/web-test/README.md`); an `e2e`-tagged UI-snapshot hook is the sanctioned
-     upgrade if calibration drifts.
+     Viewports 390/820/1440; click targets calibrated in canvas space (web-test
+     README); an `e2e`-tagged UI-snapshot hook is the sanctioned upgrade if they drift.
    - *Native Linux:* the real binary under `Xvfb` (+ xdotool input), screenshots to
      `artifacts/` (gitignored). Look at the screenshots yourself; describe what you saw
      in the WORKLOG evidence line. In CI: verify.yml's Xvfb GUI smoke.
@@ -301,5 +312,5 @@ prerelease off. The live list sits in the WORKLOG STATE block.
 
 **Before every push, verify:** every ladder tier your change touches is green; no
 TODO/FIXME/placeholder markers and no dead UI; no secrets/tokens anywhere; error messages
-leak no internals; BUGS.md IDs sequential; WORKLOG STATE current; AGENTS.md still ≤ ~300
+leak no internals; BUGS.md IDs sequential; WORKLOG STATE current; AGENTS.md still ≤ ~320
 lines; repo stats still Go.
