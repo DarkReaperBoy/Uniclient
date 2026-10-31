@@ -32,10 +32,12 @@ This is not history — stale lines are lies.
   must match the release tag" gate, `skipped` by design off release
   tags). Pending: **41244407673** (R42+R43, 9b2cf32d) — verify at
   job+step level (the race leg now carries R34×2 + R37×2 + R38×3 +
-  R39×3 + R40×3 + R41×3 + R42/R43×5 + R44/R45×5 pins). Pending:
-  **41244407673** (R42+R43, 9b2cf32d) + **41245057374** (R44+R45,
-  1476115a) — verify EACH. Local -race on the gui package fits the box
-  (proven 337/338/339 — use it before falling back to CI).
+  R39×3 + R40×3 + R41×3 + R42/R43×5 + R44/R45×5 + R46×5 pins). R42/R43
+  **41244407673 (9b2cf32d)** CLOSED: all 5 jobs success at step level,
+  Race green. Pending: **41245057374** (R44+R45, 1476115a) +
+  **41245678978** (R46, d8b4ce01) — verify EACH. Local -race on the gui
+  package fits the box (proven 337/338/339 — use it before falling
+  back to CI).
 - **Fresh-cache -race build OOM (session 339)**: after a wipe, the gui
   race build (`-race -gcflags=all=-c=1`) gets killed once on gotd/td/tg
   — RETRY the same command; the build cache carries progress and the
