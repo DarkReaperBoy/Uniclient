@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go + pkg-var ranking, rubberband.go + R23, menu.go clean) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go — all clean but R23) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -507,6 +507,31 @@ routing, message context menu, reaction picker, forward dialog; iteration
   because the dialog closed before spawn so the widgets freeze, but the
   clean pattern captures values before `go`.
 
+### webpage.go (296 lines — session 334, read in full: link-preview
+cards + composer toggle; iteration 11, VERDICT: CLEAN, no R-number)
+- **Both suspect maps are MUTEX-GUARDED**: webPhotoDone/webPhotoFailed under
+  webPhotoMu (every read AND write — webpage.go:176-182, 185-187; the
+  ensure goroutine writes failed under the lock); linkPreview under
+  linkPreviewMu (toggle chat.go:1492-1495, reads webpage.go:137-139,
+  chat.go:1503-1505). NOT the R22 class — the exact-map scan flagged them,
+  the read confirmed guards. webPhoto fail-pin is DOCUMENTED intent
+  ("Failures pin permanently: no retry churn", :158) — the deliberate
+  counterpart of ivDocDone's silent version.
+- **Pools per-App**: a.wid.webPageClickables keyed by msg, 512-cap
+  wholesale reset (R22 lesson applied). webPageBlock mounts at chat.go:818
+  (message bubbles = chat surface, both windows) — everything it touches is
+  per-App or mutex-guarded.
+- **P4 — webPhotoFailed is DEAD STATE**: done[key] is set at :181 BEFORE the
+  goroutine runs, and the only read (:177 `done||failed`) is therefore
+  always short-circuited by done. The failed map can never change behavior.
+  Cleanup when touched: drop it or reserve it for a future retry-clear.
+- **P4 — per-frame JSON re-parse**: parseWebPage unmarshals ContentRaw
+  EVERY FRAME for every preview-bearing message (cheap wp_url byte
+  pre-filter, then full parse). ~20 previews/rect ≈ 1ms/frame guess —
+  measure before touching (filmstrip-decode-thrash family).
+- Card tap: HasIV → openInstantView (in-app reader), else openext browser
+  pipeline with toast. Honest gating throughout (no thumb → no fake card).
+
 ### Chunk-3 ranking queue (session 334 — scanner v3 (go/ast, exact) +
 separateChatView-reachability rule)
 Scanner history: v1 (regex) missed grouped var blocks; v2's `var ()` bug let
@@ -520,17 +545,16 @@ semantic bleed R14/R23 and outside-layout map writes R22/fatal).
 Main-window-only VERIFIED so far: swipeG (sidebar mount), business.go var
 block (settings.go:384), menu pools (now per-App), sidebar/dialog/login
 surfaces, notify_linux (separate windows skip the DBus server by design).
-Next-iteration queue (v3-exact, chat-surface first):
-1. webpage.go — webPhotoDone/webPhotoFailed MAPS + linkPreview in message
-   bubbles; if written from download goroutines → R22 fatal class (highest)
-2. suggestionbar.go — suggStates map + suggFetching/suggDismissed; the bar
+Next-iteration queue (v3-exact, chat-surface first; webpage.go DONE — clean,
+   maps mutex-guarded, see its section):
+1. suggestionbar.go — suggStates map + suggFetching/suggDismissed; the bar
    renders above the composer in the chat surface; fetch-goroutine writes?
-3. cornerreply.go — hoverMsgID/hoverChatOn (fed from processPaneEvents,
+2. cornerreply.go — hoverMsgID/hoverChatOn (fed from processPaneEvents,
    chat pane) + cornerreaction.go favReactions/favAttempted
-4. richtext.go — linkTags (message-text rendering)
-5. instantview.go (1,738 ln) — ivDocDone watch item stands
-6. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
-7. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
+3. richtext.go — linkTags (message-text rendering)
+4. instantview.go (1,738 ln) — ivDocDone watch item stands
+5. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
+6. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
    musicList (profile panel = R22's surface)
 Watch item carried (verified: no clear-path anywhere): ivDocDone marks a
 photo done BEFORE DownloadIVPhoto runs and the error path returns silently

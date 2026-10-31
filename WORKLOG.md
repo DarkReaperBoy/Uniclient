@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: CI proofs closed — 41184046305 (R20/R21) + 41184562534 (R22) both verified SUCCESS at job+step level; iteration 8 separate.go CLEAN (all invariants tool-verified); scanner v3 (go/ast, exact) + chunk-3 ranking queue in MAP; iteration 9 rubberband.go → R23 FIXED (package gesture state vs per-App selOn; moved to App fields, RED→GREEN input.Router lifecycle test; gate quick GREEN; native proof 41188229919 in flight); iteration 10 menu.go CLEAN (pools already per-App; 3 P3 polish notes in MAP)
-- next: read verify.yml 41188229919 (R23 native proof, ea3b12ac), then chunk 3 iteration 11 = webpage.go (webPhotoDone/webPhotoFailed maps in link previews — R22 fatal class if download goroutines write them), then suggestionbar.go, cornerreply.go + cornerreaction.go, richtext.go, instantview.go, msgshot.go, translatebar.go + profilemusic.go
+- item: CI proofs closed — 41184046305 (R20/R21) + 41184562534 (R22) both verified SUCCESS at job+step level; iterations 8+10+11 CLEAN (separate.go — all invariants tool-verified; menu.go — pools already per-App, 3 P3 notes; webpage.go — maps mutex-guarded, 2 P4 notes); scanner v3 (go/ast, exact) + chunk-3 ranking queue in MAP; iteration 9 rubberband.go → R23 FIXED (package gesture state vs per-App selOn; App fields, RED→GREEN input.Router lifecycle test; gate quick GREEN; native proof 41188229919 in flight)
+- next: read verify.yml 41188229919 (R23 native proof, ea3b12ac), then chunk 3 iteration 12 = suggestionbar.go (suggStates map + suggFetching/suggDismissed — fetch-goroutine writes?), then cornerreply.go + cornerreaction.go, richtext.go, instantview.go (ivDocDone watch), msgshot.go, translatebar.go + profilemusic.go
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (4/4 runner contracts incl. flag forwarding, js vet, full gui suite incl. R23 test)
 
@@ -70,13 +70,9 @@ on 2026-10-30 — it lives in git history if ever needed.)
 - **Scanner v3 (go/ast, exact)** — `/home/z/my-project/scripts/pkgvar_scan_v3/`.
   Regex failed twice (v1 missed grouped var blocks; v2's `var ()` open-
   never-closed let struct fields leak in — menu.go's label/run were false
-  positives). v3 uses go/parser + AssignStmt LHS root-unwrapping. The exact
-  inventory RESHUFFLED the queue: webpage.go (webPhotoDone/webPhotoFailed
-  MAPS + linkPreview — written from download goroutines? → R22 fatal
-  class) and suggestionbar.go (suggStates map + fetch flags) jump ahead of
-  the previous queue. Queue + the frameMu lens (layout-only package state
-  cannot race; residual shapes = R23 semantic bleed / R22 outside-layout
-  map writes) live in MAP.
+  positives). v3 uses go/parser + AssignStmt LHS root-unwrapping. Queue +
+  the frameMu lens (layout-only package state cannot race; residual shapes
+  = R23 semantic bleed / R22 outside-layout map writes) live in MAP.
 - **ivDocDone watch item** (instantview.go:1096-1110, verified by complete
   grep — 3 usage sites total, no clear-path anywhere): one-shot mark happens
   BEFORE the download and the error path returns silently → a transient
