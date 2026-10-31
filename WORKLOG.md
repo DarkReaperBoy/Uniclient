@@ -8,14 +8,15 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 25 DONE — stickermanager.go (948 lines, read in full — the R34 sibling sweep #4); **R40** (stickerMgrState had R34's shape across SIX writer sites — both load tails, reload, search head+tail, setTab → updateStickerMgr copy-on-write; openStickerMgr's exclusivity matrix completed, only openProfileEdit still has gaps; ×3 pins, local -race clean, CI race-leg extended). Row in BUGS, section in MAP. Sweep: 4 of 7 done (profileedit.go next)
+- item: iteration 26 DONE — profileedit.go (487 lines, read in full — the R34 sibling sweep #5); **R41** (profileEdSynced plain bool: load-tail background write vs GUI-loop read/write → atomic.Bool, R32's shape; write-only busy field + both writes REMOVED; openProfileEdit's matrix completed — **every opener now nils all siblings**; the loader itself was already fresh-replace, the one sibling without the struct race; ×3 pins, local -race clean, CI race-leg extended). Row in BUGS, section in MAP. Sweep: 5 of 7 done (exportdlg.go next)
+- ALSO this session: iterations 21-25 — business.go (**R34** systemic + **R35** + **R36**), settingspremium.go (**R37**), settingsstars.go (**R38** + fresh-slice rule), foldermgr.go (**R39** + exclusivity matrix), stickermanager.go (**R40**)
 - ALSO this session: iteration 24 — foldermgr.go (**R39** copy-on-write + the exclusivity matrix audit/completion); iteration 23 — settingsstars.go (**R38** + fresh-slice append rule); iteration 22 — settingspremium.go (**R37**); iteration 21 — business.go (**R34** systemic + **R35** dead checkboxes + **R36** uncancellable rename)
 - ALSO this session: iteration 23 — settingsstars.go (**R38**, copy-on-write + fresh-slice append rule); iteration 22 — settingspremium.go (**R37**); iteration 21 — business.go (**R34** systemic + **R35** dead checkboxes + **R36** uncancellable rename)
 - ALSO this session: iteration 22 — settingspremium.go (**R37**, updatePremiumPage copy-on-write); iteration 21 — business.go (**R34** write-races-layout + copy-on-write installer, **R35** dead recipient checkboxes, **R36** uncancellable QR rename)
 - ALSO this session: iteration 21 DONE — business.go (1,864 lines, read in full); **R34** (businessPageState write-races-layout on six background RPC tails → updateBusinessPage copy-on-write for EVERY post-install mutation + accountID staleness guards; RED via dep-free scratch repro under -race, GREEN via local -race pins + CI race-leg) + **R35** (recipient/exclude/offline checkboxes never seeded nor read → seedBizRecipWidgets + read-back + at-least-one guard) + **R36** (quick-reply rename uncancellable + shared-editor slot → one inline edit slot via three extracted click methods)
-- next: the R34 sibling sweep continues: profileedit.go (complete openProfileEdit's matrix there), exportdlg.go, twofa.go, instantview.go load tail (one iteration per file, order in MAP; append/paging siblings build fresh slices); CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)** — all 5 jobs green each; pending: **41238091947** (R39, f38e19f7) + the R40 dispatch
+- next: the R34 sibling sweep continues: exportdlg.go, twofa.go, instantview.go load tail (one iteration per file, order in MAP; append/paging siblings build fresh slices); after the sweep: the remaining unscanned gui files by size (media.go 1,186, giveaways.go 1,171, callsbox.go 1,089, poll.go 972, stories.go 960, …); CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**; pending: **41238091947** (R39, f38e19f7), **41238742290** (R40, 1d143036) + the R41 dispatch
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite **885/885** (+17 new pins across R34-R40), gate quick GREEN ×5 (js leg + 4/4 wasm-runner contracts), LOCAL -race clean on every new pin set; R39's CI in progress, R40's dispatch next
+- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite **888/888** (+20 new pins across R34-R41), gate quick GREEN ×6 (js leg + 4/4 wasm-runner contracts), LOCAL -race clean on every new pin set; R39/R40 CI in progress, R41's dispatch next
 
 ## Session 338 — iteration 21: business.go = R34 + R35 + R36 (2026-11-01)
 
@@ -90,6 +91,19 @@ on 2026-10-30 — it lives in git history if ever needed.)
   the searchFor abort + the sibling-clear pin), local -race clean, CI
   race-leg extended. Full gui suite 885/885; gate quick GREEN. R38's CI
   proof CLOSED (41237698797, all 5 jobs at step level).
+- **Iteration 26 (same session): profileedit.go = R41.** Read in full;
+  the loader was already fresh-replace (the one sibling without the
+  struct race) — the finding was the FLAG race (profileEdSynced plain
+  bool, load-tail background write vs GUI-loop priming read/write →
+  atomic.Bool, R32's shape) + the write-only busy field (removed with
+  both writes) + the final matrix completion (openProfileEdit nils all
+  five siblings — every opener complete now). profileedit_r41_test.go ×3
+  (atomic hammer + the loader's replace discipline + the final matrix
+  pin), local -race clean, CI race-leg extended. Full gui suite 888/888;
+  gate quick GREEN. NEW TOOL TRAP LEARNED: a FAILED Edit/MultiEdit still
+  normalizes tabs→spaces across the file (profileedit.go needed
+  gofmt -w after a failed attempt) — the HOT rule now covers failed
+  edits; python-based edits with explicit \t avoid the trap.
 
 
 ## Session 337 — iteration 20: state.go part 2 = R32 + R33 (2026-11-01)

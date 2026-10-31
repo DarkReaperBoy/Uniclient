@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36, settingspremium.go + R37, settingsstars.go + R38, foldermgr.go + R39, stickermanager.go + R40 — the R34 sibling sweep: 4 of 7 done) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36, settingspremium.go + R37, settingsstars.go + R38, foldermgr.go + R39, stickermanager.go + R40, profileedit.go + R41 — the R34 sibling sweep: 5 of 7 done) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -706,6 +706,32 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### profileedit.go (487→489 lines — session 338, read in full: the own-profile editor settings page, slice 71; chunk 3 iteration 26, the R34 sibling sweep #5, VERDICT: R41 fixed, rest CLEAN)
+- Scope: state + lifecycle (open/close/load), pure validators
+  (validateUsername/validateBio/parseBirthday/birthdayLabel), the
+  username/bio/birthday apply rows (editor text captured on the GUI thread
+  at click time, engine calls + reload on background goroutines), the
+  avatar row + photo picker upload, read-only name/phone rows (§1.10
+  honest: no engine setter yet, no dead editors).
+- **R41 FIXED**: profileEdSynced (plain package bool, load-tail background
+  write vs GUI-loop read/write) → atomic.Bool, R32's shape; the write-only
+  busy field + its two writes REMOVED (dead state); openProfileEdit's
+  matrix completed — **the exclusivity matrix is now COMPLETE for every
+  opener**. profileedit_r41_test.go ×3, local -race clean, CI race-leg
+  carries them.
+- Rest of the file CLEAN — notably loadProfileEdit was ALREADY the right
+  shape (fresh-build + guarded replace, never in-place): the one sibling
+  that never had R34's struct race, only the flag race. The apply
+  goroutines read st.username/st.bio/st.bday*/st.accountID — install-
+  immutable fields (the loader replaces, never mutates), safe. The
+  apply-closures capture editor text at click time on the GUI thread.
+- Sibling sweep: exportdlg.go next (then twofa.go, instantview.go's load
+  tail). NOTE: an Edit-tool attempt on this file normalized tabs→spaces
+  even on a FAILED edit (gofmt -w restores; the HOT trap now covers
+  failed edits too).
+
+
+
 ### stickermanager.go (949→1,000 lines — session 338, read in full: the Stickers & Emoji manager settings page, slice 139; chunk 3 iteration 25, the R34 sibling sweep #4, VERDICT: R40 fixed, rest CLEAN)
 - Scope: pure helpers (split/move-order/set-order/subtitles/filter/
   featured-visible/search-merge — test-locked), lifecycle (open/close/
@@ -841,9 +867,10 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   frame-visible-slice half; future siblings with append/paging shapes must
   build fresh slices the same way), foldermgr.go (R39, iteration 24 —
   plus the settings-shell exclusivity matrix), stickermanager.go (R40,
-  iteration 25 — matrix completed there too; only openProfileEdit still
-  misses 4 siblings).** Remaining, in read order: profileedit.go,
-  exportdlg.go, twofa.go (auth flows), plus instantview.go's load tail.
+  iteration 25), profileedit.go (R41, iteration 26 — flag race + dead
+  busy state + the matrix completion: EVERY opener now nils all
+  siblings).** Remaining, in read order: exportdlg.go, twofa.go (auth
+  flows), plus instantview.go's load tail.
 
 
 

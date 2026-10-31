@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"gioui.org/layout"
@@ -29,7 +30,6 @@ import (
 type profileEditState struct {
 	accountID   string
 	loaded      bool
-	busy        bool
 	displayName string
 	username    string
 	bio         string
@@ -51,7 +51,12 @@ var (
 	profileBioBtn   widget.Clickable
 	profileBdayBtn  widget.Clickable
 	profileBackBtn  widget.Clickable
-	profileEdSynced bool
+
+	// profileEdSynced gates the one-shot editor priming: the load tail
+	// (a background goroutine) Stores false when a fresh state lands, the
+	// GUI loop Loads it and Stores true after priming — a plain bool here
+	// was R32's write-races-layout class, so it is an atomic (R41).
+	profileEdSynced atomic.Bool
 )
 
 func init() {
@@ -67,9 +72,13 @@ func init() {
 func (a *App) openProfileEdit(accountID string) {
 	a.mu.Lock()
 	a.profileEdit = &profileEditState{accountID: accountID}
-	a.businessPage = nil // one sub-page at a time (settings shell)
+	a.businessPage = nil // one sub-page at a time (settings shell) — the
+	a.stickerMgr = nil   // exclusivity matrix is COMPLETE now (R39's audit
+	a.folderMgr = nil    // found this opener missing four siblings; the
+	a.premiumPage = nil  // shell's shadow order made the gaps benign but
+	a.starsPage = nil    // a stale page reappeared after close)
 	a.mu.Unlock()
-	profileEdSynced = false
+	profileEdSynced.Store(false)
 	go a.loadProfileEdit(accountID)
 	a.invalidate()
 }
@@ -78,7 +87,7 @@ func (a *App) closeProfileEdit() {
 	a.mu.Lock()
 	a.profileEdit = nil
 	a.mu.Unlock()
-	profileEdSynced = false
+	profileEdSynced.Store(false)
 	a.invalidate()
 }
 
@@ -127,7 +136,7 @@ func (a *App) loadProfileEdit(accountID string) {
 		a.profileEdit = st
 	}
 	a.mu.Unlock()
-	profileEdSynced = false
+	profileEdSynced.Store(false)
 	a.invalidate()
 }
 
@@ -245,7 +254,7 @@ func (a *App) layoutProfileEdit(gtx layout.Context, f frame, st *profileEditStat
 	if !st.loaded {
 		return a.loadingNote(gtx)
 	}
-	if !profileEdSynced {
+	if !profileEdSynced.Load() {
 		profileUserEd.SetText(st.username)
 		profileBioEd.SetText(st.bio)
 		profileBdayD.SetText("")
@@ -258,7 +267,7 @@ func (a *App) layoutProfileEdit(gtx layout.Context, f frame, st *profileEditStat
 				profileBdayY.SetText(strconv.Itoa(st.bdayYear))
 			}
 		}
-		profileEdSynced = true
+		profileEdSynced.Store(true)
 	}
 	acc, _ := accountByIDSnapshot(a, st.accountID)
 
@@ -445,24 +454,12 @@ func (a *App) pickProfilePhoto(accountID string) {
 		a.setToast("Photo: file picker unavailable on this platform")
 		return
 	}
-	a.mu.Lock()
-	if a.profileEdit != nil {
-		a.profileEdit.busy = true
-	}
-	a.mu.Unlock()
-	a.invalidate()
 	go func() {
 		rcs, err := a.expl.ChooseFiles(photoExts...)
 		if err != nil {
 			if !errors.Is(err, explorer.ErrUserDecline) && !errors.Is(err, explorer.ErrNotAvailable) {
 				a.setToast("Photo: " + err.Error())
 			}
-			a.mu.Lock()
-			if a.profileEdit != nil {
-				a.profileEdit.busy = false
-			}
-			a.mu.Unlock()
-			a.invalidate()
 			return
 		}
 		paths, temps := resolveUploadPaths(rcs)
