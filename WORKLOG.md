@@ -8,10 +8,10 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: wipe #3 survived via env.sh recipe (zero loss); CI found repo-DISABLED → re-enabled (zombie dispatches diagnosed, 3 permanent); R18 + R19 fixed (viewer Share deadlock; cross-window viewer bookkeeping race); chunk 3 iterations 1-6 DONE (chat.go, sidebar.go, chatsearch.go, shortcuts.go, settings.go, mediaview.go)
-- next: read verify.yml 41182590400 (native+race proof R18/R19, on 4883033a) — then chunk 3 iteration 7 (next surface from MAP chunk table; candidates: profile.go 779, login.go 547, widgets.go 485, contacts.go 464, separate.go 359)
+- item: wipe #3 survived via env.sh recipe (zero loss); CI found repo-DISABLED → re-enabled (zombie dispatches diagnosed, 3 permanent); R18-R21 fixed (viewer Share deadlock; cross-window viewer bookkeeping race; failed-send tick mapping + Resend wiring; runner flag-dropping); chunk 3 iterations 1-6 DONE (chat.go, sidebar.go, chatsearch.go, shortcuts.go, settings.go, mediaview.go)
+- next: read verify.yml runs on 4883033a (R18/R19 proof, in flight at session end) and the post-R20/R21 dispatch — then chunk 3 iteration 7 (next surface from MAP chunk table; candidates: profile.go 779, login.go 547, widgets.go 485, contacts.go 464, separate.go 359)
 - owner-waiting: re-enable Pages + cut v0.10.4 (NOTE: release.yml needs Actions — it was found disabled this session and re-enabled; if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick GREEN (runner self-test 3/3, js vet, full gui suite incl. 2 new R18/R19 tests, audio leg green)
+- last-gate: quick GREEN (runner self-test 4/4 contracts incl. flag forwarding, js vet, full gui suite incl. R18/R19/R20 tests, audio leg green)
 
 ## Session 333 — wipe #3, CI zombie dispatches, R18+R19 (2026-10-31)
 
@@ -54,6 +54,25 @@ on 2026-10-30 — it lives in git history if ever needed.)
   green; gate quick GREEN (runner self-test 3/3 contracts inside the gate);
   fresh verify.yml dispatched on the fix commit — **41182590400** (4883033a)
   = native + race-leg proof for R18/R19, read next session.
+- Same session, later turns — the law-22/23 watch item ("failed send loses
+  the typed text") was RESOLVED, and its resolution produced two more bugs:
+  - Premise WRONG: eng.SendMessage is the queued path (engine/pending.go) —
+    the text lives on in a visible pending message; on permanent failure
+    FailMessage marks it MsgStatusFailed. tdesktop's model exactly.
+  - **R20 — the tick mapping had drifted from the status consts**: Sending(1)
+    drew a check, the read accent landed on Delivered(3), and Failed(5) fell
+    to the default branch = the DELIVERED double-check — a lost message
+    looked delivered, and RetryPending had NO gui wiring. Fixed: pure
+    statusTickKind mapping (TestStatusTickKind, compile-seam RED) + new
+    alertMark glyph + Resend menu action (TestActionsFor subtests, RED) +
+    a failure toast on EventMsgStatus/MsgStatusFailed.
+  - **R21 — wasm-test-runner.sh dropped every go-test flag** (found hunting
+    verbose evidence: a "single-test" run took the same ~1.6s as the full
+    suite): the shell passed only the binary to node, and the driver set
+    go.argv to just that. Filtered evidence runs were silently full-suite.
+    Fixed both layers + harness contract #4 (flagfwd fixture, RED on the
+    old runner). TRUE filtered runs now visibly faster with per-test PASS
+    lines — evidence precision restored to the sole verdict source.
 - Process note: the sandbox editing tool space-indented whole files on two
   edits (raw diff 8.5k lines); caught via `git diff --stat` vs
   `--ignore-all-space`, normalized with `gofmt -w` before commit. Final

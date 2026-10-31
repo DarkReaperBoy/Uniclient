@@ -21,14 +21,23 @@ This is not history — stale lines are lies.
   sidebar.go, chatsearch.go, shortcuts.go, settings.go (331-332), mediaview.go
   (333 — produced R18 viewer-Share deadlock + R19 cross-window viewer
   bookkeeping race, both FIXED). MAP.md chunk table is the tracker; chunk 2
-  (state core) DONE; R14-R19 all FIXED. Next iteration: next surface from the
+  (state core) DONE; R14-R21 all FIXED. Next iteration: next surface from the
   MAP chunk table (candidates by size: profile.go 779, login.go 547,
   widgets.go 485, contacts.go 464; separate.go 359 is small but central to
   the multi-window theme).
-- **Watch item needing reference verification (law 22/23)**: failed send loses
-  the typed text (composer cleared before the async result; tdesktop keeps it)
-  — chat.go trySubmitComposer + inline-bot/music-attach/sticker send paths.
-  Verify against AyuGramDesktop, then promote to a BUGS row or drop.
+- **Session 333 also produced R20 + R21** (same session, later turns): R20 =
+  the outgoing-status tick mapping was shifted against the engine consts
+  (a permanently failed send drew the DELIVERED double-check; RetryPending
+  had no gui wiring) — fixed with statusTickKind + Resend action + failure
+  toast; the old "failed send loses typed text" watch item is RESOLVED
+  (premise was wrong: the text lives in the failed bubble via the pending
+  queue — tdesktop's model). R21 = wasm-test-runner.sh dropped every
+  go-test flag (two layers: shell didn't forward "$@" to node; driver set
+  go.argv to just the binary path) — filtered evidence runs were silently
+  full-suite; fixed + harness contract #4. TRUE filtered runs now work
+  (-run/-v visible). NOTE for future evidence claims: any pre-R21
+  "single-test" js-leg evidence in old WORKLOG entries was actually
+  full-suite evidence.
 - Toolchain recovery recipe: `scripts/env.sh` header steps 1-5 — proven
   through **wipe #3** (session 333: full re-download of go 1.27.0 + mod-cache
   refill 1.3G). VM wipes are routine — source it first thing. web-test

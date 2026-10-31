@@ -18,6 +18,7 @@
 set -u
 
 TESTBIN="$1"
+shift  # remaining args are go-test flags (-run/-v/...) — forwarded (R21)
 NODE_SCRIPT=$(mktemp /tmp/wasm-run-XXXXXX.js)
 OUT=$(mktemp /tmp/wasm-out-XXXXXX.txt)
 trap 'rm -f "$NODE_SCRIPT" "$OUT"' EXIT
@@ -27,7 +28,11 @@ cat >> "$NODE_SCRIPT" <<'EOF2'
 
 (async () => {
   const go = new Go();
-  go.argv = [process.argv[2]];
+  // Forward EVERYTHING after the driver script — the binary path is argv[0]
+  // and go-test flags (-test.run/-test.v/-test.count...) must reach the
+  // binary (R21: hardcoding just the binary path silently ignored every
+  // filter, so "filtered" evidence runs executed the whole suite).
+  go.argv = process.argv.slice(2);
   const wasmBinary = require('fs').readFileSync(process.argv[2]);
   try {
     const result = await WebAssembly.instantiate(wasmBinary, go.importObject);
@@ -40,7 +45,7 @@ cat >> "$NODE_SCRIPT" <<'EOF2'
 })();
 EOF2
 
-node "$NODE_SCRIPT" "$TESTBIN" > "$OUT" 2>/tmp/wasm-err.txt
+node "$NODE_SCRIPT" "$TESTBIN" "$@" > "$OUT" 2>/tmp/wasm-err.txt
 cat "$OUT"
 VERDICT=$(grep -E '^(PASS|FAIL|ok )' "$OUT" | tail -1)
 if grep -q -- '--- FAIL' "$OUT" || tail -1 "$OUT" | grep -q '^FAIL'; then

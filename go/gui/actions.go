@@ -24,6 +24,7 @@ type msgActions struct {
 	React     bool
 	Translate bool
 	Filter    bool // Ayu quick filter-add (matrix row 168)
+	Retry     bool // R20: resend a permanently failed send (engine RetryPending)
 }
 
 // actionsFor derives the AyuGram message context-menu action set.
@@ -57,6 +58,9 @@ func actionsFor(m *engine.CachedMessage, caps []string) msgActions {
 		React:     hasCap("REACTIONS") && !pending,
 		Translate: strings.TrimSpace(m.ContentText) != "",
 		Filter:    strings.TrimSpace(m.ContentText) != "",
+		// R20: the failed bubble still holds the text (engine pending
+		// queue) — Resend is the way back from MsgStatusFailed.
+		Retry: m.IsOutgoing && m.Status == engine.MsgStatusFailed,
 	}
 }
 

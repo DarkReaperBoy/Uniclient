@@ -1153,32 +1153,92 @@ func (a *App) reactionStrip(gtx layout.Context, f frame, m *engine.CachedMessage
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 }
 
-// statusTicks: sending (clock spinner), sent (single check),
-// delivered (double check), read (double check, accent).
+// tickKind is the meta-strip glyph for an outgoing message status.
+type tickKind int
+
+const (
+	tickSending   tickKind = iota // spinner — still working on it
+	tickSent                      // single dim check
+	tickDelivered                 // dim double check
+	tickRead                      // ACCENT double check
+	tickFailed                    // error mark — never a check (R20)
+)
+
+// statusTickKind maps an engine message status to its meta-strip glyph
+// (pure — pinned by TestStatusTickKind). R20: the old inline switch used
+// magic numbers that had drifted from the engine consts — Sending(1) drew a
+// check mark, the read accent landed on Delivered(3), Read(4) drew the dim
+// double-check, and a permanently Failed(5) send drew the DELIVERED
+// double-check (a lost message looked delivered). Unknown/zero (legacy
+// rows) maps to the spinner: honest "still working on it".
+func statusTickKind(s int) tickKind {
+	switch s {
+	case engine.MsgStatusSending:
+		return tickSending
+	case engine.MsgStatusSent:
+		return tickSent
+	case engine.MsgStatusDelivered:
+		return tickDelivered
+	case engine.MsgStatusRead:
+		return tickRead
+	case engine.MsgStatusFailed:
+		return tickFailed
+	default:
+		return tickSending
+	}
+}
+
 func (a *App) statusTicks(gtx layout.Context, status int, f frame) layout.Dimensions {
 	_ = f
-	c := color.NRGBA(a.ui.p.TextFaint)
-	switch status {
-	case 3: // read
-		c = a.ui.p.Accent
-	case 1, 2: // sent / delivered
-		c = a.ui.p.TextDim
-	}
 	d := gtx.Dp(unit.Dp(12))
-	switch status {
-	case 0: // sending
+	switch statusTickKind(status) {
+	case tickSending:
 		ld := material.Loader(a.ui.Theme)
-		ld.Color = c
+		ld.Color = a.ui.p.TextFaint
 		gtx.Constraints.Max = image.Pt(gtx.Dp(unit.Dp(14)), gtx.Dp(unit.Dp(14)))
 		return ld.Layout(gtx)
-	case 1:
-		return check(gtx, c, d, 0)
-	default:
-		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return check(gtx, c, d, 0) }),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return check(gtx, c, d, -gtx.Dp(unit.Dp(5))) }),
-		)
+	case tickSent:
+		return check(gtx, a.ui.p.TextDim, d, 0)
+	case tickDelivered:
+		return doubleCheck(gtx, a.ui.p.TextDim, d)
+	case tickRead:
+		return doubleCheck(gtx, a.ui.p.Accent, d)
+	case tickFailed:
+		// A permanently failed send (engine pending queue exhausted its 5
+		// retries): an error mark in the theme's error color — the message
+		// menu's Resend action is the way back (R20).
+		return alertMark(gtx, a.ui.p.Error, d)
 	}
+	return layout.Dimensions{}
+}
+
+// doubleCheck draws two overlapping checks (delivered / read).
+func doubleCheck(gtx layout.Context, c color.NRGBA, d int) layout.Dimensions {
+	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return check(gtx, c, d, 0) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return check(gtx, c, d, -gtx.Dp(unit.Dp(5))) }),
+	)
+}
+
+// alertMark draws an exclamation mark (a vertical bar over a dot) — the
+// failed-send glyph. Pure shape drawing, same family as check().
+func alertMark(gtx layout.Context, c color.NRGBA, d int) layout.Dimensions {
+	s := float32(d)
+	var p clip.Path
+	p.Begin(gtx.Ops)
+	// Vertical bar with rounded caps, drawn as a stroke.
+	p.MoveTo(f32.Pt(s/2, s*0.12))
+	p.LineTo(f32.Pt(s/2, s*0.62))
+	bar := clip.Stroke{Path: p.End(), Width: float32(gtx.Dp(unit.Dp(2)))}.Op().Push(gtx.Ops)
+	paint.Fill(gtx.Ops, c)
+	bar.Pop()
+	// Dot.
+	r := gtx.Dp(unit.Dp(1.5))
+	cx, cy := int(s/2), int(s*0.82)
+	dot := clip.Ellipse(image.Rect(cx-r, cy-r, cx+r, cy+r)).Push(gtx.Ops)
+	paint.Fill(gtx.Ops, c)
+	dot.Pop()
+	return layout.Dimensions{Size: image.Pt(d, d)}
 }
 
 // check draws a simple check mark path.

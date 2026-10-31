@@ -180,13 +180,15 @@ messageRow bubble tree, composer; header/bars skimmed at the overlay level)
   Ctrl+Enter only while composer focused, slow-tick armed while waiting,
   ensureSendAs per chat. Draft: cleared only on successful send (state.go
   clearDraftAfterSend path).
-- **Watch item (P2 candidate, needs reference verification per law 22/23)**:
-  trySubmitComposer clears the composer BEFORE sendText's async result — a
-  failed send (engine error) leaves the field empty + a toast; tdesktop keeps
-  the typed text on failure. Not registered in BUGS.md until the reference
-  behavior is confirmed against AyuGramDesktop (or the parity doc is updated
-  with the owner's decision). Same pattern exists in the inline-bot,
-  music-attach, and sticker send paths.
+- **Watch item RESOLVED as R20 (session 333, law 22/23)**: the claim
+  "failed send loses the typed text" was WRONG in its premise — the text
+  is NOT lost: eng.SendMessage is the QUEUED path (pending.go inserts a
+  visible pending message; on permanent failure FailMessage marks it
+  MsgStatusFailed — tdesktop's model exactly). The real bugs: statusTicks
+  mapped the status consts shifted (Failed drew the delivered
+  double-check, Sending drew a check, Read lost its accent to Delivered)
+  and RetryPending had NO gui wiring. Fixed: statusTickKind mapping +
+  alertMark glyph, Resend menu action, failure toast (R20 in BUGS).
 - Lock discipline in this file: all state writes via a.mu (or documented
   frame-loop-only fields); no engine calls under the lock; clean.
 

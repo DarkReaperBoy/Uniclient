@@ -13,7 +13,12 @@
 #               must FAIL the leg, whatever node's exit code is;
 #   2. fail   — a printed `--- FAIL:` verdict must FAIL the leg even if
 #               the process exits 0 (the F-88 contract);
-#   3. pass   — a healthy binary's PASS verdict must PASS the leg.
+#   3. pass   — a healthy binary's PASS verdict must PASS the leg;
+#   4. flags  — go-test flags (-run / -v) after the binary path must reach
+#               the binary (R21: the old driver hardcoded go.argv to just
+#               the binary path, so every "filtered" evidence run silently
+#               executed the WHOLE suite — an evidence-integrity hole in
+#               the sole verdict source, Law 22).
 #
 # Fixtures are three dependency-free Go test binaries built in a temp dir
 # (instant builds). A `timeout` guard keeps a regressed runner from hanging
@@ -121,8 +126,32 @@ build_fixture passtest 'func TestPasses(t *testing.T) {
         }
 }'
 
+# 4. flags (R21): with forwarding, -test.run=TestForwarded must keep the
+#    binary on TestForwarded only — TestOther (which fails) never runs and
+#    -test.v shows the RUN line. With the old argv-dropping driver the
+#    filter was silently ignored, TestOther ran and failed the leg.
+build_fixture flagfwd 'func TestForwarded(t *testing.T) {}
+
+func TestOther(t *testing.T) {
+        t.Fatal("must be filtered out by -test.run")
+}'
+
 run_case hang fail
 run_case failtest fail
 run_case passtest pass
 
-echo "test-wasm-runner: ALL CONTRACTS GREEN (hang caught, fail caught, pass accepted)"
+# Contract 4: verdict must be PASS (TestOther filtered out) and the
+# verbose RUN line must appear in the runner's stdout.
+FLAG_OUT=$(timeout 120 "$RUNNER" "$WORK/flagfwd.test" -test.run=TestForwarded -test.v=true 2>/dev/null)
+FLAG_RC=$?
+if [ "$FLAG_RC" -eq 124 ]; then
+        echo "test-wasm-runner: FAIL — runner never returned on flagfwd (timeout)" >&2
+        exit 1
+fi
+if [ "$FLAG_RC" -ne 0 ] || ! printf '%s' "$FLAG_OUT" | grep -q 'RUN.*TestForwarded' || printf '%s' "$FLAG_OUT" | grep -q 'TestOther'; then
+        echo "test-wasm-runner: FAIL — flags not forwarded (rc=$FLAG_RC; want TestForwarded run, TestOther filtered)" >&2
+        exit 1
+fi
+echo "test-wasm-runner: ok — flagfwd handled (-run/-v reach the binary, rc=$FLAG_RC)"
+
+echo "test-wasm-runner: ALL CONTRACTS GREEN (hang caught, fail caught, pass accepted, flags forwarded)"

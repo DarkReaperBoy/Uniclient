@@ -79,6 +79,30 @@ func TestActionsFor(t *testing.T) {
 		if !a.Delete {
 			t.Errorf("pending message must allow delete")
 		}
+		if a.Retry {
+			t.Errorf("still-sending message must not offer resend (nothing failed yet)")
+		}
+	})
+
+	// R20: a permanently failed send keeps its text in the failed
+	// bubble (engine pending queue) — the only thing missing was the
+	// way back: a Resend action on exactly that state.
+	t.Run("failed send offers resend", func(t *testing.T) {
+		m := base()
+		m.IsOutgoing = true
+		m.Status = engine.MsgStatusFailed
+		a := actionsFor(&m, telegramCaps)
+		if !a.Retry {
+			t.Errorf("failed outgoing message must offer resend, got %+v", a)
+		}
+		if !a.Delete {
+			t.Errorf("failed message must still allow delete")
+		}
+		incoming := base()
+		incoming.Status = engine.MsgStatusFailed
+		if actionsFor(&incoming, telegramCaps).Retry {
+			t.Errorf("incoming message must never offer resend")
+		}
 	})
 }
 

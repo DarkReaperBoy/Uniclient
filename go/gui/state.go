@@ -1102,6 +1102,15 @@ func (a *App) onMessageEvent(typ, accountID string, data json.RawMessage) {
 			a.maybeNotify(ev)
 		}
 	}
+	// A send permanently failed after the pending queue's 5 retries (R20):
+	// say so wherever the user is — the failed bubble keeps the text and
+	// its menu carries Resend; without this toast the failure is silent.
+	if typ == engine.EventMsgStatus {
+		var ev engine.MsgStatusEvent
+		if json.Unmarshal(data, &ev) == nil && ev.Status == engine.MsgStatusFailed {
+			a.setToast("Send failed — Resend from the message menu")
+		}
+	}
 
 	a.mu.Lock()
 	k := a.msgFor

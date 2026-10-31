@@ -354,6 +354,20 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.openForward([]engine.CachedMessage{m})
 		}})
 	}
+	// R20: a permanently failed send keeps its text in the failed
+	// bubble — Resend re-queues it through the engine's pending path.
+	if acts.Retry {
+		id := m.MsgID
+		items = append(items, menuAction{"Resend", func(gtx layout.Context) {
+			go func() {
+				if err := a.eng.RetryPending(id); err != nil {
+					a.setToast("Resend failed: " + err.Error())
+					return
+				}
+				a.setToast("Resending…")
+			}()
+		}})
+	}
 	// Who reacted (AyuGram reactions list, slice 49).
 	if len(m.Reactions) > 0 {
 		items = append(items, menuAction{"Who reacted", func(gtx layout.Context) {
