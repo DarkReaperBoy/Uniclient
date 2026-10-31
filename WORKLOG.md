@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: R15 fixed this session (wasm-test-runner false-green hole + R14 test self-deadlock, found via CI 41174703134 = FAILURE); chunk 3 iterations 1-2 DONE (chat.go, sidebar.go)
-- next: read verify.yml run 41177906124 (R15+R14 native proof, on 51b3d240 — dispatched this session), then chunk 3 iteration 3 (next surface: pick from MAP chunk table — chatsearch.go/in-search surface is a natural next given the R14 context)
+- item: R15 fixed this session (wasm-test-runner false-green hole + R14 test self-deadlock, found via CI 41174703134 = FAILURE); chunk 3 iterations 1-3 DONE (chat.go, sidebar.go, chatsearch.go)
+- next: read verify.yml run 41177906124 (R15+R14 native proof, on 51b3d240 — queued >20min on GitHub's side, still pending at last check), then chunk 3 iteration 4 (next surface: pick the next file from MAP chunk table, e.g. shortcuts.go given the cross-window watch items)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (runner self-test + js vet + full gui suite with verdict discipline, 907 tests; audio leg green)
 
@@ -60,6 +60,13 @@ on 2026-10-30 — it lives in git history if ever needed.)
   wrong window's queue in the empty-separate-window edge) — watch item in
   MAP, candidate for shortcuts.go's iteration. refreshChats unguarded = P4
   churn family watch item.
+- Same session: **chunk 3 iteration 3 — chatsearch.go mapped** (478 lines,
+  read in full). Post-R14 shape verified: all widgets per-App on a.wid,
+  inSearchFromPanel under a.mu at all five sites, async FTS with staleness
+  key (inChatFor), hashtag tag-mode, pane-local Esc + global-layer priority
+  above sidebar search. Scope note: from-picker offers senders from the
+  loaded window only. Watch item: one goroutine per keystroke (no debounce,
+  P4 churn family).
 
 ## Session 331 — P0 chunk 2 complete: state.go 100%, R14 opened (2026-10-31)
 

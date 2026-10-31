@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -238,3 +238,30 @@ search field/folder tabs/chat list/rows; the chat-list journey)
   has no re-entrancy guard — the timed-mute expiry path spawns one per frame
   until the refreshed list lands (engine round-trip window). Idempotent read,
   last-write-wins under lock; wasted work only.
+
+### chatsearch.go (478 lines — session 332, read in full: the in-chat search
+surface, post-R14 shape)
+- **State**: all interactive widgets on a.wid (per-App: inSearchEd, close/
+  prev/next/from buttons, result rows + lists, from-picker rows) — no
+  package-level widget state left; inSearchFromPanel is per-App under a.mu
+  (R14 verified at all five sites: toggle :226, frame-read render :250, tint
+  :320, close-on-pick :473, openChat reset state.go:1481).
+- **Async search**: onInChatSearchChanged (GUI loop) → engine FTS scoped by
+  chat, in a goroutine, with a staleness key (query@chat|from) written to
+  inChatFor BEFORE spawn and compared under lock on landing — stale writes
+  dropped. Hashtag queries ("#x", ≥2 runes) switch to SearchMessagesByTag.
+  2-rune minimum gates the search + busy flag.
+- **Navigation**: prev/next clamps + jumpToMessageAt; row click sets idx +
+  jumps; position counter x/y from the frame; from-filter chip in the bar.
+- **From-picker**: senders derived from the LOADED message window only
+  (searchSenders over f.messages) — scope note: members older than the
+  loaded window are not offered (loaded-data honesty, vs tdesktop's full
+  member list — fine for now, note if parity complains).
+- **Esc**: pane-local key layer (inSearchKeyTag) + the global shortcuts
+  layer maps escTarget "inChatSearch" → closeInChatSearch (priority ABOVE
+  the sidebar "search" target — correct).
+- Lock discipline: clean; SetText/Text on a.wid editors all GUI-loop.
+- **Watch item (P4 churn family)**: one goroutine per ChangeEvent — as-you-
+  type fires an engine FTS query per keystroke (no debounce); staleness
+  guard keeps results correct, cost is query churn only. Same family as
+  typing-tick / refreshChats / serial-caps.
