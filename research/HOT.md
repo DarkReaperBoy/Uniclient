@@ -26,7 +26,10 @@ This is not history — stale lines are lies.
   clamp / send-dead bug), callsbox.go 1,089 DONE (**R49** + **R50**,
   iteration 32 — the load tail appended into the frame-shared backing
   array + had NO session guard; callsBoxGen key + fresh-slice merge),
-  poll.go 972 next.** Tab-exact python-heredoc edits dodge the
+  poll.go 972 DONE (**R51** + **R52**, iteration 33 — five in-place
+  writers on the frame-carried *pollDlgState incl. the background send
+  tail + the send goroutine reading a.wid switches; updatePollDlg CoW +
+  pollDlgGen; TRUE -race RED proven for R52), stories.go 960 next.** Tab-exact python-heredoc edits dodge the
   Edit-tool gofmt trap.
 - **CI proofs**: ALL CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
   **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38
@@ -40,8 +43,9 @@ This is not history — stale lines are lies.
   R47/R48 **41246248716 (12165b24)** — all 5 jobs success at step
   level, Race green (the race leg now carries R34×2 + R37×2 + R38×3 +
   R39×3 + R40×3 + R41×3 + R42/R43×5 + R44/R45×5 + R46×5 + R47/R48×6 +
-  R49/R50×5 pins). Pending: **41251708582** (R49/R50, 0319f118) —
-  verify at job AND step level. Local -race on the gui
+  R49/R50×5 + R51/R52×4 pins). Pending: **41251708582** (R49/R50,
+  0319f118) in flight + the R51/R52 dispatch after the next push — verify
+  EACH at job AND step level. Local -race on the gui
   package fits the box (proven 337/338/339 — use it before falling
   back to CI).
 - **Fresh-cache -race build OOM (session 339)**: after a wipe, the gui

@@ -465,6 +465,7 @@ type App struct {
 
 	// polls (AyuGram parity slice 42): creation dialog + optimistic votes
 	pollDlg     *pollDlgState
+	pollDlgGen  int // R51: dialog session key; openPollDialog bumps it, send tails land only on a match
 	pollVotes   map[string]map[int]bool
 	pollStopped map[string]bool // pollVoteKey → optimistic stop overlay (slice 124)
 

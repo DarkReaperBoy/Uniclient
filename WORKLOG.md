@@ -8,13 +8,13 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 32 DONE — callsbox.go (1,089→1,139 lines, read in full — the unscanned queue by size #3); **R49** (the load tail appended fetched pages into a.callsBoxRows and sorted IN PLACE — the frame-shared backing array, armed by the delete shift's spare capacity, the R38 class → applyCallsBoxPage fresh-slice merge; the pre-fix array reuse is scratch-proven by scripts/r49_red_proof.go) + **R50** (the tail had NO session guard — cross-account/reopen/clear stomps, stale-busy double loads, the clear flow's reload racing the engine clear, and the failed-clear busy deadlock → callsBoxGen session key + callsBoxSessionLive guard + chained reload + callsBoxClearFailed). callsbox_r49_test.go ×5, local -race clean, CI race-leg extended. Rows in BUGS, section in MAP
+- item: iteration 33 DONE — poll.go (972→1,016 lines, read in full — the unscanned queue by size #4); **R51** (pollDlgState frame-carried as a POINTER, five in-place writer sites incl. the BACKGROUND send tail — R34's exact pre-fix shape; the tail also unguarded: cancel+reopen → un-busy stomp (double send) or close-the-new-draft → updatePollDlg copy-on-write + pollDlgGen session key + extracted pollSendDone; failures toast regardless of session — honest-UI) + **R52** (the send goroutine read a.wid switch .Values — GUI-loop-only state — racing the layout-side Switch writes → captured on the GUI loop before the spawn; TRUE tool-proven RED: capture reverted → the race detector FAILS the pin, restored → clean). poll_r51_test.go ×4, local -race clean, CI race-leg extended. Rows in BUGS, section in MAP
 - ALSO this session (339, carried in STATE): iterations 29-31 — instantview.go (**R46** — closed the R34 systemic watch), media.go (CLEAN), giveaways.go (**R47** + **R48**); iterations 27-28 — exportdlg.go (**R42** + **R43**), twofa.go (**R44** + **R45**)
-- next: the unscanned gui files by size (poll.go 972 next, then stories.go 960, …) — full read+audit per file; CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40 **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**, R42/R43 **41244407673 (9b2cf32d)**, R44/R45 **41245057374 (1476115a)**, R46 **41245678978 (d8b4ce01)**, R47/R48 **41246248716 (12165b24)** — all 5 jobs each; pending: **41251708582** (R49/R50, 0319f118)
+- next: the unscanned gui files by size (stories.go 960 next, then …) — full read+audit per file; CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40 **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**, R42/R43 **41244407673 (9b2cf32d)**, R44/R45 **41245057374 (1476115a)**, R46 **41245678978 (d8b4ce01)**, R47/R48 **41246248716 (12165b24)** — all 5 jobs each; pending: **41251708582** (R49/R50, 0319f118)
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local full GREEN — gofmt clean, full gui suite **914 PASS / 0 FAIL / 3 SKIP** (environmental; +5 R49/R50 pins on top of 909), LOCAL -race clean on the new pins; R46 CI **41245678978** + R47/R48 CI **41246248716** = SUCCESS (all 5 jobs at step level, Race green); R49/R50 CI **41251708582** in flight
+- last-gate: local full GREEN — gofmt clean, full gui suite **918 PASS / 0 FAIL / 3 SKIP** (environmental; +4 R51/R52 pins on top of 914), LOCAL -race clean on the new pins (R52's RED proven under the detector); R46 CI **41245678978** + R47/R48 CI **41246248716** = SUCCESS (all 5 jobs at step level, Race green); R49/R50 CI **41251708582** in flight; R51/R52 dispatch pending (this commit)
 
-## Session 340 — iteration 32: callsbox.go = R49 + R50; R46/R47/R48 CI closed (2026-11-01)
+## Session 340 — iterations 32-33: callsbox.go = R49 + R50; poll.go = R51 + R52; R46/R47/R48 CI closed (2026-11-01)
 
 - Verified the pending CI at job AND step level: R46 **41245678978
   (d8b4ce01)** and R47/R48 **41246248716 (12165b24)** — all 5 jobs
@@ -36,6 +36,16 @@ on 2026-10-30 — it lives in git history if ever needed.)
   GOCACHE=/home/z/my-project/toolchain/gocache GOFLAGS=-p=1
   GOMEMLIMIT=3GiB GOGC=20` in EVERY call; scripts/env.sh alone lacks
   PKG_CONFIG_PATH (gui CGO builds fail on xkbcommon/wayland).
+- Iteration 33 — poll.go (the polls surface, AyuGram parity §4 + slice
+  124): **R51** (five in-place writers on the frame-carried *pollDlgState
+  incl. the background send tail + the unguarded reopen stomp →
+  updatePollDlg CoW + pollDlgGen + pollSendDone) + **R52** (send
+  goroutine read a.wid switch values → captured on the GUI loop; RED
+  proven by temporarily reverting the capture — the detector FAILS the
+  pin, restored it is clean). ×4 pins in poll_r51_test.go, local -race
+  clean, suite 918 PASS / 0 FAIL / 3 SKIP (environmental). CI race-leg
+  extended. Line-index python edits (scripts/r51_poll_fix.py) — deep
+  layout nesting makes tab-exact anchors fragile.
 
 ## Session 339 — iterations 30-31: media.go CLEAN; giveaways.go = R47 + R48 (2026-11-01)
 

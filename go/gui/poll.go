@@ -666,6 +666,27 @@ var (
 	pollKeyTag   = new(struct{})
 )
 
+// updatePollDlg copy-on-write installs a mutated poll-dialog head. R51:
+// the frame carries the *pollDlgState POINTER (the state.go snapshot),
+// so in-place busy/correct writes raced the frameMu-side reads in
+// layoutPollDialog (d.busy drives the Create/Sending label, d.correct
+// the quiz answer highlight) — a frozen head must never change. fn
+// edits a copy; returning false aborts with the head untouched.
+// Reports whether it installed.
+func (a *App) updatePollDlg(fn func(d *pollDlgState) bool) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pollDlg == nil {
+		return false
+	}
+	d := *a.pollDlg
+	if !fn(&d) {
+		return false
+	}
+	a.pollDlg = &d
+	return true
+}
+
 const pollMaxOptions = 10
 
 // validatePollDraft (pure, testable): "" = valid, else the error message.
@@ -689,6 +710,7 @@ func validatePollDraft(question string, options []string) string {
 func (a *App) openPollDialog() {
 	a.mu.Lock()
 	a.pollDlg = &pollDlgState{correct: 0}
+	a.pollDlgGen++ // R51: new dialog session — in-flight send tails retire
 	a.mu.Unlock()
 	if len(pollOptEds) < 2 {
 		pollOptEds = make([]widget.Editor, 2)
@@ -716,14 +738,21 @@ func (a *App) closePollDialog() {
 func (a *App) submitPollDialog() {
 	a.mu.Lock()
 	k := a.selected
+	gen := a.pollDlgGen // R51: the send tail's session key
 	dlg := a.pollDlg
-	if dlg == nil || dlg.busy || k == nil {
-		a.mu.Unlock()
+	a.mu.Unlock()
+	if dlg == nil || k == nil {
 		return
 	}
-	dlg.busy = true
-	correct := dlg.correct
-	a.mu.Unlock()
+	if !a.updatePollDlg(func(d *pollDlgState) bool {
+		if d.busy {
+			return false // already sending
+		}
+		d.busy = true
+		return true
+	}) {
+		return
+	}
 	a.invalidate()
 
 	q := strings.TrimSpace(a.wid.pollQEd.Text())
@@ -735,33 +764,50 @@ func (a *App) submitPollDialog() {
 	}
 	if err := validatePollDraft(q, opts); err != "" {
 		a.setToast(err)
-		a.mu.Lock()
-		if a.pollDlg != nil {
-			a.pollDlg.busy = false
-		}
-		a.mu.Unlock()
+		a.updatePollDlg(func(d *pollDlgState) bool { d.busy = false; return true })
 		return
 	}
 
+	// R52: capture the switch state HERE, on the GUI loop — a.wid is
+	// GUI-loop-only state; reading it from the send goroutine raced the
+	// layout-side switch writes (material.Switch updates .Value during
+	// Layout).
+	anon := a.wid.pollAnonSw.Value
+	multi := a.wid.pollMultiSw.Value
+	quiz := a.wid.pollQuizSw.Value
+	correct := dlg.correct // install-preserved by the busy install above
 	acc, chat := k.AccountID, k.ChatID
 	go func() {
 		_, err := a.eng.CreatePollEx(acc, chat, q, opts, engine.PollOptions{
-			Anonymous:      a.wid.pollAnonSw.Value,
-			MultipleChoice: a.wid.pollMultiSw.Value,
-			Quiz:           a.wid.pollQuizSw.Value,
+			Anonymous:      anon,
+			MultipleChoice: multi,
+			Quiz:           quiz,
 			CorrectOption:  correct,
 		})
-		a.mu.Lock()
-		if a.pollDlg != nil {
-			a.pollDlg.busy = false
-		}
-		a.mu.Unlock()
-		if err != nil {
-			a.setToast("Poll failed: " + err.Error())
-			return
-		}
-		a.closePollDialog()
+		a.pollSendDone(gen, err)
 	}()
+}
+
+// pollSendDone lands the send tail. R51: the busy flag clears and the
+// dialog closes only while the SAME dialog session still owns the head —
+// a tail racing a cancel+reopen (pollDlgGen bumped) must not un-busy or
+// close the new draft. A failure toasts regardless of session: the poll
+// really was sent and really failed — honest-UI beats session purity
+// for errors the user's own action produced.
+func (a *App) pollSendDone(gen int, err error) {
+	a.mu.Lock()
+	live := a.pollDlg != nil && a.pollDlgGen == gen
+	a.mu.Unlock()
+	if live {
+		if err == nil {
+			a.closePollDialog()
+		} else {
+			a.updatePollDlg(func(d *pollDlgState) bool { d.busy = false; return true })
+		}
+	}
+	if err != nil {
+		a.setToast("Poll failed: " + err.Error())
+	}
 }
 
 // layoutPollDialog renders the poll creation card over the chat pane.
@@ -796,11 +842,13 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 		if a.wid.pollDelOptBtns[i].Clicked(gtx) && len(pollOptEds) > 2 {
 			pollOptEds = append(pollOptEds[:i], pollOptEds[i+1:]...)
 			a.wid.pollDelOptBtns = a.wid.pollDelOptBtns[:len(pollOptEds)]
-			a.mu.Lock()
-			if a.pollDlg != nil && a.pollDlg.correct == i {
-				a.pollDlg.correct = 0
-			}
-			a.mu.Unlock()
+			a.updatePollDlg(func(d *pollDlgState) bool { // R51: copy-on-write
+				if d.correct != i {
+					return false
+				}
+				d.correct = 0
+				return true
+			})
 			a.invalidate()
 		}
 	}
@@ -881,11 +929,7 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 											}
 											return layout.Inset{Left: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 												if a.wid.pollCorrectBtns[i].Clicked(gtx) {
-													a.mu.Lock()
-													if a.pollDlg != nil {
-														a.pollDlg.correct = i
-													}
-													a.mu.Unlock()
+													a.updatePollDlg(func(d *pollDlgState) bool { d.correct = i; return true }) // R51: copy-on-write
 													a.invalidate()
 												}
 												btn := a.ui.IconButton(&a.wid.pollCorrectBtns[i], iconNavigationCheck, "Correct answer")

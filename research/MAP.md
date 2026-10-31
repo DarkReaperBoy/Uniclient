@@ -706,6 +706,60 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### poll.go (972→1,016 lines — session 340, read in full: the polls surface, AyuGram parity §4 + slice 124 — poll bubbles with vote bars / quiz reveal / solution line, optimistic vote overlays, and the creation dialog; chunk 3 iteration 33, the unscanned queue by size #4, VERDICT: R51 + R52 fixed, rest CLEAN)
+- Scope: the model + pure helpers (parsePollMessage / applyPollOverlay /
+  pollPercent / pollSubtitle / pollFooterLabel / pollVoteKey / pollIsBody /
+  pollTapAction / nextMultiVoteSet / pollEffectiveClosed / stopPollMenuGate
+  — test-locked in poll_test.go), the voting paths (tapPollOption →
+  VotePoll / RetractPollVote / VotePollMulti, stopPollMessage → StopPoll),
+  the overlay store (pollVotesFor / setPollOverlay / pollStoppedFor), the
+  option-clickable pool, pollBlock / pollOptionRow / the radio+quiz-mark
+  painters, and the creation dialog (openPollDialog / closePollDialog /
+  submitPollDialog / layoutPollDialog / pollSwitchRow).
+- **R51 FIXED**: pollDlgState is frame-carried as a POINTER (the state.go
+  snapshot), and five sites mutated it IN PLACE — submit's busy=true head,
+  both busy=false tails (the send tail on a BACKGROUND goroutine), and
+  both correct writes (the quiz picker click, the delete-option reset) —
+  while layoutPollDialog read d.busy (the Create/Sending label) and
+  d.correct (the answer highlight) through the frozen frame pointer with
+  no a.mu: R34's exact pre-fix shape (the queue exists precisely because
+  this file was never in the swept set). The send tail ALSO had no
+  session guard: a cancel+reopen mid-send let the old tail un-busy the
+  new draft (double-send window) or CLOSE it on success. Fix:
+  updatePollDlg copy-on-write installer + pollDlgGen session key
+  (openPollDialog bumps; pollSendDone clears/closes only on a match;
+  failures toast regardless — the send really happened, honest-UI beats
+  session purity for the user's own action).
+- **R52 FIXED**: the send goroutine read a.wid.pollAnonSw/pollMultiSw/
+  pollQuizSw .Value — GUI-loop-only widget state — racing the layout-side
+  switch writes (material.Switch updates .Value during Layout). Fix: the
+  switch state is captured on the GUI loop before the spawn. TRUE RED
+  under -race: with the capture reverted the pin fails the detector
+  ("race detected during execution of test"), restored it is clean.
+- Rest of the file CLEAN: the vote overlays are locked copies
+  (pollVotesFor returns a copy — no map aliasing across the lock, the
+  R45 discipline); tapPollOption/stopPollMessage copy msg by value before
+  every goroutine and wrap every engine call; parsePollMessage returns a
+  FRESH struct per call (poll data is immutable per frame — no shared
+  mutable state); the dialog renders over the chat pane (chat.go:314
+  gates on f.pollDlg), NOT through contentDialogSurface — outside the
+  settings-shell matrix by design; pollOptEds / pollQuizWas / pollMultiWas
+  are package-level but the dialog is a main-window composer surface
+  (attach.go:49) — the documented main-only package-pool pattern
+  (callsbox/chapter peers); a.wid.pollClicks follows the prune-at-512
+  pool pattern; shortcuts.go:30 reads f.pollDlg (frame-side ✓).
+- Watch item (P4): parsePollMessage does a full json.Unmarshal per poll
+  bubble per frame (after a cheap bytes.Contains pre-check that keeps
+  non-poll rows near-free) — joins the MediaState-getter fold candidate
+  if ever measurable.
+- GREEN: poll_r51_test.go ×4 clean under LOCAL -race (incl. the R52 pin
+  whose pre-fix shape was RED under the detector — tool-proven); CI
+  race-leg extended. Full gui suite 918 PASS / 0 FAIL / 3 SKIP
+  (environmental).
+- Next in the unscanned queue: stories.go (960), …
+
+
+
 ### callsbox.go (1,089→1,139 lines — session 340, read in full: the Calls box, tdesktop calls_box_controller parity, slice 154 — grouped call-history rows (peer × day × direction), redial, show-in-chat jump, per-group delete, clear-all + revoke, the group-calls subsection; chunk 3 iteration 32, the unscanned queue by size #3, VERDICT: R49 + R50 fixed, rest CLEAN)
 - Scope: pure helpers (callDirOf/groupCallEntries/sortCallBoxRows/callBoxRowID/
   callBoxStatus/callsBoxNextOffset/callsBoxMenuItems — test-locked in
