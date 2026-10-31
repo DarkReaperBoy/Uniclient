@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: R23 FIXED + native-proven (41188229919 all 5 legs SUCCESS); R24 FIXED (suggestion maps → suggMu helpers; verify.yml race leg extended to gui pins; proof 41189550503 in flight); iterations 8/10/11/13 CLEAN (separate.go, menu.go, webpage.go, cornerreply.go, cornerreaction.go — all guarded or semantically-correct-shared); scanner v3 (go/ast) + chunk-3 queue in MAP (remaining queue skews guarded per calibration)
-- next: read verify.yml 41189550503 (R24 native+race proof, cf60ce4d), then chunk 3 iteration 14 = richtext.go (linkTags), then instantview.go (ivDocDone watch item), msgshot.go, translatebar.go + profilemusic.go
+- item: R23 FIXED + native-proven (41188229919 all 5 legs SUCCESS); R24 FIXED (suggestion maps → suggMu helpers; verify.yml race leg extended to gui pins; proof 41189550503 in flight); iterations 8/10/11/13/14 CLEAN (separate.go, menu.go, webpage.go, cornerreply.go, cornerreaction.go, richtext.go — all guarded, semantically-correct-shared, or layout-only); scanner v3 (go/ast) + chunk-3 queue in MAP (remaining queue skews guarded per calibration)
+- next: read verify.yml 41189550503 (R24 native+race proof, cf60ce4d — in flight at last check), then chunk 3 iteration 15 = instantview.go (1,738 ln, the big one; ivDocDone watch item), then msgshot.go, translatebar.go + profilemusic.go
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN (4/4 runner contracts incl. flag forwarding, js vet, full gui suite incl. R23 test)
 
@@ -97,6 +97,12 @@ on 2026-10-30 — it lives in git history if ever needed.)
   gate quick GREEN (4/4 contracts). P4 noted: dead method
   suggestionState.dismiss (zero callers); suggBar/CloseBtn package
   clickables are sidebar-only (P3 fold-in family).
+- **Iteration 14: richtext.go (444 lines, read in full) — VERDICT CLEAN.**
+  linkTags is a package map with no mutex but ALL access is layout-only
+  (flowRich) — frameMu serializes; and MsgID keys never collide across
+  windows (one window per chat — the hover argument). P4: unbounded map +
+  per-frame delete/rebuild churn (512-cap fold-in when touched). P3:
+  a.spoilerRevealed unlocked (GUI-loop-only, fwdSel family).
 - **Iteration 13: cornerreply.go (147) + cornerreaction.go (285), read in
   full — BOTH CLEAN.** cornerreply's package hover state is semantically
   correct shared (one cursor → one window's events at a time; Leave clears

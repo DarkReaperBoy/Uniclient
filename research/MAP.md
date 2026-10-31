@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go clean) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -579,6 +579,26 @@ full: the hover-corner pills; iteration 13, VERDICT: BOTH CLEAN
   guarded; expect reads to clear most of the rest (richtext/instantview/
   msgshot/translatebar/profilemusic).
 
+### richtext.go (444 lines — session 334, read in full: entity-driven
+rich text, spoilers, inline emoji art, tappable links; iteration 14,
+VERDICT: CLEAN, no R-number)
+- **linkTags (package map, no mutex) is layout-only**: all three access
+  sites (delete :325, append :366, range :423) sit inside flowRich ←
+  richTextLabel ← bubble layout — frameMu serializes every frame, so no
+  data race. No cross-window bleed either: keyed by MsgID, and one window
+  per chat means two windows never share keys (the hover-state argument).
+- **P4**: linkTags is unbounded — entries for messages that scrolled away
+  are never freed (only per-frame delete+rebuild for messages WITH links
+  that still render); plus the delete/append churn per frame per visible
+  link message. Bounded-by-usage; fold in with a 512-cap wholesale reset
+  (webPageClickables pattern) when touched.
+- **P3**: a.spoilerRevealed written in layout without a.mu (lazy nil-init
+  at click, all accessors GUI-loop — the fwdSel family, no race).
+- Pure core (parseRichSegments/splitTokens/applyEntity/utf16 math) is
+  test-locked; spoilerBtns + emoji art caches per-frame-safe (emojiArts
+  pool); inline custom-emoji art degrades to the base glyph on unknown
+  kinds (§1.10 honest).
+
 ### Chunk-3 ranking queue (session 334 — scanner v3 (go/ast, exact) +
 separateChatView-reachability rule)
 Scanner history: v1 (regex) missed grouped var blocks; v2's `var ()` bug let
@@ -593,11 +613,10 @@ Main-window-only VERIFIED so far: swipeG (sidebar mount), business.go var
 block (settings.go:384), menu pools (now per-App), sidebar/dialog/login
 surfaces, notify_linux (separate windows skip the DBus server by design).
 Next-iteration queue (v3-exact, chat-surface first; webpage/suggestionbar/
-   cornerreply/cornerreaction DONE — clean or R24-fixed, see sections):
-1. richtext.go — linkTags (message-text rendering)
-2. instantview.go (1,738 ln) — ivDocDone watch item stands
-3. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
-4. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
+   cornerreply/cornerreaction/richtext DONE — clean or R24-fixed, sections):
+1. instantview.go (1,738 ln) — ivDocDone watch item stands (the big one)
+2. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
+3. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
    musicList (profile panel = R22's surface)
 Watch item carried (verified: no clear-path anywhere): ivDocDone marks a
 photo done BEFORE DownloadIVPhoto runs and the error path returns silently
