@@ -13,8 +13,9 @@ This is not history — stale lines are lies.
   41179413739 / 41177906124) are PERMANENT zombies — never enqueued, cancel
   409s ("has not been queued yet"), delete 403s; ignore them. **41181306179
   (b58d7a102) = SUCCESS — native proof for R15+R14+R16+R17, CI backlog
-  CLOSED.** **41182590400** (4883033a, dispatched this session) = native +
-  race-leg proof for R18+R19 — READ ITS RESULT next session before trusting
+  CLOSED.** **41182590400** (4883033a) = **SUCCESS — native+race proof for
+  R18+R19 landed.** **41184046305** (2e606d58, dispatched this session) =
+  native proof for R20+R21 — READ ITS RESULT next session before trusting
   native green for those. If a run ever sits `queued` with zero in-progress
   runs again, check `actions/permissions` FIRST, not runner starvation.
 - **P0 chunk 3 in flight** (per-file gui surfaces): DONE so far — chat.go,
