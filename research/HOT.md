@@ -4,46 +4,48 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **CI backlog FULLY CLOSED (session 334)**: 41184046305 (2e606d58, R20+R21
-  native proof) = SUCCESS, and 41184562534 (a8880414, R22 proof) = SUCCESS —
-  both verified at job AND step level this session (all 5 jobs green; the Nix
-  gate's 7/8 is the tag-only version check, correctly skipped on main pushes).
-  Durable lesson kept: if a run ever sits `queued` with zero in-progress runs,
-  check `actions/permissions` FIRST (repo-level disable) — not runner
-  starvation. The three 411779-411799 zombie dispatches are permanent, ignore.
-- **P0 chunk 3, session 334**: iterations 8+9 DONE — separate.go (multi-window
-  core, **VERDICT CLEAN**, full invariant audit in MAP) and rubberband.go
-  (**R23 FIXED**: package-level gesture state vs per-App selOn — other
-  window's frame killed in-flight rubber-band drags or painted phantom
-  rects; moved to App fields; TestRubberBandGestureIsPerWindow drives the
-  real overlay via input.Router; gate quick GREEN; native proof 41188229919 = **SUCCESS** at job level, all 5 legs).
-  **frameMu discovery (load-bearing)**: Root() holds frameMu for the entire
-  frame, so layout-only package state cannot data-race — residual bug shapes
-  are semantic cross-window bleed (R14/R23) and outside-layout writes
-  (R22-class maps). Chunk-3 ranking queue + this lens live in MAP; scanner
-  is now **v3 (go/ast, exact)** at `/home/z/my-project/scripts/pkgvar_scan_v3`
-  (v2's regex let menu.go struct fields leak in as false positives).
-  Iteration 10 menu.go CLEAN (pools already per-App; 3 P3 notes in MAP).
-  Iteration 11 webpage.go CLEAN (maps mutex-guarded; 2 P4 notes). Iteration
-  12 suggestionbar.go → **R24 FIXED**: suggStates/suggFetching/suggDismissed
-  had NO mutex — the fetch goroutine raced the GUI loop's every-frame reads
-  (fatal concurrent-map class, reachable at every boot; goroutine ≠ frame
-  so frameMu irrelevant). Six suggMu-guarded helpers; compile-seam RED test
-  hammers both sides; **verify.yml race leg extended to the gui concurrency
-  pins (R18/R23/R24) — js has no race detector, native CI is the proof;
-  R23 proof 41188229919 = SUCCESS all 5 legs; R24 proof = 41189550503
-  (cf60ce4d) in flight — READ ITS RESULT before trusting race green for
-  the new gui leg**. Next per the queue
-  in MAP: **instantview.go (1,738 ln — the big one; ivDocDone watch item),
-  then msgshot.go, translatebar.go + profilemusic.go** (richtext DONE too
-  — clean: linkTags layout-only under frameMu, MsgID keys never collide
-  cross-window; calibration holds — every v3-flagged file since suggestion
-  bar was already defended).
-  Gio harness lessons in MAP: pointer.Drag is not queueable
+- **P0 chunk 3, session 335**: iteration 15 instantview.go DONE, read in full —
+  **R25 FIXED** (ivDocDone photo latch: marked-done-before-download + silent
+  error = one transient failure permanently thumbnail/blank until restart;
+  now an in-flight claim ivPhotoClaim/ivPhotoRelease spanning the whole
+  download→read→decode→store chain; failure retries on the next natural
+  frame, no invalidate → no spin) and **R26 FIXED** (ivOpenRelated's
+  `!cur.loading` landing guard was a flag, not a generation —
+  back-during-fetch + re-navigate rearmed it and a straggler fetch pushed
+  an unopened page onto the back stack; ivState.gen + pointer identity +
+  ivLandRelated). Native race proof for the R25 hammer: verify.yml
+  **41205692894 (bf9ea2bf) dispatched, IN FLIGHT — read its result before
+  trusting race green for the extended gui leg** (local -race OOMs on gotd
+  as always). Queue after: **msgshot.go (shotFaceCache/shotSmallFaceCache),
+  then translatebar.go + profilemusic.go** — sections + calibration in MAP.
+- **Wipe #4 lessons (session 335 boot)**: only the repo clone was gone —
+  /home/z/my-project/toolchain SURVIVED (go 1.27.0 + mod cache), but
+  **scripts/ was wiped: scanner v3 (pkgvar_scan_v3) is GONE** — its queue
+  is fully baked into MAP so it is not needed unless the scan must rerun
+  (rebuild: go/ast walk of package vars; v2's regex let struct fields
+  leak). **Two toolchains now exist**: env.sh's
+  /home/z/my-project/toolchain (go1.27.0) vs devroot-setup's ~/.local/go
+  (go1.27.1) — mixing them poisons GOCACHE with version-mismatch
+  objects. Working combo after a wipe: `sh scripts/devroot-setup.sh && .
+  ./devroot.env` + `export GOMODCACHE=/home/z/my-project/toolchain/mod
+  GOCACHE=/home/z/my-project/toolchain/gocache` (reuse the survived mod
+  cache; go test needs `-tags goolm`; env.sh's 1.27.0 URL is one patch
+  behind — devroot-setup installs 1.27.1, standardize on it).
+- **Edit-tool + gofmt trap (cost one gate cycle)**: every Edit/MultiEdit
+  write normalizes tabs→spaces across the WHOLE .go file; `gofmt -w`
+  restores them — but ONLY with devroot.env sourced (a fresh shell says
+  "gofmt: command not found" and an `&&` chain hides it). RULE: after any
+  Edit to .go files, run `. ../devroot.env && gofmt -w <file> && gofmt -l
+  ./gui/` and expect EMPTY output before gating/committing; if git diff
+  --stat shows a whole-file rewrite, gofmt never ran.
+- R24 native+race proof **41189550503 (cf60ce4d) = SUCCESS, all 5 jobs at
+  step level** — the gui pins (R18/R23/R24) are proven under -race on CI;
+  the race-leg filter now also carries TestIVPhotoClaimGuarded (R25).
+- Gio harness lessons in MAP: pointer.Drag is not queueable
   (Move-while-pressed synthesizes Drag), pane-coord boundaries make edge
-  presses miss rows.
-- Toolchain recovery recipe: `scripts/env.sh` header steps 1-5 — proven through
-  **wipe #3** (session 333: full re-download of go 1.27.0 + mod-cache refill
-  1.3G). VM wipes are routine — source it first thing. web-test node_modules +
-  chrome were restored in session 332; NOT re-verified after wipe #3 (only
-  needed for web-gate legs).
+  presses miss rows. Bare `&App{eng: &engine.Engine{}}` is a viable
+  harness for engine-touching gui code (zero Engine errors fast on
+  getAccount miss) — used by TestIVPhotoRetryAfterFailure.
+- Toolchain recovery recipe: `scripts/env.sh` header steps 1-5 (proven
+  through wipes #2/#3/#4). web-test node_modules + chrome NOT re-verified
+  after wipe #4 (only needed for web-gate legs).

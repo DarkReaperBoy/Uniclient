@@ -599,6 +599,43 @@ VERDICT: CLEAN, no R-number)
   pool); inline custom-emoji art degrades to the base glyph on unknown
   kinds (§1.10 honest).
 
+### instantview.go (1,738 lines — session 335, read in full: the IV
+reader overlay, slice 176; iteration 15, VERDICT: 2 fixes, rest CLEAN)
+- **R25 FIXED**: the chunk-3 watch item CONFIRMED and closed — ivDocDone
+  latched photos on first failure (marked done before download, silent
+  error returns, no clear-path). Now ivPhotoClaim/ivPhotoRelease (an
+  in-flight claim under ivDocMu spanning download→read→decode→store);
+  success memoized by mediaImgs, failure retries on the next natural
+  frame (no invalidate → no spin). Full row in BUGS Fixed.
+- **R26 FIXED**: ivOpenRelated's landing guard was `!cur.loading` — a
+  flag, not a generation; back-during-fetch + re-navigate rearmed it and
+  a straggler fetch pushed a page the user never chose onto the back
+  stack. ivState.gen (a.mu-guarded) bumped by navigate/back;
+  openInstantView switched to pointer identity; landing extracted to
+  ivLandRelated. Full row in BUGS Fixed.
+- **Cross-window lens closed**: ivRichBlock builds content-keyed MsgIDs
+  ("iv|<url>|<idx>") that DO collide across windows (same article open
+  in two) — but frameMu is PACKAGE-level (app.go:25, serializes ALL
+  windows' Root() calls), so linkTags access stays serialized and the
+  per-frame delete+rebuild makes same-key churn identical to the
+  single-window case. No new surface (richtext iteration-14 verdict
+  holds; the "MsgID keys never collide" phrasing there was
+  chat-scoped — for iv| keys the safety argument is frameMu, not
+  key-uniqueness).
+- Rest of the file CLEAN: a.iv (ivState) a.mu-guarded with frame
+  snapshot f.iv in layout; st.docBusy (video/audio taps) claimed under
+  package ivDocMu and deleted on completion/error + toast (the pattern
+  R25 now mirrors); a.wid.ivClickables pooled per-App with a 256-cap
+  wholesale reset (webPageClickables pattern), keys content-scoped
+  ("ivvid:<id>", "ivrel:<url>:<i>", "ivdet:<idx>" — idx-scoped det keys
+  share clickables across pages harmlessly, open state lives in
+  st.detailsOpen which is per-state); detailsOpen/slideIdx per-state
+  GUI-loop-only maps; hist capped at ivHistMax=16; ivKeyTag is an
+  immutable event tag. Pure parse core (parseIVPage/ivBlocksFromAny/
+  ivRichSpans/ivSpanEntities) nil-tolerant and test-locked.
+- **P4**: ivTableBlock computes ncols then suppresses it (`_ = ncols`,
+  instantview.go ~:1642) — dead leftover; strip in the P3 sweep.
+
 ### Chunk-3 ranking queue (session 334 — scanner v3 (go/ast, exact) +
 separateChatView-reachability rule)
 Scanner history: v1 (regex) missed grouped var blocks; v2's `var ()` bug let
@@ -613,13 +650,11 @@ Main-window-only VERIFIED so far: swipeG (sidebar mount), business.go var
 block (settings.go:384), menu pools (now per-App), sidebar/dialog/login
 surfaces, notify_linux (separate windows skip the DBus server by design).
 Next-iteration queue (v3-exact, chat-surface first; webpage/suggestionbar/
-   cornerreply/cornerreaction/richtext DONE — clean or R24-fixed, sections):
-1. instantview.go (1,738 ln) — ivDocDone watch item stands (the big one)
-2. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
-3. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
+   cornerreply/cornerreaction/richtext/instantview DONE — clean or fixed,
+   sections above):
+1. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
+2. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
    musicList (profile panel = R22's surface)
-Watch item carried (verified: no clear-path anywhere): ivDocDone marks a
-photo done BEFORE DownloadIVPhoto runs and the error path returns silently
-(instantview.go:1096-1110) → one transient failure = permanent
-thumbnail-only until restart; map unbounded. Confirm at the instantview
-iteration before filing an R-number.
+Calibration holds: instantview was v3-flagged (ivDocDone) and its flag
+WAS real — but semantic (latch), not the missing-mutex shape; every
+remaining candidate is expected guarded per the scan's skew.

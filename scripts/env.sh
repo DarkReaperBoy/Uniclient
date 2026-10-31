@@ -4,7 +4,11 @@
 #
 # Full-wipe recovery, proven 2026-10-31 (survived wipe #2):
 #   1. TOOLCHAIN=<somewhere persistent>; mkdir -p "$TOOLCHAIN"
-#   2. curl -L https://go.dev/dl/go1.27.0.linux-amd64.tar.gz | tar -C "$TOOLCHAIN" -xz
+#   2. curl -L https://go.dev/dl/go1.27.1.linux-amd64.tar.gz | tar -C "$TOOLCHAIN" -xz
+#      (keep the patch version in lockstep with scripts/devroot-setup.sh —
+#      two different go builds sharing one GOCACHE poison it with
+#      "version does not match" compile errors; after devroot-setup just
+#      source devroot.env instead and point GOMODCACHE/GOCACHE here)
 #   3. . scripts/env.sh            # sets GOROOT/GOMODCACHE/GOCACHE/PATH (below)
 #   4. (cd go && go mod download)  # refill the module cache (~1.2G)
 #   5. cd scripts/web-test && npm ci && npx puppeteer browsers install chrome
