@@ -1091,28 +1091,37 @@ func (a *App) ivPhotoImage(st *ivState, b *ivBlock) *image.RGBA {
 		}
 		a.decodeThumbAsync("thumb:"+b.ThumbB64, b.ThumbB64)
 	}
-	// Async full download + decode, once per photo.
-	ivDocMu.Lock()
-	busy := ivDocDone[key]
-	if !busy {
-		ivDocDone[key] = true
+	// Async full download + decode, one chain in flight per photo. The
+	// claim spans the whole chain and is released on every exit — success
+	// or failure — so a transient error never latches the photo (R25: a
+	// failure does not invalidate; the retry rides the next natural frame,
+	// which keeps an instantly-failing fetch from spinning).
+	if !ivPhotoClaim(key) {
+		return nil
 	}
-	ivDocMu.Unlock()
-	if !busy {
-		go func() {
-			data, err := a.eng.DownloadIVPhoto(st.accountID, b.PhotoID, b.Extra)
-			if err != nil {
-				return
-			}
-			var env struct {
-				Path string `json:"path"`
-			}
-			if json.Unmarshal(data, &env) != nil || env.Path == "" {
-				return
-			}
-			a.decodeImageAsync(key, func() ([]byte, error) { return os.ReadFile(env.Path) })
-		}()
-	}
+	go func() {
+		defer ivPhotoRelease(key)
+		data, err := a.eng.DownloadIVPhoto(st.accountID, b.PhotoID, b.Extra)
+		if err != nil {
+			return
+		}
+		var env struct {
+			Path string `json:"path"`
+		}
+		if json.Unmarshal(data, &env) != nil || env.Path == "" {
+			return
+		}
+		raw, err := os.ReadFile(env.Path)
+		if err != nil {
+			return
+		}
+		img, _, err := decodeGUIImage(raw)
+		if err != nil || img == nil {
+			return
+		}
+		mediaImgs.store(key, imgToRGBA(img))
+		a.invalidate()
+	}()
 	return nil
 }
 
@@ -1728,11 +1737,35 @@ func blendSurface(c color.NRGBA, alpha float32) color.NRGBA {
 	}
 }
 
-// ivDocMu guards the reader's once-per-doc maps and docBusy flags.
+// ivDocMu guards the reader's package-level photo map and the per-state
+// docBusy flags (download goroutines are not frames — frameMu does not
+// cover them).
 var ivDocMu sync.Mutex
 
-// ivDocDone: one-shot IV photo downloads.
-var ivDocDone = map[string]bool{}
+// ivPhotoBusy is the in-flight claim set for IV photo downloads (keyed by
+// ivPhotoKey): one download chain per photo at a time. Claims are released
+// when the chain ends, success or failure — the decoded image itself is
+// memoized in mediaImgs, whose early get short-circuits before the claim
+// is ever consulted.
+var ivPhotoBusy = map[string]bool{}
+
+// ivPhotoClaim marks a photo download in flight; false when one already is.
+func ivPhotoClaim(key string) bool {
+	ivDocMu.Lock()
+	defer ivDocMu.Unlock()
+	if ivPhotoBusy[key] {
+		return false
+	}
+	ivPhotoBusy[key] = true
+	return true
+}
+
+// ivPhotoRelease frees a photo's in-flight claim (retryable afterwards).
+func ivPhotoRelease(key string) {
+	ivDocMu.Lock()
+	delete(ivPhotoBusy, key)
+	ivDocMu.Unlock()
+}
 
 // ivKeyTag is the reader's keyboard-event tag.
 var ivKeyTag = new(bool)
