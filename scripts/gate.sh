@@ -111,7 +111,8 @@ run_js() {
         [ $# -gt 0 ] || return 0
         echo "== js vet: $* =="
         GOOS=js GOARCH=wasm CGO_ENABLED=0 go vet -tags "$TAGS" "$@"
-        echo "== js test (wasm runner): $* =="
+        echo "== js test (wasm runner) =="
+        "$ROOT/scripts/test-wasm-runner.sh"
         GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags "$TAGS" -count=1 -exec "$RUNNER" "$@"
 }
 
@@ -150,6 +151,13 @@ quick() {
         done
         # shellcheck disable=SC2086
         run_native $nat
+        # A runner change gates itself even when no Go package did (run_js
+        # already self-tests whenever it runs; this covers the js-empty case).
+        if [ -z "$js" ] && { git -C "$ROOT" diff --name-only "$BASE" -- scripts/wasm-test-runner.sh scripts/test-wasm-runner.sh | grep -q . \
+                || git -C "$ROOT" status --porcelain -- scripts/wasm-test-runner.sh | grep -q .; }; then
+                echo "== wasm runner changed — self-test =="
+                "$ROOT/scripts/test-wasm-runner.sh"
+        fi
         # shellcheck disable=SC2086
         run_js $js
         echo "quick gate GREEN"
@@ -162,6 +170,7 @@ full() {
         echo "== native test: all =="
         go_run env CGO_ENABLED=1 go test -tags "$TAGS" -count=1 -gcflags="$GCFLAGS" ./...
         echo "== js test: gui audio cmd =="
+        "$ROOT/scripts/test-wasm-runner.sh"
         GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags "$TAGS" -count=1 \
                 -exec "$RUNNER" ./gui/... ./audio/... ./cmd/...
         echo "== vet: native + js split =="

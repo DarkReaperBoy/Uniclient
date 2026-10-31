@@ -8,10 +8,44 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: chunk 3 iteration 1 DONE (chat.go → MAP.md); R14 fixed earlier this session
-- next: read verify.yml run 41174703134 (R14 native proof — still in_progress at last check), then chunk 3 iteration 2 (next surface: sidebar.go, 36KB, the chat-list journey)
+- item: R15 fixed this session (wasm-test-runner false-green hole + R14 test self-deadlock, found via CI 41174703134 = FAILURE); chunk 3 iteration 1 DONE (chat.go)
+- next: read verify.yml run <R15-NATIVE — fill after dispatch> (R15+R14 native proof), then chunk 3 iteration 2 (next surface: sidebar.go, 36KB, the chat-list journey)
 - owner-waiting: re-enable Pages + cut v0.10.4; R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick GREEN (gui+cmd closure) + web GREEN (full Puppeteer) for R14; research-only since (chat.go)
+- last-gate: quick GREEN (runner self-test + js vet + full gui suite with verdict discipline, 907 tests; audio leg green)
+
+## Session 332 — R15: the js test runner had a false-green hole; R14's test self-deadlocked (2026-10-31)
+
+- Opened the session on STATE's queued task: read verify.yml run 41174703134
+  (R14 native proof). **FAILURE** — and the goroutine dump named the R14
+  fix's own test: TestInSearchFromPanelIsPerWindow parked 10 minutes in
+  snapshot()'s `a.mu.Lock()` (state.go:2178), called from chatsearch_test.go:25
+  WITH `a.mu` already held — a same-goroutine double-Lock (Go mutexes are
+  non-reentrant). The fix code itself is fine; the TEST deadlocks.
+- The alarming half: the session-331 local js leg had reported "gui suite
+  green 0.596s". Reproduced with the actual binary under raw node: the
+  deadlock drains node's event loop, node exits 0 with NO verdict printed,
+  and wasm-test-runner.sh's old `RC==0 → exit 0` short-circuit accepted it —
+  **a false green over a silently truncated suite** (everything after the
+  deadlocking test in run order never executed; 907 tests exist, the
+  truncated leg ran ~half). The F-88 false-green class, second hole.
+- Fix, three parts (R15 in BUGS.md Fixed):
+  1. wasm-test-runner.sh contract inverted — success now REQUIRES the
+     binary's own `PASS` line at any node exit code; RC short-circuit
+     deleted; post-PASS teardown crash still tolerated.
+  2. scripts/test-wasm-runner.sh — regression harness pinning hang /
+     printed-FAIL / pass with instant fixture binaries (the hang fixture
+     reproduces the R14 shape). RED on the old runner, GREEN after; wired
+     into dev-test.sh + gate.sh (quick js-legs/runner-change, full always).
+  3. chatsearch_test.go fixed — snapshot() takes a.mu itself, caller must
+     not hold it.
+- Verification: full gui suite through the fixed runner — 907 RUN /
+  886 PASS / 21 SKIP / 0 FAIL, final PASS, direct verbose node run confirms
+  the previously-truncated tail now executes; audio leg green; gate quick
+  GREEN end-to-end (self-test runs inside the gate). All other a.mu.Lock
+  blocks in gui tests audited — pure field access, no locking-method calls.
+  All five production snapshot() call sites audited — none under lock.
+- Native proof: this box can't run the native gui leg (§9.7 OOM) → verify.yml
+  re-dispatched for 497a4528+this-fix; run id recorded in STATE next line.
 
 ## Session 331 — P0 chunk 2 complete: state.go 100%, R14 opened (2026-10-31)
 

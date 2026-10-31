@@ -19,10 +19,12 @@ echo "== native: engine/cores/utils/bootstrap =="
 CGO_ENABLED=1 go test -tags goolm -count=1 ./engine/... ./cores/... ./utils/... ./bootstrap/...
 
 echo "== wasm: gui + audio (node exec) =="
-# The shared runner is VERDICT-FIRST: a printed --- FAIL line always fails
-# the leg, and the only tolerated crash is the known post-PASS teardown.
-# (The inline runner this replaces rescued a FAIL-ing binary whenever node
-# exited 0 after a panic — a false green.)
+# The shared runner is VERDICT-FIRST and self-tested: a printed --- FAIL line
+# always fails the leg, node exit 0 alone proves nothing (a hung/deadlocked
+# binary drains node's event loop — exit 0 with no verdict — found via R14),
+# and the only tolerated crash is the known post-PASS teardown. Pin those
+# contracts before trusting a single verdict from the runner.
+"$ROOT/scripts/test-wasm-runner.sh"
 WASM_RUNNER="$ROOT/scripts/wasm-test-runner.sh"
 GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags goolm -count=1 -exec "$WASM_RUNNER" ./gui/... ./audio/...
 

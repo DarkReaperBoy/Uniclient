@@ -4,9 +4,17 @@
 #   - any "--- FAIL" or trailing "FAIL" line in the output => non-zero exit,
 #     no exceptions (a crash can make node exit 0 with a FAIL already
 #     printed — the verdict is the truth, not the exit code);
+#   - a bare `panic:` line with no verdict => non-zero exit (a wasm panic
+#     kills the binary before the testing framework can print one);
+#   - node exit 0 proves NOTHING by itself: node also exits 0 whenever its
+#     event loop drains, and a hung/deadlocked wasm test binary drains it
+#     while never printing a verdict (found via R14's self-deadlocking
+#     test — the whole suite silently truncated and the leg went green).
+#     Success REQUIRES the binary's own PASS line, at any node exit code;
 #   - the one tolerated case: node crashes AFTER printing PASS (the known
 #     js.Value teardown crash) => exit 0.
-# Used by scripts/dev-test.sh for the js/wasm test legs.
+# Regression-pinned by scripts/test-wasm-runner.sh (hang / fail / pass).
+# Used by scripts/dev-test.sh and scripts/gate.sh for the js/wasm test legs.
 set -u
 
 TESTBIN="$1"
@@ -33,8 +41,8 @@ cat >> "$NODE_SCRIPT" <<'EOF2'
 EOF2
 
 node "$NODE_SCRIPT" "$TESTBIN" > "$OUT" 2>/tmp/wasm-err.txt
-RC=$?
 cat "$OUT"
+VERDICT=$(grep -E '^(PASS|FAIL|ok )' "$OUT" | tail -1)
 if grep -q -- '--- FAIL' "$OUT" || tail -1 "$OUT" | grep -q '^FAIL'; then
   exit 1
 fi
@@ -43,11 +51,12 @@ fi
 if grep -q '^panic:' "$OUT"; then
   exit 1
 fi
-if [ "$RC" -eq 0 ]; then
-  exit 0
-fi
-VERDICT=$(grep -E '^(PASS|FAIL|ok )' "$OUT" | tail -1)
 if [ "$VERDICT" = "PASS" ]; then
+  # The binary itself declared success — covers both a clean exit AND the
+  # tolerated post-PASS teardown crash (node died after the verdict).
   exit 0
 fi
-exit "$RC"
+# No PASS verdict: RC==0 means node's event loop drained with the binary
+# hung or gone quiet (the R14 false-green), RC!=0 means it died early —
+# either way the leg fails.
+exit 1

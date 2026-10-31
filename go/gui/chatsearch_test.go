@@ -21,9 +21,10 @@ func TestInSearchFromPanelIsPerWindow(t *testing.T) {
 	}
 	// The frame snapshot carries the flag so layout code never reads it from
 	// anywhere but its own window's frame (the pure-frame read pattern).
-	a.mu.Lock()
+	// snapshot() takes a.mu itself — holding it here would self-deadlock
+	// (the exact bug CI run 41174703134 caught: this test hung the whole
+	// native gui package for its 10-minute timeout).
 	f := a.snapshot()
-	a.mu.Unlock()
 	if !f.inSearchFromPanel {
 		t.Fatal("snapshot() dropped inSearchFromPanel: the frame must carry the picker-open flag")
 	}
