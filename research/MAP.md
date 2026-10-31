@@ -706,6 +706,40 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### media.go (1,186 lines — session 339, read in full: the media bubbles + download progress + the in-app voice/audio player surfaces; chunk 3 iteration 30, the unscanned-file queue by size #1, VERDICT: CLEAN)
+- Scope: pure helpers (dlKey/dlActive/dlFraction/fmtBytes/trimFloat/
+  fmtDur/pad2/fitScale/fitDims/mediaBlockKind/audioSubLine/mediaTitle/
+  fmtPlaybackTime/fmtSpeed — the first four + gating test-locked in
+  media_test.go), the decoded-image cache, mediaBlock/actMedia routing,
+  the photo/video/videoNote/voice/audio/file bubbles, the waveform seek
+  control, the playback ticker, downloadRow.
+- **CLEAN — no frame-carried struct of its own**: the file READS
+  f.downloads (whose writers, the onDownload* handlers in state.go,
+  were verified copy-on-write at iteration 20) and engine getters
+  (MediaState per bubble per frame — the P4 class already watched for
+  musicRow; cheap guarded getter, fold into one call per layout if ever
+  measurable). mediaImgCache carries its OWN mutex (get/store/start/
+  fail all locked; the 256-reset swaps the map under the lock — frames
+  hold the *image.RGBA values, not the map, so no frame aliasing);
+  decode goroutines write only through the locked methods + the
+  nil-guarded invalidate. markAutoDl is an a.mu check-and-set in ONE
+  lock section. The playback ticker's mediaTickerOn flag is
+  check-and-set under a.mu on BOTH sides (start + the goroutine's
+  clear). actMedia copies msg by value before every goroutine
+  (UI-goroutine evaluation); selOn is read under a.mu. The seek path
+  writes only a.wid.seekBarApplied (GUI-loop widget state) and calls
+  the engine off-frame. mediaClickable/mediaPlayClickable are a.wid
+  pools (GUI-loop-only, prune-at-512, the documented pattern). The
+  playing-bubble invalidation uses op.InvalidateCmd scheduled on the
+  frame. No BUGS row.
+- Watch items (P4, join musicRow's): per-bubble a.eng.MediaState()
+  getter per frame in voiceBubble/audioBubble/toggleVoicePlayback —
+  same fold-into-one-call candidate.
+- Next in the unscanned queue: giveaways.go (1,171), callsbox.go
+  (1,089), poll.go (972), stories.go (960), …
+
+
+
 ### instantview.go state lifecycle (session 339, chunk 3 iteration 29 — the R34 systemic watch's LAST entry, VERDICT: R46 fixed, rest CLEAN — the file was read in full at session 335)
 - Scope this iteration: ivState + pushHistory/back, openInstantView's
   load tail, ivOpenRelated/ivLandRelated (R26's landing gate), ivBack,
