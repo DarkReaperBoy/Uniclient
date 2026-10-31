@@ -15,12 +15,13 @@ This is not history — stale lines are lies.
   files now install copies via their update<Page> helper. **Sibling sweep
   continues** (one iteration per file, order in MAP): stickermanager.go →
   profileedit.go → exportdlg.go → twofa.go → instantview.go's load tail.
-- **CI proofs**: R32/R33 CLOSED — **41222152669 (be7541e4) = SUCCESS at
-  job AND step level**. Pending: **41236970838** (R34-R36, f14028a6),
-  **41237343094** (R37, e6de37fc), the R38 run (6fdb1835) and the R39
-  dispatch — verify EACH at job+step level (the race leg carries R34×2 +
-  R37×2 + R38×3 + R39×3 pins). Local -race on the gui package fits the
-  box (proven 337/338 — use it before falling back to CI).
+- **CI proofs**: CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
+  **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**: all SUCCESS
+  at job AND step level (all 5 jobs each; Race steps green). Pending:
+  **41237698797** (R38, 6fdb1835), **41238091947** (R39, f38e19f7) —
+  verify at job+step level (the race leg carries R34×2 + R37×2 + R38×3 +
+  R39×3 pins). Local -race on the gui package fits the box (proven
+  337/338 — use it before falling back to CI).
 - **Wipe #6 (session 338 boot)**: repo + toolchain + download/ copies
   gone; the upload token file survived. Full recipe re-run from zero
   (clone → go1.27.1 tarball → mod download → devroot-setup), ~10 min.
