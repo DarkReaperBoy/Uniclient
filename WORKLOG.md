@@ -8,13 +8,14 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 24 DONE — foldermgr.go (501 lines, read in full — the R34 sibling sweep #3); **R39** (folderMgrState load tail + reload in-place under a.mu vs frame-pointer reads → updateFolderMgr copy-on-write; PLUS the settings-shell exclusivity matrix completed — openFolderMgr/openPremiumPage had gaps reachable via suggestionbar's premium opener, stale-page-resurrection quirk; openProfileEdit/openStickerMgr gaps left for their iterations; ×3 pins incl. the matrix pin on the bare engine harness, local -race clean, CI race-leg extended). Row in BUGS, section in MAP. Sweep: 3 of 7 done (stickermanager.go next)
+- item: iteration 25 DONE — stickermanager.go (948 lines, read in full — the R34 sibling sweep #4); **R40** (stickerMgrState had R34's shape across SIX writer sites — both load tails, reload, search head+tail, setTab → updateStickerMgr copy-on-write; openStickerMgr's exclusivity matrix completed, only openProfileEdit still has gaps; ×3 pins, local -race clean, CI race-leg extended). Row in BUGS, section in MAP. Sweep: 4 of 7 done (profileedit.go next)
+- ALSO this session: iteration 24 — foldermgr.go (**R39** copy-on-write + the exclusivity matrix audit/completion); iteration 23 — settingsstars.go (**R38** + fresh-slice append rule); iteration 22 — settingspremium.go (**R37**); iteration 21 — business.go (**R34** systemic + **R35** dead checkboxes + **R36** uncancellable rename)
 - ALSO this session: iteration 23 — settingsstars.go (**R38**, copy-on-write + fresh-slice append rule); iteration 22 — settingspremium.go (**R37**); iteration 21 — business.go (**R34** systemic + **R35** dead checkboxes + **R36** uncancellable rename)
 - ALSO this session: iteration 22 — settingspremium.go (**R37**, updatePremiumPage copy-on-write); iteration 21 — business.go (**R34** write-races-layout + copy-on-write installer, **R35** dead recipient checkboxes, **R36** uncancellable QR rename)
 - ALSO this session: iteration 21 DONE — business.go (1,864 lines, read in full); **R34** (businessPageState write-races-layout on six background RPC tails → updateBusinessPage copy-on-write for EVERY post-install mutation + accountID staleness guards; RED via dep-free scratch repro under -race, GREEN via local -race pins + CI race-leg) + **R35** (recipient/exclude/offline checkboxes never seeded nor read → seedBizRecipWidgets + read-back + at-least-one guard) + **R36** (quick-reply rename uncancellable + shared-editor slot → one inline edit slot via three extracted click methods)
-- next: the R34 sibling sweep continues: stickermanager.go, profileedit.go, exportdlg.go, twofa.go, instantview.go load tail (one iteration per file, order in MAP; append/paging siblings build fresh slices; carry the exclusivity-matrix completion into openProfileEdit/openStickerMgr); CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)** — all 5 jobs green each; pending: **41237698797** (R38, 6fdb1835), **41238091947** (R39, f38e19f7)
+- next: the R34 sibling sweep continues: profileedit.go (complete openProfileEdit's matrix there), exportdlg.go, twofa.go, instantview.go load tail (one iteration per file, order in MAP; append/paging siblings build fresh slices); CI CLOSED at job+step level: R32/R33 **41222152669**, R34-R36 **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38 **41237698797 (6fdb1835)** — all 5 jobs green each; pending: **41238091947** (R39, f38e19f7) + the R40 dispatch
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite **882/882** (+14 new pins across R34-R39), gate quick GREEN ×4 (js leg + 4/4 wasm-runner contracts), LOCAL -race clean on every new pin set; CI runs for R34-R38 pending verification, R39's dispatch next
+- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite **885/885** (+17 new pins across R34-R40), gate quick GREEN ×5 (js leg + 4/4 wasm-runner contracts), LOCAL -race clean on every new pin set; R39's CI in progress, R40's dispatch next
 
 ## Session 338 — iteration 21: business.go = R34 + R35 + R36 (2026-11-01)
 
@@ -81,6 +82,14 @@ on 2026-10-30 — it lives in git history if ever needed.)
   foldermgr_r39_test.go ×3 (hammer + contract + the matrix pin on the
   bare engine harness), local -race clean, CI race-leg extended. Full
   gui suite 882/882; gate quick GREEN.
+- **Iteration 25 (same session): stickermanager.go = R40.** Read in full;
+  R34's shape across SIX writer sites (both load tails, reload, search
+  head+tail with the stale-run key, setTab). Fix: updateStickerMgr
+  copy-on-write; openStickerMgr's matrix completed. stickermanager_r40
+  _test.go ×3 (hammer spanning all three field families + contract incl.
+  the searchFor abort + the sibling-clear pin), local -race clean, CI
+  race-leg extended. Full gui suite 885/885; gate quick GREEN. R38's CI
+  proof CLOSED (41237698797, all 5 jobs at step level).
 
 
 ## Session 337 — iteration 20: state.go part 2 = R32 + R33 (2026-11-01)

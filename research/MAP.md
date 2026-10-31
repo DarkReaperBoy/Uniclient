@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36, settingspremium.go + R37, settingsstars.go + R38, foldermgr.go + R39 — the R34 sibling sweep: 3 of 7 done) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33; 338: business.go + R34-R36, settingspremium.go + R37, settingsstars.go + R38, foldermgr.go + R39, stickermanager.go + R40 — the R34 sibling sweep: 4 of 7 done) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -706,6 +706,26 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### stickermanager.go (949→1,000 lines — session 338, read in full: the Stickers & Emoji manager settings page, slice 139; chunk 3 iteration 25, the R34 sibling sweep #4, VERDICT: R40 fixed, rest CLEAN)
+- Scope: pure helpers (split/move-order/set-order/subtitles/filter/
+  featured-visible/search-merge — test-locked), lifecycle (open/close/
+  dual load/reload), async server search with the stale-run key, the four
+  actions (move/archive/delete/install via stickerMgrAct), two tabs,
+  installed/archived/featured/search/emoji rows, thumbs, chips, entry.
+- **R40 FIXED**: stickerMgrState had R34's shape across SIX writer sites
+  (both load tails, reload, search head+tail, setTab) → updateStickerMgr
+  copy-on-write; openStickerMgr's exclusivity matrix completed (only
+  openProfileEdit still has gaps — its iteration). stickermanager_r40_test
+  .go ×3, local -race clean, CI race-leg carries them.
+- Rest of the file CLEAN: the actions capture accountID/pack/order by
+  value before their goroutines; the search editor is GUI-loop-only with
+  SetText priming on open; stickerMgrMoveOrder is pure (input not
+  mutated); thumbs use the standard memoized media path.
+- Sibling sweep: profileedit.go next (then exportdlg.go, twofa.go,
+  instantview.go's load tail — complete openProfileEdit's matrix there).
+
+
+
 ### foldermgr.go (501→543 lines — session 338, read in full: the chat-folders manager settings page; chunk 3 iteration 24, the R34 sibling sweep #3, VERDICT: R39 fixed, rest CLEAN)
 - Scope: pure helpers (chats label, suggests-visible filter, swapFolderIDs
   — test-locked), page lifecycle (open/close/load/reload), server-side
@@ -820,9 +840,9 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   settingsstars.go (R38, iteration 23 — including the deeper append-into-
   frame-visible-slice half; future siblings with append/paging shapes must
   build fresh slices the same way), foldermgr.go (R39, iteration 24 —
-  plus the settings-shell exclusivity matrix: openProfileEdit still misses
-  4 siblings and openStickerMgr 3; complete them in their iterations).**
-  Remaining, in read order: stickermanager.go, profileedit.go,
+  plus the settings-shell exclusivity matrix), stickermanager.go (R40,
+  iteration 25 — matrix completed there too; only openProfileEdit still
+  misses 4 siblings).** Remaining, in read order: profileedit.go,
   exportdlg.go, twofa.go (auth flows), plus instantview.go's load tail.
 
 

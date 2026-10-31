@@ -4,24 +4,25 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 338 (2026-11-01)**: iterations 21-24 DONE —
+- **P0 chunk 3, session 338 (2026-11-01)**: iterations 21-25 DONE —
   business.go (R34+R35+R36), settingspremium.go (**R37**), settingsstars
   .go (**R38**, incl. the append-into-frame-visible-slice half — siblings
   with paging MUST build fresh slices, not append), foldermgr.go (**R39**
-  + the settings-shell exclusivity matrix: openProfileEdit still misses
-  4 siblings, openStickerMgr 3 — complete them in their iterations). R34
-  = the systemic one: frame-carried sub-page structs mutated in place by
-  background tails under a.mu vs layout reads under frameMu — all four
+  + the settings-shell exclusivity matrix), stickermanager.go (**R40** —
+  six writer sites; only openProfileEdit still misses 4 siblings). R34 =
+  the systemic one: frame-carried sub-page structs mutated in place by
+  background tails under a.mu vs layout reads under frameMu — all five
   files now install copies via their update<Page> helper. **Sibling sweep
-  continues** (one iteration per file, order in MAP): stickermanager.go →
-  profileedit.go → exportdlg.go → twofa.go → instantview.go's load tail.
+  continues** (one iteration per file, order in MAP): profileedit.go →
+  exportdlg.go → twofa.go → instantview.go's load tail.
 - **CI proofs**: CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
-  **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**: all SUCCESS
-  at job AND step level (all 5 jobs each; Race steps green). Pending:
-  **41237698797** (R38, 6fdb1835), **41238091947** (R39, f38e19f7) —
-  verify at job+step level (the race leg carries R34×2 + R37×2 + R38×3 +
-  R39×3 pins). Local -race on the gui package fits the box (proven
-  337/338 — use it before falling back to CI).
+  **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38
+  **41237698797 (6fdb1835)**: all SUCCESS at job AND step level (all 5
+  jobs each; Race steps green). Pending: **41238091947** (R39, f38e19f7)
+  + the R40 dispatch — verify at job+step level (the race leg carries
+  R34×2 + R37×2 + R38×3 + R39×3 + R40×3 pins). Local -race on the gui
+  package fits the box (proven 337/338 — use it before falling back to
+  CI).
 - **Wipe #6 (session 338 boot)**: repo + toolchain + download/ copies
   gone; the upload token file survived. Full recipe re-run from zero
   (clone → go1.27.1 tarball → mod download → devroot-setup), ~10 min.

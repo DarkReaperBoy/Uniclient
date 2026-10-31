@@ -188,12 +188,37 @@ func stickerMgrSearchMerge(results, known []cores.StickerPackSummary) []cores.St
 
 // ── page lifecycle ──────────────────────────────────────────────────────
 
+// updateStickerMgr applies fn to a COPY of the live Stickers & Emoji
+// manager state and installs the copy under a.mu — R34's copy-on-write
+// contract (R40, the fourth sibling swept): the struct a frame holds
+// stays immutable for that frame's life, so the load/search/tab tails
+// cannot write-race the layout's field reads. fn re-validates staleness
+// itself (accountID match / searchFor key); false aborts the install.
+// Returns the installed copy, or nil when the page is closed / fn
+// aborted.
+func (a *App) updateStickerMgr(fn func(st *stickerMgrState) bool) *stickerMgrState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.stickerMgr == nil {
+		return nil
+	}
+	next := *a.stickerMgr
+	if !fn(&next) {
+		return nil
+	}
+	a.stickerMgr = &next
+	return &next
+}
+
 // openStickerMgr starts the manager for an account and loads its data.
 func (a *App) openStickerMgr(accountID string) {
 	a.mu.Lock()
 	a.stickerMgr = &stickerMgrState{accountID: accountID, loading: true}
-	a.profileEdit = nil // one sub-page at a time (settings shell)
-	a.businessPage = nil
+	a.profileEdit = nil  // one sub-page at a time (settings shell) — the
+	a.folderMgr = nil    // exclusivity matrix is COMPLETE now (R39's audit
+	a.businessPage = nil // found this opener missing three siblings; the
+	a.premiumPage = nil  // shell's shadow order made the gaps benign but
+	a.starsPage = nil    // a stale page reappeared after close)
 	a.mu.Unlock()
 	stickerMgrSearchEd.SetText("")
 	go a.loadStickerMgr(accountID)
@@ -212,62 +237,58 @@ func (a *App) closeStickerMgr() {
 func (a *App) loadStickerMgr(accountID string) {
 	packs, errP := a.eng.GetStickerSetSummaries(accountID)
 	featured, errF := a.eng.GetFeaturedStickerPacks(accountID)
-	a.mu.Lock()
-	st := a.stickerMgr
-	if st == nil || st.accountID != accountID {
-		a.mu.Unlock()
-		return
-	}
-	st.loading = false
-	if errP != nil {
-		st.err = errP.Error()
-	} else {
-		st.err = ""
-		st.packs = packs
-		st.loaded = true
-	}
-	if errF == nil {
-		st.featured = featured
-	}
-	a.mu.Unlock()
+	a.updateStickerMgr(func(n *stickerMgrState) bool {
+		if n.accountID != accountID {
+			return false // closed or switched mid-fetch
+		}
+		n.loading = false
+		if errP != nil {
+			n.err = errP.Error()
+		} else {
+			n.err = ""
+			n.packs = packs
+			n.loaded = true
+		}
+		if errF == nil {
+			n.featured = featured
+		}
+		return true
+	})
 	a.invalidate()
 }
 
 // loadStickerMgrEmoji lazy-loads the emoji tab on first entry.
 func (a *App) loadStickerMgrEmoji(accountID string) {
 	sets, err := a.eng.GetInstalledEmojiSets(accountID)
-	a.mu.Lock()
-	st := a.stickerMgr
-	if st == nil || st.accountID != accountID {
-		a.mu.Unlock()
-		return
-	}
-	st.emojiLoading = false
-	if err != nil {
-		st.emojiErr = err.Error()
-	} else {
-		st.emojiErr = ""
-		st.emojiSets = sets
-		st.emojiLoaded = true
-	}
-	a.mu.Unlock()
+	a.updateStickerMgr(func(n *stickerMgrState) bool {
+		if n.accountID != accountID {
+			return false
+		}
+		n.emojiLoading = false
+		if err != nil {
+			n.emojiErr = err.Error()
+		} else {
+			n.emojiErr = ""
+			n.emojiSets = sets
+			n.emojiLoaded = true
+		}
+		return true
+	})
 	a.invalidate()
 }
 
 // reloadStickerMgr re-runs the current tab's load.
 func (a *App) reloadStickerMgr() {
-	a.mu.Lock()
-	st := a.stickerMgr
-	tab := 0
 	accountID := ""
-	if st != nil {
-		accountID = st.accountID
-		tab = st.tab
-		st.loading = true
-		st.searchRes = nil
-		st.searching = false
-	}
-	a.mu.Unlock()
+	tab := 0
+	a.updateStickerMgr(func(n *stickerMgrState) bool {
+		accountID = n.accountID
+		tab = n.tab
+		n.loading = true
+		n.searchRes = nil
+		n.searching = false
+		return true
+	})
 	if accountID == "" {
 		return
 	}
@@ -282,34 +303,38 @@ func (a *App) reloadStickerMgr() {
 func (a *App) onStickerMgrSearchChanged(q string, accountID string) {
 	q = strings.TrimSpace(q)
 	key := accountID + "|" + q
-	a.mu.Lock()
-	st := a.stickerMgr
-	if st == nil || st.accountID != accountID {
-		a.mu.Unlock()
+	long := len([]rune(q)) >= 2
+	if a.updateStickerMgr(func(n *stickerMgrState) bool {
+		if n.accountID != accountID {
+			return false
+		}
+		n.searchQ = q
+		n.searchFor = key
+		n.searching = long
+		if !long {
+			n.searchRes = nil
+		}
+		return true
+	}) == nil {
 		return
 	}
-	st.searchQ = q
-	st.searchFor = key
-	st.searching = len([]rune(q)) >= 2
-	if len([]rune(q)) < 2 {
-		st.searchRes = nil
-		st.searching = false
-		a.mu.Unlock()
+	if !long {
 		a.invalidate()
 		return
 	}
-	a.mu.Unlock()
 	go func() {
 		results, err := a.eng.SearchStickerSets(accountID, q)
 		if err != nil {
 			results = nil
 		}
-		a.mu.Lock()
-		if st := a.stickerMgr; st != nil && st.searchFor == key {
-			st.searchRes = results
-			st.searching = false
-		}
-		a.mu.Unlock()
+		a.updateStickerMgr(func(n *stickerMgrState) bool {
+			if n.searchFor != key {
+				return false // a newer query superseded this run
+			}
+			n.searchRes = results
+			n.searching = false
+			return true
+		})
 		a.invalidate()
 	}()
 	a.invalidate()
@@ -435,27 +460,26 @@ func (a *App) layoutStickerMgr(gtx layout.Context, f frame) layout.Dimensions {
 
 // setStickerMgrTab switches tabs, lazily loading the emoji listing.
 func (a *App) setStickerMgrTab(tab int) {
-	a.mu.Lock()
-	st := a.stickerMgr
-	changed := st != nil && st.tab != tab
-	if st != nil {
-		st.tab = tab
-		needEmoji := tab == stickerMgrTabEmoji && !st.emojiLoaded && !st.emojiLoading
+	needEmoji := false
+	accountID := ""
+	changed := false
+	a.updateStickerMgr(func(n *stickerMgrState) bool {
+		changed = n.tab != tab
+		n.tab = tab
+		needEmoji = tab == stickerMgrTabEmoji && !n.emojiLoaded && !n.emojiLoading
 		if needEmoji {
-			st.emojiLoading = true
-			st.emojiErr = ""
+			n.emojiLoading = true
+			n.emojiErr = ""
 		}
-		accountID := st.accountID
-		a.mu.Unlock()
-		if needEmoji {
-			go a.loadStickerMgrEmoji(accountID)
-		}
-		if changed {
-			a.invalidate()
-		}
-		return
+		accountID = n.accountID
+		return true
+	})
+	if needEmoji {
+		go a.loadStickerMgrEmoji(accountID)
 	}
-	a.mu.Unlock()
+	if changed {
+		a.invalidate()
+	}
 }
 
 // acctChipsFlexChildren builds the account chip row.
