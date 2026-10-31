@@ -4,20 +4,19 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 335**: iteration 15 instantview.go DONE, read in full —
-  **R25 FIXED** (ivDocDone photo latch: marked-done-before-download + silent
-  error = one transient failure permanently thumbnail/blank until restart;
-  now an in-flight claim ivPhotoClaim/ivPhotoRelease spanning the whole
-  download→read→decode→store chain; failure retries on the next natural
-  frame, no invalidate → no spin) and **R26 FIXED** (ivOpenRelated's
-  `!cur.loading` landing guard was a flag, not a generation —
-  back-during-fetch + re-navigate rearmed it and a straggler fetch pushed
-  an unopened page onto the back stack; ivState.gen + pointer identity +
-  ivLandRelated). Native race proof for the R25 hammer: verify.yml
-  **41205692894 (bf9ea2bf) dispatched, IN FLIGHT — read its result before
-  trusting race green for the extended gui leg** (local -race OOMs on gotd
-  as always). Queue after: **msgshot.go (shotFaceCache/shotSmallFaceCache),
-  then translatebar.go + profilemusic.go** — sections + calibration in MAP.
+- **P0 chunk 3, session 335**: iterations 15 (instantview.go) and 16
+  (msgshot.go) DONE, both read in full — **R25** (IV photo latch →
+  in-flight claim), **R26** (related-fetch generation gate), **R27**
+  (shot render pipeline: lazily-written face caches + SHARED opentype.Face
+  scratch buffers raced on the save goroutine, plus the palette read
+  racing applyTheme → shotMu + GUI-loop palette capture). Rows in BUGS
+  Fixed, sections in MAP. Native race proof: verify.yml **41205692894
+  (bf9ea2bf, carries the R25 pin) IN FLIGHT at last check — read its
+  result; it does NOT carry the R27 pin** (filter extended after
+  dispatch) → **dispatch a fresh verify.yml for 674c41f9 (R27) once it
+  finishes** (local -race on gui still OOMs on gotd). Queue after:
+  **translatebar.go (transPickerOpen), then profilemusic.go (musicList)**
+  — calibration note in MAP: v3 flags keep paying out, assume nothing.
 - **Wipe #4 lessons (session 335 boot)**: only the repo clone was gone —
   /home/z/my-project/toolchain SURVIVED (go 1.27.0 + mod cache), but
   **scripts/ was wiped: scanner v3 (pkgvar_scan_v3) is GONE** — its queue

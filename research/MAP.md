@@ -636,6 +636,31 @@ reader overlay, slice 176; iteration 15, VERDICT: 2 fixes, rest CLEAN)
 - **P4**: ivTableBlock computes ncols then suppresses it (`_ = ncols`,
   instantview.go ~:1642) — dead leftover; strip in the P3 sweep.
 
+### msgshot.go (665 lines — session 335, read in full: AyuGram's message
+shot, slice 151; iteration 16, VERDICT: R27 fixed, rest CLEAN)
+- **R27 FIXED**: the v3 scanner's #2 candidate was REAL, twice over —
+  (a) saveMessageShot's goroutine ran renderMessageShot unserialized
+  against package state: shotFaceCache/shotSmallFaceCache are lazily
+  written (fatal concurrent-map class, R24 family) and the cached
+  opentype.Face values carry per-glyph scratch state (buf sfnt.Buffer /
+  rast / mask — a Face owns exactly one Buffer, so sharing faces across
+  concurrent renders corrupts rasterization); (b) the goroutine read
+  the GUI-thread-only palette (a.ui.p) outside any lock, racing
+  applyTheme (whose "GUI thread only, no locking" comment predates this
+  goroutine). Fix: shotMu serializes the whole render pipeline; the
+  palette is captured ON the GUI loop before the goroutine spawns.
+  Full row in BUGS Fixed; race pin TestShotRenderPipelineIsSerialized
+  added to the verify.yml race-leg filter.
+- Rest of the file CLEAN: pure model (shotRunsFromEntities' UTF-16
+  boundary sweep, wrapShotLines' measure-callback wrapping, shotFilename)
+  test-locked; draw helpers (drawRoundedRect/drawHLine) are render-local
+  image ops (safe under shotMu); senderColorFor is pure (palette array +
+  stable FNV hash); the save flow's a.chats scan is a.mu-guarded; the
+  honest no-content refusal (errShotEmpty) and silent picker-decline
+  match §1.10.
+- **P3-sweep note**: `w := w` loop-var shadow in wrapShotLines (Go 1.22+
+  makes it redundant) — strip with the §1.17 pass.
+
 ### Chunk-3 ranking queue (session 334 — scanner v3 (go/ast, exact) +
 separateChatView-reachability rule)
 Scanner history: v1 (regex) missed grouped var blocks; v2's `var ()` bug let
@@ -650,11 +675,10 @@ Main-window-only VERIFIED so far: swipeG (sidebar mount), business.go var
 block (settings.go:384), menu pools (now per-App), sidebar/dialog/login
 surfaces, notify_linux (separate windows skip the DBus server by design).
 Next-iteration queue (v3-exact, chat-surface first; webpage/suggestionbar/
-   cornerreply/cornerreaction/richtext/instantview DONE — clean or fixed,
-   sections above):
-1. msgshot.go — shotFaceCache/shotSmallFaceCache (chat context)
-2. translatebar.go — transPickerOpen (bar in chat) + profilemusic.go
-   musicList (profile panel = R22's surface)
-Calibration holds: instantview was v3-flagged (ivDocDone) and its flag
-WAS real — but semantic (latch), not the missing-mutex shape; every
-remaining candidate is expected guarded per the scan's skew.
+   cornerreply/cornerreaction/richtext/instantview/msgshot DONE — clean or
+   fixed, sections above):
+1. translatebar.go — transPickerOpen (bar in chat)
+2. profilemusic.go — musicList (profile panel = R22's surface)
+Calibration: the v3 flags keep paying out — instantview's ivDocDone was a
+real (semantic) latch (R25), and msgshot's shotFaceCache pair was a REAL
+missing-mutex + shared-mutable-faces double (R27). Assume nothing; read.

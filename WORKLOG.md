@@ -8,8 +8,8 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iterations 8-15 DONE (separate/menu/webpage/cornerreply/cornerreaction/richtext CLEAN; suggestionbar R24, rubberband R23, instantview R25+R26 FIXED — photo-latch retry + related-fetch generation gate, rows in BUGS Fixed); R24 native+race proof 41189550503 = SUCCESS all 5 legs; scanner v3 queue in MAP (survived only as MAP content — the script itself was wiped, see HOT)
-- next: read verify.yml 41205692894 (bf9ea2bf — R25 hammer's native+race proof, IN FLIGHT), then chunk 3 iteration 16 = msgshot.go (shotFaceCache/shotSmallFaceCache), then translatebar.go + profilemusic.go
+- item: iterations 8-16 DONE (separate/menu/webpage/cornerreply/cornerreaction/richtext CLEAN; suggestionbar R24, rubberband R23, instantview R25+R26, msgshot R27 FIXED — rows in BUGS Fixed); R24 proof 41189550503 = SUCCESS all 5 legs; scanner v3 queue in MAP (script wiped, see HOT)
+- next: read verify.yml 41205692894 (bf9ea2bf — R25 proof, IN FLIGHT; does NOT carry the R27 pin), then dispatch verify.yml for 674c41f9 (R27 race pin), then chunk 3 iteration 17 = translatebar.go (transPickerOpen), then profilemusic.go
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
 - last-gate: quick GREEN ×2 (4/4 runner contracts, js leg, full gui suite incl. R25/R26 tests); gofmt trap rule in HOT — always gofmt -w with devroot.env after Edit-tool writes
 
@@ -55,7 +55,23 @@ on 2026-10-30 — it lives in git history if ever needed.)
 - verify.yml race-leg filter extended with TestIVPhotoClaimGuarded
   (bf9ea2bf) and **41205692894 dispatched — READ ITS RESULT next session**;
   local -race on gui still OOMs on gotd (machine truth unchanged).
-- Queue: msgshot.go next, then translatebar.go + profilemusic.go.
+- **Iteration 16: msgshot.go (665 lines, read in full) — R27 fixed, rest
+  CLEAN** (section in MAP): saveMessageShot's goroutine ran the render
+  pipeline unserialized against package state — lazily-written
+  shotFaceCache/shotSmallFaceCache (fatal concurrent-map class) AND
+  shared opentype.Face scratch buffers (buf sfnt.Buffer/rast/mask —
+  x/image Font calls are concurrent-safe only with one Buffer per call,
+  a Face owns exactly one; verified in the module source); plus the
+  goroutine read a.ui.p (GUI-thread-only palette, applyTheme writes it
+  lock-free) before taking a.mu — racing a theme swap. Fix: shotMu
+  serializes the whole pipeline (shots are rare, renders are ms); the
+  palette is captured on the GUI loop before the goroutine spawns.
+  RED: TestShotRenderPipelineIsSerialized (compile seam on shotMu;
+  resets the caches under the lock to force the lazy-write path; 8×15
+  hammer) — added to the verify.yml race-leg filter with the R25 pin.
+  674c41f9, gate quick GREEN.
+- Queue: translatebar.go next, then profilemusic.go; R27's proof dispatch
+  pending after 41205692894 lands.
 
 ## Session 334 — CI proofs closed, separate.go clean, ranking queue (2026-10-31)
 
