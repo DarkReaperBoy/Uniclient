@@ -17,19 +17,20 @@ This is not history — stale lines are lies.
   (profileedit's loader was already fresh-replace). **Sibling sweep
   continues** (one iteration per file, order in MAP): exportdlg.go →
   twofa.go → instantview.go's load tail.
-- **CI proofs**: CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
+- **CI proofs**: ALL CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
   **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38
-  **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**: all
-  SUCCESS at job AND step level (all 5 jobs each; Race steps green).
-  Pending: **41238742290** (R40, 1d143036) + **41239171673** (R41,
-  733d220b) — verify EACH at job+step level (the race leg carries
-  R34×2 + R37×2 + R38×3 + R39×3 + R40×3 + R41×3 pins). Local -race on the gui
-  package fits the box (proven 337/338 — use it before falling back to
-  CI).
-- **Wipe #6 (session 338 boot)**: repo + toolchain + download/ copies
-  gone; the upload token file survived. Full recipe re-run from zero
-  (clone → go1.27.1 tarball → mod download → devroot-setup), ~10 min.
-  Confirmed again: the WORKLOG STATE block is the resume truth (HEAD was
+  **41237698797 (6fdb1835)**, R39 **41238091947 (f38e19f7)**, R40
+  **41238742290 (1d143036)**, R41 **41239171673 (733d220b)**: all
+  SUCCESS at job AND step level (all 5 jobs each; Race steps green;
+  the only non-success step anywhere is the Nix "flake.nix version
+  must match the release tag" gate, `skipped` by design off release
+  tags). Local -race on the gui package fits the box (proven
+  337/338/339 — use it before falling back to CI).
+- **Wipe #7 (session 339 boot)**: repo + toolchain + download/ copies
+  gone again (same shape as wipe #6); the upload token file survived.
+  Full recipe re-run from zero (clone → go1.27.1 tarball → mod
+  download), ~10 min. Confirmed a THIRD time: the WORKLOG STATE block
+  is the resume truth (HEAD was
   one commit AHEAD of the handoff summary). If a verify.yml dispatch is
   redundant (an earlier run for the same SHA already succeeded), cancel
   it — CI minutes are not free.
