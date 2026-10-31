@@ -18,6 +18,7 @@ import (
 	"image/png"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf16"
 
@@ -342,6 +343,16 @@ func shotFaceSmall() font.Face {
 	return shotSmallFaceCache
 }
 
+// shotMu serializes the whole render pipeline (R27): the face caches
+// below are lazily written on first render — a concurrent map write is a
+// fatal panic — and the cached opentype.Face values carry per-glyph
+// scratch state (buf sfnt.Buffer / rast / mask; x/image documents Font
+// calls as concurrent-safe only with one Buffer per call, and a Face owns
+// exactly one), so two simultaneous shots (two windows, or a re-trigger
+// before the first init completes) raced both layers. Shots are rare and
+// a render is milliseconds — one lock for the pipeline is the shape.
+var shotMu sync.Mutex
+
 var (
 	shotFaceCache      = map[[3]bool]font.Face{}
 	shotSmallFaceCache font.Face
@@ -388,8 +399,12 @@ const (
 // errShotEmpty is the honest no-content refusal (§1.10).
 var errShotEmpty = errors.New("message has no renderable content")
 
-// renderMessageShot composes the message into a PNG-ready image.
+// renderMessageShot composes the message into a PNG-ready image. The
+// whole body runs under shotMu (the face caches and the shared faces are
+// package render state — see shotMu).
 func renderMessageShot(m engine.CachedMessage, p shotPalette) (image.Image, error) {
+	shotMu.Lock()
+	defer shotMu.Unlock()
 	if strings.TrimSpace(m.ContentText) == "" && m.MediaThumbB64 == "" {
 		return nil, errShotEmpty
 	}
@@ -609,17 +624,20 @@ func shotPNGBytes(img image.Image) ([]byte, error) {
 
 // saveMessageShot renders + saves the shot via the explorer save picker
 // (CreateFile). Rendering happens off the UI goroutine; the explorer
-// call rides the same pattern as the attach picker.
+// call rides the same pattern as the attach picker. The palette is
+// captured ON the GUI loop (u.p is GUI-thread state, written by applyTheme
+// with no lock) and handed to the goroutine as a copy — reading it inside
+// the goroutine raced a theme swap (R27).
 func (a *App) saveMessageShot(m engine.CachedMessage) {
 	msg := m
+	p := shotPalette{
+		bubble:    a.ui.p.BubbleIn,
+		bubbleOut: a.ui.p.AccentDim,
+		text:      a.ui.p.Text,
+		dim:       a.ui.p.TextDim,
+		accent:    a.ui.p.Accent,
+	}
 	go func() {
-		p := shotPalette{
-			bubble:    a.ui.p.BubbleIn,
-			bubbleOut: a.ui.p.AccentDim,
-			text:      a.ui.p.Text,
-			dim:       a.ui.p.TextDim,
-			accent:    a.ui.p.Accent,
-		}
 		title := ""
 		a.mu.Lock()
 		for i := range a.chats {
