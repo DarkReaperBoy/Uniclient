@@ -266,29 +266,29 @@ func (a *App) openGiveawayCreator(c engine.ChatInfo) {
 		balance, berr := a.eng.GiftStarsBalance(account)
 		max, _ := a.eng.GetGiveawayPeriodMax(account)
 		countries, _ := a.eng.GetCountriesList(account, "en")
-		a.mu.Lock()
-		if a.giveawayDlg == nil || a.giveawayDlg.accountID != account || a.giveawayDlg.chatID != chat || a.giveawayDlg.prepaid != nil {
-			a.mu.Unlock()
-			return
-		}
-		if oerr != nil {
-			a.giveawayDlg.err = oerr.Error()
-		} else {
-			a.giveawayDlg.options = opts
-			a.giveawayDlg.selOpt = giveawayDefaultOption(opts)
-			a.giveawayDlg.selWin = giveawayDefaultWinner(opts, a.giveawayDlg.selOpt)
-		}
-		if berr == nil {
-			a.giveawayDlg.balance = balance
-		}
-		if len(countries) > 0 {
-			a.giveawayDlg.countries = countries
-		}
-		if max > 0 {
-			a.giveawayDlg.periodMax = max
-		}
-		a.giveawayDlg.loaded = true
-		a.mu.Unlock()
+		a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			if cur.accountID != account || cur.chatID != chat || cur.prepaid != nil {
+				return false
+			}
+			if oerr != nil {
+				cur.err = oerr.Error()
+			} else {
+				cur.options = opts
+				cur.selOpt = giveawayDefaultOption(opts)
+				cur.selWin = giveawayDefaultWinner(opts, cur.selOpt)
+			}
+			if berr == nil {
+				cur.balance = balance
+			}
+			if len(countries) > 0 {
+				cur.countries = countries
+			}
+			if max > 0 {
+				cur.periodMax = max
+			}
+			cur.loaded = true
+			return true
+		})
 		a.invalidate()
 	}()
 }
@@ -421,15 +421,25 @@ func (a *App) openPrepaidLaunch(c engine.ChatInfo, row prepaidGiveawayRow) {
 	a.giveawayDlg = st
 	a.mu.Unlock()
 	a.invalidate()
-	max, _ := a.eng.GetGiveawayPeriodMax(c.AccountID)
-	a.mu.Lock()
-	if a.giveawayDlg != nil && a.giveawayDlg.prepaid != nil && a.giveawayDlg.prepaid.ID == row.ID {
-		if max > 0 {
-			a.giveawayDlg.periodMax = max
+	// R48: the period-max fetch ran SYNCHRONOUSLY on the GUI loop — a
+	// blocking RPC on the frame thread froze the UI for the round-trip.
+	// Goroutine-wrapped now, landing through the installer (R47) with the
+	// prepaid-ID staleness guard.
+	account := c.AccountID
+	go func() {
+		max, _ := a.eng.GetGiveawayPeriodMax(account)
+		if max <= 0 {
+			return
 		}
-	}
-	a.mu.Unlock()
-	a.invalidate()
+		a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			if cur.prepaid == nil || cur.prepaid.ID != row.ID {
+				return false
+			}
+			cur.periodMax = max
+			return true
+		})
+		a.invalidate()
+	}()
 }
 
 // closeGiveaway dismisses the box.
@@ -438,6 +448,46 @@ func (a *App) closeGiveaway() {
 	a.giveawayDlg = nil
 	a.mu.Unlock()
 	a.invalidate()
+}
+
+// updateGiveaway (R47): copy-on-write installer — the R34 discipline.
+// fn mutates a COPY of the giveaway box state (returning false leaves
+// the head alone, and the installer reports whether it installed); the
+// copy is installed under a.mu, never an in-place mutation, so a frame
+// that captured the old pointer keeps a frozen view while the load and
+// send tails swap the head. Guards compare install-immutable identity
+// (accountID+chatID, the prepaid row's ID) — pointer identity would
+// break under copy-on-write. The selCountries/selChats maps stay shared
+// across heads (GUI-loop-only writers, the twofa checked-map precedent).
+func (a *App) updateGiveaway(fn func(st *giveawayDlgState) bool) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.giveawayDlg == nil {
+		return false
+	}
+	next := *a.giveawayDlg
+	if !fn(&next) {
+		return false
+	}
+	a.giveawayDlg = &next
+	return true
+}
+
+// clampGiveawayDateIdx (R47): keep the live head's dateIdx inside the
+// preset list — through the installer, so the clamp lands on the CURRENT
+// head. The old in-place write hit the FROZEN frame pointer: after any
+// tail install (e.g. periodMax arriving late and shrinking the preset
+// list below the picked index) the LIVE head stayed out of range and
+// sendGiveaway's date guard made the Send button silently dead.
+func (a *App) clampGiveawayDateIdx() {
+	a.updateGiveaway(func(cur *giveawayDlgState) bool {
+		live := giveawayDatePresetsFor(cur.periodMax)
+		if cur.dateIdx >= len(live) {
+			cur.dateIdx = len(live) - 1
+			return true
+		}
+		return false
+	})
 }
 
 // sendGiveaway purchases (create mode) or launches (prepaid mode) the
@@ -475,29 +525,36 @@ func (a *App) sendGiveaway(f frame) {
 
 	if st.prepaid != nil {
 		row := *st.prepaid
-		a.mu.Lock()
-		if a.giveawayDlg != nil {
-			a.giveawayDlg.sending = true
-		}
-		a.mu.Unlock()
+		a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			if cur.accountID != account || cur.chatID != chat || cur.prepaid == nil || cur.prepaid.ID != row.ID {
+				return false
+			}
+			cur.sending = true
+			return true
+		})
 		a.invalidate()
 		go func() {
 			err := a.eng.LaunchPrepaidGiveaway(account, chat, row.ID, row.Credits, row.Months, p)
-			a.mu.Lock()
-			if a.giveawayDlg == nil || a.giveawayDlg.prepaid == nil || a.giveawayDlg.prepaid.ID != row.ID {
-				a.mu.Unlock()
+			landed := a.updateGiveaway(func(cur *giveawayDlgState) bool {
+				if cur.accountID != account || cur.chatID != chat || cur.prepaid == nil || cur.prepaid.ID != row.ID {
+					return false
+				}
+				cur.sending = false
+				if err != nil {
+					cur.err = err.Error()
+					return true
+				}
+				cur.launched = true
+				cur.err = ""
+				return true
+			})
+			if !landed {
 				return
 			}
-			a.giveawayDlg.sending = false
 			if err != nil {
-				a.giveawayDlg.err = err.Error()
-				a.mu.Unlock()
 				a.setToast("Giveaway launch failed: " + err.Error())
 				return
 			}
-			a.giveawayDlg.launched = true
-			a.giveawayDlg.err = ""
-			a.mu.Unlock()
 			a.setToast("Prepaid giveaway launched")
 			a.invalidate()
 		}()
@@ -517,29 +574,38 @@ func (a *App) sendGiveaway(f frame) {
 	p.WinnerCount = winnerCount
 	opt := st.options[st.selOpt]
 
-	a.mu.Lock()
-	if a.giveawayDlg != nil {
-		a.giveawayDlg.sending = true
-	}
-	a.mu.Unlock()
+	a.updateGiveaway(func(cur *giveawayDlgState) bool {
+		if cur.accountID != account || cur.chatID != chat || cur.prepaid != nil {
+			return false
+		}
+		cur.sending = true
+		return true
+	})
 	a.invalidate()
 	go func() {
 		err := a.eng.CreateStarsGiveaway(account, chat, opt, p)
-		a.mu.Lock()
-		if a.giveawayDlg == nil || a.giveawayDlg.prepaid != nil {
-			a.mu.Unlock()
+		landed := a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			// R47: the old guard was prepaid==nil ONLY — a stale create tail
+			// could stomp a dialog reopened for the same chat.
+			if cur.accountID != account || cur.chatID != chat || cur.prepaid != nil {
+				return false
+			}
+			cur.sending = false
+			if err != nil {
+				cur.err = err.Error()
+				return true
+			}
+			cur.launched = true
+			cur.err = ""
+			return true
+		})
+		if !landed {
 			return
 		}
-		a.giveawayDlg.sending = false
 		if err != nil {
-			a.giveawayDlg.err = err.Error()
-			a.mu.Unlock()
 			a.setToast("Giveaway failed: " + err.Error())
 			return
 		}
-		a.giveawayDlg.launched = true
-		a.giveawayDlg.err = ""
-		a.mu.Unlock()
 		a.setToast("Giveaway started")
 		a.invalidate()
 	}()
@@ -558,46 +624,41 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 		a.sendGiveaway(f)
 	}
 	if giveawayOnlyNewBtn.Clicked(gtx) {
-		a.mu.Lock()
-		if a.giveawayDlg != nil {
-			a.giveawayDlg.onlyNew = !a.giveawayDlg.onlyNew
-		}
-		a.mu.Unlock()
+		a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			cur.onlyNew = !cur.onlyNew
+			return true
+		})
 		a.invalidate()
 	}
 	if giveawayShowWinBtn.Clicked(gtx) {
-		a.mu.Lock()
-		if a.giveawayDlg != nil {
-			a.giveawayDlg.showWinners = !a.giveawayDlg.showWinners
-		}
-		a.mu.Unlock()
+		a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			cur.showWinners = !cur.showWinners
+			return true
+		})
 		a.invalidate()
 	}
 	if giveawayCountriesRow.Clicked(gtx) {
-		a.mu.Lock()
-		if a.giveawayDlg != nil {
-			a.giveawayDlg.pickCountries = !a.giveawayDlg.pickCountries
-			a.giveawayDlg.pickChannels = false
-		}
-		a.mu.Unlock()
+		a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			cur.pickCountries = !cur.pickCountries
+			cur.pickChannels = false
+			return true
+		})
 		a.invalidate()
 	}
 	if giveawayChannelsRow.Clicked(gtx) {
-		a.mu.Lock()
-		if a.giveawayDlg != nil {
-			a.giveawayDlg.pickChannels = !a.giveawayDlg.pickChannels
-			a.giveawayDlg.pickCountries = false
-		}
-		a.mu.Unlock()
+		a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			cur.pickChannels = !cur.pickChannels
+			cur.pickCountries = false
+			return true
+		})
 		a.invalidate()
 	}
 	if giveawayDoneBtn.Clicked(gtx) {
-		a.mu.Lock()
-		if a.giveawayDlg != nil {
-			a.giveawayDlg.pickCountries = false
-			a.giveawayDlg.pickChannels = false
-		}
-		a.mu.Unlock()
+		a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			cur.pickCountries = false
+			cur.pickChannels = false
+			return true
+		})
 		a.invalidate()
 	}
 	for {
@@ -606,28 +667,30 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 			break
 		}
 		if _, is := ev.(widget.ChangeEvent); is {
-			a.mu.Lock()
-			if a.giveawayDlg != nil {
-				a.giveawayDlg.countryQuery = giveawaySearchEd.Text()
-			}
-			a.mu.Unlock()
+			q := giveawaySearchEd.Text()
+			a.updateGiveaway(func(cur *giveawayDlgState) bool {
+				cur.countryQuery = q
+				return true
+			})
 			a.invalidate()
 		}
 	}
 
 	presets := giveawayDatePresetsFor(st.periodMax)
 	if st.dateIdx >= len(presets) {
-		st.dateIdx = len(presets) - 1
+		a.clampGiveawayDateIdx()
 	}
 	growClickables(&giveawayOptCells, len(st.options))
 	for i := range st.options {
 		if giveawayOptCells[i].Clicked(gtx) {
-			a.mu.Lock()
-			if a.giveawayDlg != nil && a.giveawayDlg.prepaid == nil {
-				a.giveawayDlg.selOpt = i
-				a.giveawayDlg.selWin = giveawayDefaultWinner(a.giveawayDlg.options, i)
-			}
-			a.mu.Unlock()
+			a.updateGiveaway(func(cur *giveawayDlgState) bool {
+				if cur.prepaid != nil {
+					return false
+				}
+				cur.selOpt = i
+				cur.selWin = giveawayDefaultWinner(cur.options, i)
+				return true
+			})
 			a.invalidate()
 		}
 	}
@@ -638,22 +701,23 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&giveawayWinCells, len(winners))
 	for i := range winners {
 		if giveawayWinCells[i].Clicked(gtx) {
-			a.mu.Lock()
-			if a.giveawayDlg != nil && a.giveawayDlg.prepaid == nil {
-				a.giveawayDlg.selWin = i
-			}
-			a.mu.Unlock()
+			a.updateGiveaway(func(cur *giveawayDlgState) bool {
+				if cur.prepaid != nil {
+					return false
+				}
+				cur.selWin = i
+				return true
+			})
 			a.invalidate()
 		}
 	}
 	growClickables(&giveawayDateCells, len(presets))
 	for i := range presets {
 		if giveawayDateCells[i].Clicked(gtx) {
-			a.mu.Lock()
-			if a.giveawayDlg != nil {
-				a.giveawayDlg.dateIdx = i
-			}
-			a.mu.Unlock()
+			a.updateGiveaway(func(cur *giveawayDlgState) bool {
+				cur.dateIdx = i
+				return true
+			})
 			a.invalidate()
 		}
 	}
@@ -1021,11 +1085,10 @@ func (a *App) layoutGiveawayCountryPicker(gtx layout.Context, f frame) layout.Di
 		}
 	}
 	if giveawayDoneBtn.Clicked(gtx) {
-		a.mu.Lock()
-		if a.giveawayDlg != nil {
-			a.giveawayDlg.pickCountries = false
-		}
-		a.mu.Unlock()
+		a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			cur.pickCountries = false
+			return true
+		})
 		a.invalidate()
 	}
 
@@ -1114,11 +1177,10 @@ func (a *App) layoutGiveawayChannelPicker(gtx layout.Context, f frame) layout.Di
 		}
 	}
 	if giveawayDoneBtn.Clicked(gtx) {
-		a.mu.Lock()
-		if a.giveawayDlg != nil {
-			a.giveawayDlg.pickChannels = false
-		}
-		a.mu.Unlock()
+		a.updateGiveaway(func(cur *giveawayDlgState) bool {
+			cur.pickChannels = false
+			return true
+		})
 		a.invalidate()
 	}
 

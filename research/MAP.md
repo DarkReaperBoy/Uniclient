@@ -706,6 +706,37 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### giveaways.go (1,171→1,248 lines — session 339, read in full: the Stars giveaway creation box + prepaid launch + the country/channel pickers, slices 213-214; chunk 3 iteration 31, the unscanned queue by size #2, VERDICT: R47 + R48 fixed, rest CLEAN)
+- Scope: pure helpers (labels/defaults/presets/candidates/sortedKeys —
+  test-locked in giveaways_test.go + giveaways_pickers_test.go), the box
+  lifecycle (openGiveawayCreator/openPrepaidLaunch/closeGiveaway),
+  sendGiveaway (create + prepaid branches), layoutGiveaway + both
+  pickers.
+- **R47 FIXED**: the box state had R34's pre-fix shape across ~17 writer
+  sites — the load tail, two send tails (create-tail guard strengthened:
+  account+chat+prepaid-nil, closing the same-chat reopen stomp), the
+  sending heads, every layout click writer, and the UNLOCKED dateIdx
+  clamp on the frozen frame pointer (the send-dead half: periodMax
+  arriving late shrank the preset list, the clamp fixed the FROZEN head,
+  the live head stayed out of range, Send silently did nothing — fixed
+  by clampGiveawayDateIdx through the installer). The selCountries/
+  selChats maps stay shared (GUI-loop-only, the twofa precedent).
+- **R48 FIXED**: openPrepaidLaunch's GetGiveawayPeriodMax ran
+  synchronously on the GUI loop — goroutine-wrapped now (inspection-
+  verified shape; no behavioral pin on the bare harness).
+- Rest of the file CLEAN: giveawaySendEnabled and the other pure helpers
+  nil-tolerant and test-locked; the pickers' map writes are a.mu-guarded
+  on the current head (GUI-loop-only); the package widget pools follow
+  the growClickables pattern; sendGiveaway reads its snapshot from the
+  FRAME pointer on the GUI loop (same-goroutine as the map writes);
+  boostview.go's openers install fresh states.
+- GREEN: giveaways_r47_test.go ×6 clean under LOCAL -race; CI race-leg
+  extended. Full gui suite 909/909.
+- Next in the unscanned queue: callsbox.go (1,089), poll.go (972),
+  stories.go (960), …
+
+
+
 ### media.go (1,186 lines — session 339, read in full: the media bubbles + download progress + the in-app voice/audio player surfaces; chunk 3 iteration 30, the unscanned-file queue by size #1, VERDICT: CLEAN)
 - Scope: pure helpers (dlKey/dlActive/dlFraction/fmtBytes/trimFloat/
   fmtDur/pad2/fitScale/fitDims/mediaBlockKind/audioSubLine/mediaTitle/
