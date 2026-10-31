@@ -81,10 +81,6 @@ func normalizeTransTarget(code string) string {
 
 // ── state ────────────────────────────────────────────────────────────────
 
-var (
-	transPickerOpen bool
-)
-
 // transChatKey is the per-chat map key for the chat-wide flag.
 func transChatKey(accountID, chatID string) string {
 	return accountID + "|" + chatID
@@ -121,8 +117,8 @@ func (a *App) toggleChatTranslate(k chatKey) {
 // auto-translations of the open chat (if the bar is on).
 func (a *App) setTransTarget(code string) {
 	code = normalizeTransTarget(code)
-	transPickerOpen = false
 	a.mu.Lock()
+	a.transPickerOpen = false
 	a.transTarget = code
 	// reset the fetched/asked sets so the new target re-fetches
 	a.transAsked = make(map[string]bool)
@@ -192,14 +188,16 @@ func (a *App) layoutTranslateBar(gtx layout.Context, f frame, k chatKey) layout.
 		a.toggleChatTranslate(k)
 	}
 	if a.wid.transBarLangBtn.Clicked(gtx) {
-		transPickerOpen = !transPickerOpen
+		a.mu.Lock()
+		a.transPickerOpen = !a.transPickerOpen // per-window (R28)
+		a.mu.Unlock()
 		a.invalidate()
 	}
 	target := normalizeTransTarget(f.transTarget)
 
 	// language picker (revealed under the bar)
 	var pickerDims layout.Dimensions
-	if transPickerOpen {
+	if f.transPickerOpen {
 		growClickables(&a.wid.transLangBtns, len(transLangs))
 		rows := []layout.FlexChild{}
 		for i := 0; i < len(transLangs); i += 4 {
@@ -279,7 +277,7 @@ func (a *App) layoutTranslateBar(gtx layout.Context, f frame, k chatKey) layout.
 			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if !transPickerOpen {
+			if !f.transPickerOpen {
 				return layout.Dimensions{}
 			}
 			return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

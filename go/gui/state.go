@@ -465,6 +465,9 @@ type App struct {
 	transChatOn map[string]bool
 	transTarget string
 	transAsked  map[string]bool
+	// transPickerOpen is per-window (R28, B-47 class): the language
+	// picker's open flag — layout-written under a.mu, read from the frame.
+	transPickerOpen bool
 	// inline read receipt (slice 152): per-chat cached seen-state for
 	// the last own DM message.
 	seenInline map[string]*seenInlineState
@@ -1500,6 +1503,7 @@ func (a *App) openChat(k chatKey, title string) {
 	a.inSearchFrom = ""
 	a.inSearchFromName = ""
 	a.inSearchFromPanel = false // R14: per-window picker state closes too
+	a.transPickerOpen = false   // R28: same for the translate picker
 	a.delDlg = nil              // slice 19: close delete/report dialogs
 	a.reportDlg = nil
 	a.clearDlg = nil    // slice 190: close clear-history confirm
@@ -2303,6 +2307,7 @@ func (a *App) snapshot() frame {
 		businessPage:      a.businessPage,
 		transChatOn:       a.transChatOn,
 		transTarget:       a.transTarget,
+		transPickerOpen:   a.transPickerOpen,
 		seenInline:        a.seenInline,
 		langCode:          a.langCode,
 		langStrings:       a.langStrings,
@@ -2571,61 +2576,62 @@ type frame struct {
 	downloads map[string]dlState
 
 	// settings surface (slice 3)
-	settingsOpen   bool
-	settingsSect   int
-	cfg            cfgSnapshot
-	lock           *lockState
-	lockDlg        *lockDlgState
-	twofaDlg       *twofaDlgState // cloud-password editor (slice 120)
-	twofaStates    map[string]cores.CloudPasswordState
-	soundPicker    *soundPickerState
-	notifyAccts    map[string]notifyAcctState
-	notifyLoaded   bool
-	blockedUsers   map[string][]cores.User
-	sessionsList   map[string][]cores.Session
-	privacyLoaded  bool
-	privacyScopes  map[string]map[string]string      // accountID → key → scope (slice 62)
-	privacyDlg     *privacyDlgState                  // scope picker dialog (slice 62)
-	autoDlRules    map[string]map[string]interface{} // source → rules (slice 63)
-	autoDlOn       bool
-	autoDlDlg      *autodlDlgState                      // rules editor dialog (slice 63)
-	callsList      map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
-	callsLoaded    bool
-	themeDlg       *chatThemeDlgState     // per-chat theme picker (slice 65)
-	wallpaperDlg   *wallpaperDlgState     // per-chat wallpaper picker (slice 218)
-	chatThemes     []cores.ChatThemeInfo  // picker data (slice 65)
-	chatThemesFor  string                 // account the data belongs to (slice 65)
-	chatThemesOn   bool                   // picker data loaded (slice 65)
-	cloudThemes    []cores.CloudThemeInfo // cloud theme list (slice 66)
-	cloudThemesFor string                 // account name the list came from (slice 66)
-	cloudThemeAcct string                 // account ID the list came from (slice 66)
-	cloudThemesOn  bool                   // list loaded (slice 66)
-	cloudDlg       *cloudThemeDlgState    // install confirm dialog (slice 66)
-	profileEdit    *profileEditState      // own-profile editor (slice 71)
-	stickerMgr     *stickerMgrState       // stickers & emoji manager (slice 139)
-	chatPeek       *chatPeekState         // hover preview (slice 145)
-	sidebarW       int
-	hoverPos       image.Point
-	folderMgr      *folderMgrState             // chat-folders manager (slice 142)
-	premiumPage    *premiumPageState           // Telegram Premium page (slice 143)
-	starsPage      *starsPageState             // Telegram Stars page (slice 144)
-	businessPage   *businessPageState          // Telegram Business page (slice 148)
-	transChatOn    map[string]bool             // chat-wide translate bar (slice 150)
-	transTarget    string                      // translation target language (slice 150)
-	seenInline     map[string]*seenInlineState // inline read receipt (slice 152)
-	langCode       string                      // active language (slice 140)
-	langStrings    map[string]string           // pack overrides
-	langs          []engine.LanguageInfo
-	langsLoaded    bool
-	langsFor       string
-	langsErr       string
-	langApplying   bool
-	cacheTotal     int64
-	cacheTags      [6]int64
-	cacheLoaded    bool
-	ghostSel       string
-	ghostFlags     map[string]engine.GhostFlags
-	ghostLoaded    bool
+	settingsOpen    bool
+	settingsSect    int
+	cfg             cfgSnapshot
+	lock            *lockState
+	lockDlg         *lockDlgState
+	twofaDlg        *twofaDlgState // cloud-password editor (slice 120)
+	twofaStates     map[string]cores.CloudPasswordState
+	soundPicker     *soundPickerState
+	notifyAccts     map[string]notifyAcctState
+	notifyLoaded    bool
+	blockedUsers    map[string][]cores.User
+	sessionsList    map[string][]cores.Session
+	privacyLoaded   bool
+	privacyScopes   map[string]map[string]string      // accountID → key → scope (slice 62)
+	privacyDlg      *privacyDlgState                  // scope picker dialog (slice 62)
+	autoDlRules     map[string]map[string]interface{} // source → rules (slice 63)
+	autoDlOn        bool
+	autoDlDlg       *autodlDlgState                      // rules editor dialog (slice 63)
+	callsList       map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
+	callsLoaded     bool
+	themeDlg        *chatThemeDlgState     // per-chat theme picker (slice 65)
+	wallpaperDlg    *wallpaperDlgState     // per-chat wallpaper picker (slice 218)
+	chatThemes      []cores.ChatThemeInfo  // picker data (slice 65)
+	chatThemesFor   string                 // account the data belongs to (slice 65)
+	chatThemesOn    bool                   // picker data loaded (slice 65)
+	cloudThemes     []cores.CloudThemeInfo // cloud theme list (slice 66)
+	cloudThemesFor  string                 // account name the list came from (slice 66)
+	cloudThemeAcct  string                 // account ID the list came from (slice 66)
+	cloudThemesOn   bool                   // list loaded (slice 66)
+	cloudDlg        *cloudThemeDlgState    // install confirm dialog (slice 66)
+	profileEdit     *profileEditState      // own-profile editor (slice 71)
+	stickerMgr      *stickerMgrState       // stickers & emoji manager (slice 139)
+	chatPeek        *chatPeekState         // hover preview (slice 145)
+	sidebarW        int
+	hoverPos        image.Point
+	folderMgr       *folderMgrState             // chat-folders manager (slice 142)
+	premiumPage     *premiumPageState           // Telegram Premium page (slice 143)
+	starsPage       *starsPageState             // Telegram Stars page (slice 144)
+	businessPage    *businessPageState          // Telegram Business page (slice 148)
+	transChatOn     map[string]bool             // chat-wide translate bar (slice 150)
+	transTarget     string                      // translation target language (slice 150)
+	transPickerOpen bool                        // language picker open (per-window, R28)
+	seenInline      map[string]*seenInlineState // inline read receipt (slice 152)
+	langCode        string                      // active language (slice 140)
+	langStrings     map[string]string           // pack overrides
+	langs           []engine.LanguageInfo
+	langsLoaded     bool
+	langsFor        string
+	langsErr        string
+	langApplying    bool
+	cacheTotal      int64
+	cacheTags       [6]int64
+	cacheLoaded     bool
+	ghostSel        string
+	ghostFlags      map[string]engine.GhostFlags
+	ghostLoaded     bool
 	// right info panel (slice 4)
 	panelOpen   bool
 	panelChat   chatKey
