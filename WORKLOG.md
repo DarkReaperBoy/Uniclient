@@ -8,10 +8,56 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: wipe #3 survived via env.sh recipe (zero loss); CI found repo-DISABLED → re-enabled (zombie dispatches diagnosed, 3 permanent); R18-R22 fixed (viewer Share deadlock; cross-window viewer bookkeeping race; failed-send tick mapping + Resend wiring; runner flag-dropping; panel mute-pool fatal map race); chunk 3 iterations 1-7 DONE (chat.go, sidebar.go, chatsearch.go, shortcuts.go, settings.go, mediaview.go, profile.go)
-- next: read verify.yml 41184046305 (2e606d58, R20/R21 proof) + the post-R22 dispatch — then chunk 3 iteration 8 (next surface from MAP chunk table; candidates: login.go 547, widgets.go 485, contacts.go 464, emoji.go 446, stickers.go 436, separate.go 359 — small but central to the multi-window theme)
-- owner-waiting: re-enable Pages + cut v0.10.4 (NOTE: release.yml needs Actions — it was found disabled this session and re-enabled; if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: quick GREEN (runner self-test 4/4 contracts incl. flag forwarding, js vet, full gui suite incl. R18/R19/R20 tests, audio leg green)
+- item: CI proofs closed — 41184046305 (R20/R21) + 41184562534 (R22) both verified SUCCESS at job+step level; chunk 3 iteration 8 DONE (separate.go, 359 ln, read in full — VERDICT CLEAN: registry sepMu-guarded, uniform sepMu→a.mu order, hop discipline verified field-by-field, lock-bus subscribe-before-boot-decision airtight, reopen guard unreachable from separate Apps); pkg-var scan v2 built (grouped var blocks — v1 was blind to them) + chunk-3 ranking queue in MAP (separateChatView-reachability rule); swipeG + business.go var block verified main-window-only → P3 fold-in
+- next: chunk 3 iteration 9 = rubberband.go (message-list selection gesture = chat surface = multi-window exposure, top of MAP queue), then menu.go, richtext.go, instantview.go (ivDocDone watch item), msgshot.go, cornerreply.go, profilemusic.go
+- owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
+- last-gate: docs-only session (3 .md files, zero Go changes — Go tree
+  byte-identical to a8880414, CI-proven green at 41184562534 this session)
+
+## Session 334 — CI proofs closed, separate.go clean, ranking queue (2026-10-31)
+
+- STATE queued both verify reads: **41184046305 (2e606d58) R20+R21 native
+  proof = SUCCESS, 41184562534 (a8880414) R22 proof = SUCCESS** — verified at
+  job AND step level (all 5 jobs green; the Nix gate's 7/8 steps is the
+  tag-only version check, correctly skipped on main pushes — not an anomaly).
+  CI backlog closed; HOT pruned to the durable lesson only (check
+  `actions/permissions` first when runs sit queued).
+- **Iteration 8: separate.go (359 lines, read in full) — VERDICT CLEAN.** The
+  multi-window core that kept producing the R14/R18/R19/R22 bug family is the
+  best-defended file in gui:
+  - Registry (sepWins/mainRef) fully sepMu-guarded; lock order uniformly
+    sepMu→a.mu — openChat VERIFIED to release a.mu before the retarget
+    (state.go:1400-1426). No inversion exists.
+  - Hop discipline verified field-by-field: every cross-goroutine access of
+    a.selected/a.msgFor/a.lock is under a.mu (onMessageEvent, onDownload*
+    lock at entry, onUserStatus, refreshMessages, loadHdrPresence,
+    topicScopeFor); the unlocked reads at separate.go:235/245 are same-loop
+    (all writers GUI-loop on the owning App — traced every one).
+  - Reopen guard: openSeparateWindow's `old.app != a` skip-close can never
+    see same-App — only callers are sidebar.go:567 + chatmenu.go:256, and the
+    chat menu mounts only on sidebar rows (sidebar.go:145, fired from
+    a.sbVisible at chatmenu.go:198); separate windows render no sidebar.
+  - Lock-bus boot race closed BY ORDER: Start subscribes (state.go:684)
+    before the boot decision reads lockEngaged (720-729) — a broadcast in
+    the gap lands as a hop and lockEngaged still boots the window locked.
+- **pkg-var scanner v2** (`scripts/pkgvar_write_scan.py`): v1 missed grouped
+  `var (...)` blocks — business.go's entire widget pool was invisible.
+  v2 surfaces the full runtime-written package-state inventory of all ~100
+  gui files. Combined with the separateChatView-reachability rule (separate
+  windows render ONLY layoutChatView — separate.go:5-7 header), this yields
+  the chunk-3 ranking queue now in MAP. Verified this session: swipeG is
+  sidebar-only and business.go's var block is settings-only → both
+  main-window-only, downgraded to P3 fold-ins (no race, single GUI loop).
+- **ivDocDone watch item** (instantview.go:1096-1110, verified by complete
+  grep — 3 usage sites total, no clear-path anywhere): one-shot mark happens
+  BEFORE the download and the error path returns silently → a transient
+  DownloadIVPhoto failure permanently pins that photo to its thumbnail until
+  restart; map also unbounded. Carried in MAP; the instantview iteration
+  confirms real-world reachability before any R-number.
+- Docs-only session (MAP/HOT/WORKLOG + scripts/; zero Go changes — verified
+  `git diff --stat`: 3 .md files only). Go tree byte-identical to a8880414,
+  whose CI run 41184562534 was verified SUCCESS at job+step level this session
+  — build green transitively. Pushed per §1.14.
 
 ## Session 333 — wipe #3, CI zombie dispatches, R18+R19 (2026-10-31)
 

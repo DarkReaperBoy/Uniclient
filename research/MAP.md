@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go + pkg-var ranking queue) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -419,3 +419,57 @@ panel; iteration 7, produced R22)
   openPanel (or loadPanel) clears panelSynced for the opening chat.
 - Streamer-mode masking honored on avatar/name/sub (isPanelSubCount lets
   member/online counts through).
+
+### separate.go (359 lines — session 334, read in full: the multi-window
+core — registry, hop discipline, lock bus; iteration 8, VERDICT: CLEAN)
+- **Registry**: `sepWins map[chatKey]*sepWindow` + `mainRef` fully guarded by
+  `sepMu`. Lock order is uniform sepMu→a.mu (sepUnregister, queueDeselectElsewhere
+  → queueDeselectLocked); openChat VERIFIED to release a.mu before the retarget
+  (state.go:1400-1426: lock-read prev/next → unlock → sepMoveRegistry +
+  queueDeselectElsewhere → relock) — no inversion anywhere.
+- **Hop discipline holds**: cross-window requests queue `pendingDeselect`/
+  `pendingLock` under the target's a.mu (queueDeselectLocked, lock.go:508),
+  consumed on each App's OWN loop by consumeCrossWindowHops (Root, pre-snapshot).
+  App state is only mutated by its own loop — re-verified for the a.selected/
+  a.msgFor/a.lock fields this session: every cross-goroutine access (onMessageEvent,
+  onDownloadComplete/Progress, onUserStatus, refreshMessages, loadHdrPresence,
+  topicScopeFor) takes a.mu; the unlocked reads at separate.go:235/245 are
+  same-loop with all writers (openChat, chat.go:530, headermenu.go:305,
+  lockdlg.go:205/221, state.go:726/729 all GUI-loop on the owning App).
+- **Reopen guard sound**: openSeparateWindow's `old.app != a` skip-close can never
+  see same-App — its only callers are sidebar.go:567 and chatmenu.go:256, and the
+  chat menu mounts only on sidebar rows (layoutChatMenu at sidebar.go:145,
+  openChatMenu fired from a.sbVisible at chatmenu.go:198); separate windows render
+  no sidebar → unreachable from a separate App. One window per chat holds.
+- **Lock bus boot race is airtight BY ORDER**: Start subscribes at state.go:684
+  BEFORE the boot decision at 720-729 reads lockEngaged — a lock=true broadcast
+  in the gap lands as a hop; even if consumeCrossWindowHops drops it (a.lock nil
+  at that instant), `lockEngaged.Load()` still boots the window locked.
+- **Teardown**: CloseSeparateWindowsAndWait snapshots under sepMu, Perform(Close)
+  each, sepWG.Wait() drains every loop before engine teardown.
+
+### Chunk-3 ranking queue (session 334 — pkg-var scan v2, method note)
+Scanner: `scripts/pkgvar_write_scan.py` (v2; v1 missed grouped `var (...)` blocks
+— business.go's whole widget pool was invisible). Ranking rule from the R14/R18/
+R19/R22 cluster: **risk = runtime-written package var × reachable from
+separateChatView** (separate windows render ONLY layoutChatView; sidebar,
+settings, login, dialogs, drawer, voice tab are main-window-only per the
+separate.go:5-7 header). Verified this session: swipeG (swipeaction.go) is
+sidebar-only → main-window-only, downgrade to P3 fold-in; business.go's var
+block (bizTimeEds etc.) mounts via settings.go:384 → main-only, P3 fold-in.
+Next-iteration queue by exposure:
+1. rubberband.go — rubberOn/rubberCur/rubberStart, message-list selection
+   gesture = chat surface = multi-window (highest)
+2. menu.go — `label` var with 25 write-sites + context menus that open in
+   separate windows
+3. richtext.go — linkTags (map-ish, richtext.go:366) — message-text rendering
+4. instantview.go (1,738 ln) — ivDocDone; see watch item below
+5. msgshot.go — shotSmallFaceCache, chat-bubble context
+6. cornerreply.go — hoverChatOn, chat surface
+7. profilemusic.go — musicList, profile panel = R22's surface
+Watch item carried (verified: no clear-path anywhere in the package — grep
+1096/1098/1735 is the complete usage set): ivDocDone marks a photo done BEFORE
+DownloadIVPhoto runs and the error path returns silently (instantview.go:
+1096-1110) → one transient failure = permanent thumbnail-only for that photo
+until restart; map also unbounded. Confirmed at the instantview iteration
+whether the error is reachable in practice before filing an R-number.
