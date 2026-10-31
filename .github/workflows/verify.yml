@@ -62,7 +62,7 @@ jobs:
           # detector too (the js leg has none). Filtered to the concurrency
           # pins so the memory cap holds.
           CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./gui/ \
-            -run 'TestSuggestionMapsAreGuarded|TestRubberBandGestureIsPerWindow|TestViewerShareCompletes|TestIVPhotoClaimGuarded|TestShotRenderPipelineIsSerialized'
+            -run 'TestSuggestionMapsAreGuarded|TestRubberBandGestureIsPerWindow|TestViewerShareCompletes|TestIVPhotoClaimGuarded|TestShotRenderPipelineIsSerialized|TestAvatarCornersCrossGoroutineIsAtomic'
         env:
           GOMEMLIMIT: 900MiB
           GOGC: "30"

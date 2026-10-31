@@ -62,7 +62,7 @@ drained → ui.Shutdown (tray) → engine.Shutdown.
 |---|---|---|
 | 1 | cmd/uniclient, bootstrap | mapped (329) |
 | 2 | gui — state core (state.go + app.go Root/layoutMain) | mapped (330-331) |
-| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean) |
+| 3 | gui — remaining files (one surface per iteration) | in progress (331: chat.go; 332: sidebar.go, chatsearch.go, shortcuts.go, settings.go + R16, R17; 333: mediaview.go + profile.go + R18-R22; 334: separate.go, rubberband.go + R23, menu.go, webpage.go, suggestionbar.go + R24, cornerreply.go + cornerreaction.go + richtext.go clean; 335-336: instantview/msgshot/translatebar/profilemusic + R25-R27, R28-R29, R30-R31; 337: state.go part 2 finished the file + R32-R33) |
 
 ## Chunk 2 — go/gui, state/mutex core (session 330, iteration 1)
 
@@ -706,6 +706,49 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### state.go remaining body, part 2 — downloads/auth/composer tail + cfg/load*/apply* + snapshot/frame (session 337, chunk 3 iteration 20, VERDICT: R32 + R33 fixed, rest CLEAN)
+- Scope read this iteration: onDownloadProgress/Complete/Failed, refreshAuth/
+  authAcctLocked, addAccount/startAuth/submitAuth/authBack/authCancel,
+  setBusy/removeAccount, startReply/startEdit/cancelComposerMode,
+  reactionsFromValue/applyReactionsNotify, openSettings/closeSettings,
+  refreshConfig, antiRecallFromConfig, loadStorage/loadCalls/
+  loadNotifyAccts/loadPrivacy/loadGhost, applyDrawerHidden/applyConfigBool/
+  applySystemTray/applyTheme/applyAccent/applyFontScale/applyGhostFlag,
+  acctFilterLocked/stillTyping/loadHdrPresence/onUserStatus, snapshot(),
+  frame struct (fields only — the struct is the snapshot manifest).
+- **R32 FIXED** (row in BUGS): refreshConfig's tail `a.ui.applyAvatarCorners`
+  wrote a plain UI field from five goroutine contexts while layout reads it
+  per-frame in every window → atomic.Int32. The rest of the tail was already
+  safe (setMsgShowSeconds atomic.Bool, updateTray self-locking,
+  applyAppIconRuntime re-dispatched via go) — verified call-by-call.
+- **R33 FIXED** (row in BUGS): show_sender_name dead-load + hardcoded-true
+  apply stomped other clients' reactions-notify setting.
+- **CLEAN patterns verified**: download handlers are copy-on-write installs
+  under a.mu with engine/open/decode calls after Unlock; the auth flows keep
+  engine calls off the lock (GoBackAuth/CancelAuth are local state flips,
+  safe synchronous on the GUI loop); the loaders (storage/calls/notify/
+  privacy/ghost) all snapshot-outside-lock → install-under-lock;
+  loadHdrPresence/onUserStatus are selected-identity-guarded (R31 pattern,
+  no gen needed — a stale result only updates the same chat's header);
+  composer trio touches only GUI-loop-only widget state outside a.mu, per
+  the documented discipline; h264Players.peek/elapsed take the registry's
+  own mu (onDownloadComplete's lock-free calls verified safe); Start()'s
+  boot-time ui.apply* block is pre-frame single-threaded (comment states
+  it, control flow confirms: before the first Root()).
+- **Watch item (P4, hygiene)**: applyGhostFlag's ghost-flags update is a
+  split read-modify-write across two lock sections — benign today (sole
+  caller is the settings toggleRow callback on the serial GUI loop) but a
+  lost-update footgun if ever called concurrently; fold into one locked
+  section if a second caller appears.
+- **Watch item (P4, narrow)**: addAccount's completion goroutine sets
+  a.authAcct unconditionally — if the user starts auth on ANOTHER account
+  while AddAccount is in flight, the completion can clobber the auth view
+  (two startAuths race, a.auth shows the later finisher; engine-side
+  per-account state stays consistent, so it's UI confusion only). Window
+  is the AddAccount call duration.
+- state.go is now FULLY mapped (both parts). Chunk 3's per-file lens moves
+  to the remaining unscanned gui files.
+
 ### state.go remaining body, part 1 — refresh/merge/openChat/loadOlder (session 336, chunk 3 iteration 19, VERDICT: R31 fixed, rest CLEAN)
 - **R31 FIXED** (row in BUGS): four async installers of a.messages had no
   install-time staleness guard — a chat/scope switch mid-fetch installed
@@ -735,9 +778,8 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
   racing a manual nav; if ever hit, carry the pendings as openChat
   parameters (consumePendingOpen passes them in) instead of shared App
   state.
-- Still unread in state.go: downloads/auth/composer 1115-1340 & 1416-1747
-  (minus the loadOlder/openChat/sendText parts now read), cfg/load*/
-  apply* tail 1748-2837 — next iteration.
+- state.go remaining body FULLY READ as of iteration 20 (part 2 section
+  below); the file is DONE.
 
 ### dead-openers sweep (app.go + every-window surfaces — session 335, chunk 3 iteration 18, VERDICT: R30, 19 openers fixed)
 - **Method**: Root's separate branch renders chat view + media/IV/story/

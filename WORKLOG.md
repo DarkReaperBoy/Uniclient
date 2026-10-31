@@ -8,10 +8,51 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iterations 18-19 DONE — R30 (19 dead openers in separate windows) + R31 (four unguarded async a.messages installers → a.uiGen generation counter, 12 bump sites, 4 guarded extracted installers); rows in BUGS Fixed, sections in MAP (19 dead openers across 9 every-window surfaces; header/attach/member/saved-list menus + mute clock + Filter-Like-This + prepaid Launch + call rating + Ctrl+J contacts + the call bar's JOIN-then-mode-1 orphaned call; row in BUGS, method + section in MAP, deadopeners_r30_test.go ×7). boostGiveawayBtn found DORMANT (never rendered anywhere — watch item in MAP, not §1.10)
-- next: state.go part 2 (downloads/auth/composer 1115-1340 & 1416-1747, cfg/load*/apply* 1748-2837) then the unscanned gui files; R31 proof CLOSED (downloads/auth/composer 1115-1340 & 1416-1747, cfg/load*/apply* 1748-2837) and the unscanned gui files — the remaining unscanned gui files and state.go's remaining body (refreshMessages/mergeMessages 892-969, downloads/auth/composer, cfg/load*/apply* 1748-2837)
+- item: iteration 20 DONE — state.go part 2 (downloads/auth/composer tail + cfg/load*/apply* + snapshot/frame) FINISHED THE FILE; **R32** (UI.avatarCorners plain int written from five refreshConfig goroutine contexts vs per-frame layout reads → atomic.Int32; RED via dep-free scratch repro under -race, GREEN via local -race single-test + CI race-leg pin) + **R33** (reactions-notify show_sender_name dead-load + hardcoded-true apply stomped other clients' setting → carried on notifyAcctState through the pure applyReactionsMap). Rows in BUGS Fixed, part-2 section in MAP. Two P4 watch items added (applyGhostFlag split RMW; addAccount authAcct clobber)
+- next: the remaining unscanned gui files (chunk-3 per-file lens; state.go is DONE — both parts mapped); then check the CI run dispatched with the R32/R33 commit at job+step level (the race leg carries the new TestAvatarCornersCrossGoroutineIsAtomic pin)
 - owner-waiting: re-enable Pages + cut v0.10.4 (release.yml needs Actions; re-enabled in 333 — if the owner disabled it deliberately, say so and it flips back); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local quick GREEN (gofmt/vet/full gui suite ×2 incl. 4 R31 tests); R30 proof **41211044402 (8862c468) = SUCCESS at job+step level**; R31 proof **41213092936 (2970c0c2) = SUCCESS at job AND step level** (all 5 jobs; Race step green)
+- last-gate: local full GREEN — gofmt clean, vet OK, full gui suite 868/868, gate quick GREEN (js leg + 4/4 wasm-runner contracts), LOCAL -race on the R32 pin clean (first session the race build fit the box); CI proof for the R32/R33 commit pending dispatch
+
+## Session 337 — iteration 20: state.go part 2 = R32 + R33 (2026-11-01)
+
+- Boot after **wipe #5**: repo clone AND toolchain both gone this time —
+  full env.sh recipe re-run from scratch (go1.27.1 tarball → mod download
+  → devroot-setup for the CGO sysroot). Recovery proven end-to-end again;
+  repo git log confirmed the summary pointer was stale (repo sat at 3dc41161,
+  chunk 3 iteration 19 DONE) — the WORKLOG STATE block is the truth, not
+  the handoff summary.
+- Read state.go's remaining body in three passes: downloads/auth
+  (1161-1418), composer trio + cfg/load*/apply* families (1714-2245),
+  snapshot() + frame struct (2246-2914). Verified every sibling call in
+  refreshConfig's tail (setMsgShowSeconds atomic, updateTray self-locking,
+  applyAppIconRuntime re-dispatched) — applyAvatarCorners was the one plain
+  field left (R32). Verified the loaders' snapshot-outside-lock pattern, the
+  download handlers' copy-on-write installs, the auth flows' off-lock
+  engine calls, and the composer trio's GUI-loop-only widget discipline.
+- **R32** (avatarcorners race): UI.avatarCorners plain int, written by
+  refreshConfig from openSettings/applyDrawerHidden/applySystemTray/
+  applyAccent/applyFontScale goroutines + the corners 600 ms debounce
+  timer, read by avatarRadiusPx every frame in every window. Fix:
+  atomic.Int32 (msgShowSeconds precedent). RED: dep-free scratch repro of
+  the pre-fix shape under `go run -race` — DATA RACE flagged at exactly
+  applyAvatarCorners vs avatarRadiusPx. GREEN: local `-race` on the gui
+  package's new pin (first session the race build fit in 4 GiB — no OOM)
+  + the CI race-leg filter carries it now. avatarcorners_r32_test.go.
+- **R33** (show_sender_name stomp): loadNotifyAccts read the engine's
+  show_sender_name into a dead `if ok && !from { _ = from }` block;
+  applyReactionsNotify hardcoded true — any of the four reactions/polls
+  rows re-enabled what another client had disabled. Fix: senderName on
+  notifyAcctState (default true, §1.10 keeps it unsurfaced), pure
+  (*notifyAcctState).applyReactionsMap extraction, pass-through in the
+  apply. notifyaccts_r33_test.go ×4 shapes; engine round-trip needs a live
+  account (noted in the row).
+- Watch items added to MAP (both P4): applyGhostFlag's split RMW (sole
+  caller is the serial GUI loop — fold if a second caller ever appears);
+  addAccount's completion goroutine clobbering a.authAcct (auth-view
+  confusion only, engine state per-account consistent).
+- Gates: gofmt clean; vet OK; full gui suite 868/868 PASS; gate quick
+  GREEN (native + js legs, 4/4 wasm-runner contracts); local -race pin
+  clean. verify.yml race filter extended with the R32 pin.
 
 ## Session 336 — iteration 18: the R29 systemic sweep = R30 (2026-10-31)
 

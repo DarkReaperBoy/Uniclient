@@ -10,6 +10,7 @@ import (
 	"image/color"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	_ "embed"
@@ -144,14 +145,14 @@ func (u *UI) applyAvatarCorners(corners int) {
 	if corners > 23 {
 		corners = 23
 	}
-	u.avatarCorners = corners
+	u.avatarCorners.Store(int32(corners))
 }
 
 // avatarRadiusPx resolves the active userpic corner radius for a pixel
 // size (AyuGram ComputeRadius: 23 = circle, 0 = square, else linear).
 // NewUI seeds the circle default so a zero value is never ambiguous.
 func (u *UI) avatarRadiusPx(sizePx int) int {
-	return avatarCornerRadiusPx(u.avatarCorners, sizePx)
+	return avatarCornerRadiusPx(int(u.avatarCorners.Load()), sizePx)
 }
 
 // clampFontScale bounds the text scale to a sane, still-usable range.
@@ -250,7 +251,12 @@ type UI struct {
 	wideMult       float64
 	// Avatar corners (AyuGram userpic styling, slice 215): effective
 	// slider 0..23 (23 = circle, AyuGram kMaxAvatarCorners).
-	avatarCorners int
+	// Atomic (R32): refreshConfig re-applies it from persist-completion
+	// goroutines (openSettings, applyDrawerHidden/applySystemTray/
+	// applyAccent/applyFontScale, the corners debounce timer) while the
+	// GUI loop reads it every frame in every window — a plain int there
+	// was a write-races-layout data race (same class as msgShowSeconds).
+	avatarCorners atomic.Int32
 }
 
 // notoEmoji is the monochrome Noto Emoji face (SIL OFL 1.1, see assets/OFL.txt).
@@ -267,7 +273,9 @@ func NewUI() *UI {
 	// fonts as additional fallbacks.
 	th.Shaper = text.NewShaper(text.WithCollection(baseFontCollection()))
 	th.TextSize = unit.Sp(15)
-	return &UI{Theme: th, p: dark, avatarCorners: 23} // circle default (slice 215)
+	u := &UI{Theme: th, p: dark}
+	u.avatarCorners.Store(23) // circle default (slice 215)
+	return u
 }
 
 func (u *UI) Label(size unit.Sp, txt string) material.LabelStyle {

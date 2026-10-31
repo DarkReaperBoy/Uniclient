@@ -4,19 +4,25 @@ Read FIRST every session, right after the WORKLOG STATE block. Anything the next
 session MUST know lands here the moment it is noticed; prune the moment it is stale.
 This is not history — stale lines are lies.
 
-- **P0 chunk 3, session 336**: iterations 18-19 DONE. **R30** (the R29
-  systemic dead-opener sweep): 19 openers that set main-only state from
-  every-window surfaces, all fixed (menu `separate` params +
-  mainOnlySurfaceShown + the call-bar JOIN/LEAVE rework — JOIN used to
-  orphan a live group call with no UI in any window). Row in BUGS,
-  method + sections in MAP, deadopeners_r30_test.go ×7, local gate
-  green; CI proof **41211044402 (8862c468) = SUCCESS at job+step level**. **R31**: four async a.messages installers had no staleness
-  guard (a chat/scope switch mid-fetch installed the old view's window +
-  msgFor into the new view — sends resolve via msgFor) → a.uiGen
-  generation counter (12 bump sites) + guarded extracted installers,
-  deadinstalls_r31_test.go ×4; **R31 proof
-  41213092936 (2970c0c2) = SUCCESS at job+step level**. Next: state.go part 2 (downloads/auth/composer,
-  cfg/load*/apply* tail) + unscanned gui files.
+- **P0 chunk 3, session 337 (2026-11-01)**: iteration 20 DONE — state.go
+  part 2 finished the file. **R32**: UI.avatarCorners plain int written by
+  refreshConfig from five goroutine contexts vs per-frame layout reads →
+  atomic.Int32; RED = dep-free scratch repro under -race (DATA RACE at
+  applyAvatarCorners vs avatarRadiusPx), GREEN = LOCAL -race clean on the
+  new pin (avatarcorners_r32_test.go — first session the race build fit
+  the 4 GiB box) + CI race-leg filter extended. **R33**:
+  show_sender_name dead-load + hardcoded-true applyReactionsNotify
+  stomped other clients' setting → senderName on notifyAcctState via pure
+  applyReactionsMap (notifyaccts_r33_test.go). Rows in BUGS; part-2
+  section + two P4 watch items in MAP (applyGhostFlag split RMW;
+  addAccount authAcct clobber). Next: unscanned gui files; verify the CI
+  run for the R32/R33 commit at job+step level once dispatched.
+- **Wipe #5 (session 337 boot)**: BOTH repo and toolchain gone. Full
+  env.sh recipe re-run from zero (clone → tarball → mod download →
+  devroot-setup). Confirmed: **the WORKLOG STATE block is the resume
+  truth, not any handoff summary** (summary said chunk 2 iteration 2;
+  repo was at chunk 3 iteration 19). The upload token file was still
+  there for the clone.
 - **Proofs (session 335, all landed)**: R25 proof **41205692894
   (bf9ea2bf) = SUCCESS** and R27 proof **41206658703 (d029af30) =
   SUCCESS** — both verified at job AND step level (all 5 jobs each; the

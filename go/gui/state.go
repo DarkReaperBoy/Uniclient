@@ -1891,6 +1891,24 @@ type notifyAcctState struct {
 	reactFrom string // "everyone" | "contacts"
 	pollsOn   bool
 	pollsFrom string
+	// senderName: reactions-notify "show_sender_name". No UI row ships
+	// (§1.10) — the field exists so a loaded override SURVIVES the next
+	// applyReactionsNotify instead of being stomped to true (R33).
+	senderName bool
+}
+
+// applyReactionsMap fills the reactions/polls fields from the engine's
+// settings map (loadNotifyAccts). Pure. show_sender_name keeps its
+// struct default (true) when the map is silent — the engine only records
+// the override (R33).
+func (st *notifyAcctState) applyReactionsMap(rn map[string]interface{}) {
+	st.reactOn, _ = rn["reactions_enabled"].(bool)
+	st.reactFrom = reactionsFromValue(rn["reactions_from"])
+	st.pollsOn, _ = rn["poll_votes_enabled"].(bool)
+	st.pollsFrom = reactionsFromValue(rn["poll_votes_from"])
+	if from, ok := rn["show_sender_name"].(bool); ok {
+		st.senderName = from
+	}
 }
 
 // reactionsFromValue coerces an engine reactions-from value ("everyone" /
@@ -1903,10 +1921,12 @@ func reactionsFromValue(v interface{}) string {
 }
 
 // applyReactionsNotify persists one account's reactions/polls notify
-// settings (async, AyuGram reactions notifications).
+// settings (async, AyuGram reactions notifications). showSenderName rides
+// the struct (loaded from the engine; true unless the account overrode it
+// — R33: never stomp another client's setting).
 func (a *App) applyReactionsNotify(accountID string, st notifyAcctState) {
 	go func() {
-		if err := a.eng.SetReactionsNotifySettings(accountID, st.reactOn, st.reactFrom, st.pollsOn, st.pollsFrom, true); err != nil {
+		if err := a.eng.SetReactionsNotifySettings(accountID, st.reactOn, st.reactFrom, st.pollsOn, st.pollsFrom, st.senderName); err != nil {
 			a.setToast("Reactions notify: " + err.Error())
 		}
 	}()
@@ -2020,16 +2040,9 @@ func (a *App) loadNotifyAccts() {
 		if err1 != nil || err2 != nil {
 			continue
 		}
-		e := notifyAcctState{contact: contact, calls: calls}
+		e := notifyAcctState{contact: contact, calls: calls, senderName: true}
 		if rn, err := a.eng.GetReactionsNotifySettings(acc.ID); err == nil {
-			e.reactOn, _ = rn["reactions_enabled"].(bool)
-			e.reactFrom = reactionsFromValue(rn["reactions_from"])
-			e.pollsOn, _ = rn["poll_votes_enabled"].(bool)
-			e.pollsFrom = reactionsFromValue(rn["poll_votes_from"])
-			if from, ok := rn["show_sender_name"].(bool); ok && !from {
-				// default: keep previews on; the map only records the override
-				_ = from
-			}
+			e.applyReactionsMap(rn)
 		}
 		st[acc.ID] = e
 	}
