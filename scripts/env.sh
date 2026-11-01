@@ -1,5 +1,5 @@
 #!/bin/sh
-# Toolchain env for the recycled dev VM (AGENTS.md §1.14 — the recipe lives in the
+# Toolchain env for the recycled dev VM (AGENTS.md — the recipe lives in the
 # repo; the toolchain itself stays OUTSIDE it, untracked, because it is an artifact).
 #
 # Full-wipe recovery, proven 2026-10-31 (survived wipe #2):
@@ -16,7 +16,7 @@
 #   6. CGO sysroot needs (native gui builds only): scripts/devroot-setup.sh
 #
 # Machine truths: 4GiB cgroup — gotd native compiles OOM here, so gate.sh falls
-# back to §9.7 (dispatch verify.yml). Long processes are reaped between tool
+# back to CI dispatch (verify.yml; AGENTS.md §7). Long processes are reaped between tool
 # calls — run foreground; the build cache carries progress across calls.
 
 # Sourced, never executed (exports must reach the caller's shell): `. scripts/env.sh`

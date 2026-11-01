@@ -49,9 +49,8 @@ jobs:
       - name: Vet
         run: cd go && CGO_ENABLED=1 go vet -tags goolm ./...
       - name: Vet (live-tagged integration tests)
-        # BUGS B-49: the `live` build-tagged test files are otherwise
-        # never compiled anywhere at release time — parity with the
-        # verify.yml step added in B-45.
+        # the `live` build-tagged test files are otherwise
+        # never compiled anywhere at release time — parity with verify.yml.
         run: cd go && CGO_ENABLED=1 go vet -tags goolm,live ./tests/
       - name: Test
         run: cd go && CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 ./...
@@ -59,8 +58,8 @@ jobs:
           GOMEMLIMIT: 900MiB
           GOGC: "30"
       - name: Race (parser crasher regressions + core subsets)
-        # BUGS B-49: a tag push must not release on a weaker gate than
-        # verify.yml — same legs, same runner caps as B-45's step.
+        # a tag push must not release on a weaker gate than
+        # verify.yml — same legs, same runner caps.
         run: |
           cd go
           CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./webm/ ./vp9anim/

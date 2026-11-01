@@ -1,7 +1,7 @@
 // Tier A — the gh-pages shell, characterized against the EXACT bytes CI
 // ships (index.html extracted from release.yml by the runner). Fixture wasm
 // is a dummy module; a real Go exit-helper drives the exit/relaunch path.
-// Journey map: research/web_hardening_2026-10.md §2 J1–J7.
+// Journey map: J1–J7 (boot, revalidation, deploy, failure, exit).
 //
 // Shell state transitions are faster than any poll, so every page gets a
 // DOM-history recorder (window.__ucLog) and assertions run against the

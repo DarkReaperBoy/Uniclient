@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      - name: Comment ban (AGENTS.md §2)
+        run: python3 scripts/strip_comments.py --check
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -41,7 +43,7 @@ jobs:
       - name: Vet
         run: cd go && CGO_ENABLED=1 go vet -tags goolm ./...
       - name: Vet (live-tagged integration tests)
-        # BUGS B-45: the `live` build-tagged test files are otherwise
+        # the `live` build-tagged test files are otherwise
         # never compiled on CI — only local gates caught breakage there.
         run: cd go && CGO_ENABLED=1 go vet -tags goolm,live ./tests/
       - name: Test
@@ -50,15 +52,14 @@ jobs:
           GOMEMLIMIT: 900MiB
           GOGC: "30"
       - name: Race (parser crasher regressions + core subsets)
-        # BUGS B-45: CI never ran the race detector — the B-37/B-40/
-        # B-41 races were only ever caught by local gates. Same legs
-        # the local gate races, memory-capped for the runner.
+        # same legs the local gate races, memory-capped for the runner
+        # (the race detector is not optional on any gate).
         run: |
           cd go
           CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./webm/ ./vp9anim/
           CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./cores/ \
             -run 'TestHandshake|TestMyChannelID|TestTSExec|TestTS3|TestTeamSpeak|TestTSCommandQueue|TestSendVoice|TestGetGroupCall|TestMatrix|TestTruncate|TestParseRawHeaders|TestAutocrypt|TestDeltaChat|TestGitHub|TestLockOrder'
-          # R24: the gui package's cross-goroutine tests need the race
+          # the gui package's cross-goroutine tests need the race
           # detector too (the js leg has none). Filtered to the concurrency
           # pins so the memory cap holds.
           CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./gui/ \

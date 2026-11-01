@@ -16,8 +16,8 @@ infrastructure: nothing here ships, links, or runs in the product
   wasm_exec.js, back-button, same-origin-only network surface.
 - **app tier** (`app.spec.mjs`) — the real `dist/uniclient.wasm`: boot to
   canvas, welcome screen, CTA → picker → auth form, mobile viewport,
-  single-tab vault persistence, and the two-tab vault clobber pinned as
-  KNOWN BEHAVIOR (risk R1 — see research/web_hardening_2026-10.md).
+  single-tab vault persistence, and the two-tab vault merge (flush-time
+  cross-instance merge keeps both accounts).
 - **live tier** (`--live`) — the deployed https://darkreaperboy.github.io/
   Uniclient/ site.
 

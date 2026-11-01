@@ -1,8 +1,8 @@
 // Tier B — the real app (dist/uniclient.wasm) in headless Chrome.
 // Boots the actual Gio GUI, pins the welcome → picker → auth-form journey,
 // mobile viewport, single- and two-tab vault persistence, and console
-// cleanliness. Two-tab clobbering is pinned as KNOWN BEHAVIOR (risk R1,
-// research/web_hardening_2026-10.md §3) — Phase 2 flips the expectation.
+// cleanliness. The two-tab test pins the flush-time vault merge (both
+// accounts survive — the F-87 cross-instance merge).
 //
 // One browser PER TEST: the 88 MB module plus its heap survive page close
 // for a while, and a shared browser wedges under 4 GB sandboxes.

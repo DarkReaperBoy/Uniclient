@@ -1,12 +1,12 @@
 #!/bin/sh
-# The executable gate (AGENTS.md §9) — enforcement is code, not memory.
+# The executable gate (AGENTS.md §7) — enforcement is code, not memory.
 #
 # Usage: scripts/gate.sh quick|full|web [base-ref]
 #   quick [base] — gofmt + vet + tests on the packages changed since <base>
 #          (default origin/main) AND every package that imports them (test
 #          imports count as edges). Run after every commit; mid-work it also
 #          covers staged + unstaged edits (working tree vs base).
-#   full  — every §9 tier except live/owner rungs: gofmt everywhere, vet +
+#   full  — every §7 tier except live/owner rungs: gofmt everywhere, vet +
 #          tests for ALL packages (native leg + js/wasm leg), cross-builds
 #          (windows + wasm), web E2E when node + node_modules are present
 #          (an explicit SKIP line otherwise — never silent). The native Xvfb
@@ -47,7 +47,7 @@ go_run() {
                 cat "$out"; rm -f "$out"; return 0
         fi
         if grep -q "compile: signal: killed" "$out"; then
-                echo "SKIP (§9.7 — compile OOM, machine too small for gotd; dispatch verify.yml): $*"
+                echo "SKIP (§7 rung 7 — compile OOM, machine too small for gotd; dispatch verify.yml): $*"
                 rm -f "$out"; return 0
         fi
         cat "$out"; rm -f "$out"

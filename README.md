@@ -2,14 +2,13 @@
 
 One pure-Go, cross-platform messenger. One native GUI, many chat and voice
 backends — Telegram, Matrix, IRC, GitHub, XMPP, Delta Chat, Bale,
-TeamSpeak, Mumble — each added and switched as easily as an account. The GUI mirrors AyuGram's
-layout and behavior (re-implemented from scratch, never copied) with
-Material Design visuals, built with [Gio](https://gioui.org).
+TeamSpeak, Mumble — each added and switched as easily as an account.
+Built with [Gio](https://gioui.org), Material Design visuals.
 
 **Status: pre-release.** Everything you see in the app works against real
 backends with real accounts — no demo data, no placeholder screens. What a
 backend cannot do yet is hidden, not faked. See `AGENTS.md` for the project
-constitution and the parity roadmap.
+constitution.
 
 ## Run it
 
@@ -98,7 +97,7 @@ fit the GUI, never the other way around.
 
 | Core | State |
 |---|---|
-| Telegram | Most complete; 1:1 AyuGram feature parity in progress (gotd/td) |
+| Telegram | Most complete (gotd/td) |
 | Matrix | Builds; E2EE via pure-Go goolm (mautrix); group calls live-verified (MSC3401 full-mesh, self-hosted dendrite) |
 | IRC | Live-tested against real servers (own RFC2812+IRCv3 implementation) |
 | GitHub | Live-tested against the real API |
@@ -114,8 +113,7 @@ repo.
 
 `AGENTS.md` is the constitution (owner requirements, architecture, testing
 ladder, release policy). `WORKLOG.md` is the session journal — the resume
-point for agents. `research/` is agent scratch space: read old notes there
-with suspicion.
+point for agents.
 
 No telemetry. Sessions and credentials live in an encrypted vault
 (Argon2id + AES-GCM), never in plaintext files. Network traffic is the
